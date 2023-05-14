@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var ErrUnpromising = util.NewMError("unpromising broken error")
+var ErrUnpromising = util.NewIDError("unpromising broken error")
 
 type BrokenHandler struct {
 	*baseHandler
@@ -35,22 +35,22 @@ func (h *NewBrokenHandlerType) new() (handler, error) {
 }
 
 func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("enter broken state")
+	e := util.StringError("enter broken state")
 
 	deferred, err := st.baseHandler.enter(from, i)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	sctx, ok := i.(baseErrorSwitchContext)
 	if !ok {
-		return nil, e(nil, "invalid stateSwitchContext, not for broken state; %T", i)
+		return nil, e.Errorf("invalid stateSwitchContext, not for broken state; %T", i)
 	}
 
 	switch err := sctx.Unwrap(); {
 	case err == nil:
 	case errors.Is(err, ErrUnpromising):
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return func() {

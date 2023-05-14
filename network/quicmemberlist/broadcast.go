@@ -171,16 +171,16 @@ func (h CallbackBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *CallbackBroadcastMessageHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal CallbackBroadcastMessageHeader")
+	e := util.StringError("unmarshal CallbackBroadcastMessageHeader")
 
 	var u callbackBroadcastMessageHeaderJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.UnmarshalJSON(b, &h.BaseRequestHeader); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.id = u.ID
@@ -256,20 +256,20 @@ func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *EnsureBroadcastMessageHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode EnsureBroadcastMessageHeader")
+	e := util.StringError("decode EnsureBroadcastMessageHeader")
 
 	var u ensureBroadcastMessageHeaderJSONMarshaler
 
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := enc.Unmarshal(b, &h.BaseHeader); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := h.BaseNodeSign.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.id = u.ID

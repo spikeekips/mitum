@@ -72,7 +72,7 @@ func (m BlockMap) IsValid(b []byte) error {
 	})
 
 	if err := util.CheckIsValiderSlice(nil, true, vs); err != nil {
-		return e.Wrapf(err, "invalid item found")
+		return e.WithMessage(err, "invalid item found")
 	}
 
 	if err := m.BaseNodeSign.Verify(b, m.signedBytes()); err != nil {
@@ -108,10 +108,10 @@ func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
 }
 
 func (m *BlockMap) SetItem(item base.BlockMapItem) error {
-	e := util.StringErrorFunc("set blockmap item")
+	e := util.StringError("set blockmap item")
 
 	if err := item.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	_ = m.items.SetValue(item.Type(), item)

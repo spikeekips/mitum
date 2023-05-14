@@ -103,16 +103,16 @@ func (c *Client) OpenStream(ctx context.Context) (reader quic.Stream, writer qui
 }
 
 func (c *Client) openStream(ctx context.Context) (quic.Stream, quic.Stream, error) {
-	e := util.StringErrorFunc("request")
+	e := util.StringError("request")
 
 	session, err := c.dial(ctx)
 	if err != nil {
-		return nil, nil, e(err, "")
+		return nil, nil, e.Wrap(err)
 	}
 
 	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
-		return nil, nil, e(err, "open stream")
+		return nil, nil, e.WithMessage(err, "open stream")
 	}
 
 	return stream, stream, nil
@@ -122,7 +122,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	e := util.StringErrorFunc("dial")
+	e := util.StringError("dial")
 
 	i, err := c.session.GetOrCreate(func() (quic.EarlyConnection, error) {
 		i, err := c.dialf(ctx, c.addr.String(), c.tlsconfig, c.quicconfig)
@@ -135,7 +135,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 
 	switch {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case i == nil:
 		return nil, &net.OpError{
 			Net: "udp", Op: "dial",

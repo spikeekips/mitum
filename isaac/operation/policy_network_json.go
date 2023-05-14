@@ -27,17 +27,17 @@ type GenesisNetworkPolicyFactJSONUnmarshaler struct {
 }
 
 func (fact *GenesisNetworkPolicyFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode GenesisNetworkPolicyFact")
+	e := util.StringError("decode GenesisNetworkPolicyFact")
 
 	var u GenesisNetworkPolicyFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
 	if err := encoder.Decode(enc, u.Policy, &fact.policy); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

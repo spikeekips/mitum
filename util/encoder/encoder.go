@@ -33,7 +33,7 @@ type DecodeDetail struct {
 
 func (d DecodeDetail) IsValid([]byte) error {
 	if err := d.Hint.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid hint in DecodeDetail")
+		return util.ErrInvalid.WithMessage(err, "invalid hint in DecodeDetail")
 	}
 
 	if d.Decode == nil && d.Instance == nil {

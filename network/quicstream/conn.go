@@ -46,7 +46,7 @@ func NewUDPConnInfoFromStringAddress(s string, tlsinsecure bool) (ci UDPConnInfo
 		return ci, errors.Wrap(err, "parse UDPConnInfo")
 	}
 
-	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "parse UDPConnInfo"))
+	return ci, util.ErrInvalid.WithMessage(err, "parse UDPConnInfo")
 }
 
 func (c UDPConnInfo) IsValid([]byte) error {

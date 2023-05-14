@@ -1269,7 +1269,7 @@ func (t *testBallotbox) TestCopyVotedDATARACE() {
 					return bl.Voteproof(), nil
 				}
 
-				return nil, util.ErrLockedSetIgnore.Call()
+				return nil, util.ErrLockedSetIgnore.WithStack()
 			})
 
 			bls[i] = bl

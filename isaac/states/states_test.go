@@ -661,7 +661,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 
-		return ErrIgnoreSwitchingState.Call()
+		return ErrIgnoreSwitchingState.WithStack()
 	}, nil)
 
 	joining := newDummyStateHandler(StateJoining)

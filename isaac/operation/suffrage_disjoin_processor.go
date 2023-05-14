@@ -20,12 +20,12 @@ func NewSuffrageDisjoinProcessor(
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageDisjoinProcessor, error) {
-	e := util.StringErrorFunc("create new SuffrageDisjoinProcessor")
+	e := util.StringError("create new SuffrageDisjoinProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	p := &SuffrageDisjoinProcessor{
@@ -35,9 +35,9 @@ func NewSuffrageDisjoinProcessor(
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state"), "")
+		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
 	default:
 		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 		p.suffrage = map[string]base.SuffrageNodeStateValue{}
@@ -68,13 +68,13 @@ func (p *SuffrageDisjoinProcessor) Close() error {
 func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("preprocess for SuffrageDisjoin")
+	e := util.StringError("preprocess for SuffrageDisjoin")
 
 	var signer base.Publickey
 
 	switch sf, ok := op.(base.NodeSignFact); {
 	case !ok:
-		return ctx, nil, e(nil, "not NodeSignFact, %T", op)
+		return ctx, nil, e.Errorf("not NodeSignFact, %T", op)
 	default:
 		signer = sf.NodeSigns()[0].Signer()
 	}
@@ -107,7 +107,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return ctx, nil, e(err, "")
+		return ctx, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return ctx, reasonerr, nil
 	}
@@ -120,11 +120,11 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("process for SuffrageDisjoin")
+	e := util.StringError("process for SuffrageDisjoin")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, nil, e(err, "")
+		return nil, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return nil, reasonerr, nil
 	}

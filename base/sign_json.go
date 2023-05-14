@@ -31,16 +31,16 @@ type baseSignJSONUnmarshaler struct {
 }
 
 func (si *BaseSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("faied to decode BaseSign")
+	e := util.StringError("faied to decode BaseSign")
 
 	var u baseSignJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	signer, err := DecodePublickeyFromString(u.Signer, enc)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	si.signer = signer
@@ -71,22 +71,22 @@ type baseNodeSignJSONUnmarshaler struct {
 }
 
 func (si *BaseNodeSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode BaseNodeSign")
+	e := util.StringError("decode BaseNodeSign")
 
 	var u baseNodeSignJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch ad, err := DecodeAddress(u.Node, enc); {
 	case err != nil:
-		return e(err, "decode node address")
+		return e.WithMessage(err, "decode node address")
 	default:
 		si.node = ad
 	}
 
 	if err := si.BaseSign.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

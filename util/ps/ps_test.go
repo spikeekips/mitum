@@ -452,7 +452,7 @@ func (t *testPS) TestRunIgnoreLeft() {
 	brun := func(ctx context.Context) (context.Context, error) {
 		ctx, _ = bcalledfunc(ctx)
 
-		return ctx, ErrIgnoreLeft.Call()
+		return ctx, ErrIgnoreLeft.WithStack()
 	}
 
 	t.True(ps.Add("c", t.calledfunc("c-run"), t.calledfunc("c-close")))

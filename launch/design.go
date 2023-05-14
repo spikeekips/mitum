@@ -64,22 +64,22 @@ type NodeDesign struct { //nolint:govet //...
 }
 
 func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("load NodeDesign from file")
+	e := util.StringError("load NodeDesign from file")
 
 	b, err := os.ReadFile(filepath.Clean(f))
 	if err != nil {
-		return d, nil, e(err, "")
+		return d, nil, e.Wrap(err)
 	}
 
 	if err := d.DecodeYAML(b, enc); err != nil {
-		return d, b, e(err, "")
+		return d, b, e.Wrap(err)
 	}
 
 	return d, b, nil
 }
 
 func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("load NodeDesign thru http")
+	e := util.StringError("load NodeDesign thru http")
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{
@@ -91,17 +91,17 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
 	if err != nil {
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	}
 
 	res, err := httpclient.Do(req)
 	if err != nil {
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	}
 
 	b, err := io.ReadAll(res.Body)
 	if err != nil {
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	}
 
 	defer func() {
@@ -109,30 +109,30 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 	}()
 
 	if res.StatusCode != http.StatusOK {
-		return design, nil, e(nil, "design not found")
+		return design, nil, e.Errorf("design not found")
 	}
 
 	if err := design.DecodeYAML(b, enc); err != nil {
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	}
 
 	return design, b, nil
 }
 
 func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("load NodeDesign thru consul")
+	e := util.StringError("load NodeDesign thru consul")
 
 	client, err := consulClient(addr)
 	if err != nil {
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	}
 
 	switch v, _, err := client.KV().Get(key, nil); {
 	case err != nil:
-		return design, nil, e(err, "")
+		return design, nil, e.Wrap(err)
 	default:
 		if err := design.DecodeYAML(v.Value, enc); err != nil {
-			return design, nil, e(err, "")
+			return design, nil, e.Wrap(err)
 		}
 
 		return design, v.Value, nil
@@ -145,7 +145,7 @@ func (d *NodeDesign) IsValid([]byte) error {
 	if len(d.TimeServer) > 0 {
 		switch i, err := url.Parse("http://" + d.TimeServer); {
 		case err != nil:
-			return e.Wrapf(err, "invalid time server, %q", d.TimeServer)
+			return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
 		case len(i.Hostname()) < 1:
 			return e.Errorf("invalid time server, %q", d.TimeServer)
 		case i.Host != d.TimeServer && len(i.Port()) < 1:
@@ -157,13 +157,13 @@ func (d *NodeDesign) IsValid([]byte) error {
 			}
 
 			if _, err := net.ResolveUDPAddr("udp", s); err != nil {
-				return e.Wrapf(err, "invalid time server, %q", d.TimeServer)
+				return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
 			}
 
 			if len(i.Port()) > 0 {
 				p, err := strconv.ParseInt(i.Port(), 10, 64)
 				if err != nil {
-					return e.Wrapf(err, "invalid time server, %q", d.TimeServer)
+					return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
 				}
 
 				d.TimeServer = i.Hostname()
@@ -253,24 +253,24 @@ func (d NodeDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NodeDesign")
+	e := util.StringError("decode NodeDesign")
 
 	var u NodeDesignYAMLUnmarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch address, err := base.DecodeAddress(u.Address, enc); {
 	case err != nil:
-		return e(err, "invalid address")
+		return e.WithMessage(err, "invalid address")
 	default:
 		d.Address = address
 	}
 
 	switch priv, err := base.DecodePrivatekeyFromString(u.Privatekey, enc); {
 	case err != nil:
-		return e(err, "invalid privatekey")
+		return e.WithMessage(err, "invalid privatekey")
 	default:
 		d.Privatekey = priv
 	}
@@ -279,24 +279,24 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 	switch i, err := u.Network.Decode(enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		d.Network = i
 	}
 
 	switch i, err := u.Storage.Decode(enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		d.Storage = i
 	}
 
 	switch sb, err := yaml.Marshal(u.SyncSources); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		if err := d.SyncSources.DecodeYAML(sb, enc); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -304,10 +304,10 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 	switch lb, err := util.MarshalJSON(u.LocalParams); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		if err := util.UnmarshalJSON(lb, d.LocalParams); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		d.LocalParams.BaseHinter = hint.NewBaseHinter(isaac.LocalParamsHint)
@@ -344,9 +344,9 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 
 		switch {
 		case err != nil:
-			return e.Wrapf(err, "invalid publish")
+			return e.WithMessage(err, "invalid publish")
 		case addr.Port < 1:
-			return e.Wrapf(err, "invalid publish port")
+			return e.Errorf("invalid publish port")
 		}
 
 		d.publish = addr
@@ -380,12 +380,12 @@ func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
-	e := util.StringErrorFunc("decode NodeNetworkDesign")
+	e := util.StringError("decode NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
 		addr, err := net.ResolveUDPAddr("udp", y.Bind)
 		if err != nil {
-			return d, e(err, "invalid bind")
+			return d, e.WithMessage(err, "invalid bind")
 		}
 
 		d.Bind = addr
@@ -399,12 +399,12 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 }
 
 func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NodeNetworkDesign")
+	e := util.StringError("decode NodeNetworkDesign")
 
 	var u NodeNetworkDesignYAMLMarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch i, err := u.Decode(enc); {
@@ -460,14 +460,14 @@ func (d *NodeStorageDesign) Patch(node base.Address) error {
 }
 
 func (y *NodeStorageDesignYAMLMarshal) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
-	e := util.StringErrorFunc("decode NodeStorageDesign")
+	e := util.StringError("decode NodeStorageDesign")
 
 	d.Base = strings.TrimSpace(y.Base)
 
 	if s := strings.TrimSpace(y.Database); len(s) > 0 {
 		switch i, err := url.Parse(s); {
 		case err != nil:
-			return d, e(err, "invalid database")
+			return d, e.WithMessage(err, "invalid database")
 		default:
 			d.Database = i
 		}
@@ -484,12 +484,12 @@ func (d NodeStorageDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NodeStorageDesign")
+	e := util.StringError("decode NodeStorageDesign")
 
 	var u NodeStorageDesignYAMLMarshal
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch i, err := u.Decode(enc); {
@@ -507,19 +507,19 @@ type GenesisDesign struct {
 }
 
 func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("load GenesisDesign from file")
+	e := util.StringError("load GenesisDesign from file")
 
 	b, err := os.ReadFile(filepath.Clean(f))
 	if err != nil {
-		return d, nil, e(err, "")
+		return d, nil, e.Wrap(err)
 	}
 
 	if err := d.DecodeYAML(b, enc); err != nil {
-		return d, b, e(err, "")
+		return d, b, e.Wrap(err)
 	}
 
 	if err := d.IsValid(nil); err != nil {
-		return d, b, e(err, "")
+		return d, b, e.Wrap(err)
 	}
 
 	return d, b, nil
@@ -534,12 +534,12 @@ func (*GenesisDesign) IsValid([]byte) error {
 }
 
 func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode GenesisOpertionsDesign")
+	e := util.StringError("decode GenesisOpertionsDesign")
 
 	var u GenesisDesignYAMLUnmarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	d.Facts = make([]base.Fact, len(u.Facts))
@@ -547,11 +547,11 @@ func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	for i := range u.Facts {
 		bj, err := util.MarshalJSON(u.Facts[i])
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := encoder.Decode(enc, bj, &d.Facts[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -607,11 +607,11 @@ func IsValidSyncSourcesDesign(
 }
 
 func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SyncSourcesDesign")
+	e := util.StringError("decode SyncSourcesDesign")
 
 	var v []interface{}
 	if err := yaml.Unmarshal(b, &v); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	sources := make([]isaacnetwork.SyncSource, len(v))
@@ -619,14 +619,14 @@ func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	for i := range v {
 		vb, err := yaml.Marshal(v[i])
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		var s isaacnetwork.SyncSource
 
 		switch err := s.DecodeYAML(vb, enc); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		default:
 			sources[i] = s
 		}
@@ -661,30 +661,30 @@ func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
 }
 
 func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
-	e := util.StringErrorFunc("load privatekey from vault")
+	e := util.StringError("load privatekey from vault")
 
 	config := vault.DefaultConfig()
 
 	client, err := vault.NewClient(config)
 	if err != nil {
-		return nil, e(err, "create vault client")
+		return nil, e.WithMessage(err, "create vault client")
 	}
 
 	secret, err := client.KVv2("secret").Get(context.Background(), path)
 	if err != nil {
-		return nil, e(err, "read secret")
+		return nil, e.WithMessage(err, "read secret")
 	}
 
 	i := secret.Data["string"]
 
 	privs, ok := i.(string)
 	if !ok {
-		return nil, e(nil, "read secret; expected string but %T", i)
+		return nil, e.Errorf("read secret; expected string but %T", i)
 	}
 
 	switch priv, err := base.DecodePrivatekeyFromString(privs, enc); {
 	case err != nil:
-		return nil, e(err, "invalid privatekey")
+		return nil, e.WithMessage(err, "invalid privatekey")
 	default:
 		return priv, nil
 	}

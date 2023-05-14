@@ -17,13 +17,13 @@ var (
 )
 
 func PEncoder(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare encoders")
+	e := util.StringError("prepare encoders")
 
 	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
 
 	if err := encs.AddHinter(enc); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	pctx = context.WithValue(pctx, EncodersContextKey, encs) //revive:disable-line:modifies-parameter
@@ -33,15 +33,15 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 }
 
 func PAddHinters(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("add hinters")
+	e := util.StringError("add hinters")
 
 	var enc encoder.Encoder
 	if err := util.LoadFromContextOK(pctx, EncoderContextKey, &enc); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := LoadHinters(enc); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil

@@ -356,12 +356,12 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 
 				op, _ := result.Set(func(i base.Operation, _ bool) (base.Operation, error) {
 					if i != nil {
-						return i, util.ErrLockedSetIgnore.Call()
+						return i, util.ErrLockedSetIgnore.WithStack()
 					}
 
 					switch op, found, err := client.Operation(cctx, ci, operationhash); {
 					case err != nil, !found:
-						return nil, util.ErrLockedSetIgnore.Call()
+						return nil, util.ErrLockedSetIgnore.WithStack()
 					default:
 						return op, nil
 					}

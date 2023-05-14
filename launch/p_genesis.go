@@ -14,7 +14,7 @@ import (
 var PNameGenerateGenesis = ps.Name("generate-genesis")
 
 func PGenerateGenesis(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("generate genesis block")
+	e := util.StringError("generate genesis block")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -33,7 +33,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	g := NewGenesisBlockGenerator(
@@ -47,7 +47,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	_ = g.SetLogging(log)
 
 	if _, err := g.Generate(); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil

@@ -56,7 +56,7 @@ func (p NetworkPolicy) IsValid([]byte) error {
 
 	switch err := p.suffrageCandidateLifespan.IsValid(nil); {
 	case err != nil:
-		return e.Wrapf(err, "invalid SuffrageCandidateLifespan")
+		return e.WithMessage(err, "invalid SuffrageCandidateLifespan")
 	case p.suffrageCandidateLifespan <= base.GenesisHeight:
 		return e.Errorf("zero SuffrageCandidateLifespan")
 	}

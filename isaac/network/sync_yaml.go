@@ -14,17 +14,17 @@ import (
 )
 
 func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SyncSource")
+	e := util.StringError("decode SyncSource")
 
 	var v interface{}
 	if err := yaml.Unmarshal(b, &v); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch t := v.(type) {
 	case string:
 		if err := d.decodeString(t); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
@@ -33,23 +33,23 @@ func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 		switch i, found := t["type"]; {
 		case !found:
-			return e(nil, "missing type")
+			return e.Errorf("missing type")
 		default:
 			j, ok := i.(string)
 			if !ok {
-				return e(nil, "type should be string, not %T", i)
+				return e.Errorf("type should be string, not %T", i)
 			}
 
 			ty = j
 		}
 
 		if err := d.decodeYAMLMap(ty, b, enc); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
 	default:
-		return e(nil, "unsupported format found, %q", string(b))
+		return e.Errorf("unsupported format found, %q", string(b))
 	}
 }
 
@@ -112,26 +112,26 @@ type syncSourceNodeUnmarshaler struct {
 }
 
 func (SyncSource) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("decode node of SyncSource")
+	e := util.StringError("decode node of SyncSource")
 
 	var u syncSourceNodeUnmarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	address, err := base.DecodeAddress(u.Address, enc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	pub, err := base.DecodePublickeyFromString(u.Publickey, enc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := network.IsValidAddr(u.Publish); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return NewNodeConnInfo(isaac.NewNode(pub, address), u.Publish, u.TLSInsecure), nil
@@ -145,16 +145,16 @@ type syncSourceConnInfoUnmarshaler struct {
 func (SyncSource) decodeYAMLConnInfo(
 	b []byte, _ *jsonenc.Encoder,
 ) (ci quicmemberlist.NamedConnInfo, _ error) {
-	e := util.StringErrorFunc("decode conninfo of SyncSource")
+	e := util.StringError("decode conninfo of SyncSource")
 
 	var u syncSourceConnInfoUnmarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
-		return ci, e(err, "")
+		return ci, e.Wrap(err)
 	}
 
 	if err := network.IsValidAddr(u.Publish); err != nil {
-		return ci, e(err, "")
+		return ci, e.Wrap(err)
 	}
 
 	return quicmemberlist.NewNamedConnInfo(u.Publish, u.TLSInsecure), nil

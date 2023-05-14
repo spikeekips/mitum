@@ -11,11 +11,11 @@ func (p Proof) MarshalJSON() ([]byte, error) {
 }
 
 func (p *Proof) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal Proof")
+	e := util.StringError("unmarshal Proof")
 
 	var u []json.RawMessage
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	p.nodes = make([]Node, len(u))
@@ -23,7 +23,7 @@ func (p *Proof) UnmarshalJSON(b []byte) error {
 	for i := range u {
 		var un BaseNode
 		if err := util.UnmarshalJSON(u[i], &un); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		p.nodes[i] = un

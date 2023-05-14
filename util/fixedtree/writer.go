@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	errNoParent   = util.NewMError("no parent")
-	errNoChildren = util.NewMError("no children")
+	errNoParent   = util.NewIDError("no parent")
+	errNoChildren = util.NewIDError("no children")
 )
 
 type NodeWrite func(uint64, Node) error

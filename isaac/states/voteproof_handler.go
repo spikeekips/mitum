@@ -100,11 +100,11 @@ func (st *voteproofHandler) new() *voteproofHandler {
 }
 
 func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("enter state")
+	e := util.StringError("enter state")
 
 	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var sctx voteproofSwitchContext
@@ -112,9 +112,9 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 
 	switch j, ok := i.(voteproofSwitchContext); {
 	case !ok:
-		return nil, e(nil, "invalid switchContext, %T", i)
+		return nil, e.Errorf("invalid switchContext, %T", i)
 	case j.voteproof() == nil:
-		return nil, e(nil, "invalid switchContext, empty voteproof")
+		return nil, e.Errorf("invalid switchContext, empty voteproof")
 	default:
 		sctx = j
 		vp = sctx.voteproof()
@@ -130,9 +130,9 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 
 		return nil, newSyncingSwitchContextWithVoteproof(st.stt, vp)
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case suf == nil || suf.Len() < 1:
-		return nil, e(nil, "empty suffrage of init voteproof")
+		return nil, e.Errorf("empty suffrage of init voteproof")
 	case !found:
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
@@ -144,7 +144,7 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 
 	switch lvps, found := st.voteproofs(vp.Point()); {
 	case !found:
-		return nil, e(nil, "last voteproofs not found")
+		return nil, e.Errorf("last voteproofs not found")
 	default:
 		st.vplock.Lock()
 
@@ -171,11 +171,11 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 }
 
 func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("exit")
+	e := util.StringError("exit")
 
 	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if st.timers != nil && !st.allowedConsensus() {
@@ -185,7 +185,7 @@ func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
 	}
 
 	if err := st.args.ProposalProcessors.Cancel(); err != nil {
-		return nil, e(err, "cancel proposal processors")
+		return nil, e.WithMessage(err, "cancel proposal processors")
 	}
 
 	return deferred, nil
@@ -232,7 +232,7 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 	l := st.Log().With().Stringer("fact", facthash).Logger()
 	l.Debug().Msg("trying to process proposal")
 
-	e := util.StringErrorFunc("process proposal")
+	e := util.StringError("process proposal")
 
 	var process isaac.ProcessorProcessFunc
 
@@ -253,7 +253,7 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 			},
 			nil
 	default:
-		err = e(err, "")
+		err = e.Wrap(err)
 
 		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
 
@@ -267,12 +267,12 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		case errors.Is(err, context.Canceled),
 			errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 			if eerr := st.wrongACCEPTBallot(ctx, ivp); eerr != nil {
-				return e(eerr, "")
+				return e.Wrap(eerr)
 			}
 
 			return nil
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case manifest == nil:
 			return nil
 		}
@@ -282,7 +282,7 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		if err := st.args.prepareACCEPTBallot(ivp, manifest, time.Nanosecond); err != nil {
 			l.Error().Err(err).Msg("failed to prepare accept ballot")
 
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if eavp == nil || !eavp.Point().Point.Equal(ivp.Point().Point) {
@@ -333,7 +333,7 @@ func (st *voteproofHandler) processProposal(ivp base.INITVoteproof) (func(), err
 }
 
 func (st *voteproofHandler) processProposalInternal(ivp base.INITVoteproof) (isaac.ProcessorProcessFunc, error) {
-	e := util.StringErrorFunc("process proposal")
+	e := util.StringError("process proposal")
 
 	facthash := ivp.BallotMajority().Proposal()
 
@@ -341,14 +341,14 @@ func (st *voteproofHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 
 	switch m, err := st.args.GetManifestFunc(ivp.Point().Height() - 1); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	default:
 		previous = m
 	}
 
 	switch process, err := st.args.ProposalProcessors.Process(st.ctx, ivp.Point().Point, facthash, previous, ivp); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case process == nil:
 		return nil, nil
 	default:
@@ -362,7 +362,7 @@ func (st *voteproofHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 				}
 
 				if err0 := st.args.ProposalProcessors.Cancel(); err0 != nil {
-					return nil, e(err0, "cancel proposal processors")
+					return nil, e.WithMessage(err0, "cancel proposal processors")
 				}
 
 				return nil, err
@@ -451,10 +451,10 @@ func (st *voteproofHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.L
 		st.resolver.Cancel(vp.Point())
 	}
 
-	e := util.StringErrorFunc("handle new voteproof")
+	e := util.StringError("handle new voteproof")
 
 	if err := st.args.whenNewVoteproof(vp, lvps); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch keep, err := st.checkStuckVoteproof(vp, lvps); {
@@ -470,7 +470,7 @@ func (st *voteproofHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.L
 	case base.StageACCEPT:
 		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), lvps) //nolint:forcetypeassert //...
 	default:
-		return e(nil, "invalid voteproof received, %T", vp)
+		return e.Errorf("invalid voteproof received, %T", vp)
 	}
 }
 

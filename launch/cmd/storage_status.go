@@ -97,7 +97,7 @@ func (cmd *StorageStatusCommand) pCheckLocalFS(pctx context.Context) (context.Co
 }
 
 func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("storage status")
+	e := util.StringError("storage status")
 
 	var design launch.NodeDesign
 	var enc encoder.Encoder
@@ -108,14 +108,14 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 		launch.EncoderContextKey, &enc,
 		launch.LocalParamsContextKey, &params,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var fsnodeinfo launch.NodeInfo
 	if err := util.LoadFromContext(pctx,
 		launch.FSNodeInfoContextKey, &fsnodeinfo,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	localfsroot := launch.LocalFSDataDirectory(design.Storage.Base)
@@ -130,11 +130,11 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("localfs information")
 
 	if err := cmd.localfs(localfsroot, enc, params.NetworkID()); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := cmd.database(dbroot); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil

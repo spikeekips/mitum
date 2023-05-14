@@ -31,19 +31,19 @@ func (sf baseBallotSignFact) MarshalJSON() ([]byte, error) {
 }
 
 func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode BaseBallotSignFact")
+	e := util.StringError("decode BaseBallotSignFact")
 
 	var u baseBallotSignFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Fact, &sf.fact); err != nil {
-		return e(err, "decode fact")
+		return e.WithMessage(err, "decode fact")
 	}
 
 	if err := sf.sign.DecodeJSON(u.Sign, enc); err != nil {
-		return e(err, "decode sign")
+		return e.WithMessage(err, "decode sign")
 	}
 
 	return nil

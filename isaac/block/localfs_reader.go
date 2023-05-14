@@ -22,13 +22,13 @@ type LocalFSReader struct {
 }
 
 func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) {
-	e := util.StringErrorFunc("NewLocalFSReader")
+	e := util.StringError("NewLocalFSReader")
 
 	switch fi, err := os.Stat(filepath.Join(root, blockFSMapFilename(enc.Hint().Type().String()))); {
 	case err != nil:
-		return nil, e(err, "invalid block directory")
+		return nil, e.WithMessage(err, "invalid block directory")
 	case fi.IsDir():
-		return nil, e(nil, "map file is directory")
+		return nil, e.Errorf("map file is directory")
 	}
 
 	readersl, _ := util.NewShardedMap[base.BlockMapItemType, error](6)        //nolint:gomnd //...
@@ -83,7 +83,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 		return um, nil
 	})
 
-	e := util.StringErrorFunc("load blockmap")
+	e := util.StringError("load blockmap")
 
 	switch {
 	case err == nil:
@@ -91,18 +91,18 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 }
 
 func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
-	e := util.StringErrorFunc("make reader, %q", t)
+	e := util.StringError("make reader, %q", t)
 
 	var fpath string
 
 	switch i, err := BlockFileName(t, r.enc.Hint().Type().String()); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	default:
 		fpath = filepath.Join(r.root, i)
 	}
@@ -123,7 +123,7 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 	case os.IsNotExist(i):
 		return nil, false, nil
 	default:
-		return nil, false, e(i, "")
+		return nil, false, e.Wrap(i)
 	}
 
 	f, err := os.Open(filepath.Clean(fpath))
@@ -136,7 +136,7 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 }
 
@@ -160,13 +160,13 @@ func (r *LocalFSReader) UncompressedReader(t base.BlockMapItemType) (io.ReadClos
 }
 
 func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
-	e := util.StringErrorFunc("make reader, %q", t)
+	e := util.StringError("make reader, %q", t)
 
 	var fpath string
 
 	switch i, err := BlockFileName(t, r.enc.Hint().Type().String()); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	default:
 		fpath = filepath.Join(r.root, i)
 	}
@@ -187,7 +187,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 	case os.IsNotExist(i):
 		return nil, false, nil
 	default:
-		return nil, false, e(i, "")
+		return nil, false, e.Wrap(i)
 	}
 
 	var f util.ChecksumReader
@@ -217,7 +217,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 }
 
@@ -258,13 +258,13 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 }
 
 func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error) {
-	e := util.StringErrorFunc("load item, %q", t)
+	e := util.StringError("load item, %q", t)
 
 	var item base.BlockMapItem
 
 	switch m, found, err := r.BlockMap(); {
 	case err != nil || !found:
-		return nil, found, e(err, "")
+		return nil, found, e.Wrap(err)
 	default:
 		if item, found = m.Item(t); !found {
 			return nil, false, nil
@@ -275,7 +275,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 
 	switch i, found, err := r.ChecksumReader(t); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	default:
@@ -298,9 +298,9 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 
 	switch {
 	case err != nil:
-		return i, true, e(err, "")
+		return i, true, e.Wrap(err)
 	case item.Checksum() != f.Checksum():
-		return i, true, e(nil, "checksum mismatch; item=%q != file=%q", item.Checksum(), f.Checksum())
+		return i, true, e.Errorf("checksum mismatch; item=%q != file=%q", item.Checksum(), f.Checksum())
 	default:
 		return i, true, err
 	}
@@ -438,7 +438,7 @@ func LoadVoteproofsFromReader(
 	num uint64,
 	decode func([]byte) (interface{}, error),
 ) ([]base.Voteproof, error) {
-	e := util.StringErrorFunc("load voteproofs")
+	e := util.StringError("load voteproofs")
 
 	vps := make([]base.Voteproof, num)
 
@@ -454,11 +454,11 @@ func LoadVoteproofsFromReader(
 
 		return nil
 	}); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if vps[0] == nil || vps[1] == nil {
-		return nil, e(nil, "missing")
+		return nil, e.Errorf("missing")
 	}
 
 	return vps, nil

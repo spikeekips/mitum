@@ -309,7 +309,7 @@ func (t *testSyncSourcePool) TestNext() {
 	for i := range make([]struct{}, len(sources)) {
 		nci, report, err := p.Pick()
 		t.NoError(err)
-		report(ErrRetrySyncSources.Call())
+		report(ErrRetrySyncSources.WithStack())
 
 		uncis[i] = nci
 	}
@@ -335,7 +335,7 @@ func (t *testSyncSourcePool) TestRenew() {
 
 	nci, report, err := p.Pick()
 	t.NoError(err)
-	report(ErrRetrySyncSources.Call())
+	report(ErrRetrySyncSources.WithStack())
 	t.Equal(sources[0].String(), nci.String())
 
 	nci, _, err = p.Pick()

@@ -16,8 +16,8 @@ import (
 // not ErrIgnoreErrorProposalProcessor from proposalProcessor will break
 // consensus.
 var (
-	ErrIgnoreErrorProposalProcessor  = util.NewMError("proposal processor somthing wrong; ignore")
-	ErrNotProposalProcessorProcessed = util.NewMError("proposal processor not processed")
+	ErrIgnoreErrorProposalProcessor  = util.NewIDError("proposal processor somthing wrong; ignore")
+	ErrNotProposalProcessorProcessed = util.NewIDError("proposal processor not processed")
 )
 
 type ProcessorProcessFunc func(context.Context) (base.Manifest, error)
@@ -69,7 +69,7 @@ func (pps *ProposalProcessors) Process(
 
 	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 
-	e := util.StringErrorFunc("process proposal, %q", facthash)
+	e := util.StringError("process proposal, %q", facthash)
 
 	p, err := pps.newProcessor(ctx, point, facthash, previous)
 
@@ -79,7 +79,7 @@ func (pps *ProposalProcessors) Process(
 
 		l.Error().Err(err).Msg("failed to process proposal")
 
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case p == nil:
 		pps.Unlock()
 
@@ -134,7 +134,7 @@ func (pps *ProposalProcessors) Save(
 	if avp.Point().Height() <= pps.previousSaved {
 		l.Debug().Interface("previous", pps.previousSaved).Msg("already saved")
 
-		return nil, ErrProcessorAlreadySaved.Call()
+		return nil, ErrProcessorAlreadySaved.WithStack()
 	}
 
 	defer func() {
@@ -143,17 +143,17 @@ func (pps *ProposalProcessors) Save(
 		}
 	}()
 
-	e := util.StringErrorFunc("save proposal, %q", facthash)
+	e := util.StringError("save proposal, %q", facthash)
 
 	switch {
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
 	}
 
 	switch bm, err := pps.p.Save(ctx, avp); {
@@ -164,9 +164,9 @@ func (pps *ProposalProcessors) Save(
 
 		return bm, nil
 	case errors.Is(err, context.Canceled):
-		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
 	default:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 }
 
@@ -210,7 +210,7 @@ func (pps *ProposalProcessors) SetRetryInterval(i time.Duration) *ProposalProces
 func (pps *ProposalProcessors) fetchFact(
 	ctx context.Context, point base.Point, facthash util.Hash,
 ) (base.ProposalSignFact, error) {
-	e := util.StringErrorFunc("fetch fact")
+	e := util.StringError("fetch fact")
 
 	var pr base.ProposalSignFact
 
@@ -225,7 +225,7 @@ func (pps *ProposalProcessors) fetchFact(
 
 				return false, nil
 			default:
-				return true, e(err, "get proposal fact")
+				return true, e.WithMessage(err, "get proposal fact")
 			}
 		},
 		pps.retrylimit,
@@ -238,7 +238,7 @@ func (pps *ProposalProcessors) fetchFact(
 func (pps *ProposalProcessors) newProcessor(
 	ctx context.Context, point base.Point, facthash util.Hash, previous base.Manifest,
 ) (ProposalProcessor, error) {
-	e := util.StringErrorFunc(" processor, %q", facthash)
+	e := util.StringError(" processor, %q", facthash)
 
 	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 
@@ -256,7 +256,7 @@ func (pps *ProposalProcessors) newProcessor(
 				Stringer("previous_processor", p.Proposal().Fact().Hash()).
 				Msg("failed to cancel previous running processor")
 
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
@@ -266,9 +266,9 @@ func (pps *ProposalProcessors) newProcessor(
 	// NOTE if failed to get fact, returns NotProposalProcessorProcessedError
 	switch {
 	case err != nil:
-		return nil, e(ErrNotProposalProcessorProcessed.Wrap(err), "get proposal fact")
+		return nil, e.WithMessage(ErrNotProposalProcessorProcessed.Wrap(err), "get proposal fact")
 	case fact == nil:
-		return nil, e(ErrNotProposalProcessorProcessed.Call(), "get proposal fact; empty fact")
+		return nil, e.WithMessage(ErrNotProposalProcessorProcessed, "get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
@@ -281,7 +281,7 @@ func (pps *ProposalProcessors) newProcessor(
 			return false, nil
 		}
 	}, pps.retrylimit, pps.retryinterval); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if l, ok := pps.p.(logging.SetLogging); ok {

@@ -98,7 +98,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 			if pr != nil {
 				return pr, nil
 			}
-			return nil, util.ErrNotFound.Call()
+			return nil, util.ErrNotFound.WithStack()
 		}
 	}
 
@@ -135,7 +135,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	args := t.newargs(previous, suf)
 	args.ProposalProcessors = isaac.NewProposalProcessors(nil, func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
-		return nil, util.ErrNotFound.Call()
+		return nil, util.ErrNotFound.WithStack()
 	})
 	args.ProposalProcessors.SetRetryLimit(1).SetRetryInterval(1)
 

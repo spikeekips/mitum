@@ -3,7 +3,6 @@ package hint
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -70,7 +69,8 @@ func (t *testCompatibleSet) TestAlreadyAdded() {
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
 	err := hs.AddHinter(hr)
-	t.True(errors.Is(err, util.ErrDuplicated))
+	t.Error(err)
+	t.ErrorContains(err, "already added")
 }
 
 func (t *testCompatibleSet) TestFind() {

@@ -23,12 +23,12 @@ func NewSuffrageExpelProcessor(
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageExpelProcessor, error) {
-	e := util.StringErrorFunc("create new SuffrageExpelProcessor")
+	e := util.StringError("create new SuffrageExpelProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	p := &SuffrageExpelProcessor{
@@ -38,15 +38,15 @@ func NewSuffrageExpelProcessor(
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state"), "")
+		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
 	default:
 		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
-			return nil, e(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"), "")
+			return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"))
 		}
 
 		p.suffrage = suf
@@ -70,7 +70,7 @@ func (p *SuffrageExpelProcessor) Close() error {
 func (p *SuffrageExpelProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("preprocess for SuffrageExpel")
+	e := util.StringError("preprocess for SuffrageExpel")
 
 	fact := op.Fact().(base.SuffrageExpelFact) //nolint:forcetypeassert //...
 
@@ -93,7 +93,7 @@ func (p *SuffrageExpelProcessor) PreProcess(ctx context.Context, op base.Operati
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return ctx, nil, e(err, "")
+		return ctx, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return ctx, reasonerr, nil
 	}
@@ -113,11 +113,11 @@ func (p *SuffrageExpelProcessor) PreProcess(ctx context.Context, op base.Operati
 func (p *SuffrageExpelProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("process for SuffrageExpel")
+	e := util.StringError("process for SuffrageExpel")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, nil, e(err, "")
+		return nil, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return nil, reasonerr, nil
 	}

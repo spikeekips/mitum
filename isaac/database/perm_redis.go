@@ -97,11 +97,11 @@ func (db *RedisPermanent) Clean() error {
 }
 
 func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("get suffrageproof by height")
+	e := util.StringError("get suffrageproof by height")
 
 	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case found:
 		return proof, true, nil
 	default:
@@ -116,11 +116,11 @@ func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suffra
 func (db *RedisPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("get suffrageproof by height")
+	e := util.StringError("get suffrageproof by height")
 
 	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	case found:
 		return db.LastSuffrageProofBytes()
 	default:
@@ -129,11 +129,11 @@ func (db *RedisPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 }
 
 func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("get suffrage by block height")
+	e := util.StringError("get suffrage by block height")
 
 	switch m, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case height > m.Manifest().Height():
@@ -142,7 +142,7 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 
 	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case height >= proof.State().Height():
@@ -167,7 +167,7 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 			return false, nil
 		},
 	); err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	if len(key) < 1 {
@@ -192,33 +192,33 @@ func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta, body 
 }
 
 func (db *RedisPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
-	e := util.StringErrorFunc("check instate operation")
+	e := util.StringError("check instate operation")
 
 	switch found, err := db.st.Exists(context.Background(), redisInStateOperationKey(h)); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	default:
 		return found, nil
 	}
 }
 
 func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
-	e := util.StringErrorFunc("check known operation")
+	e := util.StringError("check known operation")
 
 	switch found, err := db.st.Exists(context.Background(), redisKnownOperationKey(h)); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	default:
 		return found, nil
 	}
 }
 
 func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool, _ error) {
-	e := util.StringErrorFunc("load blockmap")
+	e := util.StringError("load blockmap")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case found && i.Manifest().Height() == height:
@@ -233,11 +233,11 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool,
 func (db *RedisPermanent) BlockMapBytes(height base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("load blockmap bytes")
+	e := util.StringError("load blockmap bytes")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	case !found:
 		return enchint, nil, nil, false, nil
 	case found && i.Manifest().Height() == height:
@@ -251,25 +251,25 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	db.Lock()
 	defer db.Unlock()
 
-	e := util.StringErrorFunc("merge TempDatabase")
+	e := util.StringError("merge TempDatabase")
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
 		if err := db.mergeTempDatabaseFromLeveldb(ctx, t); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
 	default:
-		return e(nil, "unknown temp database, %T", temp)
+		return e.Errorf("unknown temp database, %T", temp)
 	}
 }
 
 func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
-	e := util.StringErrorFunc("merge LeveldbTempDatabase")
+	e := util.StringError("merge LeveldbTempDatabase")
 
 	if temp.mp == nil {
-		return e(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"), "")
+		return e.Wrap(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"))
 	}
 
 	if err := util.RunErrgroupWorkerByJobs(
@@ -310,7 +310,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 			return nil
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	_ = db.updateLast(
@@ -328,7 +328,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) error {
-	e := util.StringErrorFunc("merge operations from temp")
+	e := util.StringError("merge operations from temp")
 
 	if err := temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation),
@@ -339,7 +339,7 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 
 			return true, nil
 		}, true); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := temp.st.Iter(
@@ -351,7 +351,7 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 
 			return true, nil
 		}, true); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -443,13 +443,13 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 }
 
 func (db *RedisPermanent) loadLastBlockMap() error {
-	e := util.StringErrorFunc("load last blockmap")
+	e := util.StringError("load last blockmap")
 
 	b, found, err := db.loadLast(redisZKeyBlockMaps, redisZBeginBlockMaps, redisZEndBlockMaps)
 
 	switch {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case !found:
 		return nil
 	default:
@@ -457,11 +457,11 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 
 		enchint, meta, body, err := db.readHeader(b)
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := db.readHinterWithEncoder(enchint, body, &m); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		_ = db.lenc.SetValue(enchint)
@@ -472,7 +472,7 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 }
 
 func (db *RedisPermanent) loadLastSuffrageProof() error {
-	e := util.StringErrorFunc("load last suffrage state")
+	e := util.StringError("load last suffrage state")
 
 	b, found, err := db.loadLast(
 		redisZKeySuffrageProofsByBlockHeight,
@@ -482,7 +482,7 @@ func (db *RedisPermanent) loadLastSuffrageProof() error {
 
 	switch {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case !found:
 		return nil
 	default:
@@ -490,11 +490,11 @@ func (db *RedisPermanent) loadLastSuffrageProof() error {
 
 		enchint, meta, body, err := db.readHeader(b)
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := db.readHinterWithEncoder(enchint, body, &proof); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		_ = db.proof.SetValue([3]interface{}{proof, meta, body})
@@ -504,16 +504,16 @@ func (db *RedisPermanent) loadLastSuffrageProof() error {
 }
 
 func (db *RedisPermanent) loadNetworkPolicy() error {
-	e := util.StringErrorFunc("load last network policy")
+	e := util.StringError("load last network policy")
 
 	switch st, found, err := db.State(isaac.NetworkPolicyStateKey); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case !found:
 		return nil
 	default:
 		if !base.IsNetworkPolicyState(st) {
-			return e(nil, "not NetworkPolicy state: %T", st)
+			return e.Errorf("not NetworkPolicy state: %T", st)
 		}
 
 		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...

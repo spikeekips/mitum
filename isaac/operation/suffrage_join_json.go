@@ -30,18 +30,18 @@ type suffrageJoinFactJSONUnmarshaler struct {
 }
 
 func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageJoinFact")
+	e := util.StringError("decode SuffrageJoinFact")
 
 	var u suffrageJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
 	switch i, err := base.DecodeAddress(u.Candidate, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		fact.candidate = i
 	}
@@ -69,11 +69,11 @@ type suffrageGenesisJoinFactJSONUnmarshaler struct {
 }
 
 func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageGenesisJoinFact")
+	e := util.StringError("decode SuffrageGenesisJoinFact")
 
 	var u suffrageGenesisJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
@@ -82,7 +82,7 @@ func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) 
 
 	for i := range u.Nodes {
 		if err := encoder.Decode(enc, u.Nodes[i], &fact.nodes[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

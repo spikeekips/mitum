@@ -32,7 +32,7 @@ func (broker *ClientBroker) WriteRequestHead(ctx context.Context, header Request
 	}
 
 	if err := quicstream.WritePrefix(ctx, broker.Writer, header.Handler()); err != nil {
-		return broker.closeIfError(quicstream.ErrNetwork.Wrapf(err, "write request; prefix"))
+		return broker.closeIfError(quicstream.ErrNetwork.WithMessage(err, "write request; prefix"))
 	}
 
 	return errors.WithMessage(

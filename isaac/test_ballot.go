@@ -316,7 +316,7 @@ func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignFact, error) {
 	})
 
 	if pr == nil {
-		return nil, util.ErrNotFound.Call()
+		return nil, util.ErrNotFound.WithStack()
 	}
 
 	return pr, nil
@@ -325,7 +325,7 @@ func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignFact, error) {
 func (p *proposalPool) FactByHash(h util.Hash) (base.ProposalFact, error) {
 	pr, err := p.ByHash(h)
 	if err != nil {
-		return nil, util.ErrNotFound.Call()
+		return nil, util.ErrNotFound.WithStack()
 	}
 
 	return pr.ProposalFact(), nil

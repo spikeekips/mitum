@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrEmptySyncSources = util.NewMError("empty sync sources; will retry")
-	ErrRetrySyncSources = util.NewMError("sync sources problem; will retry")
+	ErrEmptySyncSources = util.NewIDError("empty sync sources; will retry")
+	ErrRetrySyncSources = util.NewIDError("sync sources problem; will retry")
 )
 
 type Syncer interface {
@@ -105,7 +105,7 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 	}
 
 	if len(ncis[:i]) < 1 {
-		return nil, nil, ErrEmptySyncSources.Call()
+		return nil, nil, ErrEmptySyncSources.WithStack()
 	}
 
 	return ncis[:i], reports[:i], nil
@@ -373,7 +373,7 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 		}
 	}
 
-	return "", nil, nil, ErrEmptySyncSources.Call()
+	return "", nil, nil, ErrEmptySyncSources.WithStack()
 }
 
 func (p *SyncSourcePool) reportProblem(id string, err error) {

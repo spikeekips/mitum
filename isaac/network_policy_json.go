@@ -40,15 +40,15 @@ type networkPolicyJSONUnmarshaler struct {
 }
 
 func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("unmarshal NetworkPolicy")
+	e := util.StringError("unmarshal NetworkPolicy")
 
 	var u networkPolicyJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.SuffrageCandidateLimiterRule, &p.suffrageCandidateLimiterRule); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	p.maxOperationsInProposal = u.MaxOperationsInProposal
@@ -76,15 +76,15 @@ type NetworkPolicyStateValueJSONUnmarshaler struct {
 }
 
 func (s *NetworkPolicyStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NetworkPolicyStateValue")
+	e := util.StringError("decode NetworkPolicyStateValue")
 
 	var u NetworkPolicyStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Policy, &s.policy); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

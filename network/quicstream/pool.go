@@ -25,7 +25,7 @@ func NewPoolClient() *PoolClient {
 }
 
 func (p *PoolClient) Close() error {
-	e := util.StringErrorFunc("close PoolClient")
+	e := util.StringError("close PoolClient")
 
 	defer p.clients.Close()
 
@@ -49,7 +49,7 @@ func (p *PoolClient) Close() error {
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

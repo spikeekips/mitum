@@ -2,7 +2,7 @@ package util
 
 import "github.com/pkg/errors"
 
-var ErrInvalid = NewMError("invalid")
+var ErrInvalid = NewIDError("invalid")
 
 type IsValider interface {
 	IsValid([]byte) error

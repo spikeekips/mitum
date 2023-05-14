@@ -99,12 +99,12 @@ type nodeInfoSuffrageJSONUnmarshaler struct {
 }
 
 func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NodeInfo")
+	e := util.StringError("decode NodeInfo")
 
 	var u nodeInfoJSONUnmarshaler
 
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	info.networkID = u.NetworkID
@@ -112,14 +112,14 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	// NOTE local
 	switch i, err := base.DecodeAddress(u.Local.Address, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		info.address = i
 	}
 
 	switch i, err := base.DecodePublickeyFromString(u.Local.Publickey, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		info.publickey = i
 	}
@@ -127,7 +127,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	params := isaac.NewLocalParams(info.networkID)
 
 	if err := encoder.Decode(enc, u.Local.LocalParams, params); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	_ = params.SetNetworkID(info.networkID)
@@ -139,7 +139,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch f, err := strconv.ParseFloat(u.Local.Uptime, 64); {
 	case err != nil:
-		return e(err, "parse uptime, %q", u.Local.Uptime)
+		return e.WithMessage(err, "parse uptime, %q", u.Local.Uptime)
 	default:
 		info.uptime = time.Duration(int64(f * float64(1_000_000_000))) //nolint:gomnd //...
 	}
@@ -153,18 +153,18 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	info.consensusNodes = make([]base.Node, len(u.Consensus.Suffrage.Nodes))
 	for i := range u.Consensus.Suffrage.Nodes {
 		if err := encoder.Decode(enc, u.Consensus.Suffrage.Nodes[i], &info.consensusNodes[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	// NOTE last manifest
 	if err := encoder.Decode(enc, u.LastManifest, &info.lastManifest); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	// NOTE network policy
 	if err := encoder.Decode(enc, u.NetworkPolicy, &info.networkPolicy); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

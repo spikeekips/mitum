@@ -35,7 +35,7 @@ var (
 )
 
 func PMemberlist(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare memberlist")
+	e := util.StringError("prepare memberlist")
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
@@ -50,19 +50,19 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	poolclient := quicstream.NewPoolClient()
 
 	localnode, err := memberlistLocalNode(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	config, err := memberlistConfig(pctx, localnode, poolclient)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	args := quicmemberlist.NewMemberlistArgs(enc, config)
@@ -82,7 +82,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	m, err := quicmemberlist.NewMemberlist(localnode, args)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	_ = m.SetLogging(log)
@@ -520,7 +520,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	}
 
 	return func(node quicmemberlist.Member) error {
-		e := util.StringErrorFunc("challenge memberlist node")
+		e := util.StringError("challenge memberlist node")
 
 		ci, err := node.Publish().UDPConnInfo()
 		if err != nil {
@@ -556,7 +556,7 @@ func nodeChallengeFunc(pctx context.Context) (
 			}
 
 			if !sig.Equal(psig) {
-				return e(nil, "publish address returns different signature")
+				return e.Errorf("publish address returns different signature")
 			}
 		}
 
@@ -632,7 +632,7 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 			default:
 				donech = c
 
-				return nil, util.ErrLockedSetIgnore.Call()
+				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 		}
 

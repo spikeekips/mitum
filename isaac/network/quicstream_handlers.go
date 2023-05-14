@@ -50,15 +50,15 @@ func QuicstreamHandlerSendOperation(
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ SendOperationRequestHeader,
 	) error {
-		e := util.StringErrorFunc("handle new operation")
+		e := util.StringError("handle new operation")
 
 		var rbody io.Reader
 
 		switch _, _, body, err := broker.ReadBodyErr(ctx); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case body == nil:
-			return e(nil, "empty body")
+			return e.Errorf("empty body")
 		default:
 			rbody = body
 		}
@@ -68,34 +68,34 @@ func QuicstreamHandlerSendOperation(
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case uint64(len(i)) > params.MaxMessageSize():
-			return e(nil, "too big size; >= %d", params.MaxMessageSize())
+			return e.Errorf("too big size; >= %d", params.MaxMessageSize())
 		default:
 			if err = encoder.Decode(broker.Encoder, i, &op); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			if op == nil {
-				return e(nil, "empty operation found")
+				return e.Errorf("empty operation found")
 			}
 
 			if err = op.IsValid(params.NetworkID()); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			body = i
 		}
 
 		if err := filterNewOperation(op); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		var added bool
 
 		switch i, err := quicstreamHandlerSetOperation(ctx, oppool, svvote, op); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case i && broadcast != nil:
 			go func() {
 				_ = broadcast(op.Hash().String(), body)
@@ -107,7 +107,7 @@ func QuicstreamHandlerSendOperation(
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, added, nil); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
@@ -311,7 +311,7 @@ func QuicstreamHandlerExistsInStateOperation(
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header ExistsInStateOperationRequestHeader,
 	) error {
-		e := util.StringErrorFunc("handle exists instate operation")
+		e := util.StringError("handle exists instate operation")
 
 		found, err, _ := util.SingleflightDo[bool](&sg,
 			HandlerPrefixExistsInStateOperationString+header.FactHash().String(),
@@ -321,11 +321,11 @@ func QuicstreamHandlerExistsInStateOperation(
 		)
 
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, found, nil); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
@@ -371,7 +371,7 @@ func QuicstreamHandlerNodeChallenge(
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader,
 	) error {
-		e := util.StringErrorFunc("handle NodeChallenge")
+		e := util.StringError("handle NodeChallenge")
 
 		sig, err := local.Privatekey().Sign(util.ConcatBytesSlice(
 			local.Address().Bytes(),
@@ -379,11 +379,11 @@ func QuicstreamHandlerNodeChallenge(
 			header.Input(),
 		))
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := writeResponseStreamEncode(ctx, broker, true, nil, sig); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
@@ -398,7 +398,7 @@ func QuicstreamHandlerNodeInfo(
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ NodeInfoRequestHeader,
 	) error {
-		e := util.StringErrorFunc("handle node info")
+		e := util.StringError("handle node info")
 
 		b, err, _ := util.SingleflightDo[[]byte](&sg, HandlerPrefixNodeInfoString, func() ([]byte, error) {
 			return getNodeInfo()
@@ -406,16 +406,16 @@ func QuicstreamHandlerNodeInfo(
 
 		switch {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case len(b) < 1:
-			return e(nil, "empty node info")
+			return e.Errorf("empty node info")
 		}
 
 		body := bytes.NewBuffer(b)
 		defer body.Reset()
 
 		if err := writeResponseStream(ctx, broker, true, nil, body); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
@@ -429,13 +429,13 @@ func QuicstreamHandlerSendBallots(
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ SendBallotsHeader,
 	) error {
-		e := util.StringErrorFunc("handle new ballot")
+		e := util.StringError("handle new ballot")
 
 		var rbody io.Reader
 
 		switch _, _, i, err := broker.ReadBodyErr(ctx); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		default:
 			rbody = i
 		}
@@ -444,37 +444,37 @@ func QuicstreamHandlerSendBallots(
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case uint64(len(body)) > params.MaxMessageSize():
-			return e(nil, "too big size; >= %d", params.MaxMessageSize())
+			return e.Errorf("too big size; >= %d", params.MaxMessageSize())
 		default:
 			body = i
 		}
 
 		switch u, err := broker.Encoder.DecodeSlice(body); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case len(u) < 1:
-			return e(nil, "empty body")
+			return e.Errorf("empty body")
 		default:
 			for i := range u {
 				bl, ok := u[i].(base.BallotSignFact)
 				if !ok {
-					return e(nil, "expected BallotSignFact, but %T", u[i])
+					return e.Errorf("expected BallotSignFact, but %T", u[i])
 				}
 
 				if err = bl.IsValid(params.NetworkID()); err != nil {
-					return e(err, "")
+					return e.Wrap(err)
 				}
 
 				if err = votef(bl); err != nil {
-					return e(err, "")
+					return e.Wrap(err)
 				}
 			}
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, true, nil); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil

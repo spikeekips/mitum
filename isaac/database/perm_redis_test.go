@@ -38,15 +38,15 @@ func TestRedisPermanent(tt *testing.T) {
 	t.setState = func(perm isaac.PermanentDatabase, st base.State) error {
 		db := perm.(*RedisPermanent)
 
-		e := util.StringErrorFunc("failed to set state")
+		e := util.StringError("failed to set state")
 
 		b, _, err := db.marshal(st, nil)
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := db.st.Set(context.TODO(), redisStateKey(st.Key()), b); err != nil {
-			return e(err, "failed to put state")
+			return e.WithMessage(err, "failed to put state")
 		}
 
 		return nil

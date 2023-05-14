@@ -14,30 +14,64 @@ import (
 )
 
 var (
-	ErrLastBlockMapOnlyInDatabase = util.NewMError("last blockmap found in database, but not in localfs")
-	ErrLastBlockMapOnlyInLocalFS  = util.NewMError("last blockmap found in localfs, but not in database")
+	ErrLastBlockMapOnlyInDatabase = util.NewIDError("last blockmap found in database, but not in localfs")
+	ErrLastBlockMapOnlyInLocalFS  = util.NewIDError("last blockmap found in localfs, but not in database")
 )
 
-type ErrorValidatedDifferentHeightBlockMaps struct {
-	util.MError
+type ErrValidatedDifferentHeightBlockMaps struct {
+	*util.IDError
 	db      base.Height
 	localfs base.Height
 }
 
-func newErrorValidatedDifferentHeightBlockMaps(db, localfs base.Height) ErrorValidatedDifferentHeightBlockMaps {
-	return ErrorValidatedDifferentHeightBlockMaps{
-		MError:  util.NewIDMError("dhb", "different height blockmaps"),
+func newErrValidatedDifferentHeightBlockMaps(db, localfs base.Height) *ErrValidatedDifferentHeightBlockMaps {
+	return &ErrValidatedDifferentHeightBlockMaps{
+		IDError: util.NewIDErrorWithID("dhb", "different height blockmaps"),
 		db:      db,
 		localfs: localfs,
 	}
 }
 
-func (err ErrorValidatedDifferentHeightBlockMaps) DatabaseHeight() base.Height {
-	return err.db
+func (er *ErrValidatedDifferentHeightBlockMaps) Wrap(err error) error {
+	return &ErrValidatedDifferentHeightBlockMaps{
+		IDError: er.IDError.Wrap(err).(*util.IDError), //nolint:forcetypeassert //...
+		db:      er.db,
+		localfs: er.localfs,
+	}
 }
 
-func (err ErrorValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
-	return err.localfs
+func (er *ErrValidatedDifferentHeightBlockMaps) WithMessage(err error, format string, args ...interface{}) error {
+	return &ErrValidatedDifferentHeightBlockMaps{
+		IDError: er.IDError.WithMessage(err, format, args...).(*util.IDError), //nolint:forcetypeassert //...
+		db:      er.db,
+		localfs: er.localfs,
+	}
+}
+
+func (er *ErrValidatedDifferentHeightBlockMaps) Errorf(
+	format string, args ...interface{},
+) *ErrValidatedDifferentHeightBlockMaps {
+	return &ErrValidatedDifferentHeightBlockMaps{
+		IDError: er.IDError.Errorf(format, args...),
+		db:      er.db,
+		localfs: er.localfs,
+	}
+}
+
+func (er *ErrValidatedDifferentHeightBlockMaps) WithStack() *ErrValidatedDifferentHeightBlockMaps {
+	return &ErrValidatedDifferentHeightBlockMaps{
+		IDError: er.IDError.WithStack(),
+		db:      er.db,
+		localfs: er.localfs,
+	}
+}
+
+func (er *ErrValidatedDifferentHeightBlockMaps) DatabaseHeight() base.Height {
+	return er.db
+}
+
+func (er *ErrValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
+	return er.localfs
 }
 
 func ValidateLastBlocks(
@@ -76,16 +110,16 @@ func ValidateLastBlocks(
 	case lastmapdb == nil && lastmaplocalfs == nil:
 		return nil
 	case lastmapdb != nil && lastmaplocalfs == nil:
-		return ErrLastBlockMapOnlyInDatabase.Call()
+		return ErrLastBlockMapOnlyInDatabase.WithStack()
 	case lastmapdb == nil && lastmaplocalfs != nil:
-		return ErrLastBlockMapOnlyInLocalFS.Call()
+		return ErrLastBlockMapOnlyInLocalFS.WithStack()
 	default:
 		if err := base.IsEqualBlockMap(lastmapdb, lastmaplocalfs); err != nil {
 			if lastmapdb.Manifest().Height() != lastmaplocalfs.Manifest().Height() {
-				err = newErrorValidatedDifferentHeightBlockMaps(
+				err = newErrValidatedDifferentHeightBlockMaps(
 					lastmapdb.Manifest().Height(),
 					lastmaplocalfs.Manifest().Height(),
-				)
+				).WithStack()
 			}
 
 			return err
@@ -162,17 +196,17 @@ func ValidateAllBlockMapsFromLocalFS(
 	last base.Height,
 	networkID base.NetworkID,
 ) error {
-	e := util.StringErrorFunc("validate localfs")
+	e := util.StringError("validate localfs")
 
 	switch fi, err := os.Stat(dataroot); {
 	case err == nil:
 		if !fi.IsDir() {
-			return e(nil, "not directory")
+			return e.Errorf("not directory")
 		}
 	case os.IsNotExist(err):
-		return e(err, "")
+		return e.Wrap(err)
 	default:
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	// NOTE check all blockmap items
@@ -219,7 +253,7 @@ func ValidateAllBlockMapsFromLocalFS(
 			}
 
 			if m.Manifest().Height() != height {
-				return newErrorValidatedDifferentHeightBlockMaps(height, m.Manifest().Height())
+				return newErrValidatedDifferentHeightBlockMaps(height, m.Manifest().Height()).WithStack()
 			}
 
 			return func() error {
@@ -238,7 +272,7 @@ func ValidateAllBlockMapsFromLocalFS(
 			}()
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	maps = nil
@@ -255,13 +289,13 @@ func ValidateBlockFromLocalFS(
 	validateOperationf func(base.Operation) error,
 	validateStatef func(base.State) error,
 ) error {
-	e := util.StringErrorFunc("validate imported block")
+	e := util.StringError("validate imported block")
 
 	var reader *LocalFSReader
 
 	switch i, err := NewLocalFSReaderFromHeight(dataroot, height, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		reader = i
 	}
@@ -270,9 +304,9 @@ func ValidateBlockFromLocalFS(
 
 	switch i, found, err := loadBlockMapFromReader(reader, networkID); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case !found:
-		return e(util.ErrNotFound.Errorf("BlockMap not found"), "")
+		return e.Wrap(util.ErrNotFound.Errorf("BlockMap not found"))
 	default:
 		if err := i.IsValid(networkID); err != nil {
 			return err
@@ -367,14 +401,14 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 	networkID base.NetworkID,
 	validateOperationf func(base.Operation) error,
 ) error {
-	e := util.StringErrorFunc("validate imported operations")
+	e := util.StringError("validate imported operations")
 
 	if err := opstree.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := base.ValidateOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(ops) > 0 {
@@ -396,7 +430,7 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 				return nil
 			},
 		); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -410,14 +444,14 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 	networkID base.NetworkID,
 	validateStatef func(base.State) error,
 ) error {
-	e := util.StringErrorFunc("validate imported states")
+	e := util.StringError("validate imported states")
 
 	if err := ststree.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := base.ValidateStatesTreeWithManifest(ststree, sts, manifest); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(sts) > 0 {
@@ -439,7 +473,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 				return nil
 			},
 		); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

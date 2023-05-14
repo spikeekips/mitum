@@ -33,18 +33,18 @@ type suffrageExpelFactJSONUnmarshaler struct {
 }
 
 func (fact *SuffrageExpelFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageExpelFact")
+	e := util.StringError("decode SuffrageExpelFact")
 
 	var u suffrageExpelFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
 	switch i, err := base.DecodeAddress(u.Node, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		fact.node = i
 	}

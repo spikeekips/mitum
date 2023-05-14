@@ -119,22 +119,22 @@ type operationFixedtreeNodeJSONUnmarshaler struct {
 }
 
 func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode OperationFixedtreeNode")
+	e := util.StringError("decode OperationFixedtreeNode")
 
 	var ub fixedtree.BaseNode
 	if err := enc.Unmarshal(b, &ub); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	no.BaseNode = ub
 
 	var u operationFixedtreeNodeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Reason, &no.reason); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -237,7 +237,7 @@ func NewBaseOperationProcessor(
 	newPreProcessConstraintFunc NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc NewOperationProcessorProcessFunc,
 ) (*BaseOperationProcessor, error) {
-	e := util.StringErrorFunc("new BaseOperationProcessor")
+	e := util.StringError("new BaseOperationProcessor")
 
 	p := &BaseOperationProcessor{
 		height: height,
@@ -249,7 +249,7 @@ func NewBaseOperationProcessor(
 	default:
 		i, err := newPreProcessConstraintFunc(height, getStateFunc)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		p.PreProcessConstraintFunc = i
@@ -261,7 +261,7 @@ func NewBaseOperationProcessor(
 	default:
 		i, err := newProcessConstraintFunc(height, getStateFunc)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		p.ProcessConstraintFunc = i

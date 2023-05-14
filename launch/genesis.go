@@ -51,39 +51,39 @@ func NewGenesisBlockGenerator(
 }
 
 func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
-	e := util.StringErrorFunc("generate genesis block")
+	e := util.StringError("generate genesis block")
 
 	if err := g.generateOperations(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := g.newProposal(nil); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := g.process(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(g.dataroot, base.GenesisHeight, g.enc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	switch blockmap, found, err := fsreader.BlockMap(); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found:
 		return nil, errors.Errorf("blockmap not found")
 	default:
 		if err := blockmap.IsValid(g.networkID); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		g.Log().Info().Interface("blockmap", blockmap).Msg("genesis block generated")
 
 		if err := g.closeDatabase(); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return blockmap, nil
@@ -131,22 +131,22 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 }
 
 func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, error) {
-	e := util.StringErrorFunc("make join operation")
+	e := util.StringError("make join operation")
 
 	basefact, ok := i.(isaacoperation.SuffrageGenesisJoinFact)
 	if !ok {
-		return nil, e(nil, "expected SuffrageGenesisJoinFact, not %T", i)
+		return nil, e.Errorf("expected SuffrageGenesisJoinFact, not %T", i)
 	}
 
 	fact := isaacoperation.NewSuffrageGenesisJoinFact(basefact.Nodes(), g.networkID)
 
 	if err := fact.IsValid(g.networkID); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	op := isaacoperation.NewSuffrageGenesisJoin(fact)
 	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	g.Log().Debug().Interface("operation", op).Msg("genesis join operation created")
@@ -155,22 +155,22 @@ func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, erro
 }
 
 func (g *GenesisBlockGenerator) networkPolicyOperation(i base.Fact) (base.Operation, error) {
-	e := util.StringErrorFunc("make join operation")
+	e := util.StringError("make join operation")
 
 	basefact, ok := i.(isaacoperation.GenesisNetworkPolicyFact)
 	if !ok {
-		return nil, e(nil, "expected GenesisNetworkPolicyFact, not %T", i)
+		return nil, e.Errorf("expected GenesisNetworkPolicyFact, not %T", i)
 	}
 
 	fact := isaacoperation.NewGenesisNetworkPolicyFact(basefact.Policy())
 
 	if err := fact.IsValid(nil); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	op := isaacoperation.NewGenesisNetworkPolicy(fact)
 	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	g.Log().Debug().Interface("operation", op).Msg("genesis network policy operation created")
@@ -179,7 +179,7 @@ func (g *GenesisBlockGenerator) networkPolicyOperation(i base.Fact) (base.Operat
 }
 
 func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
-	e := util.StringErrorFunc("make genesis proposal")
+	e := util.StringError("make genesis proposal")
 
 	nops := make([]util.Hash, len(ops)+len(g.ops))
 	copy(nops[:len(ops)], ops)
@@ -192,11 +192,11 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 	sign := isaac.NewProposalSignFact(fact)
 
 	if err := sign.Sign(g.local.Privatekey(), g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := sign.IsValid(g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	g.proposal = sign
@@ -207,20 +207,20 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 }
 
 func (g *GenesisBlockGenerator) initVoetproof() error {
-	e := util.StringErrorFunc("make genesis init voteproof")
+	e := util.StringError("make genesis init voteproof")
 
 	fact := isaac.NewINITBallotFact(base.GenesisPoint, nil, g.proposal.Fact().Hash(), nil)
 	if err := fact.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	sf := isaac.NewINITBallotSignFact(fact)
 	if err := sf.NodeSign(g.local.Privatekey(), g.networkID, g.local.Address()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := sf.IsValid(g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	vp := isaac.NewINITVoteproof(fact.Point().Point)
@@ -231,7 +231,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 		Finish()
 
 	if err := vp.IsValid(g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	g.ivp = vp
@@ -242,20 +242,20 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 }
 
 func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) error {
-	e := util.StringErrorFunc("make genesis accept voteproof")
+	e := util.StringError("make genesis accept voteproof")
 
 	fact := isaac.NewACCEPTBallotFact(base.GenesisPoint, proposal, newblock, nil)
 	if err := fact.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	sf := isaac.NewACCEPTBallotSignFact(fact)
 	if err := sf.NodeSign(g.local.Privatekey(), g.networkID, g.local.Address()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := sf.IsValid(g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	vp := isaac.NewACCEPTVoteproof(fact.Point().Point)
@@ -266,7 +266,7 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 		Finish()
 
 	if err := vp.IsValid(g.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	g.avp = vp
@@ -277,46 +277,46 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 }
 
 func (g *GenesisBlockGenerator) process() error {
-	e := util.StringErrorFunc("process")
+	e := util.StringError("process")
 
 	if err := g.initVoetproof(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	pp, err := g.newProposalProcessor()
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	_ = pp.SetLogging(g.Logging)
 
 	switch m, err := pp.Process(context.Background(), g.ivp); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		if err := m.IsValid(g.networkID); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		g.Log().Info().Interface("manifest", m).Msg("genesis block generated")
 
 		if err := g.acceptVoteproof(g.proposal.Fact().Hash(), m.Hash()); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if _, err := pp.Save(context.Background(), g.avp); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (g *GenesisBlockGenerator) closeDatabase() error {
-	e := util.StringErrorFunc("close database")
+	e := util.StringError("close database")
 
 	if err := g.db.MergeAllPermanent(); err != nil {
-		return e(err, "merge temps")
+		return e.WithMessage(err, "merge temps")
 	}
 
 	return nil

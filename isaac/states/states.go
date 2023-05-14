@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	ErrIgnoreSwitchingState = util.NewMError("switch state, but ignored")
-	errIgnoreNewVoteproof   = util.NewMError("new voteproof; ignored")
+	ErrIgnoreSwitchingState = util.NewIDError("switch state, but ignored")
+	errIgnoreNewVoteproof   = util.NewIDError("new voteproof; ignored")
 )
 
 var (
@@ -371,7 +371,7 @@ end:
 }
 
 func (st *States) switchState(sctx switchContext) error {
-	e := util.StringErrorFunc("switch state")
+	e := util.StringError("switch state")
 
 	current := st.current()
 	l := st.stateSwitchContextLog(sctx, current)
@@ -421,7 +421,7 @@ func (st *States) switchState(sctx switchContext) error {
 		default:
 			l.Error().Err(err).Msg("failed to switch(locked)")
 
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -446,11 +446,11 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	st.stateLock.Lock()
 	defer st.stateLock.Unlock()
 
-	e := util.StringErrorFunc("switch state")
+	e := util.StringError("switch state")
 	l := st.stateSwitchContextLog(sctx, current)
 
 	if err := st.checkStateSwitchContext(sctx, current); err != nil {
-		return nil, nil, e(err, "")
+		return nil, nil, e.Wrap(err)
 	}
 
 	var cdefer, ndefer func()
@@ -470,13 +470,13 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 				return nil, nil, err
 			}
 
-			return nil, nil, e(err, "exit current state")
+			return nil, nil, e.WithMessage(err, "exit current state")
 		}
 	}
 
 	nextHandler, err := st.newHandlers[sctx.next()].new()
 	if err != nil {
-		return nil, nil, e(err, "create new handler, %q", sctx.next())
+		return nil, nil, e.WithMessage(err, "create new handler, %q", sctx.next())
 	}
 
 	ndefer, err = nextHandler.enter(current.state(), sctx)
@@ -487,7 +487,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 			return nil, nil, err
 		}
 
-		return nil, nil, e(err, "enter next state")
+		return nil, nil, e.WithMessage(err, "enter next state")
 	}
 
 	st.cs = nextHandler
@@ -496,12 +496,12 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 }
 
 func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
-	e := util.StringErrorFunc("send voteproof to current")
+	e := util.StringError("send voteproof to current")
 
 	st.Log().Debug().Interface("voteproof", vp).Msg("new voteproof")
 
 	if err := current.newVoteproof(vp); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -762,7 +762,7 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 
 	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
 		if prev == allow {
-			return false, util.ErrLockedSetIgnore.Call()
+			return false, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		isset = true

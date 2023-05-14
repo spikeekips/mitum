@@ -36,11 +36,11 @@ func (s SuffrageNodeStateValue) MarshalJSON() ([]byte, error) {
 }
 
 func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageNodeStateValue")
+	e := util.StringError("decode SuffrageNodeStateValue")
 
 	var u suffrageNodeStateValueJSONMarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	s.start = u.Start
@@ -48,7 +48,7 @@ func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) erro
 	var ub base.BaseNode
 
 	if err := ub.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	s.Node = ub
@@ -76,18 +76,18 @@ type suffrageNodesStateValueJSONUnmarshaler struct {
 }
 
 func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageNodesStateValue")
+	e := util.StringError("decode SuffrageNodesStateValue")
 
 	var u suffrageNodesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	s.nodes = make([]base.SuffrageNodeStateValue, len(u.Nodes))
 
 	for i := range u.Nodes {
 		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -119,15 +119,15 @@ type SuffrageCandidateJSONUnmarshaler struct {
 }
 
 func (suf *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageCandidateStateValue")
+	e := util.StringError("decode SuffrageCandidateStateValue")
 
 	var u SuffrageCandidateJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Node, &suf.Node); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	suf.start = u.Start.Height()
@@ -153,18 +153,18 @@ type suffrageCandidatesStateValueJSONUnmarshaler struct {
 }
 
 func (s *SuffrageCandidatesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageCandidatesStateValue")
+	e := util.StringError("decode SuffrageCandidatesStateValue")
 
 	var u suffrageCandidatesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	s.nodes = make([]base.SuffrageCandidateStateValue, len(u.Nodes))
 
 	for i := range u.Nodes {
 		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

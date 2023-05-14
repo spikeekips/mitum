@@ -102,7 +102,7 @@ func (ts *TimeSyncer) setOffset(d time.Duration) {
 }
 
 func (ts *TimeSyncer) check() error {
-	e := util.StringErrorFunc("sync time")
+	e := util.StringError("sync time")
 
 	option := ntp.QueryOptions{Timeout: timeServerQueryingTimeout}
 
@@ -112,11 +112,11 @@ func (ts *TimeSyncer) check() error {
 
 	response, err := ntp.QueryWithOptions(ts.host, option)
 	if err != nil {
-		return e(err, "query")
+		return e.WithMessage(err, "query")
 	}
 
 	if err := response.Validate(); err != nil {
-		return e(err, "invalid response")
+		return e.WithMessage(err, "invalid response")
 	}
 
 	offset := ts.Offset()

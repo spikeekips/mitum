@@ -105,7 +105,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("set states in TempLeveldbDatabase")
+	e := util.StringError("set states in TempLeveldbDatabase")
 
 	worker := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
 	defer worker.Close()
@@ -130,14 +130,14 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 			return nil
 		}); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -151,29 +151,29 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	worker := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
 	defer worker.Close()
 
-	e := util.StringErrorFunc("set operation")
+	e := util.StringError("set operation")
 
 	for i := range ops {
 		op := ops[i]
 		if op == nil {
-			return e(nil, "empty operation hash")
+			return e.Errorf("empty operation hash")
 		}
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
 			if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			return nil
 		}); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -205,7 +205,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		if !isempty {
 			if m.Manifest().Height() <= i[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
-				return v, util.ErrLockedSetIgnore.Call()
+				return v, util.ErrLockedSetIgnore.WithStack()
 			}
 		}
 
@@ -248,7 +248,7 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 		switch {
 		case isempty:
 		case proof.SuffrageHeight() <= i[0].(base.SuffrageProof).SuffrageHeight(): //nolint:forcetypeassert //...
-			return v, util.ErrLockedSetIgnore.Call()
+			return v, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		meta := NewHashRecordMeta(proof.Map().Manifest().Suffrage())
@@ -275,7 +275,7 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 }
 
 func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
-	e := util.StringErrorFunc("make TempDatabase from BlockWriteDatabase")
+	e := util.StringError("make TempDatabase from BlockWriteDatabase")
 
 	temp, err := func() (isaac.TempDatabase, error) {
 		db.Lock()
@@ -293,11 +293,11 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 		return temp, nil
 	}()
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := db.Close(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return temp, nil
@@ -322,7 +322,7 @@ func (db *LeveldbBlockWrite) proofs() (base.SuffrageProof, []byte, []byte) {
 }
 
 func (db *LeveldbBlockWrite) setState(st base.State) error {
-	e := util.StringErrorFunc("set state")
+	e := util.StringError("set state")
 
 	if !db.isLastStates(st) {
 		return nil
@@ -343,7 +343,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 	}
 
 	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -388,25 +388,25 @@ func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 }
 
 func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
-	e := util.StringErrorFunc("parse prefix of PrefixStorage from key")
+	e := util.StringError("parse prefix of PrefixStorage from key")
 
 	if len(b) < prefixStoragePrefixByHeightLength {
-		return nil, e(nil, "wrong key of prefix storage prefix")
+		return nil, e.Errorf("wrong key of prefix storage prefix")
 	}
 
 	return b[:prefixStoragePrefixByHeightLength], nil
 }
 
 func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
-	e := util.StringErrorFunc("parse height from PrefixStoragePrefix")
+	e := util.StringError("parse height from PrefixStoragePrefix")
 
 	if len(b) < prefixStoragePrefixByHeightLength {
-		return base.NilHeight, e(nil, "wrong key of prefix storage prefix")
+		return base.NilHeight, e.Errorf("wrong key of prefix storage prefix")
 	}
 
 	h, err := base.ParseHeightBytes(b[2:10])
 	if err != nil {
-		return base.NilHeight, e(err, "")
+		return base.NilHeight, e.Wrap(err)
 	}
 
 	return h, nil

@@ -136,7 +136,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	suf base.Suffrage,
 	initialWait time.Duration,
 ) (base.INITBallot, error) {
-	e := util.StringErrorFunc("prepare next block")
+	e := util.StringError("prepare next block")
 
 	l := st.Log().With().Str("voteproof", vp.ID()).Object("point", point).Logger()
 
@@ -144,14 +144,14 @@ func (st *baseBallotHandler) makeINITBallot(
 
 	switch i, err := st.requestProposal(ctx, point, prevBlock, initialWait); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	default:
 		pr = i
 	}
 
 	switch bl, found, err := st.ballotBroadcaster.Ballot(point, base.StageINIT, false); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case found:
 		l.Debug().Msg("init ballot found in ballot pool")
 
@@ -174,7 +174,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	sf := isaac.NewINITBallotSignFact(fact)
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		return nil, e(err, "make next init ballot")
+		return nil, e.WithMessage(err, "make next init ballot")
 	}
 
 	bl := isaac.NewINITBallot(vp, sf, expels)
@@ -187,11 +187,11 @@ func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 	manifest base.Manifest,
 	initialWait time.Duration,
 ) error {
-	e := util.StringErrorFunc("prepare accept ballot")
+	e := util.StringError("prepare accept ballot")
 
 	bl, err := st.makeACCEPTBallot(ivp, manifest)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	go func() {
@@ -211,7 +211,7 @@ func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 	}()
 
 	if err := st.broadcastACCEPTBallot(bl, initialWait); err != nil {
-		return e(err, "broadcast accept ballot")
+		return e.WithMessage(err, "broadcast accept ballot")
 	}
 
 	if err := st.timers.StopOthers([]util.TimerID{
@@ -219,7 +219,7 @@ func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}); err != nil {
-		return e(err, "start timers for broadcasting accept ballot")
+		return e.WithMessage(err, "start timers for broadcasting accept ballot")
 	}
 
 	return nil
@@ -669,7 +669,7 @@ func (st *baseBallotHandler) requestProposal(
 	}
 }
 
-var errFailedToVoteNotInConsensus = util.NewMError("vote; local not in consensus nodes")
+var errFailedToVoteNotInConsensus = util.NewIDError("vote; local not in consensus nodes")
 
 func preventVotingWithEmptySuffrage(
 	local base.Node,
@@ -677,17 +677,17 @@ func preventVotingWithEmptySuffrage(
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) func(base.Ballot) (bool, error) {
 	return func(bl base.Ballot) (bool, error) {
-		e := util.StringErrorFunc("vote")
+		e := util.StringError("vote")
 
 		switch suf, found, err := nodeInConsensusNodes(local, bl.Point().Height().SafePrev()); {
 		case err != nil:
 			if !errors.Is(err, storage.ErrNotFound) {
-				return false, e(err, "")
+				return false, e.Wrap(err)
 			}
 		case suf == nil || len(suf.Nodes()) < 1:
-			return false, e(nil, "empty suffrage")
+			return false, e.Errorf("empty suffrage")
 		case !found:
-			return false, e(errFailedToVoteNotInConsensus.Errorf("ballot=%q", bl.Point()), "")
+			return false, e.Wrap(errFailedToVoteNotInConsensus.Errorf("ballot=%q", bl.Point()))
 		}
 
 		return voteFunc(bl)

@@ -71,7 +71,7 @@ func (*Center) Close() error {
 	// WARN don't close temps
 	//for i := range db.temps {
 	//	if err := db.temps[i].Close(); err != nil {
-	//		return e(err, "close temp")
+	//		return e.WithMessage(err, "close temp")
 	//	}
 	//}
 
@@ -79,20 +79,20 @@ func (*Center) Close() error {
 }
 
 func (db *Center) load(st *leveldbstorage.Storage) error {
-	e := util.StringErrorFunc("load temps to CenterDatabase")
+	e := util.StringError("load temps to CenterDatabase")
 
 	last := base.NilHeight
 
 	switch m, found, err := db.perm.LastBlockMap(); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case found:
 		last = m.Manifest().Height()
 	}
 
 	switch temps, err := loadTemps(st, last, db.encs, db.enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		db.temps = temps
 	}
@@ -164,18 +164,18 @@ func (db *Center) LastSuffrageProofBytes() ( //revive:disable-line:function-resu
 }
 
 func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("find SuffrageProof by suffrage height")
+	e := util.StringError("find SuffrageProof by suffrage height")
 
 	switch _, proof, found, err := db.suffrageProofInTemps(suffrageHeight); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case found:
 		return proof, true, nil
 	}
 
 	proof, found, err := db.perm.SuffrageProof(suffrageHeight)
 	if err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	return proof, found, nil
@@ -184,17 +184,17 @@ func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof,
 func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("find SuffrageProof by suffrage height")
+	e := util.StringError("find SuffrageProof by suffrage height")
 
 	var temp isaac.TempDatabase
 
 	switch temp, _, found, err = db.suffrageProofInTemps(suffrageHeight); {
 	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	case found:
 		switch enchint, meta, body, found, err = temp.LastSuffrageProofBytes(); {
 		case err != nil:
-			return enchint, nil, nil, false, e(err, "")
+			return enchint, nil, nil, false, e.Wrap(err)
 		case found:
 			return enchint, meta, body, found, nil
 		}
@@ -202,14 +202,14 @@ func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 
 	enchint, meta, body, found, err = db.perm.SuffrageProofBytes(suffrageHeight)
 	if err != nil {
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	}
 
 	return enchint, meta, body, found, nil
 }
 
 func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("find suffrage by SuffrageProof by block height")
+	e := util.StringError("find suffrage by SuffrageProof by block height")
 
 	if height < base.GenesisHeight {
 		return nil, false, errors.Errorf("wrong height; < 0")
@@ -225,7 +225,7 @@ func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageP
 		if temph := db.findTemp(height); temph != nil {
 			switch i, found, err := temph.SuffrageProof(); {
 			case err != nil:
-				return nil, false, e(err, "")
+				return nil, false, e.Wrap(err)
 			case found:
 				return i, true, nil
 			}
@@ -238,7 +238,7 @@ func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageP
 
 				switch j, found, err := temp.SuffrageProof(); {
 				case err != nil:
-					return nil, false, e(err, "")
+					return nil, false, e.Wrap(err)
 				case found:
 					return j, true, nil
 				}
@@ -250,7 +250,7 @@ func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageP
 
 	proof, found, err := db.perm.SuffrageProofByBlockHeight(lastheight)
 	if err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	return proof, found, nil
@@ -269,7 +269,7 @@ func (db *Center) LastNetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *Center) State(key string) (base.State, bool, error) {
-	e := util.StringErrorFunc("find State")
+	e := util.StringError("find State")
 
 	l := util.EmptyLocked[base.State]()
 
@@ -283,7 +283,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 			return true, nil
 		}
 	}); err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	if i, _ := l.Value(); i != nil {
@@ -292,14 +292,14 @@ func (db *Center) State(key string) (base.State, bool, error) {
 
 	st, found, err := db.perm.State(key)
 	if err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	return st, found, nil
 }
 
 func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
-	e := util.StringErrorFunc("find state bytes")
+	e := util.StringError("find state bytes")
 
 	l := util.EmptyLocked[[3]interface{}]()
 
@@ -313,7 +313,7 @@ func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ e
 			return true, nil
 		}
 	}); err != nil {
-		return ht, nil, nil, false, e(err, "")
+		return ht, nil, nil, false, e.Wrap(err)
 	}
 
 	if i, isempty := l.Value(); !isempty {
@@ -322,7 +322,7 @@ func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ e
 
 	enchint, meta, body, found, err := db.perm.StateBytes(key)
 	if err != nil {
-		return ht, nil, nil, false, e(err, "")
+		return ht, nil, nil, false, e.Wrap(err)
 	}
 
 	return enchint, meta, body, found, nil
@@ -354,7 +354,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 }
 
 func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
-	e := util.StringErrorFunc("check operation")
+	e := util.StringError("check operation")
 
 	l := util.EmptyLocked[bool]()
 
@@ -370,7 +370,7 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 			return true, nil
 		}
 	}); err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	if i, isempty := l.Value(); !isempty {
@@ -379,14 +379,14 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 
 	found, err := db.perm.ExistsInStateOperation(h)
 	if err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	return found, nil
 }
 
 func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
-	e := util.StringErrorFunc("check operation")
+	e := util.StringError("check operation")
 
 	l := util.EmptyLocked[bool]()
 
@@ -402,7 +402,7 @@ func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dup
 			return true, nil
 		}
 	}); err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	if i, isempty := l.Value(); !isempty {
@@ -411,7 +411,7 @@ func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dup
 
 	found, err := db.perm.ExistsKnownOperation(h)
 	if err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	return found, nil
@@ -486,11 +486,11 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
-	e := util.StringErrorFunc("merge new TempDatabase")
+	e := util.StringError("merge new TempDatabase")
 
 	temp, err := w.TempDatabase()
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	preheight := base.NilHeight
@@ -501,14 +501,14 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	default:
 		switch m, found, err := db.perm.LastBlockMap(); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case found:
 			preheight = m.Manifest().Height()
 		}
 	}
 
 	if preheight > base.NilHeight && temp.Height() != preheight+1 {
-		return e(nil,
+		return e.Errorf(
 			"new TempDatabase has wrong height; temp = prev + 1, temp=%d != prev=%d", temp.Height(), preheight)
 	}
 
@@ -862,7 +862,7 @@ func loadTemps( // revive:disable-line:flag-parameter
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) ([]isaac.TempDatabase, error) {
-	e := util.StringErrorFunc("load TempDatabases")
+	e := util.StringError("load TempDatabases")
 
 	last := base.NilHeight
 
@@ -876,7 +876,7 @@ end:
 	for {
 		switch temp, err := loadTemp(st, last+1, encs, enc); {
 		case err != nil:
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		case temp == nil:
 			break end
 		default:
@@ -888,7 +888,7 @@ end:
 
 	if len(temps) > 0 {
 		if err := removeHigherHeights(st, temps[len(temps)-1].Height()+1); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		sort.Slice(temps, func(i, j int) bool {

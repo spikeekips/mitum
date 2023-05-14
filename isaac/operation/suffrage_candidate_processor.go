@@ -27,12 +27,12 @@ func NewSuffrageCandidateProcessor(
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	lifespan base.Height,
 ) (*SuffrageCandidateProcessor, error) {
-	e := util.StringErrorFunc("create new SuffrageCandidateProcessor")
+	e := util.StringError("create new SuffrageCandidateProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	p := &SuffrageCandidateProcessor{
@@ -46,10 +46,10 @@ func NewSuffrageCandidateProcessor(
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found:
 	case i == nil:
-		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state returned"), "")
+		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state returned"))
 	default:
 		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
@@ -63,7 +63,7 @@ func NewSuffrageCandidateProcessor(
 
 	switch _, candidates, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case candidates == nil:
 	default:
 		for i := range candidates {
@@ -94,7 +94,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("preprocess for SuffrageCandidateStateValue")
+	e := util.StringError("preprocess for SuffrageCandidateStateValue")
 
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
@@ -117,7 +117,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return ctx, nil, e(err, "")
+		return ctx, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return ctx, reasonerr, nil
 	}
@@ -128,11 +128,11 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("process for SuffrageCandidateStateValue")
+	e := util.StringError("process for SuffrageCandidateStateValue")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, nil, e(err, "")
+		return nil, nil, e.Wrap(err)
 	case reasonerr != nil:
 		return nil, reasonerr, nil
 	}
@@ -259,7 +259,7 @@ func (suffrageRemoveCandidateStateValue) HashBytes() []byte {
 
 func (s suffrageRemoveCandidateStateValue) IsValid([]byte) error {
 	if err := util.CheckIsValiderSlice(nil, false, s.nodes); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid suffrageRemoveCandidateStateValue")
+		return util.ErrInvalid.WithMessage(err, "invalid suffrageRemoveCandidateStateValue")
 	}
 
 	return nil

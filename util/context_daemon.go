@@ -29,7 +29,7 @@ func (dm *ContextDaemon) IsStarted() bool {
 
 func (dm *ContextDaemon) Start(ctx context.Context) error {
 	if dm.IsStarted() {
-		return ErrDaemonAlreadyStarted.Call()
+		return ErrDaemonAlreadyStarted.WithStack()
 	}
 
 	_ = dm.Wait(ctx)
@@ -45,7 +45,7 @@ func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
 
 	if dm.IsStarted() {
 		go func() {
-			ch <- ErrDaemonAlreadyStarted
+			ch <- ErrDaemonAlreadyStarted.WithStack()
 		}()
 
 		return ch
@@ -71,7 +71,7 @@ func (dm *ContextDaemon) Stop() error {
 	defer dm.Unlock()
 
 	if !dm.IsStarted() {
-		return ErrDaemonAlreadyStopped.Call()
+		return ErrDaemonAlreadyStopped.WithStack()
 	}
 
 	dm.callbackCancel()

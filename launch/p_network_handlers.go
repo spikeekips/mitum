@@ -42,7 +42,7 @@ var (
 )
 
 func PNetworkHandlers(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare network handlers")
+	e := util.StringError("prepare network handlers")
 
 	var log *logging.Logging
 	var encs *encoder.Encoders
@@ -79,12 +79,12 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	sendOperationFilterf, err := sendOperationFilterFunc(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
@@ -146,19 +146,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 			quicstreamheader.NewHandler(encs, 0,
 				isaacnetwork.QuicstreamHandlerBlockMapItem(
 					func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
-						e := util.StringErrorFunc("get BlockMapItem")
+						e := util.StringError("get BlockMapItem")
 
 						var menc encoder.Encoder
 
 						switch m, found, err := db.BlockMap(height); {
 						case err != nil:
-							return nil, false, e(err, "")
+							return nil, false, e.Wrap(err)
 						case !found:
-							return nil, false, e(storage.ErrNotFound.Errorf("BlockMap not found"), "")
+							return nil, false, e.Wrap(storage.ErrNotFound.Errorf("BlockMap not found"))
 						default:
 							menc = encs.Find(m.Encoder())
 							if menc == nil {
-								return nil, false, e(storage.ErrNotFound.Errorf("encoder of BlockMap not found"), "")
+								return nil, false, e.Wrap(storage.ErrNotFound.Errorf("encoder of BlockMap not found"))
 							}
 						}
 
@@ -166,7 +166,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 							LocalFSDataDirectory(design.Storage.Base), height, menc,
 						)
 						if err != nil {
-							return nil, false, e(err, "")
+							return nil, false, e.Wrap(err)
 						}
 						defer func() {
 							_ = reader.Close()
@@ -456,7 +456,7 @@ func quicstreamHandlerGetNodeInfoFunc(
 			if !isempty && nodeinfo.ID() == last {
 				b = updateUptime(lastb)
 
-				return "", util.ErrLockedSetIgnore.Call()
+				return "", util.ErrLockedSetIgnore.WithStack()
 			}
 
 			jm := nodeinfo.NodeInfo().JSONMarshaler()

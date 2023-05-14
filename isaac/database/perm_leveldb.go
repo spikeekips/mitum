@@ -66,11 +66,11 @@ func (db *LeveldbPermanent) Clean() error {
 }
 
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("get suffrageproof by height")
+	e := util.StringError("get suffrageproof by height")
 
 	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case found:
 		return proof, true, nil
 	default:
@@ -85,11 +85,11 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("get suffrageproof by height")
+	e := util.StringError("get suffrageproof by height")
 
 	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	case found:
 		return db.LastSuffrageProofBytes()
 	default:
@@ -98,11 +98,11 @@ func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 }
 
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("get suffrage by block height")
+	e := util.StringError("get suffrage by block height")
 
 	switch m, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case height > m.Manifest().Height():
@@ -111,7 +111,7 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 
 	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case height >= proof.State().Height():
@@ -162,11 +162,11 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool, _ error) {
-	e := util.StringErrorFunc("load blockmap")
+	e := util.StringError("load blockmap")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case found && i.Manifest().Height() == height:
@@ -181,11 +181,11 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("load blockmap bytes")
+	e := util.StringError("load blockmap bytes")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
+		return enchint, nil, nil, false, e.Wrap(err)
 	case !found:
 		return enchint, nil, nil, false, nil
 	case found && i.Manifest().Height() == height:
@@ -199,25 +199,25 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 	db.Lock()
 	defer db.Unlock()
 
-	e := util.StringErrorFunc("merge TempDatabase")
+	e := util.StringError("merge TempDatabase")
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
 		if err := db.mergeTempDatabaseFromLeveldb(ctx, t); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		return nil
 	default:
-		return e(nil, "unknown temp database, %T", temp)
+		return e.Errorf("unknown temp database, %T", temp)
 	}
 }
 
 func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
-	e := util.StringErrorFunc("merge LeveldbTempDatabase")
+	e := util.StringError("merge LeveldbTempDatabase")
 
 	if temp.mp == nil {
-		return e(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"), "")
+		return e.Wrap(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"))
 	}
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
@@ -243,21 +243,21 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 		return true, nil
 	}, false); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if batch.Len() > 0 {
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 			return db.st.Batch(batch, nil)
 		}); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	_ = db.updateLast(
@@ -287,7 +287,7 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 }
 
 func (db *LeveldbPermanent) loadLastSuffrageProof() error {
-	e := util.StringErrorFunc("load last suffrage state")
+	e := util.StringError("load last suffrage state")
 
 	var proof base.SuffrageProof
 
@@ -308,7 +308,7 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 		},
 		false,
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if proof != nil {

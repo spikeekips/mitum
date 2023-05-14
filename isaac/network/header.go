@@ -468,7 +468,7 @@ func (h StateRequestHeader) IsValid([]byte) error {
 
 	if h.h != nil {
 		if err := h.h.IsValid(nil); err != nil {
-			return e.Wrapf(err, "invalid state hash")
+			return e.WithMessage(err, "invalid state hash")
 		}
 	}
 
@@ -567,7 +567,7 @@ func NewSetAllowConsensusHeader(allow bool) SetAllowConsensusHeader {
 
 func (h SetAllowConsensusHeader) IsValid([]byte) error {
 	if err := h.BaseHinter.IsValid(SetAllowConsensusHeaderHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid SetAllowConsensusHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid SetAllowConsensusHeader")
 	}
 
 	return nil
@@ -619,7 +619,7 @@ func NewStartHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Addres
 
 func (h StartHandoverHeader) IsValid([]byte) error {
 	if err := h.caHandoverHeader.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid StartHandoverHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid StartHandoverHeader")
 	}
 
 	return nil
@@ -637,7 +637,7 @@ func NewCheckHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Addres
 
 func (h CheckHandoverHeader) IsValid([]byte) error {
 	if err := h.caHandoverHeader.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid CheckHandoverHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid CheckHandoverHeader")
 	}
 
 	return nil
@@ -655,7 +655,7 @@ func NewAskHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Address)
 
 func (h AskHandoverHeader) IsValid([]byte) error {
 	if err := h.caHandoverHeader.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid AskHandoverHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid AskHandoverHeader")
 	}
 
 	return nil
@@ -703,7 +703,7 @@ func NewCancelHandoverHeader() CancelHandoverHeader {
 
 func (h CancelHandoverHeader) IsValid([]byte) error {
 	if err := h.baseHeader.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid CancelHandoverHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid CancelHandoverHeader")
 	}
 
 	return nil
@@ -721,7 +721,7 @@ func NewHandoverMessageHeader() HandoverMessageHeader {
 
 func (h HandoverMessageHeader) IsValid([]byte) error {
 	if err := h.baseHeader.IsValid(nil); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid HandoverMessageHeader")
+		return util.ErrInvalid.WithMessage(err, "invalid HandoverMessageHeader")
 	}
 
 	return nil

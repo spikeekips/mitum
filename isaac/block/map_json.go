@@ -49,19 +49,19 @@ type blockMapJSONUnmarshaler struct {
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode blockmap")
+	e := util.StringError("decode blockmap")
 
 	var u blockMapJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := m.BaseNodeSign.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Manifest, &m.manifest); err != nil {
-		return e(err, "decode manifest")
+		return e.WithMessage(err, "decode manifest")
 	}
 
 	items := util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem]()
@@ -69,7 +69,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	for k := range u.Items {
 		var ui BlockMapItem
 		if err := enc.Unmarshal(u.Items[k], &ui); err != nil {
-			return e(err, "unmarshal blockmap item, %q", k)
+			return e.WithMessage(err, "unmarshal blockmap item, %q", k)
 		}
 
 		_ = items.SetValue(ui.Type(), ui)
@@ -106,16 +106,16 @@ type blockMapItemJSONUnmarshaler struct {
 }
 
 func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal blockMapItem")
+	e := util.StringError("unmarshal blockMapItem")
 	var u blockMapItemJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch i, err := url.Parse(u.URL); {
 	case err != nil:
-		return e(err, "parse url")
+		return e.WithMessage(err, "parse url")
 	default:
 		item.url = *i
 	}

@@ -281,7 +281,7 @@ func (t *testLocked) TestEmpty() {
 			t.False(isempty)
 			t.Equal("findme", i)
 
-			return ErrLockedSetIgnore.Call()
+			return ErrLockedSetIgnore.WithStack()
 		}))
 
 		i, isempty := l.Value()
@@ -481,7 +481,7 @@ func (t *testSingleLockedMap) TestSet() {
 			t.True(found)
 			t.Equal(2, i)
 
-			return 3, ErrLockedSetIgnore.Call()
+			return 3, ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
 		t.Equal(2, i)
@@ -541,7 +541,7 @@ func (t *testSingleLockedMap) TestRemove() {
 			t.True(found)
 			t.Equal(1, i)
 
-			return ErrLockedSetIgnore.Call()
+			return ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
 		t.False(removed)
@@ -855,7 +855,7 @@ func (t *testShardedMap) TestSet() {
 			t.True(found)
 			t.Equal("showme", i)
 
-			return "findme", ErrLockedSetIgnore.Call()
+			return "findme", ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
 		t.Equal("showme", i)
@@ -915,7 +915,7 @@ func (t *testShardedMap) TestRemove() {
 			t.True(found)
 			t.Equal(1, i)
 
-			return ErrLockedSetIgnore.Call()
+			return ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
 		t.False(removed)

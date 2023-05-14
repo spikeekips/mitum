@@ -11,7 +11,7 @@ import (
 
 const PKKeyTypeSize = 3
 
-var ErrSignatureVerification = util.NewMError("signature verification failed")
+var ErrSignatureVerification = util.NewIDError("signature verification failed")
 
 type PKKey interface {
 	fmt.Stringer
@@ -68,20 +68,20 @@ func (sg *Signature) UnmarshalText(b []byte) error {
 }
 
 func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
-	e := util.StringErrorFunc("decode pk key")
+	e := util.StringError("decode pk key")
 
 	i, err := enc.DecodeWithFixedHintType(s, PKKeyTypeSize)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case i == nil:
 		return nil, nil
 	}
 
 	k, ok := i.(PKKey)
 	if !ok {
-		return nil, e(nil, "not PKKey, %T", i)
+		return nil, e.Errorf("not PKKey, %T", i)
 	}
 
 	return k, nil
@@ -92,20 +92,20 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 		return nil, nil
 	}
 
-	e := util.StringErrorFunc("decode privatekey")
+	e := util.StringError("decode privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case i == nil:
 		return nil, nil
 	}
 
 	k, ok := i.(Privatekey)
 	if !ok {
-		return nil, e(nil, "not Privatekey, %T", i)
+		return nil, e.Errorf("not Privatekey, %T", i)
 	}
 
 	return k, nil
@@ -141,19 +141,19 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 }
 
 func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
-	e := util.StringErrorFunc("decode publickey")
+	e := util.StringError("decode publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case i == nil:
 		return nil, nil
 	default:
 		k, ok := i.(Publickey)
 		if !ok {
-			return nil, e(nil, "not Publickey, %T", i)
+			return nil, e.Errorf("not Publickey, %T", i)
 		}
 
 		return k, nil

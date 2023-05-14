@@ -155,7 +155,7 @@ func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 
 		interval := timer.intervalFunc(0)
 		if interval < 1 {
-			return nil, ErrLockedSetIgnore.Call()
+			return nil, ErrLockedSetIgnore.WithStack()
 		}
 
 		keep = true

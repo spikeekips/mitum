@@ -5,22 +5,22 @@ import (
 )
 
 func IsValidVoteproof(vp Voteproof, networkID NetworkID) error {
-	e := util.StringErrorFunc("invalid Voteproof")
+	e := util.ErrInvalid.Errorf("invalid Voteproof")
 
 	switch {
 	case len(vp.ID()) < 1:
-		return e(util.ErrInvalid.Errorf("empty id"), "")
+		return e.Errorf("empty id")
 	case !vp.Point().Stage().CanVote():
-		return e(util.ErrInvalid.Errorf("wrong stage, %q for Voteproof", vp.Point().Stage()), "")
+		return e.Errorf("wrong stage, %q for Voteproof", vp.Point().Stage())
 	case vp.Result() == VoteResultNotYet:
-		return e(util.ErrInvalid.Errorf("not yet finished"), "")
+		return e.Errorf("not yet finished")
 	case len(vp.SignFacts()) < 1:
-		return e(util.ErrInvalid.Errorf("empty sign facts"), "")
+		return e.Errorf("empty sign facts")
 	}
 
 	// NOTE check duplicated sign node in SignFacts
 	if err := isValidVoteproofDuplicatedSignNode(vp); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(networkID, false,
@@ -28,15 +28,15 @@ func IsValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		vp.Result(),
 		vp.Threshold(),
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := isValidVoteproofVoteResult(vp, networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := isValidVoteproofSignFacts(vp, networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -69,11 +69,11 @@ func isValidVoteproofVoteResult(vp Voteproof, networkID NetworkID) error {
 		return util.ErrInvalid.Errorf("empty majority for majority")
 	default:
 		if err := vp.Majority().IsValid(networkID); err != nil {
-			return util.ErrInvalid.Wrapf(err, "invalid majority")
+			return util.ErrInvalid.WithMessage(err, "invalid majority")
 		}
 
 		if err := isValidFactInVoteproof(vp, vp.Majority()); err != nil {
-			return util.ErrInvalid.Wrapf(err, "invalid majority")
+			return util.ErrInvalid.WithMessage(err, "invalid majority")
 		}
 	}
 
@@ -105,7 +105,7 @@ func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 	}
 
 	if err := util.CheckIsValiders(networkID, false, bs...); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid sign facts")
+		return util.ErrInvalid.WithMessage(err, "invalid sign facts")
 	}
 
 	if majority != nil {
@@ -149,30 +149,30 @@ func IsValidACCEPTVoteproof(vp ACCEPTVoteproof, _ NetworkID) error {
 }
 
 func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
-	e := util.StringErrorFunc("invalid fact in voteproof")
+	e := util.StringError("invalid fact in voteproof")
 
 	// NOTE check point
 	if !vp.Point().Equal(fact.Point()) {
-		return e(util.ErrInvalid.Errorf(
-			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point()), "")
+		return e.Wrap(util.ErrInvalid.Errorf(
+			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point()))
 	}
 
 	return nil
 }
 
 func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
-	e := util.StringErrorFunc("invalid sign fact in voteproof")
+	e := util.StringError("invalid sign fact in voteproof")
 
 	if err := isValidFactInVoteproof( //nolint:forcetypeassert // already checked
 		vp, sf.Fact().(BallotFact)); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) error {
-	e := util.StringErrorFunc("invalid voteproof with suffrage")
+	e := util.StringError("invalid voteproof with suffrage")
 
 	sfs := vp.SignFacts()
 
@@ -181,9 +181,9 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) erro
 
 		switch {
 		case !suf.Exists(n.Node()):
-			return e(util.ErrInvalid.Errorf("unknown node found, %q", n.Node()), "")
+			return e.Wrap(util.ErrInvalid.Errorf("unknown node found, %q", n.Node()))
 		case !suf.ExistsPublickey(n.Node(), n.Signer()):
-			return e(util.ErrInvalid.Errorf("wrong publickey"), "")
+			return e.Wrap(util.ErrInvalid.Errorf("wrong publickey"))
 		}
 	}
 
@@ -193,18 +193,18 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) erro
 
 		switch {
 		case result != vp.Result():
-			return e(util.ErrInvalid.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result), "")
+			return e.Wrap(util.ErrInvalid.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result))
 		case result == VoteResultDraw:
 			if vp.Majority() != nil {
-				return e(util.ErrInvalid.Errorf("not empty majority for draw"), "")
+				return e.Wrap(util.ErrInvalid.Errorf("not empty majority for draw"))
 			}
 		case result == VoteResultMajority:
 			if vp.Majority() == nil {
-				return e(util.ErrInvalid.Errorf("empty majority for majority"), "")
+				return e.Wrap(util.ErrInvalid.Errorf("empty majority for majority"))
 			}
 
 			if !vp.Majority().Hash().Equal(m[majoritykey].Hash()) {
-				return e(util.ErrInvalid.Errorf("wrong majority for majority"), "")
+				return e.Wrap(util.ErrInvalid.Errorf("wrong majority for majority"))
 			}
 		}
 	}

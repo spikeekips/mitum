@@ -101,7 +101,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("import blocks")
+	e := util.StringError("import blocks")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -118,14 +118,14 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		launch.LocalParamsContextKey, &params,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var last base.Height
 
 	switch i, err := cmd.checkHeights(pctx); {
 	case err != nil:
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	default:
 		last = i
 	}
@@ -142,7 +142,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	}
 
 	if err := cmd.validateSourceBlocks(last, enc, params); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if !cmd.Do {
@@ -161,11 +161,11 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		db,
 		params,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := cmd.validateImported(last, enc, design, params, db); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil
@@ -228,7 +228,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 	enc encoder.Encoder,
 	params *isaac.LocalParams,
 ) error {
-	e := util.StringErrorFunc("validate source blocks")
+	e := util.StringError("validate source blocks")
 
 	d := last - cmd.fromHeight
 
@@ -245,7 +245,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 			return isaacblock.ValidateBlockFromLocalFS(height, cmd.Source, enc, params.NetworkID(), nil, nil, nil)
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	cmd.log.Debug().Msg("source blocks validated")
@@ -260,12 +260,12 @@ func (cmd *ImportCommand) validateImported(
 	params *isaac.LocalParams,
 	db isaac.Database,
 ) error {
-	e := util.StringErrorFunc("validate imported")
+	e := util.StringError("validate imported")
 
 	root := launch.LocalFSDataDirectory(design.Storage.Base)
 
 	if err := isaacblock.ValidateBlocksFromStorage(root, cmd.fromHeight, last, enc, params, db, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	cmd.log.Debug().Msg("imported blocks validated")

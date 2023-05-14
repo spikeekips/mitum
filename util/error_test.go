@@ -23,29 +23,30 @@ func (t *testError) TestFuncCaller() {
 	f := FuncCaller(2)
 	t.Equal("(*testError).TestFuncCaller:23", fmt.Sprintf("%n:%d", f, f))
 
-	e := NewMError("showme")
+	e := NewIDError("showme")
 	t.Contains(e.id, "(*testError).TestFuncCaller")
 }
 
 func (t *testError) TestIs() {
-	e := NewMError("showme")
+	e := NewIDError("showme")
 
-	e0 := e.Call()
+	e0 := e.WithStack()
 	t.Implements((*(interface{ Error() string }))(nil), e0)
 
 	t.Equal("showme", e0.Error())
 
 	t.True(errors.Is(e0, e0))
-	t.False(errors.Is(e0, NewMError("showme").Call()))
-	t.False(errors.Is(e0, NewMError("findme").Call()))
+	t.False(errors.Is(e0, nil))
+	t.False(errors.Is(e0, NewIDError("showme").WithStack()))
+	t.False(errors.Is(e0, NewIDError("findme").WithStack()))
 	t.True(errors.Is(e0, e0.Errorf("showme")))
 }
 
 func (t *testError) TestAs() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
-	var e1 MError
+	var e1 *IDError
 	t.True(errors.As(e0, &e1))
 
 	t.True(errors.Is(e0, e1))
@@ -54,74 +55,86 @@ func (t *testError) TestAs() {
 }
 
 func (t *testError) TestWrap() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
-	pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
-	e1 := e0.Wrap(pe)
+	t.Run("wrap nil", func() {
+		t.Nil(e0.Wrap(nil))
+	})
 
-	t.False(errors.Is(e1, NewMError("showme").Call()))
-	t.True(errors.Is(e1, e1.Errorf("showme")))
-	t.True(errors.Is(e1, pe))
+	t.Run("wrap external error", func() {
+		pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
+		e1 := e0.Wrap(pe)
 
-	var e2 MError
-	t.True(errors.As(e0, &e2))
-	t.True(errors.As(e1, &e2))
+		t.False(errors.Is(e1, NewIDError("showme").WithStack()))
+		t.True(errors.Is(e1, errors.WithMessage(e1, "showme")))
+		t.True(errors.Is(e1, pe))
 
-	t.True(errors.Is(e0, e2))
-	t.True(errors.Is(e1, e2))
+		var npe *os.PathError
+		t.True(errors.As(e1, &npe))
 
-	var npe *os.PathError
-	t.True(errors.As(e1, &npe))
+		t.True(errors.Is(pe, npe))
+		t.Equal(pe.Error(), npe.Error())
 
-	t.True(errors.Is(pe, npe))
-	t.Equal(pe.Error(), npe.Error())
+		var e2 *IDError
+		t.True(errors.As(e0, &e2))
+		t.True(errors.As(e1, &e2))
+
+		t.True(errors.Is(e0, e2))
+		t.True(errors.Is(e1, e2))
+	})
 }
 
 func (t *testError) TestWrapAgain() {
-	ea := NewMError("showme")
-	eb := NewMError("findme")
-	e0 := ea.Call()
+	ea := NewIDError("showme")
+	eb := NewIDError("findme")
+	e0 := ea.WithStack()
 
-	e1 := e0.Wrap(eb.Call())
+	e1 := e0.Wrap(eb.WithStack())
 
 	t.True(errors.Is(e0, e1))
 	t.True(errors.Is(e1, e0))
 }
 
 func (t *testError) TestWrapf() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
-	pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
-	e1 := e0.Wrapf(pe, "find me: %d", 3)
+	t.Run("wrap nil", func() {
+		t.Nil(e0.WithMessage(nil, "findme"))
+	})
 
-	t.True(errors.Is(e0, e1))
-	t.False(errors.Is(e1, NewMError("showme").Call()))
-	t.True(errors.Is(e1, e1.Errorf("showme")))
-	t.True(errors.Is(e1, pe))
+	t.Run("wrap external error", func() {
+		pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
+		e1 := e0.WithMessage(pe, "find me: %d", 3)
 
-	var e2 MError
-	t.True(errors.As(e0, &e2))
-	t.True(errors.As(e1, &e2))
+		t.True(errors.Is(e0, e1))
+		t.False(errors.Is(e1, NewIDError("showme").WithStack()))
+		t.True(errors.Is(e1, errors.WithMessage(e1, "showme")))
+		t.True(errors.Is(e1, pe))
 
-	t.True(errors.Is(e0, e2))
-	t.True(errors.Is(e1, e2))
+		var e2 *IDError
+		t.True(errors.As(e0, &e2))
+		t.True(errors.As(e1, &e2))
 
-	var npe *os.PathError
-	t.True(errors.As(e1, &npe))
+		t.True(errors.Is(e0, e2))
+		t.True(errors.Is(e1, e2))
 
-	t.True(errors.Is(pe, npe))
-	t.Equal(pe.Error(), npe.Error())
+		var npe *os.PathError
+		t.True(errors.As(e1, &npe))
+
+		t.True(errors.Is(pe, npe))
+		t.Equal(pe.Error(), npe.Error())
+	})
 }
 
 func (t *testError) TestErrorf() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
 	e1 := e0.Errorf("error: %d", 33)
 
-	var e2 MError
+	var e2 *IDError
 	t.True(errors.As(e0, &e2))
 	t.True(errors.As(e1, &e2))
 
@@ -170,13 +183,13 @@ func (t *testError) printStacks(err error) string {
 }
 
 func (t *testError) TestPrint() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
 	t.T().Logf("e0,  v: %v", e0)
 	t.T().Logf("e0, +v: %+v", e0)
 
-	e1 := e0.Wrapf(&os.PathError{Op: "op", Path: "/tmp", Err: errors.Errorf("path error")}, "findme")
+	e1 := e0.WithMessage(&os.PathError{Op: "op", Path: "/tmp", Err: errors.Errorf("path error")}, "findme")
 	t.T().Logf("e1,  v: %v", e1)
 	t.T().Logf("e1, +v: %+v", e1)
 
@@ -186,8 +199,8 @@ func (t *testError) TestPrint() {
 }
 
 func (t *testError) TestPrintStacks() {
-	e := NewMError("showme")
-	e0 := e.Call()
+	e := NewIDError("showme")
+	e0 := e.WithStack()
 
 	e1 := errors.New("findme")
 
@@ -248,7 +261,7 @@ func (t *testError) TestPKGErrorStack() {
 }
 
 func (t *testError) TestErrorStack() {
-	e := NewMError("showme").Call()
+	e := NewIDError("showme").WithStack()
 
 	var bf bytes.Buffer
 	l := t.setupLogging(&bf)
@@ -259,17 +272,25 @@ func (t *testError) TestErrorStack() {
 	t.True(t.checkStack(bf.Bytes()))
 }
 
-func (t *testError) TestStringErrorFunc() {
-	e := StringErrorFunc("showme")
+func (t *testError) TestStringError() {
+	e := StringError("showme")
 
-	t.Run("nil error", func() {
-		ee := e(nil, "hehehe")
+	t.Run("WithMessage; nil error", func() {
+		t.Nil(e.WithMessage(nil, "hehehe"))
+	})
+
+	t.Run("Wrap; nil error", func() {
+		t.Nil(e.Wrap(nil))
+	})
+
+	t.Run("msg", func() {
+		ee := e.Errorf("hehehe")
 
 		t.T().Logf("nil error:\n%s", t.printStacks(ee))
 	})
 
-	t.Run("with error", func() {
-		ee := e(fmt.Errorf("hohoho"), "hehehe")
+	t.Run("Wrapf error", func() {
+		ee := e.WithMessage(errors.Errorf("hohoho"), "hehehe")
 
 		t.T().Logf("with error:\n%s", t.printStacks(ee))
 	})

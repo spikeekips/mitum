@@ -51,7 +51,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 }
 
 func PNetwork(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare network")
+	e := util.StringError("prepare network")
 
 	var log *logging.Logging
 	var encs *encoder.Encoders
@@ -66,7 +66,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	handlers := quicstream.NewPrefixHandler(nil)

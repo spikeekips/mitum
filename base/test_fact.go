@@ -34,7 +34,7 @@ func (fact DummyFact) Hint() hint.Hint {
 
 func (fact DummyFact) IsValid([]byte) error {
 	if err := util.CheckIsValiders(nil, false, fact.h, fact.token); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid DummyFact")
+		return util.ErrInvalid.WithMessage(err, "invalid DummyFact")
 	}
 
 	if !fact.h.Equal(fact.generateHash()) {

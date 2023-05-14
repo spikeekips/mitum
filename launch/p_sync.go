@@ -21,7 +21,7 @@ var (
 )
 
 func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare SyncSourceChecker")
+	e := util.StringError("prepare SyncSourceChecker")
 
 	var log *logging.Logging
 	var enc encoder.Encoder
@@ -38,7 +38,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	sources := append([]isaacnetwork.SyncSource{}, design.SyncSources...)

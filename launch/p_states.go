@@ -70,7 +70,7 @@ func PBallotbox(pctx context.Context) (context.Context, error) {
 }
 
 func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("load ballot stuck resolver")
+	e := util.StringError("load ballot stuck resolver")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -91,7 +91,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		SuffragePoolContextKey, &sp,
 		SuffrageVotingContextKey, &svf,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	findMissingBallotsf := isaacstates.FindMissingBallotsFromBallotboxFunc(
@@ -138,7 +138,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 }
 
 func PStates(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare states")
+	e := util.StringError("prepare states")
 
 	args := isaacstates.NewStatesArgs()
 
@@ -164,7 +164,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &m,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	args.AllowConsensus = devflags.AllowConsensus
@@ -186,16 +186,16 @@ func PStates(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		func(bl base.Ballot) error {
-			ee := util.StringErrorFunc("broadcast ballot")
+			ee := util.StringError("broadcast ballot")
 
 			b, err := enc.Marshal(bl)
 			if err != nil {
-				return ee(err, "")
+				return ee.Wrap(err)
 			}
 
 			id := valuehash.NewSHA256(bl.HashBytes()).String()
 			if err := m.CallbackBroadcast(b, id, nil); err != nil {
-				return ee(err, "")
+				return ee.Wrap(err)
 			}
 
 			return nil
@@ -211,7 +211,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 
 	proposalSelector, err := NewProposalSelector(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	//revive:disable:modifies-parameter
@@ -249,7 +249,7 @@ func PCloseStates(pctx context.Context) (context.Context, error) {
 }
 
 func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //revive:disable-line:function-length
-	e := util.StringErrorFunc("set states handler")
+	e := util.StringError("set states handler")
 
 	var log *logging.Logging
 	var local base.LocalNode
@@ -270,7 +270,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		BallotboxContextKey, &ballotbox,
 		SuffrageVotingContextKey, &sv,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	votef := func(bl base.Ballot) (bool, error) {
@@ -292,12 +292,12 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 
 	syncingargs, err := newSyncingHandlerArgs(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	consensusargs, err := consensusHandlerArgs(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	consensusargs.VoteFunc = votef
@@ -306,7 +306,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 
 	joiningargs, err := newJoiningHandlerArgs(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	joiningargs.VoteFunc = votef
@@ -315,7 +315,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 
 	bootingargs, err := newBootingHandlerArgs(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	bootingargs.LastManifestFunc = getLastManifestf
@@ -389,20 +389,20 @@ func newSyncerFunc(pctx context.Context) (
 	}
 
 	return func(height base.Height) (isaac.Syncer, error) {
-		e := util.StringErrorFunc("newSyncer")
+		e := util.StringError("newSyncer")
 
 		var prev base.BlockMap
 
 		switch m, found, err := db.LastBlockMap(); {
 		case err != nil:
-			return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+			return nil, e.Wrap(isaacstates.ErrUnpromising.Wrap(err))
 		case found:
 			prev = m
 		}
 
 		args, err := newArgsf(height)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		syncer := isaacstates.NewSyncer(prev, args)
@@ -898,13 +898,13 @@ func syncerBlockMapItemFunc(
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.Reader, closef func() error, found bool, _ error,
 	) {
-		e := util.StringErrorFunc("fetch blockmap item")
+		e := util.StringError("fetch blockmap item")
 
 		var ci quicstream.UDPConnInfo
 
 		switch i, cfound := conninfocache.Value(height); {
 		case !cfound:
-			return nil, nil, false, e(nil, "conninfo not found")
+			return nil, nil, false, e.Errorf("conninfo not found")
 		default:
 			ci = i
 		}
@@ -914,7 +914,7 @@ func syncerBlockMapItemFunc(
 
 		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)
 		if err != nil {
-			return nil, nil, false, e(err, "")
+			return nil, nil, false, e.Wrap(err)
 		}
 
 		return r, cancel, found, err

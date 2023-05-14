@@ -24,13 +24,13 @@ func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
 }
 
 func (p Proof) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid Proof")
+	e := util.StringError("invalid Proof")
 
 	switch n := len(p.nodes); {
 	case n < 1:
-		return e(util.ErrInvalid.Errorf("empty extracted"), "")
+		return e.Wrap(util.ErrInvalid.Errorf("empty extracted"))
 	case n%2 != 1:
-		return e(util.ErrInvalid.Errorf("invalid number of extracted"), "")
+		return e.Wrap(util.ErrInvalid.Errorf("invalid number of extracted"))
 	}
 
 end:
@@ -39,13 +39,13 @@ end:
 
 		switch {
 		case i > 2 && n == nil:
-			return e(util.ErrInvalid.Errorf("empty node found at %d", i), "")
+			return e.Wrap(util.ErrInvalid.Errorf("empty node found at %d", i))
 		case n == nil:
 			continue end
 		}
 
 		if err := n.IsValid(b); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -77,12 +77,12 @@ func (p Proof) Nodes() []Node {
 }
 
 func (p Proof) Prove(key string) error {
-	e := util.StringErrorFunc("prove")
+	e := util.StringError("prove")
 
 	nodes := p.filterNodes(key)
 
 	if len(nodes) < 1 {
-		return e(nil, "key not found")
+		return e.Errorf("key not found")
 	}
 
 	for i := 0; i < (len(nodes)-1)/2; i++ {
@@ -102,7 +102,7 @@ func (p Proof) Prove(key string) error {
 
 			switch h, err := nodeHash(parents[j], nodes[bi], nodes[bi+1]); {
 			case err != nil:
-				return e(err, "")
+				return e.Wrap(err)
 			case parents[j].Hash().Equal(h):
 				passed = true
 
@@ -111,7 +111,7 @@ func (p Proof) Prove(key string) error {
 		}
 
 		if !passed {
-			return e(nil, "hash does not match")
+			return e.Errorf("hash does not match")
 		}
 	}
 
@@ -160,11 +160,11 @@ func (p Proof) filterNodes(key string) (nodes []Node) {
 }
 
 func ExtractProofMaterial(nodes []Node, key string) (extracted []Node, err error) {
-	e := util.StringErrorFunc("make proof material")
+	e := util.StringError("make proof material")
 
 	size := len(nodes)
 	if size < 1 {
-		return nil, e(nil, "empty tree")
+		return nil, e.Errorf("empty tree")
 	}
 
 	// NOTE find index
@@ -182,7 +182,7 @@ func ExtractProofMaterial(nodes []Node, key string) (extracted []Node, err error
 	}
 
 	if node == nil {
-		return nil, e(nil, "key not found")
+		return nil, e.Errorf("key not found")
 	}
 
 	height := indexHeight(index)
@@ -193,7 +193,7 @@ end:
 		switch c, err := childrenNodes(nodes, l); {
 		case err == nil:
 			if i*2 >= 2 && (c[0] == nil && c[1] == nil) {
-				return nil, e(nil, "empty children found at %d", l)
+				return nil, e.Errorf("empty children found at %d", l)
 			}
 
 			extracted[(i * 2)] = c[0] //nolint:gomnd //...
@@ -203,13 +203,13 @@ end:
 			extracted[(i*2)+1] = c[1] //nolint:gomnd //...
 		case errors.Is(err, errNoChildren):
 			if l != index {
-				return nil, e(err, "")
+				return nil, e.Wrap(err)
 			}
 
 			extracted[(i * 2)] = EmptyBaseNode() //nolint:gomnd //...
 			extracted[(i*2)+1] = EmptyBaseNode() //nolint:gomnd //...
 		default:
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 		i++
 
@@ -221,12 +221,12 @@ end:
 
 			break end
 		default:
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
 	if extracted[len(extracted)-1] == nil {
-		return nil, e(nil, "empty root node found")
+		return nil, e.Errorf("empty root node found")
 	}
 
 	return extracted, nil

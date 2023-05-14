@@ -69,15 +69,15 @@ func (h HandoverMessageChallengeResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (h *HandoverMessageChallengeResponse) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal HandoverMessageChallengeResponse")
+	e := util.StringError("unmarshal HandoverMessageChallengeResponse")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u HandoverMessageChallengeResponseJSONMarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.point = u.Point
@@ -109,10 +109,10 @@ func (h HandoverMessageFinish) MarshalJSON() ([]byte, error) {
 }
 
 func (h *HandoverMessageFinish) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("unmarshal HandoverMessageFinish")
+	e := util.StringError("unmarshal HandoverMessageFinish")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u struct {
@@ -121,15 +121,15 @@ func (h *HandoverMessageFinish) DecodeJSON(b []byte, enc *jsonenc.Encoder) error
 	}
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Proposal, &h.pr); err != nil {
-		return e(err, "finish voteproof")
+		return e.WithMessage(err, "finish voteproof")
 	}
 
 	if err := encoder.Decode(enc, u.Voteproof, &h.vp); err != nil {
-		return e(err, "finish voteproof")
+		return e.WithMessage(err, "finish voteproof")
 	}
 
 	return nil
@@ -152,15 +152,15 @@ func (h HandoverMessageChallengeStagePoint) MarshalJSON() ([]byte, error) {
 }
 
 func (h *HandoverMessageChallengeStagePoint) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal HandoverMessageChallengeStagePoint")
+	e := util.StringError("unmarshal HandoverMessageChallengeStagePoint")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u HandoverMessageChallengeStagePointJSONMarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.point = u.Point
@@ -187,10 +187,10 @@ func (h HandoverMessageChallengeBlockMap) MarshalJSON() ([]byte, error) {
 }
 
 func (h *HandoverMessageChallengeBlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("unmarshal HandoverMessageChallengeBlockMap")
+	e := util.StringError("unmarshal HandoverMessageChallengeBlockMap")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u struct {
@@ -199,11 +199,11 @@ func (h *HandoverMessageChallengeBlockMap) DecodeJSON(b []byte, enc *jsonenc.Enc
 	}
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.BlockMap, &h.m); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.point = u.Point
@@ -242,10 +242,10 @@ func (h HandoverMessageData) MarshalJSON() ([]byte, error) {
 }
 
 func (h *HandoverMessageData) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("unmarshal HandoverMessageData")
+	e := util.StringError("unmarshal HandoverMessageData")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u struct {
@@ -254,12 +254,12 @@ func (h *HandoverMessageData) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch data, err := h.decodeDataJSON(u.DataType, u.Data, enc); {
 	case err != nil:
-		return e(err, "data")
+		return e.WithMessage(err, "data")
 	default:
 		h.dataType = u.DataType
 		h.data = data

@@ -41,30 +41,30 @@ type StuckVoteproof interface {
 }
 
 func EnsureINITVoteproof(vp Voteproof) (INITVoteproof, error) {
-	e := util.StringErrorFunc("invalid INITVoteproof")
+	e := util.StringError("invalid INITVoteproof")
 
 	if vp.Point().Stage() != StageINIT {
-		return nil, e(util.ErrInvalid.Errorf("wrong point stage"), "")
+		return nil, e.Wrap(util.ErrInvalid.Errorf("wrong point stage"))
 	}
 
 	i, ok := vp.(INITVoteproof)
 	if !ok {
-		return nil, e(util.ErrInvalid.Errorf("expected INITVoteproof, but %T", vp), "")
+		return nil, e.Wrap(util.ErrInvalid.Errorf("expected INITVoteproof, but %T", vp))
 	}
 
 	return i, nil
 }
 
 func EnsureACCEPTVoteproof(vp Voteproof) (ACCEPTVoteproof, error) {
-	e := util.StringErrorFunc("invalid ACCEPTVoteproof")
+	e := util.StringError("invalid ACCEPTVoteproof")
 
 	if vp.Point().Stage() != StageACCEPT {
-		return nil, e(util.ErrInvalid.Errorf("wrong point stage"), "")
+		return nil, e.Wrap(util.ErrInvalid.Errorf("wrong point stage"))
 	}
 
 	i, ok := vp.(ACCEPTVoteproof)
 	if !ok {
-		return nil, e(util.ErrInvalid.Errorf("expected ACCEPTVoteproof, but %T", vp), "")
+		return nil, e.Wrap(util.ErrInvalid.Errorf("expected ACCEPTVoteproof, but %T", vp))
 	}
 
 	return i, nil

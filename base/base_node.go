@@ -66,23 +66,23 @@ type BaseNodeJSONUnmarshaler struct {
 }
 
 func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode BaseNode")
+	e := util.StringError("decode BaseNode")
 
 	var u BaseNodeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch i, err := DecodeAddress(u.Address, enc); {
 	case err != nil:
-		return e(err, "decode node address")
+		return e.WithMessage(err, "decode node address")
 	default:
 		n.addr = i
 	}
 
 	switch i, err := DecodePublickeyFromString(u.Publickey, enc); {
 	case err != nil:
-		return e(err, "node publickey")
+		return e.WithMessage(err, "node publickey")
 	default:
 		n.pub = i
 	}

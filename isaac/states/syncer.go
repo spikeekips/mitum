@@ -259,9 +259,9 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 	prev, err := s.prevvalue.Set(func(i base.BlockMap, _ bool) (base.BlockMap, error) {
 		switch {
 		case i == nil:
-			return nil, util.ErrLockedSetIgnore.Call()
+			return nil, util.ErrLockedSetIgnore.WithStack()
 		case s.checkedprevs.Exists(i.Manifest().Height()):
-			return nil, util.ErrLockedSetIgnore.Call()
+			return nil, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		newprev, err := s.checkPrevMap(ctx, i)
@@ -275,7 +275,7 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 		case newprev != nil:
 			return newprev, nil
 		default:
-			return nil, util.ErrLockedSetIgnore.Call()
+			return nil, util.ErrLockedSetIgnore.WithStack()
 		}
 	})
 	if err != nil {
@@ -308,16 +308,16 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 }
 
 func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
-	e := util.StringErrorFunc("sync")
+	e := util.StringError("sync")
 
 	// NOTE fetch and store all BlockMaps
 	newprev, err := s.prepareMaps(ctx, prev, to)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := s.syncBlocks(ctx, prev, to); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return newprev, nil
@@ -383,20 +383,20 @@ func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.Blo
 }
 
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
-	e := util.StringErrorFunc("fetch BlockMap")
+	e := util.StringError("fetch BlockMap")
 
 	switch m, found, err := s.args.BlockMapFunc(ctx, height); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found:
-		return nil, e(nil, "not found")
+		return nil, e.Errorf("not found")
 	default:
 		return m, nil
 	}
 }
 
 func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Height) error {
-	e := util.StringErrorFunc("sync blocks")
+	e := util.StringError("sync blocks")
 
 	from := base.GenesisHeight
 	if prev != nil {
@@ -420,7 +420,7 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		-1,
 		time.Second,
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

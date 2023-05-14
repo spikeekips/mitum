@@ -69,25 +69,25 @@ func NewLocalFSWriter(
 	local base.LocalNode,
 	networkID base.NetworkID,
 ) (*LocalFSWriter, error) {
-	e := util.StringErrorFunc("create LocalFSWriter")
+	e := util.StringError("create LocalFSWriter")
 
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	switch fi, err := os.Stat(abs); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !fi.IsDir():
-		return nil, e(nil, "root is not directory")
+		return nil, e.Errorf("root is not directory")
 	}
 
 	id := util.ULID().String()
 	temp := filepath.Join(abs, BlockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 
 	if err := os.MkdirAll(temp, 0o700); err != nil {
-		return nil, e(err, "create temp directory")
+		return nil, e.WithMessage(err, "create temp directory")
 	}
 
 	w := &LocalFSWriter{
@@ -105,14 +105,14 @@ func NewLocalFSWriter(
 
 	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeOperations); {
 	case err != nil:
-		return nil, e(err, "create operations file")
+		return nil, e.WithMessage(err, "create operations file")
 	default:
 		w.opsf = f
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeStates); {
 	case err != nil:
-		return nil, e(err, "create states file")
+		return nil, e.WithMessage(err, "create states file")
 	default:
 		w.stsf = f
 	}
@@ -240,11 +240,11 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("save voteproofs ")
+	e := util.StringError("save voteproofs ")
 
 	f, err := w.newChecksumWriter(base.BlockMapItemTypeVoteproofs)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -253,7 +253,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 
 	for i := range w.vps {
 		if err := w.appendfile(f, w.vps[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -262,7 +262,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		f.Checksum(),
 		uint64(len(w.vps)),
 	)); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -291,7 +291,7 @@ func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
 	case err != nil:
 		_ = os.RemoveAll(heightdirectory)
 
-		return nil, isaac.ErrStopProcessingRetry.Wrapf(err, "save fs writer")
+		return nil, isaac.ErrStopProcessingRetry.WithMessage(err, "save fs writer")
 	default:
 		return m, nil
 	}
@@ -358,9 +358,9 @@ func (w *LocalFSWriter) Cancel() error {
 		_ = w.stsf.Close()
 	}
 
-	e := util.StringErrorFunc("cancel fs writer")
+	e := util.StringError("cancel fs writer")
 	if err := os.RemoveAll(w.temp); err != nil {
-		return e(err, "remove temp directory")
+		return e.WithMessage(err, "remove temp directory")
 	}
 
 	return w.close()
@@ -391,11 +391,11 @@ func (w *LocalFSWriter) setTree(
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
-	e := util.StringErrorFunc("set tree, %q", treetype)
+	e := util.StringError("set tree, %q", treetype)
 
 	tf, err := w.newChecksumWriter(treetype)
 	if err != nil {
-		return tr, e(err, "create tree file, %q", treetype)
+		return tr, e.WithMessage(err, "create tree file, %q", treetype)
 	}
 
 	defer func() {
@@ -403,12 +403,12 @@ func (w *LocalFSWriter) setTree(
 	}()
 
 	if err := w.writefile(tf, append(tw.Hint().Bytes(), '\n')); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	if newjob != nil {
 		if err := worker.NewJob(newjob); err != nil {
-			return tr, e(err, "")
+			return tr, e.Wrap(err)
 		}
 	}
 
@@ -422,37 +422,37 @@ func (w *LocalFSWriter) setTree(
 			return w.writefile(tf, append(b, '\n'))
 		})
 	}); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	_ = tf.Close()
 
 	switch i, err := tw.Tree(); {
 	case err != nil:
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	default:
 		tr = i
 	}
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	return tr, nil
 }
 
 func (w *LocalFSWriter) saveMap() error {
-	e := util.StringErrorFunc("filed to save map")
+	e := util.StringError("filed to save map")
 
 	// NOTE sign blockmap by local node
 	if err := w.m.Sign(w.local.Address(), w.local.Privatekey(), w.networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	// NOTE save blockmap
@@ -462,11 +462,11 @@ func (w *LocalFSWriter) saveMap() error {
 		0o600,
 	)
 	if err != nil {
-		return e(err, "create map file")
+		return e.WithMessage(err, "create map file")
 	}
 
 	if err := w.writefileonce(f, w.m); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -605,19 +605,19 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 func FindLastHeightFromLocalFS(
 	baseroot string, enc encoder.Encoder, networkID base.NetworkID,
 ) (last base.Height, found bool, _ error) {
-	e := util.StringErrorFunc("find last height from localfs")
+	e := util.StringError("find last height from localfs")
 
 	last = base.NilHeight
 
 	switch h, found, err := FindHighestDirectory(baseroot); {
 	case err != nil:
-		return last, false, e(err, "")
+		return last, false, e.Wrap(err)
 	case !found:
 		return last, false, nil
 	default:
 		rel, err := filepath.Rel(baseroot, h)
 		if err != nil {
-			return last, false, e(err, "")
+			return last, false, e.Wrap(err)
 		}
 
 		height, err := HeightFromDirectory(rel)
@@ -629,17 +629,17 @@ func FindLastHeightFromLocalFS(
 
 		reader, err := NewLocalFSReader(h, enc)
 		if err != nil {
-			return last, false, e(err, "")
+			return last, false, e.Wrap(err)
 		}
 
 		switch i, found, err := reader.BlockMap(); {
 		case err != nil:
-			return last, false, e(err, "")
+			return last, false, e.Wrap(err)
 		case !found:
 			return last, false, nil
 		default:
 			if err := i.IsValid(networkID); err != nil {
-				return last, false, e(err, "")
+				return last, false, e.Wrap(err)
 			}
 
 			return last, true, nil
@@ -680,7 +680,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 			if !foundsubs {
 				highest = path
 
-				return util.ErrNotFound.Call()
+				return util.ErrNotFound.WithStack()
 			}
 
 			names = make([]string, len(filtered))
@@ -703,7 +703,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 			highest = a
 		}
 
-		return util.ErrNotFound.Call()
+		return util.ErrNotFound.WithStack()
 	})
 
 	switch {
@@ -864,20 +864,20 @@ type indexedTreeNode struct {
 }
 
 func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in indexedTreeNode, _ error) {
-	e := util.StringErrorFunc("unmarshal indexed tree node")
+	e := util.StringError("unmarshal indexed tree node")
 
 	bf := bytes.NewBuffer(b)
 	defer bf.Reset()
 
 	switch i, err := bf.ReadBytes(','); {
 	case err != nil:
-		return in, e(err, "")
+		return in, e.Wrap(err)
 	case len(i) < 2: //nolint:gomnd //...
-		return in, e(nil, "find index string")
+		return in, e.Errorf("find index string")
 	default:
 		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)
 		if err != nil {
-			return in, e(err, "")
+			return in, e.Wrap(err)
 		}
 
 		in.Index = index
@@ -885,7 +885,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 
 	left, err := io.ReadAll(bf)
 	if err != nil {
-		return in, e(err, "")
+		return in, e.Wrap(err)
 	}
 
 	switch i, err := enc.DecodeWithHint(left, ht); {

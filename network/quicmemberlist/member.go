@@ -53,17 +53,19 @@ func NewMember(
 }
 
 func newMemberFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseMember, error) {
-	e := util.StringErrorFunc("make Member from memberlist.Node")
+	e := util.StringError("make Member from memberlist.Node")
 
 	var meta memberMeta
 
 	if err := meta.DecodeJSON(node.Meta, enc); err != nil {
-		return BaseMember{}, e(err, "decode NodeMeta")
+		return BaseMember{}, e.WithMessage(err, "decode NodeMeta")
 	}
 
 	addr, _ := convertNetAddr(node)
 
-	return newMemberWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
+	m, err := newMemberWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
+
+	return m, e.Wrap(err)
 }
 
 func newMemberWithMeta(name string, addr *net.UDPAddr, meta memberMeta) (BaseMember, error) {
@@ -188,21 +190,21 @@ func (n BaseMember) MarshalJSON() ([]byte, error) {
 }
 
 func (n *BaseMember) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode Member")
+	e := util.StringError("decode Member")
 
 	var u baseMemberJSONMarshaler
 	if err := json.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var meta memberMeta
 	if err := meta.DecodeJSON(u.Meta, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", u.Address)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	n.name = u.Name
@@ -269,23 +271,23 @@ type memberMetaJSONUnmarshaler struct {
 }
 
 func (n *memberMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode MemberMeta")
+	e := util.StringError("decode MemberMeta")
 
 	var u memberMetaJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch i, err := base.DecodeAddress(u.Address, enc); {
 	case err != nil:
-		return e(err, "decode node address")
+		return e.WithMessage(err, "decode node address")
 	default:
 		n.address = i
 	}
 
 	switch i, err := base.DecodePublickeyFromString(u.Publickey, enc); {
 	case err != nil:
-		return e(err, "decode publickey")
+		return e.WithMessage(err, "decode publickey")
 	default:
 		n.publickey = i
 	}

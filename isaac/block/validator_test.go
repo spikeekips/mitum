@@ -149,7 +149,7 @@ func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase(
 	err = ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
 	t.Error(err)
 
-	var derr ErrorValidatedDifferentHeightBlockMaps
+	var derr *ErrValidatedDifferentHeightBlockMaps
 
 	t.True(errors.As(err, &derr))
 	t.Equal(base.Height(2), derr.DatabaseHeight())

@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var ErrNetwork = util.NewMError("network error")
+var ErrNetwork = util.NewIDError("network error")
 
 func IsNetworkError(err error) bool {
 	switch {

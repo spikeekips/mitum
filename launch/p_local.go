@@ -17,21 +17,21 @@ var (
 )
 
 func PLocal(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("load local")
+	e := util.StringError("load local")
 
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var design NodeDesign
 	if err := util.LoadFromContextOK(pctx, DesignContextKey, &design); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	local, err := LocalFromDesign(design)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	log.Log().Debug().Interface("local", local).Msg("local loaded")

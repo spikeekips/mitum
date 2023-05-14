@@ -14,8 +14,6 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrSyncerCanNotCancel = util.NewMError("can not cancel syncer")
-
 type SyncingHandlerArgs struct {
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
 	NewSyncerFunc            func(base.Height) (isaac.Syncer, error)
@@ -82,23 +80,23 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 }
 
 func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("enter syncing state")
+	e := util.StringError("enter syncing state")
 
 	deferred, err := st.baseHandler.enter(from, i)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	sctx, ok := i.(SyncingSwitchContext)
 	if !ok {
-		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
+		return nil, e.Errorf("invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
 	switch sc, err := st.args.NewSyncerFunc(sctx.height); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case sc == nil:
-		return nil, e(nil, "empty syncer") // NOTE only for testing
+		return nil, e.Errorf("empty syncer") // NOTE only for testing
 	default:
 		if l, ok := sc.(logging.SetLogging); ok {
 			_ = l.SetLogging(st.Logging)
@@ -155,25 +153,21 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 }
 
 func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("exit from syncing state")
+	e := util.StringError("exit from syncing state")
 
 	if st.syncer != nil {
 		if _, isfinished := st.syncer.IsFinished(); !isfinished {
 			return nil, ErrIgnoreSwitchingState.Errorf("syncer not yet finished")
 		}
 
-		switch err := st.syncer.Cancel(); {
-		case err == nil:
-		case errors.Is(err, ErrSyncerCanNotCancel):
-			return nil, ErrIgnoreSwitchingState.Wrap(err)
-		default:
-			return nil, e(err, "stop syncer")
+		if err := st.syncer.Cancel(); err != nil {
+			return nil, e.WithMessage(err, "stop syncer")
 		}
 	}
 
 	deferred, err := st.baseHandler.exit(sctx)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	st.cancelstuck()
@@ -188,7 +182,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
-	e := util.StringErrorFunc("handle new voteproof")
+	e := util.StringError("handle new voteproof")
 
 	if _, ok := vp.(handoverFinishedVoteporof); ok {
 		if st.sts != nil {
@@ -201,7 +195,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	}
 
 	if _, err := st.checkFinished(vp); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

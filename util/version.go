@@ -43,7 +43,7 @@ func ParseVersion(s string) (Version, error) {
 
 	v, err := semver.NewVersion(s)
 	if err != nil {
-		return Version{}, ErrInvalid.Wrapf(err, "version string=%q", s)
+		return Version{}, ErrInvalid.WithMessage(err, "version string=%q", s)
 	}
 
 	p := newVersion(v)

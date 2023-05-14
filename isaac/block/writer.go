@@ -80,11 +80,11 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	instate bool,
 	errorreason base.OperationProcessReasonError,
 ) error {
-	e := util.StringErrorFunc("set operation")
+	e := util.StringError("set operation")
 
 	if op != nil {
 		if err := w.db.SetOperations([]util.Hash{op}); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	}
 
 	if err := w.opstreeg.Add(index, node); err != nil {
-		return e(err, "set operation")
+		return e.WithMessage(err, "set operation")
 	}
 
 	return nil
@@ -110,27 +110,27 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 func (w *Writer) SetStates(
 	ctx context.Context, index uint64, states []base.StateMergeValue, operation base.Operation,
 ) error {
-	e := util.StringErrorFunc("set states")
+	e := util.StringError("set states")
 
 	if w.proposal == nil {
-		return e(nil, "not yet written")
+		return e.Errorf("not yet written")
 	}
 
 	for i := range states {
 		if err := w.SetState(ctx, states[i], operation); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if err := w.fswriter.SetOperation(ctx, index, operation); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
-	e := util.StringErrorFunc("set state")
+	e := util.StringError("set state")
 
 	j, _, err := w.states.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
 		var st base.State
@@ -145,11 +145,11 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 		return stv.Merger(w.proposal.Point().Height(), st), nil
 	})
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := j.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
-		return e(err, "merge")
+		return e.WithMessage(err, "merge")
 	}
 
 	return nil
@@ -160,7 +160,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("close state values")
+	e := util.StringError("close state values")
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
@@ -175,7 +175,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 			return nil
 		}); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -196,7 +196,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	tg, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(w.states.Len()))
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	states := make([]base.State, w.states.Len())
@@ -238,15 +238,15 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 	}()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := w.saveStates(ctx, tg, states); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := w.db.Write(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -296,18 +296,18 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("make manifest")
+	e := util.StringError("make manifest")
 
 	if w.proposal == nil || (previous == nil && w.proposal.Point().Height() > base.GenesisHeight) {
-		return nil, e(nil, "not yet written")
+		return nil, e.Errorf("not yet written")
 	}
 
 	if err := w.setProposal(ctx); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := w.closeStateValues(ctx); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var suffrage, previousHash util.Hash
@@ -337,7 +337,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 		)
 
 		if err := w.fswriter.SetManifest(ctx, w.manifest); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
@@ -366,16 +366,16 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("save")
+	e := util.StringError("save")
 
 	var m base.BlockMap
 
 	switch i, err := w.fswriter.Save(ctx); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	default:
 		if err := w.db.SetBlockMap(i); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		m = i
@@ -385,22 +385,22 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 		// NOTE save suffrageproof
 		proof, err := w.ststree.Proof(st.Hash().String())
 		if err != nil {
-			return nil, e(err, "make proof of suffrage state")
+			return nil, e.WithMessage(err, "make proof of suffrage state")
 		}
 
 		sufproof := NewSuffrageProof(m, st, proof, w.avp)
 
 		if err := w.db.SetSuffrageProof(sufproof); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
 	if err := w.mergeDatabase(w.db); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := w.close(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return m, nil
@@ -410,13 +410,13 @@ func (w *Writer) Cancel() error {
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("cancel Writer")
+	e := util.StringError("cancel Writer")
 	if err := w.fswriter.Cancel(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := w.db.Cancel(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return w.close()

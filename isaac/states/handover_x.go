@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrHandoverCanceled = util.NewMError("handover canceled")
-	errHandoverIgnore   = util.NewMError("ignore")
-	errHandoverReset    = util.NewMError("wrong")
+	ErrHandoverCanceled = util.NewIDError("handover canceled")
+	errHandoverIgnore   = util.NewIDError("ignore")
+	errHandoverReset    = util.NewIDError("wrong")
 )
 
 var (

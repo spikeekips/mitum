@@ -265,7 +265,7 @@ func (u *LastConsensusNodesWatcher) update(
 		case lheight > old:
 			return lheight, nil
 		default:
-			return old, util.ErrLockedSetIgnore.Call()
+			return old, util.ErrLockedSetIgnore.WithStack()
 		}
 	})
 

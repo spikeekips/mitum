@@ -90,14 +90,14 @@ func (s SuffrageProof) SuffrageHeight() base.Height {
 
 // Prove should be called after IsValid().
 func (s SuffrageProof) Prove(previousState base.State) error {
-	e := util.StringErrorFunc("prove SuffrageProof")
+	e := util.StringError("prove SuffrageProof")
 
 	if s.m.Manifest().Height() == base.GenesisHeight {
 		switch {
 		case previousState != nil:
-			return e(nil, "previous state should be nil for genesis")
+			return e.Errorf("previous state should be nil for genesis")
 		case s.st.Height() != base.GenesisHeight:
-			return e(nil, "invalid state height; not genesis height")
+			return e.Errorf("invalid state height; not genesis height")
 		}
 	}
 
@@ -106,36 +106,36 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	switch {
 	case s.m.Manifest().Height() == base.GenesisHeight:
 	case s.st.Height() <= previousState.Height():
-		return e(nil, "invalid previous state; higher height")
+		return e.Errorf("invalid previous state; higher height")
 	case !s.st.Previous().Equal(previousState.Hash()):
-		return e(nil, "not previous state; hash does not match")
+		return e.Errorf("not previous state; hash does not match")
 	default:
 		suf, err := isaac.NewSuffrageFromState(previousState)
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		previous, _ := base.LoadSuffrageNodesStateValue(previousState)
 		current, _ := base.LoadSuffrageNodesStateValue(s.st)
 
 		if current.Height() != previous.Height()+1 {
-			return e(nil, "invalid previous state value; not +1")
+			return e.Errorf("invalid previous state value; not +1")
 		}
 
 		previoussuf = suf
 	}
 
 	if !s.m.Manifest().Hash().Equal(s.voteproof.BallotMajority().NewBlock()) {
-		return e(nil, "manifest doest not match with suffrage voteproof")
+		return e.Errorf("manifest doest not match with suffrage voteproof")
 	}
 
 	if err := s.proof.Prove(s.st.Hash().String()); err != nil {
-		return e(err, "prove suffrage")
+		return e.WithMessage(err, "prove suffrage")
 	}
 
 	if previoussuf != nil {
 		if err := isaac.IsValidVoteproofWithSuffrage(s.voteproof, previoussuf); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

@@ -58,7 +58,7 @@ func IsValidFact(fact Fact, b []byte) error {
 		fact.Hash(),
 		fact.Token(),
 	); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid Fact")
+		return util.ErrInvalid.WithMessage(err, "invalid Fact")
 	}
 
 	return nil
@@ -80,14 +80,14 @@ func IsValidSignFact(sf SignFact, networkID []byte) error {
 	}
 
 	if err := util.CheckIsValiders(networkID, false, bs...); err != nil {
-		return e.Wrapf(err, "invalid SignFact")
+		return e.WithMessage(err, "invalid SignFact")
 	}
 
 	// NOTE caller should check the duplication of Signs
 
 	for i := range sfs {
 		if err := sfs[i].Verify(networkID, sf.Fact().Hash().Bytes()); err != nil {
-			return e.Wrapf(err, "verify sign")
+			return e.WithMessage(err, "verify sign")
 		}
 	}
 

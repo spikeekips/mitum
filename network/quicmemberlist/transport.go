@@ -171,13 +171,13 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 		}
 	}
 
-	e := util.StringErrorFunc("DialAddressTimeout")
+	e := util.StringError("DialAddressTimeout")
 
 	raddr, err := net.ResolveUDPAddr("udp", addr.Addr)
 	if err != nil {
 		l.Error().Err(err).Msg("failed to resolve udp address")
 
-		return nil, e(err, "resolve udp address")
+		return nil, e.WithMessage(err, "resolve udp address")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -255,11 +255,11 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 		return time.Time{}, nil
 	}
 
-	e := util.StringErrorFunc("WriteToAddress")
+	e := util.StringError("WriteToAddress")
 
 	raddr, err := net.ResolveUDPAddr("udp", addr.Addr)
 	if err != nil {
-		return time.Time{}, e(err, "resolve udp address")
+		return time.Time{}, e.WithMessage(err, "resolve udp address")
 	}
 
 	ci := t.getconninfof(raddr)
@@ -279,11 +279,11 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("receive raw data")
+	e := util.StringError("receive raw data")
 
 	dt, raddr, rb, err := unmarshalMsg(b)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	t.Log().Trace().
@@ -294,7 +294,7 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 		Msg("raw data received")
 
 	if t.args.NotAllowFunc(raddr.String()) {
-		return e(nil, "not allowed")
+		return e.Errorf("not allowed")
 	}
 
 	switch {
@@ -303,7 +303,7 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 	case dt == streamDataType:
 		go t.receiveStream(rb, raddr)
 	default:
-		return e(nil, "unknown raw data type, %v", dt)
+		return e.Errorf("unknown raw data type, %v", dt)
 	}
 
 	return nil

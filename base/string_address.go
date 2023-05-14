@@ -33,7 +33,7 @@ func ParseStringAddress(s string) (StringAddress, error) {
 
 func (ad StringAddress) IsValid([]byte) error {
 	if err := ad.BaseHinter.IsValid(StringAddressHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "wrong hint in StringAddress")
+		return util.ErrInvalid.WithMessage(err, "wrong hint in StringAddress")
 	}
 
 	if err := ad.BaseStringAddress.IsValid(nil); err != nil {

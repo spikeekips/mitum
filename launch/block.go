@@ -22,7 +22,7 @@ func ImportBlocks(
 	db isaac.Database,
 	params base.LocalParams,
 ) error {
-	e := util.StringErrorFunc("import blocks")
+	e := util.StringError("import blocks")
 
 	readercache := gcache.New(math.MaxInt).LRU().Build()
 	var readerLock sync.Mutex
@@ -93,7 +93,7 @@ func ImportBlocks(
 			return db.MergeAllPermanent()
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -107,11 +107,11 @@ func NewBlockWriterFunc(
 	db isaac.Database,
 ) isaac.NewBlockWriterFunc {
 	return func(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
-		e := util.StringErrorFunc("create BlockWriter")
+		e := util.StringError("create BlockWriter")
 
 		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		fswriter, err := isaacblock.NewLocalFSWriter(
@@ -122,7 +122,7 @@ func NewBlockWriterFunc(
 			networkID,
 		)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return isaacblock.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil

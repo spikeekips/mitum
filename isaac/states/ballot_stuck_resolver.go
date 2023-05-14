@@ -66,7 +66,7 @@ func (c *DefaultBallotStuckResolver) NewPoint(ctx context.Context, point base.St
 
 	_, _ = c.cancelf.Set(func(previous func(), isempty bool) (func(), error) {
 		if point.Compare(c.point) < 1 {
-			return nil, util.ErrLockedSetIgnore.Call()
+			return nil, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		c.point = point
@@ -135,7 +135,7 @@ func (c *DefaultBallotStuckResolver) Clean() {
 func (c *DefaultBallotStuckResolver) Cancel(point base.StagePoint) {
 	_ = c.cancelf.Empty(func(cancel func(), _ bool) error {
 		if point.Compare(c.point) < 0 {
-			return util.ErrLockedSetIgnore.Call()
+			return util.ErrLockedSetIgnore.WithStack()
 		}
 
 		if cancel != nil {
@@ -471,12 +471,12 @@ type missingBallotsRequestsMessageJSONUnmarshaler struct {
 }
 
 func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode MissingBallotsRequestsMessage")
+	e := util.StringError("decode MissingBallotsRequestsMessage")
 
 	var u missingBallotsRequestsMessageJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	m.point = u.Point
@@ -485,7 +485,7 @@ func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder
 	for i := range u.Nodes {
 		switch j, err := base.DecodeAddress(u.Nodes[i], enc); {
 		case err != nil:
-			return e(err, "decode node")
+			return e.WithMessage(err, "decode node")
 		default:
 			m.nodes[i] = j
 		}

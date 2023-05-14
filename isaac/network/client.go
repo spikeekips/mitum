@@ -262,11 +262,11 @@ func (c *BaseClient) NodeChallenge(
 	pub base.Publickey,
 	input []byte,
 ) (base.Signature, error) {
-	e := util.StringErrorFunc("NodeChallenge")
+	e := util.StringError("NodeChallenge")
 
 	header := NewNodeChallengeRequestHeader(input)
 	if err := header.IsValid(nil); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var sig base.Signature
@@ -281,16 +281,16 @@ func (c *BaseClient) NodeChallenge(
 		},
 	); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !ok:
-		return nil, e(nil, "empty")
+		return nil, e.Errorf("empty")
 	default:
 		if err := pub.Verify(util.ConcatBytesSlice(
 			node.Bytes(),
 			networkID,
 			input,
 		), sig); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return sig, nil
@@ -306,11 +306,11 @@ func (c *BaseClient) SuffrageNodeConnInfo(
 }
 
 func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.UDPConnInfo) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("SyncSourceConnInfo")
+	e := util.StringError("SyncSourceConnInfo")
 
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSyncSourceConnInfoRequestHeader())
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return ncis, nil
@@ -360,10 +360,10 @@ func (c *BaseClient) SendBallots(
 	ci quicstream.UDPConnInfo,
 	ballots []base.BallotSignFact,
 ) error {
-	e := util.StringErrorFunc("SendBallots")
+	e := util.StringError("SendBallots")
 
 	if len(ballots) < 1 {
-		return e(nil, "empty ballots")
+		return e.Errorf("empty ballots")
 	}
 
 	header := NewSendBallotsHeader()

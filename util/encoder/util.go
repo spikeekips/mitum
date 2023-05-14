@@ -78,30 +78,30 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 }
 
 func Decode(enc Encoder, b []byte, v interface{}) error {
-	e := util.StringErrorFunc("decode")
+	e := util.StringError("decode")
 
 	hinter, err := enc.Decode(b)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.InterfaceSetValue(hinter, v); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func DecodeReader(enc Encoder, r io.Reader, v interface{}) error {
-	e := util.StringErrorFunc("DecodeReader")
+	e := util.StringError("DecodeReader")
 
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return e(err, "reader")
+		return e.WithMessage(err, "reader")
 	}
 
 	if err := Decode(enc, b, v); err != nil {
-		return e(err, "decode")
+		return e.WithMessage(err, "decode")
 	}
 
 	return nil

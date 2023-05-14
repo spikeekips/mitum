@@ -77,7 +77,7 @@ func NewBaseHeader(ht hint.Hint) BaseHeader {
 
 func (h BaseHeader) IsValid([]byte) error {
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "BaseHeader")
+		return util.ErrInvalid.WithMessage(err, "BaseHeader")
 	}
 
 	return nil
@@ -115,7 +115,7 @@ func NewBaseResponseHeader(ht hint.Hint, ok bool, err error) BaseResponseHeader 
 	switch {
 	case err == nil:
 	case quicstream.IsNetworkError(err):
-		rerr = util.ErrInternal.Call()
+		rerr = util.ErrInternal.WithStack()
 	}
 
 	return BaseResponseHeader{

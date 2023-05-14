@@ -52,35 +52,35 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 }
 
 func (db *TempPool) Close() error {
-	e := util.StringErrorFunc("close TempPool")
+	e := util.StringError("close TempPool")
 
 	switch err := db.Stop(); {
 	case err == nil:
 	case errors.Is(err, util.ErrDaemonAlreadyStopped):
 	default:
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := db.baseLeveldb.Close(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignFact, found bool, _ error) {
-	e := util.StringErrorFunc("find proposal by hash")
+	e := util.StringError("find proposal by hash")
 
 	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &pr); err != nil {
-			return nil, false, e(err, "")
+			return nil, false, e.Wrap(err)
 		}
 
 		return pr, true, nil
@@ -96,17 +96,17 @@ func (db *TempPool) ProposalByPoint(
 	proposer base.Address,
 	previousBlock util.Hash,
 ) (base.ProposalSignFact, bool, error) {
-	e := util.StringErrorFunc("find proposal by point")
+	e := util.StringError("find proposal by point")
 
 	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer, previousBlock)); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	default:
 		pr, found, err := db.Proposal(valuehash.NewBytes(b))
 		if err != nil {
-			return nil, false, e(err, "")
+			return nil, false, e.Wrap(err)
 		}
 
 		return pr, found, nil
@@ -114,13 +114,13 @@ func (db *TempPool) ProposalByPoint(
 }
 
 func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
-	e := util.StringErrorFunc("put proposal")
+	e := util.StringError("put proposal")
 
 	key := leveldbProposalKey(pr.Fact().Hash())
 
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	case found:
 		return false, nil
 	}
@@ -130,7 +130,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 
 	b, _, err := db.marshal(pr, nil)
 	if err != nil {
-		return false, e(err, "marshal proposal")
+		return false, e.WithMessage(err, "marshal proposal")
 	}
 
 	batch.Put(leveldbProposalKey(pr.Fact().Hash()), b)
@@ -144,25 +144,25 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 	)
 
 	if err := db.st.Batch(batch, nil); err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	return true, nil
 }
 
 func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
-	e := util.StringErrorFunc("find operation")
+	e := util.StringError("find operation")
 
 	switch b, found, err := db.st.Get(leveldbNewOperationKey(operationhash)); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &op); err != nil {
-			return nil, false, e(err, "")
+			return nil, false, e.Wrap(err)
 		}
 
 		return op, true, nil
@@ -181,7 +181,7 @@ func (db *TempPool) NewOperationHashes(
 	limit uint64,
 	filter func(isaac.PoolOperationRecordMeta) (bool, error),
 ) ([]util.Hash, error) {
-	e := util.StringErrorFunc("find new operations")
+	e := util.StringError("find new operations")
 
 	nfilter := filter
 	if nfilter == nil {
@@ -227,22 +227,22 @@ func (db *TempPool) NewOperationHashes(
 		},
 		true,
 	); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := db.removeNewOperationOrdereds(removeordereds[:removeorderedsindex]); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := db.setRemoveNewOperations(ctx, height, removeops[:removeopsindex]); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return ops[:opsindex], nil
 }
 
 func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool, error) {
-	e := util.StringErrorFunc("put operation")
+	e := util.StringError("put operation")
 
 	oph := op.Hash()
 
@@ -250,14 +250,14 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	case found:
 		return false, nil
 	}
 
 	b, _, err := db.marshal(op, nil)
 	if err != nil {
-		return false, e(err, "marshal operation")
+		return false, e.WithMessage(err, "marshal operation")
 	}
 
 	batch := db.st.NewBatch()
@@ -269,7 +269,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	batch.Put(leveldbNewOperationKeysKey(oph), orderedkey)
 
 	if err := db.st.Batch(batch, nil); err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	return true, nil
@@ -279,7 +279,7 @@ func (db *TempPool) SuffrageExpelOperation(
 	height base.Height,
 	node base.Address,
 ) (base.SuffrageExpelOperation, bool, error) {
-	e := util.StringErrorFunc("get SuffrageExpelOperation")
+	e := util.StringError("get SuffrageExpelOperation")
 
 	nodeb := node.Bytes()
 
@@ -300,7 +300,7 @@ func (db *TempPool) SuffrageExpelOperation(
 				return false, nil
 			}
 		}, false); err != nil {
-		return nil, false, e(err, "find old proposals")
+		return nil, false, e.WithMessage(err, "find old proposals")
 	}
 
 	if opb == nil {
@@ -310,18 +310,18 @@ func (db *TempPool) SuffrageExpelOperation(
 	var op base.SuffrageExpelOperation
 
 	if err := db.readHinter(opb, &op); err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	return op, true, nil
 }
 
 func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) error {
-	e := util.StringErrorFunc("set SuffrageExpelOperation")
+	e := util.StringError("set SuffrageExpelOperation")
 
 	b, _, err := db.marshal(op, nil)
 	if err != nil {
-		return e(err, "marshal")
+		return e.WithMessage(err, "marshal")
 	}
 
 	fact := op.ExpelFact()
@@ -332,7 +332,7 @@ func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) er
 		fact.ExpelEnd().Bytes(),
 	})
 	if err != nil {
-		return e(err, "marshal")
+		return e.WithMessage(err, "marshal")
 	}
 
 	if err := db.st.Put(
@@ -340,7 +340,7 @@ func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) er
 		util.ConcatBytesSlice(lb, b),
 		nil,
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -375,7 +375,7 @@ func (db *TempPool) TraverseSuffrageExpelOperations(
 }
 
 func (db *TempPool) RemoveSuffrageExpelOperationsByFact(facts []base.SuffrageExpelFact) error {
-	e := util.StringErrorFunc("remove SuffrageExpelOperations")
+	e := util.StringError("remove SuffrageExpelOperations")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
@@ -385,14 +385,14 @@ func (db *TempPool) RemoveSuffrageExpelOperationsByFact(facts []base.SuffrageExp
 	}
 
 	if err := db.st.Batch(batch, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (db *TempPool) RemoveSuffrageExpelOperationsByHeight(height base.Height) error {
-	e := util.StringErrorFunc("remove SuffrageExpelOperations by height")
+	e := util.StringError("remove SuffrageExpelOperations by height")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
@@ -410,11 +410,11 @@ func (db *TempPool) RemoveSuffrageExpelOperationsByHeight(height base.Height) er
 				return true, nil
 			}
 		}, false); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := db.st.Batch(batch, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -508,7 +508,7 @@ func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, 
 }
 
 func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("set last voteproofs")
+	e := util.StringError("set last voteproofs")
 
 	switch {
 	case ivp == nil || avp == nil:
@@ -516,44 +516,44 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 
 		return nil
 	case !ivp.Point().Point.Equal(avp.Point().Point):
-		return e(nil, "voteproofs should have same point")
+		return e.Errorf("voteproofs should have same point")
 	}
 
 	if _, err := db.lastvoteproofs.Set(func(old [2]base.Voteproof, isempty bool) ([2]base.Voteproof, error) {
 		if !isempty {
 			if ivp.Point().Compare(old[0].Point()) < 1 {
-				return [2]base.Voteproof{}, util.ErrLockedSetIgnore.Call()
+				return [2]base.Voteproof{}, util.ErrLockedSetIgnore.WithStack()
 			}
 		}
 
 		return [2]base.Voteproof{ivp, avp}, nil
 	}); err != nil {
-		return e(err, "set last voteproofs")
+		return e.WithMessage(err, "set last voteproofs")
 	}
 
 	return nil
 }
 
 func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm bool) (base.Ballot, bool, error) {
-	e := util.StringErrorFunc("find ballot")
+	e := util.StringError("find ballot")
 
 	spoint := base.NewStagePoint(point, stage)
 	if err := spoint.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	var bl base.Ballot
 
 	switch b, found, err := db.st.Get(leveldbBallotKey(spoint, isSuffrageConfirm)); {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &bl); err != nil {
-			return nil, false, e(err, "")
+			return nil, false, e.Wrap(err)
 		}
 
 		return bl, true, nil
@@ -561,24 +561,24 @@ func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm
 }
 
 func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
-	e := util.StringErrorFunc("put ballot")
+	e := util.StringError("put ballot")
 
 	key := leveldbBallotKey(bl.Point(), isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()))
 
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	case found:
 		return false, nil
 	}
 
 	b, _, err := db.marshal(bl, nil)
 	if err != nil {
-		return false, e(err, "marshal")
+		return false, e.WithMessage(err, "marshal")
 	}
 
 	if err := db.st.Put(key, b, nil); err != nil {
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	}
 
 	return true, nil
@@ -827,15 +827,15 @@ func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
 }
 
 func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ error) {
-	e := util.StringErrorFunc("read pool operation record meta")
+	e := util.StringError("read pool operation record meta")
 
 	var m [][]byte
 
 	switch v, i, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
-		return meta, e(err, "")
+		return meta, e.Wrap(err)
 	case len(i) != 4: //nolint:gomnd //...
-		return meta, e(nil, "wrong pool operation meta")
+		return meta, e.Errorf("wrong pool operation meta")
 	default:
 		meta.version = v
 		m = i
@@ -843,14 +843,14 @@ func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ erro
 
 	nsec, err := util.BytesToInt64(m[0])
 	if err != nil {
-		return meta, e(nil, "wrong added at time")
+		return meta, e.Errorf("wrong added at time")
 	}
 
 	meta.addedAt = time.Unix(0, nsec)
 
 	meta.ht, err = hint.ParseHint(string(m[1]))
 	if err != nil {
-		return meta, e(nil, "wrong hint")
+		return meta, e.Errorf("wrong hint")
 	}
 
 	meta.ophash = valuehash.Bytes(m[2])

@@ -20,7 +20,7 @@ var (
 )
 
 func PProposalMaker(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc(" prepare proposal maker")
+	e := util.StringError(" prepare proposal maker")
 
 	var log *logging.Logging
 	var local base.LocalNode
@@ -33,12 +33,12 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	opf, err := proposalMakderGetOperationsFunc(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	pm := isaac.NewProposalMaker(

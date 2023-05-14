@@ -72,7 +72,7 @@ func (s BaseState) IsValid([]byte) error {
 
 	if s.previous != nil {
 		if err := s.previous.IsValid(nil); err != nil {
-			return e.Wrapf(err, "invalid previous state hash")
+			return e.WithMessage(err, "invalid previous state hash")
 		}
 	}
 
@@ -176,11 +176,11 @@ type baseStateJSONUnmarshaler struct {
 }
 
 func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode BaseState")
+	e := util.StringError("decode BaseState")
 
 	var u baseStateJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	s.h = u.Hash.Hash()
@@ -196,7 +196,7 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch i, err := DecodeStateValue(u.Value, enc); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		s.v = i
 	}
@@ -300,10 +300,10 @@ func (s *BaseStateValueMerger) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
-	e := util.StringErrorFunc("close BaseStateValueMerger")
+	e := util.StringError("close BaseStateValueMerger")
 
 	if s.value == nil {
-		return e(nil, "empty value")
+		return e.Errorf("empty value")
 	}
 
 	sort.Slice(s.ops, func(i, j int) bool {
@@ -374,11 +374,11 @@ func (v BaseStateMergeValue) defaultMerger(height Height, st State) StateValueMe
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {
-	e := util.StringErrorFunc("decode StateValue")
+	e := util.StringError("decode StateValue")
 
 	var s StateValue
 	if err := encoder.Decode(enc, b, &s); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return s, nil

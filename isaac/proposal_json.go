@@ -42,11 +42,11 @@ func (fact ProposalFact) MarshalJSON() ([]byte, error) {
 }
 
 func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode ProposalFact")
+	e := util.StringError("decode ProposalFact")
 
 	var u proposalFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
@@ -54,7 +54,7 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch i, err := base.DecodeAddress(u.Proposer, enc); {
 	case err != nil:
-		return e(err, "decode proposer address")
+		return e.WithMessage(err, "decode proposer address")
 	default:
 		fact.proposer = i
 	}
@@ -93,19 +93,19 @@ func (sf ProposalSignFact) MarshalJSON() ([]byte, error) {
 }
 
 func (sf *ProposalSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode proposalSignFact")
+	e := util.StringError("decode proposalSignFact")
 
 	var u proposalSignFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Fact, &sf.fact); err != nil {
-		return e(err, "decode fact")
+		return e.WithMessage(err, "decode fact")
 	}
 
 	if err := sf.sign.DecodeJSON(u.Sign, enc); err != nil {
-		return e(err, "decode sign")
+		return e.WithMessage(err, "decode sign")
 	}
 
 	return nil

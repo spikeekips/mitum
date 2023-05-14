@@ -16,7 +16,7 @@ type (
 	ErrorHandler func(net.Addr, io.Reader, io.Writer, error) error
 )
 
-var ErrHandlerNotFound = util.NewMError("handler not found")
+var ErrHandlerNotFound = util.NewIDError("handler not found")
 
 var ZeroPrefix [32]byte
 
@@ -69,13 +69,13 @@ func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
 }
 
 func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
-	e := util.StringErrorFunc("load handler")
+	e := util.StringError("load handler")
 
 	var prefix [32]byte
 
 	switch i, err := readPrefix(r); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	default:
 		prefix = i
 	}
@@ -85,7 +85,7 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 
 	handler, found := h.handlers[prefix]
 	if !found {
-		return nil, e(ErrHandlerNotFound.Errorf("handler not found"), "")
+		return nil, e.Wrap(ErrHandlerNotFound.Errorf("handler not found"))
 	}
 
 	return handler, nil

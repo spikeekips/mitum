@@ -42,7 +42,7 @@ func NewSuffrageVoting(
 }
 
 func (s *SuffrageVoting) Vote(op base.SuffrageExpelOperation) (bool, error) {
-	e := util.StringErrorFunc("suffrage voting")
+	e := util.StringError("suffrage voting")
 
 	fact := op.ExpelFact()
 
@@ -52,7 +52,7 @@ func (s *SuffrageVoting) Vote(op base.SuffrageExpelOperation) (bool, error) {
 
 	switch found, err := s.existsInState(fact.Hash()); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	case found:
 		return false, nil
 	}
@@ -61,7 +61,7 @@ func (s *SuffrageVoting) Vote(op base.SuffrageExpelOperation) (bool, error) {
 
 	switch i, found, err := s.db.SuffrageExpelOperation(fact.ExpelStart(), fact.Node()); {
 	case err != nil:
-		return false, e(err, "")
+		return false, e.Wrap(err)
 	case !found:
 		voted, err = s.merge(nil, op)
 		if err != nil {
@@ -90,7 +90,7 @@ func (s *SuffrageVoting) Find(
 	height base.Height,
 	suf base.Suffrage,
 ) ([]base.SuffrageExpelOperation, error) {
-	e := util.StringErrorFunc("collect suffrage expel operations")
+	e := util.StringError("collect suffrage expel operations")
 
 	if h := height.Prev(); h >= base.GenesisHeight {
 		// NOTE remove expires
@@ -119,7 +119,7 @@ func (s *SuffrageVoting) Find(
 
 			return true, nil
 		}); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if len(expires) > 0 {
@@ -155,7 +155,7 @@ func (s *SuffrageVoting) Find(
 	for i := range found {
 		j, err := s.filterSigns(found[i], expelnodes)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		ops[i] = j

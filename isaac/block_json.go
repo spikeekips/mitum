@@ -48,11 +48,11 @@ type ManifestJSONUnmarshaler struct {
 }
 
 func (m *Manifest) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal manifest")
+	e := util.StringError("unmarshal manifest")
 
 	var u ManifestJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	m.h = u.Hash.Hash()

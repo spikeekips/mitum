@@ -33,25 +33,25 @@ type baseBallotJSONUnmarshaler struct {
 }
 
 func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode baseBallot")
+	e := util.StringError("decode baseBallot")
 
 	var u baseBallotJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.Voteproof, &bl.vp); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := encoder.Decode(enc, u.SignFact, &bl.signFact); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	bl.expels = make([]base.SuffrageExpelOperation, len(u.Expels))
 	for i := range u.Expels {
 		if err := encoder.Decode(enc, u.Expels[i], &bl.expels[i]); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

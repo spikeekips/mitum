@@ -113,7 +113,7 @@ func NewProposalSignFact(fact ProposalFact) ProposalSignFact {
 
 func (sf ProposalSignFact) IsValid(networkID []byte) error {
 	if err := base.IsValidProposalSignFact(sf, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid ProposalSignFact")
+		return util.ErrInvalid.WithMessage(err, "invalid ProposalSignFact")
 	}
 
 	return nil

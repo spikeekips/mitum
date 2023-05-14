@@ -123,10 +123,10 @@ func (enc *Encoder) DecodeWithFixedHintType(s string, size int) (interface{}, er
 		return nil, nil
 	}
 
-	e := util.StringErrorFunc("decode with fixed hint type")
+	e := util.StringError("decode with fixed hint type")
 
 	if size < 1 {
-		return nil, e(nil, "size < 1")
+		return nil, e.Errorf("size < 1")
 	}
 
 	i, found := enc.poolGet(s)
@@ -234,7 +234,7 @@ func (*Encoder) guessHint(b []byte) (hint.Hint, error) {
 }
 
 func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.DecodeDetail {
-	e := util.StringErrorFunc("analyze")
+	e := util.StringError("analyze")
 
 	ptr, elem := encoder.Ptr(v)
 
@@ -245,7 +245,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(Decodable).DecodeJSON(b, enc); err != nil { //nolint:forcetypeassert //...
-				return nil, e(err, "DecodeJSON")
+				return nil, e.WithMessage(err, "DecodeJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -256,7 +256,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(json.Unmarshaler).UnmarshalJSON(b); err != nil { //nolint:forcetypeassert //...
-				return nil, e(err, "UnmarshalJSON")
+				return nil, e.WithMessage(err, "UnmarshalJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -267,7 +267,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(encoding.TextUnmarshaler).UnmarshalText(b); err != nil { //nolint:forcetypeassert //...
-				return nil, e(err, "UnmarshalText")
+				return nil, e.WithMessage(err, "UnmarshalText")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -278,7 +278,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := util.UnmarshalJSON(b, i); err != nil {
-				return nil, e(err, "native UnmarshalJSON")
+				return nil, e.WithMessage(err, "native UnmarshalJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil

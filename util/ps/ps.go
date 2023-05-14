@@ -16,7 +16,7 @@ var (
 	NameINIT      = Name("init")
 	EmptyPINIT    = NewP(EmptyFunc, EmptyFunc)
 	EmptyFunc     = func(ctx context.Context) (context.Context, error) { return ctx, nil }
-	ErrIgnoreLeft = util.NewMError("ignore left")
+	ErrIgnoreLeft = util.NewIDError("ignore left")
 )
 
 type Func func(context.Context) (context.Context, error)

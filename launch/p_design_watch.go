@@ -22,7 +22,7 @@ import (
 var PNameWatchDesign = ps.Name("watch-design")
 
 func PWatchDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("watch design")
+	e := util.StringError("watch design")
 
 	var log *logging.Logging
 	var flag DesignFlag
@@ -31,19 +31,19 @@ func PWatchDesign(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	watchUpdatefs, err := watchUpdateFuncs(pctx)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	switch flag.Scheme() {
 	case "consul":
 		runf, err := consulWatch(pctx, watchUpdatefs)
 		if err != nil {
-			return pctx, e(err, "watch thru consul")
+			return pctx, e.WithMessage(err, "watch thru consul")
 		}
 
 		go func() {
@@ -437,11 +437,11 @@ func updateSyncSources(
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
-		e := util.StringErrorFunc("update sync source")
+		e := util.StringError("update sync source")
 
 		var sources SyncSourcesDesign
 		if err := sources.DecodeYAML([]byte(s), enc); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := IsValidSyncSourcesDesign(
@@ -449,7 +449,7 @@ func updateSyncSources(
 			design.Network.PublishString,
 			design.Network.publish.String(),
 		); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		prev := syncSourceChecker.Sources()
@@ -470,25 +470,25 @@ func updateDiscoveries(
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
-		e := util.StringErrorFunc("update discoveries")
+		e := util.StringError("update discoveries")
 
 		var sl []string
 		if err := yaml.Unmarshal([]byte(s), &sl); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		cis := make([]quicstream.UDPConnInfo, len(sl))
 
 		for i := range sl {
 			if err := network.IsValidAddr(sl[i]); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			addr, tlsinsecure := network.ParseTLSInsecure(sl[i])
 
 			ci, err := quicstream.NewUDPConnInfoFromStringAddress(addr, tlsinsecure)
 			if err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			cis[i] = ci

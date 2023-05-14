@@ -322,7 +322,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 	pp := NewDummyProposalProcessor()
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
-		return nil, ErrIgnoreErrorProposalProcessor.Call()
+		return nil, ErrIgnoreErrorProposalProcessor.WithStack()
 	}
 
 	pps := NewProposalProcessors(

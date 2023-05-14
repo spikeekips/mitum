@@ -97,7 +97,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	return cmd.run(pctx)
 }
 
-var errHoldStop = util.NewMError("hold stop")
+var errHoldStop = util.NewIDError("hold stop")
 
 func (cmd *RunCommand) run(pctx context.Context) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -181,7 +181,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 		if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
 			l.Debug().Msg("will be stopped by hold")
 
-			cmd.exitf(errHoldStop.Call())
+			cmd.exitf(errHoldStop.WithStack())
 
 			return
 		}

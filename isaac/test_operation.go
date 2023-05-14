@@ -41,7 +41,7 @@ func NewDummyOperationFact(token base.Token, v util.Byter) DummyOperationFact {
 
 func (fact DummyOperationFact) IsValid([]byte) error {
 	if err := util.CheckIsValiders(nil, false, fact.h, fact.token); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid DummyOperationFact")
+		return util.ErrInvalid.WithMessage(err, "invalid DummyOperationFact")
 	}
 
 	if !fact.h.Equal(fact.generateHash()) {

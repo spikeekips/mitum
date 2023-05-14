@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	ErrOperationInProcessorNotFound         = util.NewMError("operation processor not found")
-	ErrInvalidOperationInProcessor          = util.NewMError("invalid operation")
-	ErrOperationNotFoundInProcessor         = util.NewMError("operation not found")
-	ErrOperationAlreadyProcessedInProcessor = util.NewMError("operation already processed")
-	ErrStopProcessingRetry                  = util.NewMError("stop processing retrying")
-	ErrIgnoreStateValue                     = util.NewMError("ignore state value")
-	ErrSuspendOperation                     = util.NewMError("suspend operation")
-	ErrProcessorAlreadySaved                = util.NewMError("processor already saved")
+	ErrOperationInProcessorNotFound         = util.NewIDError("operation processor not found")
+	ErrInvalidOperationInProcessor          = util.NewIDError("invalid operation")
+	ErrOperationNotFoundInProcessor         = util.NewIDError("operation not found")
+	ErrOperationAlreadyProcessedInProcessor = util.NewIDError("operation already processed")
+	ErrStopProcessingRetry                  = util.NewIDError("stop processing retrying")
+	ErrIgnoreStateValue                     = util.NewIDError("ignore state value")
+	ErrSuspendOperation                     = util.NewIDError("suspend operation")
+	ErrProcessorAlreadySaved                = util.NewIDError("processor already saved")
 )
 
 type (
@@ -115,7 +115,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 		return nil, errors.Errorf("already processed")
 	}
 
-	e := util.StringErrorFunc("process operations")
+	e := util.StringError("process operations")
 
 	pctx, cancel := context.WithCancel(p.ctx)
 	defer cancel()
@@ -129,14 +129,14 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 	if err := p.process(pctx); err != nil {
 		p.clean()
 
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	manifest, err := p.writer.Manifest(pctx, p.previous)
 	if err != nil {
 		p.clean()
 
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	p.Log().Info().Interface("manifest", manifest).Msg("new manifest prepared")
@@ -150,7 +150,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 	}); err != nil {
 		p.clean()
 
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return manifest, nil
@@ -164,7 +164,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 	case p.isCanceled():
 		return nil, errors.Errorf("already canceled")
 	case p.isSaved():
-		return nil, ErrProcessorAlreadySaved.Call()
+		return nil, ErrProcessorAlreadySaved.WithStack()
 	}
 
 	sctx, cancel := context.WithCancel(p.ctx)
@@ -211,7 +211,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 func (p *DefaultProposalProcessor) Cancel() error {
 	_, _ = p.processstate.Set(func(i int, _ bool) (int, error) {
 		if i == -1 {
-			return i, util.ErrLockedSetIgnore.Call()
+			return i, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		p.cancel()
@@ -279,7 +279,7 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) error {
 }
 
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]base.Operation, error) {
-	e := util.StringErrorFunc("collect operations")
+	e := util.StringError("collect operations")
 
 	var cops []base.Operation
 	var index int
@@ -337,14 +337,14 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 	}); err != nil {
 		cancel()
 
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return cops, nil
 }
 
 func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops []base.Operation) error {
-	e := util.StringErrorFunc("process operations")
+	e := util.StringError("process operations")
 
 	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
 
@@ -370,14 +370,14 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops [
 		pctx, opsindex, validindex, err = p.processOperation(
 			pctx, writer, getStatef, newOperationProcessor, worker, op, opsindex, validindex)
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -482,7 +482,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 	opsindex, validindex uint64,
 	op base.Operation,
 ) error {
-	e := util.StringErrorFunc("process operation, %q", op.Fact().Hash())
+	e := util.StringError("process operation, %q", op.Fact().Hash())
 
 	var errorreason base.OperationProcessReasonError
 	var stvs []base.StateMergeValue
@@ -509,31 +509,31 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 			}
 		}
 
-		switch ee := util.StringErrorFunc("invalid processor"); {
+		switch ee := util.StringError("invalid processor"); {
 		case len(stvs) < 1:
 			if errorreason == nil {
-				return false, ee(nil, "empty state must have reason")
+				return false, ee.Errorf("empty state must have reason")
 			}
 		case errorreason != nil:
-			return false, ee(nil, "not empty state must have empty reason")
+			return false, ee.Errorf("not empty state must have empty reason")
 		}
 
 		instate := len(stvs) > 0
 		if instate {
 			if err := writer.SetStates(ctx, validindex, stvs, op); err != nil {
-				return true, e(err, "")
+				return true, e.Wrap(err)
 			}
 		}
 
 		if err := writer.SetProcessResult(
 			ctx, opsindex, op.Hash(), op.Fact().Hash(), instate, errorreason,
 		); err != nil {
-			return true, e(err, "")
+			return true, e.Wrap(err)
 		}
 
 		return false, nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -606,7 +606,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 		}
 
 		if opp == nil {
-			return nil, ErrOperationInProcessorNotFound.Call()
+			return nil, ErrOperationInProcessorNotFound.WithStack()
 		}
 
 		return opp, nil
@@ -634,15 +634,15 @@ func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, er
 }
 
 func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
-	e := util.StringErrorFunc("save")
+	e := util.StringError("save")
 
 	if err := p.writer.SetACCEPTVoteproof(ctx, avp); err != nil {
-		return nil, e(err, "set accept voteproof")
+		return nil, e.WithMessage(err, "set accept voteproof")
 	}
 
 	m, err := p.writer.Save(ctx)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
@@ -655,7 +655,7 @@ func (p *DefaultProposalProcessor) collectOperation(
 	h util.Hash,
 	getOperationf OperationProcessorGetOperationFunction,
 ) (base.Operation, error) {
-	e := util.StringErrorFunc("collect operation, %q", h)
+	e := util.StringError("collect operation, %q", h)
 
 	var op base.Operation
 
@@ -679,7 +679,7 @@ func (p *DefaultProposalProcessor) collectOperation(
 			return true, err
 		}
 	}); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if op == nil {

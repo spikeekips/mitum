@@ -86,7 +86,7 @@ func BatchValidateMaps(
 	blockMapf func(context.Context, Height) (BlockMap, error),
 	callback func(BlockMap) error,
 ) error {
-	e := util.StringErrorFunc("validate BlockMaps in batch")
+	e := util.StringError("validate BlockMaps in batch")
 
 	prevheight := NilHeight
 	if prev != nil {
@@ -143,7 +143,7 @@ func BatchValidateMaps(
 			return callback(m)
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -157,10 +157,10 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 
 	index := (m.Manifest().Height() - prev - 1).Int64()
 
-	e := util.StringErrorFunc("validate BlockMaps")
+	e := util.StringError("validate BlockMaps")
 
 	if index < 0 || index >= int64(len(maps)) {
-		return e(nil, "invalid BlockMaps found; wrong index")
+		return e.Errorf("invalid BlockMaps found; wrong index")
 	}
 
 	maps[index] = m
@@ -169,18 +169,18 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 	case index == 0 && m.Manifest().Height() == GenesisHeight:
 	case index == 0 && m.Manifest().Height() != GenesisHeight:
 		if err := ValidateManifests(m.Manifest(), previous.Manifest().Hash()); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	case maps[index-1] != nil:
 		if err := ValidateManifests(m.Manifest(), maps[index-1].Manifest().Hash()); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	// revive:disable-next-line:optimize-operands-order
 	if index+1 < int64(len(maps)) && maps[index+1] != nil {
 		if err := ValidateManifests(maps[index+1].Manifest(), m.Manifest().Hash()); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -188,24 +188,24 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 }
 
 func ValidateProposalWithManifest(proposal ProposalSignFact, manifest Manifest) error {
-	e := util.StringErrorFunc("invalid proposal by manifest")
+	e := util.StringError("invalid proposal by manifest")
 
 	switch {
 	case proposal.Point().Height() != manifest.Height():
-		return e(nil, "height does not match")
+		return e.Errorf("height does not match")
 	case !proposal.Fact().Hash().Equal(manifest.Proposal()):
-		return e(nil, "hash does not match")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil
 }
 
 func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, manifest Manifest) error {
-	e := util.StringErrorFunc("invalid operations and it's tree by manifest")
+	e := util.StringError("invalid operations and it's tree by manifest")
 
 	switch n := len(ops); {
 	case tr.Len() != n:
-		return e(nil, "number does not match")
+		return e.Errorf("number does not match")
 	case n < 1:
 		return nil
 	}
@@ -218,7 +218,7 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 		return true, i.Fact().Hash().String()
 	})
 	if duplicated {
-		return e(nil, "duplicated operation found in operations")
+		return e.Errorf("duplicated operation found in operations")
 	}
 
 	if err := tr.Traverse(func(_ uint64, node fixedtree.Node) (bool, error) {
@@ -233,22 +233,22 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 
 		return true, nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !tr.Root().Equal(manifest.OperationsTree()) {
-		return e(nil, "hash does not match")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil
 }
 
 func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Manifest) error {
-	e := util.StringErrorFunc("invalid states and it's tree by manifest")
+	e := util.StringError("invalid states and it's tree by manifest")
 
 	switch n := len(sts); {
 	case tr.Len() != n:
-		return e(nil, "number does not match")
+		return e.Errorf("number does not match")
 	case n < 1:
 		return nil
 	}
@@ -261,7 +261,7 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 		return true, i.Hash().String()
 	})
 	if duplicated {
-		return e(nil, "duplicated state found in states")
+		return e.Errorf("duplicated state found in states")
 	}
 
 	if err := tr.Traverse(func(_ uint64, node fixedtree.Node) (bool, error) {
@@ -274,31 +274,31 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 
 		return true, nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !tr.Root().Equal(manifest.StatesTree()) {
-		return e(nil, "hash does not match")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil
 }
 
 func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
-	e := util.StringErrorFunc("invalid voteproofs by manifest")
+	e := util.StringError("invalid voteproofs by manifest")
 
 	switch {
 	case len(vps) != 2: //nolint:gomnd //...
-		return e(nil, "not voteproofs")
+		return e.Errorf("not voteproofs")
 	case vps[0] == nil, vps[1] == nil:
-		return e(nil, "empty voteproof")
+		return e.Errorf("empty voteproof")
 	}
 
 	var ivp INITVoteproof
 
 	switch i, ok := vps[0].(INITVoteproof); {
 	case !ok:
-		return e(nil, "expected INITVoteproof, but %T", vps[0])
+		return e.Errorf("expected INITVoteproof, but %T", vps[0])
 	default:
 		ivp = i
 	}
@@ -307,7 +307,7 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 
 	switch i, ok := vps[1].(ACCEPTVoteproof); {
 	case !ok:
-		return e(nil, "expected ACCEPTVoteproof, but %T", vps[0])
+		return e.Errorf("expected ACCEPTVoteproof, but %T", vps[0])
 	default:
 		avp = i
 	}
@@ -315,9 +315,9 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 	switch {
 	case ivp.Point().Height() != manifest.Height(),
 		avp.Point().Height() != manifest.Height():
-		return e(nil, "height does not match")
+		return e.Errorf("height does not match")
 	case !ivp.Point().Point.Equal(avp.Point().Point):
-		return e(nil, "point does not match")
+		return e.Errorf("point does not match")
 	}
 
 	return nil

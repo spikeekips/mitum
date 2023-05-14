@@ -23,7 +23,7 @@ var (
 )
 
 func PLoadDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("load design")
+	e := util.StringError("load design")
 
 	var log *logging.Logging
 	var flag DesignFlag
@@ -36,7 +36,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		VaultContextKey, &privfromvault,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var design NodeDesign
@@ -46,7 +46,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	case "file":
 		switch d, b, err := NodeDesignFromFile(flag.URL().Path, enc); {
 		case err != nil:
-			return pctx, e(err, "")
+			return pctx, e.Wrap(err)
 		default:
 			design = d
 			designString = string(b)
@@ -54,7 +54,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	case "http", "https":
 		switch d, b, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, enc); {
 		case err != nil:
-			return pctx, e(err, "")
+			return pctx, e.Wrap(err)
 		default:
 			design = d
 			designString = string(b)
@@ -62,13 +62,13 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	case "consul":
 		switch d, b, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, enc); {
 		case err != nil:
-			return pctx, e(err, "")
+			return pctx, e.Wrap(err)
 		default:
 			design = d
 			designString = string(b)
 		}
 	default:
-		return pctx, e(nil, "unknown design uri, %q", flag.URL())
+		return pctx, e.Errorf("unknown design uri, %q", flag.URL())
 	}
 
 	log.Log().Debug().Object("design", design).Msg("design loaded")
@@ -76,7 +76,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	if len(privfromvault) > 0 {
 		priv, err := loadPrivatekeyFromVault(privfromvault, enc)
 		if err != nil {
-			return pctx, e(err, "")
+			return pctx, e.Wrap(err)
 		}
 
 		log.Log().Debug().Interface("privatekey", priv.Publickey()).Msg("privatekey loaded from vault")
@@ -91,26 +91,26 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 }
 
 func PGenesisDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("load genesis design")
+	e := util.StringError("load genesis design")
 
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var designfile string
 	if err := util.LoadFromContextOK(pctx, GenesisDesignFileContextKey, &designfile); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var enc *jsonenc.Encoder
 	if err := util.LoadFromContextOK(pctx, EncoderContextKey, &enc); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	switch d, b, err := GenesisDesignFromFile(designfile, enc); {
 	case err != nil:
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	default:
 		log.Log().Debug().Interface("design", d).Str("design_file", string(b)).Msg("genesis design loaded")
 
@@ -121,7 +121,7 @@ func PGenesisDesign(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("check design")
+	e := util.StringError("check design")
 
 	var log *logging.Logging
 	var flag DesignFlag
@@ -134,15 +134,15 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 		DevFlagsContextKey, &devflags,
 		DesignContextKey, &design,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := design.IsValid(nil); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := design.Check(devflags); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	log.Log().Debug().Object("design", design).Msg("design checked")
@@ -153,7 +153,7 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 	//revive:enable:modifies-parameter
 
 	if err := updateFromConsulAfterCheckDesign(pctx, flag); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil

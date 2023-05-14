@@ -107,7 +107,7 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, meta []byte, body []byte, err error) {
-	e := util.StringErrorFunc("load last blockmap")
+	e := util.StringError("load last blockmap")
 
 	if err = db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
@@ -125,20 +125,20 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, m
 		},
 		false,
 	); err != nil {
-		return nil, enchint, nil, nil, e(err, "")
+		return nil, enchint, nil, nil, e.Wrap(err)
 	}
 
 	return m, enchint, meta, body, nil
 }
 
 func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
-	e := util.StringErrorFunc("load suffrage state")
+	e := util.StringError("load suffrage state")
 
 	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
 
 	switch {
 	case err != nil:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
 	case len(b) < 1:
@@ -147,11 +147,11 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 
 	var st base.State
 	if err := db.readHinter(b, &st); err != nil {
-		return nil, true, e(err, "")
+		return nil, true, e.Wrap(err)
 	}
 
 	if !base.IsNetworkPolicyState(st) {
-		return nil, true, e(nil, "not NetworkPolicy state")
+		return nil, true, e.Errorf("not NetworkPolicy state")
 	}
 
 	return st.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
@@ -267,15 +267,15 @@ func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { //
 }
 
 func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
-	e := util.StringErrorFunc("parse height from leveldbBlockMapKey")
+	e := util.StringError("parse height from leveldbBlockMapKey")
 
 	if len(b) < len(prefix)+8 {
-		return base.NilHeight, e(nil, "too short")
+		return base.NilHeight, e.Errorf("too short")
 	}
 
 	h, err := base.ParseHeightBytes(b[len(prefix) : len(prefix)+8])
 	if err != nil {
-		return base.NilHeight, e(err, "")
+		return base.NilHeight, e.Wrap(err)
 	}
 
 	return h, nil

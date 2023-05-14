@@ -37,16 +37,16 @@ func DefaultMainPS() *ps.PS {
 }
 
 func PINIT(ctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("init")
+	e := util.StringError("init")
 
 	var version util.Version
 
 	switch err := util.LoadFromContextOK(ctx, VersionContextKey, &version); {
 	case err != nil:
-		return ctx, e(err, "")
+		return ctx, e.Wrap(err)
 	default:
 		if err := version.IsValid(nil); err != nil {
-			return ctx, e(err, "")
+			return ctx, e.Wrap(err)
 		}
 	}
 
@@ -54,16 +54,16 @@ func PINIT(ctx context.Context) (context.Context, error) {
 }
 
 func PLogging(ctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("logging")
+	e := util.StringError("logging")
 
 	var flags BaseFlags
 	if err := util.LoadFromContextOK(ctx, FlagsContextKey, &flags); err != nil {
-		return ctx, e(err, "")
+		return ctx, e.Wrap(err)
 	}
 
 	log, err := SetupLoggingFromFlags(flags.LoggingFlags)
 	if err != nil {
-		return ctx, e(err, "")
+		return ctx, e.Wrap(err)
 	}
 
 	ctx = context.WithValue(ctx, LoggingContextKey, log) //revive:disable-line:modifies-parameter

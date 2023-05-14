@@ -120,22 +120,22 @@ func EnsureWrite(w io.Writer, b []byte) (int, error) {
 }
 
 func WriteLength(w io.Writer, i uint64) error {
-	e := StringErrorFunc("LengthedBytes")
+	e := StringError("LengthedBytes")
 
 	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
-		return e(err, "write length")
+		return e.WithMessage(err, "write length")
 	}
 
 	return nil
 }
 
 func WriteLengthed(w io.Writer, b []byte) error {
-	e := StringErrorFunc("LengthedBytes")
+	e := StringError("LengthedBytes")
 
 	i := uint64(len(b))
 
 	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
-		return e(err, "write length")
+		return e.WithMessage(err, "write length")
 	}
 
 	if i < 1 {
@@ -143,7 +143,7 @@ func WriteLengthed(w io.Writer, b []byte) error {
 	}
 
 	if _, err := w.Write(b); err != nil {
-		return e(err, "write body")
+		return e.WithMessage(err, "write body")
 	}
 
 	return nil
@@ -211,19 +211,19 @@ func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
 }
 
 func WriteLengthedSlice(w io.Writer, version byte, m [][]byte) error {
-	e := StringErrorFunc("WriteLengthedBytesSlice")
+	e := StringError("WriteLengthedBytesSlice")
 
 	if err := WriteLengthed(w, []byte{version}); err != nil {
-		return e(err, "write version")
+		return e.WithMessage(err, "write version")
 	}
 
 	if _, err := w.Write(Uint64ToBytes(uint64(len(m)))); err != nil {
-		return e(err, "write body length")
+		return e.WithMessage(err, "write body length")
 	}
 
 	for i := range m {
 		if err := WriteLengthed(w, m[i]); err != nil {
-			return e(err, "write body")
+			return e.WithMessage(err, "write body")
 		}
 	}
 
@@ -231,13 +231,13 @@ func WriteLengthedSlice(w io.Writer, version byte, m [][]byte) error {
 }
 
 func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ error) {
-	e := StringErrorFunc("ReadLengthedBytesSlice")
+	e := StringError("ReadLengthedBytesSlice")
 
 	switch i, j, err := ReadLengthedBytes(b); {
 	case err != nil:
-		return version, nil, nil, e(err, "wrong version")
+		return version, nil, nil, e.WithMessage(err, "wrong version")
 	case len(i) < 1:
-		return version, nil, nil, e(err, "empty version")
+		return version, nil, nil, e.WithMessage(err, "empty version")
 	default:
 		version = i[0]
 
@@ -245,12 +245,12 @@ func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ 
 	}
 
 	if len(left) < 8 { //nolint:gomnd //...
-		return version, nil, nil, e(nil, "empty m length")
+		return version, nil, nil, e.Errorf("empty m length")
 	}
 
 	switch k, err := BytesToUint64(left[:8]); {
 	case err != nil:
-		return version, nil, nil, e(err, "wrong m length")
+		return version, nil, nil, e.WithMessage(err, "wrong m length")
 	default:
 		m = make([][]byte, k)
 
@@ -260,7 +260,7 @@ func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ 
 	for i := range m {
 		j, k, err := ReadLengthedBytes(left)
 		if err != nil {
-			return version, nil, nil, e(err, "read left")
+			return version, nil, nil, e.WithMessage(err, "read left")
 		}
 
 		m[i] = j

@@ -60,16 +60,16 @@ func LoadBlockReader(
 	writerhint, enchint hint.Hint,
 	height base.Height,
 ) (isaac.BlockReader, error) {
-	e := util.StringErrorFunc("load BlockReader")
+	e := util.StringError("load BlockReader")
 
 	f := readers.Find(writerhint)
 	if f == nil {
-		return nil, e(nil, "unknown writer hint, %q", writerhint)
+		return nil, e.Errorf("unknown writer hint, %q", writerhint)
 	}
 
 	enc := encs.Find(enchint)
 	if enc == nil {
-		return nil, e(nil, "unknown encoder hint, %q", enchint)
+		return nil, e.Errorf("unknown encoder hint, %q", enchint)
 	}
 
 	return f(height, enc)
@@ -85,18 +85,18 @@ func LoadTree(
 		return tr, nil
 	}
 
-	e := util.StringErrorFunc("load tree")
+	e := util.StringError("load tree")
 
 	br := bufio.NewReader(f)
 
 	ht, err := LoadTreeHint(br)
 	if err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	nodes := make([]fixedtree.Node, item.Num())
 	if tr, err = fixedtree.NewTree(ht, nodes); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	if err := LoadRawItemsWithWorker(
@@ -115,7 +115,7 @@ func LoadTree(
 			return tr.Set(in.Index, n)
 		},
 	); err != nil {
-		return tr, e(err, "")
+		return tr, e.Wrap(err)
 	}
 
 	return tr, nil

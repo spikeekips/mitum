@@ -22,15 +22,15 @@ type AddressFlag struct {
 }
 
 func (f *AddressFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("unmarshal address flag")
+	e := util.StringError("unmarshal address flag")
 
 	address, err := base.ParseStringAddress(string(b))
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := address.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	f.address = address
@@ -49,12 +49,12 @@ type ConnInfoFlag struct {
 }
 
 func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("unmarshal ConnInfo flag")
+	e := util.StringError("unmarshal ConnInfo flag")
 
 	s := string(b)
 
 	if err := network.IsValidAddr(s); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	f.addr, f.tlsinsecure = network.ParseTLSInsecure(s)
@@ -88,7 +88,7 @@ type HeightFlag struct {
 }
 
 func (f *HeightFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("unmarshal address flag")
+	e := util.StringError("unmarshal address flag")
 
 	if len(b) < 1 {
 		f.height = &base.NilHeight
@@ -98,7 +98,7 @@ func (f *HeightFlag) UnmarshalText(b []byte) error {
 
 	height, err := base.ParseHeightString(string(b))
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	f.height = &height
@@ -156,13 +156,13 @@ type DesignURIFlag struct {
 }
 
 func (f *DesignURIFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("unmarshal design flag")
+	e := util.StringError("unmarshal design flag")
 
 	s := string(b)
 
 	u, err := url.Parse(s)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch scheme := u.Scheme; strings.ToLower(scheme) {
@@ -174,7 +174,7 @@ func (f *DesignURIFlag) UnmarshalText(b []byte) error {
 		f.loc = u
 	case "consul":
 		if len(u.Path) < 1 {
-			return e(nil, "empty key for consul")
+			return e.Errorf("empty key for consul")
 		}
 
 		f.scheme = scheme
@@ -204,7 +204,7 @@ type RangeFlag struct {
 }
 
 func (f *RangeFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("unmarshal range flag, %q", string(b))
+	e := util.StringError("unmarshal range flag, %q", string(b))
 
 	n := strings.SplitN(strings.TrimSpace(string(b)), "-", 2)
 
@@ -212,7 +212,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 	case len(n) < 1:
 		return nil
 	case len(n) > 2: //nolint:gomnd //...
-		return e(nil, "wrong format")
+		return e.Errorf("wrong format")
 	case len(n) < 2 && len(n[0]) < 1:
 		return nil
 	}
@@ -220,7 +220,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 	if len(n) > 0 && len(n[0]) > 0 {
 		switch i, err := strconv.ParseUint(n[0], 10, 64); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		default:
 			f.from = &i
 		}
@@ -229,7 +229,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 	if len(n) > 1 && len(n[1]) > 0 {
 		switch i, err := strconv.ParseUint(n[1], 10, 64); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		default:
 			f.to = &i
 		}

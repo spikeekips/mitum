@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ErrLockedSetIgnore = NewMError("ignore to set locked value")
-	ErrLockedMapClosed = NewMError("locked map closed")
+	ErrLockedSetIgnore = NewIDError("ignore to set locked value")
+	ErrLockedMapClosed = NewIDError("locked map closed")
 )
 
 type Locked[T any] struct {
@@ -250,7 +250,7 @@ func (l *SingleLockedMap[K, V]) getOrCreate(k K, create func() (V, error)) (v V,
 	defer l.Unlock()
 
 	if l.m == nil {
-		return v, false, false, ErrLockedMapClosed.Call()
+		return v, false, false, ErrLockedMapClosed.WithStack()
 	}
 
 	if i, found := l.m[k]; found {
@@ -280,7 +280,7 @@ func (l *SingleLockedMap[K, V]) set(k K, f func(_ V, found bool) (V, error)) (v 
 	defer l.Unlock()
 
 	if l.m == nil {
-		return v, false, ErrLockedMapClosed.Call()
+		return v, false, ErrLockedMapClosed.WithStack()
 	}
 
 	i, found := l.m[k]
@@ -428,7 +428,7 @@ func (l *ShardedMap[K, V]) RemoveValue(k K) bool {
 func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
 	switch i, found, isclosed := l.loadItem(key); {
 	case isclosed:
-		return ErrLockedMapClosed.Call()
+		return ErrLockedMapClosed.WithStack()
 	case isclosed, !found:
 		var v V
 
@@ -441,7 +441,7 @@ func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
 func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found bool, _ error) {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
-		return v, false, ErrLockedMapClosed.Call()
+		return v, false, ErrLockedMapClosed.WithStack()
 	default:
 		v, found, created, err := i.getOrCreate(k, create)
 		if err == nil && created {
@@ -455,7 +455,7 @@ func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, foun
 func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
-		return v, ErrLockedMapClosed.Call()
+		return v, ErrLockedMapClosed.WithStack()
 	default:
 		v, created, err := i.set(k, f)
 		if err == nil && created {
@@ -469,7 +469,7 @@ func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
 func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	switch i, found, isclosed := l.loadItem(k); {
 	case isclosed:
-		return false, ErrLockedMapClosed.Call()
+		return false, ErrLockedMapClosed.WithStack()
 	case !found:
 		var v V
 

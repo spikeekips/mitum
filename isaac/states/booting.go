@@ -54,17 +54,17 @@ func (h *NewBootingHandlerType) new() (handler, error) {
 }
 
 func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error) { //nolint:unparam //...
-	e := util.StringErrorFunc("enter booting state")
+	e := util.StringError("enter booting state")
 
 	if _, err := st.baseHandler.enter(from, i); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var manifest base.Manifest
 
 	switch m, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found:
 		// NOTE empty block map item, moves to syncing
 		st.Log().Debug().Msg("empty block map item; moves to syncing")
@@ -78,7 +78,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 
 	switch {
 	case avp == nil:
-		return nil, e(nil, "empty last accept voteproof")
+		return nil, e.Errorf("empty last accept voteproof")
 	default:
 		if err := compareManifestWithACCEPTVoteproof(manifest, avp); err != nil {
 			st.Log().Debug().
@@ -86,7 +86,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 				Interface("manifest", manifest).
 				Msg("manifest and last accept voteproof do not match")
 
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
@@ -97,9 +97,9 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 
 		return nil, newSyncingSwitchContext(StateBooting, manifest.Height())
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case suf == nil || suf.Len() < 1:
-		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height())
+		return nil, e.Errorf("empty suffrage for last manifest, %d", manifest.Height())
 	case !found:
 		st.Log().Debug().Msg("local not in consensus node; moves to syncing")
 
@@ -122,13 +122,13 @@ func newBootingSwitchContext(from StateType) bootingSwitchContext {
 }
 
 func compareManifestWithACCEPTVoteproof(manifest base.Manifest, vp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("compare manifest with accept voteproof")
+	e := util.StringError("compare manifest with accept voteproof")
 
 	switch {
 	case manifest.Height() != vp.Point().Height():
-		return e(nil, "height does not match; %d != %d", manifest.Height(), vp.Point().Height())
+		return e.Errorf("height does not match; %d != %d", manifest.Height(), vp.Point().Height())
 	case !manifest.Hash().Equal(vp.BallotMajority().NewBlock()):
-		return e(nil, "hash does not match")
+		return e.Errorf("hash does not match")
 	default:
 		return nil
 	}

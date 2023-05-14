@@ -31,13 +31,13 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 		return EmptyBaseNode(), nil
 	}
 
-	e := util.StringErrorFunc("parse BaseNode")
+	e := util.StringError("parse BaseNode")
 
 	l := strings.SplitN(s, " ", 2)
 
 	switch {
 	case len(l) != 2: //nolint:gomnd //...
-		return n, e(nil, "invalid string")
+		return n, e.Errorf("invalid string")
 	case len(l[0]) > 0:
 		n.h = valuehash.NewBytesFromString(l[0])
 	}

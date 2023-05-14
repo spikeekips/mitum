@@ -139,10 +139,10 @@ func (srv *Memberlist) Start(ctx context.Context) error {
 }
 
 func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
-	e := util.StringErrorFunc("join")
+	e := util.StringError("join")
 
 	if len(cis) < 1 {
-		return e(nil, "empty conninfos")
+		return e.Errorf("empty conninfos")
 	}
 
 	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.UDPConnInfo) (bool, string) {
@@ -152,7 +152,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 
 		return true, i.UDPAddr().String()
 	}); found {
-		return e(nil, "duplicated conninfo found")
+		return e.Errorf("duplicated conninfo found")
 	}
 
 	filtered := util.FilterSlice(cis, func(i quicstream.UDPConnInfo) bool {
@@ -186,7 +186,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return true, nil
 	}()
 	if err != nil {
-		return err
+		return e.Wrap(err)
 	}
 
 	if created && len(fcis) < 1 {
@@ -202,7 +202,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	if _, err := srv.m.Join(fcis); err != nil {
 		l.Error().Err(err).Msg("failed to join")
 
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -336,7 +336,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, req CallbackBroadcastMessageHeader,
 	) error {
-		e := util.StringErrorFunc("handle callback message")
+		e := util.StringError("handle callback message")
 
 		i, err, _ := util.SingleflightDo[[2]interface{}](&sg, req.ID(), func() ([2]interface{}, error) {
 			b, found := srv.cbcache.Get(req.ID())
@@ -345,7 +345,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 		})
 
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		var body io.Reader
@@ -365,11 +365,11 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, found, nil); err != nil {
-			return e(err, "write response header")
+			return e.WithMessage(err, "write response header")
 		}
 
 		if err := broker.WriteBody(ctx, bodyType, 0, body); err != nil {
-			return e(err, "write body")
+			return e.WithMessage(err, "write body")
 		}
 
 		return nil
@@ -485,20 +485,20 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, req EnsureBroadcastMessageHeader,
 	) error {
-		e := util.StringErrorFunc("handle ensure message")
+		e := util.StringError("handle ensure message")
 
 		switch pub, found, err := memberf(req.Node()); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		case !found:
-			return e(nil, "unknown node")
+			return e.Errorf("unknown node")
 		case localtime.Now().Sub(req.SignedAt()) > srv.args.PongEnsureBroadcastMessageExpire:
-			return e(nil, "signed too late")
+			return e.Errorf("signed too late")
 		case !req.Signer().Equal(pub):
-			return e(nil, "publickey mismatch")
+			return e.Errorf("publickey mismatch")
 		default:
 			if err := req.Verify(networkID, []byte(req.ID())); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 		}
 
@@ -506,13 +506,13 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 
 		_, _ = srv.ebrecords.Set(req.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
 			if !found {
-				return nil, util.ErrLockedSetIgnore.Call()
+				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 
 			if util.InSliceFunc(nodes, func(i base.Address) bool {
 				return i.Equal(req.Node())
 			}) >= 0 {
-				return nil, util.ErrLockedSetIgnore.Call()
+				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 
 			nodes = append(nodes, req.Node())
@@ -522,7 +522,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 		})
 
 		if err := broker.WriteResponseHeadOK(ctx, isset, nil); err != nil {
-			return e(err, "write response header")
+			return e.WithMessage(err, "write response header")
 		}
 
 		return nil
@@ -911,7 +911,7 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) boo
 	return srv.ebrecords.Get(id, func(nodes []base.Address, found bool) error {
 		switch {
 		case !found:
-			return util.ErrNotFound.Call()
+			return util.ErrNotFound.WithStack()
 		case len(nodes) < 1:
 			return errors.Errorf("not yet ensured")
 		}

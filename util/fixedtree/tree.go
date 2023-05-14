@@ -122,11 +122,11 @@ func (t Tree) Proof(key string) (Proof, error) {
 }
 
 func childrenNodes(nodes []Node, index uint64) (c [2]Node, err error) {
-	e := util.StringErrorFunc("generate node hash")
+	e := util.StringError("generate node hash")
 
 	i, err := children(len(nodes), index)
 	if err != nil {
-		return c, e(err, "")
+		return c, e.Wrap(err)
 	}
 
 	switch {
@@ -161,7 +161,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 
 	switch i := nextFirst + pos*2; { //nolint:gomnd //...
 	case i >= uint64(size):
-		return c, errNoChildren.Call()
+		return c, errNoChildren.WithStack()
 	default:
 		c[0] = i
 	}
@@ -174,7 +174,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 func parent(index uint64) (uint64, error) {
 	height := indexHeight(index)
 	if height == 0 {
-		return 0, errNoParent.Call()
+		return 0, errNoParent.WithStack()
 	}
 
 	currentFirst := uint64(math.Pow(2, float64(height)) - 1)

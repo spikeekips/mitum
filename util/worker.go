@@ -59,7 +59,7 @@ type (
 	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
 )
 
-var ErrWorkerContextCanceled = NewMError("context canceled in worker")
+var ErrWorkerContextCanceled = NewIDError("context canceled in worker")
 
 type ParallelWorker struct {
 	jobChan     chan interface{}
@@ -262,7 +262,7 @@ func (wk *BaseSemWorker) wait() error {
 		case <-time.After(timeout):
 			cancel()
 
-			werr = ErrWorkerContextCanceled.Call()
+			werr = ErrWorkerContextCanceled.WithStack()
 		case werr = <-donech:
 		}
 	})
@@ -450,7 +450,7 @@ func BatchWork(
 
 	if size <= limit {
 		if err := pref(ctx, size-1); err != nil {
-			return errors.WithMessage(err, "")
+			return err
 		}
 
 		return RunErrgroupWorker(ctx, size, func(ctx context.Context, i, _ uint64) error {

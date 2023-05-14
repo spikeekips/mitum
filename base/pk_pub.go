@@ -46,7 +46,7 @@ func ParseMPublickey(s string) (MPublickey, error) {
 func LoadMPublickey(s string) (MPublickey, error) {
 	k, err := btcec.ParsePubKey(base58.Decode(s))
 	if err != nil {
-		return MPublickey{}, util.ErrInvalid.Wrapf(err, "load publickey")
+		return MPublickey{}, util.ErrInvalid.WithMessage(err, "load publickey")
 	}
 
 	return NewMPublickey(k), nil
@@ -62,7 +62,7 @@ func (k MPublickey) Bytes() []byte {
 
 func (k MPublickey) IsValid([]byte) error {
 	if err := k.BaseHinter.IsValid(MPublickeyHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "wrong hint in publickey")
+		return util.ErrInvalid.WithMessage(err, "wrong hint in publickey")
 	}
 
 	switch {
@@ -93,7 +93,7 @@ func (k MPublickey) Verify(input []byte, sig Signature) error {
 	}
 
 	if !bsig.Verify(chainhash.DoubleHashB(input), k.k) {
-		return ErrSignatureVerification.Call()
+		return ErrSignatureVerification.WithStack()
 	}
 
 	return nil

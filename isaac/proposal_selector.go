@@ -14,10 +14,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var (
-	errFailedToRequestProposalToNode = util.NewMError("request proposal to node")
-	ErrEmptyNodes                    = util.NewMError("empty nodes for selecting proposal")
-)
+var errFailedToRequestProposalToNode = util.NewIDError("request proposal to node")
 
 // ProposerSelector selects proposer between suffrage nodes. If failed to
 // request proposal from remotes, local will be proposer.
@@ -38,7 +35,7 @@ type BaseProposalSelectorArgs struct {
 func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 	return &BaseProposalSelectorArgs{
 		GetNodesFunc: func(base.Height) ([]base.Node, bool, error) {
-			return nil, false, context.Canceled
+			return nil, false, errors.Wrapf(context.Canceled, "get nodes")
 		},
 		RequestFunc: func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
@@ -164,16 +161,16 @@ func (p *BaseProposalSelector) selectFromProposer(
 	nodes []base.Node,
 	previousBlock util.Hash,
 ) (base.ProposalSignFact, base.Address, error) {
-	e := util.StringErrorFunc("select proposal from proposer")
+	e := util.StringError("select proposal from proposer")
 
 	proposer, err := p.args.ProposerSelector.Select(ctx, point, nodes, previousBlock)
 	if err != nil {
-		return nil, nil, e(err, "select proposer")
+		return nil, nil, e.WithMessage(err, "select proposer")
 	}
 
 	pr, err := p.proposalFromNode(ctx, point, proposer, previousBlock)
 	if err != nil {
-		return nil, proposer.Address(), e(err, "")
+		return nil, proposer.Address(), e.Wrap(err)
 	}
 
 	return pr, proposer.Address(), err
@@ -268,18 +265,18 @@ func (p *BaseProposalSelector) findProposal(
 	proposer base.Node,
 	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
-	e := util.StringErrorFunc("find proposal")
+	e := util.StringError("find proposal")
 
 	switch pr, found, err := p.args.Pool.ProposalByPoint(point, proposer.Address(), previousBlock); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case found:
 		return pr, nil
 	}
 
 	pr, err := p.findProposalFromProposer(ctx, point, proposer, previousBlock)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return pr, nil
@@ -316,12 +313,13 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 
 	select {
 	case <-rctx.Done():
-		return nil, errFailedToRequestProposalToNode.Wrapf(
+		return nil, errFailedToRequestProposalToNode.WithMessage(
 			rctx.Err(), "context error; remote node, %q", proposer.Address())
 	case i := <-donech:
 		switch t := i.(type) {
 		case error:
-			return nil, errFailedToRequestProposalToNode.Wrapf(t, "request failed; remote node, %q", proposer.Address())
+			return nil, errFailedToRequestProposalToNode.WithMessage(
+				t, "request failed; remote node, %q", proposer.Address())
 		case base.ProposalSignFact:
 			if _, err := p.args.Pool.SetProposal(t); err != nil {
 				return nil, err
@@ -438,18 +436,18 @@ func (p *ProposalMaker) Empty(
 	p.Lock()
 	defer p.Unlock()
 
-	e := util.StringErrorFunc("make empty proposal")
+	e := util.StringError("make empty proposal")
 
 	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case found:
 		return pr, nil
 	}
 
 	pr, err := p.makeProposal(point, previousBlock, nil)
 	if err != nil {
-		return nil, e(err, "make empty proposal, %q", point)
+		return nil, e.WithMessage(err, "make empty proposal, %q", point)
 	}
 
 	return pr, nil
@@ -461,18 +459,18 @@ func (p *ProposalMaker) New(
 	p.Lock()
 	defer p.Unlock()
 
-	e := util.StringErrorFunc("make proposal, %q", point)
+	e := util.StringError("make proposal, %q", point)
 
 	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case found:
 		return pr, nil
 	}
 
 	ops, err := p.getOperations(ctx, point.Height())
 	if err != nil {
-		return nil, e(err, "get operations")
+		return nil, e.WithMessage(err, "get operations")
 	}
 
 	p.Log().Trace().Func(func(e *zerolog.Event) {
@@ -483,7 +481,7 @@ func (p *ProposalMaker) New(
 
 	pr, err := p.makeProposal(point, previousBlock, ops)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return pr, nil
@@ -506,7 +504,7 @@ func (p *ProposalMaker) makeProposal(
 	return signfact, nil
 }
 
-var errConcurrentRequestProposalFound = util.NewMError("proposal found")
+var errConcurrentRequestProposalFound = util.NewIDError("proposal found")
 
 func ConcurrentRequestProposal(
 	ctx context.Context,
@@ -540,7 +538,7 @@ func ConcurrentRequestProposal(
 				default:
 					_ = prlocked.SetValue(pr)
 
-					return errConcurrentRequestProposalFound
+					return errConcurrentRequestProposalFound.WithStack()
 				}
 			}); err != nil {
 				return

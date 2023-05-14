@@ -250,7 +250,7 @@ func (h HandoverMessageData) IsValid(b []byte) error {
 	}
 
 	if err := h.isValidData(b); err != nil {
-		return e.Wrapf(err, "data")
+		return e.WithMessage(err, "data")
 	}
 
 	return nil
@@ -274,15 +274,15 @@ func (h HandoverMessageData) LoadVoteproofData() (base.Voteproof, error) {
 }
 
 func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, base.INITVoteproof, error) {
-	e := util.StringErrorFunc("invalid init voteproof data")
+	e := util.StringError("invalid init voteproof data")
 
 	var i []interface{}
 
 	switch j, ok := h.data.([]interface{}); {
 	case !ok:
-		return nil, nil, e(nil, "expected []interface{}, but %T", h.data)
+		return nil, nil, e.Errorf("expected []interface{}, but %T", h.data)
 	case len(j) < 2: //nolint:gomnd //...
-		return nil, nil, e(nil, "expected [2]interface{}")
+		return nil, nil, e.Errorf("expected [2]interface{}")
 	default:
 		i = j
 	}
@@ -292,7 +292,7 @@ func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, bas
 	if i[0] != nil {
 		j, ok := i[0].(base.ProposalSignFact)
 		if !ok {
-			return nil, nil, e(nil, "expected ProposalSignFact, but %T", i[0])
+			return nil, nil, e.Errorf("expected ProposalSignFact, but %T", i[0])
 		}
 
 		pr = j
@@ -300,7 +300,7 @@ func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, bas
 
 	vp, ok := i[1].(base.INITVoteproof)
 	if !ok {
-		return nil, nil, e(nil, "expected init voteproof, but %T", i[1])
+		return nil, nil, e.Errorf("expected init voteproof, but %T", i[1])
 	}
 
 	return pr, vp, nil

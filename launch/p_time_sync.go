@@ -18,7 +18,7 @@ var (
 )
 
 func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare time syncer")
+	e := util.StringError("prepare time syncer")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -27,7 +27,7 @@ func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if len(design.TimeServer) < 1 {
@@ -38,31 +38,31 @@ func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
 
 	ts, err := localtime.NewTimeSyncer(design.TimeServer, design.TimeServerPort, DefaultTimeSyncerInterval)
 	if err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	_ = ts.SetLogging(log)
 
 	if err := ts.Start(context.Background()); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return context.WithValue(pctx, TimeSyncerContextKey, ts), nil
 }
 
 func PCloseTimeSyncer(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("stop time syncer")
+	e := util.StringError("stop time syncer")
 
 	var ts *localtime.TimeSyncer
 
 	switch err := util.LoadFromContext(pctx, TimeSyncerContextKey, &ts); {
 	case err != nil:
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	case ts == nil:
 		return pctx, nil
 	default:
 		if err := ts.Stop(); err != nil {
-			return pctx, e(err, "")
+			return pctx, e.Wrap(err)
 		}
 
 		return pctx, nil

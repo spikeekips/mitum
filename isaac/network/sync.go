@@ -184,7 +184,7 @@ end:
 }
 
 func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("fetch NodeConnInfo")
+	e := util.StringError("fetch NodeConnInfo")
 
 	worker := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
 	defer worker.Close()
@@ -214,7 +214,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 	}()
 
 	if err := worker.Wait(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var ncis []isaac.NodeConnInfo
@@ -248,7 +248,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 }
 
 func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis []isaac.NodeConnInfo, err error) {
-	e := util.StringErrorFunc("fetch NodeConnInfos")
+	e := util.StringError("fetch NodeConnInfos")
 
 	switch source.Type {
 	case SyncSourceTypeNode:
@@ -260,7 +260,7 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 	case SyncSourceTypeURL:
 		ncis, err = c.fetchFromURL(ctx, source.Source.(*url.URL))
 	default:
-		return nil, e(nil, "unsupported source type, %q", source.Type)
+		return nil, e.Errorf("unsupported source type, %q", source.Type)
 	}
 
 	if err != nil {
@@ -276,7 +276,7 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 				return nil, nil
 			}
 
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return ncis, nil
@@ -312,7 +312,7 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 	}()
 
 	if err := worker.Wait(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return filtered, nil
@@ -341,7 +341,7 @@ func (c *SyncSourceChecker) fetchFromSyncSources(
 }
 
 func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("fetch NodeConnInfo from url, %q", u)
+	e := util.StringError("fetch NodeConnInfo from url, %q", u)
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{
@@ -376,27 +376,27 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 
 	var raw []json.RawMessage
 	if err := c.enc.Unmarshal(b, &raw); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	ncis := make([]isaac.NodeConnInfo, len(raw))
 
 	for i := range raw {
 		if err := encoder.Decode(c.enc, raw[i], &ncis[i]); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
 	return ncis, nil
 }
 
-var errIgnoreNodeconnInfo = util.NewMError("ignore NodeConnInfo error")
+var errIgnoreNodeconnInfo = util.NewIDError("ignore NodeConnInfo error")
 
 func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
-	e := util.StringErrorFunc("fetch NodeConnInfo from node, %q", nci)
+	e := util.StringError("fetch NodeConnInfo from node, %q", nci)
 
 	if err := nci.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	ci, err := nci.UDPConnInfo()
@@ -420,7 +420,7 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		// NOTE if NodeChallenge failed, it means the node can not handle
 		// it's online suffrage nodes properly. All NodeConnInfo of this
 		// node is ignored.
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		return errIgnoreNodeconnInfo.Wrap(err)
 	}

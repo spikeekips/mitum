@@ -45,11 +45,11 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 
 // WriteMap writes BlockMap; BlockMap should be already sign.
 func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
-	e := util.StringErrorFunc("write map to localfs")
+	e := util.StringError("write map to localfs")
 
 	w, err := l.newWriter(blockFSMapFilename(l.enc.Hint().Type().String()))
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.PipeReadWrite(
@@ -63,7 +63,7 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 			return l.enc.StreamEncoder(pw).Encode(m)
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	l.height = m.Manifest().Height()
@@ -72,11 +72,11 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 }
 
 func (l *LocalFSImporter) WriteItem(t base.BlockMapItemType) (io.WriteCloser, error) {
-	e := util.StringErrorFunc("write item to localfs")
+	e := util.StringError("write item to localfs")
 
 	f, err := BlockFileName(t, l.enc.Hint().Type().String())
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return l.newWriter(f)
@@ -113,23 +113,23 @@ func (l *LocalFSImporter) save(heightdirectory string) error {
 	}
 
 	if err := os.Rename(l.temp, heightdirectory); err != nil {
-		return errors.WithMessage(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil
 }
 
 func (l *LocalFSImporter) Cancel() error {
-	e := util.StringErrorFunc("cancel localfs")
+	e := util.StringError("cancel localfs")
 
 	switch _, err := os.Stat(l.temp); {
 	case err == nil:
 		if err = os.RemoveAll(l.temp); err != nil {
-			return e(err, "remove existing height directory")
+			return e.WithMessage(err, "remove existing height directory")
 		}
 	case os.IsNotExist(err):
 	default:
-		return e(err, "check temp directory")
+		return e.WithMessage(err, "check temp directory")
 	}
 
 	d := filepath.Join(l.root, HeightDirectory(l.height))
@@ -137,11 +137,11 @@ func (l *LocalFSImporter) Cancel() error {
 	switch _, err := os.Stat(d); {
 	case err == nil:
 		if err = os.RemoveAll(d); err != nil {
-			return e(err, "remove existing height directory")
+			return e.WithMessage(err, "remove existing height directory")
 		}
 	case os.IsNotExist(err):
 	default:
-		return e(err, "check height directory")
+		return e.WithMessage(err, "check height directory")
 	}
 
 	return nil

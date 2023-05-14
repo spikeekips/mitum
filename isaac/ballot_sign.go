@@ -84,7 +84,7 @@ func (sf INITBallotSignFact) BallotFact() base.INITBallotFact {
 
 func (sf INITBallotSignFact) IsValid(networkID []byte) error {
 	if err := base.IsValidINITBallotSignFact(sf, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid INITBallotSignFact")
+		return util.ErrInvalid.WithMessage(err, "invalid INITBallotSignFact")
 	}
 
 	return nil
@@ -110,7 +110,7 @@ func (sf ACCEPTBallotSignFact) BallotFact() base.ACCEPTBallotFact {
 
 func (sf ACCEPTBallotSignFact) IsValid(networkID []byte) error {
 	if err := base.IsValidACCEPTBallotSignFact(sf, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallotSignFact")
+		return util.ErrInvalid.WithMessage(err, "invalid ACCEPTBallotSignFact")
 	}
 
 	return nil

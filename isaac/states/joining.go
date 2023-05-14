@@ -70,16 +70,16 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 }
 
 func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("enter joining state")
+	e := util.StringError("enter joining state")
 
 	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	jctx, ok := i.(joiningSwitchContext)
 	if !ok {
-		return nil, e(nil, "invalid stateSwitchContext, not for joining state; %T", i)
+		return nil, e.Errorf("invalid stateSwitchContext, not for joining state; %T", i)
 	}
 
 	vp := jctx.vp
@@ -99,16 +99,16 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 
 	switch m, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case !found:
-		return nil, e(nil, "last manifest not found")
+		return nil, e.Errorf("last manifest not found")
 	default:
 		manifest = m
 	}
 
 	switch suf, err := st.checkSuffrage(manifest.Height()); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
 		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
@@ -134,11 +134,11 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 }
 
 func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("exit from joining state")
+	e := util.StringError("exit from joining state")
 
 	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return deferred, nil
@@ -191,7 +191,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 	st.newvoteproofLock.Lock()
 	defer st.newvoteproofLock.Unlock()
 
-	e := util.StringErrorFunc("handle new voteproof")
+	e := util.StringError("handle new voteproof")
 
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
@@ -199,7 +199,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 
 	switch i, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
-		err = e(err, "get last manifest")
+		err = e.WithMessage(err, "get last manifest")
 
 		l.Error().Err(err).Msg("moves to syncing state")
 
@@ -227,7 +227,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 	case base.StageACCEPT:
 		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), manifest) //nolint:forcetypeassert //...
 	default:
-		return e(nil, "invalid voteproof received, %T", vp)
+		return e.Errorf("invalid voteproof received, %T", vp)
 	}
 }
 

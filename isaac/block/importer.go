@@ -42,16 +42,16 @@ func NewBlockImporter(
 	mergeBlockWriteDatabasef func(context.Context) error,
 	networkID base.NetworkID,
 ) (*BlockImporter, error) {
-	e := util.StringErrorFunc(" BlockImporter")
+	e := util.StringError(" BlockImporter")
 
 	enc := encs.Find(m.Encoder())
 	if enc == nil {
-		return nil, e(nil, "unknown encoder, %q", m.Encoder())
+		return nil, e.Errorf("unknown encoder, %q", m.Encoder())
 	}
 
 	localfs, err := NewLocalFSImporter(root, enc, m)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	finisheds, _ := util.NewShardedMap[base.BlockMapItemType, bool](6) //nolint:gomnd //...
@@ -69,7 +69,7 @@ func NewBlockImporter(
 	}
 
 	if err := im.WriteMap(m); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return im, nil
@@ -80,7 +80,7 @@ func (im *BlockImporter) Reader() (isaac.BlockReader, error) {
 }
 
 func (im *BlockImporter) WriteMap(m base.BlockMap) error {
-	e := util.StringErrorFunc("write BlockMap")
+	e := util.StringError("write BlockMap")
 
 	im.m = m
 
@@ -92,21 +92,21 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 
 	// NOTE save map
 	if err := im.localfs.WriteMap(m); err != nil {
-		return e(err, "write BlockMap")
+		return e.WithMessage(err, "write BlockMap")
 	}
 
 	if err := im.bwdb.SetBlockMap(m); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
-	e := util.StringErrorFunc("write item")
+	e := util.StringError("write item")
 
 	if err := im.importItem(t, r); err != nil {
-		return e(err, "import item, %q", t)
+		return e.WithMessage(err, "import item, %q", t)
 	}
 
 	_ = im.finisheds.SetValue(t, true)
@@ -115,31 +115,31 @@ func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
 }
 
 func (im *BlockImporter) Save(context.Context) (func(context.Context) error, error) {
-	e := util.StringErrorFunc("save")
+	e := util.StringError("save")
 
 	if !im.isfinished() {
-		return nil, e(nil, "not yet finished")
+		return nil, e.Errorf("not yet finished")
 	}
 
 	if im.sufst != nil {
 		proof, err := im.statestree.Proof(im.sufst.Hash().String())
 		if err != nil {
-			return nil, e(err, "make proof of suffrage state")
+			return nil, e.WithMessage(err, "make proof of suffrage state")
 		}
 
 		sufproof := NewSuffrageProof(im.m, im.sufst, proof, im.avp)
 
 		if err := im.bwdb.SetSuffrageProof(sufproof); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 	}
 
 	if err := im.bwdb.Write(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if err := im.localfs.Save(); err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return func(ctx context.Context) error {
@@ -148,14 +148,14 @@ func (im *BlockImporter) Save(context.Context) (func(context.Context) error, err
 }
 
 func (im *BlockImporter) CancelImport(context.Context) error {
-	e := util.StringErrorFunc("cancel")
+	e := util.StringError("cancel")
 
 	if err := im.bwdb.Cancel(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := im.localfs.Cancel(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	im.finisheds.Close()
@@ -255,7 +255,7 @@ func (im *BlockImporter) isfinished() bool {
 }
 
 func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("import operations")
+	e := util.StringError("import operations")
 
 	ops := make([]util.Hash, item.Num())
 	if uint64(len(ops)) > im.batchlimit {
@@ -308,14 +308,14 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 
 		return nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("import states")
+	e := util.StringError("import states")
 
 	sts := make([]base.State, item.Num())
 	if uint64(len(sts)) > im.batchlimit {
@@ -363,14 +363,14 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 
 		return nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("import states tree")
+	e := util.StringError("import states tree")
 
 	tr, err := LoadTree(im.enc, item, r, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(fixedtree.Node)
@@ -381,7 +381,7 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 		return node, nil
 	})
 	if err != nil {
-		return e(err, "load StatesTree")
+		return e.WithMessage(err, "load StatesTree")
 	}
 
 	im.statestree = tr
@@ -390,11 +390,11 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 }
 
 func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("import voteproofs")
+	e := util.StringError("import voteproofs")
 
 	vps, err := LoadVoteproofsFromReader(r, item.Num(), im.enc.Decode)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	for i := range vps {
@@ -403,12 +403,12 @@ func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) e
 		}
 
 		if err := vps[i].IsValid(im.networkID); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	im.avp = vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...

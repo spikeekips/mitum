@@ -30,7 +30,7 @@ func (d *DummyBallotPool) SetBallot(bl base.Ballot) (bool, error) {
 
 	_, err := d.m.Set(key, func(i base.Ballot, found bool) (base.Ballot, error) {
 		if found {
-			return nil, util.ErrFound.Call()
+			return nil, util.ErrFound.WithStack()
 		}
 
 		return bl, nil

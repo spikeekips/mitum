@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -140,11 +139,11 @@ type defaultNodeInfoJSONUnmarshaler struct {
 }
 
 func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("unmarshal DefaultNodeInfo")
+	e := util.StringError("unmarshal DefaultNodeInfo")
 
 	var u defaultNodeInfoJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	info.id = u.ID
@@ -157,7 +156,7 @@ func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
 }
 
 func SaveNodeInfo(root string, i NodeInfo) error {
-	e := util.StringErrorFunc("save NodeInfo")
+	e := util.StringError("save NodeInfo")
 
 	f, err := os.OpenFile(
 		filepath.Join(root, NodeInfoFilename),
@@ -165,7 +164,7 @@ func SaveNodeInfo(root string, i NodeInfo) error {
 		0o600,
 	)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -173,18 +172,18 @@ func SaveNodeInfo(root string, i NodeInfo) error {
 	}()
 
 	if err := util.NewJSONStreamEncoder(f).Encode(i); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := f.Close(); err != nil {
-		return e(errors.WithStack(err), "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func LoadNodeInfo(root string, enc encoder.Encoder) (_ NodeInfo, found bool, _ error) {
-	e := util.StringErrorFunc("load NodeInfo")
+	e := util.StringError("load NodeInfo")
 
 	f, err := os.Open(filepath.Join(root, NodeInfoFilename))
 
@@ -193,7 +192,7 @@ func LoadNodeInfo(root string, enc encoder.Encoder) (_ NodeInfo, found bool, _ e
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e(err, "")
+		return nil, false, e.Wrap(err)
 	}
 
 	defer func() {
@@ -202,16 +201,16 @@ func LoadNodeInfo(root string, enc encoder.Encoder) (_ NodeInfo, found bool, _ e
 
 	var i NodeInfo
 	if err := encoder.DecodeReader(enc, f, &i); err != nil {
-		return nil, true, e(err, "")
+		return nil, true, e.Wrap(err)
 	}
 
 	if err := i.IsValid(nil); err != nil {
-		return nil, true, e(err, "")
+		return nil, true, e.Wrap(err)
 	}
 
 	i = i.UpdateLastStartedAt()
 	if err := SaveNodeInfo(root, i); err != nil {
-		return nil, true, e(err, "update NodeInfo")
+		return nil, true, e.WithMessage(err, "update NodeInfo")
 	}
 
 	return i, true, nil

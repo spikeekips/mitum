@@ -100,21 +100,21 @@ type dummySuffrageProofUnmarshaler struct {
 }
 
 func (p *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode DummySuffrageProof")
+	e := util.StringError("failed to decode DummySuffrageProof")
 
 	var u dummySuffrageProofUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if u.ST != nil {
 		switch hinter, err := enc.Decode(u.ST); {
 		case err != nil:
-			return e(err, "")
+			return e.Wrap(err)
 		default:
 			i, ok := hinter.(State)
 			if !ok {
-				return e(nil, "expected State, but %T", hinter)
+				return e.Errorf("expected State, but %T", hinter)
 			}
 
 			p.st = i

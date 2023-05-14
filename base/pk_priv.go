@@ -90,7 +90,7 @@ func (k MPrivatekey) Bytes() []byte {
 
 func (k MPrivatekey) IsValid([]byte) error {
 	if err := k.BaseHinter.IsValid(MPrivatekeyHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "wrong hint in privatekey")
+		return util.ErrInvalid.WithMessage(err, "wrong hint in privatekey")
 	}
 
 	switch {

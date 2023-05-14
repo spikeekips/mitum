@@ -3,7 +3,6 @@ package hint
 import (
 	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 type CompatibleSet struct {
@@ -70,7 +69,7 @@ func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
 	}
 
 	if eht.Equal(ht) {
-		return util.ErrDuplicated.Errorf("hint, %q already added", ht)
+		return errors.Errorf("hint, %q already added", ht)
 	}
 
 	switch {

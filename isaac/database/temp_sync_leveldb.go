@@ -62,7 +62,7 @@ func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
 }
 
 func (db *LeveldbTempSyncPool) Cancel() error {
-	e := util.StringErrorFunc("cancel temp sync pool")
+	e := util.StringError("cancel temp sync pool")
 
 	if err := func() error {
 		db.Lock()
@@ -78,11 +78,11 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 
 		return err
 	}(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := db.Close(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

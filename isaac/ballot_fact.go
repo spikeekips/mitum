@@ -51,7 +51,7 @@ func (fact baseBallotFact) IsValid([]byte) error {
 
 	if len(fact.expelfacts) > 0 {
 		if err := util.CheckIsValiderSlice(nil, false, fact.expelfacts); err != nil {
-			return util.ErrInvalid.Wrapf(err, "wrong expelfacts")
+			return util.ErrInvalid.WithMessage(err, "wrong expelfacts")
 		}
 
 		if _, found := util.IsDuplicatedSlice(fact.expelfacts, func(i util.Hash) (bool, string) {

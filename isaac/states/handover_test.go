@@ -96,7 +96,7 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 			if pr != nil {
 				return pr, nil
 			}
-			return nil, util.ErrNotFound.Call()
+			return nil, util.ErrNotFound.WithStack()
 		}
 	}
 

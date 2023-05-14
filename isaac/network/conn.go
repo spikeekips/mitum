@@ -73,16 +73,16 @@ func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (n *NodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode NodeConnInfo")
+	e := util.StringError("decode NodeConnInfo")
 
 	if err := n.BaseNode.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var u connInfoJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	n.NamedConnInfo = u.ConnInfo

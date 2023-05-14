@@ -111,7 +111,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("validate blocks")
+	e := util.StringError("validate blocks")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -128,7 +128,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 		launch.LocalParamsContextKey, &params,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	var last base.Height
@@ -137,7 +137,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 
 	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, root, cmd.fromHeight, cmd.toHeight); {
 	case err != nil:
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	default:
 		cmd.fromHeight = fromHeight
 		cmd.toHeight = toHeight
@@ -167,7 +167,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 		root, cmd.fromHeight, last, enc, params, db,
 		cmd.whenBlockDone,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil

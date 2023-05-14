@@ -32,11 +32,11 @@ var (
 )
 
 func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare SuffrageCandidateLimiterSet")
+	e := util.StringError("prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
 	if err := util.LoadFromContextOK(pctx, CenterDatabaseContextKey, &db); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	set := hint.NewCompatibleSet()
@@ -45,14 +45,14 @@ func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error)
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
 		base.SuffrageCandidateLimiterFunc(FixedSuffrageCandidateLimiterFunc()),
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	if err := set.Add(
 		isaac.MajoritySuffrageCandidateLimiterRuleHint,
 		base.SuffrageCandidateLimiterFunc(MajoritySuffrageCandidateLimiterFunc(db)),
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return context.WithValue(pctx, SuffrageCandidateLimiterSetContextKey, set), nil
@@ -229,7 +229,7 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 }
 
 func PNodeInConsensusNodesFunc(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("NodeInConsensusNodesFunc")
+	e := util.StringError("NodeInConsensusNodesFunc")
 
 	var db isaac.Database
 	var sp *SuffragePool
@@ -239,7 +239,7 @@ func PNodeInConsensusNodesFunc(pctx context.Context) (context.Context, error) {
 		CenterDatabaseContextKey, &db,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	return context.WithValue(pctx, NodeInConsensusNodesFuncContextKey, nodeInConsensusNodesFunc(db, sp.Height)), nil
@@ -734,24 +734,24 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 	}
 
 	return func(height base.Height, getStateFunc base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
-		e := util.StringErrorFunc("get SuffrageCandidateLimiterFunc")
+		e := util.StringError("get SuffrageCandidateLimiterFunc")
 
 		policy := db.LastNetworkPolicy()
 		if policy == nil {
-			return nil, e(nil, "empty network policy")
+			return nil, e.Errorf("empty network policy")
 		}
 
 		var suf base.Suffrage
 
 		switch proof, found, err := db.LastSuffrageProof(); {
 		case err != nil:
-			return nil, e(err, "get last suffrage")
+			return nil, e.WithMessage(err, "get last suffrage")
 		case !found:
-			return nil, e(nil, "last suffrage not found")
+			return nil, e.Errorf("last suffrage not found")
 		default:
 			i, err := proof.Suffrage()
 			if err != nil {
-				return nil, e(err, "get suffrage")
+				return nil, e.WithMessage(err, "get suffrage")
 			}
 
 			suf = i
@@ -761,7 +761,7 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		switch _, i, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 		case err != nil:
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		default:
 			existings = uint64(len(i))
 		}
@@ -772,21 +772,21 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		switch i := limiterset.Find(rule.Hint()); {
 		case i == nil:
-			return nil, e(nil, "unknown limiter rule, %q", rule.Hint())
+			return nil, e.Errorf("unknown limiter rule, %q", rule.Hint())
 		default:
 			f, ok := i.(base.SuffrageCandidateLimiterFunc)
 			if !ok {
-				return nil, e(nil, "expected SuffrageCandidateLimiterFunc, not %T", i)
+				return nil, e.Errorf("expected SuffrageCandidateLimiterFunc, not %T", i)
 			}
 
 			limiter, err := f(rule)
 			if err != nil {
-				return nil, e(err, "")
+				return nil, e.Wrap(err)
 			}
 
 			j, err := limiter()
 			if err != nil {
-				return nil, e(err, "")
+				return nil, e.Wrap(err)
 			}
 
 			limit = j

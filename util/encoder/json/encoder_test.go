@@ -134,7 +134,7 @@ func (t *testJSONEncoder) TestAddAgain() {
 
 	// add again
 	err := t.enc.Add(d)
-	t.True(errors.Is(err, util.ErrDuplicated))
+	t.Error(err)
 	t.ErrorContains(err, "already added")
 }
 
@@ -157,7 +157,7 @@ func (t *testJSONEncoder) TestAddHinterAgain() {
 
 	// add again
 	err := t.enc.AddHinter(hr)
-	t.True(errors.Is(err, util.ErrDuplicated))
+	t.Error(err)
 	t.ErrorContains(err, "already added")
 }
 

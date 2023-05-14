@@ -24,9 +24,9 @@ type ProposalSignFact interface {
 }
 
 func IsValidProposalFact(fact ProposalFact) error {
-	e := util.StringErrorFunc("invalid ProposalFact")
+	e := util.StringError("invalid ProposalFact")
 	if err := IsValidFact(fact, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false,
@@ -40,7 +40,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 			return nil
 		}),
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	switch h := fact.Point().Height(); {
@@ -51,7 +51,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 		return util.ErrInvalid.Errorf("nil previous block")
 	default:
 		if err := fact.PreviousBlock().IsValid(nil); err != nil {
-			return e(util.ErrInvalid.Wrapf(err, "invalid previous block"), "")
+			return e.Wrap(util.ErrInvalid.WithMessage(err, "invalid previous block"))
 		}
 	}
 
@@ -68,21 +68,21 @@ func IsValidProposalFact(fact ProposalFact) error {
 	}
 
 	if err := util.CheckIsValiderSlice(nil, false, fact.Operations()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func IsValidProposalSignFact(sf ProposalSignFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid ProposalSignFact")
+	e := util.StringError("invalid ProposalSignFact")
 
 	if err := IsValidSignFact(sf, networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if _, ok := sf.Fact().(ProposalFact); !ok {
-		return e(util.ErrInvalid.Errorf("not ProposalFact, %T", sf.Fact()), "")
+		return e.Wrap(util.ErrInvalid.Errorf("not ProposalFact, %T", sf.Fact()))
 	}
 
 	return nil

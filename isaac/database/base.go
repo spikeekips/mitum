@@ -95,33 +95,33 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 }
 
 func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err error) {
-	e := util.StringErrorFunc("read hint")
+	e := util.StringError("read hint")
 
 	htb, left, err := util.ReadLengthedBytes(b)
 	if err != nil {
-		return ht, nil, nil, e(err, "")
+		return ht, nil, nil, e.Wrap(err)
 	}
 
 	ht, err = hint.ParseHint(string(htb))
 	if err != nil {
-		return ht, nil, nil, e(err, "")
+		return ht, nil, nil, e.Wrap(err)
 	}
 
 	meta, left, err = util.ReadLengthedBytes(left)
 	if err != nil {
-		return ht, nil, nil, e(err, "")
+		return ht, nil, nil, e.Wrap(err)
 	}
 
 	return ht, meta, left, nil
 }
 
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
-	e := util.StringErrorFunc("load suffrage")
+	e := util.StringError("load suffrage")
 
 	var st base.State
 
 	if err := db.readHinter(b, &st); err != nil {
-		return nil, e(err, "load suffrage state")
+		return nil, e.WithMessage(err, "load suffrage state")
 	}
 
 	if !base.IsSuffrageNodesState(st) {
@@ -187,17 +187,17 @@ func NewHashRecordMeta(h util.Hash) util.Byter {
 }
 
 func ReadHashRecordMeta(b []byte) (util.Hash, error) {
-	e := util.StringErrorFunc("read state record meta")
+	e := util.StringError("read state record meta")
 
 	switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	case len(m) < 1:
-		return nil, e(nil, "empty state hash")
+		return nil, e.Errorf("empty state hash")
 	default:
 		h := valuehash.NewBytes(m[0])
 		if err := h.IsValid(nil); err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return h, nil

@@ -20,7 +20,7 @@ var (
 )
 
 func PNodeInfo(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare nodeinfo")
+	e := util.StringError("prepare nodeinfo")
 
 	var log *logging.Logging
 	var version util.Version
@@ -37,7 +37,7 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	nodeinfo := isaacnetwork.NewNodeInfoUpdater(design.NetworkID, local, version)

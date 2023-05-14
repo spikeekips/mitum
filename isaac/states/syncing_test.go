@@ -126,24 +126,6 @@ func (t *testSyncingHandler) TestExit() {
 		t.ErrorContains(err, "hehehe")
 	})
 
-	t.Run("can not cancel", func() {
-		st, _ := t.newState(nil)
-
-		deferredenter, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, base.Height(33)))
-		t.NoError(err)
-		deferredenter()
-
-		syncer := st.syncer.(*dummySyncer)
-		syncer.cancelf = func() error {
-			return ErrSyncerCanNotCancel.Call()
-		}
-
-		deferredexit, err := st.exit(nil)
-		t.Nil(deferredexit)
-		t.Error(err)
-		t.True(errors.Is(err, ErrIgnoreSwitchingState))
-	})
-
 	t.Run("leave memberlist; not allowed consensus", func() {
 		st, closef := t.newState(nil)
 		defer closef(false)

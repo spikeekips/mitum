@@ -12,10 +12,10 @@ type Suffrage struct {
 }
 
 func NewSuffrage(nodes []base.Node) (Suffrage, error) {
-	e := util.StringErrorFunc("new suffrage")
+	e := util.StringError("new suffrage")
 
 	if len(nodes) < 1 {
-		return Suffrage{}, e(nil, "empty suffrage nodes")
+		return Suffrage{}, e.Errorf("empty suffrage nodes")
 	}
 
 	m := map[string]base.Node{}
@@ -23,7 +23,7 @@ func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 	for i := range nodes {
 		n := nodes[i]
 		if n == nil {
-			return Suffrage{}, e(nil, "nil node address")
+			return Suffrage{}, e.Errorf("nil node address")
 		}
 
 		m[n.Address().String()] = n
@@ -36,7 +36,7 @@ func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 
 		return true, i.Address().String()
 	}); found {
-		return Suffrage{}, e(nil, "duplicated node address found")
+		return Suffrage{}, e.Errorf("duplicated node address found")
 	}
 
 	return Suffrage{m: m, ns: nodes}, nil

@@ -15,11 +15,11 @@ var (
 )
 
 func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("prepare discovery flag")
+	e := util.StringError("prepare discovery flag")
 
 	var flag []ConnInfoFlag
 	if err := util.LoadFromContextOK(pctx, DiscoveryFlagContextKey, &flag); err != nil {
-		return pctx, e(err, "")
+		return pctx, e.Wrap(err)
 	}
 
 	discoveries := util.EmptyLocked[[]quicstream.UDPConnInfo]()
@@ -30,7 +30,7 @@ func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 		for i := range flag {
 			ci, err := flag[i].ConnInfo()
 			if err != nil {
-				return pctx, e(err, "invalid member discovery, %q", flag[i])
+				return pctx, e.WithMessage(err, "invalid member discovery, %q", flag[i])
 			}
 
 			v[i] = ci
