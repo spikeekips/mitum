@@ -1055,6 +1055,7 @@ func DefaultWhenNewBlockSavedInConsensusStateFunc(
 	return func(bm base.BlockMap) {
 		log.Log().Debug().
 			Interface("blockmap", bm).
+			Interface("height", bm.Manifest().Height()).
 			Stringer("state", isaacstates.StateConsensus).
 			Msg("new block saved")
 

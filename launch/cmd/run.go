@@ -175,10 +175,13 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 		return pctx, err
 	}
 
-	f := func(height base.Height) {
-		l := log.Log().With().Interface("height", height).Logger()
+	f := func(bm base.BlockMap) {
+		l := log.Log().With().
+			Interface("blockmap", bm).
+			Interface("height", bm.Manifest().Height()).
+			Logger()
 
-		if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
+		if cmd.Hold.IsSet() && bm.Manifest().Height() == cmd.Hold.Height() {
 			l.Debug().Msg("will be stopped by hold")
 
 			cmd.exitf(errHoldStop.WithStack())

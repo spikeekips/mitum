@@ -181,15 +181,14 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 	if err := util.Retry(sctx, func() (bool, error) {
 		switch i, err := p.save(sctx, avp); {
 		case err == nil:
+			bm = i
+
 			return false, nil
-		case errors.Is(err, ErrProcessorAlreadySaved):
-			return false, err
-		case errors.Is(err, ErrStopProcessingRetry):
+		case errors.Is(err, ErrProcessorAlreadySaved),
+			errors.Is(err, ErrStopProcessingRetry):
 			return false, err
 		default:
 			p.Log().Error().Err(err).Msg("failed to save; will retry")
-
-			bm = i
 
 			return true, err
 		}
