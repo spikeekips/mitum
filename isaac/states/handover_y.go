@@ -52,7 +52,6 @@ type HandoverYBroker struct {
 	cancelByMessage func()
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
-	isReady         *util.Locked[bool]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	id              string
 	receivelock     sync.Mutex
@@ -77,7 +76,6 @@ func NewHandoverYBroker(
 		connInfo:      connInfo,
 		ctxFunc:       func() context.Context { return hctx },
 		lastpoint:     util.EmptyLocked[base.StagePoint](),
-		isReady:       util.EmptyLocked[bool](),
 		whenFinishedf: func(base.INITVoteproof) error { return nil },
 		whenCanceledf: func(error) {},
 	}
@@ -246,11 +244,8 @@ func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
 func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageChallengeResponse) error {
 	h.Log().Debug().Interface("message", hc).Msg("receive HandoverMessageReadyResponse")
 
-	switch {
-	case hc.Err() != nil:
+	if hc.Err() != nil {
 		return hc.Err()
-	case !hc.OK():
-		_ = h.isReady.SetValue(false)
 	}
 
 	return h.lastpoint.Get(func(prev base.StagePoint, isempty bool) error {
