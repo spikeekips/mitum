@@ -33,7 +33,7 @@ type StatesArgs struct {
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
 	NewHandoverXBroker     func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error)
-	NewHandoverYBroker     func(context.Context, string /* handover id */, quicstream.UDPConnInfo) (
+	NewHandoverYBroker     func(context.Context, quicstream.UDPConnInfo) (
 		*HandoverYBroker, error)
 	// AllowConsensus decides to enter Consensus states. If false, States enters
 	// Syncing state instead of Consensus state.
@@ -48,7 +48,7 @@ func NewStatesArgs() *StatesArgs {
 		NewHandoverXBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverXBroker")
 		},
-		NewHandoverYBroker: func(context.Context, string, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+		NewHandoverYBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverYBroker")
 		},
 	}

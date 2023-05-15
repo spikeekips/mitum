@@ -16,10 +16,10 @@ type HandoverYBrokerArgs struct {
 	SendFunc    func(context.Context, interface{}) error
 	NewDataFunc func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	WhenFinished func(base.INITVoteproof) error
-	WhenCanceled func(error)
-	AskFunc      func(string /* handover id */, quicstream.UDPConnInfo /* x conn info */) error
-	NetworkID    base.NetworkID
+	WhenFinished   func(base.INITVoteproof) error
+	WhenCanceled   func(error)
+	AskRequestFunc func(quicstream.UDPConnInfo /* x conn info */) (handoverid string, _ error)
+	NetworkID      base.NetworkID
 }
 
 // FIXME WhenCanceled; left memberlist
@@ -35,8 +35,8 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		},
 		WhenFinished: func(base.INITVoteproof) error { return nil },
 		WhenCanceled: func(error) {},
-		AskFunc: func(string, quicstream.UDPConnInfo) error {
-			return util.ErrNotImplemented.Errorf("AskFunc")
+		AskRequestFunc: func(quicstream.UDPConnInfo) (string, error) {
+			return "", util.ErrNotImplemented.Errorf("AskFunc")
 		},
 	}
 }
@@ -56,16 +56,14 @@ type HandoverYBroker struct {
 	cancelByMessage func()
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
-	isAsked         *util.Locked[bool]
+	id              *util.Locked[string]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
-	id              string
 	receivelock     sync.Mutex
 }
 
 func NewHandoverYBroker(
 	ctx context.Context,
 	args *HandoverYBrokerArgs,
-	id string,
 	connInfo quicstream.UDPConnInfo,
 ) *HandoverYBroker {
 	hctx, cancel := context.WithCancel(ctx)
@@ -74,14 +72,13 @@ func NewHandoverYBroker(
 
 	h := &HandoverYBroker{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "handover-y-broker").Str("id", id)
+			return lctx.Str("module", "handover-y-broker")
 		}),
 		args:          args,
-		id:            id,
 		connInfo:      connInfo,
 		ctxFunc:       func() context.Context { return hctx },
 		lastpoint:     util.EmptyLocked[base.StagePoint](),
-		isAsked:       util.EmptyLocked[bool](),
+		id:            util.EmptyLocked[string](),
 		whenFinishedf: func(base.INITVoteproof) error { return nil },
 		whenCanceledf: func(error) {},
 	}
@@ -96,7 +93,9 @@ func NewHandoverYBroker(
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
-			_ = args.SendFunc(ctx, newHandoverMessageCancel(id))
+			if id := h.ID(); len(id) > 0 {
+				_ = args.SendFunc(ctx, newHandoverMessageCancel(id))
+			}
 
 			cancelf(err)
 		})
@@ -122,7 +121,9 @@ func NewHandoverYBroker(
 }
 
 func (h *HandoverYBroker) ID() string {
-	return h.id
+	id, _ := h.id.Value()
+
+	return id
 }
 
 func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
@@ -130,34 +131,40 @@ func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
 }
 
 func (h *HandoverYBroker) IsAsked() bool {
-	isAsked, _ := h.isAsked.Value()
+	id, _ := h.id.Value()
 
-	return isAsked
+	return len(id) > 0
 }
 
 func (h *HandoverYBroker) Ask() (bool, error) {
-	var asked bool
+	var id string
 
-	_, err := h.isAsked.Set(func(_ bool, isempty bool) (bool, error) {
+	if _, err := h.id.Set(func(_ string, isempty bool) (string, error) {
 		if !isempty {
-			return false, util.ErrLockedSetIgnore
+			return "", util.ErrLockedSetIgnore
 		}
 
-		if err := h.args.AskFunc(h.id, h.connInfo); err != nil {
-			return false, err
+		switch i, err := h.args.AskRequestFunc(h.connInfo); {
+		case err != nil:
+			return "", err
+		case len(i) < 1:
+			return "", errors.Errorf("empty handover id")
+		default:
+			id = i
+
+			return i, nil
 		}
-
-		asked = true
-
-		return asked, nil
-	})
-	if err != nil {
+	}); err != nil {
 		h.cancel(err)
 
-		return asked, ErrHandoverCanceled.Wrap(err)
+		h.Log().Error().Err(err).Msg("failed to ask")
+
+		return false, ErrHandoverCanceled.Wrap(err)
 	}
 
-	return asked, err
+	h.Log().Debug().Str("id", id).Msg("asked")
+
+	return len(id) > 0, nil
 }
 
 func (h *HandoverYBroker) isCanceled() error {
@@ -173,9 +180,14 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 		return err
 	}
 
+	id := h.ID()
+	if len(id) < 1 {
+		return errors.Errorf("not yet asked")
+	}
+
 	_ = h.lastpoint.SetValue(point)
 
-	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeStagePoint(h.id, point)); err != nil {
+	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeStagePoint(id, point)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
@@ -189,9 +201,14 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 		return err
 	}
 
+	id := h.ID()
+	if len(id) < 1 {
+		return errors.Errorf("not yet asked")
+	}
+
 	_ = h.lastpoint.SetValue(point)
 
-	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(h.id, point, m)); err != nil {
+	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(id, point, m)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
@@ -223,8 +240,13 @@ func (h *HandoverYBroker) receive(i interface{}) error {
 }
 
 func (h *HandoverYBroker) receiveInternal(i interface{}) error {
-	if id, ok := i.(HandoverMessage); ok {
-		if h.ID() != id.HandoverID() {
+	id := h.ID()
+	if len(id) < 1 {
+		return errors.Errorf("not yet asked")
+	}
+
+	if m, ok := i.(HandoverMessage); ok {
+		if id != m.HandoverID() {
 			return errors.Errorf("id not matched")
 		}
 	}

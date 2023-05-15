@@ -33,10 +33,13 @@ func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 	return args
 }
 
-func (t *baseTestHandoverBroker) yargs() *HandoverYBrokerArgs {
+func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
 	args.WhenCanceled = func(error) {}
 	args.NewDataFunc = func(HandoverMessageDataType, interface{}) error { return nil }
+	args.AskRequestFunc = func(quicstream.UDPConnInfo) (string, error) {
+		return id, nil
+	}
 
 	return args
 }
@@ -64,10 +67,13 @@ func (t *testHandoverXYBroker) TestFinished() {
 	defer cancel()
 
 	xargs := t.xargs()
-	yargs := t.yargs()
-
 	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, quicstream.UDPConnInfo{})
+
+	yargs := t.yargs(xbroker.id)
+	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
+	asked, err := ybroker.Ask()
+	t.NoError(err)
+	t.True(asked)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)
@@ -171,7 +177,7 @@ func (t *testHandoverXYBroker) TestFinished() {
 	<-time.After(time.Second * 2)
 
 	t.T().Log("check canceled")
-	err := xbroker.isCanceled()
+	err = xbroker.isCanceled()
 	t.Error(err)
 	t.True(errors.Is(err, ErrHandoverCanceled))
 
@@ -185,10 +191,13 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	defer cancel()
 
 	xargs := t.xargs()
-	yargs := t.yargs()
-
 	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, quicstream.UDPConnInfo{})
+
+	yargs := t.yargs(xbroker.id)
+	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
+	asked, err := ybroker.Ask()
+	t.NoError(err)
+	t.True(asked)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)

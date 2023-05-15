@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
@@ -500,7 +501,7 @@ func QuicstreamHandlerSetAllowConsensus(
 			ok = setf(header.Allow())
 		}
 
-		return writeResponseStream(ctx, broker, ok, err, nil)
+		return broker.WriteResponseHeadOK(ctx, ok, err)
 	}
 }
 
@@ -551,7 +552,7 @@ func QuicstreamHandlerStartHandover(
 	local base.Node,
 	localConnInfo quicstream.UDPConnInfo,
 	networkID base.NetworkID,
-	check func(StartHandoverHeader) (bool, error),
+	f isaacstates.StartHandoverYFunc,
 ) quicstreamheader.Handler[StartHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
@@ -568,18 +569,11 @@ func QuicstreamHandlerStartHandover(
 			local.Publickey(), networkID,
 		)
 
-		var ok bool
-
 		if err == nil {
-			switch i, cerr := check(header); {
-			case cerr != nil:
-				err = cerr
-			default:
-				ok = i
-			}
+			err = f(header.Address(), header.ConnInfo())
 		}
 
-		return writeResponseStream(ctx, broker, ok, err, nil)
+		return broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -587,7 +581,7 @@ func QuicstreamHandlerCheckHandover(
 	local base.Node,
 	localConnInfo quicstream.UDPConnInfo,
 	networkID base.NetworkID,
-	check func(CheckHandoverHeader) (bool, error),
+	f isaacstates.CheckHandoverXFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
@@ -604,18 +598,47 @@ func QuicstreamHandlerCheckHandover(
 			local.Publickey(), networkID,
 		)
 
-		var ok bool
-
 		if err == nil {
-			switch i, cerr := check(header); {
-			case cerr != nil:
-				err = cerr
-			default:
-				ok = i
-			}
+			err = f(header.Address(), header.ConnInfo())
 		}
 
-		return writeResponseStream(ctx, broker, ok, err, nil)
+		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}
+}
+
+func QuicstreamHandlerAskHandover(
+	local base.Node,
+	localConnInfo quicstream.UDPConnInfo,
+	networkID base.NetworkID,
+	f isaacstates.AskHandoverFunc,
+) quicstreamheader.Handler[AskHandoverHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header AskHandoverHeader,
+	) error {
+		switch {
+		case !header.Address().Equal(local.Address()):
+			return errors.Errorf("node address not matched")
+		case localConnInfo.Addr().String() != header.ConnInfo().Addr().String():
+			return errors.Errorf("node conn info not matched")
+		}
+
+		id, canMoveConsensus, err := func() (string, bool, error) {
+			err := quicstreamHandlerVerifyNode(
+				ctx, addr, broker,
+				local.Publickey(), networkID,
+			)
+
+			var id string
+			var canMoveConsensus bool
+
+			if err == nil {
+				id, canMoveConsensus, err = f(header.Address(), header.ConnInfo())
+			}
+
+			return id, canMoveConsensus, err
+		}()
+
+		return broker.WriteResponseHead(ctx, NewAskHandoverResponseHeader(canMoveConsensus, err, id))
 	}
 }
 
@@ -784,6 +807,7 @@ func quicstreamHandlerVerifyNode(
 	networkID base.NetworkID,
 ) error {
 	input := util.UUID().Bytes()
+
 	buf := bytes.NewBuffer(input)
 	defer buf.Reset()
 

@@ -626,6 +626,7 @@ func (h StartHandoverHeader) IsValid([]byte) error {
 }
 
 type CheckHandoverHeader struct {
+	// connInfo quicstream.UDPConnInfo // conn info of y
 	caHandoverHeader
 }
 
@@ -680,7 +681,10 @@ func (h AskHandoverResponseHeader) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if len(h.id) < 1 {
+	switch {
+	case h.Err() != nil:
+	case !h.OK():
+	case len(h.id) < 1:
 		return e.Errorf("empty id")
 	}
 
