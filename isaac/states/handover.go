@@ -107,7 +107,7 @@ func (st *HandoverHandler) exit(i switchContext) (func(), error) {
 		_ = st.setAllowConsensus(true)
 
 		if st.sts != nil {
-			st.sts.cleanHandoverBrokers()
+			st.sts.cleanHandover()
 
 			_ = st.sts.args.Ballotbox.Count()
 		}

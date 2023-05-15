@@ -219,7 +219,7 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 
 		serr := st.startStatesSwitch(ctx)
 
-		st.cleanHandoverBrokers()
+		st.cleanHandover()
 
 		// NOTE exit current
 		switch current := st.current(); {
@@ -525,6 +525,10 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 
 	switch {
 	case st.HandoverYBroker() != nil:
+		if !st.HandoverYBroker().IsAsked() {
+			return ErrIgnoreSwitchingState.Errorf("handover y not yet asked")
+		}
+
 		if next == StateConsensus || next == StateJoining {
 			if current.state() == StateHandover {
 				return ErrIgnoreSwitchingState.Errorf("already in handover")

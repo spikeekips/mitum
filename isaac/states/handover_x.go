@@ -557,7 +557,7 @@ func (h *HandoverXBroker) whenFinished(vp base.INITVoteproof) error {
 
 func (h *HandoverXBroker) patchStates(st *States) error {
 	h.whenFinishedf = func(vp base.INITVoteproof) error {
-		st.cleanHandoverBrokers()
+		st.cleanHandover()
 
 		_ = st.SetAllowConsensus(false)
 
@@ -575,7 +575,7 @@ func (h *HandoverXBroker) patchStates(st *States) error {
 	}
 
 	h.whenCanceledf = func(error) {
-		st.cleanHandoverBrokers()
+		st.cleanHandover()
 	}
 
 	return nil

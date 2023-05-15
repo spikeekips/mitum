@@ -53,6 +53,53 @@ func (t *testHandoverYBroker) TestNew() {
 	})
 }
 
+func (t *testHandoverYBroker) TestAsk() {
+	t.Run("ok", func() {
+		args := t.yargs()
+		args.AskFunc = func(string, quicstream.UDPConnInfo) error {
+			return nil
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		broker := NewHandoverYBroker(ctx, args, util.UUID().String(), quicstream.UDPConnInfo{})
+		isAsked, err := broker.Ask()
+		t.NoError(err)
+		t.True(isAsked)
+		t.True(broker.IsAsked())
+
+		t.T().Log("ask again")
+		isAsked, err = broker.Ask()
+		t.NoError(err)
+		t.False(isAsked)
+		t.True(broker.IsAsked())
+	})
+
+	t.Run("ask func error", func() {
+		args := t.yargs()
+		args.AskFunc = func(string, quicstream.UDPConnInfo) error {
+			return errors.Errorf("hehehe")
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		broker := NewHandoverYBroker(ctx, args, util.UUID().String(), quicstream.UDPConnInfo{})
+		isAsked, err := broker.Ask()
+		t.Error(err)
+		t.False(isAsked)
+		t.ErrorContains(err, "hehehe")
+
+		t.False(broker.IsAsked())
+
+		t.T().Log("broker will be cancled")
+		err = broker.isCanceled()
+		t.Error(err)
+		t.True(errors.Is(err, ErrHandoverCanceled))
+	})
+}
+
 func (t *testHandoverYBroker) TestReceiveVoteproof() {
 	args := t.yargs()
 

@@ -186,7 +186,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 
 	if _, ok := vp.(handoverFinishedVoteporof); ok {
 		if st.sts != nil {
-			st.sts.cleanHandoverBrokers()
+			st.sts.cleanHandover()
 		}
 	}
 

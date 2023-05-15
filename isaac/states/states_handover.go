@@ -75,7 +75,7 @@ func (st *States) NewHandoverYBroker(id string, connInfo quicstream.UDPConnInfo)
 	return err
 }
 
-func (st *States) cleanHandoverBrokers() {
+func (st *States) cleanHandover() {
 	_ = st.handoverXBroker.Empty(func(i *HandoverXBroker, isempty bool) error {
 		if !isempty {
 			st.Log().Debug().Msg("handover x broker canceled")

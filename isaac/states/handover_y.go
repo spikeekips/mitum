@@ -18,6 +18,7 @@ type HandoverYBrokerArgs struct {
 	// WhenFinished is called when handover process is finished.
 	WhenFinished func(base.INITVoteproof) error
 	WhenCanceled func(error)
+	AskFunc      func(string /* handover id */, quicstream.UDPConnInfo /* x conn info */) error
 	NetworkID    base.NetworkID
 }
 
@@ -34,6 +35,9 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		},
 		WhenFinished: func(base.INITVoteproof) error { return nil },
 		WhenCanceled: func(error) {},
+		AskFunc: func(string, quicstream.UDPConnInfo) error {
+			return util.ErrNotImplemented.Errorf("AskFunc")
+		},
 	}
 }
 
@@ -52,6 +56,7 @@ type HandoverYBroker struct {
 	cancelByMessage func()
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
+	isAsked         *util.Locked[bool]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	id              string
 	receivelock     sync.Mutex
@@ -76,6 +81,7 @@ func NewHandoverYBroker(
 		connInfo:      connInfo,
 		ctxFunc:       func() context.Context { return hctx },
 		lastpoint:     util.EmptyLocked[base.StagePoint](),
+		isAsked:       util.EmptyLocked[bool](),
 		whenFinishedf: func(base.INITVoteproof) error { return nil },
 		whenCanceledf: func(error) {},
 	}
@@ -121,6 +127,37 @@ func (h *HandoverYBroker) ID() string {
 
 func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
 	return h.connInfo
+}
+
+func (h *HandoverYBroker) IsAsked() bool {
+	isAsked, _ := h.isAsked.Value()
+
+	return isAsked
+}
+
+func (h *HandoverYBroker) Ask() (bool, error) {
+	var asked bool
+
+	_, err := h.isAsked.Set(func(_ bool, isempty bool) (bool, error) {
+		if !isempty {
+			return false, util.ErrLockedSetIgnore
+		}
+
+		if err := h.args.AskFunc(h.id, h.connInfo); err != nil {
+			return false, err
+		}
+
+		asked = true
+
+		return asked, nil
+	})
+	if err != nil {
+		h.cancel(err)
+
+		return asked, ErrHandoverCanceled.Wrap(err)
+	}
+
+	return asked, err
 }
 
 func (h *HandoverYBroker) isCanceled() error {
@@ -318,7 +355,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		switch current := st.current(); {
 		case current == nil:
 		case vp == nil:
-			st.cleanHandoverBrokers()
+			st.cleanHandover()
 			_ = st.SetAllowConsensus(true)
 
 			_ = st.args.Ballotbox.Count()
@@ -344,7 +381,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 	}
 
 	h.whenCanceledf = func(error) {
-		st.cleanHandoverBrokers()
+		st.cleanHandover()
 
 		if current := st.current(); current != nil {
 			go func() {

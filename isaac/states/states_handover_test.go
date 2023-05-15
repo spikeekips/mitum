@@ -100,20 +100,55 @@ func (t *testStates) TestSwitchHandover() {
 		t.T().Log("current", st.current().state())
 	})
 
-	t.Run("from syncing", func() {
-		t.T().Log("current", st.current().state())
-
-		st.args.NewHandoverYBroker = func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
-			args := NewHandoverYBrokerArgs(t.params.NetworkID())
-			return NewHandoverYBroker(ctx, args, id, connInfo), nil
+	st.args.NewHandoverYBroker = func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+		args := NewHandoverYBrokerArgs(t.params.NetworkID())
+		args.AskFunc = func(string, quicstream.UDPConnInfo) error {
+			return nil
 		}
+
+		return NewHandoverYBroker(ctx, args, id, connInfo), nil
+	}
+
+	t.Run("from syncing, but not yet asked", func() {
+		t.T().Log("current", st.current().state())
 
 		_ = st.SetAllowConsensus(false)
 		t.False(st.AllowedConsensus())
 
 		t.T().Log("set under handover")
 		t.NoError(st.NewHandoverYBroker(util.UUID().String(), quicstream.UDPConnInfo{}))
-		t.NotNil(st.HandoverYBroker())
+
+		broker := st.HandoverYBroker()
+		t.NotNil(broker)
+		t.False(broker.IsAsked())
+
+		nsctx := newDummySwitchContext(st.current().state(), StateHandover, nil)
+		t.NoError(st.AskMoveState(nsctx))
+
+		select {
+		case <-time.After(time.Second * 3):
+		case <-handoverenterch:
+			t.NoError(errors.Errorf("unexpected swithching"))
+		}
+
+		t.T().Log("current", st.current().state())
+		t.Equal(StateSyncing, st.current().state())
+	})
+
+	t.Run("from syncing", func() {
+		t.T().Log("current", st.current().state())
+
+		_ = st.SetAllowConsensus(false)
+		t.False(st.AllowedConsensus())
+
+		t.T().Log("set under handover")
+
+		broker := st.HandoverYBroker()
+		t.NotNil(broker)
+		isAsked, err := broker.Ask()
+		t.NoError(err)
+		t.True(isAsked)
+		t.True(broker.IsAsked())
 
 		nsctx := newDummySwitchContext(st.current().state(), StateHandover, nil)
 		t.NoError(st.AskMoveState(nsctx))
