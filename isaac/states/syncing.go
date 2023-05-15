@@ -49,6 +49,7 @@ type SyncingHandler struct {
 	*baseHandler
 	args              *SyncingHandlerArgs
 	stuckwaitcancel   func()
+	askHandoverFunc   func() error
 	waitStuckInterval *util.Locked[time.Duration]
 	finishedLock      sync.RWMutex
 	stuckwaitlock     sync.RWMutex
@@ -65,8 +66,9 @@ func NewNewSyncingHandlerType(
 ) *NewSyncingHandlerType {
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler: newBaseHandlerType(StateSyncing, local, params),
-			args:        args,
+			baseHandler:     newBaseHandlerType(StateSyncing, local, params),
+			args:            args,
+			askHandoverFunc: func() error { return nil },
 		},
 	}
 }
@@ -76,6 +78,7 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 		baseHandler:       h.baseHandler.new(),
 		args:              h.args,
 		waitStuckInterval: util.NewLocked(h.args.WaitStuckInterval),
+		askHandoverFunc:   h.askHandoverFunc,
 	}, nil
 }
 
@@ -181,6 +184,31 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 	}, nil
 }
 
+func (st *SyncingHandler) setStates(sts *States) {
+	st.baseHandler.setStates(sts)
+
+	st.askHandoverFunc = func() error {
+		if st.sts == nil {
+			return nil
+		}
+
+		broker := st.sts.HandoverYBroker()
+		if broker == nil || broker.IsAsked() {
+			return nil
+		}
+
+		// NOTE ask handover to x
+		switch ok, err := broker.Ask(); {
+		case err != nil:
+			return err
+		default:
+			st.Log().Debug().Bool("ok", ok).Msg("asked")
+		}
+
+		return nil
+	}
+}
+
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringError("handle new voteproof")
 
@@ -235,6 +263,10 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 	switch {
 	case !allowConsensus:
 		st.whenNotAllowedConsensus()
+
+		if err := st.askHandoverFunc(); err != nil {
+			st.Log().Error().Err(err).Msg("failed to ask")
+		}
 	default:
 		return st.checkFinishedAllowConsensus(vp)
 	}

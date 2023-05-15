@@ -867,6 +867,92 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 	})
 }
 
+func (t *testSyncingHandler) TestAskHandover() {
+	t.Run("finished && allowed consensus", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		local := t.Local
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		askedch := make(chan struct{}, 1)
+		st.askHandoverFunc = func() error {
+			askedch <- struct{}{}
+
+			return nil
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		syncer.finish(point.Height())
+
+		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		err = st.newVoteproof(ivp)
+
+		var csctx consensusSwitchContext
+		t.True(errors.As(err, &csctx))
+		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
+
+		select {
+		case <-time.After(time.Second * 1):
+		case <-askedch:
+			t.NoError(errors.Errorf("unexpected asking"))
+		}
+	})
+
+	t.Run("finished && not allowed consensus", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		local := t.Local
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		askedch := make(chan struct{}, 1)
+		st.askHandoverFunc = func() error {
+			askedch <- struct{}{}
+
+			return nil
+		}
+
+		st.setAllowConsensus(false)
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		syncer.finish(point.Height())
+
+		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		t.NoError(st.newVoteproof(ivp))
+
+		select {
+		case <-time.After(time.Second * 1):
+			t.NoError(errors.Errorf("failed to ask"))
+		case <-askedch:
+		}
+	})
+}
+
 func TestSyncingHandler(t *testing.T) {
 	suite.Run(t, new(testSyncingHandler))
 }
