@@ -284,7 +284,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
 		t.NotNil(st.HandoverYBroker())
 
-		_ = st.SetAllowConsensus(true)
+		st.allowedConsensus.SetValue(true)
 
 		err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
 		t.Error(err)
@@ -405,7 +405,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		t.NoError(st.NewHandoverXBroker(quicstream.UDPConnInfo{}))
 		t.NotNil(st.HandoverXBroker())
 
-		_ = st.SetAllowConsensus(false)
+		_ = st.allowedConsensus.SetValue(false)
 
 		err := st.NewHandoverYBroker(quicstream.UDPConnInfo{})
 		t.Error(err)
@@ -469,5 +469,40 @@ func (t *testStates) TestNewHandoverYBroker() {
 		// changed by handover (or syncing) handler.
 		t.False(st.AllowedConsensus())
 		t.NotNil(st.HandoverYBroker())
+	})
+}
+
+func (t *testStates) TestSetAllowConsensusCancelHandoverBrokers() {
+	t.Run("handover x broker; not allowed consensus", func() {
+		st, _ := t.booted()
+		defer st.Stop()
+
+		st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
+
+		_ = st.SetAllowConsensus(true)
+
+		t.NoError(st.NewHandoverXBroker(quicstream.UDPConnInfo{}))
+
+		_ = st.SetAllowConsensus(false)
+
+		t.Nil(st.HandoverXBroker())
+	})
+
+	t.Run("handover y broker; allowed consensus", func() {
+		st, _ := t.booted()
+		defer st.Stop()
+
+		syncinghandler := newDummyStateHandler(StateSyncing)
+		_ = st.setHandler(syncinghandler)
+
+		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
+
+		_ = st.SetAllowConsensus(false)
+
+		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+
+		_ = st.SetAllowConsensus(true)
+
+		t.Nil(st.HandoverYBroker())
 	})
 }

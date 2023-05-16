@@ -782,6 +782,20 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 
 			st.cs.whenSetAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
 		}
+
+		if broker := st.HandoverXBroker(); broker != nil && !allow {
+			broker.cancel(errors.Errorf("not allowed consensus"))
+			st.cleanHandover()
+
+			st.Log().Debug().Msg("not allowed consensus, handover x broker canceled")
+		}
+
+		if broker := st.HandoverYBroker(); broker != nil && allow {
+			broker.cancel(errors.Errorf("allowed consensus"))
+			st.cleanHandover()
+
+			st.Log().Debug().Msg("allowed consensus, handover y broker canceled")
+		}
 	}
 
 	return isset
