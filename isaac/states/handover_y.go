@@ -94,7 +94,7 @@ func NewHandoverYBroker(
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
 			if id := h.ID(); len(id) > 0 {
-				_ = args.SendFunc(ctx, newHandoverMessageCancel(id))
+				_ = args.SendFunc(ctx, NewHandoverMessageCancel(id))
 			}
 
 			cancelf(err)

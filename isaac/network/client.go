@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
@@ -383,7 +384,7 @@ func (c *BaseClient) SetAllowConsensus(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, allow bool,
 ) (bool, error) {
-	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewSetAllowConsensusHeader(allow)); {
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, NewSetAllowConsensusHeader(allow)); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -395,12 +396,13 @@ func (c *BaseClient) SetAllowConsensus(
 
 func (c *BaseClient) StartHandover(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	yci quicstream.UDPConnInfo, // NOTE broker y
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	address base.Address,
+	xci quicstream.UDPConnInfo, // NOTE broker x
 ) (bool, error) {
-	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewStartHandoverHeader(ci, address)); {
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, yci, priv, networkID, NewStartHandoverHeader(xci, address)); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -410,15 +412,14 @@ func (c *BaseClient) StartHandover(
 	}
 }
 
-func (c *BaseClient) CheckHandover(
+func (c *BaseClient) CancelHandover(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	priv base.Privatekey,
 	networkID base.NetworkID,
-	address base.Address,
 ) (bool, error) {
-	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewCheckHandoverHeader(ci, address)); {
-	case err != nil, rh.Err() != nil:
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, NewCancelHandoverHeader()); {
+	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
 		return false, errors.WithMessage(rh.Err(), "response")
@@ -427,24 +428,89 @@ func (c *BaseClient) CheckHandover(
 	}
 }
 
+func (c *BaseClient) HandoverMessage(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	message isaacstates.HandoverMessage,
+) error {
+	broker, err := c.Client.Broker(ctx, ci)
+	if err != nil {
+		return err
+	}
+
+	if err := broker.WriteRequestHead(ctx, NewHandoverMessageHeader()); err != nil {
+		return err
+	}
+
+	if err := brokerPipeEncode(ctx, broker, message); err != nil {
+		return err
+	}
+
+	switch _, h, err := broker.ReadResponseHead(ctx); {
+	case err != nil:
+		return err
+	case h.Err() != nil:
+		return h.Err()
+	default:
+		return nil
+	}
+}
+
+func (c *BaseClient) CheckHandover(
+	ctx context.Context,
+	xci quicstream.UDPConnInfo, // NOTE broker x
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	address base.Address,
+	yci quicstream.UDPConnInfo, // NOTE broker y
+) (bool, error) {
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewCheckHandoverHeader(yci, address)); {
+	case err != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
+func (c *BaseClient) AskHandover(
+	ctx context.Context,
+	xci quicstream.UDPConnInfo, // NOTE broker x
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	address base.Address,
+	yci quicstream.UDPConnInfo, // NOTE broker y
+) (handoverid string, canMoveConsensus bool, _ error) {
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewAskHandoverHeader(yci, address)); {
+	case err != nil:
+		return "", false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return "", false, errors.WithMessage(rh.Err(), "response")
+	default:
+		header, ok := rh.(AskHandoverResponseHeader)
+		if !ok {
+			return "", false, errors.Errorf("expect AskHandoverResponseHeader, but %T", rh)
+		}
+
+		return header.ID(), header.OK(), nil
+	}
+}
+
 func (c *BaseClient) verifyNode(
 	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
 	ci quicstream.UDPConnInfo,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	header quicstreamheader.RequestHeader,
-) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
+) error {
 	if err := header.IsValid(nil); err != nil {
-		return nil, nil, err
-	}
-
-	broker, err := c.Client.Broker(ctx, ci)
-	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	if err := broker.WriteRequestHead(ctx, header); err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	var input []byte
@@ -476,18 +542,37 @@ func (c *BaseClient) verifyNode(
 			return nil
 		}
 	}(); err != nil {
-		return nil, nil, errors.WithMessage(err, "read signature input")
+		return errors.WithMessage(err, "read signature input")
 	}
 
 	switch sig, err := priv.Sign(util.ConcatBytesSlice(networkID, input)); {
 	case err != nil:
-		return nil, nil, errors.WithMessage(err, "sign input")
+		return errors.WithMessage(err, "sign input")
 	default:
 		buf := bytes.NewBuffer(sig)
 
 		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
-			return nil, nil, errors.WithMessage(err, "write signature")
+			return errors.WithMessage(err, "write signature")
 		}
+
+		return nil
+	}
+}
+
+func (c *BaseClient) verifyNodeWithResponse(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	header quicstreamheader.RequestHeader,
+) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
+	broker, err := c.Client.Broker(ctx, ci)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := c.verifyNode(ctx, broker, ci, priv, networkID, header); err != nil {
+		return nil, nil, err
 	}
 
 	return broker.ReadResponseHead(ctx)
@@ -643,16 +728,16 @@ func hcBodyReqResOK(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header quicstreamheader.RequestHeader,
-	body interface{},
+	i interface{},
 	brokerf quicstreamheader.ClientBrokerFunc,
 ) (bool, error) {
 	var broker *quicstreamheader.ClientBroker
 
-	switch i, err := brokerf(ctx, ci); {
+	switch j, err := brokerf(ctx, ci); {
 	case err != nil:
 		return false, err
 	default:
-		broker = i
+		broker = j
 	}
 
 	defer func() {
@@ -663,16 +748,8 @@ func hcBodyReqResOK(
 		return false, err
 	}
 
-	if body != nil {
-		if err := util.PipeReadWrite(
-			ctx,
-			func(ctx context.Context, pr io.Reader) error {
-				return broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, pr)
-			},
-			func(ctx context.Context, pw io.Writer) error {
-				return broker.Encoder.StreamEncoder(pw).Encode(body)
-			},
-		); err != nil {
+	if i != nil {
+		if err := brokerPipeEncode(ctx, broker, i); err != nil {
 			return false, err
 		}
 	}
@@ -744,4 +821,20 @@ func hcReqRes(
 	enc, res, err := broker.ReadResponseHead(ctx)
 
 	return enc, res, err
+}
+
+func brokerPipeEncode(
+	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
+	i interface{},
+) error {
+	return util.PipeReadWrite(
+		ctx,
+		func(ctx context.Context, pr io.Reader) error {
+			return broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, pr)
+		},
+		func(ctx context.Context, pw io.Writer) error {
+			return broker.Encoder.StreamEncoder(pw).Encode(i)
+		},
+	)
 }

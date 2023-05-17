@@ -268,7 +268,7 @@ func TestHandoverMessageCancelEncode(tt *testing.T) {
 
 	t.rtype = HandoverMessageCancel{}
 	t.create = func() interface{} {
-		return newHandoverMessageCancel(util.UUID().String())
+		return NewHandoverMessageCancel(util.UUID().String())
 	}
 	t.compare = func(a, b interface{}) error {
 		return nil

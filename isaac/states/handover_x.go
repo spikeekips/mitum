@@ -104,7 +104,7 @@ func NewHandoverXBroker(
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
-			_ = args.SendFunc(ctx, newHandoverMessageCancel(id))
+			_ = args.SendFunc(ctx, NewHandoverMessageCancel(id))
 
 			cancel()
 

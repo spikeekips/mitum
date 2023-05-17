@@ -550,8 +550,8 @@ func quicstreamHandlerSetOperation(
 
 func QuicstreamHandlerStartHandover(
 	local base.Node,
-	localConnInfo quicstream.UDPConnInfo,
 	networkID base.NetworkID,
+	localConnInfo quicstream.UDPConnInfo,
 	f isaacstates.StartHandoverYFunc,
 ) quicstreamheader.Handler[StartHandoverHeader] {
 	return func(
@@ -577,10 +577,31 @@ func QuicstreamHandlerStartHandover(
 	}
 }
 
+func QuicstreamHandlerCancelHandover(
+	local base.Node,
+	networkID base.NetworkID,
+	f func() error,
+) quicstreamheader.Handler[CancelHandoverHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
+	) error {
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		)
+
+		if err == nil {
+			err = f()
+		}
+
+		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}
+}
+
 func QuicstreamHandlerCheckHandover(
 	local base.Node,
-	localConnInfo quicstream.UDPConnInfo,
 	networkID base.NetworkID,
+	localConnInfo quicstream.UDPConnInfo,
 	f isaacstates.CheckHandoverXFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
 	return func(
@@ -589,8 +610,8 @@ func QuicstreamHandlerCheckHandover(
 		switch {
 		case !header.Address().Equal(local.Address()):
 			return errors.Errorf("node address not matched")
-		case localConnInfo.Addr().String() != header.ConnInfo().Addr().String():
-			return errors.Errorf("node conn info not matched")
+		case localConnInfo.Addr().String() == header.ConnInfo().Addr().String():
+			return errors.Errorf("same node conn info")
 		}
 
 		err := quicstreamHandlerVerifyNode(
@@ -608,8 +629,8 @@ func QuicstreamHandlerCheckHandover(
 
 func QuicstreamHandlerAskHandover(
 	local base.Node,
-	localConnInfo quicstream.UDPConnInfo,
 	networkID base.NetworkID,
+	localConnInfo quicstream.UDPConnInfo,
 	f isaacstates.AskHandoverFunc,
 ) quicstreamheader.Handler[AskHandoverHeader] {
 	return func(
@@ -618,27 +639,60 @@ func QuicstreamHandlerAskHandover(
 		switch {
 		case !header.Address().Equal(local.Address()):
 			return errors.Errorf("node address not matched")
-		case localConnInfo.Addr().String() != header.ConnInfo().Addr().String():
-			return errors.Errorf("node conn info not matched")
+		case localConnInfo.Addr().String() == header.ConnInfo().Addr().String():
+			return errors.Errorf("same node conn info")
 		}
 
-		id, canMoveConsensus, err := func() (string, bool, error) {
-			err := quicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				local.Publickey(), networkID,
-			)
+		if err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		); err != nil {
+			return err
+		}
 
-			var id string
-			var canMoveConsensus bool
-
-			if err == nil {
-				id, canMoveConsensus, err = f(header.Address(), header.ConnInfo())
-			}
-
-			return id, canMoveConsensus, err
-		}()
+		id, canMoveConsensus, err := f(header.Address(), header.ConnInfo())
 
 		return broker.WriteResponseHead(ctx, NewAskHandoverResponseHeader(canMoveConsensus, err, id))
+	}
+}
+
+func QuicstreamHandlerHandoverMessage(
+	f func(isaacstates.HandoverMessage) error,
+) quicstreamheader.Handler[HandoverMessageHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header HandoverMessageHeader,
+	) error {
+		e := util.StringError("handover message")
+
+		var msg isaacstates.HandoverMessage
+
+		switch _, _, body, err := broker.ReadBodyErr(ctx); {
+		case err != nil:
+			return e.Wrap(err)
+		case body == nil:
+			return e.Errorf("empty body")
+		default:
+			switch i, err := io.ReadAll(body); {
+			case err != nil:
+				return e.Wrap(err)
+			default:
+				if err = encoder.Decode(broker.Encoder, i, &msg); err != nil {
+					return e.Wrap(err)
+				}
+
+				if msg == nil {
+					return e.Errorf("empty handover messag")
+				}
+
+				if err = msg.IsValid(nil); err != nil {
+					return e.Wrap(err)
+				}
+			}
+		}
+
+		err := f(msg)
+
+		return broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -836,7 +890,7 @@ func quicstreamHandlerVerifyNode(
 	}
 
 	if err := pub.Verify(util.ConcatBytesSlice(networkID, input), sig); err != nil {
-		return errors.WithMessage(err, "verify signature")
+		return errors.WithMessage(err, "node verify signature")
 	}
 
 	return nil

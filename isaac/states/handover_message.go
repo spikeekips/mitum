@@ -357,7 +357,7 @@ type HandoverMessageCancel struct {
 	baseHandoverMessage
 }
 
-func newHandoverMessageCancel(id string) HandoverMessageCancel {
+func NewHandoverMessageCancel(id string) HandoverMessageCancel {
 	return HandoverMessageCancel{
 		baseHandoverMessage: newBaseHandoverMessage(HandoverMessageCancelHint, id),
 	}
