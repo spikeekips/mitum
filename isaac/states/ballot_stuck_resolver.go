@@ -175,7 +175,7 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		case <-resolveAfterch:
 			startresolve = true
 			resolveAfterch = nil

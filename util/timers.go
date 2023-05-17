@@ -215,7 +215,7 @@ func (ts *SimpleTimers) start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			if err := ts.iterate(ctx); err != nil {
 				return err

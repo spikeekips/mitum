@@ -122,14 +122,14 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
-		return ctx.Err()
+		return errors.WithStack(ctx.Err())
 	case err := <-exitch:
 		if errors.Is(err, errHoldStop) {
 			stopstates()
 
 			<-ctx.Done()
 
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		}
 
 		return err

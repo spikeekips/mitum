@@ -568,7 +568,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 		return errors.WithMessage(err, "shutdown memberlist")
 	}
 
-	return ctx.Err()
+	return errors.WithStack(ctx.Err())
 }
 
 func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disable-line:function-length

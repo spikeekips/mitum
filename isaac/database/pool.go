@@ -595,7 +595,7 @@ func (db *TempPool) startClean(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			removed, err := db.cleanRemovedNewOperations()
 			if removed > 0 || err != nil {

@@ -31,7 +31,7 @@ func AwareContextValue[T any](ctx context.Context, f func(context.Context) (T, e
 
 	select {
 	case <-ctx.Done():
-		return t, ctx.Err()
+		return t, errors.WithStack(ctx.Err())
 	case i := <-donech:
 		if i[0] != nil {
 			t = i[0].(T) //nolint:forcetypeassert //...
@@ -168,7 +168,7 @@ func PipeReadWrite(
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return errors.WithStack(ctx.Err())
 	case err := <-errch:
 		return err
 	}

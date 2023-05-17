@@ -18,7 +18,7 @@ func EnsureRead(ctx context.Context, r io.Reader, b []byte) (int, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return n, ctx.Err()
+			return n, errors.WithStack(ctx.Err())
 		default:
 			l := make([]byte, len(b)-n)
 

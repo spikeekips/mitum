@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -164,7 +165,7 @@ func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			if err := u.check(ctx); err != nil {
 				u.Log().Error().Err(err).Msg("failed to check")

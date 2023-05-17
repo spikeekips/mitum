@@ -99,7 +99,7 @@ func (pps *ProposalProcessors) Process(
 	return func(ctx context.Context) (base.Manifest, error) {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, errors.WithStack(ctx.Err())
 		case i := <-ch:
 			j, k := i[0], i[1]
 

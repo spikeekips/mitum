@@ -23,7 +23,7 @@ func Retry(ctx context.Context, f func() (bool, error), limit int, interval time
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		default:
 			keep, err := f()
 			if !keep {
@@ -36,7 +36,7 @@ func Retry(ctx context.Context, f func() (bool, error), limit int, interval time
 
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return errors.WithStack(ctx.Err())
 			case <-time.After(interval):
 				i++
 			}

@@ -190,7 +190,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			reset.Do(func() {
 				ticker.Reset(p.args.RequestProposalInterval)
@@ -231,7 +231,7 @@ func (p *BaseProposalSelector) proposalFromOthers(
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			reset.Do(func() {
 				ticker.Reset(p.args.RequestProposalInterval)

@@ -149,7 +149,7 @@ end:
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
 			called++
 

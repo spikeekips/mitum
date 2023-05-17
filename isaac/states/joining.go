@@ -371,7 +371,7 @@ func (st *JoiningHandler) joinMemberlist(suf base.Suffrage) error {
 	for {
 		select {
 		case <-st.ctx.Done():
-			return st.ctx.Err()
+			return errors.WithStack(st.ctx.Err())
 		case <-ticker.C:
 			switch err := st.args.JoinMemberlistFunc(st.ctx, suf); {
 			case err == nil:
