@@ -231,7 +231,7 @@ func (t *testError) checkStack(b []byte) bool {
 		k, ok := j.(string)
 		t.True(ok)
 
-		end = strings.Contains(k, "testing.go")
+		end = strings.Contains(k, "error_test.go")
 		if end {
 			break
 		}
@@ -289,7 +289,7 @@ func (t *testError) TestStringError() {
 		t.T().Logf("nil error:\n%s", t.printStacks(ee))
 	})
 
-	t.Run("Wrapf error", func() {
+	t.Run("WithMessage error", func() {
 		ee := e.WithMessage(errors.Errorf("hohoho"), "hehehe")
 
 		t.T().Logf("with error:\n%s", t.printStacks(ee))

@@ -26,23 +26,33 @@ type ErrValidatedDifferentHeightBlockMaps struct {
 
 func newErrValidatedDifferentHeightBlockMaps(db, localfs base.Height) *ErrValidatedDifferentHeightBlockMaps {
 	return &ErrValidatedDifferentHeightBlockMaps{
-		IDError: util.NewIDErrorWithID("dhb", "different height blockmaps"),
+		IDError: util.NewBaseIDErrorWithID("dhb", "different height blockmaps"),
 		db:      db,
 		localfs: localfs,
 	}
 }
 
 func (er *ErrValidatedDifferentHeightBlockMaps) Wrap(err error) error {
+	ner := er.IDError.Wrap(err)
+	if ner == nil {
+		return nil
+	}
+
 	return &ErrValidatedDifferentHeightBlockMaps{
-		IDError: er.IDError.Wrap(err).(*util.IDError), //nolint:forcetypeassert //...
+		IDError: ner.(*util.IDError), //nolint:forcetypeassert //...
 		db:      er.db,
 		localfs: er.localfs,
 	}
 }
 
 func (er *ErrValidatedDifferentHeightBlockMaps) WithMessage(err error, format string, args ...interface{}) error {
+	ner := er.IDError.WithMessage(err, format, args...)
+	if ner == nil {
+		return nil
+	}
+
 	return &ErrValidatedDifferentHeightBlockMaps{
-		IDError: er.IDError.WithMessage(err, format, args...).(*util.IDError), //nolint:forcetypeassert //...
+		IDError: ner.(*util.IDError), //nolint:forcetypeassert //...
 		db:      er.db,
 		localfs: er.localfs,
 	}

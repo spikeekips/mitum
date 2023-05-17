@@ -10,21 +10,21 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
+const callersDepth = 32
+
 type baseError struct {
 	wrapped error
 	msg     string
 	extra   string
 	stack
+	skip int
 }
 
-func newBaseError(format string, args ...interface{}) *baseError {
-	er := &baseError{
-		msg: fmt.Sprintf(format, args...),
+func newBaseError(skip int, format string, args ...interface{}) *baseError {
+	return &baseError{
+		msg:  fmt.Sprintf(format, args...),
+		skip: skip + 4,
 	}
-
-	er.stack = er.setStack()
-
-	return er
 }
 
 func (er *baseError) Unwrap() error {
@@ -38,7 +38,7 @@ func (er *baseError) Wrap(err error) error {
 
 	var stk stack
 	if _, ok := err.(stackTracer); !ok {
-		stk = er.setStack()
+		stk = er.setStack(0)
 	}
 
 	return &baseError{
@@ -46,6 +46,7 @@ func (er *baseError) Wrap(err error) error {
 		msg:     er.msg,
 		extra:   er.extra,
 		stack:   stk,
+		skip:    er.skip,
 	}
 }
 
@@ -57,7 +58,7 @@ func (er *baseError) WithMessage(err error, format string, args ...interface{}) 
 
 	var stk stack
 	if _, ok := err.(stackTracer); !ok {
-		stk = er.setStack()
+		stk = er.setStack(0)
 	}
 
 	extra := fmt.Sprintf(format, args...)
@@ -71,6 +72,7 @@ func (er *baseError) WithMessage(err error, format string, args ...interface{}) 
 		msg:     er.msg,
 		extra:   extra,
 		stack:   stk,
+		skip:    er.skip,
 	}
 }
 
@@ -86,7 +88,8 @@ func (er *baseError) Errorf(format string, args ...interface{}) *baseError {
 		wrapped: er.wrapped,
 		msg:     er.msg,
 		extra:   extra,
-		stack:   er.setStack(),
+		stack:   er.setStack(0),
+		skip:    er.skip,
 	}
 }
 
@@ -112,7 +115,8 @@ func (er *baseError) WithStack() *baseError {
 		wrapped: er.wrapped,
 		msg:     er.msg,
 		extra:   er.extra,
-		stack:   er.setStack(),
+		stack:   er.setStack(0),
+		skip:    er.skip,
 	}
 }
 
@@ -177,13 +181,20 @@ func (er *baseError) message() string {
 	return s
 }
 
-func (*baseError) setStack() stack {
-	return callers(4)
+func (er *baseError) setStack(skip int) stack {
+	return callers(er.skip + skip)
 }
 
 type IDError struct {
 	*baseError
 	id string
+}
+
+func NewBaseIDErrorWithID(id, format string, args ...interface{}) *IDError {
+	er := NewIDErrorWithID(id, format, args...)
+	er.skip += 1
+
+	return er
 }
 
 func NewIDError(format string, args ...interface{}) *IDError {
@@ -192,7 +203,7 @@ func NewIDError(format string, args ...interface{}) *IDError {
 
 func NewIDErrorWithID(id, format string, args ...interface{}) *IDError {
 	return &IDError{
-		baseError: newBaseError(format, args...),
+		baseError: newBaseError(1, format, args...),
 		id:        id,
 	}
 }
@@ -216,7 +227,6 @@ func (er *IDError) Is(err error) bool {
 
 func (er *IDError) Wrap(err error) error {
 	ne := er.baseError.Wrap(err)
-
 	if ne == nil {
 		return nil
 	}
@@ -230,7 +240,6 @@ func (er *IDError) Wrap(err error) error {
 // WithMessage formats strings with error.
 func (er *IDError) WithMessage(err error, format string, args ...interface{}) error {
 	ne := er.baseError.WithMessage(err, format, args...)
-
 	if ne == nil {
 		return nil
 	}
@@ -257,7 +266,7 @@ func (er *IDError) WithStack() *IDError {
 }
 
 func StringError(format string, args ...interface{}) *baseError { //revive:disable-line:unexported-return
-	return newBaseError(format, args...)
+	return newBaseError(0, format, args...)
 }
 
 func FuncCaller(skip int) errors.Frame {
@@ -307,8 +316,8 @@ func JoinErrors(errs ...error) error {
 // callers is from
 // https://github.com/pkg/errors/blob/856c240a51a2bf8fb8269ea7f3f9b046aadde36e/stack.go#L163
 func callers(skip int) stack {
-	const depth = 32
-	var pcs [depth]uintptr
+	var pcs [callersDepth]uintptr
+
 	n := runtime.Callers(skip, pcs[:])
 
 	return stack(pcs[0:n])
