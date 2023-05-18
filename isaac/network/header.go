@@ -662,6 +662,8 @@ func (h AskHandoverHeader) IsValid([]byte) error {
 	return nil
 }
 
+// AskHandoverResponseHeader has handover id. If OK() is true, y broker can move
+// to consensus without handover process.
 type AskHandoverResponseHeader struct {
 	id string // id is broker ID
 	quicstreamheader.BaseResponseHeader
@@ -731,6 +733,8 @@ func (h HandoverMessageHeader) IsValid([]byte) error {
 	return nil
 }
 
+//revive:disable:cyclomatic
+
 func headerPrefixByHint(ht hint.Hint) [32]byte {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
@@ -781,3 +785,5 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return [32]byte{}
 	}
 }
+
+//revive:enable:cyclomatic

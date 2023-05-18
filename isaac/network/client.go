@@ -493,6 +493,10 @@ func (c *BaseClient) AskHandover(
 			return "", false, errors.Errorf("expect AskHandoverResponseHeader, but %T", rh)
 		}
 
+		if err := header.IsValid(nil); err != nil {
+			return "", false, err
+		}
+
 		return header.ID(), header.OK(), nil
 	}
 }

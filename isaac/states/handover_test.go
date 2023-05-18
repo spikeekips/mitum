@@ -25,8 +25,8 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 	return func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
 		args.SendFunc = func(context.Context, interface{}) error { return nil }
-		args.AskRequestFunc = func(quicstream.UDPConnInfo) (string, error) {
-			return id, nil
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return id, false, nil
 		}
 
 		broker := NewHandoverYBroker(ctx, args, connInfo)

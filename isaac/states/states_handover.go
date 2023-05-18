@@ -10,9 +10,12 @@ import (
 )
 
 type (
-	StartHandoverYFunc func(base.Address, quicstream.UDPConnInfo) error
-	CheckHandoverXFunc func(base.Address, quicstream.UDPConnInfo) error
-	AskHandoverFunc    func(base.Address, quicstream.UDPConnInfo) (handoverid string, canMoveConsensus bool, _ error)
+	StartHandoverYFunc func(context.Context, base.Address, quicstream.UDPConnInfo) error
+	CheckHandoverXFunc func(context.Context, base.Address, quicstream.UDPConnInfo) error
+	AskHandoverFunc    func(context.Context, quicstream.UDPConnInfo) (
+		handoverid string, canMoveConsensus bool, _ error)
+	AskHandoverReceivedFunc func(context.Context, base.Address, quicstream.UDPConnInfo) (
+		handoverid string, canMoveConsensus bool, _ error)
 )
 
 func (st *States) HandoverXBroker() *HandoverXBroker {
@@ -107,27 +110,36 @@ func NewStartHandoverYFunc(
 	isAllowedConsensus func() bool,
 	isHandoverStarted func() bool,
 	checkX func(base.Address, quicstream.UDPConnInfo) error,
+	addSyncSource func(base.Address, quicstream.UDPConnInfo) error,
 	startHandoverY func(quicstream.UDPConnInfo) error,
 ) StartHandoverYFunc {
-	return func(node base.Address, xci quicstream.UDPConnInfo) error {
+	return func(ctx context.Context, node base.Address, xci quicstream.UDPConnInfo) error {
 		e := util.StringError("check handover y")
 
 		switch {
 		case !local.Equal(node):
 			return e.Errorf("address not matched")
-		case localci.Addr().String() != xci.Addr().String():
+		case localci.Addr().String() == xci.Addr().String():
 			return e.Errorf("same conn info")
 		case isAllowedConsensus():
 			return e.Errorf("allowed consensus")
 		case isHandoverStarted():
-			return e.Errorf("another handover started")
+			return e.Errorf("handover already started")
 		}
 
 		if err := checkX(node, xci); err != nil {
 			return e.WithMessage(err, "check x")
 		}
 
-		return startHandoverY(xci)
+		if err := addSyncSource(node, xci); err != nil {
+			return e.WithMessage(err, "add sync source")
+		}
+
+		if err := startHandoverY(xci); err != nil {
+			return e.WithMessage(err, "start handover y")
+		}
+
+		return nil
 	}
 }
 
@@ -139,18 +151,18 @@ func NewCheckHandoverXFunc(
 	isJoinedMemberlist func() (bool, error),
 	currentState func() StateType,
 ) CheckHandoverXFunc {
-	return func(node base.Address, yci quicstream.UDPConnInfo) error {
+	return func(ctx context.Context, node base.Address, yci quicstream.UDPConnInfo) error {
 		e := util.StringError("check handover x")
 
 		switch {
 		case !local.Equal(node):
 			return e.Errorf("address not matched")
-		case localci.Addr().String() != yci.Addr().String():
+		case localci.Addr().String() == yci.Addr().String():
 			return e.Errorf("same conn info")
 		case !isAllowedConsensus():
 			return e.Errorf("not allowed consensus")
 		case isHandoverStarted():
-			return e.Errorf("another handover started")
+			return e.Errorf("handover already started")
 		}
 
 		switch joined, err := isJoinedMemberlist(); {
@@ -161,15 +173,31 @@ func NewCheckHandoverXFunc(
 		}
 
 		switch currentState() {
-		case StateSyncing:
-			return nil
-		case StateConsensus, StateJoining, StateBooting:
+		case StateSyncing, StateConsensus, StateJoining, StateBooting:
 			return nil
 		case StateHandover:
 			return e.Errorf("x is under handover x")
 		default:
-			return e.Errorf("not valid state for handover")
+			return e.Errorf("not valid state")
 		}
+	}
+}
+
+func NewAskHandoverFunc(
+	local base.Address,
+	joinMemberlist func(context.Context) error,
+	sendAsk func(context.Context, quicstream.UDPConnInfo) (string, bool, error),
+) AskHandoverFunc {
+	return func(ctx context.Context, ci quicstream.UDPConnInfo) (string, bool, error) {
+		e := util.StringError("ask handover to x")
+
+		if err := joinMemberlist(ctx); err != nil {
+			return "", false, e.WithMessage(err, "join memberlist")
+		}
+
+		handoverid, canMoveConsensus, err := sendAsk(ctx, ci)
+
+		return handoverid, canMoveConsensus, e.WithMessage(err, "ask")
 	}
 }
 
@@ -181,14 +209,14 @@ func NewAskHandoverReceivedFunc(
 	currentState func() StateType,
 	setNotAllowConsensus func(),
 	startHandoverX func(quicstream.UDPConnInfo) (handoverid string, _ error),
-) func(base.Address, quicstream.UDPConnInfo) (string, bool, error) {
-	return func(node base.Address, yci quicstream.UDPConnInfo) (string, bool, error) {
+) AskHandoverReceivedFunc {
+	return func(ctx context.Context, node base.Address, yci quicstream.UDPConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover")
 
 		switch {
 		case !local.Equal(node):
 			return "", false, e.Errorf("address not matched")
-		case localci.Addr().String() != yci.Addr().String():
+		case localci.Addr().String() == yci.Addr().String():
 			return "", false, e.Errorf("same conn info")
 		case !isAllowedConsensus():
 			return "", true, nil
@@ -198,7 +226,7 @@ func NewAskHandoverReceivedFunc(
 		case err != nil:
 			return "", false, e.Wrap(err)
 		case !joined:
-			return "", false, e.Errorf("y not in memberlist")
+			return "", false, e.Errorf("not joined memberlist")
 		}
 
 		switch currentState() {
@@ -212,5 +240,48 @@ func NewAskHandoverReceivedFunc(
 		id, err := startHandoverX(yci)
 
 		return id, false, err
+	}
+}
+
+func NewHandoverXFinishedFunc(
+	leftMemberlist func() error,
+) func(base.INITVoteproof) error {
+	return func(base.INITVoteproof) error {
+		return util.StringError("handover x finished").
+			WithMessage(leftMemberlist(), "left memberlist")
+	}
+}
+
+func NewHandoverYFinishedFunc(
+	leftMemberlist func() error,
+	removeSyncSource func() error,
+) func(base.INITVoteproof) error {
+	return func(base.INITVoteproof) error {
+		lch := make(chan error)
+		rch := make(chan error)
+
+		go func() { lch <- leftMemberlist() }()
+		go func() { rch <- removeSyncSource() }()
+
+		return util.StringError("handover y finished").Wrap(
+			util.JoinErrors(<-lch, <-rch),
+		)
+	}
+}
+
+func NewHandoverYCanceledFunc(
+	leftMemberlist func() error,
+	removeSyncSource func() error,
+) func(base.INITVoteproof) error {
+	return func(base.INITVoteproof) error {
+		lch := make(chan error)
+		rch := make(chan error)
+
+		go func() { lch <- leftMemberlist() }()
+		go func() { rch <- removeSyncSource() }()
+
+		return util.StringError("handover y canceled").Wrap(
+			util.JoinErrors(<-lch, <-rch),
+		)
 	}
 }

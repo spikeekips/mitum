@@ -1500,7 +1500,6 @@ linters:
   enable:
     - asciicheck
     - bidichk
-    - cyclop
     - deadcode
     - depguard
     - dogsled
@@ -1519,7 +1518,6 @@ linters:
     - gocognit
     - goconst
     - gocritic
-    - gocyclo
     - godot
     - godox
     - goerr113
@@ -1574,6 +1572,8 @@ linters:
     - lll
     - gochecknoinits
     - nosnakecase
+    - cyclop
+    - gocyclo
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters

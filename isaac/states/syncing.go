@@ -198,11 +198,15 @@ func (st *SyncingHandler) setStates(sts *States) {
 		}
 
 		// NOTE ask handover to x
-		switch ok, err := broker.Ask(); {
+		switch canMoveConsensus, err := broker.Ask(); {
 		case err != nil:
 			return err
 		default:
-			st.Log().Debug().Bool("ok", ok).Msg("asked")
+			st.Log().Debug().Bool("can_move_consensus", canMoveConsensus).Msg("asked")
+
+			if canMoveConsensus {
+				_ = st.setAllowConsensus(true)
+			}
 		}
 
 		return nil

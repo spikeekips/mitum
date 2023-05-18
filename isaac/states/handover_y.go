@@ -18,7 +18,7 @@ type HandoverYBrokerArgs struct {
 	// WhenFinished is called when handover process is finished.
 	WhenFinished   func(base.INITVoteproof) error
 	WhenCanceled   func(error)
-	AskRequestFunc func(quicstream.UDPConnInfo /* x conn info */) (handoverid string, _ error)
+	AskRequestFunc AskHandoverFunc
 	NetworkID      base.NetworkID
 }
 
@@ -35,8 +35,8 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		},
 		WhenFinished: func(base.INITVoteproof) error { return nil },
 		WhenCanceled: func(error) {},
-		AskRequestFunc: func(quicstream.UDPConnInfo) (string, error) {
-			return "", util.ErrNotImplemented.Errorf("AskFunc")
+		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
 	}
 }
@@ -136,7 +136,7 @@ func (h *HandoverYBroker) IsAsked() bool {
 	return len(id) > 0
 }
 
-func (h *HandoverYBroker) Ask() (bool, error) {
+func (h *HandoverYBroker) Ask() (canMoveConsensus bool, _ error) {
 	var id string
 
 	if _, err := h.id.Set(func(_ string, isempty bool) (string, error) {
@@ -144,13 +144,14 @@ func (h *HandoverYBroker) Ask() (bool, error) {
 			return "", util.ErrLockedSetIgnore
 		}
 
-		switch i, err := h.args.AskRequestFunc(h.connInfo); {
+		switch i, j, err := h.args.AskRequestFunc(h.ctxFunc(), h.connInfo); {
 		case err != nil:
 			return "", err
 		case len(i) < 1:
 			return "", errors.Errorf("empty handover id")
 		default:
 			id = i
+			canMoveConsensus = j
 
 			return i, nil
 		}
@@ -164,7 +165,7 @@ func (h *HandoverYBroker) Ask() (bool, error) {
 
 	h.Log().Debug().Str("id", id).Msg("asked")
 
-	return len(id) > 0, nil
+	return canMoveConsensus, nil
 }
 
 func (h *HandoverYBroker) isCanceled() error {

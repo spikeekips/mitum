@@ -37,8 +37,8 @@ func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
 	args.WhenCanceled = func(error) {}
 	args.NewDataFunc = func(HandoverMessageDataType, interface{}) error { return nil }
-	args.AskRequestFunc = func(quicstream.UDPConnInfo) (string, error) {
-		return id, nil
+	args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		return id, false, nil
 	}
 
 	return args
@@ -71,9 +71,9 @@ func (t *testHandoverXYBroker) TestFinished() {
 
 	yargs := t.yargs(xbroker.id)
 	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
-	asked, err := ybroker.Ask()
+	canMoveConsensus, err := ybroker.Ask()
 	t.NoError(err)
-	t.True(asked)
+	t.False(canMoveConsensus)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)
@@ -195,9 +195,9 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 
 	yargs := t.yargs(xbroker.id)
 	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
-	asked, err := ybroker.Ask()
+	canMoveConsensus, err := ybroker.Ask()
 	t.NoError(err)
-	t.True(asked)
+	t.False(canMoveConsensus)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)

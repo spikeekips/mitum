@@ -258,7 +258,7 @@ end:
 				return err
 			}
 		case vp = <-st.args.Ballotbox.Voteproof():
-			// FIXME voteproof from ballotbox ignored under not allowed consensus
+			// NOTE voteproof from ballotbox ignored under not allowed consensus
 			if !st.AllowedConsensus() {
 				continue end
 			}

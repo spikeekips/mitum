@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/stretchr/testify/suite"
 )
 
 func (t *testStates) TestSwitchHandover() {
@@ -102,8 +104,8 @@ func (t *testStates) TestSwitchHandover() {
 
 	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(t.params.NetworkID())
-		args.AskRequestFunc = func(quicstream.UDPConnInfo) (string, error) {
-			return util.UUID().String(), nil
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return util.UUID().String(), false, nil
 		}
 
 		return NewHandoverYBroker(ctx, args, connInfo), nil
@@ -145,9 +147,9 @@ func (t *testStates) TestSwitchHandover() {
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
-		isAsked, err := broker.Ask()
+		canMoveConsensus, err := broker.Ask()
 		t.NoError(err)
-		t.True(isAsked)
+		t.False(canMoveConsensus)
 		t.True(broker.IsAsked())
 
 		nsctx := newDummySwitchContext(st.current().state(), StateHandover, nil)
@@ -330,6 +332,83 @@ func (t *testStates) TestNewHandoverXBroker() {
 	})
 }
 
+func (t *testStates) TestYBrokerAskCanMoveConsensus() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	handoverhandler := newDummyStateHandler(StateHandover)
+
+	handoverenterch := make(chan switchContext, 1)
+	_ = handoverhandler.setEnter(func(_ StateType, sctx switchContext) error {
+		handoverenterch <- sctx
+
+		return nil
+	}, nil)
+
+	_ = st.setHandler(handoverhandler)
+
+	syncinghandler := newDummyStateHandler(StateSyncing)
+
+	syncingenterch := make(chan bool, 1)
+	_ = syncinghandler.setEnter(func(StateType, switchContext) error {
+		syncingenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(syncinghandler)
+
+	consensushandler := newDummyStateHandler(StateConsensus)
+
+	consensusenterch := make(chan bool, 1)
+	_ = consensushandler.setEnter(func(StateType, switchContext) error {
+		consensusenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(consensushandler)
+
+	t.Equal(StateBooting, st.current().state())
+
+	t.T().Log("enter syncing")
+
+	ssctx := newDummySwitchContext(st.current().state(), StateSyncing, nil)
+	t.NoError(st.AskMoveState(ssctx))
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to wait"))
+	case <-syncingenterch:
+		t.T().Log("current", st.current().state())
+
+		t.Equal(StateSyncing, st.current().state())
+	}
+
+	_ = st.SetAllowConsensus(false)
+	t.False(st.AllowedConsensus())
+
+	t.T().Log("set under handover")
+	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+		args := NewHandoverYBrokerArgs(t.params.NetworkID())
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return util.UUID().String(), true, nil
+		}
+
+		return NewHandoverYBroker(ctx, args, connInfo), nil
+	}
+
+	t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+
+	broker := st.HandoverYBroker()
+
+	canMoveConsensus, err := broker.Ask()
+	t.NoError(err)
+	t.True(canMoveConsensus)
+	t.True(broker.IsAsked())
+
+	t.T().Log("current", st.current().state())
+	t.Equal(StateSyncing, st.current().state())
+}
+
 func (t *testStates) TestNewHandoverYBroker() {
 	t.Run("start handover y broker; not allowed consensus", func() {
 		st, _ := t.booted()
@@ -505,4 +584,438 @@ func (t *testStates) TestSetAllowConsensusCancelHandoverBrokers() {
 
 		t.Nil(st.HandoverYBroker())
 	})
+}
+
+type testHandoverFuncs struct {
+	suite.Suite
+	local  base.LocalNode
+	params *isaac.LocalParams
+	xci    quicstream.UDPConnInfo
+	yci    quicstream.UDPConnInfo
+}
+
+func (t *testHandoverFuncs) SetupSuite() {
+	t.local = base.RandomLocalNode()
+	t.params = isaac.DefaultLocalParams(base.RandomNetworkID())
+
+	t.xci = quicstream.RandomConnInfo()
+	t.yci = quicstream.RandomConnInfo()
+}
+
+func (t *testHandoverFuncs) TestStart() {
+	var allowedConsensus, handoverStarted bool
+	var checkXErr, addSyncSourceErr, startHandoverYErr error
+
+	f := NewStartHandoverYFunc(
+		t.local.Address(),
+		t.yci,
+		func() bool { return allowedConsensus },
+		func() bool { return handoverStarted },
+		func(base.Address, quicstream.UDPConnInfo) error { return checkXErr },
+		func(base.Address, quicstream.UDPConnInfo) error { return addSyncSourceErr },
+		func(quicstream.UDPConnInfo) error { return startHandoverYErr },
+	)
+
+	ctx := context.Background()
+
+	t.Run("address not matched", func() {
+		err := f(ctx, base.RandomAddress(""), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "address not matched")
+	})
+
+	t.Run("same conn info", func() {
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "same conn info")
+	})
+
+	t.Run("allowed consensus", func() {
+		allowedConsensus = true
+		defer func() {
+			allowedConsensus = false
+		}()
+
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "allowed consensus")
+	})
+
+	t.Run("handover started", func() {
+		handoverStarted = true
+		defer func() {
+			handoverStarted = false
+		}()
+
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "handover already started")
+	})
+
+	t.Run("check x", func() {
+		checkXErr = errors.Errorf("hohoho")
+		defer func() {
+			checkXErr = nil
+		}()
+
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+	})
+
+	t.Run("add sync source", func() {
+		addSyncSourceErr = errors.Errorf("hehehe")
+		defer func() {
+			addSyncSourceErr = nil
+		}()
+
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
+	})
+
+	t.Run("start handover y", func() {
+		startHandoverYErr = errors.Errorf("hihihi")
+		defer func() {
+			startHandoverYErr = nil
+		}()
+
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "hihihi")
+	})
+
+	t.Run("ok", func() {
+		t.NoError(f(ctx, t.local.Address(), t.xci))
+	})
+}
+
+func (t *testHandoverFuncs) TestCheck() {
+	var joinedMemberlistErr error
+
+	allowedConsensus := true
+	handoverStarted := false
+	isJoinedMemberlist := true
+	currentState := StateConsensus
+
+	f := NewCheckHandoverXFunc(
+		t.local.Address(),
+		t.xci,
+		func() bool { return allowedConsensus },
+		func() bool { return handoverStarted },
+		func() (bool, error) { return isJoinedMemberlist, joinedMemberlistErr },
+		func() StateType { return currentState },
+	)
+
+	ctx := context.Background()
+
+	t.Run("address not matched", func() {
+		err := f(ctx, base.RandomAddress(""), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "address not matched")
+	})
+
+	t.Run("same conn info", func() {
+		err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "same conn info")
+	})
+
+	t.Run("allowed consensus", func() {
+		allowedConsensus = false
+		defer func() {
+			allowedConsensus = true
+		}()
+
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "not allowed consensus")
+	})
+
+	t.Run("handover started", func() {
+		handoverStarted = true
+		defer func() {
+			handoverStarted = false
+		}()
+
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "handover already started")
+	})
+
+	t.Run("not joined memberlist", func() {
+		isJoinedMemberlist = false
+		defer func() {
+			isJoinedMemberlist = true
+		}()
+
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "not joined memberlist")
+	})
+
+	t.Run("error check joined memberlist", func() {
+		joinedMemberlistErr = errors.Errorf("hehehe")
+		defer func() {
+			joinedMemberlistErr = nil
+		}()
+
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
+	})
+
+	t.Run("not valid state", func() {
+		currentState = StateBroken
+		defer func() {
+			currentState = StateConsensus
+		}()
+
+		err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "not valid state")
+	})
+
+	t.Run("ok", func() {
+		t.NoError(f(ctx, t.local.Address(), t.yci))
+	})
+}
+
+func (t *testHandoverFuncs) TestAsk() {
+	var joinMemberlistErr, sendErr error
+	var canMoveConsensus bool
+
+	handoverid := util.UUID().String()
+
+	f := NewAskHandoverFunc(
+		t.local.Address(),
+		func(context.Context) error { return joinMemberlistErr },
+		func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return handoverid, canMoveConsensus, sendErr
+		},
+	)
+
+	ctx := context.Background()
+
+	t.Run("ok", func() {
+		rid, rcanMoveConsensus, err := f(ctx, t.xci)
+		t.NoError(err)
+		t.False(rcanMoveConsensus)
+		t.Equal(handoverid, rid)
+	})
+
+	t.Run("ok; can move consensus", func() {
+		canMoveConsensus = true
+		defer func() {
+			canMoveConsensus = false
+		}()
+
+		rid, rcanMoveConsensus, err := f(ctx, t.xci)
+		t.NoError(err)
+		t.True(rcanMoveConsensus)
+		t.Equal(handoverid, rid)
+	})
+}
+
+func (t *testHandoverFuncs) TestAskReceived() {
+	var joinedMemberlistErr, startHandoverXErr error
+
+	isJoinedMemberlist := true
+	currentState := StateConsensus
+
+	allowedConsensus := true
+
+	setallowedch := make(chan struct{}, 1)
+	f := NewAskHandoverReceivedFunc(
+		t.local.Address(),
+		t.xci,
+		func() bool { return allowedConsensus },
+		func(quicstream.UDPConnInfo) (bool, error) { return isJoinedMemberlist, joinedMemberlistErr },
+		func() StateType { return currentState },
+		func() {
+			setallowedch <- struct{}{}
+		},
+		func(quicstream.UDPConnInfo) (string, error) { return util.UUID().String(), startHandoverXErr },
+	)
+
+	ctx := context.Background()
+
+	t.Run("address not matched", func() {
+		_, _, err := f(ctx, base.RandomAddress(""), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "address not matched")
+	})
+
+	t.Run("same conn info", func() {
+		_, _, err := f(ctx, t.local.Address(), t.xci)
+		t.Error(err)
+		t.ErrorContains(err, "same conn info")
+	})
+
+	t.Run("not allowed consensus", func() {
+		allowedConsensus = false
+		defer func() {
+			allowedConsensus = true
+		}()
+
+		handoverid, canMoveConsensus, err := f(ctx, t.local.Address(), t.yci)
+		t.NoError(err)
+		t.Empty(handoverid)
+		t.True(canMoveConsensus)
+	})
+
+	t.Run("not join memberlist", func() {
+		isJoinedMemberlist = false
+		defer func() {
+			isJoinedMemberlist = true
+		}()
+
+		_, _, err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "not joined memberlist")
+
+		t.Run("error", func() {
+			joinedMemberlistErr = errors.Errorf("hihihi")
+			defer func() {
+				joinedMemberlistErr = nil
+			}()
+
+			_, _, err := f(ctx, t.local.Address(), t.yci)
+			t.Error(err)
+			t.ErrorContains(err, "hihihi")
+		})
+	})
+
+	t.Run("not in some state", func() {
+		currentState = StateSyncing
+		defer func() {
+			currentState = StateConsensus
+		}()
+
+		handoverid, canMoveConsensus, err := f(ctx, t.local.Address(), t.yci)
+		t.NoError(err)
+		t.Empty(handoverid)
+		t.True(canMoveConsensus)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("failed to wait set allow consensus"))
+		case <-setallowedch:
+		}
+	})
+
+	t.Run("failed to start handover x", func() {
+		startHandoverXErr = errors.Errorf("hohoho")
+		defer func() {
+			startHandoverXErr = nil
+		}()
+
+		_, _, err := f(ctx, t.local.Address(), t.yci)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+	})
+
+	t.Run("ok", func() {
+		handoverid, canMoveConsensus, err := f(ctx, t.local.Address(), t.yci)
+		t.NoError(err)
+		t.NotEmpty(handoverid)
+		t.False(canMoveConsensus)
+	})
+}
+
+func (t *testHandoverFuncs) TestHandoverXFinished() {
+	var leftMemberlistErr error
+
+	f := NewHandoverXFinishedFunc(
+		func() error { return leftMemberlistErr },
+	)
+
+	t.Run("ok", func() {
+		t.NoError(f(nil))
+	})
+
+	t.Run("error", func() {
+		leftMemberlistErr = errors.Errorf("hohoho")
+		defer func() {
+			leftMemberlistErr = nil
+		}()
+
+		err := f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+	})
+}
+
+func (t *testHandoverFuncs) TestHandoverYFinished() {
+	var leftMemberlistErr, removeSyncSourceErr error
+
+	f := NewHandoverYFinishedFunc(
+		func() error { return leftMemberlistErr },
+		func() error { return removeSyncSourceErr },
+	)
+
+	t.Run("ok", func() {
+		t.NoError(f(nil))
+	})
+
+	t.Run("error left memberlist", func() {
+		leftMemberlistErr = errors.Errorf("hohoho")
+		defer func() {
+			leftMemberlistErr = nil
+		}()
+
+		err := f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+	})
+
+	t.Run("error remove sync source", func() {
+		removeSyncSourceErr = errors.Errorf("hehehe")
+		defer func() {
+			removeSyncSourceErr = nil
+		}()
+
+		err := f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
+	})
+}
+
+func (t *testHandoverFuncs) TestHandoverYCanceled() {
+	var leftMemberlistErr, removeSyncSourceErr error
+
+	f := NewHandoverYCanceledFunc(
+		func() error { return leftMemberlistErr },
+		func() error { return removeSyncSourceErr },
+	)
+
+	t.Run("ok", func() {
+		t.NoError(f(nil))
+	})
+
+	t.Run("error left memberlist", func() {
+		leftMemberlistErr = errors.Errorf("hohoho")
+		defer func() {
+			leftMemberlistErr = nil
+		}()
+
+		err := f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+	})
+
+	t.Run("error remove sync source", func() {
+		removeSyncSourceErr = errors.Errorf("hehehe")
+		defer func() {
+			removeSyncSourceErr = nil
+		}()
+
+		err := f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
+	})
+}
+
+func TestHandoverFuncs(t *testing.T) {
+	suite.Run(t, new(testHandoverFuncs))
 }

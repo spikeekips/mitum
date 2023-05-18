@@ -23,7 +23,7 @@ type baseError struct {
 func newBaseError(skip int, format string, args ...interface{}) *baseError {
 	return &baseError{
 		msg:  fmt.Sprintf(format, args...),
-		skip: skip + 4,
+		skip: skip + 4, //nolint:gomnd //...
 	}
 }
 
@@ -192,7 +192,7 @@ type IDError struct {
 
 func NewBaseIDErrorWithID(id, format string, args ...interface{}) *IDError {
 	er := NewIDErrorWithID(id, format, args...)
-	er.skip += 1
+	er.skip++
 
 	return er
 }

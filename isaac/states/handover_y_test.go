@@ -61,31 +61,31 @@ func (t *testHandoverYBroker) TestAsk() {
 		defer cancel()
 
 		broker := NewHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
-		isAsked, err := broker.Ask()
+		canMoveConsensus, err := broker.Ask()
 		t.NoError(err)
-		t.True(isAsked)
+		t.False(canMoveConsensus)
 		t.True(broker.IsAsked())
 
 		t.T().Log("ask again")
-		isAsked, err = broker.Ask()
+		canMoveConsensus, err = broker.Ask()
 		t.NoError(err)
-		t.False(isAsked)
+		t.False(canMoveConsensus)
 		t.True(broker.IsAsked())
 	})
 
 	t.Run("ask func error", func() {
 		args := t.yargs("")
-		args.AskRequestFunc = func(quicstream.UDPConnInfo) (string, error) {
-			return "", errors.Errorf("hehehe")
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return "", false, errors.Errorf("hehehe")
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		broker := NewHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
-		isAsked, err := broker.Ask()
+		canMoveConsensus, err := broker.Ask()
 		t.Error(err)
-		t.False(isAsked)
+		t.False(canMoveConsensus)
 		t.ErrorContains(err, "hehehe")
 
 		t.False(broker.IsAsked())
