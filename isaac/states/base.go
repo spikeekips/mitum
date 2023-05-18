@@ -171,4 +171,4 @@ func (st *baseHandler) setAllowConsensus(allow bool) bool {
 	return st.sts.SetAllowConsensus(allow)
 }
 
-func (st *baseHandler) whenSetAllowConsensus(bool) {}
+func (*baseHandler) whenSetAllowConsensus(bool) {}

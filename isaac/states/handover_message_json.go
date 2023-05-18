@@ -281,7 +281,7 @@ func (h *HandoverMessageData) decodeDataJSON(
 	}
 }
 
-func (h *HandoverMessageData) decodeJSONVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
+func (*HandoverMessageData) decodeJSONVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
 	var vp base.Voteproof
 
 	if err := encoder.Decode(enc, b, &vp); err != nil {
@@ -291,7 +291,7 @@ func (h *HandoverMessageData) decodeJSONVoteproof(b []byte, enc *jsonenc.Encoder
 	return vp, nil
 }
 
-func (h *HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
+func (*HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
 	var u []json.RawMessage
 
 	if err := enc.Unmarshal(b, &u); err != nil {

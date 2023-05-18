@@ -5,11 +5,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/launch"
 )
 
 type NetworkClientSetAllowConsensusCommand struct { //nolint:govet //...
 	KeyString string `arg:"" name:"privatekey" help:"privatekey string"`
-	Allow     string `arg:"" name:"allow" help:"{allow, not-allow}" default:""`
+	Allow     string `arg:"" name:"allow" help:"{allow, not-allow}"`
 	BaseNetworkClientCommand
 }
 
@@ -20,14 +21,10 @@ func (cmd *NetworkClientSetAllowConsensusCommand) Run(pctx context.Context) erro
 
 	var priv base.Privatekey
 
-	switch key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.KeyString, cmd.Encoder); {
 	case err != nil:
 		return err
 	default:
-		if err := key.IsValid(nil); err != nil {
-			return err
-		}
-
 		priv = key
 	}
 

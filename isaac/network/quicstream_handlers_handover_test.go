@@ -431,3 +431,88 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 		t.ErrorContains(h.Err(), "decode")
 	})
 }
+
+func (t *testQuicstreamHandlers) TestCheckHandoverX() {
+	xci := quicstream.RandomConnInfo()
+
+	t.Run("failed to verify node", func() {
+		handler := QuicstreamHandlerCheckHandoverX(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func(context.Context, base.Address) error { return nil },
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		checked, err := c.CheckHandoverX(context.Background(),
+			xci,
+			base.NewMPrivatekey(),
+			t.LocalParams.NetworkID(),
+			t.Local.Address(),
+		)
+		t.Error(err)
+		t.False(checked)
+		t.ErrorContains(err, "signature verification failed")
+	})
+
+	t.Run("ok", func() {
+		checkedch := make(chan struct{}, 1)
+		handler := QuicstreamHandlerCheckHandoverX(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func(context.Context, base.Address) error {
+				checkedch <- struct{}{}
+
+				return nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		checked, err := c.CheckHandoverX(context.Background(),
+			xci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			t.Local.Address(),
+		)
+		t.NoError(err)
+		t.True(checked)
+
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("not checked"))
+		case <-checkedch:
+		}
+	})
+
+	t.Run("checked error", func() {
+		handler := QuicstreamHandlerCheckHandoverX(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func(context.Context, base.Address) error {
+				return errors.Errorf("hihihi")
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		checked, err := c.CheckHandoverX(context.Background(),
+			xci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			t.Local.Address(),
+		)
+		t.Error(err)
+		t.False(checked)
+		t.ErrorContains(err, "hihihi")
+	})
+}

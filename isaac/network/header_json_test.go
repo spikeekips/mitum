@@ -24,6 +24,7 @@ func (t *baseTestCAHandoverHeader) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: StartHandoverHeaderHint, Instance: StartHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverHeaderHint, Instance: CheckHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AskHandoverHeaderHint, Instance: AskHandoverHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverXHeaderHint, Instance: CheckHandoverXHeader{}}))
 }
 
 func (t *baseTestCAHandoverHeader) SetupTest() {
@@ -221,6 +222,31 @@ func TestHandoverMessageHeaderEncode(tt *testing.T) {
 		bh := b.(HandoverMessageHeader)
 
 		t.Equal(ah.Hint(), bh.Hint())
+	}
+
+	suite.Run(tt, t)
+}
+
+func TestCheckHandoverXHeaderEncode(tt *testing.T) {
+	t := new(baseTestCAHandoverHeader)
+	t.SetT(tt)
+
+	t.newf = func(_ quicstream.UDPConnInfo, address base.Address) interface{} {
+		return NewCheckHandoverXHeader(address)
+	}
+
+	t.Decode = func(b []byte) interface{} {
+		var u CheckHandoverXHeader
+		t.NoError(encoder.Decode(t.enc, b, &u))
+
+		return u
+	}
+	t.Compare = func(a interface{}, b interface{}) {
+		ah := a.(CheckHandoverXHeader)
+		bh := b.(CheckHandoverXHeader)
+
+		t.Equal(ah.Hint(), bh.Hint())
+		t.True(ah.Address().Equal(bh.Address()))
 	}
 
 	suite.Run(tt, t)

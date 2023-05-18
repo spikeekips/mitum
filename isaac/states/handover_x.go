@@ -23,8 +23,6 @@ var (
 	defaultHandoverXReadyEnd          uint64 = 3
 )
 
-// FIXME WhenFinished; left memberlist
-
 type HandoverXBrokerArgs struct {
 	SendFunc          func(context.Context, interface{}) error
 	CheckIsReady      func() (bool, error)

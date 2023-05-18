@@ -623,3 +623,43 @@ func (h *AskHandoverResponseHeader) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
+
+type checkHandoverXHeaderJSONMarshaler struct {
+	Address base.Address `json:"address"`
+}
+
+func (h CheckHandoverXHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		checkHandoverXHeaderJSONMarshaler
+		quicstreamheader.BaseRequestHeader
+	}{
+		BaseRequestHeader: h.BaseRequestHeader,
+		checkHandoverXHeaderJSONMarshaler: checkHandoverXHeaderJSONMarshaler{
+			Address: h.address,
+		},
+	})
+}
+
+type checkHandoverXHeaderJSONUnmarshaler struct {
+	Address string `json:"address"`
+}
+
+func (h *CheckHandoverXHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
+		return err
+	}
+
+	var u checkHandoverXHeaderJSONUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	switch i, err := base.DecodeAddress(u.Address, enc); {
+	case err != nil:
+		return err
+	default:
+		h.address = i
+	}
+
+	return nil
+}

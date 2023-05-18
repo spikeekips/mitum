@@ -11,11 +11,12 @@ import (
 
 type (
 	StartHandoverYFunc func(context.Context, base.Address, quicstream.UDPConnInfo) error
-	CheckHandoverXFunc func(context.Context, base.Address, quicstream.UDPConnInfo) error
+	CheckHandoverFunc  func(context.Context, base.Address, quicstream.UDPConnInfo) error
 	AskHandoverFunc    func(context.Context, quicstream.UDPConnInfo) (
 		handoverid string, canMoveConsensus bool, _ error)
 	AskHandoverReceivedFunc func(context.Context, base.Address, quicstream.UDPConnInfo) (
 		handoverid string, canMoveConsensus bool, _ error)
+	CheckHandoverXFunc func(context.Context, base.Address) error
 )
 
 func (st *States) HandoverXBroker() *HandoverXBroker {
@@ -150,7 +151,7 @@ func NewCheckHandoverXFunc(
 	isHandoverStarted func() bool,
 	isJoinedMemberlist func() (bool, error),
 	currentState func() StateType,
-) CheckHandoverXFunc {
+) CheckHandoverFunc {
 	return func(ctx context.Context, node base.Address, yci quicstream.UDPConnInfo) error {
 		e := util.StringError("check handover x")
 
@@ -186,7 +187,7 @@ func NewCheckHandoverXFunc(
 func NewAskHandoverFunc(
 	local base.Address,
 	joinMemberlist func(context.Context) error,
-	sendAsk func(context.Context, quicstream.UDPConnInfo) (string, bool, error),
+	sendAsk func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error),
 ) AskHandoverFunc {
 	return func(ctx context.Context, ci quicstream.UDPConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover to x")
@@ -195,7 +196,7 @@ func NewAskHandoverFunc(
 			return "", false, e.WithMessage(err, "join memberlist")
 		}
 
-		handoverid, canMoveConsensus, err := sendAsk(ctx, ci)
+		handoverid, canMoveConsensus, err := sendAsk(ctx, local, ci)
 
 		return handoverid, canMoveConsensus, e.WithMessage(err, "ask")
 	}

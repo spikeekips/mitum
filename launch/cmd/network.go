@@ -31,16 +31,18 @@ type NetworkClientCommand struct { //nolint:govet //...
 }
 
 type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
-	NetworkID string              `arg:"" name:"network-id" help:"network-id" default:""`
-	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
+	//revive:disable:line-length-limit
+	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
+	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info (default \"localhost:4321\")" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"9s"`
 	Body      *os.File            `help:"body"`
+	//revive:enable:line-length-limit
 }
 
 type BaseNetworkClientCommand struct { //nolint:govet //...
 	BaseCommand
 	BaseNetworkClientNodeInfoFlags
-	Client *isaacnetwork.QuicstreamClient
+	Client *isaacnetwork.QuicstreamClient `kong:"-"`
 }
 
 func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {

@@ -790,7 +790,7 @@ func (t *testHandoverFuncs) TestAsk() {
 	f := NewAskHandoverFunc(
 		t.local.Address(),
 		func(context.Context) error { return joinMemberlistErr },
-		func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error) {
 			return handoverid, canMoveConsensus, sendErr
 		},
 	)

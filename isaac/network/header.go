@@ -33,6 +33,7 @@ var (
 	AskHandoverResponseHeaderHint           = hint.MustNewHint("ask-handover-response-header-v0.0.1")
 	CancelHandoverHeaderHint                = hint.MustNewHint("cancel-handover-header-v0.0.1")
 	HandoverMessageHeaderHint               = hint.MustNewHint("handover-message-header-v0.0.1")
+	CheckHandoverXHeaderHint                = hint.MustNewHint("check-handover-x-header-v0.0.1")
 )
 
 var (
@@ -59,6 +60,7 @@ var (
 	HandlerPrefixAskHandoverString            = "ask_handover"
 	HandlerPrefixCancelHandoverString         = "cancel_handover"
 	HandlerPrefixHandoverMessageString        = "handover_message"
+	HandlerPrefixCheckHandoverXString         = "check_handover_x"
 
 	HandlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
 	HandlerPrefixProposal               = quicstream.HashPrefix(HandlerPrefixProposalString)
@@ -83,6 +85,7 @@ var (
 	HandlerPrefixAskHandover            = quicstream.HashPrefix(HandlerPrefixAskHandoverString)
 	HandlerPrefixCancelHandover         = quicstream.HashPrefix(HandlerPrefixCancelHandoverString)
 	HandlerPrefixHandoverMessage        = quicstream.HashPrefix(HandlerPrefixHandoverMessageString)
+	HandlerPrefixCheckHandoverX         = quicstream.HashPrefix(HandlerPrefixCheckHandoverXString)
 )
 
 type baseHeader struct {
@@ -733,6 +736,37 @@ func (h HandoverMessageHeader) IsValid([]byte) error {
 	return nil
 }
 
+// CheckHandoverXHeader checks only x node.
+type CheckHandoverXHeader struct {
+	address base.Address // local address
+	baseHeader
+}
+
+func NewCheckHandoverXHeader(address base.Address) CheckHandoverXHeader {
+	return CheckHandoverXHeader{
+		baseHeader: newBaseHeader(CheckHandoverXHeaderHint),
+		address:    address,
+	}
+}
+
+func (h CheckHandoverXHeader) IsValid([]byte) error {
+	e := util.StringError("CheckHandoverXHeader")
+
+	if err := h.baseHeader.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := h.address.IsValid(nil); err != nil {
+		return e.WithMessage(err, "address")
+	}
+
+	return nil
+}
+
+func (h CheckHandoverXHeader) Address() base.Address {
+	return h.address
+}
+
 //revive:disable:cyclomatic
 
 func headerPrefixByHint(ht hint.Hint) [32]byte {
@@ -781,6 +815,8 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return HandlerPrefixCancelHandover
 	case HandoverMessageHeaderHint.Type():
 		return HandlerPrefixHandoverMessage
+	case CheckHandoverXHeaderHint.Type():
+		return HandlerPrefixCheckHandoverX
 	default:
 		return [32]byte{}
 	}

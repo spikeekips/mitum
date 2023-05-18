@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type BaseFlags struct {
@@ -244,4 +245,17 @@ func (f *RangeFlag) From() *uint64 {
 
 func (f *RangeFlag) To() *uint64 {
 	return f.to
+}
+
+func DecodePrivatekey(s string, enc encoder.Encoder) (base.Privatekey, error) {
+	switch key, err := base.DecodePrivatekeyFromString(s, enc); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := key.IsValid(nil); err != nil {
+			return nil, err
+		}
+
+		return key, nil
+	}
 }

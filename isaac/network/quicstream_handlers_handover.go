@@ -59,7 +59,7 @@ func QuicstreamHandlerCancelHandover(
 func QuicstreamHandlerCheckHandover(
 	local base.Node,
 	networkID base.NetworkID,
-	f isaacstates.CheckHandoverXFunc,
+	f isaacstates.CheckHandoverFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
@@ -141,6 +141,27 @@ func QuicstreamHandlerHandoverMessage(
 		}
 
 		err := f(msg)
+
+		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}
+}
+
+func QuicstreamHandlerCheckHandoverX(
+	local base.Node,
+	networkID base.NetworkID,
+	f isaacstates.CheckHandoverXFunc,
+) quicstreamheader.Handler[CheckHandoverXHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverXHeader,
+	) error {
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		)
+
+		if err == nil {
+			err = f(ctx, header.Address())
+		}
 
 		return broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}

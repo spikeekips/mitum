@@ -474,6 +474,23 @@ func (c *BaseClient) CheckHandover(
 	}
 }
 
+func (c *BaseClient) CheckHandoverX(
+	ctx context.Context,
+	xci quicstream.UDPConnInfo, // NOTE broker x
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	address base.Address,
+) (bool, error) {
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewCheckHandoverXHeader(address)); {
+	case err != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
 func (c *BaseClient) AskHandover(
 	ctx context.Context,
 	xci quicstream.UDPConnInfo, // NOTE broker x
@@ -501,10 +518,9 @@ func (c *BaseClient) AskHandover(
 	}
 }
 
-func (c *BaseClient) verifyNode(
+func (*BaseClient) verifyNode(
 	ctx context.Context,
 	broker *quicstreamheader.ClientBroker,
-	ci quicstream.UDPConnInfo,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	header quicstreamheader.RequestHeader,
@@ -575,7 +591,7 @@ func (c *BaseClient) verifyNodeWithResponse(
 		return nil, nil, err
 	}
 
-	if err := c.verifyNode(ctx, broker, ci, priv, networkID, header); err != nil {
+	if err := c.verifyNode(ctx, broker, priv, networkID, header); err != nil {
 		return nil, nil, err
 	}
 

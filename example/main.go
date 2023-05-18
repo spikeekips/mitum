@@ -24,9 +24,9 @@ var (
 var CLI struct { //nolint:govet //...
 	//revive:disable:nested-structs
 	launch.BaseFlags
-	Import  launchcmd.ImportCommand `cmd:"" help:"import from block data"`
-	Init    launchcmd.INITCommand   `cmd:"" help:"init node"`
-	Run     launchcmd.RunCommand    `cmd:"" help:"run node"`
+	Init    launchcmd.INITCommand `cmd:"" help:"init node"`
+	Run     launchcmd.RunCommand  `cmd:"" help:"run node"`
+	Storage launchcmd.Storage     `cmd:""`
 	Network struct {
 		Client launchcmd.NetworkClientCommand `cmd:"" help:"network client"`
 	} `cmd:"" help:"network"`
@@ -35,7 +35,8 @@ var CLI struct { //nolint:govet //...
 		Load launchcmd.KeyLoadCommand `cmd:"" help:"load key"`
 		Sign launchcmd.KeySignCommand `cmd:"" help:"sign"`
 	} `cmd:"" help:"key"`
-	Version struct{} `cmd:"" help:"version"`
+	Handover launchcmd.HandoverCommands `cmd:""`
+	Version  struct{}                   `cmd:"" help:"version"`
 	//revive:enable:nested-structs
 }
 

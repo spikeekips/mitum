@@ -22,8 +22,6 @@ type HandoverYBrokerArgs struct {
 	NetworkID      base.NetworkID
 }
 
-// FIXME WhenCanceled; left memberlist
-
 func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 	return &HandoverYBrokerArgs{
 		NetworkID: networkID,
