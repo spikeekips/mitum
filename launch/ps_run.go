@@ -69,7 +69,8 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers).
 		PostAddOK(PNameWatchDesign, PWatchDesign).
 		PostAddOK(PNamePatchMemberlist, PPatchMemberlist).
-		PostAddOK(PNameStatesNetworkHandlers, PStatesNetworkHandlers)
+		PostAddOK(PNameStatesNetworkHandlers, PStatesNetworkHandlers).
+		PostAddOK(PNameHandoverNetworkHandlers, PHandoverNetworkHandlers)
 
 	return pps
 }

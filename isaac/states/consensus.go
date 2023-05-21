@@ -18,8 +18,7 @@ func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 
 type ConsensusHandler struct {
 	*voteproofHandler
-	args                *ConsensusHandlerArgs
-	handoverXBrokerFunc func() *HandoverXBroker
+	args *ConsensusHandlerArgs
 }
 
 type NewConsensusHandlerType struct {
@@ -33,18 +32,16 @@ func NewNewConsensusHandlerType(
 ) *NewConsensusHandlerType {
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			voteproofHandler:    newVoteproofHandler(StateConsensus, local, params, &args.voteproofHandlerArgs),
-			args:                args,
-			handoverXBrokerFunc: func() *HandoverXBroker { return nil },
+			voteproofHandler: newVoteproofHandler(StateConsensus, local, params, &args.voteproofHandlerArgs),
+			args:             args,
 		},
 	}
 }
 
 func (st *NewConsensusHandlerType) new() (handler, error) {
 	nst := &ConsensusHandler{
-		voteproofHandler:    st.voteproofHandler.new(),
-		args:                st.args,
-		handoverXBrokerFunc: st.handoverXBrokerFunc,
+		voteproofHandler: st.voteproofHandler.new(),
+		args:             st.args,
 	}
 
 	nst.args.whenNewVoteproof = nst.whenNewVoteproof
@@ -67,14 +64,6 @@ func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
 	}
 
 	return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
-}
-
-func (st *ConsensusHandler) handoverXBroker() *HandoverXBroker {
-	if st.sts == nil {
-		return st.handoverXBrokerFunc()
-	}
-
-	return st.sts.HandoverXBroker()
 }
 
 func (st *ConsensusHandler) handoverXBrokerSendVoteproof(vp base.Voteproof) error {

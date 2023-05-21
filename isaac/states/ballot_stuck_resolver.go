@@ -274,7 +274,6 @@ func (c *DefaultBallotStuckResolver) suffrageVoting(
 
 func FindMissingBallotsFromBallotboxFunc(
 	local base.Address,
-	params *isaac.LocalParams,
 	getSuffragef isaac.GetSuffrageByBlockHeight,
 	ballotbox *Ballotbox,
 ) func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {

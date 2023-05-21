@@ -10,17 +10,25 @@ import (
 type HandoverMessageDataType string
 
 const (
-	HandoverMessageDataTypeUnknown       HandoverMessageDataType = ""
-	HandoverMessageDataTypeVoteproof     HandoverMessageDataType = "voteproof"
-	HandoverMessageDataTypeINITVoteproof                         = "init_voteproof"
-	HandoverMessageDataTypeProposal                              = "proposal"
+	HandoverMessageDataTypeUnknown        HandoverMessageDataType = ""
+	HandoverMessageDataTypeVoteproof      HandoverMessageDataType = "voteproof"
+	HandoverMessageDataTypeINITVoteproof  HandoverMessageDataType = "init_voteproof"
+	HandoverMessageDataTypeBallot         HandoverMessageDataType = "ballot"
+	HandoverMessageDataTypeProposal       HandoverMessageDataType = "proposal"
+	HandoverMessageDataTypeOperation      HandoverMessageDataType = "operation"
+	HandoverMessageDataTypeSuffrageVoting HandoverMessageDataType = "suffrage_voting_expel_operation"
 )
 
 func (d HandoverMessageDataType) IsValid([]byte) error {
 	switch d {
 	case
 		HandoverMessageDataTypeVoteproof,
-		HandoverMessageDataTypeINITVoteproof:
+		HandoverMessageDataTypeINITVoteproof,
+		HandoverMessageDataTypeBallot,
+		HandoverMessageDataTypeProposal,
+		HandoverMessageDataTypeOperation,
+		HandoverMessageDataTypeSuffrageVoting:
+
 	default:
 		return util.ErrInvalid.Errorf("unknown handover message data type, %q", d)
 	}
@@ -29,7 +37,6 @@ func (d HandoverMessageDataType) IsValid([]byte) error {
 }
 
 var (
-	HandoverMessageReadyHint               = hint.MustNewHint("handover-ready-message-v0.0.1")
 	HandoverMessageChallengeResponseHint   = hint.MustNewHint("handover-challenge-response-message-v0.0.1")
 	HandoverMessageFinishHint              = hint.MustNewHint("handover-finish-message-v0.0.1")
 	HandoverMessageChallengeStagePointHint = hint.MustNewHint("handover-challenge-stagepoint-message-v0.0.1")

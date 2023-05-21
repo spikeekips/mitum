@@ -5,10 +5,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -80,19 +78,11 @@ func QuicstreamHandlerCheckHandover(
 func QuicstreamHandlerAskHandover(
 	local base.Node,
 	networkID base.NetworkID,
-	localConnInfo quicstream.UDPConnInfo,
 	f isaacstates.AskHandoverReceivedFunc,
 ) quicstreamheader.Handler[AskHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header AskHandoverHeader,
 	) error {
-		switch {
-		case !header.Address().Equal(local.Address()):
-			return errors.Errorf("node address not matched")
-		case localConnInfo.Addr().String() == header.ConnInfo().Addr().String():
-			return errors.Errorf("same node conn info")
-		}
-
 		if err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
@@ -160,7 +150,7 @@ func QuicstreamHandlerCheckHandoverX(
 		)
 
 		if err == nil {
-			err = f(ctx, header.Address())
+			err = f(ctx)
 		}
 
 		return broker.WriteResponseHeadOK(ctx, err == nil, err)

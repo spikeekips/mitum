@@ -24,7 +24,7 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 ) func(context.Context, string, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 	return func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
-		args.SendFunc = func(context.Context, interface{}) error { return nil }
+		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
 		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return id, false, nil
 		}
@@ -117,7 +117,7 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 	broker, err := t.newHandoverYBrokerFunc(t.LocalParams.NetworkID())(context.Background(), util.UUID().String(), quicstream.UDPConnInfo{})
 	t.NoError(err)
 
-	broker.args.SendFunc = func(_ context.Context, i interface{}) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		return nil
 	}
 
@@ -209,7 +209,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendFunc = func(_ context.Context, i interface{}) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		brokersentch <- i
 
 		return nil
@@ -285,7 +285,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendFunc = func(_ context.Context, i interface{}) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		switch i.(type) {
 		case HandoverMessageChallengeStagePoint,
 			HandoverMessageChallengeBlockMap:
@@ -393,7 +393,7 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendFunc = func(_ context.Context, i interface{}) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		brokersentch <- i
 
 		return nil

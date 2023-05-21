@@ -272,23 +272,11 @@ func (h *HandoverMessageData) decodeDataJSON(
 	dataType HandoverMessageDataType, b []byte, enc *jsonenc.Encoder,
 ) (interface{}, error) {
 	switch dataType {
-	case HandoverMessageDataTypeVoteproof:
-		return h.decodeJSONVoteproof(b, enc)
 	case HandoverMessageDataTypeINITVoteproof:
 		return h.decodeJSONINITVoteproof(b, enc)
 	default:
-		return nil, errors.Errorf("unknown handover message data type, %q", dataType)
+		return enc.Decode(b)
 	}
-}
-
-func (*HandoverMessageData) decodeJSONVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
-	var vp base.Voteproof
-
-	if err := encoder.Decode(enc, b, &vp); err != nil {
-		return nil, errors.WithMessage(err, "voteproof")
-	}
-
-	return vp, nil
 }
 
 func (*HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {

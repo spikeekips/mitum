@@ -96,7 +96,6 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 
 	findMissingBallotsf := isaacstates.FindMissingBallotsFromBallotboxFunc(
 		local.Address(),
-		params,
 		sp.Height,
 		ballotbox,
 	)
@@ -219,7 +218,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	pctx = context.WithValue(pctx, ProposalSelectorContextKey, proposalSelector)
 	//revive:enable:modifies-parameter
 
-	return pctx, nil
+	return patchStatesArgsForHandover(pctx, args)
 }
 
 func PCloseStates(pctx context.Context) (context.Context, error) {

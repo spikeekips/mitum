@@ -13,11 +13,11 @@ import (
 )
 
 type HandoverYBrokerArgs struct {
-	SendFunc    func(context.Context, interface{}) error
-	NewDataFunc func(HandoverMessageDataType, interface{}) error
+	SendMessageFunc func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
+	NewDataFunc     func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	WhenFinished   func(base.INITVoteproof) error
-	WhenCanceled   func(error)
+	WhenFinished   func(base.INITVoteproof, quicstream.UDPConnInfo) error
+	WhenCanceled   func(error, quicstream.UDPConnInfo)
 	AskRequestFunc AskHandoverFunc
 	NetworkID      base.NetworkID
 }
@@ -25,14 +25,14 @@ type HandoverYBrokerArgs struct {
 func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 	return &HandoverYBrokerArgs{
 		NetworkID: networkID,
-		SendFunc: func(context.Context, interface{}) error {
+		SendMessageFunc: func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
 			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
 		NewDataFunc: func(HandoverMessageDataType, interface{}) error {
 			return util.ErrNotImplemented.Errorf("NewData")
 		},
-		WhenFinished: func(base.INITVoteproof) error { return nil },
-		WhenCanceled: func(error) {},
+		WhenFinished: func(base.INITVoteproof, quicstream.UDPConnInfo) error { return nil },
+		WhenCanceled: func(error, quicstream.UDPConnInfo) {},
 		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
@@ -92,7 +92,7 @@ func NewHandoverYBroker(
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
 			if id := h.ID(); len(id) > 0 {
-				_ = args.SendFunc(ctx, NewHandoverMessageCancel(id))
+				_ = h.sendMessage(ctx, NewHandoverMessageCancel(id))
 			}
 
 			cancelf(err)
@@ -186,7 +186,7 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 
 	_ = h.lastpoint.SetValue(point)
 
-	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeStagePoint(id, point)); err != nil {
+	if err := h.sendMessage(ctx, newHandoverMessageChallengeStagePoint(id, point)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
@@ -207,7 +207,7 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 
 	_ = h.lastpoint.SetValue(point)
 
-	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(id, point, m)); err != nil {
+	if err := h.sendMessage(ctx, newHandoverMessageChallengeBlockMap(id, point, m)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
@@ -216,7 +216,7 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 	return nil
 }
 
-func (h *HandoverYBroker) receive(i interface{}) error {
+func (h *HandoverYBroker) Receive(i interface{}) error {
 	h.receivelock.Lock()
 	defer h.receivelock.Unlock()
 
@@ -351,12 +351,12 @@ func (h *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
 func (h *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {
 	err := h.whenFinishedf(vp)
 
-	return util.JoinErrors(err, h.args.WhenFinished(vp))
+	return util.JoinErrors(err, h.args.WhenFinished(vp, h.connInfo))
 }
 
 func (h *HandoverYBroker) whenCanceled(err error) {
 	h.whenCanceledf(err)
-	h.args.WhenCanceled(err)
+	h.args.WhenCanceled(err, h.connInfo)
 }
 
 func (h *HandoverYBroker) patchStates(st *States) error {
@@ -376,7 +376,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		switch current := st.current(); {
 		case current == nil:
 		case vp == nil:
-			st.cleanHandover()
+			st.cleanHandovers()
 			_ = st.SetAllowConsensus(true)
 
 			_ = st.args.Ballotbox.Count()
@@ -402,7 +402,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 	}
 
 	h.whenCanceledf = func(error) {
-		st.cleanHandover()
+		st.cleanHandovers()
 
 		if current := st.current(); current != nil {
 			go func() {
@@ -415,4 +415,8 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 	}
 
 	return nil
+}
+
+func (h *HandoverYBroker) sendMessage(ctx context.Context, msg HandoverMessage) error {
+	return h.args.SendMessageFunc(ctx, h.connInfo, msg)
 }

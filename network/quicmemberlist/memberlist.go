@@ -249,6 +249,10 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 	return err
 }
 
+func (srv *Memberlist) Exists(addr *net.UDPAddr) bool {
+	return srv.members.Exists(addr)
+}
+
 // MembersLen() returns number of all the joined members.
 func (srv *Memberlist) MembersLen() int {
 	return srv.members.Len()

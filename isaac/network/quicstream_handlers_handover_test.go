@@ -281,7 +281,6 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 		handler := QuicstreamHandlerAskHandover(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			xci,
 			func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error) {
 				return handoverid, true, nil
 			},
@@ -310,7 +309,6 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 		handler := QuicstreamHandlerAskHandover(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			xci,
 			func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error) {
 				askedch <- struct{}{}
 
@@ -345,7 +343,6 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 		handler := QuicstreamHandlerAskHandover(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			xci,
 			func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error) {
 				return "", false, errors.Errorf("hihihi")
 			},
@@ -439,7 +436,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 		handler := QuicstreamHandlerCheckHandoverX(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			func(context.Context, base.Address) error { return nil },
+			func(context.Context) error { return nil },
 		)
 
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
@@ -463,7 +460,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 		handler := QuicstreamHandlerCheckHandoverX(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			func(context.Context, base.Address) error {
+			func(context.Context) error {
 				checkedch <- struct{}{}
 
 				return nil
@@ -495,7 +492,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 		handler := QuicstreamHandlerCheckHandoverX(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			func(context.Context, base.Address) error {
+			func(context.Context) error {
 				return errors.Errorf("hihihi")
 			},
 		)

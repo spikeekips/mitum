@@ -140,7 +140,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		args := t.xargs()
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
-		broker.args.SendFunc = func(context.Context, interface{}) error {
+		broker.args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
 			return errors.Errorf("hihihi")
 		}
 
@@ -176,7 +176,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 	t.Run("receive; no previous voteproof", func() {
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.Error(broker.receive(h))
+		t.Error(broker.Receive(h))
 
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
@@ -196,13 +196,13 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 		t.False(isFinished)
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 	})
 
 	t.Run("receive lower; ignored", func() {
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 
 		t.Equal(uint64(1), broker.successcount.MustValue())
 	})
@@ -218,7 +218,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 		t.False(isFinished)
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 		t.Equal(uint64(2), broker.successcount.MustValue())
 
 		count, isReady := broker.isReady()
@@ -228,7 +228,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 	t.Run("invalid; cancel", func() {
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.ZeroStagePoint)
-		t.Error(broker.receive(h))
+		t.Error(broker.Receive(h))
 
 		err := broker.isCanceled()
 		t.Error(err)
@@ -245,7 +245,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), base.RandomLocalNode(), nil))
-		err := broker.receive(hm)
+		err := broker.Receive(hm)
 		t.Error(err)
 		t.ErrorContains(err, "wrong address")
 
@@ -264,7 +264,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		local := base.NewBaseLocalNode(base.DummyNodeHint, base.NewMPrivatekey(), t.Local.Address())
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), local, nil))
-		err := broker.receive(hm)
+		err := broker.Receive(hm)
 		t.Error(err)
 		t.ErrorContains(err, "different key")
 
@@ -281,7 +281,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), t.Local, nil))
-		t.Error(broker.receive(hm))
+		t.Error(broker.Receive(hm))
 
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
@@ -302,7 +302,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hm))
+		t.NoError(broker.Receive(hm))
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
 		t.NoError(broker.isCanceled())
@@ -322,7 +322,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		t.NoError(broker.isCanceled())
@@ -343,7 +343,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hm))
+		t.NoError(broker.Receive(hm))
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
 		t.NoError(broker.isCanceled())
@@ -363,7 +363,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hm))
+		t.NoError(broker.Receive(hm))
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
 		t.NoError(broker.isCanceled())
@@ -382,11 +382,11 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hm))
+		t.NoError(broker.Receive(hm))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		t.Run("receive same", func() {
-			t.NoError(broker.receive(hm))
+			t.NoError(broker.Receive(hm))
 			t.Equal(uint64(1), broker.successcount.MustValue())
 
 			t.NoError(broker.isCanceled())
@@ -403,7 +403,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
 
-		t.Error(broker.receive(hm))
+		t.Error(broker.Receive(hm))
 
 		t.Equal(uint64(0), broker.successcount.MustValue())
 
@@ -422,7 +422,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
 		h := newHandoverMessageChallengeStagePoint(util.UUID().String(), base.NewStagePoint(point, base.StageINIT))
-		t.Error(broker.receive(h))
+		t.Error(broker.Receive(h))
 
 		err := broker.isCanceled()
 		t.Error(err)
@@ -435,7 +435,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.Error(broker.receive(h))
+		t.Error(broker.Receive(h))
 
 		err := broker.isCanceled()
 		t.Error(err)
@@ -453,12 +453,12 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		t.T().Log("send again")
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 	})
 
@@ -466,7 +466,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		args := t.xargs()
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -481,7 +481,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		count, isReady := broker.isReady()
@@ -505,7 +505,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		args.MinChallengeCount = 1
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -520,7 +520,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		count, isReady := broker.isReady()
@@ -547,7 +547,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		}
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -562,7 +562,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		count, isReady := broker.isReady()
@@ -586,7 +586,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		}
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -601,7 +601,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		err = broker.receive(hc)
+		err = broker.Receive(hc)
 		t.NotNil(err)
 		t.ErrorContains(err, "hahaha")
 
@@ -627,7 +627,7 @@ func (t *testHandoverXBroker) TestFinish() {
 		args := t.xargs()
 
 		sendch := make(chan HandoverMessageFinish, 1)
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageFinish); ok {
 				sendch <- h
 			}
@@ -654,7 +654,7 @@ func (t *testHandoverXBroker) TestFinish() {
 	t.Run("finish; but failed to send", func() {
 		args := t.xargs()
 
-		args.SendFunc = func(_ context.Context, i interface{}) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 			return errors.Errorf("failed to send")
 		}
 
@@ -683,7 +683,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 		t.False(isFinished)
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		nextpoint := point.NextHeight()
@@ -695,7 +695,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 		t.NoError(err)
 		t.False(isFinished)
 
-		t.NoError(broker.receive(hm))
+		t.NoError(broker.Receive(hm))
 		t.Equal(uint64(2), broker.successcount.MustValue())
 	})
 
@@ -709,7 +709,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 		t.False(isFinished)
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		nextpoint := point.NextHeight()
@@ -728,7 +728,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 
 		t.T().Log("success count resetted and will be 1")
 		h = newHandoverMessageChallengeStagePoint(broker.ID(), nextivp.Point())
-		t.NoError(broker.receive(h))
+		t.NoError(broker.Receive(h))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 	})
 }

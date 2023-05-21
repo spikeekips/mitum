@@ -76,7 +76,16 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: isaacnetwork.SuffrageNodeConnInfoRequestHeader{},
 	},
 	{Hint: isaacnetwork.SuffrageProofRequestHeaderHint, Instance: isaacnetwork.SuffrageProofRequestHeader{}},
+
+	{Hint: isaacnetwork.AskHandoverHeaderHint, Instance: isaacnetwork.AskHandoverHeader{}},
+	{Hint: isaacnetwork.AskHandoverResponseHeaderHint, Instance: isaacnetwork.AskHandoverResponseHeader{}},
+	{Hint: isaacnetwork.CancelHandoverHeaderHint, Instance: isaacnetwork.CancelHandoverHeader{}},
+	{Hint: isaacnetwork.CheckHandoverHeaderHint, Instance: isaacnetwork.CheckHandoverHeader{}},
+	{Hint: isaacnetwork.CheckHandoverXHeaderHint, Instance: isaacnetwork.CheckHandoverXHeader{}},
+	{Hint: isaacnetwork.HandoverMessageHeaderHint, Instance: isaacnetwork.HandoverMessageHeader{}},
+	{Hint: isaacnetwork.StartHandoverHeaderHint, Instance: isaacnetwork.StartHandoverHeader{}},
 	{Hint: isaacnetwork.SyncSourceConnInfoRequestHeaderHint, Instance: isaacnetwork.SyncSourceConnInfoRequestHeader{}},
+
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
@@ -88,6 +97,17 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
 	{Hint: isaacstates.MissingBallotsRequestsMessageHint, Instance: isaacstates.MissingBallotsRequestMessage{}},
+
+	{Hint: isaacstates.HandoverMessageCancelHint, Instance: isaacstates.HandoverMessageCancel{}},
+	{Hint: isaacstates.HandoverMessageChallengeBlockMapHint, Instance: isaacstates.HandoverMessageChallengeBlockMap{}},
+	{Hint: isaacstates.HandoverMessageChallengeResponseHint, Instance: isaacstates.HandoverMessageChallengeResponse{}},
+	{
+		Hint:     isaacstates.HandoverMessageChallengeStagePointHint,
+		Instance: isaacstates.HandoverMessageChallengeStagePoint{},
+	},
+	{Hint: isaacstates.HandoverMessageDataHint, Instance: isaacstates.HandoverMessageData{}},
+	{Hint: isaacstates.HandoverMessageFinishHint, Instance: isaacstates.HandoverMessageFinish{}},
+
 	{Hint: quicmemberlist.ConnInfoBroadcastMessageHint, Instance: quicmemberlist.ConnInfoBroadcastMessage{}},
 	{
 		Hint:     quicmemberlist.CallbackBroadcastMessageHeaderHint,

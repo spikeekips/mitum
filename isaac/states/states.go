@@ -25,6 +25,11 @@ var (
 	timerIDBroadcastACCEPTBallot          = util.TimerID("broadcast-accept-ballot")
 )
 
+type (
+	NewHandoverXBrokerFunc func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error)
+	NewHandoverYBrokerFunc func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error)
+)
+
 type StatesArgs struct {
 	Ballotbox              *Ballotbox
 	BallotStuckResolver    BallotStuckResolver
@@ -32,9 +37,8 @@ type StatesArgs struct {
 	IsInSyncSourcePoolFunc func(base.Address) bool
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
-	NewHandoverXBroker     func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error)
-	NewHandoverYBroker     func(context.Context, quicstream.UDPConnInfo) (
-		*HandoverYBroker, error)
+	NewHandoverXBroker     NewHandoverXBrokerFunc
+	NewHandoverYBroker     NewHandoverYBrokerFunc
 	// AllowConsensus decides to enter Consensus states. If false, States enters
 	// Syncing state instead of Consensus state.
 	AllowConsensus bool
@@ -219,7 +223,7 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 
 		serr := st.startStatesSwitch(ctx)
 
-		st.cleanHandover()
+		st.cleanHandovers()
 
 		// NOTE exit current
 		switch current := st.current(); {
@@ -785,14 +789,14 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 
 		if broker := st.HandoverXBroker(); broker != nil && !allow {
 			broker.cancel(errors.Errorf("not allowed consensus"))
-			st.cleanHandover()
+			st.cleanHandovers()
 
 			st.Log().Debug().Msg("not allowed consensus, handover x broker canceled")
 		}
 
 		if broker := st.HandoverYBroker(); broker != nil && allow {
 			broker.cancel(errors.Errorf("allowed consensus"))
-			st.cleanHandover()
+			st.cleanHandovers()
 
 			st.Log().Debug().Msg("allowed consensus, handover y broker canceled")
 		}

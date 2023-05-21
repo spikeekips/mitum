@@ -25,6 +25,8 @@ type baseHandler struct {
 	timers                 *util.SimpleTimers
 	allowedConsensusLocked *util.Locked[bool]
 	switchStateFunc        func(switchContext) error
+	handoverXBrokerFunc    func() *HandoverXBroker
+	handoverYBrokerFunc    func() *HandoverYBroker
 	stt                    StateType
 }
 
@@ -172,3 +174,35 @@ func (st *baseHandler) setAllowConsensus(allow bool) bool {
 }
 
 func (*baseHandler) whenSetAllowConsensus(bool) {}
+
+func (st *baseHandler) handoverXBroker() *HandoverXBroker {
+	if st.handoverXBrokerFunc != nil {
+		return st.handoverXBrokerFunc()
+	}
+
+	if st.sts == nil {
+		return nil
+	}
+
+	return st.sts.HandoverXBroker()
+}
+
+func (st *baseHandler) handoverYBroker() *HandoverYBroker {
+	if st.handoverYBrokerFunc != nil {
+		return st.handoverYBrokerFunc()
+	}
+
+	if st.sts == nil {
+		return nil
+	}
+
+	return st.sts.HandoverYBroker()
+}
+
+func (st *baseHandler) cleanHandovers() {
+	if st.sts == nil {
+		return
+	}
+
+	st.sts.cleanHandovers()
+}

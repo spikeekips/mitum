@@ -22,7 +22,6 @@ func NewHandoverHandlerArgs() *HandoverHandlerArgs {
 type HandoverHandler struct {
 	*voteproofHandler
 	args                  *HandoverHandlerArgs
-	handoverYBrokerFunc   func() *HandoverYBroker
 	finishedWithVoteproof *util.Locked[bool]
 }
 
@@ -37,9 +36,8 @@ func NewNewHandoverHandlerType(
 ) *NewHandoverHandlerType {
 	return &NewHandoverHandlerType{
 		HandoverHandler: &HandoverHandler{
-			voteproofHandler:    newVoteproofHandler(StateHandover, local, params, &args.voteproofHandlerArgs),
-			args:                args,
-			handoverYBrokerFunc: func() *HandoverYBroker { return nil },
+			voteproofHandler: newVoteproofHandler(StateHandover, local, params, &args.voteproofHandlerArgs),
+			args:             args,
 		},
 	}
 }
@@ -48,7 +46,6 @@ func (st *NewHandoverHandlerType) new() (handler, error) {
 	nst := &HandoverHandler{
 		voteproofHandler:      st.voteproofHandler.new(),
 		args:                  st.args,
-		handoverYBrokerFunc:   st.handoverYBrokerFunc,
 		finishedWithVoteproof: util.EmptyLocked[bool](),
 	}
 
@@ -106,9 +103,9 @@ func (st *HandoverHandler) exit(i switchContext) (func(), error) {
 	if finished, _ := st.finishedWithVoteproof.Value(); finished {
 		_ = st.setAllowConsensus(true)
 
-		if st.sts != nil {
-			st.sts.cleanHandover()
+		st.cleanHandovers()
 
+		if st.sts != nil {
 			_ = st.sts.args.Ballotbox.Count()
 		}
 	}
@@ -195,14 +192,6 @@ func (st *HandoverHandler) checkInState(vp base.Voteproof) switchContext {
 	}
 
 	return nil
-}
-
-func (st *HandoverHandler) handoverYBroker() *HandoverYBroker {
-	if st.sts == nil {
-		return st.handoverYBrokerFunc()
-	}
-
-	return st.sts.HandoverYBroker()
 }
 
 type handoverSwitchContext struct {

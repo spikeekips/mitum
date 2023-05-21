@@ -355,7 +355,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		bl,
 		st.timers,
 		timerIDBroadcastACCEPTBallot,
-		st.ballotBroadcaster.Broadcast,
+		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
 			if i < 1 {
@@ -372,7 +372,7 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		bl,
 		st.timers,
 		timerIDBroadcastSuffrageConfirmBallot,
-		st.ballotBroadcaster.Broadcast,
+		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
 			lvp := st.lastVoteproofs().Cap()
@@ -494,7 +494,7 @@ func (st *baseBallotHandler) timerINITBallot(
 		},
 		func(tctx context.Context, i uint64) (bool, error) {
 			if bl != nil {
-				if err := st.ballotBroadcaster.Broadcast(bl); err != nil {
+				if err := st.broadcastBallot(bl); err != nil {
 					st.Log().Error().Err(err).Msg("failed to broadcast ballot; keep going")
 
 					return true, nil
@@ -667,6 +667,30 @@ func (st *baseBallotHandler) requestProposal(
 
 		return nil, err
 	}
+}
+
+func (st *baseBallotHandler) broadcastBallot(ballot base.Ballot) error {
+	bch := make(chan error)
+	ych := make(chan error)
+
+	go func() {
+		bch <- st.ballotBroadcaster.Broadcast(ballot)
+	}()
+
+	go func() {
+		ych <- st.sendBallotToHandoverY(st.ctx, ballot)
+	}()
+
+	return util.JoinErrors(<-bch, <-ych)
+}
+
+func (st *baseBallotHandler) sendBallotToHandoverY(ctx context.Context, ballot base.Ballot) error {
+	broker := st.handoverXBroker()
+	if broker == nil {
+		return nil
+	}
+
+	return broker.sendBallot(ctx, ballot)
 }
 
 var errFailedToVoteNotInConsensus = util.NewIDError("vote; local not in consensus nodes")

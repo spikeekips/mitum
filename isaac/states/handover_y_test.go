@@ -114,7 +114,7 @@ func (t *testHandoverYBroker) TestReceiveVoteproof() {
 	_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 
 	hc := newHandoverMessageData(broker.ID(), HandoverMessageDataTypeVoteproof, ivp)
-	t.NoError(broker.receive(hc))
+	t.NoError(broker.Receive(hc))
 
 	rivp := <-vpch
 
@@ -128,7 +128,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		args := t.yargs(util.UUID().String())
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error) {
+		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
 			errch <- err
 		}
 
@@ -136,7 +136,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		broker.Ask()
 
 		hc := newHandoverMessageChallengeResponse(util.UUID().String(), base.NewStagePoint(point, base.StageINIT), true, nil)
-		t.Error(broker.receive(hc))
+		t.Error(broker.Receive(hc))
 
 		err := broker.isCanceled()
 		t.Error(err)
@@ -148,7 +148,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 	})
 
 	args := t.yargs(util.UUID().String())
-	args.SendFunc = func(context.Context, interface{}) error { return nil }
+	args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
 
 	broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
 	broker.Ask()
@@ -157,22 +157,22 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 	t.Run("ok", func() {
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point, base.StageINIT), true, nil)
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 	})
 
 	t.Run("not ok", func() {
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point, base.StageINIT), false, nil)
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 	})
 
 	t.Run("error", func() {
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error) {
+		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
 			errch <- err
 		}
 
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point, base.StageINIT), false, errors.Errorf("hehehe"))
-		err := broker.receive(hc)
+		err := broker.Receive(hc)
 		t.Error(err)
 		t.ErrorContains(err, "hehehe")
 
@@ -187,18 +187,18 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 	t.Run("unknown point", func() {
 		args := t.yargs(util.UUID().String())
-		args.SendFunc = func(context.Context, interface{}) error { return nil }
+		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
 
 		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
 		broker.Ask()
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error) {
+		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
 			errch <- err
 		}
 
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
-		err := broker.receive(hc)
+		err := broker.Receive(hc)
 		t.Error(err)
 		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "unknown ready response message")
@@ -214,7 +214,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 	t.Run("point mismatch", func() {
 		args := t.yargs(util.UUID().String())
-		args.SendFunc = func(context.Context, interface{}) error { return nil }
+		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
 
 		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
 		broker.Ask()
@@ -222,12 +222,12 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		t.NoError(broker.sendStagePoint(context.Background(), base.NewStagePoint(point, base.StageINIT)))
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error) {
+		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
 			errch <- err
 		}
 
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
-		err := broker.receive(hc)
+		err := broker.Receive(hc)
 		t.Error(err)
 		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "ready response message point not matched")
@@ -243,7 +243,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 	t.Run("send failed", func() {
 		args := t.yargs(util.UUID().String())
-		args.SendFunc = func(context.Context, interface{}) error {
+		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
 			return errors.Errorf("hihihi")
 		}
 
@@ -251,7 +251,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		broker.Ask()
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error) {
+		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
 			errch <- err
 		}
 
@@ -277,7 +277,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		args := t.yargs(util.UUID().String())
 
 		vpch := make(chan base.INITVoteproof, 1)
-		args.WhenFinished = func(vp base.INITVoteproof) error {
+		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.UDPConnInfo) error {
 			vpch <- vp
 
 			return nil
@@ -302,7 +302,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 		hc := newHandoverMessageFinish(broker.ID(), ivp, pr)
-		t.NoError(broker.receive(hc))
+		t.NoError(broker.Receive(hc))
 
 		rivp := <-vpch
 
@@ -314,7 +314,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 	t.Run("error", func() {
 		args := t.yargs(util.UUID().String())
 
-		args.WhenFinished = func(vp base.INITVoteproof) error {
+		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.UDPConnInfo) error {
 			return errors.Errorf("hihihi")
 		}
 		args.NewDataFunc = func(_ HandoverMessageDataType, i interface{}) error { return nil }
@@ -326,7 +326,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 
 		hc := newHandoverMessageFinish(broker.ID(), ivp, nil)
-		err := broker.receive(hc)
+		err := broker.Receive(hc)
 		t.Error(err)
 		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "hihihi")

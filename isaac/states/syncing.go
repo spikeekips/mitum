@@ -127,7 +127,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 					<-time.After(wait)
 				}
 
-				if st.sts.Current() == StateSyncing {
+				if st.sts != nil && st.sts.Current() == StateSyncing {
 					l.Debug().Msg("timers stopped")
 
 					if err := st.timers.StopAllTimers(); err != nil {
@@ -192,7 +192,7 @@ func (st *SyncingHandler) setStates(sts *States) {
 			return nil
 		}
 
-		broker := st.sts.HandoverYBroker()
+		broker := st.handoverYBroker()
 		if broker == nil || broker.IsAsked() {
 			return nil
 		}
@@ -217,9 +217,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringError("handle new voteproof")
 
 	if _, ok := vp.(handoverFinishedVoteporof); ok {
-		if st.sts != nil {
-			st.sts.cleanHandover()
-		}
+		st.cleanHandovers()
 	}
 
 	if _, v, isnew := st.baseHandler.setNewVoteproof(vp); v == nil || !isnew {
