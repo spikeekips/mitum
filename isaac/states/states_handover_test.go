@@ -552,7 +552,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		// NOTE 'not allowed consensus' and empty HandoverYBroker will be
 		// changed by handover (or syncing) handler.
 		t.False(st.AllowedConsensus())
-		t.NotNil(st.HandoverYBroker())
+		t.Nil(st.HandoverYBroker())
 	})
 }
 

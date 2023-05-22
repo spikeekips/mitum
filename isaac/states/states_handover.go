@@ -22,6 +22,14 @@ type (
 func (st *States) HandoverXBroker() *HandoverXBroker {
 	v, _ := st.handoverXBroker.Value()
 
+	switch {
+	case v == nil:
+	default:
+		if err := v.isCanceled(); err != nil {
+			return nil
+		}
+	}
+
 	return v
 }
 
@@ -71,6 +79,14 @@ func (st *States) CancelHandoverXBroker() error {
 
 func (st *States) HandoverYBroker() *HandoverYBroker {
 	v, _ := st.handoverYBroker.Value()
+
+	switch {
+	case v == nil:
+	default:
+		if err := v.isCanceled(); err != nil {
+			return nil
+		}
+	}
 
 	return v
 }

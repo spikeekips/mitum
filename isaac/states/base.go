@@ -177,7 +177,17 @@ func (*baseHandler) whenSetAllowConsensus(bool) {}
 
 func (st *baseHandler) handoverXBroker() *HandoverXBroker {
 	if st.handoverXBrokerFunc != nil {
-		return st.handoverXBrokerFunc()
+		v := st.handoverXBrokerFunc()
+
+		switch {
+		case v == nil:
+		default:
+			if err := v.isCanceled(); err != nil {
+				return nil
+			}
+		}
+
+		return v
 	}
 
 	if st.sts == nil {
@@ -189,7 +199,17 @@ func (st *baseHandler) handoverXBroker() *HandoverXBroker {
 
 func (st *baseHandler) handoverYBroker() *HandoverYBroker {
 	if st.handoverYBrokerFunc != nil {
-		return st.handoverYBrokerFunc()
+		v := st.handoverYBrokerFunc()
+
+		switch {
+		case v == nil:
+		default:
+			if err := v.isCanceled(); err != nil {
+				return nil
+			}
+		}
+
+		return v
 	}
 
 	if st.sts == nil {
