@@ -216,7 +216,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	}
 	args.AskRequestFunc = isaacstates.NewAskHandoverFunc(
 		local.Address(),
-		func(ctx context.Context) error {
+		func(ctx context.Context, ci quicstream.UDPConnInfo) error {
 			donech := long.Join()
 			if donech == nil {
 				return nil

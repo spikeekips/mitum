@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -18,7 +19,7 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 	var joined int64
 
 	l := NewLongRunningMemberlistJoin(
-		func() (bool, error) {
+		func([]quicstream.UDPConnInfo) (bool, error) {
 			if atomic.LoadInt64(&joined) > 0 {
 				return true, nil
 			}
@@ -67,7 +68,7 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 
 func (t *testLongRunningMemberlistJoin) TestCancel() {
 	l := NewLongRunningMemberlistJoin(
-		func() (bool, error) {
+		func([]quicstream.UDPConnInfo) (bool, error) {
 			return false, errors.Errorf("heheheh")
 		},
 		func() bool {

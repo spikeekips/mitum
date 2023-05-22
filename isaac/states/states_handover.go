@@ -293,13 +293,13 @@ func NewCheckHandoverXFunc(
 
 func NewAskHandoverFunc(
 	local base.Address,
-	joinMemberlist func(context.Context) error,
+	joinMemberlist func(context.Context, quicstream.UDPConnInfo) error,
 	sendAsk func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error),
 ) AskHandoverFunc {
 	return func(ctx context.Context, ci quicstream.UDPConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover to x")
 
-		if err := joinMemberlist(ctx); err != nil {
+		if err := joinMemberlist(ctx, ci); err != nil {
 			return "", false, e.WithMessage(err, "join memberlist")
 		}
 

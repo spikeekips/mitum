@@ -597,7 +597,7 @@ func memberlistAllowFunc(pctx context.Context) (
 }
 
 type LongRunningMemberlistJoin struct {
-	ensureJoin    func() (bool, error)
+	ensureJoin    func([]quicstream.UDPConnInfo) (bool, error)
 	isJoined      func() bool
 	cancelrunning *util.Locked[context.CancelFunc]
 	donech        *util.Locked[chan struct{}] // revive:disable-line:nested-structs
@@ -605,7 +605,7 @@ type LongRunningMemberlistJoin struct {
 }
 
 func NewLongRunningMemberlistJoin(
-	ensureJoin func() (bool, error),
+	ensureJoin func([]quicstream.UDPConnInfo) (bool, error),
 	isJoined func() bool,
 ) *LongRunningMemberlistJoin {
 	return &LongRunningMemberlistJoin{
@@ -617,7 +617,7 @@ func NewLongRunningMemberlistJoin(
 	}
 }
 
-func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
+func (l *LongRunningMemberlistJoin) Join(cis ...quicstream.UDPConnInfo) <-chan struct{} {
 	if l.isJoined() {
 		return nil
 	}
@@ -651,7 +651,7 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 
 			_ = util.Retry(ctx,
 				func() (bool, error) {
-					isjoined, err := l.ensureJoin()
+					isjoined, err := l.ensureJoin(cis)
 
 					return !isjoined, err
 				},
@@ -689,9 +689,21 @@ func ensureJoinMemberlist(
 	watcher *isaac.LastConsensusNodesWatcher,
 	discoveries *util.Locked[[]quicstream.UDPConnInfo],
 	m *quicmemberlist.Memberlist,
-) func() (bool, error) {
-	return func() (bool, error) {
+) func([]quicstream.UDPConnInfo) (bool, error) {
+	return func(cis []quicstream.UDPConnInfo) (bool, error) {
 		dis := GetDiscoveriesFromLocked(discoveries)
+		dis = append(dis, cis...)
+
+		dis, _ = util.RemoveDuplicatedSlice[quicstream.UDPConnInfo](
+			dis,
+			func(i quicstream.UDPConnInfo) (string, error) {
+				if i.Addr() == nil {
+					return "", nil
+				}
+
+				return i.UDPAddr().String(), nil
+			},
+		)
 
 		if len(dis) < 1 {
 			return false, errors.Errorf("empty discovery")
