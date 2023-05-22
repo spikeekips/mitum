@@ -103,12 +103,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 					return m.CallbackBroadcast(b, id, nil)
 				},
 			), nil)).
-		Add(isaacnetwork.HandlerPrefixRequestProposal,
-			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerRequestProposal(
-				local, pool, proposalMaker, db.LastBlockMap,
-			), nil)).
-		Add(isaacnetwork.HandlerPrefixProposal,
-			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerProposal(pool), nil)).
 		Add(isaacnetwork.HandlerPrefixLastSuffrageProof,
 			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 				func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {

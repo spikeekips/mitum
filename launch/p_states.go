@@ -14,7 +14,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -31,7 +30,6 @@ var (
 	PNameStatesSetHandlers                          = ps.Name("states-set-handlers")
 	PNameProposerSelector                           = ps.Name("proposer-selector")
 	PNameBallotStuckResolver                        = ps.Name("ballot-stuck-resolver")
-	PNameStatesNetworkHandlers                      = ps.Name("states-network-handlers")
 	BallotboxContextKey                             = util.ContextKey("ballotbox")
 	StatesContextKey                                = util.ContextKey("states")
 	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
@@ -328,39 +326,6 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs))
 
 	_ = states.SetLogging(log)
-
-	return pctx, nil
-}
-
-func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
-	var encs *encoder.Encoders
-	var local base.LocalNode
-	var params *isaac.LocalParams
-	var handlers *quicstream.PrefixHandler
-	var states *isaacstates.States
-
-	if err := util.LoadFromContext(pctx,
-		EncodersContextKey, &encs,
-		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
-		QuicstreamHandlersContextKey, &handlers,
-		StatesContextKey, &states,
-	); err != nil {
-		return pctx, err
-	}
-
-	handlers.
-		Add(isaacnetwork.HandlerPrefixSetAllowConsensus,
-			quicstreamheader.NewHandler(encs,
-				time.Second*2, //nolint:gomnd //...
-				isaacnetwork.QuicstreamHandlerSetAllowConsensus(
-					local.Publickey(),
-					params.NetworkID(),
-					states.SetAllowConsensus,
-				),
-				nil,
-			),
-		)
 
 	return pctx, nil
 }

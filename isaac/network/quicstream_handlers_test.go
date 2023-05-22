@@ -393,6 +393,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 	handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
 		func() (base.BlockMap, bool, error) { return nil, false, nil },
+		func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -439,6 +440,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 				return mp, true, nil
 			},
+			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 		)
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixRequestProposal, handler)
 		defer handlercancel()
@@ -462,6 +464,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 				return mp, true, nil
 			},
+			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 		)
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixRequestProposal, handler)
 		defer handlercancel()
@@ -475,6 +478,84 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		t.False(found)
 		t.Nil(pr)
 		t.ErrorContains(err, "too old")
+	})
+
+	t.Run("handover x; ok", func() {
+		prev := valuehash.RandomSHA256()
+		point := base.RawPoint(33, 1)
+		xpr, err := proposalMaker.New(context.Background(), point, prev)
+		t.NoError(err)
+
+		t.T().Log("clear proposals from pool")
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		proposalMaker := isaac.NewProposalMaker(
+			t.Local,
+			t.LocalParams,
+			func(context.Context, base.Height) ([]util.Hash, error) {
+				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+			},
+			npool,
+		)
+
+		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
+			nil,
+			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return xpr, nil },
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixRequestProposal, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), prev)
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(xpr.HashBytes(), pr.HashBytes())
+
+		t.Equal(point, pr.Point())
+		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
+		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
+		t.NotEmpty(pr.ProposalFact().Operations())
+		t.True(prev.Equal(pr.ProposalFact().PreviousBlock()))
+	})
+
+	t.Run("handover x; error", func() {
+		prev := valuehash.RandomSHA256()
+		point := base.RawPoint(33, 1)
+		xpr, err := proposalMaker.New(context.Background(), point, prev)
+		t.NoError(err)
+
+		t.T().Log("clear proposals from pool")
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		proposalMaker := isaac.NewProposalMaker(
+			t.Local,
+			t.LocalParams,
+			func(context.Context, base.Height) ([]util.Hash, error) {
+				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+			},
+			npool,
+		)
+
+		handler := QuicstreamHandlerRequestProposal(t.Local, npool, proposalMaker,
+			nil,
+			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) {
+				return xpr, errors.Errorf("hehehe")
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixRequestProposal, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		_, _, err = c.RequestProposal(context.Background(), ci, point, t.Local.Address(), prev)
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
 	})
 }
 
@@ -497,7 +578,12 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handler := QuicstreamHandlerProposal(pool)
+	handler := QuicstreamHandlerProposal(
+		pool,
+		func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+			return hint.Hint{}, nil, false, nil
+		},
+	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
@@ -540,6 +626,57 @@ func (t *testQuicstreamHandlers) TestProposal() {
 		t.ErrorContains(err, "invalid ProposalHeader")
 		t.False(found)
 		t.Nil(pr)
+	})
+
+	t.Run("handover x", func() {
+		t.T().Log("clean proposals from pool")
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		handler := QuicstreamHandlerProposal(
+			npool,
+			func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+				b, _ := t.Enc.Marshal(pr)
+
+				return t.Enc.Hint(), b, true, nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixProposal, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		pr, found, err := c.Proposal(context.Background(), ci, pr.Fact().Hash())
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(point, pr.Point())
+		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
+		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
+	})
+
+	t.Run("handover x; error", func() {
+		t.T().Log("clean proposals from pool")
+
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		handler := QuicstreamHandlerProposal(
+			npool,
+			func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+				return hint.Hint{}, nil, false, errors.Errorf("hehehe")
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixProposal, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		_, _, err = c.Proposal(context.Background(), ci, pr.Fact().Hash())
+		t.Error(err)
+		t.ErrorContains(err, "hehehe")
 	})
 }
 

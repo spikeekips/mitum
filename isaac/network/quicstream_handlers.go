@@ -25,7 +25,7 @@ func QuicstreamHandlerOperation(
 		func(header OperationRequestHeader) string {
 			return HandlerPrefixOperationString + header.Operation().String()
 		},
-		func(header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, _, body, found, err := oppool.NewOperationBytes(context.Background(), header.Operation())
 
 			return enchint, body, found, err
@@ -118,17 +118,33 @@ func QuicstreamHandlerRequestProposal(
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
 	lastBlockMapf func() (base.BlockMap, bool, error),
+	getFromHandoverX func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error),
 ) quicstreamheader.Handler[RequestProposalRequestHeader] {
-	getOrCreateProposal := func(
-		point base.Point,
-		proposer base.Address,
-		previousBlock util.Hash,
-	) (base.ProposalSignFact, error) {
+	getOrCreateProposal := func(ctx context.Context, header RequestProposalRequestHeader) (
+		base.ProposalSignFact, error,
+	) {
+		point := header.point
+		proposer := header.Proposer()
+		previousBlock := header.PreviousBlock()
+
 		switch pr, found, err := pool.ProposalByPoint(point, proposer, previousBlock); {
 		case err != nil:
 			return nil, err
 		case found:
 			return pr, nil
+		}
+
+		if proposer.Equal(local.Address()) {
+			switch pr, err := getFromHandoverX(ctx, header); {
+			case err != nil:
+				return nil, errors.WithMessage(err, "handover x")
+			case pr != nil:
+				if _, err := pool.SetProposal(pr); err != nil {
+					return nil, errors.WithMessage(err, "handover x; set proposal")
+				}
+
+				return pr, nil
+			}
 		}
 
 		if lastBlockMapf != nil {
@@ -154,25 +170,38 @@ func QuicstreamHandlerRequestProposal(
 		func(header RequestProposalRequestHeader) string {
 			return HandlerPrefixRequestProposalString + header.Point().String() + header.Proposer().String()
 		},
-		func(header RequestProposalRequestHeader, _ encoder.Encoder) (interface{}, bool, error) {
-			pr, err := getOrCreateProposal(header.point, header.Proposer(), header.PreviousBlock())
+		func(ctx context.Context, header RequestProposalRequestHeader, _ encoder.Encoder) (interface{}, bool, error) {
+			pr, err := getOrCreateProposal(ctx, header)
 
 			return pr, pr != nil, err
 		},
 	)
 }
 
-func QuicstreamHandlerProposal(pool isaac.ProposalPool) quicstreamheader.Handler[ProposalRequestHeader] {
+func QuicstreamHandlerProposal(
+	pool isaac.ProposalPool,
+	getFromHandoverX func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error),
+) quicstreamheader.Handler[ProposalRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header ProposalRequestHeader) string {
 			return HandlerPrefixProposalString + header.Proposal().String()
 		},
-		func(header ProposalRequestHeader, _ encoder.Encoder) (
+		func(ctx context.Context, header ProposalRequestHeader, _ encoder.Encoder) (
 			hint.Hint, []byte, bool, error,
 		) {
 			enchint, _, body, found, err := pool.ProposalBytes(header.Proposal())
+			if err == nil && found {
+				return enchint, body, found, err
+			}
 
-			return enchint, body, found, err
+			switch enchint, body, found, err := getFromHandoverX(ctx, header); {
+			case err != nil:
+				return enchint, nil, false, errors.WithMessage(err, "handover x")
+			case !found:
+				return enchint, nil, false, nil
+			default:
+				return enchint, body, found, nil
+			}
 		},
 	)
 }
@@ -189,7 +218,9 @@ func QuicstreamHandlerLastSuffrageProof(
 
 			return sgkey
 		},
-		func(header LastSuffrageProofRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header LastSuffrageProofRequestHeader, _ encoder.Encoder) (
+			hint.Hint, []byte, bool, error,
+		) {
 			enchint, _, body, found, err := lastSuffrageProoff(header.State())
 
 			return enchint, body, found, err
@@ -204,7 +235,7 @@ func QuicstreamHandlerSuffrageProof(
 		func(header SuffrageProofRequestHeader) string {
 			return HandlerPrefixSuffrageProofString + header.Height().String()
 		},
-		func(header SuffrageProofRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header SuffrageProofRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, _, body, found, err := suffrageProoff(header.Height())
 
 			return enchint, body, found, err
@@ -227,7 +258,7 @@ func QuicstreamHandlerLastBlockMap(
 
 			return sgkey
 		},
-		func(header LastBlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header LastBlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, _, body, found, err := lastBlockMapf(header.Manifest())
 
 			return enchint, body, found, err
@@ -242,7 +273,7 @@ func QuicstreamHandlerBlockMap(
 		func(header BlockMapRequestHeader) string {
 			return HandlerPrefixBlockMapString + header.Height().String()
 		},
-		func(header BlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header BlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, _, body, found, err := blockMapf(header.Height())
 
 			return enchint, body, found, err
@@ -280,7 +311,7 @@ func QuicstreamHandlerState(
 		func(header StateRequestHeader) string {
 			return HandlerPrefixStateString + header.Key()
 		},
-		func(header StateRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header StateRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, meta, body, found, err := statef(header.Key())
 			if err != nil || !found {
 				return enchint, nil, false, err
@@ -590,7 +621,7 @@ func quicstreamHandlerNodeConnInfos(
 
 func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 	sgkeyf func(T) string,
-	f func(T, encoder.Encoder) (interface{}, bool, error),
+	f func(context.Context, T, encoder.Encoder) (interface{}, bool, error),
 ) quicstreamheader.Handler[T] {
 	var sg singleflight.Group
 
@@ -600,7 +631,7 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 		sgkey := sgkeyf(req)
 
 		i, err, _ := util.SingleflightDo[[2]interface{}](&sg, sgkey, func() ([2]interface{}, error) {
-			j, bo, oerr := f(req, broker.Encoder)
+			j, bo, oerr := f(ctx, req, broker.Encoder)
 			if oerr != nil {
 				return [2]interface{}{}, oerr
 			}
@@ -617,7 +648,7 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 
 func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 	sgkeyf func(T) string,
-	f func(T, encoder.Encoder) (hint.Hint, []byte, bool, error),
+	f func(context.Context, T, encoder.Encoder) (hint.Hint, []byte, bool, error),
 ) quicstreamheader.Handler[T] {
 	var sg singleflight.Group
 
@@ -627,7 +658,7 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 		sgkey := sgkeyf(header)
 
 		i, err, _ := util.SingleflightDo(&sg, sgkey, func() ([3]interface{}, error) {
-			enchint, b, found, oerr := f(header, broker.Encoder)
+			enchint, b, found, oerr := f(ctx, header, broker.Encoder)
 			if oerr != nil {
 				return [3]interface{}{}, oerr
 			}
