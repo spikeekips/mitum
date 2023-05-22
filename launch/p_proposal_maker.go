@@ -86,7 +86,7 @@ func proposalMakderGetOperationsFunc(pctx context.Context) (
 			return nil, nil
 		}
 
-		hs, err := pool.NewOperationHashes(
+		hs, err := pool.OperationHashes(
 			ctx,
 			height,
 			n,

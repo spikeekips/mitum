@@ -150,7 +150,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 				return err
 			default:
-				_, err := pool.SetNewOperation(context.Background(), t)
+				_, err := pool.SetOperation(context.Background(), t)
 
 				return err
 			}

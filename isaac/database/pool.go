@@ -150,7 +150,8 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 	return true, nil
 }
 
-func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
+func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
+	// FIXME rename to Operation
 	e := util.StringError("find operation")
 
 	switch b, found, err := db.st.Get(leveldbNewOperationKey(operationhash)); {
@@ -169,13 +170,13 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 	}
 }
 
-func (db *TempPool) NewOperationBytes(_ context.Context, operationhash util.Hash) (
+func (db *TempPool) OperationBytes(_ context.Context, operationhash util.Hash) (
 	enchint hint.Hint, meta, body []byte, found bool, _ error,
 ) {
 	return db.getRecordBytes(leveldbNewOperationKey(operationhash), db.st.Get)
 }
 
-func (db *TempPool) NewOperationHashes(
+func (db *TempPool) OperationHashes(
 	ctx context.Context,
 	height base.Height,
 	limit uint64,
@@ -241,7 +242,7 @@ func (db *TempPool) NewOperationHashes(
 	return ops[:opsindex], nil
 }
 
-func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool, error) {
+func (db *TempPool) SetOperation(_ context.Context, op base.Operation) (bool, error) {
 	e := util.StringError("put operation")
 
 	oph := op.Hash()

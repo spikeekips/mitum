@@ -180,7 +180,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	pool := t.NewPool()
 	defer pool.DeepClose()
 
-	inserted, err := pool.SetNewOperation(context.Background(), op)
+	inserted, err := pool.SetOperation(context.Background(), op)
 	t.NoError(err)
 	t.True(inserted)
 

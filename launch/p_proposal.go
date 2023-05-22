@@ -283,7 +283,7 @@ func getProposalOperationFromPoolFunc(pctx context.Context) (
 	}
 
 	return func(ctx context.Context, operationhash util.Hash) (base.Operation, bool, error) {
-		op, found, err := pool.NewOperation(ctx, operationhash)
+		op, found, err := pool.Operation(ctx, operationhash)
 
 		switch {
 		case err != nil:

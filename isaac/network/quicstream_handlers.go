@@ -26,7 +26,7 @@ func QuicstreamHandlerOperation(
 			return HandlerPrefixOperationString + header.Operation().String()
 		},
 		func(_ context.Context, header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
-			enchint, _, body, found, err := oppool.NewOperationBytes(context.Background(), header.Operation())
+			enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation())
 
 			return enchint, body, found, err
 		},
@@ -573,7 +573,7 @@ func quicstreamHandlerSetOperation(
 	case base.SuffrageExpelOperation:
 		return vote(t)
 	default:
-		return oppool.SetNewOperation(ctx, op)
+		return oppool.SetOperation(ctx, op)
 	}
 }
 

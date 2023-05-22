@@ -108,15 +108,15 @@ type PoolOperationRecordMeta interface {
 }
 
 type NewOperationPool interface {
-	NewOperation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
-	NewOperationBytes(_ context.Context, operationhash util.Hash) (hint.Hint, []byte, []byte, bool, error)
-	NewOperationHashes(
+	Operation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
+	OperationBytes(_ context.Context, operationhash util.Hash) (hint.Hint, []byte, []byte, bool, error)
+	OperationHashes(
 		_ context.Context,
 		_ base.Height,
 		limit uint64,
 		filter func(PoolOperationRecordMeta) (ok bool, err error),
 	) ([]util.Hash, error)
-	SetNewOperation(context.Context, base.Operation) (bool, error)
+	SetOperation(context.Context, base.Operation) (bool, error)
 }
 
 type TempSyncPool interface {

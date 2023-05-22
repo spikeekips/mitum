@@ -303,7 +303,7 @@ func (t *testNewOperationPool) TestNewOperation() {
 
 		ops[i] = op
 
-		added, err := pst.SetNewOperation(context.Background(), op)
+		added, err := pst.SetOperation(context.Background(), op)
 		t.NoError(err)
 		t.True(added)
 	}
@@ -312,7 +312,7 @@ func (t *testNewOperationPool) TestNewOperation() {
 		for i := range ops {
 			op := ops[i]
 
-			rop, found, err := pst.NewOperation(context.Background(), op.Hash())
+			rop, found, err := pst.Operation(context.Background(), op.Hash())
 			t.NoError(err)
 			t.True(found)
 			base.EqualOperation(t.Assert(), op, rop)
@@ -320,7 +320,7 @@ func (t *testNewOperationPool) TestNewOperation() {
 	})
 
 	t.Run("unknown", func() {
-		op, found, err := pst.NewOperation(context.Background(), valuehash.RandomSHA256())
+		op, found, err := pst.Operation(context.Background(), valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(op)
@@ -350,13 +350,13 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			anothers = append(anothers, op)
 		}
 
-		added, err := pst.SetNewOperation(context.Background(), op)
+		added, err := pst.SetOperation(context.Background(), op)
 		t.NoError(err)
 		t.True(added)
 	}
 
 	t.Run("limit 10", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 10, nil)
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 10, nil)
 		t.NoError(err)
 		t.Equal(10, len(rops))
 
@@ -369,7 +369,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("over 33", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, nil)
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 100, nil)
 		t.NoError(err)
 		t.Equal(len(ops), len(rops))
 
@@ -390,7 +390,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			return true, nil
 		}
 
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.NoError(err)
 		t.Equal(len(ops)-1, len(rops))
 
@@ -411,7 +411,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			return true, nil
 		}
 
-		_, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
+		_, err := pst.OperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.Error(err)
 		t.ErrorContains(err, "findme")
 	})
@@ -422,7 +422,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			return header.Hint().Type() == anotherDummyOperationFactHint.Type(), nil
 		}
 
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.NoError(err)
 		t.Equal(len(anothers), len(rops))
 
@@ -450,7 +450,7 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 			removes = append(removes, op.Hash())
 		}
 
-		added, err := pst.SetNewOperation(context.Background(), op)
+		added, err := pst.SetOperation(context.Background(), op)
 		t.NoError(err)
 		t.True(added)
 	}
@@ -458,7 +458,7 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 	t.NoError(pst.setRemoveNewOperations(context.Background(), base.Height(33), removes))
 
 	t.Run("all", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, nil)
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 100, nil)
 		t.NoError(err)
 		t.Equal(len(ops)-len(removes), len(rops))
 
@@ -484,7 +484,7 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 		for i := range removes {
 			h := removes[i]
 
-			op, found, err := pst.NewOperation(context.Background(), h)
+			op, found, err := pst.Operation(context.Background(), h)
 			t.NoError(err)
 			t.True(found)
 			t.NotNil(op)
@@ -504,7 +504,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 
 		ops[i] = op
 
-		added, err := pst.SetNewOperation(context.Background(), op)
+		added, err := pst.SetOperation(context.Background(), op)
 		t.NoError(err)
 		t.True(added)
 	}
@@ -534,7 +534,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 	})
 
 	t.Run("filter 3", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), startheight, uint64(len(ops)), filterf(filtered369))
+		rops, err := pst.OperationHashes(context.Background(), startheight, uint64(len(ops)), filterf(filtered369))
 		t.NoError(err)
 		t.Equal(len(ops)-len(filtered369), len(rops))
 
@@ -566,7 +566,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 		for i := range ops {
 			h := ops[i].Hash()
 
-			op, found, err := pst.NewOperation(context.Background(), h)
+			op, found, err := pst.Operation(context.Background(), h)
 			t.NoError(err)
 			t.True(found)
 			t.True(h.Equal(op.Hash()))
@@ -613,7 +613,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 	}
 
 	t.Run("clean filtered; deep=1; fetch once with higher height", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), startheight+1, uint64(len(ops)), filterf(filtered12))
+		rops, err := pst.OperationHashes(context.Background(), startheight+1, uint64(len(ops)), filterf(filtered12))
 		t.NoError(err)
 		t.Equal(len(ops)-len(filtered369)-len(filtered12), len(rops))
 
@@ -697,7 +697,7 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 
 		ops[i] = op
 
-		added, err := pst.SetNewOperation(context.Background(), op)
+		added, err := pst.SetOperation(context.Background(), op)
 		t.NoError(err)
 		t.True(added)
 	}
@@ -733,13 +733,13 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 	}
 
 	t.Run("filter3", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(3), uint64(len(ops)), filterf(filtered3))
+		rops, err := pst.OperationHashes(context.Background(), base.Height(3), uint64(len(ops)), filterf(filtered3))
 		t.NoError(err)
 		t.Equal(len(ops)-len(filtered3), len(rops))
 	})
 
 	t.Run("filter4", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(4), uint64(len(ops)), filterf(filtered4))
+		rops, err := pst.OperationHashes(context.Background(), base.Height(4), uint64(len(ops)), filterf(filtered4))
 		t.NoError(err)
 		t.Equal(len(ops)-len(filtered3)-len(filtered4), len(rops))
 	})
@@ -762,7 +762,7 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 	}
 
 	t.Run("filter5", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), base.Height(5), uint64(len(ops)), filterf(filtered5))
+		rops, err := pst.OperationHashes(context.Background(), base.Height(5), uint64(len(ops)), filterf(filtered5))
 		t.NoError(err)
 		t.Equal(len(ops)-len(filtered3)-len(filtered4)-len(filtered5), len(rops))
 
