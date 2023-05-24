@@ -390,6 +390,7 @@ func (p *LocalParams) SetBallotStuckResolveAfter(d time.Duration) *LocalParams {
 }
 
 type localParamsJSONMarshaler struct {
+	//revive:disable:line-length-limit
 	hint.BaseHinter
 	Threshold                             base.Threshold            `json:"threshold,omitempty"`
 	IntervalBroadcastBallot               util.ReadableJSONDuration `json:"interval_broadcast_ballot,omitempty"`
@@ -397,11 +398,12 @@ type localParamsJSONMarshaler struct {
 	TimeoutRequest                        util.ReadableJSONDuration `json:"timeout_request,omitempty"`
 	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`
-	ValidProposalSuffrageOperationsExpire util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire,omitempty"` //revive:disable-line:line-length-limit
+	ValidProposalSuffrageOperationsExpire util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire,omitempty"`
 	BallotStuckWait                       util.ReadableJSONDuration `json:"ballot_stuck_wait,omitempty"`
 	BallotStuckResolveAfter               util.ReadableJSONDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MaxMessageSize                        uint64                    `json:"max_message_size,omitempty"`
 	SameMemberLimit                       uint64                    `json:"same_member_limit,omitempty"`
+	//revive:enable:line-length-limit
 }
 
 func (p *LocalParams) MarshalJSON() ([]byte, error) {

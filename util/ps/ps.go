@@ -46,12 +46,12 @@ func (h *hooks) Verbose() []Name {
 	return h.l
 }
 
-func (h *hooks) run(ctx context.Context) (context.Context, error) {
+func (h *hooks) run(pctx context.Context) (ctx context.Context, err error) {
 	if len(h.l) < 1 {
-		return ctx, nil
+		return pctx, nil
 	}
 
-	var err error
+	ctx = pctx
 
 	for i := range h.l {
 		name := h.l[i]
@@ -60,7 +60,7 @@ func (h *hooks) run(ctx context.Context) (context.Context, error) {
 
 		l.Debug().Msg("start to run hook")
 
-		if ctx, err = h.names[name](ctx); err != nil { //revive:disable-line:modifies-parameter
+		if ctx, err = h.names[name](ctx); err != nil {
 			l.Error().Err(err).Msg("failed to run hook")
 
 			return ctx, err
@@ -242,22 +242,22 @@ func (p *P) Verbose(name Name) []Name {
 	return names
 }
 
-func (p *P) Run(ctx context.Context) (context.Context, error) {
+func (p *P) Run(pctx context.Context) (ctx context.Context, err error) {
 	p.Log().Debug().Msg("start to run")
 
-	var err error
+	ctx = pctx
 
-	if ctx, err = p.pre.run(ctx); err != nil { //revive:disable-line:modifies-parameter
+	if ctx, err = p.pre.run(ctx); err != nil {
 		return ctx, err
 	}
 
 	if p.run != nil {
-		if ctx, err = p.run(ctx); err != nil { //revive:disable-line:modifies-parameter
+		if ctx, err = p.run(ctx); err != nil {
 			return ctx, err
 		}
 	}
 
-	if ctx, err = p.post.run(ctx); err != nil { //revive:disable-line:modifies-parameter
+	if ctx, err = p.post.run(ctx); err != nil {
 		return ctx, err
 	}
 
@@ -266,17 +266,16 @@ func (p *P) Run(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func (p *P) Close(ctx context.Context) (context.Context, error) {
+func (p *P) Close(pctx context.Context) (ctx context.Context, err error) {
 	if p.closef == nil {
-		return ctx, nil
+		return pctx, nil
 	}
+
+	ctx = pctx
 
 	p.Log().Debug().Msg("start to close")
 
-	var err error
-
-	ctx, err = p.closef(ctx) //revive:disable-line:modifies-parameter
-	if err != nil {
+	if ctx, err = p.closef(ctx); err != nil {
 		p.Log().Error().Err(err).Msg("failed to close")
 
 		return ctx, err
@@ -481,9 +480,11 @@ func (ps *PS) P(name Name) (*P, bool) {
 	return i, found
 }
 
-func (ps *PS) Run(ctx context.Context) (context.Context, error) {
+func (ps *PS) Run(pctx context.Context) (ctx context.Context, err error) {
 	ps.Lock()
 	defer ps.Unlock()
+
+	ctx = pctx
 
 	ps.runs = nil
 
@@ -491,12 +492,10 @@ func (ps *PS) Run(ctx context.Context) (context.Context, error) {
 
 	names := ps.names()
 
-	var err error
-
 	for i := range names {
 		name := names[i]
 
-		switch ctx, err = ps.run(ctx, name, ps.m[name]); { //revive:disable-line:modifies-parameter
+		switch ctx, err = ps.run(ctx, name, ps.m[name]); {
 		case err == nil:
 		case errors.Is(err, ErrIgnoreLeft):
 			return ctx, nil
@@ -510,10 +509,10 @@ func (ps *PS) Run(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func (ps *PS) Close(ctx context.Context) (context.Context, error) {
+func (ps *PS) Close(pctx context.Context) (ctx context.Context, err error) {
 	ps.Log().Debug().Msg("start to close")
 
-	var err error
+	ctx = pctx
 
 	for i := range ps.runs {
 		name := ps.runs[len(ps.runs)-i-1]
@@ -521,7 +520,7 @@ func (ps *PS) Close(ctx context.Context) (context.Context, error) {
 		l := ps.Log().With().Interface("name", name).Logger()
 		l.Debug().Msg("start to close process")
 
-		if ctx, err = ps.m[name].Close(ctx); err != nil { //revive:disable-line:modifies-parameter
+		if ctx, err = ps.m[name].Close(ctx); err != nil {
 			l.Error().Err(err).Msg("failed to close process")
 
 			return ctx, err
@@ -563,20 +562,22 @@ func (ps *PS) Replace(name Name, run, close Func, requires ...Name) bool {
 }
 
 func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
+	nrequires := requires
+
 	if name != NameINIT {
 		switch {
 		case len(requires) < 1:
-			requires = []Name{NameINIT} //revive:disable-line:modifies-parameter
+			nrequires = []Name{NameINIT}
 		case util.InSliceFunc(requires, func(i Name) bool { return i == NameINIT }) < 1:
 			n := make([]Name, len(requires)+1)
 			n[0] = NameINIT
 			copy(n[1:], requires)
 
-			requires = n //revive:disable-line:modifies-parameter
+			nrequires = n
 		}
 	}
 
-	p := NewP(run, close, requires...)
+	p := NewP(run, close, nrequires...)
 	_ = p.SetLogging(ps.Logging)
 
 	_, found := ps.m[name]
@@ -631,10 +632,10 @@ func (ps *PS) names() []Name {
 	return names
 }
 
-func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error) {
+func (ps *PS) run(pctx context.Context, name Name, p *P) (ctx context.Context, err error) {
 	for i := range ps.runs {
 		if ps.runs[i] == name {
-			return ctx, nil
+			return pctx, nil
 		}
 	}
 
@@ -643,10 +644,10 @@ func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error)
 	}()
 
 	if p == nil {
-		return ctx, nil
+		return pctx, nil
 	}
 
-	var err error
+	ctx = pctx
 
 	for i := range p.requires {
 		rname := p.requires[i]
@@ -656,7 +657,7 @@ func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error)
 			return ctx, util.ErrNotFound.Errorf("required process not found, %q", rname)
 		}
 
-		if ctx, err = ps.run(ctx, rname, rp); err != nil { //revive:disable-line:modifies-parameter
+		if ctx, err = ps.run(ctx, rname, rp); err != nil {
 			return ctx, err
 		}
 	}
@@ -664,7 +665,7 @@ func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error)
 	l := ps.Log().With().Interface("name", name).Logger()
 	l.Debug().Interface("requires", p.Requires()).Msg("start to run")
 
-	if ctx, err = p.Run(ctx); err != nil { //revive:disable-line:modifies-parameter
+	if ctx, err = p.Run(ctx); err != nil {
 		if !errors.Is(err, ErrIgnoreLeft) {
 			l.Error().Err(err).Msg("failed to run")
 		}

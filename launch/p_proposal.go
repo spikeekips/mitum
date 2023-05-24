@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/storage"
@@ -128,7 +127,7 @@ func getProposalFunc(pctx context.Context) (
 ) {
 	var params *isaac.LocalParams
 	var pool *isaacdatabase.TempPool
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var m *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
@@ -301,7 +300,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	error,
 ) {
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -397,7 +396,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	error,
 ) {
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -476,7 +475,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
 	var m *quicmemberlist.Memberlist
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var proposerSelector isaac.ProposerSelector
 
 	if err := util.LoadFromContextOK(pctx,
@@ -545,7 +544,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var m *quicmemberlist.Memberlist
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalContextKey, &local,

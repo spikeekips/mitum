@@ -28,7 +28,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var local base.LocalNode
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -71,12 +71,10 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	)
 	_ = syncSourceChecker.SetLogging(log)
 
-	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		SyncSourceCheckerContextKey, syncSourceChecker)
-	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		SyncSourcePoolContextKey, syncSourcePool)
+	nctx := context.WithValue(pctx, SyncSourceCheckerContextKey, syncSourceChecker)
+	nctx = context.WithValue(nctx, SyncSourcePoolContextKey, syncSourcePool)
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PStartSyncSourceChecker(pctx context.Context) (context.Context, error) {

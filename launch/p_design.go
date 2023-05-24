@@ -84,10 +84,10 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 		design.Privatekey = priv
 	}
 
-	pctx = context.WithValue(pctx, DesignContextKey, design)             //revive:disable-line:modifies-parameter
-	pctx = context.WithValue(pctx, DesignStringContextKey, designString) //revive:disable-line:modifies-parameter
+	nctx := context.WithValue(pctx, DesignContextKey, design)
+	nctx = context.WithValue(nctx, DesignStringContextKey, designString)
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PGenesisDesign(pctx context.Context) (context.Context, error) {
@@ -114,10 +114,8 @@ func PGenesisDesign(pctx context.Context) (context.Context, error) {
 	default:
 		log.Log().Debug().Interface("design", d).Str("design_file", string(b)).Msg("genesis design loaded")
 
-		pctx = context.WithValue(pctx, GenesisDesignContextKey, d) //revive:disable-line:modifies-parameter
+		return context.WithValue(pctx, GenesisDesignContextKey, d), nil
 	}
-
-	return pctx, nil
 }
 
 func PCheckDesign(pctx context.Context) (context.Context, error) {
@@ -147,14 +145,12 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Object("design", design).Msg("design checked")
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, DesignContextKey, design)
-	pctx = context.WithValue(pctx, LocalParamsContextKey, design.LocalParams)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, DesignContextKey, design)
+	nctx = context.WithValue(nctx, LocalParamsContextKey, design.LocalParams)
 
-	if err := updateFromConsulAfterCheckDesign(pctx, flag); err != nil {
-		return pctx, e.Wrap(err)
+	if err := updateFromConsulAfterCheckDesign(nctx, flag); err != nil {
+		return nctx, e.Wrap(err)
 	}
 
-	return pctx, nil
+	return nctx, nil
 }

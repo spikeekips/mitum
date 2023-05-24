@@ -21,23 +21,21 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	pctx = context.WithValue(pctx, launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
+	nctx = context.WithValue(nctx, launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
+	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
 
 	pps := launch.DefaultINITPS()
 	_ = pps.SetLogging(log)
 
 	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err := pps.Run(nctx)
 	defer func() {
 		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-		if _, err = pps.Close(pctx); err != nil {
+		if _, err = pps.Close(nctx); err != nil {
 			log.Log().Error().Err(err).Msg("failed to close")
 		}
 	}()

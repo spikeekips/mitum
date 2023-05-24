@@ -27,8 +27,9 @@ func NewSuffrageVoting(
 	existsInState func(util.Hash) (bool, error),
 	votedCallback func(base.SuffrageExpelOperation) error,
 ) *SuffrageVoting {
-	if votedCallback == nil {
-		votedCallback = func(base.SuffrageExpelOperation) error { //revive:disable-line:modifies-parameter
+	nvotedCallback := votedCallback
+	if nvotedCallback == nil {
+		nvotedCallback = func(base.SuffrageExpelOperation) error {
 			return nil
 		}
 	}
@@ -37,7 +38,7 @@ func NewSuffrageVoting(
 		local:         local,
 		db:            db,
 		existsInState: existsInState,
-		votedCallback: votedCallback,
+		votedCallback: nvotedCallback,
 	}
 }
 

@@ -36,50 +36,48 @@ func DefaultMainPS() *ps.PS {
 	return ips
 }
 
-func PINIT(ctx context.Context) (context.Context, error) {
+func PINIT(pctx context.Context) (context.Context, error) {
 	e := util.StringError("init")
 
 	var version util.Version
 
-	switch err := util.LoadFromContextOK(ctx, VersionContextKey, &version); {
+	switch err := util.LoadFromContextOK(pctx, VersionContextKey, &version); {
 	case err != nil:
-		return ctx, e.Wrap(err)
+		return pctx, e.Wrap(err)
 	default:
 		if err := version.IsValid(nil); err != nil {
-			return ctx, e.Wrap(err)
+			return pctx, e.Wrap(err)
 		}
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PLogging(ctx context.Context) (context.Context, error) {
+func PLogging(pctx context.Context) (context.Context, error) {
 	e := util.StringError("logging")
 
 	var flags BaseFlags
-	if err := util.LoadFromContextOK(ctx, FlagsContextKey, &flags); err != nil {
-		return ctx, e.Wrap(err)
+	if err := util.LoadFromContextOK(pctx, FlagsContextKey, &flags); err != nil {
+		return pctx, e.Wrap(err)
 	}
 
 	log, err := SetupLoggingFromFlags(flags.LoggingFlags)
 	if err != nil {
-		return ctx, e.Wrap(err)
+		return pctx, e.Wrap(err)
 	}
 
-	ctx = context.WithValue(ctx, LoggingContextKey, log) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, LoggingContextKey, log), nil
 }
 
-func PLoggingWithCLI(ctx context.Context) (context.Context, error) {
+func PLoggingWithCLI(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, err
 	}
 
 	var kctx *kong.Context
-	if err := util.LoadFromContextOK(ctx, KongContextContextKey, &kctx); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, KongContextContextKey, &kctx); err != nil {
+		return pctx, err
 	}
 
 	log = logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -106,7 +104,5 @@ func PLoggingWithCLI(ctx context.Context) (context.Context, error) {
 		return lctx.Str("module", "main"+name)
 	}).SetLogging(log)
 
-	ctx = context.WithValue(ctx, LoggingContextKey, log) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, LoggingContextKey, log), nil
 }

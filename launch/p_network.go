@@ -88,10 +88,10 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 
 	_ = server.SetLogging(log)
 
-	pctx = context.WithValue(pctx, QuicstreamServerContextKey, server)     //revive:disable-line:modifies-parameter
-	pctx = context.WithValue(pctx, QuicstreamHandlersContextKey, handlers) //revive:disable-line:modifies-parameter
+	nctx := context.WithValue(pctx, QuicstreamServerContextKey, server)
+	nctx = context.WithValue(nctx, QuicstreamHandlersContextKey, handlers)
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PStartNetwork(pctx context.Context) (context.Context, error) {

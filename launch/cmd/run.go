@@ -58,12 +58,10 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		}
 	}
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
+	nctx = context.WithValue(nctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
+	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
 
 	pps := launch.DefaultRunPS()
 
@@ -76,11 +74,11 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err := pps.Run(nctx)
 	defer func() {
 		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-		if _, err = pps.Close(pctx); err != nil {
+		if _, err = pps.Close(nctx); err != nil {
 			log.Log().Error().Err(err).Msg("failed to close")
 		}
 	}()
@@ -94,7 +92,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		Interface("hold", cmd.Hold.Height()).
 		Msg("node started")
 
-	return cmd.run(pctx)
+	return cmd.run(nctx)
 }
 
 var errHoldStop = util.NewIDError("hold stop")
@@ -190,10 +188,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 		}
 	}
 
-	//revive:disable-next-line:modifies-parameter
-	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f)
-
-	return pctx, nil
+	return context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f), nil
 }
 
 func (*RunCommand) pWhenNewBlockConfirmed(pctx context.Context) (context.Context, error) {

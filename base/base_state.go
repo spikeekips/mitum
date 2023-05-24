@@ -217,8 +217,10 @@ type BaseStateValueMerger struct {
 func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
 	var value StateValue
 
+	nkey := key
+
 	if st != nil {
-		key = st.Key() // revive:disable-line:modifies-parameter
+		nkey = st.Key()
 		value = st.Value()
 	}
 
@@ -226,7 +228,7 @@ func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValu
 		State:  st,
 		height: height,
 		value:  value,
-		key:    key,
+		key:    nkey,
 	}
 }
 

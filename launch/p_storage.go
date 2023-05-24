@@ -206,20 +206,20 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 
 	// NOTE load from last voteproofs
 	lvps := isaac.NewLastVoteproofsHandler()
-	pctx = context.WithValue(pctx, LastVoteproofsHandlerContextKey, lvps) //revive:disable-line:modifies-parameter
+	nctx := context.WithValue(pctx, LastVoteproofsHandlerContextKey, lvps)
 
 	var manifest base.Manifest
 	var enc encoder.Encoder
 
 	switch m, found, err := center.LastBlockMap(); {
 	case err != nil:
-		return pctx, e.Wrap(err)
+		return nctx, e.Wrap(err)
 	case !found:
-		return pctx, nil
+		return nctx, nil
 	default:
 		enc = encs.Find(m.Encoder())
 		if enc == nil {
-			return pctx, e.Errorf("encoder of last blockmap not found")
+			return nctx, e.Errorf("encoder of last blockmap not found")
 		}
 
 		manifest = m.Manifest()
@@ -229,7 +229,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		LocalFSDataDirectory(design.Storage.Base), manifest.Height(), enc,
 	)
 	if err != nil {
-		return pctx, e.Wrap(err)
+		return nctx, e.Wrap(err)
 	}
 
 	defer func() {
@@ -238,9 +238,9 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 
 	switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 	case err != nil:
-		return pctx, e.Wrap(err)
+		return nctx, e.Wrap(err)
 	case !found:
-		return pctx, e.Errorf("last voteproofs not found in localfs")
+		return nctx, e.Errorf("last voteproofs not found in localfs")
 	default:
 		vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
 
@@ -248,7 +248,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
 	}
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PCleanStorage(pctx context.Context) (context.Context, error) {
@@ -396,14 +396,13 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	_ = db.SetLogging(log)
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, LeveldbStorageContextKey, st)
-	pctx = context.WithValue(pctx, CenterDatabaseContextKey, db)
-	pctx = context.WithValue(pctx, PermanentDatabaseContextKey, perm)
-	pctx = context.WithValue(pctx, PoolDatabaseContextKey, pool)
-	//revive:enable:modifies-parameter
 
-	return pctx, nil
+	nctx := context.WithValue(pctx, LeveldbStorageContextKey, st)
+	nctx = context.WithValue(nctx, CenterDatabaseContextKey, db)
+	nctx = context.WithValue(nctx, PermanentDatabaseContextKey, perm)
+	nctx = context.WithValue(nctx, PoolDatabaseContextKey, pool)
+
+	return nctx, nil
 }
 
 func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {

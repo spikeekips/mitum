@@ -34,12 +34,12 @@ func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
 
 	cmd.Log = log.Log()
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err := pps.Run(pctx)
 	if err != nil {
-		return pctx, err
+		return nctx, err
 	}
 
-	return pctx, util.LoadFromContextOK(pctx,
+	return nctx, util.LoadFromContextOK(nctx,
 		launch.EncodersContextKey, &cmd.Encoders,
 		launch.EncoderContextKey, &cmd.Encoder,
 	)

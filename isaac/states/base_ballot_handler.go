@@ -347,8 +347,9 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 }
 
 func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Duration) error {
-	if initialWait < 1 {
-		initialWait = time.Nanosecond //revive:disable-line:modifies-parameter
+	ninitialWait := initialWait
+	if ninitialWait < 1 {
+		ninitialWait = time.Nanosecond
 	}
 
 	return broadcastBallot(
@@ -359,7 +360,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		st.Logging,
 		func(i uint64) time.Duration {
 			if i < 1 {
-				return initialWait
+				return ninitialWait
 			}
 
 			return st.params.IntervalBroadcastBallot()

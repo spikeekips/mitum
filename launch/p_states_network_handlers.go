@@ -191,7 +191,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
 	var db isaac.Database
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 
 	if err := util.LoadFromContext(pctx,
 		EncodersContextKey, &encs,

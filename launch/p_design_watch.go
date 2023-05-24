@@ -139,8 +139,8 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 		return nil, err
 	}
 
-	//revive:disable:line-length-limit
 	updaters := map[string]func(string) error{
+		//revive:disable:line-length-limit
 		"parameters/threshold":                                 updateLocalParamThreshold(params, log),
 		"parameters/interval_broadcast_ballot":                 updateLocalParamIntervalBroadcastBallot(params, log),
 		"parameters/wait_preparing_init_ballot":                updateLocalParamWaitPreparingINITBallot(params, log),
@@ -152,8 +152,8 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 		"parameters/same_member_limit":                         updateLocalParamSameMemberLimit(params, log),
 		"discoveries":                                          updateDiscoveries(discoveries, log),
 		"sync_sources":                                         updateSyncSources(enc, design, syncSourceChecker, log),
+		//revive:enable:line-length-limit
 	}
-	//revive:enable:line-length-limit
 
 	return updaters, nil
 }

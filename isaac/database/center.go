@@ -856,7 +856,7 @@ func loadTemp(
 	return found, nil
 }
 
-func loadTemps( // revive:disable-line:flag-parameter
+func loadTemps(
 	st *leveldbstorage.Storage,
 	minHeight base.Height,
 	encs *encoder.Encoders,

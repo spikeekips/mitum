@@ -26,9 +26,9 @@ type StorageStatusCommand struct { //nolint:govet //...
 	launch.DevFlags `embed:"" prefix:"dev."`
 }
 
-func (cmd *StorageStatusCommand) Run(pctx context.Context) error {
+func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err = util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
@@ -59,19 +59,17 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) error {
 		PreAddOK(launch.PNameCheckLocalFS, cmd.pCheckLocalFS).
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
+	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err = pps.Run(nctx)
 	defer func() {
 		cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-		if _, err = pps.Close(pctx); err != nil {
+		if _, err = pps.Close(nctx); err != nil {
 			cmd.log.Error().Err(err).Msg("failed to close")
 		}
 	}()
@@ -80,19 +78,17 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *StorageStatusCommand) pCheckLocalFS(pctx context.Context) (context.Context, error) {
-	pctx, err := launch.PCheckLocalFS(pctx) //revive:disable-line:modifies-parameter
-
-	switch {
+	switch nctx, err := launch.PCheckLocalFS(pctx); {
 	case err == nil:
 		cmd.log.Info().Msg("localfs checked")
 
-		return pctx, nil
+		return nctx, nil
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, util.ErrNotFound):
 		cmd.log.Error().Err(err).Msg("failed to load node info")
 
-		return pctx, nil
+		return nctx, nil
 	default:
-		return pctx, err
+		return nctx, err
 	}
 }
 

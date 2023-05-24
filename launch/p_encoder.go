@@ -26,10 +26,10 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	pctx = context.WithValue(pctx, EncodersContextKey, encs) //revive:disable-line:modifies-parameter
-	pctx = context.WithValue(pctx, EncoderContextKey, enc)   //revive:disable-line:modifies-parameter
+	nctx := context.WithValue(pctx, EncodersContextKey, encs)
+	nctx = context.WithValue(nctx, EncoderContextKey, enc)
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PAddHinters(pctx context.Context) (context.Context, error) {

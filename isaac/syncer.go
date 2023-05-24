@@ -455,11 +455,13 @@ func DistributeWorkerWithSyncSourcePool(
 		return nil
 	}
 
-	if n := uint64(len(ncis)); n < semsize {
-		semsize = n //revive:disable-line:modifies-parameter
+	nsemsize := semsize
+
+	if n := uint64(len(ncis)); n < nsemsize {
+		nsemsize = n
 	}
 
-	return util.RunDistributeWorker(ctx, semsize, errch, func(ctx context.Context, i, jobid uint64) error {
+	return util.RunDistributeWorker(ctx, nsemsize, errch, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 
@@ -496,11 +498,13 @@ func ErrGroupWorkerWithSyncSourcePool(
 		return nil
 	}
 
-	if n := uint64(len(ncis)); n < semsize {
-		semsize = n //revive:disable-line:modifies-parameter
+	nsemsize := semsize
+
+	if n := uint64(len(ncis)); n < nsemsize {
+		nsemsize = n
 	}
 
-	return util.RunErrgroupWorker(ctx, semsize, func(ctx context.Context, i, jobid uint64) error {
+	return util.RunErrgroupWorker(ctx, nsemsize, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 

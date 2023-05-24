@@ -363,8 +363,7 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 	vps []base.Voteproof,
 	rerr error,
 ) {
-	//revive:disable:bare-return
-	if err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
+	err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
 		switch {
 		case err != nil:
 			rerr = err
@@ -380,28 +379,26 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 
 		switch item.Type() {
 		case base.BlockMapItemTypeProposal:
-			pr = i.(base.ProposalSignFact) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &pr)
 		case base.BlockMapItemTypeOperations:
-			ops = i.([]base.Operation) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &ops)
 		case base.BlockMapItemTypeOperationsTree:
-			opstree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &opstree)
 		case base.BlockMapItemTypeStates:
-			sts = i.([]base.State) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &sts)
 		case base.BlockMapItemTypeStatesTree:
-			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &ststree)
 		case base.BlockMapItemTypeVoteproofs:
-			vps = i.([]base.Voteproof) //nolint:forcetypeassert //...
+			rerr = util.InterfaceSetValue(i, &vps)
 		}
 
 		return rerr == nil
-	}); err != nil {
+	})
+	if err != nil {
 		rerr = err
-
-		return
 	}
 
-	return //nolint:nakedret //...
-	//revive:enable:bare-return
+	return pr, ops, sts, opstree, ststree, vps, rerr
 }
 
 func ValidateOperationsOfBlock( //nolint:dupl //...

@@ -48,13 +48,13 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 	))
 	_ = nodeinfo.SetLocalParams(params)
 
-	pctx = context.WithValue(pctx, NodeInfoContextKey, nodeinfo) //revive:disable-line:modifies-parameter
+	nctx := context.WithValue(pctx, NodeInfoContextKey, nodeinfo)
 
 	if err := UpdateNodeInfoWithNewBlock(db, nodeinfo); err != nil {
 		log.Log().Error().Err(err).Msg("failed to update nodeinfo")
 	}
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func UpdateNodeInfoWithNewBlock(

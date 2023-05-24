@@ -16,7 +16,7 @@ import (
 )
 
 var Hinters = []encoder.DecodeDetail{
-	// revive:disable-next-line:line-length-limit
+	// revive:disable:line-length-limit
 	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
 	{Hint: base.BaseOperationProcessReasonErrorHint, Instance: base.BaseOperationProcessReasonError{}},
 	{Hint: base.BaseStateHint, Instance: base.BaseState{}},
@@ -120,6 +120,7 @@ var Hinters = []encoder.DecodeDetail{
 	},
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
 	{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}},
+	// revive:enable:line-length-limit
 }
 
 var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{

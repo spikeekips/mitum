@@ -105,9 +105,7 @@ func (p *SuffrageExpelProcessor) PreProcess(ctx context.Context, op base.Operati
 	_ = util.LoadFromContext(ctx, ExpelPreProcessedContextKey, &preprocessed)
 	preprocessed = append(preprocessed, n)
 
-	ctx = context.WithValue(ctx, ExpelPreProcessedContextKey, preprocessed) //revive:disable-line:modifies-parameter
-
-	return ctx, nil, nil
+	return context.WithValue(ctx, ExpelPreProcessedContextKey, preprocessed), nil, nil
 }
 
 func (p *SuffrageExpelProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (

@@ -31,8 +31,9 @@ func NewLastConsensusNodesWatcher(
 	whenUpdatedf func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State),
 	checkInterval time.Duration,
 ) (*LastConsensusNodesWatcher, error) {
-	if whenUpdatedf == nil {
-		whenUpdatedf = func( // revive:disable-line:modifies-parameter
+	nwhenUpdatedf := whenUpdatedf
+	if nwhenUpdatedf == nil {
+		nwhenUpdatedf = func(
 			context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
 		}
 	}
@@ -46,7 +47,7 @@ func NewLastConsensusNodesWatcher(
 		checkRemoteInterval: checkInterval,
 		lastheight:          util.NewLocked(base.NilHeight),
 		last:                util.EmptyLocked[[]base.SuffrageProof](),
-		whenUpdatedf:        whenUpdatedf,
+		whenUpdatedf:        nwhenUpdatedf,
 	}
 
 	switch height, proof, st, found, err := u.getFromLocal(); {
@@ -278,25 +279,27 @@ func (*LastConsensusNodesWatcher) compareProofs(a, b []base.SuffrageProof) []bas
 		return nil
 	}
 
+	nb := b
+
 	if len(a) > 0 {
 		top := a[len(a)-1].Map().Manifest().Height()
 
-		b = util.FilterSlice(b, func(i base.SuffrageProof) bool { //revive:disable-line:modifies-parameter
+		nb = util.FilterSlice(nb, func(i base.SuffrageProof) bool {
 			return i.Map().Manifest().Height() > top
 		})
 	}
 
-	if len(b) < 1 {
+	if len(nb) < 1 {
 		return nil
 	}
 
 	var newl3 []base.SuffrageProof
 
 	switch {
-	case len(b) >= 3: //nolint:gomnd //...
-		newl3 = b[len(b)-3:]
-	case len(b) < 3: //nolint:gomnd //...
-		newl3 = b
+	case len(nb) >= 3: //nolint:gomnd //...
+		newl3 = nb[len(nb)-3:]
+	case len(nb) < 3: //nolint:gomnd //...
+		newl3 = nb
 
 		for i := len(a) - 1; i >= 0; i-- {
 			j := a[i]

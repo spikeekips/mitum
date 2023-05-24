@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -130,8 +129,7 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 
 	_ = watcher.SetLogging(log)
 
-	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		LastConsensusNodesWatcherContextKey, watcher)
+	nctx := context.WithValue(pctx, LastConsensusNodesWatcherContextKey, watcher)
 
 	sp := NewSuffragePool(
 		func(height base.Height) (base.Suffrage, bool, error) {
@@ -170,7 +168,7 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 		},
 	)
 
-	return context.WithValue(pctx, SuffragePoolContextKey, sp), nil
+	return context.WithValue(nctx, SuffragePoolContextKey, sp), nil
 }
 
 func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
@@ -378,43 +376,43 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		return err
 	})
 
-	pctx = context.WithValue(pctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
-		isaac.SuffrageVoteFunc(func(op base.SuffrageExpelOperation) (bool, error) {
-			var height base.Height
+	f := func(op base.SuffrageExpelOperation) (bool, error) {
+		var height base.Height
 
-			switch m, found, err := db.LastBlockMap(); {
-			case err != nil:
-				return false, err
-			case !found:
-				return false, nil
-			default:
-				height = m.Manifest().Height()
-			}
+		switch m, found, err := db.LastBlockMap(); {
+		case err != nil:
+			return false, err
+		case !found:
+			return false, nil
+		default:
+			height = m.Manifest().Height()
+		}
 
-			var suf base.Suffrage
+		var suf base.Suffrage
 
-			switch i, found, err := sp.Height(height); {
-			case err != nil:
-				return false, err
-			case !found:
-				return false, nil
-			default:
-				suf = i
-			}
+		switch i, found, err := sp.Height(height); {
+		case err != nil:
+			return false, err
+		case !found:
+			return false, nil
+		default:
+			suf = i
+		}
 
-			policy := db.LastNetworkPolicy()
+		policy := db.LastNetworkPolicy()
 
-			if err := isaac.IsValidExpelWithSuffrageLifespan(
-				height, op, suf, policy.SuffrageExpelLifespan(),
-			); err != nil {
-				return false, err
-			}
+		if err := isaac.IsValidExpelWithSuffrageLifespan(
+			height, op, suf, policy.SuffrageExpelLifespan(),
+		); err != nil {
+			return false, err
+		}
 
-			return sv.Vote(op)
-		}),
-	)
+		return sv.Vote(op)
+	}
 
-	return context.WithValue(pctx, SuffrageVotingContextKey, sv), nil
+	nctx := context.WithValue(pctx, SuffrageVotingVoteFuncContextKey, isaac.SuffrageVoteFunc(f))
+
+	return context.WithValue(nctx, SuffrageVotingContextKey, sv), nil
 }
 
 func FixedSuffrageCandidateLimiterFunc() func(
@@ -464,7 +462,7 @@ func MajoritySuffrageCandidateLimiterFunc(
 
 func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -559,7 +557,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -637,7 +635,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 
 func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
 	var params *isaac.LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,

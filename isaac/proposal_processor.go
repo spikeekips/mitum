@@ -400,6 +400,8 @@ func (p *DefaultProposalProcessor) processOperation(
 		}
 	}
 
+	var nctx context.Context
+
 	switch pctx, reasonerr, passed, err := p.doPreProcessOperation(ctx, newOperationProcessor, op); {
 	case err != nil:
 		return pctx, 0, 0, errors.WithMessage(err, "pre process operation")
@@ -416,17 +418,17 @@ func (p *DefaultProposalProcessor) processOperation(
 	case !passed:
 		return pctx, opsindex, validindex, nil
 	default:
-		ctx = pctx //revive:disable-line:modifies-parameter
+		nctx = pctx
 	}
 
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 		return p.doProcessOperation(
 			ctx, writer, getStatef, newOperationProcessor, uint64(opsindex), uint64(validindex), op)
 	}); err != nil {
-		return ctx, opsindex + 1, validindex + 1, err
+		return nctx, opsindex + 1, validindex + 1, err
 	}
 
-	return ctx, opsindex + 1, validindex + 1, nil
+	return nctx, opsindex + 1, validindex + 1, nil
 }
 
 func (p *DefaultProposalProcessor) doPreProcessOperation(

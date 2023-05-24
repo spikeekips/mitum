@@ -211,12 +211,10 @@ func PStates(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, StatesContextKey, states)
-	pctx = context.WithValue(pctx, ProposalSelectorContextKey, proposalSelector)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, StatesContextKey, states)
+	nctx = context.WithValue(nctx, ProposalSelectorContextKey, proposalSelector)
 
-	return patchStatesArgsForHandover(pctx, args)
+	return patchStatesArgsForHandover(nctx, args)
 }
 
 func PCloseStates(pctx context.Context) (context.Context, error) {

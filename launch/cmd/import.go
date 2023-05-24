@@ -75,11 +75,9 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	cmd.log = log.Log()
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
+	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
 
 	pps := launch.DefaultImportPS()
 	_ = pps.SetLogging(log)
@@ -88,11 +86,11 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err := pps.Run(nctx)
 	defer func() {
 		cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-		if _, err = pps.Close(pctx); err != nil {
+		if _, err = pps.Close(nctx); err != nil {
 			cmd.log.Error().Err(err).Msg("failed to close")
 		}
 	}()
@@ -310,26 +308,28 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 			"to height should be higher than last; to=%d last=%d", toHeight, lastlocalheight)
 	}
 
+	nfromHeight := fromHeight
+
 	switch {
-	case fromHeight < base.GenesisHeight:
-		fromHeight = base.GenesisHeight //revive:disable-line:modifies-parameter
-	case fromHeight > base.NilHeight:
-		switch _, found, err := db.BlockMap(fromHeight - 1); {
+	case nfromHeight < base.GenesisHeight:
+		nfromHeight = base.GenesisHeight
+	case nfromHeight > base.NilHeight:
+		switch _, found, err := db.BlockMap(nfromHeight - 1); {
 		case err != nil:
-			return fromHeight, toHeight, last, err
+			return nfromHeight, toHeight, last, err
 		case !found:
-			return fromHeight, toHeight, last, errors.Errorf(
-				"previous blockmap not found for from height, %d", fromHeight-1)
+			return nfromHeight, toHeight, last, errors.Errorf(
+				"previous blockmap not found for from height, %d", nfromHeight-1)
 		}
 	}
 
 	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(source, enc, params.NetworkID()); {
 	case err != nil:
-		return fromHeight, toHeight, last, err
+		return nfromHeight, toHeight, last, err
 	case !found, i < base.GenesisHeight:
-		return fromHeight, toHeight, last, errors.Errorf("last height not found in source")
+		return nfromHeight, toHeight, last, errors.Errorf("last height not found in source")
 	case i < toHeight:
-		return fromHeight, toHeight, last, errors.Errorf("last is lower than to height; last=%d to=%d", i, toHeight)
+		return nfromHeight, toHeight, last, errors.Errorf("last is lower than to height; last=%d to=%d", i, toHeight)
 	case toHeight > base.NilHeight:
 		last = toHeight
 	default:
@@ -337,12 +337,12 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 	}
 
 	switch {
-	case fromHeight > last:
-		return fromHeight, toHeight, last, errors.Errorf(
-			"from height is higher than to; from=%d to=%d", fromHeight, last)
-	case fromHeight < base.GenesisHeight:
-		fromHeight = base.GenesisHeight //revive:disable-line:modifies-parameter
+	case nfromHeight > last:
+		return nfromHeight, toHeight, last, errors.Errorf(
+			"from height is higher than to; from=%d to=%d", nfromHeight, last)
+	case nfromHeight < base.GenesisHeight:
+		nfromHeight = base.GenesisHeight
 	}
 
-	return fromHeight, toHeight, last, nil
+	return nfromHeight, toHeight, last, nil
 }

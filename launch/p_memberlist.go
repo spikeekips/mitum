@@ -95,15 +95,13 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		}
 	})
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, MemberlistContextKey, m)
-	pctx = context.WithValue(pctx, EventWhenMemberLeftContextKey, pps)
-	pctx = context.WithValue(pctx, FilterMemberlistNotifyMsgFuncContextKey,
+	nctx := context.WithValue(pctx, MemberlistContextKey, m)
+	nctx = context.WithValue(nctx, EventWhenMemberLeftContextKey, pps)
+	nctx = context.WithValue(nctx, FilterMemberlistNotifyMsgFuncContextKey,
 		quicmemberlist.FilterNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)
-	//revive:enable:modifies-parameter
 
-	return pctx, nil
+	return nctx, nil
 }
 
 func PStartMemberlist(pctx context.Context) (context.Context, error) {
@@ -153,18 +151,14 @@ func PLongRunningMemberlistJoin(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx, LongRunningMemberlistJoinContextKey, l), nil
 }
 
-func PPatchMemberlist(pctx context.Context) (context.Context, error) {
-	var err error
+func PPatchMemberlist(pctx context.Context) (ctx context.Context, err error) {
+	ctx = pctx
 
-	if pctx, err = patchMemberlistNotifyMsg(pctx); err != nil { //revive:disable-line:modifies-parameter
-		return pctx, err
+	if ctx, err = patchMemberlistNotifyMsg(ctx); err != nil {
+		return ctx, err
 	}
 
-	if pctx, err = patchMemberlistWhenMemberLeft(pctx); err != nil { //revive:disable-line:modifies-parameter
-		return pctx, err
-	}
-
-	return pctx, nil
+	return patchMemberlistWhenMemberLeft(ctx)
 }
 
 func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {

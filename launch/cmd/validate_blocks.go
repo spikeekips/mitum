@@ -66,11 +66,9 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 
 	cmd.log = log.Log()
 
-	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
-	//revive:enable:modifies-parameter
+	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
+	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
 
 	pps := ps.NewPS("cmd-validate-blocks")
 	_ = pps.SetLogging(log)
@@ -98,11 +96,11 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	nctx, err := pps.Run(nctx)
 	defer func() {
 		cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-		if _, err = pps.Close(pctx); err != nil {
+		if _, err = pps.Close(nctx); err != nil {
 			cmd.log.Error().Err(err).Msg("failed to close")
 		}
 	}()
