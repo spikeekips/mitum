@@ -147,8 +147,9 @@ func (t *testStates) TestSwitchHandover() {
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
-		canMoveConsensus, err := broker.Ask()
+		canMoveConsensus, isAsked, err := broker.Ask()
 		t.NoError(err)
+		t.True(isAsked)
 		t.False(canMoveConsensus)
 		t.True(broker.IsAsked())
 
@@ -396,16 +397,31 @@ func (t *testStates) TestYBrokerAskCanMoveConsensus() {
 		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return util.UUID().String(), true, nil
 		}
+		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error {
+			return nil
+		}
 
-		return NewHandoverYBroker(ctx, args, connInfo), nil
+		broker := NewHandoverYBroker(ctx, args, connInfo)
+
+		ticker := time.NewTicker(time.Millisecond * 33)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if synced, _ := broker.isDataSynced.Value(); synced {
+				break
+			}
+		}
+
+		return broker, nil
 	}
 
 	t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
 
 	broker := st.HandoverYBroker()
 
-	canMoveConsensus, err := broker.Ask()
+	canMoveConsensus, isAsked, err := broker.Ask()
 	t.NoError(err)
+	t.True(isAsked)
 	t.True(canMoveConsensus)
 	t.True(broker.IsAsked())
 

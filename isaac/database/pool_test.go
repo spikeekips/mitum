@@ -435,6 +435,119 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 }
 
+func (t *testNewOperationPool) TestTraverseOperationsBytes() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	ops := make([]base.Operation, 33)
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+
+		added, err := pst.SetOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(added)
+	}
+
+	var lastoffset []byte
+
+	t.Run("traverse all", func() {
+		var i int
+
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+			op := ops[i]
+
+			t.True(op.Hash().Equal(meta.Operation()))
+			t.True(op.Fact().Hash().Equal(meta.Fact()))
+
+			var rop base.Operation
+			t.NoError(encoder.Decode(t.Enc, body, &rop))
+
+			base.EqualOperation(t.Assert(), op, rop)
+
+			lastoffset = offset
+
+			i++
+
+			return true, nil
+		}))
+
+		t.Equal(len(ops), i)
+	})
+
+	t.Run("offset", func() {
+		var i int
+		var half []byte
+
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(_ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
+			defer func() {
+				i++
+			}()
+
+			if i >= len(ops)/2 {
+				half = offset
+
+				return false, nil
+			}
+
+			return true, nil
+		}))
+
+		t.T().Log("with offset")
+
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), half, func(meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+			op := ops[i]
+
+			t.True(op.Hash().Equal(meta.Operation()))
+			t.True(op.Fact().Hash().Equal(meta.Fact()))
+
+			var rop base.Operation
+			t.NoError(encoder.Decode(t.Enc, body, &rop))
+
+			base.EqualOperation(t.Assert(), op, rop)
+
+			i++
+
+			return true, nil
+		}))
+
+		t.Equal(len(ops), i)
+	})
+
+	t.Run("invalid offset", func() {
+		var i int
+
+		invalid := leveldbutil.BytesPrefix(lastoffset).Limit
+
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), invalid, func(_ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
+			i++
+
+			return true, nil
+		}))
+
+		t.Equal(0, i)
+	})
+
+	t.Run("callback error", func() {
+		var i int
+
+		err := pst.TraverseOperationsBytes(context.Background(), nil, func(meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+			if i >= len(ops)/2 {
+				return false, errors.Errorf("hihihi")
+			}
+
+			i++
+
+			return true, nil
+		})
+		t.Error(err)
+		t.ErrorContains(err, "hihihi")
+		t.Equal(i, len(ops)/2)
+	})
+}
+
 func (t *testNewOperationPool) TestRemoveNewOperations() {
 	pst := t.NewPool()
 	defer pst.Close()

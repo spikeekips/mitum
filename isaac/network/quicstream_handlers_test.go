@@ -45,6 +45,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalRequestHeaderHint, Instance: ProposalRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalRequestHeaderHint, Instance: RequestProposalRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SendOperationRequestHeaderHint, Instance: SendOperationRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: StreamOperationsHeaderHint, Instance: StreamOperationsHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageProofRequestHeaderHint, Instance: SuffrageProofRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
@@ -185,7 +186,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	t.True(inserted)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	handler := QuicstreamHandlerOperation(pool)
+	handler := QuicstreamHandlerOperation(pool, nil)
 
 	t.Run("found", func() {
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixOperation, handler)
@@ -196,7 +197,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 		uop, found, err := c.Operation(context.Background(), ci, op.Hash())
 		t.NoError(err)
 		t.True(found)
-		t.NotNil(op)
+		t.NotNil(uop)
 
 		base.EqualOperation(t.Assert(), op, uop)
 	})
@@ -207,10 +208,59 @@ func (t *testQuicstreamHandlers) TestOperation() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		op, found, err := c.Operation(context.Background(), ci, valuehash.RandomSHA256())
+		uop, found, err := c.Operation(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
-		t.Nil(op)
+		t.Nil(uop)
+	})
+
+	t.Run("from handover x", func() {
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		handler := QuicstreamHandlerOperation(npool,
+			func(_ context.Context, header OperationRequestHeader) (hint.Hint, []byte, bool, error) {
+				b, err := t.Enc.Marshal(op)
+				if err != nil {
+					return hint.Hint{}, nil, false, err
+				}
+
+				return t.Enc.Hint(), b, true, nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixOperation, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		uop, found, err := c.Operation(context.Background(), ci, op.Hash())
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(uop)
+
+		base.EqualOperation(t.Assert(), op, uop)
+	})
+
+	t.Run("from handover x; not found", func() {
+		npool := t.NewPool()
+		defer npool.DeepClose()
+
+		handler := QuicstreamHandlerOperation(npool,
+			func(_ context.Context, header OperationRequestHeader) (hint.Hint, []byte, bool, error) {
+				return hint.Hint{}, nil, false, nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixOperation, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		uop, found, err := c.Operation(context.Background(), ci, op.Hash())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(uop)
 	})
 }
 
@@ -261,7 +311,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return true, nil },
 			nil,
-			func(_ string, b []byte) error {
+			func(_ context.Context, _ string, _ base.Operation, b []byte) error {
 				ch <- b
 
 				return nil
@@ -305,6 +355,205 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		t.Error(err)
 		t.False(updated)
 		t.ErrorContains(err, "filtered")
+	})
+}
+
+func (t *testQuicstreamHandlers) TestStreamOperations() {
+	pool := t.NewPool()
+	defer pool.DeepClose()
+
+	ops := make([]base.Operation, 33)
+	opbs := make([][]byte, 33)
+
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
+		t.NoError(err)
+
+		inserted, err := pool.SetOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(inserted)
+
+		ops[i] = op
+
+		b, err := t.Enc.Marshal(op)
+		t.NoError(err)
+		opbs[i] = b
+	}
+
+	ci := quicstream.NewUDPConnInfo(nil, true)
+
+	opch := make(chan []byte, len(ops))
+
+	newoffset := func(b []byte) []byte {
+		return valuehash.NewSHA256(b).Bytes()
+	}
+
+	handler := QuicstreamHandlerStreamOperations(t.Local.Publickey(), t.LocalParams.NetworkID(),
+		func(offset []byte) (
+			func(context.Context) (hint.Hint, []byte, []byte, error),
+			func(),
+		) {
+			var found bool
+			if offset == nil {
+				found = true
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			return func(context.Context) (hint.Hint, []byte, []byte, error) {
+				var b []byte
+
+			end:
+				for {
+					if ctx.Err() != nil {
+						return hint.Hint{}, nil, nil, ctx.Err()
+					}
+
+					b = <-opch
+					switch {
+					case b == nil:
+						return hint.Hint{}, nil, nil, ErrNoMoreNext.WithStack()
+					case found:
+						return t.Enc.Hint(), b, b[:8], nil
+					case bytes.Equal(offset, newoffset(b)):
+						found = true
+
+						continue end
+					default:
+						continue end
+					}
+				}
+			}, cancel
+		},
+	)
+
+	t.Run("nil offset", func() {
+		go func() {
+			for i := range opbs {
+				opch <- opbs[i]
+			}
+
+			opch <- nil
+		}()
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		rops := make([]base.Operation, 33)
+
+		var i int
+		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
+			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
+			func(enchint hint.Hint, body, offset []byte) error {
+				t.NoError(enchint.IsValid(nil))
+				t.NotEmpty(body)
+				t.NotEmpty(offset)
+
+				enc := t.Encs.Find(enchint)
+				t.NotNil(enc)
+
+				var op base.Operation
+				t.NoError(encoder.Decode(enc, body, &op))
+
+				base.EqualOperation(t.Assert(), ops[i], op)
+
+				rops[i] = op
+				i++
+
+				return nil
+			},
+		))
+
+		t.Equal(len(ops), i)
+	})
+
+	t.Run("with offset", func() {
+		go func() {
+			for i := range opbs {
+				opch <- opbs[i]
+			}
+
+			opch <- nil
+		}()
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		offset := newoffset(opbs[len(ops)/2])
+		var ropbs [][]byte
+
+		start := (len(ops) / 2) + 1
+
+		var i int
+
+		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
+			t.Local.Privatekey(), t.LocalParams.NetworkID(), offset,
+			func(enchint hint.Hint, body, offset []byte) error {
+				t.NoError(enchint.IsValid(nil))
+				t.NotEmpty(body)
+				t.NotEmpty(offset)
+
+				t.Equal(opbs[start+i], body)
+
+				enc := t.Encs.Find(enchint)
+				t.NotNil(enc)
+
+				var op base.Operation
+				t.NoError(encoder.Decode(enc, body, &op))
+
+				base.EqualOperation(t.Assert(), ops[start+i], op)
+
+				ropbs = append(ropbs, body)
+
+				i++
+
+				return nil
+			},
+		))
+
+		t.Equal(33-start, len(ropbs))
+	})
+
+	t.Run("callback error", func() {
+		donech := make(chan struct{})
+		go func() {
+			for i := range opbs {
+				opch <- opbs[i]
+			}
+
+			opch <- nil
+
+			donech <- struct{}{}
+		}()
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		var i int
+
+		err := c.StreamOperationsBytes(context.Background(), ci,
+			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
+			func(enchint hint.Hint, body, offset []byte) error {
+				if i > 3 {
+					return errors.Errorf("hohoho")
+				}
+
+				i++
+
+				return nil
+			},
+		)
+		t.Error(err)
+		t.ErrorContains(err, "hohoho")
+
+		<-donech
 	})
 }
 

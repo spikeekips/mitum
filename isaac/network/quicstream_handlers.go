@@ -18,15 +18,23 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+var ErrNoMoreNext = util.NewIDError("no more next")
+
 func QuicstreamHandlerOperation(
 	oppool isaac.NewOperationPool,
+	getFromHandoverX func(context.Context, OperationRequestHeader) (
+		enchint hint.Hint, body []byte, found bool, _ error,
+	),
 ) quicstreamheader.Handler[OperationRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header OperationRequestHeader) string {
 			return HandlerPrefixOperationString + header.Operation().String()
 		},
-		func(_ context.Context, header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(ctx context.Context, header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
 			enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation())
+			if getFromHandoverX != nil && (err == nil || !found) {
+				enchint, body, found, err = getFromHandoverX(ctx, header)
+			}
 
 			return enchint, body, found, err
 		},
@@ -39,7 +47,7 @@ func QuicstreamHandlerSendOperation(
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
 	svvote isaac.SuffrageVoteFunc,
-	broadcast func(string, []byte) error,
+	broadcast func(context.Context, string, base.Operation, []byte) error,
 ) quicstreamheader.Handler[SendOperationRequestHeader] {
 	filterNewOperation := quicstreamHandlerFilterOperation(
 		existsInStateOperationf,
@@ -97,7 +105,7 @@ func QuicstreamHandlerSendOperation(
 			return e.Wrap(err)
 		case i && broadcast != nil:
 			go func() {
-				_ = broadcast(op.Hash().String(), body)
+				_ = broadcast(ctx, op.Hash().String(), op, body)
 			}()
 
 			added = i
@@ -531,6 +539,72 @@ func QuicstreamHandlerSetAllowConsensus(
 		}
 
 		return broker.WriteResponseHeadOK(ctx, ok, err)
+	}
+}
+
+func QuicstreamHandlerStreamOperations(
+	pub base.Publickey,
+	networkID base.NetworkID,
+	iter func(offset []byte) (
+		func(context.Context) (enchint hint.Hint, body, offset []byte, _ error),
+		func(),
+	),
+) quicstreamheader.Handler[StreamOperationsHeader] {
+	return func(ctx context.Context, addr net.Addr,
+		broker *quicstreamheader.HandlerBroker, header StreamOperationsHeader,
+	) error {
+		if err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			pub, networkID,
+		); err != nil {
+			return err
+		}
+
+		writeBody := func(enchint hint.Hint, body, offset []byte) error {
+			buf := bytes.NewBuffer(nil)
+			defer buf.Reset()
+
+			if err := util.WriteLengthed(buf, enchint.Bytes()); err != nil {
+				return err
+			}
+
+			if err := util.WriteLengthed(buf, body); err != nil {
+				return err
+			}
+
+			if err := util.WriteLengthed(buf, offset); err != nil {
+				return err
+			}
+
+			return broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf)
+		}
+
+		var gerr error
+
+		next, cancel := iter(header.Offset())
+		defer cancel()
+
+	end:
+		for {
+			switch enchint, body, offset, err := next(ctx); {
+			case errors.Is(err, ErrNoMoreNext):
+				break end
+			case err != nil:
+				gerr = err
+
+				break end
+			case body == nil || offset == nil:
+				gerr = errors.Errorf("empty body")
+			default:
+				if err := writeBody(enchint, body, offset); err != nil {
+					gerr = err
+
+					break end
+				}
+			}
+		}
+
+		return broker.WriteResponseHeadOK(ctx, false, gerr)
 	}
 }
 

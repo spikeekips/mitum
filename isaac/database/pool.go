@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -151,7 +152,6 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 }
 
 func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
-	// FIXME rename to Operation
 	e := util.StringError("find operation")
 
 	switch b, found, err := db.st.Get(leveldbNewOperationKey(operationhash)); {
@@ -240,6 +240,45 @@ func (db *TempPool) OperationHashes(
 	}
 
 	return ops[:opsindex], nil
+}
+
+func (db *TempPool) TraverseOperationsBytes(
+	ctx context.Context,
+	offset []byte,
+	f func(meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
+) error {
+	return db.st.Iter(
+		offsetRangeLeveldbOperationOrderedKey(offset),
+		func(key, b []byte) (bool, error) {
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+
+			var meta PoolOperationRecordMeta
+
+			switch i, err := ReadPoolOperationRecordMeta(b); {
+			case err != nil:
+				return false, err
+			default:
+				meta = i
+			}
+
+			switch _, _, body, found, err := db.OperationBytes(ctx, meta.Operation()); {
+			case err != nil:
+				return false, err
+			case !found:
+				return false, storage.ErrNotFound.Errorf("operation not found by ordered key")
+			default:
+				of, err := offsetFromLeveldbOperationOrderedKey(key)
+				if err != nil {
+					return false, err
+				}
+
+				return f(meta, body, of)
+			}
+		},
+		true,
+	)
 }
 
 func (db *TempPool) SetOperation(_ context.Context, op base.Operation) (bool, error) {

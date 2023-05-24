@@ -82,27 +82,10 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	sendOperationFilterf, err := sendOperationFilterFunc(pctx)
-	if err != nil {
-		return pctx, e.Wrap(err)
-	}
-
 	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
 	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, m)
 
 	handlers.
-		Add(isaacnetwork.HandlerPrefixOperation,
-			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerOperation(pool), nil)).
-		Add(isaacnetwork.HandlerPrefixSendOperation,
-			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendOperation(
-				params, pool,
-				db.ExistsInStateOperation,
-				sendOperationFilterf,
-				svvotef,
-				func(id string, b []byte) error {
-					return m.CallbackBroadcast(b, id, nil)
-				},
-			), nil)).
 		Add(isaacnetwork.HandlerPrefixLastSuffrageProof,
 			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 				func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {

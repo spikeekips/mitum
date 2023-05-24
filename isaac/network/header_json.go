@@ -541,6 +541,39 @@ func (h *SetAllowConsensusHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type streamOperationsHeaderJSONMarshaler struct {
+	Offset []byte `json:"offset,omitempty"`
+}
+
+func (h StreamOperationsHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		streamOperationsHeaderJSONMarshaler
+		quicstreamheader.BaseHeaderJSONMarshaler
+	}{
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		streamOperationsHeaderJSONMarshaler: streamOperationsHeaderJSONMarshaler{
+			Offset: h.offset,
+		},
+	})
+}
+
+func (h *StreamOperationsHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringError("decode StreamOperationsHeader")
+
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
+		return e.Wrap(err)
+	}
+
+	var u streamOperationsHeaderJSONMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e.Wrap(err)
+	}
+
+	h.offset = u.Offset
+
+	return nil
+}
+
 type caHandoverHeaderJSONMarshaler struct {
 	Address  base.Address           `json:"address"`
 	ConnInfo quicstream.UDPConnInfo `json:"conn_info"`

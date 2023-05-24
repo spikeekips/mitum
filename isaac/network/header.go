@@ -27,6 +27,7 @@ var (
 	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
 	SendBallotsHeaderHint                   = hint.MustNewHint("send-ballots-header-v0.0.1")
 	SetAllowConsensusHeaderHint             = hint.MustNewHint("set-allow-consensus-header-v0.0.1")
+	StreamOperationsHeaderHint              = hint.MustNewHint("stream-operations-header-v0.0.1")
 	StartHandoverHeaderHint                 = hint.MustNewHint("start-handover-header-v0.0.1")
 	CheckHandoverHeaderHint                 = hint.MustNewHint("check-handover-header-v0.0.1")
 	AskHandoverHeaderHint                   = hint.MustNewHint("ask-handover-header-v0.0.1")
@@ -55,6 +56,7 @@ var (
 	HandlerPrefixNodeInfoString               = "node_info"
 	HandlerPrefixSendBallotsString            = "send_ballots"
 	HandlerPrefixSetAllowConsensusString      = "set_allow_consensus"
+	HandlerPrefixStreamOperationsString       = "stream_operations"
 	HandlerPrefixStartHandoverString          = "start_handover"
 	HandlerPrefixCheckHandoverString          = "check_handover"
 	HandlerPrefixAskHandoverString            = "ask_handover"
@@ -80,6 +82,7 @@ var (
 	HandlerPrefixNodeInfo               = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
 	HandlerPrefixSendBallots            = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
 	HandlerPrefixSetAllowConsensus      = quicstream.HashPrefix(HandlerPrefixSetAllowConsensusString)
+	HandlerPrefixStreamOperations       = quicstream.HashPrefix(HandlerPrefixStreamOperationsString)
 	HandlerPrefixStartHandover          = quicstream.HashPrefix(HandlerPrefixStartHandoverString)
 	HandlerPrefixCheckHandover          = quicstream.HashPrefix(HandlerPrefixCheckHandoverString)
 	HandlerPrefixAskHandover            = quicstream.HashPrefix(HandlerPrefixAskHandoverString)
@@ -580,6 +583,30 @@ func (h SetAllowConsensusHeader) Allow() bool {
 	return h.allow
 }
 
+type StreamOperationsHeader struct {
+	offset []byte
+	baseHeader
+}
+
+func NewStreamOperationsHeader(offset []byte) StreamOperationsHeader {
+	return StreamOperationsHeader{
+		baseHeader: newBaseHeader(StreamOperationsHeaderHint),
+		offset:     offset,
+	}
+}
+
+func (h StreamOperationsHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(StreamOperationsHeaderHint.Type().Bytes()); err != nil {
+		return util.ErrInvalid.WithMessage(err, "invalid StreamOperationsHeader")
+	}
+
+	return nil
+}
+
+func (h StreamOperationsHeader) Offset() []byte {
+	return h.offset
+}
+
 type caHandoverHeader struct {
 	connInfo quicstream.UDPConnInfo // conn info of X
 	address  base.Address           // local address
@@ -805,6 +832,8 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return HandlerPrefixSendBallots
 	case SetAllowConsensusHeaderHint.Type():
 		return HandlerPrefixSetAllowConsensus
+	case StreamOperationsHeaderHint.Type():
+		return HandlerPrefixStreamOperations
 	case StartHandoverHeaderHint.Type():
 		return HandlerPrefixStartHandover
 	case CheckHandoverHeaderHint.Type():

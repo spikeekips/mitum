@@ -202,8 +202,15 @@ func leveldbBlockMapKey(height base.Height) []byte {
 func leveldbNewOperationOrderedKey(operationhash util.Hash) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixNewOperationOrdered,
-		[]byte(util.RFC3339(localtime.Now().UTC())),
+		util.Int64ToBytes(localtime.Now().UnixNano()),
 		operationhash.Bytes(),
+	)
+}
+
+func leveldbNewOperationOrderedKeyPrefix(prefix []byte) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyPrefixNewOperationOrdered,
+		prefix,
 	)
 }
 
@@ -286,4 +293,33 @@ func leveldbTempMergedKey(height base.Height) []byte {
 		leveldbKeyTempMerged,
 		height.Bytes(),
 	)
+}
+
+func offsetFromLeveldbOperationOrderedKey(b []byte) ([]byte, error) {
+	switch l := len(leveldbKeyPrefixNewOperationOrdered); {
+	case len(b) <= l:
+		return nil, errors.Errorf("not enough")
+	default:
+		return b[l : l+8], nil
+	}
+}
+
+func offsetRangeLeveldbOperationOrderedKey(offset []byte) *leveldbutil.Range {
+	r := leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered)
+
+	if offset == nil {
+		return r
+	}
+
+	start := leveldbutil.BytesPrefix(leveldbNewOperationOrderedKeyPrefix(offset)).Limit
+
+	limit := make([]byte, len(start))
+	copy(limit, leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered).Limit)
+
+	r = &leveldbutil.Range{
+		Start: start,
+		Limit: limit,
+	}
+
+	return r
 }

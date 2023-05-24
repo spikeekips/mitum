@@ -18,6 +18,7 @@ type HandoverYBrokerArgs struct {
 	// WhenFinished is called when handover process is finished.
 	WhenFinished   func(base.INITVoteproof, quicstream.UDPConnInfo) error
 	WhenCanceled   func(error, quicstream.UDPConnInfo)
+	SyncDataFunc   func(context.Context, quicstream.UDPConnInfo) error
 	AskRequestFunc AskHandoverFunc
 	NetworkID      base.NetworkID
 }
@@ -36,6 +37,7 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
+		SyncDataFunc: func(context.Context, quicstream.UDPConnInfo) error { return nil },
 	}
 }
 
@@ -55,6 +57,7 @@ type HandoverYBroker struct {
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
 	id              *util.Locked[string]
+	isDataSynced    *util.Locked[bool]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	receivelock     sync.Mutex
 }
@@ -79,6 +82,7 @@ func NewHandoverYBroker(
 		id:            util.EmptyLocked[string](),
 		whenFinishedf: func(base.INITVoteproof) error { return nil },
 		whenCanceledf: func(error) {},
+		isDataSynced:  util.NewLocked(false),
 	}
 
 	cancelf := func(err error) {
@@ -92,7 +96,7 @@ func NewHandoverYBroker(
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
 			if id := h.ID(); len(id) > 0 {
-				_ = h.sendMessage(ctx, NewHandoverMessageCancel(id))
+				_ = h.sendMessage(hctx, NewHandoverMessageCancel(id))
 			}
 
 			cancelf(err)
@@ -115,6 +119,14 @@ func NewHandoverYBroker(
 		})
 	}
 
+	go func() {
+		if err := h.args.SyncDataFunc(hctx, connInfo); err != nil {
+			h.cancel(err)
+		}
+
+		_ = h.isDataSynced.SetValue(true)
+	}()
+
 	return h
 }
 
@@ -134,7 +146,15 @@ func (h *HandoverYBroker) IsAsked() bool {
 	return len(id) > 0
 }
 
-func (h *HandoverYBroker) Ask() (canMoveConsensus bool, _ error) {
+func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
+	if err := h.isCanceled(); err != nil {
+		return false, false, err
+	}
+
+	if synced, _ := h.isDataSynced.Value(); !synced {
+		return false, false, nil
+	}
+
 	var id string
 
 	if _, err := h.id.Set(func(_ string, isempty bool) (string, error) {
@@ -158,12 +178,12 @@ func (h *HandoverYBroker) Ask() (canMoveConsensus bool, _ error) {
 
 		h.Log().Error().Err(err).Msg("failed to ask")
 
-		return false, ErrHandoverCanceled.Wrap(err)
+		return false, false, ErrHandoverCanceled.Wrap(err)
 	}
 
 	h.Log().Debug().Str("id", id).Msg("asked")
 
-	return canMoveConsensus, nil
+	return canMoveConsensus, true, nil
 }
 
 func (h *HandoverYBroker) isCanceled() error {

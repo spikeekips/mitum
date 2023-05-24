@@ -91,6 +91,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBrokerFunc, error) {
 	var log *logging.Logging
 	var design NodeDesign
+	var encs *encoder.Encoders
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
@@ -103,6 +104,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
+		EncodersContextKey, &encs,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -124,50 +126,11 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	args.SendMessageFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, msg isaacstates.HandoverMessage) error {
 		return client.HandoverMessage(ctx, ci, msg)
 	}
-	args.NewDataFunc = func(d isaacstates.HandoverMessageDataType, i interface{}) error {
-		switch d {
-		case isaacstates.HandoverMessageDataTypeVoteproof,
-			isaacstates.HandoverMessageDataTypeINITVoteproof:
-		case isaacstates.HandoverMessageDataTypeProposal:
-			pr, ok := i.(base.ProposalSignFact)
-			if !ok {
-				return errors.Errorf("expected ProposalSignFact, but %T", i)
-			}
 
-			_, err := pool.SetProposal(pr)
+	offsetOperation := util.EmptyLocked[util.Hash]()
 
-			return err
-		case isaacstates.HandoverMessageDataTypeOperation,
-			isaacstates.HandoverMessageDataTypeSuffrageVoting:
-			op, ok := i.(base.Operation)
-			if !ok {
-				return errors.Errorf("expected Operation, but %T", i)
-			}
-
-			switch t := op.(type) {
-			case base.SuffrageExpelOperation:
-				_, err := svvotef(t)
-
-				return err
-			default:
-				_, err := pool.SetOperation(context.Background(), t)
-
-				return err
-			}
-		case isaacstates.HandoverMessageDataTypeBallot:
-			ballot, ok := i.(base.Ballot)
-			if !ok {
-				return errors.Errorf("expected Ballot, but %T", i)
-			}
-
-			_, err := ballotbox.Vote(ballot)
-
-			return err
-		default:
-			return errors.Errorf("unknown data type, %v", d)
-		}
-
-		return nil
+	if err := attachNewDataFuncForHandoverY(pctx, args, offsetOperation); err != nil {
+		return nil, err
 	}
 
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
@@ -190,6 +153,10 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover x finished")
 
 		return whenFinished(vp, xci)
+	}
+
+	if err := attachSyncDataFuncForHandoverY(pctx, args, offsetOperation); err != nil {
+		return nil, err
 	}
 
 	whenCanceled := isaacstates.NewHandoverYCanceledFunc(
@@ -502,6 +469,137 @@ func attachCheckHandoverXHandler(
 		),
 		nil,
 	))
+
+	return nil
+}
+
+func attachNewDataFuncForHandoverY(
+	pctx context.Context,
+	args *isaacstates.HandoverYBrokerArgs,
+	offsetOperation *util.Locked[util.Hash],
+) error {
+	var pool *isaacdatabase.TempPool
+	var svvotef isaac.SuffrageVoteFunc
+	var ballotbox *isaacstates.Ballotbox
+
+	if err := util.LoadFromContextOK(pctx,
+		PoolDatabaseContextKey, &pool,
+		SuffrageVotingVoteFuncContextKey, &svvotef,
+		BallotboxContextKey, &ballotbox,
+	); err != nil {
+		return err
+	}
+
+	args.NewDataFunc = func(d isaacstates.HandoverMessageDataType, i interface{}) error {
+		switch d {
+		case isaacstates.HandoverMessageDataTypeVoteproof,
+			isaacstates.HandoverMessageDataTypeINITVoteproof:
+		case isaacstates.HandoverMessageDataTypeProposal:
+			pr, ok := i.(base.ProposalSignFact)
+			if !ok {
+				return errors.Errorf("expected ProposalSignFact, but %T", i)
+			}
+
+			_, err := pool.SetProposal(pr)
+
+			return err
+		case isaacstates.HandoverMessageDataTypeOperation,
+			isaacstates.HandoverMessageDataTypeSuffrageVoting:
+			op, ok := i.(base.Operation)
+			if !ok {
+				return errors.Errorf("expected Operation, but %T", i)
+			}
+
+			switch t := op.(type) {
+			case base.SuffrageExpelOperation:
+				_, err := svvotef(t)
+
+				return err
+			default:
+				_, err := pool.SetOperation(context.Background(), t)
+				if err != nil {
+					_, _ = offsetOperation.Set(func(_ util.Hash, isempty bool) (util.Hash, error) {
+						if !isempty {
+							return nil, util.ErrLockedSetIgnore.WithStack()
+						}
+
+						return op.Hash(), nil
+					})
+				}
+
+				return err
+			}
+		case isaacstates.HandoverMessageDataTypeBallot:
+			ballot, ok := i.(base.Ballot)
+			if !ok {
+				return errors.Errorf("expected Ballot, but %T", i)
+			}
+
+			_, err := ballotbox.Vote(ballot)
+
+			return err
+		default:
+			return errors.Errorf("unknown data type, %v", d)
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+func attachSyncDataFuncForHandoverY(
+	pctx context.Context,
+	args *isaacstates.HandoverYBrokerArgs,
+	offsetOperation *util.Locked[util.Hash],
+) error {
+	var local base.LocalNode
+	var params *isaac.LocalParams
+	var client *isaacnetwork.QuicstreamClient
+	var pool *isaacdatabase.TempPool
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
+		QuicstreamClientContextKey, &client,
+		PoolDatabaseContextKey, &pool,
+	); err != nil {
+		return err
+	}
+
+	args.SyncDataFunc = func(ctx context.Context, xci quicstream.UDPConnInfo) error {
+		var lastoffset []byte
+
+		ticker := time.NewTicker(time.Millisecond * 333)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			if err := client.StreamOperations(ctx, xci, local.Privatekey(), params.NetworkID(), lastoffset,
+				func(op base.Operation, offset []byte) error {
+					offsetop, _ := offsetOperation.Value()
+					if op.Hash().Equal(offsetop) {
+						return isaacnetwork.ErrNoMoreNext.Errorf("reached received operation")
+					}
+
+					if _, err := pool.SetOperation(ctx, op); err != nil {
+						return err
+					}
+
+					lastoffset = offset
+
+					return nil
+				},
+			); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 
 	return nil
 }

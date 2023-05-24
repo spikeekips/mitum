@@ -13,6 +13,7 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type BaseClient struct {
@@ -46,7 +47,7 @@ func (c *BaseClient) Operation(
 ) (base.Operation, bool, error) {
 	var u base.Operation
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		NewOperationRequestHeader(op),
@@ -57,6 +58,93 @@ func (c *BaseClient) Operation(
 	)
 
 	return u, ok, err
+}
+
+func (c *BaseClient) StreamOperations(
+	ctx context.Context, ci quicstream.UDPConnInfo,
+	priv base.Privatekey, networkID base.NetworkID, offset []byte,
+	f func(_ base.Operation, offset []byte) error,
+) error {
+	return c.StreamOperationsBytes(ctx, ci, priv, networkID, offset,
+		func(enchint hint.Hint, body, roffset []byte) error {
+			enc := c.Encoders.Find(enchint)
+			if enc == nil {
+				return errors.Errorf("unknown encoder, %q", enchint)
+			}
+
+			var op base.Operation
+
+			if err := encoder.Decode(enc, body, &op); err != nil {
+				return err
+			}
+
+			return f(op, roffset)
+		},
+	)
+}
+
+func (c *BaseClient) StreamOperationsBytes(
+	ctx context.Context, ci quicstream.UDPConnInfo,
+	priv base.Privatekey, networkID base.NetworkID, offset []byte,
+	f func(enchint hint.Hint, body, offset []byte) error,
+) error {
+	broker, err := c.Client.Broker(ctx, ci)
+	if err != nil {
+		return err
+	}
+
+	if err := c.verifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
+		return err
+	}
+
+	for {
+		switch _, _, body, _, res, err := broker.ReadBody(ctx); {
+		case err != nil:
+			return err
+		case res != nil:
+			if res.Err() != nil {
+				return res.Err()
+			}
+
+			return nil
+		case body == nil:
+			return errors.Errorf("empty body")
+		default:
+			var enchint hint.Hint
+
+			switch b, err := util.ReadLengthed(body); {
+			case err != nil:
+				return errors.WithMessage(err, "enc hint")
+			default:
+				ht, err := hint.ParseHint(string(b))
+				if err != nil {
+					return errors.WithMessage(err, "enc hint")
+				}
+
+				enchint = ht
+			}
+
+			var op, of []byte
+
+			switch b, err := util.ReadLengthed(body); {
+			case err != nil:
+				return errors.WithMessage(err, "body")
+			default:
+				op = b
+			}
+
+			switch b, err := util.ReadLengthed(body); {
+			case err != nil:
+				return errors.WithMessage(err, "offset")
+			default:
+				of = b
+			}
+
+			if err := f(enchint, op, of); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.UDPConnInfo, op base.Operation) (bool, error) {
@@ -110,7 +198,7 @@ func (c *BaseClient) LastSuffrageProof(
 
 	var proof base.SuffrageProof
 
-	switch ok, err := hcReqResBodyDecOK(
+	switch ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -169,7 +257,7 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 
 	var u base.SuffrageProof
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -192,7 +280,7 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -215,7 +303,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -272,7 +360,7 @@ func (c *BaseClient) NodeChallenge(
 
 	var sig base.Signature
 
-	switch ok, err := hcReqResBodyDecOK(
+	switch ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -327,7 +415,7 @@ func (c *BaseClient) State(
 
 	var u base.State
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -605,7 +693,7 @@ func (c *BaseClient) requestNodeConnInfos(
 ) ([]isaac.NodeConnInfo, error) {
 	var cis []isaac.NodeConnInfo
 
-	_, err := hcReqResBodyDecOK(
+	_, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -646,7 +734,7 @@ func (c *BaseClient) requestProposal(
 ) (base.ProposalSignFact, bool, error) {
 	var u base.ProposalSignFact
 
-	ok, err := hcReqResBodyDecOK(
+	ok, err := HCReqResBodyDecOK(
 		ctx,
 		ci,
 		header,
@@ -682,7 +770,7 @@ func hcReqResOK(
 	}
 }
 
-func hcReqResBodyDecOK(
+func HCReqResBodyDecOK(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header quicstreamheader.RequestHeader,

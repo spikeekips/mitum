@@ -28,8 +28,19 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return id, false, nil
 		}
+		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error { return nil }
 
 		broker := NewHandoverYBroker(ctx, args, connInfo)
+
+		ticker := time.NewTicker(time.Millisecond * 33)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if synced, _ := broker.isDataSynced.Value(); synced {
+				break
+			}
+		}
+
 		broker.Ask()
 
 		return broker, nil

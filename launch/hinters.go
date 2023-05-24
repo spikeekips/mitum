@@ -71,6 +71,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.SendBallotsHeaderHint, Instance: isaacnetwork.SendBallotsHeader{}},
 	{Hint: isaacnetwork.SendOperationRequestHeaderHint, Instance: isaacnetwork.SendOperationRequestHeader{}},
 	{Hint: isaacnetwork.StateRequestHeaderHint, Instance: isaacnetwork.StateRequestHeader{}},
+	{Hint: isaacnetwork.StreamOperationsHeaderHint, Instance: isaacnetwork.StreamOperationsHeader{}},
 	{
 		Hint:     isaacnetwork.SuffrageNodeConnInfoRequestHeaderHint,
 		Instance: isaacnetwork.SuffrageNodeConnInfoRequestHeader{},

@@ -40,8 +40,26 @@ func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 	args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 		return id, false, nil
 	}
+	args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error {
+		return nil
+	}
 
 	return args
+}
+
+func (t *baseTestHandoverBroker) syncedHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, ci quicstream.UDPConnInfo) *HandoverYBroker {
+	broker := NewHandoverYBroker(ctx, args, ci)
+
+	ticker := time.NewTicker(time.Millisecond * 33)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if synced, _ := broker.isDataSynced.Value(); synced {
+			break
+		}
+	}
+
+	return broker
 }
 
 func (t *baseTestHandoverBroker) newBlockMap(
@@ -70,9 +88,11 @@ func (t *testHandoverXYBroker) TestFinished() {
 	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
 
 	yargs := t.yargs(xbroker.id)
-	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
-	canMoveConsensus, err := ybroker.Ask()
+	ybroker := t.syncedHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
+
+	canMoveConsensus, isAsked, err := ybroker.Ask()
 	t.NoError(err)
+	t.True(isAsked)
 	t.False(canMoveConsensus)
 
 	xbroker.SetLogging(logging.TestNilLogging)
@@ -194,9 +214,10 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
 
 	yargs := t.yargs(xbroker.id)
-	ybroker := NewHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
-	canMoveConsensus, err := ybroker.Ask()
+	ybroker := t.syncedHandoverYBroker(ctx, yargs, quicstream.UDPConnInfo{})
+	canMoveConsensus, isAsked, err := ybroker.Ask()
 	t.NoError(err)
+	t.True(isAsked)
 	t.False(canMoveConsensus)
 
 	xbroker.SetLogging(logging.TestNilLogging)

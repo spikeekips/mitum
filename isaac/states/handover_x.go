@@ -261,13 +261,13 @@ func (h *HandoverXBroker) sendVoteproofErr(ctx context.Context, pr base.Proposal
 	switch ivp, ok := vp.(base.INITVoteproof); {
 	case !ok,
 		vp.Result() != base.VoteResultMajority:
-		return h.sendData(ctx, HandoverMessageDataTypeVoteproof, vp)
+		return h.SendData(ctx, HandoverMessageDataTypeVoteproof, vp)
 	default:
-		return h.sendData(ctx, HandoverMessageDataTypeINITVoteproof, []interface{}{pr, ivp})
+		return h.SendData(ctx, HandoverMessageDataTypeINITVoteproof, []interface{}{pr, ivp})
 	}
 }
 
-func (h *HandoverXBroker) sendData(ctx context.Context, dataType HandoverMessageDataType, data interface{}) error {
+func (h *HandoverXBroker) SendData(ctx context.Context, dataType HandoverMessageDataType, data interface{}) error {
 	if err := h.isCanceled(); err != nil {
 		return err
 	}
