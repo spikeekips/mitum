@@ -23,6 +23,7 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -517,7 +518,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 					default:
 						var foundnode base.Node
 
-						_ = util.InSliceFunc(suf.Nodes(), func(n base.Node) bool {
+						_ = slices.IndexFunc[base.Node](suf.Nodes(), func(n base.Node) bool {
 							if node.Equal(n.Address()) {
 								foundnode = n
 

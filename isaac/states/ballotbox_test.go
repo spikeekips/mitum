@@ -13,6 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -1089,7 +1090,7 @@ func (t *testBallotbox) TestMissingNodes() {
 					continue
 				}
 
-				t.True(util.InSliceFunc(founds, func(j base.Address) bool {
+				t.True(slices.IndexFunc[base.Address](founds, func(j base.Address) bool {
 					return node.Address().Equal(j)
 				}) >= 0)
 			}
@@ -1659,7 +1660,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsOverThreshold() {
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(expelnodes, func(addr base.Address) bool {
+		if slices.IndexFunc[base.Address](expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
@@ -1739,7 +1740,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsSafeThreshold() {
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(expelnodes, func(addr base.Address) bool {
+		if slices.IndexFunc[base.Address](expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break

@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -499,7 +500,7 @@ func isValidithdrawVoteproof(networkID []byte, expels []base.SuffrageExpelOperat
 	}
 
 	for i := range ovp.sfs {
-		if util.InSlice(expelnodes, ovp.sfs[i].Node().String()) >= 0 {
+		if slices.Index[string](expelnodes, ovp.sfs[i].Node().String()) >= 0 {
 			return util.ErrInvalid.Errorf("expel node voted")
 		}
 	}

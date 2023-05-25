@@ -14,6 +14,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/exp/slices"
 )
 
 type BallotStuckResolver interface {
@@ -376,7 +377,7 @@ func VoteSuffrageVotingFunc(
 			return nil, err
 		default:
 			expels = util.FilterSlice(i, func(j base.SuffrageExpelOperation) bool {
-				return util.InSliceFunc(nodes, func(k base.Address) bool {
+				return slices.IndexFunc[base.Address](nodes, func(k base.Address) bool {
 					return j.ExpelFact().Node().Equal(k)
 				}) >= 0
 			})

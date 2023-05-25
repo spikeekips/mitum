@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 )
 
 type testExpelsConsensusHandler struct {
@@ -162,7 +163,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVotepro
 
 		t.Equal(len(expelfacts), len(sfactexpels))
 		for i := range expelfacts {
-			f := util.InSliceFunc(sfactexpels, func(j util.Hash) bool {
+			f := slices.IndexFunc[util.Hash](sfactexpels, func(j util.Hash) bool {
 				return expelfacts[i].Equal(j)
 			})
 			t.False(f < 0)

@@ -7,6 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
+	"golang.org/x/exp/slices"
 )
 
 // BaseOperation is basic form to make new Operation.
@@ -232,7 +233,7 @@ func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
 
 func (op *BaseNodeOperation) AddNodeSigns(signs []NodeSign) (added bool, _ error) {
 	updates := util.FilterSlice(signs, func(sign NodeSign) bool {
-		return util.InSliceFunc(op.signs, func(s Sign) bool {
+		return slices.IndexFunc[Sign](op.signs, func(s Sign) bool {
 			nodesign, ok := s.(NodeSign)
 			if !ok {
 				return false

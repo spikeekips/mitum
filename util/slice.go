@@ -7,26 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func InSlice[T comparable](s []T, n T) int {
-	for i := range s {
-		if n == s[i] {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func InSliceFunc[T any](s []T, f func(T) bool) int {
-	for i := range s {
-		if f(s[i]) {
-			return i
-		}
-	}
-
-	return -1
-}
-
 func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) (map[string]T, bool) {
 	if len(s) < 1 {
 		return nil, false

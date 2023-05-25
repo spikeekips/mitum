@@ -8,6 +8,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 )
 
 func TestIsDuplicatedSlice(tt *testing.T) {
@@ -154,7 +155,7 @@ func (t *testRandomChoiceSlice) newslice(size int) []int {
 
 func (t *testRandomChoiceSlice) isInside(a []int, b []int) bool {
 	for i := range b {
-		if InSlice(a, b[i]) < 0 {
+		if slices.Index[int](a, b[i]) < 0 {
 			return false
 		}
 	}

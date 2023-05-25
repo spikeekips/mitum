@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"golang.org/x/exp/slices"
 )
 
 type SuffrageVoteFunc func(base.SuffrageExpelOperation) (bool, error)
@@ -241,7 +242,7 @@ func (*SuffrageVoting) findExpelCombinations(ops []base.SuffrageExpelOperation, 
 
 				// NOTE check signs except expel nodes
 				if k := util.CountFilteredSlice(signs, func(x base.NodeSign) bool {
-					return util.InSlice(nodes, x.Node().String()) < 0
+					return slices.Index[string](nodes, x.Node().String()) < 0
 				}); uint(k) < newthreshold {
 					return true
 				}
@@ -263,7 +264,7 @@ func (*SuffrageVoting) filterSigns(
 	signs := op.NodeSigns()
 
 	filtered := util.FilterSlice(signs, func(i base.NodeSign) bool {
-		return util.InSlice(expelnodes, i.Node().String()) < 0
+		return slices.Index[string](expelnodes, i.Node().String()) < 0
 	})
 
 	if len(signs) == len(filtered) {

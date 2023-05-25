@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -154,7 +155,7 @@ func (bl *baseBallot) isValidExpels(networkID []byte, expels []base.SuffrageExpe
 		signs := expels[i].NodeSigns()
 
 		filtered := util.FilterSlice(signs, func(sign base.NodeSign) bool {
-			return util.InSliceFunc(expelnodes, func(addr base.Address) bool {
+			return slices.IndexFunc[base.Address](expelnodes, func(addr base.Address) bool {
 				return sign.Node().Equal(addr)
 			}) < 0
 		})

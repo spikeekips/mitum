@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -734,7 +735,7 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	switch w, ok := bl.(base.HasExpels); {
 	case !ok:
 	default:
-		if util.InSliceFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
+		if slices.IndexFunc[base.SuffrageExpelOperation](w.Expels(), func(i base.SuffrageExpelOperation) bool {
 			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
 			l.Debug().Msg("local in expels; ignore")
@@ -744,7 +745,7 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	}
 
 	if w, ok := bl.Voteproof().(base.HasExpels); ok {
-		if util.InSliceFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
+		if slices.IndexFunc[base.SuffrageExpelOperation](w.Expels(), func(i base.SuffrageExpelOperation) bool {
 			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
 			l.Debug().Msg("local in expels voteproof; ignore")

@@ -24,6 +24,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -513,7 +514,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 
-			if util.InSliceFunc(nodes, func(i base.Address) bool {
+			if slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {
 				return i.Equal(req.Node())
 			}) >= 0 {
 				return nil, util.ErrLockedSetIgnore.WithStack()
@@ -925,7 +926,7 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) boo
 		srv.Remotes(func(member Member) bool {
 			total++
 
-			if util.InSliceFunc(nodes, func(i base.Address) bool {
+			if slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {
 				return i.Equal(member.Address())
 			}) >= 0 {
 				count++

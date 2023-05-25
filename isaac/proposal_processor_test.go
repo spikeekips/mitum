@@ -19,6 +19,7 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
+	"golang.org/x/exp/slices"
 )
 
 type DummyBlockWriter struct {
@@ -315,7 +316,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	for i := range ophs {
 		a := ops[ophs[i].String()]
 
-		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 
@@ -420,7 +421,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 			continue
 		}
 
-		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 
@@ -482,7 +483,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	t.NotNil(m)
 
 	for i := range ophs {
-		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 

@@ -6,6 +6,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"golang.org/x/exp/slices"
 )
 
 type SuffrageDisjoinProcessor struct {
@@ -90,7 +91,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	_ = util.LoadFromContext(ctx, ExpelPreProcessedContextKey, &expelpreprocessed)
 
-	if util.InSliceFunc(expelpreprocessed, func(addr base.Address) bool {
+	if slices.IndexFunc[base.Address](expelpreprocessed, func(addr base.Address) bool {
 		return addr.Equal(n)
 	}) >= 0 {
 		return ctx, base.NewBaseOperationProcessReasonError("already withdrew, %q", n), nil
