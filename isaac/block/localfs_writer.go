@@ -872,7 +872,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	switch i, err := bf.ReadBytes(','); {
 	case err != nil:
 		return in, e.Wrap(err)
-	case len(i) < 2: //nolint:gomnd //...
+	case len(i) < 2:
 		return in, e.Errorf("find index string")
 	default:
 		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)

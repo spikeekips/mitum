@@ -159,7 +159,7 @@ func saveImporters(
 	switch {
 	case len(ims) < 1:
 		return errors.Errorf("empty BlockImporters")
-	case len(ims) < 2: //nolint:gomnd //...
+	case len(ims) < 2:
 		deferred, err := ims[0].Save(ctx)
 		if err != nil {
 			_ = cancelImporters(ctx, ims)
@@ -216,7 +216,7 @@ func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 	switch {
 	case len(ims) < 1:
 		return nil
-	case len(ims) < 2: //nolint:gomnd //...
+	case len(ims) < 2:
 		if err := ims[0].CancelImport(ctx); err != nil {
 			return e.Wrap(err)
 		}

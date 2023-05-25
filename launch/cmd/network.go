@@ -59,7 +59,7 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 	}
 
 	if cmd.Timeout < 1 {
-		cmd.Timeout = isaac.DefaultTimeoutRequest * 2 //nolint:gomnd //...
+		cmd.Timeout = isaac.DefaultTimeoutRequest * 2
 	}
 
 	cmd.Client = launch.NewNetworkClient(cmd.Encoders, cmd.Encoder, base.NetworkID(cmd.NetworkID))

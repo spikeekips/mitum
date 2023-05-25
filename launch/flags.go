@@ -212,7 +212,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 	switch {
 	case len(n) < 1:
 		return nil
-	case len(n) > 2: //nolint:gomnd //...
+	case len(n) > 2:
 		return e.Errorf("wrong format")
 	case len(n) < 2 && len(n[0]) < 1:
 		return nil

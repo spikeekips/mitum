@@ -81,7 +81,7 @@ func NewTransportWithQuicstream(
 	requestTimeoutf func() time.Duration,
 ) *Transport {
 	nrequestTimeoutf := func() time.Duration {
-		return time.Second * 2 //nolint:gomnd //...
+		return time.Second * 2
 	}
 
 	if requestTimeoutf != nil {

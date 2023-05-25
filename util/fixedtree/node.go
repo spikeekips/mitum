@@ -36,7 +36,7 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 	l := strings.SplitN(s, " ", 2)
 
 	switch {
-	case len(l) != 2: //nolint:gomnd //...
+	case len(l) != 2:
 		return n, e.Errorf("invalid string")
 	case len(l[0]) > 0:
 		n.h = valuehash.NewBytesFromString(l[0])

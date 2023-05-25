@@ -496,7 +496,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	args.Pool = pool
 	args.ProposerSelector = proposerSelector
 	args.Maker = proposalMaker
-	args.MinProposerWait = params.TimeoutRequest() + (time.Second * 2) //nolint:gomnd //...
+	args.MinProposerWait = params.TimeoutRequest() + (time.Second * 2)
 
 	if err := getNodesFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
 		return nil, err

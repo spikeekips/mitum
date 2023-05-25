@@ -288,7 +288,7 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 	e := util.StringError("invalid voteproofs by manifest")
 
 	switch {
-	case len(vps) != 2: //nolint:gomnd //...
+	case len(vps) != 2:
 		return e.Errorf("not voteproofs")
 	case vps[0] == nil, vps[1] == nil:
 		return e.Errorf("empty voteproof")

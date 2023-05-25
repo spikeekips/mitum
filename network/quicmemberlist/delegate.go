@@ -36,7 +36,7 @@ func NewDelegate(
 	numNodes func() int,
 	notifyMsgFunc func(b []byte),
 ) *Delegate {
-	qu := &memberlist.TransmitLimitedQueue{NumNodes: numNodes, RetransmitMult: 2} //nolint:gomnd //...
+	qu := &memberlist.TransmitLimitedQueue{NumNodes: numNodes, RetransmitMult: 2}
 
 	if notifyMsgFunc == nil {
 		notifyMsgFunc = func([]byte) {} //revive:disable-line:modifies-parameter

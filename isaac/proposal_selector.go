@@ -117,7 +117,7 @@ func (p *BaseProposalSelector) selectInternal(
 		}
 
 		return nil, errors.WithMessagef(err, "get suffrage for height, %d", point.Height())
-	case len(i) < 2: //nolint:gomnd //...
+	case len(i) < 2:
 		return p.proposalFromNode(wctx, point, i[0], previousBlock)
 	default:
 		nodes = i
@@ -350,7 +350,7 @@ func (*BaseProposalSelector) getNodes(
 		return nil, found, err
 	case len(nodes) < 1:
 		return nil, false, errors.Errorf("empty suffrage nodes")
-	case len(nodes) < 2: //nolint:gomnd //...
+	case len(nodes) < 2:
 		return nodes, true, nil
 	default:
 		sort.Slice(nodes, func(i, j int) bool {
@@ -389,7 +389,7 @@ func (BlockBasedProposerSelector) Select(
 	switch n := len(nodes); {
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
-	case n < 2: //nolint:gomnd //...
+	case n < 2:
 		return nodes[0], nil
 	}
 

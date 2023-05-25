@@ -201,7 +201,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 			return i, errors.Errorf("save proposal; already canceled")
 		}
 
-		return 2, nil //nolint:gomnd //...
+		return 2, nil
 	})
 
 	return bm, err
@@ -243,13 +243,13 @@ func (p *DefaultProposalProcessor) isCanceled() bool {
 func (p *DefaultProposalProcessor) isProcessed() bool {
 	i, _ := p.processstate.Value()
 
-	return i == 1 //nolint:gomnd //...
+	return i == 1
 }
 
 func (p *DefaultProposalProcessor) isSaved() bool {
 	i, _ := p.processstate.Value()
 
-	return i == 2 //nolint:gomnd //...
+	return i == 2
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) error {

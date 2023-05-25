@@ -216,7 +216,7 @@ func (c *BaseClient) LastSuffrageProof(
 			switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 			case err != nil:
 				return errors.WithMessage(err, "read response")
-			case len(m) != 2: //nolint:gomnd //...
+			case len(m) != 2:
 				return errors.Errorf("invalid response message")
 			case len(m[0]) < 1:
 				return nil

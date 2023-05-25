@@ -288,7 +288,7 @@ func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, bas
 	switch j, ok := h.data.([]interface{}); {
 	case !ok:
 		return nil, nil, e.Errorf("expected []interface{}, but %T", h.data)
-	case len(j) < 2: //nolint:gomnd //...
+	case len(j) < 2:
 		return nil, nil, e.Errorf("expected [2]interface{}")
 	default:
 		i = j

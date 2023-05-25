@@ -109,7 +109,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 	switch suf, err := st.checkSuffrage(manifest.Height()); {
 	case err != nil:
 		return nil, e.Wrap(err)
-	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: // NOTE local is alone in suffrage node
 		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
 		st.waitFirstVoteproof = 0

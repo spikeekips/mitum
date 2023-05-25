@@ -121,7 +121,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		case StateConsensus:
 			go func() {
 				if allowedConsensus {
-					wait := st.params.WaitPreparingINITBallot() * 2 //nolint:gomnd //...
+					wait := st.params.WaitPreparingINITBallot() * 2
 					l.Debug().Dur("wait", wait).Msg("timers will be stopped")
 
 					<-time.After(wait)
@@ -465,7 +465,7 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 		l.Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
 
 		return false, nil
-	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: // NOTE local is alone in suffrage node
 	default:
 		ctx, cancel := context.WithTimeout(st.ctx, time.Second*10) //nolint:gomnd //...
 		defer cancel()

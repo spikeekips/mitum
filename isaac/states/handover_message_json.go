@@ -286,7 +286,7 @@ func (*HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc *jsonenc.Encod
 		return nil, errors.WithMessage(err, "init voteproof")
 	}
 
-	if len(u) < 2 { //nolint:gomnd //...
+	if len(u) < 2 {
 		return nil, errors.Errorf("init voteproof, not [2]interface{}")
 	}
 

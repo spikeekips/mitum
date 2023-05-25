@@ -59,7 +59,7 @@ func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *Memberl
 	return &MemberlistArgs{
 		Encoder:                              enc,
 		Config:                               config,
-		ExtraSameMemberLimit:                 2, //nolint:gomnd //...
+		ExtraSameMemberLimit:                 2,
 		WhenLeftFunc:                         func(Member) {},
 		NotAllowedMemberExpire:               time.Second * 6, //nolint:gomnd //...
 		ChallengeExpire:                      defaultNodeChallengeExpire,
@@ -950,7 +950,7 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 	config.BindPort = bind.Port
 	config.AdvertiseAddr = advertise.IP.String()
 	config.AdvertisePort = advertise.Port
-	config.TCPTimeout = time.Second * 2 //nolint:gomnd //...
+	config.TCPTimeout = time.Second * 2
 	config.IndirectChecks = math.MaxInt8
 	config.RetransmitMult = 3
 	config.ProbeTimeout = 500 * time.Millisecond //nolint:gomnd //...

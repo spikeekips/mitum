@@ -142,7 +142,7 @@ func NewCandidatesOfMajoritySuffrageCandidateLimiterRule(
 	var nm uint64
 
 	switch f := uint64(math.Floor(float64(s-1) / 3)); {
-	case f < 2: //nolint:gomnd //...
+	case f < 2:
 		nm = s
 	default:
 		a := uint64(math.Floor(float64(s-f) * ratio)) // NOTE 20% from fail node

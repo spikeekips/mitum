@@ -973,7 +973,7 @@ func broadcastSuffrageVotingFunc(
 					return time.Nanosecond
 				}
 
-				return time.Second * 2 //nolint:gomnd //...
+				return time.Second * 2
 			},
 			base.MaxThreshold.Float64(),
 			0, // NOTE infinite loop

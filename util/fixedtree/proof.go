@@ -86,7 +86,7 @@ func (p Proof) Prove(key string) error {
 	}
 
 	for i := 0; i < (len(nodes)-1)/2; i++ {
-		bi := i * 2 //nolint:gomnd //...
+		bi := i * 2
 		parents := nodes[bi+2 : bi+3]
 
 		if i*2+4 < len(nodes) {
@@ -196,7 +196,7 @@ end:
 				return nil, e.Errorf("empty children found at %d", l)
 			}
 
-			extracted[(i * 2)] = c[0] //nolint:gomnd //...
+			extracted[(i * 2)] = c[0]
 			if c[1] == nil {
 				c[1] = EmptyBaseNode()
 			}
@@ -206,8 +206,8 @@ end:
 				return nil, e.Wrap(err)
 			}
 
-			extracted[(i * 2)] = EmptyBaseNode() //nolint:gomnd //...
-			extracted[(i*2)+1] = EmptyBaseNode() //nolint:gomnd //...
+			extracted[(i * 2)] = EmptyBaseNode()
+			extracted[(i*2)+1] = EmptyBaseNode()
 		default:
 			return nil, e.Wrap(err)
 		}

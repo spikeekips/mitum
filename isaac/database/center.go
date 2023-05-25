@@ -47,7 +47,7 @@ func NewCenter(
 		enc:                   enc,
 		perm:                  perm,
 		newBlockWriteDatabase: newBlockWriteDatabase,
-		mergeInterval:         time.Second * 2, //nolint:gomnd //...
+		mergeInterval:         time.Second * 2,
 	}
 
 	if err := db.load(st); err != nil {
@@ -932,7 +932,7 @@ func mergeToPermanent(
 	temps []isaac.TempDatabase,
 	remove func(isaac.TempDatabase) error,
 ) (base.Height, bool, error) {
-	if len(temps) < 2 { //nolint:gomnd // NOTE keep last one in temps
+	if len(temps) < 2 { // NOTE keep last one in temps
 		return base.NilHeight, false, nil
 	}
 
