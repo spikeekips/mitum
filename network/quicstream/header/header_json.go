@@ -1,7 +1,8 @@
 package quicstreamheader
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -65,7 +66,7 @@ func (r *BaseResponseHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	if len(u.Err) > 0 {
-		r.err = errors.Errorf(u.Err)
+		r.err = fmt.Errorf(u.Err) //nolint:goerr113 //...
 	}
 
 	r.ok = u.OK
