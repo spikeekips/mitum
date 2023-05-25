@@ -82,7 +82,11 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	}
 
 	return func(ctx context.Context, yci quicstream.UDPConnInfo) (*isaacstates.HandoverXBroker, error) {
-		return isaacstates.NewHandoverXBroker(ctx, args, yci), nil
+		broker := isaacstates.NewHandoverXBroker(ctx, args, yci)
+
+		_ = broker.SetLogging(log)
+
+		return broker, nil
 	}, nil
 }
 
@@ -127,9 +131,17 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return client.HandoverMessage(ctx, ci, msg)
 	}
 
-	offsetOperation := util.EmptyLocked[util.Hash]()
+	lastoffsetop := util.EmptyLocked[util.Hash]()
 
-	if err := attachNewDataFuncForHandoverY(pctx, args, offsetOperation); err != nil {
+	if err := attachNewDataFuncForHandoverY(pctx, args, func(op util.Hash) {
+		_, _ = lastoffsetop.Set(func(_ util.Hash, isempty bool) (util.Hash, error) {
+			if !isempty {
+				return nil, util.ErrLockedSetIgnore.WithStack()
+			}
+
+			return op, nil
+		})
+	}); err != nil {
 		return nil, err
 	}
 
@@ -155,7 +167,11 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return whenFinished(vp, xci)
 	}
 
-	if err := attachSyncDataFuncForHandoverY(pctx, args, offsetOperation); err != nil {
+	if err := attachSyncDataFuncForHandoverY(pctx, args, func() util.Hash {
+		h, _ := lastoffsetop.Value()
+
+		return h
+	}); err != nil {
 		return nil, err
 	}
 
@@ -177,7 +193,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	)
 
 	args.WhenCanceled = func(err error, xci quicstream.UDPConnInfo) {
-		log.Log().Debug().Err(err).Msg("handover x canceled")
+		log.Log().Debug().Err(err).Msg("handover y canceled")
 
 		whenCanceled(err, xci)
 	}
@@ -202,7 +218,11 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	)
 
 	return func(ctx context.Context, xci quicstream.UDPConnInfo) (*isaacstates.HandoverYBroker, error) {
-		return isaacstates.NewHandoverYBroker(ctx, args, xci), nil
+		broker := isaacstates.NewHandoverYBroker(ctx, args, xci)
+
+		_ = broker.SetLogging(log)
+
+		return broker, nil
 	}, nil
 }
 
@@ -532,7 +552,7 @@ func attachCheckHandoverXHandler(
 func attachNewDataFuncForHandoverY(
 	pctx context.Context,
 	args *isaacstates.HandoverYBrokerArgs,
-	offsetOperation *util.Locked[util.Hash],
+	setlastoffsetop func(util.Hash),
 ) error {
 	var pool *isaacdatabase.TempPool
 	var svvotef isaac.SuffrageVoteFunc
@@ -573,14 +593,8 @@ func attachNewDataFuncForHandoverY(
 				return err
 			default:
 				_, err := pool.SetOperation(context.Background(), t)
-				if err != nil {
-					_, _ = offsetOperation.Set(func(_ util.Hash, isempty bool) (util.Hash, error) {
-						if !isempty {
-							return nil, util.ErrLockedSetIgnore.WithStack()
-						}
-
-						return op.Hash(), nil
-					})
+				if err == nil {
+					setlastoffsetop(t.Hash())
 				}
 
 				return err
@@ -607,7 +621,7 @@ func attachNewDataFuncForHandoverY(
 func attachSyncDataFuncForHandoverY(
 	pctx context.Context,
 	args *isaacstates.HandoverYBrokerArgs,
-	offsetOperation *util.Locked[util.Hash],
+	lastoffsetop func() util.Hash,
 ) error {
 	var local base.LocalNode
 	var params *isaac.LocalParams
@@ -623,22 +637,30 @@ func attachSyncDataFuncForHandoverY(
 		return err
 	}
 
-	args.SyncDataFunc = func(ctx context.Context, xci quicstream.UDPConnInfo) error {
+	maxtry := 33
+
+	args.SyncDataFunc = func(ctx context.Context, xci quicstream.UDPConnInfo, readych chan<- struct{}) error {
 		var lastoffset []byte
 
 		ticker := time.NewTicker(time.Millisecond * 333)
 		defer ticker.Stop()
 
+		var count int
+
 		for range ticker.C {
-			if ctx.Err() != nil {
+			switch {
+			case ctx.Err() != nil:
 				return ctx.Err()
+			case count >= maxtry:
+				readych <- struct{}{}
 			}
 
 			if err := client.StreamOperations(ctx, xci, local.Privatekey(), params.NetworkID(), lastoffset,
 				func(op base.Operation, offset []byte) error {
-					offsetop, _ := offsetOperation.Value()
-					if op.Hash().Equal(offsetop) {
-						return isaacnetwork.ErrNoMoreNext.Errorf("reached received operation")
+					if op.Hash().Equal(lastoffsetop()) {
+						ticker.Stop()
+
+						return nil
 					}
 
 					if _, err := pool.SetOperation(ctx, op); err != nil {
@@ -652,6 +674,8 @@ func attachSyncDataFuncForHandoverY(
 			); err != nil {
 				return err
 			}
+
+			count++
 		}
 
 		return nil

@@ -48,6 +48,10 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
+	if err := attachHandlerStreamOperations(pctx, handlers); err != nil {
+		return pctx, err
+	}
+
 	if err := attachHandlerProposals(pctx, handlers); err != nil {
 		return pctx, err
 	}
@@ -176,6 +180,69 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 				}
 
 				return memberlist.CallbackBroadcast(b, id, nil)
+			},
+		),
+		nil))
+
+	return nil
+}
+
+func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+	var encs *encoder.Encoders
+	var local base.LocalNode
+	var params *isaac.LocalParams
+	var pool *isaacdatabase.TempPool
+
+	if err := util.LoadFromContext(pctx,
+		EncodersContextKey, &encs,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
+		PoolDatabaseContextKey, &pool,
+	); err != nil {
+		return err
+	}
+
+	handlers.Add(isaacnetwork.HandlerPrefixStreamOperations, quicstreamheader.NewHandler(encs, 0,
+		isaacnetwork.QuicstreamHandlerStreamOperations(
+			local.Publickey(),
+			params.NetworkID(),
+			func(ctx context.Context, offset []byte) (
+				func(context.Context) (hint.Hint, []byte, []byte, error),
+				func(),
+			) {
+				ch := make(chan [3]interface{}, 1)
+
+				nctx, cancel := context.WithCancel(ctx)
+
+				go func() {
+					defer cancel()
+
+					_ = pool.TraverseOperationsBytes(nctx, offset,
+						func(meta isaacdatabase.PoolOperationRecordMeta, body []byte, offset []byte) (bool, error) {
+							if nctx.Err() != nil {
+								return false, nctx.Err()
+							}
+
+							ch <- [3]interface{}{meta.Hint(), body, offset}
+
+							return true, nil
+						},
+					)
+				}()
+
+				return func(ctx context.Context) (enchint hint.Hint, body, offset []byte, _ error) {
+					select {
+					case <-ctx.Done():
+						return enchint, nil, nil, isaacnetwork.ErrNoMoreNext.WithStack()
+					case <-nctx.Done():
+						return enchint, nil, nil, isaacnetwork.ErrNoMoreNext.WithStack()
+					case i := <-ch:
+						return i[0].(hint.Hint), //nolint:forcetypeassert //...
+							i[1].([]byte), //nolint:forcetypeassert //...
+							i[2].([]byte), //nolint:forcetypeassert //...
+							nil
+					}
+				}, cancel
 			},
 		),
 		nil))
