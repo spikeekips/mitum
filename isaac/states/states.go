@@ -234,9 +234,9 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 			if err := st.switchState(newStoppedSwitchContext(current.state(), serr)); err != nil {
 				st.Log().Error().Err(err).Msg("failed to switch to stopped; ignored")
 			}
-		}
 
-		return serr
+			return serr
+		}
 	}
 }
 

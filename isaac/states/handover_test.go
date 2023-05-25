@@ -28,7 +28,12 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return id, false, nil
 		}
-		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error { return nil }
+
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			readych <- struct{}{}
+
+			return nil
+		}
 
 		broker := NewHandoverYBroker(ctx, args, connInfo)
 
@@ -36,12 +41,18 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 		defer ticker.Stop()
 
 		for range ticker.C {
-			if synced, _ := broker.isDataSynced.Value(); synced {
+			if synced, _ := broker.isReadyToAsk.Value(); synced {
 				break
 			}
 		}
 
 		broker.Ask()
+
+		for range ticker.C {
+			if synced, _ := broker.isDataSynced.Value(); synced {
+				break
+			}
+		}
 
 		return broker, nil
 	}

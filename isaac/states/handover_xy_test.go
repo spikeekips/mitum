@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -40,7 +39,9 @@ func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 	args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 		return id, false, nil
 	}
-	args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error {
+	args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		readych <- struct{}{}
+
 		return nil
 	}
 
@@ -50,16 +51,20 @@ func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 func (t *baseTestHandoverBroker) syncedHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, ci quicstream.UDPConnInfo) *HandoverYBroker {
 	broker := NewHandoverYBroker(ctx, args, ci)
 
+	t.checkSyncedHandoverYBroker(broker)
+
+	return broker
+}
+
+func (t *baseTestHandoverBroker) checkSyncedHandoverYBroker(broker *HandoverYBroker) {
 	ticker := time.NewTicker(time.Millisecond * 33)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if synced, _ := broker.isDataSynced.Value(); synced {
+		if synced, _ := broker.isReadyToAsk.Value(); synced {
 			break
 		}
 	}
-
-	return broker
 }
 
 func (t *baseTestHandoverBroker) newBlockMap(
@@ -94,9 +99,6 @@ func (t *testHandoverXYBroker) TestFinished() {
 	t.NoError(err)
 	t.True(isAsked)
 	t.False(canMoveConsensus)
-
-	xbroker.SetLogging(logging.TestNilLogging)
-	ybroker.SetLogging(logging.TestNilLogging)
 
 	xargs.ReadyEnd = 0
 	xargs.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
@@ -219,9 +221,6 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	t.NoError(err)
 	t.True(isAsked)
 	t.False(canMoveConsensus)
-
-	xbroker.SetLogging(logging.TestNilLogging)
-	ybroker.SetLogging(logging.TestNilLogging)
 
 	xargs.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		if err := ybroker.Receive(i); err != nil {

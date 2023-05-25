@@ -54,10 +54,13 @@ func (t *testHandoverYBroker) TestNew() {
 }
 
 func (t *testHandoverYBroker) TestAsk() {
-	t.Run("not yet synced data", func() {
+	t.Run("not ready synced data", func() {
 		args := t.yargs(util.UUID().String())
-		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo) error {
-			<-time.After(time.Minute)
+
+		setready := make(chan struct{}, 1)
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			<-setready
+			readych <- struct{}{}
 
 			return nil
 		}
@@ -71,6 +74,17 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.False(isAsked)
 		t.False(canMoveConsensus)
 		t.False(broker.IsAsked())
+
+		t.T().Log("be ready")
+		setready <- struct{}{}
+
+		t.checkSyncedHandoverYBroker(broker)
+
+		canMoveConsensus, isAsked, err = broker.Ask()
+		t.NoError(err)
+		t.True(isAsked)
+		t.False(canMoveConsensus)
+		t.True(broker.IsAsked())
 	})
 
 	t.Run("ok", func() {
@@ -92,6 +106,43 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.True(isAsked)
 		t.False(canMoveConsensus)
 		t.True(broker.IsAsked())
+	})
+
+	t.Run("send stagepoint, but not yet data synced", func() {
+		args := t.yargs(util.UUID().String())
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			readych <- struct{}{}
+
+			<-time.After(time.Minute)
+
+			return nil
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		canMoveConsensus, isAsked, err := broker.Ask()
+		t.NoError(err)
+		t.True(isAsked)
+		t.False(canMoveConsensus)
+		t.True(broker.IsAsked())
+
+		sendch := make(chan HandoverMessage, 1)
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, msg HandoverMessage) error {
+			sendch <- msg
+
+			return nil
+		}
+
+		t.T().Log("send stagepoint")
+		t.NoError(broker.sendStagePoint(context.Background(), base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)))
+
+		select {
+		case <-time.After(time.Second * 2):
+		case <-sendch:
+			t.NoError(errors.Errorf("unexpected handover message"))
+		}
 	})
 
 	t.Run("ask func error", func() {

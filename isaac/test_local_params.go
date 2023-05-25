@@ -29,4 +29,5 @@ func EqualLocalParams(t *assert.Assertions, a, b *LocalParams) {
 	t.Equal(a.validProposalSuffrageOperationsExpire, b.validProposalSuffrageOperationsExpire, "validProposalSuffrageOperationsExpire")
 	t.Equal(a.maxMessageSize, b.maxMessageSize, "maxMessageSize")
 	t.Equal(a.sameMemberLimit, b.sameMemberLimit, "sameMemberLimit")
+	t.Equal(a.maxTryHandoverYBrokerSyncData, b.maxTryHandoverYBrokerSyncData, "maxTryHandoverYBrokerSyncData")
 }

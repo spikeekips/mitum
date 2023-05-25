@@ -390,7 +390,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	}
 
 	handler := QuicstreamHandlerStreamOperations(t.Local.Publickey(), t.LocalParams.NetworkID(),
-		func(offset []byte) (
+		func(_ context.Context, offset []byte) (
 			func(context.Context) (hint.Hint, []byte, []byte, error),
 			func(),
 		) {

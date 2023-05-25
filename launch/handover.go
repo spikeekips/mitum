@@ -637,22 +637,20 @@ func attachSyncDataFuncForHandoverY(
 		return err
 	}
 
-	maxtry := 33
-
 	args.SyncDataFunc = func(ctx context.Context, xci quicstream.UDPConnInfo, readych chan<- struct{}) error {
 		var lastoffset []byte
 
 		ticker := time.NewTicker(time.Millisecond * 333)
 		defer ticker.Stop()
 
-		var count int
+		var count uint64
 
 		for range ticker.C {
 			switch {
 			case ctx.Err() != nil:
 				return ctx.Err()
-			case count >= maxtry:
-				readych <- struct{}{}
+			case count >= params.MaxTryHandoverYBrokerSyncData():
+				return nil
 			}
 
 			if err := client.StreamOperations(ctx, xci, local.Privatekey(), params.NetworkID(), lastoffset,
@@ -674,6 +672,8 @@ func attachSyncDataFuncForHandoverY(
 			); err != nil {
 				return err
 			}
+
+			readych <- struct{}{}
 
 			count++
 		}

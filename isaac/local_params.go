@@ -30,6 +30,7 @@ type LocalParams struct {
 	sameMemberLimit                       uint64
 	ballotStuckWait                       time.Duration
 	ballotStuckResolveAfter               time.Duration
+	maxTryHandoverYBrokerSyncData         uint64
 	sync.RWMutex
 }
 
@@ -57,6 +58,7 @@ func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
 		ballotStuckResolveAfter:               time.Second * 66, //nolint:gomnd // ballotStuckWait * 2
 		maxMessageSize:                        1 << 18,          //nolint:gomnd //...
 		sameMemberLimit:                       3,                //nolint:gomnd //...
+		maxTryHandoverYBrokerSyncData:         33,               //nolint:gomnd //...
 	}
 }
 
@@ -389,6 +391,28 @@ func (p *LocalParams) SetBallotStuckResolveAfter(d time.Duration) *LocalParams {
 	return p
 }
 
+func (p *LocalParams) MaxTryHandoverYBrokerSyncData() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.maxTryHandoverYBrokerSyncData
+}
+
+func (p *LocalParams) SetMaxTryHandoverYBrokerSyncData(d uint64) *LocalParams {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.maxTryHandoverYBrokerSyncData == d {
+		return p
+	}
+
+	p.maxTryHandoverYBrokerSyncData = d
+
+	p.id = util.UUID().String()
+
+	return p
+}
+
 type localParamsJSONMarshaler struct {
 	//revive:disable:line-length-limit
 	hint.BaseHinter
@@ -403,6 +427,7 @@ type localParamsJSONMarshaler struct {
 	BallotStuckResolveAfter               util.ReadableJSONDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MaxMessageSize                        uint64                    `json:"max_message_size,omitempty"`
 	SameMemberLimit                       uint64                    `json:"same_member_limit,omitempty"`
+	MaxTryHandoverYBrokerSyncData         uint64                    `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -420,10 +445,12 @@ func (p *LocalParams) MarshalJSON() ([]byte, error) {
 		SameMemberLimit:                       p.sameMemberLimit,
 		BallotStuckResolveAfter:               util.ReadableJSONDuration(p.ballotStuckResolveAfter),
 		BallotStuckWait:                       util.ReadableJSONDuration(p.ballotStuckWait),
+		MaxTryHandoverYBrokerSyncData:         p.maxTryHandoverYBrokerSyncData,
 	})
 }
 
 type localParamsJSONUnmarshaler struct {
+	//revive:disable:line-length-limit
 	Threshold                             interface{}                `json:"threshold"`
 	IntervalBroadcastBallot               *util.ReadableJSONDuration `json:"interval_broadcast_ballot"`
 	WaitPreparingINITBallot               *util.ReadableJSONDuration `json:"wait_preparing_init_ballot"`
@@ -435,7 +462,9 @@ type localParamsJSONUnmarshaler struct {
 	BallotStuckResolveAfter               *util.ReadableJSONDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MaxMessageSize                        *uint64                    `json:"max_message_size"`
 	SameMemberLimit                       *uint64                    `json:"same_member_limit"`
+	MaxTryHandoverYBrokerSyncData         *uint64                    `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	hint.BaseHinter
+	//revive:enable:line-length-limit
 }
 
 func (p *LocalParams) UnmarshalJSON(b []byte) error {
@@ -449,6 +478,7 @@ func (p *LocalParams) UnmarshalJSON(b []byte) error {
 	args := [][2]interface{}{
 		{u.MaxMessageSize, &p.maxMessageSize},
 		{u.SameMemberLimit, &p.sameMemberLimit},
+		{u.MaxTryHandoverYBrokerSyncData, &p.maxTryHandoverYBrokerSyncData},
 	}
 
 	for i := range args {

@@ -545,7 +545,7 @@ func QuicstreamHandlerSetAllowConsensus(
 func QuicstreamHandlerStreamOperations(
 	pub base.Publickey,
 	networkID base.NetworkID,
-	iter func(offset []byte) (
+	iter func(_ context.Context, offset []byte) (
 		func(context.Context) (enchint hint.Hint, body, offset []byte, _ error),
 		func(),
 	),
@@ -581,7 +581,7 @@ func QuicstreamHandlerStreamOperations(
 
 		var gerr error
 
-		next, cancel := iter(header.Offset())
+		next, cancel := iter(ctx, header.Offset())
 		defer cancel()
 
 	end:

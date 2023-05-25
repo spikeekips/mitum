@@ -16,9 +16,10 @@ type HandoverYBrokerArgs struct {
 	SendMessageFunc func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
 	NewDataFunc     func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	WhenFinished   func(base.INITVoteproof, quicstream.UDPConnInfo) error
-	WhenCanceled   func(error, quicstream.UDPConnInfo)
-	SyncDataFunc   func(context.Context, quicstream.UDPConnInfo) error
+	WhenFinished func(base.INITVoteproof, quicstream.UDPConnInfo) error
+	WhenCanceled func(error, quicstream.UDPConnInfo)
+	SyncDataFunc func(
+		context.Context, quicstream.UDPConnInfo, chan<- struct{}) error //revive:disable-line:nested-structs
 	AskRequestFunc AskHandoverFunc
 	NetworkID      base.NetworkID
 }
@@ -37,7 +38,7 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
-		SyncDataFunc: func(context.Context, quicstream.UDPConnInfo) error { return nil },
+		SyncDataFunc: func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error { return nil },
 	}
 }
 
@@ -57,6 +58,7 @@ type HandoverYBroker struct {
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
 	id              *util.Locked[string]
+	isReadyToAsk    *util.Locked[bool]
 	isDataSynced    *util.Locked[bool]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	receivelock     sync.Mutex
@@ -82,6 +84,7 @@ func NewHandoverYBroker(
 		id:            util.EmptyLocked[string](),
 		whenFinishedf: func(base.INITVoteproof) error { return nil },
 		whenCanceledf: func(error) {},
+		isReadyToAsk:  util.NewLocked(false),
 		isDataSynced:  util.NewLocked(false),
 	}
 
@@ -91,9 +94,13 @@ func NewHandoverYBroker(
 		h.whenCanceled(err)
 	}
 
+	syncdatactx, syncdatacancel := context.WithCancel(hctx)
+
 	h.cancel = func(err error) {
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Err(err).Msg("canceled")
+
+			syncdatacancel()
 
 			if id := h.ID(); len(id) > 0 {
 				_ = h.sendMessage(hctx, NewHandoverMessageCancel(id))
@@ -120,11 +127,38 @@ func NewHandoverYBroker(
 	}
 
 	go func() {
-		if err := h.args.SyncDataFunc(hctx, connInfo); err != nil {
-			h.cancel(err)
+		readych := make(chan struct{}, 1)
+		donech := make(chan struct{}, 1)
+
+		go func() {
+			if err := h.args.SyncDataFunc(syncdatactx, connInfo, readych); err != nil {
+				h.Log().Error().Err(err).Msg("failed to sync data")
+
+				h.cancel(err)
+
+				return
+			}
+
+			donech <- struct{}{}
+		}()
+
+		select {
+		case <-syncdatactx.Done():
+			return
+		case <-readych:
+			h.Log().Debug().Msg("ready to ask")
+
+			_ = h.isReadyToAsk.SetValue(true)
 		}
 
-		_ = h.isDataSynced.SetValue(true)
+		select {
+		case <-syncdatactx.Done():
+			return
+		case <-donech:
+			h.Log().Debug().Msg("data synced")
+
+			_ = h.isDataSynced.SetValue(true)
+		}
 	}()
 
 	return h
@@ -151,7 +185,7 @@ func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 		return false, false, err
 	}
 
-	if synced, _ := h.isDataSynced.Value(); !synced {
+	if synced, _ := h.isReadyToAsk.Value(); !synced {
 		return false, false, nil
 	}
 
@@ -199,6 +233,10 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 		return err
 	}
 
+	if ok, _ := h.isDataSynced.Value(); !ok {
+		return nil
+	}
+
 	id := h.ID()
 	if len(id) < 1 {
 		return errors.Errorf("not yet asked")
@@ -218,6 +256,10 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
 	if err := h.isCanceled(); err != nil {
 		return err
+	}
+
+	if ok, _ := h.isDataSynced.Value(); !ok {
+		return nil
 	}
 
 	id := h.ID()
