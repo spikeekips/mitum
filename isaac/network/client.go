@@ -93,6 +93,10 @@ func (c *BaseClient) StreamOperationsBytes(
 		return err
 	}
 
+	defer func() {
+		_ = broker.Close()
+	}()
+
 	if err := c.verifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
 		return err
 	}
@@ -526,6 +530,10 @@ func (c *BaseClient) HandoverMessage(
 		return err
 	}
 
+	defer func() {
+		_ = broker.Close()
+	}()
+
 	if err := broker.WriteRequestHead(ctx, NewHandoverMessageHeader()); err != nil {
 		return err
 	}
@@ -678,6 +686,10 @@ func (c *BaseClient) verifyNodeWithResponse(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	defer func() {
+		_ = broker.Close()
+	}()
 
 	if err := c.verifyNode(ctx, broker, priv, networkID, header); err != nil {
 		return nil, nil, err
