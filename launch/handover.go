@@ -214,10 +214,6 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var handlers *quicstream.PrefixHandler
-	var states *isaacstates.States
-	var client *isaacnetwork.QuicstreamClient
-	var syncSourcePool *isaac.SyncSourcePool
-	var memberlist *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContext(pctx,
 		DesignContextKey, &design,
@@ -225,39 +221,33 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
-		StatesContextKey, &states,
-		QuicstreamClientContextKey, &client,
-		SyncSourcePoolContextKey, &syncSourcePool,
-		MemberlistContextKey, &memberlist,
 	); err != nil {
 		return pctx, err
 	}
 
 	localci := quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
-	if err := attachStartHandoverHandler(handlers, encs, local, params, localci,
-		states, client, syncSourcePool,
-	); err != nil {
+	if err := attachStartHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCancelHandoverHandler(handlers, encs, local, params, states); err != nil {
+	if err := attachCancelHandoverHandler(pctx, handlers, encs, local, params); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverHandler(handlers, encs, local, params, localci, states, memberlist); err != nil {
+	if err := attachCheckHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachAskHandoverHandler(handlers, encs, local, params, localci, states, memberlist); err != nil {
+	if err := attachAskHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandoverMessageHandler(handlers, encs, states); err != nil {
+	if err := attachHandoverMessageHandler(pctx, handlers, encs); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverXHandler(handlers, encs, local, params, states, memberlist); err != nil {
+	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, params); err != nil {
 		return pctx, err
 	}
 
@@ -265,15 +255,25 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 }
 
 func attachStartHandoverHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	localci quicstream.UDPConnInfo,
-	states *isaacstates.States,
-	client *isaacnetwork.QuicstreamClient,
-	syncSourcePool *isaac.SyncSourcePool,
 ) error {
+	var states *isaacstates.States
+	var client *isaacnetwork.QuicstreamClient
+	var syncSourcePool *isaac.SyncSourcePool
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+		QuicstreamClientContextKey, &client,
+		SyncSourcePoolContextKey, &syncSourcePool,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixStartHandover, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerStartHandover(
 			local,
@@ -316,12 +316,20 @@ func attachStartHandoverHandler(
 }
 
 func attachCancelHandoverHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	states *isaacstates.States,
 ) error {
+	var states *isaacstates.States
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixCancelHandover, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerCancelHandover(
 			local,
@@ -348,14 +356,25 @@ func attachCancelHandoverHandler(
 }
 
 func attachCheckHandoverHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	localci quicstream.UDPConnInfo,
-	states *isaacstates.States,
-	memberlist *quicmemberlist.Memberlist,
 ) error {
+	var states *isaacstates.States
+	var memberlist *quicmemberlist.Memberlist
+	var sp *SuffragePool
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+		MemberlistContextKey, &memberlist,
+		SuffragePoolContextKey, &sp,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixCheckHandover, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerCheckHandover(
 			local,
@@ -366,7 +385,7 @@ func attachCheckHandoverHandler(
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
 				func() (bool, error) {
-					return memberlist.IsJoined(), nil
+					return isMemberlistJoined(local.Address(), memberlist, sp)
 				},
 				states.Current,
 			),
@@ -378,14 +397,25 @@ func attachCheckHandoverHandler(
 }
 
 func attachAskHandoverHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	localci quicstream.UDPConnInfo,
-	states *isaacstates.States,
-	memberlist *quicmemberlist.Memberlist,
 ) error {
+	var states *isaacstates.States
+	var memberlist *quicmemberlist.Memberlist
+	var sp *SuffragePool
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+		MemberlistContextKey, &memberlist,
+		SuffragePoolContextKey, &sp,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixAskHandover, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerAskHandover(
 			local,
@@ -396,7 +426,14 @@ func attachAskHandoverHandler(
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
 				func(yci quicstream.UDPConnInfo) (bool, error) {
-					return memberlist.Exists(yci.UDPAddr()), nil
+					switch ok, err := isMemberlistJoined(local.Address(), memberlist, sp); {
+					case err != nil:
+						return false, err
+					case !ok:
+						return false, nil
+					default:
+						return memberlist.Exists(yci.UDPAddr()), nil
+					}
 				},
 				states.Current,
 				func() {
@@ -412,10 +449,18 @@ func attachAskHandoverHandler(
 }
 
 func attachHandoverMessageHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
-	states *isaacstates.States,
 ) error {
+	var states *isaacstates.States
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixHandoverMessage, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerHandoverMessage(
 			func(msg isaacstates.HandoverMessage) error {
@@ -445,13 +490,24 @@ func attachHandoverMessageHandler(
 }
 
 func attachCheckHandoverXHandler(
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	states *isaacstates.States,
-	memberlist *quicmemberlist.Memberlist,
 ) error {
+	var states *isaacstates.States
+	var memberlist *quicmemberlist.Memberlist
+	var sp *SuffragePool
+
+	if err := util.LoadFromContextOK(pctx,
+		StatesContextKey, &states,
+		MemberlistContextKey, &memberlist,
+		SuffragePoolContextKey, &sp,
+	); err != nil {
+		return err
+	}
+
 	_ = handlers.Add(isaacnetwork.HandlerPrefixCheckHandoverX, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerCheckHandoverX(
 			local,
@@ -462,7 +518,7 @@ func attachCheckHandoverXHandler(
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
 				func() (bool, error) {
-					return memberlist.IsJoined(), nil
+					return isMemberlistJoined(local.Address(), memberlist, sp)
 				},
 				states.Current,
 			),
@@ -602,4 +658,19 @@ func attachSyncDataFuncForHandoverY(
 	}
 
 	return nil
+}
+
+func isMemberlistJoined(local base.Address, memberlist *quicmemberlist.Memberlist, sp *SuffragePool) (bool, error) {
+	switch suf, found, err := sp.Last(); {
+	case err != nil:
+		return false, err
+	case !found:
+		return false, nil
+	case !suf.Exists(local):
+		return false, nil
+	case suf.Len() == 1:
+		return true, nil
+	default:
+		return memberlist.IsJoined(), nil
+	}
 }
