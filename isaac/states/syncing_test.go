@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
@@ -950,6 +951,102 @@ func (t *testSyncingHandler) TestAskHandover() {
 			t.NoError(errors.Errorf("failed to ask"))
 		case <-askedch:
 		}
+	})
+}
+
+func (t *testSyncingHandler) TestMovesToHandover() {
+	t.Run("finished && init voteproof; not asked", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		st.setAllowConsensus(false)
+
+		local := t.Local
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
+		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error {
+			// NOTE not ready
+			return nil
+		}
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return "", false, nil
+		}
+
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		st.handoverYBrokerFunc = func() *HandoverYBroker {
+			return broker
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		syncer.finish(point.Height())
+
+		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		err = st.newVoteproof(ivp)
+		t.NoError(err)
+	})
+
+	t.Run("finished && init voteproof; asked", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		st.setAllowConsensus(false)
+
+		local := t.Local
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			readych <- struct{}{}
+
+			return nil
+		}
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return util.UUID().String(), true, nil // NOTE can move consensus
+		}
+
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		st.handoverYBrokerFunc = func() *HandoverYBroker {
+			broker.checkSyncedDataDone()
+
+			return broker
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		syncer.finish(point.Height())
+
+		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		err = st.newVoteproof(ivp)
+
+		var csctx consensusSwitchContext
+		t.True(errors.As(err, &csctx))
+		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
+
+		t.True(st.allowedConsensus())
 	})
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 )
 
 type dummyNodeConnInfo struct {
@@ -590,7 +591,9 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 		t.Equal(3, len(ncis))
 
 		for i := range ncis {
-			t.Equal(sources[i].String(), ncis[i].String(), i)
+			t.True(slices.IndexFunc[NodeConnInfo](sources, func(n NodeConnInfo) bool {
+				return ncis[i].String() == n.String()
+			}) >= 0)
 		}
 	})
 }

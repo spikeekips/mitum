@@ -54,7 +54,7 @@ type HandoverYBroker struct {
 	// automatically canceled.
 	whenFinishedf   func(base.INITVoteproof) error
 	whenCanceledf   func(error)
-	cancelByMessage func()
+	cancelByMessage func(HandoverMessageCancel)
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
 	id              *util.Locked[string]
@@ -98,21 +98,21 @@ func NewHandoverYBroker(
 
 	h.cancel = func(err error) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Err(err).Msg("canceled")
+			defer h.Log().Error().Err(err).Msg("canceled")
 
 			syncdatacancel()
 
 			if id := h.ID(); len(id) > 0 {
-				_ = h.sendMessage(hctx, NewHandoverMessageCancel(id))
+				_ = h.sendMessage(hctx, NewHandoverMessageCancel(id, err))
 			}
 
 			cancelf(err)
 		})
 	}
 
-	h.cancelByMessage = func() {
+	h.cancelByMessage = func(i HandoverMessageCancel) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Msg("canceled by message")
+			defer h.Log().Debug().Interface("message", i).Msg("canceled by message")
 
 			cancelf(ErrHandoverCanceled.Errorf("canceled by message"))
 		})
@@ -215,7 +215,7 @@ func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 		return false, false, ErrHandoverCanceled.Wrap(err)
 	}
 
-	h.Log().Debug().Str("id", id).Msg("asked")
+	h.Log().Debug().Str("id", id).Msg("handover asked")
 
 	return canMoveConsensus, true, nil
 }
@@ -318,8 +318,8 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 		}
 	}
 
-	if _, ok := i.(HandoverMessageCancel); ok {
-		h.cancelByMessage()
+	if msg, ok := i.(HandoverMessageCancel); ok {
+		h.cancelByMessage(msg)
 
 		return ErrHandoverCanceled.Errorf("canceled by message")
 	}

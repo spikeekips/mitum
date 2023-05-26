@@ -313,14 +313,58 @@ func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, bas
 	return pr, vp, nil
 }
 
+func (h HandoverMessageData) LoadBallotData() (base.Ballot, error) {
+	i, ok := h.data.(base.Ballot)
+	if !ok {
+		return nil, errors.Errorf("expected voteproof, but %T", h.data)
+	}
+
+	return i, nil
+}
+
+func (h HandoverMessageData) LoadProposalData() (base.ProposalSignFact, error) {
+	i, ok := h.data.(base.ProposalSignFact)
+	if !ok {
+		return nil, errors.Errorf("expected proposal, but %T", h.data)
+	}
+
+	return i, nil
+}
+
+func (h HandoverMessageData) LoadOperationData() (base.Operation, error) {
+	i, ok := h.data.(base.Operation)
+	if !ok {
+		return nil, errors.Errorf("expected operation, but %T", h.data)
+	}
+
+	return i, nil
+}
+
+func (h HandoverMessageData) LoadSuffrageVotingData() (base.SuffrageExpelOperation, error) {
+	i, ok := h.data.(base.SuffrageExpelOperation)
+	if !ok {
+		return nil, errors.Errorf("expected SuffrageExpelOperation, but %T", h.data)
+	}
+
+	return i, nil
+}
+
 func (h HandoverMessageData) isValidData(b []byte) error {
 	switch h.dataType {
 	case HandoverMessageDataTypeVoteproof:
 		return h.isValidVoteproof(b)
 	case HandoverMessageDataTypeINITVoteproof:
 		return h.isValidINITVoteproof(b)
+	case HandoverMessageDataTypeBallot:
+		return h.isValidBallot(b)
+	case HandoverMessageDataTypeProposal:
+		return h.isValidProposal(b)
+	case HandoverMessageDataTypeOperation:
+		return h.isValidOperation(b)
+	case HandoverMessageDataTypeSuffrageVoting:
+		return h.isValidSuffrageVoting(b)
 	default:
-		return util.ErrInvalid.Errorf("unknown handover message data type, %q", h.dataType)
+		return nil
 	}
 }
 
@@ -360,13 +404,75 @@ func (h HandoverMessageData) isValidINITVoteproof(b []byte) error {
 	return nil
 }
 
+func (h HandoverMessageData) isValidBallot(b []byte) error {
+	e := util.ErrInvalid.Errorf("invalid ballot")
+
+	switch vp, err := h.LoadBallotData(); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		if err := vp.IsValid(b); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (h HandoverMessageData) isValidProposal(b []byte) error {
+	e := util.ErrInvalid.Errorf("invalid proposal")
+
+	switch vp, err := h.LoadProposalData(); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		if err := vp.IsValid(b); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (h HandoverMessageData) isValidOperation(b []byte) error {
+	e := util.ErrInvalid.Errorf("invalid operation")
+
+	switch vp, err := h.LoadOperationData(); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		if err := vp.IsValid(b); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (h HandoverMessageData) isValidSuffrageVoting(b []byte) error {
+	e := util.ErrInvalid.Errorf("invalid suffrage voting")
+
+	switch vp, err := h.LoadSuffrageVotingData(); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		if err := vp.IsValid(b); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 type HandoverMessageCancel struct {
+	err error
 	baseHandoverMessage
 }
 
-func NewHandoverMessageCancel(id string) HandoverMessageCancel {
+func NewHandoverMessageCancel(id string, err error) HandoverMessageCancel {
 	return HandoverMessageCancel{
 		baseHandoverMessage: newBaseHandoverMessage(HandoverMessageCancelHint, id),
+		err:                 err,
 	}
 }
 
@@ -376,4 +482,8 @@ func (h HandoverMessageCancel) IsValid([]byte) error {
 	}
 
 	return nil
+}
+
+func (h HandoverMessageCancel) Err() error {
+	return h.err
 }

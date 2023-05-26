@@ -375,6 +375,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 	t.Run("ok", func() {
 		sentch := make(chan isaacstates.HandoverMessage, 1)
 		handler := QuicstreamHandlerHandoverMessage(
+			t.LocalParams.NetworkID(),
 			func(msg isaacstates.HandoverMessage) error {
 				sentch <- msg
 
@@ -387,7 +388,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		msg := isaacstates.NewHandoverMessageCancel(handoverid)
+		msg := isaacstates.NewHandoverMessageCancel(handoverid, nil)
 
 		t.NoError(c.HandoverMessage(context.Background(), yci, msg))
 
@@ -401,6 +402,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 	t.Run("not HandoverMessage", func() {
 		sentch := make(chan isaacstates.HandoverMessage, 1)
 		handler := QuicstreamHandlerHandoverMessage(
+			t.LocalParams.NetworkID(),
 			func(msg isaacstates.HandoverMessage) error {
 				sentch <- msg
 

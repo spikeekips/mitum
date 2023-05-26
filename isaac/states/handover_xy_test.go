@@ -50,21 +50,9 @@ func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 
 func (t *baseTestHandoverBroker) syncedHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, ci quicstream.UDPConnInfo) *HandoverYBroker {
 	broker := NewHandoverYBroker(ctx, args, ci)
-
-	t.checkSyncedHandoverYBroker(broker)
+	broker.checkSyncedDataReady()
 
 	return broker
-}
-
-func (t *baseTestHandoverBroker) checkSyncedHandoverYBroker(broker *HandoverYBroker) {
-	ticker := time.NewTicker(time.Millisecond * 33)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if synced, _ := broker.isReadyToAsk.Value(); synced {
-			break
-		}
-	}
 }
 
 func (t *baseTestHandoverBroker) newBlockMap(

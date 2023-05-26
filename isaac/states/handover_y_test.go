@@ -78,7 +78,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.T().Log("be ready")
 		setready <- struct{}{}
 
-		t.checkSyncedHandoverYBroker(broker)
+		broker.checkSyncedDataDone()
 
 		canMoveConsensus, isAsked, err = broker.Ask()
 		t.NoError(err)

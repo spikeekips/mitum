@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -34,8 +35,6 @@ func (st *States) HandoverXBroker() *HandoverXBroker {
 }
 
 func (st *States) NewHandoverXBroker(connInfo quicstream.UDPConnInfo) (handoverid string, _ error) {
-	var id string
-
 	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
@@ -57,12 +56,14 @@ func (st *States) NewHandoverXBroker(connInfo quicstream.UDPConnInfo) (handoveri
 			return nil, err
 		}
 
-		id = broker.ID()
+		handoverid = broker.ID()
+
+		st.Log().Debug().Str("id", handoverid).Msg("handover x broker created")
 
 		return broker, nil
 	})
 
-	return id, err
+	return handoverid, err
 }
 
 func (st *States) CancelHandoverXBroker() error {
@@ -112,6 +113,8 @@ func (st *States) NewHandoverYBroker(connInfo quicstream.UDPConnInfo) error {
 		if err := broker.patchStates(st); err != nil {
 			return nil, err
 		}
+
+		st.Log().Debug().Msg("handover y broker created")
 
 		return broker, nil
 	})
@@ -214,7 +217,7 @@ func NewCheckHandoverFunc(
 		case err != nil:
 			return e.Wrap(err)
 		case !joined:
-			return e.Errorf("not joined memberlist")
+			return e.Errorf("x not joined memberlist")
 		}
 
 		switch currentState() {
@@ -256,7 +259,7 @@ func NewAskHandoverReceivedFunc(
 		case err != nil:
 			return "", false, e.Wrap(err)
 		case !joined:
-			return "", false, e.Errorf("not joined memberlist")
+			return "", false, e.Errorf("y not joined memberlist")
 		}
 
 		switch currentState() {
@@ -318,6 +321,8 @@ func NewAskHandoverFunc(
 		if err := joinMemberlist(ctx, ci); err != nil {
 			return "", false, e.WithMessage(err, "join memberlist")
 		}
+
+		<-time.After(time.Second * 6)
 
 		handoverid, canMoveConsensus, err := sendAsk(ctx, local, ci)
 

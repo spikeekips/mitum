@@ -36,23 +36,9 @@ func (t *testHandoverHandler) newHandoverYBrokerFunc(
 		}
 
 		broker := NewHandoverYBroker(ctx, args, connInfo)
-
-		ticker := time.NewTicker(time.Millisecond * 33)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			if synced, _ := broker.isReadyToAsk.Value(); synced {
-				break
-			}
-		}
+		broker.checkSyncedDataDone()
 
 		broker.Ask()
-
-		for range ticker.C {
-			if synced, _ := broker.isDataSynced.Value(); synced {
-				break
-			}
-		}
 
 		return broker, nil
 	}

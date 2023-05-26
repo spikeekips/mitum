@@ -57,7 +57,7 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 type HandoverXBroker struct {
 	lastVoteproof   base.Voteproof
 	lastReceived    interface{}
-	cancelByMessage func()
+	cancelByMessage func(HandoverMessageCancel)
 	cancel          func(error)
 	stop            func()
 	whenCanceledf   func(error)
@@ -102,7 +102,7 @@ func NewHandoverXBroker(
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Err(err).Msg("canceled")
 
-			_ = h.sendMessage(ctx, NewHandoverMessageCancel(id))
+			_ = h.sendMessage(ctx, NewHandoverMessageCancel(id, err))
 
 			cancel()
 
@@ -110,9 +110,9 @@ func NewHandoverXBroker(
 		})
 	}
 
-	h.cancelByMessage = func() {
+	h.cancelByMessage = func(i HandoverMessageCancel) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Msg("canceled by message")
+			defer h.Log().Debug().Interface("message", i).Msg("canceled by message")
 
 			cancel()
 
@@ -364,8 +364,8 @@ func (h *HandoverXBroker) receiveInternal(i interface{}, successcount uint64) (u
 		}
 	}
 
-	if _, ok := i.(HandoverMessageCancel); ok {
-		h.cancelByMessage()
+	if msg, ok := i.(HandoverMessageCancel); ok {
+		h.cancelByMessage(msg)
 
 		return 0, ErrHandoverCanceled.Errorf("canceled by message")
 	}

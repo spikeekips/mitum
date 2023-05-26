@@ -200,7 +200,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	args.AskRequestFunc = isaacstates.NewAskHandoverFunc(
 		local.Address(),
 		func(ctx context.Context, ci quicstream.UDPConnInfo) error {
-			donech := long.Join()
+			donech := long.Join(ci)
 			if donech == nil {
 				return nil
 			}
@@ -263,7 +263,7 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	if err := attachHandoverMessageHandler(pctx, handlers, encs); err != nil {
+	if err := attachHandoverMessageHandler(pctx, handlers, encs, params); err != nil {
 		return pctx, err
 	}
 
@@ -472,6 +472,7 @@ func attachHandoverMessageHandler(
 	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
+	params *isaac.LocalParams,
 ) error {
 	var states *isaacstates.States
 
@@ -483,6 +484,7 @@ func attachHandoverMessageHandler(
 
 	_ = handlers.Add(isaacnetwork.HandlerPrefixHandoverMessage, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerHandoverMessage(
+			params.NetworkID(),
 			func(msg isaacstates.HandoverMessage) error {
 				var receive func(interface{}) error
 

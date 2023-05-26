@@ -1,6 +1,7 @@
 package isaacstates
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -268,9 +269,21 @@ func TestHandoverMessageCancelEncode(tt *testing.T) {
 
 	t.rtype = HandoverMessageCancel{}
 	t.create = func() interface{} {
-		return NewHandoverMessageCancel(util.UUID().String())
+		return NewHandoverMessageCancel(util.UUID().String(), fmt.Errorf("hohoho"))
 	}
 	t.compare = func(a, b interface{}) error {
+		ah, ok := a.(HandoverMessageCancel)
+		if !ok {
+			return errors.Errorf("a, not HandoverMessageCancel")
+		}
+
+		bh, ok := b.(HandoverMessageCancel)
+		if !ok {
+			return errors.Errorf("b, not HandoverMessageCancel")
+		}
+
+		t.Equal(ah.Err().Error(), bh.Err().Error())
+
 		return nil
 	}
 

@@ -97,6 +97,7 @@ func QuicstreamHandlerAskHandover(
 }
 
 func QuicstreamHandlerHandoverMessage(
+	networkID base.NetworkID,
 	f func(isaacstates.HandoverMessage) error,
 ) quicstreamheader.Handler[HandoverMessageHeader] {
 	return func(
@@ -124,7 +125,7 @@ func QuicstreamHandlerHandoverMessage(
 					return e.Errorf("empty handover messag")
 				}
 
-				if err = msg.IsValid(nil); err != nil {
+				if err = msg.IsValid(networkID); err != nil {
 					return e.Wrap(err)
 				}
 			}

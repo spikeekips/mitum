@@ -211,13 +211,38 @@ func (h *HandoverMessageChallengeBlockMap) DecodeJSON(b []byte, enc *jsonenc.Enc
 	return nil
 }
 
+type handoverMessageCancelJSONMarshaler struct {
+	Err string `json:"error,omitempty"` //nolint:tagliatelle //...
+}
+
 func (h HandoverMessageCancel) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(h.baseHandoverMessage.JSONMarshaller())
+	if h.err == nil {
+		return util.MarshalJSON(h.baseHandoverMessage.JSONMarshaller())
+	}
+
+	return util.MarshalJSON(struct {
+		handoverMessageCancelJSONMarshaler
+		baseHandoverMessageJSONMarshaler
+	}{
+		baseHandoverMessageJSONMarshaler: h.baseHandoverMessage.JSONMarshaller(),
+		handoverMessageCancelJSONMarshaler: handoverMessageCancelJSONMarshaler{
+			Err: h.err.Error(),
+		},
+	})
 }
 
 func (h *HandoverMessageCancel) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
 		return errors.Errorf("unmarshal HandoverMessageCancel")
+	}
+
+	var u handoverMessageCancelJSONMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.Errorf("unmarshal HandoverMessageCancel")
+	}
+
+	if len(u.Err) > 0 {
+		h.err = fmt.Errorf(u.Err) //nolint:goerr113 //...
 	}
 
 	return nil
