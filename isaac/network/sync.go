@@ -159,8 +159,6 @@ end:
 
 			sources := c.Sources()
 			if len(sources) < 1 {
-				c.Log().Debug().Msg("empty SyncSource")
-
 				c.callback(called, nil, nil)
 
 				continue end

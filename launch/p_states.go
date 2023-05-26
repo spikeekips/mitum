@@ -804,13 +804,9 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 						switch a, b, err := f(ctx, height, ci); {
 						case err != nil:
-							if quicstream.IsNetworkError(err) {
-								return err
-							}
-
-							return nil
+							return err
 						case !b:
-							return nil
+							return errors.Errorf("not found")
 						default:
 							_, _ = result.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
 								if !isempty {
@@ -822,7 +818,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 								return [2]interface{}{a, b}, nil
 							})
 
-							return errors.Errorf("stop")
+							return nil
 						}
 					},
 				)

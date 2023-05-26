@@ -591,16 +591,12 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 
 						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
 						case err != nil:
-							if quicstream.IsNetworkError(err) {
-								return err
-							}
-
-							return nil
+							return err
 						case !b:
-							return nil
+							return errors.Errorf("not found")
 						default:
 							if err := a.IsValid(params.NetworkID()); err != nil {
-								return nil
+								return err
 							}
 
 							_, _ = result.Set(func(_ [2]interface{}, isempty bool) ([2]interface{}, error) {
@@ -611,7 +607,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 								return [2]interface{}{a, b}, nil
 							})
 
-							return errors.Errorf("stop")
+							return nil
 						}
 					},
 				)

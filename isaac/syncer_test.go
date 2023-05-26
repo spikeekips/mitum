@@ -573,6 +573,26 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 			t.Equal(sources[i].String(), ncis[i].String(), i)
 		}
 	})
+
+	t.Run("add non fixed", func() {
+		p := NewSyncSourcePool(nil)
+		t.T().Log("empty sources")
+		ncis, reports, err := p.PickMultiple(3)
+		t.Error(err)
+		t.True(errors.Is(err, ErrEmptySyncSources))
+		t.Empty(ncis)
+		t.Empty(reports)
+
+		t.True(p.AddNonFixed(sources...))
+
+		ncis, _, err = p.PickMultiple(3)
+		t.NoError(err)
+		t.Equal(3, len(ncis))
+
+		for i := range ncis {
+			t.Equal(sources[i].String(), ncis[i].String(), i)
+		}
+	})
 }
 
 func TestSyncSourcePool(tt *testing.T) {

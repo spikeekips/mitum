@@ -357,7 +357,7 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 		}
 	}
 
-	foundid = false
+	foundid = len(skipid) < 1
 
 	for id := range p.nonfixed {
 		switch {
@@ -515,15 +515,12 @@ func ErrGroupWorkerWithSyncSourcePool(
 			return nil
 		}
 
-		err := f(ctx, i, jobid, nci)
-		if err != nil {
+		if err := f(ctx, i, jobid, nci); err != nil {
 			reports[index](err)
 
-			if isSyncSourceProblem(err) {
-				err = nil
-			}
+			return nil
 		}
 
-		return err
+		return errors.Errorf("stop")
 	})
 }
