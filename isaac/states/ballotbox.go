@@ -338,7 +338,7 @@ func (box *Ballotbox) vote(
 	l := box.Log().With().Interface("sign_fact", signfact).Logger()
 
 	if !box.isNewBallot(fact.Point(), isaac.IsSuffrageConfirmBallotFact(fact)) {
-		l.Debug().Msg("ballot not voted; old")
+		l.Trace().Msg("ballot not voted; old")
 
 		return false, nil, nil
 	}
@@ -347,13 +347,13 @@ func (box *Ballotbox) vote(
 
 	voted, validated, err := vr.vote(signfact, vp, expels, box.LastPoint())
 	if err != nil {
-		l.Error().Err(err).Msg("ballot not voted")
+		l.Trace().Err(err).Msg("ballot not voted")
 
 		return false, nil, err
 	}
 
 	if voted {
-		l.Debug().Bool("validated", validated).Msg("ballot validated?")
+		l.Trace().Bool("validated", validated).Msg("ballot validated?")
 	}
 
 	if !validated {
@@ -720,7 +720,7 @@ func (vr *voterecords) vote(
 		vr.expels[node.String()] = expels
 
 		if err := vr.learnExpels(expels); err != nil {
-			vr.log.Error().Err(err).
+			vr.log.Trace().Err(err).
 				Interface("sign_fact", signfact).
 				Interface("expels", expels).
 				Msg("failed learn suffrage expels; ignored")
