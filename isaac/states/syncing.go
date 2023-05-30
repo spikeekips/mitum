@@ -49,7 +49,7 @@ type SyncingHandler struct {
 	*baseHandler
 	args              *SyncingHandlerArgs
 	stuckwaitcancel   func()
-	askHandoverFunc   func() error
+	askHandoverFunc   func() (bool, error)
 	waitStuckInterval *util.Locked[time.Duration]
 	finishedLock      sync.RWMutex
 	stuckwaitlock     sync.RWMutex
@@ -185,10 +185,6 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringError("handle new voteproof")
 
-	if _, ok := vp.(handoverFinishedVoteporof); ok {
-		st.cleanHandovers()
-	}
-
 	if _, v, isnew := st.baseHandler.setNewVoteproof(vp); v == nil || !isnew {
 		return nil
 	}
@@ -229,22 +225,27 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 		go st.args.WhenNewBlockSavedFunc(top)
 	}
 
+	checkMoveState := st.allowedConsensus()
+
 	if !st.allowedConsensus() {
 		st.whenNotAllowedConsensus()
 
-		if err := st.askHandover(); err != nil {
+		switch alreadyAsked, err := st.askHandover(); {
+		case err != nil:
 			st.Log().Error().Err(err).Msg("failed to ask")
+		case alreadyAsked, st.allowedConsensus():
+			checkMoveState = true
 		}
 	}
 
-	if st.allowedConsensus() {
-		return st.checkFinishedAllowConsensus(vp)
+	if checkMoveState {
+		return st.checkFinishedMoveNext(vp)
 	}
 
 	return true, nil
 }
 
-func (st *SyncingHandler) checkFinishedAllowConsensus(vp base.Voteproof) (notstuck bool, _ error) {
+func (st *SyncingHandler) checkFinishedMoveNext(vp base.Voteproof) (notstuck bool, _ error) {
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
 	top, isfinished := st.syncer.IsFinished()
@@ -463,30 +464,35 @@ func (st *SyncingHandler) whenNotAllowedConsensus() {
 	}
 }
 
-func (st *SyncingHandler) askHandover() error {
+func (st *SyncingHandler) askHandover() (alreadyAsked bool, _ error) {
 	if st.askHandoverFunc != nil {
 		return st.askHandoverFunc()
 	}
 
 	broker := st.handoverYBroker()
-	if broker == nil || broker.IsAsked() {
-		return nil
+
+	switch {
+	case broker == nil:
+		return false, nil
+	case broker.IsAsked():
+		return true, nil
 	}
 
 	// NOTE ask handover to x
 	switch canMoveConsensus, isAsked, err := broker.Ask(); {
 	case err != nil:
-		return err
+		return false, err
 	case !isAsked:
+		return false, nil
 	default:
 		st.Log().Debug().Bool("can_move_consensus", canMoveConsensus).Msg("handover asked")
 
 		if canMoveConsensus {
 			_ = st.setAllowConsensus(true)
 		}
-	}
 
-	return nil
+		return false, nil
+	}
 }
 
 type SyncingSwitchContext struct { //nolint:errname //...

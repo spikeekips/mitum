@@ -350,6 +350,8 @@ func (t *testStates) TestNewHandoverXBroker() {
 			t.Equal(StateSyncing, st.current().state())
 		}
 	})
+
+	// FIXME consensus -> handover x -> syncing -> finish handover
 }
 
 func (t *testStates) TestYBrokerAskCanMoveConsensus() {

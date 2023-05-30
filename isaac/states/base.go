@@ -170,7 +170,7 @@ func (st *baseHandler) setAllowConsensus(allow bool) bool {
 		return changed
 	}
 
-	return st.sts.SetAllowConsensus(allow)
+	return st.sts.setAllowConsensus(allow)
 }
 
 func (*baseHandler) whenSetAllowConsensus(bool) {}

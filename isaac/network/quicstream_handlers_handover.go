@@ -122,7 +122,7 @@ func QuicstreamHandlerHandoverMessage(
 				}
 
 				if msg == nil {
-					return e.Errorf("empty handover messag")
+					return e.Errorf("empty handover message")
 				}
 
 				if err = msg.IsValid(networkID); err != nil {

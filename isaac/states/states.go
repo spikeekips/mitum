@@ -330,7 +330,7 @@ func (st *States) ensureSwitchState(sctx switchContext) error {
 	var n int
 
 	movetobroken := func(from StateType, err error) switchContext {
-		st.Log().Error().Err(err).Msg("failed to switch state; wil move to broken")
+		st.Log().Error().Err(err).Msg("failed to switch state; will move to broken")
 
 		n = 0
 
@@ -379,39 +379,19 @@ func (st *States) switchState(sctx switchContext) error {
 	e := util.StringError("switch state")
 
 	current := st.current()
-	l := st.stateSwitchContextLog(sctx, current)
-
-	if current != nil && current.state() == StateStopped {
-		switch sctx.next() {
-		case StateBooting, StateBroken:
-		default:
-			l.Debug().Msg("state stopped, next should be StateBooting or StateBroken")
-
-			return nil
-		}
-	}
-
 	nsctx := sctx
+	l := st.stateSwitchContextLog(nsctx, current)
 
-	if next := nsctx.next(); (next == StateConsensus || next == StateJoining) && !st.AllowedConsensus() {
-		if current.state() == StateSyncing {
-			l.Debug().Msg("not allowed to enter consensus states; keep syncing")
+	var asctx switchContext
 
-			return nil
-		}
-
-		switch vsctx, ok := nsctx.(voteproofSwitchContext); {
-		case ok:
-			nsctx = newSyncingSwitchContextWithVoteproof(current.state(), vsctx.voteproof())
-		default:
-			nsctx = emptySyncingSwitchContext(current.state())
-		}
-
-		l = l.With().
-			Dict("previous_next_state", switchContextLog(sctx)).
-			Dict("next_state", switchContextLog(nsctx)).Logger()
-
-		l.Debug().Msg("not allowed to enter consensus states; moves to syncing state")
+	switch err := st.checkStateSwitchContext(nsctx, current); {
+	case err == nil:
+	case errors.Is(err, ErrIgnoreSwitchingState):
+		return nil
+	case errors.As(err, &asctx):
+		nsctx = asctx
+	default:
+		return err
 	}
 
 	cdefer, ndefer, err := st.exitAndEnter(nsctx, current)
@@ -440,7 +420,7 @@ func (st *States) switchState(sctx switchContext) error {
 		}
 	}()
 
-	st.args.WhenStateSwitchedFunc(sctx.next())
+	st.args.WhenStateSwitchedFunc(nsctx.next())
 
 	l.Debug().Msg("state switched")
 
@@ -453,10 +433,6 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 
 	e := util.StringError("switch state")
 	l := st.stateSwitchContextLog(sctx, current)
-
-	if err := st.checkStateSwitchContext(sctx, current); err != nil {
-		return nil, nil, e.Wrap(err)
-	}
 
 	var cdefer, ndefer func()
 
@@ -514,6 +490,15 @@ func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 
 func (st *States) checkStateSwitchContext(sctx switchContext, current handler) error {
 	next := sctx.next()
+	nsctx := sctx
+
+	if current != nil && current.state() == StateStopped {
+		switch nsctx.next() {
+		case StateBooting, StateBroken:
+		default:
+			return ErrIgnoreSwitchingState.Errorf("state stopped, next should be StateBooting or StateBroken")
+		}
+	}
 
 	switch _, found := st.newHandlers[next]; {
 	case current == nil:
@@ -524,26 +509,15 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 		return ErrIgnoreSwitchingState.Errorf("same next state")
 	case next == StateBroken:
 		return nil
-	case sctx.from() != current.state():
+	case nsctx.from() != current.state():
 		return ErrIgnoreSwitchingState.Errorf("current != from")
 	}
 
-	switch {
-	case st.HandoverYBroker() != nil:
-		if !st.HandoverYBroker().IsAsked() {
-			return ErrIgnoreSwitchingState.Errorf("handover y not yet asked")
-		}
-
-		if next == StateConsensus || next == StateJoining {
-			if current.state() == StateHandover {
-				return ErrIgnoreSwitchingState.Errorf("already in handover")
-			}
-
-			return newHandoverSwitchContextFromOther(sctx)
-		}
-	case next == StateHandover:
-		return ErrIgnoreSwitchingState.Errorf("not under handover; ignore")
+	if err := st.checkHandoverStateSwitchContext(nsctx, current.state()); err != nil {
+		return err
 	}
+
+	l := st.Log().With().Dict("previous_next_state", switchContextLog(nsctx)).Logger()
 
 	switch {
 	case st.AllowedConsensus():
@@ -551,15 +525,25 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 			return ErrIgnoreSwitchingState.Errorf(
 				"next state is handover, but allowed to enter consensus states; ignore")
 		}
+	case current.state() == StateHandover:
 	case next == StateConsensus, next == StateJoining:
 		if current.state() == StateSyncing {
 			return ErrIgnoreSwitchingState.Errorf("not allowed to enter consensus states; keep syncing")
 		}
 
-		return emptySyncingSwitchContext(current.state())
+		switch vsctx, ok := nsctx.(voteproofSwitchContext); {
+		case ok:
+			nsctx = newSyncingSwitchContextWithVoteproof(current.state(), vsctx.voteproof())
+		default:
+			nsctx = emptySyncingSwitchContext(current.state())
+		}
+
+		l.Debug().
+			Dict("next_state", switchContextLog(nsctx)).
+			Msg("not allowed to enter consensus states; moves to syncing state")
 	}
 
-	return nil
+	return nsctx
 }
 
 func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zerolog.Logger {
@@ -767,25 +751,15 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 	st.stateLock.RLock()
 	defer st.stateLock.RUnlock()
 
-	var isset bool
-
-	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
-		if prev == allow {
-			return false, util.ErrLockedSetIgnore.WithStack()
-		}
-
-		isset = true
-
-		return allow, nil
-	})
+	isset := st.setAllowConsensus(allow)
 
 	if isset {
-		switch {
-		case st.cs == nil:
-		case st.cs.state() == StateJoining, st.cs.state() == StateConsensus:
-			st.Log().Debug().Stringer("current", st.cs.state()).Bool("allow", allow).Msg("set allow consensus")
+		switch current := st.current(); {
+		case current == nil:
+		case current.state() == StateJoining, current.state() == StateConsensus:
+			st.Log().Debug().Stringer("current", current.state()).Bool("allow", allow).Msg("set allow consensus")
 
-			st.cs.whenSetAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
+			current.whenSetAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
 		}
 
 		if broker := st.HandoverXBroker(); broker != nil && !allow {
@@ -804,6 +778,52 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 	}
 
 	return isset
+}
+
+func (st *States) setAllowConsensus(allow bool) bool { // revive:disable-line:flag-parameter
+	var isset bool
+
+	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
+		if prev == allow {
+			return false, util.ErrLockedSetIgnore.WithStack()
+		}
+
+		isset = true
+
+		return allow, nil
+	})
+
+	return isset
+}
+
+func (st *States) checkHandoverStateSwitchContext(sctx switchContext, current StateType) error {
+	next := sctx.next()
+
+	broker := st.HandoverYBroker()
+
+	if broker == nil {
+		if next == StateHandover {
+			return ErrIgnoreSwitchingState.Errorf("not under handover; ignore")
+		}
+
+		return nil
+	}
+
+	if !broker.IsAsked() {
+		return ErrIgnoreSwitchingState.Errorf("handover y not yet asked")
+	}
+
+	switch {
+	case current == StateHandover:
+	case next == StateConsensus, next == StateJoining:
+		st.Log().Debug().Dict("previous_next_state", switchContextLog(sctx)).
+			Dict("next_state", switchContextLog(sctx)).
+			Msg("trying to enter consensus states, but under handover y; moves to handover state")
+
+		return newHandoverSwitchContextFromOther(sctx)
+	}
+
+	return nil
 }
 
 func mimicBallot(

@@ -115,14 +115,28 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 		t.setReady(broker)
 
+		fch := make(chan struct{}, 1)
+		broker.args.WhenFinished = func(base.INITVoteproof) error {
+			fch <- struct{}{}
+
+			return nil
+		}
+		defer func() {
+			broker.args.WhenFinished = func(base.INITVoteproof) error { return nil }
+		}()
+
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(ctx, ivp)
 		t.NoError(err)
 		t.True(isFinished)
 
-		err = broker.isCanceled()
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("failed to wait finished"))
+		case <-fch:
+			isfinishedl, _ := broker.isFinishedLock.Value()
+			t.True(isfinishedl)
+		}
 	})
 
 	t.Run("send init voteproof again", func() {
@@ -662,7 +676,6 @@ func (t *testHandoverXBroker) TestFinish() {
 		err := broker.finish(nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "failed to send")
-		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = broker.isCanceled()
 		t.Error(err)

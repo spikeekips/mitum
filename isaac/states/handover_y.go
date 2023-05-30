@@ -60,6 +60,7 @@ type HandoverYBroker struct {
 	id              *util.Locked[string]
 	isReadyToAsk    *util.Locked[bool]
 	isDataSynced    *util.Locked[bool]
+	isFinished      *util.Locked[bool]
 	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	receivelock     sync.Mutex
 }
@@ -86,6 +87,7 @@ func NewHandoverYBroker(
 		whenCanceledf: func(error) {},
 		isReadyToAsk:  util.NewLocked(false),
 		isDataSynced:  util.NewLocked(false),
+		isFinished:    util.NewLocked(false),
 	}
 
 	cancelf := func(err error) {
@@ -175,6 +177,10 @@ func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
 }
 
 func (h *HandoverYBroker) IsAsked() bool {
+	if i, _ := h.isFinished.Value(); i {
+		return false
+	}
+
 	id, _ := h.id.Value()
 
 	return len(id) > 0
@@ -183,6 +189,10 @@ func (h *HandoverYBroker) IsAsked() bool {
 func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 	if err := h.isCanceled(); err != nil {
 		return false, false, err
+	}
+
+	if i, _ := h.isFinished.Value(); i {
+		return false, false, ErrHandoverStopped.Errorf("finished")
 	}
 
 	if synced, _ := h.isReadyToAsk.Value(); !synced {
@@ -233,6 +243,12 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 		return err
 	}
 
+	if i, _ := h.isFinished.Value(); i {
+		defer h.stop()
+
+		return ErrHandoverStopped.Errorf("finished")
+	}
+
 	if ok, _ := h.isDataSynced.Value(); !ok {
 		return nil
 	}
@@ -256,6 +272,12 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
 	if err := h.isCanceled(); err != nil {
 		return err
+	}
+
+	if i, _ := h.isFinished.Value(); i {
+		defer h.stop()
+
+		return ErrHandoverStopped.Errorf("finished")
 	}
 
 	if ok, _ := h.isDataSynced.Value(); !ok {
@@ -284,6 +306,12 @@ func (h *HandoverYBroker) Receive(i interface{}) error {
 
 	if err := h.isCanceled(); err != nil {
 		return err
+	}
+
+	if j, _ := h.isFinished.Value(); j {
+		defer h.stop()
+
+		return ErrHandoverStopped.Errorf("finished")
 	}
 
 	switch err := h.receiveInternal(i); {
@@ -383,20 +411,32 @@ func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageChallengeRespon
 func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 	defer h.stop()
 
+	h.Log().Debug().
+		Bool("has_voteproof", hc.INITVoteproof() != nil).
+		Msg("receive HandoverMessageFinish")
+
 	var err error
 
-	if pr := hc.Proposal(); pr != nil {
-		err = h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr)
-	}
+	_, _ = h.isFinished.Set(func(i, _ bool) (bool, error) {
+		if i {
+			return false, util.ErrLockedSetIgnore.WithStack()
+		}
 
-	err = util.JoinErrors(err, h.whenFinished(hc.INITVoteproof()))
+		if pr := hc.Proposal(); pr != nil {
+			err = h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr)
+		}
+
+		err = util.JoinErrors(err, h.whenFinished(hc.INITVoteproof()))
+
+		return true, nil
+	})
 
 	l := h.Log().With().Interface("message", hc).Logger()
 
 	if err != nil {
-		l.Error().Err(err).Msg("receive HandoverMessageFinish")
+		l.Error().Err(err).Msg("received HandoverMessageFinish")
 	} else {
-		l.Debug().Msg("receive HandoverMessageFinish")
+		l.Debug().Msg("received HandoverMessageFinish")
 	}
 
 	return err
@@ -438,10 +478,9 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		switch current := st.current(); {
 		case current == nil:
 		case vp == nil:
-			st.cleanHandovers()
-			_ = st.SetAllowConsensus(true)
+			_ = st.setAllowConsensus(true)
 
-			_ = st.args.Ballotbox.Count()
+			st.cleanHandovers()
 
 			go func() {
 				// NOTE moves to syncing
@@ -451,7 +490,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 				}
 			}()
 		default:
-			vperr := newVoteproofWithErrchan(vp)
+			vperr := newVoteproofWithErrchan(handoverFinishedVoteporof{INITVoteproof: vp})
 
 			go func() {
 				st.vpch <- vperr

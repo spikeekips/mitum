@@ -195,6 +195,7 @@ func (st *voteproofHandler) startch() {
 end:
 	for {
 		var vperr voteproofWithErrchan
+		var sctx switchContext
 
 		select {
 		case <-st.ctx.Done():
@@ -203,7 +204,7 @@ end:
 		case <-st.notallowconsensusch:
 		}
 
-		if sctx := st.args.checkInState(vperr.vp); sctx != nil {
+		if sctx = st.args.checkInState(vperr.vp); sctx != nil {
 			if vperr.vp != nil {
 				vperr.errch <- sctx
 
@@ -216,10 +217,21 @@ end:
 		}
 
 		if vperr.vp != nil {
-			vperr.errch <- st.handleNewVoteproof(vperr.vp)
+			err := st.handleNewVoteproof(vperr.vp)
+			switch {
+			case err == nil:
+			case errors.As(err, &sctx):
+				go st.switchState(sctx)
+			}
+
+			vperr.errch <- err
+
+			if sctx != nil {
+				continue end
+			}
 		}
 
-		if sctx := st.args.checkInState(vperr.vp); sctx != nil {
+		if sctx = st.args.checkInState(vperr.vp); sctx != nil {
 			go st.switchState(sctx)
 
 			continue end

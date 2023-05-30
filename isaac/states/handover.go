@@ -102,15 +102,17 @@ func (st *HandoverHandler) exit(i switchContext) (func(), error) {
 
 	if finished, _ := st.finishedWithVoteproof.Value(); finished {
 		_ = st.setAllowConsensus(true)
+	}
 
+	return func() {
 		st.cleanHandovers()
 
 		if st.sts != nil {
 			_ = st.sts.args.Ballotbox.Count()
 		}
-	}
 
-	return deferred, nil
+		deferred()
+	}, nil
 }
 
 func (st *HandoverHandler) whenNewVoteproof(vp base.Voteproof, lvps isaac.LastVoteproofs) error {

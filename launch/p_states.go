@@ -308,6 +308,15 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	joiningargs.SuffrageVotingFindFunc = suffrageVotingFindf
 	joiningargs.LastManifestFunc = getLastManifestf
 
+	handoverargs, err := handoverHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e.Wrap(err)
+	}
+
+	handoverargs.VoteFunc = votef
+	handoverargs.SuffrageVotingFindFunc = suffrageVotingFindf
+	handoverargs.GetManifestFunc = getManifestf
+
 	bootingargs, err := newBootingHandlerArgs(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
@@ -321,7 +330,8 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		SetHandler(isaacstates.StateBooting, isaacstates.NewNewBootingHandlerType(local, params, bootingargs)).
 		SetHandler(isaacstates.StateJoining, isaacstates.NewNewJoiningHandlerType(local, params, joiningargs)).
 		SetHandler(isaacstates.StateConsensus, isaacstates.NewNewConsensusHandlerType(local, params, consensusargs)).
-		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs))
+		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs)).
+		SetHandler(isaacstates.StateHandover, isaacstates.NewNewHandoverHandlerType(local, params, handoverargs))
 
 	_ = states.SetLogging(log)
 
@@ -1095,4 +1105,65 @@ func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error),
 
 		return true, nil
 	}, nil
+}
+
+func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs, error) {
+	var log *logging.Logging
+	var ballotbox *isaacstates.Ballotbox
+	var db isaac.Database
+	var proposalSelector *isaac.BaseProposalSelector
+	var pps *isaac.ProposalProcessors
+	var nodeinfo *isaacnetwork.NodeInfoUpdater
+	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		BallotboxContextKey, &ballotbox,
+		CenterDatabaseContextKey, &db,
+		ProposalSelectorContextKey, &proposalSelector,
+		ProposalProcessorsContextKey, &pps,
+		NodeInfoContextKey, &nodeinfo,
+		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+	); err != nil {
+		return nil, err
+	}
+
+	var whenNewBlockSavedf func(base.BlockMap)
+
+	switch err := util.LoadFromContext(pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockSavedf == nil:
+		whenNewBlockSavedf = func(base.BlockMap) {}
+	}
+
+	var whenNewBlockConfirmedf func(base.Height)
+
+	switch err := util.LoadFromContext(
+		pctx, WhenNewBlockConfirmedFuncContextKey, &whenNewBlockConfirmedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockConfirmedf == nil:
+		whenNewBlockConfirmedf = func(base.Height) {}
+	}
+
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(log, ballotbox, db, nodeinfo)
+	defaultWhenNewBlockConfirmedf := DefaultWhenNewBlockConfirmedFunc(log)
+
+	args := isaacstates.NewHandoverHandlerArgs()
+	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
+	args.ProposalSelectFunc = proposalSelector.Select
+	args.ProposalProcessors = pps
+	args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		defaultWhenNewBlockSavedf(bm)
+
+		whenNewBlockSavedf(bm)
+	}
+	args.WhenNewBlockConfirmed = func(height base.Height) {
+		defaultWhenNewBlockConfirmedf(height)
+
+		whenNewBlockConfirmedf(height)
+	}
+
+	return args, nil
 }

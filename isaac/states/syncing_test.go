@@ -880,10 +880,10 @@ func (t *testSyncingHandler) TestAskHandover() {
 		}
 
 		askedch := make(chan struct{}, 1)
-		st.askHandoverFunc = func() error {
+		st.askHandoverFunc = func() (bool, error) {
 			askedch <- struct{}{}
 
-			return nil
+			return true, nil
 		}
 
 		point := base.RawPoint(33, 2)
@@ -923,10 +923,10 @@ func (t *testSyncingHandler) TestAskHandover() {
 		}
 
 		askedch := make(chan struct{}, 1)
-		st.askHandoverFunc = func() error {
+		st.askHandoverFunc = func() (bool, error) {
 			askedch <- struct{}{}
 
-			return nil
+			return false, nil
 		}
 
 		st.setAllowConsensus(false)
@@ -999,6 +999,74 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 	})
 
 	t.Run("finished && init voteproof; asked", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		st.setAllowConsensus(false)
+
+		local := t.Local
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			readych <- struct{}{}
+
+			return nil
+		}
+
+		handoverid := util.UUID().String()
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return handoverid, false, nil
+		}
+
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker.checkSyncedDataDone()
+
+		st.handoverYBrokerFunc = func() *HandoverYBroker {
+			return broker
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		t.Run("finished and ask", func() {
+			syncer.finish(point.Height())
+
+			ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
+			ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+			t.NoError(err)
+
+			t.NoError(st.newVoteproof(ivp))
+		})
+
+		t.Run("finished and asked", func() {
+			nextpoint := point.NextHeight()
+
+			syncer.Add(nextpoint.Height())
+			syncer.finish(nextpoint.Height())
+
+			ifact := t.NewINITBallotFact(nextpoint.NextHeight(), nil, nil)
+			ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
+			t.NoError(err)
+
+			err = st.newVoteproof(ivp)
+
+			var csctx consensusSwitchContext
+			t.True(errors.As(err, &csctx))
+			base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
+		})
+
+		t.False(st.allowedConsensus())
+	})
+
+	t.Run("finished && init voteproof; asked and can move consensus", func() {
 		st, closef := t.newState(nil)
 		defer closef(false)
 

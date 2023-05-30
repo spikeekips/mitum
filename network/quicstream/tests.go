@@ -188,10 +188,40 @@ func generateTLSConfig(proto string) *tls.Config {
 	}
 }
 
+var (
+	randomConnInfoLock sync.Mutex
+	randomConnInfoMap  map[string]UDPConnInfo
+)
+
+func init() {
+	randomConnInfoMap = map[string]UDPConnInfo{}
+}
+
 func RandomConnInfo() UDPConnInfo {
+	randomConnInfoLock.Lock()
+	defer randomConnInfoLock.Unlock()
+
 	for {
-		bip, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
-		bport, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
+		ci := randomConnInfo()
+
+		if _, found := randomConnInfoMap[ci.String()]; !found {
+			randomConnInfoMap[ci.String()] = ci
+
+			return ci
+		}
+	}
+}
+
+func randomConnInfo() UDPConnInfo {
+	for {
+		bip, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
+		if err != nil {
+			continue
+		}
+		bport, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
+		if err != nil {
+			continue
+		}
 
 		buf := make([]byte, 4)
 

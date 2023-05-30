@@ -162,7 +162,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		},
 	)
 	args.WhenFinished = func(vp base.INITVoteproof, xci quicstream.UDPConnInfo) error {
-		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover x finished")
+		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover y finished")
 
 		return whenFinished(vp, xci)
 	}
@@ -502,7 +502,9 @@ func attachHandoverMessageHandler(
 					return errors.Errorf("not under handover")
 				}
 
-				return receive(msg)
+				err := receive(msg)
+
+				return err
 			},
 		),
 		nil,
