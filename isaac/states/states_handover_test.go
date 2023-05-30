@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -334,11 +335,14 @@ func (t *testStates) TestNewHandoverXBroker() {
 
 		broker := st.HandoverXBroker()
 		t.NotNil(broker)
+		broker.args.CleanAfter = 0
 
 		ivp := isaac.NewINITVoteproof(base.RawPoint(32, 44))
 		t.NoError(broker.finish(ivp, nil))
 
 		t.False(st.AllowedConsensus())
+
+		<-time.After(time.Millisecond * 33)
 		t.Nil(st.HandoverXBroker())
 
 		t.T().Log("switching to syncing state")
@@ -351,7 +355,94 @@ func (t *testStates) TestNewHandoverXBroker() {
 		}
 	})
 
-	// FIXME consensus -> handover x -> syncing -> finish handover
+	t.Run("under handover x, but out of consensus state", func() {
+		st, _ := t.booted()
+		defer st.Stop()
+		_ = st.SetLogging(logging.TestNilLogging)
+
+		t.T().Log("current", st.current().state())
+
+		syncinghandler := newDummyStateHandler(StateSyncing)
+
+		syncingenterch := make(chan bool, 1)
+		_ = syncinghandler.setEnter(func(StateType, switchContext) error {
+			syncingenterch <- true
+
+			return nil
+		}, nil)
+		_ = st.setHandler(syncinghandler)
+
+		consensushandler := newDummyStateHandler(StateConsensus)
+
+		consensusenterch := make(chan bool, 1)
+		_ = consensushandler.setEnter(func(StateType, switchContext) error {
+			consensusenterch <- true
+
+			return nil
+		}, nil)
+		_ = st.setHandler(consensushandler)
+
+		_ = st.SetAllowConsensus(true)
+
+		t.Run("enter consensus state", func() {
+			ivp := isaac.NewINITVoteproof(base.RawPoint(32, 44))
+
+			sctx, err := newConsensusSwitchContext(st.current().state(), ivp)
+			t.NoError(err)
+			t.NoError(st.AskMoveState(sctx))
+
+			select {
+			case <-time.After(time.Second * 3):
+				t.NoError(errors.Errorf("failed to enter consensus"))
+			case <-consensusenterch:
+			}
+
+			t.T().Log("current", st.current().state())
+		})
+
+		t.Run("under handover x", func() {
+			st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
+
+			_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+			t.NoError(err)
+
+			broker := st.HandoverXBroker()
+			t.NotNil(broker)
+
+			_ = broker.SetLogging(logging.TestNilLogging)
+		})
+
+		t.Run("moves to syncing state", func() {
+			broker := st.HandoverXBroker()
+			t.NotNil(broker)
+
+			fch := make(chan struct{}, 1)
+			broker.args.WhenFinished = func(base.INITVoteproof) error {
+				fch <- struct{}{}
+
+				return nil
+			}
+
+			t.NoError(st.AskMoveState(newSyncingSwitchContext(st.current().state(), 0)))
+
+			select {
+			case <-time.After(time.Second * 3):
+				t.NoError(errors.Errorf("failed to wait syncing state"))
+			case <-syncingenterch:
+				t.Equal(StateSyncing, st.current().state())
+			}
+
+			t.T().Log("broker x finished")
+
+			select {
+			case <-time.After(time.Second * 2):
+				t.NoError(errors.Errorf("failed to finish"))
+			case <-fch:
+				isfinished, _ := broker.isFinishedLocked.Value()
+				t.True(isfinished)
+			}
+		})
+	})
 }
 
 func (t *testStates) TestYBrokerAskCanMoveConsensus() {

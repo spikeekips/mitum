@@ -224,7 +224,7 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 
 		serr := st.startStatesSwitch(ctx)
 
-		st.cleanHandovers()
+		// st.cleanHandovers()
 
 		// NOTE exit current
 		switch current := st.current(); {
@@ -356,6 +356,10 @@ end:
 		case err == nil:
 			if nsctx.next() == StateStopped {
 				return errors.Wrap(nsctx, "states stopped")
+			}
+
+			if err = st.checkOutOfHandoverX(nsctx); err != nil {
+				return err
 			}
 
 			return nil
@@ -824,6 +828,24 @@ func (st *States) checkHandoverStateSwitchContext(sctx switchContext, current St
 	}
 
 	return nil
+}
+
+func (st *States) checkOutOfHandoverX(sctx switchContext) error {
+	broker := st.HandoverXBroker()
+	if broker == nil {
+		return nil
+	}
+
+	if i, _ := broker.isFinishedLocked.Value(); i {
+		return nil
+	}
+
+	switch sctx.next() {
+	case StateBooting, StateConsensus, StateJoining:
+		return nil
+	default:
+		return broker.finish(nil, nil)
+	}
 }
 
 func mimicBallot(
