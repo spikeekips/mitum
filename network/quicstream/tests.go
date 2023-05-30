@@ -190,11 +190,11 @@ func generateTLSConfig(proto string) *tls.Config {
 
 var (
 	randomConnInfoLock sync.Mutex
-	randomConnInfoMap  map[string]UDPConnInfo
+	randomConnInfoMap  map[string]struct{}
 )
 
 func init() {
-	randomConnInfoMap = map[string]UDPConnInfo{}
+	randomConnInfoMap = map[string]struct{}{}
 }
 
 func RandomConnInfo() UDPConnInfo {
@@ -205,7 +205,7 @@ func RandomConnInfo() UDPConnInfo {
 		ci := randomConnInfo()
 
 		if _, found := randomConnInfoMap[ci.String()]; !found {
-			randomConnInfoMap[ci.String()] = ci
+			randomConnInfoMap[ci.String()] = struct{}{}
 
 			return ci
 		}
