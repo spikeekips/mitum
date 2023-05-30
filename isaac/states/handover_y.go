@@ -52,17 +52,17 @@ type HandoverYBroker struct {
 	// whenFinished is called when handover process is finished. If
 	// INITVoteproof is nil, moves to Syncing state. HandoverYBroker will be
 	// automatically canceled.
-	whenFinishedf   func(base.INITVoteproof) error
-	whenCanceledf   func(error)
-	cancelByMessage func(HandoverMessageCancel)
-	stop            func()
-	lastpoint       *util.Locked[base.StagePoint]
-	id              *util.Locked[string]
-	isReadyToAsk    *util.Locked[bool]
-	isDataSynced    *util.Locked[bool]
-	isFinished      *util.Locked[bool]
-	connInfo        quicstream.UDPConnInfo // NOTE x conn info
-	receivelock     sync.Mutex
+	whenFinishedf    func(base.INITVoteproof) error
+	whenCanceledf    func(error)
+	cancelByMessage  func(HandoverMessageCancel)
+	stop             func()
+	lastpoint        *util.Locked[base.StagePoint]
+	id               *util.Locked[string]
+	isReadyToAsk     *util.Locked[bool]
+	isDataSynced     *util.Locked[bool]
+	isFinishedLocked *util.Locked[bool]
+	connInfo         quicstream.UDPConnInfo // NOTE x conn info
+	receivelock      sync.Mutex
 }
 
 func NewHandoverYBroker(
@@ -78,16 +78,16 @@ func NewHandoverYBroker(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "handover-y-broker")
 		}),
-		args:          args,
-		connInfo:      connInfo,
-		ctxFunc:       func() context.Context { return hctx },
-		lastpoint:     util.EmptyLocked[base.StagePoint](),
-		id:            util.EmptyLocked[string](),
-		whenFinishedf: func(base.INITVoteproof) error { return nil },
-		whenCanceledf: func(error) {},
-		isReadyToAsk:  util.NewLocked(false),
-		isDataSynced:  util.NewLocked(false),
-		isFinished:    util.NewLocked(false),
+		args:             args,
+		connInfo:         connInfo,
+		ctxFunc:          func() context.Context { return hctx },
+		lastpoint:        util.EmptyLocked[base.StagePoint](),
+		id:               util.EmptyLocked[string](),
+		whenFinishedf:    func(base.INITVoteproof) error { return nil },
+		whenCanceledf:    func(error) {},
+		isReadyToAsk:     util.NewLocked(false),
+		isDataSynced:     util.NewLocked(false),
+		isFinishedLocked: util.NewLocked(false),
 	}
 
 	cancelf := func(err error) {
@@ -177,10 +177,6 @@ func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
 }
 
 func (h *HandoverYBroker) IsAsked() bool {
-	if i, _ := h.isFinished.Value(); i {
-		return false
-	}
-
 	id, _ := h.id.Value()
 
 	return len(id) > 0
@@ -191,7 +187,7 @@ func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 		return false, false, err
 	}
 
-	if i, _ := h.isFinished.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		return false, false, ErrHandoverStopped.Errorf("finished")
 	}
 
@@ -243,7 +239,7 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 		return err
 	}
 
-	if i, _ := h.isFinished.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		defer h.stop()
 
 		return ErrHandoverStopped.Errorf("finished")
@@ -274,7 +270,7 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 		return err
 	}
 
-	if i, _ := h.isFinished.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		defer h.stop()
 
 		return ErrHandoverStopped.Errorf("finished")
@@ -308,7 +304,7 @@ func (h *HandoverYBroker) Receive(i interface{}) error {
 		return err
 	}
 
-	if j, _ := h.isFinished.Value(); j {
+	if j, _ := h.isFinishedLocked.Value(); j {
 		defer h.stop()
 
 		return ErrHandoverStopped.Errorf("finished")
@@ -417,7 +413,7 @@ func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 
 	var err error
 
-	_, _ = h.isFinished.Set(func(i, _ bool) (bool, error) {
+	_, _ = h.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
 			return false, util.ErrLockedSetIgnore.WithStack()
 		}

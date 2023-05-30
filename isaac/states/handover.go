@@ -141,7 +141,7 @@ func (st *HandoverHandler) whenNewVoteproof(vp base.Voteproof, lvps isaac.LastVo
 		case err != nil:
 			return err
 		default:
-			l.Error().Err(err).Msg("handover y broker; finished; moves to consensus")
+			l.Debug().Msg("handover y broker; finished; moves to consensus")
 
 			return sctx
 		}

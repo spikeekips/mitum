@@ -35,6 +35,7 @@ type HandoverXBrokerArgs struct {
 	NetworkID         base.NetworkID
 	MinChallengeCount uint64
 	ReadyEnd          uint64
+	CleanAfter        time.Duration
 }
 
 func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *HandoverXBrokerArgs {
@@ -52,6 +53,7 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
+		CleanAfter: time.Second * 33, //nolint:gomnd // long enough to handle requests from handover y
 	}
 }
 
@@ -68,7 +70,7 @@ type HandoverXBroker struct {
 	ctxFunc               func() context.Context
 	args                  *HandoverXBrokerArgs
 	successcount          *util.Locked[uint64]
-	isFinishedLock        *util.Locked[bool]
+	isFinishedLocked      *util.Locked[bool]
 	connInfo              quicstream.UDPConnInfo // NOTE y conn info
 	id                    string
 	previousReadyHandover base.StagePoint
@@ -86,21 +88,21 @@ func NewHandoverXBroker(
 
 	id := util.ULID().String()
 
-	var cancelOnce sync.Once
-
 	h := &HandoverXBroker{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "handover-x-broker").Str("id", id)
 		}),
-		args:           args,
-		id:             id,
-		connInfo:       connInfo,
-		ctxFunc:        func() context.Context { return hctx },
-		successcount:   util.EmptyLocked[uint64](),
-		whenCanceledf:  func(error) {},
-		whenFinishedf:  func(base.INITVoteproof) error { return nil },
-		isFinishedLock: util.EmptyLocked[bool](),
+		args:             args,
+		id:               id,
+		connInfo:         connInfo,
+		ctxFunc:          func() context.Context { return hctx },
+		successcount:     util.EmptyLocked[uint64](),
+		whenCanceledf:    func(error) {},
+		whenFinishedf:    func(base.INITVoteproof) error { return nil },
+		isFinishedLocked: util.EmptyLocked[bool](),
 	}
+
+	var cancelOnce sync.Once
 
 	h.cancel = func(err error) {
 		cancelOnce.Do(func() {
@@ -125,8 +127,9 @@ func NewHandoverXBroker(
 	}
 
 	h.stop = func() {
-		cancelOnce.Do(func() {
+		go cancelOnce.Do(func() {
 			defer h.Log().Debug().Msg("stopped")
+			<-time.After(h.args.CleanAfter)
 
 			cancel()
 		})
@@ -166,8 +169,8 @@ func (h *HandoverXBroker) isFinished(vp base.Voteproof) (isFinished bool, _ erro
 		return false, err
 	}
 
-	if i, _ := h.isFinishedLock.Value(); i {
-		return true, nil
+	if i, _ := h.isFinishedLocked.Value(); i {
+		return false, ErrHandoverStopped.WithStack()
 	}
 
 	if vp == nil {
@@ -201,16 +204,16 @@ func (h *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSignFac
 		return err
 	}
 
-	_, err := h.isFinishedLock.Set(func(i, _ bool) (bool, error) {
+	_, err := h.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
 			return false, util.ErrLockedSetIgnore.WithStack()
 		}
 
+		defer h.stop()
+
 		if err := h.whenFinished(ivp); err != nil {
 			return false, err
 		}
-
-		defer h.stop()
 
 		hc := newHandoverMessageFinish(h.id, ivp, pr)
 		if err := h.sendMessage(h.ctxFunc(), hc); err != nil {
@@ -237,7 +240,7 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 		return false, err
 	}
 
-	if i, _ := h.isFinishedLock.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		return false, nil
 	}
 
@@ -299,7 +302,7 @@ func (h *HandoverXBroker) SendData(ctx context.Context, dataType HandoverMessage
 		return err
 	}
 
-	if i, _ := h.isFinishedLock.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		return nil
 	}
 
@@ -320,7 +323,7 @@ func (h *HandoverXBroker) sendBallot(ctx context.Context, ballot base.Ballot) er
 		return err
 	}
 
-	if i, _ := h.isFinishedLock.Value(); i {
+	if i, _ := h.isFinishedLocked.Value(); i {
 		return nil
 	}
 
@@ -337,7 +340,7 @@ func (h *HandoverXBroker) sendBallot(ctx context.Context, ballot base.Ballot) er
 }
 
 func (h *HandoverXBroker) Receive(i interface{}) error {
-	if isfinished, _ := h.isFinishedLock.Value(); isfinished {
+	if isfinished, _ := h.isFinishedLocked.Value(); isfinished {
 		return nil
 	}
 
@@ -621,7 +624,7 @@ func (h *HandoverXBroker) sendMessage(ctx context.Context, msg HandoverMessage) 
 func (h *HandoverXBroker) patchStates(st *States) error {
 	h.whenFinishedf = func(vp base.INITVoteproof) error {
 		go func() {
-			<-time.After(time.Second * 33)
+			<-time.After(h.args.CleanAfter)
 
 			st.cleanHandovers()
 
@@ -633,10 +636,7 @@ func (h *HandoverXBroker) patchStates(st *States) error {
 		if current := st.current(); current != nil {
 			go func() {
 				// NOTE moves to syncing
-				err := st.AskMoveState(newSyncingSwitchContextWithVoteproof(current.state(), vp))
-				if err != nil {
-					panic(err)
-				}
+				_ = st.AskMoveState(newSyncingSwitchContextWithVoteproof(current.state(), vp))
 			}()
 		}
 

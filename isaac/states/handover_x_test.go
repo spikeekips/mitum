@@ -134,7 +134,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		case <-time.After(time.Second * 2):
 			t.NoError(errors.Errorf("failed to wait finished"))
 		case <-fch:
-			isfinishedl, _ := broker.isFinishedLock.Value()
+			isfinishedl, _ := broker.isFinishedLocked.Value()
 			t.True(isfinishedl)
 		}
 	})
@@ -146,8 +146,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		_, err := broker.sendVoteproof(ctx, ivp)
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.NoError(err)
 	})
 
 	t.Run("send failed", func() {
@@ -648,6 +647,12 @@ func (t *testHandoverXBroker) TestFinish() {
 
 			return nil
 		}
+		fch := make(chan struct{}, 1)
+		args.WhenFinished = func(base.INITVoteproof) error {
+			fch <- struct{}{}
+
+			return nil
+		}
 
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 		t.NoError(broker.finish(nil, nil))
@@ -658,10 +663,14 @@ func (t *testHandoverXBroker) TestFinish() {
 		case h := <-sendch:
 			t.Equal(broker.ID(), h.HandoverID())
 			t.Nil(h.INITVoteproof())
+		}
 
-			err := broker.isCanceled()
-			t.Error(err)
-			t.True(errors.Is(err, ErrHandoverCanceled))
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("failed to wait to finish"))
+		case <-fch:
+			i, _ := broker.isFinishedLocked.Value()
+			t.True(i)
 		}
 	})
 

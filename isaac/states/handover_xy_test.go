@@ -101,6 +101,12 @@ func (t *testHandoverXYBroker) TestFinished() {
 	xargs.CheckIsReady = func() (bool, error) {
 		return true, nil
 	}
+	xfinishch := make(chan base.INITVoteproof, 1)
+	xargs.WhenFinished = func(vp base.INITVoteproof) error {
+		xfinishch <- vp
+
+		return nil
+	}
 
 	yargs.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
 		go func() {
@@ -133,9 +139,9 @@ func (t *testHandoverXYBroker) TestFinished() {
 		return nil
 	}
 
-	finishch := make(chan base.INITVoteproof, 1)
+	yfinishch := make(chan base.INITVoteproof, 1)
 	yargs.WhenFinished = func(vp base.INITVoteproof, _ quicstream.UDPConnInfo) error {
-		finishch <- vp
+		yfinishch <- vp
 
 		return nil
 	}
@@ -179,21 +185,24 @@ func (t *testHandoverXYBroker) TestFinished() {
 	t.T().Log("wait to finish")
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to wait to be finished"))
-	case vp := <-finishch:
+		t.NoError(errors.Errorf("failed to wait x finish"))
+	case vp := <-xfinishch:
 		base.EqualVoteproof(t.Assert(), lastvp, vp)
 	}
 
-	<-time.After(time.Second * 2)
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to wait y finish"))
+	case vp := <-yfinishch:
+		base.EqualVoteproof(t.Assert(), lastvp, vp)
+	}
 
 	t.T().Log("check canceled")
-	err = xbroker.isCanceled()
-	t.Error(err)
-	t.True(errors.Is(err, ErrHandoverCanceled))
+	xfinished, _ := xbroker.isFinishedLocked.Value()
+	t.True(xfinished)
 
-	err = ybroker.isCanceled()
-	t.Error(err)
-	t.True(errors.Is(err, ErrHandoverCanceled))
+	yisfinished, _ := ybroker.isFinishedLocked.Value()
+	t.True(yisfinished)
 }
 
 func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
