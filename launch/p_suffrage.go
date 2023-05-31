@@ -214,7 +214,7 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 			}
 		}
 
-		if updated != nil || candidatesst != nil && states.AllowedConsensus() {
+		if (updated != nil || candidatesst != nil) && states.AllowedConsensus() {
 			if err := joinLocalIsInConsensusNodesByWatcher(
 				updated, candidatesst, local, mlist, long, log,
 			); err != nil {
