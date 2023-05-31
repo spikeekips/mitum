@@ -206,43 +206,22 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
 			params.NetworkID(),
-			func(ctx context.Context, offset []byte) (
-				func(context.Context) (hint.Hint, []byte, []byte, error),
-				func(),
-			) {
-				ch := make(chan [3]interface{}, 1)
-
-				nctx, cancel := context.WithCancel(ctx)
-
-				go func() {
-					defer cancel()
-
-					_ = pool.TraverseOperationsBytes(nctx, offset,
-						func(meta isaacdatabase.PoolOperationRecordMeta, body []byte, offset []byte) (bool, error) {
-							if nctx.Err() != nil {
-								return false, nctx.Err()
-							}
-
-							ch <- [3]interface{}{meta.Hint(), body, offset}
-
-							return true, nil
-						},
-					)
-				}()
-
-				return func(ctx context.Context) (enchint hint.Hint, body, offset []byte, _ error) {
-					select {
-					case <-ctx.Done():
-						return enchint, nil, nil, isaacnetwork.ErrNoMoreNext.WithStack()
-					case <-nctx.Done():
-						return enchint, nil, nil, isaacnetwork.ErrNoMoreNext.WithStack()
-					case i := <-ch:
-						return i[0].(hint.Hint), //nolint:forcetypeassert //...
-							i[1].([]byte), //nolint:forcetypeassert //...
-							i[2].([]byte), //nolint:forcetypeassert //...
-							nil
-					}
-				}, cancel
+			333, //nolint:gomnd // big enough
+			func(
+				ctx context.Context,
+				offset []byte,
+				callback func(hint.Hint, isaacdatabase.PoolOperationRecordMeta, []byte, []byte) (bool, error),
+			) error {
+				return pool.TraverseOperationsBytes(ctx, offset,
+					func(
+						enchint hint.Hint,
+						meta isaacdatabase.PoolOperationRecordMeta,
+						body,
+						offset []byte,
+					) (bool, error) {
+						return callback(enchint, meta, body, offset)
+					},
+				)
 			},
 		),
 		nil))

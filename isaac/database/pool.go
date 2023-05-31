@@ -245,7 +245,7 @@ func (db *TempPool) OperationHashes(
 func (db *TempPool) TraverseOperationsBytes(
 	ctx context.Context,
 	offset []byte,
-	f func(meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
+	f func(enchint hint.Hint, meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
 ) error {
 	return db.st.Iter(
 		offsetRangeLeveldbOperationOrderedKey(offset),
@@ -263,7 +263,7 @@ func (db *TempPool) TraverseOperationsBytes(
 				meta = i
 			}
 
-			switch _, _, body, found, err := db.OperationBytes(ctx, meta.Operation()); {
+			switch enchint, _, body, found, err := db.OperationBytes(ctx, meta.Operation()); {
 			case err != nil:
 				return false, err
 			case !found:
@@ -274,7 +274,7 @@ func (db *TempPool) TraverseOperationsBytes(
 					return false, err
 				}
 
-				return f(meta, body, of)
+				return f(enchint, meta, body, of)
 			}
 		},
 		true,

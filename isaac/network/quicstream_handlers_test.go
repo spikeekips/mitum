@@ -383,52 +383,63 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
-	opch := make(chan []byte, len(ops))
-
 	newoffset := func(b []byte) []byte {
 		return valuehash.NewSHA256(b).Bytes()
 	}
 
-	handler := QuicstreamHandlerStreamOperations(t.Local.Publickey(), t.LocalParams.NetworkID(),
-		func(_ context.Context, offset []byte) (
-			func(context.Context) (hint.Hint, []byte, []byte, error),
-			func(),
-		) {
-			var found bool
-			if offset == nil {
-				found = true
-			}
+	var limit uint64
 
-			ctx, cancel := context.WithCancel(context.Background())
+	handler := func(opch chan []byte) quicstreamheader.Handler[StreamOperationsHeader] {
+		return QuicstreamHandlerStreamOperations(t.Local.Publickey(), t.LocalParams.NetworkID(), limit,
+			func(
+				_ context.Context,
+				offset []byte,
+				callback func(enchint hint.Hint, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+			) error {
+				var found bool
+				if offset == nil {
+					found = true
+				}
 
-			return func(context.Context) (hint.Hint, []byte, []byte, error) {
-				var b []byte
+				var meta isaacdatabase.PoolOperationRecordMeta
 
+				var count uint64
 			end:
 				for {
-					if ctx.Err() != nil {
-						return hint.Hint{}, nil, nil, ctx.Err()
-					}
-
-					b = <-opch
-					switch {
+					switch b := <-opch; {
 					case b == nil:
-						return hint.Hint{}, nil, nil, ErrNoMoreNext.WithStack()
+						return nil
 					case found:
-						return t.Enc.Hint(), b, b[:8], nil
+						keep, err := callback(t.Enc.Hint(), meta, b, b[:8])
+						if err != nil {
+							return err
+						}
+
+						if !keep {
+							return nil
+						}
+
+						count++
+
+						if limit > 0 && count == limit {
+							return nil
+						}
 					case bytes.Equal(offset, newoffset(b)):
 						found = true
-
-						continue end
-					default:
-						continue end
 					}
+
+					continue end
 				}
-			}, cancel
-		},
-	)
+			},
+		)
+	}
 
 	t.Run("nil offset", func() {
+		opch := make(chan []byte, len(ops))
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		defer handlercancel()
+
 		go func() {
 			for i := range opbs {
 				opch <- opbs[i]
@@ -436,9 +447,6 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 			opch <- nil
 		}()
-
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
-		defer handlercancel()
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
@@ -471,6 +479,11 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	})
 
 	t.Run("with offset", func() {
+		opch := make(chan []byte, len(ops))
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		defer handlercancel()
+
 		go func() {
 			for i := range opbs {
 				opch <- opbs[i]
@@ -478,9 +491,6 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 			opch <- nil
 		}()
-
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
-		defer handlercancel()
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
@@ -519,7 +529,64 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 		t.Equal(33-start, len(ropbs))
 	})
 
+	t.Run("limit", func() {
+		opch := make(chan []byte, len(ops))
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		defer handlercancel()
+
+		go func() {
+			for i := range opbs {
+				opch <- opbs[i]
+			}
+
+			opch <- nil
+		}()
+
+		limit = uint64(len(ops) / 2)
+		defer func() {
+			limit = 0
+		}()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		var ropbs [][]byte
+		var i int
+
+		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
+			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
+			func(enchint hint.Hint, body, offset []byte) error {
+				t.NoError(enchint.IsValid(nil))
+				t.NotEmpty(body)
+				t.NotEmpty(offset)
+
+				t.Equal(opbs[i], body)
+
+				enc := t.Encs.Find(enchint)
+				t.NotNil(enc)
+
+				var op base.Operation
+				t.NoError(encoder.Decode(enc, body, &op))
+
+				base.EqualOperation(t.Assert(), ops[i], op)
+
+				ropbs = append(ropbs, body)
+
+				i++
+
+				return nil
+			},
+		))
+
+		t.Equal(limit, uint64(len(ropbs)))
+	})
+
 	t.Run("callback error", func() {
+		opch := make(chan []byte, len(ops))
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		defer handlercancel()
+
 		donech := make(chan struct{})
 		go func() {
 			for i := range opbs {
@@ -530,9 +597,6 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 			donech <- struct{}{}
 		}()
-
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStreamOperations, handler)
-		defer handlercancel()
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 

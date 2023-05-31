@@ -545,10 +545,12 @@ func QuicstreamHandlerSetAllowConsensus(
 func QuicstreamHandlerStreamOperations(
 	pub base.Publickey,
 	networkID base.NetworkID,
-	iter func(_ context.Context, offset []byte) (
-		func(context.Context) (enchint hint.Hint, body, offset []byte, _ error),
-		func(),
-	),
+	limit uint64,
+	traverse func(
+		_ context.Context,
+		offset []byte,
+		callback func(enchint hint.Hint, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+	) error,
 ) quicstreamheader.Handler[StreamOperationsHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header StreamOperationsHeader,
@@ -579,32 +581,24 @@ func QuicstreamHandlerStreamOperations(
 			return broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf)
 		}
 
-		var gerr error
+		var count uint64
 
-		next, cancel := iter(ctx, header.Offset())
-		defer cancel()
+		err := traverse(
+			ctx,
+			header.Offset(),
+			func(enchint hint.Hint, _ isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+				switch {
+				case body == nil || offset == nil:
+					return false, errors.Errorf("empty body")
+				default:
+					count++
 
-	end:
-		for {
-			switch enchint, body, offset, err := next(ctx); {
-			case errors.Is(err, ErrNoMoreNext):
-				break end
-			case err != nil:
-				gerr = err
-
-				break end
-			case body == nil || offset == nil:
-				gerr = errors.Errorf("empty body")
-			default:
-				if err := writeBody(enchint, body, offset); err != nil {
-					gerr = err
-
-					break end
+					return limit < 1 || count < limit, writeBody(enchint, body, offset)
 				}
-			}
-		}
+			},
+		)
 
-		return broker.WriteResponseHeadOK(ctx, false, gerr)
+		return broker.WriteResponseHeadOK(ctx, false, err)
 	}
 }
 
