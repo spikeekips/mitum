@@ -85,7 +85,7 @@ func newHandoverMessageChallengeResponse(
 }
 
 func (h HandoverMessageChallengeResponse) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid HandoverMessageReadyResponse")
+	e := util.ErrInvalid.Errorf("invalid HandoverMessageChallengeResponse")
 
 	if len(h.id) < 1 {
 		return e.Errorf("empty id")

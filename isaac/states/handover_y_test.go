@@ -194,7 +194,7 @@ func (t *testHandoverYBroker) TestReceiveVoteproof() {
 	base.EqualVoteproof(t.Assert(), ivp, rivp)
 }
 
-func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
+func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 	point := base.RawPoint(33, 44)
 
 	t.Run("wrong ID", func() {
@@ -274,7 +274,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		err := broker.Receive(hc)
 		t.Error(err)
 		t.True(errors.Is(err, ErrHandoverCanceled))
-		t.ErrorContains(err, "unknown ready response message")
+		t.ErrorContains(err, "unknown challenge response message")
 
 		err = broker.isCanceled()
 		t.Error(err)
@@ -282,7 +282,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 		err = <-errch
 		t.Error(err)
-		t.ErrorContains(err, "unknown ready response message")
+		t.ErrorContains(err, "unknown challenge response message")
 	})
 
 	t.Run("point mismatch", func() {
@@ -303,7 +303,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		err := broker.Receive(hc)
 		t.Error(err)
 		t.True(errors.Is(err, ErrHandoverCanceled))
-		t.ErrorContains(err, "ready response message point not matched")
+		t.ErrorContains(err, "higher challenge response message received")
 
 		err = broker.isCanceled()
 		t.Error(err)
@@ -311,7 +311,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 		err = <-errch
 		t.Error(err)
-		t.ErrorContains(err, "ready response message point not matched")
+		t.ErrorContains(err, "higher challenge response message received")
 	})
 
 	t.Run("send failed", func() {

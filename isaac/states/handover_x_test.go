@@ -426,7 +426,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	})
 }
 
-func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
+func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 	point := base.RawPoint(33, 44)
 
 	t.Run("wrong ID", func() {
@@ -455,7 +455,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
-	t.Run("not higher previous HandoverMessageReady", func() {
+	t.Run("not higher previous HandoverMessageChallenge", func() {
 		args := t.xargs()
 
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
@@ -584,7 +584,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageReadyResponse"))
+			t.NoError(errors.Errorf("failed to wait HandoverMessageChallengeResponse"))
 		case rhc := <-sendch:
 			t.False(rhc.OK())
 			t.Nil(rhc.Err())
@@ -626,7 +626,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageReadyResponse"))
+			t.NoError(errors.Errorf("failed to wait HandoverMessageChallengeResponse"))
 		case rhc := <-sendch:
 			t.False(rhc.OK())
 			t.NotNil(rhc.Err())

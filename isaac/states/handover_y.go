@@ -356,7 +356,7 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 	case HandoverMessageData:
 		return h.receiveData(t)
 	case HandoverMessageChallengeResponse:
-		return h.receiveReadyResponse(t)
+		return h.receiveChallengeResponse(t)
 	case HandoverMessageFinish:
 		return h.receiveFinish(t)
 	default:
@@ -389,8 +389,8 @@ func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
 	}
 }
 
-func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageChallengeResponse) error {
-	h.Log().Debug().Interface("message", hc).Msg("receive HandoverMessageReadyResponse")
+func (h *HandoverYBroker) receiveChallengeResponse(hc HandoverMessageChallengeResponse) error {
+	h.Log().Debug().Interface("message", hc).Msg("receive HandoverMessageChallengeResponse")
 
 	if hc.Err() != nil {
 		return hc.Err()
@@ -399,9 +399,9 @@ func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageChallengeRespon
 	return h.lastpoint.Get(func(prev base.StagePoint, isempty bool) error {
 		switch {
 		case isempty:
-			return errors.Errorf("unknown ready response message received")
-		case !hc.Point().Equal(prev):
-			return errors.Errorf("ready response message point not matched")
+			return errors.Errorf("unknown challenge response message received")
+		case hc.Point().Compare(prev) > 0:
+			return errors.Errorf("higher challenge response message received")
 		default:
 			return nil
 		}

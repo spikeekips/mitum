@@ -67,16 +67,16 @@ type HandoverXBroker struct {
 	whenCanceledf   func(error)
 	whenFinishedf   func(base.INITVoteproof) error
 	*logging.Logging
-	ctxFunc               func() context.Context
-	args                  *HandoverXBrokerArgs
-	successcount          *util.Locked[uint64]
-	isFinishedLocked      *util.Locked[bool]
-	connInfo              quicstream.UDPConnInfo // NOTE y conn info
-	id                    string
-	previousReadyHandover base.StagePoint
-	readyEnd              uint64
-	challengecount        uint64
-	lastchallengecount    uint64
+	ctxFunc                   func() context.Context
+	args                      *HandoverXBrokerArgs
+	successcount              *util.Locked[uint64]
+	isFinishedLocked          *util.Locked[bool]
+	connInfo                  quicstream.UDPConnInfo // NOTE y conn info
+	id                        string
+	previousChallengeHandover base.StagePoint
+	readyEnd                  uint64
+	challengecount            uint64
+	lastchallengecount        uint64
 }
 
 func NewHandoverXBroker(
@@ -579,19 +579,19 @@ func (h *HandoverXBroker) challengeIsReady(point base.StagePoint, successcount u
 func (h *HandoverXBroker) challengeIsReadyOK(point base.StagePoint) error {
 	switch vp := h.lastVoteproof; {
 	case vp == nil:
-		return errors.Errorf("no last voteproof, but HandoverMessageReady from y")
+		return errors.Errorf("no last voteproof, but HandoverMessageChallenge from y")
 	case point.Compare(vp.Point()) > 0:
-		return errHandoverReset.Errorf("higher HandoverMessageReady point with last voteproof")
+		return errHandoverReset.Errorf("higher HandoverMessageChallenge point with last voteproof")
 	}
 
-	switch prev := h.previousReadyHandover; {
+	switch prev := h.previousChallengeHandover; {
 	case prev.IsZero():
 	case point.Compare(prev) <= 0:
 		return errHandoverReset.Errorf(
-			"HandoverMessageReady point should be higher than previous")
+			"HandoverMessageChallenge point should be higher than previous")
 	}
 
-	h.previousReadyHandover = point
+	h.previousChallengeHandover = point
 
 	return nil
 }
