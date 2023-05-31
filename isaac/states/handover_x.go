@@ -29,7 +29,7 @@ type HandoverXBrokerArgs struct {
 	SendMessageFunc   func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
 	CheckIsReady      func() (bool, error)
 	WhenCanceled      func(error)
-	WhenFinished      func(base.INITVoteproof) error
+	WhenFinished      func(_ base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error
 	GetProposal       func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
 	Local             base.Node
 	NetworkID         base.NetworkID
@@ -49,7 +49,7 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		CheckIsReady: func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
 		WhenCanceled: func(error) {},
 		ReadyEnd:     defaultHandoverXReadyEnd,
-		WhenFinished: func(base.INITVoteproof) error { return nil },
+		WhenFinished: func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error { return nil },
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
@@ -607,7 +607,7 @@ func (h *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
 
 	err = h.whenFinishedf(vp)
 
-	switch err = util.JoinErrors(err, h.args.WhenFinished(vp)); {
+	switch err = util.JoinErrors(err, h.args.WhenFinished(vp, h.args.Local.Address(), h.connInfo)); {
 	case err != nil:
 		l.Error().Interface("voteproof", vp).Err(err).Msg("failed to finish")
 	default:

@@ -137,7 +137,7 @@ func (st *States) CancelHandoverYBroker() error {
 func (st *States) cleanHandovers() {
 	_ = st.handoverXBroker.Empty(func(i *HandoverXBroker, isempty bool) error {
 		if !isempty {
-			st.Log().Debug().Msg("handover x broker canceled")
+			st.Log().Debug().Msg("handover x broker cleaned")
 		}
 
 		return nil
@@ -145,7 +145,7 @@ func (st *States) cleanHandovers() {
 
 	_ = st.handoverYBroker.Empty(func(i *HandoverYBroker, isempty bool) error {
 		if !isempty {
-			st.Log().Debug().Msg("handover y broker canceled")
+			st.Log().Debug().Msg("handover y broker cleaned")
 		}
 
 		return nil
@@ -332,10 +332,16 @@ func NewAskHandoverFunc(
 
 func NewHandoverXFinishedFunc(
 	leftMemberlist func() error,
-) func(base.INITVoteproof) error {
-	return func(base.INITVoteproof) error {
-		return util.StringError("handover x finished").
-			WithMessage(leftMemberlist(), "left memberlist")
+	addSyncSource func(base.Address, quicstream.UDPConnInfo) error,
+) func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
+	return func(_ base.INITVoteproof, node base.Address, yci quicstream.UDPConnInfo) error {
+		e := util.StringError("handover x finished")
+
+		if err := leftMemberlist(); err != nil {
+			return e.Wrap(err)
+		}
+
+		return e.Wrap(addSyncSource(node, yci))
 	}
 }
 

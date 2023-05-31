@@ -417,7 +417,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 			t.NotNil(broker)
 
 			fch := make(chan struct{}, 1)
-			broker.args.WhenFinished = func(base.INITVoteproof) error {
+			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
 				fch <- struct{}{}
 
 				return nil
@@ -1073,10 +1073,11 @@ func (t *testHandoverFuncs) TestHandoverXFinished() {
 
 	f := NewHandoverXFinishedFunc(
 		func() error { return leftMemberlistErr },
+		func(base.Address, quicstream.UDPConnInfo) error { return nil },
 	)
 
 	t.Run("ok", func() {
-		t.NoError(f(nil))
+		t.NoError(f(nil, nil, quicstream.UDPConnInfo{}))
 	})
 
 	t.Run("error", func() {
@@ -1085,7 +1086,7 @@ func (t *testHandoverFuncs) TestHandoverXFinished() {
 			leftMemberlistErr = nil
 		}()
 
-		err := f(nil)
+		err := f(nil, nil, quicstream.UDPConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "hohoho")
 	})

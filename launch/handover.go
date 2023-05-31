@@ -44,6 +44,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	var client *isaacnetwork.QuicstreamClient
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
+	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -52,6 +53,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		QuicstreamClientContextKey, &client,
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
+		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
 	}
@@ -70,11 +72,19 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		func() error {
 			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
 		},
-	)
-	args.WhenFinished = func(vp base.INITVoteproof) error {
-		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover x finished")
+		func(y base.Address, yci quicstream.UDPConnInfo) error {
+			nci := isaacnetwork.NewNodeConnInfo(
+				isaac.NewNode(local.Publickey(), y),
+				yci.Addr().String(),
+				yci.TLSInsecure(),
+			)
+			_ = syncSourcePool.AddNonFixed(nci)
 
-		return whenFinished(vp)
+			return nil
+		},
+	)
+	args.WhenFinished = func(vp base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error {
+		return whenFinished(vp, y, yci)
 	}
 
 	args.GetProposal = func(facthash util.Hash) (base.ProposalSignFact, bool, error) {

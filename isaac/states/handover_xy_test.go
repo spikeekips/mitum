@@ -102,7 +102,7 @@ func (t *testHandoverXYBroker) TestFinished() {
 		return true, nil
 	}
 	xfinishch := make(chan base.INITVoteproof, 1)
-	xargs.WhenFinished = func(vp base.INITVoteproof) error {
+	xargs.WhenFinished = func(vp base.INITVoteproof, _ base.Address, _ quicstream.UDPConnInfo) error {
 		xfinishch <- vp
 
 		return nil

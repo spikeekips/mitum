@@ -344,7 +344,7 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 		id := p.fixedids[i]
 
 		switch {
-		case skipid == id && (!foundid && len(skipid) > 0):
+		case !foundid && skipid == id:
 			foundid = true
 
 			continue
@@ -357,17 +357,9 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 		}
 	}
 
-	foundid = len(skipid) < 1
-
 	for id := range p.nonfixed {
 		switch {
-		case skipid == id && (!foundid && len(skipid) > 0):
-			foundid = true
-
-			continue
-		case !foundid:
-			continue
-		case p.problems.Has(id):
+		case skipid == id, p.problems.Has(id):
 			continue
 		default:
 			return id, p.nonfixed[id], func(err error) { p.reportProblem(id, err) }, nil

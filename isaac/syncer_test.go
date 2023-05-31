@@ -56,13 +56,26 @@ func (t *testSyncSourcePool) newnci() dummyNodeConnInfo {
 	)
 }
 
+func (t *testSyncSourcePool) newncis(n int) []NodeConnInfo {
+	cis := quicstream.RandomConnInfos(n)
+
+	ncis := make([]NodeConnInfo, n)
+
+	for i := range cis {
+		ncis[i] = newDummyNodeConnInfo(
+			base.RandomAddress(""),
+			base.NewMPrivatekey().Publickey(),
+			cis[i].Addr().String(),
+			cis[i].TLSInsecure(),
+		)
+	}
+
+	return ncis
+}
+
 func (t *testSyncSourcePool) TestNew() {
 	t.Run("ok", func() {
-		sources := make([]NodeConnInfo, 3)
-
-		for i := range sources {
-			sources[i] = t.newnci()
-		}
+		sources := t.newncis(3)
 
 		p := NewSyncSourcePool(sources)
 
@@ -87,13 +100,8 @@ func (t *testSyncSourcePool) TestNew() {
 }
 
 func (t *testSyncSourcePool) TestUpdate() {
-	prevsources := make([]NodeConnInfo, 3)
-	newsources := make([]NodeConnInfo, 3)
-
-	for i := range prevsources {
-		prevsources[i] = t.newnci()
-		newsources[i] = t.newnci()
-	}
+	prevsources := t.newncis(3)
+	newsources := t.newncis(3)
 
 	t.Run("update", func() {
 		p := NewSyncSourcePool(prevsources)
@@ -156,11 +164,7 @@ func (t *testSyncSourcePool) TestUpdate() {
 }
 
 func (t *testSyncSourcePool) TestAdd() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	t.Run("new", func() {
 		p := NewSyncSourcePool(sources)
@@ -211,18 +215,12 @@ func (t *testSyncSourcePool) TestAdd() {
 }
 
 func (t *testSyncSourcePool) TestRemove() {
-	sources := make([]NodeConnInfo, 3)
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	t.Run("ok", func() {
 		p := NewSyncSourcePool(sources)
 
-		added := make([]NodeConnInfo, 3)
-		for i := range added {
-			added[i] = t.newnci()
-		}
+		added := t.newncis(3)
 
 		t.True(p.AddNonFixed(added...))
 
@@ -235,10 +233,7 @@ func (t *testSyncSourcePool) TestRemove() {
 	t.Run("known in fixed", func() {
 		p := NewSyncSourcePool(sources)
 
-		added := make([]NodeConnInfo, 3)
-		for i := range added {
-			added[i] = t.newnci()
-		}
+		added := t.newncis(3)
 
 		t.True(p.AddNonFixed(added...))
 
@@ -252,9 +247,9 @@ func (t *testSyncSourcePool) TestRemove() {
 
 		removenode := base.RandomAddress("")
 
-		added := make([]NodeConnInfo, 4)
+		added := t.newncis(4)
 		for i := range added {
-			newci := t.newnci()
+			newci := added[i]
 
 			node := newci.Address()
 
@@ -284,11 +279,7 @@ func (t *testSyncSourcePool) TestRemove() {
 }
 
 func (t *testSyncSourcePool) TestSameID() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	p0 := NewSyncSourcePool(sources)
 	p1 := NewSyncSourcePool(sources)
@@ -297,11 +288,7 @@ func (t *testSyncSourcePool) TestSameID() {
 }
 
 func (t *testSyncSourcePool) TestNext() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	p := NewSyncSourcePool(sources)
 
@@ -326,11 +313,7 @@ func (t *testSyncSourcePool) TestNext() {
 }
 
 func (t *testSyncSourcePool) TestRenew() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	p := NewSyncSourcePool(sources)
 
@@ -361,11 +344,7 @@ func (t *testSyncSourcePool) TestNextButEmpty() {
 }
 
 func (t *testSyncSourcePool) TestConcurrent() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	p := NewSyncSourcePool(sources)
 	p.renewTimeout = time.Millisecond * 10
@@ -401,11 +380,7 @@ func (t *testSyncSourcePool) TestConcurrent() {
 }
 
 func (t *testSyncSourcePool) TestRetry() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	t.Run("once", func() {
 		p := NewSyncSourcePool(sources)
@@ -516,11 +491,7 @@ func (t *testSyncSourcePool) TestRetry() {
 }
 
 func (t *testSyncSourcePool) TestPickMultiple() {
-	sources := make([]NodeConnInfo, 3)
-
-	for i := range sources {
-		sources[i] = t.newnci()
-	}
+	sources := t.newncis(3)
 
 	t.Run("zero", func() {
 		p := NewSyncSourcePool(sources)
