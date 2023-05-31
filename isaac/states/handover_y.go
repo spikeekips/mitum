@@ -116,6 +116,8 @@ func NewHandoverYBroker(
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Interface("message", i).Msg("canceled by message")
 
+			syncdatacancel()
+
 			cancelf(ErrHandoverCanceled.Errorf("canceled by message"))
 		})
 	}
@@ -123,6 +125,8 @@ func NewHandoverYBroker(
 	h.stop = func() {
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Msg("stopped")
+
+			syncdatacancel()
 
 			cancel()
 		})
