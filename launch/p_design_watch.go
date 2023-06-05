@@ -453,9 +453,11 @@ func updateSyncSources(
 		}
 
 		prev := syncSourceChecker.Sources()
-		syncSourceChecker.UpdateSources(sources)
+
+		err := syncSourceChecker.UpdateSources(context.Background(), sources)
 
 		log.Log().Debug().
+			Err(err).
 			Str("key", "sync_sources").
 			Interface("prev", prev).
 			Interface("updated", sources).

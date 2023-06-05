@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -93,12 +94,13 @@ type SyncSourceChecker struct {
 	client isaac.NetworkClient
 	*logging.Logging
 	*util.ContextDaemon
-	callback        func(called int64, _ []isaac.NodeConnInfo, _ error)
+	callback        func([]isaac.NodeConnInfo, error)
 	requestTimeoutf func() time.Duration
 	sourceslocked   *util.Locked[[]SyncSource]
 	local           base.Node
 	networkID       base.NetworkID
 	interval        time.Duration
+	sync.Mutex
 }
 
 func NewSyncSourceChecker(
@@ -108,7 +110,7 @@ func NewSyncSourceChecker(
 	interval time.Duration,
 	enc encoder.Encoder,
 	sources []SyncSource,
-	callback func(called int64, _ []isaac.NodeConnInfo, _ error),
+	callback func([]isaac.NodeConnInfo, error),
 	requestTimeoutf func() time.Duration,
 ) *SyncSourceChecker {
 	nrequestTimeoutf := func() time.Duration {
@@ -143,45 +145,54 @@ func (c *SyncSourceChecker) start(ctx context.Context) error {
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
-	var called int64 = -1
+	var reset sync.Once
 
-end:
 	for {
 		select {
 		case <-ctx.Done():
 			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
-			called++
-
-			if called < 1 {
+			reset.Do(func() {
 				ticker.Reset(c.interval)
-			}
+			})
 
-			sources := c.Sources()
-			if len(sources) < 1 {
-				c.callback(called, nil, nil)
-
-				continue end
-			}
-
-			c.Log().Debug().Interface("sources", sources).Msg("trying to check sync sources")
-
-			ncis, err := c.check(ctx, sources)
-			switch {
-			case errors.Is(err, isaac.ErrEmptySyncSources):
-				c.Log().Warn().Msg("empty sync sources")
-			case err != nil:
-				c.Log().Error().Err(err).Msg("failed to check sync sources")
-			default:
-				c.Log().Debug().Interface("sources", ncis).Msg("sync sources checked")
-			}
-
-			c.callback(called, ncis, err)
+			_ = c.check(ctx)
 		}
 	}
 }
 
-func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
+func (c *SyncSourceChecker) check(ctx context.Context) error {
+	c.Lock()
+	defer c.Unlock()
+
+	sources := c.Sources()
+	if len(sources) < 1 {
+		c.callback(nil, nil)
+
+		return nil
+	}
+
+	c.Log().Debug().Interface("sources", sources).Msg("trying to check sync sources")
+
+	ncis, err := c.checkSources(ctx, sources)
+
+	switch {
+	case errors.Is(err, isaac.ErrEmptySyncSources):
+		c.Log().Warn().Msg("empty sync sources")
+	case err != nil:
+		c.Log().Error().Err(err).Msg("failed to check sync sources")
+
+		return err
+	default:
+		c.Log().Debug().Interface("sources", ncis).Msg("sync sources checked")
+	}
+
+	c.callback(ncis, err)
+
+	return nil
+}
+
+func (c *SyncSourceChecker) checkSources(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
 	e := util.StringError("fetch NodeConnInfo")
 
 	worker := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
@@ -465,6 +476,8 @@ func (c *SyncSourceChecker) Sources() []SyncSource {
 	return i
 }
 
-func (c *SyncSourceChecker) UpdateSources(cis []SyncSource) {
+func (c *SyncSourceChecker) UpdateSources(ctx context.Context, cis []SyncSource) error {
 	c.sourceslocked.SetValue(cis)
+
+	return c.check(ctx)
 }

@@ -389,7 +389,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	local := base.RandomLocalNode()
 	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil, nil)
 
-	ucis, err := checker.check(ctx, cis)
+	ucis, err := checker.checkSources(ctx, cis)
 	t.NoError(err)
 	t.NotNil(ucis)
 	t.Equal(len(ncis), len(ucis))
@@ -406,10 +406,14 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 func (t *testSyncSourceChecker) TestCalled() {
 	calledch := make(chan int64)
 
+	var called int64
+
 	local := base.RandomLocalNode()
 	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), nil, time.Millisecond*100, t.Enc, nil,
-		func(called int64, nics []isaac.NodeConnInfo, err error) {
+		func(nics []isaac.NodeConnInfo, err error) {
 			calledch <- called
+
+			called++
 		},
 		nil,
 	)
