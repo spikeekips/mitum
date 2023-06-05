@@ -778,11 +778,11 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 
 	switch i, err := srv.args.Encoder.Decode(b); {
 	case err != nil:
-		srv.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+		srv.Log().Error().Err(err).Str("broadcast_message", string(b)).Msg("failed to decode incoming message")
 
 		return nil, nil, err
 	default:
-		srv.Log().Trace().Err(err).Interface("message", i).Msg("new message notified")
+		srv.Log().Trace().Err(err).Interface("broadcast_message", i).Msg("new message notified")
 
 		j, ok := i.(ConnInfoBroadcastMessage)
 		if !ok {
@@ -955,8 +955,8 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 	config.RetransmitMult = 3
 	config.ProbeTimeout = 500 * time.Millisecond //nolint:gomnd //...
 	config.ProbeInterval = 1 * time.Second
-	config.SuspicionMult = 1 // NOTE fast detection for failed members
-	config.SuspicionMaxTimeoutMult = 1
+	config.SuspicionMult = 3 // NOTE fast detection for failed members
+	config.SuspicionMaxTimeoutMult = 3
 	config.DisableTcpPings = true
 	// config.SecretKey NO encryption
 	config.Delegate = nil
