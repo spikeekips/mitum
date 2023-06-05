@@ -148,29 +148,6 @@ linters-settings:
     # Default: true (disabled)
     disable-dec-num-check: true
 
-  depguard:
-    # Kind of list is passed in.
-    # Allowed values: allowlist|denylist
-    # Default: denylist
-    list-type: denylist
-
-    # Check the list against standard lib.
-    # Default: false
-    include-go-root: true
-
-    # A list of packages for the list type specified.
-    # Default: []
-    packages:
-
-    # A list of packages for the list type specified.
-    # Specify an error message to output when a denied package is used.
-    # Default: []
-    packages-with-error-message:
-
-    # Create additional guards that follow the same configuration pattern.
-    # Results from all guards are aggregated together.
-    additional-guards:
-
   dogsled:
     # Checks assignments with too many blank identifiers.
     # Default: 2
@@ -1502,7 +1479,6 @@ linters:
     - asciicheck
     - bidichk
     - deadcode
-    - depguard
     - dogsled
     - dupl
     - durationcheck
@@ -1575,6 +1551,8 @@ linters:
     - nosnakecase
     - cyclop
     - gocyclo
+    - depguard
+    - tagalign
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters
