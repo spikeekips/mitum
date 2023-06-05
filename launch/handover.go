@@ -45,6 +45,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -54,6 +55,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
 		SyncSourcePoolContextKey, &syncSourcePool,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return nil, err
 	}
@@ -78,7 +80,14 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 				yci.Addr().String(),
 				yci.TLSInsecure(),
 			)
-			_ = syncSourcePool.AddNonFixed(nci)
+
+			if syncSourcePool.Len() < 1 {
+				err := syncSourceChecker.UpdateSources(context.Background(), []isaacnetwork.SyncSource{
+					{Source: nci, Type: isaacnetwork.SyncSourceTypeNode},
+				})
+
+				log.Log().Debug().Err(err).Msg("handover y broker added to sync sourcess")
+			}
 
 			return nil
 		},

@@ -117,23 +117,25 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		// not get the last INIT ballot.
 		switch from {
 		case StateConsensus:
-			go func() {
-				if allowedConsensus {
+			if allowedConsensus {
+				go func() {
 					wait := st.params.WaitPreparingINITBallot() * 2
 					l.Debug().Dur("wait", wait).Msg("timers will be stopped")
 
 					<-time.After(wait)
-				}
+				}()
+			}
 
-				if st.sts != nil && st.sts.Current() == StateSyncing {
-					l.Debug().Msg("timers stopped")
+			if st.sts != nil && st.sts.Current() == StateSyncing {
+				l.Debug().Msg("timers stopped")
 
-					if err := st.timers.StopAllTimers(); err != nil {
-						l.Error().Err(err).Msg("failed to stop all timers")
-					}
+				if err := st.timers.StopAllTimers(); err != nil {
+					l.Error().Err(err).Msg("failed to stop all timers")
 				}
-			}()
+			}
 		default:
+			l.Debug().Msg("timers stopped")
+
 			if err := st.timers.StopAllTimers(); err != nil {
 				l.Error().Err(err).Msg("failed to stop all timers")
 			}

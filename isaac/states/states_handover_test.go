@@ -154,20 +154,7 @@ func (t *testStates) TestSwitchHandover() {
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
 
-		ticker := time.NewTicker(time.Millisecond * 33)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			if synced, _ := broker.isReadyToAsk.Value(); synced {
-				break
-			}
-		}
-
-		canMoveConsensus, isAsked, err := broker.Ask()
-		t.NoError(err)
-		t.True(isAsked)
-		t.False(canMoveConsensus)
-		t.True(broker.IsAsked())
+		t.False(t.ensureHandoverYBrokerAsk(broker))
 
 		nsctx := newDummySwitchContext(st.current().state(), StateHandover, nil)
 		t.NoError(st.AskMoveState(nsctx))
@@ -243,9 +230,35 @@ func (t *testStates) newHandoverYBrokerFunc(
 	return func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
 		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+			readych <- struct{}{}
+
+			return nil
+		}
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return util.UUID().String(), false, nil
+		}
 
 		return NewHandoverYBroker(ctx, args, connInfo), nil
 	}
+}
+
+func (t *testStates) ensureHandoverYBrokerAsk(broker *HandoverYBroker) bool {
+	ticker := time.NewTicker(time.Millisecond * 33)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if synced, _ := broker.isReadyToAsk.Value(); synced {
+			break
+		}
+	}
+
+	canMoveConsensus, isAsked, err := broker.Ask()
+	t.NoError(err)
+	t.True(isAsked)
+	t.True(broker.IsAsked())
+
+	return canMoveConsensus
 }
 
 func (t *testStates) TestNewHandoverXBroker() {
@@ -643,11 +656,25 @@ func (t *testStates) TestNewHandoverYBroker() {
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
 
+		t.False(t.ensureHandoverYBrokerAsk(broker))
+
+		fch := make(chan struct{}, 1)
+		broker.args.WhenFinished = func(base.INITVoteproof, quicstream.UDPConnInfo) error {
+			fch <- struct{}{}
+
+			return nil
+		}
+
 		hc := newHandoverMessageFinish(broker.ID(), nil, nil)
 		t.NoError(broker.receiveFinish(hc))
 
-		t.True(st.AllowedConsensus())
-		t.Nil(st.HandoverYBroker())
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to finish"))
+		case <-fch:
+		}
+
+		t.NotNil(st.HandoverYBroker())
 
 		t.T().Log("switching to syncing state")
 
@@ -657,6 +684,9 @@ func (t *testStates) TestNewHandoverYBroker() {
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
+
+		t.False(st.AllowedConsensus())
+		t.NotNil(st.HandoverYBroker())
 	})
 
 	t.Run("finished with voteproof", func() {
@@ -678,7 +708,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		// NOTE 'not allowed consensus' and empty HandoverYBroker will be
 		// changed by handover (or syncing) handler.
 		t.False(st.AllowedConsensus())
-		t.Nil(st.HandoverYBroker())
+		t.NotNil(st.HandoverYBroker())
 	})
 }
 

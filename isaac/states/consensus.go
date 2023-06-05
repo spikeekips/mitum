@@ -51,11 +51,19 @@ func (st *NewConsensusHandlerType) new() (handler, error) {
 }
 
 func (st *ConsensusHandler) whenNewVoteproof(vp base.Voteproof, _ isaac.LastVoteproofs) error {
-	if err := st.handoverXBrokerSendVoteproof(vp); err != nil {
-		st.Log().Error().Err(err).Interface("voteproof", vp).Msg("failed to send voteproof thru handover x broker")
+	broker := st.handoverXBroker()
+	if broker == nil {
+		return nil
 	}
 
-	return nil
+	switch isFinished, err := broker.sendVoteproof(st.ctx, vp); {
+	case err != nil:
+		return err
+	case isFinished:
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
+	default:
+		return nil
+	}
 }
 
 func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
@@ -64,19 +72,6 @@ func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
 	}
 
 	return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
-}
-
-func (st *ConsensusHandler) handoverXBrokerSendVoteproof(vp base.Voteproof) error {
-	broker := st.handoverXBroker()
-	if broker == nil {
-		return nil
-	}
-
-	if _, err := broker.sendVoteproof(st.ctx, vp); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 type consensusSwitchContext struct {

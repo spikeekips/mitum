@@ -63,10 +63,8 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 
 type voteproofHandler struct {
 	baseBallotHandler
-	args                *voteproofHandlerArgs
-	vpch                chan voteproofWithErrchan
-	notallowconsensusch chan struct{}
-	vplock              sync.Mutex
+	args   *voteproofHandlerArgs
+	vplock sync.Mutex
 }
 
 func newVoteproofHandler(
@@ -85,10 +83,8 @@ func newVoteproofHandler(
 
 func (st *voteproofHandler) new() *voteproofHandler {
 	nst := &voteproofHandler{
-		baseBallotHandler:   st.baseBallotHandler.new(),
-		args:                st.args,
-		vpch:                make(chan voteproofWithErrchan, 1<<6), // enough buffer
-		notallowconsensusch: make(chan struct{}, 1<<6),             // enough buffer
+		baseBallotHandler: st.baseBallotHandler.new(),
+		args:              st.args,
 	}
 
 	nst.args.prepareACCEPTBallot = nst.defaultPrepareACCEPTBallot
@@ -151,21 +147,7 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 		return func() {
 			deferred()
 
-			go st.startch()
-
-			defer st.vplock.Unlock()
-
-			var nsctx switchContext
-
-			switch err := st.newVoteproofWithLVPS(vp, lvps); {
-			case err == nil:
-			case !errors.As(err, &nsctx):
-				st.Log().Error().Err(err).Msg("failed to process enter voteproof; moves to broken state")
-
-				go st.switchState(newBrokenSwitchContext(st.stt, err))
-			default:
-				go st.switchState(nsctx)
-			}
+			st.enterWithNewVoteproof(vp, lvps)
 		}, nil
 	}
 }
@@ -189,54 +171,6 @@ func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
 	}
 
 	return deferred, nil
-}
-
-func (st *voteproofHandler) startch() {
-end:
-	for {
-		var vperr voteproofWithErrchan
-		var sctx switchContext
-
-		select {
-		case <-st.ctx.Done():
-			return
-		case vperr = <-st.vpch:
-		case <-st.notallowconsensusch:
-		}
-
-		if sctx = st.args.checkInState(vperr.vp); sctx != nil {
-			if vperr.vp != nil {
-				vperr.errch <- sctx
-
-				continue end
-			}
-
-			go st.switchState(sctx)
-
-			continue end
-		}
-
-		if vperr.vp != nil {
-			err := st.handleNewVoteproof(vperr.vp)
-			switch {
-			case err == nil:
-			case errors.As(err, &sctx):
-				go st.switchState(sctx)
-			}
-
-			vperr.errch <- err
-
-			if sctx != nil {
-				continue end
-			}
-		}
-
-		if sctx = st.args.checkInState(vperr.vp); sctx != nil {
-			go st.switchState(sctx)
-
-			continue end
-		}
-	}
 }
 
 func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(context.Context) error, error) {
@@ -437,19 +371,21 @@ func (st *voteproofHandler) handleACCEPTVoteproofAfterProcessingProposal(
 }
 
 func (st *voteproofHandler) newVoteproof(vp base.Voteproof) error {
-	vperr := newVoteproofWithErrchan(vp)
-
-	go func() {
-		st.vpch <- vperr
-	}()
-
-	return <-vperr.errch
-}
-
-func (st *voteproofHandler) handleNewVoteproof(vp base.Voteproof) error {
 	st.vplock.Lock()
 	defer st.vplock.Unlock()
 
+	if sctx := st.args.checkInState(vp); sctx != nil {
+		return sctx
+	}
+
+	if err := st.handleNewVoteproof(vp); err != nil {
+		return err
+	}
+
+	return st.args.checkInState(vp)
+}
+
+func (st *voteproofHandler) handleNewVoteproof(vp base.Voteproof) error {
 	switch lvps, v, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
 	case v == nil, !isnew:
 		return nil
@@ -876,7 +812,49 @@ func (st *voteproofHandler) setAllowConsensus(allow bool) bool {
 func (st *voteproofHandler) whenSetAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
 	st.baseBallotHandler.whenSetAllowConsensus(allow)
 
-	if !allow {
-		st.notallowconsensusch <- struct{}{}
+	if sctx := st.args.checkInState(nil); sctx != nil {
+		go st.switchState(sctx)
+	}
+}
+
+func (st *voteproofHandler) enterWithNewVoteproof(vp base.Voteproof, lvps isaac.LastVoteproofs) {
+	defer st.vplock.Unlock() // NOTE locks at deferred func of enter()
+
+	var nsctx switchContext
+
+	if err := st.newVoteproofWithLVPS(vp, lvps); err != nil {
+		switch {
+		case !errors.As(err, &nsctx):
+			st.Log().Error().Err(err).Msg("failed to process enter voteproof; moves to broken state")
+
+			go st.switchState(newBrokenSwitchContext(st.stt, err))
+		default:
+			go st.switchState(nsctx)
+		}
+
+		return
+	}
+
+	var lvp base.Voteproof
+
+	if st.sts != nil {
+		lvp = st.sts.args.Ballotbox.LastVoteproof()
+	}
+
+	if lvp != nil { // NOTE pick up the latest voteproof after finishing handover
+		if err := st.handleNewVoteproof(lvp); err != nil {
+			switch {
+			case !errors.As(err, &nsctx):
+				st.Log().Error().Err(err).Msg("failed to process last voteproof of ballotbox; moves to broken state")
+
+				go st.switchState(newBrokenSwitchContext(st.stt, err))
+
+				return
+			default:
+				go st.switchState(nsctx)
+
+				return
+			}
+		}
 	}
 }

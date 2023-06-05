@@ -61,7 +61,7 @@ func (t *testHandoverHandler) newargs(previous base.Manifest, suf base.Suffrage)
 	return args
 }
 
-func (t *testHandoverHandler) newState(args *HandoverHandlerArgs) (*HandoverHandler, func()) {
+func (t *testHandoverHandler) newState(args *HandoverHandlerArgs) (*HandoverHandler, func(), func()) {
 	newhandler := NewNewHandoverHandlerType(t.Local, t.LocalParams, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
@@ -69,17 +69,21 @@ func (t *testHandoverHandler) newState(args *HandoverHandlerArgs) (*HandoverHand
 	t.NoError(err)
 
 	st := i.(*HandoverHandler)
-	st.setAllowConsensus(false)
 
-	return st, func() {
-		deferred, err := st.exit(nil)
-		t.NoError(err)
-		deferred()
-	}
+	return st,
+		func() {
+			st.setAllowConsensus(false)
+		},
+		func() {
+			deferred, err := st.exit(nil)
+			t.NoError(err)
+			deferred()
+		}
 }
 
 func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf base.Suffrage) (
 	*HandoverHandler,
+	func(),
 	func(),
 	*isaac.DummyProposalProcessor,
 	base.INITVoteproof,
@@ -114,7 +118,7 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 		}
 	}
 
-	st, closef := t.newState(args)
+	st, start, closef := t.newState(args)
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(base.Ballot) error {
 		return nil
 	})
@@ -141,14 +145,14 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 	t.True(st.setLastVoteproof(avp))
 	t.True(st.setLastVoteproof(ivp))
 
-	return st, closef, pp, ivp
+	return st, start, closef, pp, ivp
 }
 
 func (t *testHandoverHandler) TestEnterButEmptyHandoverYBroker() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	switchch := make(chan switchContext, 1)
@@ -159,6 +163,8 @@ func (t *testHandoverHandler) TestEnterButEmptyHandoverYBroker() {
 	}
 
 	st.handoverYBrokerFunc = func() *HandoverYBroker { return nil } // NOTE set empty handover y broker
+
+	startfunc()
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -175,10 +181,8 @@ func (t *testHandoverHandler) TestEnterButAllowedConsensus() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
-
-	st.setAllowConsensus(true)
 
 	switchch := make(chan switchContext, 1)
 	st.switchStateFunc = func(sctx switchContext) error {
@@ -186,6 +190,10 @@ func (t *testHandoverHandler) TestEnterButAllowedConsensus() {
 
 		return nil
 	}
+
+	startfunc()
+
+	st.setAllowConsensus(true)
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -204,7 +212,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	ballotch := make(chan base.Ballot, 1)
@@ -237,6 +245,8 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
+
+	startfunc()
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -280,7 +290,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	ballotch := make(chan base.Ballot, 1)
@@ -324,6 +334,8 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
+
+	startfunc()
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -395,7 +407,7 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	broker := st.handoverYBroker()
@@ -413,6 +425,8 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
+
+	startfunc()
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -449,7 +463,7 @@ func (t *testHandoverHandler) TestFinishedWithINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -471,6 +485,8 @@ func (t *testHandoverHandler) TestFinishedWithINITVoteproof() {
 	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
+
+	startfunc()
 
 	sctx := newHandoverSwitchContext(StateSyncing, ivp)
 
@@ -529,8 +545,10 @@ func (t *testHandoverHandler) TestExitWithoutINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, _ := t.newStateWithINITVoteproof(point, suf)
+	st, startfunc, closefunc, _, _ := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	startfunc()
 
 	t.Run("exit", func() {
 		finished, _ := st.finishedWithVoteproof.Value()

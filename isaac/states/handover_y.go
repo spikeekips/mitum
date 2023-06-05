@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -20,8 +21,10 @@ type HandoverYBrokerArgs struct {
 	WhenCanceled func(error, quicstream.UDPConnInfo)
 	SyncDataFunc func(
 		context.Context, quicstream.UDPConnInfo, chan<- struct{}) error //revive:disable-line:nested-structs
-	AskRequestFunc AskHandoverFunc
-	NetworkID      base.NetworkID
+	AskRequestFunc           AskHandoverFunc
+	NetworkID                base.NetworkID
+	MaxEnsureSendFailure     uint64
+	RetrySendMessageInterval time.Duration
 }
 
 func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
@@ -38,7 +41,9 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
-		SyncDataFunc: func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error { return nil },
+		SyncDataFunc:             func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error { return nil },
+		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
+		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
 	}
 }
 
@@ -56,11 +61,11 @@ type HandoverYBroker struct {
 	whenCanceledf    func(error)
 	cancelByMessage  func(HandoverMessageCancel)
 	stop             func()
-	lastpoint        *util.Locked[base.StagePoint]
 	id               *util.Locked[string]
 	isReadyToAsk     *util.Locked[bool]
 	isDataSynced     *util.Locked[bool]
 	isFinishedLocked *util.Locked[bool]
+	sendFailureCount *util.Locked[uint64]
 	connInfo         quicstream.UDPConnInfo // NOTE x conn info
 	receivelock      sync.Mutex
 }
@@ -74,47 +79,50 @@ func NewHandoverYBroker(
 
 	var cancelOnce sync.Once
 
-	h := &HandoverYBroker{
+	broker := &HandoverYBroker{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "handover-y-broker")
 		}),
 		args:             args,
 		connInfo:         connInfo,
 		ctxFunc:          func() context.Context { return hctx },
-		lastpoint:        util.EmptyLocked[base.StagePoint](),
 		id:               util.EmptyLocked[string](),
 		whenFinishedf:    func(base.INITVoteproof) error { return nil },
 		whenCanceledf:    func(error) {},
 		isReadyToAsk:     util.NewLocked(false),
 		isDataSynced:     util.NewLocked(false),
 		isFinishedLocked: util.NewLocked(false),
+		sendFailureCount: util.NewLocked[uint64](0),
 	}
 
 	cancelf := func(err error) {
 		cancel()
 
-		h.whenCanceled(err)
+		broker.whenCanceled(err)
 	}
 
 	syncdatactx, syncdatacancel := context.WithCancel(hctx)
 
-	h.cancel = func(err error) {
+	broker.cancel = func(err error) {
 		cancelOnce.Do(func() {
-			defer h.Log().Error().Err(err).Msg("canceled")
+			defer broker.Log().Error().Err(err).Msg("canceled")
 
 			syncdatacancel()
 
-			if id := h.ID(); len(id) > 0 {
-				_ = h.sendMessage(hctx, NewHandoverMessageCancel(id, err))
+			if id := broker.ID(); len(id) > 0 {
+				go func() {
+					_ = broker.retrySendMessage(
+						context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:gomnd //...
+				}()
 			}
 
 			cancelf(err)
 		})
 	}
 
-	h.cancelByMessage = func(i HandoverMessageCancel) {
+	broker.cancelByMessage = func(i HandoverMessageCancel) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Interface("message", i).Msg("canceled by message")
+			defer broker.Log().Debug().Interface("handover_message", i).Msg("canceled by message")
 
 			syncdatacancel()
 
@@ -122,9 +130,9 @@ func NewHandoverYBroker(
 		})
 	}
 
-	h.stop = func() {
+	broker.stop = func() {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Msg("stopped")
+			defer broker.Log().Debug().Msg("stopped")
 
 			syncdatacancel()
 
@@ -137,10 +145,10 @@ func NewHandoverYBroker(
 		donech := make(chan struct{}, 1)
 
 		go func() {
-			if err := h.args.SyncDataFunc(syncdatactx, connInfo, readych); err != nil {
-				h.Log().Error().Err(err).Msg("failed to sync data")
+			if err := broker.args.SyncDataFunc(syncdatactx, connInfo, readych); err != nil {
+				broker.Log().Error().Err(err).Msg("failed to sync data")
 
-				h.cancel(err)
+				broker.cancel(err)
 
 				return
 			}
@@ -152,61 +160,61 @@ func NewHandoverYBroker(
 		case <-syncdatactx.Done():
 			return
 		case <-readych:
-			h.Log().Debug().Msg("ready to ask")
+			broker.Log().Debug().Msg("ready to ask")
 
-			_ = h.isReadyToAsk.SetValue(true)
+			_ = broker.isReadyToAsk.SetValue(true)
 		}
 
 		select {
 		case <-syncdatactx.Done():
 			return
 		case <-donech:
-			h.Log().Debug().Msg("data synced")
+			broker.Log().Debug().Msg("data synced")
 
-			_ = h.isDataSynced.SetValue(true)
+			_ = broker.isDataSynced.SetValue(true)
 		}
 	}()
 
-	return h
+	return broker
 }
 
-func (h *HandoverYBroker) ID() string {
-	id, _ := h.id.Value()
+func (broker *HandoverYBroker) ID() string {
+	id, _ := broker.id.Value()
 
 	return id
 }
 
-func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
-	return h.connInfo
+func (broker *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
+	return broker.connInfo
 }
 
-func (h *HandoverYBroker) IsAsked() bool {
-	id, _ := h.id.Value()
+func (broker *HandoverYBroker) IsAsked() bool {
+	id, _ := broker.id.Value()
 
 	return len(id) > 0
 }
 
-func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
+	if err := broker.isCanceled(); err != nil {
 		return false, false, err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
+	if i, _ := broker.isFinishedLocked.Value(); i {
 		return false, false, ErrHandoverStopped.Errorf("finished")
 	}
 
-	if synced, _ := h.isReadyToAsk.Value(); !synced {
+	if synced, _ := broker.isReadyToAsk.Value(); !synced {
 		return false, false, nil
 	}
 
 	var id string
 
-	if _, err := h.id.Set(func(_ string, isempty bool) (string, error) {
+	if _, err := broker.id.Set(func(_ string, isempty bool) (string, error) {
 		if !isempty {
 			return "", util.ErrLockedSetIgnore
 		}
 
-		switch i, j, err := h.args.AskRequestFunc(h.ctxFunc(), h.connInfo); {
+		switch i, j, err := broker.args.AskRequestFunc(broker.ctxFunc(), broker.connInfo); {
 		case err != nil:
 			return "", err
 		case len(i) < 1:
@@ -218,50 +226,46 @@ func (h *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 			return i, nil
 		}
 	}); err != nil {
-		h.cancel(err)
+		broker.cancel(err)
 
-		h.Log().Error().Err(err).Msg("failed to ask")
+		broker.Log().Error().Err(err).Msg("failed to ask")
 
 		return false, false, ErrHandoverCanceled.Wrap(err)
 	}
 
-	h.Log().Debug().Str("id", id).Msg("handover asked")
+	broker.Log().Debug().Str("id", id).Msg("handover asked")
 
 	return canMoveConsensus, true, nil
 }
 
-func (h *HandoverYBroker) isCanceled() error {
-	if err := h.ctxFunc().Err(); err != nil {
+func (broker *HandoverYBroker) isCanceled() error {
+	if err := broker.ctxFunc().Err(); err != nil {
 		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
 }
 
-func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePoint) error {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePoint) error {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
-		defer h.stop()
-
+	if i, _ := broker.isFinishedLocked.Value(); i {
 		return ErrHandoverStopped.Errorf("finished")
 	}
 
-	if ok, _ := h.isDataSynced.Value(); !ok {
+	if ok, _ := broker.isDataSynced.Value(); !ok {
 		return nil
 	}
 
-	id := h.ID()
+	id := broker.ID()
 	if len(id) < 1 {
 		return errors.Errorf("not yet asked")
 	}
 
-	_ = h.lastpoint.SetValue(point)
-
-	if err := h.sendMessage(ctx, newHandoverMessageChallengeStagePoint(id, point)); err != nil {
-		h.cancel(err)
+	if err := broker.endureSendMessage(ctx, newHandoverMessageChallengeStagePoint(id, point)); err != nil {
+		broker.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
@@ -269,30 +273,26 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 	return nil
 }
 
-func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
-		defer h.stop()
-
+	if i, _ := broker.isFinishedLocked.Value(); i {
 		return ErrHandoverStopped.Errorf("finished")
 	}
 
-	if ok, _ := h.isDataSynced.Value(); !ok {
+	if ok, _ := broker.isDataSynced.Value(); !ok {
 		return nil
 	}
 
-	id := h.ID()
+	id := broker.ID()
 	if len(id) < 1 {
 		return errors.Errorf("not yet asked")
 	}
 
-	_ = h.lastpoint.SetValue(point)
-
-	if err := h.sendMessage(ctx, newHandoverMessageChallengeBlockMap(id, point, m)); err != nil {
-		h.cancel(err)
+	if err := broker.endureSendMessage(ctx, newHandoverMessageChallengeBlockMap(id, point, m)); err != nil {
+		broker.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
@@ -300,27 +300,25 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 	return nil
 }
 
-func (h *HandoverYBroker) Receive(i interface{}) error {
-	h.receivelock.Lock()
-	defer h.receivelock.Unlock()
+func (broker *HandoverYBroker) Receive(i interface{}) error {
+	broker.receivelock.Lock()
+	defer broker.receivelock.Unlock()
 
-	if err := h.isCanceled(); err != nil {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	if j, _ := h.isFinishedLocked.Value(); j {
-		defer h.stop()
-
+	if j, _ := broker.isFinishedLocked.Value(); j {
 		return ErrHandoverStopped.Errorf("finished")
 	}
 
-	switch err := h.receiveInternal(i); {
+	switch err := broker.receiveInternal(i); {
 	case err == nil:
 	case errors.Is(err, errHandoverIgnore):
 	case errors.Is(err, ErrHandoverCanceled):
 		return err
 	default:
-		h.cancel(err)
+		broker.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
@@ -328,8 +326,8 @@ func (h *HandoverYBroker) Receive(i interface{}) error {
 	return nil
 }
 
-func (h *HandoverYBroker) receiveInternal(i interface{}) error {
-	id := h.ID()
+func (broker *HandoverYBroker) receiveInternal(i interface{}) error {
+	id := broker.ID()
 	if len(id) < 1 {
 		return errors.Errorf("not yet asked")
 	}
@@ -341,97 +339,82 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 	}
 
 	if iv, ok := i.(util.IsValider); ok {
-		if err := iv.IsValid(h.args.NetworkID); err != nil {
+		if err := iv.IsValid(broker.args.NetworkID); err != nil {
 			return err
 		}
 	}
 
 	if msg, ok := i.(HandoverMessageCancel); ok {
-		h.cancelByMessage(msg)
+		broker.cancelByMessage(msg)
 
 		return ErrHandoverCanceled.Errorf("canceled by message")
 	}
 
 	switch t := i.(type) {
 	case HandoverMessageData:
-		return h.receiveData(t)
+		return broker.receiveData(t)
 	case HandoverMessageChallengeResponse:
-		return h.receiveChallengeResponse(t)
+		return broker.receiveChallengeResponse(t)
 	case HandoverMessageFinish:
-		return h.receiveFinish(t)
+		return broker.receiveFinish(t)
 	default:
 		return errHandoverIgnore.Errorf("X sent unknown message, %T", i)
 	}
 }
 
-func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
+func (broker *HandoverYBroker) receiveData(i HandoverMessageData) error {
 	switch t := i.DataType(); t {
 	case HandoverMessageDataTypeVoteproof:
 		if vp, err := i.LoadVoteproofData(); err != nil {
 			return errHandoverIgnore.Wrap(err)
 		} else { //revive:disable-line:indent-error-flow
-			return h.newVoteproof(vp)
+			return broker.newVoteproof(vp)
 		}
 	case HandoverMessageDataTypeINITVoteproof:
 		if pr, vp, err := i.LoadINITVoteproofData(); err != nil {
 			return errHandoverIgnore.Wrap(err)
 		} else { //revive:disable-line:indent-error-flow
 			if pr != nil {
-				if err := h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr); err != nil {
+				if err := broker.args.NewDataFunc(HandoverMessageDataTypeProposal, pr); err != nil {
 					return err
 				}
 			}
 
-			return h.newVoteproof(vp)
+			return broker.newVoteproof(vp)
 		}
 	default:
-		return h.args.NewDataFunc(t, i.Data())
+		return broker.args.NewDataFunc(t, i.Data())
 	}
 }
 
-func (h *HandoverYBroker) receiveChallengeResponse(hc HandoverMessageChallengeResponse) error {
-	h.Log().Debug().Interface("message", hc).Msg("receive HandoverMessageChallengeResponse")
+func (broker *HandoverYBroker) receiveChallengeResponse(hc HandoverMessageChallengeResponse) error {
+	broker.Log().Debug().Interface("handover_message", hc).Msg("receive HandoverMessageChallengeResponse")
 
-	if hc.Err() != nil {
-		return hc.Err()
-	}
-
-	return h.lastpoint.Get(func(prev base.StagePoint, isempty bool) error {
-		switch {
-		case isempty:
-			return errors.Errorf("unknown challenge response message received")
-		case hc.Point().Compare(prev) > 0:
-			return errors.Errorf("higher challenge response message received")
-		default:
-			return nil
-		}
-	})
+	return hc.Err()
 }
 
-func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
-	defer h.stop()
-
-	h.Log().Debug().
+func (broker *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
+	broker.Log().Debug().
 		Bool("has_voteproof", hc.INITVoteproof() != nil).
 		Msg("receive HandoverMessageFinish")
 
 	var err error
 
-	_, _ = h.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
+	_, _ = broker.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
 			return false, util.ErrLockedSetIgnore.WithStack()
 		}
 
 		if pr := hc.Proposal(); pr != nil {
-			err = h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr)
+			err = broker.args.NewDataFunc(HandoverMessageDataTypeProposal, pr)
 		}
 
-		err = util.JoinErrors(err, h.whenFinished(hc.INITVoteproof()))
+		err = util.JoinErrors(err, broker.whenFinished(hc.INITVoteproof()))
 
 		return true, nil
 	})
 
-	l := h.Log().With().Interface("message", hc).Logger()
+	l := broker.Log().With().Interface("handover_message", hc).Logger()
 
 	if err != nil {
 		l.Error().Err(err).Msg("received HandoverMessageFinish")
@@ -442,71 +425,59 @@ func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 	return err
 }
 
-func (h *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
-	if err := h.newVoteprooff(vp); err != nil {
+func (broker *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
+	if err := broker.newVoteprooff(vp); err != nil {
 		return err
 	}
 
-	return h.args.NewDataFunc(HandoverMessageDataTypeVoteproof, vp)
+	return broker.args.NewDataFunc(HandoverMessageDataTypeVoteproof, vp)
 }
 
-func (h *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {
-	err := h.whenFinishedf(vp)
+func (broker *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {
+	err := broker.whenFinishedf(vp)
 
-	return util.JoinErrors(err, h.args.WhenFinished(vp, h.connInfo))
+	return util.JoinErrors(err, broker.args.WhenFinished(vp, broker.connInfo))
 }
 
-func (h *HandoverYBroker) whenCanceled(err error) {
-	h.whenCanceledf(err)
-	h.args.WhenCanceled(err, h.connInfo)
+func (broker *HandoverYBroker) whenCanceled(err error) {
+	broker.whenCanceledf(err)
+	broker.args.WhenCanceled(err, broker.connInfo)
 }
 
-func (h *HandoverYBroker) patchStates(st *States) error {
-	h.newVoteprooff = func(vp base.Voteproof) error {
-		vperr := newVoteproofWithErrchan(vp)
-
+func (broker *HandoverYBroker) patchStates(st *States) error {
+	broker.newVoteprooff = func(vp base.Voteproof) error {
 		go func() {
-			st.vpch <- vperr
+			st.vpch <- emptyVoteproofWithErrchan(vp)
 		}()
-
-		<-vperr.errch
 
 		return nil
 	}
 
-	h.whenFinishedf = func(vp base.INITVoteproof) error {
+	broker.whenFinishedf = func(vp base.INITVoteproof) error {
 		switch current := st.current(); {
 		case current == nil:
 		case vp == nil:
-			_ = st.setAllowConsensus(true)
-
-			st.cleanHandovers()
-
 			go func() {
 				// NOTE moves to syncing
-				err := st.AskMoveState(newSyncingSwitchContextWithVoteproof(current.state(), vp))
-				if err != nil {
-					panic(err)
-				}
+				_ = st.AskMoveState(newSyncingSwitchContextWithVoteproof(current.state(), nil))
 			}()
 		default:
-			vperr := newVoteproofWithErrchan(handoverFinishedVoteporof{INITVoteproof: vp})
-
 			go func() {
-				st.vpch <- vperr
+				st.vpch <- emptyVoteproofWithErrchan(handoverFinishedVoteporof{INITVoteproof: vp})
 			}()
-
-			<-vperr.errch
 		}
 
 		return nil
 	}
 
-	h.whenCanceledf = func(error) {
-		st.cleanHandovers()
-
-		if current := st.current(); current != nil {
+	broker.whenCanceledf = func(error) {
+		switch current := st.current(); {
+		case current == nil:
+			go st.cleanHandovers()
+		default:
 			go func() {
+				st.cleanHandovers()
+
 				err := st.AskMoveState(emptySyncingSwitchContext(current.state()))
 				if err != nil {
 					panic(err)
@@ -518,6 +489,24 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 	return nil
 }
 
-func (h *HandoverYBroker) sendMessage(ctx context.Context, msg HandoverMessage) error {
-	return h.args.SendMessageFunc(ctx, h.connInfo, msg)
+func (broker *HandoverYBroker) retrySendMessage(ctx context.Context, msg HandoverMessage, limit int) error {
+	return retryHandoverSendMessageFunc(
+		ctx,
+		limit,
+		broker.args.RetrySendMessageInterval,
+		broker.args.SendMessageFunc,
+		broker.connInfo,
+		msg,
+	)
+}
+
+func (broker *HandoverYBroker) endureSendMessage(ctx context.Context, msg HandoverMessage) error {
+	return endureHandoverSendMessageFunc(
+		ctx,
+		broker.sendFailureCount,
+		broker.args.MaxEnsureSendFailure,
+		broker.args.SendMessageFunc,
+		broker.connInfo,
+		msg,
+	)
 }

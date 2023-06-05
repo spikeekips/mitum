@@ -256,6 +256,8 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 	ctx context.Context,
 	to base.Height,
 ) error {
+	l := s.Log().With().Interface("to", to).Logger()
+
 	prev, err := s.prevvalue.Set(func(i base.BlockMap, _ bool) (base.BlockMap, error) {
 		switch {
 		case i == nil:
@@ -286,10 +288,14 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 		return nil
 	}
 
+	l.Debug().Interface("prev", prev).Msg("previous map checked; do sync")
+
 	newprev, err := s.doSync(ctx, prev, to)
 	if err != nil {
 		return err
 	}
+
+	l.Debug().Interface("new_previous_map", newprev).Msg("synced")
 
 	_ = s.prevvalue.SetValue(newprev)
 
@@ -310,15 +316,21 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
 	e := util.StringError("sync")
 
+	l := s.Log().With().Interface("prev", prev).Interface("to", to).Logger()
+
 	// NOTE fetch and store all BlockMaps
 	newprev, err := s.prepareMaps(ctx, prev, to)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
 
+	l.Debug().Interface("new_previous_map", newprev).Msg("maps prepared")
+
 	if err := s.syncBlocks(ctx, prev, to); err != nil {
 		return nil, e.Wrap(err)
 	}
+
+	l.Debug().Msg("blocks synced")
 
 	return newprev, nil
 }

@@ -36,7 +36,7 @@ func (t *testHandoverXBroker) TestNew() {
 	})
 
 	t.Run("isFinished", func() {
-		isFinished, err := broker.isFinished(nil)
+		isFinished, err := broker.isReadyToFinish(nil)
 		t.NoError(err)
 		t.False(isFinished)
 	})
@@ -151,6 +151,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 	t.Run("send failed", func() {
 		args := t.xargs()
+		args.MaxEnsureSendFailure = 0
 		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
 
 		broker.args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {

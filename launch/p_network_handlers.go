@@ -192,14 +192,14 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 						log.Log().Trace().
 							Str("module", "filter-notify-msg-send-ballots").
 							Err(err).
-							Interface("message", bl).
+							Interface("handover_message", bl).
 							Msg("filter error")
 
 						fallthrough
 					case !passed:
 						log.Log().Trace().
 							Str("module", "filter-notify-msg-send-ballots").
-							Interface("message", bl).
+							Interface("handover_message", bl).
 							Msg("filtered")
 
 						return nil

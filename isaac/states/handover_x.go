@@ -26,16 +26,18 @@ var (
 )
 
 type HandoverXBrokerArgs struct {
-	SendMessageFunc   func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
-	CheckIsReady      func() (bool, error)
-	WhenCanceled      func(error)
-	WhenFinished      func(_ base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error
-	GetProposal       func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
-	Local             base.Node
-	NetworkID         base.NetworkID
-	MinChallengeCount uint64
-	ReadyEnd          uint64
-	CleanAfter        time.Duration
+	SendMessageFunc          func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
+	CheckIsReady             func() (bool, error)
+	WhenCanceled             func(error)
+	WhenFinished             func(_ base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error
+	GetProposal              func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
+	Local                    base.Node
+	NetworkID                base.NetworkID
+	MinChallengeCount        uint64
+	ReadyEnd                 uint64
+	CleanAfter               time.Duration
+	MaxEnsureSendFailure     uint64
+	RetrySendMessageInterval time.Duration
 }
 
 func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *HandoverXBrokerArgs {
@@ -53,7 +55,11 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
-		CleanAfter: time.Second * 33, //nolint:gomnd // long enough to handle requests from handover y
+		CleanAfter: time.Second * 33, //nolint:gomnd // long enough to handle
+		// requests from handover y
+
+		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
+		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
 	}
 }
 
@@ -71,6 +77,7 @@ type HandoverXBroker struct {
 	args                      *HandoverXBrokerArgs
 	successcount              *util.Locked[uint64]
 	isFinishedLocked          *util.Locked[bool]
+	sendFailureCount          *util.Locked[uint64]
 	connInfo                  quicstream.UDPConnInfo // NOTE y conn info
 	id                        string
 	previousChallengeHandover base.StagePoint
@@ -88,7 +95,7 @@ func NewHandoverXBroker(
 
 	id := util.ULID().String()
 
-	h := &HandoverXBroker{
+	broker := &HandoverXBroker{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "handover-x-broker").Str("id", id)
 		}),
@@ -100,76 +107,83 @@ func NewHandoverXBroker(
 		whenCanceledf:    func(error) {},
 		whenFinishedf:    func(base.INITVoteproof) error { return nil },
 		isFinishedLocked: util.EmptyLocked[bool](),
+		sendFailureCount: util.NewLocked[uint64](0),
 	}
 
 	var cancelOnce sync.Once
 
-	h.cancel = func(err error) {
+	broker.cancel = func(err error) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Err(err).Msg("canceled")
+			defer broker.Log().Debug().Err(err).Msg("canceled")
 
-			_ = h.sendMessage(ctx, NewHandoverMessageCancel(id, err))
+			go func() {
+				_ = broker.retrySendMessage(
+					context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:gomnd //...
+			}()
 
 			cancel()
 
-			h.whenCanceled(err)
+			go broker.whenCanceled(err)
 		})
 	}
 
-	h.cancelByMessage = func(i HandoverMessageCancel) {
+	broker.cancelByMessage = func(i HandoverMessageCancel) {
 		cancelOnce.Do(func() {
-			defer h.Log().Debug().Interface("message", i).Msg("canceled by message")
+			defer broker.Log().Debug().Interface("handover_message", i).Msg("canceled by message")
 
 			cancel()
 
-			h.whenCanceled(ErrHandoverCanceled.Errorf("canceled by message"))
+			go broker.whenCanceled(ErrHandoverCanceled.Errorf("canceled by message"))
 		})
 	}
 
-	h.stop = func() {
-		go cancelOnce.Do(func() {
-			defer h.Log().Debug().Msg("stopped")
-			<-time.After(h.args.CleanAfter)
-
+	broker.stop = func() {
+		cancelOnce.Do(func() {
 			cancel()
 		})
 	}
 
-	return h
+	return broker
 }
 
-func (h *HandoverXBroker) ID() string {
-	return h.id
+func (broker *HandoverXBroker) ID() string {
+	return broker.id
 }
 
-func (h *HandoverXBroker) ConnInfo() quicstream.UDPConnInfo {
-	return h.connInfo
+func (broker *HandoverXBroker) ConnInfo() quicstream.UDPConnInfo {
+	return broker.connInfo
 }
 
-func (h *HandoverXBroker) isCanceled() error {
-	if err := h.ctxFunc().Err(); err != nil {
+func (broker *HandoverXBroker) isCanceled() error {
+	if err := broker.ctxFunc().Err(); err != nil {
 		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
 }
 
-func (h *HandoverXBroker) isReady() (uint64, bool) {
-	count, _ := h.successcount.Value()
+func (broker *HandoverXBroker) isReady() (uint64, bool) {
+	count, _ := broker.successcount.Value()
 
-	return count, h.checkIsReady(count)
+	return count, broker.checkIsReady(count)
 }
 
-func (h *HandoverXBroker) checkIsReady(count uint64) bool {
-	return count >= h.args.MinChallengeCount
+func (broker *HandoverXBroker) checkIsReady(count uint64) bool {
+	return count >= broker.args.MinChallengeCount
 }
 
-func (h *HandoverXBroker) isFinished(vp base.Voteproof) (isFinished bool, _ error) {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) isFinished() bool {
+	i, _ := broker.isFinishedLocked.Value()
+
+	return i
+}
+
+func (broker *HandoverXBroker) isReadyToFinish(vp base.Voteproof) (isFinished bool, _ error) {
+	if err := broker.isCanceled(); err != nil {
 		return false, err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
+	if broker.isFinished() {
 		return false, ErrHandoverStopped.WithStack()
 	}
 
@@ -181,16 +195,16 @@ func (h *HandoverXBroker) isFinished(vp base.Voteproof) (isFinished bool, _ erro
 		return false, nil
 	}
 
-	_ = h.successcount.Get(func(uint64, bool) error {
-		if h.readyEnd < 1 {
+	_ = broker.successcount.Get(func(uint64, bool) error {
+		if broker.readyEnd < 1 {
 			return nil
 		}
 
-		switch count, ok := h.isReady(); {
+		switch count, ok := broker.isReady(); {
 		case !ok:
 			return nil
 		default:
-			isFinished = count >= h.readyEnd
+			isFinished = count >= broker.readyEnd
 
 			return nil
 		}
@@ -199,48 +213,51 @@ func (h *HandoverXBroker) isFinished(vp base.Voteproof) (isFinished bool, _ erro
 	return isFinished, nil
 }
 
-func (h *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSignFact) error {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSignFact) error {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	_, err := h.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
+	broker.Log().Debug().Msg("trying to finish")
+
+	_, err := broker.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
 			return false, util.ErrLockedSetIgnore.WithStack()
 		}
 
-		defer h.stop()
-
-		if err := h.whenFinished(ivp); err != nil {
+		if err := broker.whenFinished(ivp); err != nil {
 			return false, err
 		}
 
-		hc := newHandoverMessageFinish(h.id, ivp, pr)
-		if err := h.sendMessage(h.ctxFunc(), hc); err != nil {
+		hc := newHandoverMessageFinish(broker.id, ivp, pr)
+
+		if err := broker.retrySendMessage(broker.ctxFunc(), hc, 33); err != nil { //nolint:gomnd //...
 			return false, err
 		}
 
-		h.Log().Debug().Interface("message", hc).Msg("sent HandoverMessageFinish")
+		broker.Log().Debug().Interface("handover_message", hc).Msg("sent HandoverMessageFinish")
 
 		return true, nil
 	})
 	if err != nil {
-		h.cancel(err)
+		broker.cancel(err)
 
-		h.Log().Error().Err(err).Interface("voteproof", ivp).Msg("failed to when finished for states")
+		broker.Log().Error().Err(err).Interface("voteproof", ivp).Msg("failed to when finished for states")
 	}
+
+	broker.Log().Debug().Msg("finished")
 
 	return err
 }
 
 // sendVoteproof sends voteproof to Y; If ready to finish, sendVoteproof will
 // finish broker process.
-func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) (isFinished bool, _ error) {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) (isFinished bool, _ error) {
+	if err := broker.isCanceled(); err != nil {
 		return false, err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
+	if broker.isFinished() {
 		return false, nil
 	}
 
@@ -249,41 +266,43 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 	if ivp, ok := vp.(base.INITVoteproof); ok {
 		// NOTE send proposal of init voteproof
 		if vp.Result() == base.VoteResultMajority {
-			switch i, found, err := h.args.GetProposal(ivp.BallotMajority().Proposal()); {
+			switch i, found, err := broker.args.GetProposal(ivp.BallotMajority().Proposal()); {
 			case err != nil, !found:
 			default:
 				pr = i
 			}
 		}
 
-		switch ok, err := h.isFinished(ivp); {
+		switch ok, err := broker.isReadyToFinish(ivp); {
 		case err != nil:
 			return false, err
 		case ok:
-			h.Log().Debug().Interface("init_voteproof", ivp).Msg("finished")
+			broker.Log().Debug().Interface("init_voteproof", ivp).Msg("finished")
 
-			go func() {
-				_ = h.finish(ivp, pr)
-			}()
+			if err := broker.finish(ivp, pr); err != nil {
+				return false, nil
+			}
 
 			return true, nil
 		}
 	}
 
-	switch err := h.sendVoteproofErr(ctx, pr, vp); {
+	switch err := broker.sendVoteproofErr(ctx, pr, vp); {
 	case err == nil, errors.Is(err, errHandoverIgnore):
 		return false, nil
 	default:
-		h.cancel(err)
+		broker.cancel(err)
 
 		return false, ErrHandoverCanceled.Wrap(err)
 	}
 }
 
-func (h *HandoverXBroker) sendVoteproofErr(ctx context.Context, pr base.ProposalSignFact, vp base.Voteproof) error {
-	_ = h.successcount.Get(func(uint64, bool) error {
-		h.lastVoteproof = vp
-		h.challengecount++
+func (broker *HandoverXBroker) sendVoteproofErr(
+	ctx context.Context, pr base.ProposalSignFact, vp base.Voteproof,
+) error {
+	_ = broker.successcount.Get(func(uint64, bool) error {
+		broker.lastVoteproof = vp
+		broker.challengecount++
 
 		return nil
 	})
@@ -291,95 +310,95 @@ func (h *HandoverXBroker) sendVoteproofErr(ctx context.Context, pr base.Proposal
 	switch ivp, ok := vp.(base.INITVoteproof); {
 	case !ok,
 		vp.Result() != base.VoteResultMajority:
-		return h.SendData(ctx, HandoverMessageDataTypeVoteproof, vp)
+		return broker.SendData(ctx, HandoverMessageDataTypeVoteproof, vp)
 	default:
-		return h.SendData(ctx, HandoverMessageDataTypeINITVoteproof, []interface{}{pr, ivp})
+		return broker.SendData(ctx, HandoverMessageDataTypeINITVoteproof, []interface{}{pr, ivp})
 	}
 }
 
-func (h *HandoverXBroker) SendData(ctx context.Context, dataType HandoverMessageDataType, data interface{}) error {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) SendData(ctx context.Context, dataType HandoverMessageDataType, data interface{}) error {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
+	if broker.isFinished() {
 		return nil
 	}
 
-	hc := newHandoverMessageData(h.id, dataType, data)
+	hc := newHandoverMessageData(broker.id, dataType, data)
 
-	switch err := h.sendMessage(ctx, hc); {
+	switch err := broker.endureSendMessage(ctx, hc); {
 	case err == nil:
 		return nil
 	default:
-		h.cancel(err)
+		broker.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
 }
 
-func (h *HandoverXBroker) sendBallot(ctx context.Context, ballot base.Ballot) error {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) sendBallot(ctx context.Context, ballot base.Ballot) error {
+	if err := broker.isCanceled(); err != nil {
 		return err
 	}
 
-	if i, _ := h.isFinishedLocked.Value(); i {
+	if broker.isFinished() {
 		return nil
 	}
 
-	hc := newHandoverMessageData(h.id, HandoverMessageDataTypeBallot, ballot)
+	hc := newHandoverMessageData(broker.id, HandoverMessageDataTypeBallot, ballot)
 
-	switch err := h.sendMessage(ctx, hc); {
+	switch err := broker.endureSendMessage(ctx, hc); {
 	case err == nil:
 		return nil
 	default:
-		h.cancel(err)
+		broker.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
 }
 
-func (h *HandoverXBroker) Receive(i interface{}) error {
-	if isfinished, _ := h.isFinishedLocked.Value(); isfinished {
+func (broker *HandoverXBroker) Receive(i interface{}) error {
+	if broker.isFinished() {
 		return nil
 	}
 
-	_, err := h.successcount.Set(func(before uint64, _ bool) (uint64, error) {
+	_, err := broker.successcount.Set(func(before uint64, _ bool) (uint64, error) {
 		var after, beforeReadyEnd uint64
 		{
-			beforeReadyEnd = h.readyEnd
+			beforeReadyEnd = broker.readyEnd
 		}
 
 		var err error
 
-		switch after, err = h.receiveInternal(i, before); {
+		switch after, err = broker.receiveInternal(i, before); {
 		case err == nil:
 		case errors.Is(err, errHandoverIgnore):
 			after = before
 
 			err = nil
 		case errors.Is(err, errHandoverReset):
-			h.readyEnd = 0
+			broker.readyEnd = 0
 
 			err = nil
 		case errors.Is(err, ErrHandoverCanceled):
 		default:
-			h.cancel(err)
+			broker.cancel(err)
 
 			err = ErrHandoverCanceled.Wrap(err)
 		}
 
-		h.Log().Debug().
+		broker.Log().Debug().
 			Interface("data", i).
 			Err(err).
-			Uint64("min_challenge_count", h.args.MinChallengeCount).
+			Uint64("min_challenge_count", broker.args.MinChallengeCount).
 			Dict("before", zerolog.Dict().
 				Uint64("challenge_count", before).
 				Uint64("ready_end", beforeReadyEnd),
 			).
 			Dict("after", zerolog.Dict().
 				Uint64("challenge_count", after).
-				Uint64("ready_end", h.readyEnd),
+				Uint64("ready_end", broker.readyEnd),
 			).
 			Msg("received")
 
@@ -389,25 +408,25 @@ func (h *HandoverXBroker) Receive(i interface{}) error {
 	return err
 }
 
-func (h *HandoverXBroker) receiveInternal(i interface{}, successcount uint64) (uint64, error) {
-	if err := h.isCanceled(); err != nil {
+func (broker *HandoverXBroker) receiveInternal(i interface{}, successcount uint64) (uint64, error) {
+	if err := broker.isCanceled(); err != nil {
 		return 0, err
 	}
 
 	if id, ok := i.(HandoverMessage); ok {
-		if h.id != id.HandoverID() {
+		if broker.id != id.HandoverID() {
 			return 0, errors.Errorf("id not matched")
 		}
 	}
 
 	if iv, ok := i.(util.IsValider); ok {
-		if err := iv.IsValid(h.args.NetworkID); err != nil {
+		if err := iv.IsValid(broker.args.NetworkID); err != nil {
 			return 0, err
 		}
 	}
 
 	if msg, ok := i.(HandoverMessageCancel); ok {
-		h.cancelByMessage(msg)
+		broker.cancelByMessage(msg)
 
 		return 0, ErrHandoverCanceled.Errorf("canceled by message")
 	}
@@ -415,13 +434,13 @@ func (h *HandoverXBroker) receiveInternal(i interface{}, successcount uint64) (u
 	switch t := i.(type) {
 	case HandoverMessageChallengeStagePoint,
 		HandoverMessageChallengeBlockMap:
-		return h.receiveChallenge(t, successcount)
+		return broker.receiveChallenge(t, successcount)
 	default:
 		return 0, errHandoverIgnore.Errorf("Y sent unknown message, %T", i)
 	}
 }
 
-func (h *HandoverXBroker) receiveChallenge(i interface{}, successcount uint64) (uint64, error) {
+func (broker *HandoverXBroker) receiveChallenge(i interface{}, successcount uint64) (uint64, error) {
 	var err error
 
 	var point base.StagePoint
@@ -429,10 +448,10 @@ func (h *HandoverXBroker) receiveChallenge(i interface{}, successcount uint64) (
 	switch t := i.(type) {
 	case HandoverMessageChallengeStagePoint:
 		point = t.Point()
-		err = h.receiveStagePoint(t)
+		err = broker.receiveStagePoint(t)
 	case HandoverMessageChallengeBlockMap:
 		point = t.Point()
-		err = h.receiveBlockMap(t)
+		err = broker.receiveBlockMap(t)
 	default:
 		return 0, errHandoverIgnore.Errorf("Y sent unknown message, %T", i)
 	}
@@ -443,28 +462,28 @@ func (h *HandoverXBroker) receiveChallenge(i interface{}, successcount uint64) (
 
 	after := successcount + 1
 
-	if h.lastchallengecount != h.challengecount-1 {
+	if broker.lastchallengecount != broker.challengecount-1 {
 		after = 1
 	}
 
-	h.lastchallengecount = h.challengecount
+	broker.lastchallengecount = broker.challengecount
 
-	if err := h.challengeIsReady(point, after); err != nil {
+	if err := broker.challengeIsReady(point, after); err != nil {
 		return 0, err
 	}
 
 	return after, nil
 }
 
-func (h *HandoverXBroker) receiveStagePoint(i HandoverMessageChallengeStagePoint) error {
+func (broker *HandoverXBroker) receiveStagePoint(i HandoverMessageChallengeStagePoint) error {
 	point := i.Point()
 
 	if err := func() error {
-		if h.lastReceived == nil {
+		if broker.lastReceived == nil {
 			return nil
 		}
 
-		if prev, ok := h.lastReceived.(base.StagePoint); ok && point.Compare(prev) < 1 {
+		if prev, ok := broker.lastReceived.(base.StagePoint); ok && point.Compare(prev) < 1 {
 			return errHandoverIgnore.Errorf("old stagepoint from y")
 		}
 
@@ -473,17 +492,17 @@ func (h *HandoverXBroker) receiveStagePoint(i HandoverMessageChallengeStagePoint
 		return err
 	}
 
-	h.lastReceived = point
+	broker.lastReceived = point
 
-	if h.lastVoteproof == nil {
+	if broker.lastVoteproof == nil {
 		return errors.Errorf("no last init voteproof for blockmap from y")
 	}
 
-	if !isStagePointChallenge(h.lastVoteproof) {
+	if !isStagePointChallenge(broker.lastVoteproof) {
 		return errHandoverReset.Errorf("not stagepoint challenge voteproof")
 	}
 
-	switch t := h.lastVoteproof.(type) {
+	switch t := broker.lastVoteproof.(type) {
 	case base.INITVoteproof:
 		if !t.Point().Equal(point) {
 			return errHandoverReset.Errorf("stagepoint not match for init voteproof")
@@ -499,22 +518,22 @@ func (h *HandoverXBroker) receiveStagePoint(i HandoverMessageChallengeStagePoint
 	return nil
 }
 
-func (h *HandoverXBroker) receiveBlockMap(i HandoverMessageChallengeBlockMap) error {
+func (broker *HandoverXBroker) receiveBlockMap(i HandoverMessageChallengeBlockMap) error {
 	m := i.BlockMap()
 
 	switch {
-	case !m.Node().Equal(h.args.Local.Address()):
+	case !m.Node().Equal(broker.args.Local.Address()):
 		return errors.Errorf("invalid blockmap from y; not signed by local; wrong address")
-	case !m.Signer().Equal(h.args.Local.Publickey()):
+	case !m.Signer().Equal(broker.args.Local.Publickey()):
 		return errors.Errorf("invalid blockmap from y; not signed by local; different key")
 	}
 
 	if err := func() error {
-		if h.lastReceived == nil {
+		if broker.lastReceived == nil {
 			return nil
 		}
 
-		prevbm, ok := h.lastReceived.(base.BlockMap)
+		prevbm, ok := broker.lastReceived.(base.BlockMap)
 		if !ok {
 			return nil
 		}
@@ -528,13 +547,13 @@ func (h *HandoverXBroker) receiveBlockMap(i HandoverMessageChallengeBlockMap) er
 		return err
 	}
 
-	h.lastReceived = m
+	broker.lastReceived = m
 
-	if h.lastVoteproof == nil {
+	if broker.lastVoteproof == nil {
 		return errors.Errorf("no last accept voteproof for blockmap from y")
 	}
 
-	switch avp, ok := h.lastVoteproof.(base.ACCEPTVoteproof); {
+	switch avp, ok := broker.lastVoteproof.(base.ACCEPTVoteproof); {
 	case !ok:
 		return errHandoverReset.Errorf("last not accept voteproof")
 	case avp.Result() != base.VoteResultMajority:
@@ -546,68 +565,68 @@ func (h *HandoverXBroker) receiveBlockMap(i HandoverMessageChallengeBlockMap) er
 	}
 }
 
-func (h *HandoverXBroker) challengeIsReady(point base.StagePoint, successcount uint64) error {
-	err := h.challengeIsReadyOK(point)
+func (broker *HandoverXBroker) challengeIsReady(point base.StagePoint, successcount uint64) error {
+	err := broker.challengeIsReadyOK(point)
 
 	var isReady bool
-	if err == nil && h.checkIsReady(successcount) {
-		isReady, err = h.args.CheckIsReady()
+	if err == nil && broker.checkIsReady(successcount) {
+		isReady, err = broker.args.CheckIsReady()
 	}
 
 	go func() {
-		if serr := h.sendMessage(
-			h.ctxFunc(),
-			newHandoverMessageChallengeResponse(h.id, point, isReady, err),
+		if serr := broker.endureSendMessage(
+			broker.ctxFunc(),
+			newHandoverMessageChallengeResponse(broker.id, point, isReady, err),
 		); serr != nil {
-			h.cancel(serr)
+			broker.cancel(serr)
 		}
 	}()
 
 	switch {
 	case err != nil:
-		h.readyEnd = 0
+		broker.readyEnd = 0
 
 		return err
-	case !isReady, h.readyEnd > 0:
+	case !isReady, broker.readyEnd > 0:
 	default:
-		h.readyEnd = successcount + h.args.ReadyEnd
+		broker.readyEnd = successcount + broker.args.ReadyEnd
 	}
 
 	return nil
 }
 
-func (h *HandoverXBroker) challengeIsReadyOK(point base.StagePoint) error {
-	switch vp := h.lastVoteproof; {
+func (broker *HandoverXBroker) challengeIsReadyOK(point base.StagePoint) error {
+	switch vp := broker.lastVoteproof; {
 	case vp == nil:
 		return errors.Errorf("no last voteproof, but HandoverMessageChallenge from y")
 	case point.Compare(vp.Point()) > 0:
 		return errHandoverReset.Errorf("higher HandoverMessageChallenge point with last voteproof")
 	}
 
-	switch prev := h.previousChallengeHandover; {
+	switch prev := broker.previousChallengeHandover; {
 	case prev.IsZero():
 	case point.Compare(prev) <= 0:
 		return errHandoverReset.Errorf(
 			"HandoverMessageChallenge point should be higher than previous")
 	}
 
-	h.previousChallengeHandover = point
+	broker.previousChallengeHandover = point
 
 	return nil
 }
 
-func (h *HandoverXBroker) whenCanceled(err error) {
-	h.whenCanceledf(err)
+func (broker *HandoverXBroker) whenCanceled(err error) {
+	broker.whenCanceledf(err)
 
-	h.args.WhenCanceled(err)
+	broker.args.WhenCanceled(err)
 }
 
-func (h *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
-	l := h.Log().With().Interface("voteproof", vp).Logger()
+func (broker *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
+	l := broker.Log().With().Interface("voteproof", vp).Logger()
 
-	err = h.whenFinishedf(vp)
+	err = broker.whenFinishedf(vp)
 
-	switch err = util.JoinErrors(err, h.args.WhenFinished(vp, h.args.Local.Address(), h.connInfo)); {
+	switch err = util.JoinErrors(err, broker.args.WhenFinished(vp, broker.args.Local.Address(), broker.connInfo)); {
 	case err != nil:
 		l.Error().Interface("voteproof", vp).Err(err).Msg("failed to finish")
 	default:
@@ -617,18 +636,38 @@ func (h *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
 	return err
 }
 
-func (h *HandoverXBroker) sendMessage(ctx context.Context, msg HandoverMessage) error {
-	return h.args.SendMessageFunc(ctx, h.connInfo, msg)
+func (broker *HandoverXBroker) retrySendMessage(ctx context.Context, msg HandoverMessage, limit int) error {
+	return retryHandoverSendMessageFunc(
+		ctx,
+		limit,
+		broker.args.RetrySendMessageInterval,
+		broker.args.SendMessageFunc,
+		broker.connInfo,
+		msg,
+	)
 }
 
-func (h *HandoverXBroker) patchStates(st *States) error {
-	h.whenFinishedf = func(vp base.INITVoteproof) error {
+func (broker *HandoverXBroker) endureSendMessage(ctx context.Context, msg HandoverMessage) error {
+	return endureHandoverSendMessageFunc(
+		ctx,
+		broker.sendFailureCount,
+		broker.args.MaxEnsureSendFailure,
+		broker.args.SendMessageFunc,
+		broker.connInfo,
+		msg,
+	)
+}
+
+func (broker *HandoverXBroker) patchStates(st *States) error {
+	broker.whenFinishedf = func(vp base.INITVoteproof) error {
 		go func() {
-			<-time.After(h.args.CleanAfter)
+			<-time.After(broker.args.CleanAfter)
+
+			broker.stop()
 
 			st.cleanHandovers()
 
-			h.Log().Debug().Msg("handover cleaned")
+			broker.Log().Debug().Msg("handover cleaned")
 		}()
 
 		_ = st.setAllowConsensus(false)
@@ -643,7 +682,7 @@ func (h *HandoverXBroker) patchStates(st *States) error {
 		return nil
 	}
 
-	h.whenCanceledf = func(error) {
+	broker.whenCanceledf = func(error) {
 		st.cleanHandovers()
 	}
 
@@ -659,4 +698,59 @@ func isStagePointChallenge(vp base.Voteproof) bool {
 	default:
 		return false
 	}
+}
+
+func retryHandoverSendMessageFunc(
+	ctx context.Context,
+	limit int,
+	interval time.Duration,
+	f func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error,
+	ci quicstream.UDPConnInfo,
+	m HandoverMessage,
+) error {
+	return util.Retry(
+		ctx,
+		func() (bool, error) {
+			switch err := f(ctx, ci, m); {
+			case err == nil, errors.Is(err, context.Canceled):
+				return false, nil
+			default:
+				return true, err
+			}
+		},
+		limit,
+		interval,
+	)
+}
+
+func endureHandoverSendMessageFunc(
+	ctx context.Context,
+	count *util.Locked[uint64],
+	max uint64,
+	f func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error,
+	ci quicstream.UDPConnInfo,
+	m HandoverMessage,
+) (err error) {
+	prev, _ := count.Value()
+
+	if max > 0 && prev >= max {
+		return errors.Errorf("send handover message; over max")
+	}
+
+	err = f(ctx, ci, m)
+	if err == nil {
+		_ = count.SetValue(0)
+
+		return nil
+	}
+
+	if prev < max {
+		err = nil
+	}
+
+	_, _ = count.Set(func(i uint64, _ bool) (uint64, error) {
+		return i + 1, nil
+	})
+
+	return err
 }

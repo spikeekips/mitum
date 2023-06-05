@@ -265,53 +265,12 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
 		broker.Ask()
 
-		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
-			errch <- err
-		}
-
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
 		err := broker.Receive(hc)
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
-		t.ErrorContains(err, "unknown challenge response message")
+		t.NoError(err)
 
 		err = broker.isCanceled()
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
-
-		err = <-errch
-		t.Error(err)
-		t.ErrorContains(err, "unknown challenge response message")
-	})
-
-	t.Run("point mismatch", func() {
-		args := t.yargs(util.UUID().String())
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
-
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
-		broker.Ask()
-
-		t.NoError(broker.sendStagePoint(context.Background(), base.NewStagePoint(point, base.StageINIT)))
-
-		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
-			errch <- err
-		}
-
-		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
-		err := broker.Receive(hc)
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
-		t.ErrorContains(err, "higher challenge response message received")
-
-		err = broker.isCanceled()
-		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
-
-		err = <-errch
-		t.Error(err)
-		t.ErrorContains(err, "higher challenge response message received")
+		t.NoError(err)
 	})
 
 	t.Run("send failed", func() {
@@ -319,6 +278,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
 			return errors.Errorf("hihihi")
 		}
+		args.MaxEnsureSendFailure = 0
 
 		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
 		broker.Ask()

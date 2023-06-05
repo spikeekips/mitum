@@ -59,11 +59,10 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 		params.SyncSourceCheckerInterval(),
 		enc,
 		sources,
-		func(called int64, ncis []isaac.NodeConnInfo, _ error) {
+		func(ncis []isaac.NodeConnInfo, _ error) {
 			syncSourcePool.UpdateFixed(ncis)
 
 			log.Log().Debug().
-				Int64("called", called).
 				Interface("node_conninfo", ncis).
 				Msg("sync sources updated")
 		},

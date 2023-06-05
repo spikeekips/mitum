@@ -101,6 +101,11 @@ func (st *HandoverHandler) exit(i switchContext) (func(), error) {
 	}
 
 	if finished, _ := st.finishedWithVoteproof.Value(); finished {
+		handover := st.handoverYBroker()
+		if handover != nil {
+			handover.stop()
+		}
+
 		_ = st.setAllowConsensus(true)
 	}
 
@@ -148,9 +153,11 @@ func (st *HandoverHandler) whenNewVoteproof(vp base.Voteproof, lvps isaac.LastVo
 	}
 
 	if isStagePointChallenge(vp) {
-		if err := broker.sendStagePoint(st.ctx, vp.Point()); err != nil {
-			l.Error().Msg("handover y broker; failed to send stage point; ignore")
-		}
+		go func() {
+			if err := broker.sendStagePoint(st.ctx, vp.Point()); err != nil {
+				l.Error().Msg("handover y broker; failed to send stage point; ignore")
+			}
+		}()
 	}
 
 	return nil
@@ -168,11 +175,13 @@ func (st *HandoverHandler) whenNewBlockSaved(bm base.BlockMap, avp base.ACCEPTVo
 		return
 	}
 
-	if err := broker.sendBlockMap(st.ctx, avp.Point(), bm); err != nil {
-		l.Error().Msg("handover y broker; failed to send blockmap")
+	go func() {
+		if err := broker.sendBlockMap(st.ctx, avp.Point(), bm); err != nil {
+			l.Error().Msg("handover y broker; failed to send blockmap")
 
-		return
-	}
+			return
+		}
+	}()
 }
 
 func (st *HandoverHandler) checkInState(vp base.Voteproof) switchContext {
@@ -227,6 +236,10 @@ func (sctx handoverSwitchContext) voteproof() base.Voteproof {
 
 type handoverFinishedVoteporof struct {
 	base.INITVoteproof
+}
+
+func (vp handoverFinishedVoteporof) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(vp.INITVoteproof)
 }
 
 func handoverIsReadyConsensusWithVoteproof(ivp base.INITVoteproof, lvps isaac.LastVoteproofs) switchContext {

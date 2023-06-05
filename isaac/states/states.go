@@ -384,7 +384,6 @@ func (st *States) switchState(sctx switchContext) error {
 
 	current := st.current()
 	nsctx := sctx
-	l := st.stateSwitchContextLog(nsctx, current)
 
 	var asctx switchContext
 
@@ -397,6 +396,8 @@ func (st *States) switchState(sctx switchContext) error {
 	default:
 		return err
 	}
+
+	l := st.stateSwitchContextLog(nsctx, current)
 
 	cdefer, ndefer, err := st.exitAndEnter(nsctx, current)
 	if err != nil {
@@ -481,12 +482,10 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 }
 
 func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
-	e := util.StringError("send voteproof to current")
-
 	st.Log().Debug().Interface("voteproof", vp).Msg("new voteproof")
 
 	if err := current.newVoteproof(vp); err != nil {
-		return e.Wrap(err)
+		return errors.WithMessage(err, "send voteproof to current")
 	}
 
 	return nil
@@ -844,7 +843,9 @@ func (st *States) checkOutOfHandoverX(sctx switchContext) error {
 	case StateBooting, StateConsensus, StateJoining:
 		return nil
 	default:
-		return broker.finish(nil, nil)
+		_ = broker.finish(nil, nil)
+
+		return nil
 	}
 }
 
@@ -898,8 +899,6 @@ type voteproofWithErrchan struct {
 	errch chan error
 }
 
-func newVoteproofWithErrchan(vp base.Voteproof) voteproofWithErrchan {
-	errch := make(chan error, 1)
-
-	return voteproofWithErrchan{vp: vp, errch: errch}
+func emptyVoteproofWithErrchan(vp base.Voteproof) voteproofWithErrchan {
+	return voteproofWithErrchan{vp: vp}
 }
