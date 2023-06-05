@@ -1123,26 +1123,14 @@ func (t *testHandoverFuncs) TestHandoverXFinished() {
 }
 
 func (t *testHandoverFuncs) TestHandoverYFinished() {
-	var leftMemberlistErr, removeSyncSourceErr error
+	var removeSyncSourceErr error
 
 	f := NewHandoverYFinishedFunc(
-		func() error { return leftMemberlistErr },
 		func(quicstream.UDPConnInfo) error { return removeSyncSourceErr },
 	)
 
 	t.Run("ok", func() {
 		t.NoError(f(nil, quicstream.UDPConnInfo{}))
-	})
-
-	t.Run("error left memberlist", func() {
-		leftMemberlistErr = errors.Errorf("hohoho")
-		defer func() {
-			leftMemberlistErr = nil
-		}()
-
-		err := f(nil, quicstream.UDPConnInfo{})
-		t.Error(err)
-		t.ErrorContains(err, "hohoho")
 	})
 
 	t.Run("error remove sync source", func() {

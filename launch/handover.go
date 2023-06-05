@@ -165,9 +165,6 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	}
 
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
-		func() error {
-			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
-		},
 		func(xci quicstream.UDPConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfo(
 				isaac.NewNode(local.Publickey(), local.Address()),

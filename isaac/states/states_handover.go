@@ -346,19 +346,14 @@ func NewHandoverXFinishedFunc(
 }
 
 func NewHandoverYFinishedFunc(
-	leftMemberlist func() error,
 	removeSyncSource func(quicstream.UDPConnInfo) error,
 ) func(base.INITVoteproof, quicstream.UDPConnInfo) error {
 	return func(_ base.INITVoteproof, xci quicstream.UDPConnInfo) error {
-		lch := make(chan error)
-		rch := make(chan error)
+		if err := removeSyncSource(xci); err != nil {
+			return errors.WithMessage(err, "handover y finished")
+		}
 
-		go func() { lch <- leftMemberlist() }()
-		go func() { rch <- removeSyncSource(xci) }()
-
-		return util.StringError("handover y finished").Wrap(
-			util.JoinErrors(<-lch, <-rch),
-		)
+		return nil
 	}
 }
 
