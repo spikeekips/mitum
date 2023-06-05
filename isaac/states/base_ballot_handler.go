@@ -359,11 +359,14 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
-			if i < 1 {
+			switch {
+			case st.ctx.Err() != nil:
+				return 0
+			case i < 1:
 				return ninitialWait
+			default:
+				return st.params.IntervalBroadcastBallot()
 			}
-
-			return st.params.IntervalBroadcastBallot()
 		},
 	)
 }
@@ -376,16 +379,19 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
-			lvp := st.lastVoteproofs().Cap()
-			if lvp.Point().Height() > bl.Point().Height() {
+			switch {
+			case st.ctx.Err() != nil:
 				return 0
-			}
-
-			if i < 1 {
+			case i < 1:
 				return time.Nanosecond
-			}
+			default:
+				lvp := st.lastVoteproofs().Cap()
+				if lvp.Point().Height() > bl.Point().Height() {
+					return 0
+				}
 
-			return st.params.IntervalBroadcastBallot()
+				return st.params.IntervalBroadcastBallot()
+			}
 		},
 	); err != nil {
 		return err
@@ -671,18 +677,13 @@ func (st *baseBallotHandler) requestProposal(
 }
 
 func (st *baseBallotHandler) broadcastBallot(ballot base.Ballot) error {
-	bch := make(chan error)
-	ych := make(chan error)
-
 	go func() {
-		bch <- st.ballotBroadcaster.Broadcast(ballot)
+		if err := st.sendBallotToHandoverY(st.ctx, ballot); err != nil {
+			st.Log().Error().Err(err).Msg("failed to send ballot to handover y")
+		}
 	}()
 
-	go func() {
-		ych <- st.sendBallotToHandoverY(st.ctx, ballot)
-	}()
-
-	return util.JoinErrors(<-bch, <-ych)
+	return st.ballotBroadcaster.Broadcast(ballot)
 }
 
 func (st *baseBallotHandler) sendBallotToHandoverY(ctx context.Context, ballot base.Ballot) error {
