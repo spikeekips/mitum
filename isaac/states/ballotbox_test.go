@@ -210,6 +210,8 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
 	box.SetLastPoint(mustNewLastPoint(bl.Voteproof().Point(), true, false))
 
+	t.Nil(box.LastVoteproof())
+
 	voted, err := box.VoteSignFact(bl.SignFact())
 	t.NoError(err)
 	t.True(voted)
@@ -232,6 +234,13 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 
 		last := box.LastPoint()
 		t.compareStagePoint(last.StagePoint, vp)
+
+		t.Run("check in LastVoteproof", func() {
+			lvp := box.LastVoteproof()
+			t.NotNil(lvp)
+
+			base.EqualVoteproof(t.Assert(), vp, lvp)
+		})
 	}
 }
 

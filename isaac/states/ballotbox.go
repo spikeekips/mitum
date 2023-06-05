@@ -28,6 +28,7 @@ type Ballotbox struct {
 	vpch              chan base.Voteproof
 	vrs               *util.ShardedMap[string, *voterecords]
 	lsp               *util.Locked[isaac.LastPoint]
+	lvp               *util.Locked[base.Voteproof]
 	removed           *util.Locked[[]*voterecords]
 	countLock         sync.Mutex
 	countAfter        time.Duration
@@ -57,6 +58,7 @@ func NewBallotbox(
 		countAfter:        time.Second * 5, //nolint:gomnd //...
 		interval:          time.Second,
 		removed:           util.EmptyLocked[[]*voterecords](),
+		lvp:               util.EmptyLocked[base.Voteproof](),
 	}
 
 	box.ContextDaemon = util.NewContextDaemon(box.start)
@@ -248,6 +250,20 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint) ([]base.Address, bool,
 	}
 }
 
+func (box *Ballotbox) LastVoteproof() base.Voteproof {
+	vp, _ := box.lvp.Value()
+
+	return vp
+}
+
+func (box *Ballotbox) newVoteproof(vp base.Voteproof) {
+	_, _ = box.lvp.Set(func(base.Voteproof, bool) (base.Voteproof, error) {
+		box.vpch <- vp
+
+		return vp, nil
+	})
+}
+
 func (box *Ballotbox) checkBallot(bl base.Ballot) bool {
 	f := func(w base.HasExpels) bool {
 		expels := w.Expels()
@@ -364,7 +380,7 @@ func (box *Ballotbox) vote(
 				last := box.LastPoint()
 
 				if vr.voteproofFromBallotsLocked(vp, last, box.params.Threshold(), isaac.IsNewVoteproof) {
-					box.vpch <- vp
+					box.newVoteproof(vp)
 
 					return []base.Voteproof{vp}
 				}
@@ -509,7 +525,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 		box.SetLastPointFromVoteproof(lastvp)
 
 		for i := range filtered {
-			box.vpch <- filtered[i]
+			box.newVoteproof(filtered[i])
 		}
 	}
 
@@ -581,7 +597,7 @@ func (box *Ballotbox) countHoldeds() {
 		vps := vrs[i].countHolded(box.local, last, box.countAfter)
 
 		for i := range vps {
-			box.vpch <- vps[i]
+			box.newVoteproof(vps[i])
 		}
 	}
 }
