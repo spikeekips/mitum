@@ -189,31 +189,31 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	m.SetNotifyMsg(func(b []byte, enc encoder.Encoder) {
 		m, err := enc.Decode(b) //nolint:govet //...
 		if err != nil {
-			l.Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+			l.Error().Err(err).Str("notify_message", string(b)).Msg("failed to decode incoming message")
 
 			return
 		}
 
-		l.Trace().Err(err).Interface("message", m).Msg("new message notified")
+		l.Trace().Err(err).Interface("notify_message", m).Msg("new message notified")
 
 		switch passed, err := filternotifymsg(m); {
 		case err != nil:
-			l.Trace().Err(err).Interface("message", m).Msg("filter error")
+			l.Trace().Err(err).Interface("notify_message", m).Msg("filter error")
 		case !passed:
-			l.Trace().Interface("message", m).Msg("filtered")
+			l.Trace().Interface("notify_message", m).Msg("filtered")
 
 			return
 		}
 
 		switch t := m.(type) {
 		case base.Ballot:
-			l.Debug().
+			l.Trace().
 				Interface("point", t.Point()).
 				Stringer("node", t.SignFact().Node()).
 				Msg("ballot notified")
 
 			if err := t.IsValid(params.NetworkID()); err != nil {
-				l.Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+				l.Trace().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
 			}
@@ -235,13 +235,13 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 			l.Debug().Interface("expel", t).Bool("voted", voted).
 				Msg("new expel operation; voted")
 		case isaacstates.MissingBallotsRequestMessage:
-			l.Debug().
+			l.Trace().
 				Interface("point", t.Point()).
 				Interface("nodes", t.Nodes()).
 				Msg("missing ballots request message notified")
 
 			if err := t.IsValid(nil); err != nil {
-				l.Error().Err(err).Msg("invalid missing ballots request message")
+				l.Trace().Err(err).Msg("invalid missing ballots request message")
 
 				return
 			}
@@ -255,7 +255,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 				}
 			}
 		default:
-			l.Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
+			l.Debug().Interface("notify_message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
 
