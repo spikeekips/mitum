@@ -95,7 +95,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 			) {
 				var ci quicstream.UDPConnInfo
 
-				switch xbroker := states.HandoverXBroker(); {
+				switch xbroker := states.HandoverYBroker(); {
 				case xbroker == nil:
 					return enchint, nil, false, nil
 				default:
@@ -169,9 +169,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 			sendOperationFilterf,
 			svvotef,
 			func(ctx context.Context, id string, op base.Operation, b []byte) error {
-				switch broker := states.HandoverXBroker(); {
-				case broker == nil:
-				default:
+				if broker := states.HandoverXBroker(); broker != nil {
 					if err := broker.SendData(ctx, isaacstates.HandoverMessageDataTypeOperation, op); err != nil {
 						log.Log().Error().Err(err).
 							Interface("operation", op.Hash()).
@@ -261,7 +259,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 				) {
 					var connInfo quicstream.UDPConnInfo
 
-					switch broker := states.HandoverXBroker(); {
+					switch broker := states.HandoverYBroker(); {
 					case broker == nil:
 						return nil, nil
 					default:
@@ -286,7 +284,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 				func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
 					var connInfo quicstream.UDPConnInfo
 
-					switch broker := states.HandoverXBroker(); {
+					switch broker := states.HandoverYBroker(); {
 					case broker == nil:
 						return hint.Hint{}, nil, false, nil
 					default:
