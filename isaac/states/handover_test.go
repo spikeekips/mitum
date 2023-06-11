@@ -62,7 +62,7 @@ func (t *testHandoverHandler) newargs(previous base.Manifest, suf base.Suffrage)
 }
 
 func (t *testHandoverHandler) newState(args *HandoverHandlerArgs) (*HandoverHandler, func(), func()) {
-	newhandler := NewNewHandoverHandlerType(t.Local, t.LocalParams, args)
+	newhandler := NewNewHandoverHandlerType(t.LocalParams.NetworkID(), t.Local, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
 	i, err := newhandler.new()

@@ -34,13 +34,13 @@ type NewBootingHandlerType struct {
 }
 
 func NewNewBootingHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *BootingHandlerArgs,
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler: newBaseHandlerType(StateBooting, local, params),
+			baseHandler: newBaseHandlerType(StateBooting, networkID, local),
 			args:        args,
 		},
 	}

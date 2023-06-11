@@ -140,7 +140,7 @@ func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelec
 
 	args.Pool = newDummyProposalPool(10)
 	args.ProposerSelector = NewBlockBasedProposerSelector()
-	args.Maker = NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool)
+	args.Maker = NewProposalMaker(t.Local, t.LocalParams.NetworkID(), func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool)
 	args.GetNodesFunc = func(base.Height) ([]base.Node, bool, error) {
 		return nodes, len(nodes) > 0, nil
 	}
@@ -153,7 +153,7 @@ func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelec
 
 			pr, err := NewProposalMaker(
 				n.(base.LocalNode),
-				t.LocalParams,
+				t.LocalParams.NetworkID(),
 				func(context.Context, base.Height) ([]util.Hash, error) {
 					return nil, nil
 				},
@@ -174,7 +174,7 @@ func (t *testBaseProposalSelector) TestNew() {
 
 	args := t.newargs(nodes)
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	t.T().Logf("available nodes: %d", len(nodes))
 
@@ -209,7 +209,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 	nodes := []base.Node{t.Local}
 
 	args := t.newargs(nodes)
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewBlockBasedProposerSelector()
 	args.RequestFunc = func(_ context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
@@ -235,7 +235,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 	args := t.newargs(nil)
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewBlockBasedProposerSelector()
 
@@ -257,7 +257,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 	args := t.newargs(nodes)
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewFixedProposerSelector(
 		func(base.Point, []base.Node, util.Hash) (base.Node, error) {
@@ -283,7 +283,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 			pr, err := NewProposalMaker(
 				n.(base.LocalNode),
-				t.LocalParams,
+				t.LocalParams.NetworkID(),
 				func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil },
 				args.Pool,
 			).New(ctx, point, previousBlock)
@@ -319,7 +319,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 
 	args := t.newargs(nodes)
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewBlockBasedProposerSelector()
 	args.RequestFunc = func(_ context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
@@ -354,9 +354,9 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 	args := t.newargs(nodes)
 
 	requestdelay := time.Second
-	_ = t.LocalParams.SetTimeoutRequest(time.Millisecond * 10)
+	args.TimeoutRequest = func() time.Duration { return time.Millisecond * 10 }
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewBlockBasedProposerSelector()
 	args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
@@ -379,7 +379,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 
 				pr, err = NewProposalMaker(
 					n.(base.LocalNode),
-					t.LocalParams,
+					t.LocalParams.NetworkID(),
 					func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil },
 					args.Pool,
 				).New(ctx, point, previousBlock)
@@ -429,12 +429,12 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 func (t *testBaseProposalSelector) TestMainContextCanceled() {
 	nodes := t.newNodes(3)
 
-	requestdelay := time.Second * 10
-	_ = t.LocalParams.SetTimeoutRequest(requestdelay * 2)
-
 	args := t.newargs(nodes)
 
-	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+	requestdelay := time.Second * 10
+	args.TimeoutRequest = func() time.Duration { return requestdelay * 2 }
+
+	p := NewBaseProposalSelector(t.Local, args)
 
 	args.ProposerSelector = NewBlockBasedProposerSelector()
 	args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
@@ -451,7 +451,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 					continue
 				}
 
-				pr, err = NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err = NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
 
 				done <- struct{}{}
 
@@ -578,7 +578,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	t.Run("from local", func() {
 		args := f()
 
-		p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+		p := NewBaseProposalSelector(t.Local, args)
 
 		pr, err := p.Select(context.Background(), point, prev, time.Second)
 		t.NoError(err)
@@ -602,14 +602,14 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 					continue
 				}
 
-				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
 				return pr, err == nil, err
 			}
 
 			return nil, false, errors.Errorf("proposer not found in suffrage")
 		}
 
-		p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+		p := NewBaseProposalSelector(t.Local, args)
 
 		pr, err := p.Select(context.Background(), point, prev, time.Second)
 		t.NoError(err)
@@ -638,14 +638,14 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 					continue
 				}
 
-				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
 				return pr, err == nil, err
 			}
 
 			return nil, false, errors.Errorf("proposer not found in suffrage")
 		}
 
-		p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+		p := NewBaseProposalSelector(t.Local, args)
 
 		pr, err := p.Select(context.Background(), point, prev, time.Second*2)
 		t.NoError(err)
@@ -663,7 +663,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 			return nil, false, errors.Errorf("hihihi")
 		}
 
-		p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
+		p := NewBaseProposalSelector(t.Local, args)
 
 		t.Run("internal", func() {
 			pr, err := p.selectInternal(context.Background(), point, prev, time.Second)

@@ -12,24 +12,22 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testLocalParams struct {
+type testParams struct {
 	suite.Suite
 }
 
-func (t *testLocalParams) TestNew() {
+func (t *testParams) TestNew() {
 	networkID := base.RandomNetworkID()
 
-	p := DefaultLocalParams(networkID)
+	p := DefaultParams(networkID)
 	t.NoError(p.IsValid(networkID))
-
-	_ = (interface{})(p).(base.LocalParams)
 }
 
-func (t *testLocalParams) TestIsValid() {
+func (t *testParams) TestIsValid() {
 	networkID := base.RandomNetworkID()
 
 	t.Run("network id does not match", func() {
-		p := DefaultLocalParams(networkID)
+		p := DefaultParams(networkID)
 		err := p.IsValid(base.RandomNetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -39,7 +37,7 @@ func (t *testLocalParams) TestIsValid() {
 	t.Run("wrong network id", func() {
 		wrongnetworkID := make([]byte, base.MaxNetworkIDLength+1)
 
-		p := DefaultLocalParams(wrongnetworkID)
+		p := DefaultParams(wrongnetworkID)
 		err := p.IsValid(wrongnetworkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -47,7 +45,7 @@ func (t *testLocalParams) TestIsValid() {
 	})
 
 	t.Run("wrong threshold", func() {
-		p := DefaultLocalParams(networkID)
+		p := DefaultParams(networkID)
 		p.SetThreshold(33)
 
 		err := p.IsValid(networkID)
@@ -57,8 +55,8 @@ func (t *testLocalParams) TestIsValid() {
 	})
 
 	t.Run("wrong intervalBroadcastBallot", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetIntervalBroadcastBallot(-1)
+		p := DefaultParams(networkID)
+		p.intervalBroadcastBallot = -1
 
 		err := p.IsValid(networkID)
 		t.Error(err)
@@ -67,38 +65,18 @@ func (t *testLocalParams) TestIsValid() {
 	})
 
 	t.Run("wrong waitPreparingINITBallot", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetWaitPreparingINITBallot(-1)
+		p := DefaultParams(networkID)
+		p.waitPreparingINITBallot = -1
 
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
-	})
-
-	t.Run("wrong timeoutRequestProposal", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetTimeoutRequest(-1)
-
-		err := p.IsValid(networkID)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "wrong duration")
-	})
-
-	t.Run("wrong maxMessageSize", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetMaxMessageSize(0)
-
-		err := p.IsValid(networkID)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "wrong maxMessageSize")
 	})
 
 	t.Run("wrong ballotStuckWait", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetBallotStuckWait(-1)
+		p := DefaultParams(networkID)
+		p.ballotStuckWait = -1
 
 		err := p.IsValid(networkID)
 		t.Error(err)
@@ -107,8 +85,8 @@ func (t *testLocalParams) TestIsValid() {
 	})
 
 	t.Run("wrong ballotStuckResolveAfter", func() {
-		p := DefaultLocalParams(networkID)
-		p.SetBallotStuckResolveAfter(-1)
+		p := DefaultParams(networkID)
+		p.ballotStuckResolveAfter = -1
 
 		err := p.IsValid(networkID)
 		t.Error(err)
@@ -117,23 +95,22 @@ func (t *testLocalParams) TestIsValid() {
 	})
 }
 
-func TestLocalParams(t *testing.T) {
-	suite.Run(t, new(testLocalParams))
+func TestParams(t *testing.T) {
+	suite.Run(t, new(testParams))
 }
 
-func TestLocalParamsJSON(tt *testing.T) {
+func TestParamsJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	networkID := util.UUID().Bytes()
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: LocalParamsHint, Instance: LocalParams{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ParamsHint, Instance: Params{}}))
 
-		p := DefaultLocalParams(networkID)
+		p := DefaultParams(networkID)
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
-		p.SetSameMemberLimit(99)
 
 		b, err := util.MarshalJSON(p)
 		t.NoError(err)
@@ -144,26 +121,20 @@ func TestLocalParamsJSON(tt *testing.T) {
 	}
 
 	t.Decode = func(b []byte) interface{} {
-		p := NewLocalParams(networkID)
+		p := NewParams(networkID)
 		t.NoError(enc.Unmarshal(b, p))
 
 		return p
 	}
 	t.Compare = func(a, b interface{}) {
-		ap := a.(*LocalParams)
-		bp := b.(*LocalParams)
+		ap := a.(*Params)
+		bp := b.(*Params)
 
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.True(ap.networkID.Equal(bp.networkID))
 		t.Equal(ap.threshold, bp.threshold)
 		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
 		t.Equal(ap.waitPreparingINITBallot, bp.waitPreparingINITBallot)
-		t.Equal(ap.timeoutRequest, bp.timeoutRequest)
-		t.Equal(ap.syncSourceCheckerInterval, bp.syncSourceCheckerInterval)
-		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
-		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
-		t.Equal(ap.maxMessageSize, bp.maxMessageSize)
-		t.Equal(ap.sameMemberLimit, bp.sameMemberLimit)
 		t.Equal(ap.ballotStuckWait, bp.ballotStuckWait)
 		t.Equal(ap.ballotStuckResolveAfter, bp.ballotStuckResolveAfter)
 	}
@@ -171,24 +142,18 @@ func TestLocalParamsJSON(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestLocalParamsJSONMissing(tt *testing.T) {
+func TestParamsJSONMissing(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 	t.SetT(tt)
 
 	enc := jsonenc.NewEncoder()
 
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: LocalParamsHint, Instance: LocalParams{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: ParamsHint, Instance: Params{}}))
 
-	p := DefaultLocalParams(util.UUID().Bytes())
+	p := DefaultParams(util.UUID().Bytes())
 	p.SetThreshold(p.Threshold() + 3)
 	p.SetIntervalBroadcastBallot(p.IntervalBroadcastBallot() + 3)
 	p.SetWaitPreparingINITBallot(p.WaitPreparingINITBallot() + 3)
-	p.SetTimeoutRequest(p.TimeoutRequest() + 3)
-	p.SetSyncSourceCheckerInterval(p.SyncSourceCheckerInterval() + 3)
-	p.SetValidProposalOperationExpire(p.ValidProposalOperationExpire() + 3)
-	p.SetValidProposalSuffrageOperationsExpire(p.ValidProposalSuffrageOperationsExpire() + 3)
-	p.SetMaxMessageSize(p.MaxMessageSize() + 3)
-	p.SetSameMemberLimit(p.SameMemberLimit() + 3)
 	p.SetBallotStuckWait(p.BallotStuckWait() + 3)
 	p.SetBallotStuckResolveAfter(p.BallotStuckResolveAfter() + 3)
 
@@ -217,7 +182,7 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 		mb, err := util.MarshalJSON(nm)
 		t.NoError(err)
 
-		var np *LocalParams
+		var np *Params
 		t.NoError(enc.Unmarshal(mb, &np))
 
 		ub, err := util.MarshalJSON(np)

@@ -278,20 +278,20 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 
 	var design NodeDesign
 	var enc encoder.Encoder
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var version util.Version
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		VersionContextKey, &version,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
 	fsnodeinfo, err := CreateLocalFS(
-		CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
+		CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, enc)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -303,18 +303,18 @@ func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 	e := util.StringError("check localfs")
 
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var enc encoder.Encoder
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	fsnodeinfo, err := CheckLocalFS(params.NetworkID(), design.Storage.Base, enc)
+	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, enc)
 
 	switch {
 	case err == nil:
@@ -335,7 +335,7 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 
 	var version util.Version
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
@@ -344,12 +344,12 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	fsnodeinfo, err := CheckLocalFS(params.NetworkID(), design.Storage.Base, enc)
+	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, enc)
 
 	switch {
 	case err == nil:
@@ -359,7 +359,7 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 	case errors.Is(err, os.ErrNotExist):
 		// NOTE database will be no cleaned.
 		fsnodeinfo, err = CreateLocalFS(
-			CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
+			CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, enc)
 		if err != nil {
 			return pctx, e.Wrap(err)
 		}
@@ -410,7 +410,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var enc *jsonenc.Encoder
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
@@ -418,7 +418,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, err
@@ -429,7 +429,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		encs,
 		enc,
 		db,
-		params.NetworkID(),
+		isaacparams.NetworkID(),
 	); err != nil {
 		var derr isaacblock.ErrValidatedDifferentHeightBlockMaps
 		if errors.As(err, &derr) {

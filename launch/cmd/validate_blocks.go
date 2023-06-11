@@ -115,7 +115,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	var enc encoder.Encoder
 	var design launch.NodeDesign
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
@@ -123,7 +123,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,
 		launch.LocalContextKey, &local,
-		launch.LocalParamsContextKey, &params,
+		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -162,7 +162,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	if err := isaacblock.ValidateBlocksFromStorage(
-		root, cmd.fromHeight, last, enc, params, db,
+		root, cmd.fromHeight, last, enc, isaacparams.NetworkID(), db,
 		cmd.whenBlockDone,
 	); err != nil {
 		return pctx, e.Wrap(err)

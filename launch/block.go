@@ -20,7 +20,7 @@ func ImportBlocks(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	db isaac.Database,
-	params base.LocalParams,
+	params *isaac.Params,
 ) error {
 	e := util.StringError("import blocks")
 

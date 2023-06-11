@@ -23,8 +23,9 @@ func (t *testJoiningHandler) newargs(suf base.Suffrage) *JoiningHandlerArgs {
 	local := t.Local
 	params := t.LocalParams
 
-	args := NewJoiningHandlerArgs(params)
+	args := NewJoiningHandlerArgs()
 
+	args.IntervalBroadcastBallot = params.IntervalBroadcastBallot
 	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return nil, false, errors.Errorf("empty manifest")
 	}
@@ -41,6 +42,9 @@ func (t *testJoiningHandler) newargs(suf base.Suffrage) *JoiningHandlerArgs {
 	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error) {
 		return nil, nil
 	}
+	args.WaitFirstVoteproof = func() time.Duration {
+		return params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot()
+	}
 
 	return args
 }
@@ -49,7 +53,7 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 	local := t.Local
 	params := t.LocalParams
 
-	newhandler := NewNewJoiningHandlerType(local, params, args)
+	newhandler := NewNewJoiningHandlerType(params.NetworkID(), local, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
 	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
@@ -302,8 +306,10 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	}
-	args.WaitFirstVoteproof = 1
-	t.LocalParams.SetWaitPreparingINITBallot(time.Second * 2)
+	args.WaitFirstVoteproof = func() time.Duration { return 1 }
+	args.WaitPreparingINITBallot = func() time.Duration {
+		return time.Second * 2
+	}
 
 	st, closef := t.newState(args)
 	defer closef()
@@ -487,7 +493,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
-	args.WaitFirstVoteproof = time.Nanosecond
+	args.WaitFirstVoteproof = func() time.Duration { return 1 }
 
 	st, closef := t.newState(args)
 	defer closef()
@@ -532,7 +538,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
-	args.WaitFirstVoteproof = time.Nanosecond
+	args.WaitFirstVoteproof = func() time.Duration { return 1 }
 
 	st, closef := t.newState(args)
 	defer closef()

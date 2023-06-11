@@ -26,13 +26,13 @@ type NewConsensusHandlerType struct {
 }
 
 func NewNewConsensusHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *ConsensusHandlerArgs,
 ) *NewConsensusHandlerType {
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			voteproofHandler: newVoteproofHandler(StateConsensus, local, params, &args.voteproofHandlerArgs),
+			voteproofHandler: newVoteproofHandler(StateConsensus, networkID, local, &args.voteproofHandlerArgs),
 			args:             args,
 		},
 	}

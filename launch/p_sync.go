@@ -27,7 +27,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 
 	if err := util.LoadFromContextOK(pctx,
@@ -54,9 +54,9 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 
 	syncSourceChecker := isaacnetwork.NewSyncSourceChecker(
 		local,
-		params.NetworkID(),
+		params.ISAAC.NetworkID(),
 		client,
-		params.SyncSourceCheckerInterval(),
+		params.MISC.SyncSourceCheckerInterval(),
 		enc,
 		sources,
 		func(ncis []isaac.NodeConnInfo, _ error) {
@@ -66,7 +66,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 				Interface("node_conninfo", ncis).
 				Msg("sync sources updated")
 		},
-		params.TimeoutRequest,
+		params.MISC.TimeoutRequest,
 	)
 	_ = syncSourceChecker.SetLogging(log)
 

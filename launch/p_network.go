@@ -35,17 +35,17 @@ var (
 func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var params base.LocalParams
+	var isaacparams *isaac.Params
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, errors.WithMessage(err, "network client")
 	}
 
-	client := NewNetworkClient(encs, enc, params.NetworkID()) //nolint:gomnd //...
+	client := NewNetworkClient(encs, enc, isaacparams.NetworkID()) //nolint:gomnd //...
 
 	return context.WithValue(pctx, QuicstreamClientContextKey, client), nil
 }
@@ -57,14 +57,14 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -78,7 +78,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 
 	server, err := quicstream.NewServer(
 		design.Network.Bind,
-		GenerateNewTLSConfig(params.NetworkID()),
+		GenerateNewTLSConfig(isaacparams.NetworkID()),
 		quicconfig,
 		handlers.Handler,
 	)

@@ -43,7 +43,7 @@ func (t *testSyncSourceChecker) SetupSuite() {
 
 type handlers struct {
 	local                 base.LocalNode
-	localParams           base.LocalParams
+	localParams           *isaac.Params
 	encs                  *encoder.Encoders
 	idletimeout           time.Duration
 	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error)
@@ -59,7 +59,7 @@ func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, broker
 }
 
 func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader) error {
-	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(ctx, addr, broker, header)
+	return QuicstreamHandlerNodeChallenge(h.localParams.NetworkID(), h.local)(ctx, addr, broker, header)
 }
 
 func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstreamheader.OpenStreamFunc, func()) {

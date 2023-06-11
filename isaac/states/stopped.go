@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 )
 
 type StoppedHandler struct {
@@ -14,12 +13,12 @@ type NewStoppedHandlerType struct {
 }
 
 func NewNewStoppedHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 ) *NewStoppedHandlerType {
 	return &NewStoppedHandlerType{
 		StoppedHandler: &StoppedHandler{
-			baseHandler: newBaseHandlerType(StateStopped, local, params),
+			baseHandler: newBaseHandlerType(StateStopped, networkID, local),
 		},
 	}
 }

@@ -13,14 +13,14 @@ import (
 type BaseTestBallots struct {
 	suite.Suite
 	Local       base.LocalNode
-	LocalParams *LocalParams
+	LocalParams *Params
 	PRPool      *proposalPool
 }
 
 func (t *BaseTestBallots) SetupTest() {
 	local := base.RandomLocalNode()
-	params := DefaultLocalParams(base.RandomNetworkID())
-	params.SetThreshold(base.Threshold(100))
+	params := DefaultParams(base.RandomNetworkID())
+	_ = params.SetThreshold(base.Threshold(100))
 
 	t.Local = local
 	t.LocalParams = params

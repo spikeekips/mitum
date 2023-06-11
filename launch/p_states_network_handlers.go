@@ -26,14 +26,14 @@ var PNameStatesNetworkHandlers = ps.Name("states-network-handlers")
 func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var handlers *quicstream.PrefixHandler
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamHandlersContextKey, &handlers,
 		StatesContextKey, &states,
 	); err != nil {
@@ -62,7 +62,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 				time.Second*2, //nolint:gomnd //...
 				isaacnetwork.QuicstreamHandlerSetAllowConsensus(
 					local.Publickey(),
-					params.NetworkID(),
+					isaacparams.NetworkID(),
 					states.SetAllowConsensus,
 				),
 				nil,
@@ -136,7 +136,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
 	var log *logging.Logging
 	var encs *encoder.Encoders
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var states *isaacstates.States
@@ -163,7 +163,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 
 	handlers.Add(isaacnetwork.HandlerPrefixSendOperation, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerSendOperation(
-			params,
+			params.ISAAC.NetworkID(),
 			pool,
 			db.ExistsInStateOperation,
 			sendOperationFilterf,
@@ -179,6 +179,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 
 				return memberlist.CallbackBroadcast(b, id, nil)
 			},
+			params.MISC.MaxMessageSize,
 		),
 		nil))
 
@@ -188,13 +189,13 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.PrefixHandler) error {
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContext(pctx,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return err
@@ -203,7 +204,7 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 	handlers.Add(isaacnetwork.HandlerPrefixStreamOperations, quicstreamheader.NewHandler(encs, 0,
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			333, //nolint:gomnd // big enough
 			func(
 				ctx context.Context,

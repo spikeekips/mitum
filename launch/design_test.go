@@ -17,6 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 )
@@ -424,7 +425,7 @@ func (t *testNodeDesign) TestIsValid() {
 				Base:     "/tmp/a/b/c",
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
-			LocalParams: isaac.DefaultLocalParams(networkID),
+			LocalParams: defaultLocalParams(networkID),
 		}
 
 		t.NoError(a.IsValid(nil))
@@ -705,7 +706,7 @@ network:
 		t.Nil(a.Storage.Database)
 	})
 
-	t.Run("missing local params", func() {
+	t.Run("missing isaac params", func() {
 		b := []byte(`
 address: no0sas
 privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
@@ -718,9 +719,9 @@ storage:
   base: /tmp/a/b/c
   database: redis://
 parameters:
-  threshold: 77.7
-  wait_preparing_init_ballot: 10s
-  valid_proposal_operation_expire: 11s
+  memberlist:
+    tcp_timeout: 6s
+    udp_buffer_size: 333
 `)
 
 		var a NodeDesign
@@ -737,12 +738,149 @@ parameters:
 		t.Equal("/tmp/a/b/c", a.Storage.Base)
 		t.Equal("redis:", a.Storage.Database.String())
 
-		params := isaac.DefaultLocalParams(a.NetworkID)
-		params.SetThreshold(77.7)
-		params.SetWaitPreparingINITBallot(time.Second * 10)
-		params.SetValidProposalOperationExpire(time.Second * 11)
+		isaac.EqualLocalParams(t.Assert(), isaac.DefaultParams(a.NetworkID), a.LocalParams.ISAAC)
 
-		isaac.EqualLocalParams(t.Assert(), params, a.LocalParams)
+		memberlistparams := defaultMemberlistParams()
+		memberlistparams.SetTCPTimeout(time.Second * 6)
+		memberlistparams.SetUDPBufferSize(333)
+		memberlistparams.SetRetransmitMult(3)
+
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+	})
+
+	t.Run("missing params", func() {
+		b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+`)
+
+		var a NodeDesign
+		t.NoError(a.DecodeYAML(b, t.enc))
+
+		t.Equal("no0sas", a.Address.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
+
+		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
+		t.Equal(true, a.Network.TLSInsecure)
+
+		t.Equal("/tmp/a/b/c", a.Storage.Base)
+		t.Equal("redis:", a.Storage.Database.String())
+
+		isaac.EqualLocalParams(t.Assert(), isaac.DefaultParams(a.NetworkID), a.LocalParams.ISAAC)
+
+		memberlistparams := defaultMemberlistParams()
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+	})
+
+	t.Run("missing memberlist params", func() {
+		b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+parameters:
+  isaac:
+    threshold: 77.7
+    wait_preparing_init_ballot: 10s
+  misc:
+    valid_proposal_operation_expire: 11s
+`)
+
+		var a NodeDesign
+		t.NoError(a.DecodeYAML(b, t.enc))
+
+		t.Equal("no0sas", a.Address.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
+
+		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
+		t.Equal(true, a.Network.TLSInsecure)
+
+		t.Equal("/tmp/a/b/c", a.Storage.Base)
+		t.Equal("redis:", a.Storage.Database.String())
+
+		isaacparams := isaac.DefaultParams(a.NetworkID)
+		isaacparams.SetThreshold(77.7)
+		isaacparams.SetWaitPreparingINITBallot(time.Second * 10)
+
+		isaac.EqualLocalParams(t.Assert(), isaacparams, a.LocalParams.ISAAC)
+
+		misc := defaultMISCParams()
+		misc.SetValidProposalOperationExpire(time.Second * 11)
+
+		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		memberlistparams := defaultMemberlistParams()
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+	})
+
+	t.Run("missing misc params", func() {
+		b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+parameters:
+  isaac:
+    threshold: 77.7
+    wait_preparing_init_ballot: 10s
+  memberlist:
+    tcp_timeout: 6s
+    udp_buffer_size: 333
+`)
+
+		var a NodeDesign
+		t.NoError(a.DecodeYAML(b, t.enc))
+
+		t.Equal("no0sas", a.Address.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
+
+		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
+		t.Equal(true, a.Network.TLSInsecure)
+
+		t.Equal("/tmp/a/b/c", a.Storage.Base)
+		t.Equal("redis:", a.Storage.Database.String())
+
+		isaacparams := isaac.DefaultParams(a.NetworkID)
+		isaacparams.SetThreshold(77.7)
+		isaacparams.SetWaitPreparingINITBallot(time.Second * 10)
+
+		isaac.EqualLocalParams(t.Assert(), isaacparams, a.LocalParams.ISAAC)
+
+		misc := defaultMISCParams()
+
+		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		memberlistparams := defaultMemberlistParams()
+		memberlistparams.SetTCPTimeout(time.Second * 6)
+		memberlistparams.SetUDPBufferSize(333)
+
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
 	})
 }
 
@@ -759,6 +897,12 @@ network:
 storage:
   base: /tmp/a/b/c
   database: redis://
+parameters:
+  isaac:
+    threshold: 77.7
+    wait_preparing_init_ballot: 10s
+  misc:
+    valid_proposal_operation_expire: 11s
 `)
 
 		var a NodeDesign
@@ -793,6 +937,17 @@ storage:
 
 		t.Equal("/tmp/a/b/c", ua.Storage.Base)
 		t.Equal("redis:", ua.Storage.Database.String())
+
+		params := isaac.DefaultParams(ua.LocalParams.ISAAC.NetworkID())
+		params.SetThreshold(77.7)
+		params.SetWaitPreparingINITBallot(time.Second * 10)
+
+		isaac.EqualLocalParams(t.Assert(), params, ua.LocalParams.ISAAC)
+
+		misc := defaultMISCParams()
+		misc.SetValidProposalOperationExpire(time.Second * 11)
+
+		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
 	})
 }
 
@@ -895,8 +1050,119 @@ func TestGenesisOpertionsDesign(t *testing.T) {
 	suite.Run(t, new(testGenesisOpertionsDesign))
 }
 
+func TestLocalParamsYAML(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	networkID := base.NetworkID(util.UUID().Bytes())
+
+	t.Encode = func() (interface{}, []byte) {
+		p := defaultLocalParams(networkID)
+		p.ISAAC.SetThreshold(77.7)
+		p.Memberlist.SetTCPTimeout(time.Second * 6)
+		p.Memberlist.SetUDPBufferSize(333)
+		p.Memberlist.SetRetransmitMult(3)
+		p.Memberlist.SetExtraSameMemberLimit(9)
+		p.MISC.SetValidProposalOperationExpire(time.Second * 11)
+
+		b, err := yaml.Marshal(&p)
+		t.NoError(err)
+
+		t.T().Log("marshaled:\n", string(b))
+
+		return p, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		p := defaultLocalParams(networkID)
+
+		enc := jsonenc.NewEncoder()
+
+		t.NoError(p.DecodeYAML(b, enc))
+
+		t.NotNil(p)
+		t.NoError(p.IsValid(networkID))
+
+		return p
+	}
+	t.Compare = func(a, b interface{}) {
+		ap, ok := a.(*LocalParams)
+		t.True(ok)
+		bp, ok := b.(*LocalParams)
+		t.True(ok)
+
+		isaac.EqualLocalParams(t.Assert(), ap.ISAAC, bp.ISAAC)
+		equalMemberlistParams(t.Assert(), ap.Memberlist, bp.Memberlist)
+		equalMISCParams(t.Assert(), ap.MISC, bp.MISC)
+	}
+
+	suite.Run(tt, t)
+}
+
+func TestLocalParamsJSON(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	networkID := base.NetworkID(util.UUID().Bytes())
+
+	t.Encode = func() (interface{}, []byte) {
+		p := defaultLocalParams(networkID)
+		p.ISAAC.SetThreshold(77.7)
+		p.Memberlist.SetTCPTimeout(time.Second * 6)
+		p.Memberlist.SetUDPBufferSize(333)
+		p.Memberlist.SetRetransmitMult(3)
+		p.Memberlist.SetExtraSameMemberLimit(9)
+		p.MISC.SetValidProposalOperationExpire(time.Second * 11)
+
+		b, err := util.MarshalJSONIndent(&p)
+		t.NoError(err)
+
+		t.T().Log("marshaled:\n", string(b))
+
+		return p, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		p := defaultLocalParams(networkID)
+
+		t.NoError(util.UnmarshalJSON(b, p))
+
+		t.NotNil(p)
+		t.NoError(p.IsValid(networkID))
+
+		return p
+	}
+	t.Compare = func(a, b interface{}) {
+		ap, ok := a.(*LocalParams)
+		t.True(ok)
+		bp, ok := b.(*LocalParams)
+		t.True(ok)
+
+		isaac.EqualLocalParams(t.Assert(), ap.ISAAC, bp.ISAAC)
+		equalMemberlistParams(t.Assert(), ap.Memberlist, bp.Memberlist)
+		equalMISCParams(t.Assert(), ap.MISC, bp.MISC)
+	}
+
+	suite.Run(tt, t)
+}
+
 func mustResolveUDPAddr(s string) *net.UDPAddr {
 	a, _ := net.ResolveUDPAddr("udp", s)
 
 	return a
+}
+
+func equalMemberlistParams(t *assert.Assertions, a, b *MemberlistParams) {
+	t.Equal(a.TCPTimeout(), b.TCPTimeout())
+	t.Equal(a.RetransmitMult(), b.RetransmitMult())
+	t.Equal(a.ProbeTimeout(), b.ProbeTimeout())
+	t.Equal(a.ProbeInterval(), b.ProbeInterval())
+	t.Equal(a.SuspicionMult(), b.SuspicionMult())
+	t.Equal(a.SuspicionMaxTimeoutMult(), b.SuspicionMaxTimeoutMult())
+	t.Equal(a.UDPBufferSize(), b.UDPBufferSize())
+	t.Equal(a.ExtraSameMemberLimit(), b.ExtraSameMemberLimit())
+}
+
+func equalMISCParams(t *assert.Assertions, a, b *MISCParams) {
+	t.Equal(a.TimeoutRequest(), b.TimeoutRequest())
+	t.Equal(a.SyncSourceCheckerInterval(), b.SyncSourceCheckerInterval())
+	t.Equal(a.ValidProposalOperationExpire(), b.ValidProposalOperationExpire())
+	t.Equal(a.ValidProposalSuffrageOperationsExpire(), b.ValidProposalSuffrageOperationsExpire())
+	t.Equal(a.MaxMessageSize(), b.MaxMessageSize())
 }

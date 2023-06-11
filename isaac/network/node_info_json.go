@@ -16,12 +16,12 @@ import (
 )
 
 type NodeInfoLocalJSONMarshaler struct {
-	Address     base.Address       `json:"address"`
-	Publickey   base.Publickey     `json:"publickey"`
-	LocalParams *isaac.LocalParams `json:"parameters"` //nolint:tagliatelle //...
-	ConnInfo    string             `json:"conn_info"`
-	Uptime      string             `json:"uptime"`
-	Version     util.Version       `json:"version"`
+	Address     base.Address   `json:"address"`
+	Publickey   base.Publickey `json:"publickey"`
+	LocalParams *isaac.Params  `json:"parameters"` //nolint:tagliatelle //...
+	ConnInfo    string         `json:"conn_info"`
+	Uptime      string         `json:"uptime"`
+	Version     util.Version   `json:"version"`
 }
 
 type NodeInfoSuffrageJSONMarshaler struct {
@@ -124,7 +124,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		info.publickey = i
 	}
 
-	params := isaac.NewLocalParams(info.networkID)
+	params := isaac.NewParams(info.networkID)
 
 	if err := encoder.Decode(enc, u.Local.LocalParams, params); err != nil {
 		return e.Wrap(err)

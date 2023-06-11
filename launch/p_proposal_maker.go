@@ -24,13 +24,13 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var local base.LocalNode
-	var params base.LocalParams
+	var isaacparams *isaac.Params
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -43,7 +43,7 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 
 	pm := isaac.NewProposalMaker(
 		local,
-		params,
+		isaacparams.NetworkID(),
 		opf,
 		pool,
 	)
@@ -59,7 +59,7 @@ func proposalMakderGetOperationsFunc(pctx context.Context) (
 ) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
@@ -133,9 +133,9 @@ func proposalMakderGetOperationsFunc(pctx context.Context) (
 				switch ht := meta.Hint(); {
 				case ht.Type() == isaacoperation.SuffrageCandidateFactHint.Type(),
 					ht.Type() == isaacoperation.SuffrageJoinFactHint.Type():
-					expire = params.ValidProposalSuffrageOperationsExpire()
+					expire = params.MISC.ValidProposalSuffrageOperationsExpire()
 				default:
-					expire = params.ValidProposalOperationExpire()
+					expire = params.MISC.ValidProposalOperationExpire()
 				}
 
 				if localtime.Now().UTC().After(meta.AddedAt().Add(expire)) {

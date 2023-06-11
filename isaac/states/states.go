@@ -32,14 +32,15 @@ type (
 )
 
 type StatesArgs struct {
-	Ballotbox              *Ballotbox
-	BallotStuckResolver    BallotStuckResolver
-	LastVoteproofsHandler  *isaac.LastVoteproofsHandler
-	IsInSyncSourcePoolFunc func(base.Address) bool
-	BallotBroadcaster      BallotBroadcaster
-	WhenStateSwitchedFunc  func(StateType)
-	NewHandoverXBroker     NewHandoverXBrokerFunc
-	NewHandoverYBroker     NewHandoverYBrokerFunc
+	Ballotbox               *Ballotbox
+	BallotStuckResolver     BallotStuckResolver
+	LastVoteproofsHandler   *isaac.LastVoteproofsHandler
+	IsInSyncSourcePoolFunc  func(base.Address) bool
+	BallotBroadcaster       BallotBroadcaster
+	WhenStateSwitchedFunc   func(StateType)
+	IntervalBroadcastBallot func() time.Duration
+	NewHandoverXBroker      NewHandoverXBrokerFunc
+	NewHandoverYBroker      NewHandoverYBrokerFunc
 	// AllowConsensus decides to enter Consensus states. If false, States enters
 	// Syncing state instead of Consensus state.
 	AllowConsensus bool
@@ -56,6 +57,9 @@ func NewStatesArgs() *StatesArgs {
 		NewHandoverYBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverYBroker")
 		},
+		IntervalBroadcastBallot: func() time.Duration {
+			return isaac.DefaultntervalBroadcastBallot
+		},
 	}
 }
 
@@ -63,7 +67,6 @@ type States struct {
 	cs handler
 	*logging.Logging
 	local       base.LocalNode
-	params      *isaac.LocalParams
 	args        *StatesArgs
 	statech     chan switchContext
 	vpch        chan voteproofWithErrchan
@@ -73,10 +76,11 @@ type States struct {
 	allowedConsensus *util.Locked[bool]
 	handoverXBroker  *util.Locked[*HandoverXBroker]
 	handoverYBroker  *util.Locked[*HandoverYBroker]
+	networkID        base.NetworkID
 	stateLock        sync.RWMutex
 }
 
-func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) (*States, error) {
+func NewStates(networkID base.NetworkID, local base.LocalNode, args *StatesArgs) (*States, error) {
 	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{ //nolint:gomnd //...
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastSuffrageConfirmBallot,
@@ -91,7 +95,7 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 			return lctx.Str("module", "states")
 		}),
 		local:            local,
-		params:           params,
+		networkID:        networkID,
 		args:             args,
 		statech:          make(chan switchContext),
 		vpch:             make(chan voteproofWithErrchan),
@@ -652,7 +656,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 						return time.Nanosecond
 					}
 
-					return st.params.IntervalBroadcastBallot()
+					return st.args.IntervalBroadcastBallot()
 				},
 			); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast mimic ballot")
@@ -707,8 +711,8 @@ func (st *States) signMimicBallot(bl base.Ballot) (base.Ballot, error) {
 	}
 
 	return mimicBallot(
+		st.networkID,
 		st.local,
-		st.params,
 		bl.SignFact().Fact().(base.BallotFact), //nolint:forcetypeassert //...
 		expels,
 		bl.Voteproof(),
@@ -850,8 +854,8 @@ func (st *States) checkOutOfHandoverX(sctx switchContext) error {
 }
 
 func mimicBallot(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	fact base.BallotFact,
 	expels []base.SuffrageExpelOperation,
 	voteproof base.Voteproof,
@@ -862,7 +866,7 @@ func mimicBallot(
 	case isaac.SuffrageConfirmBallotFact:
 		sf := isaac.NewINITBallotSignFact(t)
 
-		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
+		if err := sf.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {
 			return nil, err
 		}
 
@@ -870,7 +874,7 @@ func mimicBallot(
 	case base.INITBallotFact:
 		sf := isaac.NewINITBallotSignFact(t)
 
-		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
+		if err := sf.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {
 			return nil, err
 		}
 
@@ -878,7 +882,7 @@ func mimicBallot(
 	case isaac.ACCEPTBallotFact:
 		sf := isaac.NewACCEPTBallotSignFact(t)
 
-		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
+		if err := sf.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {
 			return nil, err
 		}
 

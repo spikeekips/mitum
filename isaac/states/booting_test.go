@@ -31,7 +31,7 @@ func (t *testBootingHandler) newState() *BootingHandler {
 		return suf, true, nil
 	}
 
-	newhandler := NewNewBootingHandlerType(local, params, args)
+	newhandler := NewNewBootingHandlerType(params.NetworkID(), local, args)
 
 	_ = (interface{})(newhandler).(newHandler)
 

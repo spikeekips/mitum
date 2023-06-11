@@ -751,14 +751,14 @@ func (t *testStates) TestSetAllowConsensusCancelHandoverBrokers() {
 type testHandoverFuncs struct {
 	suite.Suite
 	local  base.LocalNode
-	params *isaac.LocalParams
+	params *isaac.Params
 	xci    quicstream.UDPConnInfo
 	yci    quicstream.UDPConnInfo
 }
 
 func (t *testHandoverFuncs) SetupSuite() {
 	t.local = base.RandomLocalNode()
-	t.params = isaac.DefaultLocalParams(base.RandomNetworkID())
+	t.params = isaac.DefaultParams(base.RandomNetworkID())
 
 	t.xci = quicstream.RandomConnInfo()
 	t.yci = quicstream.RandomConnInfo()

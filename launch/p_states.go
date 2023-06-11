@@ -44,20 +44,20 @@ var (
 func PBallotbox(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return pctx, err
 	}
 
-	ballotbox := isaacstates.NewBallotbox(local.Address(), params, sp.Height)
-	_ = ballotbox.SetCountAfter(params.WaitPreparingINITBallot())
+	ballotbox := isaacstates.NewBallotbox(local.Address(), isaacparams.Threshold, sp.Height)
+	_ = ballotbox.SetCountAfter(isaacparams.WaitPreparingINITBallot())
 	_ = ballotbox.SetLogging(log)
 
 	if err := ballotbox.Start(context.Background()); err != nil {
@@ -73,7 +73,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var design NodeDesign
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
@@ -83,7 +83,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
@@ -105,25 +105,25 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 
 	voteSuffrageVotingf := isaacstates.VoteSuffrageVotingFunc(
 		local,
-		params,
+		isaacparams.NetworkID(),
 		ballotbox,
 		svf,
 		sp.Height,
 	)
 
 	switch {
-	case params.BallotStuckWait() < params.WaitPreparingINITBallot():
+	case isaacparams.BallotStuckWait() < isaacparams.WaitPreparingINITBallot():
 		return pctx, util.ErrInvalid.Errorf("too short ballot stuck wait; it should be over wait_preparing_init_ballot")
-	case params.BallotStuckWait() < params.WaitPreparingINITBallot()*2:
+	case isaacparams.BallotStuckWait() < isaacparams.WaitPreparingINITBallot()*2:
 		log.Log().Warn().
-			Dur("ballot_stuck_wait", params.BallotStuckWait()).
+			Dur("ballot_stuck_wait", isaacparams.BallotStuckWait()).
 			Msg("too short ballot stuck wait; proper valud is over 2 * wait_preparing_init_ballot")
 	}
 
 	r := isaacstates.NewDefaultBallotStuckResolver(
-		params.BallotStuckWait(),
+		isaacparams.BallotStuckWait(),
 		time.Second,
-		params.BallotStuckResolveAfter(),
+		isaacparams.BallotStuckResolveAfter(),
 		findMissingBallotsf,
 		requestMissingBallotsf,
 		voteSuffrageVotingf,
@@ -143,7 +143,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var devflags DevFlags
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var syncSourcePool *isaac.SyncSourcePool
 	var pool *isaacdatabase.TempPool
 	var m *quicmemberlist.Memberlist
@@ -153,7 +153,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		DevFlagsContextKey, &devflags,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &args.Ballotbox,
 		LastVoteproofsHandlerContextKey, &args.LastVoteproofsHandler,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -164,6 +164,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
+	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
 	args.AllowConsensus = devflags.AllowConsensus
 
 	if vp := args.LastVoteproofsHandler.Last().Cap(); vp != nil {
@@ -199,7 +200,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		},
 	)
 
-	states, err := isaacstates.NewStates(local, params, args)
+	states, err := isaacstates.NewStates(isaacparams.NetworkID(), local, args)
 	if err != nil {
 		return pctx, err
 	}
@@ -248,7 +249,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 	var states *isaacstates.States
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
@@ -258,7 +259,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 		StatesContextKey, &states,
 		NodeInfoContextKey, &nodeinfo,
@@ -290,7 +291,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		return pctx, e.Wrap(err)
 	}
 
-	consensusargs, err := consensusHandlerArgs(pctx)
+	consensusargs, err := newConsensusHandlerArgs(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -325,13 +326,18 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	bootingargs.LastManifestFunc = getLastManifestf
 
 	states.
-		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, params)).
-		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, params)).
-		SetHandler(isaacstates.StateBooting, isaacstates.NewNewBootingHandlerType(local, params, bootingargs)).
-		SetHandler(isaacstates.StateJoining, isaacstates.NewNewJoiningHandlerType(local, params, joiningargs)).
-		SetHandler(isaacstates.StateConsensus, isaacstates.NewNewConsensusHandlerType(local, params, consensusargs)).
-		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs)).
-		SetHandler(isaacstates.StateHandover, isaacstates.NewNewHandoverHandlerType(local, params, handoverargs))
+		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(isaacparams.NetworkID(), local)).
+		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(isaacparams.NetworkID(), local)).
+		SetHandler(isaacstates.StateBooting,
+			isaacstates.NewNewBootingHandlerType(isaacparams.NetworkID(), local, bootingargs)).
+		SetHandler(isaacstates.StateJoining,
+			isaacstates.NewNewJoiningHandlerType(isaacparams.NetworkID(), local, joiningargs)).
+		SetHandler(isaacstates.StateConsensus,
+			isaacstates.NewNewConsensusHandlerType(isaacparams.NetworkID(), local, consensusargs)).
+		SetHandler(isaacstates.StateSyncing,
+			isaacstates.NewNewSyncingHandlerType(isaacparams.NetworkID(), local, syncingargs)).
+		SetHandler(isaacstates.StateHandover,
+			isaacstates.NewNewHandoverHandlerType(isaacparams.NetworkID(), local, handoverargs))
 
 	_ = states.SetLogging(log)
 
@@ -385,8 +391,9 @@ func newSyncerFunc(pctx context.Context) (
 	}, nil
 }
 
-func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
+func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
 	var log *logging.Logging
+	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
 	var proposalSelector *isaac.BaseProposalSelector
@@ -396,6 +403,7 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
+		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
 		ProposalSelectorContextKey, &proposalSelector,
@@ -430,6 +438,8 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 	defaultWhenNewBlockConfirmedf := DefaultWhenNewBlockConfirmedFunc(log)
 
 	args := isaacstates.NewConsensusHandlerArgs()
+	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
+	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.ProposalSelectFunc = proposalSelector.Select
 	args.ProposalProcessors = pps
@@ -448,12 +458,12 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 }
 
 func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArgs, error) {
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var proposalSelector *isaac.BaseProposalSelector
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
 
 	if err := util.LoadFromContextOK(pctx,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		ProposalSelectorContextKey, &proposalSelector,
 		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
 	); err != nil {
@@ -470,11 +480,16 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 		return nil, err
 	}
 
-	args := isaacstates.NewJoiningHandlerArgs(params)
+	args := isaacstates.NewJoiningHandlerArgs()
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.ProposalSelectFunc = proposalSelector.Select
 	args.JoinMemberlistFunc = joinMemberlistf
 	args.LeaveMemberlistFunc = leaveMemberlistf
+	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
+	args.WaitFirstVoteproof = func() time.Duration {
+		return isaacparams.IntervalBroadcastBallot()*2 + isaacparams.WaitPreparingINITBallot()
+	}
+	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 
 	return args, nil
 }
@@ -496,7 +511,7 @@ func newBootingHandlerArgs(pctx context.Context) (*isaacstates.BootingHandlerArg
 
 func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArgs, error) {
 	var log *logging.Logging
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
@@ -504,7 +519,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 		BallotboxContextKey, &ballotbox,
 		NodeInfoContextKey, &nodeinfo,
@@ -528,18 +543,19 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 		return nil, err
 	}
 
-	var whenNewBlockSavedf func(base.Height)
-
-	switch err = util.LoadFromContext(pctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedf); {
-	case err != nil:
+	whenNewBlockSavedf := func(base.Height) {}
+	if err = util.LoadFromContext(pctx,
+		WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedf); err != nil {
 		return nil, err
-	case whenNewBlockSavedf == nil:
-		whenNewBlockSavedf = func(base.Height) {}
 	}
 
 	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInSyncingStateFunc(log, db, nodeinfo)
 
-	args := isaacstates.NewSyncingHandlerArgs(params)
+	args := isaacstates.NewSyncingHandlerArgs()
+	args.WaitStuckInterval = func() time.Duration {
+		return isaacparams.IntervalBroadcastBallot()*2 + isaacparams.WaitPreparingINITBallot()
+	}
+	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.NewSyncerFunc = newsyncerf
 	args.WhenReachedTopFunc = func(base.Height) {
@@ -562,7 +578,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var enc encoder.Encoder
 	var devflags DevFlags
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var st *leveldbstorage.Storage
 	var db isaac.Database
@@ -580,13 +596,14 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		QuicstreamClientContextKey, &client,
 		LeveldbStorageContextKey, &st,
 		CenterDatabaseContextKey, &db,
-		CenterDatabaseContextKey, &db,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		LastVoteproofsHandlerContextKey, &lvps,
 		NodeInfoContextKey, &nodeinfo,
 	); err != nil {
 		return nil, err
 	}
+
+	isaacparams := params.ISAAC
 
 	setLastVoteproofsfFromBlockReaderf, err := setLastVoteproofsfFromBlockReaderFunc(lvps)
 	if err != nil {
@@ -637,8 +654,8 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.UDPConnInfo](1 << 9) //nolint:gomnd //...
 
 		args = isaacstates.NewSyncerArgs()
-		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, params, syncSourcePool)
-		args.LastBlockMapTimeout = params.TimeoutRequest()
+		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, isaacparams, syncSourcePool)
+		args.LastBlockMapTimeout = params.MISC.TimeoutRequest()
 		args.BlockMapFunc = syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
 		args.TempSyncPool = tempsyncpool
 		args.WhenStoppedFunc = func() error {
@@ -658,7 +675,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				from, to,
 				batchlimit,
 				blockMapf,
-				syncerBlockMapItemFunc(newclient, conninfocache, params.TimeoutRequest),
+				syncerBlockMapItemFunc(newclient, conninfocache, params.MISC.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -673,7 +690,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 						func(context.Context) error {
 							return db.MergeBlockWriteDatabase(bwdb)
 						},
-						params.NetworkID(),
+						isaacparams.NetworkID(),
 					)
 				},
 				setLastVoteproofsfFromBlockReaderf,
@@ -698,7 +715,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 func syncerLastBlockMapFunc(
 	client *isaacnetwork.QuicstreamClient,
-	params base.LocalParams,
+	params *isaac.Params,
 	syncSourcePool *isaac.SyncSourcePool,
 ) isaacstates.SyncerLastBlockMapFunc {
 	f := func(
@@ -769,7 +786,7 @@ func syncerLastBlockMapFunc(
 
 func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
-	params *isaac.LocalParams,
+	params *LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 	devdelay time.Duration,
@@ -779,14 +796,14 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 			<-time.After(devdelay) // NOTE for testing
 		}
 
-		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
 		switch m, found, err := client.BlockMap(cctx, ci, height); {
 		case err != nil, !found:
 			return m, found, err
 		default:
-			if err := m.IsValid(params.NetworkID()); err != nil {
+			if err := m.IsValid(params.ISAAC.NetworkID()); err != nil {
 				return m, true, err
 			}
 
@@ -1109,6 +1126,7 @@ func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error),
 
 func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs, error) {
 	var log *logging.Logging
+	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
 	var proposalSelector *isaac.BaseProposalSelector
@@ -1118,6 +1136,7 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
+		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
 		ProposalSelectorContextKey, &proposalSelector,
@@ -1151,6 +1170,8 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 	defaultWhenNewBlockConfirmedf := DefaultWhenNewBlockConfirmedFunc(log)
 
 	args := isaacstates.NewHandoverHandlerArgs()
+	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
+	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.ProposalSelectFunc = proposalSelector.Select
 	args.ProposalProcessors = pps

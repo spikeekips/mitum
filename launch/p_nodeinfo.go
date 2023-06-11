@@ -25,7 +25,7 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var version util.Version
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var design NodeDesign
 	var db isaac.Database
 
@@ -34,7 +34,7 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -46,7 +46,7 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 		design.Network.PublishString,
 		design.Network.TLSInsecure,
 	))
-	_ = nodeinfo.SetLocalParams(params)
+	_ = nodeinfo.SetLocalParams(isaacparams)
 
 	nctx := context.WithValue(pctx, NodeInfoContextKey, nodeinfo)
 

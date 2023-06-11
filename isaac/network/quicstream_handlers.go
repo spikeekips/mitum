@@ -42,12 +42,13 @@ func QuicstreamHandlerOperation(
 }
 
 func QuicstreamHandlerSendOperation(
-	params *isaac.LocalParams,
+	networkID base.NetworkID,
 	oppool isaac.NewOperationPool,
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
 	svvote isaac.SuffrageVoteFunc,
 	broadcast func(context.Context, string, base.Operation, []byte) error,
+	maxMessageSize func() uint64,
 ) quicstreamheader.Handler[SendOperationRequestHeader] {
 	filterNewOperation := quicstreamHandlerFilterOperation(
 		existsInStateOperationf,
@@ -73,11 +74,13 @@ func QuicstreamHandlerSendOperation(
 		var op base.Operation
 		var body []byte
 
+		max := maxMessageSize()
+
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
 			return e.Wrap(err)
-		case uint64(len(i)) > params.MaxMessageSize():
-			return e.Errorf("too big size; >= %d", params.MaxMessageSize())
+		case uint64(len(i)) > max:
+			return e.Errorf("too big size; >= %d", max)
 		default:
 			if err = encoder.Decode(broker.Encoder, i, &op); err != nil {
 				return e.Wrap(err)
@@ -87,7 +90,7 @@ func QuicstreamHandlerSendOperation(
 				return e.Errorf("empty operation found")
 			}
 
-			if err = op.IsValid(params.NetworkID()); err != nil {
+			if err = op.IsValid(networkID); err != nil {
 				return e.Wrap(err)
 			}
 
@@ -403,8 +406,8 @@ func QuicstreamHandlerSyncSourceConnInfo(
 }
 
 func QuicstreamHandlerNodeChallenge(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params base.LocalParams,
 ) quicstreamheader.Handler[NodeChallengeRequestHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader,
@@ -413,7 +416,7 @@ func QuicstreamHandlerNodeChallenge(
 
 		sig, err := local.Privatekey().Sign(util.ConcatBytesSlice(
 			local.Address().Bytes(),
-			params.NetworkID(),
+			networkID,
 			header.Input(),
 		))
 		if err != nil {
@@ -461,8 +464,9 @@ func QuicstreamHandlerNodeInfo(
 }
 
 func QuicstreamHandlerSendBallots(
-	params *isaac.LocalParams,
+	networkID base.NetworkID,
 	votef func(base.BallotSignFact) error,
+	maxMessageSize func() uint64,
 ) quicstreamheader.Handler[SendBallotsHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ SendBallotsHeader,
@@ -480,11 +484,13 @@ func QuicstreamHandlerSendBallots(
 
 		var body []byte
 
+		max := maxMessageSize()
+
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
 			return e.Wrap(err)
-		case uint64(len(body)) > params.MaxMessageSize():
-			return e.Errorf("too big size; >= %d", params.MaxMessageSize())
+		case uint64(len(body)) > max:
+			return e.Errorf("too big size; >= %d", max)
 		default:
 			body = i
 		}
@@ -501,7 +507,7 @@ func QuicstreamHandlerSendBallots(
 					return e.Errorf("expected BallotSignFact, but %T", u[i])
 				}
 
-				if err = bl.IsValid(params.NetworkID()); err != nil {
+				if err = bl.IsValid(networkID); err != nil {
 					return e.Wrap(err)
 				}
 

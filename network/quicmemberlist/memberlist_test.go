@@ -60,7 +60,7 @@ func (t *testMemberlist) newargs(config *memberlist.Config) *MemberlistArgs {
 
 func (t *testMemberlist) TestNew() {
 	bind := t.NewAddr()
-	config := BasicMemberlistConfig(bind.String(), bind, bind)
+	config := DefaultMemberlistConfig(bind.String(), bind, bind)
 
 	local, err := NewMember(bind.String(), bind, base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)
@@ -128,7 +128,7 @@ func (t *testMemberlist) newServersForJoining(
 	local, err := NewMember(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), laddr.String(), true)
 	t.NoError(err)
 
-	memberlistconfig := BasicMemberlistConfig(local.Name(), laddr, laddr)
+	memberlistconfig := DefaultMemberlistConfig(local.Name(), laddr, laddr)
 	memberlistconfig.Transport = transport
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
 	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Member) error { return nil }, func(Member) error { return nil })
@@ -674,7 +674,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 		nil,
 	)
 
-	lsrv.args.ExtraSameMemberLimit = 3
+	lsrv.args.ExtraSameMemberLimit = func() uint64 { return 3 }
 
 	_, _, rstartf0, rstopf0 := t.newServersForJoining(rnode, rci0, nil, nil)
 	_, _, rstartf1, rstopf1 := t.newServersForJoining(rnode, rci1, nil, nil)
@@ -747,7 +747,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		nil,
 	)
 
-	lsrv.args.ExtraSameMemberLimit = 0 // NOTE only allow 1 member in node name
+	lsrv.args.ExtraSameMemberLimit = func() uint64 { return 0 } // NOTE only allow 1 member in node name
 
 	_, _, rstartf0, rstopf0 := t.newServersForJoining(
 		rnode,

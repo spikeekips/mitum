@@ -40,7 +40,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
@@ -66,7 +66,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	}
 
 	args := quicmemberlist.NewMemberlistArgs(enc, config)
-	args.ExtraSameMemberLimit = params.SameMemberLimit()
+	args.ExtraSameMemberLimit = params.Memberlist.ExtraSameMemberLimit
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
 		HandlerPrefixMemberlistCallbackBroadcastMessage,
 		client.Broker,
@@ -76,7 +76,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		HandlerPrefixMemberlistEnsureBroadcastMessage,
 		local.Address(),
 		local.Privatekey(),
-		params.NetworkID(),
+		params.ISAAC.NetworkID(),
 		client.Broker,
 	)
 
@@ -164,7 +164,7 @@ func PPatchMemberlist(pctx context.Context) (ctx context.Context, err error) {
 func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
@@ -174,7 +174,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &m,
@@ -212,7 +212,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 				Stringer("node", t.SignFact().Node()).
 				Msg("ballot notified")
 
-			if err := t.IsValid(params.NetworkID()); err != nil {
+			if err := t.IsValid(isaacparams.NetworkID()); err != nil {
 				l.Trace().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
@@ -378,11 +378,21 @@ func memberlistConfig(
 		return nil, err
 	}
 
-	config := quicmemberlist.BasicMemberlistConfig(
+	config := quicmemberlist.DefaultMemberlistConfig(
 		localnode.Name(),
 		design.Network.Bind,
 		design.Network.Publish(),
 	)
+
+	params := design.LocalParams.Memberlist
+
+	config.TCPTimeout = params.TCPTimeout()
+	config.RetransmitMult = params.RetransmitMult()
+	config.ProbeTimeout = params.ProbeTimeout()
+	config.ProbeInterval = params.ProbeInterval()
+	config.SuspicionMult = params.SuspicionMult()
+	config.SuspicionMaxTimeoutMult = params.SuspicionMaxTimeoutMult()
+	config.UDPBufferSize = params.UDPBufferSize()
 
 	config.Transport = transport
 	config.Delegate = delegate
@@ -441,7 +451,7 @@ func memberlistTransport(
 ) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var handlers *quicstream.PrefixHandler
 
@@ -461,7 +471,7 @@ func memberlistTransport(
 		poolclient,
 		client.NewQuicstreamClient,
 		nil,
-		params.TimeoutRequest,
+		params.MISC.TimeoutRequest,
 	)
 	_ = transport.SetLogging(log)
 
@@ -503,7 +513,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	func(quicmemberlist.Member) error,
 	error,
 ) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
@@ -528,11 +538,11 @@ func nodeChallengeFunc(pctx context.Context) (
 		input := util.UUID().Bytes()
 
 		sig, err := func() (base.Signature, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), params.TimeoutRequest())
+			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
 			defer cancel()
 
 			return client.NodeChallenge(
-				ctx, node.UDPConnInfo(), params.NetworkID(), node.Address(), node.Publickey(), input)
+				ctx, node.UDPConnInfo(), params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
 		}()
 		if err != nil {
 			return err
@@ -540,11 +550,11 @@ func nodeChallengeFunc(pctx context.Context) (
 
 		// NOTE challenge with publish address
 		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
-			ctx, cancel := context.WithTimeout(context.Background(), params.TimeoutRequest())
+			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
 			defer cancel()
 
 			psig, err := client.NodeChallenge(ctx, ci,
-				params.NetworkID(), node.Address(), node.Publickey(), input)
+				params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {
 				return err
 			}

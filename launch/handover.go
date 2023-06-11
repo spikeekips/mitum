@@ -40,7 +40,7 @@ func patchStatesArgsForHandover(pctx context.Context, args *isaacstates.StatesAr
 func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBrokerFunc, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var client *isaacnetwork.QuicstreamClient
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
@@ -50,7 +50,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamClientContextKey, &client,
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
@@ -60,7 +60,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		return nil, err
 	}
 
-	args := isaacstates.NewHandoverXBrokerArgs(local, params.NetworkID())
+	args := isaacstates.NewHandoverXBrokerArgs(local, isaacparams.NetworkID())
 
 	args.SendMessageFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, msg isaacstates.HandoverMessage) error {
 		return client.HandoverMessage(ctx, ci, msg)
@@ -116,7 +116,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var client *isaacnetwork.QuicstreamClient
 	var pool *isaacdatabase.TempPool
 	var long *LongRunningMemberlistJoin
@@ -130,7 +130,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		EncodersContextKey, &encs,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamClientContextKey, &client,
 		PoolDatabaseContextKey, &pool,
 		LongRunningMemberlistJoinContextKey, &long,
@@ -144,7 +144,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 	localci := quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
-	args := isaacstates.NewHandoverYBrokerArgs(params.NetworkID())
+	args := isaacstates.NewHandoverYBrokerArgs(isaacparams.NetworkID())
 
 	args.SendMessageFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, msg isaacstates.HandoverMessage) error {
 		return client.HandoverMessage(ctx, ci, msg)
@@ -229,7 +229,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 			}
 		},
 		func(ctx context.Context, x base.Address, xci quicstream.UDPConnInfo) (string, bool, error) {
-			return client.AskHandover(ctx, xci, local.Privatekey(), params.NetworkID(), local.Address(), localci)
+			return client.AskHandover(ctx, xci, local.Privatekey(), isaacparams.NetworkID(), local.Address(), localci)
 		},
 	)
 
@@ -248,14 +248,14 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var handlers *quicstream.PrefixHandler
 
 	if err := util.LoadFromContext(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamHandlersContextKey, &handlers,
 	); err != nil {
 		return pctx, err
@@ -263,27 +263,27 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	localci := quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
-	if err := attachStartHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
+	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCancelHandoverHandler(pctx, handlers, encs, local, params); err != nil {
+	if err := attachCancelHandoverHandler(pctx, handlers, encs, local, isaacparams); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
+	if err := attachCheckHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachAskHandoverHandler(pctx, handlers, encs, local, params, localci); err != nil {
+	if err := attachAskHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandoverMessageHandler(pctx, handlers, encs, params); err != nil {
+	if err := attachHandoverMessageHandler(pctx, handlers, encs, isaacparams); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, params); err != nil {
+	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, isaacparams); err != nil {
 		return pctx, err
 	}
 
@@ -295,7 +295,7 @@ func attachStartHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	localci quicstream.UDPConnInfo,
 ) error {
 	var states *isaacstates.States
@@ -356,7 +356,7 @@ func attachCancelHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 ) error {
 	var states *isaacstates.States
 
@@ -396,7 +396,7 @@ func attachCheckHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	localci quicstream.UDPConnInfo,
 ) error {
 	var states *isaacstates.States
@@ -437,7 +437,7 @@ func attachAskHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	localci quicstream.UDPConnInfo,
 ) error {
 	var states *isaacstates.States
@@ -488,7 +488,7 @@ func attachHandoverMessageHandler(
 	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 ) error {
 	var states *isaacstates.States
 
@@ -534,7 +534,7 @@ func attachCheckHandoverXHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	params *isaac.Params,
 ) error {
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
@@ -644,13 +644,13 @@ func attachSyncDataFuncForHandoverY(
 	lastoffsetop func() util.Hash,
 ) error {
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var client *isaacnetwork.QuicstreamClient
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamClientContextKey, &client,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
@@ -669,11 +669,11 @@ func attachSyncDataFuncForHandoverY(
 			switch {
 			case ctx.Err() != nil:
 				return ctx.Err()
-			case count >= params.MaxTryHandoverYBrokerSyncData():
+			case count >= isaacparams.MaxTryHandoverYBrokerSyncData():
 				return nil
 			}
 
-			if err := client.StreamOperations(ctx, xci, local.Privatekey(), params.NetworkID(), lastoffset,
+			if err := client.StreamOperations(ctx, xci, local.Privatekey(), isaacparams.NetworkID(), lastoffset,
 				func(op base.Operation, offset []byte) error {
 					if op.Hash().Equal(lastoffsetop()) {
 						ticker.Stop()

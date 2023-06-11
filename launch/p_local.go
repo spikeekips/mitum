@@ -14,6 +14,7 @@ var (
 	PNameLocal            = ps.Name("local")
 	LocalContextKey       = util.ContextKey("local")
 	LocalParamsContextKey = util.ContextKey("local-params")
+	ISAACParamsContextKey = util.ContextKey("isaac-params")
 )
 
 func PLocal(pctx context.Context) (context.Context, error) {

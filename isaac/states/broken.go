@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -18,12 +17,12 @@ type NewBrokenHandlerType struct {
 }
 
 func NewNewBrokenHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 ) *NewBrokenHandlerType {
 	return &NewBrokenHandlerType{
 		BrokenHandler: &BrokenHandler{
-			baseHandler: newBaseHandlerType(StateBroken, local, params),
+			baseHandler: newBaseHandlerType(StateBroken, networkID, local),
 		},
 	}
 }

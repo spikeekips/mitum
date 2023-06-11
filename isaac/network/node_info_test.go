@@ -36,7 +36,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}},
 		{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}},
-		{Hint: isaac.LocalParamsHint, Instance: isaac.LocalParams{}},
+		{Hint: isaac.ParamsHint, Instance: isaac.Params{}},
 		{Hint: NodeInfoHint, Instance: NodeInfo{}},
 	}
 	for i := range hints {
@@ -51,7 +51,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 		info.SetLastManifest(base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256()))
 		info.SetSuffrageHeight(base.Height(44))
 		info.SetNetworkPolicy(isaac.DefaultNetworkPolicy())
-		info.SetLocalParams(isaac.DefaultLocalParams(networkID))
+		info.SetLocalParams(isaac.DefaultParams(networkID))
 
 		ci, err := quicstream.NewUDPConnInfoFromStringAddress("1.2.3.4:4321", true)
 		t.NoError(err)
@@ -97,7 +97,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 		base.EqualManifest(t.Assert(), ah.lastManifest, bh.lastManifest)
 		t.Equal(ah.suffrageHeight, bh.suffrageHeight)
 		base.EqualNetworkPolicy(t.Assert(), ah.networkPolicy, bh.networkPolicy)
-		base.EqualLocalParams(t.Assert(), ah.localParams, bh.localParams)
+		isaac.EqualLocalParams(t.Assert(), ah.localParams, bh.localParams)
 		t.Equal(ah.connInfo, bh.connInfo)
 		t.Equal(len(ah.consensusNodes), len(bh.consensusNodes))
 		for i := range ah.consensusNodes {

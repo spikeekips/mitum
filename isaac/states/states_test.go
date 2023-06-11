@@ -156,17 +156,17 @@ func (s dummySwitchContext) MarshalZerologObject(e *zerolog.Event) {
 type testStates struct {
 	suite.Suite
 	local  base.LocalNode
-	params *isaac.LocalParams
+	params *isaac.Params
 }
 
 func (t *testStates) SetupSuite() {
 	t.local = base.RandomLocalNode()
-	t.params = isaac.DefaultLocalParams(base.RandomNetworkID())
+	t.params = isaac.DefaultParams(base.RandomNetworkID())
 }
 
 func (t *testStates) TestWait() {
 	args := NewStatesArgs()
-	st, err := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
@@ -222,7 +222,7 @@ func (t *testStates) TestExit() {
 
 func (t *testStates) TestBootingAtStarting() {
 	args := NewStatesArgs()
-	st, err := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
@@ -251,7 +251,7 @@ func (t *testStates) TestBootingAtStarting() {
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	args := NewStatesArgs()
-	st, err := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
@@ -296,13 +296,13 @@ func (t *testStates) booted() (*States, <-chan error) {
 
 	args.Ballotbox = NewBallotbox(
 		t.local.Address(),
-		t.params,
+		func() base.Threshold { return t.params.Threshold() },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return nil, false, nil
 		},
 	)
 
-	st, err := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
@@ -332,7 +332,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	args := NewStatesArgs()
-	st, err := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
@@ -732,8 +732,9 @@ func (t *testStates) TestStoppedByStateStopped() {
 }
 
 func (t *testStates) TestMimicBallot() {
+	networkID := t.params.NetworkID()
+
 	local := base.RandomLocalNode()
-	params := isaac.DefaultLocalParams(base.RandomNetworkID())
 	remote := base.RandomLocalNode()
 
 	point := base.RawPoint(32, 44)
@@ -741,7 +742,7 @@ func (t *testStates) TestMimicBallot() {
 	newINITBallot := func(local base.LocalNode, expels []base.SuffrageExpelOperation) base.Ballot {
 		afact := isaac.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 		afs := isaac.NewACCEPTBallotSignFact(afact)
-		t.NoError(afs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
+		t.NoError(afs.NodeSign(local.Privatekey(), networkID, local.Address()))
 
 		avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
 		avp.
@@ -757,7 +758,7 @@ func (t *testStates) TestMimicBallot() {
 
 		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), expelfacts)
 		ifs := isaac.NewINITBallotSignFact(ifact)
-		t.NoError(ifs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
+		t.NoError(ifs.NodeSign(local.Privatekey(), networkID, local.Address()))
 
 		return isaac.NewINITBallot(avp, ifs, expels)
 	}
@@ -766,7 +767,6 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := t.booted()
 
 		st.local = local
-		st.params = params
 
 		_ = st.setHandler(newDummyStateHandler(StateStopped))
 		_ = st.setHandler(newDummyStateHandler(StateSyncing))
@@ -830,7 +830,6 @@ func (t *testStates) TestMimicBallot() {
 		st.SetAllowConsensus(true)
 
 		st.local = local
-		st.params = params
 
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
@@ -973,7 +972,7 @@ func (t *testStates) TestMimicBallot() {
 
 		fact := isaac.NewSuffrageExpelFact(local.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
 		expel := isaac.NewSuffrageExpelOperation(fact)
-		t.NoError(expel.NodeSign(remote.Privatekey(), params.NetworkID(), remote.Address()))
+		t.NoError(expel.NodeSign(remote.Privatekey(), networkID, remote.Address()))
 
 		bl := newINITBallot(remote, []base.SuffrageExpelOperation{expel})
 

@@ -335,7 +335,7 @@ func RequestMissingBallots(
 
 func VoteSuffrageVotingFunc(
 	local base.LocalNode,
-	params *isaac.LocalParams,
+	networkID base.NetworkID,
 	ballotbox *Ballotbox,
 	sv *isaac.SuffrageVoting,
 	getSuffragef isaac.GetSuffrageByBlockHeight,
@@ -361,7 +361,7 @@ func VoteSuffrageVotingFunc(
 
 			op := isaac.NewSuffrageExpelOperation(fact)
 
-			if err := op.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
+			if err := op.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {
 				return nil, errors.WithMessage(err, "node sign SuffrageExpelOperation")
 			}
 

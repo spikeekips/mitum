@@ -60,13 +60,13 @@ func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error)
 func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, err
@@ -88,7 +88,7 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	}
 
 	builder := isaac.NewSuffrageStateBuilder(
-		params.NetworkID(),
+		isaacparams.NetworkID(),
 		getLastSuffrageProoff,
 		getSuffrageProofFromRemotef,
 		getLastSuffrageCandidatef,
@@ -121,7 +121,7 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 		},
 		builder.Build,
 		nil,
-		params.WaitPreparingINITBallot(),
+		isaacparams.WaitPreparingINITBallot(),
 	)
 	if err != nil {
 		return pctx, err
@@ -461,7 +461,7 @@ func MajoritySuffrageCandidateLimiterFunc(
 }
 
 func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -476,7 +476,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 	lastl := util.EmptyLocked[util.Hash]()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.Height, base.SuffrageProof, bool, error) {
-		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
 		last, _ := lastl.Value()
@@ -485,7 +485,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 		case err != nil, !updated:
 			return lastheight, proof, updated, nil
 		default:
-			if err := proof.IsValid(params.NetworkID()); err != nil {
+			if err := proof.IsValid(params.ISAAC.NetworkID()); err != nil {
 				return lastheight, nil, updated, err
 			}
 
@@ -556,7 +556,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -586,7 +586,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 							return err
 						}
 
-						cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+						cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 						defer cancel()
 
 						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
@@ -595,7 +595,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 						case !b:
 							return errors.Errorf("not found")
 						default:
-							if err := a.IsValid(params.NetworkID()); err != nil {
+							if err := a.IsValid(params.ISAAC.NetworkID()); err != nil {
 								return err
 							}
 
@@ -630,7 +630,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 }
 
 func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -647,7 +647,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
 		last, _ := lastl.Value()
 
-		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
 		st, found, err := client.State(cctx, ci, isaac.SuffrageCandidateStateKey, last)

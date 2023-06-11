@@ -95,13 +95,13 @@ func NewJSONStreamDecoder(r io.Reader) StreamDecoder {
 	return newJSONStreamDecoder(r)
 }
 
-type ReadableJSONDuration time.Duration
+type ReadableDuration time.Duration
 
-func (d ReadableJSONDuration) MarshalText() ([]byte, error) {
+func (d ReadableDuration) MarshalText() ([]byte, error) {
 	return []byte(time.Duration(d).String()), nil
 }
 
-func (d *ReadableJSONDuration) UnmarshalJSON(b []byte) error {
+func (d *ReadableDuration) UnmarshalJSON(b []byte) error {
 	var i interface{}
 	if err := UnmarshalJSON(b, &i); err != nil {
 		return err
@@ -109,16 +109,39 @@ func (d *ReadableJSONDuration) UnmarshalJSON(b []byte) error {
 
 	switch t := i.(type) {
 	case int64:
-		*d = ReadableJSONDuration(time.Duration(t))
+		*d = ReadableDuration(time.Duration(t))
 	case string:
 		j, err := time.ParseDuration(t)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
 		}
 
-		*d = ReadableJSONDuration(j)
+		*d = ReadableDuration(j)
 	default:
 		return errors.Errorf("unknown duration format, %q", string(b))
+	}
+
+	return nil
+}
+
+func (d *ReadableDuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var i interface{}
+	if err := unmarshal(&i); err != nil {
+		return err
+	}
+
+	switch t := i.(type) {
+	case int64:
+		*d = ReadableDuration(time.Duration(t))
+	case string:
+		j, err := time.ParseDuration(t)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
+		}
+
+		*d = ReadableDuration(j)
+	default:
+		return errors.Errorf("unknown duration format, %v", i)
 	}
 
 	return nil

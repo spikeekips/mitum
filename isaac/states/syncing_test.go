@@ -15,19 +15,29 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func (st *SyncingHandler) setWaitStuck(t time.Duration) {
-	st.waitStuckInterval.SetValue(t)
-}
-
 type testSyncingHandler struct {
 	isaac.BaseTestBallots
+	waitlock *util.Locked[time.Duration]
+}
+
+func (t *testSyncingHandler) SetupTest() {
+	t.BaseTestBallots.SetupTest()
+
+	t.waitlock = util.NewLocked[time.Duration](time.Second * 10)
 }
 
 func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandler, func(bool)) {
 	local := t.Local
 	params := t.LocalParams
 
-	args := NewSyncingHandlerArgs(params)
+	args := NewSyncingHandlerArgs()
+
+	waitlock := t.waitlock
+	args.WaitStuckInterval = func() time.Duration {
+		i, _ := waitlock.Value()
+
+		return i
+	}
 
 	args.NewSyncerFunc = func(height base.Height) (isaac.Syncer, error) {
 		syncer := newDummySyncer(height, finishch, nil)
@@ -38,7 +48,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
 	args.WhenNewBlockSavedFunc = func(base.Height) {}
 
-	newhandler := NewNewSyncingHandlerType(local, params, args)
+	newhandler := NewNewSyncingHandlerType(params.NetworkID(), local, args)
 
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
@@ -598,7 +608,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		syncer.finish(point.Height())
 
@@ -642,7 +652,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		syncer.finish(point.Height())
 
@@ -682,7 +692,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.setWaitStuck(time.Second)
+		t.waitlock.SetValue(time.Second)
 
 		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
@@ -723,7 +733,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.setWaitStuck(time.Second)
+		t.waitlock.SetValue(time.Second)
 
 		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
@@ -731,7 +741,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		newavp, err := t.NewACCEPTVoteproof(t.NewACCEPTBallotFact(point.NextHeight(), nil, nil), t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		st.setLastVoteproof(newavp)
 		syncer.finish(newavp.Point().Height())
@@ -780,7 +790,7 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 	t.Run("empty last voteproof", func() {
 		st, closef := t.newState(nil)
 		defer closef(true)
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
@@ -803,7 +813,7 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 	t.Run("last voteproof", func() {
 		st, closef := t.newState(nil)
 		defer closef(false)
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
@@ -837,7 +847,7 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 	t.Run("last voteproof, but not allow consensus", func() {
 		st, closef := t.newState(nil)
 		defer closef(false)
-		st.setWaitStuck(time.Millisecond * 100)
+		t.waitlock.SetValue(time.Millisecond * 100)
 
 		st.setAllowConsensus(false)
 

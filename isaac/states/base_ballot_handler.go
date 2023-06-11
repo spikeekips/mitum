@@ -25,6 +25,8 @@ type baseBallotHandlerArgs struct {
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
 	VoteFunc                 func(base.Ballot) (bool, error)
 	SuffrageVotingFindFunc   SuffrageVotingFindFunc
+	IntervalBroadcastBallot  func() time.Duration
+	WaitPreparingINITBallot  func() time.Duration
 }
 
 func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
@@ -40,6 +42,12 @@ func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
 		) {
 			return nil, util.ErrNotImplemented.Errorf("SuffrageVotingFindFunc")
 		},
+		IntervalBroadcastBallot: func() time.Duration {
+			return isaac.DefaultntervalBroadcastBallot
+		},
+		WaitPreparingINITBallot: func() time.Duration {
+			return isaac.DefaultWaitPreparingINITBallot
+		},
 	}
 }
 
@@ -53,8 +61,8 @@ type baseBallotHandler struct {
 
 func newBaseBallotHandlerType(
 	state StateType,
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *baseBallotHandlerArgs,
 ) baseBallotHandler {
 	args.VoteFunc = preventVotingWithEmptySuffrage(
@@ -64,7 +72,7 @@ func newBaseBallotHandlerType(
 	)
 
 	return baseBallotHandler{
-		baseHandler: newBaseHandlerType(state, local, params),
+		baseHandler: newBaseHandlerType(state, networkID, local),
 		args:        args,
 		voteFunc:    func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
 	}
@@ -173,7 +181,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	)
 	sf := isaac.NewINITBallotSignFact(fact)
 
-	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+	if err := sf.NodeSign(st.local.Privatekey(), st.networkID, st.local.Address()); err != nil {
 		return nil, e.WithMessage(err, "make next init ballot")
 	}
 
@@ -260,7 +268,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	)
 	signfact := isaac.NewACCEPTBallotSignFact(afact)
 
-	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+	if err := signfact.NodeSign(st.local.Privatekey(), st.networkID, st.local.Address()); err != nil {
 		return nil, err
 	}
 
@@ -333,7 +341,7 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 
 	sf := isaac.NewINITBallotSignFact(fact)
 
-	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+	if err := sf.NodeSign(st.local.Privatekey(), st.networkID, st.local.Address()); err != nil {
 		go st.switchState(
 			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "make suffrage confirm ballot")),
 		)
@@ -365,7 +373,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 			case i < 1:
 				return ninitialWait
 			default:
-				return st.params.IntervalBroadcastBallot()
+				return st.args.IntervalBroadcastBallot()
 			}
 		},
 	)
@@ -390,7 +398,7 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 					return 0
 				}
 
-				return st.params.IntervalBroadcastBallot()
+				return st.args.IntervalBroadcastBallot()
 			}
 		},
 	); err != nil {
@@ -497,7 +505,7 @@ func (st *baseBallotHandler) timerINITBallot(
 				return wait
 			}
 
-			return st.params.IntervalBroadcastBallot()
+			return st.args.IntervalBroadcastBallot()
 		},
 		func(tctx context.Context, i uint64) (bool, error) {
 			if bl != nil {
@@ -582,7 +590,7 @@ func (st *baseBallotHandler) defaultPrepareNextBlockBallot(
 				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 			}
 		},
-		st.params.WaitPreparingINITBallot(),
+		st.args.WaitPreparingINITBallot(),
 	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 

@@ -15,7 +15,6 @@ type baseHandler struct {
 	local base.LocalNode
 	ctx   context.Context //nolint:containedctx //...
 	*logging.Logging
-	params                 *isaac.LocalParams
 	voteproofsFunc         func(base.StagePoint) (isaac.LastVoteproofs, bool)
 	lastVoteproofFunc      func() isaac.LastVoteproofs
 	setLastVoteproofFunc   func(base.Voteproof) bool
@@ -28,12 +27,13 @@ type baseHandler struct {
 	handoverXBrokerFunc    func() *HandoverXBroker
 	handoverYBrokerFunc    func() *HandoverYBroker
 	stt                    StateType
+	networkID              base.NetworkID
 }
 
 func newBaseHandlerType(
 	state StateType,
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 ) *baseHandler {
 	lvps := isaac.NewLastVoteproofsHandler()
 
@@ -41,9 +41,9 @@ func newBaseHandlerType(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", fmt.Sprintf("state-handler-%s", state))
 		}),
-		stt:    state,
-		local:  local,
-		params: params,
+		stt:       state,
+		local:     local,
+		networkID: networkID,
 		voteproofsFunc: func(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 			return lvps.Voteproofs(point)
 		},
@@ -64,7 +64,7 @@ func (st *baseHandler) new() *baseHandler {
 		Logging:                st.Logging,
 		local:                  st.local,
 		stt:                    st.stt,
-		params:                 st.params,
+		networkID:              st.networkID,
 		sts:                    st.sts,
 		timers:                 st.timers,
 		cancel:                 func() {},

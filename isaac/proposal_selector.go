@@ -28,6 +28,7 @@ type BaseProposalSelectorArgs struct {
 	Maker                   *ProposalMaker
 	GetNodesFunc            func(base.Height) ([]base.Node, bool, error)
 	RequestFunc             func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error)
+	TimeoutRequest          func() time.Duration
 	RequestProposalInterval time.Duration
 	MinProposerWait         time.Duration
 }
@@ -42,25 +43,25 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 		},
 		RequestProposalInterval: time.Millisecond * 10,               //nolint:gomnd //...
 		MinProposerWait:         DefaultTimeoutRequest + time.Second, //nolint:gomnd //...
+		TimeoutRequest: func() time.Duration {
+			return DefaultTimeoutRequest
+		},
 	}
 }
 
 type BaseProposalSelector struct {
-	local  base.LocalNode
-	params *LocalParams
-	args   *BaseProposalSelectorArgs
+	local base.LocalNode
+	args  *BaseProposalSelectorArgs
 	sync.Mutex
 }
 
 func NewBaseProposalSelector(
 	local base.LocalNode,
-	params *LocalParams,
 	args *BaseProposalSelectorArgs,
 ) *BaseProposalSelector {
 	return &BaseProposalSelector{
-		local:  local,
-		params: params,
-		args:   args,
+		local: local,
+		args:  args,
 	}
 }
 
@@ -293,7 +294,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	}
 
 	// NOTE if not found in local, request to proposer node
-	rctx, cancel := context.WithTimeout(ctx, p.params.TimeoutRequest())
+	rctx, cancel := context.WithTimeout(ctx, p.args.TimeoutRequest())
 	defer cancel()
 
 	donech := make(chan interface{})
@@ -407,15 +408,15 @@ func (BlockBasedProposerSelector) Select(
 type ProposalMaker struct {
 	*logging.Logging
 	local         base.LocalNode
-	params        base.LocalParams
 	pool          ProposalPool
 	getOperations func(context.Context, base.Height) ([]util.Hash, error)
+	networkID     base.NetworkID
 	sync.Mutex
 }
 
 func NewProposalMaker(
 	local base.LocalNode,
-	params base.LocalParams,
+	networkID base.NetworkID,
 	getOperations func(context.Context, base.Height) ([]util.Hash, error),
 	pool ProposalPool,
 ) *ProposalMaker {
@@ -424,7 +425,7 @@ func NewProposalMaker(
 			return lctx.Str("module", "proposal-maker")
 		}),
 		local:         local,
-		params:        params,
+		networkID:     networkID,
 		getOperations: getOperations,
 		pool:          pool,
 	}
@@ -493,7 +494,7 @@ func (p *ProposalMaker) makeProposal(
 	fact := NewProposalFact(point, p.local.Address(), previousBlock, ops)
 
 	signfact := NewProposalSignFact(fact)
-	if err := signfact.Sign(p.local.Privatekey(), p.params.NetworkID()); err != nil {
+	if err := signfact.Sign(p.local.Privatekey(), p.networkID); err != nil {
 		return sf, err
 	}
 

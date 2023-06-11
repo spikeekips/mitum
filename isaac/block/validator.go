@@ -505,7 +505,7 @@ func ValidateBlocksFromStorage(
 	root string,
 	fromHeight, toHeight base.Height,
 	enc encoder.Encoder,
-	params *isaac.LocalParams,
+	networkID base.NetworkID,
 	db isaac.Database,
 	whenBlockDonef func(base.BlockMap, error) error,
 ) error {
@@ -531,7 +531,7 @@ func ValidateBlocksFromStorage(
 				mapdb = i
 			}
 
-			err := ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(),
+			err := ValidateBlockFromLocalFS(height, root, enc, networkID,
 				func(m base.BlockMap) error {
 					return base.IsEqualBlockMap(mapdb, m)
 				},

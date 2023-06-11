@@ -72,7 +72,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var params base.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 	var oprs *hint.CompatibleSet
 
@@ -80,7 +80,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 		OperationProcessorsMapContextKey, &oprs,
 	); err != nil {
@@ -100,7 +100,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 			previous,
 			NewBlockWriterFunc(
 				local,
-				params.NetworkID(),
+				isaacparams.NetworkID(),
 				LocalFSDataDirectory(design.Storage.Base),
 				enc,
 				db,
@@ -125,7 +125,7 @@ func getProposalFunc(pctx context.Context) (
 	func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error),
 	error,
 ) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var pool *isaacdatabase.TempPool
 	var client isaac.NetworkClient
 	var m *quicmemberlist.Memberlist
@@ -160,7 +160,7 @@ func getProposalFunc(pctx context.Context) (
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
-					cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+					cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 					defer cancel()
 
 					var pr base.ProposalSignFact
@@ -169,7 +169,7 @@ func getProposalFunc(pctx context.Context) (
 					case err != nil || !found:
 						return nil
 					default:
-						if err := i.IsValid(params.NetworkID()); err != nil {
+						if err := i.IsValid(params.ISAAC.NetworkID()); err != nil {
 							return err
 						}
 
@@ -213,11 +213,11 @@ func getProposalOperationFunc(pctx context.Context) (
 	func(base.ProposalSignFact) isaac.OperationProcessorGetOperationFunction,
 	error,
 ) {
-	var params base.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func getProposalOperationFunc(pctx context.Context) (
 				}
 			}
 
-			if err := op.IsValid(params.NetworkID()); err != nil {
+			if err := op.IsValid(isaacparams.NetworkID()); err != nil {
 				return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
 			}
 
@@ -299,7 +299,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	func(context.Context, base.ProposalSignFact, util.Hash) (base.Operation, bool, error),
 	error,
 ) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -350,7 +350,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			}
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+				cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 				defer cancel()
 
 				op, _ := result.Set(func(i base.Operation, _ bool) (base.Operation, error) {
@@ -395,7 +395,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	func(context.Context, base.ProposalSignFact, util.Hash) (bool, base.Operation, bool, error),
 	error,
 ) {
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var client isaac.NetworkClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -435,7 +435,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return true, nil, false, err
 		}
 
-		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
 		switch op, found, err := client.Operation(cctx, ci, operationhash); {
@@ -451,11 +451,9 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 
 func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, error) {
 	var local base.LocalNode
-	var params *isaac.LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
 	); err != nil {
 		return nil, err
 	}
@@ -465,13 +463,13 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		return nil, err
 	}
 
-	return isaac.NewBaseProposalSelector(local, params, args), nil
+	return isaac.NewBaseProposalSelector(local, args), nil
 }
 
 func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelectorArgs, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
 	var m *quicmemberlist.Memberlist
@@ -496,7 +494,8 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	args.Pool = pool
 	args.ProposerSelector = proposerSelector
 	args.Maker = proposalMaker
-	args.MinProposerWait = params.TimeoutRequest() + (time.Second * 2)
+	args.MinProposerWait = params.MISC.TimeoutRequest() + (time.Second * 2)
+	args.TimeoutRequest = params.MISC.TimeoutRequest
 
 	if err := getNodesFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
 		return nil, err
@@ -542,7 +541,7 @@ func getNodesFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Ba
 
 func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var m *quicmemberlist.Memberlist
 	var client isaac.NetworkClient
 
@@ -608,7 +607,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			})
 		}
 
-		nctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		nctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
 		return isaac.ConcurrentRequestProposal(
@@ -618,7 +617,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			previousBlock,
 			client,
 			cis,
-			params.NetworkID(),
+			params.ISAAC.NetworkID(),
 		)
 	}
 

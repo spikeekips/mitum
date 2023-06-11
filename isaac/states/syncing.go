@@ -21,10 +21,11 @@ type SyncingHandlerArgs struct {
 	JoinMemberlistFunc       func(context.Context, base.Suffrage) error
 	LeaveMemberlistFunc      func(time.Duration) error
 	WhenNewBlockSavedFunc    func(base.Height)
-	WaitStuckInterval        time.Duration
+	WaitStuckInterval        func() time.Duration
+	WaitPreparingINITBallot  func() time.Duration
 }
 
-func NewSyncingHandlerArgs(params *isaac.LocalParams) *SyncingHandlerArgs {
+func NewSyncingHandlerArgs() *SyncingHandlerArgs {
 	return &SyncingHandlerArgs{
 		NodeInConsensusNodesFunc: func(base.Node, base.Height) (base.Suffrage, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("NodeInConsensusNodesFunc")
@@ -40,19 +41,23 @@ func NewSyncingHandlerArgs(params *isaac.LocalParams) *SyncingHandlerArgs {
 			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
 		},
 		WhenNewBlockSavedFunc: func(base.Height) {},
-		WaitStuckInterval:     params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
+		WaitStuckInterval: func() time.Duration {
+			return isaac.DefaultWaitStuckInterval // example; set manually
+		},
+		WaitPreparingINITBallot: func() time.Duration {
+			return isaac.DefaultWaitPreparingINITBallot // example; set manually
+		},
 	}
 }
 
 type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
-	args              *SyncingHandlerArgs
-	stuckwaitcancel   func()
-	askHandoverFunc   func() (bool, error)
-	waitStuckInterval *util.Locked[time.Duration]
-	finishedLock      sync.RWMutex
-	stuckwaitlock     sync.RWMutex
+	args            *SyncingHandlerArgs
+	stuckwaitcancel func()
+	askHandoverFunc func() (bool, error)
+	finishedLock    sync.RWMutex
+	stuckwaitlock   sync.RWMutex
 }
 
 type NewSyncingHandlerType struct {
@@ -60,13 +65,13 @@ type NewSyncingHandlerType struct {
 }
 
 func NewNewSyncingHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *SyncingHandlerArgs,
 ) *NewSyncingHandlerType {
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler: newBaseHandlerType(StateSyncing, local, params),
+			baseHandler: newBaseHandlerType(StateSyncing, networkID, local),
 			args:        args,
 		},
 	}
@@ -74,9 +79,8 @@ func NewNewSyncingHandlerType(
 
 func (h *NewSyncingHandlerType) new() (handler, error) {
 	return &SyncingHandler{
-		baseHandler:       h.baseHandler.new(),
-		args:              h.args,
-		waitStuckInterval: util.NewLocked(h.args.WaitStuckInterval),
+		baseHandler: h.baseHandler.new(),
+		args:        h.args,
 	}, nil
 }
 
@@ -119,7 +123,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		case StateConsensus:
 			if allowedConsensus {
 				go func() {
-					wait := st.params.WaitPreparingINITBallot() * 2
+					wait := st.args.WaitPreparingINITBallot() * 2
 					l.Debug().Dur("wait", wait).Msg("timers will be stopped")
 
 					<-time.After(wait)
@@ -359,25 +363,23 @@ func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
 		st.stuckwaitcancel()
 	}
 
-	waitStuckInterval, _ := st.waitStuckInterval.Value()
+	wait := st.args.WaitStuckInterval()
 
-	l := st.Log().With().Dur("wait", waitStuckInterval).Stringer("id", util.ULID()).Logger()
+	l := st.Log().With().Dur("wait", wait).Stringer("id", util.ULID()).Logger()
 
 	l.Debug().Msg("will wait for stucked")
 
-	ctx, cancel := context.WithTimeout(st.ctx, waitStuckInterval)
+	ctx, cancel := context.WithTimeout(st.ctx, wait)
 	st.stuckwaitcancel = cancel
 
 	go func() {
 		defer func() {
 			// NOTE loop newStuckWait
 			go func() {
-				i, _ := st.waitStuckInterval.Value()
-
 				select {
 				case <-st.ctx.Done():
 					return
-				case <-time.After(i * 2):
+				case <-time.After(st.args.WaitStuckInterval() * 2):
 					if lvp := st.lastVoteproofs().Cap(); lvp != nil {
 						st.newStuckWait(lvp)
 					}
@@ -404,7 +406,7 @@ func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
 		}
 
 		if st.allowedConsensus() {
-			st.Log().Debug().Dur("wait", waitStuckInterval).
+			st.Log().Debug().Dur("wait", wait).
 				Msg("stuck accept voteproof found; moves to joining state")
 
 			// NOTE no more valid voteproof received, moves to joining state

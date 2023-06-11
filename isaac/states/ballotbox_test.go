@@ -51,7 +51,7 @@ type baseTestBallotbox struct {
 	suite.Suite
 	priv      base.Privatekey
 	networkID base.NetworkID
-	params    *isaac.LocalParams
+	params    *isaac.Params
 }
 
 func (t *baseTestBallotbox) SetupSuite() {
@@ -60,7 +60,7 @@ func (t *baseTestBallotbox) SetupSuite() {
 }
 
 func (t *baseTestBallotbox) SetupTest() {
-	t.params = isaac.DefaultLocalParams(t.networkID)
+	t.params = isaac.DefaultParams(t.networkID)
 }
 
 func (t *baseTestBallotbox) initBallot(node base.LocalNode, nodes []base.LocalNode, point base.Point, prev, proposal util.Hash, expels []base.SuffrageExpelOperation, vp base.Voteproof) isaac.INITBallot {
@@ -198,7 +198,7 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -250,7 +250,7 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -297,7 +297,7 @@ func (t *testBallotbox) TestVotePreviousRoundAlreadyMajority() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -325,7 +325,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -370,7 +370,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -415,7 +415,7 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -460,7 +460,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -483,7 +483,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	th := base.Threshold(100)
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return nil, false, nil
 		},
@@ -516,7 +516,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	var i int64
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&i) < 1 {
 				atomic.StoreInt64(&i, 1)
@@ -567,7 +567,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	var enablesuf int64
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&enablesuf) < 1 {
 				return nil, false, nil
@@ -661,7 +661,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -697,7 +697,7 @@ func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -745,7 +745,7 @@ func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
 	var i int64
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&i) < 1 {
 				return nil, false, nil
@@ -853,7 +853,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -899,7 +899,7 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(height base.Height) (base.Suffrage, bool, error) {
 			switch {
 			case height < point.Height().Prev():
@@ -966,7 +966,7 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 func (t *testBallotbox) TestSetLastStagePointReversalByVoteproof() {
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params,
+		func() base.Threshold { return t.params.Threshold() },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return nil, false, nil
 		},
@@ -996,7 +996,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(height base.Height) (base.Suffrage, bool, error) {
 			if height == point.Height().Prev() {
 				return suf, true, nil
@@ -1067,7 +1067,7 @@ func (t *testBallotbox) TestMissingNodes() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1116,7 +1116,7 @@ func (t *testBallotbox) TestMissingNodes() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1147,7 +1147,7 @@ func (t *testBallotbox) TestMissingNodes() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return nil, false, nil
 			},
@@ -1180,7 +1180,7 @@ func (t *testBallotbox) TestVoteproofFinished() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1214,7 +1214,7 @@ func (t *testBallotbox) TestVoteproofFinished() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1249,7 +1249,7 @@ func (t *testBallotbox) TestCopyVotedDATARACE() {
 
 	box := NewBallotbox(
 		base.RandomAddress(""),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1400,7 +1400,7 @@ func (t *testBallotboxWithExpel) TestINITBallot() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1466,7 +1466,7 @@ func (t *testBallotboxWithExpel) TestINITBallotExpelOthers() {
 	t.Run("local box", func() {
 		box := NewBallotbox(
 			local.Address(),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1488,7 +1488,7 @@ func (t *testBallotboxWithExpel) TestINITBallotExpelOthers() {
 	t.Run("other box", func() {
 		box := NewBallotbox(
 			expelnodes[0],
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1514,7 +1514,7 @@ func (t *testBallotboxWithExpel) TestACCEPTBallot() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1582,7 +1582,7 @@ func (t *testBallotboxWithExpel) TestACCEPTBallotExpelOthers() {
 	t.Run("local box:", func() {
 		box := NewBallotbox(
 			local.Address(),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1605,7 +1605,7 @@ func (t *testBallotboxWithExpel) TestACCEPTBallotExpelOthers() {
 	t.Run("other box:", func() {
 		box := NewBallotbox(
 			expelnodes[0],
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1654,7 +1654,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsOverThreshold() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1734,7 +1734,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsSafeThreshold() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1797,7 +1797,7 @@ func (t *testBallotboxWithExpel) TestINITBallotButDraw() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1855,7 +1855,7 @@ func (t *testBallotboxWithExpel) TestSuffrageConfirmBallots() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -1947,7 +1947,7 @@ func (t *testBallotboxWithExpel) TestVoteproofFromSuffrageConfirmBallots() {
 
 	box := NewBallotbox(
 		local.Address(),
-		t.params.SetThreshold(th),
+		func() base.Threshold { return th },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -2047,7 +2047,7 @@ func (t *testBallotboxWithExpel) TestVoteproofWithExpels() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -2098,7 +2098,7 @@ func (t *testBallotboxWithExpel) TestVoteproofWithExpels() {
 
 		box := NewBallotbox(
 			base.RandomAddress(""),
-			t.params.SetThreshold(th),
+			func() base.Threshold { return th },
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},

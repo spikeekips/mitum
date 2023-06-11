@@ -124,7 +124,7 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
@@ -141,17 +141,21 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 
 	updaters := map[string]func(string) error{
 		//revive:disable:line-length-limit
-		"parameters/threshold":                                 updateLocalParamThreshold(params, log),
-		"parameters/interval_broadcast_ballot":                 updateLocalParamIntervalBroadcastBallot(params, log),
-		"parameters/wait_preparing_init_ballot":                updateLocalParamWaitPreparingINITBallot(params, log),
-		"parameters/timeout_request":                           updateLocalParamTimeoutRequest(params, log),
-		"parameters/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params, log),
-		"parameters/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params, log),
-		"parameters/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params, log),
-		"parameters/max_message_size":                          updateLocalParamMaxMessageSize(params, log),
-		"parameters/same_member_limit":                         updateLocalParamSameMemberLimit(params, log),
-		"discoveries":                                          updateDiscoveries(discoveries, log),
-		"sync_sources":                                         updateSyncSources(enc, design, syncSourceChecker, log),
+		"parameters/isaac/threshold":                           updateLocalParamThreshold(params.ISAAC, log),
+		"parameters/isaac/interval_broadcast_ballot":           updateLocalParamIntervalBroadcastBallot(params.ISAAC, log),
+		"parameters/isaac/wait_preparing_init_ballot":          updateLocalParamWaitPreparingINITBallot(params.ISAAC, log),
+		"parameters/isaac/max_try_handover_y_broker_sync_data": updateLocalParamMaxTryHandoverYBrokerSyncData(params.ISAAC, log),
+
+		"parameters/misc/timeout_request":                           updateLocalParamTimeoutRequest(params.MISC, log),
+		"parameters/misc/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params.MISC, log),
+		"parameters/misc/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params.MISC, log),
+		"parameters/misc/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params.MISC, log),
+		"parameters/misc/max_message_size":                          updateLocalParamMaxMessageSize(params.MISC, log),
+
+		"parameters/memberlist/extra_same_member_limit": updateLocalParamExtraSameMemberLimit(params.Memberlist, log),
+
+		"discoveries":  updateDiscoveries(discoveries, log),
+		"sync_sources": updateSyncSources(enc, design, syncSourceChecker, log),
 		//revive:enable:line-length-limit
 	}
 
@@ -224,7 +228,7 @@ func updateFromConsulAfterCheckDesign(
 }
 
 func updateLocalParamThreshold(
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
@@ -234,7 +238,10 @@ func updateLocalParamThreshold(
 		}
 
 		prev := params.Threshold()
-		_ = params.SetThreshold(t)
+
+		if err := params.SetThreshold(t); err != nil {
+			return errors.WithMessagef(err, "update threshold")
+		}
 
 		log.Log().Debug().
 			Str("key", "threshold").
@@ -247,17 +254,20 @@ func updateLocalParamThreshold(
 }
 
 func updateLocalParamIntervalBroadcastBallot(
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "interval_broadcast_ballot")
 		}
 
 		prev := params.IntervalBroadcastBallot()
-		_ = params.SetIntervalBroadcastBallot(d)
+
+		if err := params.SetIntervalBroadcastBallot(d); err != nil {
+			return errors.WithMessage(err, "interval_broadcast_ballot")
+		}
 
 		log.Log().Debug().
 			Str("key", "interval_broadcast_ballot").
@@ -270,17 +280,20 @@ func updateLocalParamIntervalBroadcastBallot(
 }
 
 func updateLocalParamWaitPreparingINITBallot(
-	params *isaac.LocalParams,
+	params *isaac.Params,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "wait_preparing_init_ballot")
 		}
 
 		prev := params.WaitPreparingINITBallot()
-		_ = params.SetWaitPreparingINITBallot(d)
+
+		if err := params.SetWaitPreparingINITBallot(d); err != nil {
+			return errors.WithMessage(err, "wait_preparing_init_ballot")
+		}
 
 		log.Log().Debug().
 			Str("key", "wait_preparing_init_ballot").
@@ -292,18 +305,47 @@ func updateLocalParamWaitPreparingINITBallot(
 	}
 }
 
+func updateLocalParamMaxTryHandoverYBrokerSyncData(
+	params *isaac.Params,
+	log *logging.Logging,
+) func(string) error {
+	return func(s string) error {
+		d, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return errors.Wrapf(err, "max_try_handover_y_broker_sync_data")
+		}
+
+		prev := params.MaxTryHandoverYBrokerSyncData()
+
+		if err := params.SetMaxTryHandoverYBrokerSyncData(d); err != nil {
+			return errors.WithMessage(err, "max_try_handover_y_broker_sync_data")
+		}
+
+		log.Log().Debug().
+			Str("key", "max_try_handover_y_broker_sync_data").
+			Interface("prev", prev).
+			Interface("updated", params.MaxTryHandoverYBrokerSyncData()).
+			Msg("local parameter updated")
+
+		return nil
+	}
+}
+
 func updateLocalParamTimeoutRequest(
-	params *isaac.LocalParams,
+	params *MISCParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "timeout_request")
 		}
 
 		prev := params.TimeoutRequest()
-		_ = params.SetTimeoutRequest(d)
+
+		if err := params.SetTimeoutRequest(d); err != nil {
+			return errors.WithMessage(err, "timeout_request")
+		}
 
 		log.Log().Debug().
 			Str("key", "timeout_request").
@@ -316,17 +358,20 @@ func updateLocalParamTimeoutRequest(
 }
 
 func updateLocalParamSyncSourceCheckerInterval(
-	params *isaac.LocalParams,
+	params *MISCParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "sync_source_checker_interval")
 		}
 
 		prev := params.SyncSourceCheckerInterval()
-		_ = params.SetSyncSourceCheckerInterval(d)
+
+		if err := params.SetSyncSourceCheckerInterval(d); err != nil {
+			return errors.WithMessage(err, "sync_source_checker_interval")
+		}
 
 		log.Log().Debug().
 			Str("key", "sync_source_checker_interval").
@@ -339,17 +384,20 @@ func updateLocalParamSyncSourceCheckerInterval(
 }
 
 func updateLocalParamValidProposalOperationExpire(
-	params *isaac.LocalParams,
+	params *MISCParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "valid_proposal_operation_expire")
 		}
 
 		prev := params.ValidProposalOperationExpire()
-		_ = params.SetValidProposalOperationExpire(d)
+
+		if err := params.SetValidProposalOperationExpire(d); err != nil {
+			return errors.WithMessage(err, "valid_proposal_operation_expire")
+		}
 
 		log.Log().Debug().
 			Str("key", "valid_proposal_operation_expire").
@@ -362,17 +410,20 @@ func updateLocalParamValidProposalOperationExpire(
 }
 
 func updateLocalParamValidProposalSuffrageOperationsExpire(
-	params *isaac.LocalParams,
+	params *MISCParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "valid_proposal_suffrage_operations_expire")
 		}
 
 		prev := params.ValidProposalSuffrageOperationsExpire()
-		_ = params.SetValidProposalSuffrageOperationsExpire(d)
+
+		if err := params.SetValidProposalSuffrageOperationsExpire(d); err != nil {
+			return errors.WithMessage(err, "valid_proposal_suffrage_operations_expire")
+		}
 
 		log.Log().Debug().
 			Str("key", "valid_proposal_suffrage_operations_expire").
@@ -385,17 +436,20 @@ func updateLocalParamValidProposalSuffrageOperationsExpire(
 }
 
 func updateLocalParamMaxMessageSize(
-	params *isaac.LocalParams,
+	params *MISCParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "parse max message size")
+			return errors.Wrap(err, "max_message_size")
 		}
 
 		prev := params.MaxMessageSize()
-		_ = params.SetMaxMessageSize(i)
+
+		if err := params.SetMaxMessageSize(i); err != nil {
+			return errors.Wrap(err, "max_message_size")
+		}
 
 		log.Log().Debug().
 			Str("key", "max_message_size").
@@ -407,23 +461,26 @@ func updateLocalParamMaxMessageSize(
 	}
 }
 
-func updateLocalParamSameMemberLimit(
-	params *isaac.LocalParams,
+func updateLocalParamExtraSameMemberLimit(
+	params *MemberlistParams,
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "parse same member limit")
+			return errors.Wrap(err, "extra_same_member_limit")
 		}
 
-		prev := params.SameMemberLimit()
-		_ = params.SetSameMemberLimit(i)
+		prev := params.ExtraSameMemberLimit()
+
+		if err := params.SetExtraSameMemberLimit(i); err != nil {
+			return errors.Wrap(err, "extra_same_member_limit")
+		}
 
 		log.Log().Debug().
-			Str("key", "same_member_limit").
+			Str("key", "extra_same_member_limit").
 			Interface("prev", prev).
-			Interface("updated", params.SameMemberLimit()).
+			Interface("updated", params.ExtraSameMemberLimit()).
 			Msg("local parameter updated")
 
 		return nil

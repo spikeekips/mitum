@@ -17,10 +17,10 @@ type JoiningHandlerArgs struct {
 	LastManifestFunc    func() (base.Manifest, bool, error)
 	JoinMemberlistFunc  func(context.Context, base.Suffrage) error
 	LeaveMemberlistFunc func(time.Duration) error
-	WaitFirstVoteproof  time.Duration
+	WaitFirstVoteproof  func() time.Duration
 }
 
-func NewJoiningHandlerArgs(params *isaac.LocalParams) *JoiningHandlerArgs {
+func NewJoiningHandlerArgs() *JoiningHandlerArgs {
 	return &JoiningHandlerArgs{
 		baseBallotHandlerArgs: newBaseBallotHandlerArgs(),
 		LastManifestFunc: func() (base.Manifest, bool, error) {
@@ -32,15 +32,16 @@ func NewJoiningHandlerArgs(params *isaac.LocalParams) *JoiningHandlerArgs {
 		LeaveMemberlistFunc: func(time.Duration) error {
 			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
 		},
-		WaitFirstVoteproof: params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
+		WaitFirstVoteproof: func() time.Duration {
+			return isaac.DefaultWaitStuckInterval
+		},
 	}
 }
 
 type JoiningHandler struct {
 	baseBallotHandler
-	args               *JoiningHandlerArgs
-	waitFirstVoteproof time.Duration
-	newvoteproofLock   sync.Mutex
+	args             *JoiningHandlerArgs
+	newvoteproofLock sync.Mutex
 }
 
 type NewJoiningHandlerType struct {
@@ -48,24 +49,22 @@ type NewJoiningHandlerType struct {
 }
 
 func NewNewJoiningHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *JoiningHandlerArgs,
 ) *NewJoiningHandlerType {
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
-			baseBallotHandler:  newBaseBallotHandlerType(StateJoining, local, params, &args.baseBallotHandlerArgs),
-			args:               args,
-			waitFirstVoteproof: args.WaitFirstVoteproof,
+			baseBallotHandler: newBaseBallotHandlerType(StateJoining, networkID, local, &args.baseBallotHandlerArgs),
+			args:              args,
 		},
 	}
 }
 
 func (h *NewJoiningHandlerType) new() (handler, error) {
 	return &JoiningHandler{
-		baseBallotHandler:  h.baseBallotHandler.new(),
-		args:               h.args,
-		waitFirstVoteproof: h.waitFirstVoteproof,
+		baseBallotHandler: h.baseBallotHandler.new(),
+		args:              h.args,
 	}, nil
 }
 
@@ -106,13 +105,15 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 		manifest = m
 	}
 
+	wait := st.args.WaitFirstVoteproof()
+
 	switch suf, err := st.checkSuffrage(manifest.Height()); {
 	case err != nil:
 		return nil, e.Wrap(err)
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: // NOTE local is alone in suffrage node
 		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
-		st.waitFirstVoteproof = 0
+		wait = 0
 	default:
 		switch jerr := st.joinMemberlist(suf); {
 		case jerr != nil:
@@ -129,7 +130,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 			st.Log().Error().Err(err).Msg("failed to stop all timers")
 		}
 
-		go st.firstVoteproof(vp, manifest)
+		go st.firstVoteproof(vp, manifest, wait)
 	}, nil
 }
 
@@ -317,17 +318,17 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) (base.Suffrage, erro
 // firstVoteproof handles the voteproof, which is received before joining
 // handler. It will help to prevent voting stuck. It waits for given
 // time, if no incoming voteproof, process last voteproof.
-func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manifest) {
+func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manifest, wait time.Duration) {
 	if lvp == nil {
 		return
 	}
 
-	st.Log().Debug().Dur("wait", st.waitFirstVoteproof).Msg("will wait new voteproof")
+	st.Log().Debug().Dur("wait", wait).Msg("will wait new voteproof")
 
 	select {
 	case <-st.ctx.Done():
 		return
-	case <-time.After(st.waitFirstVoteproof):
+	case <-time.After(wait):
 	}
 
 	switch nlvp := st.lastVoteproofs().Cap(); {
@@ -447,7 +448,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		timerIDBroadcastACCEPTBallot,
 	},
 		suf,
-		st.params.WaitPreparingINITBallot(),
+		st.args.WaitPreparingINITBallot(),
 	); err != nil {
 		l.Debug().Err(err).Msg("failed to prepare next block ballot")
 

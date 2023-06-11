@@ -69,14 +69,14 @@ type voteproofHandler struct {
 
 func newVoteproofHandler(
 	stateType StateType,
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *voteproofHandlerArgs,
 ) *voteproofHandler {
 	args.stt = stateType
 
 	return &voteproofHandler{
-		baseBallotHandler: newBaseBallotHandlerType(stateType, local, params, &args.baseBallotHandlerArgs),
+		baseBallotHandler: newBaseBallotHandlerType(stateType, networkID, local, &args.baseBallotHandlerArgs),
 		args:              args,
 	}
 }
@@ -640,7 +640,7 @@ func (st *voteproofHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 		vp, previousBlock,
 		timerIDs,
 		suf,
-		st.params.WaitPreparingINITBallot(),
+		st.args.WaitPreparingINITBallot(),
 	); err != nil {
 		l.Error().Err(err).Msg("next round ballot")
 
@@ -705,7 +705,7 @@ func (st *voteproofHandler) nextBlock(avp base.ACCEPTVoteproof, timerIDs []util.
 		suf = i
 	}
 
-	if err := st.args.prepareNextBlockBallot(avp, timerIDs, suf, st.params.WaitPreparingINITBallot()); err != nil {
+	if err := st.args.prepareNextBlockBallot(avp, timerIDs, suf, st.args.WaitPreparingINITBallot()); err != nil {
 		l.Debug().Err(err).Msg("failed to prepare next block ballot")
 
 		return

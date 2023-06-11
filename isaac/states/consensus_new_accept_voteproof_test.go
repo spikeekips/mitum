@@ -26,7 +26,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	defer closefunc()
 	st.SetLogging(logging.TestNilLogging)
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
@@ -221,7 +221,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -246,7 +246,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -275,7 +275,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -459,7 +459,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -491,7 +491,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -607,7 +607,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -672,7 +672,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -737,7 +737,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil

@@ -25,7 +25,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,7 +56,7 @@ type NodeDesign struct { //nolint:govet //...
 	Storage        NodeStorageDesign
 	Network        NodeNetworkDesign
 	NetworkID      base.NetworkID
-	LocalParams    *isaac.LocalParams
+	LocalParams    *LocalParams
 	SyncSources    SyncSourcesDesign
 	TimeServerPort int
 	TimeServer     string
@@ -194,7 +193,7 @@ func (d *NodeDesign) IsValid([]byte) error {
 
 	switch {
 	case d.LocalParams == nil:
-		d.LocalParams = isaac.DefaultLocalParams(d.NetworkID)
+		d.LocalParams = defaultLocalParams(d.NetworkID)
 	default:
 		if err := d.LocalParams.IsValid(d.NetworkID); err != nil {
 			return e.Wrap(err)
@@ -210,7 +209,7 @@ func (d *NodeDesign) IsValid([]byte) error {
 
 func (d *NodeDesign) Check(devflags DevFlags) error {
 	if !devflags.AllowRiskyThreshold {
-		if t := d.LocalParams.Threshold(); t < base.SafeThreshold {
+		if t := d.LocalParams.ISAAC.Threshold(); t < base.SafeThreshold {
 			return util.ErrInvalid.Errorf("risky threshold under %v; %v", t, base.SafeThreshold)
 		}
 	}
@@ -219,14 +218,14 @@ func (d *NodeDesign) Check(devflags DevFlags) error {
 }
 
 type NodeDesignYAMLMarshaler struct {
-	Address     base.Address       `yaml:"address"`
-	Privatekey  base.Privatekey    `yaml:"privatekey"`
-	Storage     NodeStorageDesign  `yaml:"storage"`
-	NetworkID   string             `yaml:"network_id"`
-	TimeServer  string             `yaml:"time_server,omitempty"`
-	Network     NodeNetworkDesign  `yaml:"network"`
-	LocalParams *isaac.LocalParams `yaml:"parameters"` //nolint:tagliatelle //...
-	SyncSources SyncSourcesDesign  `yaml:"sync_sources"`
+	Address     base.Address      `yaml:"address"`
+	Privatekey  base.Privatekey   `yaml:"privatekey"`
+	Storage     NodeStorageDesign `yaml:"storage"`
+	NetworkID   string            `yaml:"network_id"`
+	TimeServer  string            `yaml:"time_server,omitempty"`
+	Network     NodeNetworkDesign `yaml:"network"`
+	LocalParams *LocalParams      `yaml:"parameters"` //nolint:tagliatelle //...
+	SyncSources SyncSourcesDesign `yaml:"sync_sources"`
 }
 
 type NodeDesignYAMLUnmarshaler struct {
@@ -236,7 +235,7 @@ type NodeDesignYAMLUnmarshaler struct {
 	Privatekey  string                         `yaml:"privatekey"`
 	NetworkID   string                         `yaml:"network_id"`
 	TimeServer  string                         `yaml:"time_server,omitempty"`
-	LocalParams map[string]interface{}         `yaml:"parameters"` //nolint:tagliatelle //...
+	LocalParams interface{}                    `yaml:"parameters"` //nolint:tagliatelle //...
 	Network     NodeNetworkDesignYAMLMarshaler `yaml:"network"`
 }
 
@@ -300,17 +299,15 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		}
 	}
 
-	d.LocalParams = isaac.DefaultLocalParams(d.NetworkID)
+	d.LocalParams = defaultLocalParams(d.NetworkID)
 
-	switch lb, err := util.MarshalJSON(u.LocalParams); {
+	switch lb, err := yaml.Marshal(u.LocalParams); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := util.UnmarshalJSON(lb, d.LocalParams); err != nil {
+		if err := d.LocalParams.DecodeYAML(lb, enc); err != nil {
 			return e.Wrap(err)
 		}
-
-		d.LocalParams.BaseHinter = hint.NewBaseHinter(isaac.LocalParamsHint)
 	}
 
 	d.TimeServer = strings.TrimSpace(u.TimeServer)

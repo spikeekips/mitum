@@ -50,7 +50,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var params *LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
@@ -82,6 +82,8 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
+
+	isaacparams := params.ISAAC
 
 	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
 	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, m)
@@ -155,7 +157,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				), nil)).
 		Add(isaacnetwork.HandlerPrefixNodeChallenge,
 			quicstreamheader.NewHandler(encs, 0,
-				isaacnetwork.QuicstreamHandlerNodeChallenge(local, params), nil)).
+				isaacnetwork.QuicstreamHandlerNodeChallenge(isaacparams.NetworkID(), local), nil)).
 		Add(isaacnetwork.HandlerPrefixSuffrageNodeConnInfo,
 			quicstreamheader.NewHandler(encs, 0,
 				isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof), nil)).
@@ -185,7 +187,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil)).
 		Add(isaacnetwork.HandlerPrefixSendBallots,
 			quicstreamheader.NewHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendBallots(
-				params,
+				isaacparams.NetworkID(),
 				func(bl base.BallotSignFact) error {
 					switch passed, err := filternotifymsg(bl); {
 					case err != nil:
@@ -209,6 +211,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 					return err
 				},
+				params.MISC.MaxMessageSize,
 			), nil))
 
 	if err := attachMemberlistNetworkHandlers(pctx); err != nil {
@@ -219,11 +222,11 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 }
 
 func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, err
@@ -259,7 +262,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 
 		return isaacoperation.NewSuffrageJoinProcessor(
 			height,
-			params.Threshold(),
+			isaacparams.Threshold(),
 			db.State,
 			nil,
 			nil,
@@ -487,7 +490,7 @@ func OperationPreProcess(
 }
 
 func attachMemberlistNetworkHandlers(pctx context.Context) error {
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var encs *encoder.Encoders
 	var handlers *quicstream.PrefixHandler
 	var m *quicmemberlist.Memberlist
@@ -495,7 +498,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		QuicstreamHandlersContextKey, &handlers,
 		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
@@ -508,7 +511,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 			quicstreamheader.NewHandler(encs, 0, m.CallbackBroadcastHandler(), nil)).
 		Add(HandlerPrefixMemberlistEnsureBroadcastMessage,
 			quicstreamheader.NewHandler(encs, 0, m.EnsureBroadcastHandler(
-				params.NetworkID(),
+				isaacparams.NetworkID(),
 				func(node base.Address) (base.Publickey, bool, error) {
 					switch suf, found, err := sp.Last(); {
 					case err != nil:

@@ -36,12 +36,13 @@ func (t *baseTestConsensusHandler) newargs(previous base.Manifest, suf base.Suff
 	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error) {
 		return nil, nil
 	}
+	args.WaitPreparingINITBallot = t.LocalParams.WaitPreparingINITBallot
 
 	return args
 }
 
 func (t *baseTestConsensusHandler) newState(args *ConsensusHandlerArgs) (*ConsensusHandler, func()) {
-	newhandler := NewNewConsensusHandlerType(t.Local, t.LocalParams, args)
+	newhandler := NewNewConsensusHandlerType(t.LocalParams.NetworkID(), t.Local, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
 	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{
@@ -145,7 +146,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 		return prpool.Get(p), nil
 	}
 
-	newhandler := NewNewConsensusHandlerType(t.Local, t.LocalParams, args)
+	newhandler := NewNewConsensusHandlerType(t.LocalParams.NetworkID(), t.Local, args)
 
 	i, err := newhandler.new()
 	t.NoError(err)
@@ -186,7 +187,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 		return nil
 	})
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -355,7 +356,7 @@ func (t *testConsensusHandler) TestEnterExpelINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	st, closefunc, _, origivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -617,11 +618,12 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(0, t.Local)
 
-	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetThreshold(base.Threshold(100))
 
 	box := NewBallotbox(
 		t.Local.Address(),
-		t.LocalParams.SetThreshold(base.Threshold(100)),
+		func() base.Threshold { return t.LocalParams.Threshold() },
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},

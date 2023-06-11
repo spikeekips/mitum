@@ -275,11 +275,12 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("ok", func() {
-		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams.NetworkID(), pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return true, nil },
 			nil,
 			nil,
+			func() uint64 { return 1 << 18 },
 		)
 
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixSendOperation, handler)
@@ -307,7 +308,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		_ = pool.Clean()
 
 		ch := make(chan []byte, 1)
-		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams.NetworkID(), pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return true, nil },
 			nil,
@@ -316,6 +317,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 
 				return nil
 			},
+			func() uint64 { return 1 << 18 },
 		)
 
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixSendOperation, handler)
@@ -339,11 +341,12 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	})
 
 	t.Run("filtered", func() {
-		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams.NetworkID(), pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 			nil,
 			nil,
+			func() uint64 { return 1 << 18 },
 		)
 
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixSendOperation, handler)
@@ -628,7 +631,7 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 
 	var votedop base.SuffrageExpelOperation
 
-	handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
+	handler := QuicstreamHandlerSendOperation(t.LocalParams.NetworkID(), nil,
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
 		func(op base.SuffrageExpelOperation) (bool, error) {
@@ -646,6 +649,7 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 			return voted, nil
 		},
 		nil,
+		func() uint64 { return 1 << 18 },
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -673,11 +677,12 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 	})
 
 	t.Run("filtered", func() {
-		handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams.NetworkID(), nil,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 			func(op base.SuffrageExpelOperation) (bool, error) { return true, nil },
 			nil,
+			func() uint64 { return 1 << 18 },
 		)
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixSendOperation, handler)
 		defer handlercancel()
@@ -697,7 +702,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.LocalParams,
+		t.LocalParams.NetworkID(),
 		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -805,7 +810,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		proposalMaker := isaac.NewProposalMaker(
 			t.Local,
-			t.LocalParams,
+			t.LocalParams.NetworkID(),
 			func(context.Context, base.Height) ([]util.Hash, error) {
 				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 			},
@@ -847,7 +852,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		proposalMaker := isaac.NewProposalMaker(
 			t.Local,
-			t.LocalParams,
+			t.LocalParams.NetworkID(),
 			func(context.Context, base.Height) ([]util.Hash, error) {
 				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 			},
@@ -878,7 +883,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.LocalParams,
+		t.LocalParams.NetworkID(),
 		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -1469,13 +1474,15 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 
 	t.Run("ok", func() {
 		votedch := make(chan base.BallotSignFact, 1)
-		handler := QuicstreamHandlerSendBallots(t.LocalParams, func(bl base.BallotSignFact) error {
+		handler := QuicstreamHandlerSendBallots(t.LocalParams.NetworkID(), func(bl base.BallotSignFact) error {
 			go func() {
 				votedch <- bl
 			}()
 
 			return nil
-		})
+		},
+			func() uint64 { return 1 << 18 },
+		)
 
 		ci := quicstream.NewUDPConnInfo(nil, true)
 		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixSendBallots, handler)

@@ -30,13 +30,13 @@ type NewHandoverHandlerType struct {
 }
 
 func NewNewHandoverHandlerType(
+	networkID base.NetworkID,
 	local base.LocalNode,
-	params *isaac.LocalParams,
 	args *HandoverHandlerArgs,
 ) *NewHandoverHandlerType {
 	return &NewHandoverHandlerType{
 		HandoverHandler: &HandoverHandler{
-			voteproofHandler: newVoteproofHandler(StateHandover, local, params, &args.voteproofHandlerArgs),
+			voteproofHandler: newVoteproofHandler(StateHandover, networkID, local, &args.voteproofHandlerArgs),
 			args:             args,
 		},
 	}

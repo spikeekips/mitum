@@ -21,7 +21,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	var genesisDesign GenesisDesign
 	var enc encoder.Encoder
 	var local base.LocalNode
-	var params *isaac.LocalParams
+	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
@@ -30,7 +30,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		GenesisDesignContextKey, &genesisDesign,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
+		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -38,7 +38,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 
 	g := NewGenesisBlockGenerator(
 		local,
-		params.NetworkID(),
+		isaacparams.NetworkID(),
 		enc,
 		db,
 		LocalFSDataDirectory(design.Storage.Base),

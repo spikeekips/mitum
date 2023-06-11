@@ -20,11 +20,11 @@ type Ballotbox struct {
 	*util.ContextDaemon
 	*logging.Logging
 	local             base.Address
-	params            base.LocalParams
 	getSuffrage       isaac.GetSuffrageByBlockHeight
 	isValidVoteprooff func(base.Voteproof, base.Suffrage) error
 	suffrageVotef     func(base.SuffrageExpelOperation) error
 	newBallotf        func(base.Ballot)
+	getThreshold      func() base.Threshold
 	vpch              chan base.Voteproof
 	vrs               *util.ShardedMap[string, *voterecords]
 	lsp               *util.Locked[isaac.LastPoint]
@@ -37,7 +37,7 @@ type Ballotbox struct {
 
 func NewBallotbox(
 	local base.Address,
-	params base.LocalParams,
+	getThreshold func() base.Threshold,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
 	vrs, _ := util.NewShardedMap[string, *voterecords](4) //nolint:gomnd // last 4 stages
@@ -47,7 +47,7 @@ func NewBallotbox(
 			return zctx.Str("module", "ballotbox")
 		}),
 		local:             local,
-		params:            params,
+		getThreshold:      getThreshold,
 		getSuffrage:       getSuffrage,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
@@ -201,7 +201,7 @@ func (box *Ballotbox) StuckVoteproof(
 
 	_ = box.countVoterecords(vr)
 
-	return vr.stuckVoteproof(box.params.Threshold(), expels)
+	return vr.stuckVoteproof(box.getThreshold(), expels)
 }
 
 func (box *Ballotbox) MissingNodes(point base.StagePoint) ([]base.Address, bool, error) {
@@ -379,7 +379,7 @@ func (box *Ballotbox) vote(
 			deferred = func() []base.Voteproof {
 				last := box.LastPoint()
 
-				if vr.voteproofFromBallotsLocked(vp, last, box.params.Threshold(), isaac.IsNewVoteproof) {
+				if vr.voteproofFromBallotsLocked(vp, last, box.getThreshold(), isaac.IsNewVoteproof) {
 					box.newVoteproof(vp)
 
 					return []base.Voteproof{vp}
@@ -490,7 +490,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 		return nil
 	}
 
-	vps := vr.count(box.local, box.LastPoint(), box.params.Threshold(), box.countAfter)
+	vps := vr.count(box.local, box.LastPoint(), box.getThreshold(), box.countAfter)
 	if len(vps) < 1 {
 		return nil
 	}

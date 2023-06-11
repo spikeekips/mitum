@@ -667,7 +667,7 @@ func (t *testExpelsConsensusHandler) TestEnterINITStuckVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	expelnode := nodes[2]
 
@@ -894,7 +894,7 @@ func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 	expelnode := nodes[2]
 
-	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()

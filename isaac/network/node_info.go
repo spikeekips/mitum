@@ -22,7 +22,7 @@ type NodeInfo struct {
 	publickey      base.Publickey
 	lastManifest   base.Manifest
 	networkPolicy  base.NetworkPolicy
-	localParams    *isaac.LocalParams
+	localParams    *isaac.Params
 	connInfo       string
 	consensusState isaacstates.StateType
 	consensusNodes []base.Node
@@ -87,7 +87,7 @@ func (info NodeInfo) NetworkPolicy() base.NetworkPolicy {
 	return info.networkPolicy
 }
 
-func (info NodeInfo) LocalParams() *isaac.LocalParams {
+func (info NodeInfo) LocalParams() *isaac.Params {
 	return info.localParams
 }
 
@@ -209,7 +209,7 @@ func (info *NodeInfoUpdater) SetNetworkPolicy(p base.NetworkPolicy) bool {
 	return true
 }
 
-func (info *NodeInfoUpdater) SetLocalParams(p *isaac.LocalParams) bool {
+func (info *NodeInfoUpdater) SetLocalParams(p *isaac.Params) bool {
 	info.Lock()
 	defer info.Unlock()
 

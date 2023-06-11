@@ -40,10 +40,10 @@ type MemberlistArgs struct {
 	FetchCallbackBroadcastMessageFunc func(context.Context, ConnInfoBroadcastMessage) ([]byte, encoder.Encoder, error)
 	PongEnsureBroadcastMessageFunc    func(context.Context, ConnInfoBroadcastMessage) error
 	WhenLeftFunc                      func(Member)
-	// Member, which has same node address will be allowed to join up to
-	// ExtraSameMemberLimit - 1. If ExtraSameMemberLimit is 0, only 1 member is
+	// Members, which has same node address will be allowed to join up to
+	// ExtraSameMemberLimit + 1. If ExtraSameMemberLimit is 0, only 1 member is
 	// allowed to join.
-	ExtraSameMemberLimit uint64
+	ExtraSameMemberLimit func() uint64
 	// Not-allowed member will be cached for NotAllowedMemberExpire, after
 	// NotAllowedMemberExpire, not-allowed member will be checked by allowf of
 	// AliveDelegate.
@@ -59,7 +59,7 @@ func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *Memberl
 	return &MemberlistArgs{
 		Encoder:                              enc,
 		Config:                               config,
-		ExtraSameMemberLimit:                 2,
+		ExtraSameMemberLimit:                 func() uint64 { return 1 },
 		WhenLeftFunc:                         func(Member) {},
 		NotAllowedMemberExpire:               time.Second * 6, //nolint:gomnd //...
 		ChallengeExpire:                      defaultNodeChallengeExpire,
@@ -854,17 +854,24 @@ func (srv *Memberlist) notifyMsgEnsureBroadcastMessage(b []byte) ([]byte, error)
 }
 
 func (srv *Memberlist) allowMember(member Member) error {
-	switch n, others, found := srv.members.MembersLenOthers(member.Address(), member.UDPAddr()); {
-	case n < 1:
-	default:
-		if !found {
-			others++
+	max := srv.args.ExtraSameMemberLimit()
+	id := memberid(member.UDPAddr())
+
+	var extras uint64
+
+	srv.members.Traverse(func(n Member) bool {
+		switch {
+		case memberid(n.UDPAddr()) == id:
+		case n.Address().Equal(member.Address()):
+			extras++
 		}
 
-		if uint64(others) > srv.args.ExtraSameMemberLimit {
-			return errors.Errorf("member(%s, %s) over limit, %d",
-				member.Address(), member.Publish(), srv.args.ExtraSameMemberLimit)
-		}
+		return true
+	})
+
+	if extras > max {
+		return errors.Errorf("member(%s, %s) over limit, %d",
+			member.Address(), member.Publish(), max)
 	}
 
 	return nil
@@ -943,13 +950,24 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) boo
 	}) == nil
 }
 
-func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {
-	config := memberlist.DefaultWANConfig()
+func DefaultMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {
+	config := BasicMemberlistConfig()
+
 	config.Name = name
 	config.BindAddr = bind.IP.String()
 	config.BindPort = bind.Port
 	config.AdvertiseAddr = advertise.IP.String()
 	config.AdvertisePort = advertise.Port
+
+	return config
+}
+
+func BasicMemberlistConfig() *memberlist.Config {
+	config := memberlist.DefaultWANConfig()
+	config.BindAddr = "127.0.0.1"
+	config.BindPort = 4321
+	config.AdvertiseAddr = config.BindAddr
+	config.AdvertisePort = config.BindPort
 	config.TCPTimeout = time.Second * 2
 	config.IndirectChecks = math.MaxInt8
 	config.RetransmitMult = 3
@@ -1022,11 +1040,9 @@ func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (me
 				return true
 			case !found:
 				found = true
-
-				fallthrough
-			default:
-				return false
 			}
+
+			return false
 		})
 
 		return nil
