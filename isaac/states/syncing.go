@@ -120,7 +120,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
 		switch from {
-		case StateConsensus:
+		case StateConsensus, StateHandover:
 			var wait time.Duration
 
 			if allowedConsensus {
