@@ -120,32 +120,26 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
 		switch from {
-		case StateConsensus, StateHandover:
-			var wait time.Duration
-
-			if allowedConsensus {
-				wait = st.args.WaitPreparingINITBallot() * 2
-
-				l.Debug().Dur("wait", wait).Msg("timers will be stopped under allowed consensus")
-			}
-
+		case StateConsensus:
 			go func() {
+				wait := st.args.WaitPreparingINITBallot() * 2
+
 				<-time.After(wait)
 
 				if st.sts != nil && st.sts.Current() == StateSyncing {
-					l.Debug().Msg("timers stopped")
-
 					if err := st.timers.StopAllTimers(); err != nil {
-						l.Error().Err(err).Msg("failed to stop all timers")
+						l.Error().Dur("wait", wait).Err(err).Msg("failed to stop all timers")
 					}
+
+					l.Debug().Dur("wait", wait).Msg("timers stopped")
 				}
 			}()
 		default:
-			l.Debug().Msg("timers stopped")
-
 			if err := st.timers.StopAllTimers(); err != nil {
 				l.Error().Err(err).Msg("failed to stop all timers")
 			}
+
+			l.Debug().Msg("timers stopped")
 		}
 
 		_ = st.syncer.Start(st.ctx)
