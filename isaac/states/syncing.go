@@ -262,7 +262,7 @@ func (st *SyncingHandler) checkFinishedMoveNext(vp base.Voteproof) (notstuck boo
 	if isfinished {
 		joined, err := st.checkAndJoinMemberlist(top)
 		if err != nil || !joined {
-			return false, err
+			return true, err
 		}
 	}
 
