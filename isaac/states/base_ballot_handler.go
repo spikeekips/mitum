@@ -367,14 +367,11 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
-			switch {
-			case st.ctx.Err() != nil:
-				return 0
-			case i < 1:
+			if i < 1 {
 				return ninitialWait
-			default:
-				return st.args.IntervalBroadcastBallot()
 			}
+
+			return st.args.IntervalBroadcastBallot()
 		},
 	)
 }
@@ -387,19 +384,16 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		st.broadcastBallot,
 		st.Logging,
 		func(i uint64) time.Duration {
-			switch {
-			case st.ctx.Err() != nil:
-				return 0
-			case i < 1:
+			if i < 1 {
 				return time.Nanosecond
-			default:
-				lvp := st.lastVoteproofs().Cap()
-				if lvp.Point().Height() > bl.Point().Height() {
-					return 0
-				}
-
-				return st.args.IntervalBroadcastBallot()
 			}
+
+			lvp := st.lastVoteproofs().Cap()
+			if lvp.Point().Height() > bl.Point().Height() {
+				return 0
+			}
+
+			return st.args.IntervalBroadcastBallot()
 		},
 	); err != nil {
 		return err
