@@ -417,6 +417,7 @@ type MISCParams struct {
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
 	maxMessageSize                        uint64
+	objectCacheSize                       uint64
 }
 
 func defaultMISCParams() *MISCParams {
@@ -427,6 +428,7 @@ func defaultMISCParams() *MISCParams {
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,
 		maxMessageSize:                        1 << 18, //nolint:gomnd //...
+		objectCacheSize:                       1 << 13, //nolint:gomnd // big enough
 	}
 }
 
@@ -455,6 +457,10 @@ func (p *MISCParams) IsValid([]byte) error {
 
 	if p.maxMessageSize < 1 {
 		return e.Errorf("wrong maxMessageSize")
+	}
+
+	if p.objectCacheSize < 1 {
+		return e.Errorf("wrong objectCacheSize")
 	}
 
 	return nil
@@ -555,6 +561,25 @@ func (p *MISCParams) SetMaxMessageSize(d uint64) error {
 	})
 }
 
+func (p *MISCParams) ObjectCacheSize() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.objectCacheSize
+}
+
+func (p *MISCParams) SetObjectCacheSize(d uint64) error {
+	return p.SetUint64(d, func(d uint64) (bool, error) {
+		if p.objectCacheSize == d {
+			return false, nil
+		}
+
+		p.objectCacheSize = d
+
+		return true, nil
+	})
+}
+
 type miscParamsYAMLMarshaler struct {
 	//revive:disable:line-length-limit
 	TimeoutRequest                        util.ReadableDuration `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
@@ -562,6 +587,7 @@ type miscParamsYAMLMarshaler struct {
 	ValidProposalOperationExpire          util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
 	MaxMessageSize                        uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
+	ObjectCacheSize                       uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -572,6 +598,7 @@ func (p *MISCParams) marshaler() miscParamsYAMLMarshaler {
 		ValidProposalOperationExpire:          util.ReadableDuration(p.validProposalOperationExpire),
 		ValidProposalSuffrageOperationsExpire: util.ReadableDuration(p.validProposalSuffrageOperationsExpire),
 		MaxMessageSize:                        p.maxMessageSize,
+		ObjectCacheSize:                       p.objectCacheSize,
 	}
 }
 
@@ -590,6 +617,7 @@ type miscParamsYAMLUnmarshaler struct {
 	ValidProposalOperationExpire          *util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire *util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
 	MaxMessageSize                        *uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
+	ObjectCacheSize                       *uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -626,6 +654,10 @@ func (p *MISCParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 	if u.MaxMessageSize != nil {
 		p.maxMessageSize = *u.MaxMessageSize
+	}
+
+	if u.ObjectCacheSize != nil {
+		p.objectCacheSize = *u.ObjectCacheSize
 	}
 
 	durargs := [][2]interface{}{

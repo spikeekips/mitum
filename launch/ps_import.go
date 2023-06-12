@@ -16,7 +16,8 @@ func DefaultImportPS() *ps.PS {
 		PostAddOK(PNameAddHinters, PAddHinters)
 
 	_ = pps.POK(PNameDesign).
-		PostAddOK(PNameCheckDesign, PCheckDesign)
+		PostAddOK(PNameCheckDesign, PCheckDesign).
+		PostAddOK(PNameINITObjectCache, PINITObjectCache)
 
 	_ = pps.POK(PNameStorage).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).

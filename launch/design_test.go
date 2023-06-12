@@ -800,6 +800,7 @@ parameters:
     wait_preparing_init_ballot: 10s
   misc:
     valid_proposal_operation_expire: 11s
+    object_cache_size: 33
 `)
 
 		var a NodeDesign
@@ -824,6 +825,7 @@ parameters:
 
 		misc := defaultMISCParams()
 		misc.SetValidProposalOperationExpire(time.Second * 11)
+		misc.SetObjectCacheSize(33)
 
 		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
 
@@ -1165,4 +1167,5 @@ func equalMISCParams(t *assert.Assertions, a, b *MISCParams) {
 	t.Equal(a.ValidProposalOperationExpire(), b.ValidProposalOperationExpire())
 	t.Equal(a.ValidProposalSuffrageOperationsExpire(), b.ValidProposalSuffrageOperationsExpire())
 	t.Equal(a.MaxMessageSize(), b.MaxMessageSize())
+	t.Equal(a.ObjectCacheSize(), b.ObjectCacheSize())
 }

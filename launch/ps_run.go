@@ -34,7 +34,8 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameAddHinters, PAddHinters)
 
 	_ = pps.POK(PNameDesign).
-		PostAddOK(PNameCheckDesign, PCheckDesign)
+		PostAddOK(PNameCheckDesign, PCheckDesign).
+		PostAddOK(PNameINITObjectCache, PINITObjectCache)
 
 	_ = pps.POK(PNameLocal).
 		PostAddOK(PNameDiscoveryFlag, PDiscoveryFlag)

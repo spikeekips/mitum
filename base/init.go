@@ -7,3 +7,7 @@ var objcache *util.GCacheObjectPool
 func init() {
 	objcache = util.NewGCacheObjectPool(1 << 13) //nolint:gomnd //...
 }
+
+func SetObjCache(c *util.GCacheObjectPool) {
+	objcache = c
+}

@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
@@ -12,6 +13,7 @@ import (
 var (
 	PNameDesign                 = ps.Name("design")
 	PNameCheckDesign            = ps.Name("check-design")
+	PNameINITObjectCache        = ps.Name("init-object-cache")
 	PNameGenesisDesign          = ps.Name("genesis-design")
 	DesignFlagContextKey        = util.ContextKey("design-flag")
 	DevFlagsContextKey          = util.ContextKey("dev-flags")
@@ -154,4 +156,24 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 	}
 
 	return nctx, nil
+}
+
+func PINITObjectCache(pctx context.Context) (context.Context, error) {
+	var log *logging.Logging
+	var design NodeDesign
+
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		DesignContextKey, &design,
+	); err != nil {
+		return pctx, err
+	}
+
+	cachesize := design.LocalParams.MISC.ObjectCacheSize()
+
+	base.SetObjCache(util.NewGCacheObjectPool(int(cachesize)))
+
+	log.Log().Debug().Uint64("cache_size", cachesize).Msg("set object cache size")
+
+	return pctx, nil
 }
