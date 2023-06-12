@@ -25,6 +25,7 @@ type HandoverYBrokerArgs struct {
 	NetworkID                base.NetworkID
 	MaxEnsureSendFailure     uint64
 	RetrySendMessageInterval time.Duration
+	MaxEnsureAsk             uint64
 }
 
 func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
@@ -44,6 +45,7 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		SyncDataFunc:             func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error { return nil },
 		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
 		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
+		MaxEnsureAsk:             9,                     //nolint:gomnd //...
 	}
 }
 
@@ -67,6 +69,7 @@ type HandoverYBroker struct {
 	isFinishedLocked *util.Locked[bool]
 	sendFailureCount *util.Locked[uint64]
 	connInfo         quicstream.UDPConnInfo // NOTE x conn info
+	maxEnsureAsk     uint64
 	receivelock      sync.Mutex
 }
 
@@ -93,6 +96,7 @@ func NewHandoverYBroker(
 		isDataSynced:     util.NewLocked(false),
 		isFinishedLocked: util.NewLocked(false),
 		sendFailureCount: util.NewLocked[uint64](0),
+		maxEnsureAsk:     args.MaxEnsureAsk,
 	}
 
 	cancelf := func(err error) {
@@ -209,16 +213,25 @@ func (broker *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 
 	var id string
 
-	if _, err := broker.id.Set(func(_ string, isempty bool) (string, error) {
-		if !isempty {
+	if _, err := broker.id.Set(func(prev string, isempty bool) (string, error) {
+		switch {
+		case !isempty:
+			id = prev
+
 			return "", util.ErrLockedSetIgnore
+		case broker.maxEnsureAsk < 1:
+			return "", errors.Errorf("over max ask")
 		}
 
-		switch i, j, err := broker.args.AskRequestFunc(broker.ctxFunc(), broker.connInfo); {
+		switch i, j, err := broker.ask(); {
 		case err != nil:
-			return "", err
-		case len(i) < 1:
-			return "", errors.Errorf("empty handover id")
+			broker.maxEnsureAsk--
+
+			if broker.maxEnsureAsk < 1 {
+				return "", err
+			}
+
+			return "", util.ErrLockedSetIgnore
 		default:
 			id = i
 			canMoveConsensus = j
@@ -235,7 +248,18 @@ func (broker *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 
 	broker.Log().Debug().Str("id", id).Msg("handover asked")
 
-	return canMoveConsensus, true, nil
+	return canMoveConsensus, len(id) > 0, nil
+}
+
+func (broker *HandoverYBroker) ask() (id string, canMoveConsensus bool, _ error) {
+	switch i, j, err := broker.args.AskRequestFunc(broker.ctxFunc(), broker.connInfo); {
+	case err != nil:
+		return "", false, err
+	case len(i) < 1:
+		return "", false, errors.Errorf("empty handover id")
+	default:
+		return i, j, nil
+	}
 }
 
 func (broker *HandoverYBroker) isCanceled() error {

@@ -150,12 +150,45 @@ func (t *testHandoverYBroker) TestAsk() {
 		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
 			return "", false, errors.Errorf("hehehe")
 		}
+		args.MaxEnsureAsk = 1
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
+		t.Error(err)
+		t.False(isAsked)
+		t.False(canMoveConsensus)
+		t.ErrorContains(err, "hehehe")
+
+		t.False(broker.IsAsked())
+
+		t.T().Log("broker will be cancled")
+		err = broker.isCanceled()
+		t.Error(err)
+		t.True(errors.Is(err, ErrHandoverCanceled))
+	})
+
+	t.Run("ask func error; ensure", func() {
+		args := t.yargs("")
+		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+			return "", false, errors.Errorf("hehehe")
+		}
+		args.MaxEnsureAsk = 2
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		t.T().Log("MaxEnsureAsk 2: ask error ignored")
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		canMoveConsensus, isAsked, err := broker.Ask()
+		t.NoError(err)
+		t.False(isAsked)
+		t.False(canMoveConsensus)
+
+		t.T().Log("MaxEnsureAsk exhausted: ask error")
+		canMoveConsensus, isAsked, err = broker.Ask()
 		t.Error(err)
 		t.False(isAsked)
 		t.False(canMoveConsensus)
