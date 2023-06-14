@@ -2,9 +2,12 @@ package launch
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -15,6 +18,7 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -164,6 +168,8 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return nil, err
 	}
 
+	handoverYLog = util.EmptyLocked[[]json.RawMessage]()
+
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
 		func(xci quicstream.UDPConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfo(
@@ -179,6 +185,14 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	)
 	args.WhenFinished = func(vp base.INITVoteproof, xci quicstream.UDPConnInfo) error {
 		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover y finished")
+
+		logHandoverYf(
+			map[string]interface{}{
+				"x_conninfo": xci,
+				"point":      vp.Point(),
+			},
+			"handover y finished",
+		)
 
 		return whenFinished(vp, xci)
 	}
@@ -212,7 +226,16 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		log.Log().Debug().Err(err).Msg("handover y canceled")
 
 		whenCanceled(err, xci)
+
+		logHandoverYf(
+			map[string]interface{}{
+				"x_conninfo": xci,
+				"err":        err.Error(),
+			},
+			"handover y canceled",
+		)
 	}
+
 	args.AskRequestFunc = isaacstates.NewAskHandoverFunc(
 		local.Address(),
 		func(ctx context.Context, ci quicstream.UDPConnInfo) error {
@@ -237,6 +260,15 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		broker := isaacstates.NewHandoverYBroker(ctx, args, xci)
 
 		_ = broker.SetLogging(log)
+
+		cleanHandoverYLogs()
+
+		logHandoverYf(
+			map[string]interface{}{
+				"x_conninfo": xci,
+			},
+			"handover y started",
+		)
 
 		return broker, nil
 	}, nil
@@ -284,6 +316,10 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	}
 
 	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, isaacparams); err != nil {
+		return pctx, err
+	}
+
+	if err := attachLastHandoverYLogsHandler(pctx, handlers, encs, local, isaacparams); err != nil {
 		return pctx, err
 	}
 
@@ -569,6 +605,25 @@ func attachCheckHandoverXHandler(
 	return nil
 }
 
+func attachLastHandoverYLogsHandler(
+	_ context.Context,
+	handlers *quicstream.PrefixHandler,
+	encs *encoder.Encoders,
+	local base.LocalNode,
+	params *isaac.Params,
+) error {
+	_ = handlers.Add(isaacnetwork.HandlerPrefixLastHandoverYLogs, quicstreamheader.NewHandler(encs, 0,
+		isaacnetwork.QuicstreamHandlerLastHandoverYLogs(
+			local,
+			params.NetworkID(),
+			lastHandoverYLogs,
+		),
+		nil,
+	))
+
+	return nil
+}
+
 func attachNewDataFuncForHandoverY(
 	pctx context.Context,
 	args *isaacstates.HandoverYBrokerArgs,
@@ -717,4 +772,35 @@ func isMemberlistJoined(local base.Address, memberlist *quicmemberlist.Memberlis
 	default:
 		return memberlist.IsJoined(), nil
 	}
+}
+
+var handoverYLog *util.Locked[[]json.RawMessage]
+
+func cleanHandoverYLogs() {
+	_ = handoverYLog.EmptyValue()
+}
+
+func logHandoverYf(m map[string]interface{}, format string, a ...interface{}) {
+	_, _ = handoverYLog.Set(func(logs []json.RawMessage, _ bool) ([]json.RawMessage, error) {
+		if _, found := m[zerolog.TimestampFieldName]; !found {
+			m[zerolog.TimestampFieldName] = localtime.Now()
+		}
+
+		m[zerolog.MessageFieldName] = fmt.Sprintf(format, a...)
+
+		b, err := util.MarshalJSON(m)
+		if err != nil {
+			return nil, err
+		}
+
+		logs = append(logs, json.RawMessage(b))
+
+		return logs, nil
+	})
+}
+
+func lastHandoverYLogs() []json.RawMessage {
+	logs, _ := handoverYLog.Value()
+
+	return logs
 }

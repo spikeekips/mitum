@@ -2,6 +2,9 @@ package launchcmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -11,9 +14,10 @@ import (
 
 type HandoverCommands struct {
 	//revive:disable:line-length-limit
-	Start  StartHandoverCommand  `cmd:"" name:"start" help:"start handover"`
-	Cancel CancelHandoverCommand `cmd:"" name:"cancel" help:"cancel handover"`
-	Check  CheckHandoverCommand  `cmd:"" name:"check" help:"check current consensus node for handover"`
+	Start  StartHandoverCommand     `cmd:"" name:"start" help:"start handover"`
+	Cancel CancelHandoverCommand    `cmd:"" name:"cancel" help:"cancel handover"`
+	Check  CheckHandoverCommand     `cmd:"" name:"check" help:"check current consensus node for handover"`
+	Log    LastHandoverYLogsCommand `cmd:"" name:"log" help:"last handover y logs"`
 	//revive:enable:line-length-limit
 }
 
@@ -153,4 +157,32 @@ func (cmd *CheckHandoverCommand) Run(pctx context.Context) error {
 
 		return nil
 	}
+}
+
+type LastHandoverYLogsCommand struct { //nolint:govet //...
+	baseHandoverCommand
+}
+
+func (cmd *LastHandoverYLogsCommand) Run(pctx context.Context) error {
+	switch deferred, err := cmd.baseHandoverCommand.run(pctx); {
+	case err != nil:
+		return err
+	default:
+		defer deferred()
+	}
+
+	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
+	defer cancel()
+
+	return cmd.Client.LastHandoverYLogs(
+		ctx,
+		cmd.yci,
+		cmd.priv,
+		base.NetworkID(cmd.NetworkID),
+		func(b json.RawMessage) bool {
+			_, _ = fmt.Fprintln(os.Stdout, string(b))
+
+			return true
+		},
+	)
 }

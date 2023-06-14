@@ -2,6 +2,7 @@ package isaacnetwork
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/pkg/errors"
@@ -513,5 +514,100 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 		t.Error(err)
 		t.False(checked)
 		t.ErrorContains(err, "hihihi")
+	})
+}
+
+func (t *testQuicstreamHandlers) TestLastHandoverYLogs() {
+	yci := quicstream.RandomConnInfo()
+
+	t.Run("failed to verify node", func() {
+		handler := QuicstreamHandlerLastHandoverYLogs(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func() []json.RawMessage {
+				return nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		err := c.LastHandoverYLogs(context.Background(),
+			yci,
+			base.NewMPrivatekey(),
+			t.LocalParams.NetworkID(),
+			func(b json.RawMessage) bool {
+				return true
+			},
+		)
+		t.Error(err)
+		t.ErrorContains(err, "signature verification failed")
+	})
+
+	t.Run("ok", func() {
+		js := []json.RawMessage{
+			[]byte(`{"a0": 0, "a1": 1}`),
+			[]byte(`{"b0": 0, "b1": 1}`),
+		}
+
+		handler := QuicstreamHandlerLastHandoverYLogs(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func() []json.RawMessage {
+				return js
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		var rjs []json.RawMessage
+
+		t.NoError(c.LastHandoverYLogs(context.Background(),
+			yci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			func(b json.RawMessage) bool {
+				rjs = append(rjs, b)
+
+				return true
+			},
+		))
+
+		t.Equal(js, rjs)
+	})
+
+	t.Run("empty", func() {
+		handler := QuicstreamHandlerLastHandoverYLogs(
+			t.Local,
+			t.LocalParams.NetworkID(),
+			func() []json.RawMessage {
+				return nil
+			},
+		)
+
+		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		var rjs []json.RawMessage
+
+		t.NoError(c.LastHandoverYLogs(context.Background(),
+			yci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			func(b json.RawMessage) bool {
+				rjs = append(rjs, b)
+
+				return true
+			},
+		))
+
+		t.Equal(0, len(rjs))
 	})
 }

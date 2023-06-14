@@ -1,10 +1,13 @@
 package isaacnetwork
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
@@ -155,5 +158,37 @@ func QuicstreamHandlerCheckHandoverX(
 		}
 
 		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}
+}
+
+func QuicstreamHandlerLastHandoverYLogs(
+	local base.Node,
+	networkID base.NetworkID,
+	f func() []json.RawMessage,
+) quicstreamheader.Handler[LastHandoverYLogsHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header LastHandoverYLogsHeader,
+	) error {
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		)
+
+		if eerr := broker.WriteResponseHeadOK(ctx, err == nil, err); err != nil || eerr != nil {
+			return nil
+		}
+
+		body := bytes.NewBuffer(nil)
+		defer body.Reset()
+
+		s := f()
+
+		for i := range s {
+			if _, err := body.Write(append(s[i], '\n')); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+
+		return broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, body)
 	}
 }

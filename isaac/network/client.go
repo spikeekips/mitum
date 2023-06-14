@@ -1,8 +1,10 @@
 package isaacnetwork
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/pkg/errors"
@@ -97,7 +99,7 @@ func (c *BaseClient) StreamOperationsBytes(
 		_ = broker.Close()
 	}()
 
-	if err := c.verifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
+	if err := VerifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
 		return err
 	}
 
@@ -614,61 +616,67 @@ func (c *BaseClient) AskHandover(
 	}
 }
 
-func (*BaseClient) verifyNode(
+func (c *BaseClient) LastHandoverYLogs(
 	ctx context.Context,
-	broker *quicstreamheader.ClientBroker,
+	yci quicstream.UDPConnInfo, // NOTE broker y
 	priv base.Privatekey,
 	networkID base.NetworkID,
-	header quicstreamheader.RequestHeader,
+	f func(json.RawMessage) bool,
 ) error {
-	if err := header.IsValid(nil); err != nil {
+	broker, err := c.Client.Broker(ctx, yci)
+	if err != nil {
 		return err
 	}
 
-	if err := broker.WriteRequestHead(ctx, header); err != nil {
-		return err
+	defer func() {
+		_ = broker.Close()
+	}()
+
+	switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, NewLastHandoverYLogsHeader()); {
+	case err != nil:
+		return errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return errors.WithMessage(rh.Err(), "response")
 	}
 
-	var input []byte
+	switch bodyType, _, body, _, rh, err := broker.ReadBody(ctx); {
+	case err != nil:
+		return err
+	case rh != nil:
+		return errors.WithMessage(rh.Err(), "response")
+	case bodyType == quicstreamheader.EmptyBodyType:
+		return nil
+	case bodyType != quicstreamheader.StreamBodyType:
+		return errors.Errorf("unknown body type, %d", bodyType)
+	default:
+		br := bufio.NewReader(body)
 
-	if err := func() error {
-		switch _, _, body, _, res, err := broker.ReadBody(ctx); {
-		case err != nil:
-			return err
-		case res != nil:
-			if res.Err() != nil {
-				return res.Err()
+	end:
+		for {
+			b, err := br.ReadBytes('\n')
+
+			if bytes.HasSuffix(b, []byte{'\n'}) {
+				b = b[:len(b)-1]
 			}
 
-			return errors.Errorf("error response")
-		case body == nil:
-			return errors.Errorf("empty signature input")
-		default:
-			b, err := io.ReadAll(body)
-			if err != nil && !errors.Is(err, io.EOF) {
+			switch {
+			case err == nil:
+			case errors.Is(err, io.EOF):
+			default:
 				return errors.WithStack(err)
 			}
 
-			if len(b) < 1 {
-				return errors.Errorf("empty signature input")
+			if len(b) > 0 {
+				if !f(json.RawMessage(b)) {
+					break end
+				}
 			}
 
-			input = b
-
-			return nil
-		}
-	}(); err != nil {
-		return errors.WithMessage(err, "read signature input")
-	}
-
-	switch sig, err := priv.Sign(util.ConcatBytesSlice(networkID, input)); {
-	case err != nil:
-		return errors.WithMessage(err, "sign input")
-	default:
-		buf := bytes.NewBuffer(sig)
-
-		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
-			return errors.WithMessage(err, "write signature")
+			switch {
+			case err == nil:
+			case errors.Is(err, io.EOF):
+				break end
+			}
 		}
 
 		return nil
@@ -691,11 +699,7 @@ func (c *BaseClient) verifyNodeWithResponse(
 		_ = broker.Close()
 	}()
 
-	if err := c.verifyNode(ctx, broker, priv, networkID, header); err != nil {
-		return nil, nil, err
-	}
-
-	return broker.ReadResponseHead(ctx)
+	return VerifyNodeWithResponse(ctx, broker, priv, networkID, header)
 }
 
 func (c *BaseClient) requestNodeConnInfos(
@@ -957,4 +961,79 @@ func brokerPipeEncode(
 			return broker.Encoder.StreamEncoder(pw).Encode(i)
 		},
 	)
+}
+
+func VerifyNode(
+	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	header quicstreamheader.RequestHeader,
+) error {
+	if err := header.IsValid(nil); err != nil {
+		return err
+	}
+
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
+		return err
+	}
+
+	var input []byte
+
+	if err := func() error {
+		switch _, _, body, _, res, err := broker.ReadBody(ctx); {
+		case err != nil:
+			return err
+		case res != nil:
+			if res.Err() != nil {
+				return res.Err()
+			}
+
+			return errors.Errorf("error response")
+		case body == nil:
+			return errors.Errorf("empty signature input")
+		default:
+			b, err := io.ReadAll(body)
+			if err != nil && !errors.Is(err, io.EOF) {
+				return errors.WithStack(err)
+			}
+
+			if len(b) < 1 {
+				return errors.Errorf("empty signature input")
+			}
+
+			input = b
+
+			return nil
+		}
+	}(); err != nil {
+		return errors.WithMessage(err, "read signature input")
+	}
+
+	switch sig, err := priv.Sign(util.ConcatBytesSlice(networkID, input)); {
+	case err != nil:
+		return errors.WithMessage(err, "sign input")
+	default:
+		buf := bytes.NewBuffer(sig)
+
+		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
+			return errors.WithMessage(err, "write signature")
+		}
+
+		return nil
+	}
+}
+
+func VerifyNodeWithResponse(
+	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	header quicstreamheader.RequestHeader,
+) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
+	if err := VerifyNode(ctx, broker, priv, networkID, header); err != nil {
+		return nil, nil, err
+	}
+
+	return broker.ReadResponseHead(ctx)
 }

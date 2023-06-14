@@ -178,7 +178,7 @@ func (t *testBaseProposalSelector) TestNew() {
 
 	t.T().Logf("available nodes: %d", len(nodes))
 
-	prev := valuehash.RandomSHA512()
+	prev := valuehash.NewBytesFromString("5pjdLQojuwtQAN1FdEL1V1uvDdZi2koPJWLqJzo27yzBqn8WkNpXgypsF4VUBHwCtgduQw14N3sg7UHSjc6K2B25")
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point, prev, 0)
 	t.NoError(err)
@@ -191,7 +191,7 @@ func (t *testBaseProposalSelector) TestNew() {
 	t.T().Logf("selected proposer: %q", pr.ProposalFact().Proposer())
 
 	t.Run("different previous block", func() {
-		prev := valuehash.RandomSHA512()
+		prev = valuehash.NewBytesFromString("czLaavxHrxKdYxGZ6mDce7H7dQB8DfDiAEW6rUWEfWirqj7ZkXP41MTUZNUZFNmHc7ECYejQxeauqgXmsLA7Sfv")
 		apr, err := p.Select(context.Background(), point, prev, 0)
 		t.NoError(err)
 		t.NotNil(pr)
