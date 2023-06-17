@@ -9,8 +9,8 @@ import (
 )
 
 type (
-	ClientBrokerFunc func(context.Context, quicstream.UDPConnInfo) (*ClientBroker, error)
-	OpenStreamFunc   func(context.Context, quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error)
+	ClientBrokerFunc func(context.Context, quicstream.ConnInfo) (*ClientBroker, error)
+	OpenStreamFunc   func(context.Context, quicstream.ConnInfo) (io.Reader, io.WriteCloser, error)
 )
 
 type Client struct {
@@ -27,11 +27,11 @@ func NewClient(encs *encoder.Encoders, enc encoder.Encoder, openStreamf OpenStre
 	}
 }
 
-func (c *Client) OpenStream(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
+func (c *Client) OpenStream(ctx context.Context, ci quicstream.ConnInfo) (io.Reader, io.WriteCloser, error) {
 	return c.openStreamf(ctx, ci)
 }
 
-func (c *Client) Broker(ctx context.Context, ci quicstream.UDPConnInfo) (*ClientBroker, error) {
+func (c *Client) Broker(ctx context.Context, ci quicstream.ConnInfo) (*ClientBroker, error) {
 	r, w, err := c.openStreamf(ctx, ci)
 	if err != nil {
 		return nil, err

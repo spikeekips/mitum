@@ -26,10 +26,10 @@ var (
 )
 
 type HandoverXBrokerArgs struct {
-	SendMessageFunc          func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
+	SendMessageFunc          func(context.Context, quicstream.ConnInfo, HandoverMessage) error
 	CheckIsReady             func() (bool, error)
 	WhenCanceled             func(error)
-	WhenFinished             func(_ base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error
+	WhenFinished             func(_ base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error
 	GetProposal              func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
 	Local                    base.Node
 	NetworkID                base.NetworkID
@@ -45,13 +45,13 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		Local:             local,
 		NetworkID:         networkID,
 		MinChallengeCount: defaultHandoverXMinChallengeCount,
-		SendMessageFunc: func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
+		SendMessageFunc: func(context.Context, quicstream.ConnInfo, HandoverMessage) error {
 			return ErrHandoverCanceled.Errorf("SendMessageFunc not implemented")
 		},
 		CheckIsReady: func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
 		WhenCanceled: func(error) {},
 		ReadyEnd:     defaultHandoverXReadyEnd,
-		WhenFinished: func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error { return nil },
+		WhenFinished: func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil },
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
@@ -78,7 +78,7 @@ type HandoverXBroker struct {
 	successcount              *util.Locked[uint64]
 	isFinishedLocked          *util.Locked[bool]
 	sendFailureCount          *util.Locked[uint64]
-	connInfo                  quicstream.UDPConnInfo // NOTE y conn info
+	connInfo                  quicstream.ConnInfo // NOTE y conn info
 	id                        string
 	previousChallengeHandover base.StagePoint
 	readyEnd                  uint64
@@ -89,7 +89,7 @@ type HandoverXBroker struct {
 func NewHandoverXBroker(
 	ctx context.Context,
 	args *HandoverXBrokerArgs,
-	connInfo quicstream.UDPConnInfo,
+	connInfo quicstream.ConnInfo,
 ) *HandoverXBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
@@ -150,7 +150,7 @@ func (broker *HandoverXBroker) ID() string {
 	return broker.id
 }
 
-func (broker *HandoverXBroker) ConnInfo() quicstream.UDPConnInfo {
+func (broker *HandoverXBroker) ConnInfo() quicstream.ConnInfo {
 	return broker.connInfo
 }
 
@@ -706,8 +706,8 @@ func retryHandoverSendMessageFunc(
 	ctx context.Context,
 	limit int,
 	interval time.Duration,
-	f func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error,
-	ci quicstream.UDPConnInfo,
+	f func(context.Context, quicstream.ConnInfo, HandoverMessage) error,
+	ci quicstream.ConnInfo,
 	m HandoverMessage,
 ) error {
 	return util.Retry(
@@ -729,8 +729,8 @@ func endureHandoverSendMessageFunc(
 	ctx context.Context,
 	count *util.Locked[uint64],
 	max uint64,
-	f func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error,
-	ci quicstream.UDPConnInfo,
+	f func(context.Context, quicstream.ConnInfo, HandoverMessage) error,
+	ci quicstream.ConnInfo,
 	m HandoverMessage,
 ) (err error) {
 	prev, _ := count.Value()

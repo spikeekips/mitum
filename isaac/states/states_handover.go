@@ -11,11 +11,11 @@ import (
 )
 
 type (
-	StartHandoverYFunc func(context.Context, base.Address, quicstream.UDPConnInfo) error
-	CheckHandoverFunc  func(context.Context, base.Address, quicstream.UDPConnInfo) error
-	AskHandoverFunc    func(context.Context, quicstream.UDPConnInfo) (
+	StartHandoverYFunc func(context.Context, base.Address, quicstream.ConnInfo) error
+	CheckHandoverFunc  func(context.Context, base.Address, quicstream.ConnInfo) error
+	AskHandoverFunc    func(context.Context, quicstream.ConnInfo) (
 		handoverid string, canMoveConsensus bool, _ error)
-	AskHandoverReceivedFunc func(context.Context, base.Address, quicstream.UDPConnInfo) (
+	AskHandoverReceivedFunc func(context.Context, base.Address, quicstream.ConnInfo) (
 		handoverid string, canMoveConsensus bool, _ error)
 	CheckHandoverXFunc func(context.Context) error
 )
@@ -34,7 +34,7 @@ func (st *States) HandoverXBroker() *HandoverXBroker {
 	return v
 }
 
-func (st *States) NewHandoverXBroker(connInfo quicstream.UDPConnInfo) (handoverid string, _ error) {
+func (st *States) NewHandoverXBroker(connInfo quicstream.ConnInfo) (handoverid string, _ error) {
 	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
@@ -92,7 +92,7 @@ func (st *States) HandoverYBroker() *HandoverYBroker {
 	return v
 }
 
-func (st *States) NewHandoverYBroker(connInfo quicstream.UDPConnInfo) error {
+func (st *States) NewHandoverYBroker(connInfo quicstream.ConnInfo) error {
 	_, err := st.handoverYBroker.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
 		switch {
 		case !isempty:
@@ -154,14 +154,14 @@ func (st *States) cleanHandovers() {
 
 func NewStartHandoverYFunc(
 	local base.Address,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 	isAllowedConsensus func() bool,
 	isHandoverStarted func() bool,
-	checkX func(context.Context, base.Address, quicstream.UDPConnInfo) error,
-	addSyncSource func(base.Address, quicstream.UDPConnInfo) error,
-	startHandoverY func(quicstream.UDPConnInfo) error,
+	checkX func(context.Context, base.Address, quicstream.ConnInfo) error,
+	addSyncSource func(base.Address, quicstream.ConnInfo) error,
+	startHandoverY func(quicstream.ConnInfo) error,
 ) StartHandoverYFunc {
-	return func(ctx context.Context, node base.Address, xci quicstream.UDPConnInfo) error {
+	return func(ctx context.Context, node base.Address, xci quicstream.ConnInfo) error {
 		e := util.StringError("check handover y")
 
 		switch {
@@ -193,13 +193,13 @@ func NewStartHandoverYFunc(
 
 func NewCheckHandoverFunc(
 	local base.Address,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 	isAllowedConsensus func() bool,
 	isHandoverStarted func() bool,
 	isJoinedMemberlist func() (bool, error),
 	currentState func() StateType,
 ) CheckHandoverFunc {
-	return func(ctx context.Context, node base.Address, yci quicstream.UDPConnInfo) error {
+	return func(ctx context.Context, node base.Address, yci quicstream.ConnInfo) error {
 		e := util.StringError("check handover x")
 
 		switch {
@@ -233,15 +233,15 @@ func NewCheckHandoverFunc(
 
 func NewAskHandoverReceivedFunc(
 	local base.Address,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 	isAllowedConsensus func() bool,
 	isHandoverStarted func() bool,
-	isJoinedMemberlist func(quicstream.UDPConnInfo) (bool, error),
+	isJoinedMemberlist func(quicstream.ConnInfo) (bool, error),
 	currentState func() StateType,
 	setNotAllowConsensus func(),
-	startHandoverX func(quicstream.UDPConnInfo) (handoverid string, _ error),
+	startHandoverX func(quicstream.ConnInfo) (handoverid string, _ error),
 ) AskHandoverReceivedFunc {
-	return func(ctx context.Context, node base.Address, yci quicstream.UDPConnInfo) (string, bool, error) {
+	return func(ctx context.Context, node base.Address, yci quicstream.ConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover")
 
 		switch {
@@ -312,10 +312,10 @@ func NewCheckHandoverXFunc(
 
 func NewAskHandoverFunc(
 	local base.Address,
-	joinMemberlist func(context.Context, quicstream.UDPConnInfo) error,
-	sendAsk func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error),
+	joinMemberlist func(context.Context, quicstream.ConnInfo) error,
+	sendAsk func(context.Context, base.Address, quicstream.ConnInfo) (string, bool, error),
 ) AskHandoverFunc {
-	return func(ctx context.Context, ci quicstream.UDPConnInfo) (string, bool, error) {
+	return func(ctx context.Context, ci quicstream.ConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover to x")
 
 		if err := joinMemberlist(ctx, ci); err != nil {
@@ -332,9 +332,9 @@ func NewAskHandoverFunc(
 
 func NewHandoverXFinishedFunc(
 	leftMemberlist func() error,
-	addSyncSource func(base.Address, quicstream.UDPConnInfo) error,
-) func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
-	return func(_ base.INITVoteproof, node base.Address, yci quicstream.UDPConnInfo) error {
+	addSyncSource func(base.Address, quicstream.ConnInfo) error,
+) func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
+	return func(_ base.INITVoteproof, node base.Address, yci quicstream.ConnInfo) error {
 		e := util.StringError("handover x finished")
 
 		if err := leftMemberlist(); err != nil {
@@ -346,9 +346,9 @@ func NewHandoverXFinishedFunc(
 }
 
 func NewHandoverYFinishedFunc(
-	removeSyncSource func(quicstream.UDPConnInfo) error,
-) func(base.INITVoteproof, quicstream.UDPConnInfo) error {
-	return func(_ base.INITVoteproof, xci quicstream.UDPConnInfo) error {
+	removeSyncSource func(quicstream.ConnInfo) error,
+) func(base.INITVoteproof, quicstream.ConnInfo) error {
+	return func(_ base.INITVoteproof, xci quicstream.ConnInfo) error {
 		if err := removeSyncSource(xci); err != nil {
 			return errors.WithMessage(err, "handover y finished")
 		}
@@ -359,9 +359,9 @@ func NewHandoverYFinishedFunc(
 
 func NewHandoverYCanceledFunc(
 	leftMemberlist func() error,
-	removeSyncSource func(quicstream.UDPConnInfo) error,
-) func(error, quicstream.UDPConnInfo) {
-	return func(_ error, xci quicstream.UDPConnInfo) {
+	removeSyncSource func(quicstream.ConnInfo) error,
+) func(error, quicstream.ConnInfo) {
+	return func(_ error, xci quicstream.ConnInfo) {
 		_ = leftMemberlist()
 		_ = removeSyncSource(xci)
 	}

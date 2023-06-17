@@ -21,15 +21,15 @@ type testHandoverHandler struct {
 
 func (t *testHandoverHandler) newHandoverYBrokerFunc(
 	networkID base.NetworkID,
-) func(context.Context, string, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
-	return func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+) func(context.Context, string, quicstream.ConnInfo) (*HandoverYBroker, error) {
+	return func(ctx context.Context, id string, connInfo quicstream.ConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error { return nil }
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return id, false, nil
 		}
 
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
@@ -126,10 +126,10 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 		return nil
 	}
 
-	broker, err := t.newHandoverYBrokerFunc(t.LocalParams.NetworkID())(context.Background(), util.UUID().String(), quicstream.UDPConnInfo{})
+	broker, err := t.newHandoverYBrokerFunc(t.LocalParams.NetworkID())(context.Background(), util.UUID().String(), quicstream.ConnInfo{})
 	t.NoError(err)
 
-	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 		return nil
 	}
 
@@ -225,7 +225,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 		brokersentch <- i
 
 		return nil
@@ -303,7 +303,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 		switch i.(type) {
 		case HandoverMessageChallengeStagePoint,
 			HandoverMessageChallengeBlockMap:
@@ -413,7 +413,7 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	broker := st.handoverYBroker()
 
 	brokersentch := make(chan interface{}, 3)
-	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+	broker.args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 		brokersentch <- i
 
 		return nil

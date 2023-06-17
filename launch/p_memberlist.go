@@ -130,7 +130,7 @@ func PCloseMemberlist(pctx context.Context) (context.Context, error) {
 
 func PLongRunningMemberlistJoin(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
-	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var m *quicmemberlist.Memberlist
 	var watcher *isaac.LastConsensusNodesWatcher
 
@@ -409,14 +409,14 @@ func memberlistConfig(
 				context.Background(), time.Second*5) //nolint:gomnd //....
 			defer cancel()
 
-			c := client.NewQuicstreamClient(member.UDPConnInfo())(member.UDPAddr())
+			c := client.NewQuicstreamClient(member.ConnInfo())(member.Addr())
 			if _, err := c.Dial(cctx); err != nil {
 				l.Error().Err(err).Msg("new member joined, but failed to dial")
 
 				return
 			}
 
-			poolclient.Add(member.UDPAddr(), c)
+			poolclient.Add(member.Addr(), c)
 
 			if !member.Address().Equal(local.Address()) {
 				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(member)
@@ -431,7 +431,7 @@ func memberlistConfig(
 		func(member quicmemberlist.Member) {
 			l := log.Log().With().Interface("member", member).Logger()
 
-			if poolclient.Remove(member.UDPAddr()) {
+			if poolclient.Remove(member.Addr()) {
 				l.Debug().Msg("member removed from client pool")
 			}
 
@@ -526,7 +526,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	return func(node quicmemberlist.Member) error {
 		e := util.StringError("challenge memberlist node")
 
-		ci, err := node.Publish().UDPConnInfo()
+		ci, err := node.Publish().ConnInfo()
 		if err != nil {
 			return errors.WithMessage(err, "invalid publish conninfo")
 		}
@@ -542,14 +542,14 @@ func nodeChallengeFunc(pctx context.Context) (
 			defer cancel()
 
 			return client.NodeChallenge(
-				ctx, node.UDPConnInfo(), params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
+				ctx, node.ConnInfo(), params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
 		}()
 		if err != nil {
 			return err
 		}
 
 		// NOTE challenge with publish address
-		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
+		if !network.EqualConnInfo(node.ConnInfo(), ci) {
 			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
 			defer cancel()
 
@@ -601,7 +601,7 @@ func memberlistAllowFunc(pctx context.Context) (
 }
 
 type LongRunningMemberlistJoin struct {
-	ensureJoin    func([]quicstream.UDPConnInfo) (bool, error)
+	ensureJoin    func([]quicstream.ConnInfo) (bool, error)
 	isJoined      func() bool
 	cancelrunning *util.Locked[context.CancelFunc]
 	donech        *util.Locked[chan struct{}] // revive:disable-line:nested-structs
@@ -609,7 +609,7 @@ type LongRunningMemberlistJoin struct {
 }
 
 func NewLongRunningMemberlistJoin(
-	ensureJoin func([]quicstream.UDPConnInfo) (bool, error),
+	ensureJoin func([]quicstream.ConnInfo) (bool, error),
 	isJoined func() bool,
 ) *LongRunningMemberlistJoin {
 	return &LongRunningMemberlistJoin{
@@ -621,7 +621,7 @@ func NewLongRunningMemberlistJoin(
 	}
 }
 
-func (l *LongRunningMemberlistJoin) Join(cis ...quicstream.UDPConnInfo) <-chan struct{} {
+func (l *LongRunningMemberlistJoin) Join(cis ...quicstream.ConnInfo) <-chan struct{} {
 	if l.isJoined() {
 		return nil
 	}
@@ -691,16 +691,16 @@ func (l *LongRunningMemberlistJoin) Cancel() error {
 func ensureJoinMemberlist(
 	local base.LocalNode,
 	watcher *isaac.LastConsensusNodesWatcher,
-	discoveries *util.Locked[[]quicstream.UDPConnInfo],
+	discoveries *util.Locked[[]quicstream.ConnInfo],
 	m *quicmemberlist.Memberlist,
-) func([]quicstream.UDPConnInfo) (bool, error) {
-	return func(cis []quicstream.UDPConnInfo) (bool, error) {
+) func([]quicstream.ConnInfo) (bool, error) {
+	return func(cis []quicstream.ConnInfo) (bool, error) {
 		dis := GetDiscoveriesFromLocked(discoveries)
 		dis = append(dis, cis...)
 
-		dis, _ = util.RemoveDuplicatedSlice[quicstream.UDPConnInfo](
+		dis, _ = util.RemoveDuplicatedSlice[quicstream.ConnInfo](
 			dis,
-			func(i quicstream.UDPConnInfo) (string, error) {
+			func(i quicstream.ConnInfo) (string, error) {
 				if i.Addr() == nil {
 					return "", nil
 				}

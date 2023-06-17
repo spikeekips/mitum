@@ -57,11 +57,11 @@ var ConnInfoBroadcastMessageHint = hint.MustNewHint("conninfo-broadcast-message-
 
 type ConnInfoBroadcastMessage struct {
 	id string
-	ci quicstream.UDPConnInfo
+	ci quicstream.ConnInfo
 	hint.BaseHinter
 }
 
-func NewConnInfoBroadcastMessage(id string, ci quicstream.UDPConnInfo) ConnInfoBroadcastMessage {
+func NewConnInfoBroadcastMessage(id string, ci quicstream.ConnInfo) ConnInfoBroadcastMessage {
 	return ConnInfoBroadcastMessage{
 		BaseHinter: hint.NewBaseHinter(ConnInfoBroadcastMessageHint),
 		id:         id,
@@ -91,13 +91,13 @@ func (m ConnInfoBroadcastMessage) ID() string {
 	return m.id
 }
 
-func (m ConnInfoBroadcastMessage) ConnInfo() quicstream.UDPConnInfo {
+func (m ConnInfoBroadcastMessage) ConnInfo() quicstream.ConnInfo {
 	return m.ci
 }
 
 type connInfoBroadcastMessageJSONMarshaler struct {
-	ID string                 `json:"id"`
-	CI quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
+	ID string              `json:"id"`
+	CI quicstream.ConnInfo `json:"conn_info"` //nolint:tagliatelle //...
 	hint.BaseHinter
 }
 

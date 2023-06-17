@@ -20,7 +20,7 @@ type (
 	DelegateNodeFunc      func(Member) error
 	DelegateJoinedFunc    func(Member)
 	DelegateLeftFunc      func(Member)
-	DelegateStoreConnInfo func(quicstream.UDPConnInfo)
+	DelegateStoreConnInfo func(quicstream.ConnInfo)
 	FilterNotifyMsgFunc   func(interface{}) (bool, error)
 )
 
@@ -116,7 +116,7 @@ func NewAliveDelegate(
 		laddr:           laddr,
 		challengef:      nchallengef,
 		allowf:          nallowf,
-		storeconninfof:  func(quicstream.UDPConnInfo) {},
+		storeconninfof:  func(quicstream.ConnInfo) {},
 		challengecache:  gcache.New(1 << 9).LRU().Build(), //nolint:gomnd //...
 		challengeexpire: defaultNodeChallengeExpire,
 	}
@@ -140,7 +140,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	var willchallenge bool
 
-	memberkey := member.UDPAddr().String()
+	memberkey := member.Addr().String()
 
 	switch i, err := d.challengecache.Get(memberkey); {
 	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
@@ -166,7 +166,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
-	d.storeconninfof(member.UDPConnInfo())
+	d.storeconninfof(member.ConnInfo())
 
 	l.Trace().Msg("notified alive")
 
@@ -266,8 +266,8 @@ func isEqualAddress(a, b interface{}) bool {
 func convertNetAddr(a interface{}) (net.Addr, error) {
 	switch t := a.(type) {
 	case Member:
-		return t.UDPAddr(), nil
-	case quicstream.UDPConnInfo:
+		return t.Addr(), nil
+	case quicstream.ConnInfo:
 		return t.UDPAddr(), nil
 	case *memberlist.Node:
 		return &net.UDPAddr{IP: t.Addr, Port: int(t.Port)}, nil

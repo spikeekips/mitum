@@ -8,18 +8,18 @@ import (
 	"sync"
 )
 
-func RandomConnInfoGenerator() func() UDPConnInfo {
+func RandomConnInfoGenerator() func() ConnInfo {
 	var (
 		lastrandomport     int
 		randomConnInfoLock sync.Mutex
 	)
 
-	return func() UDPConnInfo {
+	return func() ConnInfo {
 		randomConnInfoLock.Lock()
 		defer randomConnInfoLock.Unlock()
 
 		lastrandomport++
 
-		return NewUDPConnInfo(&net.UDPAddr{IP: net.IPv6loopback, Port: lastrandomport}, true)
+		return NewConnInfo(&net.UDPAddr{IP: net.IPv6loopback, Port: lastrandomport}, true)
 	}
 }

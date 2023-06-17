@@ -513,7 +513,7 @@ func ConcurrentRequestProposal(
 	proposer base.Node,
 	previousBlock util.Hash,
 	client NetworkClient,
-	cis []quicstream.UDPConnInfo,
+	cis []quicstream.ConnInfo,
 	networkID base.NetworkID,
 ) (base.ProposalSignFact, bool, error) {
 	worker := util.NewErrgroupWorker(ctx, int64(len(cis)))

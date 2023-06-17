@@ -14,13 +14,13 @@ import (
 )
 
 type HandoverYBrokerArgs struct {
-	SendMessageFunc func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error
+	SendMessageFunc func(context.Context, quicstream.ConnInfo, HandoverMessage) error
 	NewDataFunc     func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	WhenFinished func(base.INITVoteproof, quicstream.UDPConnInfo) error
-	WhenCanceled func(error, quicstream.UDPConnInfo)
+	WhenFinished func(base.INITVoteproof, quicstream.ConnInfo) error
+	WhenCanceled func(error, quicstream.ConnInfo)
 	SyncDataFunc func(
-		context.Context, quicstream.UDPConnInfo, chan<- struct{}) error //revive:disable-line:nested-structs
+		context.Context, quicstream.ConnInfo, chan<- struct{}) error //revive:disable-line:nested-structs
 	AskRequestFunc           AskHandoverFunc
 	NetworkID                base.NetworkID
 	MaxEnsureSendFailure     uint64
@@ -31,18 +31,18 @@ type HandoverYBrokerArgs struct {
 func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 	return &HandoverYBrokerArgs{
 		NetworkID: networkID,
-		SendMessageFunc: func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
+		SendMessageFunc: func(context.Context, quicstream.ConnInfo, HandoverMessage) error {
 			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
 		NewDataFunc: func(HandoverMessageDataType, interface{}) error {
 			return util.ErrNotImplemented.Errorf("NewData")
 		},
-		WhenFinished: func(base.INITVoteproof, quicstream.UDPConnInfo) error { return nil },
-		WhenCanceled: func(error, quicstream.UDPConnInfo) {},
-		AskRequestFunc: func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		WhenFinished: func(base.INITVoteproof, quicstream.ConnInfo) error { return nil },
+		WhenCanceled: func(error, quicstream.ConnInfo) {},
+		AskRequestFunc: func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
-		SyncDataFunc:             func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error { return nil },
+		SyncDataFunc:             func(context.Context, quicstream.ConnInfo, chan<- struct{}) error { return nil },
 		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
 		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
 		MaxEnsureAsk:             9,                     //nolint:gomnd //...
@@ -68,7 +68,7 @@ type HandoverYBroker struct {
 	isDataSynced     *util.Locked[bool]
 	isFinishedLocked *util.Locked[bool]
 	sendFailureCount *util.Locked[uint64]
-	connInfo         quicstream.UDPConnInfo // NOTE x conn info
+	connInfo         quicstream.ConnInfo // NOTE x conn info
 	maxEnsureAsk     uint64
 	receivelock      sync.Mutex
 }
@@ -76,7 +76,7 @@ type HandoverYBroker struct {
 func NewHandoverYBroker(
 	ctx context.Context,
 	args *HandoverYBrokerArgs,
-	connInfo quicstream.UDPConnInfo,
+	connInfo quicstream.ConnInfo,
 ) *HandoverYBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
@@ -188,7 +188,7 @@ func (broker *HandoverYBroker) ID() string {
 	return id
 }
 
-func (broker *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
+func (broker *HandoverYBroker) ConnInfo() quicstream.ConnInfo {
 	return broker.connInfo
 }
 

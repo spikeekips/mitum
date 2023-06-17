@@ -18,9 +18,9 @@ import (
 )
 
 type (
-	TransportDialFunc    func(context.Context, quicstream.UDPConnInfo) (quic.EarlyConnection, error)
-	TransportWriteFunc   func(context.Context, quicstream.UDPConnInfo, []byte) error
-	TransportGetConnInfo func(*net.UDPAddr) quicstream.UDPConnInfo
+	TransportDialFunc    func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error)
+	TransportWriteFunc   func(context.Context, quicstream.ConnInfo, []byte) error
+	TransportGetConnInfo func(*net.UDPAddr) quicstream.ConnInfo
 )
 
 type TransportArgs struct {
@@ -31,10 +31,10 @@ type TransportArgs struct {
 
 func NewTransportArgs() *TransportArgs {
 	return &TransportArgs{
-		DialFunc: func(context.Context, quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
+		DialFunc: func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error) {
 			return nil, util.ErrNotImplemented.Errorf("DialFunc")
 		},
-		WriteFunc: func(context.Context, quicstream.UDPConnInfo, []byte) error {
+		WriteFunc: func(context.Context, quicstream.ConnInfo, []byte) error {
 			return util.ErrNotImplemented.Errorf("WriteFunc")
 		},
 		NotAllowFunc: func(string) bool { return false }, // NOTE by default, allows all nodes.
@@ -68,7 +68,7 @@ func NewTransport(
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
 		conns:        conns,
-		getconninfof: func(addr *net.UDPAddr) quicstream.UDPConnInfo { return quicstream.NewUDPConnInfo(addr, true) },
+		getconninfof: func(addr *net.UDPAddr) quicstream.ConnInfo { return quicstream.NewConnInfo(addr, true) },
 	}
 }
 
@@ -76,7 +76,7 @@ func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix [32]byte,
 	poolclient *quicstream.PoolClient,
-	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
 	notallowf func(string) bool,
 	requestTimeoutf func() time.Duration,
 ) *Transport {
@@ -112,14 +112,14 @@ func NewTransportWithQuicstream(
 
 	args := NewTransportArgs()
 
-	args.DialFunc = func(ctx context.Context, ci quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
+	args.DialFunc = func(ctx context.Context, ci quicstream.ConnInfo) (quic.EarlyConnection, error) {
 		client, closef := getclient(poolclient, newClient, ci)
 		defer closef()
 
 		return client.Dial(ctx)
 	}
 
-	args.WriteFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
+	args.WriteFunc = func(ctx context.Context, ci quicstream.ConnInfo, b []byte) error {
 		client, closef := getclient(poolclient, newClient, ci)
 		defer func() {
 			closef()
@@ -401,8 +401,8 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 
 func getclient(
 	poolclient *quicstream.PoolClient,
-	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
-	ci quicstream.UDPConnInfo,
+	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	ci quicstream.ConnInfo,
 ) (*quicstream.Client, func()) {
 	switch client, found := poolclient.Client(ci.UDPAddr()); {
 	case !found:

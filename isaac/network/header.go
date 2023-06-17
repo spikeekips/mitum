@@ -611,12 +611,12 @@ func (h StreamOperationsHeader) Offset() []byte {
 }
 
 type caHandoverHeader struct {
-	connInfo quicstream.UDPConnInfo // conn info of X
-	address  base.Address           // local address
+	connInfo quicstream.ConnInfo // conn info of X
+	address  base.Address        // local address
 	baseHeader
 }
 
-func newCAHandoverHeader(ht hint.Hint, connInfo quicstream.UDPConnInfo, address base.Address) caHandoverHeader {
+func newCAHandoverHeader(ht hint.Hint, connInfo quicstream.ConnInfo, address base.Address) caHandoverHeader {
 	return caHandoverHeader{
 		baseHeader: newBaseHeader(ht),
 		connInfo:   connInfo,
@@ -632,7 +632,7 @@ func (h caHandoverHeader) IsValid([]byte) error {
 	return util.CheckIsValiders(nil, false, h.connInfo, h.address)
 }
 
-func (h caHandoverHeader) ConnInfo() quicstream.UDPConnInfo {
+func (h caHandoverHeader) ConnInfo() quicstream.ConnInfo {
 	return h.connInfo
 }
 
@@ -644,7 +644,7 @@ type StartHandoverHeader struct {
 	caHandoverHeader
 }
 
-func NewStartHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Address) StartHandoverHeader {
+func NewStartHandoverHeader(connInfo quicstream.ConnInfo, address base.Address) StartHandoverHeader {
 	return StartHandoverHeader{
 		caHandoverHeader: newCAHandoverHeader(StartHandoverHeaderHint, connInfo, address),
 	}
@@ -663,7 +663,7 @@ type CheckHandoverHeader struct {
 	caHandoverHeader
 }
 
-func NewCheckHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Address) CheckHandoverHeader {
+func NewCheckHandoverHeader(connInfo quicstream.ConnInfo, address base.Address) CheckHandoverHeader {
 	return CheckHandoverHeader{
 		caHandoverHeader: newCAHandoverHeader(CheckHandoverHeaderHint, connInfo, address),
 	}
@@ -681,7 +681,7 @@ type AskHandoverHeader struct {
 	caHandoverHeader
 }
 
-func NewAskHandoverHeader(connInfo quicstream.UDPConnInfo, address base.Address) AskHandoverHeader {
+func NewAskHandoverHeader(connInfo quicstream.ConnInfo, address base.Address) AskHandoverHeader {
 	return AskHandoverHeader{
 		caHandoverHeader: newCAHandoverHeader(AskHandoverHeaderHint, connInfo, address),
 	}

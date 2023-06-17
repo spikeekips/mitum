@@ -24,7 +24,7 @@ type HandoverCommands struct {
 type baseHandoverCommand struct { //nolint:govet //...
 	KeyString string `arg:"" name:"privatekey" help:"privatekey string"`
 	BaseNetworkClientCommand
-	yci  quicstream.UDPConnInfo
+	yci  quicstream.ConnInfo
 	priv base.Privatekey
 }
 

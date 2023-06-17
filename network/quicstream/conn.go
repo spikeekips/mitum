@@ -8,25 +8,25 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type UDPConnInfo struct {
+type ConnInfo struct {
 	addr        *net.UDPAddr
 	tlsinsecure bool
 }
 
-func NewUDPConnInfo(addr *net.UDPAddr, tlsinsecure bool) UDPConnInfo {
-	return UDPConnInfo{addr: addr, tlsinsecure: tlsinsecure}
+func NewConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
+	return ConnInfo{addr: addr, tlsinsecure: tlsinsecure}
 }
 
-func NewUDPConnInfoFromString(s string) (UDPConnInfo, error) {
+func NewConnInfoFromString(s string) (ConnInfo, error) {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
-	return NewUDPConnInfoFromStringAddress(as, tlsinsecure)
+	return NewConnInfoFromStringAddress(as, tlsinsecure)
 }
 
-func MustNewUDPConnInfoFromString(s string) UDPConnInfo {
+func MustNewConnInfoFromString(s string) ConnInfo {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
-	ci, err := NewUDPConnInfoFromStringAddress(as, tlsinsecure)
+	ci, err := NewConnInfoFromStringAddress(as, tlsinsecure)
 	if err != nil {
 		panic(err)
 	}
@@ -34,27 +34,27 @@ func MustNewUDPConnInfoFromString(s string) UDPConnInfo {
 	return ci
 }
 
-func NewUDPConnInfoFromStringAddress(s string, tlsinsecure bool) (ci UDPConnInfo, _ error) {
+func NewConnInfoFromStringAddress(s string, tlsinsecure bool) (ci ConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err == nil {
-		return NewUDPConnInfo(addr, tlsinsecure), nil
+		return NewConnInfo(addr, tlsinsecure), nil
 	}
 
 	var dnserr *net.DNSError
 
 	if errors.As(err, &dnserr) {
-		return ci, errors.Wrap(err, "parse UDPConnInfo")
+		return ci, errors.Wrap(err, "parse ConnInfo")
 	}
 
-	return ci, util.ErrInvalid.WithMessage(err, "parse UDPConnInfo")
+	return ci, util.ErrInvalid.WithMessage(err, "parse ConnInfo")
 }
 
-func (c UDPConnInfo) IsValid([]byte) error {
+func (c ConnInfo) IsValid([]byte) error {
 	return c.isValid()
 }
 
-func (c UDPConnInfo) isValid() error {
-	e := util.ErrInvalid.Errorf("invalid UDPConnInfo")
+func (c ConnInfo) isValid() error {
+	e := util.ErrInvalid.Errorf("invalid ConnInfo")
 
 	switch {
 	case c.addr == nil:
@@ -68,7 +68,7 @@ func (c UDPConnInfo) isValid() error {
 	return nil
 }
 
-func (c UDPConnInfo) Addr() net.Addr {
+func (c ConnInfo) Addr() net.Addr {
 	if c.isValid() != nil {
 		return nil
 	}
@@ -76,11 +76,11 @@ func (c UDPConnInfo) Addr() net.Addr {
 	return c.addr
 }
 
-func (c UDPConnInfo) TLSInsecure() bool {
+func (c ConnInfo) TLSInsecure() bool {
 	return c.tlsinsecure
 }
 
-func (c UDPConnInfo) String() string {
+func (c ConnInfo) String() string {
 	var addr string
 	if c.addr != nil {
 		addr = c.addr.String()
@@ -89,18 +89,18 @@ func (c UDPConnInfo) String() string {
 	return network.ConnInfoToString(addr, c.tlsinsecure)
 }
 
-func (c UDPConnInfo) UDPAddr() *net.UDPAddr {
+func (c ConnInfo) UDPAddr() *net.UDPAddr {
 	return c.addr
 }
 
-func (c UDPConnInfo) MarshalText() ([]byte, error) {
+func (c ConnInfo) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
-func (c *UDPConnInfo) UnmarshalText(b []byte) error {
-	ci, err := NewUDPConnInfoFromString(string(b))
+func (c *ConnInfo) UnmarshalText(b []byte) error {
+	ci, err := NewConnInfoFromString(string(b))
 	if err != nil {
-		return errors.WithMessage(err, "unmarshal UDPConnInfo")
+		return errors.WithMessage(err, "unmarshal ConnInfo")
 	}
 
 	*c = ci

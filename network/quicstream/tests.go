@@ -188,14 +188,14 @@ func generateTLSConfig(proto string) *tls.Config {
 	}
 }
 
-func RandomConnInfo() UDPConnInfo {
+func RandomConnInfo() ConnInfo {
 	return randomConnInfo()
 }
 
-func RandomConnInfos(n int) []UDPConnInfo {
+func RandomConnInfos(n int) []ConnInfo {
 	m := map[string]struct{}{}
 
-	us := make([]UDPConnInfo, n)
+	us := make([]ConnInfo, n)
 
 	var i int
 	for {
@@ -214,7 +214,7 @@ func RandomConnInfos(n int) []UDPConnInfo {
 	}
 }
 
-func randomConnInfo() UDPConnInfo {
+func randomConnInfo() ConnInfo {
 	for {
 		bip, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
 		if err != nil {
@@ -229,7 +229,7 @@ func randomConnInfo() UDPConnInfo {
 
 		binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
 
-		ci := NewUDPConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
+		ci := NewConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
 
 		if ci.isValid() != nil {
 			continue

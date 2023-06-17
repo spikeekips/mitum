@@ -24,7 +24,7 @@ func (t *testHandoverYBroker) TestNew() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+	broker := t.syncedHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 
 	t.Run("isCanceled", func() {
 		t.NoError(broker.isCanceled())
@@ -41,7 +41,7 @@ func (t *testHandoverYBroker) TestNew() {
 	t.Run("cancel(); isCanceled", func() {
 		args := t.yargs(util.UUID().String())
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		t.NoError(broker.isCanceled())
 
@@ -58,7 +58,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		args := t.yargs(util.UUID().String())
 
 		setready := make(chan struct{}, 1)
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			<-setready
 			readych <- struct{}{}
 
@@ -68,7 +68,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		broker := NewHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		broker := NewHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
 		t.NoError(err)
 		t.False(isAsked)
@@ -93,7 +93,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
 		t.NoError(err)
 		t.True(isAsked)
@@ -110,7 +110,7 @@ func (t *testHandoverYBroker) TestAsk() {
 
 	t.Run("send stagepoint, but not yet data synced", func() {
 		args := t.yargs(util.UUID().String())
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			<-time.After(time.Minute)
@@ -121,7 +121,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
 		t.NoError(err)
 		t.True(isAsked)
@@ -129,7 +129,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.True(broker.IsAsked())
 
 		sendch := make(chan HandoverMessage, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, msg HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, msg HandoverMessage) error {
 			sendch <- msg
 
 			return nil
@@ -147,7 +147,7 @@ func (t *testHandoverYBroker) TestAsk() {
 
 	t.Run("ask func error", func() {
 		args := t.yargs("")
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return "", false, errors.Errorf("hehehe")
 		}
 		args.MaxEnsureAsk = 1
@@ -155,7 +155,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
 		t.Error(err)
 		t.False(isAsked)
@@ -172,7 +172,7 @@ func (t *testHandoverYBroker) TestAsk() {
 
 	t.Run("ask func error; ensure", func() {
 		args := t.yargs("")
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return "", false, errors.Errorf("hehehe")
 		}
 		args.MaxEnsureAsk = 2
@@ -181,7 +181,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		defer cancel()
 
 		t.T().Log("MaxEnsureAsk 2: ask error ignored")
-		broker := t.syncedHandoverYBroker(ctx, args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(ctx, args, quicstream.ConnInfo{})
 		canMoveConsensus, isAsked, err := broker.Ask()
 		t.NoError(err)
 		t.False(isAsked)
@@ -206,7 +206,7 @@ func (t *testHandoverYBroker) TestAsk() {
 func (t *testHandoverYBroker) TestReceiveVoteproof() {
 	args := t.yargs(util.UUID().String())
 
-	broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+	broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 	broker.Ask()
 
 	vpch := make(chan base.Voteproof, 1)
@@ -234,11 +234,11 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 		args := t.yargs(util.UUID().String())
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
+		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.Ask()
 
 		hc := newHandoverMessageChallengeResponse(util.UUID().String(), base.NewStagePoint(point, base.StageINIT), true, nil)
@@ -254,9 +254,9 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 	})
 
 	args := t.yargs(util.UUID().String())
-	args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
+	args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error { return nil }
 
-	broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+	broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 	broker.Ask()
 
 	t.NoError(broker.sendStagePoint(context.Background(), base.NewStagePoint(point, base.StageINIT)))
@@ -273,7 +273,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 	t.Run("error", func() {
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
+		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
@@ -293,9 +293,9 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 	t.Run("unknown point", func() {
 		args := t.yargs(util.UUID().String())
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
+		args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error { return nil }
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.Ask()
 
 		hc := newHandoverMessageChallengeResponse(broker.ID(), base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
@@ -308,16 +308,16 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 	t.Run("send failed", func() {
 		args := t.yargs(util.UUID().String())
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
+		args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error {
 			return errors.Errorf("hihihi")
 		}
 		args.MaxEnsureSendFailure = 0
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.Ask()
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.UDPConnInfo) {
+		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
@@ -343,7 +343,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		args := t.yargs(util.UUID().String())
 
 		vpch := make(chan base.INITVoteproof, 1)
-		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.UDPConnInfo) error {
+		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.ConnInfo) error {
 			vpch <- vp
 
 			return nil
@@ -358,7 +358,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 			return nil
 		}
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.Ask()
 
 		point := base.RawPoint(33, 44)
@@ -380,12 +380,12 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 	t.Run("error", func() {
 		args := t.yargs(util.UUID().String())
 
-		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.UDPConnInfo) error {
+		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.ConnInfo) error {
 			return errors.Errorf("hihihi")
 		}
 		args.NewDataFunc = func(_ HandoverMessageDataType, i interface{}) error { return nil }
 
-		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := t.syncedHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.Ask()
 
 		point := base.RawPoint(33, 44)

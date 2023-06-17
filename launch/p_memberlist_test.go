@@ -19,7 +19,7 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 	var joined int64
 
 	l := NewLongRunningMemberlistJoin(
-		func([]quicstream.UDPConnInfo) (bool, error) {
+		func([]quicstream.ConnInfo) (bool, error) {
 			if atomic.LoadInt64(&joined) > 0 {
 				return true, nil
 			}
@@ -68,7 +68,7 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 
 func (t *testLongRunningMemberlistJoin) TestCancel() {
 	l := NewLongRunningMemberlistJoin(
-		func([]quicstream.UDPConnInfo) (bool, error) {
+		func([]quicstream.ConnInfo) (bool, error) {
 			return false, errors.Errorf("heheheh")
 		},
 		func() bool {

@@ -575,8 +575,8 @@ func (h *StreamOperationsHeader) UnmarshalJSON(b []byte) error {
 }
 
 type caHandoverHeaderJSONMarshaler struct {
-	Address  base.Address           `json:"address"`
-	ConnInfo quicstream.UDPConnInfo `json:"conn_info"`
+	Address  base.Address        `json:"address"`
+	ConnInfo quicstream.ConnInfo `json:"conn_info"`
 }
 
 func (h caHandoverHeader) MarshalJSON() ([]byte, error) {
@@ -607,7 +607,7 @@ func (h *caHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return err
 	}
 
-	switch i, err := quicstream.NewUDPConnInfoFromString(u.ConnInfo); {
+	switch i, err := quicstream.NewConnInfoFromString(u.ConnInfo); {
 	case err != nil:
 		return err
 	default:

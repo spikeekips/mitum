@@ -32,7 +32,7 @@ func NewBaseClient(
 	}
 }
 
-func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.UDPConnInfo) (
+func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.ConnInfo) (
 	io.Reader,
 	io.WriteCloser,
 	error,
@@ -40,12 +40,12 @@ func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.UDPConnInfo) 
 	return c.Client.OpenStream(ctx, ci)
 }
 
-func (c *BaseClient) Broker(ctx context.Context, ci quicstream.UDPConnInfo) (*quicstreamheader.ClientBroker, error) {
+func (c *BaseClient) Broker(ctx context.Context, ci quicstream.ConnInfo) (*quicstreamheader.ClientBroker, error) {
 	return c.Client.Broker(ctx, ci)
 }
 
 func (c *BaseClient) Operation(
-	ctx context.Context, ci quicstream.UDPConnInfo, op util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, op util.Hash,
 ) (base.Operation, bool, error) {
 	var u base.Operation
 
@@ -63,7 +63,7 @@ func (c *BaseClient) Operation(
 }
 
 func (c *BaseClient) StreamOperations(
-	ctx context.Context, ci quicstream.UDPConnInfo,
+	ctx context.Context, ci quicstream.ConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(_ base.Operation, offset []byte) error,
 ) error {
@@ -86,7 +86,7 @@ func (c *BaseClient) StreamOperations(
 }
 
 func (c *BaseClient) StreamOperationsBytes(
-	ctx context.Context, ci quicstream.UDPConnInfo,
+	ctx context.Context, ci quicstream.ConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(enchint hint.Hint, body, offset []byte) error,
 ) error {
@@ -153,7 +153,7 @@ func (c *BaseClient) StreamOperationsBytes(
 	}
 }
 
-func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.UDPConnInfo, op base.Operation) (bool, error) {
+func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.ConnInfo, op base.Operation) (bool, error) {
 	return hcBodyReqResOK(
 		ctx,
 		ci,
@@ -165,7 +165,7 @@ func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.UDPConnInf
 
 func (c *BaseClient) RequestProposal(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	point base.Point,
 	proposer base.Address,
 	previousBlock util.Hash,
@@ -180,7 +180,7 @@ func (c *BaseClient) RequestProposal(
 
 func (c *BaseClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	pr util.Hash,
 ) (base.ProposalSignFact, bool, error) {
 	header := NewProposalRequestHeader(pr)
@@ -192,7 +192,7 @@ func (c *BaseClient) Proposal( //nolint:dupl //...
 }
 
 func (c *BaseClient) LastSuffrageProof(
-	ctx context.Context, ci quicstream.UDPConnInfo, state util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, state util.Hash,
 ) (base.Height, base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
@@ -254,7 +254,7 @@ func (c *BaseClient) LastSuffrageProof(
 }
 
 func (c *BaseClient) SuffrageProof( //nolint:dupl //...
-	ctx context.Context, ci quicstream.UDPConnInfo, suffrageheight base.Height,
+	ctx context.Context, ci quicstream.ConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
 	if err := header.IsValid(nil); err != nil {
@@ -277,7 +277,7 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 }
 
 func (c *BaseClient) LastBlockMap( //nolint:dupl //...
-	ctx context.Context, ci quicstream.UDPConnInfo, manifest util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	header := NewLastBlockMapRequestHeader(manifest)
 	if err := header.IsValid(nil); err != nil {
@@ -300,7 +300,7 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 }
 
 func (c *BaseClient) BlockMap( //nolint:dupl //...
-	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height,
+	ctx context.Context, ci quicstream.ConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	header := NewBlockMapRequestHeader(height)
 	if err := header.IsValid(nil); err != nil {
@@ -323,7 +323,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 }
 
 func (c *BaseClient) BlockMapItem(
-	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height, item base.BlockMapItemType,
+	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockMapItemType,
 ) (
 	_ io.Reader,
 	_ func() error,
@@ -351,7 +351,7 @@ func (c *BaseClient) BlockMapItem(
 
 func (c *BaseClient) NodeChallenge(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	networkID base.NetworkID,
 	node base.Address,
 	pub base.Publickey,
@@ -393,14 +393,14 @@ func (c *BaseClient) NodeChallenge(
 }
 
 func (c *BaseClient) SuffrageNodeConnInfo(
-	ctx context.Context, ci quicstream.UDPConnInfo,
+	ctx context.Context, ci quicstream.ConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSuffrageNodeConnInfoRequestHeader())
 
 	return ncis, errors.WithMessage(err, "request; SuffrageNodeConnInfo")
 }
 
-func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.UDPConnInfo) ([]isaac.NodeConnInfo, error) {
+func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.ConnInfo) ([]isaac.NodeConnInfo, error) {
 	e := util.StringError("SyncSourceConnInfo")
 
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSyncSourceConnInfoRequestHeader())
@@ -412,7 +412,7 @@ func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.UDPCo
 }
 
 func (c *BaseClient) State(
-	ctx context.Context, ci quicstream.UDPConnInfo, key string, st util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, key string, st util.Hash,
 ) (base.State, bool, error) {
 	header := NewStateRequestHeader(key, st)
 	if err := header.IsValid(nil); err != nil {
@@ -435,7 +435,7 @@ func (c *BaseClient) State(
 }
 
 func (c *BaseClient) ExistsInStateOperation(
-	ctx context.Context, ci quicstream.UDPConnInfo, facthash util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, facthash util.Hash,
 ) (bool, error) {
 	header := NewExistsInStateOperationRequestHeader(facthash)
 	if err := header.IsValid(nil); err != nil {
@@ -452,7 +452,7 @@ func (c *BaseClient) ExistsInStateOperation(
 
 func (c *BaseClient) SendBallots(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	ballots []base.BallotSignFact,
 ) error {
 	e := util.StringError("SendBallots")
@@ -475,7 +475,7 @@ func (c *BaseClient) SendBallots(
 }
 
 func (c *BaseClient) SetAllowConsensus(
-	ctx context.Context, ci quicstream.UDPConnInfo,
+	ctx context.Context, ci quicstream.ConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, allow bool,
 ) (bool, error) {
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, NewSetAllowConsensusHeader(allow)); {
@@ -490,11 +490,11 @@ func (c *BaseClient) SetAllowConsensus(
 
 func (c *BaseClient) StartHandover(
 	ctx context.Context,
-	yci quicstream.UDPConnInfo, // NOTE broker y
+	yci quicstream.ConnInfo, // NOTE broker y
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	address base.Address,
-	xci quicstream.UDPConnInfo, // NOTE broker x
+	xci quicstream.ConnInfo, // NOTE broker x
 ) (bool, error) {
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, yci, priv, networkID, NewStartHandoverHeader(xci, address)); {
 	case err != nil:
@@ -508,7 +508,7 @@ func (c *BaseClient) StartHandover(
 
 func (c *BaseClient) CancelHandover(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 ) (bool, error) {
@@ -524,7 +524,7 @@ func (c *BaseClient) CancelHandover(
 
 func (c *BaseClient) HandoverMessage(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	message isaacstates.HandoverMessage,
 ) error {
 	broker, err := c.Client.Broker(ctx, ci)
@@ -556,11 +556,11 @@ func (c *BaseClient) HandoverMessage(
 
 func (c *BaseClient) CheckHandover(
 	ctx context.Context,
-	xci quicstream.UDPConnInfo, // NOTE broker x
+	xci quicstream.ConnInfo, // NOTE broker x
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	address base.Address,
-	yci quicstream.UDPConnInfo, // NOTE broker y
+	yci quicstream.ConnInfo, // NOTE broker y
 ) (bool, error) {
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewCheckHandoverHeader(yci, address)); {
 	case err != nil:
@@ -574,7 +574,7 @@ func (c *BaseClient) CheckHandover(
 
 func (c *BaseClient) CheckHandoverX(
 	ctx context.Context,
-	xci quicstream.UDPConnInfo, // NOTE broker x
+	xci quicstream.ConnInfo, // NOTE broker x
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	address base.Address,
@@ -591,11 +591,11 @@ func (c *BaseClient) CheckHandoverX(
 
 func (c *BaseClient) AskHandover(
 	ctx context.Context,
-	xci quicstream.UDPConnInfo, // NOTE broker x
+	xci quicstream.ConnInfo, // NOTE broker x
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	address base.Address,
-	yci quicstream.UDPConnInfo, // NOTE broker y
+	yci quicstream.ConnInfo, // NOTE broker y
 ) (handoverid string, canMoveConsensus bool, _ error) {
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewAskHandoverHeader(yci, address)); {
 	case err != nil:
@@ -618,7 +618,7 @@ func (c *BaseClient) AskHandover(
 
 func (c *BaseClient) LastHandoverYLogs(
 	ctx context.Context,
-	yci quicstream.UDPConnInfo, // NOTE broker y
+	yci quicstream.ConnInfo, // NOTE broker y
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	f func(json.RawMessage) bool,
@@ -685,7 +685,7 @@ func (c *BaseClient) LastHandoverYLogs(
 
 func (c *BaseClient) verifyNodeWithResponse(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	header quicstreamheader.RequestHeader,
@@ -704,7 +704,7 @@ func (c *BaseClient) verifyNodeWithResponse(
 
 func (c *BaseClient) requestNodeConnInfos(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 ) ([]isaac.NodeConnInfo, error) {
 	var cis []isaac.NodeConnInfo
@@ -745,7 +745,7 @@ func (c *BaseClient) requestNodeConnInfos(
 
 func (c *BaseClient) requestProposal(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 ) (base.ProposalSignFact, bool, error) {
 	var u base.ProposalSignFact
@@ -765,7 +765,7 @@ func (c *BaseClient) requestProposal(
 
 func hcReqResOK(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 	brokerf quicstreamheader.ClientBrokerFunc,
 ) (bool, error) {
@@ -788,7 +788,7 @@ func hcReqResOK(
 
 func HCReqResBodyDecOK(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 	brokerf quicstreamheader.ClientBrokerFunc,
 	decodef func(encoder.Encoder, io.Reader) error,
@@ -819,7 +819,7 @@ func HCReqResBodyDecOK(
 
 func hcReqResBody(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 	brokerf quicstreamheader.ClientBrokerFunc,
 ) (
@@ -850,7 +850,7 @@ func hcReqResBody(
 
 func hcBodyReqResOK(
 	ctx context.Context,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
 	i interface{},
 	brokerf quicstreamheader.ClientBrokerFunc,

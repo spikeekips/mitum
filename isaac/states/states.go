@@ -27,8 +27,8 @@ var (
 )
 
 type (
-	NewHandoverXBrokerFunc func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error)
-	NewHandoverYBrokerFunc func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error)
+	NewHandoverXBrokerFunc func(context.Context, quicstream.ConnInfo) (*HandoverXBroker, error)
+	NewHandoverYBrokerFunc func(context.Context, quicstream.ConnInfo) (*HandoverYBroker, error)
 )
 
 type StatesArgs struct {
@@ -51,10 +51,10 @@ func NewStatesArgs() *StatesArgs {
 		LastVoteproofsHandler:  isaac.NewLastVoteproofsHandler(),
 		IsInSyncSourcePoolFunc: func(base.Address) bool { return false },
 		WhenStateSwitchedFunc:  func(StateType) {},
-		NewHandoverXBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error) {
+		NewHandoverXBroker: func(context.Context, quicstream.ConnInfo) (*HandoverXBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverXBroker")
 		},
-		NewHandoverYBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+		NewHandoverYBroker: func(context.Context, quicstream.ConnInfo) (*HandoverYBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverYBroker")
 		},
 		IntervalBroadcastBallot: func() time.Duration {

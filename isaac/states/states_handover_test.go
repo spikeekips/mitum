@@ -103,12 +103,12 @@ func (t *testStates) TestSwitchHandover() {
 		t.T().Log("current", st.current().state())
 	})
 
-	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.ConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(t.params.NetworkID())
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return util.UUID().String(), false, nil
 		}
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
@@ -124,7 +124,7 @@ func (t *testStates) TestSwitchHandover() {
 		t.False(st.AllowedConsensus())
 
 		t.T().Log("set under handover")
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
@@ -175,7 +175,7 @@ func (t *testStates) TestSwitchHandover() {
 		_ = st.SetAllowConsensus(false)
 		t.False(st.AllowedConsensus())
 
-		_ = st.NewHandoverYBroker(quicstream.UDPConnInfo{})
+		_ = st.NewHandoverYBroker(quicstream.ConnInfo{})
 		t.NotNil(st.HandoverYBroker())
 
 		entersyncing("enter syncing")
@@ -214,10 +214,10 @@ func (t *testStates) newHandoverXBrokerFunc(
 	st *States,
 	local base.Node,
 	networkID base.NetworkID,
-) func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error) {
-	return func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverXBroker, error) {
+) func(context.Context, quicstream.ConnInfo) (*HandoverXBroker, error) {
+	return func(ctx context.Context, connInfo quicstream.ConnInfo) (*HandoverXBroker, error) {
 		args := NewHandoverXBrokerArgs(local, networkID)
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
+		args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error { return nil }
 
 		return NewHandoverXBroker(ctx, args, connInfo), nil
 	}
@@ -226,16 +226,16 @@ func (t *testStates) newHandoverXBrokerFunc(
 func (t *testStates) newHandoverYBrokerFunc(
 	st *States,
 	networkID base.NetworkID,
-) func(context.Context, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
-	return func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+) func(context.Context, quicstream.ConnInfo) (*HandoverYBroker, error) {
+	return func(ctx context.Context, connInfo quicstream.ConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
-		args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error { return nil }
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error { return nil }
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
 		}
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return util.UUID().String(), false, nil
 		}
 
@@ -266,7 +266,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		st, _ := t.booted()
 		defer st.Stop()
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "not allowed consensus")
 	})
@@ -278,13 +278,13 @@ func (t *testStates) TestNewHandoverXBroker() {
 		_ = st.SetAllowConsensus(true)
 		st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
 
-		handoverid, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		handoverid, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.NoError(err)
 		t.NotEmpty(handoverid)
 		t.NotNil(st.HandoverXBroker())
 
 		t.Run("start again", func() {
-			_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+			_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 			t.Error(err)
 			t.ErrorContains(err, "already under handover x")
 		})
@@ -297,7 +297,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		_ = st.SetAllowConsensus(true)
 		st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.NoError(err)
 
 		broker := st.HandoverXBroker()
@@ -316,12 +316,12 @@ func (t *testStates) TestNewHandoverXBroker() {
 		st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
 		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 		t.NotNil(st.HandoverYBroker())
 
 		st.allowedConsensus.SetValue(true)
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "under handover y")
 	})
@@ -343,7 +343,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		_ = st.SetAllowConsensus(true)
 		st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.NoError(err)
 
 		broker := st.HandoverXBroker()
@@ -416,7 +416,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		t.Run("under handover x", func() {
 			st.args.NewHandoverXBroker = t.newHandoverXBrokerFunc(st, t.local, t.params.NetworkID())
 
-			_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+			_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 			t.NoError(err)
 
 			broker := st.HandoverXBroker()
@@ -430,7 +430,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 			t.NotNil(broker)
 
 			fch := make(chan struct{}, 1)
-			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
+			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 				fch <- struct{}{}
 
 				return nil
@@ -513,12 +513,12 @@ func (t *testStates) TestYBrokerAskCanMoveConsensus() {
 	t.False(st.AllowedConsensus())
 
 	t.T().Log("set under handover")
-	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+	st.args.NewHandoverYBroker = func(ctx context.Context, connInfo quicstream.ConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(t.params.NetworkID())
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return util.UUID().String(), true, nil
 		}
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
@@ -538,7 +538,7 @@ func (t *testStates) TestYBrokerAskCanMoveConsensus() {
 		return broker, nil
 	}
 
-	t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+	t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 	broker := st.HandoverYBroker()
 
@@ -559,7 +559,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		_ = st.SetAllowConsensus(true)
 
-		err := st.NewHandoverYBroker(quicstream.UDPConnInfo{})
+		err := st.NewHandoverYBroker(quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "allowed consensus")
 	})
@@ -570,11 +570,11 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 		t.NotNil(st.HandoverYBroker())
 
 		t.Run("start again", func() {
-			err := st.NewHandoverYBroker(quicstream.UDPConnInfo{})
+			err := st.NewHandoverYBroker(quicstream.ConnInfo{})
 			t.Error(err)
 			t.ErrorContains(err, "already under handover y")
 		})
@@ -596,7 +596,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
@@ -624,13 +624,13 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		_ = st.SetAllowConsensus(true)
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.NoError(err)
 		t.NotNil(st.HandoverXBroker())
 
 		_ = st.allowedConsensus.SetValue(false)
 
-		err = st.NewHandoverYBroker(quicstream.UDPConnInfo{})
+		err = st.NewHandoverYBroker(quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "under handover x")
 	})
@@ -651,7 +651,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
@@ -659,7 +659,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		t.False(t.ensureHandoverYBrokerAsk(broker))
 
 		fch := make(chan struct{}, 1)
-		broker.args.WhenFinished = func(base.INITVoteproof, quicstream.UDPConnInfo) error {
+		broker.args.WhenFinished = func(base.INITVoteproof, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil
@@ -695,7 +695,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		st.args.NewHandoverYBroker = t.newHandoverYBrokerFunc(st, t.params.NetworkID())
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
@@ -721,7 +721,7 @@ func (t *testStates) TestSetAllowConsensusCancelHandoverBrokers() {
 
 		_ = st.SetAllowConsensus(true)
 
-		_, err := st.NewHandoverXBroker(quicstream.UDPConnInfo{})
+		_, err := st.NewHandoverXBroker(quicstream.ConnInfo{})
 		t.NoError(err)
 
 		_ = st.SetAllowConsensus(false)
@@ -740,7 +740,7 @@ func (t *testStates) TestSetAllowConsensusCancelHandoverBrokers() {
 
 		_ = st.SetAllowConsensus(false)
 
-		t.NoError(st.NewHandoverYBroker(quicstream.UDPConnInfo{}))
+		t.NoError(st.NewHandoverYBroker(quicstream.ConnInfo{}))
 
 		_ = st.SetAllowConsensus(true)
 
@@ -752,8 +752,8 @@ type testHandoverFuncs struct {
 	suite.Suite
 	local  base.LocalNode
 	params *isaac.Params
-	xci    quicstream.UDPConnInfo
-	yci    quicstream.UDPConnInfo
+	xci    quicstream.ConnInfo
+	yci    quicstream.ConnInfo
 }
 
 func (t *testHandoverFuncs) SetupSuite() {
@@ -773,9 +773,9 @@ func (t *testHandoverFuncs) TestStart() {
 		t.yci,
 		func() bool { return allowedConsensus },
 		func() bool { return handoverStarted },
-		func(context.Context, base.Address, quicstream.UDPConnInfo) error { return checkXErr },
-		func(base.Address, quicstream.UDPConnInfo) error { return addSyncSourceErr },
-		func(quicstream.UDPConnInfo) error { return startHandoverYErr },
+		func(context.Context, base.Address, quicstream.ConnInfo) error { return checkXErr },
+		func(base.Address, quicstream.ConnInfo) error { return addSyncSourceErr },
+		func(quicstream.ConnInfo) error { return startHandoverYErr },
 	)
 
 	ctx := context.Background()
@@ -951,8 +951,8 @@ func (t *testHandoverFuncs) TestAsk() {
 
 	f := NewAskHandoverFunc(
 		t.local.Address(),
-		func(context.Context, quicstream.UDPConnInfo) error { return joinMemberlistErr },
-		func(context.Context, base.Address, quicstream.UDPConnInfo) (string, bool, error) {
+		func(context.Context, quicstream.ConnInfo) error { return joinMemberlistErr },
+		func(context.Context, base.Address, quicstream.ConnInfo) (string, bool, error) {
 			return handoverid, canMoveConsensus, sendErr
 		},
 	)
@@ -994,12 +994,12 @@ func (t *testHandoverFuncs) TestAskReceived() {
 		t.xci,
 		func() bool { return allowedConsensus },
 		func() bool { return isHandoverStarted },
-		func(quicstream.UDPConnInfo) (bool, error) { return isJoinedMemberlist, joinedMemberlistErr },
+		func(quicstream.ConnInfo) (bool, error) { return isJoinedMemberlist, joinedMemberlistErr },
 		func() StateType { return currentState },
 		func() {
 			setallowedch <- struct{}{}
 		},
-		func(quicstream.UDPConnInfo) (string, error) { return util.UUID().String(), startHandoverXErr },
+		func(quicstream.ConnInfo) (string, error) { return util.UUID().String(), startHandoverXErr },
 	)
 
 	ctx := context.Background()
@@ -1103,11 +1103,11 @@ func (t *testHandoverFuncs) TestHandoverXFinished() {
 
 	f := NewHandoverXFinishedFunc(
 		func() error { return leftMemberlistErr },
-		func(base.Address, quicstream.UDPConnInfo) error { return nil },
+		func(base.Address, quicstream.ConnInfo) error { return nil },
 	)
 
 	t.Run("ok", func() {
-		t.NoError(f(nil, nil, quicstream.UDPConnInfo{}))
+		t.NoError(f(nil, nil, quicstream.ConnInfo{}))
 	})
 
 	t.Run("error", func() {
@@ -1116,7 +1116,7 @@ func (t *testHandoverFuncs) TestHandoverXFinished() {
 			leftMemberlistErr = nil
 		}()
 
-		err := f(nil, nil, quicstream.UDPConnInfo{})
+		err := f(nil, nil, quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "hohoho")
 	})
@@ -1126,11 +1126,11 @@ func (t *testHandoverFuncs) TestHandoverYFinished() {
 	var removeSyncSourceErr error
 
 	f := NewHandoverYFinishedFunc(
-		func(quicstream.UDPConnInfo) error { return removeSyncSourceErr },
+		func(quicstream.ConnInfo) error { return removeSyncSourceErr },
 	)
 
 	t.Run("ok", func() {
-		t.NoError(f(nil, quicstream.UDPConnInfo{}))
+		t.NoError(f(nil, quicstream.ConnInfo{}))
 	})
 
 	t.Run("error remove sync source", func() {
@@ -1139,7 +1139,7 @@ func (t *testHandoverFuncs) TestHandoverYFinished() {
 			removeSyncSourceErr = nil
 		}()
 
-		err := f(nil, quicstream.UDPConnInfo{})
+		err := f(nil, quicstream.ConnInfo{})
 		t.Error(err)
 		t.ErrorContains(err, "hehehe")
 	})

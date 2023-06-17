@@ -99,7 +99,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	)
 
 	requestMissingBallotsf := isaacstates.RequestMissingBallots(
-		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
+		quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
 		m.CallbackBroadcast,
 	)
 
@@ -651,7 +651,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 		newclient := client.Clone()
 
-		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.UDPConnInfo](1 << 9) //nolint:gomnd //...
+		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1 << 9) //nolint:gomnd //...
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, isaacparams, syncSourcePool)
@@ -719,7 +719,7 @@ func syncerLastBlockMapFunc(
 	syncSourcePool *isaac.SyncSourcePool,
 ) isaacstates.SyncerLastBlockMapFunc {
 	f := func(
-		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
+		ctx context.Context, manifest util.Hash, ci quicstream.ConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
 		switch m, updated, err := client.LastBlockMap(ctx, ci, manifest); {
 		case err != nil, !updated:
@@ -745,7 +745,7 @@ func syncerLastBlockMapFunc(
 			uint64(numnodes),
 			nil,
 			func(_ context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.UDPConnInfo()
+				ci, err := nci.ConnInfo()
 				if err != nil {
 					return err
 				}
@@ -788,10 +788,10 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
 	params *LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
-	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
+	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
 	devdelay time.Duration,
 ) isaacblock.ImportBlocksBlockMapFunc {
-	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
+	f := func(ctx context.Context, height base.Height, ci quicstream.ConnInfo) (base.BlockMap, bool, error) {
 		if devdelay > 0 {
 			<-time.After(devdelay) // NOTE for testing
 		}
@@ -824,7 +824,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					numnodes,
 					uint64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-						ci, err := nci.UDPConnInfo()
+						ci, err := nci.ConnInfo()
 						if err != nil {
 							return err
 						}
@@ -869,7 +869,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
-	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
+	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
 	requestTimeoutf func() time.Duration,
 ) isaacblock.ImportBlocksBlockMapItemFunc {
 	nrequestTimeoutf := func() time.Duration {
@@ -885,7 +885,7 @@ func syncerBlockMapItemFunc(
 	) {
 		e := util.StringError("fetch blockmap item")
 
-		var ci quicstream.UDPConnInfo
+		var ci quicstream.ConnInfo
 
 		switch i, cfound := conninfocache.Value(height); {
 		case !cfound:

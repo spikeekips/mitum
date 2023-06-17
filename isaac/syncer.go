@@ -263,7 +263,7 @@ func (p *SyncSourcePool) Retry(
 				return true, nil
 			}
 
-			if _, err = nci.UDPConnInfo(); err != nil {
+			if _, err = nci.ConnInfo(); err != nil {
 				report(err)
 
 				return true, err
@@ -458,7 +458,7 @@ func DistributeWorkerWithSyncSourcePool(
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 
-		if _, err := nci.UDPConnInfo(); err != nil {
+		if _, err := nci.ConnInfo(); err != nil {
 			reports[index](err)
 
 			return err
@@ -501,7 +501,7 @@ func ErrGroupWorkerWithSyncSourcePool(
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 
-		if _, err := nci.UDPConnInfo(); err != nil {
+		if _, err := nci.ConnInfo(); err != nil {
 			reports[index](err)
 
 			return nil

@@ -50,7 +50,7 @@ func (c *QuicstreamClient) Clone() *QuicstreamClient {
 }
 
 func (c *QuicstreamClient) NewQuicstreamClient(
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 ) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
@@ -66,7 +66,7 @@ func (c *QuicstreamClient) NewQuicstreamClient(
 }
 
 func (c *QuicstreamClient) openstreamFunc(client *quicstream.PoolClient) quicstreamheader.OpenStreamFunc {
-	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
+	return func(ctx context.Context, ci quicstream.ConnInfo) (io.Reader, io.WriteCloser, error) {
 		return client.OpenStream(ctx, ci.UDPAddr(), c.NewQuicstreamClient(ci))
 	}
 }

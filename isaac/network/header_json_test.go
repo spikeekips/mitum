@@ -15,7 +15,7 @@ import (
 type baseTestCAHandoverHeader struct {
 	encoder.BaseTestEncode
 	enc  *jsonenc.Encoder
-	newf func(quicstream.UDPConnInfo, base.Address) interface{}
+	newf func(quicstream.ConnInfo, base.Address) interface{}
 }
 
 func (t *baseTestCAHandoverHeader) SetupSuite() {
@@ -28,7 +28,7 @@ func (t *baseTestCAHandoverHeader) SetupSuite() {
 }
 
 func (t *baseTestCAHandoverHeader) SetupTest() {
-	ci, err := quicstream.NewUDPConnInfoFromString("1.2.3.4:4321#tls_insecure")
+	ci, err := quicstream.NewConnInfoFromString("1.2.3.4:4321#tls_insecure")
 	t.NoError(err)
 
 	t.Encode = func() (interface{}, []byte) {
@@ -48,7 +48,7 @@ func TestStartHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
-	t.newf = func(ci quicstream.UDPConnInfo, address base.Address) interface{} {
+	t.newf = func(ci quicstream.ConnInfo, address base.Address) interface{} {
 		return NewStartHandoverHeader(ci, address)
 	}
 
@@ -74,7 +74,7 @@ func TestCheckHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
-	t.newf = func(ci quicstream.UDPConnInfo, address base.Address) interface{} {
+	t.newf = func(ci quicstream.ConnInfo, address base.Address) interface{} {
 		return NewCheckHandoverHeader(ci, address)
 	}
 
@@ -100,7 +100,7 @@ func TestAskHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
-	t.newf = func(ci quicstream.UDPConnInfo, address base.Address) interface{} {
+	t.newf = func(ci quicstream.ConnInfo, address base.Address) interface{} {
 		return NewAskHandoverHeader(ci, address)
 	}
 
@@ -231,7 +231,7 @@ func TestCheckHandoverXHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
-	t.newf = func(_ quicstream.UDPConnInfo, address base.Address) interface{} {
+	t.newf = func(_ quicstream.ConnInfo, address base.Address) interface{} {
 		return NewCheckHandoverXHeader(address)
 	}
 

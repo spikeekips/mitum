@@ -20,8 +20,8 @@ var MemberHint = hint.MustNewHint("memberlist-member-v0.0.1")
 
 type Member interface {
 	util.IsValider
-	UDPAddr() *net.UDPAddr
-	UDPConnInfo() quicstream.UDPConnInfo
+	Addr() *net.UDPAddr
+	ConnInfo() quicstream.ConnInfo
 	Name() string
 	Address() base.Address
 	Publickey() base.Publickey
@@ -137,12 +137,12 @@ func (n BaseMember) Name() string {
 	return n.name
 }
 
-func (n BaseMember) UDPAddr() *net.UDPAddr {
+func (n BaseMember) Addr() *net.UDPAddr {
 	return n.addr
 }
 
-func (n BaseMember) UDPConnInfo() quicstream.UDPConnInfo {
-	return quicstream.NewUDPConnInfo(n.addr, n.meta.tlsinsecure)
+func (n BaseMember) ConnInfo() quicstream.ConnInfo {
+	return quicstream.NewConnInfo(n.addr, n.meta.tlsinsecure)
 }
 
 func (n BaseMember) TLSInsecure() bool {

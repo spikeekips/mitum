@@ -86,7 +86,7 @@ type Memberlist struct {
 	m          *memberlist.Memberlist
 	delegate   *Delegate
 	members    *membersPool
-	cicache    *util.GCache[string, quicstream.UDPConnInfo]
+	cicache    *util.GCache[string, quicstream.ConnInfo]
 	cbcache    *util.GCache[string, []byte]
 	ebtimers   *util.SimpleTimers
 	ebrecords  util.LockedMap[string, []base.Address]
@@ -113,8 +113,8 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 		local:     local,
 		args:      args,
 		members:   newMembersPool(),
-		cicache:   util.NewLRUGCache[string, quicstream.UDPConnInfo](1 << 9), //nolint:gomnd //...
-		cbcache:   util.NewLRUGCache[string, []byte](1 << 13),                //nolint:gomnd //...
+		cicache:   util.NewLRUGCache[string, quicstream.ConnInfo](1 << 9), //nolint:gomnd //...
+		cbcache:   util.NewLRUGCache[string, []byte](1 << 13),             //nolint:gomnd //...
 		ebrecords: ebrecords,
 		ebtimers:  ebtimers,
 	}
@@ -139,14 +139,14 @@ func (srv *Memberlist) Start(ctx context.Context) error {
 	return srv.ContextDaemon.Start(ctx)
 }
 
-func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
+func (srv *Memberlist) Join(cis []quicstream.ConnInfo) error {
 	e := util.StringError("join")
 
 	if len(cis) < 1 {
 		return e.Errorf("empty conninfos")
 	}
 
-	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.UDPConnInfo) (bool, string) {
+	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.ConnInfo) (bool, string) {
 		if i.Addr() == nil {
 			return true, ""
 		}
@@ -156,8 +156,8 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return e.Errorf("duplicated conninfo found")
 	}
 
-	filtered := util.FilterSlice(cis, func(i quicstream.UDPConnInfo) bool {
-		return i.UDPAddr().String() != srv.local.UDPAddr().String()
+	filtered := util.FilterSlice(cis, func(i quicstream.ConnInfo) bool {
+		return i.UDPAddr().String() != srv.local.Addr().String()
 	})
 
 	fcis := make([]string, len(filtered))
@@ -325,7 +325,7 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 	defer buf.Reset()
 
 	switch err := srv.args.Encoder.StreamEncoder(buf).Encode(
-		NewConnInfoBroadcastMessage(id, srv.local.UDPConnInfo())); {
+		NewConnInfoBroadcastMessage(id, srv.local.ConnInfo())); {
 	case err != nil:
 		return err
 	default:
@@ -404,7 +404,7 @@ func (srv *Memberlist) EnsureBroadcast(
 
 	buf := bytes.NewBuffer(ensureBroadcastMessageHeaderPrefix)
 
-	switch i, err := srv.args.Encoder.Marshal(NewConnInfoBroadcastMessage(id, srv.local.UDPConnInfo())); {
+	switch i, err := srv.args.Encoder.Marshal(NewConnInfoBroadcastMessage(id, srv.local.ConnInfo())); {
 	case err != nil:
 		return err
 	default:
@@ -595,10 +595,10 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	case !ok:
 		return errors.Errorf("transport should be *quicmemberlist.Transport, not %T", config.Transport)
 	default:
-		i.getconninfof = func(addr *net.UDPAddr) quicstream.UDPConnInfo {
+		i.getconninfof = func(addr *net.UDPAddr) quicstream.ConnInfo {
 			j, found := srv.cicache.Get(addr.String())
 			if !found {
-				return quicstream.NewUDPConnInfo(addr, true)
+				return quicstream.NewConnInfo(addr, true)
 			}
 
 			return j
@@ -618,7 +618,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
-		i.storeconninfof = func(ci quicstream.UDPConnInfo) {
+		i.storeconninfof = func(ci quicstream.ConnInfo) {
 			srv.cicache.Set(ci.UDPAddr().String(), ci, 0)
 		}
 
@@ -636,7 +636,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 			if err != nil {
 				srv.Log().Trace().Err(err).Interface("member", member).Msg("set not allowed")
 
-				setnotallowedcache(member.UDPAddr().String())
+				setnotallowedcache(member.Addr().String())
 			}
 
 			return err
@@ -704,13 +704,13 @@ func (srv *Memberlist) whenLeft(member Member) {
 		srv.joinedLock.Lock()
 		defer srv.joinedLock.Unlock()
 
-		removed, _ := srv.members.Remove(member.UDPAddr())
+		removed, _ := srv.members.Remove(member.Addr())
 
 		switch {
 		case !srv.isJoined:
 		case srv.members.Len() < 1:
 			srv.isJoined = false
-		case srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()):
+		case srv.members.Len() < 2 && srv.members.Exists(srv.local.Addr()):
 			srv.isJoined = false
 		}
 
@@ -855,13 +855,13 @@ func (srv *Memberlist) notifyMsgEnsureBroadcastMessage(b []byte) ([]byte, error)
 
 func (srv *Memberlist) allowMember(member Member) error {
 	max := srv.args.ExtraSameMemberLimit()
-	id := memberid(member.UDPAddr())
+	id := memberid(member.Addr())
 
 	var extras uint64
 
 	srv.members.Traverse(func(n Member) bool {
 		switch {
-		case memberid(n.UDPAddr()) == id:
+		case memberid(n.Addr()) == id:
 		case n.Address().Equal(member.Address()):
 			extras++
 		}
@@ -1033,7 +1033,7 @@ func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (me
 		memberslen = len(members)
 
 		others = util.CountFilteredSlice(members, func(n Member) bool {
-			nid := memberid(n.UDPAddr())
+			nid := memberid(n.Addr())
 
 			switch {
 			case id != nid:
@@ -1061,7 +1061,7 @@ func (m *membersPool) MembersLen(node base.Address) int {
 }
 
 func (m *membersPool) Set(member Member) (added bool) {
-	_, _ = m.addrs.Set(memberid(member.UDPAddr()), func(_ Member, addrfound bool) (Member, error) {
+	_, _ = m.addrs.Set(memberid(member.Addr()), func(_ Member, addrfound bool) (Member, error) {
 		var members []Member
 
 		added = !addrfound

@@ -22,10 +22,10 @@ func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	discoveries := util.EmptyLocked[[]quicstream.UDPConnInfo]()
+	discoveries := util.EmptyLocked[[]quicstream.ConnInfo]()
 
 	if len(flag) > 0 {
-		v := make([]quicstream.UDPConnInfo, len(flag))
+		v := make([]quicstream.ConnInfo, len(flag))
 
 		for i := range flag {
 			ci, err := flag[i].ConnInfo()
@@ -42,7 +42,7 @@ func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx, DiscoveryContextKey, discoveries), nil
 }
 
-func GetDiscoveriesFromLocked(l *util.Locked[[]quicstream.UDPConnInfo]) []quicstream.UDPConnInfo {
+func GetDiscoveriesFromLocked(l *util.Locked[[]quicstream.ConnInfo]) []quicstream.ConnInfo {
 	switch i, isempty := l.Value(); {
 	case isempty:
 		return nil

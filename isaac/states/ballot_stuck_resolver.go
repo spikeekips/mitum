@@ -314,7 +314,7 @@ func FindMissingBallotsFromBallotboxFunc(
 }
 
 func RequestMissingBallots(
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 	broadcastf func([]byte, string, chan struct{}) error,
 ) func(context.Context, base.StagePoint, []base.Address) error {
 	return func(ctx context.Context, point base.StagePoint, nodes []base.Address) error {
@@ -394,7 +394,7 @@ func VoteSuffrageVotingFunc(
 var MissingBallotsRequestsMessageHint = hint.MustNewHint("missing-ballots-request-message-v0.0.1")
 
 type MissingBallotsRequestMessage struct {
-	ci    quicstream.UDPConnInfo
+	ci    quicstream.ConnInfo
 	nodes []base.Address
 	point base.StagePoint
 	hint.BaseHinter
@@ -403,7 +403,7 @@ type MissingBallotsRequestMessage struct {
 func NewMissingBallotsRequestsMessage(
 	point base.StagePoint,
 	nodes []base.Address,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 ) MissingBallotsRequestMessage {
 	return MissingBallotsRequestMessage{
 		BaseHinter: hint.NewBaseHinter(MissingBallotsRequestsMessageHint),
@@ -435,7 +435,7 @@ func (m MissingBallotsRequestMessage) IsValid([]byte) error {
 	return nil
 }
 
-func (m MissingBallotsRequestMessage) ConnInfo() quicstream.UDPConnInfo {
+func (m MissingBallotsRequestMessage) ConnInfo() quicstream.ConnInfo {
 	return m.ci
 }
 
@@ -448,9 +448,9 @@ func (m MissingBallotsRequestMessage) Nodes() []base.Address {
 }
 
 type missingBallotsRequestsMessageJSONMarshaler struct {
-	CI    quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
-	Nodes []base.Address         `json:"nodes"`
-	Point base.StagePoint        `json:"point"`
+	CI    quicstream.ConnInfo `json:"conn_info"` //nolint:tagliatelle //...
+	Nodes []base.Address      `json:"nodes"`
+	Point base.StagePoint     `json:"point"`
 	hint.BaseHinter
 }
 
@@ -464,9 +464,9 @@ func (m MissingBallotsRequestMessage) MarshalJSON() ([]byte, error) {
 }
 
 type missingBallotsRequestsMessageJSONUnmarshaler struct {
-	CI    quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
-	Nodes []string               `json:"nodes"`
-	Point base.StagePoint        `json:"point"`
+	CI    quicstream.ConnInfo `json:"conn_info"` //nolint:tagliatelle //...
+	Nodes []string            `json:"nodes"`
+	Point base.StagePoint     `json:"point"`
 	hint.BaseHinter
 }
 

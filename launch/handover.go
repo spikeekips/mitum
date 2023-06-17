@@ -66,7 +66,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 
 	args := isaacstates.NewHandoverXBrokerArgs(local, isaacparams.NetworkID())
 
-	args.SendMessageFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, msg isaacstates.HandoverMessage) error {
+	args.SendMessageFunc = func(ctx context.Context, ci quicstream.ConnInfo, msg isaacstates.HandoverMessage) error {
 		return client.HandoverMessage(ctx, ci, msg)
 	}
 	args.CheckIsReady = func() (bool, error) { return true, nil }
@@ -78,7 +78,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		func() error {
 			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
 		},
-		func(y base.Address, yci quicstream.UDPConnInfo) error {
+		func(y base.Address, yci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfo(
 				isaac.NewNode(local.Publickey(), y),
 				yci.Addr().String(),
@@ -96,7 +96,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 			return nil
 		},
 	)
-	args.WhenFinished = func(vp base.INITVoteproof, y base.Address, yci quicstream.UDPConnInfo) error {
+	args.WhenFinished = func(vp base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error {
 		return whenFinished(vp, y, yci)
 	}
 
@@ -104,7 +104,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		return pool.Proposal(facthash)
 	}
 
-	return func(ctx context.Context, yci quicstream.UDPConnInfo) (*isaacstates.HandoverXBroker, error) {
+	return func(ctx context.Context, yci quicstream.ConnInfo) (*isaacstates.HandoverXBroker, error) {
 		broker := isaacstates.NewHandoverXBroker(ctx, args, yci)
 
 		_ = broker.SetLogging(log)
@@ -146,11 +146,11 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return nil, err
 	}
 
-	localci := quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
 	args := isaacstates.NewHandoverYBrokerArgs(isaacparams.NetworkID())
 
-	args.SendMessageFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, msg isaacstates.HandoverMessage) error {
+	args.SendMessageFunc = func(ctx context.Context, ci quicstream.ConnInfo, msg isaacstates.HandoverMessage) error {
 		return client.HandoverMessage(ctx, ci, msg)
 	}
 
@@ -171,7 +171,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	handoverYLog = util.EmptyLocked[[]json.RawMessage]()
 
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
-		func(xci quicstream.UDPConnInfo) error {
+		func(xci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfo(
 				isaac.NewNode(local.Publickey(), local.Address()),
 				xci.Addr().String(),
@@ -183,7 +183,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 			return nil
 		},
 	)
-	args.WhenFinished = func(vp base.INITVoteproof, xci quicstream.UDPConnInfo) error {
+	args.WhenFinished = func(vp base.INITVoteproof, xci quicstream.ConnInfo) error {
 		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover y finished")
 
 		logHandoverYf(
@@ -209,7 +209,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		func() error {
 			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
 		},
-		func(xci quicstream.UDPConnInfo) error {
+		func(xci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfo(
 				isaac.NewNode(local.Publickey(), local.Address()),
 				xci.Addr().String(),
@@ -222,7 +222,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		},
 	)
 
-	args.WhenCanceled = func(err error, xci quicstream.UDPConnInfo) {
+	args.WhenCanceled = func(err error, xci quicstream.ConnInfo) {
 		log.Log().Debug().Err(err).Msg("handover y canceled")
 
 		whenCanceled(err, xci)
@@ -238,7 +238,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 	args.AskRequestFunc = isaacstates.NewAskHandoverFunc(
 		local.Address(),
-		func(ctx context.Context, ci quicstream.UDPConnInfo) error {
+		func(ctx context.Context, ci quicstream.ConnInfo) error {
 			donech := long.Join(ci)
 			if donech == nil {
 				return nil
@@ -251,12 +251,12 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 				return nil
 			}
 		},
-		func(ctx context.Context, x base.Address, xci quicstream.UDPConnInfo) (string, bool, error) {
+		func(ctx context.Context, x base.Address, xci quicstream.ConnInfo) (string, bool, error) {
 			return client.AskHandover(ctx, xci, local.Privatekey(), isaacparams.NetworkID(), local.Address(), localci)
 		},
 	)
 
-	return func(ctx context.Context, xci quicstream.UDPConnInfo) (*isaacstates.HandoverYBroker, error) {
+	return func(ctx context.Context, xci quicstream.ConnInfo) (*isaacstates.HandoverYBroker, error) {
 		broker := isaacstates.NewHandoverYBroker(ctx, args, xci)
 
 		_ = broker.SetLogging(log)
@@ -293,7 +293,7 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	localci := quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
 	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
 		return pctx, err
@@ -332,7 +332,7 @@ func attachStartHandoverHandler(
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.Params,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 ) error {
 	var states *isaacstates.States
 	var client *isaacnetwork.QuicstreamClient
@@ -357,7 +357,7 @@ func attachStartHandoverHandler(
 				func() bool {
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
-				func(ctx context.Context, x base.Address, xci quicstream.UDPConnInfo) error {
+				func(ctx context.Context, x base.Address, xci quicstream.ConnInfo) error {
 					switch ok, err := client.CheckHandover(
 						ctx, xci, local.Privatekey(), params.NetworkID(), local.Address(), localci); {
 					case err != nil:
@@ -368,7 +368,7 @@ func attachStartHandoverHandler(
 						return nil
 					}
 				},
-				func(x base.Address, xci quicstream.UDPConnInfo) error {
+				func(x base.Address, xci quicstream.ConnInfo) error {
 					nci := isaacnetwork.NewNodeConnInfo(
 						isaac.NewNode(local.Publickey(), x),
 						xci.Addr().String(),
@@ -433,7 +433,7 @@ func attachCheckHandoverHandler(
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.Params,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 ) error {
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
@@ -474,7 +474,7 @@ func attachAskHandoverHandler(
 	encs *encoder.Encoders,
 	local base.LocalNode,
 	params *isaac.Params,
-	localci quicstream.UDPConnInfo,
+	localci quicstream.ConnInfo,
 ) error {
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
@@ -497,7 +497,7 @@ func attachAskHandoverHandler(
 				func() bool {
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
-				func(yci quicstream.UDPConnInfo) (bool, error) {
+				func(yci quicstream.ConnInfo) (bool, error) {
 					switch ok, err := isMemberlistJoined(local.Address(), memberlist, sp); {
 					case err != nil:
 						return false, err
@@ -712,7 +712,7 @@ func attachSyncDataFuncForHandoverY(
 		return err
 	}
 
-	args.SyncDataFunc = func(ctx context.Context, xci quicstream.UDPConnInfo, readych chan<- struct{}) error {
+	args.SyncDataFunc = func(ctx context.Context, xci quicstream.ConnInfo, readych chan<- struct{}) error {
 		var lastoffset []byte
 
 		ticker := time.NewTicker(time.Millisecond * 333)

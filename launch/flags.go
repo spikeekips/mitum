@@ -44,7 +44,7 @@ func (f AddressFlag) Address() base.Address {
 }
 
 type ConnInfoFlag struct {
-	ci          quicstream.UDPConnInfo
+	ci          quicstream.ConnInfo
 	addr        string
 	tlsinsecure bool
 }
@@ -71,11 +71,11 @@ func (f ConnInfoFlag) MarshalText() ([]byte, error) {
 	return []byte(f.String()), nil
 }
 
-func (f *ConnInfoFlag) ConnInfo() (quicstream.UDPConnInfo, error) {
+func (f *ConnInfoFlag) ConnInfo() (quicstream.ConnInfo, error) {
 	if f.ci.Addr() == nil {
-		ci, err := quicstream.NewUDPConnInfoFromStringAddress(f.addr, f.tlsinsecure)
+		ci, err := quicstream.NewConnInfoFromStringAddress(f.addr, f.tlsinsecure)
 		if err != nil {
-			return quicstream.UDPConnInfo{}, errors.Wrap(err, "convert to quic ConnInfo")
+			return quicstream.ConnInfo{}, errors.Wrap(err, "convert to quic ConnInfo")
 		}
 
 		f.ci = ci

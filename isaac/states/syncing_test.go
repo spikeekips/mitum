@@ -978,15 +978,15 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 		}
 
 		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
-		args.SyncDataFunc = func(context.Context, quicstream.UDPConnInfo, chan<- struct{}) error {
+		args.SyncDataFunc = func(context.Context, quicstream.ConnInfo, chan<- struct{}) error {
 			// NOTE not ready
 			return nil
 		}
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return "", false, nil
 		}
 
-		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		st.handoverYBrokerFunc = func() *HandoverYBroker {
 			return broker
 		}
@@ -1021,18 +1021,18 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 		}
 
 		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
 		}
 
 		handoverid := util.UUID().String()
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return handoverid, false, nil
 		}
 
-		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		broker.checkSyncedDataDone()
 
 		st.handoverYBrokerFunc = func() *HandoverYBroker {
@@ -1089,16 +1089,16 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 		}
 
 		args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
-		args.SyncDataFunc = func(_ context.Context, _ quicstream.UDPConnInfo, readych chan<- struct{}) error {
+		args.SyncDataFunc = func(_ context.Context, _ quicstream.ConnInfo, readych chan<- struct{}) error {
 			readych <- struct{}{}
 
 			return nil
 		}
-		args.AskRequestFunc = func(context.Context, quicstream.UDPConnInfo) (string, bool, error) {
+		args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return util.UUID().String(), true, nil // NOTE can move consensus
 		}
 
-		broker := NewHandoverYBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverYBroker(context.Background(), args, quicstream.ConnInfo{})
 		st.handoverYBrokerFunc = func() *HandoverYBroker {
 			broker.checkSyncedDataDone()
 

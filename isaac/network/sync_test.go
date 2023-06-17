@@ -97,7 +97,7 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstreamheader.OpenS
 		donech <- handlerf()
 	}()
 
-	return func(context.Context, quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
+	return func(context.Context, quicstream.ConnInfo) (io.Reader, io.WriteCloser, error) {
 			return cr, cw, nil
 		}, func() {
 			hr.Close()
@@ -121,7 +121,7 @@ func (t *testSyncSourceChecker) openstreamfs(handlersmap map[string]*handlers) (
 		n++
 	}
 
-	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
+	return func(ctx context.Context, ci quicstream.ConnInfo) (io.Reader, io.WriteCloser, error) {
 			op, found := ops[ci.String()]
 			if !found {
 				return nil, nil, errors.Errorf("unknown conn, %q", ci.String())
@@ -155,7 +155,7 @@ func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[strin
 	locals, ncis := t.ncis(n)
 
 	for i := range ncis {
-		ci, err := ncis[i].UDPConnInfo()
+		ci, err := ncis[i].ConnInfo()
 		t.NoError(err)
 
 		handlersmap[ci.String()] = &handlers{localParams: t.LocalParams, local: locals[i], encs: t.Encs, idletimeout: time.Second}

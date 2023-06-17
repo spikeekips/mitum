@@ -37,7 +37,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 
 		t.NoError(nci.IsValid(nil))
 
-		_, err := nci.UDPConnInfo()
+		_, err := nci.ConnInfo()
 		t.Error(err)
 
 		var dnserr *net.DNSError
@@ -51,7 +51,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 
 		t.NoError(nci.IsValid(nil))
 
-		_, err := nci.UDPConnInfo()
+		_, err := nci.ConnInfo()
 		t.Error(err)
 
 		var dnserr *net.DNSError

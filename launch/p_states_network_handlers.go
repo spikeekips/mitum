@@ -93,7 +93,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 			func(ctx context.Context, header isaacnetwork.OperationRequestHeader) (
 				enchint hint.Hint, body []byte, found bool, _ error,
 			) {
-				var ci quicstream.UDPConnInfo
+				var ci quicstream.ConnInfo
 
 				switch xbroker := states.HandoverYBroker(); {
 				case xbroker == nil:
@@ -258,7 +258,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 				func(ctx context.Context, header isaacnetwork.RequestProposalRequestHeader) (
 					base.ProposalSignFact, error,
 				) {
-					var connInfo quicstream.UDPConnInfo
+					var connInfo quicstream.ConnInfo
 
 					switch broker := states.HandoverYBroker(); {
 					case broker == nil:
@@ -283,7 +283,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 			isaacnetwork.QuicstreamHandlerProposal(
 				pool,
 				func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
-					var connInfo quicstream.UDPConnInfo
+					var connInfo quicstream.ConnInfo
 
 					switch broker := states.HandoverYBroker(); {
 					case broker == nil:

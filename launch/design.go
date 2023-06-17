@@ -585,7 +585,7 @@ func IsValidSyncSourcesDesign(
 		switch t := s.Source.(type) {
 		case isaac.NodeConnInfo:
 			ci = t
-		case quicstream.UDPConnInfo,
+		case quicstream.ConnInfo,
 			quicmemberlist.NamedConnInfo:
 			ci = t.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 		default:

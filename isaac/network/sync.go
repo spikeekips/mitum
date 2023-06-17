@@ -55,7 +55,7 @@ func (s SyncSource) IsValid([]byte) error {
 
 	switch s.Source.(type) {
 	case isaac.NodeConnInfo,
-		quicstream.UDPConnInfo,
+		quicstream.ConnInfo,
 		quicmemberlist.NamedConnInfo,
 		*url.URL:
 	default:
@@ -68,7 +68,7 @@ func (s SyncSource) IsValid([]byte) error {
 			s.Type != SyncSourceTypeSyncSources {
 			return e.Errorf("invalid type for NodeConnInfo, %v", s.Type)
 		}
-	case quicstream.UDPConnInfo:
+	case quicstream.ConnInfo:
 		if s.Type != SyncSourceTypeSuffrageNodes && s.Type != SyncSourceTypeSyncSources {
 			return e.Errorf("invalid type for UDPConnInfo, %v", s.Type)
 		}
@@ -408,7 +408,7 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		return e.Wrap(err)
 	}
 
-	ci, err := nci.UDPConnInfo()
+	ci, err := nci.ConnInfo()
 
 	var dnserr *net.DNSError
 
@@ -437,19 +437,19 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 
 func (c *SyncSourceChecker) fetchNodeConnInfos(
 	ctx context.Context, source interface{},
-	request func(context.Context, quicstream.UDPConnInfo) ([]isaac.NodeConnInfo, error),
+	request func(context.Context, quicstream.ConnInfo) ([]isaac.NodeConnInfo, error),
 ) (ncis []isaac.NodeConnInfo, _ error) {
-	var ci quicstream.UDPConnInfo
+	var ci quicstream.ConnInfo
 
 	switch t := source.(type) {
-	case quicstream.UDPConnInfo:
+	case quicstream.ConnInfo:
 		ci = t
 	case isaac.NodeConnInfo, quicmemberlist.NamedConnInfo:
 		i := t.(interface { //nolint:forcetypeassert //...
-			UDPConnInfo() (quicstream.UDPConnInfo, error)
+			ConnInfo() (quicstream.ConnInfo, error)
 		})
 
-		j, err := i.UDPConnInfo()
+		j, err := i.ConnInfo()
 		if err != nil {
 			return nil, err
 		}

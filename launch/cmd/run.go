@@ -135,7 +135,7 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 }
 
 func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
-	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var states *isaacstates.States
 
 	if err := util.LoadFromContextOK(pctx,

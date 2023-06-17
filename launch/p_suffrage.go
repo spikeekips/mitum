@@ -475,7 +475,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 
 	lastl := util.EmptyLocked[util.Hash]()
 
-	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.Height, base.SuffrageProof, bool, error) {
+	f := func(ctx context.Context, ci quicstream.ConnInfo) (base.Height, base.SuffrageProof, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
 		defer cancel()
 
@@ -507,7 +507,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 			uint64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.UDPConnInfo()
+				ci, err := nci.ConnInfo()
 				if err != nil {
 					return err
 				}
@@ -581,7 +581,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 					numnodes,
 					uint64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-						ci, err := nci.UDPConnInfo()
+						ci, err := nci.ConnInfo()
 						if err != nil {
 							return err
 						}
@@ -644,7 +644,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 
 	lastl := util.EmptyLocked[util.Hash]()
 
-	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
+	f := func(ctx context.Context, ci quicstream.ConnInfo) (base.State, bool, error) {
 		last, _ := lastl.Value()
 
 		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
@@ -678,7 +678,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 			uint64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.UDPConnInfo()
+				ci, err := nci.ConnInfo()
 				if err != nil {
 					return err
 				}

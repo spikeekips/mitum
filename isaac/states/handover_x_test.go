@@ -23,7 +23,7 @@ func (t *testHandoverXBroker) TestNew() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	broker := NewHandoverXBroker(ctx, args, quicstream.UDPConnInfo{})
+	broker := NewHandoverXBroker(ctx, args, quicstream.ConnInfo{})
 
 	t.Run("isCanceled", func() {
 		t.NoError(broker.isCanceled())
@@ -52,7 +52,7 @@ func (t *testHandoverXBroker) TestNew() {
 	t.Run("cancel(); isCanceled", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		t.NoError(broker.isCanceled())
 
@@ -82,7 +82,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	broker := NewHandoverXBroker(ctx, args, quicstream.UDPConnInfo{})
+	broker := NewHandoverXBroker(ctx, args, quicstream.ConnInfo{})
 
 	point := base.RawPoint(33, 44)
 
@@ -116,13 +116,13 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		t.setReady(broker)
 
 		fch := make(chan struct{}, 1)
-		broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
+		broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil
 		}
 		defer func() {
-			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error { return nil }
+			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil }
 		}()
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
@@ -152,9 +152,9 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 	t.Run("send failed", func() {
 		args := t.xargs()
 		args.MaxEnsureSendFailure = 0
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
-		broker.args.SendMessageFunc = func(context.Context, quicstream.UDPConnInfo, HandoverMessage) error {
+		broker.args.SendMessageFunc = func(context.Context, quicstream.ConnInfo, HandoverMessage) error {
 			return errors.Errorf("hihihi")
 		}
 
@@ -184,7 +184,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 func (t *testHandoverXBroker) TestReceiveStagePoint() {
 	args := t.xargs()
 
-	broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+	broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 	point := base.RawPoint(33, 44)
 
@@ -199,7 +199,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
-	broker = NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+	broker = NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 	t.Run("receive", func() {
 		point = point.NextHeight()
@@ -256,7 +256,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; wrong address", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), base.RandomLocalNode(), nil))
 		err := broker.Receive(hm)
@@ -273,7 +273,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; wrong publickey", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		local := base.NewBaseLocalNode(base.DummyNodeHint, base.NewMPrivatekey(), t.Local.Address())
 
@@ -292,7 +292,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive without no previous voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), t.Local, nil))
 		t.Error(broker.Receive(hm))
@@ -307,7 +307,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not accept voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), t.Local, nil))
 
@@ -325,7 +325,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not majority accept voteproof and stagepoint", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		avp, _ := t.VoteproofsPair(point.Point, point.NextHeight(), nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		avp.SetMajority(nil)
@@ -345,7 +345,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not majority accept voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -366,7 +366,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last accept voteproof, but different manifest hash", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -386,7 +386,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -410,7 +410,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("invalid; cancel", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		bm.M = nil
@@ -433,7 +433,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 	t.Run("wrong ID", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		h := newHandoverMessageChallengeStagePoint(util.UUID().String(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.Receive(h))
@@ -446,7 +446,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 	t.Run("before no previous voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.Receive(h))
@@ -459,7 +459,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 	t.Run("not higher previous HandoverMessageChallenge", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
@@ -480,7 +480,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 		args := t.xargs()
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -488,7 +488,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -519,7 +519,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 		args.MinChallengeCount = 1
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -527,7 +527,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -561,7 +561,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 		}
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -569,7 +569,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -600,7 +600,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 		}
 
 		sendch := make(chan HandoverMessageChallengeResponse, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
@@ -608,7 +608,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -641,7 +641,7 @@ func (t *testHandoverXBroker) TestFinish() {
 		args := t.xargs()
 
 		sendch := make(chan HandoverMessageFinish, 1)
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			if h, ok := i.(HandoverMessageFinish); ok {
 				sendch <- h
 			}
@@ -649,13 +649,13 @@ func (t *testHandoverXBroker) TestFinish() {
 			return nil
 		}
 		fch := make(chan struct{}, 1)
-		args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.UDPConnInfo) error {
+		args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		t.NoError(broker.finish(nil, nil))
 
 		select {
@@ -678,11 +678,11 @@ func (t *testHandoverXBroker) TestFinish() {
 	t.Run("finish; but failed to send", func() {
 		args := t.xargs()
 
-		args.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, i HandoverMessage) error {
+		args.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, i HandoverMessage) error {
 			return errors.Errorf("failed to send")
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 		err := broker.finish(nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "failed to send")
@@ -698,7 +698,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 
 	t.Run("ok", func() {
 		args := t.xargs()
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
@@ -724,7 +724,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 
 	t.Run("not serial", func() {
 		args := t.xargs()
-		broker := NewHandoverXBroker(context.Background(), args, quicstream.UDPConnInfo{})
+		broker := NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)

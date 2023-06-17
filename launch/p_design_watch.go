@@ -125,7 +125,7 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 	var enc *jsonenc.Encoder
 	var design NodeDesign
 	var params *LocalParams
-	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
@@ -525,7 +525,7 @@ func updateSyncSources(
 }
 
 func updateDiscoveries(
-	discoveries *util.Locked[[]quicstream.UDPConnInfo],
+	discoveries *util.Locked[[]quicstream.ConnInfo],
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
@@ -536,7 +536,7 @@ func updateDiscoveries(
 			return e.Wrap(err)
 		}
 
-		cis := make([]quicstream.UDPConnInfo, len(sl))
+		cis := make([]quicstream.ConnInfo, len(sl))
 
 		for i := range sl {
 			if err := network.IsValidAddr(sl[i]); err != nil {
@@ -545,7 +545,7 @@ func updateDiscoveries(
 
 			addr, tlsinsecure := network.ParseTLSInsecure(sl[i])
 
-			ci, err := quicstream.NewUDPConnInfoFromStringAddress(addr, tlsinsecure)
+			ci, err := quicstream.NewConnInfoFromStringAddress(addr, tlsinsecure)
 			if err != nil {
 				return e.Wrap(err)
 			}

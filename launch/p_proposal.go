@@ -157,7 +157,7 @@ func getProposalFunc(pctx context.Context) (
 			defer worker.Done()
 
 			m.Remotes(func(node quicmemberlist.Member) bool {
-				ci := node.UDPConnInfo()
+				ci := node.ConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
 					cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
@@ -344,7 +344,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 				return true
 			}
 
-			ci, err := nci.UDPConnInfo()
+			ci, err := nci.ConnInfo()
 			if err != nil {
 				return true
 			}
@@ -419,7 +419,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 				return true
 			}
 
-			if _, err := nci.UDPConnInfo(); err == nil {
+			if _, err := nci.ConnInfo(); err == nil {
 				proposernci = nci
 			}
 
@@ -430,7 +430,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return false, nil, false, nil
 		}
 
-		ci, err := proposernci.UDPConnInfo()
+		ci, err := proposernci.ConnInfo()
 		if err != nil {
 			return true, nil, false, err
 		}
@@ -565,7 +565,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			33, //nolint:gomnd //...
 			func(node quicmemberlist.Member) bool {
 				switch {
-				case node.UDPConnInfo().Addr() == nil,
+				case node.ConnInfo().Addr() == nil,
 					node.Address().Equal(local.Address()):
 					return true
 				default:
@@ -579,14 +579,14 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 
 		var foundproposer bool
 
-		cis := make([]quicstream.UDPConnInfo, len(members))
+		cis := make([]quicstream.ConnInfo, len(members))
 
 		for i := range members {
 			if !foundproposer && members[i].Address().Equal(proposer.Address()) {
 				foundproposer = true
 			}
 
-			cis[i] = members[i].UDPConnInfo()
+			cis[i] = members[i].ConnInfo()
 		}
 
 		if len(cis) < 1 {
@@ -596,8 +596,8 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		if !foundproposer { // NOTE include proposer conn info
 			m.Members(func(node quicmemberlist.Member) bool {
 				if node.Address().Equal(proposer.Address()) {
-					if node.UDPConnInfo().Addr() != nil {
-						cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...
+					if node.ConnInfo().Addr() != nil {
+						cis = append(cis, node.ConnInfo()) //nolint:makezero //...
 					}
 
 					return false

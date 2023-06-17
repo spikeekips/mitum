@@ -53,7 +53,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 		info.SetNetworkPolicy(isaac.DefaultNetworkPolicy())
 		info.SetLocalParams(isaac.DefaultParams(networkID))
 
-		ci, err := quicstream.NewUDPConnInfoFromStringAddress("1.2.3.4:4321", true)
+		ci, err := quicstream.NewConnInfoFromStringAddress("1.2.3.4:4321", true)
 		t.NoError(err)
 		info.SetConnInfo(ci.String())
 

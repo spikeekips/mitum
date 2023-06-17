@@ -48,10 +48,10 @@ func (t *testMemberlist) SetupTest() {
 	t.BaseTest.SetupTest()
 }
 
-func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
+func (t *testMemberlist) newConnInfo() quicstream.ConnInfo {
 	addr := t.BaseTest.NewAddr()
 
-	return quicstream.NewUDPConnInfo(addr, true)
+	return quicstream.NewConnInfo(addr, true)
 }
 
 func (t *testMemberlist) newargs(config *memberlist.Config) *MemberlistArgs {
@@ -67,7 +67,7 @@ func (t *testMemberlist) TestNew() {
 
 	config.Delegate = NewDelegate(local, nil, nil)
 	config.Transport = &Transport{args: NewTransportArgs()}
-	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil, nil)
+	config.Alive = NewAliveDelegate(t.enc, local.Addr(), nil, nil)
 
 	args := t.newargs(config)
 
@@ -80,7 +80,7 @@ func (t *testMemberlist) TestNew() {
 
 func (t *testMemberlist) newServersForJoining(
 	node base.Address,
-	ci quicstream.UDPConnInfo,
+	ci quicstream.ConnInfo,
 	whenJoined DelegateJoinedFunc,
 	whenLeft DelegateLeftFunc,
 ) (
@@ -101,7 +101,7 @@ func (t *testMemberlist) newServersForJoining(
 		laddr,
 		transportprefix,
 		poolclient,
-		func(ci quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client {
+		func(ci quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
 				return quicstream.NewClient(
 					ci.UDPAddr(),
@@ -245,7 +245,7 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 	})
 
 	t.Run("join again", func() {
-		t.NoError(srv.Join([]quicstream.UDPConnInfo{lci}))
+		t.NoError(srv.Join([]quicstream.ConnInfo{lci}))
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -302,7 +302,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -321,7 +321,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -344,7 +344,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -400,7 +400,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	err := lsrv.Join([]quicstream.ConnInfo{rci})
 	t.NoError(err)
 
 	select {
@@ -463,7 +463,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	err := lsrv.Join([]quicstream.ConnInfo{rci})
 	t.NoError(err)
 
 	select {
@@ -524,7 +524,7 @@ func (t *testMemberlist) TestLocalLeave() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -561,7 +561,7 @@ func (t *testMemberlist) TestLocalLeave() {
 	}
 
 	t.Run("join again", func() {
-		t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+		t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -623,7 +623,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -717,7 +717,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 	<-time.After(time.Second)
 	t.T().Logf("trying to join to remotes, %q, %q", rci0, rci1)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci0, rci1}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0, rci1}))
 
 	err := <-alljoinedch
 	t.NoError(err)
@@ -762,7 +762,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rstopf0()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci0}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -789,7 +789,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rstopf1()
 
 	<-time.After(time.Second)
-	t.NoError(rsrv1.Join([]quicstream.UDPConnInfo{lci}))
+	t.NoError(rsrv1.Join([]quicstream.ConnInfo{lci}))
 
 	<-time.After(time.Second * 3)
 	t.Equal(2, lsrv.MembersLen())
@@ -810,7 +810,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	t.Equal(2, lsrv.MembersLen())
 	t.Equal(1, len(joinedremotes))
-	t.True(isEqualAddress(rci0, joinedremotes[0].UDPAddr()))
+	t.True(isEqualAddress(rci0, joinedremotes[0].Addr()))
 }
 
 func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
@@ -868,7 +868,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err = lsrv.Join([]quicstream.UDPConnInfo{rci})
+	err = lsrv.Join([]quicstream.ConnInfo{rci})
 	t.NoError(err)
 
 	select {
@@ -898,7 +898,7 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 	t.NoError(lstartf())
 	defer lstopf()
 
-	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	err := lsrv.Join([]quicstream.ConnInfo{rci})
 	t.Error(err)
 }
 
@@ -906,15 +906,15 @@ func (t *testMemberlist) checkJoined(
 	lsrv, rsrv *Memberlist,
 	ljoinedch, rjoinedch chan Member,
 ) {
-	lci := lsrv.local.UDPConnInfo()
-	rci := rsrv.local.UDPConnInfo()
+	lci := lsrv.local.ConnInfo()
+	rci := rsrv.local.ConnInfo()
 
-	addrs := []*net.UDPAddr{lsrv.local.UDPAddr(), rsrv.local.UDPAddr()}
+	addrs := []*net.UDPAddr{lsrv.local.Addr(), rsrv.local.Addr()}
 	sort.Slice(addrs, func(i, j int) bool {
 		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
 	})
 
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -933,7 +933,7 @@ func (t *testMemberlist) checkJoined(
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -956,7 +956,7 @@ func (t *testMemberlist) checkJoined(
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -969,13 +969,13 @@ func (t *testMemberlist) checkJoined2(
 	rsrvs []*Memberlist,
 	rjoinedchs []chan struct{},
 ) {
-	rcis := make([]quicstream.UDPConnInfo, len(rsrvs))
+	rcis := make([]quicstream.ConnInfo, len(rsrvs))
 
 	expectedjoined := make([]string, len(rsrvs)+1)
-	expectedjoined[0] = lsrv.local.UDPConnInfo().String()
+	expectedjoined[0] = lsrv.local.ConnInfo().String()
 	for i := range rsrvs {
-		rcis[i] = rsrvs[i].local.UDPConnInfo()
-		expectedjoined[i+1] = rsrvs[i].local.UDPConnInfo().String()
+		rcis[i] = rsrvs[i].local.ConnInfo()
+		expectedjoined[i+1] = rsrvs[i].local.ConnInfo().String()
 	}
 
 	sort.Slice(expectedjoined, func(i, j int) bool {
@@ -993,7 +993,7 @@ func (t *testMemberlist) checkJoined2(
 
 		var joined []string
 		lsrv.Members(func(node Member) bool {
-			joined = append(joined, node.UDPConnInfo().String())
+			joined = append(joined, node.ConnInfo().String())
 
 			return true
 		})
@@ -1017,7 +1017,7 @@ func (t *testMemberlist) checkJoined2(
 
 			var joined []string
 			srv.Members(func(node Member) bool {
-				joined = append(joined, node.UDPConnInfo().String())
+				joined = append(joined, node.ConnInfo().String())
 
 				return true
 			})
@@ -1138,7 +1138,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
 		ctx context.Context,
-		addr quicstream.UDPConnInfo,
+		addr quicstream.ConnInfo,
 	) (io.Reader, io.WriteCloser, error) {
 		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})
@@ -1215,7 +1215,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	handlerprefix := quicstream.HashPrefix("eb")
 	networkID := base.NetworkID(util.UUID().Bytes())
 
-	rcis := make([]quicstream.UDPConnInfo, 3)
+	rcis := make([]quicstream.ConnInfo, 3)
 	rnodes := make([]base.LocalNode, len(rcis))
 	rsrvs := make([]*Memberlist, len(rcis))
 	rstartfs := make([]func() error, len(rcis))
@@ -1247,7 +1247,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
 		ctx context.Context,
-		addr quicstream.UDPConnInfo,
+		addr quicstream.ConnInfo,
 	) (io.Reader, io.WriteCloser, error) {
 		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})

@@ -1049,7 +1049,7 @@ func (t *testConsensusHandler) TestSendBallotForHandoverBrokerX() {
 
 	connInfo := quicstream.RandomConnInfo()
 	brokerargs := NewHandoverXBrokerArgs(t.Local, t.LocalParams.NetworkID())
-	brokerargs.SendMessageFunc = func(_ context.Context, _ quicstream.UDPConnInfo, msg HandoverMessage) error {
+	brokerargs.SendMessageFunc = func(_ context.Context, _ quicstream.ConnInfo, msg HandoverMessage) error {
 		switch md, ok := msg.(HandoverMessageData); {
 		case !ok:
 			return nil
