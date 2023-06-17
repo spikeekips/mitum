@@ -549,7 +549,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		}
 
 		// NOTE challenge with publish address
-		if !network.EqualConnInfo(node.ConnInfo(), ci) {
+		if !network.DeepEqualConnInfo(node.ConnInfo(), ci) {
 			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
 			defer cancel()
 

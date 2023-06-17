@@ -46,7 +46,7 @@ func ConnInfoToString(addr string, tlsinsecure bool) string { // revive:disable-
 	return addr + ti
 }
 
-func EqualConnInfo(a, b ConnInfo) bool {
+func DeepEqualConnInfo(a, b ConnInfo) bool {
 	switch {
 	case a == nil, b == nil:
 		return false

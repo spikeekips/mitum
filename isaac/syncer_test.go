@@ -563,7 +563,7 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 
 		for i := range ncis {
 			t.True(slices.IndexFunc[NodeConnInfo](sources, func(n NodeConnInfo) bool {
-				return ncis[i].String() == n.String()
+				return ncis[i].Addr().String() == n.Addr().String()
 			}) >= 0)
 		}
 	})
