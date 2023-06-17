@@ -806,13 +806,15 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 	ctx, cancel := context.WithTimeout(context.Background(), srv.args.FetchCallbackBroadcastMessageTimeout)
 	defer cancel()
 
+	l := srv.Log().With().Str("message_id", m.ID()).Logger()
+
 	switch body, enc, err := srv.args.FetchCallbackBroadcastMessageFunc(ctx, m); {
 	case err != nil:
-		srv.Log().Trace().Err(err).Msg("failed to fetch callback broadcast message")
+		l.Trace().Err(err).Msg("failed to fetch callback broadcast message")
 
 		return nil, nil, err
 	case enc == nil:
-		srv.Log().Trace().Msg("failed to fetch callback broadcast message; empty message")
+		l.Trace().Msg("failed to fetch callback broadcast message; empty message")
 
 		return nil, nil, errors.Errorf("empty message")
 	default:
