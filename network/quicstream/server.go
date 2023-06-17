@@ -49,7 +49,7 @@ func NewServer(
 	return srv, nil
 }
 
-func (srv *Server) start(ctx context.Context, listener quic.EarlyListener) error {
+func (srv *Server) start(ctx context.Context, listener *quic.EarlyListener) error {
 	go srv.accept(ctx, listener)
 
 	<-ctx.Done()
@@ -61,7 +61,7 @@ func (srv *Server) start(ctx context.Context, listener quic.EarlyListener) error
 	return nil
 }
 
-func (srv *Server) accept(ctx context.Context, listener quic.EarlyListener) {
+func (srv *Server) accept(ctx context.Context, listener *quic.EarlyListener) {
 	for {
 		session, err := listener.Accept(ctx)
 		if err != nil {

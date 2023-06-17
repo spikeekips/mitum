@@ -35,7 +35,7 @@ func (srv *Server) StopWait() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 			defer cancel()
 
-			conn, err := quic.DialAddrEarlyContext(ctx, srv.bind.String(), srv.tlsconfig, nil)
+			conn, err := quic.DialAddrEarly(ctx, srv.bind.String(), srv.tlsconfig, nil)
 			if err != nil {
 				return true
 			}

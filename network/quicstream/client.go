@@ -152,7 +152,7 @@ func dial(
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
 ) (quic.EarlyConnection, error) {
-	c, err := quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
+	c, err := quic.DialAddrEarly(ctx, addr, tlsconfig, quicconfig)
 
 	return c, errors.WithStack(err)
 }
