@@ -225,9 +225,11 @@ func (broker *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSi
 			return false, util.ErrLockedSetIgnore.WithStack()
 		}
 
-		if err := broker.whenFinished(ivp); err != nil {
-			return false, err
-		}
+		defer func() {
+			if err := broker.whenFinished(ivp); err != nil {
+				broker.Log().Error().Err(err).Msg("failed to finish")
+			}
+		}()
 
 		hc := newHandoverMessageFinish(broker.id, ivp, pr)
 
