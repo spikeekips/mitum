@@ -1,22 +1,38 @@
 package launch
 
 import (
-	"reflect"
 	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
-	"gopkg.in/yaml.v3"
 )
+
+var (
+	defaultHandlerTimeouts  map[string]time.Duration
+	networkHandlerPrefixMap = map[string]struct{}{}
+)
+
+func init() {
+	defaultHandlerTimeouts = map[string]time.Duration{
+		isaacnetwork.HandlerPrefixAskHandoverString:    0,
+		isaacnetwork.HandlerPrefixCheckHandoverString:  0,
+		isaacnetwork.HandlerPrefixCheckHandoverXString: 0,
+		isaacnetwork.HandlerPrefixStartHandoverString:  0,
+	}
+
+	for i := range networkHandlerPrefixes {
+		networkHandlerPrefixMap[networkHandlerPrefixes[i]] = struct{}{}
+	}
+}
 
 type LocalParams struct {
 	ISAAC      *isaac.Params     `yaml:"isaac,omitempty" json:"isaac,omitempty"`
 	Memberlist *MemberlistParams `yaml:"memberlist,omitempty" json:"memberlist,omitempty"`
 	MISC       *MISCParams       `yaml:"misc,omitempty" json:"misc,omitempty"`
+	Network    *NetworkParams    `yaml:"network,omitempty" json:"network,omitempty"`
 }
 
 func defaultLocalParams(networkID base.NetworkID) *LocalParams {
@@ -24,6 +40,7 @@ func defaultLocalParams(networkID base.NetworkID) *LocalParams {
 		ISAAC:      isaac.DefaultParams(networkID),
 		Memberlist: defaultMemberlistParams(),
 		MISC:       defaultMISCParams(),
+		Network:    defaultNetworkParams(),
 	}
 }
 
@@ -34,98 +51,14 @@ func (p *LocalParams) IsValid(networkID base.NetworkID) error {
 		return e.Errorf("empty ISAAC")
 	}
 
-	if p.Memberlist == nil {
-		return e.Errorf("empty Memberlist")
-	}
-
-	if p.MISC == nil {
-		return e.Errorf("empty MISC")
-	}
-
 	_ = p.ISAAC.SetNetworkID(networkID)
 
-	if err := p.ISAAC.IsValid(networkID); err != nil {
+	if err := util.CheckIsValiders(networkID, false,
+		p.ISAAC,
+		p.Memberlist,
+		p.MISC,
+		p.Network); err != nil {
 		return e.Wrap(err)
-	}
-
-	if err := p.Memberlist.IsValid(nil); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := p.MISC.IsValid(nil); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
-}
-
-func (p *LocalParams) MarshalYAML() (interface{}, error) {
-	m := map[string]interface{}{}
-
-	if p.ISAAC != nil {
-		switch b, err := util.MarshalJSON(p.ISAAC); {
-		case err != nil:
-			return nil, err
-		default:
-			var i map[string]interface{}
-
-			if err := util.UnmarshalJSON(b, &i); err != nil {
-				return nil, err
-			}
-
-			delete(i, "_hint")
-
-			m["isaac"] = i
-		}
-	}
-
-	if p.Memberlist != nil {
-		m["memberlist"] = p.Memberlist
-	}
-
-	if p.MISC != nil {
-		m["misc"] = p.MISC
-	}
-
-	return m, nil
-}
-
-type LocalParamsYAMLUnmarshaler struct {
-	ISAAC      map[string]interface{} `yaml:"isaac"`
-	Memberlist *MemberlistParams      `yaml:"memberlist,omitempty"`
-	MISC       *MISCParams            `yaml:"misc,omitempty"`
-}
-
-func (p *LocalParams) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	if len(b) < 1 {
-		return nil
-	}
-
-	e := util.StringError("decode LocalParams")
-
-	u := LocalParamsYAMLUnmarshaler{Memberlist: p.Memberlist}
-
-	if err := yaml.Unmarshal(b, &u); err != nil {
-		return e.Wrap(err)
-	}
-
-	switch lb, err := enc.Marshal(u.ISAAC); {
-	case err != nil:
-		return e.Wrap(err)
-	default:
-		if err := enc.Unmarshal(lb, p.ISAAC); err != nil {
-			return e.Wrap(err)
-		}
-
-		p.ISAAC.BaseHinter = hint.NewBaseHinter(isaac.ParamsHint)
-	}
-
-	if u.Memberlist != nil {
-		p.Memberlist = u.Memberlist
-	}
-
-	if u.MISC != nil {
-		p.MISC = u.MISC
 	}
 
 	return nil
@@ -291,128 +224,8 @@ func (p *MemberlistParams) SetExtraSameMemberLimit(d uint64) error {
 	})
 }
 
-type memberlistParamsMarshaler struct {
-	//revive:disable:line-length-limit
-	TCPTimeout              util.ReadableDuration `json:"tcp_timeout,omitempty" yaml:"tcp_timeout,omitempty"`
-	RetransmitMult          int                   `json:"retransmit_mult,omitempty" yaml:"retransmit_mult,omitempty"`
-	ProbeTimeout            util.ReadableDuration `json:"probe_timeout,omitempty" yaml:"probe_timeout,omitempty"`
-	ProbeInterval           util.ReadableDuration `json:"probe_interval,omitempty" yaml:"probe_interval,omitempty"`
-	SuspicionMult           int                   `json:"suspicion_mult,omitempty" yaml:"suspicion_mult,omitempty"`
-	SuspicionMaxTimeoutMult int                   `json:"suspicion_max_timeout_mult,omitempty" yaml:"suspicion_max_timeout_mult,omitempty"`
-	UDPBufferSize           int                   `json:"udp_buffer_size,omitempty" yaml:"udp_buffer_size,omitempty"`
-	ExtraSameMemberLimit    uint64                `json:"extra_same_member_limit,omitempty" yaml:"extra_same_member_limit,omitempty"`
-	//revive:enable:line-length-limit
-}
-
-func (p *MemberlistParams) marshaler() memberlistParamsMarshaler {
-	return memberlistParamsMarshaler{
-		TCPTimeout:              util.ReadableDuration(p.tcpTimeout),
-		RetransmitMult:          p.retransmitMult,
-		ProbeTimeout:            util.ReadableDuration(p.probeTimeout),
-		ProbeInterval:           util.ReadableDuration(p.probeInterval),
-		SuspicionMult:           p.suspicionMult,
-		SuspicionMaxTimeoutMult: p.suspicionMaxTimeoutMult,
-		UDPBufferSize:           p.udpBufferSize,
-		ExtraSameMemberLimit:    p.extraSameMemberLimit,
-	}
-}
-
-func (p *MemberlistParams) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(p.marshaler())
-}
-
-func (p *MemberlistParams) MarshalYAML() (interface{}, error) {
-	return p.marshaler(), nil
-}
-
-type memberlistParamsUnmarshaler struct {
-	//revive:disable:line-length-limit
-	TCPTimeout              *util.ReadableDuration `json:"tcp_timeout,omitempty" yaml:"tcp_timeout,omitempty"`
-	RetransmitMult          *int                   `json:"retransmit_mult,omitempty" yaml:"retransmit_mult,omitempty"`
-	ProbeTimeout            *util.ReadableDuration `json:"probe_timeout,omitempty" yaml:"probe_timeout,omitempty"`
-	ProbeInterval           *util.ReadableDuration `json:"probe_interval,omitempty" yaml:"probe_interval,omitempty"`
-	SuspicionMult           *int                   `json:"suspicion_mult,omitempty" yaml:"suspicion_mult,omitempty"`
-	SuspicionMaxTimeoutMult *int                   `json:"suspicion_max_timeout_mult,omitempty" yaml:"suspicion_max_timeout_mult,omitempty"`
-	UDPBufferSize           *int                   `json:"udp_buffer_size,omitempty" yaml:"udp_buffer_size,omitempty"`
-	ExtraSameMemberLimit    *uint64                `json:"extra_same_member_limit,omitempty" yaml:"extra_same_member_limit,omitempty"`
-	//revive:enable:line-length-limit
-}
-
-func (p *MemberlistParams) UnmarshalJSON(b []byte) error {
-	d := defaultMemberlistParams()
-	*p = *d
-
-	e := util.StringError("unmarshal MemberlistParams")
-
-	var u memberlistParamsUnmarshaler
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e.Wrap(err)
-	}
-
-	return e.Wrap(p.unmarshal(u))
-}
-
-func (p *MemberlistParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	d := defaultMemberlistParams()
-	*p = *d
-
-	e := util.StringError("unmarshal MemberlistParams")
-
-	var u memberlistParamsUnmarshaler
-
-	if err := unmarshal(&u); err != nil {
-		return e.Wrap(err)
-	}
-
-	return e.Wrap(p.unmarshal(u))
-}
-
-func (p *MemberlistParams) unmarshal(u memberlistParamsUnmarshaler) error {
-	if u.RetransmitMult != nil {
-		p.retransmitMult = *u.RetransmitMult
-	}
-
-	if u.SuspicionMult != nil {
-		p.suspicionMult = *u.SuspicionMult
-	}
-
-	if u.SuspicionMaxTimeoutMult != nil {
-		p.suspicionMaxTimeoutMult = *u.SuspicionMaxTimeoutMult
-	}
-
-	if u.UDPBufferSize != nil {
-		p.udpBufferSize = *u.UDPBufferSize
-	}
-
-	if u.ExtraSameMemberLimit != nil {
-		p.extraSameMemberLimit = *u.ExtraSameMemberLimit
-	}
-
-	durargs := [][2]interface{}{
-		{u.TCPTimeout, &p.tcpTimeout},
-		{u.ProbeTimeout, &p.probeTimeout},
-		{u.ProbeInterval, &p.probeInterval},
-	}
-
-	for i := range durargs {
-		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
-
-		if reflect.ValueOf(v).IsZero() {
-			continue
-		}
-
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type MISCParams struct {
 	*util.BaseParams
-	timeoutRequest                        time.Duration
 	syncSourceCheckerInterval             time.Duration
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
@@ -423,7 +236,6 @@ type MISCParams struct {
 func defaultMISCParams() *MISCParams {
 	return &MISCParams{
 		BaseParams:                            util.NewBaseParams(),
-		timeoutRequest:                        isaac.DefaultTimeoutRequest,
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,
@@ -437,10 +249,6 @@ func (p *MISCParams) IsValid([]byte) error {
 
 	if err := p.BaseParams.IsValid(nil); err != nil {
 		return e.Wrap(err)
-	}
-
-	if p.timeoutRequest < 0 {
-		return e.Errorf("wrong duration; invalid timeoutRequest")
 	}
 
 	if p.syncSourceCheckerInterval < 0 {
@@ -464,25 +272,6 @@ func (p *MISCParams) IsValid([]byte) error {
 	}
 
 	return nil
-}
-
-func (p *MISCParams) TimeoutRequest() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p.timeoutRequest
-}
-
-func (p *MISCParams) SetTimeoutRequest(d time.Duration) error {
-	return p.SetDuration(d, func(d time.Duration) (bool, error) {
-		if p.timeoutRequest == d {
-			return false, nil
-		}
-
-		p.timeoutRequest = d
-
-		return true, nil
-	})
 }
 
 func (p *MISCParams) SyncSourceCheckerInterval() time.Duration {
@@ -580,104 +369,248 @@ func (p *MISCParams) SetObjectCacheSize(d uint64) error {
 	})
 }
 
-type miscParamsYAMLMarshaler struct {
-	//revive:disable:line-length-limit
-	TimeoutRequest                        util.ReadableDuration `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
-	SyncSourceCheckerInterval             util.ReadableDuration `json:"sync_source_checker_interval,omitempty" yaml:"sync_source_checker_interval,omitempty"`
-	ValidProposalOperationExpire          util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
-	ValidProposalSuffrageOperationsExpire util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
-	MaxMessageSize                        uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
-	ObjectCacheSize                       uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
-	//revive:enable:line-length-limit
+type NetworkParams struct {
+	*util.BaseParams
+	handlerTimeouts       map[string]time.Duration
+	timeoutRequest        time.Duration
+	handshakeIdleTimeout  time.Duration
+	maxIdleTimeout        time.Duration
+	keepAlivePeriod       time.Duration
+	defaultHandlerTimeout time.Duration
 }
 
-func (p *MISCParams) marshaler() miscParamsYAMLMarshaler {
-	return miscParamsYAMLMarshaler{
-		TimeoutRequest:                        util.ReadableDuration(p.timeoutRequest),
-		SyncSourceCheckerInterval:             util.ReadableDuration(p.syncSourceCheckerInterval),
-		ValidProposalOperationExpire:          util.ReadableDuration(p.validProposalOperationExpire),
-		ValidProposalSuffrageOperationsExpire: util.ReadableDuration(p.validProposalSuffrageOperationsExpire),
-		MaxMessageSize:                        p.maxMessageSize,
-		ObjectCacheSize:                       p.objectCacheSize,
+func defaultNetworkParams() *NetworkParams {
+	handlerTimeouts := map[string]time.Duration{}
+	for i := range defaultHandlerTimeouts {
+		handlerTimeouts[i] = defaultHandlerTimeouts[i]
+	}
+
+	d := DefaultQuicConfig()
+
+	return &NetworkParams{
+		BaseParams:            util.NewBaseParams(),
+		timeoutRequest:        isaac.DefaultTimeoutRequest,
+		handshakeIdleTimeout:  d.HandshakeIdleTimeout,
+		maxIdleTimeout:        d.MaxIdleTimeout,
+		keepAlivePeriod:       d.KeepAlivePeriod,
+		defaultHandlerTimeout: time.Second * 6, //nolint:gomnd //...
+		handlerTimeouts:       handlerTimeouts,
 	}
 }
 
-func (p *MISCParams) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(p.marshaler())
-}
+func (p *NetworkParams) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid NetworkParams")
 
-func (p *MISCParams) MarshalYAML() (interface{}, error) {
-	return p.marshaler(), nil
-}
-
-type miscParamsYAMLUnmarshaler struct {
-	//revive:disable:line-length-limit
-	TimeoutRequest                        *util.ReadableDuration `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
-	SyncSourceCheckerInterval             *util.ReadableDuration `json:"sync_source_checker_interval,omitempty" yaml:"sync_source_checker_interval,omitempty"`
-	ValidProposalOperationExpire          *util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
-	ValidProposalSuffrageOperationsExpire *util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
-	MaxMessageSize                        *uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
-	ObjectCacheSize                       *uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
-	//revive:enable:line-length-limit
-}
-
-func (p *MISCParams) UnmarshalJSON(b []byte) error {
-	d := defaultMISCParams()
-	*p = *d
-
-	e := util.StringError("decode MISCParams")
-
-	var u miscParamsYAMLUnmarshaler
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+	if err := p.BaseParams.IsValid(nil); err != nil {
 		return e.Wrap(err)
 	}
 
-	return e.Wrap(p.unmarshal(u))
-}
-
-func (p *MISCParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	d := defaultMISCParams()
-	*p = *d
-
-	e := util.StringError("decode MISCParams")
-
-	var u miscParamsYAMLUnmarshaler
-
-	if err := unmarshal(&u); err != nil {
-		return e.Wrap(err)
+	if p.timeoutRequest < 0 {
+		return e.Errorf("wrong duration; invalid timeoutRequest")
 	}
 
-	return e.Wrap(p.unmarshal(u))
-}
-
-func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
-	if u.MaxMessageSize != nil {
-		p.maxMessageSize = *u.MaxMessageSize
+	if p.handshakeIdleTimeout < 0 {
+		return e.Errorf("wrong duration; invalid handshakeIdleTimeout")
 	}
 
-	if u.ObjectCacheSize != nil {
-		p.objectCacheSize = *u.ObjectCacheSize
+	if p.maxIdleTimeout < 0 {
+		return e.Errorf("wrong duration; invalid maxIdleTimeout")
 	}
 
-	durargs := [][2]interface{}{
-		{u.TimeoutRequest, &p.timeoutRequest},
-		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
-		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},
-		{u.ValidProposalSuffrageOperationsExpire, &p.validProposalSuffrageOperationsExpire},
+	if p.keepAlivePeriod < 0 {
+		return e.Errorf("wrong duration; invalid keepAlivePeriod")
 	}
 
-	for i := range durargs {
-		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
+	if p.defaultHandlerTimeout < 0 {
+		return e.Errorf("wrong duration; invalid defaultHandlerTimeout")
+	}
 
-		if reflect.ValueOf(v).IsZero() {
-			continue
+	for i := range p.handlerTimeouts {
+		if _, found := networkHandlerPrefixMap[i]; !found {
+			return e.Errorf("unknown handler timeout, %q", i)
 		}
 
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
-			return err
+		if p.handlerTimeouts[i] < 0 {
+			return e.Errorf("wrong duration; invalid %q", i)
 		}
 	}
 
 	return nil
+}
+
+func (p *NetworkParams) TimeoutRequest() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.timeoutRequest
+}
+
+func (p *NetworkParams) SetTimeoutRequest(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.timeoutRequest == d {
+			return false, nil
+		}
+
+		p.timeoutRequest = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) HandshakeIdleTimeout() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.handshakeIdleTimeout
+}
+
+func (p *NetworkParams) SetHandshakeIdleTimeout(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.handshakeIdleTimeout == d {
+			return false, nil
+		}
+
+		p.handshakeIdleTimeout = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) MaxIdleTimeout() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.maxIdleTimeout
+}
+
+func (p *NetworkParams) SetMaxIdleTimeout(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.maxIdleTimeout == d {
+			return false, nil
+		}
+
+		p.maxIdleTimeout = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) KeepAlivePeriod() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.keepAlivePeriod
+}
+
+func (p *NetworkParams) SetKeepAlivePeriod(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.keepAlivePeriod == d {
+			return false, nil
+		}
+
+		p.keepAlivePeriod = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) DefaultHandlerTimeout() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.defaultHandlerTimeout
+}
+
+func (p *NetworkParams) SetDefaultHandlerTimeout(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.defaultHandlerTimeout == d {
+			return false, nil
+		}
+
+		p.defaultHandlerTimeout = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) HandlerTimeout(i string) (time.Duration, error) {
+	if _, found := networkHandlerPrefixMap[i]; !found {
+		return 0, util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
+	}
+
+	return p.handlerTimeout(i), nil
+}
+
+func (p *NetworkParams) SetHandlerTimeout(i string, d time.Duration) error {
+	if _, found := networkHandlerPrefixMap[i]; !found {
+		return util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
+	}
+
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		switch prev, found := p.handlerTimeouts[i]; {
+		case found && prev == d:
+			return false, nil
+		case found && p.defaultHandlerTimeout == d:
+			delete(p.handlerTimeouts, i)
+
+			return false, nil
+		}
+
+		p.handlerTimeouts[i] = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) HandlerTimeoutFunc(i string) (func() time.Duration, error) {
+	if _, found := networkHandlerPrefixMap[i]; !found {
+		return nil, util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
+	}
+
+	return func() time.Duration {
+		return p.handlerTimeout(i)
+	}, nil
+}
+
+func (p *NetworkParams) handlerTimeout(i string) time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	switch d, found := p.handlerTimeouts[i]; {
+	case !found:
+		return p.defaultHandlerTimeout
+	default:
+		return d
+	}
+}
+
+var networkHandlerPrefixes = []string{
+	isaacnetwork.HandlerPrefixAskHandoverString,
+	isaacnetwork.HandlerPrefixBlockMapString,
+	isaacnetwork.HandlerPrefixBlockMapItemString,
+	isaacnetwork.HandlerPrefixCancelHandoverString,
+	isaacnetwork.HandlerPrefixCheckHandoverString,
+	isaacnetwork.HandlerPrefixCheckHandoverXString,
+	isaacnetwork.HandlerPrefixExistsInStateOperationString,
+	isaacnetwork.HandlerPrefixHandoverMessageString,
+	isaacnetwork.HandlerPrefixLastBlockMapString,
+	isaacnetwork.HandlerPrefixLastHandoverYLogsString,
+	isaacnetwork.HandlerPrefixLastSuffrageProofString,
+	isaacnetwork.HandlerPrefixMemberlistString,
+	isaacnetwork.HandlerPrefixNodeChallengeString,
+	isaacnetwork.HandlerPrefixNodeInfoString,
+	isaacnetwork.HandlerPrefixOperationString,
+	isaacnetwork.HandlerPrefixProposalString,
+	isaacnetwork.HandlerPrefixRequestProposalString,
+	isaacnetwork.HandlerPrefixSendBallotsString,
+	isaacnetwork.HandlerPrefixSendOperationString,
+	isaacnetwork.HandlerPrefixSetAllowConsensusString,
+	isaacnetwork.HandlerPrefixStartHandoverString,
+	isaacnetwork.HandlerPrefixStateString,
+	isaacnetwork.HandlerPrefixStreamOperationsString,
+	isaacnetwork.HandlerPrefixSuffrageNodeConnInfoString,
+	isaacnetwork.HandlerPrefixSuffrageProofString,
+	isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
+	HandlerPrefixMemberlistCallbackBroadcastMessageString,
+	HandlerPrefixMemberlistEnsureBroadcastMessageString,
 }

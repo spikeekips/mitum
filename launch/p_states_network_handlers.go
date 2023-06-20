@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -13,7 +12,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -24,16 +22,18 @@ import (
 var PNameStatesNetworkHandlers = ps.Name("states-network-handlers")
 
 func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
+	var log *logging.Logging
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var isaacparams *isaac.Params
+	var params *LocalParams
 	var handlers *quicstream.PrefixHandler
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		ISAACParamsContextKey, &isaacparams,
+		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
 		StatesContextKey, &states,
 	); err != nil {
@@ -56,30 +56,33 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	handlers.
-		Add(isaacnetwork.HandlerPrefixSetAllowConsensus,
-			quicstreamheader.NewHandler(encs,
-				time.Second*2, //nolint:gomnd //...
-				isaacnetwork.QuicstreamHandlerSetAllowConsensus(
-					local.Publickey(),
-					isaacparams.NetworkID(),
-					states.SetAllowConsensus,
-				),
-				nil,
-			),
-		)
+	var gerror error
 
-	return pctx, nil
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixSetAllowConsensusString,
+		isaacnetwork.QuicstreamHandlerSetAllowConsensus(
+			local.Publickey(),
+			params.ISAAC.NetworkID(),
+			states.SetAllowConsensus,
+		),
+		nil,
+	)
+
+	return pctx, gerror
 }
 
 func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+	var log *logging.Logging
 	var encs *encoder.Encoders
+	var params *LocalParams
 	var pool *isaacdatabase.TempPool
 	var client *isaacnetwork.QuicstreamClient
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
+		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
 		StatesContextKey, &states,
@@ -87,7 +90,10 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 		return err
 	}
 
-	handlers.Add(isaacnetwork.HandlerPrefixOperation, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixOperationString,
 		isaacnetwork.QuicstreamHandlerOperation(
 			pool,
 			func(ctx context.Context, header isaacnetwork.OperationRequestHeader) (
@@ -128,9 +134,10 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 				return enchint, body, found, nil
 			},
 		),
-		nil))
+		nil,
+	)
 
-	return nil
+	return gerror
 }
 
 func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
@@ -161,7 +168,10 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 		return err
 	}
 
-	handlers.Add(isaacnetwork.HandlerPrefixSendOperation, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixSendOperationString,
 		isaacnetwork.QuicstreamHandlerSendOperation(
 			params.ISAAC.NetworkID(),
 			pool,
@@ -181,30 +191,36 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 			},
 			params.MISC.MaxMessageSize,
 		),
-		nil))
+		nil,
+	)
 
-	return nil
+	return gerror
 }
 
 func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+	var log *logging.Logging
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var isaacparams *isaac.Params
+	var params *LocalParams
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContext(pctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		ISAACParamsContextKey, &isaacparams,
+		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return err
 	}
 
-	handlers.Add(isaacnetwork.HandlerPrefixStreamOperations, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixStreamOperationsString,
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
-			isaacparams.NetworkID(),
+			params.ISAAC.NetworkID(),
 			333, //nolint:gomnd // big enough
 			func(
 				ctx context.Context,
@@ -223,15 +239,18 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 				)
 			},
 		),
-		nil))
+		nil,
+	)
 
-	return nil
+	return gerror
 }
 
 func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var local base.LocalNode
+	var params *LocalParams
 	var states *isaacstates.States
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
@@ -239,9 +258,11 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 	var client isaac.NetworkClient
 
 	if err := util.LoadFromContext(pctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
 		StatesContextKey, &states,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
@@ -251,62 +272,69 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 		return err
 	}
 
-	handlers.
-		Add(isaacnetwork.HandlerPrefixRequestProposal, quicstreamheader.NewHandler(encs, 0,
-			isaacnetwork.QuicstreamHandlerRequestProposal(
-				local, pool, proposalMaker, db.LastBlockMap,
-				func(ctx context.Context, header isaacnetwork.RequestProposalRequestHeader) (
-					base.ProposalSignFact, error,
-				) {
-					var connInfo quicstream.ConnInfo
+	var gerror error
 
-					switch broker := states.HandoverYBroker(); {
-					case broker == nil:
-						return nil, nil
-					default:
-						connInfo = broker.ConnInfo()
-					}
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixRequestProposalString,
+		isaacnetwork.QuicstreamHandlerRequestProposal(
+			local, pool, proposalMaker, db.LastBlockMap,
+			func(ctx context.Context, header isaacnetwork.RequestProposalRequestHeader) (
+				base.ProposalSignFact, error,
+			) {
+				var connInfo quicstream.ConnInfo
 
-					switch pr, _, err := client.RequestProposal(ctx, connInfo,
-						header.Point(),
-						header.Proposer(),
-						header.PreviousBlock(),
-					); {
-					case err != nil:
-						return nil, err
-					default:
-						return pr, nil
-					}
-				},
-			), nil)).
-		Add(isaacnetwork.HandlerPrefixProposal, quicstreamheader.NewHandler(encs, 0,
-			isaacnetwork.QuicstreamHandlerProposal(
-				pool,
-				func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
-					var connInfo quicstream.ConnInfo
+				switch broker := states.HandoverYBroker(); {
+				case broker == nil:
+					return nil, nil
+				default:
+					connInfo = broker.ConnInfo()
+				}
 
-					switch broker := states.HandoverYBroker(); {
-					case broker == nil:
-						return hint.Hint{}, nil, false, nil
-					default:
-						connInfo = broker.ConnInfo()
-					}
+				switch pr, _, err := client.RequestProposal(ctx, connInfo,
+					header.Point(),
+					header.Proposer(),
+					header.PreviousBlock(),
+				); {
+				case err != nil:
+					return nil, err
+				default:
+					return pr, nil
+				}
+			},
+		), nil,
+	)
 
-					switch pr, _, err := client.Proposal(ctx, connInfo, header.Proposal()); {
-					case err != nil:
+	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixProposalString,
+		isaacnetwork.QuicstreamHandlerProposal(
+			pool,
+			func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+				var connInfo quicstream.ConnInfo
+
+				switch broker := states.HandoverYBroker(); {
+				case broker == nil:
+					return hint.Hint{}, nil, false, nil
+				default:
+					connInfo = broker.ConnInfo()
+				}
+
+				switch pr, _, err := client.Proposal(ctx, connInfo, header.Proposal()); {
+				case err != nil:
+					return hint.Hint{}, nil, false, err
+				case pr == nil:
+					return hint.Hint{}, nil, false, nil
+				default:
+					b, err := enc.Marshal(pr)
+					if err != nil {
 						return hint.Hint{}, nil, false, err
-					case pr == nil:
-						return hint.Hint{}, nil, false, nil
-					default:
-						b, err := enc.Marshal(pr)
-						if err != nil {
-							return hint.Hint{}, nil, false, err
-						}
-
-						return enc.Hint(), b, true, nil
 					}
-				},
-			), nil))
 
-	return nil
+					return enc.Hint(), b, true, nil
+				}
+			},
+		),
+		nil,
+	)
+
+	return gerror
 }

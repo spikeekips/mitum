@@ -1134,7 +1134,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 	callbackhandlerprefix := quicstream.HashPrefix("cb")
 
-	lph.Add(callbackhandlerprefix, quicstreamheader.NewHandler(t.encs, 0, lsrv.CallbackBroadcastHandler(), nil))
+	lph.Add(callbackhandlerprefix, quicstreamheader.NewHandler(t.encs, nil, lsrv.CallbackBroadcastHandler(), nil))
 
 	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
 		ctx context.Context,
@@ -1335,7 +1335,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		}
 	}
 
-	lph.Add(handlerprefix, quicstreamheader.NewHandler(t.encs, 0, lsrv.EnsureBroadcastHandler(
+	lph.Add(handlerprefix, quicstreamheader.NewHandler(t.encs, nil, lsrv.EnsureBroadcastHandler(
 		networkID,
 		func(node base.Address) (base.Publickey, bool, error) {
 			for i := range rnodes {

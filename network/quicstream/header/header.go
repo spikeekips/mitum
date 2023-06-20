@@ -1,6 +1,9 @@
 package quicstreamheader
 
 import (
+	"context"
+
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -114,6 +117,7 @@ func NewBaseResponseHeader(ht hint.Hint, ok bool, err error) BaseResponseHeader 
 
 	switch {
 	case err == nil:
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 	case quicstream.IsNetworkError(err):
 		rerr = util.ErrInternal.WithStack()
 	}

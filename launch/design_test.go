@@ -638,6 +638,22 @@ network:
 storage:
   base: /tmp/a/b/c
   database: redis://
+parameters:
+  isaac:
+    threshold: 77.7
+    wait_preparing_init_ballot: 10s
+  misc:
+    valid_proposal_operation_expire: 11s
+    object_cache_size: 33
+  memberlist:
+    tcp_timeout: 6s
+    udp_buffer_size: 333
+  network:
+    timeout_request: 33s
+    default_handler_timeout: 33s
+    handler_timeout:
+      request_proposal: 9s
+      ask_handover: 12s
 `)
 
 		var a NodeDesign
@@ -653,6 +669,30 @@ storage:
 
 		t.Equal("/tmp/a/b/c", a.Storage.Base)
 		t.Equal("redis:", a.Storage.Database.String())
+
+		isaacparams := isaac.DefaultParams(a.NetworkID)
+		isaacparams.SetThreshold(77.7)
+		isaacparams.SetWaitPreparingINITBallot(time.Second * 10)
+
+		isaac.EqualLocalParams(t.Assert(), isaacparams, a.LocalParams.ISAAC)
+
+		misc := defaultMISCParams()
+		misc.SetValidProposalOperationExpire(time.Second * 11)
+		misc.SetObjectCacheSize(33)
+
+		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		memberlistparams := defaultMemberlistParams()
+		memberlistparams.SetTCPTimeout(time.Second * 6)
+		memberlistparams.SetUDPBufferSize(333)
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+
+		nw := defaultNetworkParams()
+		nw.SetTimeoutRequest(time.Second * 33)
+		nw.SetDefaultHandlerTimeout(time.Second * 33)
+		t.NoError(nw.SetHandlerTimeout("request_proposal", time.Second*9))
+		t.NoError(nw.SetHandlerTimeout("ask_handover", time.Second*12))
+		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
 	})
 
 	t.Run("empty network", func() {
@@ -801,6 +841,8 @@ parameters:
   misc:
     valid_proposal_operation_expire: 11s
     object_cache_size: 33
+  network:
+    timeout_request: 33s
 `)
 
 		var a NodeDesign
@@ -828,6 +870,10 @@ parameters:
 		misc.SetObjectCacheSize(33)
 
 		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		nw := defaultNetworkParams()
+		nw.SetTimeoutRequest(time.Second * 33)
+		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
 
 		memberlistparams := defaultMemberlistParams()
 		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
@@ -878,10 +924,72 @@ parameters:
 
 		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
 
+		nw := defaultNetworkParams()
+		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
+
 		memberlistparams := defaultMemberlistParams()
 		memberlistparams.SetTCPTimeout(time.Second * 6)
 		memberlistparams.SetUDPBufferSize(333)
 
+		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+	})
+
+	t.Run("missing network params", func() {
+		b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+parameters:
+  isaac:
+    threshold: 77.7
+    wait_preparing_init_ballot: 10s
+  misc:
+    valid_proposal_operation_expire: 11s
+    object_cache_size: 33
+  memberlist:
+    tcp_timeout: 6s
+    udp_buffer_size: 333
+`)
+
+		var a NodeDesign
+		t.NoError(a.DecodeYAML(b, t.enc))
+
+		t.Equal("no0sas", a.Address.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
+
+		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
+		t.Equal(true, a.Network.TLSInsecure)
+
+		t.Equal("/tmp/a/b/c", a.Storage.Base)
+		t.Equal("redis:", a.Storage.Database.String())
+
+		isaacparams := isaac.DefaultParams(a.NetworkID)
+		isaacparams.SetThreshold(77.7)
+		isaacparams.SetWaitPreparingINITBallot(time.Second * 10)
+
+		isaac.EqualLocalParams(t.Assert(), isaacparams, a.LocalParams.ISAAC)
+
+		misc := defaultMISCParams()
+		misc.SetValidProposalOperationExpire(time.Second * 11)
+		misc.SetObjectCacheSize(33)
+
+		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		nw := defaultNetworkParams()
+		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
+
+		memberlistparams := defaultMemberlistParams()
+		memberlistparams.SetTCPTimeout(time.Second * 6)
+		memberlistparams.SetUDPBufferSize(333)
 		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
 	})
 }
@@ -950,6 +1058,9 @@ parameters:
 		misc.SetValidProposalOperationExpire(time.Second * 11)
 
 		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
+
+		nw := defaultNetworkParams()
+		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
 	})
 }
 
@@ -1094,6 +1205,9 @@ func TestLocalParamsYAML(tt *testing.T) {
 		isaac.EqualLocalParams(t.Assert(), ap.ISAAC, bp.ISAAC)
 		equalMemberlistParams(t.Assert(), ap.Memberlist, bp.Memberlist)
 		equalMISCParams(t.Assert(), ap.MISC, bp.MISC)
+
+		nw := defaultNetworkParams()
+		equalNetworkParams(t.Assert(), nw, ap.Network)
 	}
 
 	suite.Run(tt, t)
@@ -1139,9 +1253,97 @@ func TestLocalParamsJSON(tt *testing.T) {
 		isaac.EqualLocalParams(t.Assert(), ap.ISAAC, bp.ISAAC)
 		equalMemberlistParams(t.Assert(), ap.Memberlist, bp.Memberlist)
 		equalMISCParams(t.Assert(), ap.MISC, bp.MISC)
+
+		nw := defaultNetworkParams()
+		equalNetworkParams(t.Assert(), nw, ap.Network)
 	}
 
 	suite.Run(tt, t)
+}
+
+type testNetworkParams struct {
+	suite.Suite
+}
+
+func (t *testNetworkParams) TestGetHandlerTimeout() {
+	params := defaultNetworkParams()
+
+	t.Run("get; unknown", func() {
+		_, err := params.HandlerTimeout(util.UUID().String())
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrNotFound))
+	})
+
+	t.Run("set; unknown", func() {
+		err := params.SetHandlerTimeout(util.UUID().String(), time.Second)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrNotFound))
+	})
+
+	t.Run("not set", func() {
+		d, err := params.HandlerTimeout("set_allow_consensus")
+		t.NoError(err)
+		t.Equal(params.DefaultHandlerTimeout(), d)
+	})
+
+	t.Run("set", func() {
+		n := params.DefaultHandlerTimeout() + 33
+		t.NoError(params.SetHandlerTimeout("set_allow_consensus", n))
+
+		d, err := params.HandlerTimeout("set_allow_consensus")
+		t.NoError(err)
+		t.Equal(n, d)
+	})
+
+	t.Run("same with default timeout", func() {
+		n := params.DefaultHandlerTimeout() + 33
+		t.NoError(params.SetHandlerTimeout("set_allow_consensus", n))
+
+		_, found := params.handlerTimeouts["set_allow_consensus"]
+		t.True(found)
+
+		t.NoError(params.SetHandlerTimeout("set_allow_consensus", params.DefaultHandlerTimeout()))
+
+		d, err := params.HandlerTimeout("set_allow_consensus")
+		t.NoError(err)
+		t.Equal(params.DefaultHandlerTimeout(), d)
+
+		_, found = params.handlerTimeouts["set_allow_consensus"]
+		t.False(found)
+	})
+}
+
+func (t *testNetworkParams) TestDecode() {
+	params := defaultNetworkParams()
+
+	t.NoError(params.SetHandlerTimeout("set_allow_consensus", params.DefaultHandlerTimeout()+33))
+	t.NoError(params.SetHandlerTimeout("ask_handover", params.DefaultHandlerTimeout()+44))
+
+	t.Run("marshal json", func() {
+		b, err := util.MarshalJSONIndent(params)
+		t.NoError(err)
+		t.T().Log("marshaled:\n", string(b))
+
+		uparams := defaultNetworkParams()
+		t.NoError(util.UnmarshalJSON(b, uparams))
+
+		equalNetworkParams(t.Assert(), params, uparams)
+	})
+
+	t.Run("marshal yaml", func() {
+		b, err := yaml.Marshal(params)
+		t.NoError(err)
+		t.T().Log("marshaled:\n", string(b))
+
+		uparams := defaultNetworkParams()
+		t.NoError(yaml.Unmarshal(b, uparams))
+
+		equalNetworkParams(t.Assert(), params, uparams)
+	})
+}
+
+func TestNetworkParams(t *testing.T) {
+	suite.Run(t, new(testNetworkParams))
 }
 
 func mustResolveUDPAddr(s string) *net.UDPAddr {
@@ -1162,10 +1364,26 @@ func equalMemberlistParams(t *assert.Assertions, a, b *MemberlistParams) {
 }
 
 func equalMISCParams(t *assert.Assertions, a, b *MISCParams) {
-	t.Equal(a.TimeoutRequest(), b.TimeoutRequest())
 	t.Equal(a.SyncSourceCheckerInterval(), b.SyncSourceCheckerInterval())
 	t.Equal(a.ValidProposalOperationExpire(), b.ValidProposalOperationExpire())
 	t.Equal(a.ValidProposalSuffrageOperationsExpire(), b.ValidProposalSuffrageOperationsExpire())
 	t.Equal(a.MaxMessageSize(), b.MaxMessageSize())
 	t.Equal(a.ObjectCacheSize(), b.ObjectCacheSize())
+}
+
+func equalNetworkParams(t *assert.Assertions, a, b *NetworkParams) {
+	t.Equal(a.TimeoutRequest(), b.TimeoutRequest())
+	t.Equal(a.HandshakeIdleTimeout(), b.HandshakeIdleTimeout())
+	t.Equal(a.MaxIdleTimeout(), b.MaxIdleTimeout())
+	t.Equal(a.KeepAlivePeriod(), b.KeepAlivePeriod())
+	t.Equal(a.DefaultHandlerTimeout(), b.DefaultHandlerTimeout())
+
+	t.Equal(len(a.handlerTimeouts), len(b.handlerTimeouts))
+
+	for i, da := range a.handlerTimeouts {
+		db, found := b.handlerTimeouts[i]
+		t.True(found)
+
+		t.Equal(da, db)
+	}
 }

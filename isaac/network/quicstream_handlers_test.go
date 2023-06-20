@@ -84,7 +84,7 @@ func testOpenstreamf[T quicstreamheader.RequestHeader](encs *encoder.Encoders, p
 	cr, hw := io.Pipe()
 
 	ph := quicstream.NewPrefixHandler(nil)
-	ph.Add(prefix, quicstreamheader.NewHandler[T](encs, 0, handler, nil))
+	ph.Add(prefix, quicstreamheader.NewHandler[T](encs, nil, handler, nil))
 
 	handlerf := func() error {
 		defer hw.Close()

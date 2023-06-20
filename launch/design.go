@@ -653,7 +653,7 @@ func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
 		Interface("storage", d.Storage).
 		Interface("network_id", d.NetworkID).
 		Interface("network", d.Network).
-		Interface("parameters", d.LocalParams).
+		Object("parameters", d.LocalParams).
 		Interface("sync_sources", d.SyncSources)
 }
 

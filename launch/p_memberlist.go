@@ -471,11 +471,23 @@ func memberlistTransport(
 		poolclient,
 		client.NewQuicstreamClient,
 		nil,
-		params.MISC.TimeoutRequest,
+		params.Network.TimeoutRequest,
 	)
 	_ = transport.SetLogging(log)
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, transport.QuicstreamHandler)
+	var timeoutf func() time.Duration
+
+	switch f, err := params.Network.HandlerTimeoutFunc(isaacnetwork.HandlerPrefixMemberlistString); {
+	case err != nil:
+		return nil, err
+	default:
+		timeoutf = f
+	}
+
+	_ = handlers.Add(
+		isaacnetwork.HandlerPrefixMemberlist,
+		quicstream.TimeoutHandler(transport.QuicstreamHandler, timeoutf),
+	)
 
 	return transport, nil
 }
@@ -538,7 +550,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		input := util.UUID().Bytes()
 
 		sig, err := func() (base.Signature, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
+			ctx, cancel := context.WithTimeout(context.Background(), params.Network.TimeoutRequest())
 			defer cancel()
 
 			return client.NodeChallenge(
@@ -550,7 +562,7 @@ func nodeChallengeFunc(pctx context.Context) (
 
 		// NOTE challenge with publish address
 		if !network.DeepEqualConnInfo(node.ConnInfo(), ci) {
-			ctx, cancel := context.WithTimeout(context.Background(), params.MISC.TimeoutRequest())
+			ctx, cancel := context.WithTimeout(context.Background(), params.Network.TimeoutRequest())
 			defer cancel()
 
 			psig, err := client.NodeChallenge(ctx, ci,

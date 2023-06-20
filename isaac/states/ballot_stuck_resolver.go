@@ -151,9 +151,9 @@ func (c *DefaultBallotStuckResolver) SetLogging(l *logging.Logging) *logging.Log
 	_ = c.Logging.SetLogging(l)
 
 	c.Log().Debug().
-		Dur("initial_wait", c.initialWait).
-		Dur("resolve_after", c.resolveAfter).
-		Dur("interval", c.interval).
+		Stringer("initial_wait", c.initialWait).
+		Stringer("resolve_after", c.resolveAfter).
+		Stringer("interval", c.interval).
 		Msg("resolver started")
 
 	return c.Logging

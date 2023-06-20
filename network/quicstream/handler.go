@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -120,4 +121,21 @@ func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {
 
 		return errors.WithStack(err)
 	})
+}
+
+func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
+	return func(addr net.Addr, r io.Reader, w io.Writer) error {
+		ctx := context.Background()
+
+		if timeout := f(); timeout > 0 {
+			var cancel func()
+
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+
+		return util.AwareContext(ctx, func(context.Context) error {
+			return handler(addr, r, w)
+		})
+	}
 }

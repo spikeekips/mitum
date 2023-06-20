@@ -67,9 +67,9 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstreamheader.OpenS
 	cr, hw := io.Pipe()
 
 	ph := quicstream.NewPrefixHandler(nil).
-		Add(HandlerPrefixSuffrageNodeConnInfo, quicstreamheader.NewHandler(t.Encs, 0, h.SuffrageNodeConnInfo, nil)).
-		Add(HandlerPrefixSyncSourceConnInfo, quicstreamheader.NewHandler(t.Encs, 0, h.SyncSourceConnInfo, nil)).
-		Add(HandlerPrefixNodeChallenge, quicstreamheader.NewHandler(t.Encs, 0, h.NodeChallenge, nil))
+		Add(HandlerPrefixSuffrageNodeConnInfo, quicstreamheader.NewHandler(t.Encs, nil, h.SuffrageNodeConnInfo, nil)).
+		Add(HandlerPrefixSyncSourceConnInfo, quicstreamheader.NewHandler(t.Encs, nil, h.SyncSourceConnInfo, nil)).
+		Add(HandlerPrefixNodeChallenge, quicstreamheader.NewHandler(t.Encs, nil, h.NodeChallenge, nil))
 
 	ci := quicstream.RandomConnInfo()
 

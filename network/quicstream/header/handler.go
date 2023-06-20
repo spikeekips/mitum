@@ -28,14 +28,18 @@ type ErrorHandler func(
 
 func NewHandler[T RequestHeader](
 	encs *encoder.Encoders,
-	timeout time.Duration,
+	timeoutf func() time.Duration,
 	handler Handler[T],
 	errhandler ErrorHandler,
 ) quicstream.Handler {
+	if timeoutf == nil {
+		timeoutf = func() time.Duration { return 0 } //revive:disable-line:modifies-parameter
+	}
+
 	return func(addr net.Addr, r io.Reader, w io.Writer) error {
 		ctx := context.Background()
 
-		if timeout > 0 {
+		if timeout := timeoutf(); timeout > 0 {
 			var cancel func()
 
 			ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -47,8 +51,23 @@ func NewHandler[T RequestHeader](
 			_ = broker.Close()
 		}()
 
-		if err := runHandler[T](ctx, addr, broker, handler); err != nil {
-			return util.AwareContext(ctx, func(ctx context.Context) error {
+		if err := baseHandler[T](ctx, addr, broker, handler); err != nil {
+			nctx := ctx
+			timeout := timeoutf()
+
+			switch {
+			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+				if timeout < 1 {
+					return err
+				}
+
+				var cancel func()
+
+				nctx, cancel = context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+			}
+
+			return util.AwareContext(nctx, func(ctx context.Context) error {
 				switch {
 				case errhandler != nil:
 					return errhandler(ctx, addr, broker, err)
@@ -62,20 +81,20 @@ func NewHandler[T RequestHeader](
 	}
 }
 
-func runHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) error {
-	req, err := broker.ReadRequestHead(ctx)
-	if err != nil {
-		return err
-	}
-
-	header, ok := req.(T)
-	if !ok {
-		var t T
-
-		return errors.Errorf("expected %T, but %T", t, req)
-	}
-
+func baseHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) error {
 	return util.AwareContext(ctx, func(ctx context.Context) error {
+		req, err := broker.ReadRequestHead(ctx)
+		if err != nil {
+			return err
+		}
+
+		header, ok := req.(T)
+		if !ok {
+			var t T
+
+			return errors.Errorf("expected %T, but %T", t, req)
+		}
+
 		return handler(ctx, addr, broker, header)
 	})
 }

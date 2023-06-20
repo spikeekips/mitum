@@ -57,14 +57,14 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
-	var isaacparams *isaac.Params
+	var params *LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
-		ISAACParamsContextKey, &isaacparams,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -72,13 +72,18 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	handlers := quicstream.NewPrefixHandler(nil)
 
 	quicconfig := DefaultQuicConfig()
+
+	quicconfig.HandshakeIdleTimeout = params.Network.HandshakeIdleTimeout()
+	quicconfig.MaxIdleTimeout = params.Network.MaxIdleTimeout()
+	quicconfig.KeepAlivePeriod = params.Network.KeepAlivePeriod()
+
 	quicconfig.RequireAddressValidation = func(net.Addr) bool {
 		return true // TODO NOTE manage blacklist
 	}
 
 	server, err := quicstream.NewServer(
 		design.Network.Bind,
-		GenerateNewTLSConfig(isaacparams.NetworkID()),
+		GenerateNewTLSConfig(params.ISAAC.NetworkID()),
 		quicconfig,
 		handlers.Handler,
 	)

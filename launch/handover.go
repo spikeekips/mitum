@@ -15,7 +15,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/localtime"
@@ -280,46 +279,49 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var local base.LocalNode
-	var isaacparams *isaac.Params
+	var params *LocalParams
 	var handlers *quicstream.PrefixHandler
 
 	if err := util.LoadFromContext(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		LocalContextKey, &local,
-		ISAACParamsContextKey, &isaacparams,
+		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
 	); err != nil {
 		return pctx, err
 	}
 
+	isaacparams := params.ISAAC
+	networkparams := params.Network
+
 	localci := quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
-	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
+	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCancelHandoverHandler(pctx, handlers, encs, local, isaacparams); err != nil {
+	if err := attachCancelHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
+	if err := attachCheckHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachAskHandoverHandler(pctx, handlers, encs, local, isaacparams, localci); err != nil {
+	if err := attachAskHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams, localci); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandoverMessageHandler(pctx, handlers, encs, isaacparams); err != nil {
+	if err := attachHandoverMessageHandler(pctx, handlers, encs, isaacparams, networkparams); err != nil {
 		return pctx, err
 	}
 
-	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, isaacparams); err != nil {
+	if err := attachCheckHandoverXHandler(pctx, handlers, encs, local, isaacparams, networkparams); err != nil {
 		return pctx, err
 	}
 
-	if err := attachLastHandoverYLogsHandler(pctx, handlers, encs, local, isaacparams); err != nil {
+	if err := attachLastHandoverYLogsHandler(pctx, handlers, encs, local, isaacparams, networkparams); err != nil {
 		return pctx, err
 	}
 
@@ -331,14 +333,17 @@ func attachStartHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 	localci quicstream.ConnInfo,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -346,10 +351,13 @@ func attachStartHandoverHandler(
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixStartHandover, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixStartHandoverString,
 		isaacnetwork.QuicstreamHandlerStartHandover(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			isaacstates.NewStartHandoverYFunc(
 				local.Address(),
 				localci,
@@ -359,7 +367,7 @@ func attachStartHandoverHandler(
 				},
 				func(ctx context.Context, x base.Address, xci quicstream.ConnInfo) error {
 					switch ok, err := client.CheckHandover(
-						ctx, xci, local.Privatekey(), params.NetworkID(), local.Address(), localci); {
+						ctx, xci, local.Privatekey(), isaacparams.NetworkID(), local.Address(), localci); {
 					case err != nil:
 						return err
 					case !ok:
@@ -382,9 +390,9 @@ func attachStartHandoverHandler(
 			),
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachCancelHandoverHandler(
@@ -392,20 +400,26 @@ func attachCancelHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 	); err != nil {
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixCancelHandover, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixCancelHandoverString,
 		isaacnetwork.QuicstreamHandlerCancelHandover(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			func() error {
 				xch := make(chan error)
 				ych := make(chan error)
@@ -422,9 +436,9 @@ func attachCancelHandoverHandler(
 			},
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachCheckHandoverHandler(
@@ -432,14 +446,17 @@ func attachCheckHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 	localci quicstream.ConnInfo,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
@@ -447,10 +464,13 @@ func attachCheckHandoverHandler(
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixCheckHandover, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixCheckHandoverString,
 		isaacnetwork.QuicstreamHandlerCheckHandover(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			isaacstates.NewCheckHandoverFunc(local.Address(), localci,
 				states.AllowedConsensus,
 				func() bool {
@@ -463,9 +483,9 @@ func attachCheckHandoverHandler(
 			),
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachAskHandoverHandler(
@@ -473,14 +493,17 @@ func attachAskHandoverHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 	localci quicstream.ConnInfo,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
@@ -488,10 +511,13 @@ func attachAskHandoverHandler(
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixAskHandover, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixAskHandoverString,
 		isaacnetwork.QuicstreamHandlerAskHandover(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			isaacstates.NewAskHandoverReceivedFunc(local.Address(), localci,
 				states.AllowedConsensus,
 				func() bool {
@@ -515,28 +541,34 @@ func attachAskHandoverHandler(
 			),
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachHandoverMessageHandler(
 	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 	); err != nil {
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixHandoverMessage, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixHandoverMessageString,
 		isaacnetwork.QuicstreamHandlerHandoverMessage(
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			func(msg isaacstates.HandoverMessage) error {
 				var receive func(interface{}) error
 
@@ -560,9 +592,9 @@ func attachHandoverMessageHandler(
 			},
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachCheckHandoverXHandler(
@@ -570,13 +602,16 @@ func attachCheckHandoverXHandler(
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 ) error {
+	var log *logging.Logging
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
@@ -584,10 +619,13 @@ func attachCheckHandoverXHandler(
 		return err
 	}
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixCheckHandoverX, quicstreamheader.NewHandler(encs, 0,
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixCheckHandoverXString,
 		isaacnetwork.QuicstreamHandlerCheckHandoverX(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			isaacstates.NewCheckHandoverXFunc(
 				states.AllowedConsensus,
 				func() bool {
@@ -600,28 +638,40 @@ func attachCheckHandoverXHandler(
 			),
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachLastHandoverYLogsHandler(
-	_ context.Context,
+	pctx context.Context,
 	handlers *quicstream.PrefixHandler,
 	encs *encoder.Encoders,
 	local base.LocalNode,
-	params *isaac.Params,
+	isaacparams *isaac.Params,
+	networkparams *NetworkParams,
 ) error {
-	_ = handlers.Add(isaacnetwork.HandlerPrefixLastHandoverYLogs, quicstreamheader.NewHandler(encs, 0,
+	var log *logging.Logging
+
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+	); err != nil {
+		return err
+	}
+
+	var gerror error
+
+	testHandlerAdd(networkparams, log, &gerror, handlers, encs,
+		isaacnetwork.HandlerPrefixLastHandoverYLogsString,
 		isaacnetwork.QuicstreamHandlerLastHandoverYLogs(
 			local,
-			params.NetworkID(),
+			isaacparams.NetworkID(),
 			lastHandoverYLogs,
 		),
 		nil,
-	))
+	)
 
-	return nil
+	return gerror
 }
 
 func attachNewDataFuncForHandoverY(

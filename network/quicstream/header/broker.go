@@ -84,6 +84,9 @@ func NewHandlerBroker(
 }
 
 func (broker *HandlerBroker) WriteResponseHead(ctx context.Context, res ResponseHeader) error {
+	broker.Lock()
+	defer broker.Unlock()
+
 	if broker.Encoder == nil {
 		return errors.Errorf("empty encoder; read request head first")
 	}
@@ -115,6 +118,9 @@ func (broker *HandlerBroker) ReadRequestHead(ctx context.Context) (header Reques
 		case err != nil:
 			return err
 		default:
+			broker.Lock()
+			defer broker.Unlock()
+
 			broker.Encoder = i
 			header = h.(RequestHeader) //nolint:forcetypeassert //...
 		}
@@ -133,6 +139,7 @@ type baseBroker struct {
 	Reader   io.Reader
 	Writer   io.Writer
 	closef   func() error
+	sync.Mutex
 }
 
 func newBaseBroker(

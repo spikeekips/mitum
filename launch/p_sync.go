@@ -66,7 +66,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 				Interface("node_conninfo", ncis).
 				Msg("sync sources updated")
 		},
-		params.MISC.TimeoutRequest,
+		params.Network.TimeoutRequest,
 	)
 	_ = syncSourceChecker.SetLogging(log)
 
