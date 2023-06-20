@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -563,7 +564,7 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 
 		for i := range ncis {
 			t.True(slices.IndexFunc[NodeConnInfo](sources, func(n NodeConnInfo) bool {
-				return ncis[i].Addr().String() == n.Addr().String()
+				return network.EqualConnInfo(ncis[i], n)
 			}) >= 0)
 		}
 	})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
@@ -167,7 +168,7 @@ func NewStartHandoverYFunc(
 		switch {
 		case !local.Equal(node):
 			return e.Errorf("address not matched")
-		case localci.Addr().String() == xci.Addr().String():
+		case network.EqualConnInfo(localci, xci):
 			return e.Errorf("same conn info")
 		case isAllowedConsensus():
 			return e.Errorf("allowed consensus")
@@ -205,7 +206,7 @@ func NewCheckHandoverFunc(
 		switch {
 		case !local.Equal(node):
 			return e.Errorf("address not matched")
-		case localci.Addr().String() == yci.Addr().String():
+		case network.EqualConnInfo(localci, yci):
 			return e.Errorf("same conn info")
 		case !isAllowedConsensus():
 			return e.Errorf("not allowed consensus")
@@ -247,7 +248,7 @@ func NewAskHandoverReceivedFunc(
 		switch {
 		case !local.Equal(node):
 			return "", false, e.Errorf("address not matched")
-		case localci.Addr().String() == yci.Addr().String():
+		case network.EqualConnInfo(localci, yci):
 			return "", false, e.Errorf("same conn info")
 		case isHandoverStarted():
 			return "", false, e.Errorf("handover already started")

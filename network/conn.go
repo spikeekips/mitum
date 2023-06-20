@@ -46,13 +46,22 @@ func ConnInfoToString(addr string, tlsinsecure bool) string { // revive:disable-
 	return addr + ti
 }
 
-func DeepEqualConnInfo(a, b ConnInfo) bool {
+func EqualConnInfo(a, b ConnInfo) bool {
 	switch {
 	case a == nil, b == nil:
 		return false
 	case a.Addr() == nil, b.Addr() == nil:
 		return false
-	case a.TLSInsecure() != b.TLSInsecure():
+	case a.Addr().String() != b.Addr().String():
+		return false
+	default:
+		return true
+	}
+}
+
+func DeepEqualConnInfo(a, b ConnInfo) bool {
+	switch {
+	case !EqualConnInfo(a, b):
 		return false
 	case a.String() != b.String():
 		return false

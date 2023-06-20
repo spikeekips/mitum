@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
@@ -157,7 +158,7 @@ func (srv *Memberlist) Join(cis []quicstream.ConnInfo) error {
 	}
 
 	filtered := util.FilterSlice(cis, func(i quicstream.ConnInfo) bool {
-		return i.UDPAddr().String() != srv.local.Addr().String()
+		return !network.EqualConnInfo(i, srv.local.ConnInfo())
 	})
 
 	fcis := make([]string, len(filtered))
