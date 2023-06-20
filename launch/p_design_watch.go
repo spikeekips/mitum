@@ -546,7 +546,7 @@ func updateDiscoveries(
 
 			addr, tlsinsecure := network.ParseTLSInsecure(sl[i])
 
-			ci, err := quicstream.NewConnInfoFromStringAddress(addr, tlsinsecure)
+			ci, err := quicstream.NewConnInfoFromStringAddr(addr, tlsinsecure)
 			if err != nil {
 				return e.Wrap(err)
 			}

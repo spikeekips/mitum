@@ -607,7 +607,7 @@ func (h *caHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return err
 	}
 
-	switch i, err := quicstream.NewConnInfoFromString(u.ConnInfo); {
+	switch i, err := quicstream.NewConnInfoFromFullString(u.ConnInfo); {
 	case err != nil:
 		return err
 	default:

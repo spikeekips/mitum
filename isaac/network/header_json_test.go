@@ -28,7 +28,7 @@ func (t *baseTestCAHandoverHeader) SetupSuite() {
 }
 
 func (t *baseTestCAHandoverHeader) SetupTest() {
-	ci, err := quicstream.NewConnInfoFromString("1.2.3.4:4321#tls_insecure")
+	ci, err := quicstream.NewConnInfoFromFullString("1.2.3.4:4321#tls_insecure")
 	t.NoError(err)
 
 	t.Encode = func() (interface{}, []byte) {

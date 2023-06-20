@@ -20,6 +20,6 @@ func RandomConnInfoGenerator() func() ConnInfo {
 
 		lastrandomport++
 
-		return NewConnInfo(&net.UDPAddr{IP: net.IPv6loopback, Port: lastrandomport}, true)
+		return MustConnInfo(&net.UDPAddr{IP: net.IPv6loopback, Port: lastrandomport}, true)
 	}
 }

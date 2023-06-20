@@ -17,16 +17,25 @@ func NewConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
 	return ConnInfo{addr: addr, tlsinsecure: tlsinsecure}
 }
 
-func NewConnInfoFromString(s string) (ConnInfo, error) {
+func MustConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
+	ci := NewConnInfo(addr, tlsinsecure)
+	if err := ci.IsValid(nil); err != nil {
+		panic(err)
+	}
+
+	return ci
+}
+
+func NewConnInfoFromFullString(s string) (ConnInfo, error) {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
-	return NewConnInfoFromStringAddress(as, tlsinsecure)
+	return NewConnInfoFromStringAddr(as, tlsinsecure)
 }
 
 func MustNewConnInfoFromString(s string) ConnInfo {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
-	ci, err := NewConnInfoFromStringAddress(as, tlsinsecure)
+	ci, err := NewConnInfoFromStringAddr(as, tlsinsecure)
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +43,7 @@ func MustNewConnInfoFromString(s string) ConnInfo {
 	return ci
 }
 
-func NewConnInfoFromStringAddress(s string, tlsinsecure bool) (ci ConnInfo, _ error) {
+func NewConnInfoFromStringAddr(s string, tlsinsecure bool) (ci ConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err == nil {
 		return NewConnInfo(addr, tlsinsecure), nil
@@ -98,7 +107,7 @@ func (c ConnInfo) MarshalText() ([]byte, error) {
 }
 
 func (c *ConnInfo) UnmarshalText(b []byte) error {
-	ci, err := NewConnInfoFromString(string(b))
+	ci, err := NewConnInfoFromFullString(string(b))
 	if err != nil {
 		return errors.WithMessage(err, "unmarshal ConnInfo")
 	}

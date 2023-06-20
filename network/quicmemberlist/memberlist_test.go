@@ -51,7 +51,7 @@ func (t *testMemberlist) SetupTest() {
 func (t *testMemberlist) newConnInfo() quicstream.ConnInfo {
 	addr := t.BaseTest.NewAddr()
 
-	return quicstream.NewConnInfo(addr, true)
+	return quicstream.MustConnInfo(addr, true)
 }
 
 func (t *testMemberlist) newargs(config *memberlist.Config) *MemberlistArgs {

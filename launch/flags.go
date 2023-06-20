@@ -73,7 +73,7 @@ func (f ConnInfoFlag) MarshalText() ([]byte, error) {
 
 func (f *ConnInfoFlag) ConnInfo() (quicstream.ConnInfo, error) {
 	if f.ci.Addr() == nil {
-		ci, err := quicstream.NewConnInfoFromStringAddress(f.addr, f.tlsinsecure)
+		ci, err := quicstream.NewConnInfoFromStringAddr(f.addr, f.tlsinsecure)
 		if err != nil {
 			return quicstream.ConnInfo{}, errors.Wrap(err, "convert to quic ConnInfo")
 		}
