@@ -153,15 +153,15 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 	srv, client, ph, errch := t.server(prefix)
 	defer srv.Stop()
 
-	t.Run("error handler response", func() {
+	t.Run("error handler", func() {
 		errhandlerch := make(chan error, 1)
 
 		ph.Add(prefix, NewHandler(t.encs, 0, func(context.Context, net.Addr, *HandlerBroker, RequestHeader) error {
 			return errors.Errorf("hehehe")
-		}, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, err error) error {
+		}, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, err error) error {
 			errhandlerch <- err
 
-			return nil
+			return errors.Errorf("hohoho")
 		}))
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
@@ -177,10 +177,53 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait response"))
+			t.NoError(errors.Errorf("failed to wait handler error"))
 		case err := <-errch:
 			t.Error(err)
+			t.ErrorContains(err, "hohoho")
+		}
+
+		t.T().Log("error handler")
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("failed to wait error handler"))
+		case err := <-errhandlerch:
+			t.Error(err)
 			t.ErrorContains(err, "hehehe")
+		}
+
+		t.T().Log("read response head")
+		_, _, err := broker.ReadResponseHead(ctx)
+		t.Error(err)
+		t.True(errors.Is(err, io.EOF))
+	})
+
+	t.Run("error handler response", func() {
+		errhandlerch := make(chan error, 1)
+
+		ph.Add(prefix, NewHandler(t.encs, 0, func(context.Context, net.Addr, *HandlerBroker, RequestHeader) error {
+			return errors.Errorf("hehehe")
+		}, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, err error) error {
+			errhandlerch <- err
+
+			return broker.WriteResponseHeadOK(ctx, false, err)
+		}))
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+		defer cancel()
+
+		broker, closef := t.clientBroker(ctx, client)
+		defer closef()
+
+		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+
+		t.T().Log("write request head")
+		t.NoError(broker.WriteRequestHead(ctx, reqh))
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(errors.WithMessage(err, "unexpected handler error"))
 		}
 
 		t.T().Log("error handler")

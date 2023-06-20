@@ -47,25 +47,22 @@ func NewHandler[T RequestHeader](
 			_ = broker.Close()
 		}()
 
-		if err := baseHandler[T](ctx, addr, broker, handler); err != nil {
-			aerr := util.AwareContext(ctx, func(ctx context.Context) error {
-				if errhandler != nil {
-					if berr := errhandler(ctx, addr, broker, err); berr != nil {
-						return berr
-					}
+		if err := runHandler[T](ctx, addr, broker, handler); err != nil {
+			return util.AwareContext(ctx, func(ctx context.Context) error {
+				switch {
+				case errhandler != nil:
+					return errhandler(ctx, addr, broker, err)
+				default:
+					return broker.WriteResponseHeadOK(ctx, false, err)
 				}
-
-				return broker.WriteResponseHeadOK(ctx, false, err)
 			})
-
-			return util.JoinErrors(err, aerr)
 		}
 
 		return nil
 	}
 }
 
-func baseHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) error {
+func runHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) error {
 	req, err := broker.ReadRequestHead(ctx)
 	if err != nil {
 		return err
