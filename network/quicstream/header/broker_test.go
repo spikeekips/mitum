@@ -130,14 +130,14 @@ func (t *testBrokers) TestRequestHeader() {
 
 				return nil
 			}, func(
-				_ context.Context,
+				ctx context.Context,
 				_ net.Addr,
 				broker *HandlerBroker,
 				err error,
 			) error {
 				errch <- err
 
-				return nil
+				return broker.WriteResponseHeadOK(ctx, false, err)
 			},
 		))
 
@@ -292,7 +292,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 	t.Run("error handler response", func() {
 		errhandlerch := make(chan error, 1)
 
-		ph.Add(prefix, NewHandler(t.encs, 0, func(context.Context, net.Addr, *HandlerBroker, RequestHeader) error {
+		ph.Add(prefix, NewHandler(t.encs, nil, func(context.Context, net.Addr, *HandlerBroker, RequestHeader) error {
 			return errors.Errorf("hehehe")
 		}, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, err error) error {
 			errhandlerch <- err
