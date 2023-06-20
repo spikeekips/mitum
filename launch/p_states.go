@@ -99,7 +99,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	)
 
 	requestMissingBallotsf := isaacstates.RequestMissingBallots(
-		quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
+		quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
 		m.CallbackBroadcast,
 	)
 

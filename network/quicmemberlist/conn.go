@@ -43,7 +43,7 @@ func (c NamedConnInfo) ConnInfo() (ci quicstream.ConnInfo, _ error) {
 		return ci, errors.Wrap(err, "resolve NamedConnInfo")
 	}
 
-	return quicstream.NewConnInfo(udp, c.tlsinsecure), nil
+	return quicstream.UnsafeConnInfo(udp, c.tlsinsecure), nil
 }
 
 func (c NamedConnInfo) Addr() net.Addr {

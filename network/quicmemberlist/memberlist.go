@@ -596,13 +596,13 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	case !ok:
 		return errors.Errorf("transport should be *quicmemberlist.Transport, not %T", config.Transport)
 	default:
-		i.getconninfof = func(addr *net.UDPAddr) quicstream.ConnInfo {
+		i.getconninfof = func(addr *net.UDPAddr) (quicstream.ConnInfo, error) {
 			j, found := srv.cicache.Get(addr.String())
 			if !found {
 				return quicstream.NewConnInfo(addr, true)
 			}
 
-			return j
+			return j, nil
 		}
 
 		i.args.NotAllowFunc = func(addr string) bool {

@@ -142,7 +142,7 @@ func (n BaseMember) Addr() *net.UDPAddr {
 }
 
 func (n BaseMember) ConnInfo() quicstream.ConnInfo {
-	return quicstream.NewConnInfo(n.addr, n.meta.tlsinsecure)
+	return quicstream.UnsafeConnInfo(n.addr, n.meta.tlsinsecure)
 }
 
 func (n BaseMember) TLSInsecure() bool {

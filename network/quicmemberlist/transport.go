@@ -20,7 +20,7 @@ import (
 type (
 	TransportDialFunc    func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error)
 	TransportWriteFunc   func(context.Context, quicstream.ConnInfo, []byte) error
-	TransportGetConnInfo func(*net.UDPAddr) quicstream.ConnInfo
+	TransportGetConnInfo func(*net.UDPAddr) (quicstream.ConnInfo, error)
 )
 
 type TransportArgs struct {
@@ -63,12 +63,14 @@ func NewTransport(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-quicmemberlist")
 		}),
-		laddr:        laddr,
-		args:         args,
-		packetch:     make(chan *memberlist.Packet),
-		streamch:     make(chan net.Conn),
-		conns:        conns,
-		getconninfof: func(addr *net.UDPAddr) quicstream.ConnInfo { return quicstream.NewConnInfo(addr, true) },
+		laddr:    laddr,
+		args:     args,
+		packetch: make(chan *memberlist.Packet),
+		streamch: make(chan net.Conn),
+		conns:    conns,
+		getconninfof: func(addr *net.UDPAddr) (quicstream.ConnInfo, error) {
+			return quicstream.NewConnInfo(addr, true)
+		},
 	}
 }
 
@@ -183,7 +185,14 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	ci := t.getconninfof(raddr)
+	var ci quicstream.ConnInfo
+
+	switch i, err := t.getconninfof(raddr); {
+	case err != nil:
+		return nil, err
+	default:
+		ci = i
+	}
 
 	if _, err := t.args.DialFunc(ctx, ci); err != nil {
 		l.Error().Err(err).Interface("conn_info", ci).Msg("failed to dial")
@@ -193,7 +202,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 
 	l.Trace().Msg("successfully dial")
 
-	return t.newConn(raddr), nil
+	return t.newConn(raddr)
 }
 
 func (t *Transport) FinalAdvertiseAddr(ip string, port int) (net.IP, int, error) {
@@ -262,7 +271,14 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 		return time.Time{}, e.WithMessage(err, "resolve udp address")
 	}
 
-	ci := t.getconninfof(raddr)
+	var ci quicstream.ConnInfo
+
+	switch i, err := t.getconninfof(raddr); {
+	case err != nil:
+		return time.Time{}, err
+	default:
+		ci = i
+	}
 
 	if err := t.args.WriteFunc(context.Background(), ci, marshalMsg(packetDataType, t.laddr, b)); err != nil {
 		return time.Time{}, &net.OpError{
@@ -359,44 +375,40 @@ func (t *Transport) receiveStream(b []byte, raddr net.Addr) {
 		return
 	}
 
-	var conn *qconn
-	i, _ := t.conns.Value(raddr.String())
-
-	switch {
-	case i != nil:
-		conn = i
-	default:
-		conn = t.newConn(raddr.(*net.UDPAddr)) //nolint:forcetypeassert // ...
-	}
-
-	if conn.writeClose(b) {
+	switch conn, err := t.newConn(raddr.(*net.UDPAddr)); {
+	case err != nil:
+		return
+	case conn.writeClose(b):
 		t.streamch <- conn
 	}
 }
 
-func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
-	ci := t.getconninfof(raddr)
+func (t *Transport) newConn(raddr *net.UDPAddr) (*qconn, error) {
+	ci, err := t.getconninfof(raddr)
+	if err != nil {
+		return nil, err
+	}
 
-	conn := newQConn(
-		t.laddr,
-		raddr,
-		func(ctx context.Context, b []byte) (int, error) {
-			err := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
-			var n int
-			if err == nil {
-				n = len(b)
-			}
+	conn, _, _ := t.conns.GetOrCreate(raddr.String(), func() (*qconn, error) {
+		return newQConn(
+			t.laddr,
+			raddr,
+			func(ctx context.Context, b []byte) (int, error) {
+				err := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
+				var n int
+				if err == nil {
+					n = len(b)
+				}
 
-			return n, err
-		},
-		func() {
-			_ = t.conns.RemoveValue(raddr.String())
-		},
-	)
+				return n, err
+			},
+			func() {
+				_ = t.conns.RemoveValue(raddr.String())
+			},
+		), nil
+	})
 
-	_ = t.conns.SetValue(raddr.String(), conn)
-
-	return conn
+	return conn, nil
 }
 
 func getclient(

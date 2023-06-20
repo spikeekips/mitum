@@ -13,13 +13,19 @@ type ConnInfo struct {
 	tlsinsecure bool
 }
 
-func NewConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
+func UnsafeConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
 	return ConnInfo{addr: addr, tlsinsecure: tlsinsecure}
 }
 
+func NewConnInfo(addr *net.UDPAddr, tlsinsecure bool) (ConnInfo, error) {
+	ci := UnsafeConnInfo(addr, tlsinsecure)
+
+	return ci, ci.IsValid(nil)
+}
+
 func MustConnInfo(addr *net.UDPAddr, tlsinsecure bool) ConnInfo {
-	ci := NewConnInfo(addr, tlsinsecure)
-	if err := ci.IsValid(nil); err != nil {
+	ci, err := NewConnInfo(addr, tlsinsecure)
+	if err != nil {
 		panic(err)
 	}
 
@@ -32,7 +38,7 @@ func NewConnInfoFromFullString(s string) (ConnInfo, error) {
 	return NewConnInfoFromStringAddr(as, tlsinsecure)
 }
 
-func MustNewConnInfoFromString(s string) ConnInfo {
+func MustNewConnInfoFromFullString(s string) ConnInfo {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
 	ci, err := NewConnInfoFromStringAddr(as, tlsinsecure)
@@ -46,7 +52,7 @@ func MustNewConnInfoFromString(s string) ConnInfo {
 func NewConnInfoFromStringAddr(s string, tlsinsecure bool) (ci ConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err == nil {
-		return NewConnInfo(addr, tlsinsecure), nil
+		return NewConnInfo(addr, tlsinsecure)
 	}
 
 	var dnserr *net.DNSError
@@ -78,7 +84,7 @@ func (c ConnInfo) isValid() error {
 }
 
 func (c ConnInfo) Addr() net.Addr {
-	if c.isValid() != nil {
+	if c.isValid() != nil { // FIXME remove
 		return nil
 	}
 

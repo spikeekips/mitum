@@ -145,7 +145,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return nil, err
 	}
 
-	localci := quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
 	args := isaacstates.NewHandoverYBrokerArgs(isaacparams.NetworkID())
 
@@ -295,7 +295,7 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	isaacparams := params.ISAAC
 	networkparams := params.Network
 
-	localci := quicstream.NewConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
 
 	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams, localci); err != nil {
 		return pctx, err
