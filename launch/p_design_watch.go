@@ -146,13 +146,14 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 		"parameters/isaac/wait_preparing_init_ballot":          updateLocalParamWaitPreparingINITBallot(params.ISAAC, log),
 		"parameters/isaac/max_try_handover_y_broker_sync_data": updateLocalParamMaxTryHandoverYBrokerSyncData(params.ISAAC, log),
 
-		"parameters/misc/timeout_request":                           updateLocalParamTimeoutRequest(params.Network, log),
 		"parameters/misc/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params.MISC, log),
 		"parameters/misc/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params.MISC, log),
 		"parameters/misc/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params.MISC, log),
 		"parameters/misc/max_message_size":                          updateLocalParamMaxMessageSize(params.MISC, log),
 
 		"parameters/memberlist/extra_same_member_limit": updateLocalParamExtraSameMemberLimit(params.Memberlist, log),
+
+		"parameters/network/timeout_request": updateLocalParamTimeoutRequest(params.Network, log),
 
 		"discoveries":  updateDiscoveries(discoveries, log),
 		"sync_sources": updateSyncSources(enc, design, syncSourceChecker, log),
