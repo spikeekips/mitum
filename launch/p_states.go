@@ -116,7 +116,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		return pctx, util.ErrInvalid.Errorf("too short ballot stuck wait; it should be over wait_preparing_init_ballot")
 	case isaacparams.BallotStuckWait() < isaacparams.WaitPreparingINITBallot()*2:
 		log.Log().Warn().
-			Dur("ballot_stuck_wait", isaacparams.BallotStuckWait()).
+			Stringer("ballot_stuck_wait", isaacparams.BallotStuckWait()).
 			Msg("too short ballot stuck wait; proper valud is over 2 * wait_preparing_init_ballot")
 	}
 
@@ -655,7 +655,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, isaacparams, syncSourcePool)
-		args.LastBlockMapTimeout = params.MISC.TimeoutRequest()
+		args.LastBlockMapTimeout = params.Network.TimeoutRequest()
 		args.BlockMapFunc = syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
 		args.TempSyncPool = tempsyncpool
 		args.WhenStoppedFunc = func() error {
@@ -675,7 +675,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				from, to,
 				batchlimit,
 				blockMapf,
-				syncerBlockMapItemFunc(newclient, conninfocache, params.MISC.TimeoutRequest),
+				syncerBlockMapItemFunc(newclient, conninfocache, params.Network.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -796,7 +796,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 			<-time.After(devdelay) // NOTE for testing
 		}
 
-		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
 		switch m, found, err := client.BlockMap(cctx, ci, height); {

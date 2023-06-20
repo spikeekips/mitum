@@ -160,7 +160,7 @@ func getProposalFunc(pctx context.Context) (
 				ci := node.ConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
-					cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+					cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 					defer cancel()
 
 					var pr base.ProposalSignFact
@@ -350,7 +350,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			}
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+				cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 				defer cancel()
 
 				op, _ := result.Set(func(i base.Operation, _ bool) (base.Operation, error) {
@@ -435,7 +435,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return true, nil, false, err
 		}
 
-		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
 		switch op, found, err := client.Operation(cctx, ci, operationhash); {
@@ -494,8 +494,8 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	args.Pool = pool
 	args.ProposerSelector = proposerSelector
 	args.Maker = proposalMaker
-	args.MinProposerWait = params.MISC.TimeoutRequest() + (time.Second * 2)
-	args.TimeoutRequest = params.MISC.TimeoutRequest
+	args.MinProposerWait = params.Network.TimeoutRequest() + (time.Second * 2)
+	args.TimeoutRequest = params.Network.TimeoutRequest
 
 	if err := getNodesFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
 		return nil, err
@@ -607,7 +607,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			})
 		}
 
-		nctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+		nctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
 		return isaac.ConcurrentRequestProposal(

@@ -476,7 +476,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 	lastl := util.EmptyLocked[util.Hash]()
 
 	f := func(ctx context.Context, ci quicstream.ConnInfo) (base.Height, base.SuffrageProof, bool, error) {
-		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
 		last, _ := lastl.Value()
@@ -586,7 +586,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 							return err
 						}
 
-						cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+						cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 						defer cancel()
 
 						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
@@ -647,7 +647,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	f := func(ctx context.Context, ci quicstream.ConnInfo) (base.State, bool, error) {
 		last, _ := lastl.Value()
 
-		cctx, cancel := context.WithTimeout(ctx, params.MISC.TimeoutRequest())
+		cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
 		st, found, err := client.State(cctx, ci, isaac.SuffrageCandidateStateKey, last)
