@@ -323,7 +323,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 		return
 	}
 
-	st.Log().Debug().Dur("wait", wait).Msg("will wait new voteproof")
+	st.Log().Debug().Stringer("wait", wait).Msg("will wait new voteproof")
 
 	select {
 	case <-st.ctx.Done():

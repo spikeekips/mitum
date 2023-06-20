@@ -660,11 +660,11 @@ func (st *baseBallotHandler) requestProposal(
 	l := st.Log().With().
 		Object("point", point).
 		Stringer("previous_block", previousBlock).
-		Dur("initial_wait", initialWait).
+		Stringer("initial_wait", initialWait).
 		Logger()
 
 	started := time.Now()
-	defer l.Debug().Dur("elapsed", time.Since(started)).Msg("proposal selection done")
+	defer l.Debug().Stringer("elapsed", time.Since(started)).Msg("proposal selection done")
 
 	switch pr, err := st.args.ProposalSelectFunc(ctx, point, previousBlock, initialWait); {
 	case err == nil:
@@ -672,7 +672,7 @@ func (st *baseBallotHandler) requestProposal(
 
 		return pr, nil
 	default:
-		l.Error().Err(err).Dur("initial_wait", initialWait).Msg("failed to select proposal")
+		l.Error().Err(err).Stringer("initial_wait", initialWait).Msg("failed to select proposal")
 
 		return nil, err
 	}

@@ -128,10 +128,10 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 
 				if st.sts != nil && st.sts.Current() == StateSyncing {
 					if err := st.timers.StopAllTimers(); err != nil {
-						l.Error().Dur("wait", wait).Err(err).Msg("failed to stop all timers")
+						l.Error().Stringer("wait", wait).Err(err).Msg("failed to stop all timers")
 					}
 
-					l.Debug().Dur("wait", wait).Msg("timers stopped")
+					l.Debug().Stringer("wait", wait).Msg("timers stopped")
 				}
 			}()
 		default:
@@ -362,7 +362,7 @@ func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
 
 	wait := st.args.WaitStuckInterval()
 
-	l := st.Log().With().Dur("wait", wait).Stringer("id", util.ULID()).Logger()
+	l := st.Log().With().Stringer("wait", wait).Stringer("id", util.ULID()).Logger()
 
 	l.Debug().Msg("will wait for stucked")
 
@@ -403,7 +403,7 @@ func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
 		}
 
 		if st.allowedConsensus() {
-			st.Log().Debug().Dur("wait", wait).
+			st.Log().Debug().Stringer("wait", wait).
 				Msg("stuck accept voteproof found; moves to joining state")
 
 			// NOTE no more valid voteproof received, moves to joining state

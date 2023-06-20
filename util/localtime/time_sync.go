@@ -36,7 +36,7 @@ func NewTimeSyncer(server string, port int, interval time.Duration) (*TimeSyncer
 			return c.Str("module", "time-syncer").
 				Str("server", server).
 				Int("port", port).
-				Dur("interval", interval)
+				Stringer("interval", interval)
 		}),
 		host:     server,
 		port:     port,
@@ -54,8 +54,8 @@ func (ts *TimeSyncer) Start(ctx context.Context) error {
 
 	if ts.interval < minTimeSyncCheckInterval {
 		ts.Log().Warn().
-			Dur("check_interval", ts.interval).
-			Dur("min_ceck_interval", minTimeSyncCheckInterval).
+			Stringer("check_interval", ts.interval).
+			Stringer("min_ceck_interval", minTimeSyncCheckInterval).
 			Msg("interval too short")
 	}
 
@@ -76,9 +76,9 @@ end:
 		case <-ticker.C:
 			started := time.Now()
 			if err := ts.check(); err != nil {
-				ts.Log().Error().Err(err).Dur("elapsed", time.Since(started)).Msg("failed to check sync time")
+				ts.Log().Error().Err(err).Stringer("elapsed", time.Since(started)).Msg("failed to check sync time")
 			} else {
-				ts.Log().Debug().Dur("elapsed", time.Since(started)).Msg("time sync checked")
+				ts.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("time sync checked")
 			}
 		}
 	}
@@ -120,7 +120,7 @@ func (ts *TimeSyncer) check() error {
 	}
 
 	offset := ts.Offset()
-	defer ts.Log().Debug().Interface("response", response).Dur("offset", offset).Msg("time checked")
+	defer ts.Log().Debug().Interface("response", response).Stringer("offset", offset).Msg("time checked")
 
 	switch diff := offset - response.ClockOffset; {
 	case diff == 0:
