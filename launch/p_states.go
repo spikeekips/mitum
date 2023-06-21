@@ -98,10 +98,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		ballotbox,
 	)
 
-	requestMissingBallotsf := isaacstates.RequestMissingBallots(
-		quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
-		m.CallbackBroadcast,
-	)
+	requestMissingBallotsf := isaacstates.RequestMissingBallots(design.Network.PublishConnInfo(), m.CallbackBroadcast)
 
 	voteSuffrageVotingf := isaacstates.VoteSuffrageVotingFunc(
 		local,
@@ -745,12 +742,7 @@ func syncerLastBlockMapFunc(
 			uint64(numnodes),
 			nil,
 			func(_ context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.ConnInfo()
-				if err != nil {
-					return err
-				}
-
-				m, updated, err := f(ctx, manifest, ci)
+				m, updated, err := f(ctx, manifest, nci.ConnInfo())
 				switch {
 				case err != nil:
 					return err
@@ -824,10 +816,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					numnodes,
 					uint64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-						ci, err := nci.ConnInfo()
-						if err != nil {
-							return err
-						}
+						ci := nci.ConnInfo()
 
 						switch a, b, err := f(ctx, height, ci); {
 						case err != nil:

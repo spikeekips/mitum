@@ -25,12 +25,10 @@ func (cmd *NetworkClientLastBlockMapCommand) Run(pctx context.Context) error {
 		h = valuehash.NewBytesFromString(cmd.Hash)
 	}
 
-	ci, _ := cmd.Remote.ConnInfo()
-
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	switch m, found, err := cmd.Client.LastBlockMap(ctx, ci, h); {
+	switch m, found, err := cmd.Client.LastBlockMap(ctx, cmd.Remote.ConnInfo(), h); {
 	case err != nil:
 		cmd.Log.Error().Err(err).Msg("failed to get last blockmap")
 

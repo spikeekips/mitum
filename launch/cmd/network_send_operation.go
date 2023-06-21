@@ -30,12 +30,10 @@ func (cmd *NetworkClientSendOperationCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	ci, _ := cmd.Remote.ConnInfo()
-
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	switch sent, err := cmd.Client.SendOperation(ctx, ci, op); {
+	switch sent, err := cmd.Client.SendOperation(ctx, cmd.Remote.ConnInfo(), op); {
 	case err != nil:
 		cmd.Log.Error().Err(err).Msg("not sent")
 

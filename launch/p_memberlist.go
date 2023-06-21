@@ -538,12 +538,9 @@ func nodeChallengeFunc(pctx context.Context) (
 	return func(node quicmemberlist.Member) error {
 		e := util.StringError("challenge memberlist node")
 
-		ci, err := node.Publish().ConnInfo()
-		if err != nil {
-			return errors.WithMessage(err, "invalid publish conninfo")
-		}
+		ci := node.Publish().ConnInfo()
 
-		if err = util.CheckIsValiders(nil, false, node.Publickey()); err != nil {
+		if err := util.CheckIsValiders(nil, false, node.Publickey()); err != nil {
 			return errors.WithMessage(err, "invalid memberlist node publickey")
 		}
 
@@ -713,10 +710,6 @@ func ensureJoinMemberlist(
 		dis, _ = util.RemoveDuplicatedSlice[quicstream.ConnInfo](
 			dis,
 			func(i quicstream.ConnInfo) (string, error) {
-				if i.Addr() == nil {
-					return "", nil
-				}
-
 				return i.UDPAddr().String(), nil
 			},
 		)

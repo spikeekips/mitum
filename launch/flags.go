@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -60,6 +59,13 @@ func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
 
 	f.addr, f.tlsinsecure = network.ParseTLSInsecure(s)
 
+	switch ci, err := quicstream.NewConnInfoFromStringAddr(f.addr, f.tlsinsecure); {
+	case err != nil:
+		return err
+	default:
+		f.ci = ci
+	}
+
 	return nil
 }
 
@@ -71,17 +77,8 @@ func (f ConnInfoFlag) MarshalText() ([]byte, error) {
 	return []byte(f.String()), nil
 }
 
-func (f *ConnInfoFlag) ConnInfo() (quicstream.ConnInfo, error) {
-	if f.ci.Addr() == nil {
-		ci, err := quicstream.NewConnInfoFromStringAddr(f.addr, f.tlsinsecure)
-		if err != nil {
-			return quicstream.ConnInfo{}, errors.Wrap(err, "convert to quic ConnInfo")
-		}
-
-		f.ci = ci
-	}
-
-	return f.ci, nil
+func (f *ConnInfoFlag) ConnInfo() quicstream.ConnInfo {
+	return f.ci
 }
 
 type HeightFlag struct {

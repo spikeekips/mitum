@@ -28,12 +28,7 @@ func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 		v := make([]quicstream.ConnInfo, len(flag))
 
 		for i := range flag {
-			ci, err := flag[i].ConnInfo()
-			if err != nil {
-				return pctx, e.WithMessage(err, "invalid member discovery, %q", flag[i])
-			}
-
-			v[i] = ci
+			v[i] = flag[i].ConnInfo()
 		}
 
 		_ = discoveries.SetValue(v)

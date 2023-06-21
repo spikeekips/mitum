@@ -37,7 +37,7 @@ func (cmd *baseHandoverCommand) run(pctx context.Context) (func(), error) {
 		_ = cmd.Client.Close()
 	}
 
-	cmd.yci, _ = cmd.Remote.ConnInfo()
+	cmd.yci = cmd.Remote.ConnInfo()
 
 	switch key, err := launch.DecodePrivatekey(cmd.KeyString, cmd.Encoder); {
 	case err != nil:
@@ -66,15 +66,13 @@ func (cmd *StartHandoverCommand) Run(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	xci, _ := cmd.X.ConnInfo()
-
 	isStarted, err := cmd.Client.StartHandover(
 		ctx,
 		cmd.yci,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
 		cmd.Node.Address(),
-		xci,
+		cmd.X.ConnInfo(),
 	)
 
 	switch {

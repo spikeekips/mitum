@@ -37,14 +37,12 @@ func (cmd *NetworkClientSetAllowConsensusCommand) Run(pctx context.Context) erro
 		return errors.Errorf(`wrong allow value, should be "allow" or "not-allow"`)
 	}
 
-	ci, _ := cmd.Remote.ConnInfo()
-
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
 	l := cmd.Log.With().Bool("allow", allow).Logger()
 
-	isset, err := cmd.Client.SetAllowConsensus(ctx, ci, priv, base.NetworkID(cmd.NetworkID), allow)
+	isset, err := cmd.Client.SetAllowConsensus(ctx, cmd.Remote.ConnInfo(), priv, base.NetworkID(cmd.NetworkID), allow)
 
 	switch {
 	case err != nil:

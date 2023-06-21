@@ -22,9 +22,14 @@ type dummyNodeConnInfo struct {
 }
 
 func newDummyNodeConnInfo(address base.Address, pub base.Publickey, addr string, tlsinsecure bool) dummyNodeConnInfo {
+	ci, err := quicmemberlist.NewNamedConnInfo(addr, tlsinsecure)
+	if err != nil {
+		panic(err)
+	}
+
 	return dummyNodeConnInfo{
 		BaseNode:      NewNode(pub, address),
-		NamedConnInfo: quicmemberlist.NewNamedConnInfo(addr, tlsinsecure),
+		NamedConnInfo: ci,
 	}
 }
 

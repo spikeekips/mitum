@@ -77,13 +77,13 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 	return d, b, nil
 }
 
-func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
+func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru http")
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: tlsInsecure,
+				InsecureSkipVerify: tlsinsecure,
 			},
 		},
 	}
@@ -316,10 +316,11 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeNetworkDesign struct {
-	Bind          *net.UDPAddr `yaml:"bind"`
-	publish       *net.UDPAddr
-	PublishString string `yaml:"publish"` //nolint:tagliatelle //...
-	TLSInsecure   bool   `yaml:"tls_insecure"`
+	publishConnInfo quicstream.ConnInfo
+	Bind            *net.UDPAddr `yaml:"bind"`
+	publish         *net.UDPAddr
+	PublishString   string `yaml:"publish"` //nolint:tagliatelle //...
+	TLSInsecure     bool   `yaml:"tls_insecure"`
 }
 
 func (d *NodeNetworkDesign) IsValid([]byte) error {
@@ -349,11 +350,22 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 		d.publish = addr
 	}
 
+	switch i, err := quicstream.NewConnInfo(d.publish, d.TLSInsecure); {
+	case err != nil:
+		return e.WithMessage(err, "publish conninfo")
+	default:
+		d.publishConnInfo = i
+	}
+
 	return nil
 }
 
 func (d NodeNetworkDesign) Publish() *net.UDPAddr {
 	return d.publish
+}
+
+func (d NodeNetworkDesign) PublishConnInfo() quicstream.ConnInfo {
+	return d.publishConnInfo
 }
 
 type NodeNetworkDesignYAMLMarshaler struct {

@@ -229,12 +229,6 @@ func randomConnInfo() ConnInfo {
 
 		binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
 
-		ci := MustConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
-
-		if ci.isValid() != nil {
-			continue
-		}
-
-		return ci
+		return MustConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
 	}
 }

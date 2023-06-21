@@ -27,23 +27,31 @@ func (a NamedAddr) String() string {
 }
 
 type NamedConnInfo struct {
-	addr        NamedAddr
-	tlsinsecure bool
+	addr NamedAddr
+	ci   quicstream.ConnInfo
 }
 
-func NewNamedConnInfo(addr string, tlsinsecure bool) NamedConnInfo {
-	return NamedConnInfo{
-		addr: NamedAddr{addr: addr}, tlsinsecure: tlsinsecure,
-	}
-}
-
-func (c NamedConnInfo) ConnInfo() (ci quicstream.ConnInfo, _ error) {
-	udp, err := net.ResolveUDPAddr("udp", c.addr.String())
+func NewNamedConnInfo(addr string, tlsinsecure bool) (nci NamedConnInfo, _ error) {
+	ci, err := quicstream.NewConnInfoFromStringAddr(addr, tlsinsecure)
 	if err != nil {
-		return ci, errors.Wrap(err, "resolve NamedConnInfo")
+		return nci, err
 	}
 
-	return quicstream.UnsafeConnInfo(udp, c.tlsinsecure), nil
+	return NamedConnInfo{
+		addr: NamedAddr{addr: addr},
+		ci:   ci,
+	}, nil
+}
+
+func NewNamedConnInfoFromConnInfo(ci quicstream.ConnInfo) NamedConnInfo {
+	return NamedConnInfo{
+		addr: NamedAddr{addr: ci.Addr().String()},
+		ci:   ci,
+	}
+}
+
+func (c NamedConnInfo) ConnInfo() quicstream.ConnInfo {
+	return c.ci
 }
 
 func (c NamedConnInfo) Addr() net.Addr {
@@ -51,7 +59,7 @@ func (c NamedConnInfo) Addr() net.Addr {
 }
 
 func (c NamedConnInfo) TLSInsecure() bool {
-	return c.tlsinsecure
+	return c.ci.TLSInsecure()
 }
 
 func (c NamedConnInfo) IsValid([]byte) error {
@@ -61,11 +69,15 @@ func (c NamedConnInfo) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
+	if err := c.ci.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
 	return nil
 }
 
 func (c NamedConnInfo) String() string {
-	return network.ConnInfoToString(c.addr.String(), c.tlsinsecure)
+	return network.ConnInfoToString(c.addr.String(), c.TLSInsecure())
 }
 
 func (c NamedConnInfo) MarshalText() ([]byte, error) {
@@ -75,8 +87,12 @@ func (c NamedConnInfo) MarshalText() ([]byte, error) {
 func (c *NamedConnInfo) UnmarshalText(b []byte) error {
 	addr, tlsinsecure := network.ParseTLSInsecure(string(b))
 
-	c.addr = NamedAddr{addr: addr}
-	c.tlsinsecure = tlsinsecure
+	nci, err := NewNamedConnInfo(addr, tlsinsecure)
+	if err != nil {
+		return err
+	}
+
+	*c = nci
 
 	return nil
 }

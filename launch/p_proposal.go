@@ -344,11 +344,6 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 				return true
 			}
 
-			ci, err := nci.ConnInfo()
-			if err != nil {
-				return true
-			}
-
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 				cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 				defer cancel()
@@ -358,7 +353,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 						return i, util.ErrLockedSetIgnore.WithStack()
 					}
 
-					switch op, found, err := client.Operation(cctx, ci, operationhash); {
+					switch op, found, err := client.Operation(cctx, nci.ConnInfo(), operationhash); {
 					case err != nil, !found:
 						return nil, util.ErrLockedSetIgnore.WithStack()
 					default:
@@ -419,9 +414,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 				return true
 			}
 
-			if _, err := nci.ConnInfo(); err == nil {
-				proposernci = nci
-			}
+			proposernci = nci
 
 			return false
 		})
@@ -430,15 +423,10 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return false, nil, false, nil
 		}
 
-		ci, err := proposernci.ConnInfo()
-		if err != nil {
-			return true, nil, false, err
-		}
-
 		cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 		defer cancel()
 
-		switch op, found, err := client.Operation(cctx, ci, operationhash); {
+		switch op, found, err := client.Operation(cctx, proposernci.ConnInfo(), operationhash); {
 		case err != nil:
 			return true, nil, false, err
 		case !found:
@@ -565,8 +553,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			33, //nolint:gomnd //...
 			func(node quicmemberlist.Member) bool {
 				switch {
-				case node.ConnInfo().Addr() == nil,
-					node.Address().Equal(local.Address()):
+				case node.Address().Equal(local.Address()):
 					return true
 				default:
 					return false
@@ -596,9 +583,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		if !foundproposer { // NOTE include proposer conn info
 			m.Members(func(node quicmemberlist.Member) bool {
 				if node.Address().Equal(proposer.Address()) {
-					if node.ConnInfo().Addr() != nil {
-						cis = append(cis, node.ConnInfo()) //nolint:makezero //...
-					}
+					cis = append(cis, node.ConnInfo()) //nolint:makezero //...
 
 					return false
 				}

@@ -65,16 +65,12 @@ func NewConnInfoFromStringAddr(s string, tlsinsecure bool) (ci ConnInfo, _ error
 }
 
 func (c ConnInfo) IsValid([]byte) error {
-	return c.isValid()
-}
-
-func (c ConnInfo) isValid() error {
 	e := util.ErrInvalid.Errorf("invalid ConnInfo")
 
 	switch {
 	case c.addr == nil:
 		return e.Errorf("empty addr")
-	case c.addr.IP.IsUnspecified():
+	case len(c.addr.IP) < 1, c.addr.IP.IsUnspecified():
 		return e.Errorf("empty addr ip")
 	case c.addr.Port < 1:
 		return e.Errorf("empty addr port")
@@ -84,10 +80,6 @@ func (c ConnInfo) isValid() error {
 }
 
 func (c ConnInfo) Addr() net.Addr {
-	if c.isValid() != nil { // FIXME remove
-		return nil
-	}
-
 	return c.addr
 }
 

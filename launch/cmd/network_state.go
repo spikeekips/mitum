@@ -31,12 +31,10 @@ func (cmd *NetworkClientStateCommand) Run(pctx context.Context) error {
 		h = valuehash.NewBytesFromString(cmd.Hash)
 	}
 
-	ci, _ := cmd.Remote.ConnInfo()
-
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	switch st, found, err := cmd.Client.State(ctx, ci, cmd.Key, h); {
+	switch st, found, err := cmd.Client.State(ctx, cmd.Remote.ConnInfo(), cmd.Key, h); {
 	case err != nil:
 		cmd.Log.Error().Err(err).Msg("failed to get state")
 

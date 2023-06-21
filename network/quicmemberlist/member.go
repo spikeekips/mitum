@@ -53,7 +53,7 @@ func NewMember(
 }
 
 func newMemberFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseMember, error) {
-	e := util.StringError("make Member from memberlist.Node")
+	e := util.StringError("new Member from memberlist.Node")
 
 	var meta memberMeta
 
@@ -63,26 +63,50 @@ func newMemberFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseM
 
 	addr, _ := convertNetAddr(node)
 
-	m, err := newMemberWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
-
-	return m, e.Wrap(err)
-}
-
-func newMemberWithMeta(name string, addr *net.UDPAddr, meta memberMeta) (BaseMember, error) {
-	metab, err := util.MarshalJSON(meta)
+	n, err := newMemberWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
 	if err != nil {
-		return BaseMember{}, errors.WithMessage(err, "new Member")
+		return BaseMember{}, e.Wrap(err)
 	}
 
-	return BaseMember{
+	return n, n.IsValid(nil)
+}
+
+func newMemberWithMeta(name string, addr *net.UDPAddr, meta memberMeta) (b BaseMember, _ error) {
+	metab, err := util.MarshalJSON(meta)
+	if err != nil {
+		return b, errors.WithMessage(err, "new Member")
+	}
+
+	var publish NamedConnInfo
+
+	switch p := meta.publish; {
+	case len(p) > 0:
+		i, err := NewNamedConnInfo(meta.publish, meta.tlsinsecure)
+		if err != nil {
+			return b, errors.WithMessage(err, "new Member")
+		}
+
+		publish = i
+	default:
+		i, err := quicstream.NewConnInfo(addr, meta.tlsinsecure)
+		if err != nil {
+			return b, errors.WithMessage(err, "new Member")
+		}
+
+		publish = NewNamedConnInfoFromConnInfo(i)
+	}
+
+	n := BaseMember{
 		BaseHinter: hint.NewBaseHinter(MemberHint),
 		name:       name,
 		addr:       addr,
 		joinedAt:   localtime.Now().UTC(),
 		meta:       meta,
 		metab:      metab,
-		publish:    NewNamedConnInfo(meta.publish, meta.tlsinsecure),
-	}, nil
+		publish:    publish,
+	}
+
+	return n, nil
 }
 
 func (n BaseMember) IsValid([]byte) error {
@@ -142,7 +166,7 @@ func (n BaseMember) Addr() *net.UDPAddr {
 }
 
 func (n BaseMember) ConnInfo() quicstream.ConnInfo {
-	return quicstream.UnsafeConnInfo(n.addr, n.meta.tlsinsecure)
+	return n.publish.ConnInfo()
 }
 
 func (n BaseMember) TLSInsecure() bool {

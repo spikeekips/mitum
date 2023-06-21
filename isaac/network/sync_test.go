@@ -143,7 +143,7 @@ func (t *testSyncSourceChecker) ncis(n int) ([]base.LocalNode, []isaac.NodeConnI
 		ci := quicstream.RandomConnInfo()
 
 		locals[i] = local
-		ncis[i] = NewNodeConnInfo(local.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure())
+		ncis[i] = NewNodeConnInfoFromConnInfo(local.BaseNode, ci)
 	}
 
 	return locals, ncis
@@ -155,8 +155,7 @@ func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[strin
 	locals, ncis := t.ncis(n)
 
 	for i := range ncis {
-		ci, err := ncis[i].ConnInfo()
-		t.NoError(err)
+		ci := ncis[i].ConnInfo()
 
 		handlersmap[ci.String()] = &handlers{localParams: t.LocalParams, local: locals[i], encs: t.Encs, idletimeout: time.Second}
 	}
@@ -171,7 +170,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 		node := base.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfoFromConnInfo(node.BaseNode, ci))
 	}
 
 	local := base.RandomLocalNode()
@@ -212,7 +211,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 		node := base.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfoFromConnInfo(node.BaseNode, ci))
 	}
 
 	local := base.RandomLocalNode()
@@ -252,7 +251,7 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 	{ // NOTE add unknown node to []isaac.NodeConnInfo
 		node := base.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
-		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfoFromConnInfo(node.BaseNode, ci))
 
 		handlersmap[ci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 		// NOTE with t.Local instead of node
@@ -345,7 +344,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 		node := base.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncislocal = append(ncislocal, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncislocal = append(ncislocal, NewNodeConnInfoFromConnInfo(node.BaseNode, ci))
 	}
 	ncis := make([]isaac.NodeConnInfo, len(ncislocal)+len(ncisurl)-1)
 	copy(ncis, ncislocal)

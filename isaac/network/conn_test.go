@@ -21,7 +21,8 @@ type testNodeConnInfo struct {
 func (t *testNodeConnInfo) TestNew() {
 	node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-	nci := NewNodeConnInfo(node, "127.0.0.1:1234", true)
+	nci, err := NewNodeConnInfo(node, "127.0.0.1:1234", true)
+	t.NoError(err)
 
 	t.NoError(nci.IsValid(nil))
 
@@ -33,11 +34,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("wrong ip", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewNodeConnInfo(node, "1.2.3.500:1234", true)
-
-		t.NoError(nci.IsValid(nil))
-
-		_, err := nci.ConnInfo()
+		_, err := NewNodeConnInfo(node, "1.2.3.500:1234", true)
 		t.Error(err)
 
 		var dnserr *net.DNSError
@@ -47,11 +44,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("dns error", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewNodeConnInfo(node, "a.b.c.d:1234", true)
-
-		t.NoError(nci.IsValid(nil))
-
-		_, err := nci.ConnInfo()
+		_, err := NewNodeConnInfo(node, "a.b.c.d:1234", true)
 		t.Error(err)
 
 		var dnserr *net.DNSError
@@ -61,9 +54,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("empty host", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewNodeConnInfo(node, ":1234", true)
-
-		err := nci.IsValid(nil)
+		_, err := NewNodeConnInfo(node, ":1234", true)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
@@ -71,9 +62,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("empty port", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewNodeConnInfo(node, "a.b.c.d", true)
-
-		err := nci.IsValid(nil)
+		_, err := NewNodeConnInfo(node, "a.b.c.d", true)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
@@ -95,7 +84,8 @@ func TestNodeConnInfoEncode(t *testing.T) {
 
 		node := base.RandomNode()
 
-		nc := NewNodeConnInfo(node, "1.2.3.4:4321", true)
+		nc, err := NewNodeConnInfo(node, "1.2.3.4:4321", true)
+		tt.NoError(err)
 		_ = (interface{})(nc).(isaac.NodeConnInfo)
 
 		b, err := enc.Marshal(nc)

@@ -4,6 +4,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -16,21 +17,46 @@ type NodeConnInfo struct {
 	base.BaseNode
 }
 
-func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConnInfo {
+func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) (nci NodeConnInfo, _ error) {
+	node.BaseHinter = node.BaseHinter.SetHint(NodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	ci, err := quicmemberlist.NewNamedConnInfo(addr, tlsinsecure)
+	if err != nil {
+		return nci, err
+	}
+
+	return NodeConnInfo{
+		BaseNode:      node,
+		NamedConnInfo: ci,
+	}, nil
+}
+
+func MustNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConnInfo {
+	ci, err := NewNodeConnInfo(node, addr, tlsinsecure)
+	if err != nil {
+		panic(err)
+	}
+
+	return ci
+}
+
+func NewNodeConnInfoFromConnInfo(node base.BaseNode, ci quicstream.ConnInfo) NodeConnInfo {
 	node.BaseHinter = node.BaseHinter.SetHint(NodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
 	return NodeConnInfo{
 		BaseNode:      node,
-		NamedConnInfo: quicmemberlist.NewNamedConnInfo(addr, tlsinsecure),
+		NamedConnInfo: quicmemberlist.NewNamedConnInfoFromConnInfo(ci),
 	}
 }
 
 func NewNodeConnInfoFromMemberlistNode(member quicmemberlist.Member) NodeConnInfo {
-	return NewNodeConnInfo(
-		isaac.NewNode(member.Publickey(), member.Address()),
-		member.Publish().Addr().String(),
-		member.Publish().TLSInsecure(),
-	)
+	node := isaac.NewNode(member.Publickey(), member.Address())
+	node.BaseHinter = node.BaseHinter.SetHint(NodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return NodeConnInfo{
+		BaseNode:      node,
+		NamedConnInfo: member.Publish(),
+	}
 }
 
 func (n NodeConnInfo) IsValid([]byte) error {

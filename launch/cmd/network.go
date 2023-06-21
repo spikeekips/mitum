@@ -54,10 +54,6 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 		return errors.Errorf(`expected "<network-id>"`)
 	}
 
-	if _, err := cmd.Remote.ConnInfo(); err != nil {
-		return err
-	}
-
 	if cmd.Timeout < 1 {
 		cmd.Timeout = isaac.DefaultTimeoutRequest * 2
 	}

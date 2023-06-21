@@ -134,10 +134,6 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
-	if err := member.IsValid(nil); err != nil {
-		return err
-	}
-
 	var willchallenge bool
 
 	memberkey := member.Addr().String()

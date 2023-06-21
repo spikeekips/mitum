@@ -78,11 +78,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
 		},
 		func(y base.Address, yci quicstream.ConnInfo) error {
-			nci := isaacnetwork.NewNodeConnInfo(
-				isaac.NewNode(local.Publickey(), y),
-				yci.Addr().String(),
-				yci.TLSInsecure(),
-			)
+			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), y), yci)
 
 			if syncSourcePool.Len() < 1 {
 				err := syncSourceChecker.UpdateSources(context.Background(), []isaacnetwork.SyncSource{
@@ -145,7 +141,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return nil, err
 	}
 
-	localci := quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := design.Network.PublishConnInfo()
 
 	args := isaacstates.NewHandoverYBrokerArgs(isaacparams.NetworkID())
 
@@ -171,11 +167,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
 		func(xci quicstream.ConnInfo) error {
-			nci := isaacnetwork.NewNodeConnInfo(
-				isaac.NewNode(local.Publickey(), local.Address()),
-				xci.Addr().String(),
-				xci.TLSInsecure(),
-			)
+			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), local.Address()), xci)
 
 			_ = syncSourcePool.RemoveNonFixed(nci)
 
@@ -209,11 +201,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
 		},
 		func(xci quicstream.ConnInfo) error {
-			nci := isaacnetwork.NewNodeConnInfo(
-				isaac.NewNode(local.Publickey(), local.Address()),
-				xci.Addr().String(),
-				xci.TLSInsecure(),
-			)
+			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), local.Address()), xci)
 
 			_ = syncSourcePool.RemoveNonFixed(nci)
 
@@ -295,7 +283,7 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	isaacparams := params.ISAAC
 	networkparams := params.Network
 
-	localci := quicstream.UnsafeConnInfo(design.Network.Publish(), design.Network.TLSInsecure)
+	localci := design.Network.PublishConnInfo()
 
 	if err := attachStartHandoverHandler(pctx, handlers, encs, local, isaacparams, networkparams, localci); err != nil {
 		return pctx, err
@@ -377,11 +365,8 @@ func attachStartHandoverHandler(
 					}
 				},
 				func(x base.Address, xci quicstream.ConnInfo) error {
-					nci := isaacnetwork.NewNodeConnInfo(
-						isaac.NewNode(local.Publickey(), x),
-						xci.Addr().String(),
-						xci.TLSInsecure(),
-					)
+					nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), x), xci)
+
 					_ = syncSourcePool.AddNonFixed(nci)
 
 					return nil

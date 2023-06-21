@@ -507,12 +507,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 			uint64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.ConnInfo()
-				if err != nil {
-					return err
-				}
-
-				h, proof, updated, err := f(ctx, ci)
+				h, proof, updated, err := f(ctx, nci.ConnInfo())
 				if err != nil {
 					return err
 				}
@@ -581,15 +576,10 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 					numnodes,
 					uint64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-						ci, err := nci.ConnInfo()
-						if err != nil {
-							return err
-						}
-
 						cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 						defer cancel()
 
-						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
+						switch a, b, err := client.SuffrageProof(cctx, nci.ConnInfo(), suffrageheight); {
 						case err != nil:
 							return err
 						case !b:
@@ -678,12 +668,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 			uint64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-				ci, err := nci.ConnInfo()
-				if err != nil {
-					return err
-				}
-
-				st, found, err := f(ctx, ci)
+				st, found, err := f(ctx, nci.ConnInfo())
 				switch {
 				case err != nil, !found, st == nil:
 					return err

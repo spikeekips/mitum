@@ -32,5 +32,5 @@ type NetworkClient interface { //nolint:interfacebloat //..
 type NodeConnInfo interface {
 	base.Node
 	network.ConnInfo
-	ConnInfo() (quicstream.ConnInfo, error)
+	ConnInfo() quicstream.ConnInfo
 }

@@ -19,12 +19,10 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	ci, _ := cmd.Remote.ConnInfo()
-
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	broker, err := cmd.Client.Broker(ctx, ci)
+	broker, err := cmd.Client.Broker(ctx, cmd.Remote.ConnInfo())
 	if err != nil {
 		return err
 	}

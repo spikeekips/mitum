@@ -323,7 +323,7 @@ func (t *testSyncSourcesDesign) TestDecode() {
 - type: sync-source-node
   address: showme-nodesas
   publickey: oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu
-  publish: a.b.c.d:1234
+  publish: 1.2.3.4:1234
   tls_insecure: true
 `)
 
@@ -340,14 +340,14 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		t.True(ok)
 		t.Equal("showme-nodesas", a.Address().String())
 		t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", a.Publickey().String())
-		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.Equal("1.2.3.4:1234", a.Addr().String())
 		t.True(a.TLSInsecure())
 	})
 
 	t.Run("ok: SuffrageNode", func() {
 		b := []byte(`
 - type: sync-source-suffrage-nodes
-  publish: a.b.c.d:1234
+  publish: 1.2.3.4:1234
   tls_insecure: true
 `)
 
@@ -362,14 +362,14 @@ func (t *testSyncSourcesDesign) TestDecode() {
 
 		a, ok := (i.Source).(network.ConnInfo)
 		t.True(ok)
-		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.Equal("1.2.3.4:1234", a.Addr().String())
 		t.True(a.TLSInsecure())
 	})
 
 	t.Run("ok: SyncSource", func() {
 		b := []byte(`
 - type: sync-source-sync-sources
-  publish: a.b.c.d:1234
+  publish: 1.2.3.4:1234
   tls_insecure: true
 `)
 
@@ -384,7 +384,7 @@ func (t *testSyncSourcesDesign) TestDecode() {
 
 		a, ok := (i.Source).(network.ConnInfo)
 		t.True(ok)
-		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.Equal("1.2.3.4:1234", a.Addr().String())
 		t.True(a.TLSInsecure())
 	})
 }
@@ -483,7 +483,7 @@ func (t *testNodeDesign) TestIsValid() {
 			},
 			SyncSources: []isaacnetwork.SyncSource{
 				{Type: isaacnetwork.SyncSourceTypeURL, Source: &url.URL{Scheme: "https", Host: "a:3333"}},
-				{Type: isaacnetwork.SyncSourceTypeNode, Source: isaacnetwork.NewNodeConnInfo(
+				{Type: isaacnetwork.SyncSourceTypeNode, Source: isaacnetwork.MustNodeConnInfo(
 					isaac.NewNode(base.NewMPrivatekey().Publickey(), address), // same address
 					mustResolveUDPAddr("4.3.2.1:4444").String(), true,
 				)},
@@ -494,10 +494,11 @@ func (t *testNodeDesign) TestIsValid() {
 	})
 
 	t.Run("same sync_sources with publish", func() {
-		nci := isaacnetwork.NewNodeConnInfo(
+		nci, err := isaacnetwork.NewNodeConnInfo(
 			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
 			publish.String(), true,
 		)
+		t.NoError(err)
 
 		a := NodeDesign{
 			Address:    base.RandomAddress(""),
@@ -517,7 +518,7 @@ func (t *testNodeDesign) TestIsValid() {
 			},
 		}
 
-		err := a.IsValid(nil)
+		err = a.IsValid(nil)
 		t.Error(err)
 		t.ErrorContains(err, "sync source has same with publish address")
 	})
@@ -526,10 +527,11 @@ func (t *testNodeDesign) TestIsValid() {
 		publishstring := "localhost:1234"
 		publish := mustResolveUDPAddr(publishstring)
 
-		nci := isaacnetwork.NewNodeConnInfo(
+		nci, err := isaacnetwork.NewNodeConnInfo(
 			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
 			publish.String(), true,
 		)
+		t.NoError(err)
 
 		a := NodeDesign{
 			Address:    base.RandomAddress(""),
@@ -549,7 +551,7 @@ func (t *testNodeDesign) TestIsValid() {
 			},
 		}
 
-		err := a.IsValid(nil)
+		err = a.IsValid(nil)
 		t.Error(err)
 		t.ErrorContains(err, "sync source has same with publish resolved address")
 	})

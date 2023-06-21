@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -408,21 +407,11 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		return e.Wrap(err)
 	}
 
-	ci, err := nci.ConnInfo()
-
-	var dnserr *net.DNSError
-
-	switch {
-	case err == nil:
-	case errors.As(err, &dnserr):
-		return errIgnoreNodeconnInfo.Wrap(err)
-	}
-
 	cctx, cancel := context.WithTimeout(ctx, c.requestTimeoutf())
 	defer cancel()
 
-	switch _, err = c.client.NodeChallenge(
-		cctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
+	switch _, err := c.client.NodeChallenge(
+		cctx, nci.ConnInfo(), c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
 	case err == nil:
 		return nil
 	case errors.Is(err, base.ErrSignatureVerification):

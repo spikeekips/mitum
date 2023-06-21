@@ -263,12 +263,6 @@ func (p *SyncSourcePool) Retry(
 				return true, nil
 			}
 
-			if _, err = nci.ConnInfo(); err != nil {
-				report(err)
-
-				return true, err
-			}
-
 			keep, err := f(nci)
 
 			if isSyncSourceProblem(err) {
@@ -458,12 +452,6 @@ func DistributeWorkerWithSyncSourcePool(
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 
-		if _, err := nci.ConnInfo(); err != nil {
-			reports[index](err)
-
-			return err
-		}
-
 		err := f(ctx, i, jobid, nci)
 		if err != nil {
 			reports[index](err)
@@ -500,12 +488,6 @@ func ErrGroupWorkerWithSyncSourcePool(
 	return util.RunErrgroupWorker(ctx, nsemsize, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
-
-		if _, err := nci.ConnInfo(); err != nil {
-			reports[index](err)
-
-			return nil
-		}
 
 		if err := f(ctx, i, jobid, nci); err != nil {
 			reports[index](err)

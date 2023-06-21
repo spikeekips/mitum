@@ -134,7 +134,7 @@ func (SyncSource) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.
 		return nil, e.Wrap(err)
 	}
 
-	return NewNodeConnInfo(isaac.NewNode(pub, address), u.Publish, u.TLSInsecure), nil
+	return NewNodeConnInfo(isaac.NewNode(pub, address), u.Publish, u.TLSInsecure)
 }
 
 type syncSourceConnInfoUnmarshaler struct {
@@ -157,5 +157,5 @@ func (SyncSource) decodeYAMLConnInfo(
 		return ci, e.Wrap(err)
 	}
 
-	return quicmemberlist.NewNamedConnInfo(u.Publish, u.TLSInsecure), nil
+	return quicmemberlist.NewNamedConnInfo(u.Publish, u.TLSInsecure)
 }
