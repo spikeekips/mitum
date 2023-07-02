@@ -288,6 +288,11 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		return pctx, e.Wrap(err)
 	}
 
+	brokenargs, err := newBrokenHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e.Wrap(err)
+	}
+
 	consensusargs, err := newConsensusHandlerArgs(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
@@ -323,7 +328,8 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	bootingargs.LastManifestFunc = getLastManifestf
 
 	states.
-		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(isaacparams.NetworkID(), local)).
+		SetHandler(isaacstates.StateBroken,
+			isaacstates.NewNewBrokenHandlerType(isaacparams.NetworkID(), local, brokenargs)).
 		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(isaacparams.NetworkID(), local)).
 		SetHandler(isaacstates.StateBooting,
 			isaacstates.NewNewBootingHandlerType(isaacparams.NetworkID(), local, bootingargs)).
@@ -386,6 +392,18 @@ func newSyncerFunc(pctx context.Context) (
 
 		return syncer, nil
 	}, nil
+}
+
+func newBrokenHandlerArgs(pctx context.Context) (*isaacstates.BrokenHandlerArgs, error) {
+	leaveMemberlistf, err := leaveMemberlistForHandlerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	args := isaacstates.NewBrokenHandlerArgs()
+	args.LeaveMemberlistFunc = leaveMemberlistf
+
+	return args, nil
 }
 
 func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {

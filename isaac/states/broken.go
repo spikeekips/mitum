@@ -1,6 +1,8 @@
 package isaacstates
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -8,8 +10,21 @@ import (
 
 var ErrUnpromising = util.NewIDError("unpromising broken error")
 
+type BrokenHandlerArgs struct {
+	LeaveMemberlistFunc func(time.Duration) error
+}
+
+func NewBrokenHandlerArgs() *BrokenHandlerArgs {
+	return &BrokenHandlerArgs{
+		LeaveMemberlistFunc: func(time.Duration) error {
+			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
+		},
+	}
+}
+
 type BrokenHandler struct {
 	*baseHandler
+	args *BrokenHandlerArgs
 }
 
 type NewBrokenHandlerType struct {
@@ -19,10 +34,12 @@ type NewBrokenHandlerType struct {
 func NewNewBrokenHandlerType(
 	networkID base.NetworkID,
 	local base.LocalNode,
+	args *BrokenHandlerArgs,
 ) *NewBrokenHandlerType {
 	return &NewBrokenHandlerType{
 		BrokenHandler: &BrokenHandler{
 			baseHandler: newBaseHandlerType(StateBroken, networkID, local),
+			args:        args,
 		},
 	}
 }
@@ -30,6 +47,7 @@ func NewNewBrokenHandlerType(
 func (h *NewBrokenHandlerType) new() (handler, error) {
 	return &BrokenHandler{
 		baseHandler: h.baseHandler.new(),
+		args:        h.args,
 	}, nil
 }
 
@@ -54,6 +72,10 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 
 	return func() {
 		deferred()
+
+		if lerr := st.args.LeaveMemberlistFunc(time.Second); lerr != nil {
+			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
+		}
 
 		if err := st.timers.StopAllTimers(); err != nil {
 			st.Log().Error().Err(err).Msg("failed to stop all timers")
