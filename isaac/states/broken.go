@@ -1,8 +1,6 @@
 package isaacstates
 
 import (
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -11,12 +9,12 @@ import (
 var ErrUnpromising = util.NewIDError("unpromising broken error")
 
 type BrokenHandlerArgs struct {
-	LeaveMemberlistFunc func(time.Duration) error
+	LeaveMemberlistFunc func() error
 }
 
 func NewBrokenHandlerArgs() *BrokenHandlerArgs {
 	return &BrokenHandlerArgs{
-		LeaveMemberlistFunc: func(time.Duration) error {
+		LeaveMemberlistFunc: func() error {
 			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
 		},
 	}
@@ -73,7 +71,7 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 	return func() {
 		deferred()
 
-		if lerr := st.args.LeaveMemberlistFunc(time.Second); lerr != nil {
+		if lerr := st.args.LeaveMemberlistFunc(); lerr != nil {
 			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
 		}
 

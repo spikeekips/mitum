@@ -38,7 +38,7 @@ func (t *testJoiningHandler) newargs(suf base.Suffrage) *JoiningHandlerArgs {
 	}
 	args.VoteFunc = func(base.Ballot) (bool, error) { return true, nil }
 	args.JoinMemberlistFunc = func(context.Context, base.Suffrage) error { return nil }
-	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
+	args.LeaveMemberlistFunc = func() error { return nil }
 	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error) {
 		return nil, nil
 	}

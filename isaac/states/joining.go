@@ -16,7 +16,7 @@ type JoiningHandlerArgs struct {
 	baseBallotHandlerArgs
 	LastManifestFunc    func() (base.Manifest, bool, error)
 	JoinMemberlistFunc  func(context.Context, base.Suffrage) error
-	LeaveMemberlistFunc func(time.Duration) error
+	LeaveMemberlistFunc func() error
 	WaitFirstVoteproof  func() time.Duration
 }
 
@@ -29,7 +29,7 @@ func NewJoiningHandlerArgs() *JoiningHandlerArgs {
 		JoinMemberlistFunc: func(context.Context, base.Suffrage) error {
 			return util.ErrNotImplemented.Errorf("JoinMemberlistFunc")
 		},
-		LeaveMemberlistFunc: func(time.Duration) error {
+		LeaveMemberlistFunc: func() error {
 			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
 		},
 		WaitFirstVoteproof: func() time.Duration {
@@ -292,7 +292,7 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) (base.Suffrage, erro
 	switch {
 	case err != nil:
 	case !found:
-		if lerr := st.args.LeaveMemberlistFunc(time.Second); lerr != nil {
+		if lerr := st.args.LeaveMemberlistFunc(); lerr != nil {
 			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
 		}
 

@@ -971,27 +971,29 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 }
 
 func leaveMemberlistForHandlerFunc(pctx context.Context) (
-	func(time.Duration) error,
+	func() error,
 	error,
 ) {
+	var params *LocalParams
 	var long *LongRunningMemberlistJoin
 	var m *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
 		MemberlistContextKey, &m,
 		LongRunningMemberlistJoinContextKey, &long,
 	); err != nil {
 		return nil, err
 	}
 
-	return func(timeout time.Duration) error {
+	return func() error {
 		_ = long.Cancel()
 
 		switch {
 		case !m.IsJoined():
 			return nil
 		default:
-			return m.Leave(timeout)
+			return m.Leave(params.Network.TimeoutRequest())
 		}
 	}, nil
 }

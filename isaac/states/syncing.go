@@ -19,7 +19,7 @@ type SyncingHandlerArgs struct {
 	NewSyncerFunc            func(base.Height) (isaac.Syncer, error)
 	WhenReachedTopFunc       func(base.Height)
 	JoinMemberlistFunc       func(context.Context, base.Suffrage) error
-	LeaveMemberlistFunc      func(time.Duration) error
+	LeaveMemberlistFunc      func() error
 	WhenNewBlockSavedFunc    func(base.Height)
 	WaitStuckInterval        func() time.Duration
 	WaitPreparingINITBallot  func() time.Duration
@@ -37,7 +37,7 @@ func NewSyncingHandlerArgs() *SyncingHandlerArgs {
 		JoinMemberlistFunc: func(context.Context, base.Suffrage) error {
 			return util.ErrNotImplemented.Errorf("JoinMemberlistFunc")
 		},
-		LeaveMemberlistFunc: func(time.Duration) error {
+		LeaveMemberlistFunc: func() error {
 			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
 		},
 		WhenNewBlockSavedFunc: func(base.Height) {},
@@ -427,7 +427,7 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 	case suf == nil:
 		return false, newBrokenSwitchContext(StateSyncing, errors.Errorf("empty suffrage"))
 	case !found:
-		if err := st.args.LeaveMemberlistFunc(time.Second); err != nil {
+		if err := st.args.LeaveMemberlistFunc(); err != nil {
 			l.Error().Err(err).Msg("failed to leave memberilst; ignored")
 		}
 
@@ -457,7 +457,7 @@ func (st *SyncingHandler) whenNotAllowedConsensus() {
 		return
 	}
 
-	switch err := st.args.LeaveMemberlistFunc(time.Second); {
+	switch err := st.args.LeaveMemberlistFunc(); {
 	case err != nil:
 		st.Log().Error().Err(err).Msg("not allowed consensus; failed to leave memberilst; ignored")
 	default:

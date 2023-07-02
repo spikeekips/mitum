@@ -45,7 +45,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		return syncer, nil
 	}
 	args.JoinMemberlistFunc = func(context.Context, base.Suffrage) error { return nil }
-	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
+	args.LeaveMemberlistFunc = func() error { return nil }
 	args.WhenNewBlockSavedFunc = func(base.Height) {}
 
 	newhandler := NewNewSyncingHandlerType(params.NetworkID(), local, args)
@@ -142,7 +142,7 @@ func (t *testSyncingHandler) TestExit() {
 		defer closef(false)
 
 		leftch := make(chan struct{}, 1)
-		st.args.LeaveMemberlistFunc = func(time.Duration) error {
+		st.args.LeaveMemberlistFunc = func() error {
 			leftch <- struct{}{}
 
 			return nil
