@@ -415,7 +415,7 @@ func isSyncSourceProblem(err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrRetrySyncSources),
-		quicstream.IsNetworkError(err),
+		quicstream.IsSeriousError(err),
 		errors.As(err, &dnserr):
 		return true
 	default:

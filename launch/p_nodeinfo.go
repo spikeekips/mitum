@@ -50,7 +50,11 @@ func PNodeInfo(pctx context.Context) (context.Context, error) {
 
 	nctx := context.WithValue(pctx, NodeInfoContextKey, nodeinfo)
 
-	if err := UpdateNodeInfoWithNewBlock(db, nodeinfo); err != nil {
+	switch err := UpdateNodeInfoWithNewBlock(db, nodeinfo); {
+	case err == nil:
+	case errors.Is(err, util.ErrNotFound):
+		log.Log().Debug().Err(err).Msg("nodeinfo not updated")
+	default:
 		log.Log().Error().Err(err).Msg("failed to update nodeinfo")
 	}
 
@@ -65,18 +69,18 @@ func UpdateNodeInfoWithNewBlock(
 	case err != nil:
 		return err
 	case !found:
-		return errors.Errorf("last BlockMap not found")
+		return util.ErrNotFound.Errorf("last BlockMap")
 	case !nodeinfo.SetLastManifest(m.Manifest()):
 		return nil
 	}
 
 	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
-		return errors.Errorf("last SuffrageProof not found")
+		return errors.WithMessage(err, "last SuffrageProof not found")
 	case found && nodeinfo.SetSuffrageHeight(proof.SuffrageHeight()):
 		suf, err := proof.Suffrage()
 		if err != nil {
-			return errors.Errorf("suffrage from proof")
+			return errors.WithMessage(err, "suffrage from proof")
 		}
 
 		_ = nodeinfo.SetConsensusNodes(suf.Nodes())

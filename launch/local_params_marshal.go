@@ -326,6 +326,9 @@ type networkParamsYAMLMarshaler struct {
 	MaxIdleTimeout        util.ReadableDuration            `json:"max_idle_timeout,omitempty" yaml:"max_idle_timeout,omitempty"`
 	KeepAlivePeriod       util.ReadableDuration            `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
 	DefaultHandlerTimeout util.ReadableDuration            `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
+	ConnectionPoolSize    uint64                           `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
+	MaxIncomingStreams    uint64                           `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
+	MaxStreamTimeout      util.ReadableDuration            `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -354,6 +357,9 @@ func (p *NetworkParams) marshaler() networkParamsYAMLMarshaler {
 		KeepAlivePeriod:       util.ReadableDuration(p.keepAlivePeriod),
 		DefaultHandlerTimeout: util.ReadableDuration(p.defaultHandlerTimeout),
 		HandlerTimeout:        handlerTimeouts,
+		ConnectionPoolSize:    p.connectionPoolSize,
+		MaxIncomingStreams:    p.maxIncomingStreams,
+		MaxStreamTimeout:      util.ReadableDuration(p.maxStreamTimeout),
 	}
 }
 
@@ -373,6 +379,9 @@ type networkParamsYAMLUnmarshaler struct {
 	KeepAlivePeriod       *util.ReadableDuration           `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
 	DefaultHandlerTimeout *util.ReadableDuration           `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
 	HandlerTimeout        map[string]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
+	ConnectionPoolSize    *uint64                          `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
+	MaxIncomingStreams    *uint64                          `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
+	MaxStreamTimeout      *util.ReadableDuration           `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -413,6 +422,7 @@ func (p *NetworkParams) unmarshal(u networkParamsYAMLUnmarshaler) error {
 		{u.MaxIdleTimeout, &p.maxIdleTimeout},
 		{u.KeepAlivePeriod, &p.keepAlivePeriod},
 		{u.DefaultHandlerTimeout, &p.defaultHandlerTimeout},
+		{u.MaxStreamTimeout, &p.maxStreamTimeout},
 	}
 
 	for i := range durargs {
@@ -431,6 +441,14 @@ func (p *NetworkParams) unmarshal(u networkParamsYAMLUnmarshaler) error {
 		p.handlerTimeouts[i] = time.Duration(u.HandlerTimeout[i])
 	}
 
+	if u.ConnectionPoolSize != nil {
+		p.connectionPoolSize = *u.ConnectionPoolSize
+	}
+
+	if u.MaxIncomingStreams != nil {
+		p.maxIncomingStreams = *u.MaxIncomingStreams
+	}
+
 	return nil
 }
 
@@ -440,7 +458,10 @@ func (p *NetworkParams) MarshalZerologObject(e *zerolog.Event) {
 		Stringer("handshake_idle_timeout", p.handshakeIdleTimeout).
 		Stringer("max_idle_timeout", p.maxIdleTimeout).
 		Stringer("keep_alive_period", p.keepAlivePeriod).
-		Stringer("default_handler_timeout", p.defaultHandlerTimeout)
+		Stringer("default_handler_timeout", p.defaultHandlerTimeout).
+		Uint64("connection_pool_size", p.connectionPoolSize).
+		Uint64("max_incoming_streams", p.maxIncomingStreams).
+		Stringer("max_stream_timeout", p.maxStreamTimeout)
 
 	ed := zerolog.Dict()
 

@@ -19,6 +19,10 @@ func (cmd *NetworkClientSetAllowConsensusCommand) Run(pctx context.Context) erro
 		return err
 	}
 
+	defer func() {
+		_ = cmd.Client.Close()
+	}()
+
 	var priv base.Privatekey
 
 	switch key, err := launch.DecodePrivatekey(cmd.KeyString, cmd.Encoder); {

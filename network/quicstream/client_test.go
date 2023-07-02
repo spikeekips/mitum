@@ -2,7 +2,10 @@ package quicstream
 
 import (
 	"context"
+	"crypto/tls"
+	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,172 +16,252 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testClient struct {
+type testConnectionPool struct {
 	BaseTest
 }
 
-func (t *testClient) TestSessionClose() {
-	srv := t.NewDefaultServer(nil, nil)
+func (t *testConnectionPool) prepareServer(quicconfig *quic.Config, handler Handler) (*TestServer, ConnInfo, func()) {
+	srv := t.NewDefaultServer(quicconfig, handler)
+	t.NoError(srv.EnsureStart(context.Background()))
+	t.T().Log("server prepared")
 
-	t.NoError(srv.Start(context.Background()))
-	defer srv.Stop()
-
-	client := t.NewClient(t.Bind)
-	client.quicconfig = &quic.Config{
-		HandshakeIdleTimeout: time.Millisecond * 100,
+	return srv, UnsafeConnInfo(srv.Bind, true), func() {
+		srv.StopWait()
+		t.T().Log("server stopped")
 	}
+}
 
-	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	_, _, err := client.OpenStream(ctx)
-	t.NoError(err)
-
-	i, isnil := client.session.Value()
-	t.False(isnil)
-	t.NotNil(i)
-
+func (t *testConnectionPool) TestDial() {
 	t.Run("ok", func() {
-		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, err := client.OpenStream(ctx)
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return nil },
+			func() *tls.Config { return t.TLSConfig },
+		))
 		t.NoError(err)
+		defer p.Stop()
+
+		_, ci, deferred := t.prepareServer(nil, nil)
+		defer deferred()
+
+		_, err = p.Dial(context.Background(), ci)
+		t.NoError(err)
+
+		t.Equal(1, p.conns.Len())
+
+		t.T().Log("close conn")
+		t.True(p.Close(ci))
+		t.Equal(0, p.conns.Len())
 	})
 
-	t.Run("send after close", func() {
-		t.NoError(client.Close())
+	t.Run("dial unknown", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config {
+				return &quic.Config{HandshakeIdleTimeout: time.Millisecond * 33}
+			},
+			func() *tls.Config { return t.TLSConfig },
+		))
+		t.NoError(err)
+		defer p.Stop()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ci := RandomConnInfo()
 
-		_, _, err := client.OpenStream(ctx)
-		t.Error(err)
-		t.True(IsNetworkError(err))
-	})
-}
-
-func (t *testClient) TestSessionRemove() {
-	srv := t.NewDefaultServer(nil, t.EchoHandler())
-
-	t.NoError(srv.Start(context.Background()))
-	defer srv.Stop()
-
-	client := t.NewClient(t.Bind)
-	client.quicconfig = &quic.Config{
-		HandshakeIdleTimeout: time.Millisecond * 100,
-	}
-
-	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	_, _, err := client.OpenStream(ctx)
-	t.NoError(err)
-
-	i, isnil := client.session.Value()
-	t.False(isnil)
-	t.NotNil(i)
-
-	t.NoError(srv.Stop())
-
-	t.Run("send after stopped", func() {
-		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, err := client.OpenStream(ctx)
+		_, err = p.Dial(context.Background(), ci)
 		t.Error(err)
 
-		t.True(IsNetworkError(err))
-
-		i, isnil := client.session.Value()
-		t.True(isnil)
-		t.Nil(i)
-	})
-
-	t.Run("send again after stopped", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, err := client.OpenStream(ctx)
-		t.Error(err)
-
-		var nerr net.Error
+		var nerr *net.OpError
 		t.True(errors.As(err, &nerr))
-		t.True(nerr.Timeout())
-		t.ErrorContains(err, "no recent network activity")
 
-		i, isnil := client.session.Value()
-		t.True(isnil)
-		t.Nil(i)
+		t.Equal(0, p.conns.Len())
+
+		t.False(p.Close(ci))
+		t.Equal(0, p.conns.Len())
 	})
 
-	newsrv := t.NewDefaultServer(nil, t.EchoHandler())
-	t.NoError(newsrv.Start(context.Background()))
-	defer newsrv.Stop()
-
-	t.Run("send again after restarting", func() {
-		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, w, err := client.OpenStream(ctx)
+	t.Run("concurrent", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return nil },
+			func() *tls.Config { return t.TLSConfig },
+		))
 		t.NoError(err)
+		defer p.Stop()
 
-		_, err = w.Write(util.UUID().Bytes())
-		t.NoError(err)
-		t.NoError(w.Close())
+		var conns int64 = 9999
+		quicconfig := &quic.Config{MaxIncomingStreams: conns}
+
+		_, ci, deferred := t.prepareServer(quicconfig, nil)
+		defer deferred()
+
+		var llock sync.Mutex
+		l := func(a string, aa ...interface{}) {
+			llock.Lock()
+			defer llock.Unlock()
+
+			t.T().Logf(a, aa...)
+		}
+
+		worker := util.NewErrgroupWorker(context.Background(), 999)
+		go func() {
+			for i := range make([]byte, conns) {
+				i := i
+
+				err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+					if i%133 == 0 {
+						l("conn #%d", i)
+					}
+
+					conn, err := p.Dial(ctx, ci)
+					if err != nil {
+						return err
+					}
+
+					if err := conn.Stream(ctx, func(_ context.Context, r io.Reader, w io.WriteCloser) error {
+						if _, err := w.Write(util.UUID().Bytes()); err != nil {
+							return err
+						}
+
+						w.Close()
+
+						if _, err := io.ReadAll(r); err != nil {
+							return err
+						}
+
+						return nil
+					}); err != nil {
+						return err
+					}
+
+					if p.conns.Len() != 1 {
+						return errors.Errorf("conns, not 1")
+					}
+
+					return nil
+				})
+				if err != nil {
+					l("error #%d: %+v", i, err)
+				}
+			}
+
+			worker.Done()
+		}()
+
+		t.NoError(worker.Wait())
+
+		t.Equal(1, p.conns.Len())
 	})
 }
 
-func (t *testClient) TestIsNetworkError() {
-	t.Run("not", func() {
-		err := errors.Errorf("showme")
-		t.False(IsNetworkError(err))
-	})
+func (t *testConnectionPool) TestCloseAll() {
+	t.Run("clean", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return &quic.Config{MaxIdleTimeout: time.Millisecond * 33} },
+			func() *tls.Config { return t.TLSConfig },
+		))
+		t.NoError(err)
+		defer p.Stop()
 
-	t.Run("quic.ApplicationError", func() {
-		err := &quic.ApplicationError{
-			Remote:       true,
-			ErrorCode:    0x33,
-			ErrorMessage: "findme",
-		}
+		_, ci, deferred := t.prepareServer(&quic.Config{MaxIdleTimeout: time.Millisecond * 33}, nil)
+		defer deferred()
 
-		t.True(IsNetworkError(err))
-	})
+		_, err = p.Dial(context.Background(), ci)
+		t.NoError(err)
 
-	t.Run("net.Error", func() {
-		err := &net.ParseError{
-			Type: "a",
-			Text: "b",
-		}
+		t.Equal(1, p.conns.Len())
 
-		t.True(IsNetworkError(err))
-	})
-
-	t.Run("net.OpError", func() {
-		err := &net.OpError{
-			Op:     "dial",
-			Net:    "udp",
-			Source: nil,
-			Addr:   nil,
-			Err:    errors.Errorf("eatme"),
-		}
-
-		t.True(IsNetworkError(err))
+		t.NoError(p.CloseAll())
+		t.Equal(0, p.conns.Len())
 	})
 }
 
-func TestClient(t *testing.T) {
+func (t *testConnectionPool) TestClean() {
+	t.Run("clean", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return &quic.Config{MaxIdleTimeout: time.Millisecond * 33} },
+			func() *tls.Config { return t.TLSConfig },
+		))
+		t.NoError(err)
+		defer p.Stop()
+
+		_, ci, deferred := t.prepareServer(&quic.Config{MaxIdleTimeout: time.Millisecond * 33}, nil)
+		defer deferred()
+
+		_, err = p.Dial(context.Background(), ci)
+		t.NoError(err)
+
+		t.Equal(1, p.conns.Len())
+
+		<-time.After(time.Second * 3)
+		t.Equal(0, p.conns.Len())
+	})
+
+	t.Run("stream error", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return nil },
+			func() *tls.Config { return t.TLSConfig },
+		))
+		t.NoError(err)
+		defer p.Stop()
+
+		_, ci, deferred := t.prepareServer(nil, func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+			if _, err := io.ReadAll(r); err != nil {
+				return err
+			}
+
+			return errors.Errorf("hihihi")
+		})
+		defer deferred()
+
+		conn, err := p.Dial(context.Background(), ci)
+		t.NoError(err)
+
+		t.Equal(1, p.conns.Len())
+
+		t.T().Log("open stream, but stream error from handler")
+		conn.Stream(context.Background(), func(_ context.Context, r io.Reader, w io.WriteCloser) error {
+			if _, err := w.Write(util.UUID().Bytes()); err != nil {
+				return err
+			}
+
+			w.Close()
+
+			if _, err := io.ReadAll(r); err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		<-time.After(time.Second * 3)
+		t.Equal(1, p.conns.Len())
+	})
+
+	t.Run("connection error", func() {
+		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
+			func() *quic.Config { return nil },
+			func() *tls.Config { return t.TLSConfig },
+		))
+		t.NoError(err)
+		defer p.Stop()
+
+		_, ci, deferred := t.prepareServer(nil, nil)
+		defer deferred()
+
+		conn, err := p.Dial(context.Background(), ci)
+		t.NoError(err)
+
+		t.Equal(1, p.conns.Len())
+
+		t.T().Log("open stream, but stream error from handler")
+		conn.Stream(context.Background(), func(_ context.Context, r io.Reader, w io.WriteCloser) error {
+			return &quic.IdleTimeoutError{}
+		})
+
+		<-time.After(time.Second)
+		t.Equal(0, p.conns.Len())
+	})
+}
+
+func TestConnectionPool(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testClient))
+	suite.Run(t, new(testConnectionPool))
 }

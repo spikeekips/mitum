@@ -21,6 +21,10 @@ func (cmd *NetworkClientStateCommand) Run(pctx context.Context) error {
 		return err
 	}
 
+	defer func() {
+		_ = cmd.Client.Close()
+	}()
+
 	if len(strings.TrimSpace(cmd.Key)) < 1 {
 		return errors.Errorf("empty state key")
 	}

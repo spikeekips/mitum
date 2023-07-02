@@ -13,6 +13,7 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -38,29 +39,37 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	e := util.StringError("prepare memberlist")
 
 	var log *logging.Logging
+	var encs *encoder.Encoders
 	var enc *jsonenc.Encoder
 	var local base.LocalNode
 	var params *LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
+	var connectionPool *quicstream.ConnectionPool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
+		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
+		ConnectionPoolContextKey, &connectionPool,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	poolclient := quicstream.NewPoolClient()
+	headerdial := quicstreamheader.NewDialFunc(
+		connectionPool.Dial,
+		encs,
+		enc,
+	)
 
 	localnode, err := memberlistLocalNode(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	config, err := memberlistConfig(pctx, localnode, poolclient)
+	config, err := memberlistConfig(pctx, localnode, connectionPool)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -69,7 +78,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	args.ExtraSameMemberLimit = params.Memberlist.ExtraSameMemberLimit
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
 		HandlerPrefixMemberlistCallbackBroadcastMessage,
-		client.Broker,
+		headerdial,
 	)
 
 	args.PongEnsureBroadcastMessageFunc = quicmemberlist.PongEnsureBroadcastMessageFunc(
@@ -77,7 +86,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		local.Privatekey(),
 		params.ISAAC.NetworkID(),
-		client.Broker,
+		headerdial,
 	)
 
 	m, err := quicmemberlist.NewMemberlist(localnode, args)
@@ -167,7 +176,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var m *quicmemberlist.Memberlist
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var svvotef isaac.SuffrageVoteFunc
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 
@@ -340,13 +349,12 @@ func memberlistLocalNode(pctx context.Context) (quicmemberlist.Member, error) {
 func memberlistConfig(
 	pctx context.Context,
 	localnode quicmemberlist.Member,
-	poolclient *quicstream.PoolClient,
+	connectionPool *quicstream.ConnectionPool,
 ) (*memberlist.Config, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
 	var fsnodeinfo NodeInfo
-	var client *isaacnetwork.QuicstreamClient
 	var local base.LocalNode
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -356,7 +364,6 @@ func memberlistConfig(
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
-		QuicstreamClientContextKey, &client,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -364,7 +371,7 @@ func memberlistConfig(
 		return nil, err
 	}
 
-	transport, err := memberlistTransport(pctx, poolclient)
+	transport, err := memberlistTransport(pctx, connectionPool.Dial)
 	if err != nil {
 		return nil, err
 	}
@@ -406,17 +413,14 @@ func memberlistConfig(
 			l.Debug().Msg("new member found")
 
 			cctx, cancel := context.WithTimeout(
-				context.Background(), time.Second*5) //nolint:gomnd //....
+				context.Background(), design.LocalParams.Network.TimeoutRequest())
 			defer cancel()
 
-			c := client.NewQuicstreamClient(member.ConnInfo())(member.Addr())
-			if _, err := c.Dial(cctx); err != nil {
+			if _, err := connectionPool.Dial(cctx, member.ConnInfo()); err != nil {
 				l.Error().Err(err).Msg("new member joined, but failed to dial")
 
 				return
 			}
-
-			poolclient.Add(member.Addr(), c)
 
 			if !member.Address().Equal(local.Address()) {
 				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(member)
@@ -431,7 +435,7 @@ func memberlistConfig(
 		func(member quicmemberlist.Member) {
 			l := log.Log().With().Interface("member", member).Logger()
 
-			if poolclient.Remove(member.Addr()) {
+			if connectionPool.Close(member.ConnInfo()) {
 				l.Debug().Msg("member removed from client pool")
 			}
 
@@ -447,19 +451,17 @@ func memberlistConfig(
 
 func memberlistTransport(
 	pctx context.Context,
-	poolclient *quicstream.PoolClient,
+	dialf quicstream.ConnInfoDialFunc,
 ) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
 	var design NodeDesign
 	var params *LocalParams
-	var client *isaacnetwork.QuicstreamClient
 	var handlers *quicstream.PrefixHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
-		QuicstreamClientContextKey, &client,
 		QuicstreamHandlersContextKey, &handlers,
 	); err != nil {
 		return nil, err
@@ -468,8 +470,7 @@ func memberlistTransport(
 	transport := quicmemberlist.NewTransportWithQuicstream(
 		design.Network.Publish(),
 		isaacnetwork.HandlerPrefixMemberlist,
-		poolclient,
-		client.NewQuicstreamClient,
+		dialf,
 		nil,
 		params.Network.TimeoutRequest,
 	)
@@ -526,7 +527,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	error,
 ) {
 	var params *LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,

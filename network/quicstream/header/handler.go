@@ -36,9 +36,15 @@ func NewHandler[T RequestHeader](
 		timeoutf = func() time.Duration { return 0 } //revive:disable-line:modifies-parameter
 	}
 
-	return func(addr net.Addr, r io.Reader, w io.Writer) error {
-		ctx := context.Background()
+	if errhandler == nil {
+		errhandler = func( //revive:disable-line:modifies-parameter
+			ctx context.Context, _ net.Addr, broker *HandlerBroker, err error,
+		) error {
+			return broker.WriteResponseHeadOK(ctx, false, err)
+		}
+	}
 
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) error {
 		if timeout := timeoutf(); timeout > 0 {
 			var cancel func()
 
@@ -68,12 +74,7 @@ func NewHandler[T RequestHeader](
 			}
 
 			return util.AwareContext(nctx, func(ctx context.Context) error {
-				switch {
-				case errhandler != nil:
-					return errhandler(ctx, addr, broker, err)
-				default:
-					return broker.WriteResponseHeadOK(ctx, false, err)
-				}
+				return errhandler(ctx, addr, broker, err)
 			})
 		}
 

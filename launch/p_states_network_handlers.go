@@ -12,6 +12,7 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -74,21 +75,31 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
 	var log *logging.Logging
 	var encs *encoder.Encoders
+	var enc encoder.Encoder
 	var params *LocalParams
 	var pool *isaacdatabase.TempPool
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
+	var connectionPool *quicstream.ConnectionPool
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
+		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
+		ConnectionPoolContextKey, &connectionPool,
 		StatesContextKey, &states,
 	); err != nil {
 		return err
 	}
+
+	headerdial := quicstreamheader.NewDialFunc(
+		connectionPool.Dial,
+		encs,
+		enc,
+	)
 
 	var gerror error
 
@@ -108,30 +119,38 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 					ci = xbroker.ConnInfo()
 				}
 
-				if ok, err := isaacnetwork.HCReqResBodyDecOK(
-					ctx,
-					ci,
-					header,
-					client.Broker,
-					func(enc encoder.Encoder, r io.Reader) error {
-						enchint = enc.Hint()
-
-						switch b, err := io.ReadAll(r); {
-						case err != nil:
-							return errors.WithStack(err)
-						default:
-							body = b
-						}
-
-						found = true
-
-						return nil
-					},
-				); err != nil || !ok {
-					return enchint, nil, ok, err
+				stream, _, err := headerdial(ctx, ci)
+				if err != nil {
+					return enchint, body, found, err
 				}
 
-				return enchint, body, found, nil
+				err = stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+					if ok, rerr := isaacnetwork.HCReqResBodyDecOK(
+						ctx,
+						broker,
+						header,
+						func(enc encoder.Encoder, r io.Reader) error {
+							enchint = enc.Hint()
+
+							switch b, rerr := io.ReadAll(r); {
+							case rerr != nil:
+								return errors.WithStack(rerr)
+							default:
+								body = b
+							}
+
+							found = true
+
+							return nil
+						},
+					); rerr != nil || !ok {
+						return rerr
+					}
+
+					return nil
+				})
+
+				return enchint, body, found, err
 			},
 		),
 		nil,

@@ -19,6 +19,10 @@ func (cmd *NetworkClientLastBlockMapCommand) Run(pctx context.Context) error {
 		return err
 	}
 
+	defer func() {
+		_ = cmd.Client.Close()
+	}()
+
 	var h util.Hash
 
 	if len(strings.TrimSpace(cmd.Hash)) > 0 {

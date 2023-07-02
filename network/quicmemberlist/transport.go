@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
-	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -18,7 +17,7 @@ import (
 )
 
 type (
-	TransportDialFunc    func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error)
+	TransportDialFunc    func(context.Context, quicstream.ConnInfo) error
 	TransportWriteFunc   func(context.Context, quicstream.ConnInfo, []byte) error
 	TransportGetConnInfo func(*net.UDPAddr) (quicstream.ConnInfo, error)
 )
@@ -31,8 +30,8 @@ type TransportArgs struct {
 
 func NewTransportArgs() *TransportArgs {
 	return &TransportArgs{
-		DialFunc: func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error) {
-			return nil, util.ErrNotImplemented.Errorf("DialFunc")
+		DialFunc: func(context.Context, quicstream.ConnInfo) error {
+			return util.ErrNotImplemented.Errorf("DialFunc")
 		},
 		WriteFunc: func(context.Context, quicstream.ConnInfo, []byte) error {
 			return util.ErrNotImplemented.Errorf("WriteFunc")
@@ -77,8 +76,7 @@ func NewTransport(
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix [32]byte,
-	poolclient *quicstream.PoolClient,
-	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	dialf quicstream.ConnInfoDialFunc,
 	notallowf func(string) bool,
 	requestTimeoutf func() time.Duration,
 ) *Transport {
@@ -114,42 +112,36 @@ func NewTransportWithQuicstream(
 
 	args := NewTransportArgs()
 
-	args.DialFunc = func(ctx context.Context, ci quicstream.ConnInfo) (quic.EarlyConnection, error) {
-		client, closef := getclient(poolclient, newClient, ci)
-		defer closef()
-
-		return client.Dial(ctx)
-	}
-
-	args.WriteFunc = func(ctx context.Context, ci quicstream.ConnInfo, b []byte) error {
-		client, closef := getclient(poolclient, newClient, ci)
-		defer func() {
-			closef()
-		}()
-
-		cctx, cancel := context.WithTimeout(ctx, nrequestTimeoutf())
-		defer cancel()
-
-		r, w, err := client.OpenStream(cctx)
+	args.DialFunc = func(ctx context.Context, ci quicstream.ConnInfo) error {
+		streamer, err := dialf(ctx, ci)
 		if err != nil {
 			return err
 		}
 
-		defer func() {
-			_ = w.Close()
-		}()
+		return streamer.Stream(ctx, func(context.Context, io.Reader, io.WriteCloser) error {
+			return nil
+		})
+	}
 
-		cctx, cancel = context.WithTimeout(ctx, nrequestTimeoutf())
-		defer cancel()
-
-		if err := writeBody(cctx, w, b); err != nil {
-			return errors.WithStack(err)
+	args.WriteFunc = func(ctx context.Context, ci quicstream.ConnInfo, b []byte) error {
+		streamer, err := dialf(ctx, ci)
+		if err != nil {
+			return err
 		}
 
-		_ = w.Close()
-		_, _ = io.ReadAll(r)
+		cctx, cancel := context.WithTimeout(ctx, nrequestTimeoutf())
+		defer cancel()
 
-		return nil
+		return streamer.Stream(cctx, func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+			if err := writeBody(ctx, w, b); err != nil {
+				return errors.WithStack(err)
+			}
+
+			_ = w.Close()
+			_, _ = io.ReadAll(r)
+
+			return nil
+		})
 	}
 
 	args.NotAllowFunc = notallowf
@@ -194,7 +186,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 		ci = i
 	}
 
-	if _, err := t.args.DialFunc(ctx, ci); err != nil {
+	if err := t.args.DialFunc(ctx, ci); err != nil {
 		l.Error().Err(err).Interface("conn_info", ci).Msg("failed to dial")
 
 		return nil, &net.OpError{Net: "tcp", Op: "dial", Err: err}
@@ -325,7 +317,7 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 	return nil
 }
 
-func (t *Transport) QuicstreamHandler(addr net.Addr, r io.Reader, _ io.Writer) error {
+func (t *Transport) QuicstreamHandler(_ context.Context, addr net.Addr, r io.Reader, _ io.WriteCloser) error {
 	id := util.UUID().String()
 
 	l := t.Log().With().Str("id", id).Stringer("remote_address", addr).Logger()
@@ -409,31 +401,6 @@ func (t *Transport) newConn(raddr *net.UDPAddr) (*qconn, error) {
 	})
 
 	return conn, nil
-}
-
-func getclient(
-	poolclient *quicstream.PoolClient,
-	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
-	ci quicstream.ConnInfo,
-) (*quicstream.Client, func()) {
-	switch client, found := poolclient.Client(ci.UDPAddr()); {
-	case !found:
-		client = newClient(ci)(ci.UDPAddr())
-
-		return client, func() {
-			_ = client.Close()
-		}
-	case client.Session() == nil:
-		_ = poolclient.Remove(ci.UDPAddr())
-
-		client = newClient(ci)(ci.UDPAddr())
-
-		return client, func() {
-			_ = client.Close()
-		}
-	default:
-		return client, func() {}
-	}
 }
 
 func marshalMsg(t rawDataType, addr net.Addr, b []byte) []byte {

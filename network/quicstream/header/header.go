@@ -118,7 +118,7 @@ func NewBaseResponseHeader(ht hint.Hint, ok bool, err error) BaseResponseHeader 
 	switch {
 	case err == nil:
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-	case quicstream.IsNetworkError(err):
+	case quicstream.IsSeriousError(err):
 		rerr = util.ErrInternal.WithStack()
 	}
 

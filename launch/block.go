@@ -61,15 +61,19 @@ func ImportBlocks(
 		},
 		func(
 			_ context.Context, height base.Height, item base.BlockMapItemType,
-		) (io.Reader, func() error, bool, error) {
+			f func(r io.Reader, found bool) error,
+		) error {
 			reader, err := getreader(height)
 			if err != nil {
-				return nil, nil, false, err
+				return err
 			}
 
-			r, found, err := reader.Reader(item)
-
-			return r, util.EmptyCancelFunc, found, err
+			switch r, found, err := reader.Reader(item); {
+			case err != nil:
+				return err
+			default:
+				return f(r, found)
+			}
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
 			bwdb, err := db.NewBlockWriteDatabase(m.Manifest().Height())

@@ -576,7 +576,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var devflags DevFlags
 	var design NodeDesign
 	var params *LocalParams
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var st *leveldbstorage.Storage
 	var db isaac.Database
 	var syncSourcePool *isaac.SyncSourcePool
@@ -646,19 +646,17 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 			tempsyncpool = i
 		}
 
-		newclient := client.Clone()
-
 		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1 << 9) //nolint:gomnd //...
 
 		args = isaacstates.NewSyncerArgs()
-		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, isaacparams, syncSourcePool)
+		args.LastBlockMapFunc = syncerLastBlockMapFunc(client, isaacparams, syncSourcePool)
 		args.LastBlockMapTimeout = params.Network.TimeoutRequest()
-		args.BlockMapFunc = syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
+		args.BlockMapFunc = syncerBlockMapFunc(client, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
 		args.TempSyncPool = tempsyncpool
 		args.WhenStoppedFunc = func() error {
 			conninfocache.Close()
 
-			return newclient.Close()
+			return nil
 		}
 		args.RemovePrevBlockFunc = removePrevBlockf
 		args.NewImportBlocksFunc = func(
@@ -672,7 +670,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				from, to,
 				batchlimit,
 				blockMapf,
-				syncerBlockMapItemFunc(newclient, conninfocache, params.Network.TimeoutRequest),
+				syncerBlockMapItemFunc(client, conninfocache, params.Network.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -711,7 +709,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 }
 
 func syncerLastBlockMapFunc(
-	client *isaacnetwork.QuicstreamClient,
+	client *isaacnetwork.BaseClient,
 	params *isaac.Params,
 	syncSourcePool *isaac.SyncSourcePool,
 ) isaacstates.SyncerLastBlockMapFunc {
@@ -777,7 +775,7 @@ func syncerLastBlockMapFunc(
 }
 
 func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
-	client *isaacnetwork.QuicstreamClient,
+	client *isaacnetwork.BaseClient,
 	params *LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
 	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
@@ -857,7 +855,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 }
 
 func syncerBlockMapItemFunc(
-	client *isaacnetwork.QuicstreamClient,
+	client *isaacnetwork.BaseClient,
 	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
 	requestTimeoutf func() time.Duration,
 ) isaacblock.ImportBlocksBlockMapItemFunc {
@@ -869,16 +867,16 @@ func syncerBlockMapItemFunc(
 		nrequestTimeoutf = requestTimeoutf
 	}
 
-	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
-		reader io.Reader, closef func() error, found bool, _ error,
-	) {
+	return func(ctx context.Context, height base.Height, item base.BlockMapItemType,
+		f func(io.Reader, bool) error,
+	) error {
 		e := util.StringError("fetch blockmap item")
 
 		var ci quicstream.ConnInfo
 
 		switch i, cfound := conninfocache.Value(height); {
 		case !cfound:
-			return nil, nil, false, e.Errorf("conninfo not found")
+			return e.Errorf("conninfo not found")
 		default:
 			ci = i
 		}
@@ -886,12 +884,11 @@ func syncerBlockMapItemFunc(
 		cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer ctxcancel()
 
-		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)
-		if err != nil {
-			return nil, nil, false, e.Wrap(err)
+		if err := client.BlockMapItem(cctx, ci, height, item, f); err != nil {
+			return e.Wrap(err)
 		}
 
-		return r, cancel, found, err
+		return nil
 	}
 }
 

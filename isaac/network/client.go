@@ -19,47 +19,69 @@ import (
 )
 
 type BaseClient struct {
-	*quicstreamheader.Client
+	Encoders *encoder.Encoders
+	Encoder  encoder.Encoder
+	dialf    quicstreamheader.DialFunc
+	closef   func() error
 }
 
 func NewBaseClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	openstreamf quicstreamheader.OpenStreamFunc,
+	dialf quicstream.ConnInfoDialFunc,
+	closef func() error,
 ) *BaseClient {
 	return &BaseClient{
-		Client: quicstreamheader.NewClient(encs, enc, openstreamf),
+		Encoders: encs,
+		Encoder:  enc,
+		dialf:    quicstreamheader.NewDialFunc(dialf, encs, enc),
+		closef:   closef,
 	}
 }
 
-func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.ConnInfo) (
-	io.Reader,
-	io.WriteCloser,
-	error,
-) {
-	return c.Client.OpenStream(ctx, ci)
+func (c *BaseClient) Dial(
+	ctx context.Context, ci quicstream.ConnInfo,
+) (quicstreamheader.StreamFunc, func() error, error) {
+	return c.dialf(ctx, ci)
 }
 
-func (c *BaseClient) Broker(ctx context.Context, ci quicstream.ConnInfo) (*quicstreamheader.ClientBroker, error) {
-	return c.Client.Broker(ctx, ci)
+func (c *BaseClient) Close() error {
+	return c.closef()
+}
+
+func (c *BaseClient) dial(ctx context.Context, ci quicstream.ConnInfo) (quicstreamheader.StreamFunc, error) {
+	f, _, err := c.dialf(ctx, ci)
+
+	return f, err
 }
 
 func (c *BaseClient) Operation(
-	ctx context.Context, ci quicstream.ConnInfo, op util.Hash,
-) (base.Operation, bool, error) {
-	var u base.Operation
+	ctx context.Context, ci quicstream.ConnInfo, oph util.Hash,
+) (op base.Operation, found bool, _ error) {
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		NewOperationRequestHeader(op),
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rfound, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			NewOperationRequestHeader(oph),
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &op)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		found = rfound
+
+		return nil
+	})
+
+	return op, found, err
 }
 
 func (c *BaseClient) StreamOperations(
@@ -67,22 +89,29 @@ func (c *BaseClient) StreamOperations(
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(_ base.Operation, offset []byte) error,
 ) error {
-	return c.StreamOperationsBytes(ctx, ci, priv, networkID, offset,
-		func(enchint hint.Hint, body, roffset []byte) error {
-			enc := c.Encoders.Find(enchint)
-			if enc == nil {
-				return errors.Errorf("unknown encoder, %q", enchint)
-			}
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return err
+	}
 
-			var op base.Operation
+	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		return c.streamOperationsBytes(ctx, broker, priv, networkID, offset,
+			func(enchint hint.Hint, body, roffset []byte) error {
+				enc := c.Encoders.Find(enchint)
+				if enc == nil {
+					return errors.Errorf("unknown encoder, %q", enchint)
+				}
 
-			if err := encoder.Decode(enc, body, &op); err != nil {
-				return err
-			}
+				var op base.Operation
 
-			return f(op, roffset)
-		},
-	)
+				if err := encoder.Decode(enc, body, &op); err != nil {
+					return err
+				}
+
+				return f(op, roffset)
+			},
+		)
+	})
 }
 
 func (c *BaseClient) StreamOperationsBytes(
@@ -90,15 +119,21 @@ func (c *BaseClient) StreamOperationsBytes(
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(enchint hint.Hint, body, offset []byte) error,
 ) error {
-	broker, err := c.Client.Broker(ctx, ci)
+	streamer, err := c.dial(ctx, ci)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = broker.Close()
-	}()
+	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		return c.streamOperationsBytes(ctx, broker, priv, networkID, offset, f)
+	})
+}
 
+func (*BaseClient) streamOperationsBytes(
+	ctx context.Context, broker *quicstreamheader.ClientBroker,
+	priv base.Privatekey, networkID base.NetworkID, offset []byte,
+	f func(enchint hint.Hint, body, offset []byte) error,
+) error {
 	if err := VerifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
 		return err
 	}
@@ -154,13 +189,30 @@ func (c *BaseClient) StreamOperationsBytes(
 }
 
 func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.ConnInfo, op base.Operation) (bool, error) {
-	return hcBodyReqResOK(
-		ctx,
-		ci,
-		NewSendOperationRequestHeader(),
-		op,
-		c.Client.Broker,
-	)
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return false, err
+	}
+
+	var sent bool
+
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		i, rerr := hcBodyReqResOK(
+			ctx,
+			broker,
+			NewSendOperationRequestHeader(),
+			op,
+		)
+		if rerr != nil {
+			return rerr
+		}
+
+		sent = i
+
+		return nil
+	})
+
+	return sent, err
 }
 
 func (c *BaseClient) RequestProposal(
@@ -169,7 +221,7 @@ func (c *BaseClient) RequestProposal(
 	point base.Point,
 	proposer base.Address,
 	previousBlock util.Hash,
-) (base.ProposalSignFact, bool, error) {
+) (pr base.ProposalSignFact, found bool, _ error) {
 	header := NewRequestProposalRequestHeader(point, proposer, previousBlock)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
@@ -193,160 +245,200 @@ func (c *BaseClient) Proposal( //nolint:dupl //...
 
 func (c *BaseClient) LastSuffrageProof(
 	ctx context.Context, ci quicstream.ConnInfo, state util.Hash,
-) (base.Height, base.SuffrageProof, bool, error) {
+) (lastheight base.Height, proof base.SuffrageProof, ok bool, _ error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
-	lastheight := base.NilHeight
+	lastheight = base.NilHeight
 
 	if err := header.IsValid(nil); err != nil {
 		return lastheight, nil, false, err
 	}
 
-	var proof base.SuffrageProof
-
-	switch ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			if r == nil {
-				return nil
-			}
-
-			b, err := io.ReadAll(r)
-			if err != nil {
-				return errors.WithMessage(err, "read response")
-			}
-
-			switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
-			case err != nil:
-				return errors.WithMessage(err, "read response")
-			case len(m) != 2:
-				return errors.Errorf("invalid response message")
-			case len(m[0]) < 1:
-				return nil
-			default:
-				i, err := base.ParseHeightBytes(m[0])
-				if err != nil {
-					return errors.WithMessage(err, "load last height")
-				}
-
-				lastheight = i
-
-				if len(m[1]) > 0 {
-					if err := encoder.Decode(enc, m[1], &proof); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			}
-		},
-	); {
-	case err != nil:
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
 		return lastheight, nil, false, err
-	case proof == nil:
-		return lastheight, nil, false, nil
-	default:
-		return lastheight, proof, ok, nil
 	}
+
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch rok, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				if r == nil {
+					return nil
+				}
+
+				b, rerr := io.ReadAll(r)
+				if rerr != nil {
+					return errors.WithMessage(rerr, "read response")
+				}
+
+				switch _, m, _, rerr := util.ReadLengthedBytesSlice(b); {
+				case rerr != nil:
+					return errors.WithMessage(rerr, "read response")
+				case len(m) != 2:
+					return errors.Errorf("invalid response message")
+				case len(m[0]) < 1:
+					return nil
+				default:
+					i, rerr := base.ParseHeightBytes(m[0])
+					if rerr != nil {
+						return errors.WithMessage(rerr, "load last height")
+					}
+
+					lastheight = i
+
+					if len(m[1]) > 0 {
+						if rerr := encoder.Decode(enc, m[1], &proof); rerr != nil {
+							return rerr
+						}
+					}
+
+					return nil
+				}
+			},
+		); {
+		case rerr != nil:
+			return rerr
+		case proof == nil:
+			return nil
+		default:
+			ok = rok
+
+			return nil
+		}
+	})
+
+	return lastheight, proof, ok, err
 }
 
 func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, suffrageheight base.Height,
-) (base.SuffrageProof, bool, error) {
+) (proof base.SuffrageProof, ok bool, _ error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
 
-	var u base.SuffrageProof
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rok, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &proof)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		ok = rok
+
+		return nil
+	})
+
+	return proof, ok, err
 }
 
 func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, manifest util.Hash,
-) (base.BlockMap, bool, error) {
+) (bm base.BlockMap, ok bool, _ error) {
 	header := NewLastBlockMapRequestHeader(manifest)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
 
-	var u base.BlockMap
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rok, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &bm)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		ok = rok
+
+		return nil
+	})
+
+	return bm, ok, err
 }
 
 func (c *BaseClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height,
-) (base.BlockMap, bool, error) {
+) (bm base.BlockMap, ok bool, _ error) {
 	header := NewBlockMapRequestHeader(height)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
 
-	var u base.BlockMap
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rok, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &bm)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		ok = rok
+
+		return nil
+	})
+
+	return bm, ok, err
 }
 
 func (c *BaseClient) BlockMapItem(
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockMapItemType,
-) (
-	_ io.Reader,
-	_ func() error,
-	_ bool,
-	_ error,
-) {
-	// NOTE the io.ReadCloser should be closed.
-
+	f func(io.Reader, bool) error,
+) error {
 	header := NewBlockMapItemRequestHeader(height, item)
 	if err := header.IsValid(nil); err != nil {
-		return nil, nil, false, err
+		return err
 	}
 
-	switch h, _, body, cancel, err := hcReqResBody(ctx, ci, header, c.Client.Broker); {
-	case err != nil:
-		return nil, nil, false, err
-	case h.Err() != nil, !h.OK():
-		_ = cancel()
-
-		return nil, util.EmptyCancelFunc, h.OK(), h.Err()
-	default:
-		return body, cancel, h.OK(), h.Err()
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return err
 	}
+
+	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch h, _, body, err := hcReqResBody(ctx, broker, header); {
+		case err != nil:
+			return err
+		case h.Err() != nil:
+			return h.Err()
+		default:
+			return f(body, h.OK())
+		}
+	})
 }
 
 func (c *BaseClient) NodeChallenge(
@@ -356,7 +448,7 @@ func (c *BaseClient) NodeChallenge(
 	node base.Address,
 	pub base.Publickey,
 	input []byte,
-) (base.Signature, error) {
+) (sig base.Signature, _ error) {
 	e := util.StringError("NodeChallenge")
 
 	header := NewNodeChallengeRequestHeader(input)
@@ -364,32 +456,38 @@ func (c *BaseClient) NodeChallenge(
 		return nil, e.Wrap(err)
 	}
 
-	var sig base.Signature
-
-	switch ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return enc.StreamDecoder(r).Decode(&sig)
-		},
-	); {
-	case err != nil:
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
 		return nil, e.Wrap(err)
-	case !ok:
-		return nil, e.Errorf("empty")
-	default:
-		if err := pub.Verify(util.ConcatBytesSlice(
-			node.Bytes(),
-			networkID,
-			input,
-		), sig); err != nil {
-			return nil, e.Wrap(err)
-		}
-
-		return sig, nil
 	}
+
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch ok, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return enc.StreamDecoder(r).Decode(&sig)
+			},
+		); {
+		case rerr != nil:
+			return rerr
+		case !ok:
+			return e.Errorf("empty")
+		default:
+			if rerr := pub.Verify(util.ConcatBytesSlice(
+				node.Bytes(),
+				networkID,
+				input,
+			), sig); rerr != nil {
+				return rerr
+			}
+
+			return nil
+		}
+	})
+
+	return sig, e.Wrap(err)
 }
 
 func (c *BaseClient) SuffrageNodeConnInfo(
@@ -412,42 +510,68 @@ func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.ConnI
 }
 
 func (c *BaseClient) State(
-	ctx context.Context, ci quicstream.ConnInfo, key string, st util.Hash,
-) (base.State, bool, error) {
-	header := NewStateRequestHeader(key, st)
+	ctx context.Context, ci quicstream.ConnInfo, key string, sth util.Hash,
+) (st base.State, found bool, _ error) {
+	header := NewStateRequestHeader(key, sth)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
 
-	var u base.State
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rfound, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &st)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		found = rfound
+
+		return nil
+	})
+
+	return st, found, err
 }
 
 func (c *BaseClient) ExistsInStateOperation(
 	ctx context.Context, ci quicstream.ConnInfo, facthash util.Hash,
-) (bool, error) {
+) (found bool, _ error) {
 	header := NewExistsInStateOperationRequestHeader(facthash)
 	if err := header.IsValid(nil); err != nil {
 		return false, err
 	}
 
-	return hcReqResOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-	)
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return false, err
+	}
+
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rfound, rerr := hcReqResOK(
+			ctx,
+			broker,
+			header,
+		)
+		if rerr != nil {
+			return rerr
+		}
+
+		found = rfound
+
+		return nil
+	})
+
+	return found, err
 }
 
 func (c *BaseClient) SendBallots(
@@ -461,17 +585,23 @@ func (c *BaseClient) SendBallots(
 		return e.Errorf("empty ballots")
 	}
 
-	header := NewSendBallotsHeader()
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return e.Wrap(err)
+	}
 
-	_, err := hcBodyReqResOK(
-		ctx,
-		ci,
-		header,
-		ballots,
-		c.Client.Broker,
-	)
+	return e.Wrap(streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		header := NewSendBallotsHeader()
 
-	return err
+		_, err := hcBodyReqResOK(
+			ctx,
+			broker,
+			header,
+			ballots,
+		)
+
+		return err
+	}))
 }
 
 func (c *BaseClient) SetAllowConsensus(
@@ -527,31 +657,29 @@ func (c *BaseClient) HandoverMessage(
 	ci quicstream.ConnInfo,
 	message isaacstates.HandoverMessage,
 ) error {
-	broker, err := c.Client.Broker(ctx, ci)
+	streamer, err := c.dial(ctx, ci)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = broker.Close()
-	}()
+	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		if err := broker.WriteRequestHead(ctx, NewHandoverMessageHeader()); err != nil {
+			return err
+		}
 
-	if err := broker.WriteRequestHead(ctx, NewHandoverMessageHeader()); err != nil {
-		return err
-	}
+		if err := brokerPipeEncode(ctx, broker, message); err != nil {
+			return err
+		}
 
-	if err := brokerPipeEncode(ctx, broker, message); err != nil {
-		return err
-	}
-
-	switch _, h, err := broker.ReadResponseHead(ctx); {
-	case err != nil:
-		return err
-	case h.Err() != nil:
-		return h.Err()
-	default:
-		return nil
-	}
+		switch _, h, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		case h.Err() != nil:
+			return h.Err()
+		default:
+			return nil
+		}
+	})
 }
 
 func (c *BaseClient) CheckHandover(
@@ -623,33 +751,33 @@ func (c *BaseClient) LastHandoverYLogs(
 	networkID base.NetworkID,
 	f func(json.RawMessage) bool,
 ) error {
-	broker, err := c.Client.Broker(ctx, yci)
+	streamer, err := c.dial(ctx, yci)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = broker.Close()
-	}()
+	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, NewLastHandoverYLogsHeader()); {
+		case err != nil:
+			return errors.WithMessage(err, "response")
+		case rh.Err() != nil:
+			return errors.WithMessage(rh.Err(), "response")
+		}
 
-	switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, NewLastHandoverYLogsHeader()); {
-	case err != nil:
-		return errors.WithMessage(err, "response")
-	case rh.Err() != nil:
-		return errors.WithMessage(rh.Err(), "response")
-	}
+		var br *bufio.Reader
 
-	switch bodyType, _, body, _, rh, err := broker.ReadBody(ctx); {
-	case err != nil:
-		return err
-	case rh != nil:
-		return errors.WithMessage(rh.Err(), "response")
-	case bodyType == quicstreamheader.EmptyBodyType:
-		return nil
-	case bodyType != quicstreamheader.StreamBodyType:
-		return errors.Errorf("unknown body type, %d", bodyType)
-	default:
-		br := bufio.NewReader(body)
+		switch bodyType, _, body, _, rh, err := broker.ReadBody(ctx); {
+		case err != nil:
+			return err
+		case rh != nil:
+			return errors.WithMessage(rh.Err(), "response")
+		case bodyType == quicstreamheader.EmptyBodyType:
+			return nil
+		case bodyType != quicstreamheader.StreamBodyType:
+			return errors.Errorf("unknown body type, %d", bodyType)
+		default:
+			br = bufio.NewReader(body)
+		}
 
 	end:
 		for {
@@ -680,7 +808,7 @@ func (c *BaseClient) LastHandoverYLogs(
 		}
 
 		return nil
-	}
+	})
 }
 
 func (c *BaseClient) verifyNodeWithResponse(
@@ -689,56 +817,70 @@ func (c *BaseClient) verifyNodeWithResponse(
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	header quicstreamheader.RequestHeader,
-) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
-	broker, err := c.Client.Broker(ctx, ci)
+) (enc encoder.Encoder, h quicstreamheader.ResponseHeader, _ error) {
+	streamer, err := c.dial(ctx, ci)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	defer func() {
-		_ = broker.Close()
-	}()
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		renc, rh, rerr := VerifyNodeWithResponse(ctx, broker, priv, networkID, header)
+		if rerr != nil {
+			return rerr
+		}
 
-	return VerifyNodeWithResponse(ctx, broker, priv, networkID, header)
+		enc = renc
+		h = rh
+
+		return nil
+	})
+
+	return enc, h, err
 }
 
 func (c *BaseClient) requestNodeConnInfos(
 	ctx context.Context,
 	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
-) ([]isaac.NodeConnInfo, error) {
-	var cis []isaac.NodeConnInfo
+) (cis []isaac.NodeConnInfo, _ error) {
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, err
+	}
 
-	_, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			b, err := io.ReadAll(r)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-
-			u, err := enc.DecodeSlice(b)
-			if err != nil {
-				return err
-			}
-
-			cis = make([]isaac.NodeConnInfo, len(u))
-
-			for i := range u {
-				rci, ok := u[i].(isaac.NodeConnInfo)
-				if !ok {
-					return errors.Errorf("expected NodeConnInfo, but %T", u[i])
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		_, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				b, rerr := io.ReadAll(r)
+				if rerr != nil {
+					return errors.WithStack(rerr)
 				}
 
-				cis[i] = rci
-			}
+				u, rerr := enc.DecodeSlice(b)
+				if err != nil {
+					return rerr
+				}
 
-			return nil
-		},
-	)
+				cis = make([]isaac.NodeConnInfo, len(u))
+
+				for i := range u {
+					rci, ok := u[i].(isaac.NodeConnInfo)
+					if !ok {
+						return errors.Errorf("expected NodeConnInfo, but %T", u[i])
+					}
+
+					cis[i] = rci
+				}
+
+				return nil
+			},
+		)
+
+		return rerr
+	})
 
 	return cis, err
 }
@@ -747,37 +889,38 @@ func (c *BaseClient) requestProposal(
 	ctx context.Context,
 	ci quicstream.ConnInfo,
 	header quicstreamheader.RequestHeader,
-) (base.ProposalSignFact, bool, error) {
-	var u base.ProposalSignFact
+) (pr base.ProposalSignFact, found bool, _ error) {
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, false, err
+	}
 
-	ok, err := HCReqResBodyDecOK(
-		ctx,
-		ci,
-		header,
-		c.Client.Broker,
-		func(enc encoder.Encoder, r io.Reader) error {
-			return encoder.DecodeReader(enc, r, &u)
-		},
-	)
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		rfound, rerr := HCReqResBodyDecOK(
+			ctx,
+			broker,
+			header,
+			func(enc encoder.Encoder, r io.Reader) error {
+				return encoder.DecodeReader(enc, r, &pr)
+			},
+		)
+		if rerr != nil {
+			return rerr
+		}
 
-	return u, ok, err
+		found = rfound
+
+		return nil
+	})
+
+	return pr, found, err
 }
 
 func hcReqResOK(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	broker *quicstreamheader.ClientBroker,
 	header quicstreamheader.RequestHeader,
-	brokerf quicstreamheader.ClientBrokerFunc,
 ) (bool, error) {
-	broker, err := brokerf(ctx, ci)
-	if err != nil {
-		return false, err
-	}
-
-	defer func() {
-		_ = broker.Close()
-	}()
-
 	switch _, rh, err := hcReqRes(ctx, broker, header); {
 	case err != nil:
 		return false, err
@@ -788,86 +931,30 @@ func hcReqResOK(
 
 func HCReqResBodyDecOK(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	broker *quicstreamheader.ClientBroker,
 	header quicstreamheader.RequestHeader,
-	brokerf quicstreamheader.ClientBrokerFunc,
 	decodef func(encoder.Encoder, io.Reader) error,
 ) (bool, error) {
-	h, renc, rbody, cancel, err := hcReqResBody(ctx, ci, header, brokerf)
-	if err != nil {
+	h, renc, rbody, err := hcReqResBody(ctx, broker, header)
+
+	switch {
+	case err != nil:
 		return false, err
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	if h.Err() != nil {
-		return h.OK(), h.Err()
-	}
-
-	if rbody == nil {
-		return h.OK(), h.Err()
-	}
-
-	if err := decodef(renc, rbody); err != nil {
-		return false, err
+	case rbody != nil && h.Err() == nil:
+		if err := decodef(renc, rbody); err != nil {
+			return false, err
+		}
 	}
 
 	return h.OK(), h.Err()
 }
 
-func hcReqResBody(
-	ctx context.Context,
-	ci quicstream.ConnInfo,
-	header quicstreamheader.RequestHeader,
-	brokerf quicstreamheader.ClientBrokerFunc,
-) (
-	_ quicstreamheader.ResponseHeader,
-	_ encoder.Encoder,
-	body io.Reader,
-	cancel func() error,
-	_ error,
-) {
-	broker, err := brokerf(ctx, ci)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	cancel = func() error {
-		return broker.Close()
-	}
-
-	switch rh, renc, rbody, err := hcReqResBodyWithBroker(ctx, broker, header); {
-	case err != nil:
-		_ = cancel()
-
-		return nil, nil, nil, nil, err
-	default:
-		return rh, renc, rbody, cancel, nil
-	}
-}
-
 func hcBodyReqResOK(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	broker *quicstreamheader.ClientBroker,
 	header quicstreamheader.RequestHeader,
 	i interface{},
-	brokerf quicstreamheader.ClientBrokerFunc,
 ) (bool, error) {
-	var broker *quicstreamheader.ClientBroker
-
-	switch j, err := brokerf(ctx, ci); {
-	case err != nil:
-		return false, err
-	default:
-		broker = j
-	}
-
-	defer func() {
-		_ = broker.Close()
-	}()
-
 	if err := broker.WriteRequestHead(ctx, header); err != nil {
 		return false, err
 	}
@@ -886,7 +973,7 @@ func hcBodyReqResOK(
 	return h.OK(), h.Err()
 }
 
-func hcReqResBodyWithBroker(
+func hcReqResBody(
 	ctx context.Context,
 	broker *quicstreamheader.ClientBroker,
 	header quicstreamheader.RequestHeader,

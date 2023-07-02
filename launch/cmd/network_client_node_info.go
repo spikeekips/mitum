@@ -22,45 +22,49 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()
 
-	broker, err := cmd.Client.Broker(ctx, cmd.Remote.ConnInfo())
+	stream, _, err := cmd.Client.Dial(ctx, cmd.Remote.ConnInfo())
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		_ = broker.Close()
+		_ = cmd.Client.Close()
 	}()
 
 	header := isaacnetwork.NewNodeInfoRequestHeader()
-	if err := broker.WriteRequestHead(ctx, header); err != nil {
-		return err
-	}
 
-	var enc encoder.Encoder
-
-	switch renc, rh, err := broker.ReadResponseHead(ctx); {
-	case err != nil:
-		return err
-	case !rh.OK():
-		return errors.Errorf("not ok")
-	case rh.Err() != nil:
-		return rh.Err()
-	default:
-		enc = renc
-	}
-
-	switch bodyType, bodyLenght, r, err := broker.ReadBodyErr(ctx); {
-	case err != nil:
-		return err
-	case bodyType == quicstreamheader.EmptyBodyType, bodyType == quicstreamheader.FixedLengthBodyType && bodyLenght < 1:
-		return errors.Errorf("empty body")
-	default:
-		var v interface{}
-
-		if err := enc.StreamDecoder(r).Decode(&v); err != nil {
+	return stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
 		}
 
-		return cmd.Print(v, os.Stdout)
-	}
+		var enc encoder.Encoder
+
+		switch renc, rh, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		case !rh.OK():
+			return errors.Errorf("not ok")
+		case rh.Err() != nil:
+			return rh.Err()
+		default:
+			enc = renc
+		}
+
+		switch bodyType, bodyLenght, r, err := broker.ReadBodyErr(ctx); {
+		case err != nil:
+			return err
+		case bodyType == quicstreamheader.EmptyBodyType,
+			bodyType == quicstreamheader.FixedLengthBodyType && bodyLenght < 1:
+			return errors.Errorf("empty body")
+		default:
+			var v interface{}
+
+			if err := enc.StreamDecoder(r).Decode(&v); err != nil {
+				return err
+			}
+
+			return cmd.Print(v, os.Stdout)
+		}
+	})
 }

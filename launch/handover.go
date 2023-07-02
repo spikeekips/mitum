@@ -44,7 +44,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	var log *logging.Logging
 	var local base.LocalNode
 	var isaacparams *isaac.Params
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
@@ -116,7 +116,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	var encs *encoder.Encoders
 	var local base.LocalNode
 	var isaacparams *isaac.Params
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var pool *isaacdatabase.TempPool
 	var long *LongRunningMemberlistJoin
 	var svvotef isaac.SuffrageVoteFunc
@@ -327,7 +327,7 @@ func attachStartHandoverHandler(
 ) error {
 	var log *logging.Logging
 	var states *isaacstates.States
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -735,7 +735,7 @@ func attachSyncDataFuncForHandoverY(
 ) error {
 	var local base.LocalNode
 	var isaacparams *isaac.Params
-	var client *isaacnetwork.QuicstreamClient
+	var client *isaacnetwork.BaseClient
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(pctx,

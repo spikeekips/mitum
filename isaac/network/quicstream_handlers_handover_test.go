@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -23,10 +24,9 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStartHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		started, err := c.StartHandover(context.Background(),
 			yci,
@@ -52,10 +52,9 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStartHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		started, err := c.StartHandover(context.Background(),
 			yci,
@@ -83,10 +82,9 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixStartHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		started, err := c.StartHandover(context.Background(),
 			yci,
@@ -111,10 +109,9 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			func() error { return nil },
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCancelHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		canceled, err := c.CancelHandover(context.Background(),
 			localci,
@@ -138,10 +135,9 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCancelHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		canceled, err := c.CancelHandover(context.Background(),
 			localci,
@@ -167,10 +163,9 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCancelHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		canceled, err := c.CancelHandover(context.Background(),
 			localci,
@@ -194,10 +189,9 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandover(context.Background(),
 			xci,
@@ -223,10 +217,9 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandover(context.Background(),
 			xci,
@@ -254,10 +247,9 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandover(context.Background(),
 			xci,
@@ -287,10 +279,9 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixAskHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		rid, canmove, err := c.AskHandover(context.Background(),
 			xci,
@@ -317,10 +308,9 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixAskHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		rid, canmove, err := c.AskHandover(context.Background(),
 			xci,
@@ -349,10 +339,9 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixAskHandover, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		rid, canmove, err := c.AskHandover(context.Background(),
 			xci,
@@ -384,10 +373,9 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixHandoverMessage, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixHandoverMessage, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		msg := isaacstates.NewHandoverMessageCancel(handoverid, nil)
 
@@ -411,24 +399,28 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixHandoverMessage, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixHandoverMessage, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		ctx := context.Background()
 
-		broker, err := c.Client.Broker(ctx, yci)
+		stream, closef, err := c.Dial(ctx, yci)
 		t.NoError(err)
+		defer closef()
 
-		t.NoError(broker.WriteRequestHead(ctx, NewHandoverMessageHeader()))
-		t.NoError(brokerPipeEncode(ctx, broker, "showme"))
+		t.NoError(stream(ctx, func(_ context.Context, broker *quicstreamheader.ClientBroker) error {
+			t.NoError(broker.WriteRequestHead(ctx, NewHandoverMessageHeader()))
+			t.NoError(brokerPipeEncode(ctx, broker, "showme"))
 
-		_, h, err := broker.ReadResponseHead(ctx)
-		t.NoError(err)
-		t.NotNil(h)
-		t.Error(h.Err())
-		t.ErrorContains(h.Err(), "decode")
+			_, h, err := broker.ReadResponseHead(ctx)
+			t.NoError(err)
+			t.NotNil(h)
+			t.Error(h.Err())
+			t.ErrorContains(h.Err(), "decode")
+
+			return nil
+		}))
 	})
 }
 
@@ -442,10 +434,9 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			func(context.Context) error { return nil },
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandoverX(context.Background(),
 			xci,
@@ -470,10 +461,9 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandoverX(context.Background(),
 			xci,
@@ -500,10 +490,9 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixCheckHandoverX, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		checked, err := c.CheckHandoverX(context.Background(),
 			xci,
@@ -529,10 +518,9 @@ func (t *testQuicstreamHandlers) TestLastHandoverYLogs() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		err := c.LastHandoverYLogs(context.Background(),
 			yci,
@@ -560,10 +548,9 @@ func (t *testQuicstreamHandlers) TestLastHandoverYLogs() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		var rjs []json.RawMessage
 
@@ -590,10 +577,9 @@ func (t *testQuicstreamHandlers) TestLastHandoverYLogs() {
 			},
 		)
 
-		openstreamf, handlercancel := testOpenstreamf(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
-		defer handlercancel()
+		dialf := testDialFunc(t.Encs, HandlerPrefixLastHandoverYLogs, handler)
 
-		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		var rjs []json.RawMessage
 

@@ -13,6 +13,36 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type (
+	BrokerFunc func(context.Context, *ClientBroker) error
+	StreamFunc func(context.Context, BrokerFunc) error
+	DialFunc   func(context.Context, quicstream.ConnInfo) (_ StreamFunc, closeConnection func() error, _ error)
+)
+
+func NewDialFunc(
+	dialf quicstream.ConnInfoDialFunc,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) DialFunc {
+	return func(ctx context.Context, ci quicstream.ConnInfo) (StreamFunc, func() error, error) {
+		streamer, err := dialf(ctx, ci)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return func(ctx context.Context, f BrokerFunc) error {
+			return streamer.Stream(ctx, func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+				broker := NewClientBroker(encs, enc, r, w)
+				defer func() {
+					_ = broker.Close()
+				}()
+
+				return f(ctx, broker)
+			})
+		}, streamer.Close, nil
+	}
+}
+
 type ClientBroker struct {
 	*baseBroker
 }
@@ -32,7 +62,7 @@ func (broker *ClientBroker) WriteRequestHead(ctx context.Context, header Request
 	}
 
 	if err := quicstream.WritePrefix(ctx, broker.Writer, header.Handler()); err != nil {
-		return broker.closeIfError(quicstream.ErrNetwork.WithMessage(err, "write request; prefix"))
+		return quicstream.ErrNetwork.WithMessage(err, "write request; prefix")
 	}
 
 	return errors.WithMessage(
@@ -352,7 +382,7 @@ func (broker *baseBroker) readDataType(ctx context.Context) (dataType DataType, 
 
 		return dataType.IsValid(nil)
 	}(); err != nil {
-		return UnknownDataType, broker.closeByError(errors.WithMessage(err, "read data type"))
+		return UnknownDataType, errors.WithMessage(err, "read data type")
 	}
 
 	return dataType, nil
@@ -368,7 +398,7 @@ func (broker *baseBroker) readBodyType(ctx context.Context) (bodyType BodyType, 
 
 		return bodyType.IsValid(nil)
 	}(); err != nil {
-		return UnknownBodyType, broker.closeByError(errors.WithMessage(err, "read body type"))
+		return UnknownBodyType, errors.WithMessage(err, "read body type")
 	}
 
 	return bodyType, nil
@@ -379,7 +409,7 @@ func (broker *baseBroker) readEncoder(ctx context.Context) (encoder.Encoder, err
 
 	switch b, err := broker.readLengthed(ctx); {
 	case err != nil:
-		return nil, broker.closeByError(errors.WithMessage(err, "encoder hint"))
+		return nil, errors.WithMessage(err, "encoder hint")
 	default:
 		hintb = b
 	}
@@ -497,7 +527,7 @@ func (broker *baseBroker) readBody(ctx context.Context) (
 func (broker *baseBroker) write(_ context.Context, b []byte) (int, error) {
 	i, err := util.EnsureWrite(broker.Writer, b)
 
-	return i, broker.closeIfError(err)
+	return i, err
 }
 
 func (broker *baseBroker) writeLength(_ context.Context, i uint64) error {
@@ -511,51 +541,25 @@ func (broker *baseBroker) writeLengthed(_ context.Context, b []byte) error {
 func (broker *baseBroker) writeReader(_ context.Context, r io.Reader) (int64, error) {
 	i, err := io.Copy(broker.Writer, r)
 
-	return i, broker.closeIfError(err)
+	return i, errors.Wrap(err, "write reader")
 }
 
 func (broker *baseBroker) read(_ context.Context, p []byte) (int, error) {
 	i, err := broker.Reader.Read(p)
 
-	return i, broker.closeIfError(err)
+	return i, errors.Wrap(err, "read")
 }
 
 func (broker *baseBroker) readLength(context.Context) (uint64, error) {
 	i, err := util.ReadLength(broker.Reader)
 
-	return i, broker.closeIfError(err)
+	return i, err
 }
 
 func (broker *baseBroker) readLengthed(context.Context) ([]byte, error) {
 	b, err := util.ReadLengthed(broker.Reader)
 
-	return b, broker.closeIfError(err)
-}
-
-func (broker *baseBroker) closeByError(err error) error {
-	if errors.Is(err, io.EOF) {
-		err = quicstream.ErrNetwork.Wrap(err) //revive:disable-line:modifies-parameter
-	}
-
-	if err != nil {
-		_ = broker.Close()
-	}
-
-	return errors.WithStack(err)
-}
-
-func (broker *baseBroker) closeIfError(err error) error {
-	switch {
-	case errors.Is(err, io.EOF):
-		err = quicstream.ErrNetwork.Wrap(err) //revive:disable-line:modifies-parameter
-	case
-		quicstream.IsNetworkError(err),
-		errors.Is(err, context.Canceled),
-		errors.Is(err, context.DeadlineExceeded):
-		_ = broker.Close()
-	}
-
-	return errors.WithStack(err)
+	return b, err
 }
 
 type readerAt struct {

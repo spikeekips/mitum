@@ -42,7 +42,7 @@ type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
 type BaseNetworkClientCommand struct { //nolint:govet //...
 	BaseCommand
 	BaseNetworkClientNodeInfoFlags
-	Client *isaacnetwork.QuicstreamClient `kong:"-"`
+	Client *isaacnetwork.BaseClient `kong:"-"`
 }
 
 func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
@@ -58,7 +58,20 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 		cmd.Timeout = isaac.DefaultTimeoutRequest * 2
 	}
 
-	cmd.Client = launch.NewNetworkClient(cmd.Encoders, cmd.Encoder, base.NetworkID(cmd.NetworkID))
+	connectionPool, err := launch.NewConnectionPool(
+		1<<9, //nolint:gomnd //...
+		base.NetworkID(cmd.NetworkID),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	cmd.Client = isaacnetwork.NewBaseClient(
+		cmd.Encoders, cmd.Encoder,
+		connectionPool.Dial,
+		connectionPool.CloseAll,
+	)
 
 	cmd.Log.Debug().
 		Stringer("remote", cmd.Remote).

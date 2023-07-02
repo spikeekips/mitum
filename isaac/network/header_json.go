@@ -3,7 +3,7 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	quicstream "github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"

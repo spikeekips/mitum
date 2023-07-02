@@ -19,6 +19,10 @@ func (cmd *NetworkClientSendOperationCommand) Run(pctx context.Context) error {
 		return err
 	}
 
+	defer func() {
+		_ = cmd.Client.Close()
+	}()
+
 	buf := bytes.NewBuffer(nil)
 
 	if _, err := io.Copy(buf, cmd.Body); err != nil {

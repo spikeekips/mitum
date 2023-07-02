@@ -3,7 +3,6 @@ package quicmemberlist
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"sort"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
+	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
@@ -92,7 +92,11 @@ func (t *testMemberlist) newServersForJoining(
 	transportprefix := quicstream.HashPrefix("tp")
 	tlsconfig := t.NewTLSConfig(t.Proto)
 
-	poolclient := quicstream.NewPoolClient()
+	cp, err := quicstream.NewConnectionPool(1<<9, quicstream.NewConnInfoDialFunc(
+		func() *quic.Config { return nil },
+		func() *tls.Config { return tlsconfig.Clone() },
+	))
+	t.NoError(err)
 
 	laddr := ci.UDPAddr()
 	t.T().Log("addr:", laddr)
@@ -100,20 +104,7 @@ func (t *testMemberlist) newServersForJoining(
 	transport := NewTransportWithQuicstream(
 		laddr,
 		transportprefix,
-		poolclient,
-		func(ci quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
-			return func(*net.UDPAddr) *quicstream.Client {
-				return quicstream.NewClient(
-					ci.UDPAddr(),
-					&tls.Config{
-						InsecureSkipVerify: ci.TLSInsecure(),
-						NextProtos:         []string{t.Proto},
-					},
-					nil,
-					nil,
-				)
-			}
-		},
+		cp.Dial,
 		func(string) bool { return false },
 		nil,
 	)
@@ -121,7 +112,14 @@ func (t *testMemberlist) newServersForJoining(
 	ph := quicstream.NewPrefixHandler(nil)
 	ph.Add(transportprefix, transport.QuicstreamHandler)
 
-	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, ph.Handler)
+	quicstreamsrv, err := quicstream.NewTestServer(
+		laddr,
+		tlsconfig,
+		&quic.Config{
+			MaxIncomingStreams: 1 << 9,
+		},
+		ph.Handler,
+	)
 	t.NoError(err)
 	quicstreamsrv.SetLogging(logging.TestNilLogging)
 
@@ -137,7 +135,8 @@ func (t *testMemberlist) newServersForJoining(
 
 	args := t.newargs(memberlistconfig)
 
-	srv, _ := NewMemberlist(local, args)
+	srv, err := NewMemberlist(local, args)
+	t.NoError(err)
 	srv.SetLogging(logging.TestNilLogging)
 
 	return ph, srv,
@@ -1136,12 +1135,13 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 	lph.Add(callbackhandlerprefix, quicstreamheader.NewHandler(t.encs, nil, lsrv.CallbackBroadcastHandler(), nil))
 
-	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
-		ctx context.Context,
-		addr quicstream.ConnInfo,
-	) (io.Reader, io.WriteCloser, error) {
-		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
-	})
+	cp, err := quicstream.NewConnectionPool(1<<9, quicstream.NewConnInfoDialFunc(
+		func() *quic.Config { return nil },
+		func() *tls.Config { return t.NewTLSConfig(t.Proto) },
+	))
+	t.NoError(err)
+
+	dialf := quicstreamheader.NewDialFunc(cp.Dial, t.encs, t.enc)
 
 	notfoundid := util.UUID().String()
 
@@ -1152,7 +1152,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 			return nil, nil, nil
 		}
 
-		return FetchCallbackBroadcastMessageFunc(callbackhandlerprefix, lcl.Broker)(ctx, m)
+		return FetchCallbackBroadcastMessageFunc(callbackhandlerprefix, dialf)(ctx, m)
 	}
 
 	rbroadcastedch := make(chan []byte, 1)
@@ -1245,12 +1245,13 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		nil,
 	)
 
-	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
-		ctx context.Context,
-		addr quicstream.ConnInfo,
-	) (io.Reader, io.WriteCloser, error) {
-		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
-	})
+	cp, err := quicstream.NewConnectionPool(1<<9, quicstream.NewConnInfoDialFunc(
+		func() *quic.Config { return nil },
+		func() *tls.Config { return t.NewTLSConfig(t.Proto) },
+	))
+	t.NoError(err)
+
+	dialf := quicstreamheader.NewDialFunc(cp.Dial, t.encs, t.enc)
 
 	for i := range rcis {
 		i := i
@@ -1294,7 +1295,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 				node.Address(),
 				node.Privatekey(),
 				networkID,
-				lcl.Broker,
+				dialf,
 			)(ctx, m)
 		}
 

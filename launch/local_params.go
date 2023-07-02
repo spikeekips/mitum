@@ -377,6 +377,9 @@ type NetworkParams struct {
 	maxIdleTimeout        time.Duration
 	keepAlivePeriod       time.Duration
 	defaultHandlerTimeout time.Duration
+	connectionPoolSize    uint64
+	maxIncomingStreams    uint64
+	maxStreamTimeout      time.Duration
 }
 
 func defaultNetworkParams() *NetworkParams {
@@ -385,7 +388,7 @@ func defaultNetworkParams() *NetworkParams {
 		handlerTimeouts[i] = defaultHandlerTimeouts[i]
 	}
 
-	d := DefaultQuicConfig()
+	d := DefaultServerQuicConfig()
 
 	return &NetworkParams{
 		BaseParams:            util.NewBaseParams(),
@@ -395,6 +398,9 @@ func defaultNetworkParams() *NetworkParams {
 		keepAlivePeriod:       d.KeepAlivePeriod,
 		defaultHandlerTimeout: time.Second * 6, //nolint:gomnd //...
 		handlerTimeouts:       handlerTimeouts,
+		connectionPoolSize:    1 << 13, //nolint:gomnd // big enough
+		maxIncomingStreams:    uint64(d.MaxIncomingStreams),
+		maxStreamTimeout:      time.Second * 30, //nolint:gomnd //...
 	}
 }
 
@@ -433,6 +439,18 @@ func (p *NetworkParams) IsValid([]byte) error {
 		if p.handlerTimeouts[i] < 0 {
 			return e.Errorf("wrong duration; invalid %q", i)
 		}
+	}
+
+	if p.connectionPoolSize < 1 {
+		return e.Errorf("invalid connectionPoolSize")
+	}
+
+	if p.maxIncomingStreams < 1 {
+		return e.Errorf("invalid maxIncomingStreams")
+	}
+
+	if p.maxStreamTimeout < 0 {
+		return e.Errorf("wrong duration; invalid maxStreamTimeout")
 	}
 
 	return nil
@@ -582,6 +600,63 @@ func (p *NetworkParams) handlerTimeout(i string) time.Duration {
 	default:
 		return d
 	}
+}
+
+func (p *NetworkParams) ConnectionPoolSize() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.connectionPoolSize
+}
+
+func (p *NetworkParams) SetConnectionPoolSize(d uint64) error {
+	return p.SetUint64(d, func(d uint64) (bool, error) {
+		if p.connectionPoolSize == d {
+			return false, nil
+		}
+
+		p.connectionPoolSize = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) MaxIncomingStreams() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.maxIncomingStreams
+}
+
+func (p *NetworkParams) SetMaxIncomingStreams(d uint64) error {
+	return p.SetUint64(d, func(d uint64) (bool, error) {
+		if p.maxIncomingStreams == d {
+			return false, nil
+		}
+
+		p.maxIncomingStreams = d
+
+		return true, nil
+	})
+}
+
+func (p *NetworkParams) MaxStreamTimeout() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.maxStreamTimeout
+}
+
+func (p *NetworkParams) SetMaxStreamTimeout(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.maxStreamTimeout == d {
+			return false, nil
+		}
+
+		p.maxStreamTimeout = d
+
+		return true, nil
+	})
 }
 
 var networkHandlerPrefixes = []string{

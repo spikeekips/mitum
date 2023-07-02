@@ -340,15 +340,11 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 	) error {
 		e := util.StringError("handle callback message")
 
-		i, err, _ := util.SingleflightDo[[2]interface{}](&sg, req.ID(), func() ([2]interface{}, error) {
+		i, _, _ := util.SingleflightDo[[2]interface{}](&sg, req.ID(), func() ([2]interface{}, error) {
 			b, found := srv.cbcache.Get(req.ID())
 
 			return [2]interface{}{b, found}, nil
 		})
-
-		if err != nil {
-			return e.Wrap(err)
-		}
 
 		var body io.Reader
 		var found bool
@@ -1149,58 +1145,61 @@ func RandomAliveMembers(
 
 func FetchCallbackBroadcastMessageFunc(
 	handlerPrefix [32]byte,
-	brokerf quicstreamheader.ClientBrokerFunc,
+	dialf quicstreamheader.DialFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
 ) {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) (
-		[]byte, encoder.Encoder, error,
+		b []byte, enc encoder.Encoder, _ error,
 	) {
-		broker, err := brokerf(ctx, m.ConnInfo())
+		stream, _, err := dialf(ctx, m.ConnInfo())
 		if err != nil {
 			return nil, nil, err
 		}
 
-		defer func() {
-			_ = broker.Close()
-		}()
+		if err := stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+			if err := broker.WriteRequestHead(
+				ctx, NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)); err != nil {
+				return err
+			}
 
-		if err := broker.WriteRequestHead(ctx, NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)); err != nil {
+			switch i, rh, err := broker.ReadResponseHead(ctx); {
+			case err != nil:
+				return err
+			case rh == nil:
+				return errors.Errorf("empty response header")
+			case !rh.OK():
+				return nil
+			case rh.Err() != nil:
+				return rh.Err()
+			default:
+				enc = i
+			}
+
+			switch _, _, rbody, _, res, err := broker.ReadBody(ctx); {
+			case err != nil:
+				return nil
+			case res != nil:
+				if res.Err() == nil {
+					return errors.Errorf("empty body; response received")
+				}
+
+				return res.Err()
+			default:
+				i, rerr := io.ReadAll(rbody)
+				if rerr != nil {
+					return errors.WithMessage(rerr, "read fetched callback message")
+				}
+
+				b = i
+
+				return nil
+			}
+		}); err != nil {
 			return nil, nil, err
 		}
 
-		var renc encoder.Encoder
-
-		switch i, rh, err := broker.ReadResponseHead(ctx); {
-		case err != nil:
-			return nil, nil, err
-		case rh == nil:
-			return nil, nil, errors.Errorf("empty response header")
-		case !rh.OK():
-			return nil, nil, nil
-		case rh.Err() != nil:
-			return nil, nil, rh.Err()
-		default:
-			renc = i
-		}
-
-		switch _, _, rbody, _, res, err := broker.ReadBody(ctx); {
-		case err != nil:
-			return nil, renc, nil
-		case res != nil:
-			if res.Err() == nil {
-				return nil, nil, errors.Errorf("empty body; response received")
-			}
-
-			return nil, nil, res.Err()
-		default:
-			b, rerr := io.ReadAll(rbody)
-			if rerr != nil {
-				return nil, renc, errors.WithMessage(rerr, "read fetched callback message")
-			}
-
-			return b, renc, nil
-		}
+		return b, enc, nil
 	}
 }
 
@@ -1209,7 +1208,7 @@ func PongEnsureBroadcastMessageFunc(
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
-	brokerf quicstreamheader.ClientBrokerFunc,
+	dialf quicstreamheader.DialFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) error {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) error {
 		h, err := NewEnsureBroadcastMessageHeader(m.ID(), handlerPrefix, node, signer, networkID)
@@ -1217,30 +1216,28 @@ func PongEnsureBroadcastMessageFunc(
 			return err
 		}
 
-		broker, err := brokerf(ctx, m.ConnInfo())
+		stream, _, err := dialf(ctx, m.ConnInfo())
 		if err != nil {
 			return err
 		}
 
-		defer func() {
-			_ = broker.Close()
-		}()
+		return stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+			if err := broker.WriteRequestHead(ctx, h); err != nil {
+				return err
+			}
 
-		if err := broker.WriteRequestHead(ctx, h); err != nil {
-			return err
-		}
-
-		switch _, rh, err := broker.ReadResponseHead(ctx); {
-		case err != nil:
-			return err
-		case rh == nil:
-			return errors.Errorf("empty response header")
-		case !rh.OK():
-			return nil
-		case rh.Err() != nil:
-			return rh.Err()
-		default:
-			return nil
-		}
+			switch _, rh, err := broker.ReadResponseHead(ctx); {
+			case err != nil:
+				return err
+			case rh == nil:
+				return errors.Errorf("empty response header")
+			case !rh.OK():
+				return nil
+			case rh.Err() != nil:
+				return rh.Err()
+			default:
+				return nil
+			}
+		})
 	}
 }

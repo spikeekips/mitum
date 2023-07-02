@@ -23,34 +23,81 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func (srv *Server) StopWait() error {
-	if err := srv.Stop(); err != nil {
+type TestServer struct {
+	*Server
+	Bind      *net.UDPAddr
+	TLSConfig *tls.Config
+}
+
+func NewTestServer(
+	bind *net.UDPAddr,
+	tlsconfig *tls.Config,
+	quicconfig *quic.Config,
+	handler Handler,
+) (*TestServer, error) {
+	srv, err := NewServer(bind, tlsconfig, quicconfig, handler, func() time.Duration { return time.Second * 33 })
+	if err != nil {
+		return nil, err
+	}
+
+	return &TestServer{
+		Server:    srv,
+		Bind:      bind,
+		TLSConfig: tlsconfig,
+	}, nil
+}
+
+func (srv *TestServer) EnsureStart(ctx context.Context) error {
+	if err := srv.Start(ctx); err != nil {
 		return err
 	}
 
 	ticker := time.NewTicker(time.Millisecond * 33)
+	defer ticker.Stop()
 
 	for range ticker.C {
-		if func() bool {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-			defer cancel()
-
-			conn, err := quic.DialAddrEarly(ctx, srv.bind.String(), srv.tlsconfig, nil)
-			if err != nil {
-				return true
-			}
-
-			defer func() {
-				_ = conn.CloseWithError(0x100, "")
-			}()
-
-			return false
-		}() {
+		if srv.checkListen() {
 			break
 		}
 	}
 
 	return nil
+}
+
+func (srv *TestServer) StopWait() error {
+	if err := srv.Stop(); err != nil {
+		return err
+	}
+
+	ticker := time.NewTicker(time.Millisecond * 33)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if !srv.checkListen() {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (srv *TestServer) checkListen() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	conn, err := quic.DialAddrEarly(ctx, srv.Bind.String(), &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         srv.TLSConfig.NextProtos,
+	}, nil)
+	if err != nil {
+		return false
+	}
+
+	defer func() {
+		_ = conn.CloseWithError(0x999, "")
+	}()
+
+	return true
 }
 
 type BaseTest struct {
@@ -87,8 +134,8 @@ func (t *BaseTest) NewTLSConfig(proto string) *tls.Config {
 	return generateTLSConfig(proto)
 }
 
-func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config, qconfig *quic.Config, handler Handler) *Server {
-	srv, err := NewServer(bind, tlsconfig, qconfig, handler)
+func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config, qconfig *quic.Config, handler Handler) *TestServer {
+	srv, err := NewTestServer(bind, tlsconfig, qconfig, handler)
 	t.NoError(err)
 
 	srv.SetLogging(logging.TestNilLogging)
@@ -96,41 +143,72 @@ func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config, qconfig *
 	return srv
 }
 
-func (t *BaseTest) NewDefaultServer(qconfig *quic.Config, handler Handler) *Server {
+func (t *BaseTest) NewDefaultServer(qconfig *quic.Config, handler Handler) *TestServer {
 	if qconfig == nil {
 		qconfig = &quic.Config{}
 	}
 
 	if handler == nil {
-		handler = func(net.Addr, io.Reader, io.Writer) error { return nil }
+		handler = t.EchoHandler()
 	}
 
 	return t.NewServer(t.Bind, t.TLSConfig, qconfig, handler)
 }
 
+func (t *BaseTest) EmptyHandler() Handler {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+		defer func() {
+			_ = w.Close()
+		}()
+
+		b := make([]byte, 1)
+		_, err := r.Read(b)
+
+		return err
+	}
+}
+
 func (t *BaseTest) EchoHandler() Handler {
-	return func(_ net.Addr, r io.Reader, w io.Writer) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+		defer func() {
+			_ = w.Close()
+		}()
+
 		b, err := io.ReadAll(r)
 		if err != nil {
 			return err
 		}
 
-		_, _ = w.Write(b)
+		_, err = w.Write(b)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}
 }
 
-func (t *BaseTest) NewClient(addr *net.UDPAddr) *Client {
-	return NewClient(
+func (t *BaseTest) NewConnection(addr *net.UDPAddr, quicconfig *quic.Config) *Connection {
+	if quicconfig == nil {
+		quicconfig = &quic.Config{
+			HandshakeIdleTimeout: time.Millisecond * 100,
+		}
+	}
+
+	conn, err := Dial(
+		context.Background(),
 		addr,
 		&tls.Config{
 			InsecureSkipVerify: true,
 			NextProtos:         []string{t.Proto},
 		},
-		nil,
-		nil,
+		quicconfig,
 	)
+	if err != nil {
+		panic(err)
+	}
+
+	return conn
 }
 
 func freeUDPAddr(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
@@ -221,7 +299,7 @@ func randomConnInfo() ConnInfo {
 			continue
 		}
 		bport, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
-		if err != nil {
+		if err != nil || bport.Int64() < 1024 {
 			continue
 		}
 

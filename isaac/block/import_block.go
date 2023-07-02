@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"context"
+	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -115,24 +116,14 @@ func importBlock(
 
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
-			case err != nil:
-				return err
-			case !found:
-				_ = cancel()
-
-				return e.Wrap(util.ErrNotFound.Errorf("blockMapItem not found"))
-			default:
-				defer func() {
-					_ = cancel()
-				}()
-
-				if err := im.WriteItem(item.Type(), r); err != nil {
-					return err
+			return blockMapItemf(ctx, height, item.Type(), func(r io.Reader, found bool) error {
+				switch {
+				case !found:
+					return e.Wrap(util.ErrNotFound.Errorf("blockMapItem not found"))
+				default:
+					return im.WriteItem(item.Type(), r)
 				}
-
-				return nil
-			}
+			})
 		}); err != nil {
 			return false
 		}

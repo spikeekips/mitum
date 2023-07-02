@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -30,24 +29,36 @@ var (
 	QuicstreamClientContextKey   = util.ContextKey("network-client")
 	QuicstreamServerContextKey   = util.ContextKey("quicstream-server")
 	QuicstreamHandlersContextKey = util.ContextKey("quicstream-handlers")
+	ConnectionPoolContextKey     = util.ContextKey("network-connection-pool")
 )
 
 func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var isaacparams *isaac.Params
+	var params *LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		ISAACParamsContextKey, &isaacparams,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return pctx, errors.WithMessage(err, "network client")
 	}
 
-	client := NewNetworkClient(encs, enc, isaacparams.NetworkID()) //nolint:gomnd //...
+	connectionPool, err := NewConnectionPool(
+		params.Network.ConnectionPoolSize(),
+		params.ISAAC.NetworkID(),
+		params.Network,
+	)
+	if err != nil {
+		return pctx, err
+	}
 
-	return context.WithValue(pctx, QuicstreamClientContextKey, client), nil
+	client := NewNetworkClient(encs, enc, connectionPool) //nolint:gomnd //...
+
+	nctx := context.WithValue(pctx, QuicstreamClientContextKey, client)
+
+	return context.WithValue(nctx, ConnectionPoolContextKey, connectionPool), nil
 }
 
 func PNetwork(pctx context.Context) (context.Context, error) {
@@ -71,21 +82,16 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 
 	handlers := quicstream.NewPrefixHandler(nil)
 
-	quicconfig := DefaultQuicConfig()
-
-	quicconfig.HandshakeIdleTimeout = params.Network.HandshakeIdleTimeout()
-	quicconfig.MaxIdleTimeout = params.Network.MaxIdleTimeout()
-	quicconfig.KeepAlivePeriod = params.Network.KeepAlivePeriod()
-
-	quicconfig.RequireAddressValidation = func(net.Addr) bool {
-		return true // TODO NOTE manage blacklist
-	}
+	quicconfig := ServerQuicConfig(params.Network)
 
 	server, err := quicstream.NewServer(
 		design.Network.Bind,
 		GenerateNewTLSConfig(params.ISAAC.NetworkID()),
 		quicconfig,
 		handlers.Handler,
+		func() time.Duration {
+			return params.Network.MaxStreamTimeout()
+		},
 	)
 	if err != nil {
 		return pctx, err
@@ -126,9 +132,35 @@ func PCloseNetwork(pctx context.Context) (context.Context, error) {
 func NewNetworkClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	networkID base.NetworkID,
-) *isaacnetwork.QuicstreamClient {
-	return isaacnetwork.NewQuicstreamClient(encs, enc, string(networkID), DefaultQuicConfig())
+	connectionPool *quicstream.ConnectionPool,
+) *isaacnetwork.BaseClient {
+	return isaacnetwork.NewBaseClient(
+		encs, enc,
+		connectionPool.Dial,
+		connectionPool.CloseAll,
+	)
+}
+
+func NewConnectionPool(
+	size uint64, networkID base.NetworkID, params *NetworkParams,
+) (*quicstream.ConnectionPool, error) {
+	return quicstream.NewConnectionPool(
+		size,
+		NewConnInfoDialFunc(networkID, params),
+	)
+}
+
+func NewConnInfoDialFunc(networkID base.NetworkID, params *NetworkParams) quicstream.ConnInfoDialFunc {
+	return quicstream.NewConnInfoDialFunc(
+		func() *quic.Config {
+			return DialQuicConfig(params)
+		},
+		func() *tls.Config {
+			return &tls.Config{
+				NextProtos: []string{string(networkID)},
+			}
+		},
+	)
 }
 
 func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {
@@ -158,10 +190,45 @@ func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {
 	}
 }
 
-func DefaultQuicConfig() *quic.Config {
+func DefaultServerQuicConfig() *quic.Config {
+	return &quic.Config{
+		HandshakeIdleTimeout: time.Second * 2,
+		MaxIdleTimeout:       time.Second * 30, //nolint:gomnd //...
+		KeepAlivePeriod:      time.Second * 6,  //nolint:gomnd //...
+		MaxIncomingStreams:   33,               //nolint:gomnd // default will be enough :)
+	}
+}
+
+func ServerQuicConfig(params *NetworkParams) *quic.Config {
+	config := DefaultServerQuicConfig()
+
+	config.HandshakeIdleTimeout = params.HandshakeIdleTimeout()
+	config.MaxIdleTimeout = params.MaxIdleTimeout()
+	config.KeepAlivePeriod = params.KeepAlivePeriod()
+	config.MaxIncomingStreams = int64(params.MaxIncomingStreams())
+
+	config.RequireAddressValidation = func(net.Addr) bool {
+		return true // TODO NOTE manage blacklist
+	}
+
+	return config
+}
+
+func DefaultDialQuicConfig() *quic.Config {
 	return &quic.Config{
 		HandshakeIdleTimeout: time.Second * 2,
 		MaxIdleTimeout:       time.Second * 30, //nolint:gomnd //...
 		KeepAlivePeriod:      time.Second * 6,  //nolint:gomnd //...
 	}
+}
+
+func DialQuicConfig(params *NetworkParams) *quic.Config {
+	config := DefaultDialQuicConfig()
+	if params != nil {
+		config.HandshakeIdleTimeout = params.HandshakeIdleTimeout()
+		config.MaxIdleTimeout = params.MaxIdleTimeout()
+		config.KeepAlivePeriod = params.KeepAlivePeriod()
+	}
+
+	return config
 }

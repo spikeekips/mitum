@@ -3,156 +3,238 @@ package quicstream
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
-	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
+
+var ErrNetwork = util.NewIDError("network error")
 
 type (
-	DialFunc func(
-		ctx context.Context,
-		addr string,
-		tlsconfig *tls.Config,
-		quicconfig *quic.Config,
-	) (quic.EarlyConnection, error)
+	ConnInfoDialFunc func(context.Context, ConnInfo) (Streamer, error)
+	StreamFunc       func(context.Context, io.Reader, io.WriteCloser) error
+	OpenStreamFunc   func(context.Context) (io.Reader, io.WriteCloser, func() error, error)
 )
 
-type Client struct {
-	dialf DialFunc
-	*logging.Logging
-	session    *util.Locked[quic.EarlyConnection]
-	addr       *net.UDPAddr
-	tlsconfig  *tls.Config
-	quicconfig *quic.Config
-	id         string
-	sync.Mutex
+type Streamer interface {
+	Stream(context.Context, StreamFunc) error
+	OpenStream(context.Context) (io.Reader, io.WriteCloser, func() error, error)
+	Close() error
+	Context() context.Context
 }
 
-func NewClient(
-	addr *net.UDPAddr,
-	tlsconfig *tls.Config,
-	quicconfig *quic.Config,
-	dialf DialFunc,
-) *Client {
-	ldialf := dialf
-	if dialf == nil {
-		ldialf = dial
-	}
+func NewConnInfoDialFunc(
+	quicconfigf func() *quic.Config,
+	tlsconfigf func() *tls.Config,
+) ConnInfoDialFunc {
+	return func(ctx context.Context, ci ConnInfo) (Streamer, error) {
+		tlsconfig := tlsconfigf()
+		if tlsconfig == nil {
+			tlsconfig = &tls.Config{}
+		}
 
-	return &Client{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "quicstream-client")
-		}),
-		id:         util.UUID().String(),
-		addr:       addr,
-		tlsconfig:  tlsconfig,
-		quicconfig: quicconfig,
-		dialf:      ldialf,
-		session:    util.EmptyLocked[quic.EarlyConnection](),
+		tlsconfig.InsecureSkipVerify = ci.TLSInsecure() //nolint:gosec //...
+
+		return Dial(
+			ctx,
+			ci.UDPAddr(),
+			tlsconfig,
+			quicconfigf(),
+		)
 	}
 }
 
-func (c *Client) Close() error {
-	_, err := c.session.Set(func(i quic.EarlyConnection, _ bool) (quic.EarlyConnection, error) {
-		if i == nil {
-			return nil, nil
-		}
-
-		if err := i.CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
-			return nil, errors.Wrap(err, "close client")
-		}
-
-		return nil, nil
-	})
-
-	return err
+type ConnectionPool struct {
+	conns util.LockedMap[string, Streamer]
+	dialf ConnInfoDialFunc
+	Stop  func()
 }
 
-func (c *Client) Session() quic.EarlyConnection {
-	i, _ := c.session.Value()
-
-	return i
-}
-
-func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
-	session, err := c.dial(ctx)
+func NewConnectionPool(
+	size uint64,
+	dialf ConnInfoDialFunc,
+) (*ConnectionPool, error) {
+	conns, err := util.NewLockedMap[string, Streamer](int64(size))
 	if err != nil {
 		return nil, err
 	}
 
-	return session, nil
+	cctx, ccancel := context.WithCancel(context.Background())
+
+	c := &ConnectionPool{
+		conns: conns,
+		dialf: dialf,
+		Stop:  ccancel,
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Second * 3)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-cctx.Done():
+				return
+			case <-ticker.C:
+				c.clean()
+			}
+		}
+	}()
+
+	return c, nil
 }
 
-// OpenStream opens new stream. Reader and Writer should be closed.
-func (c *Client) OpenStream(ctx context.Context) (reader quic.Stream, writer quic.Stream, _ error) {
-	r, w, err := c.openStream(ctx)
-	if err != nil {
-		if IsNetworkError(err) {
-			_ = c.session.EmptyValue()
+func (c *ConnectionPool) Dial(ctx context.Context, ci ConnInfo) (Streamer, error) {
+	var conn Streamer
+
+	if _, err := c.conns.Set(ci.Addr().String(), func(old Streamer, _ bool) (Streamer, error) {
+		if old != nil && old.Context().Err() == nil {
+			conn = old
+
+			return nil, util.ErrLockedSetIgnore.WithStack()
 		}
 
-		return nil, nil, err
+		switch i, err := c.dialf(ctx, ci); {
+		case err == nil:
+			conn = i
+
+			return i, nil
+		default:
+			return i, err
+		}
+	}); err != nil {
+		return nil, err
 	}
 
-	return r, w, nil
+	return connectionPoolStreamer{
+		Streamer: conn,
+		onerror: func() {
+			c.onerror(ci)
+		},
+	}, nil
 }
 
-func (c *Client) openStream(ctx context.Context) (quic.Stream, quic.Stream, error) {
-	e := util.StringError("request")
-
-	session, err := c.dial(ctx)
-	if err != nil {
-		return nil, nil, e.Wrap(err)
-	}
-
-	stream, err := session.OpenStreamSync(ctx)
-	if err != nil {
-		return nil, nil, e.WithMessage(err, "open stream")
-	}
-
-	return stream, stream, nil
-}
-
-func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	e := util.StringError("dial")
-
-	i, err := c.session.GetOrCreate(func() (quic.EarlyConnection, error) {
-		i, err := c.dialf(ctx, c.addr.String(), c.tlsconfig, c.quicconfig)
-		if err != nil {
-			return nil, err
+func (c *ConnectionPool) Close(ci ConnInfo) bool {
+	removed, _ := c.conns.Remove(ci.Addr().String(), func(conn Streamer, _ bool) error {
+		if i, ok := conn.(io.Closer); ok {
+			return errors.WithStack(i.Close())
 		}
 
-		return i, nil
+		return nil
 	})
 
-	switch {
-	case err != nil:
-		return nil, e.Wrap(err)
-	case i == nil:
-		return nil, &net.OpError{
-			Net: "udp", Op: "dial",
-			Err: errors.Errorf("already closed"),
+	return removed
+}
+
+func (c *ConnectionPool) CloseAll() error {
+	var keys []string
+
+	c.conns.Traverse(func(key string, _ Streamer) bool {
+		keys = append(keys, key)
+
+		return true
+	})
+
+	if len(keys) < 1 {
+		return nil
+	}
+
+	for i := range keys {
+		_, _ = c.conns.Remove(keys[i], func(conn Streamer, found bool) error {
+			if !found {
+				return nil
+			}
+
+			_ = conn.Close()
+
+			return nil
+		})
+	}
+
+	return nil
+}
+
+func (c *ConnectionPool) onerror(ci ConnInfo) {
+	_, _ = c.conns.Remove(ci.Addr().String(), func(conn Streamer, _ bool) error {
+		if i, ok := conn.(io.Closer); ok {
+			return errors.WithStack(i.Close())
 		}
-	default:
-		return i, nil
+
+		return nil
+	})
+}
+
+func (c *ConnectionPool) clean() {
+	var keys []string
+
+	c.conns.Traverse(func(key string, _ Streamer) bool {
+		keys = append(keys, key)
+
+		return true
+	})
+
+	if len(keys) < 1 {
+		return
+	}
+
+	for i := range keys {
+		_, _ = c.conns.Remove(keys[i], func(conn Streamer, found bool) error {
+			switch {
+			case !found,
+				conn != nil && conn.Context().Err() != nil:
+				return nil
+			default:
+				return util.ErrLockedSetIgnore.WithStack()
+			}
+		})
 	}
 }
 
-func dial(
-	ctx context.Context,
-	addr string,
-	tlsconfig *tls.Config,
-	quicconfig *quic.Config,
-) (quic.EarlyConnection, error) {
-	c, err := quic.DialAddrEarly(ctx, addr, tlsconfig, quicconfig)
+type connectionPoolStreamer struct {
+	Streamer
+	onerror func()
+}
 
-	return c, errors.WithStack(err)
+func (s connectionPoolStreamer) Stream(ctx context.Context, f StreamFunc) error {
+	err := s.Streamer.Stream(ctx, f)
+	if IsSeriousError(err) {
+		s.onerror()
+	}
+
+	return err
+}
+
+func IsSeriousError(err error) bool {
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, ErrNetwork):
+		return true
+	}
+
+	var terr *quic.TransportError
+	var aerr *quic.ApplicationError
+	var verr *quic.VersionNegotiationError
+	var serr *quic.StatelessResetError
+	var ierr *quic.IdleTimeoutError
+	var herr *quic.HandshakeTimeoutError
+	var nerr net.Error
+
+	switch {
+	case
+		errors.As(err, &terr),
+		errors.As(err, &aerr),
+		errors.As(err, &verr),
+		errors.As(err, &serr),
+		errors.As(err, &ierr),
+		errors.As(err, &herr),
+		errors.As(err, &nerr):
+		return true
+	default:
+		return false
+	}
 }

@@ -459,7 +459,7 @@ func (t *testSyncSourcePool) TestRetry() {
 			last = ci
 
 			if ci.Address().Equal(sources[0].Address()) {
-				return false, &quic.StreamError{StreamID: 333, ErrorCode: quic.StreamErrorCode(444)}
+				return false, &quic.ApplicationError{Remote: true, ErrorCode: 0x444}
 			}
 
 			return false, nil
@@ -487,7 +487,7 @@ func (t *testSyncSourcePool) TestRetry() {
 				return false, errors.Errorf("hihihi")
 			}
 
-			return false, &quic.StreamError{StreamID: 333, ErrorCode: quic.StreamErrorCode(444)}
+			return false, &quic.ApplicationError{Remote: true, ErrorCode: 0x444}
 		}, -1, time.Millisecond*10)
 		t.Error(err)
 		t.ErrorContains(err, "hihihi")
