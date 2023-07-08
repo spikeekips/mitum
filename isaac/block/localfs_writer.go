@@ -388,10 +388,14 @@ func (w *LocalFSWriter) setTree(
 	tw *fixedtree.Writer,
 	newjob util.ContextWorkerCallback,
 ) (tr fixedtree.Tree, _ error) {
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
-	defer worker.Close()
-
 	e := util.StringError("set tree, %q", treetype)
+
+	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	if err != nil {
+		return tr, e.Wrap(err)
+	}
+
+	defer worker.Close()
 
 	tf, err := w.newChecksumWriter(treetype)
 	if err != nil {

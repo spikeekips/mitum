@@ -654,11 +654,18 @@ func (db *Center) findTemp(height base.Height) isaac.TempDatabase {
 
 func (db *Center) dig(f func(isaac.TempDatabase) (bool, error)) error {
 	temps := db.activeTemps()
+	if len(temps) < 1 {
+		return nil
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	worker := util.NewErrgroupWorker(ctx, int64(len(temps)))
+	worker, err := util.NewErrgroupWorker(ctx, int64(len(temps)))
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
 	for i := range temps {

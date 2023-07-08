@@ -162,20 +162,24 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	e := util.StringError("close state values")
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	if w.opstreeg != nil {
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			if err := w.fswriter.SetOperationsTree(ctx, w.opstreeg); err != nil {
-				return err
+		if jerr := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			if serr := w.fswriter.SetOperationsTree(ctx, w.opstreeg); serr != nil {
+				return serr
 			}
 
 			w.opstreeroot = w.opstreeg.Root()
 
 			return nil
-		}); err != nil {
-			return e.Wrap(err)
+		}); jerr != nil {
+			return e.Wrap(jerr)
 		}
 	}
 

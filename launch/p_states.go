@@ -755,7 +755,7 @@ func syncerLastBlockMapFunc(
 			context.Background(),
 			syncSourcePool,
 			numnodes,
-			uint64(numnodes),
+			int64(numnodes),
 			nil,
 			func(_ context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				m, updated, err := f(ctx, manifest, nci.ConnInfo())
@@ -830,7 +830,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					ctx,
 					syncSourcePool,
 					numnodes,
-					uint64(numnodes),
+					int64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 						ci := nci.ConnInfo()
 

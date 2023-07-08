@@ -147,8 +147,17 @@ func getProposalFunc(pctx context.Context) (
 			return pr, nil
 		}
 
+		semsize := int64(m.RemotesLen())
+		if semsize < 1 {
+			return nil, storage.ErrNotFound.Errorf("empty remote")
+		}
+
 		// NOTE if not found, request to remote node
-		worker := util.NewErrgroupWorker(ctx, int64(m.RemotesLen()))
+		worker, err := util.NewErrgroupWorker(ctx, semsize)
+		if err != nil {
+			return nil, err
+		}
+
 		defer worker.Close()
 
 		prl := util.EmptyLocked[base.ProposalSignFact]()
@@ -165,12 +174,12 @@ func getProposalFunc(pctx context.Context) (
 
 					var pr base.ProposalSignFact
 
-					switch i, found, err := client.Proposal(cctx, ci, facthash); {
-					case err != nil || !found:
+					switch i, found, perr := client.Proposal(cctx, ci, facthash); {
+					case perr != nil || !found:
 						return nil
 					default:
-						if err := i.IsValid(params.ISAAC.NetworkID()); err != nil {
-							return err
+						if ierr := i.IsValid(params.ISAAC.NetworkID()); ierr != nil {
+							return ierr
 						}
 
 						pr = i
@@ -192,7 +201,7 @@ func getProposalFunc(pctx context.Context) (
 			})
 		}()
 
-		err := worker.Wait()
+		err = worker.Wait()
 
 		switch i, _ := prl.Value(); {
 		case i == nil:
@@ -336,7 +345,11 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 		proposer := proposal.ProposalFact().Proposer()
 		result := util.EmptyLocked[base.Operation]()
 
-		worker := util.NewErrgroupWorker(ctx, int64(syncSourcePool.Len()))
+		worker, err := util.NewErrgroupWorker(ctx, int64(syncSourcePool.Len()))
+		if err != nil {
+			return nil, false, err
+		}
+
 		defer worker.Close()
 
 		syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
@@ -344,7 +357,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 				return true
 			}
 
-			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			if werr := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 				cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 				defer cancel()
 
@@ -353,8 +366,10 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 						return i, util.ErrLockedSetIgnore.WithStack()
 					}
 
-					switch op, found, err := client.Operation(cctx, nci.ConnInfo(), operationhash); {
-					case err != nil, !found:
+					switch op, found, jerr := client.Operation(cctx, nci.ConnInfo(), operationhash); {
+					case jerr != nil:
+						return nil, util.ErrLockedSetIgnore.Wrap(jerr)
+					case !found:
 						return nil, util.ErrLockedSetIgnore.WithStack()
 					default:
 						return op, nil
@@ -366,7 +381,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 				}
 
 				return nil
-			}); err != nil {
+			}); werr != nil {
 				return false
 			}
 
@@ -375,7 +390,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 
 		worker.Done()
 
-		err := worker.Wait()
+		err = worker.Wait()
 
 		i, _ := result.Value()
 		if i == nil {

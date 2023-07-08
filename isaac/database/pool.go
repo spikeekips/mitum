@@ -478,7 +478,11 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 		return nil
 	}
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
 	batch := db.st.NewBatch()

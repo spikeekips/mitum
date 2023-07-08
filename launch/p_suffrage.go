@@ -504,7 +504,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 			ctx,
 			syncSourcePool,
 			numnodes,
-			uint64(numnodes),
+			int64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				h, proof, updated, err := f(ctx, nci.ConnInfo())
@@ -574,7 +574,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 					ctx,
 					syncSourcePool,
 					numnodes,
-					uint64(numnodes),
+					int64(numnodes),
 					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 						cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 						defer cancel()
@@ -665,7 +665,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 			ctx,
 			syncSourcePool,
 			numnodes,
-			uint64(numnodes),
+			int64(numnodes),
 			nil,
 			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				st, found, err := f(ctx, nci.ConnInfo())

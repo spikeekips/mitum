@@ -194,7 +194,11 @@ func (c *SyncSourceChecker) check(ctx context.Context) error {
 func (c *SyncSourceChecker) checkSources(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
 	e := util.StringError("fetch NodeConnInfo")
 
-	worker := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
+	worker, err := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
+	if err != nil {
+		return nil, e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	nciss := make([][]isaac.NodeConnInfo, len(sources))
@@ -279,18 +283,22 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 	case 0:
 		return nil, nil
 	case 1:
-		if err := c.validate(ctx, ncis[0]); err != nil {
-			if errors.Is(err, errIgnoreNodeconnInfo) {
+		if verr := c.validate(ctx, ncis[0]); verr != nil {
+			if errors.Is(verr, errIgnoreNodeconnInfo) {
 				return nil, nil
 			}
 
-			return nil, e.Wrap(err)
+			return nil, e.Wrap(verr)
 		}
 
 		return ncis, nil
 	}
 
-	worker := util.NewErrgroupWorker(ctx, int64(len(ncis)))
+	worker, err := util.NewErrgroupWorker(ctx, int64(len(ncis)))
+	if err != nil {
+		return nil, e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	filtered := make([]isaac.NodeConnInfo, len(ncis))

@@ -303,7 +303,11 @@ type DistributeWorker struct {
 	errch chan error
 }
 
-func NewDistributeWorker(ctx context.Context, semsize int64, errch chan error) *DistributeWorker {
+func NewDistributeWorker(ctx context.Context, semsize int64, errch chan error) (*DistributeWorker, error) {
+	if semsize < 1 {
+		return nil, errors.Errorf("semsize under 1")
+	}
+
 	wk := distributeWorkerPool.Get().(*DistributeWorker) //nolint:forcetypeassert //...
 
 	base := NewBaseSemWorker(ctx, semsize)
@@ -326,7 +330,7 @@ func NewDistributeWorker(ctx context.Context, semsize int64, errch chan error) *
 	wk.BaseSemWorker = base
 	wk.errch = errch
 
-	return wk
+	return wk, nil
 }
 
 func (wk *DistributeWorker) Close() {
@@ -342,7 +346,11 @@ type ErrgroupWorker struct {
 	closeonece sync.Once
 }
 
-func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
+func NewErrgroupWorker(ctx context.Context, semsize int64) (*ErrgroupWorker, error) {
+	if semsize < 1 {
+		return nil, errors.Errorf("semsize under 1")
+	}
+
 	wk := errgroupWorkerPool.Get().(*ErrgroupWorker) //nolint:forcetypeassert //...
 
 	base := NewBaseSemWorker(ctx, semsize)
@@ -380,7 +388,7 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 	wk.eg = eg
 	wk.doneonce = sync.Once{}
 
-	return wk
+	return wk, nil
 }
 
 func (wk *ErrgroupWorker) Wait() error {
@@ -453,7 +461,7 @@ func BatchWork(
 			return err
 		}
 
-		return RunErrgroupWorker(ctx, size, func(ctx context.Context, i, _ uint64) error {
+		return RunErrgroupWorker(ctx, int64(size), func(ctx context.Context, i, _ uint64) error {
 			return f(ctx, i, size-1)
 		})
 	}
@@ -470,7 +478,7 @@ func BatchWork(
 			return err
 		}
 
-		if err := RunErrgroupWorker(ctx, end-i, func(ctx context.Context, n, _ uint64) error {
+		if err := RunErrgroupWorker(ctx, int64(end-i), func(ctx context.Context, n, _ uint64) error {
 			return f(ctx, i+n, end-1)
 		}); err != nil {
 			return err
@@ -487,16 +495,20 @@ func BatchWork(
 }
 
 func RunDistributeWorker(
-	ctx context.Context, size uint64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
+	ctx context.Context, size int64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
 ) error {
-	worker := NewDistributeWorker(ctx, int64(size), errch)
+	worker, err := NewDistributeWorker(ctx, size, errch)
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
-	for i := uint64(0); i < size; i++ {
+	for i := int64(0); i < size; i++ {
 		i := i
 
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-			return f(ctx, i, jobid)
+			return f(ctx, uint64(i), jobid)
 		}); err != nil {
 			return err
 		}
@@ -507,15 +519,19 @@ func RunDistributeWorker(
 	return worker.Wait()
 }
 
-func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Context, i, jobid uint64) error) error {
-	worker := NewErrgroupWorker(ctx, int64(size))
+func RunErrgroupWorker(ctx context.Context, size int64, f func(ctx context.Context, i, jobid uint64) error) error {
+	worker, err := NewErrgroupWorker(ctx, size)
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
-	for i := uint64(0); i < size; i++ {
+	for i := int64(0); i < size; i++ {
 		i := i
 
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-			return f(ctx, i, jobid)
+			return f(ctx, uint64(i), jobid)
 		}); err != nil {
 			return err
 		}
@@ -527,7 +543,11 @@ func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Cont
 }
 
 func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
-	worker := NewErrgroupWorker(ctx, int64(len(jobs)))
+	worker, err := NewErrgroupWorker(ctx, int64(len(jobs)))
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
 	for i := range jobs {

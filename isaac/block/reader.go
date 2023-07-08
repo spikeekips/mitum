@@ -172,7 +172,11 @@ func LoadRawItemsWithWorker(
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
 ) error {
-	worker := util.NewErrgroupWorker(context.Background(), int64(num))
+	worker, err := util.NewErrgroupWorker(context.Background(), int64(num))
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
 	if err := LoadRawItems(f, decode, func(index uint64, v interface{}) error {

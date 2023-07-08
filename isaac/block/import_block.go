@@ -111,7 +111,15 @@ func importBlock(
 		return true
 	})
 
-	worker := util.NewErrgroupWorker(ctx, num)
+	if num < 1 {
+		return nil
+	}
+
+	worker, err := util.NewErrgroupWorker(ctx, num)
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -166,7 +174,7 @@ func saveImporters(
 	default:
 		deferreds := make([]func(context.Context) error, len(ims))
 
-		if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
+		if err := util.RunErrgroupWorker(ctx, int64(len(ims)), func(ctx context.Context, i, _ uint64) error {
 			deferred, err := ims[i].Save(ctx)
 			if err != nil {
 				return err
@@ -215,7 +223,7 @@ func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 		return nil
 	}
 
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
+	if err := util.RunErrgroupWorker(ctx, int64(len(ims)), func(ctx context.Context, i, _ uint64) error {
 		return ims[i].CancelImport(ctx)
 	}); err != nil {
 		return e.Wrap(err)

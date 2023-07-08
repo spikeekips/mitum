@@ -181,7 +181,7 @@ func (t *testDistributeWorker) TestWithoutErrchan() {
 		}
 	}
 
-	wk := NewDistributeWorker(context.Background(), 5, nil)
+	wk, _ := NewDistributeWorker(context.Background(), 5, nil)
 	defer wk.Close()
 
 	go func() {
@@ -214,7 +214,7 @@ func (t *testDistributeWorker) TestWithErrchan() {
 	var l uint64 = 10
 
 	errch := make(chan error)
-	wk := NewDistributeWorker(context.Background(), 5, errch)
+	wk, _ := NewDistributeWorker(context.Background(), 5, errch)
 	defer wk.Close()
 
 	callback := func(j interface{}) ContextWorkerCallback {
@@ -291,7 +291,7 @@ func (t *testDistributeWorker) TestWithErrchanCancel() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	wk := NewDistributeWorker(ctx, 5, errch)
+	wk, _ := NewDistributeWorker(ctx, 5, errch)
 	defer wk.Close()
 
 	var called uint64
@@ -359,7 +359,7 @@ func (t *testDistributeWorker) TestWithErrchanCancel() {
 func (t *testDistributeWorker) TestCancel() {
 	var l uint64 = 10
 
-	wk := NewDistributeWorker(context.Background(), 5, nil)
+	wk, _ := NewDistributeWorker(context.Background(), 5, nil)
 	defer wk.Close()
 
 	var called uint64
@@ -395,7 +395,7 @@ func (t *testDistributeWorker) TestCancel() {
 func (t *testDistributeWorker) TestCancelBeforeRun() {
 	var l uint64 = 10
 
-	wk := NewDistributeWorker(context.Background(), 5, nil)
+	wk, _ := NewDistributeWorker(context.Background(), 5, nil)
 	defer wk.Close()
 
 	var called uint64
@@ -448,7 +448,7 @@ func (t *testDistributeWorker) TestLazyCancel() {
 		}
 	}
 
-	wk := NewDistributeWorker(context.Background(), int64(l), nil)
+	wk, _ := NewDistributeWorker(context.Background(), int64(l), nil)
 	defer wk.Close()
 
 	go func() {
@@ -511,7 +511,7 @@ func (t *testErrgroupWorker) TestNoError() {
 		}
 	}
 
-	wk := NewErrgroupWorker(context.Background(), int64(l))
+	wk, _ := NewErrgroupWorker(context.Background(), int64(l))
 	defer wk.Close()
 
 	go func() {
@@ -565,7 +565,7 @@ func (t *testErrgroupWorker) TestError() {
 		}
 	}
 
-	wk := NewErrgroupWorker(context.Background(), int64(l))
+	wk, _ := NewErrgroupWorker(context.Background(), int64(l))
 	defer wk.Close()
 
 	go func() {
@@ -608,7 +608,7 @@ func (t *testErrgroupWorker) TestDeadlineError() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
-	wk := NewErrgroupWorker(ctx, l)
+	wk, _ := NewErrgroupWorker(ctx, l)
 	defer wk.Close()
 
 	go func() {
@@ -641,7 +641,7 @@ func (t *testErrgroupWorker) TestCancel() {
 		}
 	}
 
-	wk := NewErrgroupWorker(context.Background(), int64(l))
+	wk, _ := NewErrgroupWorker(context.Background(), int64(l))
 	defer wk.Close()
 
 	go func() {
@@ -678,7 +678,7 @@ func (t *testErrgroupWorker) TestCancelBeforeRun() {
 		}
 	}
 
-	wk := NewErrgroupWorker(context.Background(), int64(l)-5)
+	wk, _ := NewErrgroupWorker(context.Background(), int64(l)-5)
 	defer wk.Close()
 
 	go func() {
@@ -721,7 +721,7 @@ func (t *testErrgroupWorker) TestLazyClose() {
 		}
 	}
 
-	wk := NewErrgroupWorker(context.Background(), int64(l))
+	wk, _ := NewErrgroupWorker(context.Background(), int64(l))
 	defer wk.Close()
 
 	go func() {

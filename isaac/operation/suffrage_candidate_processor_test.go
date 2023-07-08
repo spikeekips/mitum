@@ -417,7 +417,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	)
 	t.NoError(err)
 
-	worker := util.NewErrgroupWorker(context.Background(), 33)
+	worker, _ := util.NewErrgroupWorker(context.Background(), 33)
 	defer worker.Close()
 
 	privs := make([]base.Privatekey, 3)

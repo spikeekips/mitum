@@ -250,7 +250,10 @@ func (ts *SimpleTimers) iterate(ctx context.Context) error {
 		semsize = maxTimerSemsize
 	}
 
-	wk := NewDistributeWorker(ctx, semsize, nil)
+	wk, err := NewDistributeWorker(ctx, semsize, nil)
+	if err != nil {
+		return err
+	}
 
 	for i := range timers {
 		tr := timers[i]

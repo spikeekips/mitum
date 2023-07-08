@@ -107,7 +107,11 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 	e := util.StringError("set states in TempLeveldbDatabase")
 
-	worker := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
+	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	for i := range sts {
@@ -148,7 +152,11 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
-	worker := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
+	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
+	if err != nil {
+		return err
+	}
+
 	defer worker.Close()
 
 	e := util.StringError("set operation")

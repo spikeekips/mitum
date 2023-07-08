@@ -317,7 +317,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 
 	getOperationf := p.getOperationf
 
-	if err := util.RunErrgroupWorker(cctx, uint64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
+	if err := util.RunErrgroupWorker(cctx, int64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
 		h := ophs[i]
 		op, err := p.collectOperation(ctx, h, getOperationf)
 
@@ -347,7 +347,11 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops [
 
 	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
 
-	worker := util.NewErrgroupWorker(ctx, int64(len(cops)))
+	worker, err := util.NewErrgroupWorker(ctx, int64(len(cops)))
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	defer worker.Close()
 
 	pctx := ctx

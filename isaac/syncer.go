@@ -427,7 +427,7 @@ func DistributeWorkerWithSyncSourcePool(
 	ctx context.Context,
 	pool *SyncSourcePool,
 	picksize int,
-	semsize uint64,
+	semsize int64,
 	errch chan error,
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
@@ -444,7 +444,7 @@ func DistributeWorkerWithSyncSourcePool(
 
 	nsemsize := semsize
 
-	if n := uint64(len(ncis)); n < nsemsize {
+	if n := int64(len(ncis)); n < nsemsize {
 		nsemsize = n
 	}
 
@@ -465,7 +465,7 @@ func ErrGroupWorkerWithSyncSourcePool(
 	ctx context.Context,
 	pool *SyncSourcePool,
 	picksize int,
-	semsize uint64,
+	semsize int64,
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
 	ncis, reports, err := pool.PickMultiple(picksize)
@@ -481,7 +481,7 @@ func ErrGroupWorkerWithSyncSourcePool(
 
 	nsemsize := semsize
 
-	if n := uint64(len(ncis)); n < nsemsize {
+	if n := int64(len(ncis)); n < nsemsize {
 		nsemsize = n
 	}
 
