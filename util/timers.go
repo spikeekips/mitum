@@ -9,6 +9,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+var maxTimerSemsize int64 = 333
+
 type TimerID string
 
 func (ti TimerID) String() string {
@@ -226,33 +228,42 @@ func (ts *SimpleTimers) start(ctx context.Context) error {
 }
 
 func (ts *SimpleTimers) iterate(ctx context.Context) error {
-	semsize := int64(ts.timers.Len())
-	if semsize > 333 { //nolint:gomnd //...
-		semsize = 333
+	var timers []*SimpleTimer
+
+	ts.timers.Traverse(func(id TimerID, timer *SimpleTimer) bool {
+		switch {
+		case !timer.isExpired(),
+			!timer.prepare():
+		default:
+			timers = append(timers, timer)
+		}
+
+		return true
+	})
+
+	if len(timers) < 1 {
+		return nil
+	}
+
+	semsize := int64(len(timers))
+	if semsize > maxTimerSemsize {
+		semsize = maxTimerSemsize
 	}
 
 	wk := NewDistributeWorker(ctx, semsize, nil)
 
-	removech := make(chan TimerID, ts.timers.Len())
+	for i := range timers {
+		tr := timers[i]
 
-	ts.timers.Traverse(func(id TimerID, timer *SimpleTimer) bool {
-		switch tr := timer; {
-		case !tr.isExpired():
-			return true
-		case !tr.prepare():
-			return true
-		default:
-			_ = wk.NewJob(func(ctx context.Context, _ uint64) error {
-				if keep, err := tr.run(ctx); err != nil || !keep {
-					removech <- tr.id
-				}
+		_ = wk.NewJob(func(ctx context.Context, _ uint64) error {
+			if keep, err := tr.run(ctx); err != nil || !keep {
+				_ = ts.removeTimer(tr.id)
+			}
 
-				return nil
-			})
+			return nil
+		})
+	}
 
-			return true
-		}
-	})
 	wk.Done()
 
 	go func() {
@@ -260,12 +271,6 @@ func (ts *SimpleTimers) iterate(ctx context.Context) error {
 
 		if err := wk.Wait(); err != nil {
 			return
-		}
-
-		close(removech)
-
-		for id := range removech {
-			_ = ts.removeTimer(id)
 		}
 	}()
 
