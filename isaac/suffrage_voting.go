@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -20,6 +21,7 @@ type SuffrageVoting struct {
 	db            SuffrageExpelPool
 	votedCallback func(base.SuffrageExpelOperation) error
 	existsInState func(util.Hash) (bool, error)
+	sync.Mutex
 }
 
 func NewSuffrageVoting(
@@ -44,6 +46,9 @@ func NewSuffrageVoting(
 }
 
 func (s *SuffrageVoting) Vote(op base.SuffrageExpelOperation) (bool, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	e := util.StringError("suffrage voting")
 
 	fact := op.ExpelFact()
