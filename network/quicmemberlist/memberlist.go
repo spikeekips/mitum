@@ -2,6 +2,7 @@ package quicmemberlist
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -84,16 +86,19 @@ type Memberlist struct {
 	args  *MemberlistArgs
 	*logging.Logging
 	*util.ContextDaemon
-	m          *memberlist.Memberlist
-	delegate   *Delegate
-	members    *membersPool
-	cicache    *util.GCache[string, quicstream.ConnInfo]
-	cbcache    *util.GCache[string, []byte]
-	ebtimers   *util.SimpleTimers
-	ebrecords  util.LockedMap[string, []base.Address]
-	l          sync.RWMutex
-	joinedLock sync.RWMutex
-	isJoined   bool
+	m                  *memberlist.Memberlist
+	delegate           *Delegate
+	members            *membersPool
+	cicache            *util.GCache[string, quicstream.ConnInfo]
+	cbcache            *util.GCache[string, []byte]
+	ebtimers           *util.SimpleTimers
+	usermsgs           *list.List
+	handleUserMsgsFunc func([]byte, encoder.Encoder)
+	ebrecords          util.LockedMap[string, []base.Address]
+	l                  sync.RWMutex
+	joinedLock         sync.RWMutex
+	usermsgsLock       sync.Mutex
+	isJoined           bool
 }
 
 func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
@@ -118,6 +123,7 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 		cbcache:   util.NewLRUGCache[string, []byte](1 << 13),             //nolint:gomnd //...
 		ebrecords: ebrecords,
 		ebtimers:  ebtimers,
+		usermsgs:  list.New(),
 	}
 
 	if err := srv.patch(args.Config); err != nil {
@@ -534,6 +540,8 @@ func (srv *Memberlist) start(ctx context.Context) error {
 		return err
 	}
 
+	go srv.loopUserMsgs(ctx)
+
 	<-ctx.Done()
 
 	_ = srv.ebtimers.Stop()
@@ -607,7 +615,8 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	if i, ok := config.Delegate.(*Delegate); ok {
 		srv.delegate = i
 		srv.delegate.qu.NumNodes = srv.MembersLen
-		srv.delegate.notifyMsgFunc = srv.notifyMsgFunc(func([]byte, encoder.Encoder) {})
+		srv.handleUserMsgsFunc = func([]byte, encoder.Encoder) {}
+		srv.delegate.notifyMsgFunc = srv.notifyMsgFunc
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
@@ -732,38 +741,16 @@ func (srv *Memberlist) SetNotifyMsg(f func([]byte, encoder.Encoder)) *Memberlist
 		return nil
 	}
 
-	srv.delegate.notifyMsgFunc = srv.notifyMsgFunc(f)
+	srv.handleUserMsgsFunc = f
 
 	return srv
 }
 
-func (srv *Memberlist) notifyMsgFunc(f func([]byte, encoder.Encoder)) func([]byte) {
-	return func(b []byte) {
-		body := b
-		var enc encoder.Encoder = srv.args.Encoder
+func (srv *Memberlist) notifyMsgFunc(b []byte) {
+	srv.usermsgsLock.Lock()
+	defer srv.usermsgsLock.Unlock()
 
-		switch {
-		case bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix):
-			switch i, e, err := srv.notifyMsgCallbackBroadcastMessage(
-				body[len(callbackBroadcastMessageHeaderPrefix):]); {
-			case err != nil:
-				return
-			default:
-				enc = e
-				body = i
-			}
-		case bytes.HasPrefix(body, ensureBroadcastMessageHeaderPrefix):
-			switch i, err := srv.notifyMsgEnsureBroadcastMessage(
-				body[len(ensureBroadcastMessageHeaderPrefix):]); {
-			case err != nil:
-				return
-			default:
-				body = i
-			}
-		}
-
-		f(body, enc)
-	}
+	srv.usermsgs.PushBack(b)
 }
 
 func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, encoder.Encoder, error) {
@@ -943,6 +930,121 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) boo
 
 		return nil
 	}) == nil
+}
+
+func (srv *Memberlist) loopUserMsgs(ctx context.Context) {
+	sem := semaphore.NewWeighted(maxHandleUserMsg)
+	go func() {
+		_ = sem.Acquire(ctx, maxHandleUserMsg+1)
+	}()
+
+	ticker := time.NewTicker(time.Millisecond * 33)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := srv.handleUserMsgs(ctx, sem); err != nil {
+				srv.Log().Error().Err(err).Msg("handle user msgs")
+
+				return
+			}
+		}
+	}
+}
+
+var maxHandleUserMsg int64 = 333
+
+func (srv *Memberlist) handleUserMsgs(ctx context.Context, sem *semaphore.Weighted) error {
+	bs := func() [][]byte {
+		srv.usermsgsLock.Lock()
+		defer srv.usermsgsLock.Unlock()
+
+		bs := make([][]byte, maxHandleUserMsg)
+
+		var i int64
+		var elem *list.Element
+
+	end:
+		for {
+			switch {
+			case elem == nil:
+				elem = srv.usermsgs.Front()
+			default:
+				elem = elem.Next()
+			}
+
+			if elem == nil {
+				break end
+			}
+
+			srv.usermsgs.Remove(elem)
+
+			switch b, ok := elem.Value.([]byte); {
+			case !ok, len(b) < 1:
+				continue end
+			default:
+				bs[i] = b
+			}
+
+			i++
+
+			if i == maxHandleUserMsg {
+				break end
+			}
+		}
+
+		return bs[:i]
+	}()
+
+	if len(bs) < 1 {
+		return nil
+	}
+
+	for i := range bs {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			return errors.Wrap(err, "handle user msgs")
+		}
+
+		b := bs[i]
+
+		go func() {
+			defer sem.Release(1)
+
+			srv.handleUserMsg(b)
+		}()
+	}
+
+	return nil
+}
+
+func (srv *Memberlist) handleUserMsg(b []byte) {
+	body := b
+	var enc encoder.Encoder = srv.args.Encoder
+
+	switch {
+	case bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix):
+		switch i, e, err := srv.notifyMsgCallbackBroadcastMessage(
+			body[len(callbackBroadcastMessageHeaderPrefix):]); {
+		case err != nil:
+			return
+		default:
+			enc = e
+			body = i
+		}
+	case bytes.HasPrefix(body, ensureBroadcastMessageHeaderPrefix):
+		switch i, err := srv.notifyMsgEnsureBroadcastMessage(
+			body[len(ensureBroadcastMessageHeaderPrefix):]); {
+		case err != nil:
+			return
+		default:
+			body = i
+		}
+	}
+
+	srv.handleUserMsgsFunc(body, enc)
 }
 
 func DefaultMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {
