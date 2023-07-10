@@ -169,41 +169,25 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	defer worker.Close()
 
-	if w.opstreeg != nil {
-		if jerr := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			if serr := w.fswriter.SetOperationsTree(ctx, w.opstreeg); serr != nil {
-				return serr
-			}
+	var sortedkeys []string
+	w.states.Traverse(func(k string, _ base.StateValueMerger) bool {
+		sortedkeys = append(sortedkeys, k)
 
-			w.opstreeroot = w.opstreeg.Root()
+		return true
+	})
 
-			return nil
-		}); jerr != nil {
-			return e.Wrap(jerr)
-		}
-	}
-
-	sortedkeys := make([]string, w.states.Len())
-	{
-		var i int
-		w.states.Traverse(func(k string, _ base.StateValueMerger) bool {
-			sortedkeys[i] = k
-			i++
-
-			return true
+	if len(sortedkeys) > 0 {
+		sort.Slice(sortedkeys, func(i, j int) bool {
+			return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
 		})
 	}
 
-	sort.Slice(sortedkeys, func(i, j int) bool {
-		return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
-	})
-
-	tg, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(w.states.Len()))
+	tg, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(sortedkeys)))
 	if err != nil {
 		return e.Wrap(err)
 	}
 
-	states := make([]base.State, w.states.Len())
+	states := make([]base.State, len(sortedkeys))
 
 	go func() {
 		defer worker.Done()
@@ -308,6 +292,14 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 
 	if err := w.setProposal(ctx); err != nil {
 		return nil, e.Wrap(err)
+	}
+
+	if w.opstreeg != nil {
+		if err := w.fswriter.SetOperationsTree(ctx, w.opstreeg); err != nil {
+			return nil, e.Wrap(err)
+		}
+
+		w.opstreeroot = w.opstreeg.Root()
 	}
 
 	if err := w.closeStateValues(ctx); err != nil {

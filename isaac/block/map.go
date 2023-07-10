@@ -59,13 +59,11 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e.Wrap(err)
 	}
 
-	vs := make([]util.IsValider, m.items.Len())
-	var i int
+	var vs []util.IsValider
+
 	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
-			vs[i] = v
-
-			i++
+			vs = append(vs, v)
 		}
 
 		return true
@@ -178,23 +176,22 @@ func (BlockMap) Bytes() []byte {
 }
 
 func (m BlockMap) signedBytes() []byte {
-	ts := make([][]byte, m.items.Len())
+	var ts [][]byte
 
-	var i int
 	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
 			// NOTE only checksum and num will be included in signature
-			ts[i] = util.ConcatBytesSlice([]byte(v.Checksum()), util.Uint64ToBytes(v.Num()))
-
-			i++
+			ts = append(ts, util.ConcatBytesSlice([]byte(v.Checksum()), util.Uint64ToBytes(v.Num())))
 		}
 
 		return true
 	})
 
-	sort.Slice(ts, func(i, j int) bool {
-		return bytes.Compare(ts[i], ts[j]) < 0
-	})
+	if len(ts) > 0 {
+		sort.Slice(ts, func(i, j int) bool {
+			return bytes.Compare(ts[i], ts[j]) < 0
+		})
+	}
 
 	return util.ConcatByters(
 		m.manifest.Hash(),

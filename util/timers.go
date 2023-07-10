@@ -181,21 +181,18 @@ func (ts *SimpleTimers) StopAllTimers() error {
 
 // StopOthers stops timers except exclude timers.
 func (ts *SimpleTimers) StopOthers(exclude []TimerID) error {
-	ids := make([]TimerID, ts.timers.Len())
+	var ids []TimerID
 
-	var i int
 	ts.timers.Traverse(func(id TimerID, _ *SimpleTimer) bool {
 		if slices.Index[TimerID](exclude, id) >= 0 {
 			return true
 		}
 
-		ids[i] = id
-		i++
+		ids = append(ids, id)
 
 		return true
 	})
 
-	ids = ids[:i]
 	if len(ids) < 1 {
 		return nil
 	}
@@ -284,17 +281,14 @@ func (ts *SimpleTimers) removeAllTimers() int64 {
 	var removed int64
 
 	for {
-		ids := make([]TimerID, 333)
+		var ids []TimerID
 
-		var i int
 		ts.timers.Traverse(func(id TimerID, _ *SimpleTimer) bool {
-			ids[i] = id
-			i++
+			ids = append(ids, id)
 
-			return i != len(ids)
+			return true
 		})
 
-		ids = ids[:i]
 		if len(ids) < 1 {
 			break
 		}

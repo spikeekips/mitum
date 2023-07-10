@@ -65,6 +65,10 @@ func ConcatBytesSlice(sl ...[]byte) []byte {
 		t += len(j)
 	}
 
+	if t < 1 {
+		return nil
+	}
+
 	n := make([]byte, t)
 	var j int
 

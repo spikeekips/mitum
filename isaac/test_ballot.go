@@ -305,6 +305,7 @@ func (p *proposalPool) ByPoint(point base.Point) base.ProposalSignFact {
 
 func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignFact, error) {
 	var pr base.ProposalSignFact
+
 	p.Traverse(func(_ string, v base.ProposalSignFact) bool {
 		if v.Fact().Hash().Equal(h) {
 			pr = v

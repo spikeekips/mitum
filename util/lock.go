@@ -318,7 +318,7 @@ func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error)
 }
 
 func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) {
-	l.traverse(f)
+	_ = l.traverse(f)
 }
 
 func (l *SingleLockedMap[K, V]) traverse(f func(K, V) bool) bool {
@@ -480,10 +480,6 @@ func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 			atomic.AddInt64(&l.length, -1)
 		}
 
-		if errors.Is(err, ErrLockedSetIgnore) {
-			err = nil
-		}
-
 		return removed, err
 	}
 }
@@ -546,6 +542,9 @@ func (l *ShardedMap[K, V]) Close() {
 }
 
 func (l *ShardedMap[K, V]) Empty() {
+	l.Lock()
+	defer l.Unlock()
+
 	for i := range l.sharded {
 		if l.sharded[i] == nil {
 			continue
