@@ -14,8 +14,8 @@ func DefaultRunPS() *ps.PS {
 		AddOK(PNameProposalMaker, PProposalMaker, nil, PNameStorage).
 		AddOK(PNameNetwork, PNetwork, nil, PNameStorage).
 		AddOK(PNameMemberlist, PMemberlist, nil, PNameNetwork).
-		AddOK(PNameStartNetwork, PStartNetwork, PCloseNetwork, PNameStates).
 		AddOK(PNameStartStorage, PStartStorage, PCloseStorage, PNameStartNetwork).
+		AddOK(PNameStartNetwork, PStartNetwork, PCloseNetwork, PNameStates).
 		AddOK(PNameStartMemberlist, PStartMemberlist, PCloseMemberlist, PNameStartNetwork).
 		AddOK(PNameStartSyncSourceChecker, PStartSyncSourceChecker, PCloseSyncSourceChecker, PNameStartNetwork).
 		AddOK(PNameStartLastConsensusNodesWatcher,
