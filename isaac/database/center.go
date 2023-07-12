@@ -763,7 +763,7 @@ func (db *Center) cleanRemoved(limit int) error {
 
 	temp := db.removed[0]
 
-	db.removed = append([]isaac.TempDatabase{}, db.removed[1:]...)
+	db.removed = db.removed[1:]
 
 	height := temp.Height()
 
