@@ -31,6 +31,10 @@ type TimeSyncer struct {
 
 // NewTimeSyncer creates new TimeSyncer
 func NewTimeSyncer(server string, port int, interval time.Duration) (*TimeSyncer, error) {
+	if interval < 1 {
+		interval = minTimeSyncCheckInterval //revive:disable-line:modifies-parameter
+	}
+
 	ts := &TimeSyncer{
 		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
 			return c.Str("module", "time-syncer").

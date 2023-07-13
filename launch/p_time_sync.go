@@ -2,15 +2,12 @@ package launch
 
 import (
 	"context"
-	"time"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
-
-var DefaultTimeSyncerInterval = time.Minute * 10
 
 var (
 	PNameTimeSyncer      = ps.Name("time-syncer")
@@ -36,7 +33,7 @@ func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
 		return pctx, nil
 	}
 
-	ts, err := localtime.NewTimeSyncer(design.TimeServer, design.TimeServerPort, DefaultTimeSyncerInterval)
+	ts, err := localtime.NewTimeSyncer(design.TimeServer, design.TimeServerPort, 0)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
