@@ -338,6 +338,8 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 			}
 
 			switch found, err := f(key, p); {
+			case errors.Is(err, ErrClosed):
+				return base.NilHeight, nil
 			case err != nil:
 				return base.NilHeight, err
 			case found:
