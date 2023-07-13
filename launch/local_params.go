@@ -29,10 +29,17 @@ func init() {
 }
 
 type LocalParams struct {
-	ISAAC      *isaac.Params     `yaml:"isaac,omitempty" json:"isaac,omitempty"`
+	// ISAAC sets the consensus related parameters.
+	ISAAC *isaac.Params `yaml:"isaac,omitempty" json:"isaac,omitempty"`
+	// Memberlist sets the memberlist parameters. memberlist handles the
+	// connections of suffrage nodes. For details, see
+	// https://pkg.go.dev/github.com/hashicorp/memberlist#Config .
 	Memberlist *MemberlistParams `yaml:"memberlist,omitempty" json:"memberlist,omitempty"`
-	MISC       *MISCParams       `yaml:"misc,omitempty" json:"misc,omitempty"`
-	Network    *NetworkParams    `yaml:"network,omitempty" json:"network,omitempty"`
+	// Network sets the network related parameters. For details, see
+	// https://pkg.go.dev/github.com/quic-go/quic-go#Config .
+	Network *NetworkParams `yaml:"network,omitempty" json:"network,omitempty"`
+	// MISC sets misc parameters.
+	MISC *MISCParams `yaml:"misc,omitempty" json:"misc,omitempty"`
 }
 
 func defaultLocalParams(networkID base.NetworkID) *LocalParams {
@@ -274,6 +281,8 @@ func (p *MISCParams) IsValid([]byte) error {
 	return nil
 }
 
+// SyncSourceCheckerInterval is the interval to check the liveness of sync
+// sources.
 func (p *MISCParams) SyncSourceCheckerInterval() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -293,6 +302,9 @@ func (p *MISCParams) SetSyncSourceCheckerInterval(d time.Duration) error {
 	})
 }
 
+// ValidProposalOperationExpire is the maximum creation time for valid
+// operation. If the creation time of operation is older than
+// ValidProposalOperationExpire, it will be ignored.
 func (p *MISCParams) ValidProposalOperationExpire() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -312,6 +324,10 @@ func (p *MISCParams) SetValidProposalOperationExpire(d time.Duration) error {
 	})
 }
 
+// ValidProposalSuffrageOperationsExpire is the maximum creation time for valid
+// suffrage operations like isaacoperation.SuffrageCandidate operation. If the
+// creation time of suffrage operation is older than
+// ValidProposalSuffrageOperationsExpire, it will be ignored.
 func (p *MISCParams) ValidProposalSuffrageOperationsExpire() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -331,6 +347,8 @@ func (p *MISCParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) e
 	})
 }
 
+// MaxMessageSize is the maximum size of incoming messages like ballot or
+// operation. If message size is over, it will be ignored.
 func (p *MISCParams) MaxMessageSize() uint64 {
 	p.RLock()
 	defer p.RUnlock()
@@ -350,6 +368,8 @@ func (p *MISCParams) SetMaxMessageSize(d uint64) error {
 	})
 }
 
+// ObjectCacheSize is the cache size for various internal objects like address
+// or keypair.
 func (p *MISCParams) ObjectCacheSize() uint64 {
 	p.RLock()
 	defer p.RUnlock()
@@ -456,6 +476,8 @@ func (p *NetworkParams) IsValid([]byte) error {
 	return nil
 }
 
+// TimeoutRequest is the default timeout to request the other nodes; see
+// https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) TimeoutRequest() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -475,6 +497,7 @@ func (p *NetworkParams) SetTimeoutRequest(d time.Duration) error {
 	})
 }
 
+// HandshakeIdleTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) HandshakeIdleTimeout() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -494,6 +517,7 @@ func (p *NetworkParams) SetHandshakeIdleTimeout(d time.Duration) error {
 	})
 }
 
+// MaxIdleTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxIdleTimeout() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -513,6 +537,7 @@ func (p *NetworkParams) SetMaxIdleTimeout(d time.Duration) error {
 	})
 }
 
+// KeepAlivePeriod; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) KeepAlivePeriod() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -532,6 +557,8 @@ func (p *NetworkParams) SetKeepAlivePeriod(d time.Duration) error {
 	})
 }
 
+// DefaultHandlerTimeout is the default timeout for network handlers. If
+// handling request is over timeout, the request will be canceled by server.
 func (p *NetworkParams) DefaultHandlerTimeout() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
@@ -551,6 +578,8 @@ func (p *NetworkParams) SetDefaultHandlerTimeout(d time.Duration) error {
 	})
 }
 
+// HandlerTimeout is the map of timeouts for each handler. If not set in
+// HandlerTimeout, DefaultHandlerTimeout will be used.
 func (p *NetworkParams) HandlerTimeout(i string) (time.Duration, error) {
 	if _, found := networkHandlerPrefixMap[i]; !found {
 		return 0, util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
@@ -602,6 +631,7 @@ func (p *NetworkParams) handlerTimeout(i string) time.Duration {
 	}
 }
 
+// ConnectionPoolSize is the sharded map size for connection pool.
 func (p *NetworkParams) ConnectionPoolSize() uint64 {
 	p.RLock()
 	defer p.RUnlock()
@@ -621,6 +651,7 @@ func (p *NetworkParams) SetConnectionPoolSize(d uint64) error {
 	})
 }
 
+// MaxIncomingStreams; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxIncomingStreams() uint64 {
 	p.RLock()
 	defer p.RUnlock()
@@ -640,6 +671,7 @@ func (p *NetworkParams) SetMaxIncomingStreams(d uint64) error {
 	})
 }
 
+// MaxStreamTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxStreamTimeout() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
