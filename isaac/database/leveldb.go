@@ -14,8 +14,6 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var ErrClosed = util.NewIDError("closed")
-
 var (
 	leveldbLabelBlockWrite = []byte{0x01, 0x01}
 	leveldbLabelPermanent  = []byte{0x01, 0x02}
@@ -88,17 +86,6 @@ func (db *baseLeveldb) clean() {
 	db.st = nil
 	db.encs = nil
 	db.enc = nil
-}
-
-func (db *baseLeveldb) isClosed() error {
-	db.RLock()
-	defer db.RUnlock()
-
-	if db.st == nil {
-		return ErrClosed.WithStack()
-	}
-
-	return nil
 }
 
 func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {

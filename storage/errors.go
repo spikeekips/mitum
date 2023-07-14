@@ -12,6 +12,7 @@ var (
 	ErrExec       = util.NewIDError("storage execute")
 	ErrNotFound   = util.NewIDError("not found")
 	ErrFound      = util.NewIDError("found")
+	ErrClosed     = util.NewIDError("closed")
 )
 
 func IsStorageError(err error) bool {
@@ -22,7 +23,8 @@ func IsStorageError(err error) bool {
 		errors.Is(err, ErrConnection),
 		errors.Is(err, ErrExec),
 		errors.Is(err, ErrNotFound),
-		errors.Is(err, ErrFound):
+		errors.Is(err, ErrFound),
+		errors.Is(err, ErrClosed):
 		return true
 	default:
 		return false

@@ -15,21 +15,24 @@ import (
 
 type Storage struct {
 	str leveldbStorage.Storage
-	db  *leveldb.DB
-	sync.Mutex
+	ldb *leveldb.DB
+	sync.RWMutex
 }
 
 func NewStorage(str leveldbStorage.Storage, opt *leveldbOpt.Options) (*Storage, error) {
-	db, err := leveldb.Open(str, opt)
+	ldb, err := leveldb.Open(str, opt)
 	if err != nil {
 		return nil, storage.ErrConnection.WithMessage(err, "open leveldb")
 	}
 
-	return &Storage{db: db, str: str}, nil
+	return &Storage{ldb: ldb, str: str}, nil
 }
 
 func (st *Storage) DB() *leveldb.DB {
-	return st.db
+	st.RLock()
+	defer st.RUnlock()
+
+	return st.ldb
 }
 
 func (st *Storage) Close() error {
@@ -42,29 +45,41 @@ func (st *Storage) Close() error {
 		return nil
 	}
 
-	switch err := st.db.Close(); {
-	case err == nil:
-	case errors.Is(err, leveldbStorage.ErrClosed):
-		return nil
+	switch err := st.ldb.Close(); {
+	case err == nil, errors.Is(err, leveldbStorage.ErrClosed):
 	default:
 		return e.WithMessage(storage.ErrInternal.Wrap(err), "close storage")
 	}
 
 	switch err := st.str.Close(); {
-	case err == nil:
+	case err == nil, errors.Is(err, leveldb.ErrClosed):
 		st.str = nil
-		st.db = nil
+		st.ldb = nil
 
-		return nil
-	case errors.Is(err, leveldb.ErrClosed):
 		return nil
 	default:
 		return e.Wrap(storage.ErrInternal.Wrap(err))
 	}
 }
 
+func (st *Storage) db() (*leveldb.DB, error) {
+	st.RLock()
+	defer st.RUnlock()
+
+	if st.ldb == nil {
+		return nil, storage.ErrClosed.WithStack()
+	}
+
+	return st.ldb, nil
+}
+
 func (st *Storage) Get(key []byte) ([]byte, bool, error) {
-	switch b, err := st.db.Get(key, nil); {
+	db, err := st.db()
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch b, err := db.Get(key, nil); {
 	case err == nil:
 		return b, true, nil
 	case errors.Is(err, leveldb.ErrNotFound):
@@ -75,7 +90,12 @@ func (st *Storage) Get(key []byte) ([]byte, bool, error) {
 }
 
 func (st *Storage) Exists(key []byte) (bool, error) {
-	switch b, err := st.db.Has(key, nil); {
+	db, err := st.db()
+	if err != nil {
+		return false, err
+	}
+
+	switch b, err := db.Has(key, nil); {
 	case err == nil:
 		return b, nil
 	default:
@@ -88,7 +108,12 @@ func (st *Storage) Iter(
 	callback func(key []byte, raw []byte) (bool, error),
 	sort bool, // NOTE if true, ascend order
 ) error {
-	iter := st.db.NewIterator(r, nil)
+	db, err := st.db()
+	if err != nil {
+		return err
+	}
+
+	iter := db.NewIterator(r, nil)
 	defer iter.Release()
 
 	var seek func() bool
@@ -125,7 +150,12 @@ end:
 }
 
 func (st *Storage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
-	if err := st.db.Put(k, b, opt); err != nil {
+	db, err := st.db()
+	if err != nil {
+		return err
+	}
+
+	if err := db.Put(k, b, opt); err != nil {
 		return storage.ErrExec.WithMessage(err, "put")
 	}
 
@@ -133,7 +163,12 @@ func (st *Storage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 }
 
 func (st *Storage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
-	if err := st.db.Delete(k, opt); err != nil {
+	db, err := st.db()
+	if err != nil {
+		return err
+	}
+
+	if err := db.Delete(k, opt); err != nil {
 		return storage.ErrExec.WithMessage(err, "delete")
 	}
 
@@ -141,7 +176,12 @@ func (st *Storage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
 }
 
 func (st *Storage) Batch(batch *leveldb.Batch, wo *leveldbOpt.WriteOptions) error {
-	return errors.WithStack(st.db.Write(batch, wo))
+	db, err := st.db()
+	if err != nil {
+		return err
+	}
+
+	return errors.WithStack(db.Write(batch, wo))
 }
 
 func (st *Storage) Clean() error {
@@ -156,6 +196,10 @@ func (st *Storage) Clean() error {
 }
 
 func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
+	if _, err := st.db(); err != nil {
+		return 0, err
+	}
+
 	var removed int
 
 	batch := &leveldb.Batch{}

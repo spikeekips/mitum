@@ -128,10 +128,6 @@ func (db *TempLeveldb) Remove() error {
 }
 
 func (db *TempLeveldb) Merge() error {
-	if err := db.isClosed(); err != nil {
-		return err
-	}
-
 	if err := db.st.Put(leveldbTempMergedKey(db.Height()), nil, nil); err != nil {
 		return err
 	}
@@ -237,20 +233,12 @@ func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) {
-	if err = db.isClosed(); err != nil {
-		return nil, false, err
-	}
-
 	found, err = db.getRecord(leveldbStateKey(key), db.st.Get, &st)
 
 	return st, found, err
 }
 
 func (db *TempLeveldb) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	if err := db.isClosed(); err != nil {
-		return enchint, nil, nil, false, err
-	}
-
 	return db.getRecordBytes(leveldbStateKey(key), db.st.Get)
 }
 
@@ -263,10 +251,6 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *TempLeveldb) isMerged() (bool, error) {
-	if err := db.isClosed(); err != nil {
-		return false, err
-	}
-
 	return db.st.Exists(leveldbTempMergedKey(db.Height()))
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -338,7 +339,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 			}
 
 			switch found, err := f(key, p); {
-			case errors.Is(err, ErrClosed):
+			case errors.Is(err, storage.ErrClosed):
 				return base.NilHeight, nil
 			case err != nil:
 				return base.NilHeight, err
