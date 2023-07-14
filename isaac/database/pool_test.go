@@ -690,7 +690,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 	t.Run("filtered in removed", func() {
 		var removed []util.Hash
 
-		pst.st.Iter(
+		pst.pst.Iter(
 			leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
 			func(_, b []byte) (bool, error) {
 				removed = append(removed, valuehash.NewBytes(b))
@@ -740,7 +740,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 
 	t.Run("check left in new operations", func() {
 		var left int
-		pst.st.Iter(
+		pst.pst.Iter(
 			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperation),
 			func(key, _ []byte) (bool, error) {
 				left++
@@ -755,7 +755,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 
 	t.Run("check left in new operations ordered", func() {
 		var left int
-		pst.st.Iter(
+		pst.pst.Iter(
 			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
 			func(key, _ []byte) (bool, error) {
 				left++
@@ -770,7 +770,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 
 	t.Run("check left in new operations keys key", func() {
 		var left int
-		pst.st.Iter(
+		pst.pst.Iter(
 			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrderedKeys),
 			func(key, _ []byte) (bool, error) {
 				left++
@@ -785,7 +785,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 
 	t.Run("check left in new operations removed", func() {
 		var left int
-		pst.st.Iter(
+		pst.pst.Iter(
 			leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
 			func(key, _ []byte) (bool, error) {
 				left++

@@ -10,9 +10,9 @@ var (
 	ErrConnection = util.NewIDError("storage connection error")
 	ErrInternal   = util.NewIDError("storage internal error")
 	ErrExec       = util.NewIDError("storage execute")
-	ErrNotFound   = util.NewIDError("not found")
-	ErrFound      = util.NewIDError("found")
-	ErrClosed     = util.NewIDError("closed")
+	ErrNotFound   = util.NewIDError("not found in storage")
+	ErrFound      = util.NewIDError("found in storage")
+	ErrClosed     = util.NewIDError("storage closed")
 )
 
 func IsStorageError(err error) bool {

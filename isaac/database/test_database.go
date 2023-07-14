@@ -24,7 +24,12 @@ func (db *LeveldbBlockWrite) DeepClose() error {
 		return err
 	}
 
-	if err := db.baseLeveldb.st.RawStorage().Close(); err != nil {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	if err := pst.RawStorage().Close(); err != nil {
 		return err
 	}
 
@@ -32,7 +37,12 @@ func (db *LeveldbBlockWrite) DeepClose() error {
 }
 
 func (db *TempPool) DeepClose() error {
-	if err := db.baseLeveldb.st.RawStorage().Close(); err != nil {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	if err := pst.RawStorage().Close(); err != nil {
 		return err
 	}
 
@@ -40,10 +50,15 @@ func (db *TempPool) DeepClose() error {
 }
 
 func (db *TempPool) Clean() error {
-	batch := db.st.NewBatch()
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	batch := pst.NewBatch()
 	defer batch.Reset()
 
-	if err := db.st.Iter(
+	if err := pst.Iter(
 		nil,
 		func(k []byte, _ []byte) (bool, error) {
 			batch.Delete(k)
@@ -55,7 +70,7 @@ func (db *TempPool) Clean() error {
 		return err
 	}
 
-	return db.st.Batch(batch, nil)
+	return pst.Batch(batch, nil)
 }
 
 var DummySuffrageProofHint = hint.MustNewHint("isaac-dummy-suffrage-proof-v0.0.1")

@@ -2,6 +2,7 @@ package isaacdatabase
 
 import (
 	"bytes"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -24,6 +25,7 @@ type TempLeveldb struct {
 	proofbody []byte
 	mpmeta    []byte // NOTE last blockmap bytes
 	mpbody    []byte // NOTE last blockmap bytes
+	sync.Mutex
 }
 
 func NewTempLeveldbFromPrefix(
@@ -98,12 +100,12 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 }
 
 func (db *TempLeveldb) Close() error {
+	db.Lock()
+	defer db.Unlock()
+
 	if err := db.baseLeveldb.Close(); err != nil {
 		return err
 	}
-
-	db.Lock()
-	defer db.Unlock()
 
 	db.clean()
 
@@ -128,7 +130,12 @@ func (db *TempLeveldb) Remove() error {
 }
 
 func (db *TempLeveldb) Merge() error {
-	if err := db.st.Put(leveldbTempMergedKey(db.Height()), nil, nil); err != nil {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	if err := pst.Put(leveldbTempMergedKey(db.Height()), nil, nil); err != nil {
 		return err
 	}
 
@@ -140,7 +147,7 @@ func (db *TempLeveldb) Merge() error {
 	var lastprefix []byte
 	var useless [][]byte
 
-	if err := db.st.Iter(
+	if err := pst.Iter(
 		r,
 		func(key, _ []byte) (bool, error) {
 			switch k, err := prefixStoragePrefixFromKey(key); {
@@ -165,7 +172,7 @@ func (db *TempLeveldb) Merge() error {
 	}
 
 	for i := range useless {
-		if err := leveldbstorage.RemoveByPrefix(db.st.Storage, useless[i]); err != nil {
+		if err := leveldbstorage.RemoveByPrefix(pst.Storage, useless[i]); err != nil {
 			return err
 		}
 	}
@@ -233,13 +240,23 @@ func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) {
-	found, err = db.getRecord(leveldbStateKey(key), db.st.Get, &st)
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, err
+	}
+
+	found, err = db.getRecord(leveldbStateKey(key), pst.Get, &st)
 
 	return st, found, err
 }
 
 func (db *TempLeveldb) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	return db.getRecordBytes(leveldbStateKey(key), db.st.Get)
+	pst, err := db.st()
+	if err != nil {
+		return enchint, nil, nil, false, err
+	}
+
+	return db.getRecordBytes(leveldbStateKey(key), pst.Get)
 }
 
 func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -251,7 +268,12 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *TempLeveldb) isMerged() (bool, error) {
-	return db.st.Exists(leveldbTempMergedKey(db.Height()))
+	pst, err := db.st()
+	if err != nil {
+		return false, err
+	}
+
+	return pst.Exists(leveldbTempMergedKey(db.Height()))
 }
 
 func (db *TempLeveldb) loadLastBlockMap() error {
@@ -278,7 +300,12 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 func (db *TempLeveldb) loadSuffrageState() error {
 	e := util.StringError("load suffrage state")
 
-	switch b, found, err := db.st.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
+	switch b, found, err := pst.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
@@ -298,7 +325,12 @@ func (db *TempLeveldb) loadSuffrageState() error {
 func (db *TempLeveldb) loadSuffrageProof() error {
 	e := util.StringError("load SuffrageProof")
 
-	if err := db.st.Iter(
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
 		func(_ []byte, b []byte) (bool, error) {
 			enchint, meta, body, err := db.readHeader(b)

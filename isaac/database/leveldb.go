@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -41,55 +42,77 @@ var (
 )
 
 type baseLeveldb struct {
-	st *leveldbstorage.PrefixStorage
+	pst *leveldbstorage.PrefixStorage
 	*baseDatabase
 	sync.RWMutex
 }
 
 func newBaseLeveldb(
-	st *leveldbstorage.PrefixStorage,
+	pst *leveldbstorage.PrefixStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *baseLeveldb {
 	return &baseLeveldb{
 		baseDatabase: newBaseDatabase(encs, enc),
-		st:           st,
+		pst:          pst,
 	}
 }
 
+func (db *baseLeveldb) st() (*leveldbstorage.PrefixStorage, error) {
+	db.RLock()
+	defer db.RUnlock()
+
+	if db.pst == nil {
+		return nil, storage.ErrClosed.WithStack()
+	}
+
+	return db.pst, nil
+}
+
 func (db *baseLeveldb) Prefix() []byte {
-	return db.st.Prefix()
+	switch pst, err := db.st(); {
+	case err != nil:
+		return nil
+	default:
+		return pst.Prefix()
+	}
 }
 
 func (db *baseLeveldb) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
-	if db.st == nil {
+	if db.pst == nil {
 		return nil
 	}
 
-	if err := db.st.Close(); err != nil {
+	if err := db.pst.Close(); err != nil {
 		return errors.Wrap(err, "close baseDatabase")
 	}
 
-	db.clean()
+	db.pst = nil
+	db.encs = nil
+	db.enc = nil
 
 	return nil
 }
 
 func (db *baseLeveldb) Remove() error {
-	return db.st.Remove()
-}
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
 
-func (db *baseLeveldb) clean() {
-	db.st = nil
-	db.encs = nil
-	db.enc = nil
+	return pst.Remove()
 }
 
 func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {
-	switch found, err := db.st.Exists(leveldbInStateOperationKey(h)); {
+	pst, err := db.st()
+	if err != nil {
+		return false, err
+	}
+
+	switch found, err := pst.Exists(leveldbInStateOperationKey(h)); {
 	case err == nil:
 		return found, nil
 	default:
@@ -98,7 +121,12 @@ func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {
 }
 
 func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
-	switch found, err := db.st.Exists(leveldbKnownOperationKey(h)); {
+	pst, err := db.st()
+	if err != nil {
+		return false, err
+	}
+
+	switch found, err := pst.Exists(leveldbKnownOperationKey(h)); {
 	case err == nil:
 		return found, nil
 	default:
@@ -109,7 +137,12 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, meta []byte, body []byte, err error) {
 	e := util.StringError("load last blockmap")
 
-	if err = db.st.Iter(
+	pst, err := db.st()
+	if err != nil {
+		return nil, enchint, nil, nil, e.Wrap(err)
+	}
+
+	if err = pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
 		func(_, b []byte) (bool, error) {
 			enchint, meta, body, err = db.readHeader(b)
@@ -134,7 +167,12 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, m
 func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	e := util.StringError("load suffrage state")
 
-	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, e.Wrap(err)
+	}
+
+	b, found, err := pst.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
 
 	switch {
 	case err != nil:

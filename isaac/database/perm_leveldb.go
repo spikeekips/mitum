@@ -56,9 +56,14 @@ func NewLeveldbPermanent(
 }
 
 func (db *LeveldbPermanent) Clean() error {
-	r := leveldbutil.BytesPrefix(db.st.Prefix())
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
 
-	if _, err := leveldbstorage.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
+	r := leveldbutil.BytesPrefix(pst.Prefix())
+
+	if _, err := leveldbstorage.BatchRemove(pst.Storage, r, 333); err != nil { //nolint:gomnd //...
 		return errors.WithMessage(err, "clean leveldb PermanentDatabase")
 	}
 
@@ -68,6 +73,11 @@ func (db *LeveldbPermanent) Clean() error {
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringError("get suffrageproof by height")
 
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, e.Wrap(err)
+	}
+
 	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
 		return nil, false, e.Wrap(err)
@@ -76,7 +86,7 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 	default:
 		var proof base.SuffrageProof
 
-		found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
+		found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), pst.Get, &proof)
 
 		return proof, found, err
 	}
@@ -87,18 +97,32 @@ func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 ) {
 	e := util.StringError("get suffrageproof by height")
 
+	pst, err := db.st()
+	if err != nil {
+		return enchint, nil, nil, false, e.Wrap(err)
+	}
+
 	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
 		return enchint, nil, nil, false, e.Wrap(err)
 	case found:
 		return db.LastSuffrageProofBytes()
 	default:
-		return db.getRecordBytes(leveldbSuffrageProofKey(suffrageHeight), db.st.Get)
+		return db.getRecordBytes(leveldbSuffrageProofKey(suffrageHeight), pst.Get)
 	}
 }
 
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringError("get suffrage by block height")
+
+	var pst *leveldbstorage.PrefixStorage
+
+	switch i, err := db.st(); {
+	case err != nil:
+		return nil, false, e.Wrap(err)
+	default:
+		pst = i
+	}
 
 	switch m, found, err := db.LastBlockMap(); {
 	case err != nil:
@@ -127,7 +151,7 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 
 			var body []byte
 
-			err := db.st.Iter(r, func(_, b []byte) (bool, error) {
+			err := pst.Iter(r, func(_, b []byte) (bool, error) {
 				body = b
 
 				return false, nil
@@ -144,13 +168,23 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 }
 
 func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err error) {
-	found, err = db.getRecord(leveldbStateKey(key), db.st.Get, &st)
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, err
+	}
+
+	found, err = db.getRecord(leveldbStateKey(key), pst.Get, &st)
 
 	return st, found, err
 }
 
 func (db *LeveldbPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	return db.getRecordBytes(leveldbStateKey(key), db.st.Get)
+	pst, err := db.st()
+	if err != nil {
+		return enchint, nil, nil, false, err
+	}
+
+	return db.getRecordBytes(leveldbStateKey(key), pst.Get)
 }
 
 func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -173,13 +207,18 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 		return i, true, nil
 	}
 
-	found, err := db.getRecord(leveldbBlockMapKey(height), db.st.Get, &m)
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, e.Wrap(err)
+	}
+
+	found, err := db.getRecord(leveldbBlockMapKey(height), pst.Get, &m)
 
 	return m, found, err
 }
 
 func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, err error,
+	enchint hint.Hint, meta, body []byte, found bool, _ error,
 ) {
 	e := util.StringError("load blockmap bytes")
 
@@ -192,7 +231,12 @@ func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
 		return db.LastBlockMapBytes()
 	}
 
-	return db.getRecordBytes(leveldbBlockMapKey(height), db.st.Get)
+	pst, err := db.st()
+	if err != nil {
+		return enchint, nil, nil, false, e.Wrap(err)
+	}
+
+	return db.getRecordBytes(leveldbBlockMapKey(height), pst.Get)
 }
 
 func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
@@ -220,6 +264,16 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e.Wrap(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"))
 	}
 
+	pst := db.pst
+	if pst == nil {
+		return e.Wrap(storage.ErrClosed)
+	}
+
+	tpst, err := temp.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	if err != nil {
 		return err
@@ -227,20 +281,20 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	defer worker.Close()
 
-	batch := db.st.NewBatch()
+	batch := pst.NewBatch()
 	defer batch.Reset()
 
-	if err := temp.st.Iter(nil, func(k, v []byte) (bool, error) {
+	if err := tpst.Iter(nil, func(k, v []byte) (bool, error) {
 		if batch.Len() == db.batchlimit {
 			b := batch
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				return db.st.Batch(b, nil)
+				return pst.Batch(b, nil)
 			}); err != nil {
 				return false, err
 			}
 
-			batch = db.st.NewBatch()
+			batch = pst.NewBatch()
 		}
 
 		batch.Put(k, v)
@@ -252,7 +306,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	if batch.Len() > 0 {
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-			return db.st.Batch(batch, nil)
+			return pst.Batch(batch, nil)
 		}); err != nil {
 			return e.Wrap(err)
 		}
@@ -293,12 +347,17 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 	e := util.StringError("load last suffrage state")
 
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	var proof base.SuffrageProof
 
 	var enchint hint.Hint
 	var meta, body []byte
 
-	if err := db.st.Iter(
+	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
 		func(_, b []byte) (bool, error) {
 			var err error

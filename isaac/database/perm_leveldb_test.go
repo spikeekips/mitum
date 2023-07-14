@@ -25,7 +25,7 @@ func TestLeveldbPermanent(tt *testing.T) {
 	}
 
 	t.newFromDB = func(db isaac.PermanentDatabase) (isaac.PermanentDatabase, error) {
-		return NewLeveldbPermanent(db.(*LeveldbPermanent).st.RawStorage(), t.Encs, t.Enc)
+		return NewLeveldbPermanent(db.(*LeveldbPermanent).pst.RawStorage(), t.Encs, t.Enc)
 	}
 
 	t.setState = func(perm isaac.PermanentDatabase, st base.State) error {
@@ -38,7 +38,7 @@ func TestLeveldbPermanent(tt *testing.T) {
 			return e.Wrap(err)
 		}
 
-		if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
+		if err := db.pst.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
 			return e.WithMessage(err, "failed to put state")
 		}
 

@@ -36,7 +36,12 @@ func newLeveldbTempSyncPool(
 }
 
 func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
-	switch b, found, err := db.st.Get(leveldbTempSyncMapKey(height)); {
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch b, found, err := pst.Get(leveldbTempSyncMapKey(height)); {
 	case err != nil:
 		return nil, false, err
 	case !found:
@@ -58,23 +63,29 @@ func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
 		return err
 	}
 
-	return db.st.Put(leveldbTempSyncMapKey(m.Manifest().Height()), b, nil)
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	return pst.Put(leveldbTempSyncMapKey(m.Manifest().Height()), b, nil)
 }
 
 func (db *LeveldbTempSyncPool) Cancel() error {
 	e := util.StringError("cancel temp sync pool")
 
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	if err := func() error {
 		db.Lock()
 		defer db.Unlock()
 
-		if db.st == nil {
-			return nil
-		}
+		r := leveldbutil.BytesPrefix(pst.Prefix())
 
-		r := leveldbutil.BytesPrefix(db.st.Prefix())
-
-		_, err := leveldbstorage.BatchRemove(db.st.Storage, r, 333) //nolint:gomnd //...
+		_, err := leveldbstorage.BatchRemove(pst.Storage, r, 333) //nolint:gomnd //...
 
 		return err
 	}(); err != nil {

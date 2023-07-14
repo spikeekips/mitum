@@ -55,7 +55,7 @@ func (st *PrefixStorage) Remove() error {
 func (st *PrefixStorage) Get(key []byte) ([]byte, bool, error) {
 	k := st.key(key)
 	if k == nil {
-		return nil, false, storage.ErrInternal.Errorf("already closed")
+		return nil, false, storage.ErrClosed.WithStack()
 	}
 
 	return st.Storage.Get(k)
@@ -64,7 +64,7 @@ func (st *PrefixStorage) Get(key []byte) ([]byte, bool, error) {
 func (st *PrefixStorage) Exists(key []byte) (bool, error) {
 	k := st.key(key)
 	if k == nil {
-		return false, storage.ErrInternal.Errorf("already closed")
+		return false, storage.ErrClosed.WithStack()
 	}
 
 	return st.Storage.Exists(k)
@@ -81,7 +81,7 @@ func (st *PrefixStorage) Iter(
 		if r.Start != nil {
 			start := st.key(r.Start)
 			if start == nil {
-				return storage.ErrInternal.Errorf("already closed")
+				return storage.ErrClosed.WithStack()
 			}
 
 			nr.Start = start
@@ -90,7 +90,7 @@ func (st *PrefixStorage) Iter(
 		if r.Limit != nil {
 			limit := st.key(r.Limit)
 			if limit == nil {
-				return storage.ErrInternal.Errorf("already closed")
+				return storage.ErrClosed.WithStack()
 			}
 
 			nr.Limit = limit
@@ -114,7 +114,7 @@ func (st *PrefixStorage) Iter(
 func (st *PrefixStorage) Put(key, b []byte, opt *leveldbOpt.WriteOptions) error {
 	k := st.key(key)
 	if k == nil {
-		return storage.ErrInternal.Errorf("already closed")
+		return storage.ErrClosed.WithStack()
 	}
 
 	return st.Storage.Put(st.key(key), b, opt)
@@ -123,7 +123,7 @@ func (st *PrefixStorage) Put(key, b []byte, opt *leveldbOpt.WriteOptions) error 
 func (st *PrefixStorage) Delete(key []byte, opt *leveldbOpt.WriteOptions) error {
 	k := st.key(key)
 	if k == nil {
-		return storage.ErrInternal.Errorf("already closed")
+		return storage.ErrClosed.WithStack()
 	}
 
 	return st.Storage.Delete(st.key(key), opt)
@@ -135,7 +135,7 @@ func (st *PrefixStorage) NewBatch() *PrefixStorageBatch {
 
 func (st *PrefixStorage) Batch(batch *PrefixStorageBatch, opt *leveldbOpt.WriteOptions) error {
 	if k := st.key(util.UUID().Bytes()); k == nil {
-		return storage.ErrInternal.Errorf("already closed")
+		return storage.ErrClosed.WithStack()
 	}
 
 	return st.Storage.Batch(batch.Batch, opt)

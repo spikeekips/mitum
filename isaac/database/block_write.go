@@ -107,6 +107,11 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 	e := util.StringError("set states in TempLeveldbDatabase")
 
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
 	if err != nil {
 		return e.Wrap(err)
@@ -127,7 +132,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 			for j := range ops {
 				op := ops[j]
 
-				if err := db.st.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
+				if err := pst.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
 					return err
 				}
 			}
@@ -152,6 +157,11 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
 	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
 	if err != nil {
 		return err
@@ -168,7 +178,7 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 		}
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
-			if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
+			if err := pst.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
 				return e.Wrap(err)
 			}
 
@@ -210,6 +220,11 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 		return errors.Errorf("wrong height of BlockMap")
 	}
 
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
 	if _, err := db.mp.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		if !isempty {
 			if m.Manifest().Height() <= i[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
@@ -224,7 +239,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 			return v, err
 		}
 
-		if err := db.st.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
+		if err := pst.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
 			return v, err
 		}
 
@@ -252,6 +267,11 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
 	if _, err := db.proof.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		switch {
 		case isempty:
@@ -266,11 +286,11 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 			return v, err
 		}
 
-		if err := db.st.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
+		if err := pst.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
 			return v, err
 		}
 
-		if err := db.st.Put(leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
+		if err := pst.Put(leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
 			return v, err
 		}
 
@@ -343,6 +363,11 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return errors.Wrap(err, "set state")
 	}
 
+	pst, err := db.st()
+	if err != nil {
+		return e.Wrap(err)
+	}
+
 	switch {
 	case base.IsSuffrageNodesState(st) && st.Key() == isaac.SuffrageStateKey:
 		db.updateLockedStates(st, db.sufst)
@@ -350,7 +375,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		db.updateLockedStates(st, db.policy)
 	}
 
-	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
+	if err := pst.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
 		return e.Wrap(err)
 	}
 

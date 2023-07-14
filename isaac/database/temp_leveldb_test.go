@@ -14,7 +14,7 @@ import (
 )
 
 func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
-	if err := db.st.Iter(
+	if err := db.pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key []byte, raw []byte) (bool, error) {
 			var st base.State
@@ -83,7 +83,7 @@ func (t *testTempLeveldb) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempLeveldbFromPrefix(wst.st.RawStorage(), wst.st.Prefix(), t.Encs, t.Enc)
+	rst, err := NewTempLeveldbFromPrefix(wst.pst.RawStorage(), wst.pst.Prefix(), t.Encs, t.Enc)
 	t.NoError(err)
 	defer rst.Remove()
 
