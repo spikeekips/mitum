@@ -86,7 +86,6 @@ type SuffrageProof interface {
 	util.IsValider
 	Map() BlockMap
 	State() State
-	ACCEPTVoteproof() ACCEPTVoteproof
 	Proof() fixedtree.Proof
 	Suffrage() (Suffrage, error)
 	SuffrageHeight() Height

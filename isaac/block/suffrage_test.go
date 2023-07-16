@@ -20,15 +20,14 @@ import (
 type testSuffrageProof struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
-	locals    []base.LocalNode
-	nodes     []base.Node
-	point     base.Point
-	blockMap  base.BlockMap
-	previous  base.State
-	current   base.State
-	states    []base.State
-	proof     fixedtree.Proof
-	voteproof base.ACCEPTVoteproof
+	locals   []base.LocalNode
+	nodes    []base.Node
+	point    base.Point
+	blockMap base.BlockMap
+	previous base.State
+	current  base.State
+	states   []base.State
+	proof    fixedtree.Proof
 }
 
 func (t *testSuffrageProof) SetupTest() {
@@ -86,9 +85,6 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 	t.NoError(err)
 
 	t.proof, _ = tr.Proof(t.current.Hash().String())
-
-	afact := t.NewACCEPTBallotFact(t.point, valuehash.RandomSHA256(), t.blockMap.Manifest().Hash())
-	t.voteproof, _ = t.NewACCEPTVoteproof(afact, t.Local, t.locals)
 }
 
 func (t *testSuffrageProof) newitem(ty base.BlockMapItemType) BlockMapItem {
@@ -127,14 +123,14 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.prepare(base.RawPoint(33, 0))
 
 	t.Run("ok", func() {
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		t.NoError(p.IsValid(t.LocalParams.NetworkID()))
 
 		_ = (interface{})(p).(base.SuffrageProof)
 	})
 
 	t.Run("invalid hint type", func() {
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		p.BaseHinter = hint.NewBaseHinter(hint.MustNewHint("findme-v0.0.1"))
 
 		err := p.IsValid(t.LocalParams.NetworkID())
@@ -144,7 +140,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("nil map", func() {
-		p := NewSuffrageProof(nil, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(nil, t.current, t.proof)
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
@@ -152,15 +148,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("nil state", func() {
-		p := NewSuffrageProof(t.blockMap, nil, t.proof, t.voteproof)
-
-		err := p.IsValid(t.LocalParams.NetworkID())
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-	})
-
-	t.Run("nil voteproof", func() {
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, nil)
+		p := NewSuffrageProof(t.blockMap, nil, t.proof)
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
@@ -168,7 +156,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("wrong suffrage state", func() {
-		p := NewSuffrageProof(t.blockMap, t.states[0], t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.states[0], t.proof)
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
@@ -185,27 +173,12 @@ func (t *testSuffrageProof) TestInvalid() {
 			t.current.Operations(),
 		)
 
-		p := NewSuffrageProof(t.blockMap, current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, current, t.proof)
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "state height does not match with manifest")
-	})
-
-	t.Run("not majority voteproof", func() {
-		afact := t.NewACCEPTBallotFact(t.point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, t.locals)
-		t.NoError(err)
-		_ = avp.SetResult(base.VoteResultDraw)
-		t.NoError(err)
-
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, avp)
-
-		err = p.IsValid(t.LocalParams.NetworkID())
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "accept voteproof is not majority")
 	})
 }
 
@@ -213,7 +186,7 @@ func (t *testSuffrageProof) TestProve() {
 	t.Run("ok", func() {
 		t.prepare(base.RawPoint(33, 0))
 
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		t.NoError(p.Prove(t.previous))
 	})
 
@@ -221,7 +194,7 @@ func (t *testSuffrageProof) TestProve() {
 		t.prepare(base.RawPoint(33, 0))
 		previous, _ := t.SuffrageState(t.point.Height(), t.point.Height(), t.nodes)
 
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "invalid previous state; higher height")
@@ -239,7 +212,7 @@ func (t *testSuffrageProof) TestProve() {
 			[]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()},
 		)
 
-		p := NewSuffrageProof(t.blockMap, current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, current, t.proof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "invalid previous state value")
@@ -248,7 +221,7 @@ func (t *testSuffrageProof) TestProve() {
 	t.Run("genesis", func() {
 		t.prepare(base.GenesisPoint)
 
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		t.NoError(p.Prove(t.previous))
 	})
 
@@ -256,7 +229,7 @@ func (t *testSuffrageProof) TestProve() {
 		t.prepare(base.GenesisPoint)
 		previous, _ := t.SuffrageState(t.point.Height(), t.point.Height(), t.nodes)
 
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "previous state should be nil for genesis")
@@ -276,7 +249,6 @@ func (t *testSuffrageProof) TestEncode() {
 		{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},
 		{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 		{Hint: base.DummyNodeHint, Instance: base.BaseNode{}},
-		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
 		{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}},
 		{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 		{Hint: SuffrageProofHint, Instance: SuffrageProof{}},
@@ -287,7 +259,7 @@ func (t *testSuffrageProof) TestEncode() {
 
 	tt.Encode = func() (interface{}, []byte) {
 		t.prepare(base.RawPoint(33, 0))
-		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof)
 
 		b, err := enc.Marshal(p)
 		t.NoError(err)
@@ -323,7 +295,6 @@ func (t *testSuffrageProof) TestEncode() {
 		for i := range ap {
 			t.True(ap[i].Equal(bp[i]))
 		}
-		base.EqualVoteproof(t.Assert(), ah.voteproof, bh.voteproof)
 	}
 
 	suite.Run(t.T(), tt)

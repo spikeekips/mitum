@@ -156,6 +156,4 @@ func EqualSuffrageProof(t *assert.Assertions, a, b SuffrageProof) {
 		t.True(IsEqualNodes(anodes, bnodes))
 
 	}
-
-	EqualVoteproof(t, a.ACCEPTVoteproof(), b.ACCEPTVoteproof())
 }

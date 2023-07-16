@@ -11,10 +11,9 @@ import (
 var SuffrageProofHint = hint.MustNewHint("suffrage-proof-v0.0.1")
 
 type SuffrageProof struct {
-	m         base.BlockMap
-	st        base.State
-	voteproof base.ACCEPTVoteproof
-	proof     fixedtree.Proof
+	m     base.BlockMap
+	st    base.State
+	proof fixedtree.Proof
 	hint.BaseHinter
 }
 
@@ -22,14 +21,12 @@ func NewSuffrageProof(
 	m base.BlockMap,
 	st base.State,
 	proof fixedtree.Proof,
-	voteproof base.ACCEPTVoteproof,
 ) SuffrageProof {
 	return SuffrageProof{
 		BaseHinter: hint.NewBaseHinter(SuffrageProofHint),
 		m:          m,
 		st:         st,
 		proof:      proof,
-		voteproof:  voteproof,
 	}
 }
 
@@ -40,7 +37,7 @@ func (s SuffrageProof) IsValid(b []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValiders(b, false, s.m, s.st, s.proof, s.voteproof); err != nil {
+	if err := util.CheckIsValiders(b, false, s.m, s.st, s.proof); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -52,10 +49,6 @@ func (s SuffrageProof) IsValid(b []byte) error {
 		return e.Wrap(err)
 	}
 
-	if s.voteproof.Result() != base.VoteResultMajority {
-		return e.Errorf("accept voteproof is not majority")
-	}
-
 	return nil
 }
 
@@ -65,10 +58,6 @@ func (s SuffrageProof) Map() base.BlockMap {
 
 func (s SuffrageProof) State() base.State {
 	return s.st
-}
-
-func (s SuffrageProof) ACCEPTVoteproof() base.ACCEPTVoteproof {
-	return s.voteproof
 }
 
 func (s SuffrageProof) Proof() fixedtree.Proof {
@@ -101,8 +90,6 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 		}
 	}
 
-	var previoussuf base.Suffrage
-
 	switch {
 	case s.m.Manifest().Height() == base.GenesisHeight:
 	case s.st.Height() <= previousState.Height():
@@ -110,8 +97,7 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	case !s.st.Previous().Equal(previousState.Hash()):
 		return e.Errorf("not previous state; hash does not match")
 	default:
-		suf, err := isaac.NewSuffrageFromState(previousState)
-		if err != nil {
+		if _, err := isaac.NewSuffrageFromState(previousState); err != nil {
 			return e.Wrap(err)
 		}
 
@@ -121,22 +107,10 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 		if current.Height() != previous.Height()+1 {
 			return e.Errorf("invalid previous state value; not +1")
 		}
-
-		previoussuf = suf
-	}
-
-	if !s.m.Manifest().Hash().Equal(s.voteproof.BallotMajority().NewBlock()) {
-		return e.Errorf("manifest doest not match with suffrage voteproof")
 	}
 
 	if err := s.proof.Prove(s.st.Hash().String()); err != nil {
 		return e.WithMessage(err, "prove suffrage")
-	}
-
-	if previoussuf != nil {
-		if err := isaac.IsValidVoteproofWithSuffrage(s.voteproof, previoussuf); err != nil {
-			return e.Wrap(err)
-		}
 	}
 
 	return nil

@@ -24,7 +24,6 @@ type BlockImporter struct {
 	m                        base.BlockMap
 	enc                      encoder.Encoder
 	bwdb                     isaac.BlockWriteDatabase
-	avp                      base.ACCEPTVoteproof
 	sufst                    base.State
 	localfs                  *LocalFSImporter
 	finisheds                *util.ShardedMap[base.BlockMapItemType, bool]
@@ -128,7 +127,7 @@ func (im *BlockImporter) Save(context.Context) (func(context.Context) error, err
 			return nil, e.WithMessage(err, "make proof of suffrage state")
 		}
 
-		sufproof := NewSuffrageProof(im.m, im.sufst, proof, im.avp)
+		sufproof := NewSuffrageProof(im.m, im.sufst, proof)
 
 		if err := im.bwdb.SetSuffrageProof(sufproof); err != nil {
 			return nil, e.Wrap(err)
@@ -411,8 +410,6 @@ func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) e
 	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 		return e.Wrap(err)
 	}
-
-	im.avp = vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
 	return nil
 }

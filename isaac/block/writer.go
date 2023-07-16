@@ -33,7 +33,6 @@ type Writer struct {
 	opstreeroot   util.Hash
 	db            isaac.BlockWriteDatabase
 	fswriter      FSWriter
-	avp           base.ACCEPTVoteproof
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
@@ -353,8 +352,6 @@ func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof
 		return errors.Wrap(err, "set accept voteproof")
 	}
 
-	w.avp = vp
-
 	return nil
 }
 
@@ -384,7 +381,7 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 			return nil, e.WithMessage(err, "make proof of suffrage state")
 		}
 
-		sufproof := NewSuffrageProof(m, st, proof, w.avp)
+		sufproof := NewSuffrageProof(m, st, proof)
 
 		if err := w.db.SetSuffrageProof(sufproof); err != nil {
 			return nil, e.Wrap(err)
@@ -424,7 +421,6 @@ func (w *Writer) close() error {
 	w.opstreeroot = nil
 	w.db = nil
 	w.fswriter = nil
-	w.avp = nil
 	w.mergeDatabase = nil
 	w.opstreeg = nil
 	w.getStateFunc = nil

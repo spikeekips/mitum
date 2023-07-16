@@ -78,11 +78,7 @@ func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.S
 	proof, err := tr.Proof(newstate.Hash().String())
 	t.NoError(err)
 
-	afact := t.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), blockMap.Manifest().Hash())
-	voteproof, err := t.NewACCEPTVoteproof(afact, t.Local, locals)
-	t.NoError(err)
-
-	return isaacblock.NewSuffrageProof(blockMap, newstate, proof, voteproof)
+	return isaacblock.NewSuffrageProof(blockMap, newstate, proof)
 }
 
 func (t *baseTestSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {
