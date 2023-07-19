@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 )
 
 type testMemberlist struct {
@@ -1253,6 +1255,9 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 	dialf := quicstreamheader.NewDialFunc(cp.Dial, t.encs, t.enc)
 
+	var skipnodes []base.Address
+	var skipnodeslock sync.RWMutex
+
 	for i := range rcis {
 		i := i
 
@@ -1290,6 +1295,17 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 				return nil
 			}
 
+			if func() bool {
+				skipnodeslock.RLock()
+				defer skipnodeslock.RUnlock()
+
+				return slices.IndexFunc[base.Address](skipnodes, func(i base.Address) bool {
+					return i.Equal(node.Address())
+				}) >= 0
+			}() {
+				return nil
+			}
+
 			return PongEnsureBroadcastMessageFunc(
 				handlerprefix,
 				node.Address(),
@@ -1308,7 +1324,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		})
 	}
 
-	checkNotifyMsg := func(expected string, threshold float64, timeout time.Duration) error {
+	checkNotifyMsg := func(expected string, total int, threshold float64, timeout time.Duration) error {
 		th := base.Threshold(threshold)
 
 		ticker := time.NewTicker(time.Millisecond * 333)
@@ -1323,13 +1339,24 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 			case <-ticker.C:
 				var count uint
 				for i := range rnotifys {
+					if func() bool {
+						skipnodeslock.RLock()
+						defer skipnodeslock.RUnlock()
+
+						return slices.IndexFunc[base.Address](skipnodes, func(member base.Address) bool {
+							return rnodes[i].Address().Equal(member)
+						}) >= 0
+					}() {
+						return nil
+					}
+
 					_, found := rnotifys[i].Value(expected)
 					if found {
 						count++
 					}
 				}
 
-				if count >= th.Threshold(uint(len(rnotifys))) {
+				if count >= th.Threshold(uint(total)) {
 					return nil
 				}
 			}
@@ -1368,7 +1395,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		body := util.UUID().Bytes()
 		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych,
 			func(uint64) time.Duration { return time.Millisecond * 666 },
-			100, 9))
+			100, 9, nil))
 
 		select {
 		case <-time.After(time.Second * 6):
@@ -1381,7 +1408,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		t.T().Log("checking broadcasted body")
 
-		t.NoError(checkNotifyMsg(string(body), 100, time.Second*2))
+		t.NoError(checkNotifyMsg(string(body), len(rnodes), 100, time.Second*2))
 	})
 
 	t.Run("ok:60", func() {
@@ -1390,7 +1417,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		body := util.UUID().Bytes()
 		t.NoError(lsrv.EnsureBroadcast(body, "ok:60", notifych,
 			func(uint64) time.Duration { return time.Millisecond * 666 },
-			60, 9))
+			60, 9, nil))
 
 		select {
 		case <-time.After(time.Second * 6):
@@ -1403,7 +1430,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		t.T().Log("checking broadcasted body")
 
-		t.NoError(checkNotifyMsg(string(body), 60, time.Second*2))
+		t.NoError(checkNotifyMsg(string(body), len(rnodes), 60, time.Second*2))
 	})
 
 	t.Run("not ok:100", func() {
@@ -1411,7 +1438,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:100", notifych,
 			func(uint64) time.Duration { return time.Millisecond * 666 },
-			100, 9))
+			100, 9, nil))
 
 		select {
 		case <-time.After(time.Second * 15):
@@ -1429,7 +1456,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:70", notifych,
 			func(uint64) time.Duration { return time.Millisecond * 666 },
-			70, 9))
+			70, 9, nil))
 
 		select {
 		case <-time.After(time.Second * 15):
@@ -1441,6 +1468,38 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 			t.T().Log("not ensured")
 		}
 	})
+
+	t.Run("ok:100; exclude", func() {
+		skipnodeslock.Lock()
+		skipnodes = []base.Address{rnodes[0].Address()}
+		skipnodeslock.Unlock()
+
+		notifych := make(chan error, 1)
+
+		body := util.UUID().Bytes()
+		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych,
+			func(uint64) time.Duration { return time.Millisecond * 666 },
+			100, 9, func(member Member) bool {
+				return slices.IndexFunc[base.Address](skipnodes, func(i base.Address) bool {
+					return i.Equal(member.Address())
+				}) >= 0
+			}))
+
+		select {
+		case <-time.After(time.Second * 15):
+			t.NoError(errors.Errorf("failed to wait ensured"))
+		case err := <-notifych:
+			t.NoError(err)
+
+			t.T().Log("ensured")
+		}
+
+		t.T().Log("checking broadcasted body")
+
+		t.NoError(checkNotifyMsg(string(body), len(rnodes)-1, 100, time.Second*2))
+	})
+
+	t.T().Log("test done")
 }
 
 func TestMemberlist(t *testing.T) {

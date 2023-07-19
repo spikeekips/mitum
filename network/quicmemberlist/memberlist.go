@@ -387,6 +387,7 @@ func (srv *Memberlist) EnsureBroadcast(
 	intervalf func(uint64) time.Duration,
 	threshold float64,
 	maxRetry uint64,
+	excludemember func(Member) bool,
 ) error {
 	if !srv.CanBroadcast() {
 		if notifych != nil {
@@ -442,7 +443,7 @@ func (srv *Memberlist) EnsureBroadcast(
 		util.TimerID(id),
 		func(i uint64) time.Duration {
 			switch {
-			case srv.broadcastEnsured(id, th):
+			case srv.broadcastEnsured(id, th, excludemember):
 				notify(nil)
 
 				return 0
@@ -455,7 +456,7 @@ func (srv *Memberlist) EnsureBroadcast(
 			return intervalf(i)
 		},
 		func(context.Context, uint64) (bool, error) {
-			if srv.broadcastEnsured(id, th) {
+			if srv.broadcastEnsured(id, th, excludemember) {
 				notify(nil)
 
 				return false, nil
@@ -901,7 +902,7 @@ func (srv *Memberlist) CanBroadcast() bool {
 	return true
 }
 
-func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) bool {
+func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold, excludemember func(Member) bool) bool {
 	return srv.ebrecords.Get(id, func(nodes []base.Address, found bool) error {
 		switch {
 		case !found:
@@ -913,6 +914,10 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) boo
 		var total, count uint
 
 		srv.Remotes(func(member Member) bool {
+			if excludemember != nil && excludemember(member) {
+				return true
+			}
+
 			total++
 
 			if slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {

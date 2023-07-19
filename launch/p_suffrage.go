@@ -957,7 +957,11 @@ func broadcastSuffrageVotingFunc(
 				return time.Second * 2
 			},
 			base.MaxThreshold.Float64(),
-			3, //nolint:gomnd //...
+			9, //nolint:gomnd //...
+			func(member quicmemberlist.Member) bool {
+				// NOTE exclude expel node
+				return member.Address().Equal(op.ExpelFact().Node())
+			},
 		)
 	}
 }
