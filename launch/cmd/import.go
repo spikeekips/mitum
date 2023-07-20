@@ -304,9 +304,9 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 		lastlocalheight = i.Manifest().Height()
 	}
 
-	if toHeight > base.NilHeight && toHeight <= lastlocalheight {
+	if toHeight > base.NilHeight && toHeight > lastlocalheight {
 		return fromHeight, toHeight, last, errors.Errorf(
-			"to height should be higher than last; to=%d last=%d", toHeight, lastlocalheight)
+			"to height higher than last; to=%d last=%d", toHeight, lastlocalheight)
 	}
 
 	nfromHeight := fromHeight
