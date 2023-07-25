@@ -1,7 +1,11 @@
 package util
 
 import (
+	"crypto/rand"
+	"fmt"
 	"math"
+	"math/big"
+	mathrand "math/rand"
 	"sync"
 	"sync/atomic"
 
@@ -76,22 +80,22 @@ func (l *Locked[T]) Get(f func(T, bool) error) error {
 	return f(l.value, l.isempty)
 }
 
-func (l *Locked[T]) GetOrCreate(create func() (T, error)) (v T, _ error) {
+func (l *Locked[T]) GetOrCreate(create func() (T, error)) (v T, created bool, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if !l.isempty {
-		return l.value, nil
+		return l.value, false, nil
 	}
 
 	switch i, err := create(); {
 	case err != nil:
-		return v, err
+		return v, false, err
 	default:
 		l.value = i
 		l.isempty = false
 
-		return i, nil
+		return i, true, nil
 	}
 }
 
@@ -132,7 +136,7 @@ func (l *Locked[T]) Empty(f func(_ T, isempty bool) error) error {
 }
 
 type lockedMapKeys interface {
-	constraints.Ordered
+	constraints.Integer | constraints.Float | ~string
 }
 
 type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
@@ -141,23 +145,32 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	SetValue(key K, value V) (added bool)
 	RemoveValue(key K) (removed bool)
 	Get(key K, f func(value V, found bool) error) error
-	GetOrCreate(key K, create func() (value V, _ error)) (value V, found bool, _ error)
-	Set(key K, f func(_ V, found bool) (value V, _ error)) (value V, _ error)
+	GetOrCreate(key K, create func() (value V, _ error)) (value V, found, created bool, _ error)
+	Set(key K, f func(_ V, found bool) (value V, _ error)) (value V, created bool, _ error)
 	Remove(key K, f func(value V, found bool) error) (removed bool, _ error)
-	Traverse(f func(key K, value V) (keep bool))
+	Traverse(f func(key K, value V) (keep bool)) bool
 	Len() int
 	Empty()
 	Close()
 }
 
-func NewLockedMap[K lockedMapKeys, V any](size int64) (LockedMap[K, V], error) {
+func NewLockedMap[K lockedMapKeys, V any](
+	size uint64,
+	newMap func() LockedMap[K, V],
+) (LockedMap[K, V], error) {
+	if newMap == nil {
+		newMap = func() LockedMap[K, V] { //revive:disable-line:modifies-parameter
+			return NewSingleLockedMap[K, V]()
+		}
+	}
+
 	switch {
 	case size < 1:
 		return nil, errors.Errorf("new ShardedMap; empty size")
 	case size == 1:
-		return NewSingleLockedMap[K, V](), nil
+		return newMap(), nil
 	default:
-		return NewShardedMap[K, V](size)
+		return NewShardedMap[K, V](size, newMap)
 	}
 }
 
@@ -239,13 +252,7 @@ func (l *SingleLockedMap[K, V]) Get(key K, f func(value V, found bool) error) er
 	return f(v, found)
 }
 
-func (l *SingleLockedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found bool, err error) {
-	v, found, _, err = l.getOrCreate(k, create)
-
-	return v, found, err
-}
-
-func (l *SingleLockedMap[K, V]) getOrCreate(k K, create func() (V, error)) (v V, found, created bool, _ error) {
+func (l *SingleLockedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found, created bool, err error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -269,13 +276,7 @@ func (l *SingleLockedMap[K, V]) getOrCreate(k K, create func() (V, error)) (v V,
 	}
 }
 
-func (l *SingleLockedMap[K, V]) Set(k K, f func(_ V, found bool) (V, error)) (V, error) {
-	v, _, err := l.set(k, f)
-
-	return v, err
-}
-
-func (l *SingleLockedMap[K, V]) set(k K, f func(_ V, found bool) (V, error)) (v V, created bool, _ error) {
+func (l *SingleLockedMap[K, V]) Set(k K, f func(_ V, found bool) (V, error)) (v V, created bool, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -317,11 +318,7 @@ func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error)
 	}
 }
 
-func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) {
-	_ = l.traverse(f)
-}
-
-func (l *SingleLockedMap[K, V]) traverse(f func(K, V) bool) bool {
+func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -355,27 +352,116 @@ func (l *SingleLockedMap[K, V]) Close() {
 	l.m = nil
 }
 
-const (
-	shardedprime = uint32(16_777_619)
-	shardedseed  = uint32(2_166_136_261)
-)
-
 type ShardedMap[K lockedMapKeys, V any] struct {
-	sharded []*SingleLockedMap[K, V]
+	hashf   func(interface{}) (uint64, interface{})
+	newMap  func() LockedMap[K, V]
+	sharded []LockedMap[K, V]
+	seed    uint32
 	length  int64
 	sync.RWMutex
 }
 
-func NewShardedMap[K lockedMapKeys, V any](size int64) (*ShardedMap[K, V], error) {
+func NewShardedMap[K lockedMapKeys, V any](
+	size uint64,
+	newMap func() LockedMap[K, V],
+) (*ShardedMap[K, V], error) {
+	seed := newDjb2Seed()
+
+	return NewShardedMapWithSeed(
+		seed,
+		size,
+		func(k interface{}, size uint64) (uint64, interface{}) {
+			return defaultHashFunc(seed, k, size)
+		},
+		newMap,
+	)
+}
+
+func NewDeepShardedMap[K lockedMapKeys, V any](
+	sizes []uint64,
+	newMap func() LockedMap[K, V],
+) (*ShardedMap[K, V], error) {
+	switch {
+	case len(sizes) < 1:
+		return nil, errors.Errorf("new DeepShardedMap; empty size")
+	case len(sizes) < 2:
+		return nil, errors.Errorf("new DeepShardedMap; size should be at least 2")
+	}
+
+	seed := newDjb2Seed()
+
+	var total uint64 = 1
+
+	for i := range sizes {
+		total *= sizes[i]
+	}
+
+	newMaps := make([]func() LockedMap[K, V], len(sizes))
+	for i := range newMaps {
+		i := i
+		size := sizes[i]
+		lsizes := sizes[i : len(sizes)-1]
+		df := deepHashFunc(seed, lsizes, total)
+
+		hashf := func(k interface{}, size uint64) (uint64, interface{}) {
+			j, ok := k.(deepHashedKey)
+			if !ok {
+				panic(fmt.Sprintf("expected deepHashedKey, not %T", k))
+			}
+
+			return df(j, size)
+		}
+
+		newMaps[i] = func() LockedMap[K, V] {
+			var f func() LockedMap[K, V]
+
+			switch {
+			case i == len(newMaps)-1:
+				f = newMap
+			default:
+				f = newMaps[i+1]
+			}
+
+			l, _ := NewShardedMapWithSeed[K, V](seed, size, hashf, f)
+
+			return l
+		}
+	}
+
+	df := deepHashFunc(seed, sizes[:len(sizes)-1], total)
+	hashf := func(k interface{}, size uint64) (uint64, interface{}) {
+		return df(defaultindex(seed, k), size)
+	}
+
+	return NewShardedMapWithSeed(seed, sizes[0], hashf, newMaps[0])
+}
+
+func NewShardedMapWithSeed[K lockedMapKeys, V any](
+	seed uint32,
+	size uint64,
+	hashf func(interface{}, uint64) (uint64, interface{}),
+	newMap func() LockedMap[K, V],
+) (*ShardedMap[K, V], error) {
 	switch {
 	case size < 1:
 		return nil, errors.Errorf("new ShardedMap; empty size")
 	case size == 1:
-		return nil, errors.Errorf("new ShardedMap; 1 size; use SingleLockedMap")
+		return nil, errors.Errorf("new ShardedMap; 1 size; use LockedMap")
+	}
+
+	if newMap == nil {
+		newMap = func() LockedMap[K, V] { //revive:disable-line:modifies-parameter
+			return NewSingleLockedMap[K, V]()
+		}
 	}
 
 	return &ShardedMap[K, V]{
-		sharded: make([]*SingleLockedMap[K, V], size),
+		seed:    seed,
+		sharded: make([]LockedMap[K, V], size),
+		hashf: func(k interface{}) (uint64, interface{}) {
+			return hashf(k, size)
+		},
+		newMap: newMap,
 	}, nil
 }
 
@@ -438,31 +524,31 @@ func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
 	}
 }
 
-func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found bool, _ error) {
+func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found, created bool, _ error) {
+	switch i, isclosed := l.newItem(k); {
+	case isclosed:
+		return v, false, false, ErrLockedMapClosed.WithStack()
+	default:
+		v, found, created, err := i.GetOrCreate(k, create)
+		if err == nil && created {
+			atomic.AddInt64(&l.length, 1)
+		}
+
+		return v, found, created, err
+	}
+}
+
+func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, created bool, _ error) {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return v, false, ErrLockedMapClosed.WithStack()
 	default:
-		v, found, created, err := i.getOrCreate(k, create)
+		v, created, err := i.Set(k, f)
 		if err == nil && created {
 			atomic.AddInt64(&l.length, 1)
 		}
 
-		return v, found, err
-	}
-}
-
-func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
-	switch i, isclosed := l.newItem(k); {
-	case isclosed:
-		return v, ErrLockedMapClosed.WithStack()
-	default:
-		v, created, err := i.set(k, f)
-		if err == nil && created {
-			atomic.AddInt64(&l.length, 1)
-		}
-
-		return v, err
+		return v, created, err
 	}
 }
 
@@ -484,41 +570,49 @@ func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	}
 }
 
-func (l *ShardedMap[K, V]) Traverse(f func(K, V) bool) {
+func (l *ShardedMap[K, V]) Traverse(f func(K, V) bool) bool {
 	var last int
 
-	next := func() *SingleLockedMap[K, V] {
-		l.RLock()
-		defer l.RUnlock()
-
-		for {
-			switch {
-			case len(l.sharded) < 1:
-				return nil
-			case len(l.sharded) == last:
-				return nil
-			}
-
-			item := l.sharded[last]
-
-			last++
-
-			if item != nil {
-				return item
-			}
-		}
-	}
-
 	for {
-		item := next()
+		item := l.next(&last)
 		if item == nil {
 			break
 		}
 
-		if !item.traverse(f) {
-			break
+		if !item.Traverse(f) {
+			return false
 		}
 	}
+
+	return true
+}
+
+type traverseMaper[K lockedMapKeys, V any] interface {
+	TraverseMap(f func(LockedMap[K, V]) bool) bool
+}
+
+func (l *ShardedMap[K, V]) TraverseMap(f func(LockedMap[K, V]) bool) bool {
+	var last int
+
+	for {
+		item := l.next(&last)
+		if item == nil {
+			break
+		}
+
+		switch i, ok := item.(traverseMaper[K, V]); {
+		case ok:
+			if !i.TraverseMap(f) {
+				return false
+			}
+		default:
+			if !f(item) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (l *ShardedMap[K, V]) Len() int {
@@ -556,7 +650,7 @@ func (l *ShardedMap[K, V]) Empty() {
 	atomic.StoreInt64(&l.length, 0)
 }
 
-func (l *ShardedMap[K, V]) loadItem(k K) (_ *SingleLockedMap[K, V], found, iscloed bool) {
+func (l *ShardedMap[K, V]) loadItem(k interface{}) (_ LockedMap[K, V], found, iscloed bool) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -564,17 +658,24 @@ func (l *ShardedMap[K, V]) loadItem(k K) (_ *SingleLockedMap[K, V], found, isclo
 		return nil, false, true
 	}
 
-	i := l.fnv(k)
+	index, nextkey := l.hashf(k)
 
-	j := l.sharded[i]
-	if j == nil {
+	item := l.sharded[index]
+	if item == nil {
 		return nil, false, false
 	}
 
-	return j, true, false
+	switch m, ok := item.(*ShardedMap[K, V]); {
+	case ok:
+		item, found, iscloed = m.loadItem(nextkey)
+	default:
+		found = true
+	}
+
+	return item, found, iscloed
 }
 
-func (l *ShardedMap[K, V]) newItem(k K) (_ *SingleLockedMap[K, V], isclosed bool) {
+func (l *ShardedMap[K, V]) newItem(k interface{}) (_ LockedMap[K, V], isclosed bool) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -582,35 +683,57 @@ func (l *ShardedMap[K, V]) newItem(k K) (_ *SingleLockedMap[K, V], isclosed bool
 		return nil, true
 	}
 
-	i := l.fnv(k)
+	index, nextkey := l.hashf(k)
 
-	item := l.sharded[i]
+	item := l.sharded[index]
+
 	if item == nil {
-		item = NewSingleLockedMap[K, V]()
+		item = l.newMap()
 
-		l.sharded[i] = item
+		l.sharded[index] = item
 	}
 
-	return item, false
+	if m, ok := item.(*ShardedMap[K, V]); ok {
+		item, isclosed = m.newItem(nextkey)
+	}
+
+	return item, isclosed
 }
 
-func (l *ShardedMap[K, V]) fnv(k K) uint64 {
+func (l *ShardedMap[K, V]) next(last *int) LockedMap[K, V] {
+	l.RLock()
+	defer l.RUnlock()
+
+	for {
+		switch {
+		case len(l.sharded) < 1:
+			return nil
+		case len(l.sharded) == *last:
+			return nil
+		}
+
+		item := l.sharded[*last]
+
+		*last++
+
+		if item != nil {
+			return item
+		}
+	}
+}
+
+func defaultindex(seed uint32, k interface{}) uint64 {
 	var i uint64
 
-	switch t := (interface{})(k).(type) {
+	switch t := k.(type) {
+	case fmt.Stringer:
+		i = stringdjb2(seed, t.String())
 	case string:
-		i = l.stringfnv(t)
-	default:
-		i = l.intfnv(k)
-	}
-
-	return i % uint64(len(l.sharded))
-}
-
-func (*ShardedMap[K, V]) intfnv(k K) uint64 {
-	var i uint64
-
-	switch t := (interface{})(k).(type) {
+		i = stringdjb2(seed, t)
+	case float32:
+		i = uint64(math.Abs(float64(t)))
+	case float64:
+		i = uint64(math.Abs(t))
 	case int:
 		i = uint64(math.Abs(float64(t)))
 	case int8:
@@ -631,21 +754,84 @@ func (*ShardedMap[K, V]) intfnv(k K) uint64 {
 		i = uint64(t)
 	case uint64:
 		i = t
+	case uintptr:
+		i = uint64(t)
 	}
 
 	return i
 }
 
-func (*ShardedMap[K, V]) stringfnv(k string) uint64 {
-	h := shardedseed
+func defaultHashFunc(seed uint32, k interface{}, size uint64) (uint64, interface{}) {
+	return defaultindex(seed, k) % size, k
+}
 
-	kl := len(k)
-	for i := 0; i < kl; i++ {
-		h *= shardedprime
-		h ^= uint32(k[i])
+func newDjb2Seed() uint32 {
+	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+
+	switch rnd, err := rand.Int(rand.Reader, max); {
+	case err != nil:
+		return mathrand.Uint32()
+	default:
+		return uint32(rnd.Uint64())
+	}
+}
+
+// stringdjb2 derived from
+// https://github.com/patrickmn/go-cache/blob/master/sharded.go .
+func stringdjb2(seed uint32, k string) uint64 {
+	var (
+		l = uint32(len(k))
+		d = 5381 + seed + l
+		i = uint32(0)
+	)
+
+	if l >= 4 { //nolint:gomnd //...
+		for i < l-4 {
+			d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+3]) //nolint:gomnd //...
+			i += 4
+		}
 	}
 
-	return uint64(h)
+	switch l - i {
+	case 1:
+	case 2:
+		d = (d * 33) ^ uint32(k[i]) //nolint:gomnd //...
+	case 3: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+	case 4: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+	}
+
+	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
+}
+
+type deepHashedKey uint64
+
+func deepHashFunc(seed uint32, sizes []uint64, total uint64) func(interface{}, uint64) (uint64, interface{}) {
+	return func(k interface{}, size uint64) (uint64, interface{}) {
+		var index uint64
+
+		switch j, ok := k.(deepHashedKey); {
+		case ok:
+			index = uint64(j)
+		default:
+			index = defaultindex(seed, k)
+		}
+
+		newindex := float64(index % total)
+
+		for j := len(sizes) - 1; j >= 0; j-- {
+			newindex = math.Floor(newindex / float64(sizes[j]))
+		}
+
+		return uint64(newindex) % size, deepHashedKey(index)
+	}
 }
 
 func SingleflightDo[T any]( //revive:disable-line:error-return

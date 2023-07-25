@@ -117,10 +117,11 @@ func (t *testLocked) TestGetOrCreate() {
 		t.True(isempty)
 		t.Empty(i)
 
-		c, err := l.GetOrCreate(func() (string, error) {
+		c, created, err := l.GetOrCreate(func() (string, error) {
 			return "showme", nil
 		})
 		t.NoError(err)
+		t.True(created)
 		t.Equal("showme", c)
 
 		i, isempty = l.Value()
@@ -134,10 +135,11 @@ func (t *testLocked) TestGetOrCreate() {
 		t.False(isempty)
 		t.Equal("findme", i)
 
-		c, err := l.GetOrCreate(func() (string, error) {
+		c, created, err := l.GetOrCreate(func() (string, error) {
 			return "showme", nil
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal("findme", c)
 
 		i, isempty = l.Value()
@@ -151,11 +153,12 @@ func (t *testLocked) TestGetOrCreate() {
 		t.True(isempty)
 		t.Empty(i)
 
-		c, err := l.GetOrCreate(func() (string, error) {
+		c, created, err := l.GetOrCreate(func() (string, error) {
 			return "showme", errors.Errorf("eatme")
 		})
 		t.Error(err)
 		t.Equal("", c)
+		t.False(created)
 		t.ErrorContains(err, "eatme")
 
 		i, isempty = l.Value()
@@ -405,43 +408,47 @@ func (t *testSingleLockedMap) TestGetOrCreate() {
 	t.Run("exists", func() {
 		l.SetValue("showme", 1)
 
-		i, found, err := l.GetOrCreate("showme", func() (int, error) {
+		i, found, created, err := l.GetOrCreate("showme", func() (int, error) {
 			return 2, nil
 		})
 
 		t.NoError(err)
 		t.True(found)
+		t.False(created)
 		t.Equal(1, i)
 	})
 
 	t.Run("create", func() {
-		i, found, err := l.GetOrCreate("findme", func() (int, error) {
+		i, found, created, err := l.GetOrCreate("findme", func() (int, error) {
 			return 2, nil
 		})
 
 		t.NoError(err)
 		t.False(found)
+		t.True(created)
 		t.Equal(2, i)
 	})
 
 	t.Run("ignore", func() {
-		i, found, err := l.GetOrCreate("eatme", func() (int, error) {
+		i, found, created, err := l.GetOrCreate("eatme", func() (int, error) {
 			return 2, ErrLockedSetIgnore.Errorf("eatme")
 		})
 
 		t.NoError(err)
 		t.False(found)
+		t.False(created)
 		t.Zero(i)
 	})
 
 	t.Run("error", func() {
-		i, found, err := l.GetOrCreate("eatme", func() (int, error) {
+		i, found, created, err := l.GetOrCreate("eatme", func() (int, error) {
 			return 2, errors.Errorf("eatme")
 		})
 
 		t.Error(err)
 		t.ErrorContains(err, "eatme")
 		t.False(found)
+		t.False(created)
 		t.Zero(i)
 	})
 }
@@ -450,10 +457,11 @@ func (t *testSingleLockedMap) TestSet() {
 	l := NewSingleLockedMap[string, int]()
 
 	t.Run("new value", func() {
-		i, err := l.Set("showme", func(i int, found bool) (int, error) {
+		i, created, err := l.Set("showme", func(i int, found bool) (int, error) {
 			return 1, nil
 		})
 		t.NoError(err)
+		t.True(created)
 		t.Equal(1, i)
 
 		i, found := l.Value("showme")
@@ -462,13 +470,14 @@ func (t *testSingleLockedMap) TestSet() {
 	})
 
 	t.Run("existing value", func() {
-		i, err := l.Set("showme", func(i int, found bool) (int, error) {
+		i, created, err := l.Set("showme", func(i int, found bool) (int, error) {
 			t.True(found)
 			t.Equal(1, i)
 
 			return 2, nil
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal(2, i)
 
 		i, found := l.Value("showme")
@@ -477,13 +486,14 @@ func (t *testSingleLockedMap) TestSet() {
 	})
 
 	t.Run("ignore", func() {
-		i, err := l.Set("showme", func(i int, found bool) (int, error) {
+		i, created, err := l.Set("showme", func(i int, found bool) (int, error) {
 			t.True(found)
 			t.Equal(2, i)
 
 			return 3, ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal(2, i)
 
 		i, found := l.Value("showme")
@@ -492,13 +502,14 @@ func (t *testSingleLockedMap) TestSet() {
 	})
 
 	t.Run("error", func() {
-		i, err := l.Set("showme", func(i int, found bool) (int, error) {
+		i, created, err := l.Set("showme", func(i int, found bool) (int, error) {
 			t.True(found)
 			t.Equal(2, i)
 
 			return 3, errors.Errorf("eatme")
 		})
 		t.Error(err)
+		t.False(created)
 		t.ErrorContains(err, "eatme")
 		t.Zero(i)
 
@@ -627,21 +638,23 @@ func (t *testSingleLockedMap) TestClose() {
 	added := l.SetValue("showme", 1)
 	t.False(added)
 
-	i, found, err := l.GetOrCreate("showme", func() (int, error) {
+	i, found, created, err := l.GetOrCreate("showme", func() (int, error) {
 		return 2, nil
 	})
 	t.Error(err)
 	t.False(found)
+	t.False(created)
 	t.Zero(i)
 	t.True(errors.Is(err, ErrLockedMapClosed))
 
-	i, err = l.Set("showme", func(i int, found bool) (int, error) {
+	i, created, err = l.Set("showme", func(i int, found bool) (int, error) {
 		t.False(found)
 		t.Zero(i)
 
 		return 2, nil
 	})
 	t.Error(err)
+	t.False(created)
 	t.Zero(i)
 	t.True(errors.Is(err, ErrLockedMapClosed))
 }
@@ -655,25 +668,25 @@ type testShardedMap struct {
 }
 
 func (t *testShardedMap) TestNew() {
-	m, err := NewShardedMap[string, string](3)
+	m, err := NewShardedMap[string, string](3, nil)
 	t.NoError(err)
 
 	_ = (interface{})(m).(LockedMap[string, string])
 
 	t.Run("over 1", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 		t.Equal(0, m.Len())
 	})
 
 	t.Run("0 size", func() {
-		_, err := NewShardedMap[string, string](0)
+		_, err := NewShardedMap[string, string](0, nil)
 		t.Error(err)
 		t.ErrorContains(err, "empty size")
 	})
 
 	t.Run("1 size", func() {
-		_, err := NewShardedMap[string, string](1)
+		_, err := NewShardedMap[string, string](1, nil)
 		t.Error(err)
 		t.ErrorContains(err, "1 size")
 	})
@@ -681,7 +694,7 @@ func (t *testShardedMap) TestNew() {
 
 func (t *testShardedMap) TestSetValue() {
 	t.Run("new", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.True(m.SetValue("showme", "showme"))
@@ -701,7 +714,7 @@ func (t *testShardedMap) TestSetValue() {
 	})
 
 	t.Run("exists", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.True(m.SetValue("showme", "showme"))
@@ -716,7 +729,7 @@ func (t *testShardedMap) TestSetValue() {
 
 func (t *testShardedMap) TestRemoveValue() {
 	t.Run("unknown", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.Equal(0, m.Len())
@@ -725,7 +738,7 @@ func (t *testShardedMap) TestRemoveValue() {
 	})
 
 	t.Run("known", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.False(m.RemoveValue(UUID().String()))
@@ -740,73 +753,78 @@ func (t *testShardedMap) TestRemoveValue() {
 
 func (t *testShardedMap) TestGetOrCreate() {
 	t.Run("create", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
-		i, found, err := m.GetOrCreate("showme", func() (string, error) {
+		i, found, created, err := m.GetOrCreate("showme", func() (string, error) {
 			return "showme", nil
 		})
 		t.NoError(err)
 		t.False(found)
+		t.True(created)
 		t.Equal("showme", i)
 		t.Equal(1, m.Len())
 	})
 
 	t.Run("known", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
-		i, found, err := m.GetOrCreate("showme", func() (string, error) {
+		i, found, created, err := m.GetOrCreate("showme", func() (string, error) {
 			return "findme", nil
 		})
 		t.NoError(err)
 		t.True(found)
+		t.False(created)
 		t.Equal("showme", i)
 		t.Equal(1, m.Len())
 	})
 
 	t.Run("unknown, ignore", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
-		i, found, err := m.GetOrCreate("showme", func() (string, error) {
+		i, found, created, err := m.GetOrCreate("showme", func() (string, error) {
 			return "showme", ErrLockedSetIgnore.Errorf("findme")
 		})
 		t.NoError(err)
 		t.False(found)
+		t.False(created)
 		t.Zero(i)
 		t.Equal(0, m.Len())
 	})
 
 	t.Run("unknown, error", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
-		i, found, err := m.GetOrCreate("showme", func() (string, error) {
+		i, found, created, err := m.GetOrCreate("showme", func() (string, error) {
 			return "showme", errors.Errorf("findme")
 		})
 		t.Error(err)
 		t.False(found)
+		t.False(created)
 		t.Zero(i)
 		t.Equal(0, m.Len())
 		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("known, error", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
-		i, found, err := m.GetOrCreate("showme", func() (string, error) {
+		i, found, created, err := m.GetOrCreate("showme", func() (string, error) {
 			return "showme", errors.Errorf("findme")
 		})
 		t.NoError(err)
 		t.True(found)
+		t.False(created)
 		t.Equal("showme", i)
 		t.Equal(1, m.Len())
 	})
@@ -814,67 +832,71 @@ func (t *testShardedMap) TestGetOrCreate() {
 
 func (t *testShardedMap) TestSet() {
 	t.Run("create", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
-		i, err := m.Set("showme", func(i string, found bool) (string, error) {
+		i, created, err := m.Set("showme", func(i string, found bool) (string, error) {
 			t.False(found)
 			t.Zero(i)
 
 			return "showme", nil
 		})
 		t.NoError(err)
+		t.True(created)
 		t.Equal("showme", i)
 		t.Equal(1, m.Len())
 	})
 
 	t.Run("override", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		m.SetValue("showme", "showme")
 
-		i, err := m.Set("showme", func(i string, found bool) (string, error) {
+		i, created, err := m.Set("showme", func(i string, found bool) (string, error) {
 			t.True(found)
 			t.Equal("showme", i)
 
 			return "findme", nil
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal("findme", i)
 		t.Equal(1, m.Len())
 	})
 
 	t.Run("ignore", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		m.SetValue("showme", "showme")
 
-		i, err := m.Set("showme", func(i string, found bool) (string, error) {
+		i, created, err := m.Set("showme", func(i string, found bool) (string, error) {
 			t.True(found)
 			t.Equal("showme", i)
 
 			return "findme", ErrLockedSetIgnore.WithStack()
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal("showme", i)
 		t.Equal(1, m.Len())
 	})
 
 	t.Run("error", func() {
-		m, err := NewShardedMap[string, string](3)
+		m, err := NewShardedMap[string, string](3, nil)
 		t.NoError(err)
 
 		m.SetValue("showme", "showme")
 
-		i, err := m.Set("showme", func(i string, found bool) (string, error) {
+		i, created, err := m.Set("showme", func(i string, found bool) (string, error) {
 			t.True(found)
 			t.Equal("showme", i)
 
 			return "findme", errors.Errorf("eatme")
 		})
 		t.Error(err)
+		t.False(created)
 		t.Zero(i)
 		t.Equal(1, m.Len())
 		t.ErrorContains(err, "eatme")
@@ -882,7 +904,7 @@ func (t *testShardedMap) TestSet() {
 }
 
 func (t *testShardedMap) TestRemove() {
-	m, err := NewShardedMap[string, int](3)
+	m, err := NewShardedMap[string, int](3, nil)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -927,7 +949,7 @@ func (t *testShardedMap) TestRemove() {
 }
 
 func (t *testShardedMap) TestTraverse() {
-	m, err := NewShardedMap[int, int](3)
+	m, err := NewShardedMap[int, int](3, nil)
 	t.NoError(err)
 
 	sets := make([]int, 9)
@@ -964,9 +986,66 @@ func (t *testShardedMap) TestTraverse() {
 	})
 }
 
+func (t *testShardedMap) TestTraverseMap() {
+	t.Run("1 depth", func() {
+		l, _ := NewShardedMap[int, int](3, nil)
+
+		for i := range make([]int, 3) {
+			l.SetValue(i, i)
+		}
+
+		var mcount int
+		l.TraverseMap(func(m LockedMap[int, int]) bool {
+			mcount++
+
+			return true
+		})
+
+		t.Equal(3, mcount)
+	})
+
+	t.Run("multiple depth #0", func() {
+		l, _ := NewDeepShardedMap[int, int]([]uint64{7, 7, 7}, nil)
+
+		for i := range make([]int, 343) {
+			l.SetValue(i, i)
+			v, _ := l.Value(i)
+			t.Equal(i, v)
+		}
+
+		var mcount int
+		l.TraverseMap(func(m LockedMap[int, int]) bool {
+			mcount++
+
+			return true
+		})
+
+		t.Equal(343, mcount)
+	})
+
+	t.Run("multiple depth #1", func() {
+		l, _ := NewDeepShardedMap[int, int]([]uint64{7, 7}, nil)
+
+		for i := range make([]int, 49) {
+			l.SetValue(i, i)
+			v, _ := l.Value(i)
+			t.Equal(i, v)
+		}
+
+		var mcount int
+		l.TraverseMap(func(m LockedMap[int, int]) bool {
+			mcount++
+
+			return true
+		})
+
+		t.Equal(49, mcount)
+	})
+}
+
 func (t *testShardedMap) TestClose() {
 	t.Run("close", func() {
-		m, err := NewShardedMap[int, int](3)
+		m, err := NewShardedMap[int, int](3, nil)
 		t.NoError(err)
 
 		sets := make([]int, 9)
@@ -993,24 +1072,26 @@ func (t *testShardedMap) TestClose() {
 
 		t.False(m.SetValue(1, 2))
 
-		i, found, err = m.GetOrCreate(1, func() (int, error) {
+		i, found, created, err := m.GetOrCreate(1, func() (int, error) {
 			return 3, nil
 		})
 		t.Error(err)
 		t.False(found)
+		t.False(created)
 		t.Zero(i)
 		t.True(errors.Is(err, ErrLockedMapClosed))
 
-		i, err = m.Set(1, func(int, bool) (int, error) {
+		i, created, err = m.Set(1, func(int, bool) (int, error) {
 			return 3, nil
 		})
 		t.Error(err)
 		t.Zero(i)
+		t.False(created)
 		t.True(errors.Is(err, ErrLockedMapClosed))
 	})
 
 	t.Run("close empty", func() {
-		m, err := NewShardedMap[int, int](3)
+		m, err := NewShardedMap[int, int](3, nil)
 		t.NoError(err)
 
 		m.Close()
@@ -1020,7 +1101,7 @@ func (t *testShardedMap) TestClose() {
 
 func (t *testShardedMap) TestEmpty() {
 	t.Run("empty", func() {
-		m, err := NewShardedMap[int, int](3)
+		m, err := NewShardedMap[int, int](3, nil)
 		t.NoError(err)
 
 		sets := make([]int, 9)
@@ -1047,22 +1128,24 @@ func (t *testShardedMap) TestEmpty() {
 
 		t.True(m.SetValue(1, 2))
 
-		i, found, err = m.GetOrCreate(2, func() (int, error) {
+		i, found, created, err := m.GetOrCreate(2, func() (int, error) {
 			return 3, nil
 		})
 		t.NoError(err)
 		t.False(found)
+		t.True(created)
 		t.Equal(3, i)
 
-		i, err = m.Set(1, func(int, bool) (int, error) {
+		i, created, err = m.Set(1, func(int, bool) (int, error) {
 			return 4, nil
 		})
 		t.NoError(err)
+		t.False(created)
 		t.Equal(4, i)
 	})
 
 	t.Run("empty", func() {
-		m, err := NewShardedMap[int, int](3)
+		m, err := NewShardedMap[int, int](3, nil)
 		t.NoError(err)
 
 		m.Empty()
@@ -1080,20 +1163,20 @@ func TestLockedMap(tt *testing.T) {
 	t.SetT(tt)
 
 	t.Run("0 size", func() {
-		_, err := NewLockedMap[string, string](0)
+		_, err := NewLockedMap[string, string](0, nil)
 		t.Error(err)
 		t.ErrorContains(err, "empty size")
 	})
 
 	t.Run("1 size == SingleLockedMap", func() {
-		l, err := NewLockedMap[string, string](1)
+		l, err := NewLockedMap[string, string](1, nil)
 		t.NoError(err)
 
 		_ = l.(*SingleLockedMap[string, string])
 	})
 
 	t.Run("over 1 size == ShardedMap", func() {
-		l, err := NewLockedMap[string, string](3)
+		l, err := NewLockedMap[string, string](3, nil)
 		t.NoError(err)
 
 		_ = l.(*ShardedMap[string, string])
