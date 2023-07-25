@@ -192,7 +192,7 @@ func getProposalFunc(pctx context.Context) (
 						return nil
 					}
 
-					_, _ = prl.GetOrCreate(func() (base.ProposalSignFact, error) {
+					_, _, _ = prl.GetOrCreate(func() (base.ProposalSignFact, error) {
 						return pr, nil
 					})
 

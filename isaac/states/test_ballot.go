@@ -14,7 +14,7 @@ type DummyBallotPool struct {
 }
 
 func NewDummyBallotPool() *DummyBallotPool {
-	m, _ := util.NewShardedMap[string, base.Ballot](1 << 4)
+	m, _ := util.NewShardedMap[string, base.Ballot](1<<4, nil)
 
 	return &DummyBallotPool{m: m}
 }
@@ -28,7 +28,7 @@ func (d *DummyBallotPool) Ballot(point base.Point, stage base.Stage, isSuffrageC
 func (d *DummyBallotPool) SetBallot(bl base.Ballot) (bool, error) {
 	key := d.key(bl.Point().Point, bl.Point().Stage(), isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()))
 
-	_, err := d.m.Set(key, func(i base.Ballot, found bool) (base.Ballot, error) {
+	_, _, err := d.m.Set(key, func(i base.Ballot, found bool) (base.Ballot, error) {
 		if found {
 			return nil, util.ErrFound.WithStack()
 		}

@@ -37,7 +37,7 @@ func NewLeveldbBlockWrite(
 ) *LeveldbBlockWrite {
 	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height))
 
-	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8)
+	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8, nil)
 
 	return &LeveldbBlockWrite{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
@@ -384,7 +384,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
 	var islast bool
-	_, _ = db.laststates.Set(st.Key(), func(i base.Height, found bool) (base.Height, error) {
+	_, _, _ = db.laststates.Set(st.Key(), func(i base.Height, found bool) (base.Height, error) {
 		if found && st.Height() <= i {
 			return base.NilHeight, errors.Errorf("old")
 		}

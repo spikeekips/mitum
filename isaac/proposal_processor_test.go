@@ -85,7 +85,7 @@ func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states [
 	for i := range states {
 		stv := states[i]
 
-		j, _, _ := w.sts.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
+		j, _, _, _ := w.sts.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
 			var st base.State
 
 			switch j, found, err := w.getStateFunc(stv.Key()); {

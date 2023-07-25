@@ -40,7 +40,7 @@ func NewBallotbox(
 	getThreshold func() base.Threshold,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
-	vrs, _ := util.NewShardedMap[string, *voterecords](4) //nolint:gomnd // last 4 stages
+	vrs, _ := util.NewShardedMap[string, *voterecords](4, nil) //nolint:gomnd // last 4 stages
 
 	box := &Ballotbox{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -464,7 +464,7 @@ func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
 		key = "sf-" + key
 	}
 
-	vr, _ := box.vrs.Set(key, func(i *voterecords, found bool) (*voterecords, error) {
+	vr, _, _ := box.vrs.Set(key, func(i *voterecords, found bool) (*voterecords, error) {
 		if found {
 			return i, nil
 		}

@@ -107,7 +107,7 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 		return nil, err
 	}
 
-	ebrecords, err := util.NewLockedMap[string, []base.Address](1 << 13) //nolint:gomnd //...
+	ebrecords, err := util.NewLockedMap[string, []base.Address](1<<13, nil) //nolint:gomnd //...
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 
 		var isset bool
 
-		_, _ = srv.ebrecords.Set(req.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
+		_, _, _ = srv.ebrecords.Set(req.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
 			if !found {
 				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
@@ -1097,8 +1097,8 @@ type membersPool struct {
 }
 
 func newMembersPool() *membersPool {
-	addrs, _ := util.NewShardedMap[string, Member](1 << 9)     //nolint:gomnd //...
-	members, _ := util.NewShardedMap[string, []Member](1 << 9) //nolint:gomnd //...
+	addrs, _ := util.NewShardedMap[string, Member](1<<9, nil)     //nolint:gomnd //...
+	members, _ := util.NewShardedMap[string, []Member](1<<9, nil) //nolint:gomnd //...
 
 	return &membersPool{
 		addrs:   addrs,
@@ -1163,7 +1163,7 @@ func (m *membersPool) MembersLen(node base.Address) int {
 }
 
 func (m *membersPool) Set(member Member) (added bool) {
-	_, _ = m.addrs.Set(memberid(member.Addr()), func(_ Member, addrfound bool) (Member, error) {
+	_, _, _ = m.addrs.Set(memberid(member.Addr()), func(_ Member, addrfound bool) (Member, error) {
 		var members []Member
 
 		added = !addrfound

@@ -58,7 +58,7 @@ func NewConnectionPool(
 	size uint64,
 	dialf ConnInfoDialFunc,
 ) (*ConnectionPool, error) {
-	conns, err := util.NewLockedMap[string, Streamer](int64(size))
+	conns, err := util.NewLockedMap[string, Streamer](size, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func NewConnectionPool(
 func (c *ConnectionPool) Dial(ctx context.Context, ci ConnInfo) (Streamer, error) {
 	var conn Streamer
 
-	if _, err := c.conns.Set(ci.Addr().String(), func(old Streamer, _ bool) (Streamer, error) {
+	if _, _, err := c.conns.Set(ci.Addr().String(), func(old Streamer, _ bool) (Streamer, error) {
 		if old != nil && old.Context().Err() == nil {
 			conn = old
 

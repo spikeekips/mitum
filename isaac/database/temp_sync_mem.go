@@ -13,7 +13,7 @@ type MemTempSyncPool struct {
 }
 
 func NewMemTempSyncPool() *MemTempSyncPool {
-	pool, _ := util.NewLockedMap[base.Height, base.BlockMap](1 << 13) //nolint:gomnd //...
+	pool, _ := util.NewLockedMap[base.Height, base.BlockMap](1<<13, nil) //nolint:gomnd //...
 
 	return &MemTempSyncPool{pool: pool}
 }

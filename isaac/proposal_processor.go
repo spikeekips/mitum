@@ -77,7 +77,7 @@ func NewDefaultProposalProcessor(
 		return nil, errors.Wrap(err, "make new ProposalProcessor")
 	}
 
-	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1 << 5) //nolint:gomnd //...
+	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1<<5, nil) //nolint:gomnd //...
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -596,7 +596,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 ) (
 	base.OperationProcessor, bool, error,
 ) {
-	i, _, err := p.oprs.GetOrCreate(ht.String(), func() (opp base.OperationProcessor, _ error) {
+	i, _, _, err := p.oprs.GetOrCreate(ht.String(), func() (opp base.OperationProcessor, _ error) {
 		if err := p.retry(ctx, func() (bool, error) {
 			i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
 			if err != nil {

@@ -95,12 +95,12 @@ type SimpleTimers struct {
 	resolution time.Duration
 }
 
-func NewSimpleTimers(size int64, resolution time.Duration) (*SimpleTimers, error) {
+func NewSimpleTimers(size uint64, resolution time.Duration) (*SimpleTimers, error) {
 	if resolution < 1 {
 		return nil, errors.Errorf("too narrow resolution, %v", resolution)
 	}
 
-	timers, err := NewLockedMap[TimerID, *SimpleTimer](size)
+	timers, err := NewLockedMap[TimerID, *SimpleTimer](size, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func NewSimpleTimers(size int64, resolution time.Duration) (*SimpleTimers, error
 	return ts, nil
 }
 
-func NewSimpleTimersFixedIDs(size int64, interval time.Duration, ids []TimerID) (*SimpleTimers, error) {
+func NewSimpleTimersFixedIDs(size uint64, interval time.Duration, ids []TimerID) (*SimpleTimers, error) {
 	ts, err := NewSimpleTimers(size, interval)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func (ts *SimpleTimers) New(
 func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 	var keep bool
 
-	if _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
+	if _, _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
 		if len(ts.ids) > 0 {
 			if slices.Index[TimerID](ts.ids, timer.id) < 0 {
 				return nil, errors.Errorf("unknown timer id, %q", timer.id)

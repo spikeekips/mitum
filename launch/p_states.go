@@ -664,7 +664,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 			tempsyncpool = i
 		}
 
-		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1 << 9) //nolint:gomnd //...
+		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1<<9, nil) //nolint:gomnd //...
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(client, isaacparams, syncSourcePool)
