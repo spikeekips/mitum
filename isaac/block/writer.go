@@ -131,27 +131,28 @@ func (w *Writer) SetStates(
 func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
 	e := util.StringError("set state")
 
-	j, _, _, err := w.states.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
-		var st base.State
+	return e.Wrap(w.states.GetOrCreate(
+		stv.Key(),
+		func(i base.StateValueMerger, _ bool) error {
+			if err := i.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+				return e.WithMessage(err, "merge")
+			}
 
-		switch j, found, err := w.getStateFunc(stv.Key()); {
-		case err != nil:
-			return nil, err
-		case found:
-			st = j
-		}
+			return nil
+		},
+		func() (base.StateValueMerger, error) {
+			var st base.State
 
-		return stv.Merger(w.proposal.Point().Height(), st), nil
-	})
-	if err != nil {
-		return e.Wrap(err)
-	}
+			switch j, found, err := w.getStateFunc(stv.Key()); {
+			case err != nil:
+				return nil, err
+			case found:
+				st = j
+			}
 
-	if err := j.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
-		return e.WithMessage(err, "merge")
-	}
-
-	return nil
+			return stv.Merger(w.proposal.Point().Height(), st), nil
+		},
+	))
 }
 
 func (w *Writer) closeStateValues(ctx context.Context) error {

@@ -85,22 +85,28 @@ func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states [
 	for i := range states {
 		stv := states[i]
 
-		j, _, _, _ := w.sts.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
-			var st base.State
+		_ = w.sts.GetOrCreate(
+			stv.Key(),
+			func(j base.StateValueMerger, _ bool) error {
+				if err := j.Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
+					return e.WithMessage(err, "failed to merge")
+				}
 
-			switch j, found, err := w.getStateFunc(stv.Key()); {
-			case err != nil:
-				return nil, err
-			case found:
-				st = j
-			}
+				return nil
+			},
+			func() (base.StateValueMerger, error) {
+				var st base.State
 
-			return stv.Merger(w.proposal.Point().Height(), st), nil
-		})
+				switch j, found, err := w.getStateFunc(stv.Key()); {
+				case err != nil:
+					return nil, err
+				case found:
+					st = j
+				}
 
-		if err := j.Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
-			return e.WithMessage(err, "failed to merge")
-		}
+				return stv.Merger(w.proposal.Point().Height(), st), nil
+			},
+		)
 	}
 
 	w.ops = append(w.ops, op)

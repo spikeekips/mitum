@@ -56,42 +56,47 @@ func (r *LocalFSReader) Close() error {
 }
 
 func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
-	i, _, err := r.mapl.GetOrCreate(func() (base.BlockMap, error) {
-		var b []byte
+	var m base.BlockMap
 
-		switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
-		case err != nil:
-			return nil, errors.WithStack(err)
-		default:
-			defer func() {
-				_ = f.Close()
-			}()
+	switch err := r.mapl.GetOrCreate(
+		func(i base.BlockMap, _ bool) error {
+			m = i
 
-			i, err := io.ReadAll(f)
-			if err != nil {
+			return nil
+		},
+		func() (base.BlockMap, error) {
+			var b []byte
+
+			switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
+			case err != nil:
 				return nil, errors.WithStack(err)
+			default:
+				defer func() {
+					_ = f.Close()
+				}()
+
+				i, err := io.ReadAll(f)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+
+				b = i
 			}
 
-			b = i
-		}
+			var um base.BlockMap
+			if err := encoder.Decode(r.enc, b, &um); err != nil {
+				return nil, err
+			}
 
-		var um base.BlockMap
-		if err := encoder.Decode(r.enc, b, &um); err != nil {
-			return nil, err
-		}
-
-		return um, nil
-	})
-
-	e := util.StringError("load blockmap")
-
-	switch {
+			return um, nil
+		},
+	); {
 	case err == nil:
-		return i, true, nil
+		return m, true, nil
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e.Wrap(err)
+		return nil, false, errors.Wrap(err, "load BlockMap")
 	}
 }
 
@@ -107,23 +112,27 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _, _ := r.readersl.GetOrCreate(t, func() (error, error) {
-		switch fi, err := os.Stat(fpath); {
-		case err != nil:
-			return err, nil //nolint:nilerr,wrapcheck //...
-		case fi.IsDir():
-			return errors.Errorf("not normal file; directory"), nil
-		default:
-			return nil, nil
-		}
-	})
-
-	switch {
-	case i == nil:
-	case os.IsNotExist(i):
+	switch err := r.readersl.GetOrCreate(
+		t,
+		func(i error, _ bool) error {
+			return i
+		},
+		func() (error, error) {
+			switch fi, err := os.Stat(fpath); {
+			case err != nil:
+				return err, nil //nolint:nilerr,wrapcheck //...
+			case fi.IsDir():
+				return errors.Errorf("not normal file; directory"), nil
+			default:
+				return nil, nil
+			}
+		},
+	); {
+	case err == nil:
+	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e.Wrap(i)
+		return nil, false, e.Wrap(err)
 	}
 
 	f, err := os.Open(filepath.Clean(fpath))
@@ -171,23 +180,27 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _, _ := r.readersl.GetOrCreate(t, func() (error, error) {
-		switch fi, err := os.Stat(fpath); {
-		case err != nil:
-			return err, nil //nolint:nilerr,wrapcheck //...
-		case fi.IsDir():
-			return errors.Errorf("not normal file; directory"), nil
-		default:
-			return nil, nil
-		}
-	})
-
-	switch {
-	case i == nil:
-	case os.IsNotExist(i):
+	switch err := r.readersl.GetOrCreate(
+		t,
+		func(i error, _ bool) error {
+			return i
+		},
+		func() (error, error) {
+			switch fi, err := os.Stat(fpath); {
+			case err != nil:
+				return err, nil //nolint:nilerr,wrapcheck //...
+			case fi.IsDir():
+				return errors.Errorf("not normal file; directory"), nil
+			default:
+				return nil, nil
+			}
+		},
+	); {
+	case err == nil:
+	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
-		return nil, false, e.Wrap(i)
+		return nil, false, e.Wrap(err)
 	}
 
 	var f util.ChecksumReader
@@ -222,18 +235,28 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 }
 
 func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found bool, _ error) {
-	i, _, _, _ := r.itemsl.GetOrCreate(t, func() ([3]interface{}, error) {
-		j, found, err := r.item(t)
+	err := r.itemsl.GetOrCreate(
+		t,
+		func(i [3]interface{}, _ bool) error {
+			item = i[0]
+			found = i[1].(bool) //nolint:forcetypeassert //...
 
-		return [3]interface{}{j, found, err}, nil
-	})
+			var err error
 
-	var err error
-	if i[2] != nil {
-		err = i[2].(error) //nolint:forcetypeassert //...
-	}
+			if i[2] != nil {
+				err = i[2].(error) //nolint:forcetypeassert //...
+			}
 
-	return i[0], i[1].(bool), err //nolint:forcetypeassert //...
+			return err
+		},
+		func() ([3]interface{}, error) {
+			i, j, k := r.item(t)
+
+			return [3]interface{}{i, j, k}, nil
+		},
+	)
+
+	return item, found, err
 }
 
 func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {

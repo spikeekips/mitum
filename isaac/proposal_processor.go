@@ -596,30 +596,38 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 ) (
 	base.OperationProcessor, bool, error,
 ) {
-	i, _, _, err := p.oprs.GetOrCreate(ht.String(), func() (opp base.OperationProcessor, _ error) {
-		if err := p.retry(ctx, func() (bool, error) {
-			i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
-			if err != nil {
-				return true, err
+	var j base.OperationProcessor
+
+	switch err := p.oprs.GetOrCreate(
+		ht.String(),
+		func(i base.OperationProcessor, _ bool) error {
+			j = i
+
+			return nil
+		},
+		func() (opp base.OperationProcessor, _ error) {
+			if err := p.retry(ctx, func() (bool, error) {
+				i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
+				if err != nil {
+					return true, err
+				}
+
+				opp = i
+
+				return false, nil
+			}); err != nil {
+				return nil, err
 			}
 
-			opp = i
+			if opp == nil {
+				return nil, ErrOperationInProcessorNotFound.WithStack()
+			}
 
-			return false, nil
-		}); err != nil {
-			return nil, err
-		}
-
-		if opp == nil {
-			return nil, ErrOperationInProcessorNotFound.WithStack()
-		}
-
-		return opp, nil
-	})
-
-	switch {
+			return opp, nil
+		},
+	); {
 	case err == nil:
-		return i, true, nil
+		return j, true, nil
 	case errors.Is(err, ErrOperationInProcessorNotFound):
 		return nil, false, nil
 	default:

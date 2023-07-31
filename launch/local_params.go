@@ -7,12 +7,14 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
 
 var (
-	defaultHandlerTimeouts  map[string]time.Duration
-	networkHandlerPrefixMap = map[string]struct{}{}
+	defaultHandlerTimeouts     map[string]time.Duration
+	networkHandlerPrefixMap    = map[string]struct{}{}
+	NetworkHandlerPrefixMapRev = map[[32]byte]string{}
 )
 
 func init() {
@@ -24,7 +26,9 @@ func init() {
 	}
 
 	for i := range networkHandlerPrefixes {
-		networkHandlerPrefixMap[networkHandlerPrefixes[i]] = struct{}{}
+		s := networkHandlerPrefixes[i]
+		networkHandlerPrefixMap[s] = struct{}{}
+		NetworkHandlerPrefixMapRev[quicstream.HashPrefix(s)] = s
 	}
 }
 

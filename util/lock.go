@@ -80,22 +80,27 @@ func (l *Locked[T]) Get(f func(T, bool) error) error {
 	return f(l.value, l.isempty)
 }
 
-func (l *Locked[T]) GetOrCreate(create func() (T, error)) (v T, created bool, _ error) {
+func (l *Locked[T]) GetOrCreate(
+	f func(_ T, created bool) error,
+	create func() (T, error),
+) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if !l.isempty {
-		return l.value, false, nil
+		return f(l.value, false)
 	}
 
 	switch i, err := create(); {
+	case errors.Is(err, ErrLockedSetIgnore):
+		return nil
 	case err != nil:
-		return v, false, err
+		return err
 	default:
 		l.value = i
 		l.isempty = false
 
-		return i, true, nil
+		return f(l.value, true)
 	}
 }
 
@@ -145,7 +150,7 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	SetValue(key K, value V) (added bool)
 	RemoveValue(key K) (removed bool)
 	Get(key K, f func(value V, found bool) error) error
-	GetOrCreate(key K, create func() (value V, _ error)) (value V, found, created bool, _ error)
+	GetOrCreate(key K, f func(value V, created bool) error, create func() (value V, _ error)) error
 	Set(key K, f func(_ V, found bool) (value V, _ error)) (value V, created bool, _ error)
 	Remove(key K, f func(value V, found bool) error) (removed bool, _ error)
 	Traverse(f func(key K, value V) (keep bool)) bool
@@ -252,27 +257,31 @@ func (l *SingleLockedMap[K, V]) Get(key K, f func(value V, found bool) error) er
 	return f(v, found)
 }
 
-func (l *SingleLockedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found, created bool, err error) {
+func (l *SingleLockedMap[K, V]) GetOrCreate(
+	k K,
+	f func(_ V, created bool) error,
+	create func() (V, error),
+) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.m == nil {
-		return v, false, false, ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed.WithStack()
 	}
 
 	if i, found := l.m[k]; found {
-		return i, true, false, nil
+		return f(i, false)
 	}
 
 	switch i, err := create(); {
 	case err == nil:
 		l.m[k] = i
 
-		return i, false, true, nil
+		return f(i, true)
 	case errors.Is(err, ErrLockedSetIgnore):
-		return v, false, false, nil
+		return nil
 	default:
-		return v, false, false, err
+		return err
 	}
 }
 
@@ -524,17 +533,31 @@ func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
 	}
 }
 
-func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found, created bool, _ error) {
+func (l *ShardedMap[K, V]) GetOrCreate(
+	k K,
+	f func(_ V, created bool) error,
+	create func() (V, error),
+) error {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
-		return v, false, false, ErrLockedMapClosed.WithStack()
+		return ErrLockedMapClosed.WithStack()
 	default:
-		v, found, created, err := i.GetOrCreate(k, create)
+		var created bool
+
+		err := i.GetOrCreate(
+			k,
+			func(v V, c bool) error {
+				created = c
+
+				return f(v, c)
+			},
+			create,
+		)
 		if err == nil && created {
 			atomic.AddInt64(&l.length, 1)
 		}
 
-		return v, found, created, err
+		return err
 	}
 }
 

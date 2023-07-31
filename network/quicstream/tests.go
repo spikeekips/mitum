@@ -292,7 +292,7 @@ func RandomConnInfos(n int) []ConnInfo {
 	}
 }
 
-func randomConnInfo() ConnInfo {
+func RandomUDPAddr() *net.UDPAddr {
 	for {
 		bip, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
 		if err != nil {
@@ -307,6 +307,13 @@ func randomConnInfo() ConnInfo {
 
 		binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
 
-		return MustConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
+		return &net.UDPAddr{
+			IP:   net.IP(buf),
+			Port: int(bport.Uint64()),
+		}
 	}
+}
+
+func randomConnInfo() ConnInfo {
+	return MustConnInfo(RandomUDPAddr(), true)
 }

@@ -381,26 +381,37 @@ func (t *Transport) newConn(raddr *net.UDPAddr) (*qconn, error) {
 		return nil, err
 	}
 
-	conn, _, _, _ := t.conns.GetOrCreate(raddr.String(), func() (*qconn, error) {
-		return newQConn(
-			t.laddr,
-			raddr,
-			func(ctx context.Context, b []byte) (int, error) {
-				err := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
-				var n int
-				if err == nil {
-					n = len(b)
-				}
+	var conn *qconn
 
-				return n, err
-			},
-			func() {
-				_ = t.conns.RemoveValue(raddr.String())
-			},
-		), nil
-	})
+	err = t.conns.GetOrCreate(
+		raddr.String(),
+		func(i *qconn, _ bool) error {
+			conn = i
 
-	return conn, nil
+			return nil
+		},
+		func() (*qconn, error) {
+			return newQConn(
+				t.laddr,
+				raddr,
+				func(ctx context.Context, b []byte) (int, error) {
+					var n int
+
+					werr := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
+					if werr == nil {
+						n = len(b)
+					}
+
+					return n, werr
+				},
+				func() {
+					_ = t.conns.RemoveValue(raddr.String())
+				},
+			), nil
+		},
+	)
+
+	return conn, err
 }
 
 func marshalMsg(t rawDataType, addr net.Addr, b []byte) []byte {

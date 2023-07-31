@@ -640,13 +640,23 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	manifests := util.NewSingleLockedMap[base.Height, base.Manifest]()
 	getmanifest := func(height base.Height) base.Manifest {
-		i, _, _, _ := manifests.GetOrCreate(height, func() (base.Manifest, error) {
-			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		var m base.Manifest
 
-			return manifest, nil
-		})
+		_ = manifests.GetOrCreate(
+			height,
+			func(i base.Manifest, _ bool) error {
+				m = i
 
-		return i
+				return nil
+			},
+			func() (base.Manifest, error) {
+				manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+				return manifest, nil
+			},
+		)
+
+		return m
 	}
 
 	processdelay := time.Millisecond * 100

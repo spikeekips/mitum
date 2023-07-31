@@ -283,11 +283,20 @@ func (p *proposalPool) Hash(point base.Point) util.Hash {
 }
 
 func (p *proposalPool) Get(point base.Point) base.ProposalSignFact {
-	i, _, _, _ := p.SingleLockedMap.GetOrCreate(point.String(), func() (base.ProposalSignFact, error) {
-		return p.newproposal(point), nil
-	})
+	var j base.ProposalSignFact
+	_ = p.SingleLockedMap.GetOrCreate(
+		point.String(),
+		func(i base.ProposalSignFact, _ bool) error {
+			j = i
 
-	return i
+			return nil
+		},
+		func() (base.ProposalSignFact, error) {
+			return p.newproposal(point), nil
+		},
+	)
+
+	return j
 }
 
 func (p *proposalPool) GetFact(point base.Point) base.ProposalFact {
