@@ -156,7 +156,7 @@ func (t *BaseTest) NewDefaultServer(qconfig *quic.Config, handler Handler) *Test
 }
 
 func (t *BaseTest) EmptyHandler() Handler {
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		defer func() {
 			_ = w.Close()
 		}()
@@ -164,27 +164,27 @@ func (t *BaseTest) EmptyHandler() Handler {
 		b := make([]byte, 1)
 		_, err := r.Read(b)
 
-		return err
+		return ctx, err
 	}
 }
 
 func (t *BaseTest) EchoHandler() Handler {
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		defer func() {
 			_ = w.Close()
 		}()
 
 		b, err := io.ReadAll(r)
 		if err != nil {
-			return err
+			return ctx, err
 		}
 
 		_, err = w.Write(b)
 		if err != nil {
-			return err
+			return ctx, err
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 

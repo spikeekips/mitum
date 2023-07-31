@@ -95,14 +95,14 @@ func (t *testConnection) TestOpenStream() {
 
 		opench := make(chan struct{}, 3)
 
-		srv := t.NewDefaultServer(qconfig, func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+		srv := t.NewDefaultServer(qconfig, func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 			select {
 			case <-ctx.Done():
 			case <-opench:
 			case <-time.After(time.Second * 33):
 			}
 
-			return nil
+			return ctx, nil
 		})
 		t.NoError(srv.EnsureStart(context.Background()))
 		t.T().Log("server prepared")
@@ -161,7 +161,7 @@ func (t *testConnection) TestOpenStream() {
 func (t *testConnection) TestEcho() {
 	handlerechoedch := make(chan struct{}, 1)
 
-	srv := t.NewDefaultServer(nil, func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+	srv := t.NewDefaultServer(nil, func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		defer func() {
 			handlerechoedch <- struct{}{}
 		}()
@@ -174,19 +174,19 @@ func (t *testConnection) TestEcho() {
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.T().Log("> echo handler; read error:", err)
-			return err
+			return ctx, err
 		}
 		t.T().Log("> echo handler; read")
 
 		_, err = w.Write(b)
 		if err != nil {
 			t.T().Log("> echo handler; write error:", err)
-			return err
+			return ctx, err
 		}
 
 		t.T().Log("> echo handler; write")
 
-		return nil
+		return ctx, nil
 	})
 
 	t.NoError(srv.EnsureStart(context.Background()))

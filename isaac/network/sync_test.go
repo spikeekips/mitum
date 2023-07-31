@@ -50,15 +50,15 @@ type handlers struct {
 	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
 }
 
-func (h *handlers) SuffrageNodeConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SuffrageNodeConnInfoRequestHeader) error {
+func (h *handlers) SuffrageNodeConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SuffrageNodeConnInfoRequestHeader) (context.Context, error) {
 	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(ctx, addr, broker, header)
 }
 
-func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SyncSourceConnInfoRequestHeader) error {
+func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SyncSourceConnInfoRequestHeader) (context.Context, error) {
 	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(ctx, addr, broker, header)
 }
 
-func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader) error {
+func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader) (context.Context, error) {
 	return QuicstreamHandlerNodeChallenge(h.localParams.NetworkID(), h.local)(ctx, addr, broker, header)
 }
 
@@ -76,7 +76,7 @@ func (t *testSyncSourceChecker) dialf(h *handlers) quicstream.ConnInfoDialFunc {
 	handlerf := func() error {
 		defer hw.Close()
 
-		err := ph.Handler(context.Background(), ci.Addr(), hr, hw)
+		_, err := ph.Handler(context.Background(), ci.Addr(), hr, hw)
 		if errors.Is(err, quicstream.ErrHandlerNotFound) {
 			go io.ReadAll(cr)
 			go io.ReadAll(hr)

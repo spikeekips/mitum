@@ -118,7 +118,7 @@ func testDialFunc[T quicstreamheader.RequestHeader](encs *encoder.Encoders, pref
 	handlerf := func() error {
 		defer hw.Close()
 
-		err := ph.Handler(context.Background(), nil, hr, hw)
+		_, err := ph.Handler(context.Background(), nil, hr, hw)
 		if errors.Is(err, quicstream.ErrHandlerNotFound) {
 			go io.ReadAll(cr)
 			go io.ReadAll(hr)

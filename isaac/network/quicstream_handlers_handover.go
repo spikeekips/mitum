@@ -22,7 +22,7 @@ func QuicstreamHandlerStartHandover(
 ) quicstreamheader.Handler[StartHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
@@ -32,7 +32,7 @@ func QuicstreamHandlerStartHandover(
 			err = f(ctx, header.Address(), header.ConnInfo())
 		}
 
-		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -43,7 +43,7 @@ func QuicstreamHandlerCancelHandover(
 ) quicstreamheader.Handler[CancelHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
@@ -53,7 +53,7 @@ func QuicstreamHandlerCancelHandover(
 			err = f()
 		}
 
-		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -64,7 +64,7 @@ func QuicstreamHandlerCheckHandover(
 ) quicstreamheader.Handler[CheckHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
@@ -74,7 +74,7 @@ func QuicstreamHandlerCheckHandover(
 			err = f(ctx, header.Address(), header.ConnInfo())
 		}
 
-		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -85,17 +85,17 @@ func QuicstreamHandlerAskHandover(
 ) quicstreamheader.Handler[AskHandoverHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header AskHandoverHeader,
-	) error {
+	) (context.Context, error) {
 		if err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		); err != nil {
-			return err
+			return ctx, err
 		}
 
 		id, canMoveConsensus, err := f(ctx, header.Address(), header.ConnInfo())
 
-		return broker.WriteResponseHead(ctx, NewAskHandoverResponseHeader(canMoveConsensus, err, id))
+		return ctx, broker.WriteResponseHead(ctx, NewAskHandoverResponseHeader(canMoveConsensus, err, id))
 	}
 }
 
@@ -105,38 +105,38 @@ func QuicstreamHandlerHandoverMessage(
 ) quicstreamheader.Handler[HandoverMessageHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header HandoverMessageHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handover message")
 
 		var msg isaacstates.HandoverMessage
 
 		switch _, _, body, err := broker.ReadBodyErr(ctx); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case body == nil:
-			return e.Errorf("empty body")
+			return ctx, e.Errorf("empty body")
 		default:
 			switch i, err := io.ReadAll(body); {
 			case err != nil:
-				return e.Wrap(err)
+				return ctx, e.Wrap(err)
 			default:
 				if err = encoder.Decode(broker.Encoder, i, &msg); err != nil {
-					return e.Wrap(err)
+					return ctx, e.Wrap(err)
 				}
 
 				if msg == nil {
-					return e.Errorf("empty handover message")
+					return ctx, e.Errorf("empty handover message")
 				}
 
 				if err = msg.IsValid(networkID); err != nil {
-					return e.Wrap(err)
+					return ctx, e.Wrap(err)
 				}
 			}
 		}
 
 		err := f(msg)
 
-		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -147,7 +147,7 @@ func QuicstreamHandlerCheckHandoverX(
 ) quicstreamheader.Handler[CheckHandoverXHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverXHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
@@ -157,7 +157,7 @@ func QuicstreamHandlerCheckHandoverX(
 			err = f(ctx)
 		}
 
-		return broker.WriteResponseHeadOK(ctx, err == nil, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}
 }
 
@@ -168,14 +168,14 @@ func QuicstreamHandlerLastHandoverYLogs(
 ) quicstreamheader.Handler[LastHandoverYLogsHeader] {
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header LastHandoverYLogsHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)
 
 		if eerr := broker.WriteResponseHeadOK(ctx, err == nil, err); err != nil || eerr != nil {
-			return nil
+			return ctx, nil
 		}
 
 		body := bytes.NewBuffer(nil)
@@ -185,10 +185,10 @@ func QuicstreamHandlerLastHandoverYLogs(
 
 		for i := range s {
 			if _, err := body.Write(append(s[i], '\n')); err != nil {
-				return errors.WithStack(err)
+				return ctx, errors.WithStack(err)
 			}
 		}
 
-		return broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, body)
+		return ctx, broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, body)
 	}
 }

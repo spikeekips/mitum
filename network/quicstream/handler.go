@@ -13,8 +13,8 @@ import (
 )
 
 type (
-	Handler      func(context.Context, net.Addr, io.Reader, io.WriteCloser) error
-	ErrorHandler func(context.Context, net.Addr, io.Reader, io.WriteCloser, error) error
+	Handler      func(context.Context, net.Addr, io.Reader, io.WriteCloser) (context.Context, error)
+	ErrorHandler func(context.Context, net.Addr, io.Reader, io.WriteCloser, error) (context.Context, error)
 )
 
 var ErrHandlerNotFound = util.NewIDError("handler not found")
@@ -31,9 +31,9 @@ type PrefixHandler struct {
 func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	if errorHandler == nil {
 		errorHandler = func( //revive:disable-line:modifies-parameter
-			_ context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser, err error,
-		) error {
-			return nil
+			ctx context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser, err error,
+		) (context.Context, error) {
+			return ctx, nil
 		}
 	}
 
@@ -43,17 +43,18 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	}
 }
 
-func (h *PrefixHandler) Handler(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) error {
+func (h *PrefixHandler) Handler(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 	handler, err := h.loadHandler(r)
 	if err != nil {
 		return h.errorHandler(ctx, addr, r, w, err)
 	}
 
-	if err := handler(ctx, addr, r, w); err != nil {
-		return h.errorHandler(ctx, addr, r, w, err)
+	nctx, err := handler(ctx, addr, r, w)
+	if err != nil {
+		return h.errorHandler(nctx, addr, r, w, err)
 	}
 
-	return nil
+	return nctx, nil
 }
 
 func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
@@ -124,7 +125,7 @@ func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {
 }
 
 func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
-	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) error {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		if timeout := f(); timeout > 0 {
 			var cancel func()
 
@@ -132,7 +133,7 @@ func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
 			defer cancel()
 		}
 
-		return util.AwareContext(ctx, func(ctx context.Context) error {
+		return util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
 			return handler(ctx, addr, r, w)
 		})
 	}

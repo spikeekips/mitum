@@ -343,7 +343,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, req CallbackBroadcastMessageHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle callback message")
 
 		i, _, _ := util.SingleflightDo[[2]interface{}](&sg, req.ID(), func() ([2]interface{}, error) {
@@ -369,14 +369,14 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[Callb
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, found, nil); err != nil {
-			return e.WithMessage(err, "write response header")
+			return ctx, e.WithMessage(err, "write response header")
 		}
 
 		if err := broker.WriteBody(ctx, bodyType, 0, body); err != nil {
-			return e.WithMessage(err, "write body")
+			return ctx, e.WithMessage(err, "write body")
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -489,21 +489,21 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 ) quicstreamheader.Handler[EnsureBroadcastMessageHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, req EnsureBroadcastMessageHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle ensure message")
 
 		switch pub, found, err := memberf(req.Node()); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case !found:
-			return e.Errorf("unknown node")
+			return ctx, e.Errorf("unknown node")
 		case localtime.Now().Sub(req.SignedAt()) > srv.args.PongEnsureBroadcastMessageExpire:
-			return e.Errorf("signed too late")
+			return ctx, e.Errorf("signed too late")
 		case !req.Signer().Equal(pub):
-			return e.Errorf("publickey mismatch")
+			return ctx, e.Errorf("publickey mismatch")
 		default:
 			if err := req.Verify(networkID, []byte(req.ID())); err != nil {
-				return e.Wrap(err)
+				return ctx, e.Wrap(err)
 			}
 		}
 
@@ -527,10 +527,10 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 		})
 
 		if err := broker.WriteResponseHeadOK(ctx, isset, nil); err != nil {
-			return e.WithMessage(err, "write response header")
+			return ctx, e.WithMessage(err, "write response header")
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 

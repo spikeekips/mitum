@@ -124,9 +124,9 @@ func NewRateLimitHandler(args *RateLimitHandlerArgs) (*RateLimitHandler, error) 
 }
 
 func (r *RateLimitHandler) HandlerFunc(handlerPrefix string, handler quicstream.Handler) quicstream.Handler {
-	return func(ctx context.Context, addr net.Addr, ir io.Reader, iw io.WriteCloser) error {
+	return func(ctx context.Context, addr net.Addr, ir io.Reader, iw io.WriteCloser) (context.Context, error) {
 		if l, allowed := r.allow(addr, handlerPrefix); !allowed {
-			return ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", handlerPrefix, l.Limit(), l.Burst())
+			return ctx, ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", handlerPrefix, l.Limit(), l.Burst())
 		}
 
 		return handler(ctx, addr, ir, iw)

@@ -57,16 +57,16 @@ func QuicstreamHandlerSendOperation(
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ SendOperationRequestHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle new operation")
 
 		var rbody io.Reader
 
 		switch _, _, body, err := broker.ReadBodyErr(ctx); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case body == nil:
-			return e.Errorf("empty body")
+			return ctx, e.Errorf("empty body")
 		default:
 			rbody = body
 		}
@@ -78,34 +78,34 @@ func QuicstreamHandlerSendOperation(
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case uint64(len(i)) > max:
-			return e.Errorf("too big size; >= %d", max)
+			return ctx, e.Errorf("too big size; >= %d", max)
 		default:
 			if err = encoder.Decode(broker.Encoder, i, &op); err != nil {
-				return e.Wrap(err)
+				return ctx, e.Wrap(err)
 			}
 
 			if op == nil {
-				return e.Errorf("empty operation found")
+				return ctx, e.Errorf("empty operation found")
 			}
 
 			if err = op.IsValid(networkID); err != nil {
-				return e.Wrap(err)
+				return ctx, e.Wrap(err)
 			}
 
 			body = i
 		}
 
 		if err := filterNewOperation(op); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
 		var added bool
 
 		switch i, err := quicstreamHandlerSetOperation(ctx, oppool, svvote, op); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case i && broadcast != nil:
 			go func() {
 				_ = broadcast(ctx, op.Hash().String(), op, body)
@@ -117,10 +117,10 @@ func QuicstreamHandlerSendOperation(
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, added, nil); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -297,20 +297,20 @@ func QuicstreamHandlerBlockMapItem(
 ) quicstreamheader.Handler[BlockMapItemRequestHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header BlockMapItemRequestHeader,
-	) error {
+	) (context.Context, error) {
 		switch itemr, found, err := blockMapItemf(header.Height(), header.Item()); {
 		case err != nil:
-			return err
+			return ctx, err
 		case !found:
-			return writeResponseStream(ctx, broker, found, nil, nil)
+			return ctx, writeResponseStream(ctx, broker, found, nil, nil)
 		case itemr == nil:
-			return writeResponseStream(ctx, broker, false, nil, nil)
+			return ctx, writeResponseStream(ctx, broker, false, nil, nil)
 		default:
 			defer func() {
 				_ = itemr.Close()
 			}()
 
-			return writeResponseStream(ctx, broker, true, nil, itemr)
+			return ctx, writeResponseStream(ctx, broker, true, nil, itemr)
 		}
 	}
 }
@@ -351,7 +351,7 @@ func QuicstreamHandlerExistsInStateOperation(
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header ExistsInStateOperationRequestHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle exists instate operation")
 
 		found, err, _ := util.SingleflightDo[bool](&sg,
@@ -362,14 +362,14 @@ func QuicstreamHandlerExistsInStateOperation(
 		)
 
 		if err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, found, nil); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -380,12 +380,13 @@ func QuicstreamHandlerSuffrageNodeConnInfo(
 
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header SuffrageNodeConnInfoRequestHeader,
-	) error {
-		if err := handler(ctx, addr, broker, header); err != nil {
-			return errors.WithMessage(err, "handle SuffrageNodeConnInfo")
+	) (context.Context, error) {
+		nctx, err := handler(ctx, addr, broker, header)
+		if err != nil {
+			return nctx, errors.WithMessage(err, "handle SuffrageNodeConnInfo")
 		}
 
-		return nil
+		return nctx, nil
 	}
 }
 
@@ -396,12 +397,13 @@ func QuicstreamHandlerSyncSourceConnInfo(
 
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header SyncSourceConnInfoRequestHeader,
-	) error {
-		if err := handler(ctx, addr, broker, header); err != nil {
-			return errors.WithMessage(err, "handle SyncSourceConnInfo")
+	) (context.Context, error) {
+		nctx, err := handler(ctx, addr, broker, header)
+		if err != nil {
+			return nctx, errors.WithMessage(err, "handle SyncSourceConnInfo")
 		}
 
-		return nil
+		return nctx, nil
 	}
 }
 
@@ -411,7 +413,7 @@ func QuicstreamHandlerNodeChallenge(
 ) quicstreamheader.Handler[NodeChallengeRequestHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle NodeChallenge")
 
 		sig, err := local.Privatekey().Sign(util.ConcatBytesSlice(
@@ -420,14 +422,14 @@ func QuicstreamHandlerNodeChallenge(
 			header.Input(),
 		))
 		if err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
 		if err := writeResponseStreamEncode(ctx, broker, true, nil, sig); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -438,7 +440,7 @@ func QuicstreamHandlerNodeInfo(
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ NodeInfoRequestHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle node info")
 
 		b, err, _ := util.SingleflightDo[[]byte](&sg, HandlerPrefixNodeInfoString, func() ([]byte, error) {
@@ -447,19 +449,19 @@ func QuicstreamHandlerNodeInfo(
 
 		switch {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case len(b) < 1:
-			return e.Errorf("empty node info")
+			return ctx, e.Errorf("empty node info")
 		}
 
 		body := bytes.NewBuffer(b)
 		defer body.Reset()
 
 		if err := writeResponseStream(ctx, broker, true, nil, body); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -470,14 +472,14 @@ func QuicstreamHandlerSendBallots(
 ) quicstreamheader.Handler[SendBallotsHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ SendBallotsHeader,
-	) error {
+	) (context.Context, error) {
 		e := util.StringError("handle new ballot")
 
 		var rbody io.Reader
 
 		switch _, _, i, err := broker.ReadBodyErr(ctx); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		default:
 			rbody = i
 		}
@@ -488,40 +490,40 @@ func QuicstreamHandlerSendBallots(
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case uint64(len(body)) > max:
-			return e.Errorf("too big size; >= %d", max)
+			return ctx, e.Errorf("too big size; >= %d", max)
 		default:
 			body = i
 		}
 
 		switch u, err := broker.Encoder.DecodeSlice(body); {
 		case err != nil:
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		case len(u) < 1:
-			return e.Errorf("empty body")
+			return ctx, e.Errorf("empty body")
 		default:
 			for i := range u {
 				bl, ok := u[i].(base.BallotSignFact)
 				if !ok {
-					return e.Errorf("expected BallotSignFact, but %T", u[i])
+					return ctx, e.Errorf("expected BallotSignFact, but %T", u[i])
 				}
 
 				if err = bl.IsValid(networkID); err != nil {
-					return e.Wrap(err)
+					return ctx, e.Wrap(err)
 				}
 
 				if err = votef(bl); err != nil {
-					return e.Wrap(err)
+					return ctx, e.Wrap(err)
 				}
 			}
 		}
 
 		if err := broker.WriteResponseHeadOK(ctx, true, nil); err != nil {
-			return e.Wrap(err)
+			return ctx, e.Wrap(err)
 		}
 
-		return nil
+		return ctx, nil
 	}
 }
 
@@ -532,7 +534,7 @@ func QuicstreamHandlerSetAllowConsensus(
 ) quicstreamheader.Handler[SetAllowConsensusHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header SetAllowConsensusHeader,
-	) error {
+	) (context.Context, error) {
 		err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			pub, networkID,
@@ -544,7 +546,7 @@ func QuicstreamHandlerSetAllowConsensus(
 			ok = setf(header.Allow())
 		}
 
-		return broker.WriteResponseHeadOK(ctx, ok, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, ok, err)
 	}
 }
 
@@ -560,12 +562,12 @@ func QuicstreamHandlerStreamOperations(
 ) quicstreamheader.Handler[StreamOperationsHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header StreamOperationsHeader,
-	) error {
+	) (context.Context, error) {
 		if err := quicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			pub, networkID,
 		); err != nil {
-			return err
+			return ctx, err
 		}
 
 		writeBody := func(enchint hint.Hint, body, offset []byte) error {
@@ -604,7 +606,7 @@ func QuicstreamHandlerStreamOperations(
 			},
 		)
 
-		return broker.WriteResponseHeadOK(ctx, false, err)
+		return ctx, broker.WriteResponseHeadOK(ctx, false, err)
 	}
 }
 
@@ -660,7 +662,7 @@ func quicstreamHandlerNodeConnInfos(
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, _ quicstreamheader.RequestHeader,
-	) error {
+	) (context.Context, error) {
 		cis, err, _ := util.SingleflightDo[[]isaac.NodeConnInfo](&sg, "node_conn_infos",
 			func() ([]isaac.NodeConnInfo, error) {
 				var cis []isaac.NodeConnInfo
@@ -686,10 +688,10 @@ func quicstreamHandlerNodeConnInfos(
 		)
 
 		if err != nil {
-			return errors.WithStack(err)
+			return ctx, errors.WithStack(err)
 		}
 
-		return writeResponseStreamEncode(ctx, broker, true, nil, cis)
+		return ctx, writeResponseStreamEncode(ctx, broker, true, nil, cis)
 	}
 }
 
@@ -701,7 +703,7 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 
 	return func(
 		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, req T,
-	) error { //nolint:dupl //...
+	) (context.Context, error) { //nolint:dupl //...
 		sgkey := sgkeyf(req)
 
 		i, err, _ := util.SingleflightDo[[2]interface{}](&sg, sgkey, func() ([2]interface{}, error) {
@@ -713,10 +715,10 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 			return [2]interface{}{j, bo}, oerr
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			return ctx, errors.WithStack(err)
 		}
 
-		return writeResponseStreamEncode(ctx, broker, i[1].(bool), nil, i[0]) //nolint:forcetypeassert //...
+		return ctx, writeResponseStreamEncode(ctx, broker, i[1].(bool), nil, i[0]) //nolint:forcetypeassert //...
 	}
 }
 
@@ -728,7 +730,7 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header T,
-	) error {
+	) (context.Context, error) {
 		sgkey := sgkeyf(header)
 
 		i, err, _ := util.SingleflightDo(&sg, sgkey, func() ([3]interface{}, error) {
@@ -740,7 +742,7 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 			return [3]interface{}{enchint, b, found}, nil
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			return ctx, errors.WithStack(err)
 		}
 
 		enchint := i[0].(hint.Hint) //nolint:forcetypeassert //..
@@ -758,11 +760,11 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 		if !enchint.IsEmpty() {
 			broker.Encoder = broker.Encoders.Find(enchint) //nolint:forcetypeassert //...
 			if broker.Encoder == nil {
-				return errors.Errorf("find encoder, %q", enchint)
+				return ctx, errors.Errorf("find encoder, %q", enchint)
 			}
 		}
 
-		return writeResponseStream(ctx, broker, found, nil, body)
+		return ctx, writeResponseStream(ctx, broker, found, nil, body)
 	}
 }
 

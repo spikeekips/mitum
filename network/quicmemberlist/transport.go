@@ -317,7 +317,7 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 	return nil
 }
 
-func (t *Transport) QuicstreamHandler(_ context.Context, addr net.Addr, r io.Reader, _ io.WriteCloser) error {
+func (t *Transport) QuicstreamHandler(ctx context.Context, addr net.Addr, r io.Reader, _ io.WriteCloser) (context.Context, error) {
 	id := util.UUID().String()
 
 	l := t.Log().With().Str("id", id).Stringer("remote_address", addr).Logger()
@@ -326,16 +326,16 @@ func (t *Transport) QuicstreamHandler(_ context.Context, addr net.Addr, r io.Rea
 	if err != nil {
 		l.Trace().Err(err).Msg("failed to read")
 
-		return errors.WithStack(err)
+		return ctx, errors.WithStack(err)
 	}
 
 	if err := t.receiveRaw(id, b, addr); err != nil {
 		l.Trace().Err(err).Msg("invalid message received")
 
-		return err
+		return ctx, err
 	}
 
-	return nil
+	return ctx, nil
 }
 
 func (t *Transport) receivePacket(b []byte, raddr net.Addr) {

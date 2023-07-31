@@ -17,14 +17,14 @@ type Handler[T RequestHeader] func(
 	net.Addr,
 	*HandlerBroker,
 	T,
-) error
+) (context.Context, error)
 
 type ErrorHandler func(
 	context.Context,
 	net.Addr,
 	*HandlerBroker,
 	error,
-) error
+) (context.Context, error)
 
 func NewHandler[T RequestHeader](
 	encs *encoder.Encoders,
@@ -39,12 +39,12 @@ func NewHandler[T RequestHeader](
 	if errhandler == nil {
 		errhandler = func( //revive:disable-line:modifies-parameter
 			ctx context.Context, _ net.Addr, broker *HandlerBroker, err error,
-		) error {
-			return broker.WriteResponseHeadOK(ctx, false, err)
+		) (context.Context, error) {
+			return ctx, broker.WriteResponseHeadOK(ctx, false, err)
 		}
 	}
 
-	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) error {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		if timeout := timeoutf(); timeout > 0 {
 			var cancel func()
 
@@ -57,14 +57,16 @@ func NewHandler[T RequestHeader](
 			_ = broker.Close()
 		}()
 
-		if err := baseHandler[T](ctx, addr, broker, handler); err != nil {
-			nctx := ctx
+		switch nctx, err := baseHandler[T](ctx, addr, broker, handler); {
+		case err == nil:
+			return nctx, nil
+		default:
 			timeout := timeoutf()
 
 			switch {
 			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 				if timeout < 1 {
-					return err
+					return nctx, err
 				}
 
 				var cancel func()
@@ -73,27 +75,25 @@ func NewHandler[T RequestHeader](
 				defer cancel()
 			}
 
-			return util.AwareContext(nctx, func(ctx context.Context) error {
+			return util.AwareContextValue(nctx, func(ctx context.Context) (context.Context, error) {
 				return errhandler(ctx, addr, broker, err)
 			})
 		}
-
-		return nil
 	}
 }
 
-func baseHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) error {
-	return util.AwareContext(ctx, func(ctx context.Context) error {
+func baseHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) (context.Context, error) {
+	return util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
 		req, err := broker.ReadRequestHead(ctx)
 		if err != nil {
-			return err
+			return ctx, err
 		}
 
 		header, ok := req.(T)
 		if !ok {
 			var t T
 
-			return errors.Errorf("expected %T, but %T", t, req)
+			return ctx, errors.Errorf("expected %T, but %T", t, req)
 		}
 
 		return handler(ctx, addr, broker, header)

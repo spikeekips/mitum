@@ -199,7 +199,9 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 	var errcode quic.StreamErrorCode
 
 	if err := util.AwareContext(sctx, func(context.Context) error {
-		return srv.handler(sctx, remoteAddr, stream, stream)
+		_, err := srv.handler(sctx, remoteAddr, stream, stream)
+
+		return err
 	}); err != nil {
 		if errors.Is(err, context.Canceled) {
 			errcode = 0x401

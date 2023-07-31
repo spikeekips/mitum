@@ -201,12 +201,12 @@ func (t *testConnectionPool) TestClean() {
 		t.NoError(err)
 		defer p.Stop()
 
-		_, ci, deferred := t.prepareServer(nil, func(_ context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) error {
+		_, ci, deferred := t.prepareServer(nil, func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 			if _, err := io.ReadAll(r); err != nil {
-				return err
+				return ctx, err
 			}
 
-			return errors.Errorf("hihihi")
+			return ctx, errors.Errorf("hihihi")
 		})
 		defer deferred()
 
