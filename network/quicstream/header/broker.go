@@ -43,6 +43,26 @@ func NewDialFunc(
 	}
 }
 
+type ReadBodyBroker interface {
+	ReadBody(context.Context) (
+		bodyType BodyType,
+		bodyLength uint64,
+		body io.Reader, // NOTE response data body
+		enc encoder.Encoder,
+		res ResponseHeader,
+		_ error,
+	)
+}
+
+type WriteBodyBroker interface {
+	WriteBody(
+		ctx context.Context,
+		bodyType BodyType,
+		bodyLength uint64,
+		body io.Reader,
+	) error
+}
+
 type ClientBroker struct {
 	*baseBroker
 }

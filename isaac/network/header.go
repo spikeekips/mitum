@@ -385,14 +385,22 @@ func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 }
 
 type NodeChallengeRequestHeader struct {
+	me    base.Address
+	mePub base.Publickey
 	input []byte
 	baseHeader
 }
 
-func NewNodeChallengeRequestHeader(input []byte) NodeChallengeRequestHeader {
+func NewNodeChallengeRequestHeader(
+	input []byte,
+	me base.Address,
+	mePub base.Publickey,
+) NodeChallengeRequestHeader {
 	return NodeChallengeRequestHeader{
 		baseHeader: newBaseHeader(NodeChallengeRequestHeaderHint),
 		input:      input,
+		me:         me,
+		mePub:      mePub,
 	}
 }
 
@@ -407,11 +415,29 @@ func (h NodeChallengeRequestHeader) IsValid([]byte) error {
 		return e.Errorf("empty input")
 	}
 
+	switch {
+	case h.me == nil && h.mePub == nil:
+	case h.me == nil || h.mePub == nil:
+		return e.Errorf("me or me pub missing")
+	default:
+		if err := util.CheckIsValiders(nil, true, h.me, h.mePub); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
 func (h NodeChallengeRequestHeader) Input() []byte {
 	return h.input
+}
+
+func (h NodeChallengeRequestHeader) Me() base.Address {
+	return h.me
+}
+
+func (h NodeChallengeRequestHeader) MePublickey() base.Publickey {
+	return h.mePub
 }
 
 type SuffrageNodeConnInfoRequestHeader struct {

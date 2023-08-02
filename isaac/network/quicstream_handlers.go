@@ -20,6 +20,11 @@ import (
 
 var ErrNoMoreNext = util.NewIDError("no more next")
 
+var (
+	ContextKeyNodeChallengedNode = util.ContextKey("node-challenge-node")
+	ContextKeyNodeChallengedAddr = util.ContextKey("node-challenge-addr")
+)
+
 func QuicstreamHandlerOperation(
 	oppool isaac.NewOperationPool,
 	getFromHandoverX func(context.Context, OperationRequestHeader) (
@@ -411,25 +416,95 @@ func QuicstreamHandlerNodeChallenge(
 	networkID base.NetworkID,
 	local base.LocalNode,
 ) quicstreamheader.Handler[NodeChallengeRequestHeader] {
+	return quicstreamHandlerNodeChallenge(
+		networkID, local,
+		func(input []byte) (base.Signature, error) {
+			return local.Privatekey().Sign(util.ConcatBytesSlice(
+				local.Address().Bytes(),
+				networkID,
+				input,
+			))
+		},
+	)
+}
+
+func quicstreamHandlerNodeChallenge(
+	networkID base.NetworkID,
+	local base.LocalNode,
+	signf func([]byte) (base.Signature, error),
+) quicstreamheader.Handler[NodeChallengeRequestHeader] {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader,
 	) (context.Context, error) {
 		e := util.StringError("handle NodeChallenge")
 
-		sig, err := local.Privatekey().Sign(util.ConcatBytesSlice(
-			local.Address().Bytes(),
-			networkID,
-			header.Input(),
-		))
+		// verify node
+		if signf == nil {
+			signf = func(input []byte) (base.Signature, error) { //revive:disable-line:modifies-parameter
+				return local.Privatekey().Sign(util.ConcatBytesSlice(
+					local.Address().Bytes(),
+					networkID,
+					input,
+				))
+			}
+		}
+
+		sig, err := signf(header.Input())
 		if err != nil {
 			return ctx, e.Wrap(err)
 		}
 
-		if err := writeResponseStreamEncode(ctx, broker, true, nil, sig); err != nil {
+		if err := writeBytes(ctx, broker, quicstreamheader.FixedLengthBodyType, sig); err != nil {
 			return ctx, e.Wrap(err)
 		}
 
-		return ctx, nil
+		ctx = context.WithValue(ctx, ContextKeyNodeChallengedAddr, addr)
+
+		// verify client
+		if header.Me() == nil {
+			return ctx, e.Wrap(broker.WriteResponseHeadOK(ctx, true, nil))
+		}
+
+		input := util.UUID().Bytes()
+		if err := writeBytes(ctx, broker, quicstreamheader.FixedLengthBodyType, input); err != nil {
+			return ctx, e.Wrap(err)
+		}
+
+		var body io.Reader
+
+		switch bodyType, bodyLength, i, err := broker.ReadBodyErr(ctx); {
+		case err != nil:
+			return ctx, e.WithMessage(err, "me signature")
+		case bodyType == quicstreamheader.EmptyBodyType:
+			return ctx, e.Errorf("empty me signature")
+		case bodyType == quicstreamheader.FixedLengthBodyType:
+			if bodyLength < 1 {
+				return ctx, e.Errorf("empty me signature")
+			}
+
+			body = i
+		case bodyType == quicstreamheader.StreamBodyType:
+			body = i
+		default:
+			return ctx, e.Errorf("me signature; unknown body type, %d", bodyType)
+		}
+
+		switch sig, err := io.ReadAll(body); {
+		case err != nil:
+			return ctx, e.WithMessage(err, "me signature body")
+		default:
+			if rerr := header.MePublickey().Verify(util.ConcatBytesSlice(
+				header.Me().Bytes(),
+				networkID,
+				input,
+			), sig); rerr != nil {
+				return ctx, e.WithMessage(rerr, "me signature")
+			}
+
+			ctx = context.WithValue(ctx, ContextKeyNodeChallengedNode, header.Me())
+		}
+
+		return ctx, e.Wrap(broker.WriteResponseHeadOK(ctx, true, nil))
 	}
 }
 
@@ -819,10 +894,7 @@ func quicstreamHandlerVerifyNode(
 ) error {
 	input := util.UUID().Bytes()
 
-	buf := bytes.NewBuffer(input)
-	defer buf.Reset()
-
-	if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
+	if err := writeBytes(ctx, broker, quicstreamheader.FixedLengthBodyType, input); err != nil {
 		return err
 	}
 

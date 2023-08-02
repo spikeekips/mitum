@@ -43,7 +43,9 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	}
 }
 
-func (h *PrefixHandler) Handler(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
+func (h *PrefixHandler) Handler(
+	ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser,
+) (context.Context, error) {
 	handler, err := h.loadHandler(r)
 	if err != nil {
 		return h.errorHandler(ctx, addr, r, w, err)

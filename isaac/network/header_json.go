@@ -350,7 +350,9 @@ func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
 }
 
 type NodeChallengeRequestHeaderJSONMarshaler struct {
-	Input []byte `json:"input"`
+	Me          base.Address   `json:"me,omitempty"`
+	MePublickey base.Publickey `json:"me_publickey,omitempty"`
+	Input       []byte         `json:"input"`
 }
 
 func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
@@ -360,17 +362,39 @@ func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
 	}{
 		BaseRequestHeader: h.BaseRequestHeader,
 		NodeChallengeRequestHeaderJSONMarshaler: NodeChallengeRequestHeaderJSONMarshaler{
-			Input: h.input,
+			Input:       h.input,
+			Me:          h.me,
+			MePublickey: h.mePub,
 		},
 	})
 }
 
-func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
+type NodeChallengeRequestHeaderJSONUnmarshaler struct {
+	Me          string `json:"me,omitempty"`
+	MePublickey string `json:"me_publickey,omitempty"`
+	Input       []byte `json:"input"`
+}
+
+func (h *NodeChallengeRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringError("unmarshal NodeChallengeHeader")
-	var u NodeChallengeRequestHeaderJSONMarshaler
+	var u NodeChallengeRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)
+	}
+
+	switch i, err := base.DecodeAddress(u.Me, enc); {
+	case err != nil:
+		return e.WithMessage(err, "me")
+	default:
+		h.me = i
+	}
+
+	switch i, err := base.DecodePublickeyFromString(u.MePublickey, enc); {
+	case err != nil:
+		return e.WithMessage(err, "me pub")
+	default:
+		h.mePub = i
 	}
 
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {

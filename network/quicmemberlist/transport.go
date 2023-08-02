@@ -317,7 +317,9 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 	return nil
 }
 
-func (t *Transport) QuicstreamHandler(ctx context.Context, addr net.Addr, r io.Reader, _ io.WriteCloser) (context.Context, error) {
+func (t *Transport) QuicstreamHandler(
+	ctx context.Context, addr net.Addr, r io.Reader, _ io.WriteCloser,
+) (context.Context, error) {
 	id := util.UUID().String()
 
 	l := t.Log().With().Str("id", id).Stringer("remote_address", addr).Logger()

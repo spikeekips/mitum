@@ -96,14 +96,14 @@ type SyncSourceChecker struct {
 	callback        func([]isaac.NodeConnInfo, error)
 	requestTimeoutf func() time.Duration
 	sourceslocked   *util.Locked[[]SyncSource]
-	local           base.Node
+	local           base.LocalNode
 	networkID       base.NetworkID
 	interval        time.Duration
 	sync.Mutex
 }
 
 func NewSyncSourceChecker(
-	local base.Node,
+	local base.LocalNode,
 	networkID base.NetworkID,
 	client isaac.NetworkClient,
 	interval time.Duration,
@@ -419,7 +419,9 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 	defer cancel()
 
 	switch _, err := c.client.NodeChallenge(
-		cctx, nci.ConnInfo(), c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
+		cctx, nci.ConnInfo(), c.networkID, nci.Address(), nci.Publickey(),
+		util.UUID().Bytes(), c.local,
+	); {
 	case err == nil:
 		return nil
 	case errors.Is(err, base.ErrSignatureVerification):

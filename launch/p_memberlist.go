@@ -526,10 +526,12 @@ func nodeChallengeFunc(pctx context.Context) (
 	func(quicmemberlist.Member) error,
 	error,
 ) {
+	var local base.LocalNode
 	var params *LocalParams
 	var client *isaacnetwork.BaseClient
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
@@ -552,7 +554,9 @@ func nodeChallengeFunc(pctx context.Context) (
 			defer cancel()
 
 			return client.NodeChallenge(
-				ctx, node.ConnInfo(), params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
+				ctx, node.ConnInfo(), params.ISAAC.NetworkID(),
+				node.Address(), node.Publickey(), input, local,
+			)
 		}()
 		if err != nil {
 			return err
@@ -563,8 +567,10 @@ func nodeChallengeFunc(pctx context.Context) (
 			ctx, cancel := context.WithTimeout(context.Background(), params.Network.TimeoutRequest())
 			defer cancel()
 
-			psig, err := client.NodeChallenge(ctx, ci,
-				params.ISAAC.NetworkID(), node.Address(), node.Publickey(), input)
+			psig, err := client.NodeChallenge(
+				ctx, ci, params.ISAAC.NetworkID(),
+				node.Address(), node.Publickey(), input, local,
+			)
 			if err != nil {
 				return err
 			}

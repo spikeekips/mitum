@@ -446,48 +446,20 @@ func (c *BaseClient) NodeChallenge(
 	ci quicstream.ConnInfo,
 	networkID base.NetworkID,
 	node base.Address,
-	pub base.Publickey,
+	nodePublickey base.Publickey,
 	input []byte,
+	me base.LocalNode,
 ) (sig base.Signature, _ error) {
-	e := util.StringError("NodeChallenge")
-
-	header := NewNodeChallengeRequestHeader(input)
-	if err := header.IsValid(nil); err != nil {
-		return nil, e.Wrap(err)
-	}
-
-	streamer, err := c.dial(ctx, ci)
-	if err != nil {
-		return nil, e.Wrap(err)
-	}
-
-	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		switch ok, rerr := HCReqResBodyDecOK(
-			ctx,
-			broker,
-			header,
-			func(enc encoder.Encoder, r io.Reader) error {
-				return enc.StreamDecoder(r).Decode(&sig)
-			},
-		); {
-		case rerr != nil:
-			return rerr
-		case !ok:
-			return e.Errorf("empty")
-		default:
-			if rerr := pub.Verify(util.ConcatBytesSlice(
-				node.Bytes(),
+	return c.nodeChallenge(
+		ctx, ci, networkID, node, nodePublickey, input, me,
+		func(input []byte) (base.Signature, error) {
+			return me.Privatekey().Sign(util.ConcatBytesSlice(
+				me.Address().Bytes(),
 				networkID,
 				input,
-			), sig); rerr != nil {
-				return rerr
-			}
-
-			return nil
-		}
-	})
-
-	return sig, e.Wrap(err)
+			))
+		},
+	)
 }
 
 func (c *BaseClient) SuffrageNodeConnInfo(
@@ -916,6 +888,155 @@ func (c *BaseClient) requestProposal(
 	return pr, found, err
 }
 
+func (c *BaseClient) nodeChallenge(
+	ctx context.Context,
+	ci quicstream.ConnInfo,
+	networkID base.NetworkID,
+	node base.Address,
+	nodePublickey base.Publickey,
+	input []byte,
+	me base.LocalNode,
+	signf func([]byte) (base.Signature, error),
+) (sig base.Signature, _ error) {
+	e := util.StringError("NodeChallenge")
+
+	var header NodeChallengeRequestHeader
+
+	switch {
+	case me == nil:
+		header = NewNodeChallengeRequestHeader(input, nil, nil)
+	default:
+		header = NewNodeChallengeRequestHeader(input, me.Address(), me.Publickey())
+	}
+
+	if err := header.IsValid(nil); err != nil {
+		return nil, e.Wrap(err)
+	}
+
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return nil, e.Wrap(err)
+	}
+
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch i, nerr := c.nodeChallengeVerifyNode(ctx, broker, networkID, node, nodePublickey, header); {
+		case nerr != nil:
+			return e.WithMessage(nerr, "node")
+		default:
+			sig = i
+		}
+
+		if header.Me() == nil {
+			return nil
+		}
+
+		if merr := c.nodeChallengeVerifyMe(ctx, broker, networkID, me, signf); merr != nil {
+			return e.WithMessage(merr, "me")
+		}
+
+		return nil
+	})
+
+	return sig, e.Wrap(err)
+}
+
+func (*BaseClient) nodeChallengeVerifyNode(
+	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
+	networkID base.NetworkID,
+	node base.Address,
+	nodePublickey base.Publickey,
+	header NodeChallengeRequestHeader,
+) (sig base.Signature, _ error) {
+	// verify node
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
+		return sig, errors.Wrap(err, "write header")
+	}
+
+	switch bodyType, _, body, _, res, err := ReadBodyNotEmpty(ctx, broker); {
+	case err != nil:
+		return sig, errors.WithStack(err)
+	case res != nil:
+		return sig, errors.WithStack(res.Err())
+	case
+		bodyType == quicstreamheader.FixedLengthBodyType,
+		bodyType == quicstreamheader.StreamBodyType:
+		switch i, err := io.ReadAll(body); {
+		case err != nil:
+			return sig, errors.WithStack(err)
+		default:
+			sig = base.Signature(i)
+			if err := nodePublickey.Verify(util.ConcatBytesSlice(
+				node.Bytes(),
+				networkID,
+				header.Input(),
+			), sig); err != nil {
+				return sig, errors.WithStack(err)
+			}
+
+			return sig, nil
+		}
+	default:
+		return sig, errors.Errorf("node signature; unknown body type, %d", bodyType)
+	}
+}
+
+func (*BaseClient) nodeChallengeVerifyMe(
+	ctx context.Context,
+	broker *quicstreamheader.ClientBroker,
+	networkID base.NetworkID,
+	me base.LocalNode,
+	signf func([]byte) (base.Signature, error),
+) error {
+	// verify me
+	var inputbody io.Reader
+
+	switch bodyType, _, i, _, res, err := ReadBodyNotEmpty(ctx, broker); {
+	case err != nil:
+		return errors.WithStack(err)
+	case res != nil:
+		return errors.WithStack(res.Err())
+	case bodyType == quicstreamheader.FixedLengthBodyType,
+		bodyType == quicstreamheader.StreamBodyType:
+		inputbody = i
+	default:
+		return errors.Errorf("input; unknown body type, %d", bodyType)
+	}
+
+	switch input, err := io.ReadAll(inputbody); {
+	case err != nil:
+		return errors.WithStack(err)
+	default:
+		if signf == nil {
+			signf = func(input []byte) (base.Signature, error) { //revive:disable-line:modifies-parameter
+				return me.Privatekey().Sign(util.ConcatBytesSlice(
+					me.Address().Bytes(),
+					networkID,
+					input,
+				))
+			}
+		}
+
+		sig, err := signf(input)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err := writeBytes(ctx, broker, quicstreamheader.StreamBodyType, sig); err != nil {
+			return errors.WithStack(err)
+		}
+
+		switch _, h, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		case h.Err() != nil:
+			return h.Err()
+		default:
+			return nil
+		}
+	}
+}
+
 func hcReqResOK(
 	ctx context.Context,
 	broker *quicstreamheader.ClientBroker,
@@ -1034,6 +1155,18 @@ func hcReqRes(
 	return enc, res, err
 }
 
+func writeBytes(
+	ctx context.Context,
+	broker quicstreamheader.WriteBodyBroker,
+	bodyType quicstreamheader.BodyType,
+	b []byte,
+) error {
+	buf := bytes.NewBuffer(b)
+	defer buf.Reset()
+
+	return broker.WriteBody(ctx, bodyType, uint64(len(b)), buf)
+}
+
 func brokerPipeEncode(
 	ctx context.Context,
 	broker *quicstreamheader.ClientBroker,
@@ -1101,9 +1234,7 @@ func VerifyNode(
 	case err != nil:
 		return errors.WithMessage(err, "sign input")
 	default:
-		buf := bytes.NewBuffer(sig)
-
-		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
+		if err := writeBytes(ctx, broker, quicstreamheader.FixedLengthBodyType, sig); err != nil {
 			return errors.WithMessage(err, "write signature")
 		}
 
@@ -1123,4 +1254,33 @@ func VerifyNodeWithResponse(
 	}
 
 	return broker.ReadResponseHead(ctx)
+}
+
+func ReadBodyNotEmpty(ctx context.Context, broker quicstreamheader.ReadBodyBroker) (
+	bodyType quicstreamheader.BodyType,
+	bodyLength uint64,
+	body io.Reader, // NOTE response data body
+	enc encoder.Encoder,
+	res quicstreamheader.ResponseHeader,
+	_ error,
+) {
+	bodyType, bodyLength, body, enc, res, err := broker.ReadBody(ctx)
+
+	var empty bool
+
+	switch {
+	case err != nil:
+		return bodyType, bodyLength, body, enc, res, err
+	case res != nil:
+	case bodyType == quicstreamheader.EmptyBodyType:
+		empty = true
+	case bodyType == quicstreamheader.FixedLengthBodyType && bodyLength < 1:
+		empty = true
+	}
+
+	if empty {
+		return bodyType, bodyLength, nil, enc, res, errors.Errorf("empty body")
+	}
+
+	return bodyType, bodyLength, body, enc, res, nil
 }

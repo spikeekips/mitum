@@ -82,7 +82,9 @@ func NewHandler[T RequestHeader](
 	}
 }
 
-func baseHandler[T RequestHeader](ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T]) (context.Context, error) {
+func baseHandler[T RequestHeader](
+	ctx context.Context, addr net.Addr, broker *HandlerBroker, handler Handler[T],
+) (context.Context, error) {
 	return util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
 		req, err := broker.ReadRequestHead(ctx)
 		if err != nil {
