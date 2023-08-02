@@ -36,6 +36,29 @@ func (t *testRateLimiter) TestAllow() {
 	t.True(l.Allow())
 }
 
+func (t *testRateLimiter) TestNoLimit() {
+	t.Run("limit all", func() {
+		l := NewRateLimiter(0, 3, "")
+		for range make([]int, 3) {
+			t.False(l.Allow())
+		}
+	})
+
+	t.Run("zero burst, limit all", func() {
+		l := NewRateLimiter(rate.Every(time.Second), 0, "")
+		for range make([]int, 3) {
+			t.False(l.Allow())
+		}
+	})
+
+	t.Run("no limit", func() {
+		l := NewRateLimiter(rate.Inf, 3, "")
+		for range make([]int, 3) {
+			t.True(l.Allow())
+		}
+	})
+}
+
 func TestRateLimiter(t *testing.T) {
 	suite.Run(t, new(testRateLimiter))
 }

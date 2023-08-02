@@ -28,15 +28,28 @@ type RateLimiter struct {
 	*rate.Limiter
 	updatedAt time.Time
 	checksum  string
+	nolimit   bool
 	sync.RWMutex
 }
 
+// NewRateLimiter make new *RateLimiter;
+// - if limit is zero or burst is zero, all event will be rejected
+// - if limit is rate.Inf, no limit
 func NewRateLimiter(limit rate.Limit, burst int, checksum string) *RateLimiter {
-	return &RateLimiter{
-		Limiter:   rate.NewLimiter(limit, burst),
+	r := &RateLimiter{
 		updatedAt: time.Now(),
 		checksum:  checksum,
 	}
+
+	switch {
+	case limit < 1, burst < 1:
+	case limit == rate.Inf:
+		r.nolimit = true
+	default:
+		r.Limiter = rate.NewLimiter(limit, burst)
+	}
+
+	return r
 }
 
 func (r *RateLimiter) Checksum() string {
@@ -58,7 +71,17 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 	defer r.Unlock()
 
 	if r.Limit() != limit || r.Burst() != burst {
-		r.Limiter = rate.NewLimiter(limit, burst)
+		switch {
+		case limit < 1, burst < 1:
+			r.nolimit = false
+			r.Limiter = nil
+		case limit == rate.Inf:
+			r.nolimit = true
+			r.Limiter = nil
+		default:
+			r.nolimit = false
+			r.Limiter = rate.NewLimiter(limit, burst)
+		}
 	}
 
 	if r.checksum != checksum {
@@ -68,6 +91,17 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 	r.updatedAt = time.Now()
 
 	return r
+}
+
+func (r *RateLimiter) Allow() bool {
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.Limiter == nil {
+		return r.nolimit
+	}
+
+	return r.Limiter.Allow()
 }
 
 type RateLimitHandlerArgs struct {
