@@ -20,10 +20,7 @@ import (
 
 var ErrNoMoreNext = util.NewIDError("no more next")
 
-var (
-	ContextKeyNodeChallengedNode = util.ContextKey("node-challenge-node")
-	ContextKeyNodeChallengedAddr = util.ContextKey("node-challenge-addr")
-)
+var ContextKeyNodeChallengedNode = util.ContextKey("node-challenge-node")
 
 func QuicstreamHandlerOperation(
 	oppool isaac.NewOperationPool,
@@ -457,8 +454,6 @@ func quicstreamHandlerNodeChallenge(
 		if err := writeBytes(ctx, broker, quicstreamheader.FixedLengthBodyType, sig); err != nil {
 			return ctx, e.Wrap(err)
 		}
-
-		ctx = context.WithValue(ctx, ContextKeyNodeChallengedAddr, addr)
 
 		// verify client
 		if header.Me() == nil {

@@ -1685,7 +1685,7 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	}
 
 	t.Run("me", func() {
-		remoteaddr, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1703,11 +1703,10 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 		nctx := <-ctxch
 		t.NotNil(nctx)
 		t.True(remote.Address().Equal(nctx.Value(ContextKeyNodeChallengedNode).(base.Address)))
-		t.Equal(remoteaddr.String(), nctx.Value(ContextKeyNodeChallengedAddr).(net.Addr).String())
 	})
 
 	t.Run("without me", func() {
-		remoteaddr, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1725,7 +1724,6 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 		nctx := <-ctxch
 		t.NotNil(nctx)
 		t.Nil(nctx.Value(ContextKeyNodeChallengedNode))
-		t.Equal(remoteaddr.String(), nctx.Value(ContextKeyNodeChallengedAddr).(net.Addr).String())
 	})
 
 	t.Run("me sign failed", func() {
