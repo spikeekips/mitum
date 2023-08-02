@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/time/rate"
@@ -129,16 +130,20 @@ func (r *RateLimitHandler) HandlerFunc(handlerPrefix string, handler quicstream.
 			return ctx, ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", handlerPrefix, l.Limit(), l.Burst())
 		}
 
-		return handler(ctx, addr, ir, iw)
+		nctx, err := handler(ctx, addr, ir, iw)
+
+		if nctx != nil {
+			if node, ok := nctx.Value(isaacnetwork.ContextKeyNodeChallengedNode).(base.Address); ok {
+				_ = r.AddNode(addr, node)
+			}
+		}
+
+		return nctx, err
 	}
 }
 
 func (r *RateLimitHandler) AddNode(addr net.Addr, node base.Address) bool {
 	return r.pool.addNode(addr.String(), node)
-}
-
-func (r *RateLimitHandler) RemoveNode(node base.Address) bool {
-	return r.pool.removeNode(node)
 }
 
 func (r *RateLimitHandler) Rules() *RateLimiterRules {
@@ -553,10 +558,9 @@ func (rs *SuffrageRateLimiterRuleSet) rule(i interface{}, handler string) (rule 
 
 type addrPool struct {
 	l              *util.ShardedMap[string, util.LockedMap[string, *RateLimiter]]
-	addrNodes      *util.ShardedMap[string, base.Address]
-	nodesAddr      *util.ShardedMap[string, string]
+	addrs          *util.ShardedMap[string, base.Address]
 	lastAccessedAt *util.ShardedMap[string, time.Time]
-	addrsHistory   *rateLimitAddrsHistory
+	addrsQueue     *rateLimitAddrsQueue
 }
 
 func newAddrPool(poolsize []uint64) (*addrPool, error) {
@@ -570,12 +574,7 @@ func newAddrPool(poolsize []uint64) (*addrPool, error) {
 		return nil, err
 	}
 
-	addrNodes, err := util.NewDeepShardedMap[string, base.Address](poolsize, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	nodesAddr, err := util.NewDeepShardedMap[string, string](poolsize, nil)
+	addrs, err := util.NewDeepShardedMap[string, base.Address](poolsize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -587,10 +586,9 @@ func newAddrPool(poolsize []uint64) (*addrPool, error) {
 
 	return &addrPool{
 		l:              l,
-		addrNodes:      addrNodes,
-		nodesAddr:      nodesAddr,
+		addrs:          addrs,
 		lastAccessedAt: lastAccessedAt,
-		addrsHistory:   newRateLimitAddrsHistory(),
+		addrsQueue:     newRateLimitAddrsQueue(),
 	}, nil
 }
 
@@ -602,12 +600,11 @@ func (p *addrPool) addNode(addr string, node base.Address) bool {
 			return nil
 		}
 
-		_, created, _ = p.addrNodes.Set(addr, func(_ base.Address, found bool) (base.Address, error) {
+		_, created, _ = p.addrs.Set(addr, func(_ base.Address, found bool) (base.Address, error) {
 			if found {
 				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 
-			_ = p.nodesAddr.SetValue(node.String(), addr)
 			_ = p.lastAccessedAt.SetValue(addr, time.Now())
 
 			return node, nil
@@ -636,10 +633,10 @@ func (p *addrPool) rateLimiter(
 			if i.Len() < 1 {
 				created = true
 
-				p.addrsHistory.Add(addr)
+				p.addrsQueue.Add(addr)
 			}
 
-			node, _ := p.addrNodes.Value(addr)
+			node, _ := p.addrs.Value(addr)
 
 			l, _, _ = i.Set(
 				handler,
@@ -662,27 +659,13 @@ func (p *addrPool) remove(addr string) bool {
 	removed, _ := p.l.Remove(addr, func(util.LockedMap[string, *RateLimiter], bool) error {
 		_ = p.lastAccessedAt.RemoveValue(addr)
 
-		if node, found := p.addrNodes.Value(addr); found {
-			_ = p.nodesAddr.RemoveValue(node.String())
-		}
-
-		_ = p.addrNodes.RemoveValue(addr)
-
-		_ = p.addrsHistory.Remove(addr)
+		_ = p.addrs.RemoveValue(addr)
+		_ = p.addrsQueue.Remove(addr)
 
 		return nil
 	})
 
 	return removed
-}
-
-func (p *addrPool) removeNode(node base.Address) bool {
-	switch addr, found := p.nodesAddr.Value(node.String()); {
-	case !found:
-		return false
-	default:
-		return p.remove(addr)
-	}
 }
 
 func (p *addrPool) shrink(ctx context.Context, expire time.Time, maxAddrs uint64) (removed uint64) {
@@ -710,37 +693,16 @@ func (p *addrPool) shrink(ctx context.Context, expire time.Time, maxAddrs uint64
 		},
 	)
 
-	// NOTE remove orphan node
-	_ = p.nodesAddr.TraverseMap(func(m util.LockedMap[string, string]) bool {
-		return util.AwareContext(ctx, func(context.Context) error {
-			var addrs []string
-			m.Traverse(func(_, addr string) bool {
-				addrs = append(addrs, addr)
-				return true
-			})
-
-			for i := range addrs {
-				addr := addrs[i]
-				if !p.l.Exists(addr) {
-					_ = p.remove(addr)
-					removed++
-				}
-			}
-
-			return nil
-		}) == nil
-	})
-
-	removed += p.shrinkAddrsHistory(maxAddrs)
+	removed += p.shrinkAddrsQueue(maxAddrs)
 
 	return removed
 }
 
-func (p *addrPool) shrinkAddrsHistory(maxAddrs uint64) uint64 {
+func (p *addrPool) shrinkAddrsQueue(maxAddrs uint64) uint64 {
 	var removed uint64
 
-	for uint64(p.addrsHistory.Len()) > maxAddrs {
-		switch addr := p.addrsHistory.Pop(); {
+	for uint64(p.addrsQueue.Len()) > maxAddrs {
+		switch addr := p.addrsQueue.Pop(); {
 		case len(addr) < 1:
 			continue
 		default:
@@ -753,27 +715,27 @@ func (p *addrPool) shrinkAddrsHistory(maxAddrs uint64) uint64 {
 	return removed
 }
 
-type rateLimitAddrsHistory struct {
+type rateLimitAddrsQueue struct {
 	l *list.List
 	m map[string]*list.Element
 	sync.RWMutex
 }
 
-func newRateLimitAddrsHistory() *rateLimitAddrsHistory {
-	return &rateLimitAddrsHistory{
+func newRateLimitAddrsQueue() *rateLimitAddrsQueue {
+	return &rateLimitAddrsQueue{
 		l: list.New(),
 		m: map[string]*list.Element{},
 	}
 }
 
-func (h *rateLimitAddrsHistory) Len() int {
+func (h *rateLimitAddrsQueue) Len() int {
 	h.RLock()
 	defer h.RUnlock()
 
 	return h.l.Len()
 }
 
-func (h *rateLimitAddrsHistory) Add(addr string) {
+func (h *rateLimitAddrsQueue) Add(addr string) {
 	h.Lock()
 	defer h.Unlock()
 
@@ -784,7 +746,7 @@ func (h *rateLimitAddrsHistory) Add(addr string) {
 	h.m[addr] = h.l.PushBack(addr)
 }
 
-func (h *rateLimitAddrsHistory) Remove(addr string) bool {
+func (h *rateLimitAddrsQueue) Remove(addr string) bool {
 	h.Lock()
 	defer h.Unlock()
 
@@ -799,7 +761,7 @@ func (h *rateLimitAddrsHistory) Remove(addr string) bool {
 	}
 }
 
-func (h *rateLimitAddrsHistory) Pop() string {
+func (h *rateLimitAddrsQueue) Pop() string {
 	h.Lock()
 	defer h.Unlock()
 

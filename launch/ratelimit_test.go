@@ -452,9 +452,9 @@ func (t *testRateLimitHandler) TestMaxAddr() {
 		_, allowed := h.allow(addr, util.UUID().String())
 		t.True(allowed)
 
-		removed := h.pool.shrinkAddrsHistory(args.MaxAddrs)
+		removed := h.pool.shrinkAddrsQueue(args.MaxAddrs)
 
-		t.T().Logf("history=%d removed=%d", h.pool.addrsHistory.Len(), removed)
+		t.T().Logf("queue=%d removed=%d", h.pool.addrsQueue.Len(), removed)
 
 		prevs[i] = addr.String()
 	}
@@ -464,12 +464,12 @@ func (t *testRateLimitHandler) TestMaxAddr() {
 			_, allowed := h.allow(quicstream.RandomUDPAddr(), util.UUID().String())
 			t.True(allowed)
 
-			removed := h.pool.shrinkAddrsHistory(args.MaxAddrs)
+			removed := h.pool.shrinkAddrsQueue(args.MaxAddrs)
 
-			t.T().Logf("history=%d removed=%d", h.pool.addrsHistory.Len(), removed)
+			t.T().Logf("queue=%d removed=%d", h.pool.addrsQueue.Len(), removed)
 
-			t.T().Log("history:", h.pool.addrsHistory.Len())
-			t.Equal(int(args.MaxAddrs), h.pool.addrsHistory.Len())
+			t.T().Log("queue:", h.pool.addrsQueue.Len())
+			t.Equal(int(args.MaxAddrs), h.pool.addrsQueue.Len())
 		}
 	})
 
@@ -478,7 +478,7 @@ func (t *testRateLimitHandler) TestMaxAddr() {
 			addr := prevs[i]
 
 			t.False(h.pool.l.Exists(addr), "l")
-			t.False(h.pool.addrNodes.Exists(addr), "addrNodes")
+			t.False(h.pool.addrs.Exists(addr), "addrNodes")
 			t.False(h.pool.lastAccessedAt.Exists(addr), "lastAccessedAt")
 		}
 	})
