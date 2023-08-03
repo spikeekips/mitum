@@ -21,6 +21,8 @@ var ErrHandlerNotFound = util.NewIDError("handler not found")
 
 var ZeroPrefix [32]byte
 
+var PrefixHandlerPrefixContextKey = util.ContextKey("prefix-handler-prefix")
+
 type PrefixHandler struct {
 	handlers     map[[32]byte]Handler
 	errorHandler ErrorHandler
@@ -46,17 +48,19 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 func (h *PrefixHandler) Handler(
 	ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser,
 ) (context.Context, error) {
-	handler, err := h.loadHandler(r)
+	prefix, handler, err := h.loadHandler(r)
 	if err != nil {
 		return h.errorHandler(ctx, addr, r, w, err)
 	}
 
-	nctx, err := handler(ctx, addr, r, w)
-	if err != nil {
-		return h.errorHandler(nctx, addr, r, w, err)
-	}
+	nctx := context.WithValue(ctx, PrefixHandlerPrefixContextKey, prefix)
 
-	return nctx, nil
+	switch i, err := handler(nctx, addr, r, w); {
+	case err != nil:
+		return h.errorHandler(i, addr, r, w, err)
+	default:
+		return i, nil
+	}
 }
 
 func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
@@ -72,14 +76,14 @@ func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
 	return h
 }
 
-func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
+func (h *PrefixHandler) loadHandler(r io.Reader) ([32]byte, Handler, error) {
 	e := util.StringError("load handler")
 
 	var prefix [32]byte
 
 	switch i, err := readPrefix(r); {
 	case err != nil:
-		return nil, e.Wrap(err)
+		return prefix, nil, e.Wrap(err)
 	default:
 		prefix = i
 	}
@@ -89,10 +93,10 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 
 	handler, found := h.handlers[prefix]
 	if !found {
-		return nil, e.Wrap(ErrHandlerNotFound.Errorf("handler not found"))
+		return prefix, nil, e.Wrap(ErrHandlerNotFound.Errorf("handler not found"))
 	}
 
-	return handler, nil
+	return prefix, handler, nil
 }
 
 func HashPrefix(s string) [32]byte {
