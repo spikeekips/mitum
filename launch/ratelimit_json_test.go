@@ -30,6 +30,8 @@ func TestRateLimiterRuleEncode(tt *testing.T) {
 		{name: "missing burst", a: "/3s", err: "burst"},
 		{name: "missing duration", a: "3/", err: "duration"},
 		{name: "missing sep", a: "33s", err: "invalid format"},
+		{name: "invalid second unit", a: "33/s", result: RateLimiterRule{Limit: rate.Every(time.Second), Burst: 33}},
+		{name: "invalid millisecond unit", a: "33/ms", result: RateLimiterRule{Limit: rate.Every(time.Millisecond), Burst: 33}},
 	}
 
 	for i, c := range cases {
@@ -71,19 +73,22 @@ func TestNetRateLimiterRuleSetEncode(tt *testing.T) {
 		rs.
 			Add(
 				newipnet(),
-				map[string]RateLimiterRule{
-					"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
-					"b": {Limit: rate.Inf, Burst: 0},
-					"c": {Limit: 0, Burst: 0},
-				},
+				NewRateLimiterRuleMap(
+					&RateLimiterRule{Limit: rate.Every(time.Second * 22), Burst: 11},
+					map[string]RateLimiterRule{
+						"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
+						"b": {Limit: rate.Inf, Burst: 0},
+						"c": {Limit: 0, Burst: 0},
+					},
+				),
 			).
 			Add(
 				newipnet(),
-				map[string]RateLimiterRule{
+				NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 					"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 					"e": {Limit: rate.Inf, Burst: 0},
 					"f": {Limit: 0, Burst: 0},
-				},
+				}),
 			)
 
 		b, err := enc.Marshal(rs)
@@ -117,10 +122,11 @@ func TestNetRateLimiterRuleSetEncode(tt *testing.T) {
 			am := ars.rules[i]
 			bm := brs.rules[i]
 
-			t.Equal(len(am), len(bm))
+			t.Equal(len(am.m), len(bm.m))
+			t.Equal(am.d, bm.d)
 
-			for j := range am {
-				t.Equal(am[j], bm[j])
+			for j := range am.m {
+				t.Equal(am.m[j], bm.m[j])
 			}
 		}
 	}
@@ -136,17 +142,17 @@ func TestNodeRateLimiterRuleSetEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		rs := NewNodeRateLimiterRuleSet(
-			map[string]map[string]RateLimiterRule{
-				base.RandomAddress("").String(): {
+			map[string]RateLimiterRuleMap{
+				base.RandomAddress("").String(): NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 					"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
 					"b": {Limit: rate.Inf, Burst: 0},
 					"c": {Limit: 0, Burst: 0},
-				},
-				base.RandomAddress("").String(): {
+				}),
+				base.RandomAddress("").String(): NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 					"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 					"e": {Limit: rate.Inf, Burst: 0},
 					"f": {Limit: 0, Burst: 0},
-				},
+				}),
 			},
 		)
 
@@ -176,10 +182,10 @@ func TestNodeRateLimiterRuleSetEncode(tt *testing.T) {
 			am := ars.rules[i]
 			bm := brs.rules[i]
 
-			t.Equal(len(am), len(bm))
+			t.Equal(len(am.m), len(bm.m))
 
-			for j := range am {
-				t.Equal(am[j], bm[j])
+			for j := range am.m {
+				t.Equal(am.m[j], bm.m[j])
 			}
 		}
 	}
@@ -195,15 +201,14 @@ func TestSuffrageRateLimiterRuleSetEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		rs := NewSuffrageRateLimiterRuleSet(
-			map[string]RateLimiterRule{
+			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
 				"b": {Limit: rate.Inf, Burst: 0},
 				"c": {Limit: 0, Burst: 0},
 				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 				"e": {Limit: rate.Inf, Burst: 0},
 				"f": {Limit: 0, Burst: 0},
-			},
-			RateLimiterRule{Limit: rate.Every(time.Second * 33), Burst: 44},
+			}),
 		)
 
 		b, err := enc.Marshal(rs)
@@ -227,9 +232,9 @@ func TestSuffrageRateLimiterRuleSetEncode(tt *testing.T) {
 		brs, ok := b.(*SuffrageRateLimiterRuleSet)
 		t.True(ok, "%T", b)
 
-		t.Equal(len(ars.rules), len(brs.rules))
-		for i := range ars.rules {
-			t.Equal(ars.rules[i], brs.rules[i])
+		t.Equal(len(ars.rules.m), len(brs.rules.m))
+		for i := range ars.rules.m {
+			t.Equal(ars.rules.m[i], brs.rules.m[i])
 		}
 	}
 

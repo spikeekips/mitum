@@ -19,6 +19,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 )
 
@@ -656,6 +657,21 @@ parameters:
     handler_timeout:
       request_proposal: 9s
       ask_handover: 12s
+    rate_limit:
+      default:
+        default: 33/s
+        proposal: 44/m
+      suffrage:
+        default: 333/s
+        state: 444/h
+      net:
+        - 192.168.0.0/24:
+            default: 3333/s
+            blockmap: 4444/h
+      node:
+        no0sas:
+          default: 33333/s
+          operation: 44444/ns
 `)
 
 		var a NodeDesign
@@ -695,6 +711,47 @@ parameters:
 		t.NoError(nw.SetHandlerTimeout("request_proposal", time.Second*9))
 		t.NoError(nw.SetHandlerTimeout("ask_handover", time.Second*12))
 		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
+
+		t.Run("rate limit", func() {
+			rm := a.LocalParams.Network.RateLimit().DefaultRuleMap()
+			t.Equal(rate.Every(time.Second), rm.d.Limit)
+			t.Equal(33, rm.d.Burst)
+			t.Equal(rate.Every(time.Minute), rm.m["proposal"].Limit)
+			t.Equal(44, rm.m["proposal"].Burst)
+
+			{
+				rs, ok := a.LocalParams.Network.RateLimit().SuffrageRuleSet().(*SuffrageRateLimiterRuleSet)
+				t.True(ok)
+				t.Equal(rate.Every(time.Second), rs.rules.d.Limit)
+				t.Equal(333, rs.rules.d.Burst)
+				t.Equal(rate.Every(time.Hour), rs.rules.m["state"].Limit)
+				t.Equal(444, rs.rules.m["state"].Burst)
+			}
+
+			{
+				rs, ok := a.LocalParams.Network.RateLimit().NetRuleSet().(NetRateLimiterRuleSet)
+				t.True(ok)
+				rs0, found := rs.rules["192.168.0.0/24"]
+				t.True(found)
+
+				t.Equal(rate.Every(time.Second), rs0.d.Limit)
+				t.Equal(3333, rs0.d.Burst)
+				t.Equal(rate.Every(time.Hour), rs0.m["blockmap"].Limit)
+				t.Equal(4444, rs0.m["blockmap"].Burst)
+			}
+
+			{
+				rs, ok := a.LocalParams.Network.RateLimit().NodeRuleSet().(NodeRateLimiterRuleSet)
+				t.True(ok)
+				rs0, found := rs.rules["no0sas"]
+				t.True(found)
+
+				t.Equal(rate.Every(time.Second), rs0.d.Limit)
+				t.Equal(33333, rs0.d.Burst)
+				t.Equal(rate.Every(time.Nanosecond), rs0.m["operation"].Limit)
+				t.Equal(44444, rs0.m["operation"].Burst)
+			}
+		})
 	})
 
 	t.Run("empty network", func() {
@@ -993,6 +1050,12 @@ parameters:
 		memberlistparams.SetTCPTimeout(time.Second * 6)
 		memberlistparams.SetUDPBufferSize(333)
 		equalMemberlistParams(t.Assert(), memberlistparams, a.LocalParams.Memberlist)
+
+		{
+			d := nw.RateLimit().DefaultRuleMap().d
+			t.Equal(defaultRateLimiter.Limit, d.Limit)
+			t.Equal(defaultRateLimiter.Burst, d.Burst)
+		}
 	})
 }
 
@@ -1342,6 +1405,32 @@ func (t *testNetworkParams) TestDecode() {
 
 		equalNetworkParams(t.Assert(), params, uparams)
 	})
+}
+
+func (t *testNetworkParams) TestInvalidRateLimitHandler() {
+	y := `
+default:
+  default: 33/s
+  proposal: 44/m
+suffrage:
+  default: 333/s
+  state: 444/h
+net:
+  - 192.168.0.0/24:
+      default: 3333/s
+      blockmap: 4444/h
+node:
+  no0sas:
+    default: 33333/s
+    operatio: 44444/ns
+`
+
+	var a *NetworkRateLimitParams
+	t.NoError(yaml.Unmarshal([]byte(y), &a))
+
+	err := a.IsValid(nil)
+	t.Error(err)
+	t.ErrorContains(err, "unknown network handler")
 }
 
 func TestNetworkParams(t *testing.T) {

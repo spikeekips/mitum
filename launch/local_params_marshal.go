@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -320,6 +321,7 @@ func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 
 type networkParamsYAMLMarshaler struct {
 	//revive:disable:line-length-limit
+	RateLimit             *NetworkRateLimitParams          `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty"`
 	HandlerTimeout        map[string]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
 	TimeoutRequest        util.ReadableDuration            `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
 	HandshakeIdleTimeout  util.ReadableDuration            `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
@@ -360,6 +362,7 @@ func (p *NetworkParams) marshaler() networkParamsYAMLMarshaler {
 		ConnectionPoolSize:    p.connectionPoolSize,
 		MaxIncomingStreams:    p.maxIncomingStreams,
 		MaxStreamTimeout:      util.ReadableDuration(p.maxStreamTimeout),
+		RateLimit:             p.rateLimit,
 	}
 }
 
@@ -382,6 +385,7 @@ type networkParamsYAMLUnmarshaler struct {
 	ConnectionPoolSize    *uint64                          `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
 	MaxIncomingStreams    *uint64                          `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
 	MaxStreamTimeout      *util.ReadableDuration           `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
+	RateLimit             *NetworkRateLimitParams          `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -449,6 +453,10 @@ func (p *NetworkParams) unmarshal(u networkParamsYAMLUnmarshaler) error {
 		p.maxIncomingStreams = *u.MaxIncomingStreams
 	}
 
+	if u.RateLimit != nil {
+		p.rateLimit = u.RateLimit
+	}
+
 	return nil
 }
 
@@ -472,4 +480,98 @@ func (p *NetworkParams) MarshalZerologObject(e *zerolog.Event) {
 	}
 
 	e.Dict("handler_timeout", ed)
+}
+
+type networkRateLimitParamsMarshaler struct {
+	Suffrage RateLimiterRuleSet `json:"suffrage,omitempty" yaml:"suffrage,omitempty"`
+	Node     RateLimiterRuleSet `json:"node,omitempty" yaml:"node,omitempty"`
+	Net      RateLimiterRuleSet `json:"net,omitempty" yaml:"net,omitempty"`
+	Default  RateLimiterRuleMap `json:"default,omitempty" yaml:"default,omitempty"`
+}
+
+func (p *NetworkRateLimitParams) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(networkRateLimitParamsMarshaler{
+		Suffrage: p.SuffrageRuleSet(),
+		Node:     p.NodeRuleSet(),
+		Net:      p.NetRuleSet(),
+		Default:  p.DefaultRuleMap(),
+	})
+}
+
+func (p *NetworkRateLimitParams) MarshalYAML() (interface{}, error) {
+	switch b, err := p.MarshalJSON(); {
+	case err != nil:
+		return nil, err
+	default:
+		var u map[string]interface{}
+		if err := yaml.Unmarshal(b, &u); err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		return u, nil
+	}
+}
+
+type NetworkRateLimitParamsUnmarshaler struct {
+	Suffrage *SuffrageRateLimiterRuleSet `json:"suffrage,omitempty" yaml:"suffrage,omitempty"`
+	Node     *NodeRateLimiterRuleSet     `json:"node,omitempty" yaml:"node,omitempty"`
+	Net      *NetRateLimiterRuleSet      `json:"net,omitempty" yaml:"net,omitempty"`
+	Default  *RateLimiterRuleMap         `json:"default,omitempty" yaml:"default,omitempty"`
+}
+
+func (p *NetworkRateLimitParams) unmarshal(u NetworkRateLimitParamsUnmarshaler) error {
+	p.RateLimiterRules = &RateLimiterRules{}
+
+	if u.Suffrage != nil {
+		if err := p.SetSuffrageRuleSet(u.Suffrage); err != nil {
+			return err
+		}
+	}
+
+	if u.Node != nil {
+		if err := p.SetNodeRuleSet(*u.Node); err != nil {
+			return err
+		}
+	}
+
+	if u.Net != nil {
+		if err := p.SetNetRuleSet(*u.Net); err != nil {
+			return err
+		}
+	}
+
+	if u.Default != nil && !u.Default.IsEmpty() {
+		if err := p.SetDefaultRuleMap(*u.Default); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *NetworkRateLimitParams) UnmarshalJSON(b []byte) error {
+	e := util.StringError("decode NetworkRateLimitParams")
+
+	var u NetworkRateLimitParamsUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e.Wrap(err)
+	}
+
+	return e.Wrap(p.unmarshal(u))
+}
+
+func (p *NetworkRateLimitParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	e := util.StringError("decode NetworkRateLimitParams")
+
+	var u map[string]interface{}
+	if err := unmarshal(&u); err != nil {
+		return e.Wrap(err)
+	}
+
+	switch b, err := util.MarshalJSON(u); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		return p.UnmarshalJSON(b)
+	}
 }

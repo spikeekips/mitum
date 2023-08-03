@@ -3,6 +3,7 @@ package launch
 import (
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -395,6 +396,7 @@ func (p *MISCParams) SetObjectCacheSize(d uint64) error {
 
 type NetworkParams struct {
 	*util.BaseParams
+	rateLimit             *NetworkRateLimitParams
 	handlerTimeouts       map[string]time.Duration
 	timeoutRequest        time.Duration
 	handshakeIdleTimeout  time.Duration
@@ -425,6 +427,7 @@ func defaultNetworkParams() *NetworkParams {
 		connectionPoolSize:    1 << 13, //nolint:gomnd // big enough
 		maxIncomingStreams:    uint64(d.MaxIncomingStreams),
 		maxStreamTimeout:      time.Second * 30, //nolint:gomnd //...
+		rateLimit:             NewNetworkRateLimitParams(),
 	}
 }
 
@@ -475,6 +478,10 @@ func (p *NetworkParams) IsValid([]byte) error {
 
 	if p.maxStreamTimeout < 0 {
 		return e.Errorf("wrong duration; invalid maxStreamTimeout")
+	}
+
+	if err := p.rateLimit.IsValid(nil); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -693,6 +700,79 @@ func (p *NetworkParams) SetMaxStreamTimeout(d time.Duration) error {
 
 		return true, nil
 	})
+}
+
+func (p *NetworkParams) RateLimit() *NetworkRateLimitParams {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.rateLimit
+}
+
+func (p *NetworkParams) SetRateLimit(r *RateLimiterRules) error {
+	p.Lock()
+	defer p.Unlock()
+
+	p.rateLimit = &NetworkRateLimitParams{RateLimiterRules: r}
+
+	return nil
+}
+
+type NetworkRateLimitParams struct {
+	*RateLimiterRules
+}
+
+func NewNetworkRateLimitParams() *NetworkRateLimitParams {
+	return &NetworkRateLimitParams{
+		RateLimiterRules: NewRateLimiterRules(NewRateLimiterRuleMap(&defaultRateLimiter, nil)),
+	}
+}
+
+func (p *NetworkRateLimitParams) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid NetworkRateLimitParams")
+
+	if err := p.RateLimiterRules.IsValid(nil); err != nil {
+		return e.WithMessage(err, "NetworkRateLimitParams")
+	}
+
+	// NOTE check handler string is valid
+	checkRateLimitHandler := func(r RateLimiterRuleMap) error {
+		for i := range r.m {
+			if _, found := networkHandlerPrefixMap[i]; !found {
+				return errors.Errorf("unknown network handler prefix, %q", i)
+			}
+		}
+
+		return nil
+	}
+
+	if err := checkRateLimitHandler(p.DefaultRuleMap()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if rs, ok := p.SuffrageRuleSet().(*SuffrageRateLimiterRuleSet); ok && rs != nil {
+		if err := checkRateLimitHandler(rs.rules); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	if rs, ok := p.NetRuleSet().(NetRateLimiterRuleSet); ok {
+		for i := range rs.rules {
+			if err := checkRateLimitHandler(rs.rules[i]); err != nil {
+				return e.Wrap(err)
+			}
+		}
+	}
+
+	if rs, ok := p.NodeRuleSet().(NodeRateLimiterRuleSet); ok {
+		for i := range rs.rules {
+			if err := checkRateLimitHandler(rs.rules[i]); err != nil {
+				return e.Wrap(err)
+			}
+		}
+	}
+
+	return nil
 }
 
 var networkHandlerPrefixes = []string{

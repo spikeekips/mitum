@@ -108,6 +108,41 @@ func (t *testRateLimitHandler) TestNew() {
 	})
 }
 
+func (t *testRateLimitHandler) TestAllowByDefault() {
+	h, err := NewRateLimitHandler(t.newargs())
+	t.NoError(err)
+
+	addr := quicstream.RandomUDPAddr()
+
+	prefix0 := util.UUID().String()
+	prefix1 := util.UUID().String()
+
+	ruleset := NewNetRateLimiterRuleSet()
+	ruleset.Add(
+		&net.IPNet{IP: addr.IP, Mask: net.CIDRMask(24, 32)},
+		NewRateLimiterRuleMap(
+			&RateLimiterRule{Limit: rate.Every(time.Minute), Burst: 1},
+			map[string]RateLimiterRule{
+				prefix1: {Limit: rate.Every(time.Minute), Burst: 0},
+			},
+		),
+	)
+
+	t.NoError(h.rules.SetNetRuleSet(ruleset))
+
+	t.Run("default used", func() {
+		l, allowed := h.allow(addr, prefix0)
+		t.NotNil(l)
+		t.True(allowed)
+	})
+
+	t.Run("rule used", func() {
+		l, allowed := h.allow(addr, prefix1)
+		t.NotNil(l)
+		t.False(allowed)
+	})
+}
+
 func (t *testRateLimitHandler) TestNotAllow() {
 	h, err := NewRateLimitHandler(t.newargs())
 	t.NoError(err)
@@ -122,12 +157,12 @@ func (t *testRateLimitHandler) TestNotAllow() {
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
 		&net.IPNet{IP: addr0.IP, Mask: net.CIDRMask(24, 32)},
-		map[string]RateLimiterRule{
+		NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 			prefix: {Limit: rate.Every(time.Minute), Burst: 1},
-		},
+		}),
 	)
 
-	t.NoError(h.Rules().SetNetRuleSet(ruleset))
+	t.NoError(h.rules.SetNetRuleSet(ruleset))
 
 	t.Run("check allow", func() {
 		l, allowed := h.allow(addr0, prefix)
@@ -146,8 +181,8 @@ func (t *testRateLimitHandler) TestNotAllow() {
 			}
 
 			if addr == addr1.String() {
-				t.Equal(h.Rules().DefaultLimiter().Limit, r.Limit())
-				t.Equal(h.Rules().DefaultLimiter().Burst, r.Burst())
+				t.Equal(defaultRateLimiter.Limit, r.Limit())
+				t.Equal(defaultRateLimiter.Burst, r.Burst())
 				t.True(r.Tokens() > 0)
 			}
 
@@ -172,8 +207,8 @@ func (t *testRateLimitHandler) TestNotAllow() {
 			}
 
 			if addr == addr1.String() {
-				t.Equal(h.Rules().DefaultLimiter().Limit, r.Limit())
-				t.Equal(h.Rules().DefaultLimiter().Burst, r.Burst())
+				t.Equal(defaultRateLimiter.Limit, r.Limit())
+				t.Equal(defaultRateLimiter.Burst, r.Burst())
 				t.True(r.Tokens() > 0)
 			}
 
@@ -191,32 +226,32 @@ func (t *testRateLimitHandler) TestRuleSetUpdated() {
 
 	prefix := util.UUID().String()
 
-	for range make([]int, h.Rules().DefaultLimiter().Burst) {
+	for range make([]int, defaultRateLimiter.Burst) {
 		l, allowed := h.allow(addr, prefix)
 		t.NotNil(l)
 		t.True(allowed)
 	}
 
 	t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
-		t.Equal(h.Rules().DefaultLimiter().Limit, r.Limit())
-		t.Equal(h.Rules().DefaultLimiter().Burst, r.Burst())
+		t.Equal(defaultRateLimiter.Limit, r.Limit())
+		t.Equal(defaultRateLimiter.Burst, r.Burst())
 		t.True(r.Tokens() < 1)
 
 		return true
 	})
 
-	newburst := h.Rules().DefaultLimiter().Burst + 1
+	newburst := defaultRateLimiter.Burst + 1
 
 	t.T().Log("ruleset updated; rate limiters will be resetted")
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
 		&net.IPNet{IP: addr.IP, Mask: net.CIDRMask(24, 32)},
-		map[string]RateLimiterRule{
+		NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 			prefix: {Limit: rate.Every(time.Minute), Burst: newburst},
-		},
+		}),
 	)
 
-	t.NoError(h.Rules().SetNetRuleSet(ruleset))
+	t.NoError(h.rules.SetNetRuleSet(ruleset))
 
 	t.T().Log("check allow")
 	l, allowed := h.allow(addr, prefix)
@@ -234,7 +269,9 @@ func (t *testRateLimitHandler) TestRuleSetUpdated() {
 
 func (t *testRateLimitHandler) TestSuffrageNode() {
 	args := t.newargs()
-	args.Rules = NewRateLimiterRules(RateLimiterRule{Limit: rate.Every(time.Second), Burst: 1})
+
+	d := RateLimiterRule{Limit: rate.Every(time.Second), Burst: 1}
+	args.Rules = NewRateLimiterRules(NewRateLimiterRuleMap(&d, nil))
 
 	h, err := NewRateLimitHandler(args)
 	t.NoError(err)
@@ -251,10 +288,10 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	node := members[0].Address()
 	nodeLimiter := RateLimiterRule{Limit: rate.Every(time.Second * 3), Burst: 3}
 
-	ruleset := NewSuffrageRateLimiterRuleSet(map[string]RateLimiterRule{
+	ruleset := NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 		prefix: nodeLimiter,
-	}, RateLimiterRule{})
-	t.NoError(h.Rules().SetSuffrageRuleSet(ruleset))
+	}))
+	t.NoError(h.rules.SetSuffrageRuleSet(ruleset))
 
 	t.NoError(h.checkLastSuffrage(context.Background()))
 
@@ -267,8 +304,8 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 		t.True(allowed)
 
 		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
-			t.Equal(h.Rules().DefaultLimiter().Limit, r.Limit())
-			t.Equal(h.Rules().DefaultLimiter().Burst, r.Burst())
+			t.Equal(d.Limit, r.Limit())
+			t.Equal(d.Burst, r.Burst())
 			t.True(r.Tokens() < 1)
 
 			return true
@@ -312,8 +349,8 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 		t.True(allowed)
 
 		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
-			t.Equal(h.Rules().DefaultLimiter().Limit, r.Limit())
-			t.Equal(h.Rules().DefaultLimiter().Burst, r.Burst())
+			t.Equal(d.Limit, r.Limit())
+			t.Equal(d.Burst, r.Burst())
 			t.True(r.Tokens() < 1)
 
 			return true
@@ -375,7 +412,7 @@ func (t *testRateLimitHandler) TestConcurrent() {
 	args := t.newargs()
 	args.ExpireAddr = time.Millisecond * 11
 	// args.ShrinkInterval = time.Millisecond * 11
-	args.Rules = NewRateLimiterRules(RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt})
+	args.Rules = NewRateLimiterRules(NewRateLimiterRuleMap(&RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt}, nil))
 	args.MaxAddrs = 3
 
 	args.GetLastSuffrageFunc = func(context.Context) (util.Hash, base.Suffrage, bool, error) {
@@ -407,8 +444,8 @@ func (t *testRateLimitHandler) TestConcurrent() {
 		rules[prefixes[i]] = RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt}
 	}
 
-	ruleset := NewSuffrageRateLimiterRuleSet(rules, RateLimiterRule{})
-	t.NoError(h.Rules().SetSuffrageRuleSet(ruleset))
+	ruleset := NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(nil, rules))
+	t.NoError(h.rules.SetSuffrageRuleSet(ruleset))
 	t.NoError(h.checkLastSuffrage(context.Background()))
 
 	var tloglock sync.Mutex
@@ -529,19 +566,19 @@ func (t *testNetRateLimiterRuleSet) TestValid() {
 	rs.
 		Add(
 			t.newipnet(),
-			map[string]RateLimiterRule{
+			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
 				"b": {Limit: rate.Inf, Burst: 0},
 				"c": {Limit: 0, Burst: 0},
-			},
+			}),
 		).
 		Add(
 			t.newipnet(),
-			map[string]RateLimiterRule{
+			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 				"e": {Limit: rate.Inf, Burst: 0},
 				"f": {Limit: 0, Burst: 0},
-			},
+			}),
 		)
 
 	t.NoError(rs.IsValid(nil))
@@ -555,16 +592,16 @@ func (t *testNetRateLimiterRuleSet) TestWrongLength() {
 		t.newipnet(),
 	}
 
-	rs.rules[rs.ipnets[0].String()] = map[string]RateLimiterRule{
+	rs.rules[rs.ipnets[0].String()] = NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 		"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
 		"b": {Limit: rate.Inf, Burst: 0},
 		"c": {Limit: 0, Burst: 0},
-	}
-	rs.rules[rs.ipnets[1].String()] = map[string]RateLimiterRule{
+	})
+	rs.rules[rs.ipnets[1].String()] = NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 		"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 		"e": {Limit: rate.Inf, Burst: 0},
 		"f": {Limit: 0, Burst: 0},
-	}
+	})
 
 	err := rs.IsValid(nil)
 	t.Error(err)
@@ -576,19 +613,19 @@ func (t *testNetRateLimiterRuleSet) TestUnknownIPNet() {
 	rs.
 		Add(
 			t.newipnet(),
-			map[string]RateLimiterRule{
+			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
 				"b": {Limit: rate.Inf, Burst: 0},
 				"c": {Limit: 0, Burst: 0},
-			},
+			}),
 		).
 		Add(
 			t.newipnet(),
-			map[string]RateLimiterRule{
+			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
 				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
 				"e": {Limit: rate.Inf, Burst: 0},
 				"f": {Limit: 0, Burst: 0},
-			},
+			}),
 		)
 
 	rs.ipnets[1] = t.newipnet()
