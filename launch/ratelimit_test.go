@@ -113,17 +113,15 @@ func (t *testRateLimitHandler) TestNotAllow() {
 	t.NoError(err)
 
 	addr0 := quicstream.RandomUDPAddr()
-	addr0.IP = net.IPv6zero
 	t.T().Log("addr0:", addr0)
 	addr1 := quicstream.RandomUDPAddr()
-	addr1.IP = net.IPv6interfacelocalallnodes
 	t.T().Log("addr1:", addr1)
 
 	prefix := util.UUID().String()
 
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
-		&net.IPNet{IP: addr0.IP, Mask: net.CIDRMask(64, 128)},
+		&net.IPNet{IP: addr0.IP, Mask: net.CIDRMask(24, 32)},
 		map[string]RateLimiterRule{
 			prefix: {Limit: rate.Every(time.Minute), Burst: 1},
 		},
@@ -212,7 +210,7 @@ func (t *testRateLimitHandler) TestRuleSetUpdated() {
 	t.T().Log("ruleset updated; rate limiters will be resetted")
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
-		&net.IPNet{IP: addr.IP, Mask: net.CIDRMask(64, 128)},
+		&net.IPNet{IP: addr.IP, Mask: net.CIDRMask(24, 32)},
 		map[string]RateLimiterRule{
 			prefix: {Limit: rate.Every(time.Minute), Burst: newburst},
 		},
@@ -253,7 +251,7 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	node := members[0].Address()
 	nodeLimiter := RateLimiterRule{Limit: rate.Every(time.Second * 3), Burst: 3}
 
-	ruleset := NewSuffrageRateLimiterRuleSet(suf, map[string]RateLimiterRule{
+	ruleset := NewSuffrageRateLimiterRuleSet(map[string]RateLimiterRule{
 		prefix: nodeLimiter,
 	}, RateLimiterRule{})
 	t.NoError(h.Rules().SetSuffrageRuleSet(ruleset))
@@ -409,7 +407,7 @@ func (t *testRateLimitHandler) TestConcurrent() {
 		rules[prefixes[i]] = RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt}
 	}
 
-	ruleset := NewSuffrageRateLimiterRuleSet(suf, rules, RateLimiterRule{})
+	ruleset := NewSuffrageRateLimiterRuleSet(rules, RateLimiterRule{})
 	t.NoError(h.Rules().SetSuffrageRuleSet(ruleset))
 	t.NoError(h.checkLastSuffrage(context.Background()))
 
@@ -511,4 +509,94 @@ func TestRateLimitHandler(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testRateLimitHandler))
+}
+
+type testNetRateLimiterRuleSet struct {
+	suite.Suite
+}
+
+func (t *testNetRateLimiterRuleSet) newipnet() *net.IPNet {
+	addr := quicstream.RandomUDPAddr()
+
+	ipnet := &net.IPNet{IP: addr.IP, Mask: net.CIDRMask(24, 32)}
+	_, i, _ := net.ParseCIDR(ipnet.String())
+
+	return i
+}
+
+func (t *testNetRateLimiterRuleSet) TestValid() {
+	rs := NewNetRateLimiterRuleSet()
+	rs.
+		Add(
+			t.newipnet(),
+			map[string]RateLimiterRule{
+				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
+				"b": {Limit: rate.Inf, Burst: 0},
+				"c": {Limit: 0, Burst: 0},
+			},
+		).
+		Add(
+			t.newipnet(),
+			map[string]RateLimiterRule{
+				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
+				"e": {Limit: rate.Inf, Burst: 0},
+				"f": {Limit: 0, Burst: 0},
+			},
+		)
+
+	t.NoError(rs.IsValid(nil))
+}
+
+func (t *testNetRateLimiterRuleSet) TestWrongLength() {
+	rs := NewNetRateLimiterRuleSet()
+	rs.ipnets = []*net.IPNet{
+		t.newipnet(),
+		t.newipnet(),
+		t.newipnet(),
+	}
+
+	rs.rules[rs.ipnets[0].String()] = map[string]RateLimiterRule{
+		"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
+		"b": {Limit: rate.Inf, Burst: 0},
+		"c": {Limit: 0, Burst: 0},
+	}
+	rs.rules[rs.ipnets[1].String()] = map[string]RateLimiterRule{
+		"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
+		"e": {Limit: rate.Inf, Burst: 0},
+		"f": {Limit: 0, Burst: 0},
+	}
+
+	err := rs.IsValid(nil)
+	t.Error(err)
+	t.ErrorContains(err, "rules length != ipnet length")
+}
+
+func (t *testNetRateLimiterRuleSet) TestUnknownIPNet() {
+	rs := NewNetRateLimiterRuleSet()
+	rs.
+		Add(
+			t.newipnet(),
+			map[string]RateLimiterRule{
+				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
+				"b": {Limit: rate.Inf, Burst: 0},
+				"c": {Limit: 0, Burst: 0},
+			},
+		).
+		Add(
+			t.newipnet(),
+			map[string]RateLimiterRule{
+				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
+				"e": {Limit: rate.Inf, Burst: 0},
+				"f": {Limit: 0, Burst: 0},
+			},
+		)
+
+	rs.ipnets[1] = t.newipnet()
+
+	err := rs.IsValid(nil)
+	t.ErrorContains(err, "no rule")
+}
+
+func TestNetRateLimiterRuleSet(t *testing.T) {
+	suite.Run(t, new(testNetRateLimiterRuleSet))
 }

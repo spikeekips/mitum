@@ -42,9 +42,9 @@ func NewRateLimiter(limit rate.Limit, burst int, checksum string) *RateLimiter {
 	}
 
 	switch {
-	case limit < 1, burst < 1:
 	case limit == rate.Inf:
 		r.nolimit = true
+	case limit == 0, burst < 1:
 	default:
 		r.Limiter = rate.NewLimiter(limit, burst)
 	}
@@ -72,11 +72,11 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 
 	if r.Limit() != limit || r.Burst() != burst {
 		switch {
-		case limit < 1, burst < 1:
-			r.nolimit = false
-			r.Limiter = nil
 		case limit == rate.Inf:
 			r.nolimit = true
+			r.Limiter = nil
+		case limit == 0, burst < 1:
+			r.nolimit = false
 			r.Limiter = nil
 		default:
 			r.nolimit = false
@@ -381,7 +381,7 @@ func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
 	return nil
 }
 
-func (r *RateLimiterRules) SetNodesRuleSet(l RateLimiterRuleSet) error {
+func (r *RateLimiterRules) SetNodeRuleSet(l RateLimiterRuleSet) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -441,6 +441,7 @@ func (r *RateLimiterRules) rule(addr net.Addr, node base.Address, handler string
 
 type RateLimiterRuleSet interface {
 	Rule(_ interface{}, handler string) (checksum string, _ RateLimiterRule, found bool)
+	util.IsValider
 }
 
 type NetRateLimiterRuleSet struct {
@@ -448,10 +449,31 @@ type NetRateLimiterRuleSet struct {
 	ipnets []*net.IPNet
 }
 
-func NewNetRateLimiterRuleSet() *NetRateLimiterRuleSet {
-	return &NetRateLimiterRuleSet{
+func NewNetRateLimiterRuleSet() NetRateLimiterRuleSet {
+	return NetRateLimiterRuleSet{
 		rules: map[string]map[string]RateLimiterRule{},
 	}
+}
+
+func (rs NetRateLimiterRuleSet) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("NetRateLimiterRuleSet")
+
+	switch {
+	case len(rs.rules) != len(rs.ipnets):
+		return e.Errorf("rules length != ipnet length")
+	case len(rs.ipnets) < 1:
+		return nil
+	default:
+		for i := range rs.ipnets {
+			k := rs.ipnets[i].String()
+
+			if _, found := rs.rules[k]; !found {
+				return e.Errorf("ipnet, %q has no rule", k)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (rs *NetRateLimiterRuleSet) Add(ipnet *net.IPNet, rule map[string]RateLimiterRule) *NetRateLimiterRuleSet {
@@ -461,13 +483,13 @@ func (rs *NetRateLimiterRuleSet) Add(ipnet *net.IPNet, rule map[string]RateLimit
 	return rs
 }
 
-func (rs *NetRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
+func (rs NetRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
 	l, found := rs.rule(i, handler)
 
 	return "", l, found
 }
 
-func (rs *NetRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+func (rs NetRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
 	var ip net.IP
 
 	switch t := i.(type) {
@@ -501,17 +523,31 @@ func (rs *NetRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateL
 	return rule, false
 }
 
-type NodesRateLimiterRuleSet struct {
+type NodeRateLimiterRuleSet struct {
 	rules map[ /* node address */ string]map[ /* handler */ string]RateLimiterRule
 }
 
-func (rs NodesRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
+func NewNodeRateLimiterRuleSet(
+	rules map[string]map[string]RateLimiterRule,
+) NodeRateLimiterRuleSet {
+	return NodeRateLimiterRuleSet{rules: rules}
+}
+
+func (NodeRateLimiterRuleSet) IsValid([]byte) error {
+	return nil
+}
+
+func (rs NodeRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
 	l, found := rs.rule(i, handler)
 
 	return "", l, found
 }
 
-func (rs NodesRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+func (rs NodeRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+	if len(rs.rules) < 1 {
+		return rule, false
+	}
+
 	var node string
 
 	switch t := i.(type) {
@@ -536,19 +572,22 @@ func (rs NodesRateLimiterRuleSet) rule(i interface{}, handler string) (rule Rate
 }
 
 type SuffrageRateLimiterRuleSet struct {
-	suf base.Suffrage
-	st  util.Hash
-	r   map[string] /* handler */ RateLimiterRule
-	d   RateLimiterRule
+	suf   base.Suffrage
+	st    util.Hash
+	rules map[string] /* handler */ RateLimiterRule
+	d     RateLimiterRule
 	sync.RWMutex
 }
 
 func NewSuffrageRateLimiterRuleSet(
-	suf base.Suffrage,
 	rule map[string]RateLimiterRule,
 	defaultLimiter RateLimiterRule,
 ) *SuffrageRateLimiterRuleSet {
-	return &SuffrageRateLimiterRuleSet{suf: suf, r: rule, d: defaultLimiter}
+	return &SuffrageRateLimiterRuleSet{rules: rule, d: defaultLimiter}
+}
+
+func (*SuffrageRateLimiterRuleSet) IsValid([]byte) error {
+	return nil
 }
 
 func (rs *SuffrageRateLimiterRuleSet) SetSuffrage(suf base.Suffrage, st util.Hash) {
@@ -563,6 +602,10 @@ func (rs *SuffrageRateLimiterRuleSet) inSuffrage(node base.Address) bool {
 	rs.RLock()
 	defer rs.RUnlock()
 
+	if rs.suf == nil {
+		return false
+	}
+
 	return rs.suf.Exists(node)
 }
 
@@ -573,6 +616,14 @@ func (rs *SuffrageRateLimiterRuleSet) Rule(i interface{}, handler string) (strin
 }
 
 func (rs *SuffrageRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+	switch {
+	case len(rs.rules) > 0:
+	case rs.d.Limit > 0:
+		return rs.d, true
+	default:
+		return rule, false
+	}
+
 	node, ok := i.(base.Address)
 	if !ok {
 		return rule, false
@@ -582,7 +633,7 @@ func (rs *SuffrageRateLimiterRuleSet) rule(i interface{}, handler string) (rule 
 		return rule, false
 	}
 
-	l, found := rs.r[handler]
+	l, found := rs.rules[handler]
 	if !found && rs.d.Limit > 0 {
 		return rs.d, true
 	}
