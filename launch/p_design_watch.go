@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	consulapi "github.com/hashicorp/consul/api"
 	consulwatch "github.com/hashicorp/consul/api/watch"
@@ -21,6 +22,11 @@ import (
 
 var PNameWatchDesign = ps.Name("watch-design")
 
+type (
+	updateDesignValueFunc func(key, value string) (prev, next interface{}, _ error)
+	updateDesignSetFunc   func(key, prefix, nextkey, value string) (prev, next interface{}, _ error)
+)
+
 func PWatchDesign(pctx context.Context) (context.Context, error) {
 	e := util.StringError("watch design")
 
@@ -34,14 +40,14 @@ func PWatchDesign(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	watchUpdatefs, err := watchUpdateFuncs(pctx)
+	watchUpdatefs, err := watchDesignFuncs(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
 
 	switch flag.Scheme() {
 	case "consul":
-		runf, err := consulWatch(pctx, watchUpdatefs)
+		runf, err := watchConsul(pctx, watchUpdatefs)
 		if err != nil {
 			return pctx, e.WithMessage(err, "watch thru consul")
 		}
@@ -60,9 +66,53 @@ func PWatchDesign(pctx context.Context) (context.Context, error) {
 	return pctx, nil
 }
 
-func consulWatch(
+func checkDesignFromConsul(
 	pctx context.Context,
-	updatef map[string]func(string) error,
+	flag DesignFlag,
+	log *logging.Logging,
+) error {
+	switch flag.Scheme() {
+	case "file", "http", "https":
+		// TODO maybe supported later
+	case "consul":
+		client, err := consulClient(flag.URL().Host)
+		if err != nil {
+			return err
+		}
+
+		fs, err := checkDesignFuncs(pctx)
+		if err != nil {
+			return err
+		}
+
+		prefix := flag.URL().Path
+		update := watchUpdateFromConsulFunc(prefix, fs, log)
+
+		for i := range fs {
+			switch v, _, err := client.KV().Get(prefix+"/"+i, nil); {
+			case err != nil:
+				return errors.WithMessagef(err, "get key from consul, %q", i)
+			case v == nil:
+			default:
+				if _, err := func() (bool, error) {
+					if v == nil {
+						return false, nil
+					}
+
+					return update(v.Key, string(v.Value), v.CreateIndex)
+				}(); err != nil {
+					return errors.WithMessagef(err, "update from consul, %q", i)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func watchConsul(
+	pctx context.Context,
+	updatef map[string]updateDesignValueFunc,
 ) (func() error, error) {
 	var log *logging.Logging
 	var flag DesignFlag
@@ -84,7 +134,7 @@ func consulWatch(
 		return nil, errors.WithStack(err)
 	}
 
-	watchUpdateFromConsulf := watchUpdateFromConsulFunc(prefix, updatef)
+	f := watchUpdateFromConsulFunc(prefix, updatef, log)
 
 	wp.Handler = func(idx uint64, data interface{}) {
 		var pairs consulapi.KVPairs
@@ -100,7 +150,13 @@ func consulWatch(
 		for i := range pairs {
 			v := pairs[i]
 
-			switch updated, err := watchUpdateFromConsulf(v); {
+			switch updated, err := func() (bool, error) {
+				if v == nil {
+					return false, nil
+				}
+
+				return f(v.Key, string(v.Value), v.CreateIndex)
+			}(); {
 			case err != nil:
 				log.Log().Error().Err(err).Interface("updated", v).Msg("failed to update consul data received")
 			case updated:
@@ -120,7 +176,35 @@ func consulWatch(
 	}, nil
 }
 
-func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, error) {
+func checkDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, error) {
+	var log *logging.Logging
+	var enc *jsonenc.Encoder
+	var design NodeDesign
+	var params *LocalParams
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
+
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		EncoderContextKey, &enc,
+		DesignContextKey, &design,
+		LocalParamsContextKey, &params,
+		DiscoveryContextKey, &discoveries,
+	); err != nil {
+		return nil, err
+	}
+
+	updaters := map[string]updateDesignValueFunc{
+		//revive:disable:line-length-limit
+		"parameters":   updateLocalParam(params),
+		"discoveries":  updateDiscoveries(discoveries),
+		"sync_sources": updateDesignSyncSources(enc, design),
+		//revive:enable:line-length-limit
+	}
+
+	return updaters, nil
+}
+
+func watchDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
@@ -139,24 +223,11 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 		return nil, err
 	}
 
-	updaters := map[string]func(string) error{
+	updaters := map[string]updateDesignValueFunc{
 		//revive:disable:line-length-limit
-		"parameters/isaac/threshold":                           updateLocalParamThreshold(params.ISAAC, log),
-		"parameters/isaac/interval_broadcast_ballot":           updateLocalParamIntervalBroadcastBallot(params.ISAAC, log),
-		"parameters/isaac/wait_preparing_init_ballot":          updateLocalParamWaitPreparingINITBallot(params.ISAAC, log),
-		"parameters/isaac/max_try_handover_y_broker_sync_data": updateLocalParamMaxTryHandoverYBrokerSyncData(params.ISAAC, log),
-
-		"parameters/misc/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params.MISC, log),
-		"parameters/misc/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params.MISC, log),
-		"parameters/misc/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params.MISC, log),
-		"parameters/misc/max_message_size":                          updateLocalParamMaxMessageSize(params.MISC, log),
-
-		"parameters/memberlist/extra_same_member_limit": updateLocalParamExtraSameMemberLimit(params.Memberlist, log),
-
-		"parameters/network/timeout_request": updateLocalParamTimeoutRequest(params.Network, log),
-
-		"discoveries":  updateDiscoveries(discoveries, log),
-		"sync_sources": updateSyncSources(enc, design, syncSourceChecker, log),
+		"parameters":   updateLocalParam(params),
+		"discoveries":  updateDiscoveries(discoveries),
+		"sync_sources": updateSyncSources(enc, design, syncSourceChecker),
 		//revive:enable:line-length-limit
 	}
 
@@ -165,341 +236,360 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 
 func watchUpdateFromConsulFunc(
 	prefix string,
-	fs map[string]func(string) error,
-) func(*consulapi.KVPair) (bool, error) {
+	fs map[string]updateDesignValueFunc,
+	log *logging.Logging,
+) func(key, value string, createIndex uint64) (bool, error) {
 	updated := util.NewSingleLockedMap[string, uint64]()
 
-	return func(v *consulapi.KVPair) (bool, error) {
-		if v == nil {
-			return false, nil
-		}
+	return func(key, value string, createIndex uint64) (bool, error) {
+		var ignored bool
 
-		switch i, found := updated.Value(v.Key); {
-		case !found, v.CreateIndex > i:
-		default:
-			return false, nil
-		}
-
-		_ = updated.SetValue(v.Key, v.CreateIndex)
-
-		f, found := fs[v.Key[len(prefix):]]
-		if !found {
-			return false, nil
-		}
-
-		return true, f(string(v.Value))
-	}
-}
-
-func updateFromConsulAfterCheckDesign(
-	pctx context.Context,
-	flag DesignFlag,
-) error {
-	switch flag.Scheme() {
-	case "file", "http", "https":
-		// NOTE maybe supported later
-	case "consul":
-		client, err := consulClient(flag.URL().Host)
-		if err != nil {
-			return err
-		}
-
-		fs, err := watchUpdateFuncs(pctx)
-		if err != nil {
-			return err
-		}
-
-		prefix := flag.URL().Path
-		update := watchUpdateFromConsulFunc(prefix, fs)
-
-		for i := range fs {
-			switch v, _, err := client.KV().Get(prefix+"/"+i, nil); {
-			case err != nil:
-				return errors.WithMessagef(err, "get key from consul, %q", i)
-			case v == nil:
+		_, _, _ = updated.Set(key, func(i uint64, found bool) (uint64, error) {
+			switch {
+			case !found, createIndex > i:
+				return createIndex, nil
 			default:
-				if _, err := update(v); err != nil {
-					return errors.WithMessagef(err, "update key from consul, %q", i)
+				ignored = true
+
+				return 0, util.ErrLockedSetIgnore.WithStack()
+			}
+		})
+
+		switch {
+		case ignored:
+			return false, nil
+		case len(key) < len(prefix):
+			return false, errors.Errorf("wrong key")
+		}
+
+		fullkey := key[len(prefix):]
+		nextkey := fullkey
+
+		var f updateDesignValueFunc
+
+		switch i, found := fs[fullkey]; {
+		case found:
+			f = i
+		default:
+			for j := range fs {
+				if strings.HasPrefix(fullkey, j) {
+					f = fs[j]
+					nextkey = fullkey[len(j):]
+
+					break
 				}
 			}
+
+			if f == nil {
+				return false, errors.Errorf("unknown key, %q", fullkey)
+			}
+		}
+
+		switch prev, next, err := f(nextkey, value); {
+		case err != nil:
+			return false, err
+		default:
+			log.Log().Debug().
+				Str("key", fullkey).
+				Interface("prev", prev).
+				Interface("next", next).
+				Msg("updated")
+
+			return true, nil
 		}
 	}
-
-	return nil
 }
 
-func updateLocalParamThreshold(
+func updateDesignSet(f updateDesignSetFunc) updateDesignValueFunc {
+	return func(key, value string) (prev interface{}, next interface{}, err error) {
+		i := strings.SplitN(strings.TrimPrefix(key, "/"), "/", 2)
+
+		var nextkey string
+		if len(i) > 1 {
+			nextkey = i[1]
+		}
+
+		return f(key, i[0], nextkey, value)
+	}
+}
+
+func updateLocalParam(
+	params *LocalParams,
+) updateDesignValueFunc {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev interface{}, next interface{}, err error) {
+		switch prefix {
+		case "isaac":
+			return updateLocalParamISAAC(params.ISAAC, nextkey, value)
+		case "misc":
+			return updateLocalParamMISC(params.MISC, nextkey, value)
+		case "memberlist":
+			return updateLocalParamMemberlist(params.Memberlist, nextkey, value)
+		case "network":
+			return updateLocalParamNetwork(params.Network, nextkey, value)
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for params", key)
+		}
+	})
+}
+
+func updateLocalParamISAAC(
 	params *isaac.Params,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		var t base.Threshold
-		if err := t.UnmarshalText([]byte(s)); err != nil {
-			return errors.WithMessagef(err, "invalid threshold, %q", s)
+	key, value string,
+) (prev interface{}, next interface{}, err error) {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
+		switch prefix {
+		case "threshold":
+			return updateLocalParamISAACThreshold(params, nextkey, value)
+		case "interval_broadcast_ballot":
+			return updateLocalParamISAACIntervalBroadcastBallot(params, nextkey, value)
+		case "wait_preparing_init_ballot":
+			return updateLocalParamISAACWaitPreparingINITBallot(params, nextkey, value)
+		case "max_try_handover_y_broker_sync_data":
+			return updateLocalParamISAACMaxTryHandoverYBrokerSyncData(params, nextkey, value)
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for isaac", key)
 		}
-
-		prev := params.Threshold()
-
-		if err := params.SetThreshold(t); err != nil {
-			return errors.WithMessagef(err, "update threshold")
-		}
-
-		log.Log().Debug().
-			Str("key", "threshold").
-			Interface("prev", prev).
-			Interface("updated", params.Threshold()).
-			Msg("local parameter updated")
-
-		return nil
-	}
+	})(key, value)
 }
 
-func updateLocalParamIntervalBroadcastBallot(
+func updateLocalParamISAACThreshold(
 	params *isaac.Params,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "interval_broadcast_ballot")
-		}
-
-		prev := params.IntervalBroadcastBallot()
-
-		if err := params.SetIntervalBroadcastBallot(d); err != nil {
-			return errors.WithMessage(err, "interval_broadcast_ballot")
-		}
-
-		log.Log().Debug().
-			Str("key", "interval_broadcast_ballot").
-			Interface("prev", prev).
-			Interface("updated", params.IntervalBroadcastBallot()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	var t base.Threshold
+	if err := t.UnmarshalText([]byte(value)); err != nil {
+		return nil, nil, errors.WithMessagef(err, "invalid threshold, %q", value)
 	}
+
+	prev := params.Threshold()
+
+	if err := params.SetThreshold(t); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.Threshold(), nil
 }
 
-func updateLocalParamWaitPreparingINITBallot(
+func updateLocalParamISAACIntervalBroadcastBallot(
 	params *isaac.Params,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "wait_preparing_init_ballot")
-		}
-
-		prev := params.WaitPreparingINITBallot()
-
-		if err := params.SetWaitPreparingINITBallot(d); err != nil {
-			return errors.WithMessage(err, "wait_preparing_init_ballot")
-		}
-
-		log.Log().Debug().
-			Str("key", "wait_preparing_init_ballot").
-			Interface("prev", prev).
-			Interface("updated", params.WaitPreparingINITBallot()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	prev := params.IntervalBroadcastBallot()
+
+	if err := params.SetIntervalBroadcastBallot(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.IntervalBroadcastBallot(), nil
 }
 
-func updateLocalParamMaxTryHandoverYBrokerSyncData(
+func updateLocalParamISAACWaitPreparingINITBallot(
 	params *isaac.Params,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := strconv.ParseUint(s, 10, 64)
-		if err != nil {
-			return errors.Wrapf(err, "max_try_handover_y_broker_sync_data")
-		}
-
-		prev := params.MaxTryHandoverYBrokerSyncData()
-
-		if err := params.SetMaxTryHandoverYBrokerSyncData(d); err != nil {
-			return errors.WithMessage(err, "max_try_handover_y_broker_sync_data")
-		}
-
-		log.Log().Debug().
-			Str("key", "max_try_handover_y_broker_sync_data").
-			Interface("prev", prev).
-			Interface("updated", params.MaxTryHandoverYBrokerSyncData()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	prev := params.WaitPreparingINITBallot()
+
+	if err := params.SetWaitPreparingINITBallot(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.WaitPreparingINITBallot(), nil
 }
 
-func updateLocalParamTimeoutRequest(
-	params *NetworkParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "timeout_request")
-		}
-
-		prev := params.TimeoutRequest()
-
-		if err := params.SetTimeoutRequest(d); err != nil {
-			return errors.WithMessage(err, "timeout_request")
-		}
-
-		log.Log().Debug().
-			Str("key", "timeout_request").
-			Interface("prev", prev).
-			Interface("updated", params.TimeoutRequest()).
-			Msg("local parameter updated")
-
-		return nil
+func updateLocalParamISAACMaxTryHandoverYBrokerSyncData(
+	params *isaac.Params,
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
+
+	prev := params.MaxTryHandoverYBrokerSyncData()
+
+	if err := params.SetMaxTryHandoverYBrokerSyncData(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.MaxTryHandoverYBrokerSyncData(), nil
 }
 
-func updateLocalParamSyncSourceCheckerInterval(
+func updateLocalParamMISC(
 	params *MISCParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "sync_source_checker_interval")
+	key, value string,
+) (prev interface{}, next interface{}, err error) {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
+		switch prefix {
+		case "sync_source_checker_interval":
+			return updateLocalParamMISCSyncSourceCheckerInterval(params, nextkey, value)
+		case "valid_proposal_operation_expire":
+			return updateLocalParamMISCValidProposalOperationExpire(params, nextkey, value)
+		case "valid_proposal_suffrage_operations_expire":
+			return updateLocalParamMISCValidProposalSuffrageOperationsExpire(params, nextkey, value)
+		case "max_message_size":
+			return updateLocalParamMISCMaxMessageSize(params, nextkey, value)
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for misc", key)
 		}
-
-		prev := params.SyncSourceCheckerInterval()
-
-		if err := params.SetSyncSourceCheckerInterval(d); err != nil {
-			return errors.WithMessage(err, "sync_source_checker_interval")
-		}
-
-		log.Log().Debug().
-			Str("key", "sync_source_checker_interval").
-			Interface("prev", prev).
-			Interface("updated", params.SyncSourceCheckerInterval()).
-			Msg("local parameter updated")
-
-		return nil
-	}
+	})(key, value)
 }
 
-func updateLocalParamValidProposalOperationExpire(
+func updateLocalParamMISCSyncSourceCheckerInterval(
 	params *MISCParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "valid_proposal_operation_expire")
-		}
-
-		prev := params.ValidProposalOperationExpire()
-
-		if err := params.SetValidProposalOperationExpire(d); err != nil {
-			return errors.WithMessage(err, "valid_proposal_operation_expire")
-		}
-
-		log.Log().Debug().
-			Str("key", "valid_proposal_operation_expire").
-			Interface("prev", prev).
-			Interface("updated", params.ValidProposalOperationExpire()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	prev := params.SyncSourceCheckerInterval()
+
+	if err := params.SetSyncSourceCheckerInterval(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.SyncSourceCheckerInterval(), nil
 }
 
-func updateLocalParamValidProposalSuffrageOperationsExpire(
+func updateLocalParamMISCValidProposalOperationExpire(
 	params *MISCParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		d, err := util.ParseDuration(s)
-		if err != nil {
-			return errors.WithMessage(err, "valid_proposal_suffrage_operations_expire")
-		}
-
-		prev := params.ValidProposalSuffrageOperationsExpire()
-
-		if err := params.SetValidProposalSuffrageOperationsExpire(d); err != nil {
-			return errors.WithMessage(err, "valid_proposal_suffrage_operations_expire")
-		}
-
-		log.Log().Debug().
-			Str("key", "valid_proposal_suffrage_operations_expire").
-			Interface("prev", prev).
-			Interface("updated", params.ValidProposalSuffrageOperationsExpire()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	prev := params.ValidProposalOperationExpire()
+
+	if err := params.SetValidProposalOperationExpire(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.ValidProposalOperationExpire(), nil
 }
 
-func updateLocalParamMaxMessageSize(
+func updateLocalParamMISCValidProposalSuffrageOperationsExpire(
 	params *MISCParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		i, err := strconv.ParseUint(s, 10, 64)
-		if err != nil {
-			return errors.Wrap(err, "max_message_size")
-		}
-
-		prev := params.MaxMessageSize()
-
-		if err := params.SetMaxMessageSize(i); err != nil {
-			return errors.Wrap(err, "max_message_size")
-		}
-
-		log.Log().Debug().
-			Str("key", "max_message_size").
-			Interface("prev", prev).
-			Interface("updated", params.MaxMessageSize()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	prev := params.ValidProposalSuffrageOperationsExpire()
+
+	if err := params.SetValidProposalSuffrageOperationsExpire(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.ValidProposalSuffrageOperationsExpire(), nil
+}
+
+func updateLocalParamMISCMaxMessageSize(
+	params *MISCParams,
+	_, value string,
+) (interface{}, interface{}, error) {
+	i, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	prev := params.MaxMessageSize()
+
+	if err := params.SetMaxMessageSize(i); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.MaxMessageSize(), nil
+}
+
+func updateLocalParamMemberlist(
+	params *MemberlistParams,
+	key, value string,
+) (prev interface{}, next interface{}, err error) {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
+		switch prefix {
+		case "extra_same_member_limit":
+			return updateLocalParamExtraSameMemberLimit(params, nextkey, value)
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for memberlist", key)
+		}
+	})(key, value)
 }
 
 func updateLocalParamExtraSameMemberLimit(
 	params *MemberlistParams,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
-		i, err := strconv.ParseUint(s, 10, 64)
-		if err != nil {
-			return errors.Wrap(err, "extra_same_member_limit")
-		}
-
-		prev := params.ExtraSameMemberLimit()
-
-		if err := params.SetExtraSameMemberLimit(i); err != nil {
-			return errors.Wrap(err, "extra_same_member_limit")
-		}
-
-		log.Log().Debug().
-			Str("key", "extra_same_member_limit").
-			Interface("prev", prev).
-			Interface("updated", params.ExtraSameMemberLimit()).
-			Msg("local parameter updated")
-
-		return nil
+	_, value string,
+) (interface{}, interface{}, error) {
+	i, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
+
+	prev := params.ExtraSameMemberLimit()
+
+	if err := params.SetExtraSameMemberLimit(i); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.ExtraSameMemberLimit(), nil
 }
 
-func updateSyncSources(
+func updateLocalParamNetwork(
+	params *NetworkParams,
+	key, value string,
+) (prev interface{}, next interface{}, err error) {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
+		switch prefix {
+		case "timeout_request":
+			return updateLocalParamNetworkTimeoutRequest(params, nextkey, value)
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for network", key)
+		}
+	})(key, value)
+}
+
+func updateLocalParamNetworkTimeoutRequest(
+	params *NetworkParams,
+	_, value string,
+) (interface{}, interface{}, error) {
+	d, err := util.ParseDuration(value)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	prev := params.TimeoutRequest()
+
+	if err := params.SetTimeoutRequest(d); err != nil {
+		return nil, nil, err
+	}
+
+	return prev, params.TimeoutRequest(), nil
+}
+
+func updateDesignSyncSources(
 	enc *jsonenc.Encoder,
 	design NodeDesign,
-	syncSourceChecker *isaacnetwork.SyncSourceChecker,
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
+) updateDesignValueFunc {
+	return func(_, value string) (interface{}, interface{}, error) {
 		e := util.StringError("update sync source")
 
-		var sources SyncSourcesDesign
-		if err := sources.DecodeYAML([]byte(s), enc); err != nil {
-			return e.Wrap(err)
+		var sources *SyncSourcesDesign
+		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
+			return nil, nil, e.Wrap(err)
 		}
 
 		if err := IsValidSyncSourcesDesign(
@@ -507,62 +597,80 @@ func updateSyncSources(
 			design.Network.PublishString,
 			design.Network.publish.String(),
 		); err != nil {
-			return e.Wrap(err)
+			return nil, nil, e.Wrap(err)
+		}
+
+		prev := design.SyncSources
+
+		design.SyncSources.Update(sources.Sources())
+
+		return prev, sources, nil
+	}
+}
+
+func updateSyncSources(
+	enc *jsonenc.Encoder,
+	design NodeDesign,
+	syncSourceChecker *isaacnetwork.SyncSourceChecker,
+) updateDesignValueFunc {
+	return func(_, value string) (interface{}, interface{}, error) {
+		e := util.StringError("update sync source")
+
+		var sources *SyncSourcesDesign
+		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
+			return nil, nil, e.Wrap(err)
+		}
+
+		if err := IsValidSyncSourcesDesign(
+			sources,
+			design.Network.PublishString,
+			design.Network.publish.String(),
+		); err != nil {
+			return nil, nil, e.Wrap(err)
 		}
 
 		prev := syncSourceChecker.Sources()
 
-		err := syncSourceChecker.UpdateSources(context.Background(), sources)
+		if err := syncSourceChecker.UpdateSources(context.Background(), sources.Sources()); err != nil {
+			return nil, nil, err
+		}
 
-		log.Log().Debug().
-			Err(err).
-			Str("key", "sync_sources").
-			Interface("prev", prev).
-			Interface("updated", sources).
-			Msg("sync sources updated")
-
-		return nil
+		return prev, sources, nil
 	}
 }
 
 func updateDiscoveries(
 	discoveries *util.Locked[[]quicstream.ConnInfo],
-	log *logging.Logging,
-) func(string) error {
-	return func(s string) error {
+) updateDesignValueFunc {
+	return func(_, value string) (interface{}, interface{}, error) {
 		e := util.StringError("update discoveries")
 
 		var sl []string
-		if err := yaml.Unmarshal([]byte(s), &sl); err != nil {
-			return e.Wrap(err)
+		if err := yaml.Unmarshal([]byte(value), &sl); err != nil {
+			return nil, nil, e.Wrap(err)
 		}
 
 		cis := make([]quicstream.ConnInfo, len(sl))
 
 		for i := range sl {
 			if err := network.IsValidAddr(sl[i]); err != nil {
-				return e.Wrap(err)
+				return nil, nil, e.Wrap(err)
 			}
 
 			addr, tlsinsecure := network.ParseTLSInsecure(sl[i])
 
 			ci, err := quicstream.NewConnInfoFromStringAddr(addr, tlsinsecure)
 			if err != nil {
-				return e.Wrap(err)
+				return nil, nil, e.Wrap(err)
 			}
 
 			cis[i] = ci
 		}
 
 		prev := GetDiscoveriesFromLocked(discoveries)
+
 		_ = discoveries.SetValue(cis)
 
-		log.Log().Debug().
-			Str("key", "sync_sources").
-			Interface("prev", prev).
-			Interface("updated", cis).
-			Msg("discoveries updated")
-
-		return nil
+		return prev, cis, nil
 	}
 }

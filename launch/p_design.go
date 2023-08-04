@@ -151,7 +151,7 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 	nctx = context.WithValue(nctx, LocalParamsContextKey, design.LocalParams)
 	nctx = context.WithValue(nctx, ISAACParamsContextKey, design.LocalParams.ISAAC)
 
-	if err := updateFromConsulAfterCheckDesign(nctx, flag); err != nil {
+	if err := checkDesignFromConsul(nctx, flag, log); err != nil {
 		return nctx, e.Wrap(err)
 	}
 

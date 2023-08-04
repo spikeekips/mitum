@@ -289,11 +289,13 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		t.NoError(s.DecodeYAML(b, t.enc))
 
 		t.NoError(s.IsValid(nil))
-		t.Equal(1, len(s))
-		t.NoError(s[0].IsValid(nil))
 
-		t.Equal(isaacnetwork.SyncSourceTypeURL, s[0].Type)
-		t.Equal("https://a.b.c.d:1234#tls_insecure", s[0].Source.(*url.URL).String())
+		sources := s.Sources()
+		t.Equal(1, len(sources))
+		t.NoError(sources[0].IsValid(nil))
+
+		t.Equal(isaacnetwork.SyncSourceTypeURL, sources[0].Type)
+		t.Equal("https://a.b.c.d:1234#tls_insecure", sources[0].Source.(*url.URL).String())
 	})
 
 	t.Run("invalid: url", func() {
@@ -331,7 +333,9 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		var s SyncSourcesDesign
 		t.NoError(s.DecodeYAML(b, t.enc))
 
-		i := s[0]
+		sources := s.Sources()
+
+		i := sources[0]
 		t.NoError(i.IsValid(nil))
 		t.NoError(i.IsValid(nil))
 
@@ -355,7 +359,8 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		var s SyncSourcesDesign
 		t.NoError(s.DecodeYAML(b, t.enc))
 
-		i := s[0]
+		sources := s.Sources()
+		i := sources[0]
 		t.NoError(i.IsValid(nil))
 		t.NoError(i.IsValid(nil))
 
@@ -377,7 +382,8 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		var s SyncSourcesDesign
 		t.NoError(s.DecodeYAML(b, t.enc))
 
-		i := s[0]
+		sources := s.Sources()
+		i := sources[0]
 		t.NoError(i.IsValid(nil))
 		t.NoError(i.IsValid(nil))
 
@@ -482,13 +488,13 @@ func (t *testNodeDesign) TestIsValid() {
 				Base:     "/tmp/a/b/c",
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
-			SyncSources: []isaacnetwork.SyncSource{
+			SyncSources: NewSyncSourcesDesign([]isaacnetwork.SyncSource{
 				{Type: isaacnetwork.SyncSourceTypeURL, Source: &url.URL{Scheme: "https", Host: "a:3333"}},
 				{Type: isaacnetwork.SyncSourceTypeNode, Source: isaacnetwork.MustNodeConnInfo(
 					isaac.NewNode(base.NewMPrivatekey().Publickey(), address), // same address
 					mustResolveUDPAddr("4.3.2.1:4444").String(), true,
 				)},
-			},
+			}),
 		}
 
 		t.NoError(a.IsValid(nil))
@@ -514,9 +520,9 @@ func (t *testNodeDesign) TestIsValid() {
 				Base:     "/tmp/a/b/c",
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
-			SyncSources: []isaacnetwork.SyncSource{
+			SyncSources: NewSyncSourcesDesign([]isaacnetwork.SyncSource{
 				{Type: isaacnetwork.SyncSourceTypeNode, Source: nci},
-			},
+			}),
 		}
 
 		err = a.IsValid(nil)
@@ -547,9 +553,9 @@ func (t *testNodeDesign) TestIsValid() {
 				Base:     "/tmp/a/b/c",
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
-			SyncSources: []isaacnetwork.SyncSource{
+			SyncSources: NewSyncSourcesDesign([]isaacnetwork.SyncSource{
 				{Type: isaacnetwork.SyncSourceTypeNode, Source: nci},
-			},
+			}),
 		}
 
 		err = a.IsValid(nil)

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	consulapi "github.com/hashicorp/consul/api"
 	vault "github.com/hashicorp/vault/api"
@@ -57,7 +58,7 @@ type NodeDesign struct { //nolint:govet //...
 	Network        NodeNetworkDesign
 	NetworkID      base.NetworkID
 	LocalParams    *LocalParams
-	SyncSources    SyncSourcesDesign
+	SyncSources    *SyncSourcesDesign
 	TimeServerPort int
 	TimeServer     string
 }
@@ -218,14 +219,14 @@ func (d *NodeDesign) Check(devflags DevFlags) error {
 }
 
 type NodeDesignYAMLMarshaler struct {
-	Address     base.Address      `yaml:"address"`
-	Privatekey  base.Privatekey   `yaml:"privatekey"`
-	Storage     NodeStorageDesign `yaml:"storage"`
-	NetworkID   string            `yaml:"network_id"`
-	TimeServer  string            `yaml:"time_server,omitempty"`
-	Network     NodeNetworkDesign `yaml:"network"`
-	LocalParams *LocalParams      `yaml:"parameters"` //nolint:tagliatelle //...
-	SyncSources SyncSourcesDesign `yaml:"sync_sources"`
+	LocalParams *LocalParams       `yaml:"parameters"` //nolint:tagliatelle //...
+	SyncSources *SyncSourcesDesign `yaml:"sync_sources"`
+	Address     base.Address       `yaml:"address"`
+	Privatekey  base.Privatekey    `yaml:"privatekey"`
+	Storage     NodeStorageDesign  `yaml:"storage"`
+	NetworkID   string             `yaml:"network_id"`
+	TimeServer  string             `yaml:"time_server,omitempty"`
+	Network     NodeNetworkDesign  `yaml:"network"`
 }
 
 type NodeDesignYAMLUnmarshaler struct {
@@ -248,6 +249,7 @@ func (d NodeDesign) MarshalYAML() (interface{}, error) {
 		Storage:     d.Storage,
 		LocalParams: d.LocalParams,
 		TimeServer:  d.TimeServer,
+		SyncSources: d.SyncSources,
 	}, nil
 }
 
@@ -294,6 +296,7 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	case err != nil:
 		return e.Wrap(err)
 	default:
+		d.SyncSources = NewSyncSourcesDesign(nil)
 		if err := d.SyncSources.DecodeYAML(sb, enc); err != nil {
 			return e.Wrap(err)
 		}
@@ -567,12 +570,18 @@ func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type SyncSourcesDesign []isaacnetwork.SyncSource
+type SyncSourcesDesign struct {
+	l []isaacnetwork.SyncSource
+	sync.RWMutex
+}
+
+func NewSyncSourcesDesign(l []isaacnetwork.SyncSource) *SyncSourcesDesign {
+	return &SyncSourcesDesign{l: l}
+}
 
 func (d *SyncSourcesDesign) IsValid([]byte) error {
-	for i := range *d {
-		s := (*d)[i]
-		if err := s.IsValid(nil); err != nil {
+	for i := range d.l {
+		if err := d.l[i].IsValid(nil); err != nil {
 			return errors.WithMessage(err, "invalid SyncSourcesDesign")
 		}
 	}
@@ -580,14 +589,32 @@ func (d *SyncSourcesDesign) IsValid([]byte) error {
 	return nil
 }
 
+func (d *SyncSourcesDesign) Sources() []isaacnetwork.SyncSource {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.l
+}
+
+func (d *SyncSourcesDesign) Update(l []isaacnetwork.SyncSource) {
+	d.Lock()
+	defer d.Unlock()
+
+	d.l = l
+}
+
 func IsValidSyncSourcesDesign(
-	d SyncSourcesDesign,
+	d *SyncSourcesDesign,
 	localPublishString, localPublishResolved string,
 ) error {
+	if d == nil {
+		return nil
+	}
+
 	e := util.ErrInvalid.Errorf("invalid SyncSourcesDesign")
 
-	for i := range d {
-		s := d[i]
+	for i := range d.l {
+		s := d.l[i]
 		if err := s.IsValid(nil); err != nil {
 			return e.Wrap(err)
 		}
@@ -613,6 +640,14 @@ func IsValidSyncSourcesDesign(
 	}
 
 	return nil
+}
+
+func (d *SyncSourcesDesign) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(d.l)
+}
+
+func (d *SyncSourcesDesign) MarshalYAML() (interface{}, error) {
+	return d.l, nil
 }
 
 func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
@@ -641,7 +676,7 @@ func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		}
 	}
 
-	*d = sources
+	d.l = sources
 
 	return nil
 }

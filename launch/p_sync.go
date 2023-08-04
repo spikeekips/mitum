@@ -41,7 +41,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	sources := append([]isaacnetwork.SyncSource{}, design.SyncSources...)
+	sources := append([]isaacnetwork.SyncSource{}, design.SyncSources.Sources()...)
 
 	switch {
 	case len(sources) < 1:
