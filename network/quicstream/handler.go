@@ -27,7 +27,6 @@ type PrefixHandler struct {
 	handlers     map[[32]byte]Handler
 	errorHandler ErrorHandler
 	handlerslock sync.RWMutex
-	// TODO support rate limit
 }
 
 func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {

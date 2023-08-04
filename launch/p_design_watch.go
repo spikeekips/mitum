@@ -556,6 +556,8 @@ func updateLocalParamNetwork(
 		switch prefix {
 		case "timeout_request":
 			return updateLocalParamNetworkTimeoutRequest(params, nextkey, value)
+		case "ratelimit":
+			return updateLocalParamNetworkRateLimit(params.RateLimit(), nextkey, value)
 		default:
 			return prev, next, errors.Errorf("unknown key, %q for network", key)
 		}
@@ -672,5 +674,86 @@ func updateDiscoveries(
 		_ = discoveries.SetValue(cis)
 
 		return prev, cis, nil
+	}
+}
+
+func updateLocalParamNetworkRateLimit(
+	params *NetworkRateLimitParams,
+	key, value string,
+) (prev interface{}, next interface{}, err error) {
+	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, err error) {
+		switch prefix {
+		case "node":
+			prev = params.NodeRuleSet()
+		case "net":
+			prev = params.NetRuleSet()
+		case "suffrage":
+			prev = params.SuffrageRuleSet()
+		case "default":
+			prev = params.DefaultRuleMap()
+		default:
+			return prev, next, errors.Errorf("unknown key, %q for network ratelimit", key)
+		}
+
+		switch i, err := unmarshalRateLimitRule(prefix, value); {
+		case err != nil:
+			return prev, next, err
+		default:
+			next = i
+		}
+
+		return prev, next, func() error {
+			switch prefix {
+			case "node":
+				return params.SetNodeRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
+			case "net":
+				return params.SetNetRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
+			case "suffrage":
+				return params.SetSuffrageRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
+			case "default":
+				return params.SetDefaultRuleMap(next.(RateLimiterRuleMap)) //nolint:forcetypeassert //...
+			default:
+				return errors.Errorf("unknown key, %q for network", key)
+			}
+		}()
+	})(key, value)
+}
+
+func unmarshalRateLimitRule(rule, value string) (interface{}, error) {
+	var u interface{}
+	if err := yaml.Unmarshal([]byte(value), &u); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var i interface{}
+
+	switch rule {
+	case "node":
+		i = NodeRateLimiterRuleSet{}
+	case "net":
+		i = NetRateLimiterRuleSet{}
+	case "suffrage":
+		i = &SuffrageRateLimiterRuleSet{}
+	case "default":
+		i = RateLimiterRuleMap{}
+	default:
+		return nil, errors.Errorf("unknown prefix, %q", rule)
+	}
+
+	switch b, err := util.MarshalJSON(u); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := util.UnmarshalJSON(b, &i); err != nil {
+			return nil, err
+		}
+
+		if j, ok := i.(util.IsValider); ok {
+			if err := j.IsValid(nil); err != nil {
+				return nil, err
+			}
+		}
+
+		return i, nil
 	}
 }
