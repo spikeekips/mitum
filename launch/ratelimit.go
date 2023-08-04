@@ -72,6 +72,8 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 	r.Lock()
 	defer r.Unlock()
 
+	var updated bool
+
 	if r.Limit() != limit || r.Burst() != burst {
 		switch {
 		case limit == rate.Inf:
@@ -84,13 +86,19 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 			r.nolimit = false
 			r.Limiter = rate.NewLimiter(limit, burst)
 		}
+
+		updated = true
 	}
 
 	if r.checksum != checksum {
 		r.checksum = checksum
+
+		updated = true
 	}
 
-	r.updatedAt = time.Now().UnixNano()
+	if updated {
+		r.updatedAt = time.Now().UnixNano()
+	}
 
 	return r
 }
@@ -160,10 +168,10 @@ func NewRateLimitHandler(args *RateLimitHandlerArgs) (*RateLimitHandler, error) 
 	return r, nil
 }
 
-func (r *RateLimitHandler) HandlerFunc(handlerPrefix string, handler quicstream.Handler) quicstream.Handler {
+func (r *RateLimitHandler) HandlerFunc(prefix string, handler quicstream.Handler) quicstream.Handler {
 	return func(ctx context.Context, addr net.Addr, ir io.Reader, iw io.WriteCloser) (context.Context, error) {
-		if l, allowed := r.allow(addr, handlerPrefix); !allowed {
-			return ctx, ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", handlerPrefix, l.Limit(), l.Burst())
+		if l, allowed := r.allow(addr, prefix); !allowed {
+			return ctx, ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", prefix, l.Limit(), l.Burst())
 		}
 
 		nctx, err := handler(ctx, addr, ir, iw)
