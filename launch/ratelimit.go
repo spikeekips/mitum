@@ -28,8 +28,8 @@ var (
 
 type RateLimiter struct {
 	*rate.Limiter
-	updatedAt time.Time
 	checksum  string
+	updatedAt int64
 	nolimit   bool
 	sync.RWMutex
 }
@@ -39,7 +39,7 @@ type RateLimiter struct {
 // - if limit is rate.Inf, no limit
 func NewRateLimiter(limit rate.Limit, burst int, checksum string) *RateLimiter {
 	r := &RateLimiter{
-		updatedAt: time.Now(),
+		updatedAt: time.Now().UnixNano(),
 		checksum:  checksum,
 	}
 
@@ -61,7 +61,7 @@ func (r *RateLimiter) Checksum() string {
 	return r.checksum
 }
 
-func (r *RateLimiter) UpdatedAt() time.Time {
+func (r *RateLimiter) UpdatedAt() int64 {
 	r.RLock()
 	defer r.RUnlock()
 
@@ -90,7 +90,7 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 		r.checksum = checksum
 	}
 
-	r.updatedAt = time.Now()
+	r.updatedAt = time.Now().UnixNano()
 
 	return r
 }
@@ -274,7 +274,7 @@ func (r *RateLimitHandler) rateLimiterFunc(
 	handler string,
 ) func(_ *RateLimiter, found, created bool, node base.Address) (*RateLimiter, error) {
 	return func(l *RateLimiter, found, created bool, node base.Address) (*RateLimiter, error) {
-		if !found || l.UpdatedAt().Before(r.rules.UpdatedAt()) {
+		if !found || l.UpdatedAt() < r.rules.UpdatedAt() {
 			// NOTE if RateLimiter is older than rule updated
 
 			checksum, rule := r.rules.Rule(addr, node, handler)
@@ -308,18 +308,18 @@ type RateLimiterRule struct {
 }
 
 type RateLimiterRules struct {
-	updatedAt  time.Time
 	suffrage   RateLimiterRuleSet
 	nodes      RateLimiterRuleSet
 	nets       RateLimiterRuleSet
 	defaultMap RateLimiterRuleMap
+	updatedAt  int64
 	sync.RWMutex
 }
 
 func NewRateLimiterRules(defaultMap RateLimiterRuleMap) *RateLimiterRules {
 	return &RateLimiterRules{
 		defaultMap: defaultMap,
-		updatedAt:  time.Now(),
+		updatedAt:  time.Now().UnixNano(),
 	}
 }
 
@@ -341,7 +341,7 @@ func (r *RateLimiterRules) SetDefaultRuleMap(rule RateLimiterRuleMap) error {
 	defer r.Unlock()
 
 	r.defaultMap = rule
-	r.updatedAt = time.Now()
+	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -373,7 +373,7 @@ func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
 	}
 
 	r.suffrage = l
-	r.updatedAt = time.Now()
+	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -390,7 +390,7 @@ func (r *RateLimiterRules) SetNodeRuleSet(l RateLimiterRuleSet) error {
 	defer r.Unlock()
 
 	r.nodes = l
-	r.updatedAt = time.Now()
+	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -407,12 +407,12 @@ func (r *RateLimiterRules) SetNetRuleSet(l RateLimiterRuleSet) error {
 	defer r.Unlock()
 
 	r.nets = l
-	r.updatedAt = time.Now()
+	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
 
-func (r *RateLimiterRules) UpdatedAt() time.Time {
+func (r *RateLimiterRules) UpdatedAt() int64 {
 	r.RLock()
 	defer r.RUnlock()
 
