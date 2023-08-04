@@ -663,7 +663,7 @@ parameters:
     handler_timeout:
       request_proposal: 9s
       ask_handover: 12s
-    rate_limit:
+    ratelimit:
       default:
         default: 33/s
         proposal: 44/m
@@ -718,7 +718,7 @@ parameters:
 		t.NoError(nw.SetHandlerTimeout("ask_handover", time.Second*12))
 		equalNetworkParams(t.Assert(), nw, a.LocalParams.Network)
 
-		t.Run("rate limit", func() {
+		t.Run("ratelimit", func() {
 			rm := a.LocalParams.Network.RateLimit().DefaultRuleMap()
 			t.Equal(rate.Every(time.Second), rm.d.Limit)
 			t.Equal(33, rm.d.Burst)

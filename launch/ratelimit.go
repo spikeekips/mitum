@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ErrRateLimited     = util.NewIDError("over rate limit")
+	ErrRateLimited     = util.NewIDError("over ratelimit")
 	defaultRateLimiter = RateLimiterRule{
 		Limit: rate.Every(time.Second * 3), Burst: 3, //nolint:gomnd //...
 	}

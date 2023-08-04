@@ -321,7 +321,7 @@ func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 
 type networkParamsYAMLMarshaler struct {
 	//revive:disable:line-length-limit
-	RateLimit             *NetworkRateLimitParams          `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty"`
+	RateLimit             *NetworkRateLimitParams          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
 	HandlerTimeout        map[string]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
 	TimeoutRequest        util.ReadableDuration            `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
 	HandshakeIdleTimeout  util.ReadableDuration            `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
@@ -385,7 +385,7 @@ type networkParamsYAMLUnmarshaler struct {
 	ConnectionPoolSize    *uint64                          `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
 	MaxIncomingStreams    *uint64                          `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
 	MaxStreamTimeout      *util.ReadableDuration           `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
-	RateLimit             *NetworkRateLimitParams          `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty"`
+	RateLimit             *NetworkRateLimitParams          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
 	//revive:enable:line-length-limit
 }
 
