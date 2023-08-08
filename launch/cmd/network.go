@@ -42,7 +42,8 @@ type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
 type BaseNetworkClientCommand struct { //nolint:govet //...
 	BaseCommand
 	BaseNetworkClientNodeInfoFlags
-	Client *isaacnetwork.BaseClient `kong:"-"`
+	Client   *isaacnetwork.BaseClient `kong:"-"`
+	ClientID string                   `name:"client-id" help:"client id"`
 }
 
 func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
@@ -72,11 +73,13 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 		connectionPool.Dial,
 		connectionPool.CloseAll,
 	)
+	cmd.Client.SetClientID(cmd.ClientID)
 
 	cmd.Log.Debug().
 		Stringer("remote", cmd.Remote).
 		Stringer("timeout", cmd.Timeout).
 		Str("network_id", cmd.NetworkID).
+		Str("client_id", cmd.ClientID).
 		Bool("has_body", cmd.Body != nil).
 		Msg("flags")
 

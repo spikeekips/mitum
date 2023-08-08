@@ -32,6 +32,7 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 	}()
 
 	header := isaacnetwork.NewNodeInfoRequestHeader()
+	header.SetClientID(cmd.ClientID)
 
 	return stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		if err := broker.WriteRequestHead(ctx, header); err != nil {

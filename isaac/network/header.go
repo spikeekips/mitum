@@ -95,11 +95,20 @@ var (
 )
 
 type baseHeader struct {
+	clientID string
 	quicstreamheader.BaseRequestHeader
 }
 
 func newBaseHeader(ht hint.Hint) baseHeader {
 	return baseHeader{BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
+}
+
+func (h baseHeader) ClientID() string {
+	return h.clientID
+}
+
+func (h *baseHeader) SetClientID(id string) {
+	h.clientID = id
 }
 
 type OperationRequestHeader struct {

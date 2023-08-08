@@ -23,15 +23,15 @@ func TestRateLimiterRuleEncode(tt *testing.T) {
 		result RateLimiterRule
 		err    string
 	}{
-		{name: "example", a: "33/3s", result: RateLimiterRule{Limit: rate.Every(time.Second * 3), Burst: 33}},
+		{name: "example", a: "33/3s", result: RateLimiterRule{Limit: makeLimit(time.Second*3, 33), Burst: 33}},
 		{name: "nolimit", a: "nolimit", result: RateLimiterRule{Limit: rate.Inf, Burst: 0}},
 		{name: "limit all", a: "0", result: RateLimiterRule{Limit: 0, Burst: 0}},
 		{name: "empty", a: "  ", err: "empty"},
 		{name: "missing burst", a: "/3s", err: "burst"},
 		{name: "missing duration", a: "3/", err: "duration"},
 		{name: "missing sep", a: "33s", err: "invalid format"},
-		{name: "invalid second unit", a: "33/s", result: RateLimiterRule{Limit: rate.Every(time.Second), Burst: 33}},
-		{name: "invalid millisecond unit", a: "33/ms", result: RateLimiterRule{Limit: rate.Every(time.Millisecond), Burst: 33}},
+		{name: "invalid second unit", a: "33/s", result: RateLimiterRule{Limit: makeLimit(time.Second, 33), Burst: 33}},
+		{name: "invalid millisecond unit", a: "33/ms", result: RateLimiterRule{Limit: makeLimit(time.Millisecond, 33), Burst: 33}},
 	}
 
 	for i, c := range cases {
@@ -49,7 +49,7 @@ func TestRateLimiterRuleEncode(tt *testing.T) {
 				return
 			}
 
-			t.Equal(c.result, r, "%d: %v", i, c.name)
+			t.EqualExportedValues(c.result, r, "%d: %v; %q != %q", i, c.name, c.result, r)
 		})
 	}
 }
@@ -123,10 +123,12 @@ func TestNetRateLimiterRuleSetEncode(tt *testing.T) {
 			bm := brs.rules[i]
 
 			t.Equal(len(am.m), len(bm.m))
-			t.Equal(am.d, bm.d)
+			if am.d != nil || bm.d != nil {
+				t.EqualExportedValues(*am.d, *bm.d)
+			}
 
 			for j := range am.m {
-				t.Equal(am.m[j], bm.m[j])
+				t.EqualExportedValues(am.m[j], bm.m[j])
 			}
 		}
 	}
@@ -185,7 +187,7 @@ func TestNodeRateLimiterRuleSetEncode(tt *testing.T) {
 			t.Equal(len(am.m), len(bm.m))
 
 			for j := range am.m {
-				t.Equal(am.m[j], bm.m[j])
+				t.EqualExportedValues(am.m[j], bm.m[j])
 			}
 		}
 	}
@@ -234,7 +236,7 @@ func TestSuffrageRateLimiterRuleSetEncode(tt *testing.T) {
 
 		t.Equal(len(ars.rules.m), len(brs.rules.m))
 		for i := range ars.rules.m {
-			t.Equal(ars.rules.m[i], brs.rules.m[i])
+			t.EqualExportedValues(ars.rules.m[i], brs.rules.m[i])
 		}
 	}
 

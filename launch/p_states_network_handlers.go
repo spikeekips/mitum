@@ -29,6 +29,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var params *LocalParams
 	var handlers *quicstream.PrefixHandler
 	var states *isaacstates.States
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -37,6 +38,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
 		StatesContextKey, &states,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return pctx, err
 	}
@@ -66,7 +68,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 			params.ISAAC.NetworkID(),
 			states.SetAllowConsensus,
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return pctx, gerror
@@ -81,6 +83,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 	var client *isaacnetwork.BaseClient
 	var connectionPool *quicstream.ConnectionPool
 	var states *isaacstates.States
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -91,6 +94,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 		QuicstreamClientContextKey, &client,
 		ConnectionPoolContextKey, &connectionPool,
 		StatesContextKey, &states,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -153,7 +157,7 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 				return enchint, body, found, err
 			},
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -168,6 +172,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 	var states *isaacstates.States
 	var svvotef isaac.SuffrageVoteFunc
 	var memberlist *quicmemberlist.Memberlist
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -178,6 +183,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 		StatesContextKey, &states,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		MemberlistContextKey, &memberlist,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -210,7 +216,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 			},
 			params.MISC.MaxMessageSize,
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -222,6 +228,7 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 	var local base.LocalNode
 	var params *LocalParams
 	var pool *isaacdatabase.TempPool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -229,6 +236,7 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -258,7 +266,7 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 				)
 			},
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -275,6 +283,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 	var proposalMaker *isaac.ProposalMaker
 	var db isaac.Database
 	var client isaac.NetworkClient
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -287,6 +296,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 		ProposalMakerContextKey, &proposalMaker,
 		CenterDatabaseContextKey, &db,
 		QuicstreamClientContextKey, &client,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -320,7 +330,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 					return pr, nil
 				}
 			},
-		), nil,
+		), nil, rateLimitHandler,
 	)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
@@ -352,7 +362,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 				}
 			},
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror

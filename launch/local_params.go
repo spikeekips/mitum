@@ -724,7 +724,7 @@ type NetworkRateLimitParams struct {
 
 func NewNetworkRateLimitParams() *NetworkRateLimitParams {
 	return &NetworkRateLimitParams{
-		RateLimiterRules: NewRateLimiterRules(NewRateLimiterRuleMap(&defaultRateLimiter, nil)),
+		RateLimiterRules: NewRateLimiterRules(),
 	}
 }
 

@@ -23,6 +23,7 @@ type BaseClient struct {
 	Encoder  encoder.Encoder
 	dialf    quicstreamheader.DialFunc
 	closef   func() error
+	clientid string
 }
 
 func NewBaseClient(
@@ -37,6 +38,16 @@ func NewBaseClient(
 		dialf:    quicstreamheader.NewDialFunc(dialf, encs, enc),
 		closef:   closef,
 	}
+}
+
+func (c *BaseClient) ClientID() string {
+	return c.clientid
+}
+
+func (c *BaseClient) SetClientID(id string) *BaseClient {
+	c.clientid = id
+
+	return c
 }
 
 func (c *BaseClient) Dial(
@@ -63,11 +74,14 @@ func (c *BaseClient) Operation(
 		return nil, false, err
 	}
 
+	h := NewOperationRequestHeader(oph)
+	h.SetClientID(c.ClientID())
+
 	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		rfound, rerr := HCReqResBodyDecOK(
 			ctx,
 			broker,
-			NewOperationRequestHeader(oph),
+			h,
 			func(enc encoder.Encoder, r io.Reader) error {
 				return encoder.DecodeReader(enc, r, &op)
 			},
@@ -129,12 +143,15 @@ func (c *BaseClient) StreamOperationsBytes(
 	})
 }
 
-func (*BaseClient) streamOperationsBytes(
+func (c *BaseClient) streamOperationsBytes(
 	ctx context.Context, broker *quicstreamheader.ClientBroker,
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(enchint hint.Hint, body, offset []byte) error,
 ) error {
-	if err := VerifyNode(ctx, broker, priv, networkID, NewStreamOperationsHeader(offset)); err != nil {
+	h := NewStreamOperationsHeader(offset)
+	h.SetClientID(c.ClientID())
+
+	if err := VerifyNode(ctx, broker, priv, networkID, h); err != nil {
 		return err
 	}
 
@@ -196,13 +213,11 @@ func (c *BaseClient) SendOperation(ctx context.Context, ci quicstream.ConnInfo, 
 
 	var sent bool
 
+	h := NewSendOperationRequestHeader()
+	h.SetClientID(c.ClientID())
+
 	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		i, rerr := hcBodyReqResOK(
-			ctx,
-			broker,
-			NewSendOperationRequestHeader(),
-			op,
-		)
+		i, rerr := hcBodyReqResOK(ctx, broker, h, op)
 		if rerr != nil {
 			return rerr
 		}
@@ -223,6 +238,8 @@ func (c *BaseClient) RequestProposal(
 	previousBlock util.Hash,
 ) (pr base.ProposalSignFact, found bool, _ error) {
 	header := NewRequestProposalRequestHeader(point, proposer, previousBlock)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -236,6 +253,8 @@ func (c *BaseClient) Proposal( //nolint:dupl //...
 	pr util.Hash,
 ) (base.ProposalSignFact, bool, error) {
 	header := NewProposalRequestHeader(pr)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -247,6 +266,7 @@ func (c *BaseClient) LastSuffrageProof(
 	ctx context.Context, ci quicstream.ConnInfo, state util.Hash,
 ) (lastheight base.Height, proof base.SuffrageProof, ok bool, _ error) {
 	header := NewLastSuffrageProofRequestHeader(state)
+	header.SetClientID(c.ClientID())
 
 	lastheight = base.NilHeight
 
@@ -317,6 +337,8 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, suffrageheight base.Height,
 ) (proof base.SuffrageProof, ok bool, _ error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -351,6 +373,8 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, manifest util.Hash,
 ) (bm base.BlockMap, ok bool, _ error) {
 	header := NewLastBlockMapRequestHeader(manifest)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -385,6 +409,8 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height,
 ) (bm base.BlockMap, ok bool, _ error) {
 	header := NewBlockMapRequestHeader(height)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -420,6 +446,8 @@ func (c *BaseClient) BlockMapItem(
 	f func(io.Reader, bool) error,
 ) error {
 	header := NewBlockMapItemRequestHeader(height, item)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return err
 	}
@@ -465,7 +493,10 @@ func (c *BaseClient) NodeChallenge(
 func (c *BaseClient) SuffrageNodeConnInfo(
 	ctx context.Context, ci quicstream.ConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
-	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSuffrageNodeConnInfoRequestHeader())
+	header := NewSuffrageNodeConnInfoRequestHeader()
+	header.SetClientID(c.ClientID())
+
+	ncis, err := c.requestNodeConnInfos(ctx, ci, header)
 
 	return ncis, errors.WithMessage(err, "request; SuffrageNodeConnInfo")
 }
@@ -473,7 +504,10 @@ func (c *BaseClient) SuffrageNodeConnInfo(
 func (c *BaseClient) SyncSourceConnInfo(ctx context.Context, ci quicstream.ConnInfo) ([]isaac.NodeConnInfo, error) {
 	e := util.StringError("SyncSourceConnInfo")
 
-	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSyncSourceConnInfoRequestHeader())
+	header := NewSyncSourceConnInfoRequestHeader()
+	header.SetClientID(c.ClientID())
+
+	ncis, err := c.requestNodeConnInfos(ctx, ci, header)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -485,6 +519,8 @@ func (c *BaseClient) State(
 	ctx context.Context, ci quicstream.ConnInfo, key string, sth util.Hash,
 ) (st base.State, found bool, _ error) {
 	header := NewStateRequestHeader(key, sth)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -519,6 +555,8 @@ func (c *BaseClient) ExistsInStateOperation(
 	ctx context.Context, ci quicstream.ConnInfo, facthash util.Hash,
 ) (found bool, _ error) {
 	header := NewExistsInStateOperationRequestHeader(facthash)
+	header.SetClientID(c.ClientID())
+
 	if err := header.IsValid(nil); err != nil {
 		return false, err
 	}
@@ -564,6 +602,7 @@ func (c *BaseClient) SendBallots(
 
 	return e.Wrap(streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		header := NewSendBallotsHeader()
+		header.SetClientID(c.ClientID())
 
 		_, err := hcBodyReqResOK(
 			ctx,
@@ -580,7 +619,10 @@ func (c *BaseClient) SetAllowConsensus(
 	ctx context.Context, ci quicstream.ConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, allow bool,
 ) (bool, error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, NewSetAllowConsensusHeader(allow)); {
+	header := NewSetAllowConsensusHeader(allow)
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, header); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -598,7 +640,10 @@ func (c *BaseClient) StartHandover(
 	address base.Address,
 	xci quicstream.ConnInfo, // NOTE broker x
 ) (bool, error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, yci, priv, networkID, NewStartHandoverHeader(xci, address)); {
+	header := NewStartHandoverHeader(xci, address)
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, yci, priv, networkID, header); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -614,7 +659,10 @@ func (c *BaseClient) CancelHandover(
 	priv base.Privatekey,
 	networkID base.NetworkID,
 ) (bool, error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, NewCancelHandoverHeader()); {
+	header := NewCancelHandoverHeader()
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, header); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -634,8 +682,11 @@ func (c *BaseClient) HandoverMessage(
 		return err
 	}
 
+	header := NewHandoverMessageHeader()
+	header.SetClientID(c.ClientID())
+
 	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		if err := broker.WriteRequestHead(ctx, NewHandoverMessageHeader()); err != nil {
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
 		}
 
@@ -662,7 +713,10 @@ func (c *BaseClient) CheckHandover(
 	address base.Address,
 	yci quicstream.ConnInfo, // NOTE broker y
 ) (bool, error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewCheckHandoverHeader(yci, address)); {
+	header := NewCheckHandoverHeader(yci, address)
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, header); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -679,7 +733,10 @@ func (c *BaseClient) CheckHandoverX(
 	networkID base.NetworkID,
 	address base.Address,
 ) (bool, error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewCheckHandoverXHeader(address)); {
+	header := NewCheckHandoverXHeader(address)
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, header); {
 	case err != nil:
 		return false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -697,7 +754,10 @@ func (c *BaseClient) AskHandover(
 	address base.Address,
 	yci quicstream.ConnInfo, // NOTE broker y
 ) (handoverid string, canMoveConsensus bool, _ error) {
-	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, NewAskHandoverHeader(yci, address)); {
+	header := NewAskHandoverHeader(yci, address)
+	header.SetClientID(c.ClientID())
+
+	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, header); {
 	case err != nil:
 		return "", false, errors.WithMessage(err, "response")
 	case rh.Err() != nil:
@@ -728,8 +788,11 @@ func (c *BaseClient) LastHandoverYLogs(
 		return err
 	}
 
+	header := NewLastHandoverYLogsHeader()
+	header.SetClientID(c.ClientID())
+
 	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, NewLastHandoverYLogsHeader()); {
+		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, header); {
 		case err != nil:
 			return errors.WithMessage(err, "response")
 		case rh.Err() != nil:
@@ -908,6 +971,8 @@ func (c *BaseClient) nodeChallenge(
 	default:
 		header = NewNodeChallengeRequestHeader(input, me.Address(), me.Publickey())
 	}
+
+	header.SetClientID(c.ClientID())
 
 	if err := header.IsValid(nil); err != nil {
 		return nil, e.Wrap(err)

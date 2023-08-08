@@ -457,12 +457,14 @@ func memberlistTransport(
 	var design NodeDesign
 	var params *LocalParams
 	var handlers *quicstream.PrefixHandler
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return nil, err
 	}
@@ -485,10 +487,17 @@ func memberlistTransport(
 		timeoutf = f
 	}
 
-	_ = handlers.Add(
-		isaacnetwork.HandlerPrefixMemberlist,
-		quicstream.TimeoutHandler(transport.QuicstreamHandler, timeoutf),
-	)
+	handler := rateLimitHandlerFunc(
+		rateLimitHandler,
+		func(prefix [32]byte) (string, bool) {
+			s, found := NetworkHandlerPrefixMapRev[prefix]
+
+			return s, found
+		},
+		false, // NOTE not allow unknown
+	)(quicstream.TimeoutHandler(transport.QuicstreamHandler, timeoutf))
+
+	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, handler)
 
 	return transport, nil
 }

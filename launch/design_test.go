@@ -19,7 +19,6 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 )
 
@@ -677,7 +676,7 @@ parameters:
       node:
         no0sas:
           default: 33333/s
-          operation: 44444/ns
+          operation: 44444/m
 `)
 
 		var a NodeDesign
@@ -720,17 +719,17 @@ parameters:
 
 		t.Run("ratelimit", func() {
 			rm := a.LocalParams.Network.RateLimit().DefaultRuleMap()
-			t.Equal(rate.Every(time.Second), rm.d.Limit)
+			t.Equal(makeLimit(time.Second, 33), rm.d.Limit)
 			t.Equal(33, rm.d.Burst)
-			t.Equal(rate.Every(time.Minute), rm.m["proposal"].Limit)
+			t.Equal(makeLimit(time.Minute, 44), rm.m["proposal"].Limit)
 			t.Equal(44, rm.m["proposal"].Burst)
 
 			{
 				rs, ok := a.LocalParams.Network.RateLimit().SuffrageRuleSet().(*SuffrageRateLimiterRuleSet)
 				t.True(ok)
-				t.Equal(rate.Every(time.Second), rs.rules.d.Limit)
+				t.Equal(makeLimit(time.Second, 333), rs.rules.d.Limit)
 				t.Equal(333, rs.rules.d.Burst)
-				t.Equal(rate.Every(time.Hour), rs.rules.m["state"].Limit)
+				t.Equal(makeLimit(time.Hour, 444), rs.rules.m["state"].Limit)
 				t.Equal(444, rs.rules.m["state"].Burst)
 			}
 
@@ -740,9 +739,9 @@ parameters:
 				rs0, found := rs.rules["192.168.0.0/24"]
 				t.True(found)
 
-				t.Equal(rate.Every(time.Second), rs0.d.Limit)
+				t.Equal(makeLimit(time.Second, 3333), rs0.d.Limit)
 				t.Equal(3333, rs0.d.Burst)
-				t.Equal(rate.Every(time.Hour), rs0.m["blockmap"].Limit)
+				t.Equal(makeLimit(time.Hour, 4444), rs0.m["blockmap"].Limit)
 				t.Equal(4444, rs0.m["blockmap"].Burst)
 			}
 
@@ -752,9 +751,9 @@ parameters:
 				rs0, found := rs.rules["no0sas"]
 				t.True(found)
 
-				t.Equal(rate.Every(time.Second), rs0.d.Limit)
+				t.Equal(makeLimit(time.Second, 33333), rs0.d.Limit)
 				t.Equal(33333, rs0.d.Burst)
-				t.Equal(rate.Every(time.Nanosecond), rs0.m["operation"].Limit)
+				t.Equal(makeLimit(time.Minute, 44444), rs0.m["operation"].Limit)
 				t.Equal(44444, rs0.m["operation"].Burst)
 			}
 		})

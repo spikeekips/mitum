@@ -368,7 +368,9 @@ func (u *LastConsensusNodesWatcher) loadLast(
 	return height, proofs, candidates, nil
 }
 
-func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {
+func IsNodeInLastConsensusNodes(
+	node base.Node, proof base.SuffrageProof, candidatesst base.State,
+) (base.Suffrage, bool, error) {
 	if proof == nil {
 		return nil, false, nil
 	}
@@ -382,11 +384,11 @@ func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st bas
 		return suf, true, nil
 	}
 
-	if st == nil {
+	if candidatesst == nil {
 		return suf, false, nil
 	}
 
-	candidates, err := base.LoadNodesFromSuffrageCandidatesState(st)
+	candidates, err := base.LoadNodesFromSuffrageCandidatesState(candidatesst)
 	if err != nil {
 		return suf, false, err
 	}
@@ -395,6 +397,42 @@ func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st bas
 		n := candidates[i]
 
 		if n.Address().Equal(node.Address()) && n.Publickey().Equal(node.Publickey()) {
+			return suf, true, nil
+		}
+	}
+
+	return suf, false, nil
+}
+
+func IsNodeAddressInLastConsensusNodes(
+	node base.Address, proof base.SuffrageProof, candidatesst base.State,
+) (base.Suffrage, bool, error) {
+	if proof == nil {
+		return nil, false, nil
+	}
+
+	suf, err := proof.Suffrage()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if suf.Exists(node) {
+		return suf, true, nil
+	}
+
+	if candidatesst == nil {
+		return suf, false, nil
+	}
+
+	candidates, err := base.LoadNodesFromSuffrageCandidatesState(candidatesst)
+	if err != nil {
+		return suf, false, err
+	}
+
+	for i := range candidates {
+		n := candidates[i]
+
+		if n.Address().Equal(node) {
 			return suf, true, nil
 		}
 	}

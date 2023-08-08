@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -42,6 +43,43 @@ func (t *baseTestCAHandoverHeader) SetupTest() {
 
 		return h, b
 	}
+}
+
+func TestOperationRequestHeader(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+	t.SetT(tt)
+
+	enc := jsonenc.NewEncoder()
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: OperationRequestHeaderHint, Instance: OperationRequestHeader{}}))
+
+	t.Encode = func() (interface{}, []byte) {
+		h := NewOperationRequestHeader(valuehash.RandomSHA256())
+		h.SetClientID("showme")
+
+		b, err := util.MarshalJSON(h)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return h, b
+	}
+
+	t.Decode = func(b []byte) interface{} {
+		var u OperationRequestHeader
+		t.NoError(encoder.Decode(enc, b, &u))
+
+		return u
+	}
+	t.Compare = func(a interface{}, b interface{}) {
+		ah := a.(OperationRequestHeader)
+		bh := b.(OperationRequestHeader)
+
+		t.Equal(ah.Hint(), bh.Hint())
+		t.True(ah.Operation().Equal(bh.Operation()))
+		t.Equal(ah.ClientID(), bh.ClientID())
+	}
+
+	suite.Run(tt, t)
 }
 
 func TestStartHandoverHeaderEncode(tt *testing.T) {

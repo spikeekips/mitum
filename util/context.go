@@ -173,3 +173,21 @@ func PipeReadWrite(
 		return err
 	}
 }
+
+func ContextWithValues(ctx context.Context, v map[ContextKey]interface{}) context.Context {
+	if len(v) < 1 {
+		return ctx
+	}
+
+	nctx := ctx
+
+	for i := range v {
+		if v[i] == nil {
+			continue
+		}
+
+		nctx = context.WithValue(nctx, i, v[i])
+	}
+
+	return nctx
+}

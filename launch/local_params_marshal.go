@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -92,14 +91,6 @@ func (p *LocalParams) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	return nil
-}
-
-func (p *LocalParams) MarshalZerologObject(e *zerolog.Event) {
-	e.
-		Interface("isaac", p.ISAAC).
-		Interface("memberlist", p.Memberlist).
-		Interface("misc", p.MISC).
-		Interface("network", p.Network)
 }
 
 type memberlistParamsMarshaler struct {
@@ -458,28 +449,6 @@ func (p *NetworkParams) unmarshal(u networkParamsYAMLUnmarshaler) error {
 	}
 
 	return nil
-}
-
-func (p *NetworkParams) MarshalZerologObject(e *zerolog.Event) {
-	e.
-		Stringer("timeout_request", p.timeoutRequest).
-		Stringer("handshake_idle_timeout", p.handshakeIdleTimeout).
-		Stringer("max_idle_timeout", p.maxIdleTimeout).
-		Stringer("keep_alive_period", p.keepAlivePeriod).
-		Stringer("default_handler_timeout", p.defaultHandlerTimeout).
-		Uint64("connection_pool_size", p.connectionPoolSize).
-		Uint64("max_incoming_streams", p.maxIncomingStreams).
-		Stringer("max_stream_timeout", p.maxStreamTimeout)
-
-	ed := zerolog.Dict()
-
-	for i := range networkHandlerPrefixes {
-		prefix := networkHandlerPrefixes[i]
-
-		ed = ed.Stringer(prefix, p.handlerTimeout(prefix))
-	}
-
-	e.Dict("handler_timeout", ed)
 }
 
 type networkRateLimitParamsMarshaler struct {

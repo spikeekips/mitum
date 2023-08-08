@@ -14,6 +14,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/time/rate"
 )
@@ -21,14 +22,25 @@ import (
 var (
 	ErrRateLimited     = util.NewIDError("over ratelimit")
 	defaultRateLimiter = RateLimiterRule{
-		Limit: rate.Every(time.Second * 3), Burst: 3, //nolint:gomnd //...
+		Limit: makeLimit(time.Second*3, 3), Burst: 3, //nolint:gomnd //...
+	}
+	defaultSuffrageRateLimiter = RateLimiterRule{
+		Limit: makeLimit(time.Second*3, 9), Burst: 9, //nolint:gomnd //...
 	}
 	defaultRateLimitHandlerPoolSizes = []uint64{1 << 7, 1 << 7, 1 << 7}
 )
 
+var (
+	RateLimiterLimiterPrefixContextKey = util.ContextKey("ratelimit-limiter-prefix")
+	RateLimiterClientIDContextKey      = util.ContextKey("ratelimit-limiter-clientid")
+	RateLimiterResultContextKey        = util.ContextKey("ratelimit-limiter-result")
+)
+
 type RateLimiter struct {
 	*rate.Limiter
+	t         string
 	checksum  string
+	desc      string
 	updatedAt int64
 	nolimit   bool
 	sync.RWMutex
@@ -37,10 +49,12 @@ type RateLimiter struct {
 // NewRateLimiter make new *RateLimiter;
 // - if limit is zero or burst is zero, all events will be rejected
 // - if limit is rate.Inf, no limit
-func NewRateLimiter(limit rate.Limit, burst int, checksum string) *RateLimiter {
+func NewRateLimiter(limit rate.Limit, burst int, checksum, t, desc string) *RateLimiter {
 	r := &RateLimiter{
 		updatedAt: time.Now().UnixNano(),
 		checksum:  checksum,
+		t:         t,
+		desc:      desc,
 	}
 
 	switch {
@@ -61,6 +75,13 @@ func (r *RateLimiter) Checksum() string {
 	return r.checksum
 }
 
+func (r *RateLimiter) Type() string {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.t
+}
+
 func (r *RateLimiter) UpdatedAt() int64 {
 	r.RLock()
 	defer r.RUnlock()
@@ -68,13 +89,11 @@ func (r *RateLimiter) UpdatedAt() int64 {
 	return r.updatedAt
 }
 
-func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *RateLimiter {
+func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum, t, desc string) *RateLimiter {
 	r.Lock()
 	defer r.Unlock()
 
-	var updated bool
-
-	if r.Limit() != limit || r.Burst() != burst {
+	if r.Limiter.Limit() != limit || r.Limiter.Burst() != burst {
 		switch {
 		case limit == rate.Inf:
 			r.nolimit = true
@@ -86,19 +105,20 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum string) *Rate
 			r.nolimit = false
 			r.Limiter = rate.NewLimiter(limit, burst)
 		}
-
-		updated = true
 	}
 
-	if r.checksum != checksum {
+	switch {
+	case r.t != t:
+		r.t = t
 		r.checksum = checksum
-
-		updated = true
+	default:
+		if r.checksum != checksum {
+			r.checksum = checksum
+		}
 	}
 
-	if updated {
-		r.updatedAt = time.Now().UnixNano()
-	}
+	r.updatedAt = time.Now().UnixNano()
+	r.desc = desc
 
 	return r
 }
@@ -114,15 +134,46 @@ func (r *RateLimiter) Allow() bool {
 	return r.Limiter.Allow()
 }
 
+func (r *RateLimiter) Limit() rate.Limit {
+	r.RLock()
+	defer r.RUnlock()
+
+	switch {
+	case r.Limiter != nil:
+		return r.Limiter.Limit()
+	case r.nolimit:
+		return rate.Inf
+	default:
+		return 0
+	}
+}
+
+func (r *RateLimiter) Burst() int {
+	r.RLock()
+	defer r.RUnlock()
+
+	switch {
+	case r.Limiter != nil:
+		return r.Limiter.Burst()
+	default:
+		return 0
+	}
+}
+
+func (r *RateLimiter) Desc() string {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.desc
+}
+
 type RateLimitHandlerArgs struct {
-	GetLastSuffrageFunc func(context.Context) (statehash util.Hash, _ base.Suffrage, found bool, _ error)
-	Rules               *RateLimiterRules
-	PoolSizes           []uint64
+	Rules     *RateLimiterRules
+	PoolSizes []uint64
 	// ExpireAddr sets the expire duration for idle addr. if addr is over
 	// ExpireAddr, it will be removed.
-	ExpireAddr           time.Duration
-	ShrinkInterval       time.Duration
-	LastSuffrageInterval time.Duration
+	ExpireAddr     time.Duration
+	ShrinkInterval time.Duration
 	// MaxAddrs limits the number of network addresses; if new address over
 	// MaxAddrs, the oldes addr will be removed.
 	MaxAddrs uint64
@@ -130,24 +181,19 @@ type RateLimitHandlerArgs struct {
 
 func NewRateLimitHandlerArgs() *RateLimitHandlerArgs {
 	return &RateLimitHandlerArgs{
-		ExpireAddr:           time.Second * 33, //nolint:gomnd //...
-		ShrinkInterval:       time.Second * 33, //nolint:gomnd // long enough
-		LastSuffrageInterval: time.Second * 2,  //nolint:gomnd //...
-		PoolSizes:            defaultRateLimitHandlerPoolSizes,
-		GetLastSuffrageFunc: func(context.Context) (util.Hash, base.Suffrage, bool, error) {
-			return nil, nil, false, nil
-		},
-		Rules:    NewRateLimiterRules(NewRateLimiterRuleMap(&defaultRateLimiter, nil)),
-		MaxAddrs: math.MaxUint32,
+		ExpireAddr:     time.Second * 33, //nolint:gomnd //...
+		ShrinkInterval: time.Second * 33, //nolint:gomnd // long enough
+		PoolSizes:      defaultRateLimitHandlerPoolSizes,
+		Rules:          NewRateLimiterRules(),
+		MaxAddrs:       math.MaxUint32,
 	}
 }
 
 type RateLimitHandler struct {
 	*util.ContextDaemon
-	args         *RateLimitHandlerArgs
-	rules        *RateLimiterRules
-	pool         *addrPool
-	lastSuffrage *util.Locked[[2]interface{}]
+	args  *RateLimitHandlerArgs
+	rules *RateLimiterRules
+	pool  *addrPool
 }
 
 func NewRateLimitHandler(args *RateLimitHandlerArgs) (*RateLimitHandler, error) {
@@ -157,10 +203,9 @@ func NewRateLimitHandler(args *RateLimitHandlerArgs) (*RateLimitHandler, error) 
 	}
 
 	r := &RateLimitHandler{
-		args:         args,
-		pool:         pool,
-		rules:        args.Rules,
-		lastSuffrage: util.EmptyLocked[[2]interface{}](),
+		args:  args,
+		pool:  pool,
+		rules: args.Rules,
 	}
 
 	r.ContextDaemon = util.NewContextDaemon(r.start)
@@ -168,30 +213,65 @@ func NewRateLimitHandler(args *RateLimitHandlerArgs) (*RateLimitHandler, error) 
 	return r, nil
 }
 
-func (r *RateLimitHandler) HandlerFunc(prefix string, handler quicstream.Handler) quicstream.Handler {
-	return func(ctx context.Context, addr net.Addr, ir io.Reader, iw io.WriteCloser) (context.Context, error) {
-		if l, allowed := r.allow(addr, prefix); !allowed {
-			return ctx, ErrRateLimited.Errorf("prefix=%q limit=%v burst=%d", prefix, l.Limit(), l.Burst())
-		}
+func (r *RateLimitHandler) Func(
+	ctx context.Context,
+	addr net.Addr,
+	f func(context.Context) (context.Context, error),
+) (context.Context, error) {
+	var prefix string
 
-		nctx, err := handler(ctx, addr, ir, iw)
-
-		if nctx != nil {
-			if node, ok := nctx.Value(isaacnetwork.ContextKeyNodeChallengedNode).(base.Address); ok {
-				_ = r.AddNode(addr, node)
-			}
-		}
-
-		return nctx, err
+	switch i, ok := ctx.Value(RateLimiterLimiterPrefixContextKey).(string); {
+	case !ok:
+		return f(ctx)
+	default:
+		prefix = i
 	}
+
+	var hint RateLimitRuleHint
+	if i, ok := ctx.Value(RateLimiterClientIDContextKey).(string); ok {
+		hint.ClientID = i
+	}
+
+	l, allowed := r.allow(addr, prefix, hint)
+
+	ictx := util.ContextWithValues(ctx, map[util.ContextKey]interface{}{
+		RateLimiterResultContextKey: func() RateLimiterResult {
+			return RateLimiterResult{
+				Limiter:     humanizeRateLimiter(l.Limit(), l.Burst()),
+				Tokens:      l.Tokens(),
+				Allowed:     allowed,
+				RulesetType: l.Type(),
+				RulesetDesc: l.Desc(),
+				Hint:        hint,
+				Prefix:      prefix,
+			}
+		},
+	})
+
+	if !allowed {
+		return ictx, ErrRateLimited.Errorf("prefix=%q tokens=%0.7f", prefix, l.Tokens())
+	}
+
+	jctx, err := f(ictx)
+
+	if jctx != nil {
+		if node, ok := jctx.Value(isaacnetwork.ContextKeyNodeChallengedNode).(base.Address); ok {
+			_ = r.AddNode(addr, node)
+		}
+	}
+
+	return jctx, err
 }
 
 func (r *RateLimitHandler) AddNode(addr net.Addr, node base.Address) bool {
 	return r.pool.addNode(addr.String(), node)
 }
 
-func (r *RateLimitHandler) allow(addr net.Addr, handler string) (*RateLimiter, bool) {
-	l := r.pool.rateLimiter(addr.String(), handler,
+func (r *RateLimitHandler) allow(addr net.Addr, handler string, hint RateLimitRuleHint) (*RateLimiter, bool) {
+	l := r.pool.rateLimiter(
+		addr.String(),
+		handler,
+		hint,
 		r.rateLimiterFunc(addr, handler),
 	)
 
@@ -205,136 +285,118 @@ func (r *RateLimitHandler) shrink(ctx context.Context) (removed uint64) {
 }
 
 func (r *RateLimitHandler) start(ctx context.Context) error {
-	sticker := time.NewTicker(r.args.ShrinkInterval)
-	defer sticker.Stop()
-
-	lticker := time.NewTicker(r.args.LastSuffrageInterval)
-	defer lticker.Stop()
+	ticker := time.NewTicker(r.args.ShrinkInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-sticker.C:
+		case <-ticker.C:
 			r.shrink(ctx)
-		case <-lticker.C:
-			_ = r.checkLastSuffrage(ctx)
 		}
-	}
-}
-
-func (r *RateLimitHandler) checkLastSuffrage(ctx context.Context) error {
-	switch st, suf, found, err := r.args.GetLastSuffrageFunc(ctx); {
-	case err != nil:
-		return err
-	case !found:
-		return nil
-	default:
-		var updated bool
-
-		_, _ = r.lastSuffrage.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
-			if isempty {
-				updated = true
-
-				return [2]interface{}{st, suf}, nil
-			}
-
-			if prev, ok := i[0].(util.Hash); ok && prev.Equal(st) {
-				return [2]interface{}{}, util.ErrLockedSetIgnore.WithStack()
-			}
-
-			updated = true
-
-			return [2]interface{}{st, suf}, nil
-		})
-
-		if updated {
-			_ = r.rules.SetSuffrage(suf, st)
-		}
-
-		return nil
-	}
-}
-
-func (r *RateLimitHandler) isOldNodeInSuffrage(node base.Address, checksum string) bool {
-	i, isempty := r.lastSuffrage.Value()
-	if isempty {
-		return false
-	}
-
-	switch suf, ok := i[1].(base.Suffrage); {
-	case !ok:
-		return false
-	case !suf.Exists(node):
-		return len(checksum) > 0
-	}
-
-	switch i, ok := i[0].(util.Hash); {
-	case !ok:
-		return false
-	default:
-		return i.String() != checksum
 	}
 }
 
 func (r *RateLimitHandler) rateLimiterFunc(
 	addr net.Addr,
 	handler string,
-) func(_ *RateLimiter, found, created bool, node base.Address) (*RateLimiter, error) {
-	return func(l *RateLimiter, found, created bool, node base.Address) (*RateLimiter, error) {
-		if !found || l.UpdatedAt() < r.rules.UpdatedAt() {
-			// NOTE if RateLimiter is older than rule updated
-
-			checksum, rule := r.rules.Rule(addr, node, handler)
-
-			if !found {
-				return NewRateLimiter(rule.Limit, rule.Burst, checksum), nil
-			}
-
-			_ = l.Update(rule.Limit, rule.Burst, checksum)
-
+) func(_ *RateLimiter, found, created bool, hint RateLimitRuleHint) (*RateLimiter, error) {
+	return func(l *RateLimiter, found, created bool, hint RateLimitRuleHint) (*RateLimiter, error) {
+		switch i, isnew := r.rules.Rule(addr, handler, hint, l); {
+		case isnew:
+			return i, nil
+		default:
 			return nil, util.ErrLockedSetIgnore.WithStack()
 		}
-
-		if found && node != nil {
-			if r.isOldNodeInSuffrage(node, l.Checksum()) { // NOTE check node is in suffrage
-				checksum, rule := r.rules.Rule(addr, node, handler)
-
-				_ = l.Update(rule.Limit, rule.Burst, checksum)
-
-				return nil, util.ErrLockedSetIgnore.WithStack()
-			}
-		}
-
-		return nil, util.ErrLockedSetIgnore.WithStack()
 	}
 }
 
 type RateLimiterRule struct {
+	s     string
 	Limit rate.Limit
 	Burst int
 }
 
+func NewRateLimiterRule(d time.Duration, burst int) RateLimiterRule {
+	var limit rate.Limit
+
+	switch {
+	case d < 1, burst < 1:
+		limit = 0
+		burst = 0 //revive:disable-line:modifies-parameter
+	default:
+		limit = makeLimit(d, burst)
+	}
+
+	return RateLimiterRule{Limit: limit, Burst: burst, s: fmt.Sprintf("%d/%s", burst, d)}
+}
+
 type RateLimiterRules struct {
-	suffrage   RateLimiterRuleSet
-	nodes      RateLimiterRuleSet
-	nets       RateLimiterRuleSet
-	defaultMap RateLimiterRuleMap
-	updatedAt  int64
+	IsInConsensusNodesFunc func() (
+		statehash util.Hash,
+		exists func(base.Address) (found bool),
+		_ error,
+	)
+	suffrage            RateLimiterRuleSet
+	nodes               RateLimiterRuleSet
+	nets                RateLimiterRuleSet
+	clientid            RateLimiterRuleSet
+	defaultMap          RateLimiterRuleMap
+	defaultMapUpdatedAt int64
 	sync.RWMutex
 }
 
-func NewRateLimiterRules(defaultMap RateLimiterRuleMap) *RateLimiterRules {
-	return &RateLimiterRules{
-		defaultMap: defaultMap,
-		updatedAt:  time.Now().UnixNano(),
+func NewRateLimiterRules() *RateLimiterRules {
+	r := &RateLimiterRules{
+		defaultMap:          NewRateLimiterRuleMap(&defaultRateLimiter, nil),
+		defaultMapUpdatedAt: time.Now().UnixNano(),
+		IsInConsensusNodesFunc: func() (util.Hash, func(base.Address) bool, error) {
+			return nil, func(base.Address) bool { return false }, nil
+		},
 	}
+
+	_ = r.SetSuffrageRuleSet(NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(&defaultSuffrageRateLimiter, nil)))
+
+	return r
 }
 
-func (r *RateLimiterRules) Rule(addr net.Addr, node base.Address, handler string) (string, RateLimiterRule) {
-	checksum, l := r.rule(addr, node, handler)
+type RateLimitRuleHint struct {
+	Node     base.Address
+	ClientID string
+}
 
-	return checksum, l
+func (r *RateLimiterRules) Rule(
+	addr net.Addr,
+	handler string,
+	hint RateLimitRuleHint,
+	l *RateLimiter,
+) (_ *RateLimiter, isnew bool) {
+	if l == nil {
+		checksum, rule, t, desc, _ := r.rule(addr, handler, hint, "", 0)
+
+		return NewRateLimiter(rule.Limit, rule.Burst, checksum, t, desc), true
+	}
+
+	if r.clientid != nil && l.Type() == "clientid" &&
+		len(hint.ClientID) > 0 && l.UpdatedAt() >= r.clientid.UpdatedAt() {
+		return l, false
+	}
+
+	if r.nets != nil && l.Type() == "net" && l.UpdatedAt() >= r.nets.UpdatedAt() {
+		return l, false
+	}
+
+	if i, isnew, found := r.ruleByNode(addr, handler, hint, l); found {
+		return i, isnew
+	}
+
+	checksum, rule, t, desc, refreshed := r.rule(addr, handler, hint, l.Type(), l.UpdatedAt())
+	if !refreshed {
+		return l, false
+	}
+
+	return l.Update(rule.Limit, rule.Burst, checksum, t, desc), false
 }
 
 func (r *RateLimiterRules) DefaultRuleMap() RateLimiterRuleMap {
@@ -349,18 +411,7 @@ func (r *RateLimiterRules) SetDefaultRuleMap(rule RateLimiterRuleMap) error {
 	defer r.Unlock()
 
 	r.defaultMap = rule
-	r.updatedAt = time.Now().UnixNano()
-
-	return nil
-}
-
-func (r *RateLimiterRules) SetSuffrage(suf base.Suffrage, st util.Hash) error {
-	i, ok := r.suffrage.(rulesetSuffrageSetter)
-	if !ok {
-		return errors.Errorf("suffrage rule set does not have SetSuffrage()")
-	}
-
-	_ = i.SetSuffrage(suf, st)
+	r.defaultMapUpdatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -376,12 +427,14 @@ func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
 	r.Lock()
 	defer r.Unlock()
 
-	if _, ok := l.(rulesetSuffrageSetter); !ok {
-		return errors.Errorf("expected rulesetSuffrageSetter, but %T", l)
+	switch i, ok := l.(*SuffrageRateLimiterRuleSet); {
+	case !ok:
+		return errors.Errorf("expected *SuffrageRateLimiterRuleSet, but %T", l)
+	default:
+		i.IsInConsensusNodesFunc = r.IsInConsensusNodesFunc
 	}
 
 	r.suffrage = l
-	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -398,7 +451,6 @@ func (r *RateLimiterRules) SetNodeRuleSet(l RateLimiterRuleSet) error {
 	defer r.Unlock()
 
 	r.nodes = l
-	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
@@ -415,45 +467,95 @@ func (r *RateLimiterRules) SetNetRuleSet(l RateLimiterRuleSet) error {
 	defer r.Unlock()
 
 	r.nets = l
-	r.updatedAt = time.Now().UnixNano()
 
 	return nil
 }
 
-func (r *RateLimiterRules) UpdatedAt() int64 {
+func (r *RateLimiterRules) ClientIDRuleSet() RateLimiterRuleSet {
 	r.RLock()
 	defer r.RUnlock()
 
-	return r.updatedAt
+	return r.clientid
 }
 
-func (r *RateLimiterRules) rule(addr net.Addr, node base.Address, handler string) (string, RateLimiterRule) {
+func (r *RateLimiterRules) SetClientIDRuleSet(l RateLimiterRuleSet) error {
+	r.Lock()
+	defer r.Unlock()
+
+	r.clientid = l
+
+	return nil
+}
+
+func (r *RateLimiterRules) DefaultMapUpdatedAt() int64 {
 	r.RLock()
 	defer r.RUnlock()
 
-	if node != nil && r.nodes != nil {
-		if checksum, l, found := r.nodes.Rule(node, handler); found {
-			return checksum, l
+	return r.defaultMapUpdatedAt
+}
+
+func (r *RateLimiterRules) SetIsInConsensusNodesFunc(f func() (
+	statehash util.Hash,
+	exists func(base.Address) (found bool),
+	_ error,
+),
+) {
+	r.IsInConsensusNodesFunc = f
+
+	if i, ok := r.suffrage.(*SuffrageRateLimiterRuleSet); ok {
+		i.IsInConsensusNodesFunc = r.IsInConsensusNodesFunc
+	}
+}
+
+func (r *RateLimiterRules) rule(
+	addr net.Addr,
+	handler string,
+	hint RateLimitRuleHint,
+	t string,
+	updatedAt int64,
+) (checksum string, _ RateLimiterRule, rulesetType string, desc string, updated bool) {
+	r.RLock()
+	defer r.RUnlock()
+
+	var node base.Address
+	if hint.Node != nil {
+		node = hint.Node
+	}
+
+	if r.clientid != nil {
+		if checksum, l, desc, found := r.clientid.Rule(addr, handler, hint); found {
+			return checksum, l, "clientid", desc, true
 		}
 	}
 
 	if r.nets != nil {
-		if checksum, l, found := r.nets.Rule(addr, handler); found {
-			return checksum, l
+		if checksum, l, desc, found := r.nets.Rule(addr, handler, hint); found {
+			return checksum, l, "net", desc, true
+		}
+	}
+
+	if node != nil && r.nodes != nil {
+		if checksum, l, desc, found := r.nodes.Rule(addr, handler, hint); found {
+			return checksum, l, "node", desc, true
 		}
 	}
 
 	if node != nil && r.suffrage != nil {
-		if checksum, l, found := r.suffrage.Rule(node, handler); found {
-			return checksum, l
+		if checksum, l, desc, found := r.suffrage.Rule(addr, handler, hint); found {
+			return checksum, l, "suffrage", desc, true
 		}
 	}
 
-	if l, found := r.defaultMap.Rule(handler); found {
-		return "", l
-	}
+	switch {
+	case t == "defaultmap" && updatedAt >= r.defaultMapUpdatedAt:
+		return "", defaultRateLimiter, "defaultmap", "", false
+	default:
+		if l, found := r.defaultMap.Rule(handler); found {
+			return "", l, "defaultmap", "", true
+		}
 
-	return "", defaultRateLimiter
+		return "", defaultRateLimiter, "default", "", true
+	}
 }
 
 func (r *RateLimiterRules) IsValid([]byte) error {
@@ -464,8 +566,41 @@ func (r *RateLimiterRules) IsValid([]byte) error {
 	return nil
 }
 
+func (r *RateLimiterRules) ruleByNode(
+	addr net.Addr,
+	handler string,
+	hint RateLimitRuleHint,
+	l *RateLimiter,
+) (_ *RateLimiter, isnew, found bool) {
+	var node base.Address
+	if hint.Node != nil {
+		node = hint.Node
+	}
+
+	if node != nil && r.nodes != nil && l.Type() == "node" && l.UpdatedAt() >= r.nodes.UpdatedAt() {
+		return l, false, true
+	}
+
+	if node != nil && r.suffrage != nil && l.Type() == "suffrage" && l.UpdatedAt() >= r.suffrage.UpdatedAt() {
+		switch st, exists, err := r.IsInConsensusNodesFunc(); {
+		case err != nil:
+		case !exists(node):
+		case st.String() != l.Checksum():
+			if checksum, rule, desc, found := r.suffrage.Rule(addr, handler, hint); found {
+				return l.Update(rule.Limit, rule.Burst, checksum, "suffrage", desc), false, true
+			}
+		default:
+			return l, false, true
+		}
+	}
+
+	return l, false, false
+}
+
 type RateLimiterRuleSet interface {
-	Rule(_ interface{}, handler string) (checksum string, _ RateLimiterRule, found bool)
+	Rule(addr net.Addr, handler string, hint RateLimitRuleHint) (
+		checksum string, _ RateLimiterRule, desc string, found bool)
+	UpdatedAt() int64
 	util.IsValider
 }
 
@@ -511,13 +646,15 @@ func (m RateLimiterRuleMap) rule(handler string) (rule RateLimiterRule, found bo
 }
 
 type NetRateLimiterRuleSet struct {
-	rules  map[ /* ipnet */ string]RateLimiterRuleMap
-	ipnets []*net.IPNet
+	rules     map[ /* ipnet */ string]RateLimiterRuleMap
+	ipnets    []*net.IPNet
+	updatedAt int64
 }
 
 func NewNetRateLimiterRuleSet() NetRateLimiterRuleSet {
 	return NetRateLimiterRuleSet{
-		rules: map[string]RateLimiterRuleMap{},
+		rules:     map[string]RateLimiterRuleMap{},
+		updatedAt: time.Now().UnixNano(),
 	}
 }
 
@@ -542,6 +679,10 @@ func (rs NetRateLimiterRuleSet) IsValid([]byte) error {
 	return nil
 }
 
+func (rs NetRateLimiterRuleSet) UpdatedAt() int64 {
+	return rs.updatedAt
+}
+
 func (rs *NetRateLimiterRuleSet) Add(ipnet *net.IPNet, rule RateLimiterRuleMap) *NetRateLimiterRuleSet {
 	rs.ipnets = append(rs.ipnets, ipnet)
 	rs.rules[ipnet.String()] = rule
@@ -549,22 +690,22 @@ func (rs *NetRateLimiterRuleSet) Add(ipnet *net.IPNet, rule RateLimiterRuleMap) 
 	return rs
 }
 
-func (rs NetRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
-	l, found := rs.rule(i, handler)
+func (rs NetRateLimiterRuleSet) Rule(
+	addr net.Addr, handler string, _ RateLimitRuleHint,
+) (_ string, _ RateLimiterRule, _ string, _ bool) {
+	l, desc, found := rs.rule(addr, handler)
 
-	return "", l, found
+	return "", l, desc, found
 }
 
-func (rs NetRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+func (rs NetRateLimiterRuleSet) rule(addr net.Addr, handler string) (rule RateLimiterRule, _ string, _ bool) {
 	var ip net.IP
 
-	switch t := i.(type) {
+	switch t := addr.(type) {
 	case *net.UDPAddr:
 		ip = t.IP
-	case net.IP:
-		ip = t
 	default:
-		return rule, false
+		return rule, "", false
 	}
 
 	for i := range rs.ipnets {
@@ -575,129 +716,150 @@ func (rs NetRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLi
 
 		m, found := rs.rules[in.String()]
 		if !found {
-			return rule, false
+			return rule, "", false
 		}
 
 		l, found := m.Rule(handler)
 		if !found {
-			return rule, false
+			return rule, "", false
 		}
 
-		return l, true
+		return l, fmt.Sprintf(`{"net":%q}`, in), true
 	}
 
-	return rule, false
+	return rule, "", false
+}
+
+type StringKeyRateLimiterRuleSet struct {
+	rules     map[ /* node address */ string]RateLimiterRuleMap
+	updatedAt int64
+}
+
+func newStringKeyRateLimiterRuleSet(
+	rules map[string]RateLimiterRuleMap,
+) StringKeyRateLimiterRuleSet {
+	return StringKeyRateLimiterRuleSet{rules: rules, updatedAt: time.Now().UnixNano()}
+}
+
+func (StringKeyRateLimiterRuleSet) IsValid([]byte) error {
+	return nil
+}
+
+func (rs StringKeyRateLimiterRuleSet) UpdatedAt() int64 {
+	return rs.updatedAt
+}
+
+func (rs StringKeyRateLimiterRuleSet) rule(i string, handler string) (rule RateLimiterRule, _ bool) {
+	m, found := rs.rules[i]
+	if !found {
+		return rule, false
+	}
+
+	l, found := m.Rule(handler)
+
+	return l, found
 }
 
 type NodeRateLimiterRuleSet struct {
-	rules map[ /* node address */ string]RateLimiterRuleMap
+	StringKeyRateLimiterRuleSet
 }
 
 func NewNodeRateLimiterRuleSet(
 	rules map[string]RateLimiterRuleMap,
 ) NodeRateLimiterRuleSet {
-	return NodeRateLimiterRuleSet{rules: rules}
+	return NodeRateLimiterRuleSet{StringKeyRateLimiterRuleSet: newStringKeyRateLimiterRuleSet(rules)}
 }
 
-func (NodeRateLimiterRuleSet) IsValid([]byte) error {
-	return nil
-}
-
-func (rs NodeRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
-	l, found := rs.rule(i, handler)
-
-	return "", l, found
-}
-
-func (rs NodeRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+func (rs NodeRateLimiterRuleSet) Rule(
+	_ net.Addr, handler string, hint RateLimitRuleHint,
+) (_ string, _ RateLimiterRule, _ string, _ bool) {
 	if len(rs.rules) < 1 {
-		return rule, false
+		return "", RateLimiterRule{}, "", false
 	}
 
 	var node string
 
-	switch t := i.(type) {
-	case base.Address:
-		node = t.String()
-	case fmt.Stringer:
-		node = t.String()
-	case string:
-		node = t
+	switch {
+	case hint.Node == nil:
+		return "", RateLimiterRule{}, "", false
 	default:
-		return rule, false
+		node = hint.Node.String()
 	}
 
-	m, found := rs.rules[node]
-	if !found {
-		return rule, false
-	}
+	rule, found := rs.rule(node, handler)
 
-	return m.Rule(handler)
+	return "", rule, "", found
 }
 
 type SuffrageRateLimiterRuleSet struct {
-	suf   base.Suffrage
-	st    util.Hash
-	rules RateLimiterRuleMap
+	IsInConsensusNodesFunc func() (util.Hash, func(base.Address) (found bool), error)
+	rules                  RateLimiterRuleMap
+	updatedAt              int64
 	sync.RWMutex
 }
 
 func NewSuffrageRateLimiterRuleSet(rule RateLimiterRuleMap) *SuffrageRateLimiterRuleSet {
-	return &SuffrageRateLimiterRuleSet{rules: rule}
+	return &SuffrageRateLimiterRuleSet{rules: rule, updatedAt: time.Now().UnixNano()}
 }
 
 func (*SuffrageRateLimiterRuleSet) IsValid([]byte) error {
 	return nil
 }
 
-func (rs *SuffrageRateLimiterRuleSet) SetSuffrage(suf base.Suffrage, st util.Hash) bool {
-	rs.Lock()
-	defer rs.Unlock()
-
-	if rs.st != nil && rs.st.Equal(st) {
-		return false
-	}
-
-	rs.suf = suf
-	rs.st = st
-
-	return true
+func (rs *SuffrageRateLimiterRuleSet) UpdatedAt() int64 {
+	return rs.updatedAt
 }
 
-func (rs *SuffrageRateLimiterRuleSet) inSuffrage(node base.Address) bool {
-	rs.RLock()
-	defer rs.RUnlock()
-
-	if rs.suf == nil {
-		return false
-	}
-
-	return rs.suf.Exists(node)
-}
-
-func (rs *SuffrageRateLimiterRuleSet) Rule(i interface{}, handler string) (string, RateLimiterRule, bool) {
-	l, found := rs.rule(i, handler)
-
-	return rs.st.String(), l, found
-}
-
-func (rs *SuffrageRateLimiterRuleSet) rule(i interface{}, handler string) (rule RateLimiterRule, _ bool) {
+func (rs *SuffrageRateLimiterRuleSet) Rule(
+	_ net.Addr, handler string, hint RateLimitRuleHint,
+) (statehash string, rule RateLimiterRule, _ string, _ bool) {
 	if rs.rules.IsEmpty() {
-		return rule, false
+		return "", rule, "", false
 	}
 
-	node, ok := i.(base.Address)
-	if !ok {
-		return rule, false
+	var node base.Address
+
+	switch {
+	case hint.Node == nil:
+		return "", rule, "", false
+	default:
+		node = hint.Node
 	}
 
-	if !rs.inSuffrage(node) {
-		return rule, false
+	switch st, exists, err := rs.IsInConsensusNodesFunc(); {
+	case err != nil, !exists(node):
+		return "", rule, "", false
+	default:
+		l, found := rs.rules.Rule(handler)
+
+		return st.String(), l, "", found
+	}
+}
+
+type ClientIDRateLimiterRuleSet struct {
+	StringKeyRateLimiterRuleSet
+}
+
+func NewClientIDRateLimiterRuleSet(
+	rules map[string]RateLimiterRuleMap,
+) ClientIDRateLimiterRuleSet {
+	return ClientIDRateLimiterRuleSet{StringKeyRateLimiterRuleSet: newStringKeyRateLimiterRuleSet(rules)}
+}
+
+func (rs ClientIDRateLimiterRuleSet) Rule(
+	_ net.Addr, handler string, hint RateLimitRuleHint,
+) (_ string, rule RateLimiterRule, _ string, _ bool) {
+	if len(rs.rules) < 1 {
+		return "", rule, "", false
 	}
 
-	l, found := rs.rules.Rule(handler)
+	if len(hint.ClientID) < 1 {
+		return "", rule, "", false
+	}
 
-	return l, found
+	l, found := rs.rule(hint.ClientID, handler)
+
+	return "", l, fmt.Sprintf(`{"client_id":%q}`, hint.ClientID), found
 }
 
 type addrPool struct {
@@ -763,7 +925,8 @@ func (p *addrPool) addNode(addr string, node base.Address) bool {
 func (p *addrPool) rateLimiter(
 	addr,
 	handler string,
-	f func(l *RateLimiter, found, created bool, node base.Address) (*RateLimiter, error),
+	hint RateLimitRuleHint,
+	f func(l *RateLimiter, found, created bool, hint RateLimitRuleHint) (*RateLimiter, error),
 ) *RateLimiter {
 	var l *RateLimiter
 
@@ -780,12 +943,16 @@ func (p *addrPool) rateLimiter(
 				p.addrsQueue.Add(addr)
 			}
 
-			node, _ := p.addrs.Value(addr)
+			switch j, _ := p.addrs.Value(addr); {
+			case j == nil: // NOTE hint.Node preserved
+			default:
+				hint.Node = j
+			}
 
 			l, _, _ = i.Set(
 				handler,
 				func(l *RateLimiter, found bool) (*RateLimiter, error) {
-					return f(l, found, created, node)
+					return f(l, found, created, hint)
 				},
 			)
 
@@ -925,6 +1092,106 @@ func (h *rateLimitAddrsQueue) Pop() string {
 	return addr
 }
 
-type rulesetSuffrageSetter interface {
-	SetSuffrage(base.Suffrage, util.Hash) bool
+func humanizeRateLimiter(limit rate.Limit, burst int) string {
+	switch {
+	case limit == rate.Inf:
+		return "nolimit"
+	case limit == 0, burst < 1:
+		return "0"
+	default:
+		return fmt.Sprintf("%d/%s",
+			burst,
+			loadLimitDuration(limit, burst).String(),
+		)
+	}
+}
+
+func rateLimitHandlerFunc(
+	ratelimiter *RateLimitHandler,
+	findPrefix func([32]byte) (string, bool),
+	allowUnknown bool,
+) func(quicstream.Handler) quicstream.Handler {
+	return func(handler quicstream.Handler) quicstream.Handler {
+		return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
+			var prefix string
+
+			if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
+				switch i, found := findPrefix(b); {
+				case found:
+					prefix = i
+				case !allowUnknown:
+					return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
+				default:
+					return handler(ctx, addr, r, w)
+				}
+			}
+
+			return ratelimiter.Func(
+				context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix),
+				addr,
+				func(ctx context.Context) (context.Context, error) {
+					return handler(ctx, addr, r, w)
+				},
+			)
+		}
+	}
+}
+
+func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
+	ratelimiter *RateLimitHandler,
+	findPrefix func([32]byte) (string, bool),
+	allowUnknown bool,
+) func(handler quicstreamheader.Handler[T]) quicstreamheader.Handler[T] {
+	return func(handler quicstreamheader.Handler[T]) quicstreamheader.Handler[T] {
+		return func(
+			ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T,
+		) (context.Context, error) {
+			var prefix string
+
+			if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
+				switch i, found := findPrefix(b); {
+				case found:
+					prefix = i
+				case !allowUnknown:
+					return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
+				default:
+					return handler(ctx, addr, broker, header)
+				}
+			}
+
+			nctx := context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix)
+
+			if i, ok := (interface{})(header).(interface{ ClientID() string }); ok {
+				nctx = context.WithValue(nctx, RateLimiterClientIDContextKey, i.ClientID())
+			}
+
+			return ratelimiter.Func(
+				nctx,
+				addr,
+				func(ctx context.Context) (context.Context, error) {
+					return handler(ctx, addr, broker, header)
+				},
+			)
+		}
+	}
+}
+
+func makeLimit(d time.Duration, burst int) rate.Limit {
+	return rate.Every(d / time.Duration(burst))
+}
+
+func loadLimitDuration(l rate.Limit, burst int) time.Duration {
+	return time.Duration(
+		(float64(burst) / float64(l) * float64(time.Second)),
+	)
+}
+
+type RateLimiterResult struct {
+	Hint        RateLimitRuleHint
+	Limiter     string
+	RulesetType string
+	RulesetDesc string
+	Prefix      string
+	Tokens      float64
+	Allowed     bool
 }

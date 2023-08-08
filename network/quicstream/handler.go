@@ -25,6 +25,7 @@ var PrefixHandlerPrefixContextKey = util.ContextKey("prefix-handler-prefix")
 
 type PrefixHandler struct {
 	handlers     map[[32]byte]Handler
+	handlerFunc  func(Handler) Handler
 	errorHandler ErrorHandler
 	handlerslock sync.RWMutex
 }
@@ -41,6 +42,9 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	return &PrefixHandler{
 		handlers:     map[[32]byte]Handler{},
 		errorHandler: errorHandler,
+		handlerFunc: func(h Handler) Handler {
+			return h
+		},
 	}
 }
 
@@ -54,12 +58,16 @@ func (h *PrefixHandler) Handler(
 
 	nctx := context.WithValue(ctx, PrefixHandlerPrefixContextKey, prefix)
 
-	switch i, err := handler(nctx, addr, r, w); {
+	switch i, err := h.handlerFunc(handler)(nctx, addr, r, w); {
 	case err != nil:
 		return h.errorHandler(i, addr, r, w, err)
 	default:
 		return i, nil
 	}
+}
+
+func (h *PrefixHandler) SetHandlerFunc(f func(Handler) Handler) {
+	h.handlerFunc = f
 }
 
 func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
@@ -129,7 +137,7 @@ func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {
 	})
 }
 
-func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
+func TimeoutHandler(handler Handler, f func() time.Duration) Handler { // FIXME use context
 	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		if timeout := f(); timeout > 0 {
 			var cancel func()

@@ -73,7 +73,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 		return pctx, e.Errorf("unknown design uri, %q", flag.URL())
 	}
 
-	log.Log().Debug().Object("design", design).Msg("design loaded")
+	log.Log().Debug().Interface("design", design).Msg("design loaded")
 
 	if len(privfromvault) > 0 {
 		priv, err := loadPrivatekeyFromVault(privfromvault, enc)
@@ -145,7 +145,7 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	log.Log().Debug().Object("design", design).Msg("design checked")
+	log.Log().Debug().Interface("design", design).Msg("design checked")
 
 	nctx := context.WithValue(pctx, DesignContextKey, design)
 	nctx = context.WithValue(nctx, LocalParamsContextKey, design.LocalParams)

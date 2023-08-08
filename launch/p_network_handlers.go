@@ -64,6 +64,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var svvotef isaac.SuffrageVoteFunc
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -82,6 +83,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -119,19 +121,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 					return enchint, metabytes, nbody, true, nil
 				}
 			},
-		), nil)
+		), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixSuffrageProofString,
-		isaacnetwork.QuicstreamHandlerSuffrageProof(db.SuffrageProofBytes), nil)
+		isaacnetwork.QuicstreamHandlerSuffrageProof(db.SuffrageProofBytes), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixLastBlockMapString,
-		isaacnetwork.QuicstreamHandlerLastBlockMap(lastBlockMapf), nil)
+		isaacnetwork.QuicstreamHandlerLastBlockMap(lastBlockMapf), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixBlockMapString,
-		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil)
+		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixBlockMapItemString,
@@ -165,15 +167,15 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 				return reader.Reader(item)
 			},
-		), nil)
+		), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixNodeChallengeString,
-		isaacnetwork.QuicstreamHandlerNodeChallenge(isaacparams.NetworkID(), local), nil)
+		isaacnetwork.QuicstreamHandlerNodeChallenge(isaacparams.NetworkID(), local), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixSuffrageNodeConnInfoString,
-		isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof), nil)
+		isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
@@ -191,19 +193,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 				return members[:i], nil
 			},
-		), nil)
+		), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixStateString,
-		isaacnetwork.QuicstreamHandlerState(db.StateBytes), nil)
+		isaacnetwork.QuicstreamHandlerState(db.StateBytes), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixExistsInStateOperationString,
-		isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation), nil)
+		isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixNodeInfoString,
-		isaacnetwork.QuicstreamHandlerNodeInfo(quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil)
+		isaacnetwork.QuicstreamHandlerNodeInfo(quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		isaacnetwork.HandlerPrefixSendBallotsString,
@@ -232,7 +234,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				return err
 			},
 			params.MISC.MaxMessageSize,
-		), nil)
+		), nil, rateLimitHandler)
 
 	if gerror != nil {
 		return pctx, gerror
@@ -522,6 +524,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 	var handlers *quicstream.PrefixHandler
 	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -530,6 +533,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 		QuicstreamHandlersContextKey, &handlers,
 		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -538,7 +542,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		HandlerPrefixMemberlistCallbackBroadcastMessageString,
-		m.CallbackBroadcastHandler(), nil)
+		m.CallbackBroadcastHandler(), nil, rateLimitHandler)
 
 	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
 		HandlerPrefixMemberlistEnsureBroadcastMessageString,
@@ -566,7 +570,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 					return foundnode.Publickey(), true, nil
 				}
 			},
-		), nil)
+		), nil, rateLimitHandler)
 
 	return gerror
 }
@@ -608,6 +612,7 @@ func testHandlerAdd[T quicstreamheader.RequestHeader](
 	prefix string,
 	handler quicstreamheader.Handler[T],
 	errhandler quicstreamheader.ErrorHandler,
+	rateLimitHandler *RateLimitHandler,
 ) {
 	if *gerr != nil {
 		return
@@ -626,7 +631,17 @@ func testHandlerAdd[T quicstreamheader.RequestHeader](
 		log.Log().Debug().Stringer(prefix, timeoutf()).Msg("timeout loaded")
 	}
 
-	helper := newHandlerHelper(encs, handler, errhandler)
+	rhandler := rateLimitHeaderHandlerFunc[T](
+		rateLimitHandler,
+		func(prefix [32]byte) (string, bool) {
+			s, found := NetworkHandlerPrefixMapRev[prefix]
+
+			return s, found
+		},
+		false, // NOTE not allow unknown
+	)(handler)
+
+	helper := newHandlerHelper(encs, rhandler, errhandler)
 	helper.setTimeoutErrorFunc(timeoutf)
 
 	_ = handlers.Add(

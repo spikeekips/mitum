@@ -1,7 +1,6 @@
 package launch
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -12,18 +11,40 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func (r RateLimiterRule) MarshalText() ([]byte, error) {
-	switch {
-	case r.Limit == rate.Inf:
-		return []byte("nolimit"), nil
-	case r.Limit == 0, r.Burst < 1:
-		return []byte("0"), nil
-	default:
-		return []byte(fmt.Sprintf("%d/%s",
-			r.Burst,
-			time.Duration(float64(1/r.Limit)*float64(time.Second)).String(),
-		)), nil
+func (r *RateLimiter) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		Limiter   string
+		Type      string
+		Checksum  string
+		Desc      string
+		UpdatedAt int64
+		NoLimit   bool
+	}{
+		Limiter:   humanizeRateLimiter(r.Limit(), r.Burst()),
+		Type:      r.t,
+		Checksum:  r.checksum,
+		Desc:      r.desc,
+		UpdatedAt: r.updatedAt,
+		NoLimit:   r.nolimit,
+	})
+}
+
+func (r RateLimiterRule) String() string {
+	if len(r.s) > 0 {
+		return r.s
 	}
+
+	b, _ := r.MarshalText()
+
+	return string(b)
+}
+
+func (r RateLimiterRule) MarshalText() ([]byte, error) {
+	if len(r.s) > 0 {
+		return []byte(r.s), nil
+	}
+
+	return []byte(humanizeRateLimiter(r.Limit, r.Burst)), nil
 }
 
 var timeUnits = map[string]struct{}{
@@ -71,7 +92,7 @@ func (r *RateLimiterRule) UnmarshalText(b []byte) error {
 			return errors.Wrap(err, "duration")
 		case dur < 1:
 		default:
-			limit = rate.Every(dur)
+			limit = makeLimit(dur, burst)
 		}
 	}
 
@@ -86,6 +107,8 @@ func (r *RateLimiterRule) UnmarshalText(b []byte) error {
 		r.Limit = limit
 		r.Burst = burst
 	}
+
+	r.s = n
 
 	return nil
 }
@@ -172,11 +195,11 @@ func (rs *NetRateLimiterRuleSet) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (rs NodeRateLimiterRuleSet) MarshalJSON() ([]byte, error) {
+func (rs StringKeyRateLimiterRuleSet) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(rs.rules)
 }
 
-func (rs *NodeRateLimiterRuleSet) UnmarshalJSON(b []byte) error {
+func (rs *StringKeyRateLimiterRuleSet) UnmarshalJSON(b []byte) error {
 	return util.UnmarshalJSON(b, &rs.rules)
 }
 

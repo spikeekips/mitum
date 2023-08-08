@@ -17,7 +17,6 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	vault "github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -218,30 +217,30 @@ func (d *NodeDesign) Check(devflags DevFlags) error {
 	return nil
 }
 
-type NodeDesignYAMLMarshaler struct {
-	LocalParams *LocalParams       `yaml:"parameters"` //nolint:tagliatelle //...
-	SyncSources *SyncSourcesDesign `yaml:"sync_sources"`
-	Address     base.Address       `yaml:"address"`
-	Privatekey  base.Privatekey    `yaml:"privatekey"`
-	Storage     NodeStorageDesign  `yaml:"storage"`
-	NetworkID   string             `yaml:"network_id"`
-	TimeServer  string             `yaml:"time_server,omitempty"`
-	Network     NodeNetworkDesign  `yaml:"network"`
+type NodeDesignMarshaler struct {
+	LocalParams *LocalParams       `json:"parameters" yaml:"parameters"` //nolint:tagliatelle //...
+	SyncSources *SyncSourcesDesign `json:"sync_sources" yaml:"sync_sources"`
+	Address     base.Address       `json:"address" yaml:"address"`
+	Privatekey  base.Privatekey    `json:"privatekey" yaml:"privatekey"`
+	Storage     NodeStorageDesign  `json:"storage" yaml:"storage"`
+	NetworkID   string             `json:"network_id" yaml:"network_id"`
+	TimeServer  string             `json:"time_server,omitempty" yaml:"time_server,omitempty"`
+	Network     NodeNetworkDesign  `json:"network" yaml:"network"`
 }
 
 type NodeDesignYAMLUnmarshaler struct {
-	SyncSources interface{}                    `yaml:"sync_sources"`
-	Storage     NodeStorageDesignYAMLMarshal   `yaml:"storage"`
-	Address     string                         `yaml:"address"`
-	Privatekey  string                         `yaml:"privatekey"`
-	NetworkID   string                         `yaml:"network_id"`
-	TimeServer  string                         `yaml:"time_server,omitempty"`
-	LocalParams interface{}                    `yaml:"parameters"` //nolint:tagliatelle //...
-	Network     NodeNetworkDesignYAMLMarshaler `yaml:"network"`
+	SyncSources interface{}                 `json:"sync_sources" yaml:"sync_sources"`
+	Storage     NodeStorageDesignLMarshaler `json:"storage" yaml:"storage"`
+	Address     string                      `json:"address" yaml:"address"`
+	Privatekey  string                      `json:"privatekey" yaml:"privatekey"`
+	NetworkID   string                      `json:"network_id" yaml:"network_id"`
+	TimeServer  string                      `json:"time_server,omitempty" yaml:"time_server,omitempty"`
+	LocalParams interface{}                 `json:"parameters" yaml:"parameters"` //nolint:tagliatelle //...
+	Network     NodeNetworkDesignMarshaler  `json:"network" yaml:"network"`
 }
 
-func (d NodeDesign) MarshalYAML() (interface{}, error) {
-	return NodeDesignYAMLMarshaler{
+func (d NodeDesign) marshaler() NodeDesignMarshaler {
+	return NodeDesignMarshaler{
 		Address:     d.Address,
 		Privatekey:  d.Privatekey,
 		NetworkID:   string(d.NetworkID),
@@ -250,14 +249,21 @@ func (d NodeDesign) MarshalYAML() (interface{}, error) {
 		LocalParams: d.LocalParams,
 		TimeServer:  d.TimeServer,
 		SyncSources: d.SyncSources,
-	}, nil
+	}
+}
+
+func (d NodeDesign) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(d.marshaler())
+}
+
+func (d NodeDesign) MarshalYAML() (interface{}, error) {
+	return d.marshaler(), nil
 }
 
 func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringError("decode NodeDesign")
 
 	var u NodeDesignYAMLUnmarshaler
-
 	if err := yaml.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
 	}
@@ -371,27 +377,35 @@ func (d NodeNetworkDesign) PublishConnInfo() quicstream.ConnInfo {
 	return d.publishConnInfo
 }
 
-type NodeNetworkDesignYAMLMarshaler struct {
-	Bind        string `yaml:"bind,omitempty"`
-	Publish     string `yaml:"publish"`
-	TLSInsecure bool   `yaml:"tls_insecure"`
+type NodeNetworkDesignMarshaler struct {
+	Bind        string `json:"bind,omitempty" yaml:"bind,omitempty"`
+	Publish     string `json:"publish" yaml:"publish"`
+	TLSInsecure bool   `json:"tls_insecure" yaml:"tls_insecure"`
 }
 
-func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
+func (d NodeNetworkDesign) marshaler() NodeNetworkDesignMarshaler {
 	var bind string
 
 	if d.Bind != nil {
 		bind = d.Bind.String()
 	}
 
-	return NodeNetworkDesignYAMLMarshaler{
+	return NodeNetworkDesignMarshaler{
 		Bind:        bind,
 		Publish:     d.PublishString,
 		TLSInsecure: d.TLSInsecure,
-	}, nil
+	}
 }
 
-func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
+func (d NodeNetworkDesign) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(d.marshaler())
+}
+
+func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
+	return d.marshaler(), nil
+}
+
+func (y *NodeNetworkDesignMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
 	e := util.StringError("decode NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
@@ -404,7 +418,6 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 	}
 
 	d.PublishString = y.Publish
-
 	d.TLSInsecure = y.TLSInsecure
 
 	return d, nil
@@ -413,7 +426,7 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringError("decode NodeNetworkDesign")
 
-	var u NodeNetworkDesignYAMLMarshaler
+	var u NodeNetworkDesignMarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
@@ -434,9 +447,9 @@ type NodeStorageDesign struct {
 	Base     string   `yaml:"base"`
 }
 
-type NodeStorageDesignYAMLMarshal struct {
-	Base     string `yaml:"base"`
-	Database string `yaml:"database"`
+type NodeStorageDesignLMarshaler struct {
+	Base     string `json:"base" yaml:"base"`
+	Database string `json:"database" yaml:"database"`
 }
 
 func (d *NodeStorageDesign) IsValid([]byte) error {
@@ -471,7 +484,7 @@ func (d *NodeStorageDesign) Patch(node base.Address) error {
 	return nil
 }
 
-func (y *NodeStorageDesignYAMLMarshal) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
+func (y *NodeStorageDesignLMarshaler) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
 	e := util.StringError("decode NodeStorageDesign")
 
 	d.Base = strings.TrimSpace(y.Base)
@@ -488,17 +501,30 @@ func (y *NodeStorageDesignYAMLMarshal) Decode(*jsonenc.Encoder) (d NodeStorageDe
 	return d, nil
 }
 
-func (d NodeStorageDesign) MarshalYAML() (interface{}, error) {
-	return NodeStorageDesignYAMLMarshal{
+func (d NodeStorageDesign) marshaler() NodeStorageDesignLMarshaler {
+	var db string
+	if d.Database != nil {
+		db = d.Database.String()
+	}
+
+	return NodeStorageDesignLMarshaler{
 		Base:     d.Base,
-		Database: d.Database.String(),
-	}, nil
+		Database: db,
+	}
+}
+
+func (d NodeStorageDesign) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(d.marshaler())
+}
+
+func (d NodeStorageDesign) MarshalYAML() (interface{}, error) {
+	return d.marshaler(), nil
 }
 
 func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringError("decode NodeStorageDesign")
 
-	var u NodeStorageDesignYAMLMarshal
+	var u NodeStorageDesignLMarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
@@ -538,7 +564,7 @@ func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ [
 }
 
 type GenesisDesignYAMLUnmarshaler struct {
-	Facts []interface{} `yaml:"facts" json:"facts"`
+	Facts []interface{} `json:"facts" yaml:"facts"`
 }
 
 func (*GenesisDesign) IsValid([]byte) error {
@@ -686,22 +712,6 @@ func defaultDatabaseURL(root string) *url.URL {
 		Scheme: LeveldbURIScheme,
 		Path:   filepath.Join(root, DefaultStorageDatabaseDirectoryName),
 	}
-}
-
-func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
-	var priv base.Publickey
-	if d.Privatekey != nil {
-		priv = d.Privatekey.Publickey()
-	}
-
-	e.
-		Interface("address", d.Address).
-		Interface("privatekey*", priv).
-		Interface("storage", d.Storage).
-		Interface("network_id", d.NetworkID).
-		Interface("network", d.Network).
-		Object("parameters", d.LocalParams).
-		Interface("sync_sources", d.SyncSources)
 }
 
 func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {

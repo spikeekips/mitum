@@ -329,12 +329,14 @@ func attachStartHandoverHandler(
 	var states *isaacstates.States
 	var client *isaacnetwork.BaseClient
 	var syncSourcePool *isaac.SyncSourcePool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -374,7 +376,7 @@ func attachStartHandoverHandler(
 				states.NewHandoverYBroker,
 			),
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -390,10 +392,12 @@ func attachCancelHandoverHandler(
 ) error {
 	var log *logging.Logging
 	var states *isaacstates.States
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -420,7 +424,7 @@ func attachCancelHandoverHandler(
 				return util.JoinErrors(<-xch, <-ych)
 			},
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -439,12 +443,14 @@ func attachCheckHandoverHandler(
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -467,7 +473,7 @@ func attachCheckHandoverHandler(
 				states.Current,
 			),
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -486,12 +492,14 @@ func attachAskHandoverHandler(
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -525,7 +533,7 @@ func attachAskHandoverHandler(
 				states.NewHandoverXBroker,
 			),
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -540,10 +548,12 @@ func attachHandoverMessageHandler(
 ) error {
 	var log *logging.Logging
 	var states *isaacstates.States
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -576,7 +586,7 @@ func attachHandoverMessageHandler(
 				return err
 			},
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -594,12 +604,14 @@ func attachCheckHandoverXHandler(
 	var states *isaacstates.States
 	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		StatesContextKey, &states,
 		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -622,7 +634,7 @@ func attachCheckHandoverXHandler(
 				states.Current,
 			),
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
@@ -637,9 +649,11 @@ func attachLastHandoverYLogsHandler(
 	networkparams *NetworkParams,
 ) error {
 	var log *logging.Logging
+	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
+		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -653,7 +667,7 @@ func attachLastHandoverYLogsHandler(
 			isaacparams.NetworkID(),
 			lastHandoverYLogs,
 		),
-		nil,
+		nil, rateLimitHandler,
 	)
 
 	return gerror
