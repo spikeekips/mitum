@@ -24,57 +24,51 @@ var PNameStatesNetworkHandlers = ps.Name("states-network-handlers")
 
 func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	var encs *encoder.Encoders
 	var local base.LocalNode
 	var params *LocalParams
-	var handlers *quicstream.PrefixHandler
 	var states *isaacstates.States
-	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
-		EncodersContextKey, &encs,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
-		QuicstreamHandlersContextKey, &handlers,
 		StatesContextKey, &states,
-		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerOperation(pctx, handlers); err != nil {
+	if err := attachHandlerOperation(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerSendOperation(pctx, handlers); err != nil {
+	if err := attachHandlerSendOperation(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerStreamOperations(pctx, handlers); err != nil {
+	if err := attachHandlerStreamOperations(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerProposals(pctx, handlers); err != nil {
+	if err := attachHandlerProposals(pctx); err != nil {
 		return pctx, err
 	}
 
 	var gerror error
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSetAllowConsensusString,
 		isaacnetwork.QuicstreamHandlerSetAllowConsensus(
 			local.Publickey(),
 			params.ISAAC.NetworkID(),
 			states.SetAllowConsensus,
 		),
-		nil, rateLimitHandler,
+		nil,
 	)
 
 	return pctx, gerror
 }
 
-func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+func attachHandlerOperation(pctx context.Context) error {
 	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -83,7 +77,6 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 	var client *isaacnetwork.BaseClient
 	var connectionPool *quicstream.ConnectionPool
 	var states *isaacstates.States
-	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
@@ -94,20 +87,15 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 		QuicstreamClientContextKey, &client,
 		ConnectionPoolContextKey, &connectionPool,
 		StatesContextKey, &states,
-		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
 
-	headerdial := quicstreamheader.NewDialFunc(
-		connectionPool.Dial,
-		encs,
-		enc,
-	)
+	headerdial := quicstreamheader.NewDialFunc(connectionPool.Dial, encs, enc)
 
 	var gerror error
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixOperationString,
 		isaacnetwork.QuicstreamHandlerOperation(
 			pool,
@@ -157,33 +145,29 @@ func attachHandlerOperation(pctx context.Context, handlers *quicstream.PrefixHan
 				return enchint, body, found, err
 			},
 		),
-		nil, rateLimitHandler,
+		nil,
 	)
 
 	return gerror
 }
 
-func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+func attachHandlerSendOperation(pctx context.Context) error {
 	var log *logging.Logging
-	var encs *encoder.Encoders
 	var params *LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var states *isaacstates.States
 	var svvotef isaac.SuffrageVoteFunc
 	var memberlist *quicmemberlist.Memberlist
-	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
-		EncodersContextKey, &encs,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		StatesContextKey, &states,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		MemberlistContextKey, &memberlist,
-		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
@@ -195,7 +179,7 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 
 	var gerror error
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSendOperationString,
 		isaacnetwork.QuicstreamHandlerSendOperation(
 			params.ISAAC.NetworkID(),
@@ -216,34 +200,30 @@ func attachHandlerSendOperation(pctx context.Context, handlers *quicstream.Prefi
 			},
 			params.MISC.MaxMessageSize,
 		),
-		nil, rateLimitHandler,
+		nil,
 	)
 
 	return gerror
 }
 
-func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+func attachHandlerStreamOperations(pctx context.Context) error {
 	var log *logging.Logging
-	var encs *encoder.Encoders
 	var local base.LocalNode
 	var params *LocalParams
 	var pool *isaacdatabase.TempPool
-	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
-		EncodersContextKey, &encs,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
-		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
 
 	var gerror error
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixStreamOperationsString,
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
@@ -266,15 +246,14 @@ func attachHandlerStreamOperations(pctx context.Context, handlers *quicstream.Pr
 				)
 			},
 		),
-		nil, rateLimitHandler,
+		nil,
 	)
 
 	return gerror
 }
 
-func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHandler) error {
+func attachHandlerProposals(pctx context.Context) error {
 	var log *logging.Logging
-	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var local base.LocalNode
 	var params *LocalParams
@@ -283,11 +262,9 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 	var proposalMaker *isaac.ProposalMaker
 	var db isaac.Database
 	var client isaac.NetworkClient
-	var rateLimitHandler *RateLimitHandler
 
 	if err := util.LoadFromContext(pctx,
 		LoggingContextKey, &log,
-		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -296,14 +273,13 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 		ProposalMakerContextKey, &proposalMaker,
 		CenterDatabaseContextKey, &db,
 		QuicstreamClientContextKey, &client,
-		RateLimiterContextKey, &rateLimitHandler,
 	); err != nil {
 		return err
 	}
 
 	var gerror error
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixRequestProposalString,
 		isaacnetwork.QuicstreamHandlerRequestProposal(
 			local, pool, proposalMaker, db.LastBlockMap,
@@ -330,10 +306,10 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 					return pr, nil
 				}
 			},
-		), nil, rateLimitHandler,
+		), nil,
 	)
 
-	testHandlerAdd(params.Network, log, &gerror, handlers, encs,
+	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixProposalString,
 		isaacnetwork.QuicstreamHandlerProposal(
 			pool,
@@ -362,7 +338,7 @@ func attachHandlerProposals(pctx context.Context, handlers *quicstream.PrefixHan
 				}
 			},
 		),
-		nil, rateLimitHandler,
+		nil,
 	)
 
 	return gerror

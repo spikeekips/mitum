@@ -117,7 +117,7 @@ func testDialFunc[T quicstreamheader.RequestHeader](encs *encoder.Encoders, pref
 	cr, hw := io.Pipe()
 
 	ph := quicstream.NewPrefixHandler(nil)
-	ph.Add(prefix, quicstreamheader.NewHandler[T](encs, nil, handler, nil))
+	ph.Add(prefix, quicstreamheader.NewHandler[T](encs, handler, nil))
 
 	remote := quicstream.RandomUDPAddr()
 

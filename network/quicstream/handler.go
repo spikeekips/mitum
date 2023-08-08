@@ -137,7 +137,7 @@ func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {
 	})
 }
 
-func TimeoutHandler(handler Handler, f func() time.Duration) Handler { // FIXME use context
+func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
 	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 		if timeout := f(); timeout > 0 {
 			var cancel func()
@@ -146,8 +146,14 @@ func TimeoutHandler(handler Handler, f func() time.Duration) Handler { // FIXME 
 			defer cancel()
 		}
 
-		return util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
+		i, err := util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
 			return handler(ctx, addr, r, w)
 		})
+
+		if i == nil {
+			i = ctx
+		}
+
+		return i, err
 	}
 }

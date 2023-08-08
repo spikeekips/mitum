@@ -1141,38 +1141,37 @@ func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 	ratelimiter *RateLimitHandler,
 	findPrefix func([32]byte) (string, bool),
 	allowUnknown bool,
-) func(handler quicstreamheader.Handler[T]) quicstreamheader.Handler[T] {
-	return func(handler quicstreamheader.Handler[T]) quicstreamheader.Handler[T] {
-		return func(
-			ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T,
-		) (context.Context, error) {
-			var prefix string
+	handler quicstreamheader.Handler[T],
+) quicstreamheader.Handler[T] {
+	return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T) (
+		context.Context, error,
+	) {
+		var prefix string
 
-			if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
-				switch i, found := findPrefix(b); {
-				case found:
-					prefix = i
-				case !allowUnknown:
-					return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
-				default:
-					return handler(ctx, addr, broker, header)
-				}
+		if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
+			switch i, found := findPrefix(b); {
+			case found:
+				prefix = i
+			case !allowUnknown:
+				return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
+			default:
+				return handler(ctx, addr, broker, header)
 			}
-
-			nctx := context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix)
-
-			if i, ok := (interface{})(header).(interface{ ClientID() string }); ok {
-				nctx = context.WithValue(nctx, RateLimiterClientIDContextKey, i.ClientID())
-			}
-
-			return ratelimiter.Func(
-				nctx,
-				addr,
-				func(ctx context.Context) (context.Context, error) {
-					return handler(ctx, addr, broker, header)
-				},
-			)
 		}
+
+		nctx := context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix)
+
+		if i, ok := (interface{})(header).(interface{ ClientID() string }); ok {
+			nctx = context.WithValue(nctx, RateLimiterClientIDContextKey, i.ClientID())
+		}
+
+		return ratelimiter.Func(
+			nctx,
+			addr,
+			func(ctx context.Context) (context.Context, error) {
+				return handler(ctx, addr, broker, header)
+			},
+		)
 	}
 }
 

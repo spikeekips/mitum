@@ -67,9 +67,9 @@ func (t *testSyncSourceChecker) dialf(h *handlers) quicstream.ConnInfoDialFunc {
 	cr, hw := io.Pipe()
 
 	ph := quicstream.NewPrefixHandler(nil).
-		Add(HandlerPrefixSuffrageNodeConnInfo, quicstreamheader.NewHandler(t.Encs, nil, h.SuffrageNodeConnInfo, nil)).
-		Add(HandlerPrefixSyncSourceConnInfo, quicstreamheader.NewHandler(t.Encs, nil, h.SyncSourceConnInfo, nil)).
-		Add(HandlerPrefixNodeChallenge, quicstreamheader.NewHandler(t.Encs, nil, h.NodeChallenge, nil))
+		Add(HandlerPrefixSuffrageNodeConnInfo, quicstreamheader.NewHandler(t.Encs, h.SuffrageNodeConnInfo, nil)).
+		Add(HandlerPrefixSyncSourceConnInfo, quicstreamheader.NewHandler(t.Encs, h.SyncSourceConnInfo, nil)).
+		Add(HandlerPrefixNodeChallenge, quicstreamheader.NewHandler(t.Encs, h.NodeChallenge, nil))
 
 	ci := quicstream.RandomConnInfo()
 
