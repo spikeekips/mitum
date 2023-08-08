@@ -606,7 +606,6 @@ func ensureHandlerAdd[T quicstreamheader.RequestHeader](
 	rhandler := rateLimitHeaderHandlerFunc[T](
 		rateLimitHandler,
 		func([32]byte) (string, bool) { return prefix, true },
-		false, // NOTE not allow unknown
 		handler,
 	)
 

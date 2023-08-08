@@ -494,7 +494,6 @@ func memberlistTransport(
 
 			return s, found
 		},
-		false, // NOTE not allow unknown
 	)(quicstream.TimeoutHandler(transport.QuicstreamHandler, timeoutf))
 
 	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, handler)

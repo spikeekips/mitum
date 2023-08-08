@@ -69,15 +69,15 @@ type testRateLimitHandler struct {
 
 func (t *testRateLimitHandler) printL(
 	h *RateLimitHandler,
-	f func(addr, prefix string, r *RateLimiter) bool,
+	f func(addr, handler string, r *RateLimiter) bool,
 ) {
 	h.pool.l.Traverse(func(addr string, m util.LockedMap[string, *RateLimiter]) bool {
-		m.Traverse(func(prefix string, r *RateLimiter) bool {
+		m.Traverse(func(handler string, r *RateLimiter) bool {
 			b, _ := util.MarshalJSON(r)
 
-			t.T().Logf("addr=%q prefix=%q limiter=%s", addr, prefix, string(b))
+			t.T().Logf("addr=%q handler=%q limiter=%s", addr, handler, string(b))
 
-			return f(addr, prefix, r)
+			return f(addr, handler, r)
 		})
 
 		return true
@@ -103,8 +103,8 @@ func (t *testRateLimitHandler) TestNew() {
 	t.NotNil(l)
 	t.True(allowed)
 
-	t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
-		t.T().Logf("addr=%q prefix=%q limit=%v burst=%v createdAt=%v", addr, prefix, r.Limit(), r.Burst(), r.UpdatedAt())
+	t.printL(h, func(addr, handler string, r *RateLimiter) bool {
+		t.T().Logf("addr=%q handler=%q limit=%v burst=%v createdAt=%v", addr, handler, r.Limit(), r.Burst(), r.UpdatedAt())
 
 		return true
 	})
@@ -116,8 +116,8 @@ func (t *testRateLimitHandler) TestAllowByDefault() {
 
 	addr := quicstream.RandomUDPAddr()
 
-	prefix0 := util.UUID().String()
-	prefix1 := util.UUID().String()
+	handler0 := util.UUID().String()
+	handler1 := util.UUID().String()
 
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
@@ -125,21 +125,21 @@ func (t *testRateLimitHandler) TestAllowByDefault() {
 		NewRateLimiterRuleMap(
 			&RateLimiterRule{Limit: rate.Every(time.Minute), Burst: 1},
 			map[string]RateLimiterRule{
-				prefix1: {Limit: rate.Every(time.Minute), Burst: 0},
+				handler1: {Limit: rate.Every(time.Minute), Burst: 0},
 			},
 		),
 	)
 
 	t.NoError(h.rules.SetNetRuleSet(ruleset))
 
-	t.Run("default used", func() {
-		l, allowed := h.allow(addr, prefix0, RateLimitRuleHint{})
+	t.Run("unknown handler; default used", func() {
+		l, allowed := h.allow(addr, handler0, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 	})
 
 	t.Run("rule used", func() {
-		l, allowed := h.allow(addr, prefix1, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler1, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.False(allowed)
 	})
@@ -154,28 +154,28 @@ func (t *testRateLimitHandler) TestNotAllow() {
 	addr1 := quicstream.RandomUDPAddr()
 	t.T().Log("addr1:", addr1)
 
-	prefix := util.UUID().String()
+	handler := util.UUID().String()
 
 	ruleset := NewNetRateLimiterRuleSet()
 	ruleset.Add(
 		&net.IPNet{IP: addr0.IP, Mask: net.CIDRMask(24, 32)},
 		NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-			prefix: {Limit: rate.Every(time.Minute), Burst: 1},
+			handler: {Limit: rate.Every(time.Minute), Burst: 1},
 		}),
 	)
 
 	t.NoError(h.rules.SetNetRuleSet(ruleset))
 
 	t.Run("check allow", func() {
-		l, allowed := h.allow(addr0, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr0, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		l, allowed = h.allow(addr1, prefix, RateLimitRuleHint{})
+		l, allowed = h.allow(addr1, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			if addr == addr0.String() {
 				t.Equal(rate.Every(time.Minute), r.Limit())
 				t.Equal(1, r.Burst())
@@ -193,15 +193,15 @@ func (t *testRateLimitHandler) TestNotAllow() {
 	})
 
 	t.Run("check again", func() {
-		l, allowed := h.allow(addr0, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr0, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.False(allowed)
 
-		l, allowed = h.allow(addr1, prefix, RateLimitRuleHint{})
+		l, allowed = h.allow(addr1, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			if addr == addr0.String() {
 				t.Equal(rate.Every(time.Minute), r.Limit())
 				t.Equal(1, r.Burst())
@@ -226,15 +226,15 @@ func (t *testRateLimitHandler) TestRuleSetUpdated() {
 	addr := quicstream.RandomUDPAddr()
 	t.T().Log("addr:", addr)
 
-	prefix := util.UUID().String()
+	handler := util.UUID().String()
 
 	for range make([]int, defaultRateLimiter.Burst) {
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 	}
 
-	t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+	t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 		t.Equal(defaultRateLimiter.Limit, r.Limit())
 		t.Equal(defaultRateLimiter.Burst, r.Burst())
 		t.True(r.Tokens() < 1)
@@ -249,18 +249,18 @@ func (t *testRateLimitHandler) TestRuleSetUpdated() {
 	ruleset.Add(
 		&net.IPNet{IP: addr.IP, Mask: net.CIDRMask(24, 32)},
 		NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-			prefix: {Limit: rate.Every(time.Minute), Burst: newburst},
+			handler: {Limit: rate.Every(time.Minute), Burst: newburst},
 		}),
 	)
 
 	t.NoError(h.rules.SetNetRuleSet(ruleset))
 
 	t.T().Log("check allow")
-	l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+	l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 	t.NotNil(l)
 	t.True(allowed)
 
-	t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+	t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 		t.Equal(rate.Every(time.Minute), r.Limit())
 		t.Equal(newburst, r.Burst())
 		t.True(r.Tokens() >= 0, "tokens=%0.9f")
@@ -279,7 +279,7 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	h, err := NewRateLimitHandler(args)
 	t.NoError(err)
 
-	prefix := util.UUID().String()
+	handler := util.UUID().String()
 
 	sufst := valuehash.RandomSHA256()
 	_, members := isaac.NewTestSuffrage(2)
@@ -292,7 +292,7 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	nodeLimiter := RateLimiterRule{Limit: rate.Every(time.Second * 3), Burst: 3}
 
 	ruleset := NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-		prefix: nodeLimiter,
+		handler: nodeLimiter,
 	}))
 	t.NoError(h.rules.SetSuffrageRuleSet(ruleset))
 
@@ -300,11 +300,11 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	t.T().Log("addr:", addr)
 
 	t.Run("check allow; node not in suffrage", func() {
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			t.Equal(d.Limit, r.Limit())
 			t.Equal(d.Burst, r.Burst())
 			t.True(r.Tokens() < 1)
@@ -312,7 +312,7 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 			return true
 		})
 
-		l, allowed = h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed = h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.False(allowed)
 	})
@@ -322,11 +322,11 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 	})
 
 	t.Run("check allow; node in suffrage", func() {
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			t.Equal(nodeLimiter.Limit, r.Limit())
 			t.Equal(nodeLimiter.Burst, r.Burst())
 			t.True(r.Tokens() > 0)
@@ -341,11 +341,11 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 			return nsufst, func(base.Address) bool { return false }, nil
 		})
 
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			t.Equal(d.Limit, r.Limit())
 			t.Equal(d.Burst, r.Burst())
 			t.True(r.Tokens() < 1)
@@ -353,7 +353,7 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 			return true
 		})
 
-		l, allowed = h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed = h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.False(allowed)
 	})
@@ -363,11 +363,11 @@ func (t *testRateLimitHandler) TestSuffrageNode() {
 			return sufst, func(base.Address) bool { return true }, nil
 		})
 
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
-		t.printL(h, func(addr, prefix string, r *RateLimiter) bool {
+		t.printL(h, func(addr, handler string, r *RateLimiter) bool {
 			t.Equal(nodeLimiter.Limit, r.Limit())
 			t.Equal(nodeLimiter.Burst, r.Burst())
 			t.True(r.Tokens() > 0)
@@ -399,9 +399,9 @@ func (t *testRateLimitHandler) TestConcurrent() {
 		t.T().Logf("node=%q addr=%q", node, addr)
 	}
 
-	prefixes := make([]string, 3)
-	for i := range prefixes {
-		prefixes[i] = util.UUID().String()
+	handlers := make([]string, 3)
+	for i := range handlers {
+		handlers[i] = util.UUID().String()
 	}
 
 	args := t.newargs()
@@ -427,17 +427,17 @@ func (t *testRateLimitHandler) TestConcurrent() {
 	for i := range members {
 		member := members[i].Address()
 		addr := nodeAddrs[member.String()]
-		prefix := prefixes[mathrand.Intn(len(prefixes))]
+		handler := handlers[mathrand.Intn(len(handlers))]
 
-		_, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		_, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.True(allowed)
 
 		t.True(h.AddNode(addr, member))
 	}
 
 	rules := map[string]RateLimiterRule{}
-	for i := range prefixes {
-		rules[prefixes[i]] = RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt}
+	for i := range handlers {
+		rules[handlers[i]] = RateLimiterRule{Limit: rate.Every(time.Second), Burst: math.MaxInt}
 	}
 
 	ruleset := NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(nil, rules))
@@ -458,12 +458,12 @@ func (t *testRateLimitHandler) TestConcurrent() {
 
 		go func() {
 			for i := range make([]int, 1<<13) {
-				prefix := prefixes[mathrand.Intn(len(prefixes))]
+				handler := handlers[mathrand.Intn(len(handlers))]
 				node := nodes[mathrand.Intn(len(nodes))]
 				addr := nodeAddrs[node]
 
 				_ = worker.NewJob(func(context.Context, uint64) error {
-					_, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+					_, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 					if !allowed {
 						return errors.Errorf("not allowed")
 					}
@@ -489,7 +489,7 @@ func (t *testRateLimitHandler) TestConcurrent() {
 		t.NoError(worker.Wait())
 	})
 
-	t.printL(h, func(addr, prefix string, r *RateLimiter) bool { return true })
+	t.printL(h, func(addr, handler string, r *RateLimiter) bool { return true })
 }
 
 func (t *testRateLimitHandler) TestMaxAddr() {
@@ -542,14 +542,14 @@ func (t *testRateLimitHandler) TestRuleSetOrder() {
 	t.NoError(err)
 
 	addr := quicstream.RandomUDPAddr()
-	prefix := util.UUID().String()
+	handler := util.UUID().String()
 	clientid := util.UUID().String()
 	node := base.RandomAddress("")
 
 	clientidlimiter := RateLimiterRule{Limit: rate.Every(time.Second * 3), Burst: 3}
 	clientidrs := NewClientIDRateLimiterRuleSet(map[string]RateLimiterRuleMap{
 		clientid: NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-			prefix: clientidlimiter,
+			handler: clientidlimiter,
 		}),
 	})
 	t.NoError(h.rules.SetClientIDRuleSet(clientidrs))
@@ -565,13 +565,13 @@ func (t *testRateLimitHandler) TestRuleSetOrder() {
 	nodelimiter := RateLimiterRule{Limit: rate.Every(time.Second * 4), Burst: 4}
 	noders := NewNodeRateLimiterRuleSet(map[string]RateLimiterRuleMap{
 		node.String(): NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-			prefix: nodelimiter,
+			handler: nodelimiter,
 		}),
 	})
 	t.NoError(h.rules.SetNodeRuleSet(noders))
 
 	t.Run("clientid", func() {
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{ClientID: clientid})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{ClientID: clientid})
 		t.NotNil(l)
 		t.True(allowed)
 
@@ -587,7 +587,7 @@ func (t *testRateLimitHandler) TestRuleSetOrder() {
 	t.Run("net", func() {
 		t.NoError(h.rules.SetClientIDRuleSet(nil))
 
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
@@ -604,7 +604,7 @@ func (t *testRateLimitHandler) TestRuleSetOrder() {
 		t.NoError(h.rules.SetNetRuleSet(nil))
 		t.True(h.AddNode(addr, node))
 
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 
@@ -620,7 +620,7 @@ func (t *testRateLimitHandler) TestRuleSetOrder() {
 	t.Run("default", func() {
 		t.NoError(h.rules.SetNodeRuleSet(nil))
 
-		l, allowed := h.allow(addr, prefix, RateLimitRuleHint{})
+		l, allowed := h.allow(addr, handler, RateLimitRuleHint{})
 		t.NotNil(l)
 		t.True(allowed)
 

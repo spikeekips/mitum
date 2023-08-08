@@ -1109,7 +1109,6 @@ func humanizeRateLimiter(limit rate.Limit, burst int) string {
 func rateLimitHandlerFunc(
 	ratelimiter *RateLimitHandler,
 	findPrefix func([32]byte) (string, bool),
-	allowUnknown bool,
 ) func(quicstream.Handler) quicstream.Handler {
 	return func(handler quicstream.Handler) quicstream.Handler {
 		return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
@@ -1119,8 +1118,6 @@ func rateLimitHandlerFunc(
 				switch i, found := findPrefix(b); {
 				case found:
 					prefix = i
-				case !allowUnknown:
-					return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
 				default:
 					return handler(ctx, addr, r, w)
 				}
@@ -1140,7 +1137,6 @@ func rateLimitHandlerFunc(
 func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 	ratelimiter *RateLimitHandler,
 	findPrefix func([32]byte) (string, bool),
-	allowUnknown bool,
 	handler quicstreamheader.Handler[T],
 ) quicstreamheader.Handler[T] {
 	return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T) (
@@ -1152,8 +1148,6 @@ func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 			switch i, found := findPrefix(b); {
 			case found:
 				prefix = i
-			case !allowUnknown:
-				return ctx, errors.Errorf("ratelimiter; unknown prefix, %q found", prefix)
 			default:
 				return handler(ctx, addr, broker, header)
 			}
