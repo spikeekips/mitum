@@ -70,10 +70,10 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	)
 	_ = syncSourceChecker.SetLogging(log)
 
-	nctx := context.WithValue(pctx, SyncSourceCheckerContextKey, syncSourceChecker)
-	nctx = context.WithValue(nctx, SyncSourcePoolContextKey, syncSourcePool)
-
-	return nctx, nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		SyncSourceCheckerContextKey: syncSourceChecker,
+		SyncSourcePoolContextKey:    syncSourcePool,
+	}), nil
 }
 
 func PStartSyncSourceChecker(pctx context.Context) (context.Context, error) {

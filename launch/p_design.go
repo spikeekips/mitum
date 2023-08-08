@@ -86,10 +86,10 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 		design.Privatekey = priv
 	}
 
-	nctx := context.WithValue(pctx, DesignContextKey, design)
-	nctx = context.WithValue(nctx, DesignStringContextKey, designString)
-
-	return nctx, nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		DesignContextKey:       design,
+		DesignStringContextKey: designString,
+	}), nil
 }
 
 func PGenesisDesign(pctx context.Context) (context.Context, error) {
@@ -147,9 +147,11 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Interface("design", design).Msg("design checked")
 
-	nctx := context.WithValue(pctx, DesignContextKey, design)
-	nctx = context.WithValue(nctx, LocalParamsContextKey, design.LocalParams)
-	nctx = context.WithValue(nctx, ISAACParamsContextKey, design.LocalParams.ISAAC)
+	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		DesignContextKey:      design,
+		LocalParamsContextKey: design.LocalParams,
+		ISAACParamsContextKey: design.LocalParams.ISAAC,
+	})
 
 	if err := checkDesignFromConsul(nctx, flag, log); err != nil {
 		return nctx, e.Wrap(err)

@@ -66,9 +66,11 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 
 	cmd.log = log.Log()
 
-	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
+	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		launch.DesignFlagContextKey: cmd.DesignFlag,
+		launch.DevFlagsContextKey:   cmd.DevFlags,
+		launch.VaultContextKey:      cmd.Vault,
+	})
 
 	pps := ps.NewPS("cmd-validate-blocks")
 	_ = pps.SetLogging(log)

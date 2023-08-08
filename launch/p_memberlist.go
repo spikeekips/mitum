@@ -104,13 +104,13 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		}
 	})
 
-	nctx := context.WithValue(pctx, MemberlistContextKey, m)
-	nctx = context.WithValue(nctx, EventWhenMemberLeftContextKey, pps)
-	nctx = context.WithValue(nctx, FilterMemberlistNotifyMsgFuncContextKey,
-		quicmemberlist.FilterNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
-	)
-
-	return nctx, nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		MemberlistContextKey:          m,
+		EventWhenMemberLeftContextKey: pps,
+		FilterMemberlistNotifyMsgFuncContextKey: quicmemberlist.FilterNotifyMsgFunc(
+			func(interface{}) (bool, error) { return true, nil },
+		),
+	}), nil
 }
 
 func PStartMemberlist(pctx context.Context) (context.Context, error) {

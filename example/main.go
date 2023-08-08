@@ -63,10 +63,11 @@ func main() {
 		return
 	}
 
-	pctx := context.Background()
-	pctx = context.WithValue(pctx, launch.VersionContextKey, bi.Version)
-	pctx = context.WithValue(pctx, launch.FlagsContextKey, CLI.BaseFlags)
-	pctx = context.WithValue(pctx, launch.KongContextContextKey, kctx)
+	pctx := util.ContextWithValues(context.Background(), map[util.ContextKey]interface{}{
+		launch.VersionContextKey:     bi.Version,
+		launch.FlagsContextKey:       CLI.BaseFlags,
+		launch.KongContextContextKey: kctx,
+	})
 
 	pss := launch.DefaultMainPS()
 

@@ -26,10 +26,10 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	nctx := context.WithValue(pctx, EncodersContextKey, encs)
-	nctx = context.WithValue(nctx, EncoderContextKey, enc)
-
-	return nctx, nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		EncodersContextKey: encs,
+		EncoderContextKey:  enc,
+	}), nil
 }
 
 func PAddHinters(pctx context.Context) (context.Context, error) {

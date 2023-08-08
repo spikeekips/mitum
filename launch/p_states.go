@@ -209,8 +209,10 @@ func PStates(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	nctx := context.WithValue(pctx, StatesContextKey, states)
-	nctx = context.WithValue(nctx, ProposalSelectorContextKey, proposalSelector)
+	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		StatesContextKey:           states,
+		ProposalSelectorContextKey: proposalSelector,
+	})
 
 	return patchStatesArgsForHandover(nctx, args)
 }

@@ -58,10 +58,12 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		}
 	}
 
-	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	nctx = context.WithValue(nctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
-	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
+	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		launch.DesignFlagContextKey:    cmd.DesignFlag,
+		launch.DevFlagsContextKey:      cmd.DevFlags,
+		launch.DiscoveryFlagContextKey: cmd.Discovery,
+		launch.VaultContextKey:         cmd.Vault,
+	})
 
 	pps := launch.DefaultRunPS()
 

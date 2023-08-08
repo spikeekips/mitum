@@ -410,9 +410,10 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		return sv.Vote(op)
 	}
 
-	nctx := context.WithValue(pctx, SuffrageVotingVoteFuncContextKey, isaac.SuffrageVoteFunc(f))
-
-	return context.WithValue(nctx, SuffrageVotingContextKey, sv), nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		SuffrageVotingVoteFuncContextKey: isaac.SuffrageVoteFunc(f),
+		SuffrageVotingContextKey:         sv,
+	}), nil
 }
 
 func FixedSuffrageCandidateLimiterFunc() func(

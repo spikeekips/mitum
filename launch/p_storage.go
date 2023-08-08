@@ -397,12 +397,12 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 
 	_ = db.SetLogging(log)
 
-	nctx := context.WithValue(pctx, LeveldbStorageContextKey, st)
-	nctx = context.WithValue(nctx, CenterDatabaseContextKey, db)
-	nctx = context.WithValue(nctx, PermanentDatabaseContextKey, perm)
-	nctx = context.WithValue(nctx, PoolDatabaseContextKey, pool)
-
-	return nctx, nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		LeveldbStorageContextKey:    st,
+		CenterDatabaseContextKey:    db,
+		PermanentDatabaseContextKey: perm,
+		PoolDatabaseContextKey:      pool,
+	}), nil
 }
 
 func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {

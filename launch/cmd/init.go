@@ -21,10 +21,12 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	nctx := context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
-	nctx = context.WithValue(nctx, launch.DevFlagsContextKey, cmd.DevFlags)
-	nctx = context.WithValue(nctx, launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
-	nctx = context.WithValue(nctx, launch.VaultContextKey, cmd.Vault)
+	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		launch.DesignFlagContextKey:        cmd.DesignFlag,
+		launch.DevFlagsContextKey:          cmd.DevFlags,
+		launch.GenesisDesignFileContextKey: cmd.GenesisDesign,
+		launch.VaultContextKey:             cmd.Vault,
+	})
 
 	pps := launch.DefaultINITPS()
 	_ = pps.SetLogging(log)
