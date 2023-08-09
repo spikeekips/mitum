@@ -58,18 +58,20 @@ func PNetworkRateLimiter(pctx context.Context) (context.Context, error) {
 	handlers.SetHandlerFunc(func(handler quicstream.Handler) quicstream.Handler {
 		return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 			ctx, err := handler(ctx, addr, r, w)
-			if ctx != nil && ctx.Value(RateLimiterResultContextKey) != nil {
-				rslog.Log().Debug().
-					Stringer("remote", addr).
-					Func(func(e *zerolog.Event) {
-						i, ok := ctx.Value(RateLimiterResultContextKey).(func() RateLimiterResult)
-						if !ok {
-							return
-						}
+			if ctx == nil {
+				return ctx, err
+			}
 
-						e.Interface("ratelimit_result", i())
-					}).
-					Msg("check ratelimit")
+			if result, ok := ctx.Value(RateLimiterResultContextKey).(func() RateLimiterResult); ok {
+				if allowed, ok := ctx.Value(RateLimiterResultAllowedContextKey).(bool); ok && !allowed {
+					rslog.Log().Debug().Func(func(e *zerolog.Event) {
+						e.Interface("result", result())
+					}).Msg("not allowed")
+				}
+
+				rslog.Log().Trace().Func(func(e *zerolog.Event) {
+					e.Interface("result", result())
+				}).Msg("checked")
 			}
 
 			return ctx, err

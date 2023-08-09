@@ -22,10 +22,10 @@ import (
 var (
 	ErrRateLimited     = util.NewIDError("over ratelimit")
 	defaultRateLimiter = RateLimiterRule{
-		Limit: makeLimit(time.Second*3, 3), Burst: 3, //nolint:gomnd //...
+		Limit: makeLimit(time.Second*3, 33), Burst: 33, //nolint:gomnd //...
 	}
 	defaultSuffrageRateLimiter = RateLimiterRule{
-		Limit: makeLimit(time.Second*3, 9), Burst: 9, //nolint:gomnd //...
+		Limit: makeLimit(time.Second*3, 66), Burst: 66, //nolint:gomnd //...
 	}
 	defaultRateLimitHandlerPoolSizes = []uint64{1 << 7, 1 << 7, 1 << 7}
 )
@@ -34,6 +34,7 @@ var (
 	RateLimiterLimiterPrefixContextKey = util.ContextKey("ratelimit-limiter-prefix")
 	RateLimiterClientIDContextKey      = util.ContextKey("ratelimit-limiter-clientid")
 	RateLimiterResultContextKey        = util.ContextKey("ratelimit-limiter-result")
+	RateLimiterResultAllowedContextKey = util.ContextKey("ratelimit-limiter-result-allowed")
 )
 
 type RateLimiter struct {
@@ -93,7 +94,7 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum, t, desc stri
 	r.Lock()
 	defer r.Unlock()
 
-	if r.Limiter.Limit() != limit || r.Limiter.Burst() != burst {
+	if r.Limiter == nil || (r.Limiter.Limit() != limit || r.Limiter.Burst() != burst) {
 		switch {
 		case limit == rate.Inf:
 			r.nolimit = true
@@ -108,7 +109,7 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum, t, desc stri
 	}
 
 	switch {
-	case r.t != t:
+	case r.Limiter == nil, r.t != t:
 		r.t = t
 		r.checksum = checksum
 	default:
@@ -157,6 +158,18 @@ func (r *RateLimiter) Burst() int {
 		return r.Limiter.Burst()
 	default:
 		return 0
+	}
+}
+
+func (r *RateLimiter) Tokens() float64 {
+	r.RLock()
+	defer r.RUnlock()
+
+	switch {
+	case r.Limiter == nil:
+		return 1
+	default:
+		return r.Limiter.Tokens()
 	}
 }
 
@@ -244,8 +257,10 @@ func (r *RateLimitHandler) Func(
 				RulesetDesc: l.Desc(),
 				Hint:        hint,
 				Prefix:      prefix,
+				Addr:        addr,
 			}
 		},
+		RateLimiterResultAllowedContextKey: allowed,
 	})
 
 	if !allowed {
@@ -362,8 +377,8 @@ func NewRateLimiterRules() *RateLimiterRules {
 }
 
 type RateLimitRuleHint struct {
-	Node     base.Address
-	ClientID string
+	Node     base.Address `json:"node,omitempty"`
+	ClientID string       `json:"client_id,omitempty"`
 }
 
 func (r *RateLimiterRules) Rule(
@@ -1180,11 +1195,12 @@ func loadLimitDuration(l rate.Limit, burst int) time.Duration {
 }
 
 type RateLimiterResult struct {
-	Hint        RateLimitRuleHint
-	Limiter     string
-	RulesetType string
-	RulesetDesc string
-	Prefix      string
-	Tokens      float64
-	Allowed     bool
+	Addr        net.Addr          `json:"addr,omitempty"`
+	Hint        RateLimitRuleHint `json:"hint,omitempty"`
+	Limiter     string            `json:"limiter,omitempty"`
+	RulesetType string            `json:"ruleset_type,omitempty"`
+	RulesetDesc string            `json:"ruleset_desc,omitempty"`
+	Prefix      string            `json:"prefix,omitempty"`
+	Tokens      float64           `json:"tokens,omitempty"`
+	Allowed     bool              `json:"allowed,omitempty"`
 }
