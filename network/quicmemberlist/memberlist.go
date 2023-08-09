@@ -763,7 +763,7 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 
 		return nil, nil, err
 	default:
-		srv.Log().Trace().Err(err).Interface("broadcast_message", i).Msg("new message notified")
+		srv.Log().Trace().Interface("broadcast_message", i).Msg("new message notified")
 
 		j, ok := i.(ConnInfoBroadcastMessage)
 		if !ok {

@@ -203,7 +203,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 			return
 		}
 
-		l.Trace().Err(err).Interface("notify_message", m).Msg("new message notified")
+		l.Trace().Interface("notify_message", m).Msg("new message notified")
 
 		switch passed, err := filternotifymsg(m); {
 		case err != nil:
