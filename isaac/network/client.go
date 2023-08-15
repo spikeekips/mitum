@@ -148,10 +148,18 @@ func (c *BaseClient) streamOperationsBytes(
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
 	f func(enchint hint.Hint, body, offset []byte) error,
 ) error {
-	h := NewStreamOperationsHeader(offset)
-	h.SetClientID(c.ClientID())
+	header := NewStreamOperationsHeader(offset)
+	header.SetClientID(c.ClientID())
 
-	if err := VerifyNode(ctx, broker, priv, networkID, h); err != nil {
+	if err := header.IsValid(nil); err != nil {
+		return err
+	}
+
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
+		return err
+	}
+
+	if err := VerifyNode(ctx, broker, priv, networkID); err != nil {
 		return err
 	}
 
@@ -783,16 +791,24 @@ func (c *BaseClient) LastHandoverYLogs(
 	networkID base.NetworkID,
 	f func(json.RawMessage) bool,
 ) error {
+	header := NewLastHandoverYLogsHeader()
+	header.SetClientID(c.ClientID())
+
+	if err := header.IsValid(nil); err != nil {
+		return err
+	}
+
 	streamer, err := c.dial(ctx, yci)
 	if err != nil {
 		return err
 	}
 
-	header := NewLastHandoverYLogsHeader()
-	header.SetClientID(c.ClientID())
-
 	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID, header); {
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID); {
 		case err != nil:
 			return errors.WithMessage(err, "response")
 		case rh.Err() != nil:
@@ -853,13 +869,21 @@ func (c *BaseClient) verifyNodeWithResponse(
 	networkID base.NetworkID,
 	header quicstreamheader.RequestHeader,
 ) (enc encoder.Encoder, h quicstreamheader.ResponseHeader, _ error) {
+	if err := header.IsValid(nil); err != nil {
+		return nil, nil, err
+	}
+
 	streamer, err := c.dial(ctx, ci)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		renc, rh, rerr := VerifyNodeWithResponse(ctx, broker, priv, networkID, header)
+		if rerr := broker.WriteRequestHead(ctx, header); rerr != nil {
+			return rerr
+		}
+
+		renc, rh, rerr := VerifyNodeWithResponse(ctx, broker, priv, networkID)
 		if rerr != nil {
 			return rerr
 		}
@@ -1253,16 +1277,7 @@ func VerifyNode(
 	broker *quicstreamheader.ClientBroker,
 	priv base.Privatekey,
 	networkID base.NetworkID,
-	header quicstreamheader.RequestHeader,
 ) error {
-	if err := header.IsValid(nil); err != nil {
-		return err
-	}
-
-	if err := broker.WriteRequestHead(ctx, header); err != nil {
-		return err
-	}
-
 	var input []byte
 
 	if err := func() error {
@@ -1312,9 +1327,8 @@ func VerifyNodeWithResponse(
 	broker *quicstreamheader.ClientBroker,
 	priv base.Privatekey,
 	networkID base.NetworkID,
-	header quicstreamheader.RequestHeader,
 ) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
-	if err := VerifyNode(ctx, broker, priv, networkID, header); err != nil {
+	if err := VerifyNode(ctx, broker, priv, networkID); err != nil {
 		return nil, nil, err
 	}
 

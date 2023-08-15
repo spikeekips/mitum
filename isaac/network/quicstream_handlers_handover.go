@@ -23,7 +23,7 @@ func QuicstreamHandlerStartHandover(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)
@@ -44,7 +44,7 @@ func QuicstreamHandlerCancelHandover(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)
@@ -65,7 +65,7 @@ func QuicstreamHandlerCheckHandover(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)
@@ -86,7 +86,7 @@ func QuicstreamHandlerAskHandover(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header AskHandoverHeader,
 	) (context.Context, error) {
-		if err := quicstreamHandlerVerifyNode(
+		if err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		); err != nil {
@@ -148,7 +148,7 @@ func QuicstreamHandlerCheckHandoverX(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverXHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)
@@ -169,7 +169,7 @@ func QuicstreamHandlerLastHandoverYLogs(
 	return func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header LastHandoverYLogsHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			local.Publickey(), networkID,
 		)

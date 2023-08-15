@@ -22,11 +22,17 @@ type NetworkCommand struct {
 
 type NetworkClientCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
+	//revive:disable:nested-structs
 	NodeInfo          NetworkClientNodeInfoCommand          `cmd:"" name:"node-info" help:"remote node info"`
 	SendOperation     NetworkClientSendOperationCommand     `cmd:"" name:"send-operation" help:"send operation"`
 	State             NetworkClientStateCommand             `cmd:"" name:"state" help:"get state"`
 	LastBlockMap      NetworkClientLastBlockMapCommand      `cmd:"" name:"last-blockmap" help:"get last blockmap"`
 	SetAllowConsensus NetworkClientSetAllowConsensusCommand `cmd:"" name:"set-allow-consensus" help:"set to enter consensus"`
+	Design            struct {
+		Read  NetworkClientReadDesignCommand  `cmd:"" name:"read" help:"read design value"`
+		Write NetworkClientWriteDesignCommand `cmd:"" name:"write" help:"write design value"`
+	} `cmd:"" name:"design" help:""`
+	//revive:enable:nested-structs
 	//revive:enable:line-length-limit
 }
 

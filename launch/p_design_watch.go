@@ -2,30 +2,19 @@ package launch
 
 import (
 	"context"
-	"strconv"
-	"strings"
 
 	consulapi "github.com/hashicorp/consul/api"
 	consulwatch "github.com/hashicorp/consul/api/watch"
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
-	"gopkg.in/yaml.v3"
 )
 
 var PNameWatchDesign = ps.Name("watch-design")
-
-type (
-	updateDesignValueFunc func(key, value string) (prev, next interface{}, _ error)
-	updateDesignSetFunc   func(key, prefix, nextkey, value string) (prev, next interface{}, _ error)
-)
 
 func PWatchDesign(pctx context.Context) (context.Context, error) {
 	e := util.StringError("watch design")
@@ -40,14 +29,14 @@ func PWatchDesign(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	watchUpdatefs, err := watchDesignFuncs(pctx)
+	f, err := watchDesignFuncs(pctx)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
 
 	switch flag.Scheme() {
 	case "consul":
-		runf, err := watchConsul(pctx, watchUpdatefs)
+		runf, err := watchDesignFromConsul(pctx, f)
 		if err != nil {
 			return pctx, e.WithMessage(err, "watch thru consul")
 		}
@@ -86,22 +75,28 @@ func checkDesignFromConsul(
 		}
 
 		prefix := flag.URL().Path
-		update := watchUpdateFromConsulFunc(prefix, fs, log)
 
 		for i := range fs {
-			switch v, _, err := client.KV().Get(prefix+"/"+i, nil); {
+			update := writeDesignValueFromConsul(prefix, fs[i], log)
+
+			var kvs consulapi.KVPairs
+
+			switch l, _, err := client.KV().List(prefix+"/"+i, nil); {
 			case err != nil:
 				return errors.WithMessagef(err, "get key from consul, %q", i)
-			case v == nil:
+			case len(l) < 1:
 			default:
-				if _, err := func() (bool, error) {
-					if v == nil {
-						return false, nil
-					}
+				kvs = l
+			}
 
-					return update(v.Key, string(v.Value), v.CreateIndex)
-				}(); err != nil {
-					return errors.WithMessagef(err, "update from consul, %q", i)
+			for j := range kvs {
+				p := kvs[j]
+
+				switch _, err := update(p.Key, string(p.Value), p.CreateIndex); {
+				case errors.Is(err, util.ErrNotFound):
+					log.Log().Debug().Str("key", p.Key).Msg("unknown key found from consul")
+				case err != nil:
+					return errors.WithMessagef(err, "update from consul, %q", p.Key)
 				}
 			}
 		}
@@ -110,9 +105,9 @@ func checkDesignFromConsul(
 	return nil
 }
 
-func watchConsul(
+func watchDesignFromConsul(
 	pctx context.Context,
-	updatef map[string]updateDesignValueFunc,
+	f writeDesignValueFunc,
 ) (func() error, error) {
 	var log *logging.Logging
 	var flag DesignFlag
@@ -134,7 +129,7 @@ func watchConsul(
 		return nil, errors.WithStack(err)
 	}
 
-	f := watchUpdateFromConsulFunc(prefix, updatef, log)
+	wf := writeDesignValueFromConsul(prefix, f, log)
 
 	wp.Handler = func(idx uint64, data interface{}) {
 		var pairs consulapi.KVPairs
@@ -155,12 +150,12 @@ func watchConsul(
 					return false, nil
 				}
 
-				return f(v.Key, string(v.Value), v.CreateIndex)
+				return wf(v.Key, string(v.Value), v.CreateIndex)
 			}(); {
 			case err != nil:
-				log.Log().Error().Err(err).Interface("updated", v).Msg("failed to update consul data received")
+				log.Log().Error().Err(err).Interface("updated", v).Msg("failed to write consul data received")
 			case updated:
-				log.Log().Debug().Interface("updated", v).Msg("updated consul data received")
+				log.Log().Debug().Interface("updated", v).Msg("consul data wrote")
 			}
 		}
 	}
@@ -176,7 +171,7 @@ func watchConsul(
 	}, nil
 }
 
-func checkDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, error) {
+func checkDesignFuncs(pctx context.Context) (map[string]writeDesignValueFunc, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
@@ -193,18 +188,10 @@ func checkDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, e
 		return nil, err
 	}
 
-	updaters := map[string]updateDesignValueFunc{
-		//revive:disable:line-length-limit
-		"parameters":   updateLocalParam(params),
-		"discoveries":  updateDiscoveries(discoveries),
-		"sync_sources": updateDesignSyncSources(enc, design),
-		//revive:enable:line-length-limit
-	}
-
-	return updaters, nil
+	return checkWriteDesign(enc, design, params, discoveries), nil
 }
 
-func watchDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, error) {
+func watchDesignFuncs(pctx context.Context) (writeDesignValueFunc, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
@@ -223,20 +210,12 @@ func watchDesignFuncs(pctx context.Context) (map[string]updateDesignValueFunc, e
 		return nil, err
 	}
 
-	updaters := map[string]updateDesignValueFunc{
-		//revive:disable:line-length-limit
-		"parameters":   updateLocalParam(params),
-		"discoveries":  updateDiscoveries(discoveries),
-		"sync_sources": updateSyncSources(enc, design, syncSourceChecker),
-		//revive:enable:line-length-limit
-	}
-
-	return updaters, nil
+	return writeDesign(enc, design, params, discoveries, syncSourceChecker), nil
 }
 
-func watchUpdateFromConsulFunc(
+func writeDesignValueFromConsul(
 	prefix string,
-	fs map[string]updateDesignValueFunc,
+	f writeDesignValueFunc,
 	log *logging.Logging,
 ) func(key, value string, createIndex uint64) (bool, error) {
 	updated := util.NewSingleLockedMap[string, uint64]()
@@ -263,29 +242,8 @@ func watchUpdateFromConsulFunc(
 		}
 
 		fullkey := key[len(prefix):]
-		nextkey := fullkey
 
-		var f updateDesignValueFunc
-
-		switch i, found := fs[fullkey]; {
-		case found:
-			f = i
-		default:
-			for j := range fs {
-				if strings.HasPrefix(fullkey, j) {
-					f = fs[j]
-					nextkey = fullkey[len(j):]
-
-					break
-				}
-			}
-
-			if f == nil {
-				return false, errors.Errorf("unknown key, %q", fullkey)
-			}
-		}
-
-		switch prev, next, err := f(nextkey, value); {
+		switch prev, next, err := f(fullkey, value); {
 		case err != nil:
 			return false, err
 		default:
@@ -293,467 +251,9 @@ func watchUpdateFromConsulFunc(
 				Str("key", fullkey).
 				Interface("prev", prev).
 				Interface("next", next).
-				Msg("updated")
+				Msg("wrote")
 
 			return true, nil
 		}
-	}
-}
-
-func updateDesignSet(f updateDesignSetFunc) updateDesignValueFunc {
-	return func(key, value string) (prev interface{}, next interface{}, err error) {
-		i := strings.SplitN(strings.TrimPrefix(key, "/"), "/", 2)
-
-		var nextkey string
-		if len(i) > 1 {
-			nextkey = i[1]
-		}
-
-		return f(key, i[0], nextkey, value)
-	}
-}
-
-func updateLocalParam(
-	params *LocalParams,
-) updateDesignValueFunc {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev interface{}, next interface{}, err error) {
-		switch prefix {
-		case "isaac":
-			return updateLocalParamISAAC(params.ISAAC, nextkey, value)
-		case "misc":
-			return updateLocalParamMISC(params.MISC, nextkey, value)
-		case "memberlist":
-			return updateLocalParamMemberlist(params.Memberlist, nextkey, value)
-		case "network":
-			return updateLocalParamNetwork(params.Network, nextkey, value)
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for params", key)
-		}
-	})
-}
-
-func updateLocalParamISAAC(
-	params *isaac.Params,
-	key, value string,
-) (prev interface{}, next interface{}, err error) {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
-		switch prefix {
-		case "threshold":
-			return updateLocalParamISAACThreshold(params, nextkey, value)
-		case "interval_broadcast_ballot":
-			return updateLocalParamISAACIntervalBroadcastBallot(params, nextkey, value)
-		case "wait_preparing_init_ballot":
-			return updateLocalParamISAACWaitPreparingINITBallot(params, nextkey, value)
-		case "max_try_handover_y_broker_sync_data":
-			return updateLocalParamISAACMaxTryHandoverYBrokerSyncData(params, nextkey, value)
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for isaac", key)
-		}
-	})(key, value)
-}
-
-func updateLocalParamISAACThreshold(
-	params *isaac.Params,
-	_, value string,
-) (interface{}, interface{}, error) {
-	var t base.Threshold
-	if err := t.UnmarshalText([]byte(value)); err != nil {
-		return nil, nil, errors.WithMessagef(err, "invalid threshold, %q", value)
-	}
-
-	prev := params.Threshold()
-
-	if err := params.SetThreshold(t); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.Threshold(), nil
-}
-
-func updateLocalParamISAACIntervalBroadcastBallot(
-	params *isaac.Params,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.IntervalBroadcastBallot()
-
-	if err := params.SetIntervalBroadcastBallot(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.IntervalBroadcastBallot(), nil
-}
-
-func updateLocalParamISAACWaitPreparingINITBallot(
-	params *isaac.Params,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.WaitPreparingINITBallot()
-
-	if err := params.SetWaitPreparingINITBallot(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.WaitPreparingINITBallot(), nil
-}
-
-func updateLocalParamISAACMaxTryHandoverYBrokerSyncData(
-	params *isaac.Params,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	prev := params.MaxTryHandoverYBrokerSyncData()
-
-	if err := params.SetMaxTryHandoverYBrokerSyncData(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.MaxTryHandoverYBrokerSyncData(), nil
-}
-
-func updateLocalParamMISC(
-	params *MISCParams,
-	key, value string,
-) (prev interface{}, next interface{}, err error) {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
-		switch prefix {
-		case "sync_source_checker_interval":
-			return updateLocalParamMISCSyncSourceCheckerInterval(params, nextkey, value)
-		case "valid_proposal_operation_expire":
-			return updateLocalParamMISCValidProposalOperationExpire(params, nextkey, value)
-		case "valid_proposal_suffrage_operations_expire":
-			return updateLocalParamMISCValidProposalSuffrageOperationsExpire(params, nextkey, value)
-		case "max_message_size":
-			return updateLocalParamMISCMaxMessageSize(params, nextkey, value)
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for misc", key)
-		}
-	})(key, value)
-}
-
-func updateLocalParamMISCSyncSourceCheckerInterval(
-	params *MISCParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.SyncSourceCheckerInterval()
-
-	if err := params.SetSyncSourceCheckerInterval(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.SyncSourceCheckerInterval(), nil
-}
-
-func updateLocalParamMISCValidProposalOperationExpire(
-	params *MISCParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.ValidProposalOperationExpire()
-
-	if err := params.SetValidProposalOperationExpire(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.ValidProposalOperationExpire(), nil
-}
-
-func updateLocalParamMISCValidProposalSuffrageOperationsExpire(
-	params *MISCParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.ValidProposalSuffrageOperationsExpire()
-
-	if err := params.SetValidProposalSuffrageOperationsExpire(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.ValidProposalSuffrageOperationsExpire(), nil
-}
-
-func updateLocalParamMISCMaxMessageSize(
-	params *MISCParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	i, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	prev := params.MaxMessageSize()
-
-	if err := params.SetMaxMessageSize(i); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.MaxMessageSize(), nil
-}
-
-func updateLocalParamMemberlist(
-	params *MemberlistParams,
-	key, value string,
-) (prev interface{}, next interface{}, err error) {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
-		switch prefix {
-		case "extra_same_member_limit":
-			return updateLocalParamExtraSameMemberLimit(params, nextkey, value)
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for memberlist", key)
-		}
-	})(key, value)
-}
-
-func updateLocalParamExtraSameMemberLimit(
-	params *MemberlistParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	i, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	prev := params.ExtraSameMemberLimit()
-
-	if err := params.SetExtraSameMemberLimit(i); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.ExtraSameMemberLimit(), nil
-}
-
-func updateLocalParamNetwork(
-	params *NetworkParams,
-	key, value string,
-) (prev interface{}, next interface{}, err error) {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, _ error) {
-		switch prefix {
-		case "timeout_request":
-			return updateLocalParamNetworkTimeoutRequest(params, nextkey, value)
-		case "ratelimit":
-			return updateLocalParamNetworkRateLimit(params.RateLimit(), nextkey, value)
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for network", key)
-		}
-	})(key, value)
-}
-
-func updateLocalParamNetworkTimeoutRequest(
-	params *NetworkParams,
-	_, value string,
-) (interface{}, interface{}, error) {
-	d, err := util.ParseDuration(value)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	prev := params.TimeoutRequest()
-
-	if err := params.SetTimeoutRequest(d); err != nil {
-		return nil, nil, err
-	}
-
-	return prev, params.TimeoutRequest(), nil
-}
-
-func updateDesignSyncSources(
-	enc *jsonenc.Encoder,
-	design NodeDesign,
-) updateDesignValueFunc {
-	return func(_, value string) (interface{}, interface{}, error) {
-		e := util.StringError("update sync source")
-
-		var sources *SyncSourcesDesign
-		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		if err := IsValidSyncSourcesDesign(
-			sources,
-			design.Network.PublishString,
-			design.Network.publish.String(),
-		); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		prev := design.SyncSources
-
-		design.SyncSources.Update(sources.Sources())
-
-		return prev, sources, nil
-	}
-}
-
-func updateSyncSources(
-	enc *jsonenc.Encoder,
-	design NodeDesign,
-	syncSourceChecker *isaacnetwork.SyncSourceChecker,
-) updateDesignValueFunc {
-	return func(_, value string) (interface{}, interface{}, error) {
-		e := util.StringError("update sync source")
-
-		var sources *SyncSourcesDesign
-		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		if err := IsValidSyncSourcesDesign(
-			sources,
-			design.Network.PublishString,
-			design.Network.publish.String(),
-		); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		prev := syncSourceChecker.Sources()
-
-		if err := syncSourceChecker.UpdateSources(context.Background(), sources.Sources()); err != nil {
-			return nil, nil, err
-		}
-
-		return prev, sources, nil
-	}
-}
-
-func updateDiscoveries(
-	discoveries *util.Locked[[]quicstream.ConnInfo],
-) updateDesignValueFunc {
-	return func(_, value string) (interface{}, interface{}, error) {
-		e := util.StringError("update discoveries")
-
-		var sl []string
-		if err := yaml.Unmarshal([]byte(value), &sl); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		cis := make([]quicstream.ConnInfo, len(sl))
-
-		for i := range sl {
-			if err := network.IsValidAddr(sl[i]); err != nil {
-				return nil, nil, e.Wrap(err)
-			}
-
-			addr, tlsinsecure := network.ParseTLSInsecure(sl[i])
-
-			ci, err := quicstream.NewConnInfoFromStringAddr(addr, tlsinsecure)
-			if err != nil {
-				return nil, nil, e.Wrap(err)
-			}
-
-			cis[i] = ci
-		}
-
-		prev := GetDiscoveriesFromLocked(discoveries)
-
-		_ = discoveries.SetValue(cis)
-
-		return prev, cis, nil
-	}
-}
-
-func updateLocalParamNetworkRateLimit(
-	params *NetworkRateLimitParams,
-	key, value string,
-) (prev interface{}, next interface{}, err error) {
-	return updateDesignSet(func(key, prefix, nextkey, value string) (prev, next interface{}, err error) {
-		switch prefix {
-		case "node":
-			prev = params.NodeRuleSet()
-		case "net":
-			prev = params.NetRuleSet()
-		case "suffrage":
-			prev = params.SuffrageRuleSet()
-		case "default":
-			prev = params.DefaultRuleMap()
-		default:
-			return prev, next, errors.Errorf("unknown key, %q for network ratelimit", key)
-		}
-
-		switch i, err := unmarshalRateLimitRule(prefix, value); {
-		case err != nil:
-			return prev, next, err
-		default:
-			next = i
-		}
-
-		return prev, next, func() error {
-			switch prefix {
-			case "node":
-				return params.SetNodeRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
-			case "net":
-				return params.SetNetRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
-			case "suffrage":
-				return params.SetSuffrageRuleSet(next.(RateLimiterRuleSet)) //nolint:forcetypeassert //...
-			case "default":
-				return params.SetDefaultRuleMap(next.(RateLimiterRuleMap)) //nolint:forcetypeassert //...
-			default:
-				return errors.Errorf("unknown key, %q for network", key)
-			}
-		}()
-	})(key, value)
-}
-
-func unmarshalRateLimitRule(rule, value string) (interface{}, error) {
-	var u interface{}
-	if err := yaml.Unmarshal([]byte(value), &u); err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var i interface{}
-
-	switch rule {
-	case "node":
-		i = NodeRateLimiterRuleSet{}
-	case "net":
-		i = NetRateLimiterRuleSet{}
-	case "suffrage":
-		i = &SuffrageRateLimiterRuleSet{}
-	case "default":
-		i = RateLimiterRuleMap{}
-	default:
-		return nil, errors.Errorf("unknown prefix, %q", rule)
-	}
-
-	switch b, err := util.MarshalJSON(u); {
-	case err != nil:
-		return nil, err
-	default:
-		if err := util.UnmarshalJSON(b, &i); err != nil {
-			return nil, err
-		}
-
-		if j, ok := i.(util.IsValider); ok {
-			if err := j.IsValid(nil); err != nil {
-				return nil, err
-			}
-		}
-
-		return i, nil
 	}
 }

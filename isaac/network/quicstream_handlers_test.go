@@ -80,90 +80,6 @@ func (t *testQuicstreamHandlers) TestClient() {
 	_ = (interface{})(c).(isaac.NetworkClient)
 }
 
-type dummyStreamer struct {
-	r      io.Reader
-	w      io.WriteCloser
-	ctx    context.Context
-	closef func() error
-}
-
-func (d dummyStreamer) Stream(ctx context.Context, f quicstream.StreamFunc) error {
-	defer d.closef()
-
-	return f(ctx, d.r, d.w)
-}
-
-func (d dummyStreamer) Close() error {
-	if d.closef != nil {
-		d.closef()
-	}
-
-	return nil
-}
-
-func (d dummyStreamer) Context() context.Context {
-	return d.ctx
-}
-
-func (d dummyStreamer) OpenStream(context.Context) (io.Reader, io.WriteCloser, func() error, error) {
-	return d.r, d.w, d.closef, nil
-}
-
-func testDialFunc[T quicstreamheader.RequestHeader](encs *encoder.Encoders, prefix [32]byte, handler quicstreamheader.Handler[T]) (
-	net.Addr,
-	quicstream.ConnInfoDialFunc,
-) {
-	hr, cw := io.Pipe()
-	cr, hw := io.Pipe()
-
-	ph := quicstream.NewPrefixHandler(nil)
-	ph.Add(prefix, quicstreamheader.NewHandler[T](encs, handler, nil))
-
-	remote := quicstream.RandomUDPAddr()
-
-	handlerf := func() error {
-		defer hw.Close()
-
-		_, err := ph.Handler(context.Background(), remote, hr, hw)
-
-		if errors.Is(err, quicstream.ErrHandlerNotFound) {
-			go io.ReadAll(cr)
-			go io.ReadAll(hr)
-		}
-
-		hr.Close()
-		hw.Close()
-
-		return err
-	}
-
-	return remote, func(ctx context.Context, _ quicstream.ConnInfo) (quicstream.Streamer, error) {
-		donech := make(chan error, 1)
-		go func() {
-			donech <- handlerf()
-		}()
-
-		dctx, cancel := context.WithCancel(ctx)
-
-		return dummyStreamer{
-			r: cr, w: cw, closef: func() error {
-				cancel()
-
-				cr.Close()
-				cw.Close()
-
-				select {
-				case <-dctx.Done():
-				case <-donech:
-				}
-
-				return nil
-			},
-			ctx: dctx,
-		}, nil
-	}
-}
-
 func (t *testQuicstreamHandlers) TestRequest() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
@@ -171,7 +87,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		handler := QuicstreamHandlerExistsInStateOperation(func(util.Hash) (bool, error) {
 			return true, nil
 		})
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -201,7 +117,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 			return false, errors.Errorf("hehehe")
 		})
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -244,7 +160,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	handler := QuicstreamHandlerOperation(pool, nil)
 
 	t.Run("found", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -257,7 +173,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	})
 
 	t.Run("not found", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -282,7 +198,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -304,7 +220,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -334,7 +250,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 			func() uint64 { return 1 << 18 },
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -343,7 +259,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		t.True(updated)
 
 		t.Run("already exists", func() {
-			_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+			_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 			c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -369,7 +285,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 			func() uint64 { return 1 << 18 },
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -397,7 +313,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 			func() uint64 { return 1 << 18 },
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -487,7 +403,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	t.Run("nil offset", func() {
 		opch := make(chan []byte, len(ops))
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
 
 		go func() {
 			for i := range opbs {
@@ -530,7 +446,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	t.Run("with offset", func() {
 		opch := make(chan []byte, len(ops))
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
 
 		go func() {
 			for i := range opbs {
@@ -580,7 +496,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	t.Run("limit", func() {
 		opch := make(chan []byte, len(ops))
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
 
 		go func() {
 			for i := range opbs {
@@ -631,7 +547,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 	t.Run("callback error", func() {
 		opch := make(chan []byte, len(ops))
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStreamOperations, handler(opch))
 
 		donech := make(chan struct{})
 		go func() {
@@ -698,7 +614,7 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("ok", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -708,7 +624,7 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 	})
 
 	t.Run("already voted", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -725,7 +641,7 @@ func (t *testQuicstreamHandlers) TestSendOperationExpel() {
 			nil,
 			func() uint64 { return 1 << 18 },
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -757,7 +673,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("local is proposer", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -775,7 +691,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	})
 
 	t.Run("local is not proposer", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -798,7 +714,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			},
 			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -821,7 +737,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			},
 			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -858,7 +774,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return xpr, nil },
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -901,7 +817,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -940,7 +856,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("found", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -954,7 +870,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	})
 
 	t.Run("unknown", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -965,7 +881,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	})
 
 	t.Run("nil proposal fact hash", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -991,7 +907,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1017,7 +933,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixProposal, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixProposal, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1055,7 +971,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("not updated", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1067,7 +983,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	})
 
 	t.Run("nil state", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1078,7 +994,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	})
 
 	t.Run("updated", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastSuffrageProof, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1114,7 +1030,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSuffrageProof, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSuffrageProof, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1133,7 +1049,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 			},
 		)
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSuffrageProof, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSuffrageProof, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1162,7 +1078,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1189,7 +1105,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1205,7 +1121,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1234,7 +1150,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1252,7 +1168,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1268,7 +1184,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1303,7 +1219,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 				return io.NopCloser(r), true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1335,7 +1251,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 				return nil, false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1385,7 +1301,7 @@ func (t *testQuicstreamHandlers) TestState() {
 				return t.Enc.Hint(), meta.Bytes(), stb, true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixState, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1405,7 +1321,7 @@ func (t *testQuicstreamHandlers) TestState() {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixState, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1421,7 +1337,7 @@ func (t *testQuicstreamHandlers) TestState() {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixState, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1437,7 +1353,7 @@ func (t *testQuicstreamHandlers) TestState() {
 				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixState, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1458,7 +1374,7 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 				return true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1473,7 +1389,7 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 				return true, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1488,7 +1404,7 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 				return false, nil
 			},
 		)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixExistsInStateOperation, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1521,7 +1437,7 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 		)
 
 		ci := quicstream.UnsafeConnInfo(nil, true)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSendBallots, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSendBallots, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1561,7 +1477,7 @@ func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
 		)
 
 		ci := quicstream.UnsafeConnInfo(nil, true)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1595,7 +1511,7 @@ func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
 		)
 
 		ci := quicstream.UnsafeConnInfo(nil, true)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1625,7 +1541,7 @@ func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
 		)
 
 		ci := quicstream.UnsafeConnInfo(nil, true)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1648,7 +1564,7 @@ func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
 		)
 
 		ci := quicstream.UnsafeConnInfo(nil, true)
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixSetAllowConsensus, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1685,7 +1601,7 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	}
 
 	t.Run("me", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1706,7 +1622,7 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	})
 
 	t.Run("without me", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1727,7 +1643,7 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	})
 
 	t.Run("me sign failed", func() {
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -1768,7 +1684,7 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 			return nctx, err
 		}
 
-		_, dialf := testDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixNodeChallenge, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 

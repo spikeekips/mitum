@@ -70,6 +70,7 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNamePatchLastConsensusNodesWatcher, PPatchLastConsensusNodesWatcher).
 		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers).
 		PostAddOK(PNameWatchDesign, PWatchDesign).
+		PostAddOK(PNameNetworkHandlersReadWriteDesign, PNetworkHandlersReadWriteDesign).
 		PostAddOK(PNamePatchMemberlist, PPatchMemberlist).
 		PostAddOK(PNameStatesNetworkHandlers, PStatesNetworkHandlers).
 		PostAddOK(PNameHandoverNetworkHandlers, PHandoverNetworkHandlers)

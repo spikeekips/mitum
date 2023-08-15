@@ -93,7 +93,7 @@ func (t *testSyncSourceChecker) dialf(h *handlers) quicstream.ConnInfoDialFunc {
 
 		dctx, cancel := context.WithCancel(ctx)
 
-		return dummyStreamer{
+		return DummyStreamer{
 			r: cr, w: cw, closef: func() error {
 				cancel()
 

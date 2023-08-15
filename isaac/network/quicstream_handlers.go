@@ -605,7 +605,7 @@ func QuicstreamHandlerSetAllowConsensus(
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header SetAllowConsensusHeader,
 	) (context.Context, error) {
-		err := quicstreamHandlerVerifyNode(
+		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			pub, networkID,
 		)
@@ -633,7 +633,7 @@ func QuicstreamHandlerStreamOperations(
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header StreamOperationsHeader,
 	) (context.Context, error) {
-		if err := quicstreamHandlerVerifyNode(
+		if err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			pub, networkID,
 		); err != nil {
@@ -880,7 +880,7 @@ func writeResponseStreamEncode(
 	)
 }
 
-func quicstreamHandlerVerifyNode(
+func QuicstreamHandlerVerifyNode(
 	ctx context.Context,
 	_ net.Addr,
 	broker *quicstreamheader.HandlerBroker,

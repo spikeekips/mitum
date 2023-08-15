@@ -94,31 +94,31 @@ var (
 	HandlerPrefixLastHandoverYLogs      = quicstream.HashPrefix(HandlerPrefixLastHandoverYLogsString)
 )
 
-type baseHeader struct {
+type BaseHeader struct {
 	clientID string
 	quicstreamheader.BaseRequestHeader
 }
 
-func newBaseHeader(ht hint.Hint) baseHeader {
-	return baseHeader{BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
+func NewBaseHeader(ht hint.Hint) BaseHeader {
+	return BaseHeader{BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
 }
 
-func (h baseHeader) ClientID() string {
+func (h BaseHeader) ClientID() string {
 	return h.clientID
 }
 
-func (h *baseHeader) SetClientID(id string) {
+func (h *BaseHeader) SetClientID(id string) {
 	h.clientID = id
 }
 
 type OperationRequestHeader struct {
 	h util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewOperationRequestHeader(operationhash util.Hash) OperationRequestHeader {
 	return OperationRequestHeader{
-		baseHeader: newBaseHeader(OperationRequestHeaderHint),
+		BaseHeader: NewBaseHeader(OperationRequestHeaderHint),
 		h:          operationhash,
 	}
 }
@@ -142,12 +142,12 @@ func (h OperationRequestHeader) Operation() util.Hash {
 }
 
 type SendOperationRequestHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewSendOperationRequestHeader() SendOperationRequestHeader {
 	return SendOperationRequestHeader{
-		baseHeader: newBaseHeader(SendOperationRequestHeaderHint),
+		BaseHeader: NewBaseHeader(SendOperationRequestHeaderHint),
 	}
 }
 
@@ -162,7 +162,7 @@ func (h SendOperationRequestHeader) IsValid([]byte) error {
 type RequestProposalRequestHeader struct {
 	previousBlock util.Hash
 	proposer      base.Address
-	baseHeader
+	BaseHeader
 	point base.Point
 }
 
@@ -172,7 +172,7 @@ func NewRequestProposalRequestHeader(
 	previousBlock util.Hash,
 ) RequestProposalRequestHeader {
 	return RequestProposalRequestHeader{
-		baseHeader:    newBaseHeader(RequestProposalRequestHeaderHint),
+		BaseHeader:    NewBaseHeader(RequestProposalRequestHeaderHint),
 		point:         point,
 		proposer:      proposer,
 		previousBlock: previousBlock,
@@ -207,12 +207,12 @@ func (h RequestProposalRequestHeader) PreviousBlock() util.Hash {
 
 type ProposalRequestHeader struct {
 	proposal util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 	return ProposalRequestHeader{
-		baseHeader: newBaseHeader(ProposalRequestHeaderHint),
+		BaseHeader: NewBaseHeader(ProposalRequestHeaderHint),
 		proposal:   proposal,
 	}
 }
@@ -237,12 +237,12 @@ func (h ProposalRequestHeader) Proposal() util.Hash {
 
 type LastSuffrageProofRequestHeader struct {
 	state util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequestHeader {
 	return LastSuffrageProofRequestHeader{
-		baseHeader: newBaseHeader(LastSuffrageProofRequestHeaderHint),
+		BaseHeader: NewBaseHeader(LastSuffrageProofRequestHeaderHint),
 		state:      state,
 	}
 }
@@ -268,13 +268,13 @@ func (h LastSuffrageProofRequestHeader) State() util.Hash {
 }
 
 type SuffrageProofRequestHeader struct {
-	baseHeader
+	BaseHeader
 	suffrageheight base.Height
 }
 
 func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequestHeader {
 	return SuffrageProofRequestHeader{
-		baseHeader:     newBaseHeader(SuffrageProofRequestHeaderHint),
+		BaseHeader:     NewBaseHeader(SuffrageProofRequestHeaderHint),
 		suffrageheight: suffrageheight,
 	}
 }
@@ -299,12 +299,12 @@ func (h SuffrageProofRequestHeader) Height() base.Height {
 
 type LastBlockMapRequestHeader struct {
 	manifest util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader {
 	return LastBlockMapRequestHeader{
-		baseHeader: newBaseHeader(LastBlockMapRequestHeaderHint),
+		BaseHeader: NewBaseHeader(LastBlockMapRequestHeaderHint),
 		manifest:   manifest,
 	}
 }
@@ -328,13 +328,13 @@ func (h LastBlockMapRequestHeader) Manifest() util.Hash {
 }
 
 type BlockMapRequestHeader struct {
-	baseHeader
+	BaseHeader
 	height base.Height
 }
 
 func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 	return BlockMapRequestHeader{
-		baseHeader: newBaseHeader(BlockMapRequestHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapRequestHeaderHint),
 		height:     height,
 	}
 }
@@ -359,13 +359,13 @@ func (h BlockMapRequestHeader) Height() base.Height {
 
 type BlockMapItemRequestHeader struct {
 	item base.BlockMapItemType
-	baseHeader
+	BaseHeader
 	height base.Height
 }
 
 func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
 	return BlockMapItemRequestHeader{
-		baseHeader: newBaseHeader(BlockMapItemRequestHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
 		height:     height,
 		item:       item,
 	}
@@ -397,7 +397,7 @@ type NodeChallengeRequestHeader struct {
 	me    base.Address
 	mePub base.Publickey
 	input []byte
-	baseHeader
+	BaseHeader
 }
 
 func NewNodeChallengeRequestHeader(
@@ -406,7 +406,7 @@ func NewNodeChallengeRequestHeader(
 	mePub base.Publickey,
 ) NodeChallengeRequestHeader {
 	return NodeChallengeRequestHeader{
-		baseHeader: newBaseHeader(NodeChallengeRequestHeaderHint),
+		BaseHeader: NewBaseHeader(NodeChallengeRequestHeaderHint),
 		input:      input,
 		me:         me,
 		mePub:      mePub,
@@ -450,12 +450,12 @@ func (h NodeChallengeRequestHeader) MePublickey() base.Publickey {
 }
 
 type SuffrageNodeConnInfoRequestHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewSuffrageNodeConnInfoRequestHeader() SuffrageNodeConnInfoRequestHeader {
 	return SuffrageNodeConnInfoRequestHeader{
-		baseHeader: newBaseHeader(SuffrageNodeConnInfoRequestHeaderHint),
+		BaseHeader: NewBaseHeader(SuffrageNodeConnInfoRequestHeaderHint),
 	}
 }
 
@@ -468,12 +468,12 @@ func (h SuffrageNodeConnInfoRequestHeader) IsValid([]byte) error {
 }
 
 type SyncSourceConnInfoRequestHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewSyncSourceConnInfoRequestHeader() SyncSourceConnInfoRequestHeader {
 	return SyncSourceConnInfoRequestHeader{
-		baseHeader: newBaseHeader(SyncSourceConnInfoRequestHeaderHint),
+		BaseHeader: NewBaseHeader(SyncSourceConnInfoRequestHeaderHint),
 	}
 }
 
@@ -488,12 +488,12 @@ func (h SyncSourceConnInfoRequestHeader) IsValid([]byte) error {
 type StateRequestHeader struct {
 	key string
 	h   util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewStateRequestHeader(key string, h util.Hash) StateRequestHeader {
 	return StateRequestHeader{
-		baseHeader: newBaseHeader(StateRequestHeaderHint),
+		BaseHeader: NewBaseHeader(StateRequestHeaderHint),
 		key:        key,
 		h:          h,
 	}
@@ -529,12 +529,12 @@ func (h StateRequestHeader) Hash() util.Hash {
 
 type ExistsInStateOperationRequestHeader struct {
 	facthash util.Hash
-	baseHeader
+	BaseHeader
 }
 
 func NewExistsInStateOperationRequestHeader(facthash util.Hash) ExistsInStateOperationRequestHeader {
 	return ExistsInStateOperationRequestHeader{
-		baseHeader: newBaseHeader(ExistsInStateOperationRequestHeaderHint),
+		BaseHeader: NewBaseHeader(ExistsInStateOperationRequestHeaderHint),
 		facthash:   facthash,
 	}
 }
@@ -562,12 +562,12 @@ func (h ExistsInStateOperationRequestHeader) FactHash() util.Hash {
 }
 
 type NodeInfoRequestHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewNodeInfoRequestHeader() NodeInfoRequestHeader {
 	return NodeInfoRequestHeader{
-		baseHeader: newBaseHeader(NodeInfoRequestHeaderHint),
+		BaseHeader: NewBaseHeader(NodeInfoRequestHeaderHint),
 	}
 }
 
@@ -580,12 +580,12 @@ func (h NodeInfoRequestHeader) IsValid([]byte) error {
 }
 
 type SendBallotsHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewSendBallotsHeader() SendBallotsHeader {
 	return SendBallotsHeader{
-		baseHeader: newBaseHeader(SendBallotsHeaderHint),
+		BaseHeader: NewBaseHeader(SendBallotsHeaderHint),
 	}
 }
 
@@ -598,13 +598,13 @@ func (h SendBallotsHeader) IsValid([]byte) error {
 }
 
 type SetAllowConsensusHeader struct {
-	baseHeader
+	BaseHeader
 	allow bool
 }
 
 func NewSetAllowConsensusHeader(allow bool) SetAllowConsensusHeader {
 	return SetAllowConsensusHeader{
-		baseHeader: newBaseHeader(SetAllowConsensusHeaderHint),
+		BaseHeader: NewBaseHeader(SetAllowConsensusHeaderHint),
 		allow:      allow,
 	}
 }
@@ -623,12 +623,12 @@ func (h SetAllowConsensusHeader) Allow() bool {
 
 type StreamOperationsHeader struct {
 	offset []byte
-	baseHeader
+	BaseHeader
 }
 
 func NewStreamOperationsHeader(offset []byte) StreamOperationsHeader {
 	return StreamOperationsHeader{
-		baseHeader: newBaseHeader(StreamOperationsHeaderHint),
+		BaseHeader: NewBaseHeader(StreamOperationsHeaderHint),
 		offset:     offset,
 	}
 }
@@ -648,19 +648,19 @@ func (h StreamOperationsHeader) Offset() []byte {
 type caHandoverHeader struct {
 	connInfo quicstream.ConnInfo // conn info of X
 	address  base.Address        // local address
-	baseHeader
+	BaseHeader
 }
 
 func newCAHandoverHeader(ht hint.Hint, connInfo quicstream.ConnInfo, address base.Address) caHandoverHeader {
 	return caHandoverHeader{
-		baseHeader: newBaseHeader(ht),
+		BaseHeader: NewBaseHeader(ht),
 		connInfo:   connInfo,
 		address:    address,
 	}
 }
 
 func (h caHandoverHeader) IsValid([]byte) error {
-	if err := h.baseHeader.IsValid(nil); err != nil {
+	if err := h.BaseHeader.IsValid(nil); err != nil {
 		return err
 	}
 
@@ -766,17 +766,17 @@ func (h AskHandoverResponseHeader) ID() string {
 }
 
 type CancelHandoverHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewCancelHandoverHeader() CancelHandoverHeader {
 	return CancelHandoverHeader{
-		baseHeader: newBaseHeader(CancelHandoverHeaderHint),
+		BaseHeader: NewBaseHeader(CancelHandoverHeaderHint),
 	}
 }
 
 func (h CancelHandoverHeader) IsValid([]byte) error {
-	if err := h.baseHeader.IsValid(nil); err != nil {
+	if err := h.BaseHeader.IsValid(nil); err != nil {
 		return util.ErrInvalid.WithMessage(err, "invalid CancelHandoverHeader")
 	}
 
@@ -784,17 +784,17 @@ func (h CancelHandoverHeader) IsValid([]byte) error {
 }
 
 type HandoverMessageHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewHandoverMessageHeader() HandoverMessageHeader {
 	return HandoverMessageHeader{
-		baseHeader: newBaseHeader(HandoverMessageHeaderHint),
+		BaseHeader: NewBaseHeader(HandoverMessageHeaderHint),
 	}
 }
 
 func (h HandoverMessageHeader) IsValid([]byte) error {
-	if err := h.baseHeader.IsValid(nil); err != nil {
+	if err := h.BaseHeader.IsValid(nil); err != nil {
 		return util.ErrInvalid.WithMessage(err, "invalid HandoverMessageHeader")
 	}
 
@@ -804,12 +804,12 @@ func (h HandoverMessageHeader) IsValid([]byte) error {
 // CheckHandoverXHeader checks only x node.
 type CheckHandoverXHeader struct {
 	address base.Address // local address
-	baseHeader
+	BaseHeader
 }
 
 func NewCheckHandoverXHeader(address base.Address) CheckHandoverXHeader {
 	return CheckHandoverXHeader{
-		baseHeader: newBaseHeader(CheckHandoverXHeaderHint),
+		BaseHeader: NewBaseHeader(CheckHandoverXHeaderHint),
 		address:    address,
 	}
 }
@@ -817,7 +817,7 @@ func NewCheckHandoverXHeader(address base.Address) CheckHandoverXHeader {
 func (h CheckHandoverXHeader) IsValid([]byte) error {
 	e := util.StringError("CheckHandoverXHeader")
 
-	if err := h.baseHeader.IsValid(nil); err != nil {
+	if err := h.BaseHeader.IsValid(nil); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -833,19 +833,19 @@ func (h CheckHandoverXHeader) Address() base.Address {
 }
 
 type LastHandoverYLogsHeader struct {
-	baseHeader
+	BaseHeader
 }
 
 func NewLastHandoverYLogsHeader() LastHandoverYLogsHeader {
 	return LastHandoverYLogsHeader{
-		baseHeader: newBaseHeader(LastHandoverYLogsHeaderHint),
+		BaseHeader: NewBaseHeader(LastHandoverYLogsHeaderHint),
 	}
 }
 
 func (h LastHandoverYLogsHeader) IsValid([]byte) error {
 	e := util.StringError("LastHandoverYLogsHeader")
 
-	if err := h.baseHeader.IsValid(nil); err != nil {
+	if err := h.BaseHeader.IsValid(nil); err != nil {
 		return e.Wrap(err)
 	}
 
