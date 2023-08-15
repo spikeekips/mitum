@@ -10,7 +10,7 @@ type Encoders struct {
 
 func NewEncoders() *Encoders {
 	return &Encoders{
-		CompatibleSet: hint.NewCompatibleSet(),
+		CompatibleSet: hint.NewCompatibleSet(2),
 	}
 }
 

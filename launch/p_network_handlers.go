@@ -261,7 +261,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	set := hint.NewCompatibleSet()
+	set := hint.NewCompatibleSet(1 << 9) //nolint:gomnd //...
 
 	_ = set.Add(isaacoperation.SuffrageCandidateHint, func(height base.Height) (base.OperationProcessor, error) {
 		policy := db.LastNetworkPolicy()

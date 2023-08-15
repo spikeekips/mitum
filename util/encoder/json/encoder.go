@@ -21,7 +21,7 @@ type Encoder struct {
 
 func NewEncoder() *Encoder {
 	return &Encoder{
-		decoders: hint.NewCompatibleSet(),
+		decoders: hint.NewCompatibleSet(1 << 10), //nolint:gomnd // big enough
 	}
 }
 

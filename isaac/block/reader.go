@@ -22,7 +22,7 @@ type BlockReaders struct {
 
 func NewBlockReaders() *BlockReaders {
 	return &BlockReaders{
-		CompatibleSet: hint.NewCompatibleSet(),
+		CompatibleSet: hint.NewCompatibleSet(8), //nolint:gomnd //...
 	}
 }
 

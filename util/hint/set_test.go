@@ -27,8 +27,26 @@ type testCompatibleSet struct {
 	suite.Suite
 }
 
+func (t *testCompatibleSet) TestNilCache() {
+	hs := NewCompatibleSet(0)
+
+	hr := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr))
+
+	hr0 := newHinter("findme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+
+	hr1 := newHinter("findme", "v2020.10")
+	t.NoError(hs.AddHinter(hr1))
+
+	ehr0 := hs.Find(EnsureParseHint("findme-v2019.9"))
+	t.Equal(hr0, ehr0)
+	ehr1 := hs.Find(EnsureParseHint("findme-v2020.9"))
+	t.Equal(hr1, ehr1)
+}
+
 func (t *testCompatibleSet) TestAddHinter() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
@@ -46,7 +64,7 @@ func (t *testCompatibleSet) TestAddHinter() {
 }
 
 func (t *testCompatibleSet) TestAdd() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	ht := newHint("showme", "v2019.10")
 	t.NoError(hs.Add(ht, 1))
@@ -64,7 +82,7 @@ func (t *testCompatibleSet) TestAdd() {
 }
 
 func (t *testCompatibleSet) TestAlreadyAdded() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
@@ -74,7 +92,7 @@ func (t *testCompatibleSet) TestAlreadyAdded() {
 }
 
 func (t *testCompatibleSet) TestFind() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
@@ -88,7 +106,7 @@ func (t *testCompatibleSet) TestFind() {
 }
 
 func (t *testCompatibleSet) TestFindHead() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -112,7 +130,7 @@ func (t *testCompatibleSet) TestFindHead() {
 }
 
 func (t *testCompatibleSet) TestFindByType() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -126,7 +144,7 @@ func (t *testCompatibleSet) TestFindByType() {
 }
 
 func (t *testCompatibleSet) TestFindByTypeSameMajor() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -142,7 +160,7 @@ func (t *testCompatibleSet) TestFindByTypeSameMajor() {
 }
 
 func (t *testCompatibleSet) TestFindByTypeLowerMinor() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -158,7 +176,7 @@ func (t *testCompatibleSet) TestFindByTypeLowerMinor() {
 }
 
 func (t *testCompatibleSet) TestFindByTypeHigerMajor() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -174,7 +192,7 @@ func (t *testCompatibleSet) TestFindByTypeHigerMajor() {
 }
 
 func (t *testCompatibleSet) TestFindByTypeLowerMajor() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -190,7 +208,7 @@ func (t *testCompatibleSet) TestFindByTypeLowerMajor() {
 }
 
 func (t *testCompatibleSet) TestFindCompatible() {
-	hs := NewCompatibleSet()
+	hs := NewCompatibleSet(3)
 
 	ts := "showme"
 	vs := "v2019.10.11"

@@ -1,8 +1,8 @@
 package hint
 
 import (
-	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
 )
 
 type CompatibleSet struct {
@@ -10,16 +10,21 @@ type CompatibleSet struct {
 	hints         map[Type]map[uint64]Hint
 	typeheads     map[Type]interface{}
 	typeheadhints map[Type]Hint
-	cache         gcache.Cache
+	cache         *util.GCache[string, any]
 }
 
-func NewCompatibleSet() *CompatibleSet {
+func NewCompatibleSet(size int) *CompatibleSet {
+	var cache *util.GCache[string, any]
+	if size > 0 {
+		cache = util.NewLRUGCache[string, any](1)
+	}
+
 	return &CompatibleSet{
 		set:           map[Type]map[uint64]interface{}{},
 		hints:         map[Type]map[uint64]Hint{},
 		typeheads:     map[Type]interface{}{},
 		typeheadhints: map[Type]Hint{},
-		cache:         gcache.New(1 << 10).LRU().Build(), //nolint:gomnd //...
+		cache:         cache,
 	}
 }
 
@@ -85,16 +90,13 @@ func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
 }
 
 func (st *CompatibleSet) Find(ht Hint) interface{} {
-	switch i, err := st.cache.Get(ht.String()); {
-	case err == nil:
+	if i, found, _ := st.cacheGet(ht.String()); found {
 		return i
-	case !errors.Is(err, gcache.KeyNotFoundError):
-		return nil
 	}
 
 	hr := st.find(ht)
 
-	_ = st.cache.Set(ht.String(), hr)
+	st.cacheSet(ht.String(), hr)
 
 	return hr
 }
@@ -130,4 +132,29 @@ func (st *CompatibleSet) find(ht Hint) interface{} {
 	}
 
 	return v
+}
+
+func (st *CompatibleSet) cacheGet(s string) (v interface{}, found bool, _ error) {
+	if st.cache == nil {
+		return nil, false, nil
+	}
+
+	switch i, found := st.cache.Get(s); {
+	case !found:
+		return nil, false, nil
+	default:
+		if e, ok := i.(error); ok {
+			return nil, false, e
+		}
+
+		return i, true, nil
+	}
+}
+
+func (st *CompatibleSet) cacheSet(s string, v interface{}) {
+	if st.cache == nil {
+		return
+	}
+
+	st.cache.Set(s, v, 0)
 }

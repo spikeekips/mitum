@@ -38,7 +38,7 @@ func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error)
 		return pctx, e.Wrap(err)
 	}
 
-	set := hint.NewCompatibleSet()
+	set := hint.NewCompatibleSet(8) //nolint:gomnd //...
 
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
