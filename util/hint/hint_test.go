@@ -37,6 +37,46 @@ func (t *testHint) TestParse() {
 		{name: "empty version #0", s: "showme", err: "invalid hint string"},
 		{name: "empty version #1", s: "showme-", err: "invalid hint string"},
 		{name: "inside v+hyphen", s: "sho-vwme-v1.2.3+incompatible", expected: "sho-vwme-v1.2.3+incompatible"},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(
+			c.name,
+			func() {
+				ht, err := ParseHint(c.s)
+				if len(c.err) > 0 {
+					if err == nil {
+						t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
+
+						return
+					}
+
+					t.ErrorContains(err, c.err, "%d(%q): %v", i, c.s, c.name)
+
+					return
+				} else if err != nil {
+					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
+
+					return
+				}
+
+				if len(c.expected) > 0 {
+					t.Equal(c.expected, ht.String(), "%d(%q): %v", i, c.s, c.name)
+				}
+			},
+		)
+	}
+}
+
+func (t *testHint) TestIsValid() {
+	cases := []struct {
+		name     string
+		s        string
+		expected string
+		err      string
+	}{
 		{name: "hyphen-v", s: "sho-v1.2.3wme-v1.2.3+incompatible", expected: "sho-v1.2.3wme-v1.2.3+incompatible", err: "invalid version in hint"},
 		{name: "too long version", s: "showme-v1.2.3+" + strings.Repeat("a", MaxVersionLength-6), err: "too long version in hint"},
 	}
@@ -48,6 +88,9 @@ func (t *testHint) TestParse() {
 			c.name,
 			func() {
 				ht, err := ParseHint(c.s)
+				t.NoError(err)
+
+				err = ht.IsValid(nil)
 				if len(c.err) > 0 {
 					if err == nil {
 						t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)

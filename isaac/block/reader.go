@@ -17,12 +17,12 @@ import (
 type NewBlockReaderFunc func(base.Height, encoder.Encoder) (isaac.BlockReader, error)
 
 type BlockReaders struct {
-	*hint.CompatibleSet // NOTE handles NewBlockReaderFunc
+	*hint.CompatibleSet[NewBlockReaderFunc]
 }
 
 func NewBlockReaders() *BlockReaders {
 	return &BlockReaders{
-		CompatibleSet: hint.NewCompatibleSet(8), //nolint:gomnd //...
+		CompatibleSet: hint.NewCompatibleSet[NewBlockReaderFunc](8), //nolint:gomnd //...
 	}
 }
 
@@ -40,20 +40,6 @@ func (rs *BlockReaders) Add(ht hint.Hint, v interface{}) error {
 	return rs.CompatibleSet.Add(ht, r)
 }
 
-func (rs *BlockReaders) Find(writerhint hint.Hint) NewBlockReaderFunc {
-	i := rs.CompatibleSet.Find(writerhint)
-	if i == nil {
-		return nil
-	}
-
-	r, ok := i.(NewBlockReaderFunc)
-	if !ok {
-		return nil
-	}
-
-	return r
-}
-
 func LoadBlockReader(
 	readers *BlockReaders,
 	encs *encoder.Encoders,
@@ -62,13 +48,13 @@ func LoadBlockReader(
 ) (isaac.BlockReader, error) {
 	e := util.StringError("load BlockReader")
 
-	f := readers.Find(writerhint)
-	if f == nil {
+	f, found := readers.Find(writerhint)
+	if !found {
 		return nil, e.Errorf("unknown writer hint, %q", writerhint)
 	}
 
-	enc := encs.Find(enchint)
-	if enc == nil {
+	enc, found := encs.Find(enchint)
+	if !found {
 		return nil, e.Errorf("unknown encoder hint, %q", enchint)
 	}
 
@@ -206,6 +192,10 @@ end:
 
 		ht, err = hint.ParseHint(s)
 		if err != nil {
+			return ht, errors.Wrap(err, "load tree hint")
+		}
+
+		if err := ht.IsValid(nil); err != nil {
 			return ht, errors.Wrap(err, "load tree hint")
 		}
 

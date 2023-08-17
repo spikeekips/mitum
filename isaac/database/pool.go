@@ -93,7 +93,7 @@ func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignFact, found bool,
 	}
 }
 
-func (db *TempPool) ProposalBytes(h util.Hash) (enchint hint.Hint, meta, body []byte, found bool, _ error) {
+func (db *TempPool) ProposalBytes(h util.Hash) (enchint string, meta, body []byte, found bool, _ error) {
 	pst, err := db.st()
 	if err != nil {
 		return enchint, nil, nil, false, err
@@ -200,11 +200,11 @@ func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op ba
 }
 
 func (db *TempPool) OperationBytes(_ context.Context, operationhash util.Hash) (
-	enchint hint.Hint, meta, body []byte, found bool, _ error,
+	enchint string, meta, body []byte, found bool, _ error,
 ) {
 	pst, err := db.st()
 	if err != nil {
-		return enchint, nil, nil, false, err
+		return "", nil, nil, false, err
 	}
 
 	return db.getRecordBytes(leveldbNewOperationKey(operationhash), pst.Get)
@@ -284,7 +284,7 @@ func (db *TempPool) OperationHashes(
 func (db *TempPool) TraverseOperationsBytes(
 	ctx context.Context,
 	offset []byte,
-	f func(enchint hint.Hint, meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
+	f func(enchint string, meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
 ) error {
 	pst, err := db.st()
 	if err != nil {
@@ -1007,6 +1007,10 @@ func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ erro
 	meta.ht, err = hint.ParseHint(string(m[1]))
 	if err != nil {
 		return meta, e.Errorf("wrong hint")
+	}
+
+	if err := meta.ht.IsValid(nil); err != nil {
+		return meta, e.WithMessage(err, "wrong hint")
 	}
 
 	meta.ophash = valuehash.Bytes(m[2])

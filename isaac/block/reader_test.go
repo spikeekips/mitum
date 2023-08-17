@@ -20,7 +20,8 @@ func (t *testBlockReaders) TestNew() {
 	readers := NewBlockReaders()
 
 	t.Run("unknown", func() {
-		f := readers.Find(hint.MustNewHint("ab-v0.0.1"))
+		f, found := readers.Find(hint.MustNewHint("ab-v0.0.1"))
+		t.False(found)
 		t.Nil(f)
 	})
 
@@ -29,21 +30,24 @@ func (t *testBlockReaders) TestNew() {
 
 		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (isaac.BlockReader, error) { return nil, nil }))
 
-		f := readers.Find(ht)
+		f, found := readers.Find(ht)
+		t.True(found)
 		t.NotNil(f)
 	})
 
 	t.Run("compatible", func() {
 		ht := hint.MustNewHint("abc-v0.0.9")
 
-		f := readers.Find(ht)
+		f, found := readers.Find(ht)
+		t.True(found)
 		t.NotNil(f)
 	})
 
 	t.Run("not compatible", func() {
 		ht := hint.MustNewHint("abc-v1.0.1")
 
-		f := readers.Find(ht)
+		f, found := readers.Find(ht)
+		t.False(found)
 		t.Nil(f)
 	})
 }

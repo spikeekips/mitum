@@ -44,8 +44,8 @@ func NewBlockImporter(
 ) (*BlockImporter, error) {
 	e := util.StringError(" BlockImporter")
 
-	enc := encs.Find(m.Encoder())
-	if enc == nil {
+	enc, found := encs.Find(m.Encoder())
+	if !found {
 		return nil, e.Errorf("unknown encoder, %q", m.Encoder())
 	}
 

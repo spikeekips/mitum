@@ -13,7 +13,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -206,12 +205,12 @@ func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 	}
 }
 
-func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []byte, err error) {
+func (db *LeveldbBlockWrite) BlockMapBytes() (enchint string, meta, body []byte, err error) {
 	switch _, meta, i := db.blockmaps(); {
 	case i == nil:
 		return enchint, nil, nil, storage.ErrNotFound.Errorf("empty blockmap")
 	default:
-		return db.enc.Hint(), meta, i, nil //nolint:forcetypeassert //...
+		return db.enc.Hint().String(), meta, i, nil //nolint:forcetypeassert //...
 	}
 }
 

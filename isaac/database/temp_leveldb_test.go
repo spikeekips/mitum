@@ -98,7 +98,7 @@ func (t *testTempLeveldb) TestLoad() {
 
 		ht, meta, rb, err := rst.BlockMapBytes()
 		t.NoError(err)
-		t.Equal(t.Enc.Hint(), ht)
+		t.Equal(t.Enc.Hint().String(), ht)
 		t.Equal(mpmeta, meta)
 		t.Equal(mpb, rb)
 	})
@@ -113,7 +113,7 @@ func (t *testTempLeveldb) TestLoad() {
 		enchint, meta, body, found, err := rst.LastSuffrageProofBytes()
 		t.NoError(err)
 		t.True(found)
-		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(t.Enc.Hint().String(), enchint)
 		t.Equal(proofmeta, meta)
 		t.Equal(proofbody, body)
 	})

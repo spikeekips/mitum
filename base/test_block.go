@@ -291,11 +291,11 @@ func (m DummyBlockMap) IsValid([]byte) error {
 
 func (m DummyBlockMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		hint.HintedJSONHead
+		hint.HinterJSONHead
 		B BaseNodeSign
 		M Manifest
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(m.Hint()),
+		HinterJSONHead: hint.NewHinterJSONHead(m.Hint()),
 		B:              m.BaseNodeSign,
 		M:              m.M,
 	})

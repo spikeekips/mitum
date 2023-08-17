@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -48,15 +47,17 @@ func (db *baseDatabase) marshal(i interface{}, meta util.Byter) ([]byte, []byte,
 }
 
 func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta, body []byte, err error) {
-	var ht hint.Hint
+	var ht string
 
 	ht, meta, body, err = db.readHeader(b)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	switch enc = db.encs.Find(ht); {
-	case enc == nil:
+	switch _, enc, found, err := db.encs.FindByString(ht); {
+	case err != nil:
+		return nil, nil, nil, err
+	case !found:
 		return nil, nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	default:
 		return enc, meta, body, nil
@@ -72,13 +73,15 @@ func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
 	}
 }
 
-func (db *baseDatabase) readHinterWithEncoder(enchint hint.Hint, b []byte, v interface{}) error {
-	enc := db.encs.Find(enchint)
-	if enc == nil {
+func (db *baseDatabase) readHinterWithEncoder(enchint string, b []byte, v interface{}) error {
+	switch _, enc, found, err := db.encs.FindByString(enchint); {
+	case err != nil:
+		return err
+	case !found:
 		return util.ErrNotFound.Errorf("encoder not found for %q", enchint)
+	default:
+		return encoder.Decode(enc, b, v)
 	}
-
-	return encoder.Decode(enc, b, v)
 }
 
 func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
@@ -94,7 +97,7 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 	return util.WriteLengthed(w, metab)
 }
 
-func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err error) {
+func (*baseDatabase) readHeader(b []byte) (ht string, meta, body []byte, err error) {
 	e := util.StringError("read hint")
 
 	htb, left, err := util.ReadLengthedBytes(b)
@@ -102,10 +105,7 @@ func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err 
 		return ht, nil, nil, e.Wrap(err)
 	}
 
-	ht, err = hint.ParseHint(string(htb))
-	if err != nil {
-		return ht, nil, nil, e.Wrap(err)
-	}
+	ht = string(htb)
 
 	meta, left, err = util.ReadLengthedBytes(left)
 	if err != nil {
@@ -162,7 +162,7 @@ func (db *baseDatabase) getRecord(
 func (db *baseDatabase) getRecordBytes(
 	key []byte,
 	f func(key []byte) ([]byte, bool, error),
-) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+) (enchint string, meta, body []byte, found bool, err error) {
 	switch b, found, err := f(key); {
 	case err != nil:
 		return enchint, nil, nil, false, err

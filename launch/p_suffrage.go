@@ -38,7 +38,7 @@ func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error)
 		return pctx, e.Wrap(err)
 	}
 
-	set := hint.NewCompatibleSet(8) //nolint:gomnd //...
+	set := hint.NewCompatibleSet[base.SuffrageCandidateLimiterFunc](8) //nolint:gomnd //...
 
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
@@ -704,7 +704,7 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 	error,
 ) {
 	var db isaac.Database
-	var limiterset *hint.CompatibleSet
+	var limiterset *hint.CompatibleSet[base.SuffrageCandidateLimiterFunc]
 
 	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
@@ -750,15 +750,10 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		var limit uint64
 
-		switch i := limiterset.Find(rule.Hint()); {
-		case i == nil:
+		switch f, found := limiterset.Find(rule.Hint()); {
+		case !found:
 			return nil, e.Errorf("unknown limiter rule, %q", rule.Hint())
 		default:
-			f, ok := i.(base.SuffrageCandidateLimiterFunc)
-			if !ok {
-				return nil, e.Errorf("expected SuffrageCandidateLimiterFunc, not %T", i)
-			}
-
 			limiter, err := f(rule)
 			if err != nil {
 				return nil, e.Wrap(err)

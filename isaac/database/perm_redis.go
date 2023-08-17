@@ -15,7 +15,6 @@ import (
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -114,7 +113,7 @@ func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suffra
 }
 
 func (db *RedisPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, err error,
+	enchint string, meta, body []byte, found bool, err error,
 ) {
 	e := util.StringError("get suffrageproof by height")
 
@@ -187,7 +186,7 @@ func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error)
 	return st, found, err
 }
 
-func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *RedisPermanent) StateBytes(key string) (enchint string, meta, body []byte, found bool, err error) {
 	return db.getRecordBytes(context.Background(), redisStateKey(key), db.st.Get)
 }
 
@@ -231,7 +230,7 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool,
 }
 
 func (db *RedisPermanent) BlockMapBytes(height base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, err error,
+	enchint string, meta, body []byte, found bool, err error,
 ) {
 	e := util.StringError("load blockmap bytes")
 
@@ -314,7 +313,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 	}
 
 	_ = db.updateLast(
-		temp.enc.Hint(),
+		temp.enc.Hint().String(),
 		temp.mp, temp.mpmeta, temp.mpbody,
 		temp.proof, temp.proofmeta, temp.proofbody,
 		temp.policy,
@@ -602,7 +601,7 @@ func (db *RedisPermanent) getRecordBytes(
 	ctx context.Context,
 	key string,
 	f func(_ context.Context, key string) ([]byte, bool, error),
-) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+) (enchint string, meta, body []byte, found bool, err error) {
 	return db.baseDatabase.getRecordBytes(
 		[]byte(key),
 		func([]byte) ([]byte, bool, error) {

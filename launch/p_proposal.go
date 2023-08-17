@@ -74,7 +74,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var oprs *hint.CompatibleSet
+	var oprs *hint.CompatibleSet[isaac.NewOperationProcessorInternalFunc]
 
 	if err := util.LoadFromContextOK(pctx,
 		EncoderContextKey, &enc,
@@ -108,14 +108,12 @@ func newProposalProcessorFunc(pctx context.Context) (
 			db.State,
 			getProposalOperationFuncf(proposal),
 			func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
-				v := oprs.Find(ht)
-				if v == nil {
+				v, found := oprs.Find(ht)
+				if !found {
 					return nil, nil
 				}
 
-				f := v.(func(height base.Height) (base.OperationProcessor, error)) //nolint:forcetypeassert //...
-
-				return f(height)
+				return v(height)
 			},
 		)
 	}, nil

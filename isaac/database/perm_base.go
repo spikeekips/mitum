@@ -5,13 +5,12 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type basePermanent struct {
 	encs   *encoder.Encoders
 	enc    encoder.Encoder
-	lenc   *util.Locked[hint.Hint]          // NOTE encoder of last blockmap
+	lenc   *util.Locked[string]             // NOTE encoder of last blockmap
 	mp     *util.Locked[[3]interface{}]     // NOTE last blockmap
 	policy *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
 	proof  *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
@@ -21,7 +20,7 @@ func newBasePermanent(encs *encoder.Encoders, enc encoder.Encoder) *basePermanen
 	return &basePermanent{
 		encs:   encs,
 		enc:    enc,
-		lenc:   util.EmptyLocked[hint.Hint](),
+		lenc:   util.EmptyLocked[string](),
 		mp:     util.EmptyLocked[[3]interface{}](),
 		policy: util.EmptyLocked[base.NetworkPolicy](),
 		proof:  util.EmptyLocked[[3]interface{}](),
@@ -37,7 +36,7 @@ func (db *basePermanent) LastBlockMap() (base.BlockMap, bool, error) {
 	}
 }
 
-func (db *basePermanent) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *basePermanent) LastBlockMapBytes() (enchint string, meta, body []byte, found bool, err error) {
 	switch i, isempty := db.lenc.Value(); {
 	case isempty:
 		return enchint, nil, nil, false, nil
@@ -62,7 +61,7 @@ func (db *basePermanent) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	}
 }
 
-func (db *basePermanent) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *basePermanent) LastSuffrageProofBytes() (enchint string, meta, body []byte, found bool, err error) {
 	switch i, isempty := db.lenc.Value(); {
 	case isempty:
 		return enchint, nil, nil, false, nil
@@ -99,7 +98,7 @@ func (db *basePermanent) Clean() error {
 }
 
 func (db *basePermanent) updateLast(
-	lenc hint.Hint,
+	lenc string,
 	mp base.BlockMap, mpmeta, mpbody []byte,
 	proof base.SuffrageProof, proofmeta, proofbody []byte,
 	policy base.NetworkPolicy,

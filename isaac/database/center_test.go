@@ -12,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -41,7 +40,7 @@ type DummyPermanentDatabase struct {
 	suffrageproofbyblockheightf func(base.Height) (base.SuffrageProof, bool, error)
 	lastSuffrageprooff          func() (base.SuffrageProof, bool, error)
 	statef                      func(key string) (base.State, bool, error)
-	statebytesf                 func(key string) (hint.Hint, []byte, []byte, bool, error)
+	statebytesf                 func(key string) (string, []byte, []byte, bool, error)
 	existsInStateOperationf     func(facthash util.Hash) (bool, error)
 	existsKnownOperationf       func(operationHash util.Hash) (bool, error)
 	mapf                        func(height base.Height) (base.BlockMap, bool, error)
@@ -62,18 +61,18 @@ func (db *DummyPermanentDatabase) SuffrageProof(h base.Height) (base.SuffragePro
 	return db.suffrageprooff(h)
 }
 
-func (db *DummyPermanentDatabase) SuffrageProofBytes(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
+func (db *DummyPermanentDatabase) SuffrageProofBytes(h base.Height) (string, []byte, []byte, bool, error) {
 	proof, found, err := db.SuffrageProof(h)
 	if err != nil || !found {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
 	b, err := util.MarshalJSON(proof)
 	if err != nil {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
 }
 
 func (db *DummyPermanentDatabase) SuffrageProofByBlockHeight(h base.Height) (base.SuffrageProof, bool, error) {
@@ -84,25 +83,25 @@ func (db *DummyPermanentDatabase) LastSuffrageProof() (base.SuffrageProof, bool,
 	return db.lastSuffrageprooff()
 }
 
-func (db *DummyPermanentDatabase) LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error) {
+func (db *DummyPermanentDatabase) LastSuffrageProofBytes() (string, []byte, []byte, bool, error) {
 	proof, found, err := db.lastSuffrageprooff()
 	if err != nil || !found {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
 	b, err := util.MarshalJSON(proof)
 	if err != nil {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
 }
 
 func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
 	return db.statef(key)
 }
 
-func (db *DummyPermanentDatabase) StateBytes(key string) (hint.Hint, []byte, []byte, bool, error) {
+func (db *DummyPermanentDatabase) StateBytes(key string) (string, []byte, []byte, bool, error) {
 	return db.statebytesf(key)
 }
 
@@ -118,18 +117,18 @@ func (db *DummyPermanentDatabase) BlockMap(height base.Height) (base.BlockMap, b
 	return db.mapf(height)
 }
 
-func (db *DummyPermanentDatabase) BlockMapBytes(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
+func (db *DummyPermanentDatabase) BlockMapBytes(height base.Height) (string, []byte, []byte, bool, error) {
 	m, found, err := db.mapf(height)
 	if err != nil || !found {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
 	b, err := util.MarshalJSON(m)
 	if err != nil {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint, nil, b, true, nil
+	return jsonenc.JSONEncoderHint.String(), nil, b, true, nil
 }
 
 func (db *DummyPermanentDatabase) LastBlockMap() (base.BlockMap, bool, error) {
@@ -140,22 +139,22 @@ func (db *DummyPermanentDatabase) LastBlockMap() (base.BlockMap, bool, error) {
 	return db.lastMapf()
 }
 
-func (db *DummyPermanentDatabase) LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error) {
+func (db *DummyPermanentDatabase) LastBlockMapBytes() (string, []byte, []byte, bool, error) {
 	if db.lastMapf == nil {
-		return hint.Hint{}, nil, nil, false, nil
+		return "", nil, nil, false, nil
 	}
 
 	m, found, err := db.lastMapf()
 	if err != nil || !found {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
 	b, err := util.MarshalJSON(m)
 	if err != nil {
-		return hint.Hint{}, nil, nil, found, err
+		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint, NewHashRecordMeta(m.Manifest().Hash()).Bytes(), b, true, nil
+	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(m.Manifest().Hash()).Bytes(), b, true, nil
 }
 
 func (db *DummyPermanentDatabase) LastNetworkPolicy() base.NetworkPolicy {
@@ -211,7 +210,7 @@ func (t *testCenterWithPermanent) TestMap() {
 		enchint, _, body, found, err := db.BlockMapBytes(manifest.Height())
 		t.NoError(err)
 		t.True(found)
-		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(t.Enc.Hint().String(), enchint)
 		t.NotNil(body)
 	})
 
@@ -312,7 +311,7 @@ func (t *testCenterWithPermanent) TestSuffrageProof() {
 		enchint, _, body, found, err := db.SuffrageProofBytes(suffrageheight)
 		t.NoError(err)
 		t.True(found)
-		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(t.Enc.Hint().String(), enchint)
 		t.NotNil(body)
 	})
 
@@ -454,7 +453,7 @@ func (t *testCenterWithPermanent) TestLastSuffrageProofBytes() {
 		t.NoError(err)
 		t.True(found)
 		t.Equal(manifest.Height(), height)
-		t.Equal(jsonenc.JSONEncoderHint, enchint)
+		t.Equal(jsonenc.JSONEncoderHint.String(), enchint)
 
 		var rproof base.SuffrageProof
 

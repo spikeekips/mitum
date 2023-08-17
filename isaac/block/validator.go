@@ -100,12 +100,13 @@ func ValidateLastBlocks(
 		return errors.WithMessage(err, "last BlockMap from database")
 	case !found:
 	default:
-		localfsenc = localfsencs.Find(i.Encoder())
-		if localfsenc == nil {
+		j, found := localfsencs.Find(i.Encoder())
+		if !found {
 			return errors.Errorf("encoder of last blockmap not found")
 		}
 
 		lastmapdb = i
+		localfsenc = j
 	}
 
 	switch last, found, err := loadLastBlockMapFromLocalFS(localfsroot, localfsenc, networkID); {

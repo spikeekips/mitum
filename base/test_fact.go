@@ -58,12 +58,12 @@ func (fact DummyFact) generateHash() util.Hash {
 
 func (fact DummyFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		hint.HintedJSONHead
+		hint.HinterJSONHead
 		H     util.Hash
 		Token Token
 		V     string
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(fact.Hint()),
+		HinterJSONHead: hint.NewHinterJSONHead(fact.Hint()),
 		H:              fact.h,
 		Token:          fact.token,
 		V:              fact.v,

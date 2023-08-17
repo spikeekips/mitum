@@ -14,7 +14,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -39,21 +38,21 @@ func (p *dummyProposalPool) Proposal(facthash util.Hash) (base.ProposalSignFact,
 	return p.get(facthash.String())
 }
 
-func (p *dummyProposalPool) ProposalBytes(facthash util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+func (p *dummyProposalPool) ProposalBytes(facthash util.Hash) (string, []byte, []byte, bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 
 	pr, found, err := p.get(facthash.String())
 	if err != nil || !found {
-		return hint.Hint{}, nil, nil, false, err
+		return "", nil, nil, false, err
 	}
 
 	b, err := util.MarshalJSON(pr)
 	if err != nil {
-		return hint.Hint{}, nil, nil, false, err
+		return "", nil, nil, false, err
 	}
 
-	return jsonenc.JSONEncoderHint, nil, b, true, nil
+	return jsonenc.JSONEncoderHint.String(), nil, b, true, nil
 }
 
 func (p *dummyProposalPool) ProposalByPoint(point base.Point, proposer base.Address, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {

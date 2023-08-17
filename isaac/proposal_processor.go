@@ -25,7 +25,8 @@ var (
 )
 
 type (
-	NewOperationProcessorFunction func(base.Height, hint.Hint) (base.OperationProcessor, error)
+	NewOperationProcessorFunc         func(base.Height, hint.Hint) (base.OperationProcessor, error)
+	NewOperationProcessorInternalFunc func(base.Height) (base.OperationProcessor, error)
 
 	// OperationProcessorGetOperationFunction works,
 	// - if operation is invalid, getOperation should return nil,
@@ -55,7 +56,7 @@ type DefaultProposalProcessor struct {
 	writer                BlockWriter
 	getStatef             base.GetStateFunc
 	getOperationf         OperationProcessorGetOperationFunction
-	newOperationProcessor NewOperationProcessorFunction
+	newOperationProcessor NewOperationProcessorFunc
 	ivp                   base.INITVoteproof
 	oprs                  *util.ShardedMap[string, base.OperationProcessor]
 	processstate          *util.Locked[int]
@@ -70,7 +71,7 @@ func NewDefaultProposalProcessor(
 	newWriter NewBlockWriterFunc,
 	getStatef base.GetStateFunc,
 	getOperationf OperationProcessorGetOperationFunction,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 ) (*DefaultProposalProcessor, error) {
 	writer, err := newWriter(proposal, getStatef)
 	if err != nil {
@@ -390,7 +391,7 @@ func (p *DefaultProposalProcessor) processOperation(
 	ctx context.Context,
 	writer BlockWriter,
 	getStatef base.GetStateFunc,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	worker *util.ErrgroupWorker,
 	op base.Operation,
 	opsindex, validindex int,
@@ -437,7 +438,7 @@ func (p *DefaultProposalProcessor) processOperation(
 
 func (p *DefaultProposalProcessor) doPreProcessOperation(
 	ctx context.Context,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	op base.Operation,
 ) (context.Context, base.OperationProcessReasonError, bool, error) {
 	var errorreason base.OperationProcessReasonError
@@ -483,7 +484,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 	ctx context.Context,
 	writer BlockWriter,
 	getStatef base.GetStateFunc,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	opsindex, validindex uint64,
 	op base.Operation,
 ) error {
@@ -546,7 +547,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 
 func (p *DefaultProposalProcessor) getPreProcessor(
 	ctx context.Context,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	op base.Operation,
 ) (
 	func(context.Context) (context.Context, base.OperationProcessReasonError, error),
@@ -569,7 +570,7 @@ func (p *DefaultProposalProcessor) getPreProcessor(
 func (p *DefaultProposalProcessor) getProcessor(
 	ctx context.Context,
 	getStatef base.GetStateFunc,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	op base.Operation,
 ) (
 	func(context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error),
@@ -591,7 +592,7 @@ func (p *DefaultProposalProcessor) getProcessor(
 
 func (p *DefaultProposalProcessor) getOperationProcessor(
 	ctx context.Context,
-	newOperationProcessor NewOperationProcessorFunction,
+	newOperationProcessor NewOperationProcessorFunc,
 	ht hint.Hint,
 ) (
 	base.OperationProcessor, bool, error,

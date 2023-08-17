@@ -155,12 +155,12 @@ func (op DummyOperation) MarshalJSON() ([]byte, error) {
 	}
 
 	return util.MarshalJSON(struct {
-		hint.HintedJSONHead
+		hint.HinterJSONHead
 		H    util.Hash
 		Fact DummyOperationFact
 		Sign base.BaseSign
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(op.Hint()),
+		HinterJSONHead: hint.NewHinterJSONHead(op.Hint()),
 		H:              op.h,
 		Fact:           op.fact,
 		Sign:           op.sign,

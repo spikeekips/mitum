@@ -11,7 +11,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
@@ -215,8 +214,8 @@ func (db *TempLeveldb) LastBlockMap() (base.BlockMap, bool, error) {
 	return db.mp, true, nil
 }
 
-func (db *TempLeveldb) BlockMapBytes() (enchint hint.Hint, meta, body []byte, _ error) {
-	return db.enc.Hint(), db.mpmeta, db.mpbody, nil //nolint:forcetypeassert //...
+func (db *TempLeveldb) BlockMapBytes() (enchint string, meta, body []byte, _ error) {
+	return db.enc.Hint().String(), db.mpmeta, db.mpbody, nil //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
@@ -227,12 +226,12 @@ func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
 	return db.proof, true, nil
 }
 
-func (db *TempLeveldb) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *TempLeveldb) LastSuffrageProofBytes() (enchint string, meta, body []byte, found bool, err error) {
 	if db.proof == nil {
 		return enchint, nil, nil, false, nil
 	}
 
-	return db.enc.Hint(), db.proofmeta, db.proofbody, true, nil
+	return db.enc.Hint().String(), db.proofmeta, db.proofbody, true, nil
 }
 
 func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
@@ -250,7 +249,7 @@ func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) 
 	return st, found, err
 }
 
-func (db *TempLeveldb) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *TempLeveldb) StateBytes(key string) (enchint string, meta, body []byte, found bool, err error) {
 	pst, err := db.st()
 	if err != nil {
 		return enchint, nil, nil, false, err
@@ -283,8 +282,12 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 	case m == nil:
 		return util.ErrNotFound.Errorf("last BlockMap not found")
 	default:
-		enc := db.encs.Find(enchint)
-		if enc == nil {
+		_, enc, found, err := db.encs.FindByString(enchint)
+		if err != nil {
+			return err
+		}
+
+		if !found {
 			return errors.Errorf("encoder not found, %q", enchint)
 		}
 

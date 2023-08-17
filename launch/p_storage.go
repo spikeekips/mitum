@@ -217,11 +217,12 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	case !found:
 		return nctx, nil
 	default:
-		enc = encs.Find(m.Encoder())
-		if enc == nil {
+		i, found := encs.Find(m.Encoder())
+		if !found {
 			return nctx, e.Errorf("encoder of last blockmap not found")
 		}
 
+		enc = i
 		manifest = m.Manifest()
 	}
 

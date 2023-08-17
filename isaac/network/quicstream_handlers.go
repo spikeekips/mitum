@@ -14,7 +14,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -25,17 +24,21 @@ var ContextKeyNodeChallengedNode = util.ContextKey("node-challenge-node")
 func QuicstreamHandlerOperation(
 	oppool isaac.NewOperationPool,
 	getFromHandoverX func(context.Context, OperationRequestHeader) (
-		enchint hint.Hint, body []byte, found bool, _ error,
+		enchint string, body []byte, found bool, _ error,
 	),
 ) quicstreamheader.Handler[OperationRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header OperationRequestHeader) string {
 			return HandlerPrefixOperationString + header.Operation().String()
 		},
-		func(ctx context.Context, header OperationRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(ctx context.Context, header OperationRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation())
 			if getFromHandoverX != nil && (err == nil || !found) {
-				enchint, body, found, err = getFromHandoverX(ctx, header)
+				return getFromHandoverX(ctx, header)
+			}
+
+			if err != nil || !found {
+				return "", body, found, err
 			}
 
 			return enchint, body, found, err
@@ -193,14 +196,14 @@ func QuicstreamHandlerRequestProposal(
 
 func QuicstreamHandlerProposal(
 	pool isaac.ProposalPool,
-	getFromHandoverX func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error),
+	getFromHandoverX func(context.Context, ProposalRequestHeader) (string, []byte, bool, error),
 ) quicstreamheader.Handler[ProposalRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header ProposalRequestHeader) string {
 			return HandlerPrefixProposalString + header.Proposal().String()
 		},
 		func(ctx context.Context, header ProposalRequestHeader, _ encoder.Encoder) (
-			hint.Hint, []byte, bool, error,
+			string, []byte, bool, error,
 		) {
 			enchint, _, body, found, err := pool.ProposalBytes(header.Proposal())
 			if err == nil && found {
@@ -220,7 +223,7 @@ func QuicstreamHandlerProposal(
 }
 
 func QuicstreamHandlerLastSuffrageProof(
-	lastSuffrageProoff func(suffragestate util.Hash) (hint.Hint, []byte, []byte, bool, error),
+	lastSuffrageProoff func(suffragestate util.Hash) (string, []byte, []byte, bool, error),
 ) quicstreamheader.Handler[LastSuffrageProofRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header LastSuffrageProofRequestHeader) string {
@@ -232,7 +235,7 @@ func QuicstreamHandlerLastSuffrageProof(
 			return sgkey
 		},
 		func(_ context.Context, header LastSuffrageProofRequestHeader, _ encoder.Encoder) (
-			hint.Hint, []byte, bool, error,
+			string, []byte, bool, error,
 		) {
 			enchint, _, body, found, err := lastSuffrageProoff(header.State())
 
@@ -242,13 +245,13 @@ func QuicstreamHandlerLastSuffrageProof(
 }
 
 func QuicstreamHandlerSuffrageProof(
-	suffrageProoff func(base.Height) (hint.Hint, []byte, []byte, bool, error),
+	suffrageProoff func(base.Height) (string, []byte, []byte, bool, error),
 ) quicstreamheader.Handler[SuffrageProofRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header SuffrageProofRequestHeader) string {
 			return HandlerPrefixSuffrageProofString + header.Height().String()
 		},
-		func(_ context.Context, header SuffrageProofRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header SuffrageProofRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := suffrageProoff(header.Height())
 
 			return enchint, body, found, err
@@ -259,7 +262,7 @@ func QuicstreamHandlerSuffrageProof(
 // LastBlockMap responds the last BlockMap to client; if there is no BlockMap,
 // it returns nil BlockMap and not updated without error.
 func QuicstreamHandlerLastBlockMap(
-	lastBlockMapf func(util.Hash) (hint.Hint, []byte, []byte, bool, error),
+	lastBlockMapf func(util.Hash) (string, []byte, []byte, bool, error),
 ) quicstreamheader.Handler[LastBlockMapRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header LastBlockMapRequestHeader) string {
@@ -271,7 +274,7 @@ func QuicstreamHandlerLastBlockMap(
 
 			return sgkey
 		},
-		func(_ context.Context, header LastBlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header LastBlockMapRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := lastBlockMapf(header.Manifest())
 
 			return enchint, body, found, err
@@ -280,13 +283,13 @@ func QuicstreamHandlerLastBlockMap(
 }
 
 func QuicstreamHandlerBlockMap(
-	blockMapf func(base.Height) (hint.Hint, []byte, []byte, bool, error),
+	blockMapf func(base.Height) (string, []byte, []byte, bool, error),
 ) quicstreamheader.Handler[BlockMapRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header BlockMapRequestHeader) string {
 			return HandlerPrefixBlockMapString + header.Height().String()
 		},
-		func(_ context.Context, header BlockMapRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header BlockMapRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := blockMapf(header.Height())
 
 			return enchint, body, found, err
@@ -318,13 +321,13 @@ func QuicstreamHandlerBlockMapItem(
 }
 
 func QuicstreamHandlerState(
-	statef func(string) (enchint hint.Hint, meta, body []byte, found bool, err error),
+	statef func(string) (enchint string, meta, body []byte, found bool, err error),
 ) quicstreamheader.Handler[StateRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header StateRequestHeader) string {
 			return HandlerPrefixStateString + header.Key()
 		},
-		func(_ context.Context, header StateRequestHeader, _ encoder.Encoder) (hint.Hint, []byte, bool, error) {
+		func(_ context.Context, header StateRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, meta, body, found, err := statef(header.Key())
 			if err != nil || !found {
 				return enchint, nil, false, err
@@ -627,7 +630,7 @@ func QuicstreamHandlerStreamOperations(
 	traverse func(
 		_ context.Context,
 		offset []byte,
-		callback func(enchint hint.Hint, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+		callback func(enchint string, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
 	) error,
 ) quicstreamheader.Handler[StreamOperationsHeader] {
 	return func(ctx context.Context, addr net.Addr,
@@ -640,11 +643,11 @@ func QuicstreamHandlerStreamOperations(
 			return ctx, err
 		}
 
-		writeBody := func(enchint hint.Hint, body, offset []byte) error {
+		writeBody := func(enchint string, body, offset []byte) error {
 			buf := bytes.NewBuffer(nil)
 			defer buf.Reset()
 
-			if err := util.WriteLengthed(buf, enchint.Bytes()); err != nil {
+			if err := util.WriteLengthed(buf, []byte(enchint)); err != nil {
 				return err
 			}
 
@@ -664,7 +667,7 @@ func QuicstreamHandlerStreamOperations(
 		err := traverse(
 			ctx,
 			header.Offset(),
-			func(enchint hint.Hint, _ isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+			func(enchint string, _ isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error) {
 				switch {
 				case body == nil || offset == nil:
 					return false, errors.Errorf("empty body")
@@ -794,7 +797,7 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 
 func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 	sgkeyf func(T) string,
-	f func(context.Context, T, encoder.Encoder) (hint.Hint, []byte, bool, error),
+	f func(context.Context, T, encoder.Encoder) (string, []byte, bool, error),
 ) quicstreamheader.Handler[T] {
 	var sg singleflight.Group
 
@@ -815,8 +818,8 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 			return ctx, errors.WithStack(err)
 		}
 
-		enchint := i[0].(hint.Hint) //nolint:forcetypeassert //..
-		found := i[2].(bool)        //nolint:forcetypeassert //...
+		enchint := i[0].(string) //nolint:forcetypeassert //..
+		found := i[2].(bool)     //nolint:forcetypeassert //...
 
 		var body io.Reader
 
@@ -827,10 +830,14 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 			body = buf
 		}
 
-		if !enchint.IsEmpty() {
-			broker.Encoder = broker.Encoders.Find(enchint) //nolint:forcetypeassert //...
-			if broker.Encoder == nil {
+		if len(enchint) > 0 {
+			switch _, enc, efound, err := broker.Encoders.FindByString(enchint); {
+			case err != nil:
+				return ctx, errors.Wrapf(err, "find encoder, %q", enchint)
+			case !efound:
 				return ctx, errors.Errorf("find encoder, %q", enchint)
+			default:
+				broker.Encoder = enc
 			}
 		}
 

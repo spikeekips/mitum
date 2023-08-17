@@ -12,7 +12,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -93,7 +92,7 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 }
 
 func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, err error,
+	enchint string, meta, body []byte, found bool, err error,
 ) {
 	e := util.StringError("get suffrageproof by height")
 
@@ -178,7 +177,7 @@ func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err er
 	return st, found, err
 }
 
-func (db *LeveldbPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *LeveldbPermanent) StateBytes(key string) (enchint string, meta, body []byte, found bool, err error) {
 	pst, err := db.st()
 	if err != nil {
 		return enchint, nil, nil, false, err
@@ -218,7 +217,7 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 }
 
 func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, _ error,
+	enchint string, meta, body []byte, found bool, _ error,
 ) {
 	e := util.StringError("load blockmap bytes")
 
@@ -319,7 +318,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	}
 
 	_ = db.updateLast(
-		temp.enc.Hint(),
+		temp.enc.Hint().String(),
 		temp.mp, temp.mpmeta, temp.mpbody,
 		temp.proof, temp.proofmeta, temp.proofbody,
 		temp.policy,
@@ -354,12 +353,12 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 
 	var proof base.SuffrageProof
 
-	var enchint hint.Hint
 	var meta, body []byte
 
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
 		func(_, b []byte) (bool, error) {
+			var enchint string
 			var err error
 
 			enchint, meta, body, err = db.readHeader(b)

@@ -17,7 +17,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -188,13 +187,13 @@ func (t *testQuicstreamHandlers) TestOperation() {
 		defer npool.DeepClose()
 
 		handler := QuicstreamHandlerOperation(npool,
-			func(_ context.Context, header OperationRequestHeader) (hint.Hint, []byte, bool, error) {
+			func(_ context.Context, header OperationRequestHeader) (string, []byte, bool, error) {
 				b, err := t.Enc.Marshal(op)
 				if err != nil {
-					return hint.Hint{}, nil, false, err
+					return "", nil, false, err
 				}
 
-				return t.Enc.Hint(), b, true, nil
+				return t.Enc.Hint().String(), b, true, nil
 			},
 		)
 
@@ -215,8 +214,8 @@ func (t *testQuicstreamHandlers) TestOperation() {
 		defer npool.DeepClose()
 
 		handler := QuicstreamHandlerOperation(npool,
-			func(_ context.Context, header OperationRequestHeader) (hint.Hint, []byte, bool, error) {
-				return hint.Hint{}, nil, false, nil
+			func(_ context.Context, header OperationRequestHeader) (string, []byte, bool, error) {
+				return "", nil, false, nil
 			},
 		)
 
@@ -360,7 +359,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 			func(
 				_ context.Context,
 				offset []byte,
-				callback func(enchint hint.Hint, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+				callback func(enchint string, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
 			) error {
 				var found bool
 				if offset == nil {
@@ -376,7 +375,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 					case b == nil:
 						return nil
 					case found:
-						keep, err := callback(t.Enc.Hint(), meta, b, b[:8])
+						keep, err := callback(t.Enc.Hint().String(), meta, b, b[:8])
 						if err != nil {
 							return err
 						}
@@ -420,12 +419,14 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 		var i int
 		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
 			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
-			func(enchint hint.Hint, body, offset []byte) error {
-				t.NoError(enchint.IsValid(nil))
+			func(enchint string, body, offset []byte) error {
+				t.NotEmpty(enchint)
 				t.NotEmpty(body)
 				t.NotEmpty(offset)
 
-				enc := t.Encs.Find(enchint)
+				_, enc, found, err := t.Encs.FindByString(enchint)
+				t.NoError(err)
+				t.True(found)
 				t.NotNil(enc)
 
 				var op base.Operation
@@ -467,14 +468,16 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
 			t.Local.Privatekey(), t.LocalParams.NetworkID(), offset,
-			func(enchint hint.Hint, body, offset []byte) error {
-				t.NoError(enchint.IsValid(nil))
+			func(enchint string, body, offset []byte) error {
+				t.NotEmpty(enchint)
 				t.NotEmpty(body)
 				t.NotEmpty(offset)
 
 				t.Equal(opbs[start+i], body)
 
-				enc := t.Encs.Find(enchint)
+				_, enc, found, err := t.Encs.FindByString(enchint)
+				t.NoError(err)
+				t.True(found)
 				t.NotNil(enc)
 
 				var op base.Operation
@@ -518,14 +521,16 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 		t.NoError(c.StreamOperationsBytes(context.Background(), ci,
 			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
-			func(enchint hint.Hint, body, offset []byte) error {
-				t.NoError(enchint.IsValid(nil))
+			func(enchint string, body, offset []byte) error {
+				t.NotEmpty(enchint)
 				t.NotEmpty(body)
 				t.NotEmpty(offset)
 
 				t.Equal(opbs[i], body)
 
-				enc := t.Encs.Find(enchint)
+				_, enc, found, err := t.Encs.FindByString(enchint)
+				t.NoError(err)
+				t.True(found)
 				t.NotNil(enc)
 
 				var op base.Operation
@@ -566,7 +571,7 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 
 		err := c.StreamOperationsBytes(context.Background(), ci,
 			t.Local.Privatekey(), t.LocalParams.NetworkID(), nil,
-			func(enchint hint.Hint, body, offset []byte) error {
+			func(enchint string, body, offset []byte) error {
 				if i > 3 {
 					return errors.Errorf("hohoho")
 				}
@@ -848,8 +853,8 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 	handler := QuicstreamHandlerProposal(
 		pool,
-		func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
-			return hint.Hint{}, nil, false, nil
+		func(context.Context, ProposalRequestHeader) (string, []byte, bool, error) {
+			return "", nil, false, nil
 		},
 	)
 
@@ -900,10 +905,10 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 		handler := QuicstreamHandlerProposal(
 			npool,
-			func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+			func(context.Context, ProposalRequestHeader) (string, []byte, bool, error) {
 				b, _ := t.Enc.Marshal(pr)
 
-				return t.Enc.Hint(), b, true, nil
+				return t.Enc.Hint().String(), b, true, nil
 			},
 		)
 
@@ -928,8 +933,8 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 		handler := QuicstreamHandlerProposal(
 			npool,
-			func(context.Context, ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
-				return hint.Hint{}, nil, false, errors.Errorf("hehehe")
+			func(context.Context, ProposalRequestHeader) (string, []byte, bool, error) {
+				return "", nil, false, errors.Errorf("hehehe")
 			},
 		)
 
@@ -950,21 +955,21 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	proof = proof.SetState(st)
 
 	handler := QuicstreamHandlerLastSuffrageProof(
-		func(h util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+		func(h util.Hash) (string, []byte, []byte, bool, error) {
 			if h != nil && h.Equal(st.Hash()) {
 				nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
 
-				return t.Enc.Hint(), nil, nbody, false, nil
+				return t.Enc.Hint().String(), nil, nbody, false, nil
 			}
 
 			b, err := t.Enc.Marshal(proof)
 			if err != nil {
-				return hint.Hint{}, nil, nil, false, err
+				return "", nil, nil, false, err
 			}
 
 			nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), b})
 
-			return t.Enc.Hint(), nil, nbody, true, nil
+			return t.Enc.Hint().String(), nil, nbody, true, nil
 		},
 	)
 
@@ -1021,12 +1026,12 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 		t.NoError(err)
 
 		handler := QuicstreamHandlerSuffrageProof(
-			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
+			func(h base.Height) (string, []byte, []byte, bool, error) {
 				if h != suffrageheight {
-					return hint.Hint{}, nil, nil, false, nil
+					return "", nil, nil, false, nil
 				}
 
-				return t.Enc.Hint(), nil, proofb, true, nil
+				return t.Enc.Hint().String(), nil, proofb, true, nil
 			},
 		)
 
@@ -1044,8 +1049,8 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerSuffrageProof(
-			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, nil
+			func(h base.Height) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, nil
 			},
 		)
 
@@ -1070,12 +1075,12 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		t.NoError(err)
 
 		handler := QuicstreamHandlerLastBlockMap(
-			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+			func(manifest util.Hash) (string, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
-					return hint.Hint{}, nil, nil, false, nil
+					return "", nil, nil, false, nil
 				}
 
-				return t.Enc.Hint(), nil, mpb, true, nil
+				return t.Enc.Hint().String(), nil, mpb, true, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
@@ -1097,12 +1102,12 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		t.NoError(err)
 
 		handler := QuicstreamHandlerLastBlockMap(
-			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+			func(manifest util.Hash) (string, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
-					return hint.Hint{}, nil, nil, false, nil
+					return "", nil, nil, false, nil
 				}
 
-				return t.Enc.Hint(), nil, mpb, true, nil
+				return t.Enc.Hint().String(), nil, mpb, true, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
@@ -1117,8 +1122,8 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerLastBlockMap(
-			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, nil
+			func(manifest util.Hash) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixLastBlockMap, handler)
@@ -1142,12 +1147,12 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 		t.NoError(err)
 
 		handler := QuicstreamHandlerBlockMap(
-			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
+			func(height base.Height) (string, []byte, []byte, bool, error) {
 				if height != m.Height() {
-					return hint.Hint{}, nil, nil, false, nil
+					return "", nil, nil, false, nil
 				}
 
-				return t.Enc.Hint(), nil, mpb, true, nil
+				return t.Enc.Hint().String(), nil, mpb, true, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
@@ -1164,8 +1169,8 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerBlockMap(
-			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, nil
+			func(height base.Height) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
@@ -1180,8 +1185,8 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 
 	t.Run("error", func() {
 		handler := QuicstreamHandlerBlockMap(
-			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
+			func(height base.Height) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMap, handler)
@@ -1297,8 +1302,8 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("ok", func() {
 		handler := QuicstreamHandlerState(
-			func(key string) (hint.Hint, []byte, []byte, bool, error) {
-				return t.Enc.Hint(), meta.Bytes(), stb, true, nil
+			func(key string) (string, []byte, []byte, bool, error) {
+				return t.Enc.Hint().String(), meta.Bytes(), stb, true, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
@@ -1313,12 +1318,12 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("ok with hash", func() {
 		handler := QuicstreamHandlerState(
-			func(key string) (hint.Hint, []byte, []byte, bool, error) {
+			func(key string) (string, []byte, []byte, bool, error) {
 				if key == st.Key() {
-					return t.Enc.Hint(), meta.Bytes(), stb, true, nil
+					return t.Enc.Hint().String(), meta.Bytes(), stb, true, nil
 				}
 
-				return hint.Hint{}, nil, nil, false, nil
+				return "", nil, nil, false, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
@@ -1333,8 +1338,8 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerState(
-			func(key string) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, nil
+			func(key string) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
@@ -1349,8 +1354,8 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("error", func() {
 		handler := QuicstreamHandlerState(
-			func(key string) (hint.Hint, []byte, []byte, bool, error) {
-				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
+			func(key string) (string, []byte, []byte, bool, error) {
+				return "", nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)

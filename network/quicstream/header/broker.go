@@ -10,7 +10,6 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type (
@@ -425,23 +424,20 @@ func (broker *baseBroker) readBodyType(ctx context.Context) (bodyType BodyType, 
 }
 
 func (broker *baseBroker) readEncoder(ctx context.Context) (encoder.Encoder, error) {
-	var hintb []byte
+	var ht string
 
 	switch b, err := broker.readLengthed(ctx); {
 	case err != nil:
 		return nil, errors.WithMessage(err, "encoder hint")
 	default:
-		hintb = b
+		ht = string(b)
 	}
 
-	encht, err := hint.ParseHint(string(hintb))
-	if err != nil {
+	switch _, enc, found, err := broker.Encoders.FindByString(ht); {
+	case err != nil:
 		return nil, errors.WithMessage(err, "encoder hint")
-	}
-
-	switch enc := broker.Encoders.Find(encht); {
-	case enc == nil:
-		return nil, util.ErrNotFound.Errorf("encoder not found for %q", encht)
+	case !found:
+		return nil, util.ErrNotFound.Errorf("encoder not found, %q", ht)
 	default:
 		return enc, nil
 	}

@@ -5,25 +5,11 @@ import (
 )
 
 type Encoders struct {
-	*hint.CompatibleSet
+	*hint.CompatibleSet[Encoder]
 }
 
 func NewEncoders() *Encoders {
 	return &Encoders{
-		CompatibleSet: hint.NewCompatibleSet(2),
+		CompatibleSet: hint.NewCompatibleSet[Encoder](3), //nolint:gomnd // small number of encoders
 	}
-}
-
-func (encs *Encoders) Find(ht hint.Hint) Encoder {
-	hinter := encs.CompatibleSet.Find(ht)
-	if hinter == nil {
-		return nil
-	}
-
-	r, ok := hinter.(Encoder)
-	if !ok {
-		return nil
-	}
-
-	return r
 }

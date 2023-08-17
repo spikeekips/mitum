@@ -15,7 +15,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -123,11 +122,11 @@ func (db *Center) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 
 type lastSuffrageProofDatabase interface {
 	LastBlockMap() (base.BlockMap, bool, error)
-	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastSuffrageProofBytes() (string, []byte, []byte, bool, error)
 }
 
 func (db *Center) LastSuffrageProofBytes() ( //revive:disable-line:function-result-limit
-	enchint hint.Hint, meta, body []byte, found bool, lastheight base.Height, _ error,
+	enchint string, meta, body []byte, found bool, lastheight base.Height, _ error,
 ) {
 	temps := db.activeTemps()
 	partials := make([]lastSuffrageProofDatabase, len(temps)+1)
@@ -183,7 +182,7 @@ func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof,
 }
 
 func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
-	enchint hint.Hint, meta, body []byte, found bool, err error,
+	enchint string, meta, body []byte, found bool, err error,
 ) {
 	e := util.StringError("find SuffrageProof by suffrage height")
 
@@ -299,7 +298,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
-func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
+func (db *Center) StateBytes(key string) (ht string, _, _ []byte, _ bool, _ error) {
 	e := util.StringError("find state bytes")
 
 	l := util.EmptyLocked[[3]interface{}]()
@@ -318,7 +317,7 @@ func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ e
 	}
 
 	if i, isempty := l.Value(); !isempty {
-		return i[0].(hint.Hint), i[1].([]byte), i[2].([]byte), true, nil //nolint:forcetypeassert //...
+		return i[0].(string), i[1].([]byte), i[2].([]byte), true, nil //nolint:forcetypeassert //...
 	}
 
 	enchint, meta, body, found, err := db.perm.StateBytes(key)
@@ -439,7 +438,7 @@ func (db *Center) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	return db.perm.BlockMap(height)
 }
 
-func (db *Center) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *Center) BlockMapBytes(height base.Height) (enchint string, meta, body []byte, found bool, err error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
 	case temps[0].Height() < height:
@@ -471,7 +470,7 @@ func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
 	return db.perm.LastBlockMap()
 }
 
-func (db *Center) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *Center) LastBlockMapBytes() (enchint string, meta, body []byte, found bool, err error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		enchint, meta, body, err = temps[0].BlockMapBytes()
 

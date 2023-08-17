@@ -94,7 +94,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	ensureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixLastSuffrageProofString,
 		isaacnetwork.QuicstreamHandlerLastSuffrageProof(
-			func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+			func(last util.Hash) (string, []byte, []byte, bool, error) {
 				enchint, metabytes, body, found, lastheight, err := db.LastSuffrageProofBytes()
 
 				switch {
@@ -145,10 +145,12 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				case !found:
 					return nil, false, e.Wrap(storage.ErrNotFound.Errorf("BlockMap not found"))
 				default:
-					menc = encs.Find(m.Encoder())
-					if menc == nil {
+					i, found := encs.Find(m.Encoder())
+					if !found {
 						return nil, false, e.Wrap(storage.ErrNotFound.Errorf("encoder of BlockMap not found"))
 					}
+
+					menc = i
 				}
 
 				reader, err := isaacblock.NewLocalFSReaderFromHeight(
@@ -261,7 +263,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	set := hint.NewCompatibleSet(1 << 9) //nolint:gomnd //...
+	set := hint.NewCompatibleSet[isaac.NewOperationProcessorInternalFunc](1 << 9) //nolint:gomnd //...
 
 	_ = set.Add(isaacoperation.SuffrageCandidateHint, func(height base.Height) (base.OperationProcessor, error) {
 		policy := db.LastNetworkPolicy()
@@ -324,7 +326,7 @@ func sendOperationFilterFunc(pctx context.Context) (
 	error,
 ) {
 	var db isaac.Database
-	var oprs *hint.CompatibleSet
+	var oprs *hint.CompatibleSet[isaac.NewOperationProcessorInternalFunc]
 
 	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
@@ -374,8 +376,8 @@ func sendOperationFilterFunc(pctx context.Context) (
 
 func quicstreamHandlerLastBlockMapFunc(
 	db isaac.Database,
-) func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
-	return func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+) func(last util.Hash) (string, []byte, []byte, bool, error) {
+	return func(last util.Hash) (string, []byte, []byte, bool, error) {
 		enchint, metabytes, body, found, err := db.LastBlockMapBytes()
 
 		switch {
@@ -486,7 +488,7 @@ func quicstreamHandlerGetNodeInfoFunc(
 }
 
 func OperationPreProcess(
-	oprs *hint.CompatibleSet,
+	oprs *hint.CompatibleSet[isaac.NewOperationProcessorInternalFunc],
 	op base.Operation,
 	height base.Height,
 ) (
@@ -494,12 +496,10 @@ func OperationPreProcess(
 	cancel func() error,
 	_ error,
 ) {
-	v := oprs.Find(op.Hint())
-	if v == nil {
+	f, found := oprs.Find(op.Hint())
+	if !found {
 		return op.PreProcess, util.EmptyCancelFunc, nil
 	}
-
-	f := v.(func(height base.Height) (base.OperationProcessor, error)) //nolint:forcetypeassert //...
 
 	switch opp, err := f(height); {
 	case err != nil:

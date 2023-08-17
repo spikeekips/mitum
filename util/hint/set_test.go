@@ -28,28 +28,30 @@ type testCompatibleSet struct {
 }
 
 func (t *testCompatibleSet) TestNilCache() {
-	hs := NewCompatibleSet(0)
+	hs := NewCompatibleSet[Hinter](0)
 
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
 
 	hr0 := newHinter("findme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 
 	hr1 := newHinter("findme", "v2020.10")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	ehr0 := hs.Find(EnsureParseHint("findme-v2019.9"))
+	ehr0, found := hs.Find(EnsureParseHint("findme-v2019.9"))
+	t.True(found)
 	t.Equal(hr0, ehr0)
-	ehr1 := hs.Find(EnsureParseHint("findme-v2020.9"))
+	ehr1, found := hs.Find(EnsureParseHint("findme-v2020.9"))
+	t.True(found)
 	t.Equal(hr1, ehr1)
 }
 
 func (t *testCompatibleSet) TestAddHinter() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr))
+	t.NoError(hs.Add(hr.Hint(), hr))
 
 	hr0 := newHinter("findme", "v2019.10")
 	t.NoError(hs.AddHinter(hr0))
@@ -57,14 +59,25 @@ func (t *testCompatibleSet) TestAddHinter() {
 	hr1 := newHinter("findme", "v2020.10")
 	t.NoError(hs.AddHinter(hr1))
 
-	ehr0 := hs.Find(EnsureParseHint("findme-v2019.9"))
+	ehr0, found := hs.Find(EnsureParseHint("findme-v2019.9"))
+	t.True(found)
 	t.Equal(hr0, ehr0)
-	ehr1 := hs.Find(EnsureParseHint("findme-v2020.9"))
+	ehr1, found := hs.Find(EnsureParseHint("findme-v2020.9"))
+	t.True(found)
 	t.Equal(hr1, ehr1)
+
+	t.Run("unexpected", func() {
+		hs := NewCompatibleSet[int](3)
+
+		hr := newHinter("showme", "v2019.10")
+		err := hs.AddHinter(hr)
+		t.Error(err)
+		t.ErrorContains(err, "expected int")
+	})
 }
 
 func (t *testCompatibleSet) TestAdd() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[int](3)
 
 	ht := newHint("showme", "v2019.10")
 	t.NoError(hs.Add(ht, 1))
@@ -75,145 +88,203 @@ func (t *testCompatibleSet) TestAdd() {
 	ht1 := newHint("findme", "v2020.10")
 	t.NoError(hs.Add(ht1, 3))
 
-	v0 := hs.Find(EnsureParseHint("findme-v2019.9"))
+	v0, found := hs.Find(EnsureParseHint("findme-v2019.9"))
+	t.True(found)
 	t.Equal(2, v0)
-	v1 := hs.Find(EnsureParseHint("findme-v2020.9"))
+	v1, found := hs.Find(EnsureParseHint("findme-v2020.9"))
+	t.True(found)
 	t.Equal(3, v1)
 }
 
 func (t *testCompatibleSet) TestAlreadyAdded() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr))
-	err := hs.AddHinter(hr)
+	t.NoError(hs.Add(hr.Hint(), hr))
+	err := hs.Add(hr.Hint(), hr)
 	t.Error(err)
 	t.ErrorContains(err, "already added")
 }
 
 func (t *testCompatibleSet) TestFind() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr))
+	t.NoError(hs.Add(hr.Hint(), hr))
 
-	v := hs.Find(hr.Hint())
-	t.NotNil(v)
+	t.Run("found", func() {
+		v, found := hs.Find(hr.Hint())
+		t.True(found)
+		t.NotNil(v)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
-	t.True(hr.Hint().Equal(uhr.Hint()))
+		t.True(hr.Hint().Equal(v.Hint()))
+	})
+
+	t.Run("not found", func() {
+		v, found := hs.Find(EnsureParseHint("findme-v0.0.0"))
+		t.False(found)
+		t.Nil(v)
+
+		v, found = hs.Find(EnsureParseHint("findme-v0.0.0"))
+		t.False(found)
+		t.Nil(v)
+	})
+}
+
+func (t *testCompatibleSet) TestFindByString() {
+	hs := NewCompatibleSet[Hinter](3)
+
+	hr := newHinter("showme", "v2019.10")
+	t.NoError(hs.Add(hr.Hint(), hr))
+
+	t.Run("ok", func() {
+		ht, v, found, err := hs.FindByString(hr.Hint().String())
+		t.True(found)
+		t.NoError(err)
+		t.NotNil(v)
+
+		t.True(hr.Hint().Equal(v.Hint()))
+		t.True(hr.Hint().Equal(ht))
+	})
+
+	t.Run("wrong hint", func() {
+		_, v, found, err := hs.FindByString("hehehe")
+		t.False(found)
+		t.Error(err)
+		t.Nil(v)
+		t.ErrorContains(err, "invalid hint string")
+	})
 }
 
 func (t *testCompatibleSet) TestFindHead() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 
 	hr1 := newHinter("showme", "v2019.11")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	v0 := hs.Find(hr0.Hint())
+	v0, found := hs.Find(hr0.Hint())
+	t.True(found)
 	t.NotNil(v0)
 
-	uhr, ok := v0.(Hinter)
-	t.True(ok)
-	t.True(hr1.Hint().Equal(uhr.Hint()))
+	t.True(hr1.Hint().Equal(v0.Hint()))
 
-	v1 := hs.Find(hr1.Hint())
+	v1, found := hs.Find(hr1.Hint())
+	t.True(found)
 	t.NotNil(v1)
 
-	uhr, ok = v1.(Hinter)
-	t.True(ok)
-	t.True(hr1.Hint().Equal(uhr.Hint()))
+	t.True(hr1.Hint().Equal(v1.Hint()))
 }
 
 func (t *testCompatibleSet) TestFindByType() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 
-	uht, v := hs.FindBytType(hr0.Hint().Type())
+	uht, v, found := hs.FindBytType(hr0.Hint().Type())
+	t.True(found)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
 	t.True(hr0.Hint().Equal(uht))
-	t.True(hr0.Hint().Equal(uhr.Hint()))
+	t.True(hr0.Hint().Equal(v.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByTypeString() {
+	hs := NewCompatibleSet[Hinter](3)
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.Add(hr0.Hint(), hr0))
+
+	t.Run("ok", func() {
+		uht, v, found := hs.FindBytType(hr0.Hint().Type())
+		t.True(found)
+
+		t.True(hr0.Hint().Equal(uht))
+		t.True(hr0.Hint().Equal(v.Hint()))
+	})
+
+	t.Run("wrong type", func() {
+		_, _, found, err := hs.FindBytTypeString("k")
+		t.False(found)
+		t.Error(err)
+		t.ErrorContains(err, "too short Type")
+
+		_, _, found, err = hs.FindBytTypeString("k")
+		t.False(found)
+		t.Error(err)
+		t.ErrorContains(err, "too short Type")
+	})
 }
 
 func (t *testCompatibleSet) TestFindByTypeSameMajor() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 	hr1 := newHinter("showme", "v2019.11")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	uht, v := hs.FindBytType(hr0.Hint().Type())
+	uht, v, found := hs.FindBytType(hr0.Hint().Type())
+	t.True(found)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
 	t.True(hr1.Hint().Equal(uht))
-	t.True(hr1.Hint().Equal(uhr.Hint()))
+	t.True(hr1.Hint().Equal(v.Hint()))
 }
 
 func (t *testCompatibleSet) TestFindByTypeLowerMinor() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 	hr1 := newHinter("showme", "v2019.9")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	uht, v := hs.FindBytType(hr0.Hint().Type())
+	uht, v, found := hs.FindBytType(hr0.Hint().Type())
+	t.True(found)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
 	t.True(hr0.Hint().Equal(uht))
-	t.True(hr0.Hint().Equal(uhr.Hint()))
+	t.True(hr0.Hint().Equal(v.Hint()))
 }
 
 func (t *testCompatibleSet) TestFindByTypeHigerMajor() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 	hr1 := newHinter("showme", "v2020.01")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	uht, v := hs.FindBytType(hr0.Hint().Type())
+	uht, v, found := hs.FindBytType(hr0.Hint().Type())
+	t.True(found)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
 	t.True(hr1.Hint().Equal(uht))
-	t.True(hr1.Hint().Equal(uhr.Hint()))
+	t.True(hr1.Hint().Equal(v.Hint()))
 }
 
 func (t *testCompatibleSet) TestFindByTypeLowerMajor() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	hr0 := newHinter("showme", "v2019.10")
-	t.NoError(hs.AddHinter(hr0))
+	t.NoError(hs.Add(hr0.Hint(), hr0))
 	hr1 := newHinter("showme", "v2018.11")
-	t.NoError(hs.AddHinter(hr1))
+	t.NoError(hs.Add(hr1.Hint(), hr1))
 
-	uht, v := hs.FindBytType(hr0.Hint().Type())
+	uht, v, found := hs.FindBytType(hr0.Hint().Type())
+	t.True(found)
 
-	uhr, ok := v.(Hinter)
-	t.True(ok)
 	t.True(hr0.Hint().Equal(uht))
-	t.True(hr0.Hint().Equal(uhr.Hint()))
+	t.True(hr0.Hint().Equal(v.Hint()))
 }
 
 func (t *testCompatibleSet) TestFindCompatible() {
-	hs := NewCompatibleSet(3)
+	hs := NewCompatibleSet[Hinter](3)
 
 	ts := "showme"
 	vs := "v2019.10.11"
 	hr := newHinter(ts, vs)
-	t.NoError(hs.AddHinter(hr))
+	t.NoError(hs.Add(hr.Hint(), hr))
 
 	cases := []struct {
 		name  string
@@ -238,7 +309,8 @@ func (t *testCompatibleSet) TestFindCompatible() {
 			func() {
 				ht, _ := ParseHint(c.s)
 
-				ehr := hs.Find(ht)
+				ehr, found := hs.Find(ht)
+				t.Equal(c.found, found, "%d(%q): %v", i, c.s, c.name)
 				if c.found {
 					t.NotNil(ehr, "%d(%q): %v", i, c.s, c.name)
 					t.Equal(hr, ehr)

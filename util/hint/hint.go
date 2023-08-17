@@ -92,12 +92,7 @@ func parseHint(s string) (Hint, error) {
 		return Hint{}, util.ErrInvalid.Errorf("invalid hint string, %q", ns)
 	}
 
-	ht := EnsureParseHint(ns)
-	if err := ht.IsValid(nil); err != nil {
-		return Hint{}, errors.WithMessage(err, "parse hint")
-	}
-
-	return ht, nil
+	return EnsureParseHint(ns), nil
 }
 
 func MustNewHint(s string) Hint {

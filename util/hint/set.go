@@ -5,41 +5,50 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type CompatibleSet struct {
-	set           map[Type]map[uint64]interface{}
+type CompatibleSet[T any] struct {
+	set           map[Type]map[uint64]T
 	hints         map[Type]map[uint64]Hint
-	typeheads     map[Type]interface{}
+	typeheads     map[Type]T
 	typeheadhints map[Type]Hint
 	cache         *util.GCache[string, any]
 }
 
-func NewCompatibleSet(size int) *CompatibleSet {
+func NewCompatibleSet[T any](size int) *CompatibleSet[T] {
 	var cache *util.GCache[string, any]
 	if size > 0 {
 		cache = util.NewLRUGCache[string, any](1)
 	}
 
-	return &CompatibleSet{
-		set:           map[Type]map[uint64]interface{}{},
+	return &CompatibleSet[T]{
+		set:           map[Type]map[uint64]T{},
 		hints:         map[Type]map[uint64]Hint{},
-		typeheads:     map[Type]interface{}{},
+		typeheads:     map[Type]T{},
 		typeheadhints: map[Type]Hint{},
 		cache:         cache,
 	}
 }
 
-func (st *CompatibleSet) Add(ht Hint, v interface{}) error {
+func (st *CompatibleSet[T]) Add(ht Hint, v T) error {
 	return st.add(ht, v)
 }
 
-func (st *CompatibleSet) AddHinter(hr Hinter) error {
-	return st.add(hr.Hint(), hr)
+func (st *CompatibleSet[T]) AddHinter(h Hinter) error {
+	i, ok := h.(T)
+	if !ok {
+		var t T
+
+		return errors.Errorf("expected %T, but %T", t, h)
+	}
+
+	return st.add(h.Hint(), i)
 }
 
-func (st *CompatibleSet) add(ht Hint, v interface{}) error {
+func (st *CompatibleSet[T]) add(ht Hint, v T) error {
 	if err := st.addWithHint(ht, v); err != nil {
 		return errors.WithMessage(err, "add to CompatibleSet")
 	}
+
+	st.cacheSet(ht.String(), [2]interface{}{ht, v})
 
 	switch eht, found := st.typeheadhints[ht.Type()]; {
 	case !found:
@@ -53,13 +62,13 @@ func (st *CompatibleSet) add(ht Hint, v interface{}) error {
 	return nil
 }
 
-func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
+func (st *CompatibleSet[T]) addWithHint(ht Hint, v T) error {
 	if err := ht.IsValid(nil); err != nil {
 		return errors.WithMessage(err, "add with hint")
 	}
 
 	if _, found := st.set[ht.Type()]; !found {
-		st.set[ht.Type()] = map[uint64]interface{}{ht.Version().Major(): v}
+		st.set[ht.Type()] = map[uint64]T{ht.Version().Major(): v}
 		st.hints[ht.Type()] = map[uint64]Hint{ht.Version().Major(): ht}
 
 		return nil
@@ -89,28 +98,69 @@ func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
 	return nil
 }
 
-func (st *CompatibleSet) Find(ht Hint) interface{} {
-	if i, found, _ := st.cacheGet(ht.String()); found {
-		return i
+func (st *CompatibleSet[T]) Find(ht Hint) (v T, found bool) {
+	switch _, i, found, foundincache, err := st.cacheGet(ht.String()); {
+	case err != nil:
+		return v, false
+	case foundincache:
+		return i, found
 	}
 
-	hr := st.find(ht)
-
-	st.cacheSet(ht.String(), hr)
-
-	return hr
+	return st.find(ht)
 }
 
-func (st *CompatibleSet) FindBytType(t Type) (ht Hint, value interface{}) {
-	vs, found := st.typeheads[t]
-	if !found {
-		return ht, nil
+func (st *CompatibleSet[T]) FindByString(s string) (ht Hint, v T, found bool, _ error) {
+	switch i, j, cfound, foundincache, err := st.cacheGet(s); {
+	case err != nil:
+		return ht, v, false, err
+	case foundincache:
+		return i, j, cfound, nil
 	}
 
-	return st.typeheadhints[t], vs
+	switch h, err := ParseHint(s); {
+	case err != nil:
+		st.cacheSet(s, err)
+
+		return ht, v, false, err
+	default:
+		v, found = st.find(h)
+
+		return h, v, found, nil
+	}
 }
 
-func (st *CompatibleSet) Traverse(f func(Hint, interface{}) bool) {
+func (st *CompatibleSet[T]) FindBytType(t Type) (ht Hint, v T, found bool) {
+	switch ht, i, found, foundincache, err := st.cacheGet(t.String()); {
+	case err != nil:
+		return ht, v, false
+	case foundincache:
+		return ht, i, found
+	}
+
+	return st.findBytType(t)
+}
+
+func (st *CompatibleSet[T]) FindBytTypeString(s string) (ht Hint, v T, found bool, _ error) {
+	switch i, j, cfound, foundincache, err := st.cacheGet(s); {
+	case err != nil:
+		return ht, v, false, err
+	case foundincache:
+		return i, j, cfound, nil
+	}
+
+	t := Type(s)
+	if err := t.IsValid(nil); err != nil {
+		st.cacheSet(s, err)
+
+		return ht, v, false, err
+	}
+
+	ht, v, found = st.findBytType(t)
+
+	return ht, v, found, nil
+}
+
+func (st *CompatibleSet[T]) Traverse(f func(Hint, T) bool) {
 	for i := range st.set {
 		for j := range st.set[i] {
 			if !f(st.hints[i][j], st.set[i][j]) {
@@ -120,38 +170,70 @@ func (st *CompatibleSet) Traverse(f func(Hint, interface{}) bool) {
 	}
 }
 
-func (st *CompatibleSet) find(ht Hint) interface{} {
+func (st *CompatibleSet[T]) find(ht Hint) (v T, found bool) {
 	vs, found := st.set[ht.Type()]
 	if !found {
-		return nil
+		st.cacheSet(ht.String(), false)
+
+		return v, false
 	}
 
-	v, found := vs[ht.Version().Major()]
-	if !found {
-		return nil
+	v, found = vs[ht.Version().Major()]
+
+	switch {
+	case !found:
+		st.cacheSet(ht.String(), false)
+	default:
+		st.cacheSet(ht.String(), [2]interface{}{ht, v})
 	}
 
-	return v
+	return v, found
 }
 
-func (st *CompatibleSet) cacheGet(s string) (v interface{}, found bool, _ error) {
-	if st.cache == nil {
-		return nil, false, nil
+func (st *CompatibleSet[T]) findBytType(t Type) (ht Hint, v T, found bool) {
+	vs, found := st.typeheads[t]
+	if !found {
+		st.cacheSet(t.String(), false)
+
+		return ht, v, false
 	}
 
-	switch i, found := st.cache.Get(s); {
-	case !found:
-		return nil, false, nil
+	ht = st.typeheadhints[t]
+	v = vs
+
+	st.cacheSet(t.String(), [2]interface{}{ht, v})
+
+	return ht, v, true
+}
+
+func (st *CompatibleSet[T]) cacheGet(s string) (ht Hint, v T, found, foundincache bool, err error) {
+	if st.cache == nil {
+		return ht, v, false, false, nil
+	}
+
+	switch i, cfound := st.cache.Get(s); {
+	case !cfound:
+		return ht, v, false, false, nil
 	default:
-		if e, ok := i.(error); ok {
-			return nil, false, e
+		switch t := i.(type) {
+		case error:
+			err = t
+		case bool:
+			found = t
+		default:
+			found = true
+
+			if j, ok := i.([2]interface{}); ok {
+				ht = j[0].(Hint) //nolint:forcetypeassert //...
+				v = j[1].(T)     //nolint:forcetypeassert //...
+			}
 		}
 
-		return i, true, nil
+		return ht, v, found, true, err
 	}
 }
 
-func (st *CompatibleSet) cacheSet(s string, v interface{}) {
+func (st *CompatibleSet[T]) cacheSet(s string, v interface{}) {
 	if st.cache == nil {
 		return
 	}

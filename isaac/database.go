@@ -16,17 +16,17 @@ type Database interface { //nolint:interfacebloat //..
 	util.Daemon
 	Close() error
 	BlockMap(height base.Height) (base.BlockMap, bool, error)
-	BlockMapBytes(base.Height) (hint.Hint, []byte, []byte, bool, error)
+	BlockMapBytes(base.Height) (string, []byte, []byte, bool, error)
 	LastBlockMap() (base.BlockMap, bool, error)
-	LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastBlockMapBytes() (string, []byte, []byte, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
-	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, base.Height, error)
+	LastSuffrageProofBytes() (string, []byte, []byte, bool, base.Height, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
-	SuffrageProofBytes(suffrageHeight base.Height) (hint.Hint, []byte, []byte, bool, error)
+	SuffrageProofBytes(suffrageHeight base.Height) (string, []byte, []byte, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
-	StateBytes(key string) (hint.Hint, []byte, []byte, bool, error)
+	StateBytes(key string) (string, []byte, []byte, bool, error)
 	// NOTE ExistsInStateOperation has only operation facts, which is in state
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
 	// NOTE ExistsKnownOperation has the known operation hashes
@@ -39,7 +39,7 @@ type Database interface { //nolint:interfacebloat //..
 
 type BaseDatabase interface {
 	State(key string) (base.State, bool, error)
-	StateBytes(key string) (hint.Hint, []byte, []byte, bool, error)
+	StateBytes(key string) (string, []byte, []byte, bool, error)
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 }
@@ -53,10 +53,10 @@ type TempDatabase interface {
 	Remove() error
 	Merge() error
 	LastBlockMap() (base.BlockMap, bool, error)
-	BlockMapBytes() (hint.Hint, []byte, []byte, error)
+	BlockMapBytes() (string, []byte, []byte, error)
 	SuffrageHeight() base.Height
 	SuffrageProof() (base.SuffrageProof, bool, error)
-	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastSuffrageProofBytes() (string, []byte, []byte, bool, error)
 	NetworkPolicy() base.NetworkPolicy
 }
 
@@ -80,21 +80,21 @@ type PermanentDatabase interface { //nolint:interfacebloat //..
 	Close() error
 	Clean() error
 	LastBlockMap() (base.BlockMap, bool, error)
-	LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastBlockMapBytes() (string, []byte, []byte, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
-	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastSuffrageProofBytes() (string, []byte, []byte, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
-	SuffrageProofBytes(suffrageHeight base.Height) (hint.Hint, []byte, []byte, bool, error)
+	SuffrageProofBytes(suffrageHeight base.Height) (string, []byte, []byte, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	BlockMap(base.Height) (base.BlockMap, bool, error)
-	BlockMapBytes(base.Height) (hint.Hint, []byte, []byte, bool, error)
+	BlockMapBytes(base.Height) (string, []byte, []byte, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error
 }
 
 type ProposalPool interface {
 	Proposal(util.Hash) (base.ProposalSignFact, bool, error)
-	ProposalBytes(util.Hash) (hint.Hint, []byte, []byte, bool, error)
+	ProposalBytes(util.Hash) (string, []byte, []byte, bool, error)
 	ProposalByPoint(base.Point, base.Address, util.Hash) (base.ProposalSignFact, bool, error)
 	SetProposal(pr base.ProposalSignFact) (bool, error)
 }
@@ -109,7 +109,7 @@ type PoolOperationRecordMeta interface {
 
 type NewOperationPool interface {
 	Operation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
-	OperationBytes(_ context.Context, operationhash util.Hash) (hint.Hint, []byte, []byte, bool, error)
+	OperationBytes(_ context.Context, operationhash util.Hash) (string, []byte, []byte, bool, error)
 	OperationHashes(
 		_ context.Context,
 		_ base.Height,

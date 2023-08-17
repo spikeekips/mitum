@@ -10,7 +10,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -134,7 +133,7 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, meta []byte, body []byte, err error) {
+func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta []byte, body []byte, err error) {
 	e := util.StringError("load last blockmap")
 
 	pst, err := db.st()

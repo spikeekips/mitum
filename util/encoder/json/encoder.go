@@ -15,13 +15,13 @@ import (
 var JSONEncoderHint = hint.MustNewHint("json-encoder-v2.0.0")
 
 type Encoder struct {
-	decoders *hint.CompatibleSet
+	decoders *hint.CompatibleSet[encoder.DecodeDetail]
 	pool     util.ObjectPool
 }
 
 func NewEncoder() *Encoder {
 	return &Encoder{
-		decoders: hint.NewCompatibleSet(1 << 10), //nolint:gomnd // big enough
+		decoders: hint.NewCompatibleSet[encoder.DecodeDetail](1 << 10), //nolint:gomnd // big enough
 	}
 }
 
@@ -90,7 +90,7 @@ func (enc *Encoder) DecodeWithHint(b []byte, ht hint.Hint) (interface{}, error) 
 		return nil, nil
 	}
 
-	return enc.decodeWithHint(b, ht)
+	return enc.decodeWithHint(b, ht.String())
 }
 
 func (enc *Encoder) DecodeWithHintType(b []byte, t hint.Type) (interface{}, error) {
@@ -98,16 +98,9 @@ func (enc *Encoder) DecodeWithHintType(b []byte, t hint.Type) (interface{}, erro
 		return nil, nil
 	}
 
-	ht, v := enc.decoders.FindBytType(t)
-	if v == nil {
-		return encoder.DecodeDetail{},
-			errors.Errorf("find decoder by type, %q", t)
-	}
-
-	d, ok := v.(encoder.DecodeDetail)
-	if !ok {
-		return encoder.DecodeDetail{},
-			errors.Errorf("find decoder by type, %q; not DecodeDetail, %T", ht, v)
+	ht, d, found := enc.decoders.FindBytType(t)
+	if !found {
+		return nil, errors.Errorf("find decoder by type, %q", t)
 	}
 
 	i, err := d.Decode(b, ht)
@@ -199,17 +192,14 @@ func (enc *Encoder) addDecodeDetail(d encoder.DecodeDetail) error {
 	return nil
 }
 
-func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) {
-	v := enc.decoders.Find(ht)
-	if v == nil {
-		return nil,
-			util.ErrNotFound.Errorf("find decoder by hint, %q", ht)
+func (enc *Encoder) decodeWithHint(b []byte, s string) (interface{}, error) {
+	ht, d, found, err := enc.decoders.FindByString(s)
+	if err != nil {
+		return nil, util.ErrNotFound.WithMessage(err, "find decoder by hint, %q", s)
 	}
 
-	d, ok := v.(encoder.DecodeDetail)
-	if !ok {
-		return nil,
-			errors.Errorf("find decoder by hint, %q; not DecodeDetail, %T", ht, v)
+	if !found {
+		return nil, util.ErrNotFound.Errorf("find decoder by hint, %q", s)
 	}
 
 	i, err := d.Decode(b, ht)
@@ -220,14 +210,10 @@ func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) 
 	return i, nil
 }
 
-func (*Encoder) guessHint(b []byte) (hint.Hint, error) {
+func (*Encoder) guessHint(b []byte) (string, error) {
 	var head hint.HintedJSONHead
 	if err := util.UnmarshalJSON(b, &head); err != nil {
 		return head.H, errors.WithMessagef(err, "hint not found in head")
-	}
-
-	if err := head.H.IsValid(nil); err != nil {
-		return head.H, errors.WithMessagef(err, "invalid hint")
 	}
 
 	return head.H, nil

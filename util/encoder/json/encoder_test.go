@@ -168,9 +168,9 @@ func (t *testJSONEncoder) TestDecodeNoneHinter() {
 
 	b, err := t.enc.Marshal(struct {
 		sample
-		hint.HintedJSONHead
+		hint.HinterJSONHead
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(ht),
+		HinterJSONHead: hint.NewHinterJSONHead(ht),
 		sample:         v,
 	})
 	t.NoError(err)
@@ -192,9 +192,9 @@ func (t *testJSONEncoder) TestDecodeWithHintType() {
 
 	b, err := t.enc.Marshal(struct {
 		sample
-		hint.HintedJSONHead
+		hint.HinterJSONHead
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(ht),
+		HinterJSONHead: hint.NewHinterJSONHead(ht),
 		sample:         v,
 	})
 	t.NoError(err)

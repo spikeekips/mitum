@@ -31,10 +31,10 @@ func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMa
 
 	switch dbt := db.(type) {
 	case *LeveldbPermanent:
-		_ = dbt.lenc.SetValue(t.Enc.Hint())
+		_ = dbt.lenc.SetValue(t.Enc.Hint().String())
 		_ = dbt.mp.SetValue(v)
 	case *RedisPermanent:
-		_ = dbt.lenc.SetValue(t.Enc.Hint())
+		_ = dbt.lenc.SetValue(t.Enc.Hint().String())
 		_ = dbt.mp.SetValue(v)
 	default:
 		panic("unknown PermanentDatabase")
@@ -113,7 +113,7 @@ func (t *testCommonPermanent) TestLastMap() {
 		enchint, meta, b, found, err := db.LastBlockMapBytes()
 		t.NoError(err)
 		t.True(found)
-		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(t.Enc.Hint().String(), enchint)
 		t.Equal(mpmeta.Bytes(), meta)
 		t.Equal(mpb, b)
 	})

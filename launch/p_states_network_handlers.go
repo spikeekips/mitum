@@ -15,7 +15,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -100,7 +99,7 @@ func attachHandlerOperation(pctx context.Context) error {
 		isaacnetwork.QuicstreamHandlerOperation(
 			pool,
 			func(ctx context.Context, header isaacnetwork.OperationRequestHeader) (
-				enchint hint.Hint, body []byte, found bool, _ error,
+				enchint string, body []byte, found bool, _ error,
 			) {
 				var ci quicstream.ConnInfo
 
@@ -122,7 +121,7 @@ func attachHandlerOperation(pctx context.Context) error {
 						broker,
 						header,
 						func(enc encoder.Encoder, r io.Reader) error {
-							enchint = enc.Hint()
+							enchint = enc.Hint().String()
 
 							switch b, rerr := io.ReadAll(r); {
 							case rerr != nil:
@@ -232,11 +231,11 @@ func attachHandlerStreamOperations(pctx context.Context) error {
 			func(
 				ctx context.Context,
 				offset []byte,
-				callback func(hint.Hint, isaacdatabase.PoolOperationRecordMeta, []byte, []byte) (bool, error),
+				callback func(string, isaacdatabase.PoolOperationRecordMeta, []byte, []byte) (bool, error),
 			) error {
 				return pool.TraverseOperationsBytes(ctx, offset,
 					func(
-						enchint hint.Hint,
+						enchint string,
 						meta isaacdatabase.PoolOperationRecordMeta,
 						body,
 						offset []byte,
@@ -313,28 +312,28 @@ func attachHandlerProposals(pctx context.Context) error {
 		isaacnetwork.HandlerPrefixProposalString,
 		isaacnetwork.QuicstreamHandlerProposal(
 			pool,
-			func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (hint.Hint, []byte, bool, error) {
+			func(ctx context.Context, header isaacnetwork.ProposalRequestHeader) (string, []byte, bool, error) {
 				var connInfo quicstream.ConnInfo
 
 				switch broker := states.HandoverYBroker(); {
 				case broker == nil:
-					return hint.Hint{}, nil, false, nil
+					return "", nil, false, nil
 				default:
 					connInfo = broker.ConnInfo()
 				}
 
 				switch pr, _, err := client.Proposal(ctx, connInfo, header.Proposal()); {
 				case err != nil:
-					return hint.Hint{}, nil, false, err
+					return "", nil, false, err
 				case pr == nil:
-					return hint.Hint{}, nil, false, nil
+					return "", nil, false, nil
 				default:
 					b, err := enc.Marshal(pr)
 					if err != nil {
-						return hint.Hint{}, nil, false, err
+						return "", nil, false, err
 					}
 
-					return enc.Hint(), b, true, nil
+					return enc.Hint().String(), b, true, nil
 				}
 			},
 		),

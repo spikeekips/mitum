@@ -15,7 +15,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type BaseClient struct {
@@ -110,9 +109,12 @@ func (c *BaseClient) StreamOperations(
 
 	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		return c.streamOperationsBytes(ctx, broker, priv, networkID, offset,
-			func(enchint hint.Hint, body, roffset []byte) error {
-				enc := c.Encoders.Find(enchint)
-				if enc == nil {
+			func(enchint string, body, roffset []byte) error {
+				_, enc, found, err := c.Encoders.FindByString(enchint)
+				switch {
+				case err != nil:
+					return errors.Errorf("unknown encoder, %q", enchint)
+				case !found:
 					return errors.Errorf("unknown encoder, %q", enchint)
 				}
 
@@ -131,7 +133,7 @@ func (c *BaseClient) StreamOperations(
 func (c *BaseClient) StreamOperationsBytes(
 	ctx context.Context, ci quicstream.ConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
-	f func(enchint hint.Hint, body, offset []byte) error,
+	f func(enchint string, body, offset []byte) error,
 ) error {
 	streamer, err := c.dial(ctx, ci)
 	if err != nil {
@@ -146,7 +148,7 @@ func (c *BaseClient) StreamOperationsBytes(
 func (c *BaseClient) streamOperationsBytes(
 	ctx context.Context, broker *quicstreamheader.ClientBroker,
 	priv base.Privatekey, networkID base.NetworkID, offset []byte,
-	f func(enchint hint.Hint, body, offset []byte) error,
+	f func(enchint string, body, offset []byte) error,
 ) error {
 	header := NewStreamOperationsHeader(offset)
 	header.SetClientID(c.ClientID())
@@ -176,18 +178,13 @@ func (c *BaseClient) streamOperationsBytes(
 		case body == nil:
 			return errors.Errorf("empty body")
 		default:
-			var enchint hint.Hint
+			var enchint string
 
 			switch b, err := util.ReadLengthed(body); {
 			case err != nil:
 				return errors.WithMessage(err, "enc hint")
 			default:
-				ht, err := hint.ParseHint(string(b))
-				if err != nil {
-					return errors.WithMessage(err, "enc hint")
-				}
-
-				enchint = ht
+				enchint = string(b)
 			}
 
 			var op, of []byte

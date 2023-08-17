@@ -456,10 +456,10 @@ func (t *testNewOperationPool) TestTraverseOperationsBytes() {
 	t.Run("traverse all", func() {
 		var i int
 
-		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(enchint hint.Hint, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(enchint string, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
 			op := ops[i]
 
-			t.True(enchint.Equal(t.Enc.Hint()))
+			t.Equal(enchint, t.Enc.Hint().String())
 			t.True(op.Hash().Equal(meta.Operation()))
 			t.True(op.Fact().Hash().Equal(meta.Fact()))
 
@@ -482,7 +482,7 @@ func (t *testNewOperationPool) TestTraverseOperationsBytes() {
 		var i int
 		var half []byte
 
-		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(_ hint.Hint, _ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(_ string, _ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
 			defer func() {
 				i++
 			}()
@@ -498,7 +498,7 @@ func (t *testNewOperationPool) TestTraverseOperationsBytes() {
 
 		t.T().Log("with offset")
 
-		t.NoError(pst.TraverseOperationsBytes(context.Background(), half, func(_ hint.Hint, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), half, func(_ string, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
 			op := ops[i]
 
 			t.True(op.Hash().Equal(meta.Operation()))
@@ -522,7 +522,7 @@ func (t *testNewOperationPool) TestTraverseOperationsBytes() {
 
 		invalid := leveldbutil.BytesPrefix(lastoffset).Limit
 
-		t.NoError(pst.TraverseOperationsBytes(context.Background(), invalid, func(_ hint.Hint, _ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), invalid, func(_ string, _ PoolOperationRecordMeta, _, offset []byte) (bool, error) {
 			i++
 
 			return true, nil
@@ -534,7 +534,7 @@ func (t *testNewOperationPool) TestTraverseOperationsBytes() {
 	t.Run("callback error", func() {
 		var i int
 
-		err := pst.TraverseOperationsBytes(context.Background(), nil, func(_ hint.Hint, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+		err := pst.TraverseOperationsBytes(context.Background(), nil, func(_ string, meta PoolOperationRecordMeta, body, offset []byte) (bool, error) {
 			if i >= len(ops)/2 {
 				return false, errors.Errorf("hihihi")
 			}
