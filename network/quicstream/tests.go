@@ -104,14 +104,16 @@ type BaseTest struct {
 	sync.Mutex
 	suite.Suite
 	Bind      *net.UDPAddr
-	TLSConfig *tls.Config
+	TLSConfig func() *tls.Config
 	Proto     string
 	binded    []*net.UDPAddr
 }
 
 func (t *BaseTest) SetupSuite() {
 	t.Proto = "quicstream"
-	t.TLSConfig = t.NewTLSConfig(t.Proto)
+	t.TLSConfig = func() *tls.Config {
+		return t.NewTLSConfig(t.Proto)
+	}
 }
 
 func (t *BaseTest) SetupTest() {
@@ -152,7 +154,7 @@ func (t *BaseTest) NewDefaultServer(qconfig *quic.Config, handler Handler) *Test
 		handler = t.EchoHandler()
 	}
 
-	return t.NewServer(t.Bind, t.TLSConfig, qconfig, handler)
+	return t.NewServer(t.Bind, t.TLSConfig(), qconfig, handler)
 }
 
 func (t *BaseTest) EmptyHandler() Handler {

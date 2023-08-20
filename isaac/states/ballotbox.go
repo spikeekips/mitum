@@ -1088,7 +1088,7 @@ func (vr *voterecords) stuckVoteproof(
 	filteredvoted := map[string]base.BallotSignFact{}
 
 	_ = util.FilterMap(voted, func(k string, sf base.BallotSignFact) bool {
-		if slices.IndexFunc[base.SuffrageExpelOperation](expels, func(i base.SuffrageExpelOperation) bool {
+		if slices.IndexFunc(expels, func(i base.SuffrageExpelOperation) bool {
 			return i.ExpelFact().Node().Equal(sf.Node())
 		}) < 0 {
 			filteredvoted[k] = sf
@@ -1128,7 +1128,7 @@ func (vr *voterecords) ballotSignFacts(nodes []base.Address) []base.BallotSignFa
 	defer vr.RUnlock()
 
 	return util.FilterMap(vr.voted, func(node string, sf base.BallotSignFact) bool {
-		return slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {
+		return slices.IndexFunc(nodes, func(i base.Address) bool {
 			return node == i.String()
 		}) >= 0
 	})
@@ -1396,7 +1396,7 @@ func extractExpelsFromBallot(
 
 	m[0] = wfacts
 	m[1] = util.FilterSlice(sfs, func(j base.BallotSignFact) bool {
-		return slices.IndexFunc[base.SuffrageExpelFact](wfacts, func(sf base.SuffrageExpelFact) bool {
+		return slices.IndexFunc(wfacts, func(sf base.SuffrageExpelFact) bool {
 			return sf.Node().Equal(j.Node())
 		}) < 0
 	})

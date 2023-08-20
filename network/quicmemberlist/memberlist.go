@@ -514,7 +514,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 				return nil, util.ErrLockedSetIgnore.WithStack()
 			}
 
-			if slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {
+			if slices.IndexFunc(nodes, func(i base.Address) bool {
 				return i.Equal(req.Node())
 			}) >= 0 {
 				return nil, util.ErrLockedSetIgnore.WithStack()
@@ -920,7 +920,7 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold, exc
 
 			total++
 
-			if slices.IndexFunc[base.Address](nodes, func(i base.Address) bool {
+			if slices.IndexFunc(nodes, func(i base.Address) bool {
 				return i.Equal(member.Address())
 			}) >= 0 {
 				count++

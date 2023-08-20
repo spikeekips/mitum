@@ -151,7 +151,7 @@ func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 
 	if _, _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
 		if len(ts.ids) > 0 {
-			if slices.Index[TimerID](ts.ids, timer.id) < 0 {
+			if slices.Index(ts.ids, timer.id) < 0 {
 				return nil, errors.Errorf("unknown timer id, %q", timer.id)
 			}
 		}
@@ -184,7 +184,7 @@ func (ts *SimpleTimers) StopOthers(exclude []TimerID) error {
 	var ids []TimerID
 
 	ts.timers.Traverse(func(id TimerID, _ *SimpleTimer) bool {
-		if slices.Index[TimerID](exclude, id) >= 0 {
+		if slices.Index(exclude, id) >= 0 {
 			return true
 		}
 

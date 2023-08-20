@@ -377,7 +377,7 @@ func VoteSuffrageVotingFunc(
 			return nil, err
 		default:
 			expels = util.FilterSlice(i, func(j base.SuffrageExpelOperation) bool {
-				return slices.IndexFunc[base.Address](nodes, func(k base.Address) bool {
+				return slices.IndexFunc(nodes, func(k base.Address) bool {
 					return j.ExpelFact().Node().Equal(k)
 				}) >= 0
 			})

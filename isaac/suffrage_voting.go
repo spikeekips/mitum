@@ -247,7 +247,7 @@ func (*SuffrageVoting) findExpelCombinations(ops []base.SuffrageExpelOperation, 
 
 				// NOTE check signs except expel nodes
 				if k := util.CountFilteredSlice(signs, func(x base.NodeSign) bool {
-					return slices.Index[string](nodes, x.Node().String()) < 0
+					return slices.Index(nodes, x.Node().String()) < 0
 				}); uint(k) < newthreshold {
 					return true
 				}
@@ -269,7 +269,7 @@ func (*SuffrageVoting) filterSigns(
 	signs := op.NodeSigns()
 
 	filtered := util.FilterSlice(signs, func(i base.NodeSign) bool {
-		return slices.Index[string](expelnodes, i.Node().String()) < 0
+		return slices.Index(expelnodes, i.Node().String()) < 0
 	})
 
 	if len(signs) == len(filtered) {

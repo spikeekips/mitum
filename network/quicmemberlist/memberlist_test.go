@@ -1299,7 +1299,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 				skipnodeslock.RLock()
 				defer skipnodeslock.RUnlock()
 
-				return slices.IndexFunc[base.Address](skipnodes, func(i base.Address) bool {
+				return slices.IndexFunc(skipnodes, func(i base.Address) bool {
 					return i.Equal(node.Address())
 				}) >= 0
 			}() {
@@ -1343,7 +1343,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 						skipnodeslock.RLock()
 						defer skipnodeslock.RUnlock()
 
-						return slices.IndexFunc[base.Address](skipnodes, func(member base.Address) bool {
+						return slices.IndexFunc(skipnodes, func(member base.Address) bool {
 							return rnodes[i].Address().Equal(member)
 						}) >= 0
 					}() {
@@ -1480,7 +1480,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych,
 			func(uint64) time.Duration { return time.Millisecond * 666 },
 			100, 9, func(member Member) bool {
-				return slices.IndexFunc[base.Address](skipnodes, func(i base.Address) bool {
+				return slices.IndexFunc(skipnodes, func(i base.Address) bool {
 					return i.Equal(member.Address())
 				}) >= 0
 			}))

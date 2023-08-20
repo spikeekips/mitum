@@ -722,7 +722,7 @@ func ensureJoinMemberlist(
 		dis := GetDiscoveriesFromLocked(discoveries)
 		dis = append(dis, cis...)
 
-		dis, _ = util.RemoveDuplicatedSlice[quicstream.ConnInfo](
+		dis, _ = util.RemoveDuplicatedSlice(
 			dis,
 			func(i quicstream.ConnInfo) (string, error) {
 				return i.UDPAddr().String(), nil

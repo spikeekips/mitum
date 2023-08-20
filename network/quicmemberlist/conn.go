@@ -156,7 +156,7 @@ func (c *qconn) Read(b []byte) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dur)
 	defer cancel()
 
-	n, err := util.AwareContextValue[int](ctx, func(context.Context) (int, error) {
+	n, err := util.AwareContextValue(ctx, func(context.Context) (int, error) {
 		n, err := c.r.Read(b)
 
 		return n, errors.WithStack(err)

@@ -233,7 +233,7 @@ func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
 
 func (op *BaseNodeOperation) AddNodeSigns(signs []NodeSign) (added bool, _ error) {
 	updates := util.FilterSlice(signs, func(sign NodeSign) bool {
-		return slices.IndexFunc[Sign](op.signs, func(s Sign) bool {
+		return slices.IndexFunc(op.signs, func(s Sign) bool {
 			nodesign, ok := s.(NodeSign)
 			if !ok {
 				return false

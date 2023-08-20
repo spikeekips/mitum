@@ -182,7 +182,7 @@ func QuicstreamHandlerRequestProposal(
 		return nil, nil
 	}
 
-	return boolEncodeQUICstreamHandler[RequestProposalRequestHeader](
+	return boolEncodeQUICstreamHandler(
 		func(header RequestProposalRequestHeader) string {
 			return HandlerPrefixRequestProposalString + header.Point().String() + header.Proposer().String()
 		},

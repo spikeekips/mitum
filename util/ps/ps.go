@@ -569,7 +569,7 @@ func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
 		switch {
 		case len(requires) < 1:
 			nrequires = []Name{NameINIT}
-		case slices.IndexFunc[Name](requires, func(i Name) bool { return i == NameINIT }) < 1:
+		case slices.IndexFunc(requires, func(i Name) bool { return i == NameINIT }) < 1:
 			n := make([]Name, len(requires)+1)
 			n[0] = NameINIT
 			copy(n[1:], requires)

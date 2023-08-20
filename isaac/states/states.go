@@ -726,7 +726,7 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	switch w, ok := bl.(base.HasExpels); {
 	case !ok:
 	default:
-		if slices.IndexFunc[base.SuffrageExpelOperation](w.Expels(), func(i base.SuffrageExpelOperation) bool {
+		if slices.IndexFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
 			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
 			l.Debug().Msg("local in expels; ignore")
@@ -736,7 +736,7 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	}
 
 	if w, ok := bl.Voteproof().(base.HasExpels); ok {
-		if slices.IndexFunc[base.SuffrageExpelOperation](w.Expels(), func(i base.SuffrageExpelOperation) bool {
+		if slices.IndexFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
 			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
 			l.Debug().Msg("local in expels voteproof; ignore")

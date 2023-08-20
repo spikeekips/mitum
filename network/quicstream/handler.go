@@ -146,7 +146,7 @@ func TimeoutHandler(handler Handler, f func() time.Duration) Handler {
 			defer cancel()
 		}
 
-		i, err := util.AwareContextValue[context.Context](ctx, func(ctx context.Context) (context.Context, error) {
+		i, err := util.AwareContextValue(ctx, func(ctx context.Context) (context.Context, error) {
 			return handler(ctx, addr, r, w)
 		})
 

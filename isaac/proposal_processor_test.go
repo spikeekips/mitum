@@ -322,7 +322,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	for i := range ophs {
 		a := ops[ophs[i].String()]
 
-		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc(cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 
@@ -427,7 +427,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 			continue
 		}
 
-		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc(cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 
@@ -489,7 +489,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	t.NotNil(m)
 
 	for i := range ophs {
-		ci := slices.IndexFunc[base.Operation](cops, func(op base.Operation) bool {
+		ci := slices.IndexFunc(cops, func(op base.Operation) bool {
 			return op.Fact().Hash().Equal(ophs[i])
 		})
 

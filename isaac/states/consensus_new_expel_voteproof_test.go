@@ -163,7 +163,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVotepro
 
 		t.Equal(len(expelfacts), len(sfactexpels))
 		for i := range expelfacts {
-			f := slices.IndexFunc[util.Hash](sfactexpels, func(j util.Hash) bool {
+			f := slices.IndexFunc(sfactexpels, func(j util.Hash) bool {
 				return expelfacts[i].Equal(j)
 			})
 			t.False(f < 0)

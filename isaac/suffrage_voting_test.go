@@ -345,7 +345,7 @@ func (t *testSuffrageVoting) TestFindMultipleOperations() {
 				continue
 			}
 
-			if slices.IndexFunc[base.LocalNode](expectedexpelnodes, func(n base.LocalNode) bool {
+			if slices.IndexFunc(expectedexpelnodes, func(n base.LocalNode) bool {
 				return n.Address().Equal(node.Address())
 			}) >= 0 {
 				expelnodesigns++
@@ -422,7 +422,7 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 		var expelnodesigns uint
 		opminsigns := minsigns
 
-		isininsufficients := slices.IndexFunc[base.LocalNode](insufficients, func(n base.LocalNode) bool {
+		isininsufficients := slices.IndexFunc(insufficients, func(n base.LocalNode) bool {
 			return n.Address().Equal(w)
 		}) >= 0
 
@@ -437,7 +437,7 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 				continue
 			}
 
-			if slices.IndexFunc[base.LocalNode](insufficients, func(n base.LocalNode) bool {
+			if slices.IndexFunc(insufficients, func(n base.LocalNode) bool {
 				return n.Address().Equal(node.Address())
 			}) >= 0 {
 				expelnodesigns++
@@ -459,7 +459,7 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 			}
 
 			return util.CountFilteredSlice(signs, func(x base.NodeSign) bool {
-				return slices.IndexFunc[base.LocalNode](expelnodes, func(n base.LocalNode) bool {
+				return slices.IndexFunc(expelnodes, func(n base.LocalNode) bool {
 					return x.Node().Equal(n.Address())
 				}) < 0
 			})

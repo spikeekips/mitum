@@ -2,7 +2,6 @@ package quicstream
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"net"
 	"sync"
@@ -35,7 +34,7 @@ func (t *testConnectionPool) TestDial() {
 	t.Run("ok", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return nil },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -58,7 +57,7 @@ func (t *testConnectionPool) TestDial() {
 			func() *quic.Config {
 				return &quic.Config{HandshakeIdleTimeout: time.Millisecond * 33}
 			},
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -80,7 +79,7 @@ func (t *testConnectionPool) TestDial() {
 	t.Run("concurrent", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return nil },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -154,7 +153,7 @@ func (t *testConnectionPool) TestCloseAll() {
 	t.Run("clean", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return &quic.Config{MaxIdleTimeout: time.Millisecond * 33} },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -176,7 +175,7 @@ func (t *testConnectionPool) TestClean() {
 	t.Run("clean", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return &quic.Config{MaxIdleTimeout: time.Millisecond * 33} },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -196,7 +195,7 @@ func (t *testConnectionPool) TestClean() {
 	t.Run("stream error", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return nil },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()
@@ -237,7 +236,7 @@ func (t *testConnectionPool) TestClean() {
 	t.Run("connection error", func() {
 		p, err := NewConnectionPool(3, NewConnInfoDialFunc(
 			func() *quic.Config { return nil },
-			func() *tls.Config { return t.TLSConfig },
+			t.TLSConfig,
 		))
 		t.NoError(err)
 		defer p.Stop()

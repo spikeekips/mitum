@@ -1099,7 +1099,7 @@ func (t *testBallotbox) TestMissingNodes() {
 					continue
 				}
 
-				t.True(slices.IndexFunc[base.Address](founds, func(j base.Address) bool {
+				t.True(slices.IndexFunc(founds, func(j base.Address) bool {
 					return node.Address().Equal(j)
 				}) >= 0)
 			}
@@ -1669,7 +1669,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsOverThreshold() {
 	for i := range nodes {
 		node := nodes[i]
 
-		if slices.IndexFunc[base.Address](expelnodes, func(addr base.Address) bool {
+		if slices.IndexFunc(expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
@@ -1749,7 +1749,7 @@ func (t *testBallotboxWithExpel) TestINITBallotJointExpelsSafeThreshold() {
 	for i := range nodes {
 		node := nodes[i]
 
-		if slices.IndexFunc[base.Address](expelnodes, func(addr base.Address) bool {
+		if slices.IndexFunc(expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break

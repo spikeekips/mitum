@@ -91,7 +91,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	_ = util.LoadFromContext(ctx, ExpelPreProcessedContextKey, &expelpreprocessed)
 
-	if slices.IndexFunc[base.Address](expelpreprocessed, func(addr base.Address) bool {
+	if slices.IndexFunc(expelpreprocessed, func(addr base.Address) bool {
 		return addr.Equal(n)
 	}) >= 0 {
 		return ctx, base.NewBaseOperationProcessReasonError("already withdrew, %q", n), nil

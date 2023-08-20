@@ -155,7 +155,7 @@ func (t *testRandomChoiceSlice) newslice(size int) []int {
 
 func (t *testRandomChoiceSlice) isInside(a []int, b []int) bool {
 	for i := range b {
-		if slices.Index[int](a, b[i]) < 0 {
+		if slices.Index(a, b[i]) < 0 {
 			return false
 		}
 	}

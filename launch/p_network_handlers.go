@@ -547,7 +547,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 				default:
 					var foundnode base.Node
 
-					_ = slices.IndexFunc[base.Node](suf.Nodes(), func(n base.Node) bool {
+					_ = slices.IndexFunc(suf.Nodes(), func(n base.Node) bool {
 						if node.Equal(n.Address()) {
 							foundnode = n
 

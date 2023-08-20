@@ -12,7 +12,7 @@ var EmptyCancelFunc = func() error { return nil }
 type ContextKey string
 
 func AwareContext(ctx context.Context, f func(context.Context) error) error {
-	_, err := AwareContextValue[any](ctx, func(ctx context.Context) (any, error) {
+	_, err := AwareContextValue(ctx, func(ctx context.Context) (any, error) {
 		return nil, f(ctx)
 	})
 

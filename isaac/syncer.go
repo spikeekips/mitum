@@ -183,7 +183,7 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 	}
 
 	for id := range p.nonfixed {
-		if slices.Index[string](p.fixedids, id) >= 0 {
+		if slices.Index(p.fixedids, id) >= 0 {
 			delete(p.nonfixed, id)
 		}
 	}
@@ -201,7 +201,7 @@ func (p *SyncSourcePool) AddNonFixed(ncis ...NodeConnInfo) bool {
 		nci := ncis[i]
 		id := p.makeid(nci)
 
-		if slices.Index[string](p.fixedids, id) >= 0 {
+		if slices.Index(p.fixedids, id) >= 0 {
 			continue
 		}
 
@@ -371,7 +371,7 @@ func (p *SyncSourcePool) reportProblem(id string, err error) {
 	p.Lock()
 	defer p.Unlock()
 
-	if slices.Index[string](p.fixedids, id) < 0 {
+	if slices.Index(p.fixedids, id) < 0 {
 		if _, found := p.nonfixed[id]; !found {
 			return
 		}
@@ -403,7 +403,7 @@ func (p *SyncSourcePool) NodeConnInfo(node base.Address) []NodeConnInfo {
 }
 
 func (p *SyncSourcePool) nodeIsInFixed(node base.Address) int {
-	return slices.IndexFunc[NodeConnInfo](p.fixed, func(i NodeConnInfo) bool {
+	return slices.IndexFunc(p.fixed, func(i NodeConnInfo) bool {
 		return i.Address().Equal(node)
 	})
 }

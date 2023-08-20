@@ -568,7 +568,7 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 		t.Equal(3, len(ncis))
 
 		for i := range ncis {
-			t.True(slices.IndexFunc[NodeConnInfo](sources, func(n NodeConnInfo) bool {
+			t.True(slices.IndexFunc(sources, func(n NodeConnInfo) bool {
 				return network.EqualConnInfo(ncis[i], n)
 			}) >= 0)
 		}
