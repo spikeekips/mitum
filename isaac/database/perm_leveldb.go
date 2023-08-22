@@ -28,7 +28,7 @@ func NewLeveldbPermanent(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
-	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent)
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent[:])
 
 	db := &LeveldbPermanent{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -145,7 +145,7 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 
 	found, err := db.getRecord(nil,
 		func([]byte) ([]byte, bool, error) {
-			r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight)
+			r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight[:])
 			r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
 
 			var body []byte
@@ -356,7 +356,7 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 	var meta, body []byte
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(_, b []byte) (bool, error) {
 			var enchint string
 			var err error

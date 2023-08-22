@@ -35,7 +35,7 @@ func NewTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 }
 
 func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
-	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPool)
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPool[:])
 
 	db := &TempPool{
 		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),
@@ -236,7 +236,7 @@ func (db *TempPool) OperationHashes(
 	var removeorderedsindex, removeopsindex uint64
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered[:]),
 		func(k []byte, b []byte) (bool, error) {
 			meta, err := ReadPoolOperationRecordMeta(b)
 			if err != nil {
@@ -384,7 +384,7 @@ func (db *TempPool) SuffrageExpelOperation(
 	var opb []byte
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(_, b []byte) (bool, error) {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(_, b []byte) (bool, error) {
 			switch rnodeb, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
 			case err != nil:
 				return false, err
@@ -460,7 +460,7 @@ func (db *TempPool) TraverseSuffrageExpelOperations(
 	}
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(key, b []byte) (bool, error) {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(key, b []byte) (bool, error) {
 			var op base.SuffrageExpelOperation
 
 			switch _, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
@@ -516,7 +516,7 @@ func (db *TempPool) RemoveSuffrageExpelOperationsByHeight(height base.Height) er
 	defer batch.Reset()
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(key, b []byte) (bool, error) {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(key, b []byte) (bool, error) {
 			switch _, _, end, _, err := db.readSuffrageExpelOperationsRecordMeta(b); {
 			case err != nil:
 				return false, err
@@ -765,7 +765,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 	top := base.NilHeight
 
 	_ = pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation[:]),
 		func(key, _ []byte) (bool, error) {
 			i, err := heightFromleveldbKey(key, leveldbKeyPrefixRemovedNewOperation)
 			if err != nil {
@@ -795,7 +795,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 	defer batch.Reset()
 
 	r := &leveldbutil.Range{Limit: leveldbRemovedNewOperationPrefixWithHeight(height)}
-	start := leveldbKeyPrefixRemovedNewOperation
+	start := leveldbKeyPrefixRemovedNewOperation[:]
 
 	for {
 		r.Start = start
@@ -876,7 +876,7 @@ func (db *TempPool) cleanBallots() (int, error) {
 }
 
 func (db *TempPool) cleanByHeight(
-	prefix []byte,
+	prefix leveldbstorage.KeyPrefix,
 	deep int,
 	keyf func(*leveldbstorage.PrefixStorageBatch, []byte, []byte),
 ) (int, error) {
@@ -890,7 +890,7 @@ func (db *TempPool) cleanByHeight(
 	var keys [][3]interface{}
 
 	_ = pst.Iter(
-		leveldbutil.BytesPrefix(prefix),
+		leveldbutil.BytesPrefix(prefix[:]),
 		func(key, b []byte) (bool, error) {
 			i, err := heightFromleveldbKey(key, prefix)
 			if err != nil {

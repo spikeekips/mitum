@@ -15,29 +15,29 @@ import (
 )
 
 var (
-	leveldbLabelBlockWrite = []byte{0x01, 0x01}
-	leveldbLabelPermanent  = []byte{0x01, 0x02}
-	leveldbLabelPool       = []byte{0x01, 0x03}
-	leveldbLabelSyncPool   = []byte{0x01, 0x04}
+	leveldbLabelBlockWrite = leveldbstorage.KeyPrefix{0x01, 0x01}
+	leveldbLabelPermanent  = leveldbstorage.KeyPrefix{0x01, 0x02}
+	leveldbLabelPool       = leveldbstorage.KeyPrefix{0x01, 0x03}
+	leveldbLabelSyncPool   = leveldbstorage.KeyPrefix{0x01, 0x04}
 )
 
 var (
-	leveldbKeyPrefixState                   = []byte{0x02, 0x01}
-	leveldbKeyPrefixInStateOperation        = []byte{0x02, 0x02}
-	leveldbKeyPrefixKnownOperation          = []byte{0x02, 0x03}
-	leveldbKeyPrefixProposal                = []byte{0x02, 0x04}
-	leveldbKeyPrefixProposalByPoint         = []byte{0x02, 0x05}
-	leveldbKeyPrefixBlockMap                = []byte{0x02, 0x06}
-	leveldbKeyPrefixNewOperation            = []byte{0x02, 0x07}
-	leveldbKeyPrefixNewOperationOrdered     = []byte{0x02, 0x08}
-	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x02, 0x09}
-	leveldbKeyPrefixRemovedNewOperation     = []byte{0x02, 0x0a}
-	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
-	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
-	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
-	leveldbKeySuffrageExpelOperation        = []byte{0x02, 0x0f}
-	leveldbKeyTempMerged                    = []byte{0x02, 0x10}
-	leveldbKeyPrefixBallot                  = []byte{0x02, 0x11}
+	leveldbKeyPrefixState                   = leveldbstorage.KeyPrefix{0x02, 0x01}
+	leveldbKeyPrefixInStateOperation        = leveldbstorage.KeyPrefix{0x02, 0x02}
+	leveldbKeyPrefixKnownOperation          = leveldbstorage.KeyPrefix{0x02, 0x03}
+	leveldbKeyPrefixProposal                = leveldbstorage.KeyPrefix{0x02, 0x04}
+	leveldbKeyPrefixProposalByPoint         = leveldbstorage.KeyPrefix{0x02, 0x05}
+	leveldbKeyPrefixBlockMap                = leveldbstorage.KeyPrefix{0x02, 0x06}
+	leveldbKeyPrefixNewOperation            = leveldbstorage.KeyPrefix{0x02, 0x07}
+	leveldbKeyPrefixNewOperationOrdered     = leveldbstorage.KeyPrefix{0x02, 0x08}
+	leveldbKeyPrefixNewOperationOrderedKeys = leveldbstorage.KeyPrefix{0x02, 0x09}
+	leveldbKeyPrefixRemovedNewOperation     = leveldbstorage.KeyPrefix{0x02, 0x0a}
+	leveldbKeyTempSyncMap                   = leveldbstorage.KeyPrefix{0x02, 0x0c}
+	leveldbKeySuffrageProof                 = leveldbstorage.KeyPrefix{0x02, 0x0d}
+	leveldbKeySuffrageProofByBlockHeight    = leveldbstorage.KeyPrefix{0x02, 0x0e}
+	leveldbKeySuffrageExpelOperation        = leveldbstorage.KeyPrefix{0x02, 0x0f}
+	leveldbKeyTempMerged                    = leveldbstorage.KeyPrefix{0x02, 0x10}
+	leveldbKeyPrefixBallot                  = leveldbstorage.KeyPrefix{0x02, 0x11}
 )
 
 type baseLeveldb struct {
@@ -142,7 +142,7 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta
 	}
 
 	if err = pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap[:]),
 		func(_, b []byte) (bool, error) {
 			enchint, meta, body, err = db.readHeader(b)
 			if err != nil {
@@ -195,19 +195,19 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 }
 
 func leveldbStateKey(key string) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixState, []byte(key))
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixState, []byte(key))
 }
 
 func leveldbInStateOperationKey(h util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixInStateOperation, h.Bytes())
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixInStateOperation, h.Bytes())
 }
 
 func leveldbKnownOperationKey(h util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixKnownOperation, h.Bytes())
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixKnownOperation, h.Bytes())
 }
 
 func leveldbProposalKey(h util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixProposal, h.Bytes())
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixProposal, h.Bytes())
 }
 
 func leveldbProposalPointKey(point base.Point, proposer base.Address, previousBlock util.Hash) []byte {
@@ -220,7 +220,7 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address, previousBl
 		bb = previousBlock.Bytes()
 	}
 
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixProposalByPoint,
 		point.Bytes(),
 		[]byte("-"),
@@ -230,14 +230,14 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address, previousBl
 }
 
 func leveldbBlockMapKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixBlockMap,
 		height.Bytes(),
 	)
 }
 
 func leveldbNewOperationOrderedKey(operationhash util.Hash) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixNewOperationOrdered,
 		util.Int64ToBytes(localtime.Now().UnixNano()),
 		operationhash.Bytes(),
@@ -245,25 +245,25 @@ func leveldbNewOperationOrderedKey(operationhash util.Hash) []byte {
 }
 
 func leveldbNewOperationOrderedKeyPrefix(prefix []byte) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixNewOperationOrdered,
 		prefix,
 	)
 }
 
 func leveldbNewOperationKeysKey(operationhash util.Hash) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixNewOperationOrderedKeys,
 		operationhash.Bytes(),
 	)
 }
 
 func leveldbNewOperationKey(operationhash util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, operationhash.Bytes())
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixNewOperation, operationhash.Bytes())
 }
 
 func leveldbRemovedNewOperationPrefixWithHeight(height base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyPrefixRemovedNewOperation,
 		height.Bytes(),
 	)
@@ -277,28 +277,28 @@ func leveldbRemovedNewOperationKey(height base.Height, operationhash util.Hash) 
 }
 
 func leveldbTempSyncMapKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyTempSyncMap,
 		height.Bytes(),
 	)
 }
 
 func leveldbSuffrageProofKey(suffrageheight base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeySuffrageProof,
 		suffrageheight.Bytes(),
 	)
 }
 
 func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeySuffrageProofByBlockHeight,
 		height.Bytes(),
 	)
 }
 
 func leveldbSuffrageExpelOperation(fact base.SuffrageExpelFact) []byte {
-	return util.ConcatBytesSlice(leveldbKeySuffrageExpelOperation, fact.ExpelEnd().Bytes(), fact.Hash().Bytes())
+	return leveldbstorage.NewPrefixKey(leveldbKeySuffrageExpelOperation, fact.ExpelEnd().Bytes(), fact.Hash().Bytes())
 }
 
 func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { // revive:disable-line:flag-parameter
@@ -307,10 +307,10 @@ func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { //
 		s = []byte("+")
 	}
 
-	return util.ConcatBytesSlice(leveldbKeyPrefixBallot, point.Bytes(), s)
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixBallot, point.Bytes(), s)
 }
 
-func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
+func heightFromleveldbKey(b []byte, prefix leveldbstorage.KeyPrefix) (base.Height, error) {
 	e := util.StringError("parse height from leveldbBlockMapKey")
 
 	if len(b) < len(prefix)+8 {
@@ -326,7 +326,7 @@ func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
 }
 
 func leveldbTempMergedKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(
+	return leveldbstorage.NewPrefixKey(
 		leveldbKeyTempMerged,
 		height.Bytes(),
 	)
@@ -342,7 +342,7 @@ func offsetFromLeveldbOperationOrderedKey(b []byte) ([]byte, error) {
 }
 
 func offsetRangeLeveldbOperationOrderedKey(offset []byte) *leveldbutil.Range {
-	r := leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered)
+	r := leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered[:])
 
 	if offset == nil {
 		return r
@@ -351,7 +351,7 @@ func offsetRangeLeveldbOperationOrderedKey(offset []byte) *leveldbutil.Range {
 	start := leveldbutil.BytesPrefix(leveldbNewOperationOrderedKeyPrefix(offset)).Limit
 
 	limit := make([]byte, len(start))
-	copy(limit, leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered).Limit)
+	copy(limit, leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered[:]).Limit)
 
 	r = &leveldbutil.Range{
 		Start: start,
@@ -359,4 +359,34 @@ func offsetRangeLeveldbOperationOrderedKey(offset []byte) *leveldbutil.Range {
 	}
 
 	return r
+}
+
+func AllLabelKeys() map[leveldbstorage.KeyPrefix]string {
+	return map[leveldbstorage.KeyPrefix]string{
+		leveldbLabelBlockWrite: "block_write",
+		leveldbLabelPermanent:  "permanent",
+		leveldbLabelPool:       "pool",
+		leveldbLabelSyncPool:   "sync_pool",
+	}
+}
+
+func AllPrefixKeys() map[leveldbstorage.KeyPrefix]string {
+	return map[leveldbstorage.KeyPrefix]string{
+		leveldbKeyPrefixState:                   "state",
+		leveldbKeyPrefixInStateOperation:        "in_state_operation",
+		leveldbKeyPrefixKnownOperation:          "known_operation",
+		leveldbKeyPrefixProposal:                "proposal",
+		leveldbKeyPrefixProposalByPoint:         "proposal_by_point",
+		leveldbKeyPrefixBlockMap:                "blockmap",
+		leveldbKeyPrefixNewOperation:            "new_operation",
+		leveldbKeyPrefixNewOperationOrdered:     "new_operation_ordered",
+		leveldbKeyPrefixNewOperationOrderedKeys: "new_operation_ordered_keys",
+		leveldbKeyPrefixRemovedNewOperation:     "removed_new_operation",
+		leveldbKeyTempSyncMap:                   "temp_sync_map",
+		leveldbKeySuffrageProof:                 "suffrage_proof",
+		leveldbKeySuffrageProofByBlockHeight:    "suffrage_proof_by_block_height",
+		leveldbKeySuffrageExpelOperation:        "suffrage_expel_operation",
+		leveldbKeyTempMerged:                    "temp_merged",
+		leveldbKeyPrefixBallot:                  "ballot",
+	}
 }

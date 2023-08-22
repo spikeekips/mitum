@@ -6,11 +6,28 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
+
+type KeyPrefix [2]byte
+
+func NewPrefixKey(prefix KeyPrefix, a ...[]byte) []byte {
+	var sl [][]byte
+
+	switch {
+	case len(a) < 1:
+		sl = [][]byte{prefix[:]}
+	default:
+		sl = make([][]byte, len(a)+1)
+		sl[0] = prefix[:]
+
+		copy(sl[1:], a)
+	}
+
+	return util.ConcatBytesSlice(sl...)
+}
 
 type PrefixStorage struct {
 	sync.RWMutex
@@ -187,10 +204,6 @@ func (b *PrefixStorageBatch) Put(key, i []byte) {
 
 func (b *PrefixStorageBatch) Delete(key []byte) {
 	b.Batch.Delete(util.ConcatBytesSlice(b.prefix, key))
-}
-
-func HashPrefix(b []byte) []byte {
-	return valuehash.NewSHA256(b).Bytes()
 }
 
 func RemoveByPrefix(st *Storage, prefix []byte) error {

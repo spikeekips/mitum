@@ -100,7 +100,7 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 }
 
 func CleanSyncPool(st *leveldbstorage.Storage) error {
-	r := leveldbutil.BytesPrefix(leveldbLabelSyncPool)
+	r := leveldbutil.BytesPrefix(leveldbLabelSyncPool[:])
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
 		return errors.WithMessage(err, "clean syncpool database")

@@ -411,12 +411,12 @@ var (
 	emptyULID                             = bytes.Repeat([]byte{0x00}, util.ULIDLen)
 )
 
-func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
-	return util.ConcatBytesSlice(label, height.Bytes(), []byte(util.ULID().String()))
+func newPrefixStoragePrefixByHeight(label leveldbstorage.KeyPrefix, height base.Height) []byte {
+	return leveldbstorage.NewPrefixKey(label, height.Bytes(), []byte(util.ULID().String()))
 }
 
-func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
-	return util.ConcatBytesSlice(label, height.Bytes(), emptyULID)
+func emptyPrefixStoragePrefixByHeight(label leveldbstorage.KeyPrefix, height base.Height) []byte {
+	return leveldbstorage.NewPrefixKey(label, height.Bytes(), emptyULID)
 }
 
 func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
@@ -450,7 +450,7 @@ func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
 	batch := &leveldb.Batch{}
 	defer batch.Reset()
 
-	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite)
+	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite[:])
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...

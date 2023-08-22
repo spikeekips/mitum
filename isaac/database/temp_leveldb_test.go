@@ -15,7 +15,7 @@ import (
 
 func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
 	if err := db.pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixState[:]),
 		func(key []byte, raw []byte) (bool, error) {
 			var st base.State
 			if err := db.readHinter(raw, &st); err != nil {

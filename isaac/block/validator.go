@@ -210,14 +210,10 @@ func ValidateAllBlockMapsFromLocalFS(
 	e := util.StringError("validate localfs")
 
 	switch fi, err := os.Stat(dataroot); {
-	case err == nil:
-		if !fi.IsDir() {
-			return e.Errorf("not directory")
-		}
-	case os.IsNotExist(err):
+	case err != nil:
 		return e.Wrap(err)
-	default:
-		return e.Wrap(err)
+	case !fi.IsDir():
+		return e.Errorf("not directory")
 	}
 
 	// NOTE check all blockmap items

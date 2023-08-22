@@ -334,7 +334,7 @@ func (db *TempLeveldb) loadSuffrageProof() error {
 	}
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(_ []byte, b []byte) (bool, error) {
 			enchint, meta, body, err := db.readHeader(b)
 			if err != nil {

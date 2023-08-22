@@ -335,7 +335,7 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	}
 
 	if err := tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation[:]),
 		func(_, b []byte) (bool, error) {
 			if err := db.st.Set(ctx, redisInStateOperationKey(valuehash.Bytes(b)), b); err != nil {
 				return false, err
@@ -347,7 +347,7 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	}
 
 	if err := tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixKnownOperation),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixKnownOperation[:]),
 		func(_, b []byte) (bool, error) {
 			if err := db.st.Set(ctx, redisKnownOperationKey(valuehash.Bytes(b)), b); err != nil {
 				return false, err
@@ -368,7 +368,7 @@ func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(ctx context.Context
 	}
 
 	return tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixState[:]),
 		func(key, b []byte) (bool, error) {
 			if err := db.st.Set(ctx, redisStateKeyFromLeveldb(key), b); err != nil {
 				return false, err
@@ -385,7 +385,7 @@ func (db *RedisPermanent) mergeSuffrageProofsTempDatabaseFromLeveldb(ctx context
 	}
 
 	return tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(k, b []byte) (bool, error) {
 			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProof)
 			if err != nil {
@@ -409,7 +409,7 @@ func (db *RedisPermanent) mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveld
 	}
 
 	return tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight),
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight[:]),
 		func(k, b []byte) (bool, error) {
 			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProofByBlockHeight)
 			if err != nil {
@@ -441,7 +441,7 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 	}
 
 	return tpst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap[:]),
 		func(k, b []byte) (bool, error) {
 			height, err := heightFromleveldbKey(k, leveldbKeyPrefixBlockMap)
 			if err != nil {

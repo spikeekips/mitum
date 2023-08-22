@@ -568,16 +568,14 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 	e := util.StringError("initialize localfs")
 
 	switch fi, err := os.Stat(root); {
-	case err == nil:
-		if !fi.IsDir() {
-			return nil, e.Errorf("root is not directory")
-		}
 	case os.IsNotExist(err):
 		if err = os.MkdirAll(root, 0o700); err != nil {
 			return nil, e.Wrap(err)
 		}
-	default:
+	case err != nil:
 		return nil, e.Wrap(err)
+	case !fi.IsDir():
+		return nil, e.Errorf("root is not directory")
 	}
 
 	for _, i := range []string{
@@ -585,18 +583,16 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 		LocalFSDatabaseDirectory(root),
 	} {
 		switch fi, err := os.Stat(i); {
-		case err == nil:
-			if !fi.IsDir() {
-				return nil, e.Errorf("root is not directory, %q", i)
-			}
-
-			return nil, e.Errorf("directory already exists, %q", i)
 		case os.IsNotExist(err):
 			if err = os.MkdirAll(i, 0o700); err != nil {
 				return nil, e.WithMessage(err, "make directory, %q", i)
 			}
-		default:
+		case err != nil:
 			return nil, e.Wrap(err)
+		case !fi.IsDir():
+			return nil, e.Errorf("root is not directory, %q", i)
+		default:
+			return nil, e.Errorf("directory already exists, %q", i)
 		}
 	}
 
@@ -721,12 +717,10 @@ func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (N
 	e := util.StringError("check localfs")
 
 	switch fi, err := os.Stat(root); {
-	case err == nil:
-		if !fi.IsDir() {
-			return nil, e.Errorf("root is not directory")
-		}
-	default:
+	case err != nil:
 		return nil, e.Wrap(err)
+	case !fi.IsDir():
+		return nil, e.Errorf("root is not directory")
 	}
 
 	for _, i := range []string{
@@ -734,12 +728,10 @@ func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (N
 		LocalFSDatabaseDirectory(root),
 	} {
 		switch fi, err := os.Stat(i); {
-		case err == nil:
-			if !fi.IsDir() {
-				return nil, e.Errorf("root is not directory, %q", i)
-			}
-		default:
+		case err != nil:
 			return nil, e.Wrap(err)
+		case !fi.IsDir():
+			return nil, e.Errorf("root is not directory, %q", i)
 		}
 	}
 

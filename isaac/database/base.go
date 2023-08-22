@@ -97,22 +97,10 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 	return util.WriteLengthed(w, metab)
 }
 
-func (*baseDatabase) readHeader(b []byte) (ht string, meta, body []byte, err error) {
-	e := util.StringError("read hint")
+func (*baseDatabase) readHeader(b []byte) (enchint string, meta, body []byte, err error) {
+	enchint, meta, body, err = ReadDatabaseHeader(b)
 
-	htb, left, err := util.ReadLengthedBytes(b)
-	if err != nil {
-		return ht, nil, nil, e.Wrap(err)
-	}
-
-	ht = string(htb)
-
-	meta, left, err = util.ReadLengthedBytes(left)
-	if err != nil {
-		return ht, nil, nil, e.Wrap(err)
-	}
-
-	return ht, meta, left, nil
+	return enchint, meta, body, errors.Wrap(err, "read hint")
 }
 
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
@@ -202,4 +190,20 @@ func ReadHashRecordMeta(b []byte) (util.Hash, error) {
 
 		return h, nil
 	}
+}
+
+func ReadDatabaseHeader(b []byte) (ht string, meta, body []byte, err error) {
+	htb, left, err := util.ReadLengthedBytes(b)
+	if err != nil {
+		return ht, nil, nil, err
+	}
+
+	ht = string(htb)
+
+	meta, left, err = util.ReadLengthedBytes(left)
+	if err != nil {
+		return ht, nil, nil, err
+	}
+
+	return ht, meta, left, nil
 }

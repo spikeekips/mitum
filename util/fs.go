@@ -9,14 +9,12 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 	e := StringError("clean directory")
 
 	switch fi, err := os.Stat(root); {
-	case err == nil:
-		if !fi.IsDir() {
-			return e.Errorf("not directory")
-		}
 	case os.IsNotExist(err):
 		return nil
-	default:
+	case err != nil:
 		return e.Wrap(err)
+	case !fi.IsDir():
+		return e.Errorf("not directory")
 	}
 
 	subs, err := os.ReadDir(root)
