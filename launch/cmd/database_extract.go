@@ -617,7 +617,7 @@ func (cmd *DatabaseExtractCommand) extractSuffrageProof(key, raw []byte) (map[st
 }
 
 func (cmd *DatabaseExtractCommand) extractSuffrageExpelOperation(key, raw []byte) (map[string]interface{}, error) {
-	_, r, left, err := util.ReadLengthedBytesSlice(raw)
+	r, left, err := util.ReadLengthedBytesSlice(raw)
 	if err != nil {
 		return nil, err
 	}

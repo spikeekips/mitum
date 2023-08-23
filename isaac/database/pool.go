@@ -429,7 +429,8 @@ func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) er
 
 	fact := op.ExpelFact()
 
-	lb, err := util.NewLengthedBytesSlice(0x01, [][]byte{ //nolint:gomnd //...
+	lb, err := util.NewLengthedBytesSlice([][]byte{ //nolint:gomnd //...
+		{0x00, 0x01}, // version
 		fact.Node().Bytes(),
 		fact.ExpelStart().Bytes(),
 		fact.ExpelEnd().Bytes(),
@@ -837,27 +838,25 @@ func (*TempPool) readSuffrageExpelOperationsRecordMeta(b []byte) (
 	left []byte,
 	_ error,
 ) {
-	_, r, left, err := util.ReadLengthedBytesSlice(b)
-
-	switch {
+	switch r, left, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
 		return nil, start, end, nil, err
-	case len(r) < 3: //nolint:gomnd //...
+	case len(r) < 4: //nolint:gomnd //...
 		return nil, start, end, nil, errors.Errorf("missing record meta")
-	case len(r[0]) < 1:
+	case len(r[1]) < 1:
 		return nil, start, end, nil, errors.Errorf("wrong format; empty node")
 	default:
-		s, err := base.ParseHeightBytes(r[1])
+		s, err := base.ParseHeightBytes(r[2])
 		if err != nil {
 			return nil, start, end, nil, errors.WithMessage(err, "wrong start height")
 		}
 
-		e, err := base.ParseHeightBytes(r[2])
+		e, err := base.ParseHeightBytes(r[3])
 		if err != nil {
 			return nil, start, end, nil, errors.WithMessage(err, "wrong end height")
 		}
 
-		return r[0], s, e, left, nil
+		return r[1], s, e, left, nil
 	}
 }
 
@@ -963,7 +962,7 @@ type PoolOperationRecordMeta struct {
 	ophash   util.Hash
 	facthash util.Hash
 	ht       hint.Hint
-	version  byte
+	version  [2]byte
 }
 
 func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
@@ -972,7 +971,8 @@ func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
 		htb = i.Hint().Bytes()
 	}
 
-	b, _ := util.NewLengthedBytesSlice(0x01, [][]byte{ //nolint:gomnd //...
+	b, _ := util.NewLengthedBytesSlice([][]byte{ //nolint:gomnd //...
+		{0x00, 0x01}, // version
 		util.Int64ToBytes(localtime.Now().UTC().UnixNano()), // NOTE added UTC timestamp(10)
 		htb,
 		op.Hash().Bytes(),
@@ -987,14 +987,16 @@ func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ erro
 
 	var m [][]byte
 
-	switch v, i, _, err := util.ReadLengthedBytesSlice(b); {
+	switch i, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
 		return meta, e.Wrap(err)
-	case len(i) != 4: //nolint:gomnd //...
+	case len(i) != 5: //nolint:gomnd //...
 		return meta, e.Errorf("wrong pool operation meta")
+	case len(i[0]) != 2:
+		return meta, e.Errorf("wrong meta version")
 	default:
-		meta.version = v
-		m = i
+		meta.version = [2]byte{i[0][0], i[0][1]}
+		m = i[1:]
 	}
 
 	nsec, err := util.BytesToInt64(m[0])
@@ -1019,7 +1021,7 @@ func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ erro
 	return meta, nil
 }
 
-func (h PoolOperationRecordMeta) Version() byte {
+func (h PoolOperationRecordMeta) Version() [2]byte {
 	return h.version
 }
 

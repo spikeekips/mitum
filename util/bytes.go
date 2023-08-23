@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/pkg/errors"
@@ -84,30 +85,40 @@ func ConcatBytesSlice(sl ...[]byte) []byte {
 	return n
 }
 
-func EnsureRead(r io.Reader, b []byte) (int, error) {
+func EnsureRead(ctx context.Context, r io.Reader, b []byte) (n uint64, _ error) {
 	if len(b) < 1 {
 		return 0, nil
 	}
 
-	var n int
-
 	for {
-		l := make([]byte, len(b)-n)
+		select {
+		case <-ctx.Done():
+			return n, errors.WithStack(ctx.Err())
+		default:
+			l := make([]byte, uint64(len(b))-n)
 
-		i, err := r.Read(l)
+			i, err := r.Read(l)
 
-		switch {
-		case err == nil:
-		case !errors.Is(err, io.EOF):
-			return n, errors.WithStack(err)
-		}
+			iseof := errors.Is(err, io.EOF)
 
-		n += i
+			switch {
+			case err == nil:
+			case !iseof:
+				n += uint64(i)
 
-		copy(b[len(b)-len(l):], l)
+				return n, errors.WithStack(err)
+			}
 
-		if n == len(b) || errors.Is(err, io.EOF) {
-			return n, errors.WithStack(err)
+			n += uint64(i)
+
+			copy(b[len(b)-len(l):], l)
+
+			switch {
+			case n == uint64(len(b)):
+				return n, errors.WithStack(err)
+			case iseof:
+				return n, errors.Errorf("insufficient read")
+			}
 		}
 	}
 }
@@ -181,45 +192,45 @@ func ReadLengthBytes(b []byte) (uint64, error) {
 	return j, nil
 }
 
-func ReadLength(r io.Reader) (uint64, error) {
+func ReadLength(r io.Reader) (read uint64, length uint64, _ error) {
 	p := make([]byte, 8)
 
-	if _, err := EnsureRead(r, p); err != nil {
-		return 0, err
-	}
+	switch n, err := EnsureRead(context.Background(), r, p); {
+	case err == nil, errors.Is(err, io.EOF):
+		i, err := ReadLengthBytes(p) //nolint:govet //...
 
-	return ReadLengthBytes(p)
+		return n, i, err
+	default:
+		return n, 0, err
+	}
 }
 
-func ReadLengthed(r io.Reader) ([]byte, error) {
-	n, err := ReadLength(r)
+func ReadLengthed(r io.Reader) (read uint64, _ []byte, _ error) {
+	n, i, err := ReadLength(r)
 	if err != nil {
-		return nil, err
+		return n, nil, err
 	}
 
-	p := make([]byte, n)
-	_, err = EnsureRead(r, p)
+	p := make([]byte, i)
 
-	return p, err
+	m, err := EnsureRead(context.Background(), r, p)
+
+	return n + m, p, err
 }
 
-func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
+func NewLengthedBytesSlice(m [][]byte) ([]byte, error) {
 	w := bytes.NewBuffer(nil)
 	defer w.Reset()
 
-	if err := WriteLengthedSlice(w, version, m); err != nil {
+	if err := WriteLengthedSlice(w, m); err != nil {
 		return nil, err
 	}
 
 	return w.Bytes(), nil
 }
 
-func WriteLengthedSlice(w io.Writer, version byte, m [][]byte) error {
+func WriteLengthedSlice(w io.Writer, m [][]byte) error {
 	e := StringError("WriteLengthedBytesSlice")
-
-	if err := WriteLengthed(w, []byte{version}); err != nil {
-		return e.WithMessage(err, "write version")
-	}
 
 	if _, err := w.Write(Uint64ToBytes(uint64(len(m)))); err != nil {
 		return e.WithMessage(err, "write body length")
@@ -234,37 +245,26 @@ func WriteLengthedSlice(w io.Writer, version byte, m [][]byte) error {
 	return nil
 }
 
-func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ error) {
+func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
 	e := StringError("ReadLengthedBytesSlice")
 
-	switch i, j, err := ReadLengthedBytes(b); {
-	case err != nil:
-		return version, nil, nil, e.WithMessage(err, "wrong version")
-	case len(i) < 1:
-		return version, nil, nil, e.WithMessage(err, "empty version")
-	default:
-		version = i[0]
-
-		left = j
+	if len(b) < 8 { //nolint:gomnd //...
+		return nil, nil, e.Errorf("empty m length")
 	}
 
-	if len(left) < 8 { //nolint:gomnd //...
-		return version, nil, nil, e.Errorf("empty m length")
-	}
-
-	switch k, err := BytesToUint64(left[:8]); {
+	switch i, err := ReadLengthBytes(b); {
 	case err != nil:
-		return version, nil, nil, e.WithMessage(err, "wrong m length")
+		return nil, nil, e.WithMessage(err, "wrong m length")
 	default:
-		m = make([][]byte, k)
+		m = make([][]byte, i)
 
-		left = left[8:]
+		left = b[8:]
 	}
 
 	for i := range m {
 		j, k, err := ReadLengthedBytes(left)
 		if err != nil {
-			return version, nil, nil, e.WithMessage(err, "read left")
+			return nil, nil, e.WithMessage(err, "read left")
 		}
 
 		m[i] = j
@@ -272,5 +272,5 @@ func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ 
 		left = k
 	}
 
-	return version, m, left, nil
+	return m, left, nil
 }

@@ -169,19 +169,19 @@ func NewHashRecordMeta(h util.Hash) util.Byter {
 		hb = h.Bytes()
 	}
 
-	b, _ := util.NewLengthedBytesSlice(0x01, [][]byte{hb}) //nolint:gomnd //...
+	b, _ := util.NewLengthedBytesSlice([][]byte{hb}) //nolint:gomnd //...
 
 	return util.BytesToByter(b)
 }
 
 func ReadHashRecordMeta(b []byte) (util.Hash, error) {
-	e := util.StringError("read state record meta")
+	e := util.StringError("read hash record meta")
 
-	switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
+	switch m, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
 		return nil, e.Wrap(err)
 	case len(m) < 1:
-		return nil, e.Errorf("empty state hash")
+		return nil, e.Errorf("empty hash")
 	default:
 		h := valuehash.NewBytes(m[0])
 		if err := h.IsValid(nil); err != nil {

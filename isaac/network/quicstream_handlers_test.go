@@ -957,7 +957,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	handler := QuicstreamHandlerLastSuffrageProof(
 		func(h util.Hash) (string, []byte, []byte, bool, error) {
 			if h != nil && h.Equal(st.Hash()) {
-				nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
+				nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), nil})
 
 				return t.Enc.Hint().String(), nil, nbody, false, nil
 			}
@@ -967,7 +967,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 				return "", nil, nil, false, err
 			}
 
-			nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), b})
+			nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), b})
 
 			return t.Enc.Hint().String(), nil, nbody, true, nil
 		},

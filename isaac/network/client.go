@@ -167,6 +167,8 @@ func (c *BaseClient) streamOperationsBytes(
 
 	for {
 		switch _, _, body, _, res, err := broker.ReadBody(ctx); {
+		case errors.Is(err, io.EOF):
+			return nil
 		case err != nil:
 			return err
 		case res != nil:
@@ -180,7 +182,7 @@ func (c *BaseClient) streamOperationsBytes(
 		default:
 			var enchint string
 
-			switch b, err := util.ReadLengthed(body); {
+			switch _, b, err := util.ReadLengthed(body); {
 			case err != nil:
 				return errors.WithMessage(err, "enc hint")
 			default:
@@ -189,22 +191,30 @@ func (c *BaseClient) streamOperationsBytes(
 
 			var op, of []byte
 
-			switch b, err := util.ReadLengthed(body); {
+			switch _, b, err := util.ReadLengthed(body); {
 			case err != nil:
 				return errors.WithMessage(err, "body")
 			default:
 				op = b
 			}
 
-			switch b, err := util.ReadLengthed(body); {
-			case err != nil:
-				return errors.WithMessage(err, "offset")
-			default:
+			var iseof bool
+
+			switch _, b, err := util.ReadLengthed(body); {
+			case err == nil, errors.Is(err, io.EOF):
 				of = b
+
+				iseof = errors.Is(err, io.EOF)
+			default:
+				return errors.WithMessage(err, "offset")
 			}
 
 			if err := f(enchint, op, of); err != nil {
 				return err
+			}
+
+			if iseof {
+				return nil
 			}
 		}
 	}
@@ -299,7 +309,7 @@ func (c *BaseClient) LastSuffrageProof(
 					return errors.WithMessage(rerr, "read response")
 				}
 
-				switch _, m, _, rerr := util.ReadLengthedBytesSlice(b); {
+				switch m, _, rerr := util.ReadLengthedBytesSlice(b); {
 				case rerr != nil:
 					return errors.WithMessage(rerr, "read response")
 				case len(m) != 2:
@@ -835,9 +845,12 @@ func (c *BaseClient) LastHandoverYLogs(
 				b = b[:len(b)-1]
 			}
 
+			var iseof bool
+
 			switch {
 			case err == nil:
 			case errors.Is(err, io.EOF):
+				iseof = true
 			default:
 				return errors.WithStack(err)
 			}
@@ -850,7 +863,7 @@ func (c *BaseClient) LastHandoverYLogs(
 
 			switch {
 			case err == nil:
-			case errors.Is(err, io.EOF):
+			case iseof:
 				break end
 			}
 		}

@@ -108,11 +108,11 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				case err != nil:
 					return enchint, nil, nil, true, err
 				case last != nil && last.Equal(h):
-					nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
+					nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), nil})
 
 					return enchint, nil, nbody, false, nil
 				default:
-					nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), body})
+					nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), body})
 
 					return enchint, metabytes, nbody, true, nil
 				}

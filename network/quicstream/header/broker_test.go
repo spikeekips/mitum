@@ -133,7 +133,7 @@ func (t *testBrokers) TestRequestHeader() {
 
 			_, _, err := broker.ReadResponseHead(ctx)
 			t.Error(err)
-			t.True(errors.Is(err, io.EOF))
+			t.ErrorContains(err, "insufficient read", "%T %+v", err, err)
 
 			return nil
 		})
@@ -328,7 +328,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		t.T().Log("read response head")
 		_, _, err := broker.ReadResponseHead(ctx)
 		t.Error(err)
-		t.True(errors.Is(err, io.EOF))
+		t.ErrorContains(err, "insufficient read", "%T %+v", err, err)
 	})
 
 	t.Run("error handler response", func() {
@@ -342,8 +342,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 			return ctx, broker.WriteResponseHeadOK(ctx, false, err)
 		}))
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-		defer cancel()
+		ctx := context.Background()
 		broker, closef := brokerf(ctx)
 		defer closef()
 
@@ -568,7 +567,7 @@ func (t *testBrokers) TestReadBody() {
 		_, _, _, _, rres, err = broker.ReadBody(ctx)
 		t.Nil(rres)
 		t.Error(err)
-		t.True(errors.Is(err, io.EOF), "%T %+v", err, err)
+		t.ErrorContains(err, "insufficient read", "%T %+v", err, err)
 	})
 }
 

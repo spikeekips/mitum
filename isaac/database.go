@@ -100,7 +100,7 @@ type ProposalPool interface {
 }
 
 type PoolOperationRecordMeta interface {
-	Version() byte
+	Version() [2]byte
 	AddedAt() time.Time
 	Hint() hint.Hint
 	Operation() util.Hash

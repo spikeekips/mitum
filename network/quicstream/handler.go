@@ -51,7 +51,7 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 func (h *PrefixHandler) Handler(
 	ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser,
 ) (context.Context, error) {
-	prefix, handler, err := h.loadHandler(r)
+	prefix, handler, err := h.loadHandler(ctx, r)
 	if err != nil {
 		return h.errorHandler(ctx, addr, r, w, err)
 	}
@@ -83,12 +83,12 @@ func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
 	return h
 }
 
-func (h *PrefixHandler) loadHandler(r io.Reader) ([32]byte, Handler, error) {
+func (h *PrefixHandler) loadHandler(ctx context.Context, r io.Reader) ([32]byte, Handler, error) {
 	e := util.StringError("load handler")
 
 	var prefix [32]byte
 
-	switch i, err := readPrefix(r); {
+	switch i, err := readPrefix(ctx, r); {
 	case err != nil:
 		return prefix, nil, e.Wrap(err)
 	default:
@@ -110,19 +110,17 @@ func HashPrefix(s string) [32]byte {
 	return [32]byte(valuehash.NewSHA256([]byte(s)).Bytes())
 }
 
-func readPrefix(r io.Reader) (prefix [32]byte, _ error) {
-	switch _, err := util.EnsureRead(r, prefix[:]); {
-	case err == nil:
-	case errors.Is(err, io.EOF):
+func readPrefix(ctx context.Context, r io.Reader) (prefix [32]byte, _ error) {
+	switch _, err := util.EnsureRead(ctx, r, prefix[:]); {
+	case prefix == ZeroPrefix:
+		return prefix, errors.Errorf("empty prefix")
 	default:
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+
 		return prefix, err
 	}
-
-	if prefix == ZeroPrefix {
-		return prefix, errors.Errorf("empty prefix")
-	}
-
-	return prefix, nil
 }
 
 func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {

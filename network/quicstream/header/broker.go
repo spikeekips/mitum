@@ -105,12 +105,12 @@ func (broker *ClientBroker) ReadResponseHead(ctx context.Context) (enc encoder.E
 		var header Header
 
 		switch enc, header, err = broker.readHead(ctx, dataType); {
-		case err == nil, errors.Is(err, io.EOF):
+		case err != nil:
+			return err
+		default:
 			res = header.(ResponseHeader) //nolint:forcetypeassert //...
 
 			return nil
-		default:
-			return err
 		}
 	}(); err != nil {
 		return nil, nil, errors.WithMessage(err, "read response head")
@@ -560,20 +560,18 @@ func (broker *baseBroker) writeReader(_ context.Context, r io.Reader) (int64, er
 	return i, errors.Wrap(err, "write reader")
 }
 
-func (broker *baseBroker) read(_ context.Context, p []byte) (int, error) {
-	i, err := broker.Reader.Read(p)
-
-	return i, errors.Wrap(err, "read")
+func (broker *baseBroker) read(ctx context.Context, p []byte) (uint64, error) {
+	return util.EnsureRead(ctx, broker.Reader, p)
 }
 
 func (broker *baseBroker) readLength(context.Context) (uint64, error) {
-	i, err := util.ReadLength(broker.Reader)
+	_, i, err := util.ReadLength(broker.Reader)
 
 	return i, err
 }
 
 func (broker *baseBroker) readLengthed(context.Context) ([]byte, error) {
-	b, err := util.ReadLengthed(broker.Reader)
+	_, b, err := util.ReadLengthed(broker.Reader)
 
 	return b, err
 }
