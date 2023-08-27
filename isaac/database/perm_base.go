@@ -4,22 +4,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type basePermanent struct {
-	encs   *encoder.Encoders
-	enc    encoder.Encoder
 	lenc   *util.Locked[string]             // NOTE encoder of last blockmap
 	mp     *util.Locked[[3]interface{}]     // NOTE last blockmap
 	policy *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
 	proof  *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
 }
 
-func newBasePermanent(encs *encoder.Encoders, enc encoder.Encoder) *basePermanent {
+func newBasePermanent() *basePermanent {
 	return &basePermanent{
-		encs:   encs,
-		enc:    enc,
 		lenc:   util.EmptyLocked[string](),
 		mp:     util.EmptyLocked[[3]interface{}](),
 		policy: util.EmptyLocked[base.NetworkPolicy](),

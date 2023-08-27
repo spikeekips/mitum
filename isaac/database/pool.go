@@ -13,8 +13,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -77,20 +75,22 @@ func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignFact, found bool,
 		return nil, false, e.Wrap(err)
 	}
 
-	switch b, found, err := pst.Get(leveldbProposalKey(h)); {
+	var b []byte
+
+	switch i, found, err := pst.Get(leveldbProposalKey(h)); {
 	case err != nil:
 		return nil, false, e.Wrap(err)
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
+	case !found, len(i) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &pr); err != nil {
-			return nil, false, e.Wrap(err)
-		}
-
-		return pr, true, nil
+		b = i
 	}
+
+	if err := ReadDecodeFrame(db.encs, b, &pr); err != nil {
+		return nil, true, err
+	}
+
+	return pr, true, nil
 }
 
 func (db *TempPool) ProposalBytes(h util.Hash) (enchint string, meta, body []byte, found bool, _ error) {
@@ -99,7 +99,19 @@ func (db *TempPool) ProposalBytes(h util.Hash) (enchint string, meta, body []byt
 		return enchint, nil, nil, false, err
 	}
 
-	return db.getRecordBytes(leveldbProposalKey(h), pst.Get)
+	switch b, found, err := pst.Get(leveldbProposalKey(h)); {
+	case err != nil:
+		return "", nil, nil, false, err
+	case !found:
+		return "", nil, nil, false, nil
+	default:
+		enchint, _, rb, rerr := ReadFrame(b)
+		if rerr != nil {
+			return "", nil, nil, false, rerr
+		}
+
+		return enchint, nil, rb, true, nil
+	}
 }
 
 func (db *TempPool) ProposalByPoint(
@@ -153,12 +165,12 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 	batch := pst.NewBatch()
 	defer batch.Reset()
 
-	b, _, err := db.marshal(pr, nil)
+	_, prb, err := EncodeFrame(db.enc, nil, pr)
 	if err != nil {
-		return false, e.WithMessage(err, "marshal proposal")
+		return false, e.WithMessage(err, "proposal")
 	}
 
-	batch.Put(leveldbProposalKey(pr.Fact().Hash()), b)
+	batch.Put(leveldbProposalKey(pr.Fact().Hash()), prb)
 	batch.Put(
 		leveldbProposalPointKey(
 			pr.ProposalFact().Point(),
@@ -176,27 +188,31 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 }
 
 func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
-	e := util.StringError("find operation")
+	e := util.StringError("operation")
 
 	pst, err := db.st()
 	if err != nil {
 		return nil, false, e.Wrap(err)
 	}
 
-	switch b, found, err := pst.Get(leveldbNewOperationKey(operationhash)); {
+	var b []byte
+
+	switch i, found, err := pst.Get(leveldbNewOperationKey(operationhash)); {
 	case err != nil:
 		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
-	case len(b) < 1:
+	case len(i) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &op); err != nil {
-			return nil, false, e.Wrap(err)
-		}
-
-		return op, true, nil
+		b = i
 	}
+
+	if err := ReadDecodeFrame(db.encs, b, &op); err != nil {
+		return nil, true, e.Wrap(err)
+	}
+
+	return op, true, nil
 }
 
 func (db *TempPool) OperationBytes(_ context.Context, operationhash util.Hash) (
@@ -207,7 +223,19 @@ func (db *TempPool) OperationBytes(_ context.Context, operationhash util.Hash) (
 		return "", nil, nil, false, err
 	}
 
-	return db.getRecordBytes(leveldbNewOperationKey(operationhash), pst.Get)
+	switch b, found, err := pst.Get(leveldbNewOperationKey(operationhash)); {
+	case err != nil:
+		return "", nil, nil, false, err
+	case !found:
+		return "", nil, nil, false, nil
+	default:
+		enchint, _, rb, rerr := ReadFrame(b)
+		if rerr != nil {
+			return "", nil, nil, false, rerr
+		}
+
+		return enchint, nil, rb, true, nil
+	}
 }
 
 func (db *TempPool) OperationHashes(
@@ -238,7 +266,7 @@ func (db *TempPool) OperationHashes(
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered[:]),
 		func(k []byte, b []byte) (bool, error) {
-			meta, err := ReadPoolOperationRecordMeta(b)
+			meta, err := ReadFrameHeaderOperation(b)
 			if err != nil {
 				removeordereds[removeorderedsindex] = k
 				removeorderedsindex++
@@ -284,7 +312,7 @@ func (db *TempPool) OperationHashes(
 func (db *TempPool) TraverseOperationsBytes(
 	ctx context.Context,
 	offset []byte,
-	f func(enchint string, meta PoolOperationRecordMeta, body, offset []byte) (bool, error),
+	f func(enchint string, meta FrameHeaderPoolOperation, body, offset []byte) (bool, error),
 ) error {
 	pst, err := db.st()
 	if err != nil {
@@ -298,9 +326,9 @@ func (db *TempPool) TraverseOperationsBytes(
 				return false, ctx.Err()
 			}
 
-			var meta PoolOperationRecordMeta
+			var meta FrameHeaderPoolOperation
 
-			switch i, err := ReadPoolOperationRecordMeta(b); {
+			switch i, err := ReadFrameHeaderOperation(b); {
 			case err != nil:
 				return false, err
 			default:
@@ -348,17 +376,21 @@ func (db *TempPool) SetOperation(_ context.Context, op base.Operation) (bool, er
 		return false, nil
 	}
 
-	b, _, err := db.marshal(op, nil)
+	_, opb, err := EncodeFrame(db.enc, nil, op)
 	if err != nil {
-		return false, e.WithMessage(err, "marshal operation")
+		return false, e.WithMessage(err, "operation")
+	}
+
+	oprb, err := WriteFrameHeaderOperation(op)
+	if err != nil {
+		return false, e.WithMessage(err, "operation record")
 	}
 
 	batch := pst.NewBatch()
 	defer batch.Reset()
 
-	batch.Put(key, b)
-
-	batch.Put(orderedkey, NewPoolOperationRecordMeta(op).Bytes())
+	batch.Put(key, opb)
+	batch.Put(orderedkey, oprb)
 	batch.Put(leveldbNewOperationKeysKey(oph), orderedkey)
 
 	if err := pst.Batch(batch, nil); err != nil {
@@ -380,19 +412,22 @@ func (db *TempPool) SuffrageExpelOperation(
 	}
 
 	nodeb := node.Bytes()
+	heighti := height.Int64()
 
+	var enchint string
 	var opb []byte
 
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(_, b []byte) (bool, error) {
-			switch rnodeb, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
+			switch ht, r, left, err := ReadFrameHeaderSuffrageExpelOperation(b); {
 			case err != nil:
 				return false, err
-			case !bytes.Equal(nodeb, rnodeb):
+			case !bytes.Equal(nodeb, r.Node()):
 				return true, nil
-			case end < height, start > height:
+			case r.End() < heighti, r.Start() > heighti:
 				return false, nil
 			default:
+				enchint = ht
 				opb = left
 
 				return false, nil
@@ -407,7 +442,7 @@ func (db *TempPool) SuffrageExpelOperation(
 
 	var op base.SuffrageExpelOperation
 
-	if err := db.readHinter(opb, &op); err != nil {
+	if err := DecodeFrame(db.encs, enchint, opb, &op); err != nil {
 		return nil, false, e.Wrap(err)
 	}
 
@@ -422,28 +457,12 @@ func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) er
 		return e.Wrap(err)
 	}
 
-	b, _, err := db.marshal(op, nil)
+	opb, err := EncodeFrameSuffrageExpelOperation(db.enc, op)
 	if err != nil {
-		return e.WithMessage(err, "marshal")
+		return e.Wrap(err)
 	}
 
-	fact := op.ExpelFact()
-
-	lb, err := util.NewLengthedBytesSlice([][]byte{ //nolint:gomnd //...
-		{0x00, 0x01}, // version
-		fact.Node().Bytes(),
-		fact.ExpelStart().Bytes(),
-		fact.ExpelEnd().Bytes(),
-	})
-	if err != nil {
-		return e.WithMessage(err, "marshal")
-	}
-
-	if err := pst.Put(
-		newSuffrageExpelOperationKey(op.ExpelFact()),
-		util.ConcatBytesSlice(lb, b),
-		nil,
-	); err != nil {
+	if err := pst.Put(newSuffrageExpelOperationKey(op.ExpelFact()), opb, nil); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -460,22 +479,24 @@ func (db *TempPool) TraverseSuffrageExpelOperations(
 		return err
 	}
 
+	heighti := height.Int64()
+
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(key, b []byte) (bool, error) {
 			var op base.SuffrageExpelOperation
 
-			switch _, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
+			switch enchint, r, opb, err := ReadFrameHeaderSuffrageExpelOperation(b); {
 			case err != nil:
 				return false, err
-			case end < height, start > height:
+			case r.End() < heighti, r.Start() > heighti:
 				return false, nil
 			default:
-				if err := db.readHinter(left, &op); err != nil {
+				if err := DecodeFrame(db.encs, enchint, opb, &op); err != nil {
 					return false, err
 				}
-			}
 
-			return callback(op)
+				return callback(op)
+			}
 		}, false); err != nil {
 		return errors.WithMessage(err, "traverse SuffrageExpelOperations")
 	}
@@ -513,15 +534,17 @@ func (db *TempPool) RemoveSuffrageExpelOperationsByHeight(height base.Height) er
 		return e.Wrap(err)
 	}
 
+	heighti := height.Int64()
+
 	batch := pst.NewBatch()
 	defer batch.Reset()
 
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(key, b []byte) (bool, error) {
-			switch _, _, end, _, err := db.readSuffrageExpelOperationsRecordMeta(b); {
+			switch _, r, _, err := ReadFrameHeaderSuffrageExpelOperation(b); {
 			case err != nil:
 				return false, err
-			case end > height:
+			case r.End() > heighti:
 				return true, nil
 			default:
 				batch.Delete(key)
@@ -690,8 +713,8 @@ func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &bl); err != nil {
-			return nil, false, e.Wrap(err)
+		if err := ReadDecodeFrame(db.encs, b, &bl); err != nil {
+			return nil, true, err
 		}
 
 		return bl, true, nil
@@ -712,19 +735,23 @@ func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
 
 	key := leveldbBallotKey(bl.Point(), isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()))
 
+	var blb []byte
+
 	switch found, err := pst.Exists(key); {
 	case err != nil:
 		return false, e.Wrap(err)
 	case found:
 		return false, nil
+	default:
+		_, b, err := EncodeFrame(db.enc, nil, bl)
+		if err != nil {
+			return false, err
+		}
+
+		blb = b
 	}
 
-	b, _, err := db.marshal(bl, nil)
-	if err != nil {
-		return false, e.WithMessage(err, "marshal")
-	}
-
-	if err := pst.Put(key, b, nil); err != nil {
+	if err := pst.Put(key, blb, nil); err != nil {
 		return false, e.Wrap(err)
 	}
 
@@ -833,33 +860,6 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 	return removed, nil
 }
 
-func (*TempPool) readSuffrageExpelOperationsRecordMeta(b []byte) (
-	node []byte, start, end base.Height,
-	left []byte,
-	_ error,
-) {
-	switch r, left, err := util.ReadLengthedBytesSlice(b); {
-	case err != nil:
-		return nil, start, end, nil, err
-	case len(r) < 4: //nolint:gomnd //...
-		return nil, start, end, nil, errors.Errorf("missing record meta")
-	case len(r[1]) < 1:
-		return nil, start, end, nil, errors.Errorf("wrong format; empty node")
-	default:
-		s, err := base.ParseHeightBytes(r[2])
-		if err != nil {
-			return nil, start, end, nil, errors.WithMessage(err, "wrong start height")
-		}
-
-		e, err := base.ParseHeightBytes(r[3])
-		if err != nil {
-			return nil, start, end, nil, errors.WithMessage(err, "wrong end height")
-		}
-
-		return r[1], s, e, left, nil
-	}
-}
-
 func (db *TempPool) cleanProposals() (int, error) {
 	return db.cleanByHeight(
 		leveldbKeyPrefixProposalByPoint,
@@ -955,88 +955,4 @@ func newNewOperationLeveldbKeys(op util.Hash) (key []byte, orderedkey []byte) {
 
 func newSuffrageExpelOperationKey(fact base.SuffrageExpelFact) []byte {
 	return leveldbSuffrageExpelOperation(fact)
-}
-
-type PoolOperationRecordMeta struct {
-	addedAt  time.Time
-	ophash   util.Hash
-	facthash util.Hash
-	ht       hint.Hint
-	version  [2]byte
-}
-
-func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
-	var htb []byte
-	if i, ok := op.Fact().(hint.Hinter); ok {
-		htb = i.Hint().Bytes()
-	}
-
-	b, _ := util.NewLengthedBytesSlice([][]byte{ //nolint:gomnd //...
-		{0x00, 0x01}, // version
-		util.Int64ToBytes(localtime.Now().UTC().UnixNano()), // NOTE added UTC timestamp(10)
-		htb,
-		op.Hash().Bytes(),
-		op.Fact().Hash().Bytes(),
-	}) //nolint:gomnd //...
-
-	return util.BytesToByter(b)
-}
-
-func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ error) {
-	e := util.StringError("read pool operation record meta")
-
-	var m [][]byte
-
-	switch i, _, err := util.ReadLengthedBytesSlice(b); {
-	case err != nil:
-		return meta, e.Wrap(err)
-	case len(i) != 5: //nolint:gomnd //...
-		return meta, e.Errorf("wrong pool operation meta")
-	case len(i[0]) != 2:
-		return meta, e.Errorf("wrong meta version")
-	default:
-		meta.version = [2]byte{i[0][0], i[0][1]}
-		m = i[1:]
-	}
-
-	nsec, err := util.BytesToInt64(m[0])
-	if err != nil {
-		return meta, e.Errorf("wrong added at time")
-	}
-
-	meta.addedAt = time.Unix(0, nsec)
-
-	meta.ht, err = hint.ParseHint(string(m[1]))
-	if err != nil {
-		return meta, e.Errorf("wrong hint")
-	}
-
-	if err := meta.ht.IsValid(nil); err != nil {
-		return meta, e.WithMessage(err, "wrong hint")
-	}
-
-	meta.ophash = valuehash.Bytes(m[2])
-	meta.facthash = valuehash.Bytes(m[3])
-
-	return meta, nil
-}
-
-func (h PoolOperationRecordMeta) Version() [2]byte {
-	return h.version
-}
-
-func (h PoolOperationRecordMeta) AddedAt() time.Time {
-	return h.addedAt
-}
-
-func (h PoolOperationRecordMeta) Hint() hint.Hint {
-	return h.ht
-}
-
-func (h PoolOperationRecordMeta) Operation() util.Hash {
-	return h.ophash
-}
-
-func (h PoolOperationRecordMeta) Fact() util.Hash {
-	return h.facthash
 }

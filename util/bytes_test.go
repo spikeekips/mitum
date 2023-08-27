@@ -343,3 +343,239 @@ func (t *testEnsureRead) TestRead() {
 func TestEnsureRead(t *testing.T) {
 	suite.Run(t, new(testEnsureRead))
 }
+
+type testBytesFrame struct {
+	suite.Suite
+}
+
+func (t *testBytesFrame) TestNewWriter() {
+	t.Run("new", func() {
+		buf := new(bytes.Buffer)
+
+		_, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		var version [2]byte
+
+		n, err := buf.Read(version[:])
+		t.NoError(err)
+		t.Equal(2, n)
+		t.Equal(bytesFrameVersion, version)
+	})
+
+	t.Run("buffer", func() {
+		_, buf := NewBufferBytesFrameWriter()
+
+		var version [2]byte
+
+		n, err := buf.Read(version[:])
+		t.NoError(err)
+		t.Equal(2, n)
+		t.Equal(bytesFrameVersion, version)
+	})
+}
+
+func (t *testBytesFrame) TestHeader() {
+	t.Run("ok", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		hs := [][]byte{
+			UUID().Bytes(),
+			UUID().Bytes(),
+			UUID().Bytes(),
+			UUID().Bytes(),
+		}
+
+		t.NoError(fw.Header(hs...))
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		rhs, err := fr.Header()
+		t.NoError(err)
+
+		t.Equal(hs, rhs)
+	})
+
+	t.Run("empty", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		t.NoError(fw.Header())
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		rhs, err := fr.Header()
+		t.NoError(err)
+
+		t.Equal(0, len(rhs))
+	})
+
+	t.Run("call again", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		t.NoError(fw.Header())
+
+		err = fw.Header()
+		t.Error(err)
+		t.ErrorContains(err, "header already written")
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		rhs, err := fr.Header()
+		t.NoError(err)
+
+		t.Equal(0, len(rhs))
+	})
+}
+
+func (t *testBytesFrame) TestWriter() {
+	t.Run("ok", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		hs := [][]byte{
+			UUID().Bytes(),
+			UUID().Bytes(),
+			UUID().Bytes(),
+			UUID().Bytes(),
+		}
+
+		t.NoError(fw.Header(hs...))
+
+		body := UUID().Bytes()
+
+		bodyr := bytes.NewBuffer(body)
+		n, err := io.Copy(fw.Writer(), bodyr)
+		t.NoError(err)
+		t.Equal(int64(len(body)), n)
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		frr, err := fr.BodyReader()
+		t.NoError(err)
+
+		rbody, err := io.ReadAll(frr)
+		t.NoError(err)
+		t.Equal(body, rbody)
+	})
+}
+
+func (t *testBytesFrame) TestLengthed() {
+	t.Run("ok", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		t.NoError(fw.Header(UUID().Bytes(), UUID().Bytes()))
+
+		body := UUID().Bytes()
+
+		t.NoError(fw.Lengthed(body))
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		var rbody []byte
+
+		t.NoError(fr.Lengthed(func(b []byte) error {
+			rbody = b
+
+			return nil
+		}))
+
+		t.Equal(body, rbody)
+	})
+
+	t.Run("empty body", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		t.NoError(fw.Header(UUID().Bytes(), UUID().Bytes()))
+
+		t.NoError(fw.Lengthed(nil))
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		var rbody []byte
+		var isset bool
+
+		t.NoError(fr.Lengthed(func(b []byte) error {
+			rbody = b
+			isset = true
+
+			return nil
+		}))
+
+		t.True(isset)
+		t.Equal(0, len(rbody))
+	})
+
+	t.Run("multiple body", func() {
+		buf := new(bytes.Buffer)
+
+		fw, err := NewBytesFrameWriter(buf)
+		t.NoError(err)
+
+		t.NoError(fw.Header(UUID().Bytes(), UUID().Bytes()))
+
+		bodies := [][]byte{
+			UUID().Bytes(),
+			UUID().Bytes(),
+		}
+
+		for i := range bodies {
+			t.NoError(fw.Lengthed(bodies[i]))
+		}
+
+		fr, err := NewBytesFrameReader(buf)
+		t.NoError(err)
+
+		var rbodies [][]byte
+
+		t.NoError(fr.Lengthed(func(b []byte) error {
+			rbodies = append(rbodies, b)
+
+			return nil
+		}))
+
+		t.NoError(fr.Lengthed(func(b []byte) error {
+			rbodies = append(rbodies, b)
+
+			return nil
+		}))
+
+		t.T().Log("call more than length")
+
+		err = fr.Lengthed(func(b []byte) error {
+			rbodies = append(rbodies, b)
+
+			return nil
+		})
+		t.Error(err)
+		t.ErrorContains(err, "insufficient read")
+
+		t.Equal(bodies, rbodies)
+	})
+}
+
+func TestBytesFrame(t *testing.T) {
+	suite.Run(t, new(testBytesFrame))
+}

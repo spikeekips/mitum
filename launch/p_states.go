@@ -659,7 +659,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	return func(height base.Height) (args isaacstates.SyncerArgs, _ error) {
 		var tempsyncpool isaac.TempSyncPool
 
-		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, st, encs, enc); {
+		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, st, enc); {
 		case err != nil:
 			return args, isaacstates.ErrUnpromising.Wrap(err)
 		default:

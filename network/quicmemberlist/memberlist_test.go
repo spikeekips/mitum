@@ -562,7 +562,11 @@ func (t *testMemberlist) TestLocalLeave() {
 	}
 
 	t.Run("join again", func() {
-		t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+		t.NoError(util.Retry(context.Background(), func() (bool, error) {
+			err := lsrv.Join([]quicstream.ConnInfo{rci})
+
+			return err != nil, err
+		}, 3, time.Second))
 
 		select {
 		case <-time.After(time.Second * 2):

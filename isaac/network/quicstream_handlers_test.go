@@ -359,14 +359,14 @@ func (t *testQuicstreamHandlers) TestStreamOperations() {
 			func(
 				_ context.Context,
 				offset []byte,
-				callback func(enchint string, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+				callback func(enchint string, meta isaacdatabase.FrameHeaderPoolOperation, body, offset []byte) (bool, error),
 			) error {
 				var found bool
 				if offset == nil {
 					found = true
 				}
 
-				var meta isaacdatabase.PoolOperationRecordMeta
+				var meta isaacdatabase.FrameHeaderPoolOperation
 
 				var count uint64
 			end:
@@ -1296,14 +1296,14 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	stb, err := t.Enc.Marshal(st)
 	t.NoError(err)
-	meta := isaacdatabase.NewHashRecordMeta(st.Hash())
+	meta := st.Hash().Bytes()
 
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("ok", func() {
 		handler := QuicstreamHandlerState(
 			func(key string) (string, []byte, []byte, bool, error) {
-				return t.Enc.Hint().String(), meta.Bytes(), stb, true, nil
+				return t.Enc.Hint().String(), meta, stb, true, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixState, handler)
@@ -1320,7 +1320,7 @@ func (t *testQuicstreamHandlers) TestState() {
 		handler := QuicstreamHandlerState(
 			func(key string) (string, []byte, []byte, bool, error) {
 				if key == st.Key() {
-					return t.Enc.Hint().String(), meta.Bytes(), stb, true, nil
+					return t.Enc.Hint().String(), meta, stb, true, nil
 				}
 
 				return "", nil, nil, false, nil

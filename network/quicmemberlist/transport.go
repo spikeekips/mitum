@@ -378,14 +378,18 @@ func (t *Transport) receiveStream(b []byte, raddr net.Addr) {
 }
 
 func (t *Transport) newConn(raddr *net.UDPAddr) (*qconn, error) {
-	ci, err := t.getconninfof(raddr)
-	if err != nil {
+	var ci quicstream.ConnInfo
+
+	switch i, err := t.getconninfof(raddr); {
+	case err != nil:
 		return nil, err
+	default:
+		ci = i
 	}
 
 	var conn *qconn
 
-	err = t.conns.GetOrCreate(
+	err := t.conns.GetOrCreate(
 		raddr.String(),
 		func(i *qconn, _ bool) error {
 			conn = i
@@ -399,12 +403,12 @@ func (t *Transport) newConn(raddr *net.UDPAddr) (*qconn, error) {
 				func(ctx context.Context, b []byte) (int, error) {
 					var n int
 
-					werr := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
-					if werr == nil {
+					err := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
+					if err == nil {
 						n = len(b)
 					}
 
-					return n, werr
+					return n, err
 				},
 				func() {
 					_ = t.conns.RemoveValue(raddr.String())

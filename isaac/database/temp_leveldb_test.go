@@ -18,8 +18,9 @@ func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState[:]),
 		func(key []byte, raw []byte) (bool, error) {
 			var st base.State
-			if err := db.readHinter(raw, &st); err != nil {
-				return false, errors.WithStack(err)
+
+			if err := ReadDecodeFrame(db.encs, raw, &st); err != nil {
+				return false, err
 			}
 
 			return f(st)

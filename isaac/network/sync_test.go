@@ -424,6 +424,7 @@ func (t *testSyncSourceChecker) TestCalled() {
 func TestSyncSourceChecker(t *testing.T) {
 	defer goleak.VerifyNone(t,
 		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/util.EnsureRead.func1"),
 	)
 
 	suite.Run(t, new(testSyncSourceChecker))

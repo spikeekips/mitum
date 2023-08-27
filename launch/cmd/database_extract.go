@@ -494,44 +494,39 @@ func (cmd *DatabaseExtractCommand) extractValue(prefix string, key, raw []byte) 
 }
 
 func (cmd *DatabaseExtractCommand) extractHinted(key, raw []byte, v interface{}) (map[string]interface{}, error) {
-	enchint, bmeta, body, err := isaacdatabase.ReadDatabaseHeader(raw)
+	enchint, headers, body, err := isaacdatabase.ReadFrame(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	switch _, enc, found, err := cmd.encs.FindByString(enchint); {
-	case err != nil:
+	if err := isaacdatabase.DecodeFrame(cmd.encs, enchint, body, &v); err != nil {
 		return nil, err
-	case !found:
-		return nil, util.ErrNotFound.Errorf("encoder not found for %q", enchint)
-	default:
-		if err := encoder.Decode(enc, body, &v); err != nil {
-			return nil, err
-		}
-	}
-
-	var meta map[string]interface{}
-
-	if len(bmeta) > 0 {
-		meta = map[string]interface{}{}
-
-		switch h, err := isaacdatabase.ReadHashRecordMeta(bmeta); {
-		case err != nil:
-			return nil, err
-		default:
-			meta["hash"] = h
-		}
 	}
 
 	return map[string]interface{}{
 		"enchint": enchint,
 		"key":     cmd.encodeBytes(key),
-		"meta":    meta,
+		"header":  headers,
 		"body": map[string]interface{}{
 			"type": "hinted",
 			"data": v,
 		},
 	}, nil
+}
+
+func (cmd *DatabaseExtractCommand) extractHintedHashHeader(key, raw []byte, v interface{}) (map[string]interface{}, error) {
+	m, err := cmd.extractHinted(key, raw, v)
+	if err != nil {
+		return nil, err
+	}
+
+	if h := m["header"].([][]byte); len(h) > 0 { //nolint:forcetypeassert //...
+		m["meta"] = map[string]interface{}{
+			"hash": valuehash.NewBytes(h[0]),
+		}
+	}
+
+	return m, nil
 }
 
 func (cmd *DatabaseExtractCommand) extractHash(key, raw []byte) (map[string]interface{}, error) {
@@ -555,11 +550,11 @@ func (cmd *DatabaseExtractCommand) extractBytes(key, raw []byte) (map[string]int
 }
 
 func (cmd *DatabaseExtractCommand) extractState(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.State))
+	return cmd.extractHintedHashHeader(key, raw, new(base.State))
 }
 
 func (cmd *DatabaseExtractCommand) extractBlockMap(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.BlockMap))
+	return cmd.extractHintedHashHeader(key, raw, new(base.BlockMap))
 }
 
 func (cmd *DatabaseExtractCommand) extractInStateOperation(key, raw []byte) (map[string]interface{}, error) {
@@ -571,7 +566,7 @@ func (cmd *DatabaseExtractCommand) extractKnownOperation(key, raw []byte) (map[s
 }
 
 func (cmd *DatabaseExtractCommand) extractProposal(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.ProposalSignFact))
+	return cmd.extractHintedHashHeader(key, raw, new(base.ProposalSignFact))
 }
 
 func (cmd *DatabaseExtractCommand) extractProposalByPoint(key, raw []byte) (map[string]interface{}, error) {
@@ -579,17 +574,17 @@ func (cmd *DatabaseExtractCommand) extractProposalByPoint(key, raw []byte) (map[
 }
 
 func (cmd *DatabaseExtractCommand) extractNewOperation(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.Operation))
+	return cmd.extractHintedHashHeader(key, raw, new(base.Operation))
 }
 
 func (cmd *DatabaseExtractCommand) extractNewOperationOrdered(key, raw []byte) (map[string]interface{}, error) {
-	switch h, err := isaacdatabase.ReadPoolOperationRecordMeta(raw); {
+	switch h, err := isaacdatabase.ReadFrameHeaderOperation(raw); {
 	case err != nil:
 		return nil, err
 	default:
 		return map[string]interface{}{
 			"key": cmd.encodeBytes(key),
-			"meta": map[string]interface{}{
+			"header": map[string]interface{}{
 				"version":   h.Version(),
 				"added_at":  h.AddedAt(),
 				"hint":      h.Hint(),
@@ -609,27 +604,55 @@ func (cmd *DatabaseExtractCommand) extractRemovedNewOperation(key, raw []byte) (
 }
 
 func (cmd *DatabaseExtractCommand) extractTempSyncMap(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.BlockMap))
-}
-
-func (cmd *DatabaseExtractCommand) extractSuffrageProof(key, raw []byte) (map[string]interface{}, error) {
-	return cmd.extractHinted(key, raw, new(base.SuffrageProof))
-}
-
-func (cmd *DatabaseExtractCommand) extractSuffrageExpelOperation(key, raw []byte) (map[string]interface{}, error) {
-	r, left, err := util.ReadLengthedBytesSlice(raw)
+	body, err := isaacdatabase.ReadNoHeadersFrame(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	switch i, err := cmd.extractHinted(key, left, new(base.SuffrageExpelOperation)); {
-	case err != nil:
-		return nil, err
-	default:
-		i["meta"] = r
+	var v base.BlockMap
 
-		return i, nil
+	if err := isaacdatabase.DecodeFrame(cmd.encs, cmd.enc.Hint().String(), body, &v); err != nil {
+		return nil, err
 	}
+
+	return map[string]interface{}{
+		"enchint": cmd.enc.Hint(),
+		"key":     cmd.encodeBytes(key),
+		"body": map[string]interface{}{
+			"type": "hinted",
+			"data": v,
+		},
+	}, nil
+}
+
+func (cmd *DatabaseExtractCommand) extractSuffrageProof(key, raw []byte) (map[string]interface{}, error) {
+	return cmd.extractHintedHashHeader(key, raw, new(base.SuffrageProof))
+}
+
+func (cmd *DatabaseExtractCommand) extractSuffrageExpelOperation(key, raw []byte) (map[string]interface{}, error) {
+	enchint, r, left, err := isaacdatabase.ReadFrameHeaderSuffrageExpelOperation(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	var v base.SuffrageExpelOperation
+	if err := isaacdatabase.DecodeFrame(cmd.encs, enchint, left, &v); err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"enchint": enchint,
+		"key":     cmd.encodeBytes(key),
+		"meta": map[string]interface{}{
+			"node":  r.Node(),
+			"start": r.Start(),
+			"end":   r.End(),
+		},
+		"body": map[string]interface{}{
+			"type": "hinted",
+			"data": v,
+		},
+	}, nil
 }
 
 func (*DatabaseExtractCommand) extractTempMerged([]byte, []byte) (map[string]interface{}, error) {

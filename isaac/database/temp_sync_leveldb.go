@@ -16,22 +16,20 @@ type LeveldbTempSyncPool struct {
 func NewLeveldbTempSyncPool(
 	height base.Height,
 	st *leveldbstorage.Storage,
-	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbTempSyncPool, error) {
-	return newLeveldbTempSyncPool(height, st, encs, enc), nil
+	return newLeveldbTempSyncPool(height, st, enc), nil
 }
 
 func newLeveldbTempSyncPool(
 	height base.Height,
 	st *leveldbstorage.Storage,
-	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *LeveldbTempSyncPool {
 	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelSyncPool, height))
 
 	return &LeveldbTempSyncPool{
-		baseLeveldb: newBaseLeveldb(pst, encs, enc),
+		baseLeveldb: newBaseLeveldb(pst, nil, enc),
 	}
 }
 
@@ -49,8 +47,13 @@ func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, fo
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &m); err != nil {
-			return nil, false, err
+		fb, err := ReadNoHeadersFrame(b)
+		if err != nil {
+			return nil, true, err
+		}
+
+		if err := encoder.Decode(db.enc, fb, &m); err != nil {
+			return nil, true, err
 		}
 
 		return m, true, nil
@@ -58,7 +61,7 @@ func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, fo
 }
 
 func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
-	b, _, err := db.marshal(m, nil)
+	b, err := EncodeNoHeadersFrame(db.enc, m)
 	if err != nil {
 		return err
 	}

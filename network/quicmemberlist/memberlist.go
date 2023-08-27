@@ -1293,9 +1293,11 @@ func FetchCallbackBroadcastMessageFunc(
 
 				return res.Err()
 			default:
-				i, rerr := io.ReadAll(rbody)
-				if rerr != nil {
-					return errors.WithMessage(rerr, "read fetched callback message")
+				var err error
+
+				i, err := io.ReadAll(rbody)
+				if err != nil {
+					return errors.WithMessage(err, "read fetched callback message")
 				}
 
 				b = i

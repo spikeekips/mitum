@@ -24,6 +24,7 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"golang.org/x/exp/slices"
 )
 
@@ -95,7 +96,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		isaacnetwork.HandlerPrefixLastSuffrageProofString,
 		isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 			func(last util.Hash) (string, []byte, []byte, bool, error) {
-				enchint, metabytes, body, found, lastheight, err := db.LastSuffrageProofBytes()
+				enchint, metab, body, found, lastheight, err := db.LastSuffrageProofBytes()
 
 				switch {
 				case err != nil:
@@ -104,17 +105,15 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 					return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last SuffrageProof not found")
 				}
 
-				switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
-				case err != nil:
-					return enchint, nil, nil, true, err
-				case last != nil && last.Equal(h):
+				switch {
+				case last != nil && len(metab) > 0 && valuehash.NewBytes(metab).Equal(last):
 					nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), nil})
 
 					return enchint, nil, nbody, false, nil
 				default:
 					nbody, _ := util.NewLengthedBytesSlice([][]byte{lastheight.Bytes(), body})
 
-					return enchint, metabytes, nbody, true, nil
+					return enchint, metab, nbody, true, nil
 				}
 			},
 		), nil)
@@ -378,7 +377,7 @@ func quicstreamHandlerLastBlockMapFunc(
 	db isaac.Database,
 ) func(last util.Hash) (string, []byte, []byte, bool, error) {
 	return func(last util.Hash) (string, []byte, []byte, bool, error) {
-		enchint, metabytes, body, found, err := db.LastBlockMapBytes()
+		enchint, metab, body, found, err := db.LastBlockMapBytes()
 
 		switch {
 		case err != nil:
@@ -387,13 +386,11 @@ func quicstreamHandlerLastBlockMapFunc(
 			return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last BlockMap not found")
 		}
 
-		switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
-		case err != nil:
-			return enchint, nil, nil, false, err
-		case last != nil && last.Equal(h):
+		switch {
+		case last != nil && len(metab) > 0 && last.Equal(valuehash.NewBytes(metab)):
 			return enchint, nil, nil, false, nil
 		default:
-			return enchint, metabytes, body, true, nil
+			return enchint, metab, body, true, nil
 		}
 	}
 }

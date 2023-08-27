@@ -790,7 +790,6 @@ func loadTemp(
 	}
 
 	var lastprefix []byte
-
 	var prefixes [][]byte
 
 	if err := st.Iter(

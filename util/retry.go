@@ -15,7 +15,7 @@ func Retry(ctx context.Context, f func() (bool, error), limit int, interval time
 	for {
 		if i == limit {
 			if lerr != nil {
-				return lerr
+				return errors.WithMessage(lerr, "stop retrying; over limit")
 			}
 
 			return errors.Errorf("stop retrying; over limit")

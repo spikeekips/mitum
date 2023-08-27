@@ -14,6 +14,7 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -334,12 +335,7 @@ func QuicstreamHandlerState(
 			}
 
 			if found && header.Hash() != nil {
-				mh, err := isaacdatabase.ReadHashRecordMeta(meta)
-				if err != nil {
-					return enchint, nil, found, err
-				}
-
-				if mh.Equal(header.Hash()) {
+				if valuehash.NewBytes(meta).Equal(header.Hash()) {
 					body = nil
 				}
 			}
@@ -630,7 +626,7 @@ func QuicstreamHandlerStreamOperations(
 	traverse func(
 		_ context.Context,
 		offset []byte,
-		callback func(enchint string, meta isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error),
+		callback func(enchint string, meta isaacdatabase.FrameHeaderPoolOperation, body, offset []byte) (bool, error),
 	) error,
 ) quicstreamheader.Handler[StreamOperationsHeader] {
 	return func(ctx context.Context, addr net.Addr,
@@ -667,7 +663,7 @@ func QuicstreamHandlerStreamOperations(
 		err := traverse(
 			ctx,
 			header.Offset(),
-			func(enchint string, _ isaacdatabase.PoolOperationRecordMeta, body, offset []byte) (bool, error) {
+			func(enchint string, _ isaacdatabase.FrameHeaderPoolOperation, body, offset []byte) (bool, error) {
 				switch {
 				case body == nil || offset == nil:
 					return false, errors.Errorf("empty body")

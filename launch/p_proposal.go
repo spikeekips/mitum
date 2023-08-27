@@ -151,9 +151,13 @@ func getProposalFunc(pctx context.Context) (
 		}
 
 		// NOTE if not found, request to remote node
-		worker, err := util.NewErrgroupWorker(ctx, semsize)
-		if err != nil {
+		var worker *util.ErrgroupWorker
+
+		switch i, err := util.NewErrgroupWorker(ctx, semsize); {
+		case err != nil:
 			return nil, err
+		default:
+			worker = i
 		}
 
 		defer worker.Close()
@@ -172,8 +176,8 @@ func getProposalFunc(pctx context.Context) (
 
 					var pr base.ProposalSignFact
 
-					switch i, found, perr := client.Proposal(cctx, ci, facthash); {
-					case perr != nil || !found:
+					switch i, found, err := client.Proposal(cctx, ci, facthash); {
+					case err != nil || !found:
 						return nil
 					default:
 						if ierr := i.IsValid(params.ISAAC.NetworkID()); ierr != nil {
@@ -204,7 +208,7 @@ func getProposalFunc(pctx context.Context) (
 			})
 		}()
 
-		err = worker.Wait()
+		err := worker.Wait()
 
 		switch i, _ := prl.Value(); {
 		case i == nil:

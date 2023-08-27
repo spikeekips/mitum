@@ -27,7 +27,7 @@ func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMa
 		panic(err)
 	}
 
-	v := [3]interface{}{mp, NewHashRecordMeta(mp.Manifest().Hash()).Bytes(), b}
+	v := [3]interface{}{mp, mp.Manifest().Hash().Bytes(), b}
 
 	switch dbt := db.(type) {
 	case *LeveldbPermanent:
@@ -49,7 +49,12 @@ func (t *testCommonPermanent) setSuffrageProof(db isaac.PermanentDatabase, proof
 		panic(err)
 	}
 
-	v := [3]interface{}{proof, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b}
+	var meta []byte
+	if i := proof.Map().Manifest().Suffrage(); i != nil {
+		meta = i.Bytes()
+	}
+
+	v := [3]interface{}{proof, meta, b}
 
 	switch dbt := db.(type) {
 	case *LeveldbPermanent:
@@ -100,7 +105,6 @@ func (t *testCommonPermanent) TestLastMap() {
 		t.Nil(b)
 	})
 
-	mpmeta := NewHashRecordMeta(mp.Manifest().Hash())
 	mpb := t.setMap(db, mp)
 
 	t.Run("none-empty blockmap", func() {
@@ -114,7 +118,7 @@ func (t *testCommonPermanent) TestLastMap() {
 		t.NoError(err)
 		t.True(found)
 		t.Equal(t.Enc.Hint().String(), enchint)
-		t.Equal(mpmeta.Bytes(), meta)
+		t.Equal(mp.Manifest().Hash().Bytes(), meta)
 		t.Equal(mpb, b)
 	})
 }

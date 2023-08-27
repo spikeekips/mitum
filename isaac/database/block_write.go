@@ -231,18 +231,18 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 			}
 		}
 
-		meta := NewHashRecordMeta(m.Manifest().Hash())
+		meta := m.Manifest().Hash().Bytes()
 
-		b, body, err := db.marshal(m, meta)
-		if err != nil {
+		switch marshaled, b, err := EncodeOneHeaderFrame(db.enc, meta, m); {
+		case err != nil:
 			return v, err
-		}
+		default:
+			if err := pst.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
+				return v, err
+			}
 
-		if err := pst.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
-			return v, err
+			return [3]interface{}{m, meta, marshaled}, nil
 		}
-
-		return [3]interface{}{m, meta.Bytes(), body}, nil
 	}); err != nil {
 		return errors.Wrap(err, "set blockmap")
 	}
@@ -278,22 +278,28 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 			return v, util.ErrLockedSetIgnore.WithStack()
 		}
 
-		meta := NewHashRecordMeta(proof.Map().Manifest().Suffrage())
-
-		b, body, err := db.marshal(proof, meta)
-		if err != nil {
-			return v, err
+		var meta []byte
+		if proof.Map().Manifest().Suffrage() != nil {
+			meta = proof.Map().Manifest().Suffrage().Bytes()
 		}
 
-		if err := pst.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
+		switch marshaled, b, err := EncodeOneHeaderFrame(db.enc, meta, proof); {
+		case err != nil:
 			return v, err
-		}
+		default:
+			if err := pst.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
+				return v, err
+			}
 
-		if err := pst.Put(leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
-			return v, err
-		}
+			if err := pst.Put(
+				leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()),
+				b, nil,
+			); err != nil {
+				return v, err
+			}
 
-		return [3]interface{}{proof, meta.Bytes(), body}, nil
+			return [3]interface{}{proof, meta, marshaled}, nil
+		}
 	}); err != nil {
 		return errors.Wrap(err, "set SuffrageProof")
 	}
@@ -355,16 +361,14 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return nil
 	}
 
-	meta := NewHashRecordMeta(st.Hash())
-
-	b, _, err := db.marshal(st, meta)
-	if err != nil {
-		return errors.Wrap(err, "set state")
-	}
-
 	pst, err := db.st()
 	if err != nil {
 		return e.Wrap(err)
+	}
+
+	b, err := EncodeFrameState(db.enc, st)
+	if err != nil {
+		return err
 	}
 
 	switch {

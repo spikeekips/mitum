@@ -41,8 +41,9 @@ var (
 )
 
 type baseLeveldb struct {
-	pst *leveldbstorage.PrefixStorage
-	*baseDatabase
+	encs *encoder.Encoders
+	enc  encoder.Encoder
+	pst  *leveldbstorage.PrefixStorage
 	sync.RWMutex
 }
 
@@ -52,8 +53,9 @@ func newBaseLeveldb(
 	enc encoder.Encoder,
 ) *baseLeveldb {
 	return &baseLeveldb{
-		baseDatabase: newBaseDatabase(encs, enc),
-		pst:          pst,
+		encs: encs,
+		enc:  enc,
+		pst:  pst,
 	}
 }
 
@@ -133,7 +135,7 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta []byte, body []byte, err error) {
+func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta []byte, body []byte, _ error) {
 	e := util.StringError("load last blockmap")
 
 	pst, err := db.st()
@@ -144,12 +146,12 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta
 	if err = pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap[:]),
 		func(_, b []byte) (bool, error) {
-			enchint, meta, body, err = db.readHeader(b)
+			enchint, meta, body, err = ReadOneHeaderFrame(b)
 			if err != nil {
 				return false, err
 			}
 
-			if err = db.readHinterWithEncoder(enchint, body, &m); err != nil {
+			if err = DecodeFrame(db.encs, enchint, body, &m); err != nil {
 				return false, err
 			}
 
@@ -183,8 +185,9 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	}
 
 	var st base.State
-	if err := db.readHinter(b, &st); err != nil {
-		return nil, true, e.Wrap(err)
+
+	if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
+		return nil, true, err
 	}
 
 	if !base.IsNetworkPolicyState(st) {

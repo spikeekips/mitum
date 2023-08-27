@@ -34,7 +34,7 @@ func NewLeveldbPermanent(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "leveldb-permanent-database")
 		}),
-		basePermanent: newBasePermanent(encs, enc),
+		basePermanent: newBasePermanent(),
 		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
 		batchlimit:    333, //nolint:gomnd //...
 	}
@@ -69,7 +69,7 @@ func (db *LeveldbPermanent) Clean() error {
 	return db.basePermanent.Clean()
 }
 
-func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
+func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (proof base.SuffrageProof, found bool, _ error) {
 	e := util.StringError("get suffrageproof by height")
 
 	pst, err := db.st()
@@ -83,11 +83,16 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 	case found:
 		return proof, true, nil
 	default:
-		var proof base.SuffrageProof
+		switch b, found, err := pst.Get(leveldbSuffrageProofKey(suffrageHeight)); {
+		case err != nil, !found:
+			return nil, found, err
+		default:
+			if err := ReadDecodeFrame(db.encs, b, &proof); err != nil {
+				return nil, true, err
+			}
 
-		found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), pst.Get, &proof)
-
-		return proof, found, err
+			return proof, true, nil
+		}
 	}
 }
 
@@ -107,11 +112,23 @@ func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 	case found:
 		return db.LastSuffrageProofBytes()
 	default:
-		return db.getRecordBytes(leveldbSuffrageProofKey(suffrageHeight), pst.Get)
+		switch b, found, err := pst.Get(leveldbSuffrageProofKey(suffrageHeight)); {
+		case err != nil, !found:
+			return enchint, nil, nil, found, err
+		default:
+			enchint, meta, body, err := ReadOneHeaderFrame(b)
+			if err != nil {
+				return enchint, nil, nil, true, err
+			}
+
+			return enchint, meta, body, true, nil
+		}
 	}
 }
 
-func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
+func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (
+	proof base.SuffrageProof, found bool, _ error,
+) {
 	e := util.StringError("get suffrage by block height")
 
 	var pst *leveldbstorage.PrefixStorage
@@ -132,38 +149,41 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 		return nil, false, nil
 	}
 
-	switch proof, found, err := db.LastSuffrageProof(); {
+	switch i, found, err := db.LastSuffrageProof(); {
 	case err != nil:
 		return nil, false, e.Wrap(err)
 	case !found:
 		return nil, false, nil
-	case height >= proof.State().Height():
-		return proof, true, nil
+	case height >= i.State().Height():
+		return i, true, nil
 	}
 
-	var proof base.SuffrageProof
+	switch b, found, err := func() ([]byte, bool, error) {
+		r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight[:])
+		r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
 
-	found, err := db.getRecord(nil,
-		func([]byte) ([]byte, bool, error) {
-			r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight[:])
-			r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
+		var body []byte
 
-			var body []byte
+		err := pst.Iter(r, func(_, b []byte) (bool, error) {
+			body = b
 
-			err := pst.Iter(r, func(_, b []byte) (bool, error) {
-				body = b
+			return false, nil
+		}, false)
+		if err != nil {
+			return nil, false, err
+		}
 
-				return false, nil
-			}, false)
-			if err != nil {
-				return nil, false, err
-			}
+		return body, body != nil, nil
+	}(); {
+	case err != nil, !found:
+		return nil, found, err
+	default:
+		if err := ReadDecodeFrame(db.encs, b, &proof); err != nil {
+			return nil, true, err
+		}
 
-			return body, body != nil, nil
-		},
-		&proof)
-
-	return proof, found, err
+		return proof, true, nil
+	}
 }
 
 func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err error) {
@@ -172,9 +192,16 @@ func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err er
 		return nil, false, err
 	}
 
-	found, err = db.getRecord(leveldbStateKey(key), pst.Get, &st)
+	switch b, found, err := pst.Get(leveldbStateKey(key)); {
+	case err != nil, !found:
+		return nil, found, err
+	default:
+		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
+			return nil, true, err
+		}
 
-	return st, found, err
+		return st, true, nil
+	}
 }
 
 func (db *LeveldbPermanent) StateBytes(key string) (enchint string, meta, body []byte, found bool, err error) {
@@ -183,7 +210,17 @@ func (db *LeveldbPermanent) StateBytes(key string) (enchint string, meta, body [
 		return enchint, nil, nil, false, err
 	}
 
-	return db.getRecordBytes(leveldbStateKey(key), pst.Get)
+	switch b, found, err := pst.Get(leveldbStateKey(key)); {
+	case err != nil, !found:
+		return enchint, nil, nil, found, err
+	default:
+		enchint, meta, body, err := ReadOneHeaderFrame(b)
+		if err != nil {
+			return enchint, nil, nil, true, err
+		}
+
+		return enchint, meta, body, true, nil
+	}
 }
 
 func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -211,9 +248,16 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 		return nil, false, e.Wrap(err)
 	}
 
-	found, err := db.getRecord(leveldbBlockMapKey(height), pst.Get, &m)
+	switch b, found, err := pst.Get(leveldbBlockMapKey(height)); {
+	case err != nil, !found:
+		return nil, found, err
+	default:
+		if err := ReadDecodeFrame(db.encs, b, &m); err != nil {
+			return nil, true, err
+		}
 
-	return m, found, err
+		return m, true, nil
+	}
 }
 
 func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
@@ -235,7 +279,17 @@ func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
 		return enchint, nil, nil, false, e.Wrap(err)
 	}
 
-	return db.getRecordBytes(leveldbBlockMapKey(height), pst.Get)
+	switch b, found, err := pst.Get(leveldbBlockMapKey(height)); {
+	case err != nil, !found:
+		return enchint, nil, nil, found, err
+	default:
+		enchint, meta, body, err := ReadOneHeaderFrame(b)
+		if err != nil {
+			return enchint, nil, nil, true, err
+		}
+
+		return enchint, meta, body, true, nil
+	}
 }
 
 func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
@@ -352,21 +406,16 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 	}
 
 	var proof base.SuffrageProof
-
 	var meta, body []byte
 
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(_, b []byte) (bool, error) {
-			var enchint string
 			var err error
 
-			enchint, meta, body, err = db.readHeader(b)
-			if err != nil {
-				return false, err
-			}
+			meta, err = ReadDecodeOneHeaderFrame(db.encs, b, &proof)
 
-			return false, db.readHinterWithEncoder(enchint, body, &proof)
+			return false, err
 		},
 		false,
 	); err != nil {

@@ -244,9 +244,16 @@ func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) 
 		return nil, false, err
 	}
 
-	found, err = db.getRecord(leveldbStateKey(key), pst.Get, &st)
+	switch b, found, err := pst.Get(leveldbStateKey(key)); {
+	case err != nil, !found:
+		return nil, found, err
+	default:
+		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
+			return nil, true, err
+		}
 
-	return st, found, err
+		return st, true, nil
+	}
 }
 
 func (db *TempLeveldb) StateBytes(key string) (enchint string, meta, body []byte, found bool, err error) {
@@ -255,7 +262,14 @@ func (db *TempLeveldb) StateBytes(key string) (enchint string, meta, body []byte
 		return enchint, nil, nil, false, err
 	}
 
-	return db.getRecordBytes(leveldbStateKey(key), pst.Get)
+	switch b, found, err := pst.Get(leveldbStateKey(key)); {
+	case err != nil, !found:
+		return enchint, nil, nil, found, err
+	default:
+		enchint, meta, body, err := ReadOneHeaderFrame(b)
+
+		return enchint, meta, body, true, err
+	}
 }
 
 func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -314,12 +328,13 @@ func (db *TempLeveldb) loadSuffrageState() error {
 	case !found:
 		return nil
 	default:
-		st, err := db.decodeSuffrage(b)
-		if err != nil {
+		if err := ReadDecodeFrame(db.encs, b, &db.sufst); err != nil {
 			return e.Wrap(err)
 		}
 
-		db.sufst = st
+		if !base.IsSuffrageNodesState(db.sufst) {
+			return e.Errorf("not suffrage state")
+		}
 
 		return nil
 	}
@@ -336,13 +351,14 @@ func (db *TempLeveldb) loadSuffrageProof() error {
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(_ []byte, b []byte) (bool, error) {
-			enchint, meta, body, err := db.readHeader(b)
+			enchint, meta, body, err := ReadOneHeaderFrame(b)
 			if err != nil {
 				return false, err
 			}
 
 			var proof base.SuffrageProof
-			if err := db.readHinterWithEncoder(enchint, body, &proof); err != nil {
+
+			if err := DecodeFrame(db.encs, enchint, body, &proof); err != nil {
 				return false, err
 			}
 

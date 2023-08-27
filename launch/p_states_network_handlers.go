@@ -110,22 +110,26 @@ func attachHandlerOperation(pctx context.Context) error {
 					ci = xbroker.ConnInfo()
 				}
 
-				stream, _, err := headerdial(ctx, ci)
-				if err != nil {
+				var stream quicstreamheader.StreamFunc
+
+				switch i, _, err := headerdial(ctx, ci); {
+				case err != nil:
 					return enchint, body, found, err
+				default:
+					stream = i
 				}
 
-				err = stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-					if ok, rerr := isaacnetwork.HCReqResBodyDecOK(
+				err := stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+					if ok, err := isaacnetwork.HCReqResBodyDecOK(
 						ctx,
 						broker,
 						header,
 						func(enc encoder.Encoder, r io.Reader) error {
 							enchint = enc.Hint().String()
 
-							switch b, rerr := io.ReadAll(r); {
-							case rerr != nil:
-								return errors.WithStack(rerr)
+							switch b, err := io.ReadAll(r); {
+							case err != nil:
+								return errors.WithStack(err)
 							default:
 								body = b
 							}
@@ -134,8 +138,8 @@ func attachHandlerOperation(pctx context.Context) error {
 
 							return nil
 						},
-					); rerr != nil || !ok {
-						return rerr
+					); err != nil || !ok {
+						return err
 					}
 
 					return nil
@@ -231,12 +235,12 @@ func attachHandlerStreamOperations(pctx context.Context) error {
 			func(
 				ctx context.Context,
 				offset []byte,
-				callback func(string, isaacdatabase.PoolOperationRecordMeta, []byte, []byte) (bool, error),
+				callback func(string, isaacdatabase.FrameHeaderPoolOperation, []byte, []byte) (bool, error),
 			) error {
 				return pool.TraverseOperationsBytes(ctx, offset,
 					func(
 						enchint string,
-						meta isaacdatabase.PoolOperationRecordMeta,
+						meta isaacdatabase.FrameHeaderPoolOperation,
 						body,
 						offset []byte,
 					) (bool, error) {

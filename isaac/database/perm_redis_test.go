@@ -40,7 +40,7 @@ func TestRedisPermanent(tt *testing.T) {
 
 		e := util.StringError("failed to set state")
 
-		b, _, err := db.marshal(st, nil)
+		b, err := EncodeFrameState(db.enc, st)
 		if err != nil {
 			return e.Wrap(err)
 		}

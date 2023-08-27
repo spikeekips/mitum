@@ -72,7 +72,12 @@ func (db *DummyPermanentDatabase) SuffrageProofBytes(h base.Height) (string, []b
 		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+	var meta []byte
+	if i := proof.Map().Manifest().Suffrage(); i != nil {
+		meta = i.Bytes()
+	}
+
+	return jsonenc.JSONEncoderHint.String(), meta, b, true, nil
 }
 
 func (db *DummyPermanentDatabase) SuffrageProofByBlockHeight(h base.Height) (base.SuffrageProof, bool, error) {
@@ -94,7 +99,12 @@ func (db *DummyPermanentDatabase) LastSuffrageProofBytes() (string, []byte, []by
 		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+	var meta []byte
+	if i := proof.Map().Manifest().Suffrage(); i != nil {
+		meta = i.Bytes()
+	}
+
+	return jsonenc.JSONEncoderHint.String(), meta, b, true, nil
 }
 
 func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
@@ -154,7 +164,7 @@ func (db *DummyPermanentDatabase) LastBlockMapBytes() (string, []byte, []byte, b
 		return "", nil, nil, found, err
 	}
 
-	return jsonenc.JSONEncoderHint.String(), NewHashRecordMeta(m.Manifest().Hash()).Bytes(), b, true, nil
+	return jsonenc.JSONEncoderHint.String(), m.Manifest().Hash().Bytes(), b, true, nil
 }
 
 func (db *DummyPermanentDatabase) LastNetworkPolicy() base.NetworkPolicy {

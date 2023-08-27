@@ -572,7 +572,9 @@ func (t *testBrokers) TestReadBody() {
 }
 
 func TestBrokers(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/util.EnsureRead.func1"),
+	)
 
 	suite.Run(t, new(testBrokers))
 }

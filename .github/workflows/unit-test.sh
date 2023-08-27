@@ -10,7 +10,7 @@ do
     echo $i
     i=$(echo $i | sed -e 's@^/@@g')
 
-    ts=$(find $i -maxdepth 1 -name '*.go' -exec grep 'func Test.*' {} \; | sed -e 's/.*func //g' -e 's/(.*//g' | sort)
+    ts=$(find $i -maxdepth 1 -name '*_test.go' -exec grep 'func Test.*' {} \; | sed -e 's/.*func //g' -e 's/(.*//g' | sort)
     for t in $ts
     do
         time go test -race -coverprofile=/tmp/cov.out -tags 'test redis' -v -timeout 20m -failfast ./$i -run "^$t$"
