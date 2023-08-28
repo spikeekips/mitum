@@ -205,6 +205,10 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		return 2, nil
 	})
 
+	if err == nil {
+		p.close()
+	}
+
 	return bm, err
 }
 
@@ -222,6 +226,14 @@ func (p *DefaultProposalProcessor) Cancel() error {
 	})
 
 	return nil
+}
+
+func (p *DefaultProposalProcessor) close() {
+	_, _ = p.processstate.Set(func(i int, _ bool) (int, error) {
+		p.cancel()
+
+		return i, util.ErrLockedSetIgnore.WithStack()
+	})
 }
 
 func (p *DefaultProposalProcessor) clean() {

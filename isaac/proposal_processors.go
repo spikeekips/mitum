@@ -129,6 +129,27 @@ func (pps *ProposalProcessors) Save(
 	pps.Lock()
 	defer pps.Unlock()
 
+	switch m, err := pps.save(ctx, facthash, avp); {
+	case err != nil:
+		if pps.p != nil {
+			_ = pps.p.Cancel()
+
+			pps.p = nil
+		}
+
+		return nil, errors.WithMessage(err, "save proposal")
+	default:
+		if pps.p != nil {
+			pps.p = nil
+		}
+
+		return m, nil
+	}
+}
+
+func (pps *ProposalProcessors) save(
+	ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof,
+) (base.BlockMap, error) {
 	l := pps.Log().With().Interface("height", avp.Point().Height()).Stringer("fact", facthash).Logger()
 
 	if avp.Point().Height() <= pps.previousSaved {
@@ -137,23 +158,15 @@ func (pps *ProposalProcessors) Save(
 		return nil, ErrProcessorAlreadySaved.WithStack()
 	}
 
-	defer func() {
-		if err := pps.close(); err != nil {
-			l.Error().Err(err).Msg("failed to close proposal processor")
-		}
-	}()
-
-	e := util.StringError("save proposal, %q", facthash)
-
 	switch {
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
+		return nil, ErrNotProposalProcessorProcessed
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
+		return nil, ErrNotProposalProcessorProcessed
 	}
 
 	switch bm, err := pps.p.Save(ctx, avp); {
@@ -164,9 +177,13 @@ func (pps *ProposalProcessors) Save(
 
 		return bm, nil
 	case errors.Is(err, context.Canceled):
-		return nil, e.Wrap(ErrNotProposalProcessorProcessed)
+		l.Error().Err(err).Msg("proposal processed canceled")
+
+		return nil, ErrNotProposalProcessorProcessed
 	default:
-		return nil, e.Wrap(err)
+		l.Error().Err(err).Msg("failed to save proposal processed")
+
+		return nil, err
 	}
 }
 
@@ -179,16 +196,6 @@ func (pps *ProposalProcessors) Cancel() error {
 			return errors.Wrap(err, "cancel")
 		}
 	}
-
-	return pps.close()
-}
-
-func (pps *ProposalProcessors) close() error {
-	if pps.p == nil {
-		return nil
-	}
-
-	_ = pps.p.Cancel()
 
 	pps.p = nil
 
