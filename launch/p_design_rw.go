@@ -90,19 +90,6 @@ func writeDesignKey(f writeDesignNextValueFunc) writeDesignValueFunc {
 	}
 }
 
-func checkWriteDesign(
-	enc *jsonenc.Encoder,
-	design NodeDesign,
-	params *LocalParams,
-	discoveries *util.Locked[[]quicstream.ConnInfo],
-) map[string]writeDesignValueFunc {
-	return map[string]writeDesignValueFunc{
-		"parameters":   writeLocalParam(params),
-		"discoveries":  writeDiscoveries(discoveries),
-		"sync_sources": writeDesignSyncSources(enc, design),
-	}
-}
-
 func writeDesign(
 	enc *jsonenc.Encoder,
 	design NodeDesign,
@@ -425,34 +412,6 @@ func writeLocalParamNetworkTimeoutRequest(
 		}
 
 		return prev, params.TimeoutRequest(), nil
-	})
-}
-
-func writeDesignSyncSources(
-	enc *jsonenc.Encoder,
-	design NodeDesign,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		e := util.StringError("update sync source")
-
-		var sources *SyncSourcesDesign
-		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		if err := IsValidSyncSourcesDesign(
-			sources,
-			design.Network.PublishString,
-			design.Network.publish.String(),
-		); err != nil {
-			return nil, nil, e.Wrap(err)
-		}
-
-		prev = design.SyncSources
-
-		design.SyncSources.Update(sources.Sources())
-
-		return prev, sources, nil
 	})
 }
 

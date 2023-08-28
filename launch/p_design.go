@@ -147,17 +147,11 @@ func PCheckDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Interface("design", design).Msg("design checked")
 
-	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
 		DesignContextKey:      design,
 		LocalParamsContextKey: design.LocalParams,
 		ISAACParamsContextKey: design.LocalParams.ISAAC,
-	})
-
-	if err := checkDesignFromConsul(nctx, flag, log); err != nil {
-		return nctx, e.Wrap(err)
-	}
-
-	return nctx, nil
+	}), nil
 }
 
 func PINITObjectCache(pctx context.Context) (context.Context, error) {
