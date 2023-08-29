@@ -22,10 +22,10 @@ type HandoverCommands struct {
 }
 
 type baseHandoverCommand struct { //nolint:govet //...
-	KeyString string `arg:"" name:"privatekey" help:"privatekey string"`
 	BaseNetworkClientCommand
-	yci  quicstream.ConnInfo
-	priv base.Privatekey
+	Privatekey string `arg:"" name:"privatekey" help:"privatekey string"`
+	yci        quicstream.ConnInfo
+	priv       base.Privatekey
 }
 
 func (cmd *baseHandoverCommand) run(pctx context.Context) (func(), error) {
@@ -39,7 +39,7 @@ func (cmd *baseHandoverCommand) run(pctx context.Context) (func(), error) {
 
 	cmd.yci = cmd.Remote.ConnInfo()
 
-	switch key, err := launch.DecodePrivatekey(cmd.KeyString, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.Encoder); {
 	case err != nil:
 		return nil, err
 	default:

@@ -156,13 +156,13 @@ func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 
 type KeySignCommand struct {
 	BaseCommand
-	KeyString string             `arg:"" name:"privatekey" help:"privatekey string"`
-	NetworkID string             `arg:"" name:"network-id" help:"network-id"`
-	Body      *os.File           `arg:"" help:"body"`
-	Node      launch.AddressFlag `help:"node address"`
-	Token     string             `help:"set fact token"`
-	priv      base.Privatekey
-	networkID base.NetworkID
+	Privatekey string             `arg:"" name:"privatekey" help:"privatekey string"`
+	NetworkID  string             `arg:"" name:"network-id" help:"network-id"`
+	Body       *os.File           `arg:"" help:"body"`
+	Node       launch.AddressFlag `help:"node address"`
+	Token      string             `help:"set fact token"`
+	priv       base.Privatekey
+	networkID  base.NetworkID
 }
 
 func (cmd *KeySignCommand) Run(pctx context.Context) error {
@@ -171,7 +171,7 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 	}
 
 	cmd.Log.Debug().
-		Str("privatekey", cmd.KeyString).
+		Str("privatekey", cmd.Privatekey).
 		Str("network_id", cmd.NetworkID).
 		Stringer("node", cmd.Node.Address()).
 		Msg("flags")
@@ -218,7 +218,7 @@ func (cmd *KeySignCommand) prepare(pctx context.Context) error {
 		return err
 	}
 
-	switch key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.Encoder); {
+	switch key, err := base.DecodePrivatekeyFromString(cmd.Privatekey, cmd.Encoder); {
 	case err != nil:
 		return err
 	default:
