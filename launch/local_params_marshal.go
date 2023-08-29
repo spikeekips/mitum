@@ -155,7 +155,7 @@ func (p *MemberlistParams) UnmarshalJSON(b []byte) error {
 	return e.Wrap(p.unmarshal(u))
 }
 
-func (p *MemberlistParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *MemberlistParams) UnmarshalYAML(y *yaml.Node) error {
 	d := defaultMemberlistParams()
 	*p = *d
 
@@ -163,7 +163,7 @@ func (p *MemberlistParams) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 	var u memberlistParamsUnmarshaler
 
-	if err := unmarshal(&u); err != nil {
+	if err := y.Decode(&u); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -265,7 +265,7 @@ func (p *MISCParams) UnmarshalJSON(b []byte) error {
 	return e.Wrap(p.unmarshal(u))
 }
 
-func (p *MISCParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *MISCParams) UnmarshalYAML(y *yaml.Node) error {
 	d := defaultMISCParams()
 	*p = *d
 
@@ -273,7 +273,7 @@ func (p *MISCParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	var u miscParamsYAMLUnmarshaler
 
-	if err := unmarshal(&u); err != nil {
+	if err := y.Decode(&u); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -395,7 +395,7 @@ func (p *NetworkParams) UnmarshalJSON(b []byte) error {
 	return e.Wrap(p.unmarshal(u))
 }
 
-func (p *NetworkParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *NetworkParams) UnmarshalYAML(y *yaml.Node) error {
 	d := defaultNetworkParams()
 	*p = *d
 
@@ -403,7 +403,7 @@ func (p *NetworkParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	var u networkParamsYAMLUnmarshaler
 
-	if err := unmarshal(&u); err != nil {
+	if err := y.Decode(&u); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -529,11 +529,11 @@ func (p *NetworkRateLimitParams) UnmarshalJSON(b []byte) error {
 	return e.Wrap(p.unmarshal(u))
 }
 
-func (p *NetworkRateLimitParams) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *NetworkRateLimitParams) UnmarshalYAML(y *yaml.Node) error {
 	e := util.StringError("decode NetworkRateLimitParams")
 
 	var u map[string]interface{}
-	if err := unmarshal(&u); err != nil {
+	if err := y.Decode(&u); err != nil {
 		return e.Wrap(err)
 	}
 

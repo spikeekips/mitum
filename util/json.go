@@ -3,9 +3,6 @@ package util
 import (
 	"bytes"
 	"io"
-	"time"
-
-	"github.com/pkg/errors"
 )
 
 var nullJSONBytes = []byte("null")
@@ -93,58 +90,6 @@ func NewJSONStreamEncoder(w io.Writer) StreamEncoder {
 
 func NewJSONStreamDecoder(r io.Reader) StreamDecoder {
 	return newJSONStreamDecoder(r)
-}
-
-type ReadableDuration time.Duration
-
-func (d ReadableDuration) MarshalText() ([]byte, error) {
-	return []byte(time.Duration(d).String()), nil
-}
-
-func (d *ReadableDuration) UnmarshalJSON(b []byte) error {
-	var i interface{}
-	if err := UnmarshalJSON(b, &i); err != nil {
-		return err
-	}
-
-	switch t := i.(type) {
-	case int64:
-		*d = ReadableDuration(time.Duration(t))
-	case string:
-		j, err := time.ParseDuration(t)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
-		}
-
-		*d = ReadableDuration(j)
-	default:
-		return errors.Errorf("unknown duration format, %q", string(b))
-	}
-
-	return nil
-}
-
-func (d *ReadableDuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var i interface{}
-	if err := unmarshal(&i); err != nil {
-		return err
-	}
-
-	switch t := i.(type) {
-	case int64:
-		*d = ReadableDuration(time.Duration(t))
-	case string:
-		j, err := time.ParseDuration(t)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
-		}
-
-		*d = ReadableDuration(j)
-	default:
-		return errors.Errorf("unknown duration format, %v", i)
-	}
-
-	return nil
 }
 
 type ExtensibleJSON interface {

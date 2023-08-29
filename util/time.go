@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 )
 
 // ParseRFC3339 parses RFC3339 string.
@@ -66,4 +67,56 @@ func ParseDuration(s string) (time.Duration, error) {
 	}
 
 	return time.Duration(i), nil
+}
+
+type ReadableDuration time.Duration
+
+func (d ReadableDuration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+func (d *ReadableDuration) UnmarshalJSON(b []byte) error {
+	var i interface{}
+	if err := UnmarshalJSON(b, &i); err != nil {
+		return err
+	}
+
+	switch t := i.(type) {
+	case int64:
+		*d = ReadableDuration(time.Duration(t))
+	case string:
+		j, err := time.ParseDuration(t)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
+		}
+
+		*d = ReadableDuration(j)
+	default:
+		return errors.Errorf("unknown duration format, %q", string(b))
+	}
+
+	return nil
+}
+
+func (d *ReadableDuration) UnmarshalYAML(y *yaml.Node) error {
+	var i interface{}
+	if err := y.Decode(&i); err != nil {
+		return errors.WithStack(err)
+	}
+
+	switch t := i.(type) {
+	case int64:
+		*d = ReadableDuration(time.Duration(t))
+	case string:
+		j, err := time.ParseDuration(t)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
+		}
+
+		*d = ReadableDuration(j)
+	default:
+		return errors.Errorf("unknown duration format, %v", i)
+	}
+
+	return nil
 }
