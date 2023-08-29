@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -14,11 +15,11 @@ import (
 )
 
 type baseNetworkClientRWDesignCommand struct { //nolint:govet //...
-	KeyString string `arg:"" name:"privatekey" help:"privatekey string"`
-	Key       string `arg:"" name:"key" help:"design key"`
 	BaseNetworkClientCommand
-	Format string `name:"format" help:"output format, {json, yaml}" default:"yaml"`
-	priv   base.Privatekey
+	Privatekey string `arg:"" name:"privatekey" help:"privatekey string"`
+	Key        string `arg:"" name:"key" help:"design key"`
+	Format     string `name:"format" help:"output format, {json, yaml}" default:"yaml"`
+	priv       base.Privatekey
 }
 
 func (cmd *baseNetworkClientRWDesignCommand) Prepare(pctx context.Context) error {
@@ -36,7 +37,7 @@ func (cmd *baseNetworkClientRWDesignCommand) Prepare(pctx context.Context) error
 		return errors.Errorf("unsupported format, %q", cmd.Format)
 	}
 
-	switch key, err := launch.DecodePrivatekey(cmd.KeyString, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.Encoder); {
 	case err != nil:
 		return err
 	default:
@@ -111,7 +112,7 @@ func (cmd *NetworkClientReadDesignCommand) Run(pctx context.Context) error {
 
 type NetworkClientWriteDesignCommand struct { //nolint:govet //...
 	baseNetworkClientRWDesignCommand
-	Value string `name:"value" help:"design value"`
+	Value string `arg:"" name:"value" help:"design value" default:""`
 }
 
 func (cmd *NetworkClientWriteDesignCommand) Run(pctx context.Context) error {
@@ -130,12 +131,17 @@ func (cmd *NetworkClientWriteDesignCommand) Run(pctx context.Context) error {
 			return errors.WithStack(err)
 		}
 
-		value = string(i)
+		value = strings.TrimRight(string(i), "\n")
 	}
 
 	if len(value) < 1 {
 		return errors.Errorf("empty value")
 	}
+
+	cmd.Log.Debug().
+		Str("key", cmd.Key).
+		Str("value", value).
+		Msg("flags")
 
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
 	defer cancel()

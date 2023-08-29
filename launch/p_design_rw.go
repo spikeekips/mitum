@@ -13,6 +13,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
@@ -46,23 +47,24 @@ func PNetworkHandlersReadWriteDesign(pctx context.Context) (context.Context, err
 	var design NodeDesign
 	var params *LocalParams
 	var local base.LocalNode
-	var enc *jsonenc.Encoder
-	var discoveries *util.Locked[[]quicstream.ConnInfo]
-	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 		LocalContextKey, &local,
-		EncoderContextKey, &enc,
-		DiscoveryContextKey, &discoveries,
-		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return nil, err
 	}
 
-	rf := readDesign(params, discoveries, syncSourceChecker)
-	wf := writeDesign(enc, design, params, discoveries, syncSourceChecker)
+	rf, err := readDesign(pctx)
+	if err != nil {
+		return pctx, err
+	}
+
+	wf, err := writeDesign(pctx)
+	if err != nil {
+		return pctx, err
+	}
 
 	var gerror error
 
@@ -90,19 +92,36 @@ func writeDesignKey(f writeDesignNextValueFunc) writeDesignValueFunc {
 	}
 }
 
-func writeDesign(
-	enc *jsonenc.Encoder,
-	design NodeDesign,
-	params *LocalParams,
-	discoveries *util.Locked[[]quicstream.ConnInfo],
-	syncSourceChecker *isaacnetwork.SyncSourceChecker,
-) writeDesignValueFunc {
+func writeDesign(pctx context.Context) (writeDesignValueFunc, error) {
+	var enc *jsonenc.Encoder
+	var design NodeDesign
+	var params *LocalParams
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+
+	if err := util.LoadFromContextOK(pctx,
+		EncoderContextKey, &enc,
+		DesignContextKey, &design,
+		LocalParamsContextKey, &params,
+		DiscoveryContextKey, &discoveries,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
+	); err != nil {
+		return nil, err
+	}
+
+	fNode, err := writeNode(pctx)
+	if err != nil {
+		return nil, err
+	}
+
 	fLocalparams := writeLocalParam(params)
 	fDiscoveries := writeDiscoveries(discoveries)
 	fSyncSources := writeSyncSources(enc, design, syncSourceChecker)
 
 	return writeDesignKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
+		case "node":
+			return fNode(nextkey, value)
 		case "parameters":
 			return fLocalparams(nextkey, value)
 		case "discoveries":
@@ -112,7 +131,23 @@ func writeDesign(
 		default:
 			return nil, nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
-	})
+	}), nil
+}
+
+func writeNode(pctx context.Context) (writeDesignValueFunc, error) {
+	fAllowConsensus, err := writeAllowConsensus(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return writeDesignKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
+		switch key {
+		case "allow_consensus":
+			return fAllowConsensus(nextkey, value)
+		default:
+			return nil, nil, util.ErrNotFound.Errorf("unknown key, %q for node", key)
+		}
+	}), nil
 }
 
 func writeLocalParam(
@@ -523,6 +558,31 @@ func writeLocalParamNetworkRateLimit(
 	})
 }
 
+func writeAllowConsensus(pctx context.Context) (writeDesignValueFunc, error) {
+	var states *isaacstates.States
+
+	if err := util.LoadFromContext(pctx,
+		StatesContextKey, &states,
+	); err != nil {
+		return nil, err
+	}
+
+	return func(key, value string) (prev, next interface{}, _ error) {
+		var allow bool
+		if err := yaml.Unmarshal([]byte(value), &allow); err != nil {
+			return nil, nil, errors.WithStack(err)
+		}
+
+		prev = states.AllowedConsensus()
+
+		if states.SetAllowConsensus(allow) {
+			next = allow
+		}
+
+		return prev, next, nil
+	}, nil
+}
+
 func unmarshalRateLimitRule(rule, value string) (interface{}, error) {
 	var u interface{}
 	if err := yaml.Unmarshal([]byte(value), &u); err != nil {
@@ -775,14 +835,31 @@ func readDesignKey(f readDesignNextValueFunc) readDesignValueFunc {
 }
 
 func readDesign(
-	params *LocalParams,
-	discoveries *util.Locked[[]quicstream.ConnInfo],
-	syncSourceChecker *isaacnetwork.SyncSourceChecker,
-) readDesignValueFunc {
+	pctx context.Context,
+) (readDesignValueFunc, error) {
+	var params *LocalParams
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		DiscoveryContextKey, &discoveries,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
+	); err != nil {
+		return nil, err
+	}
+
+	fNode, err := readNode(pctx)
+	if err != nil {
+		return nil, err
+	}
+
 	fLocalparams := readLocalParams(params)
 
 	return readDesignKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
+		case "node":
+			return fNode(nextkey)
 		case "parameters":
 			return fLocalparams(nextkey)
 		case "discoveries":
@@ -792,7 +869,23 @@ func readDesign(
 		default:
 			return nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
-	})
+	}), nil
+}
+
+func readNode(pctx context.Context) (readDesignValueFunc, error) {
+	fAllowConsensus, err := readAllowConsensus(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+		switch key {
+		case "allow_consensus":
+			return fAllowConsensus(nextkey)
+		default:
+			return nil, util.ErrNotFound.Errorf("unknown key, %q for node", key)
+		}
+	}), nil
 }
 
 func readLocalParams(params *LocalParams) readDesignValueFunc {
@@ -894,6 +987,20 @@ func readLocalParamNetworkRateLimit(params *NetworkRateLimitParams) readDesignVa
 
 		return v, nil
 	})
+}
+
+func readAllowConsensus(pctx context.Context) (readDesignValueFunc, error) {
+	var states *isaacstates.States
+
+	if err := util.LoadFromContext(pctx,
+		StatesContextKey, &states,
+	); err != nil {
+		return nil, err
+	}
+
+	return func(string) (interface{}, error) {
+		return states.AllowedConsensus(), nil
+	}, nil
 }
 
 func handlerDesignRead(
