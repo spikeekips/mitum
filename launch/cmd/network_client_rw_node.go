@@ -19,6 +19,7 @@ type baseNetworkClientRWNodeCommand struct { //nolint:govet //...
 	Privatekey string `arg:"" name:"privatekey" help:"privatekey string"`
 	Key        string `arg:"" name:"key" help:"key"`
 	Format     string `name:"format" help:"output format, {json, yaml}" default:"yaml"`
+	Keys       bool   `name:"keys" help:"all available keys"`
 	priv       base.Privatekey
 }
 
@@ -91,11 +92,23 @@ func (cmd *baseNetworkClientRWNodeCommand) printValue(
 	return nil
 }
 
+func (*baseNetworkClientRWNodeCommand) printKeys() {
+	for i := range launch.AllNodeRWKeys {
+		_, _ = fmt.Fprintln(os.Stdout, launch.AllNodeRWKeys[i])
+	}
+}
+
 type NetworkClientReadNodeCommand struct { //nolint:govet //...
 	baseNetworkClientRWNodeCommand
 }
 
 func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
+	if cmd.Keys {
+		cmd.printKeys()
+
+		return nil
+	}
+
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
@@ -116,6 +129,12 @@ type NetworkClientWriteNodeCommand struct { //nolint:govet //...
 }
 
 func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
+	if cmd.Keys {
+		cmd.printKeys()
+
+		return nil
+	}
+
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
