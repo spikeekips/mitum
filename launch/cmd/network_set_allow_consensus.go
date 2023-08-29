@@ -10,6 +10,6 @@ type NetworkClientSetAllowConsensusCommand struct{} // FIXME remove next update(
 
 func (*NetworkClientSetAllowConsensusCommand) Run(context.Context) error {
 	//revive:disable:line-length-limit
-	return errors.Errorf("deprecated; use `network client node write [...] states.allow_consensus {true false}`")
+	return errors.Errorf("obsolete; use `network client node write [...] states.allow_consensus {true false}`")
 	//revive:enable:line-length-limit
 }
