@@ -14,15 +14,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type baseNetworkClientRWDesignCommand struct { //nolint:govet //...
+type baseNetworkClientRWNodeCommand struct { //nolint:govet //...
 	BaseNetworkClientCommand
 	Privatekey string `arg:"" name:"privatekey" help:"privatekey string"`
-	Key        string `arg:"" name:"key" help:"design key"`
+	Key        string `arg:"" name:"key" help:"key"`
 	Format     string `name:"format" help:"output format, {json, yaml}" default:"yaml"`
 	priv       base.Privatekey
 }
 
-func (cmd *baseNetworkClientRWDesignCommand) Prepare(pctx context.Context) error {
+func (cmd *baseNetworkClientRWNodeCommand) Prepare(pctx context.Context) error {
 	if err := cmd.BaseNetworkClientCommand.Prepare(pctx); err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (cmd *baseNetworkClientRWDesignCommand) Prepare(pctx context.Context) error
 	return nil
 }
 
-func (cmd *baseNetworkClientRWDesignCommand) printDesignValue(
+func (cmd *baseNetworkClientRWNodeCommand) printValue(
 	ctx context.Context,
 ) error {
 	stream, _, err := cmd.Client.Dial(ctx, cmd.Remote.ConnInfo())
@@ -55,7 +55,7 @@ func (cmd *baseNetworkClientRWDesignCommand) printDesignValue(
 		return err
 	}
 
-	switch i, found, err := launch.ReadDesignFromNetworkHandler(
+	switch i, found, err := launch.ReadNodeFromNetworkHandler(
 		ctx,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
@@ -91,11 +91,11 @@ func (cmd *baseNetworkClientRWDesignCommand) printDesignValue(
 	return nil
 }
 
-type NetworkClientReadDesignCommand struct { //nolint:govet //...
-	baseNetworkClientRWDesignCommand
+type NetworkClientReadNodeCommand struct { //nolint:govet //...
+	baseNetworkClientRWNodeCommand
 }
 
-func (cmd *NetworkClientReadDesignCommand) Run(pctx context.Context) error {
+func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
@@ -107,15 +107,15 @@ func (cmd *NetworkClientReadDesignCommand) Run(pctx context.Context) error {
 		_ = cmd.Client.Close()
 	}()
 
-	return cmd.printDesignValue(ctx)
+	return cmd.printValue(ctx)
 }
 
-type NetworkClientWriteDesignCommand struct { //nolint:govet //...
-	baseNetworkClientRWDesignCommand
-	Value string `arg:"" name:"value" help:"design value" default:""`
+type NetworkClientWriteNodeCommand struct { //nolint:govet //...
+	baseNetworkClientRWNodeCommand
+	Value string `arg:"" name:"value" help:"value" default:""`
 }
 
-func (cmd *NetworkClientWriteDesignCommand) Run(pctx context.Context) error {
+func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (cmd *NetworkClientWriteDesignCommand) Run(pctx context.Context) error {
 		_ = cmd.Client.Close()
 	}()
 
-	switch found, err := launch.WriteDesignFromNetworkHandler(
+	switch found, err := launch.WriteNodeFromNetworkHandler(
 		ctx,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
@@ -169,5 +169,5 @@ func (cmd *NetworkClientWriteDesignCommand) Run(pctx context.Context) error {
 		return util.ErrNotFound.Errorf("unknown key, %q", cmd.Key)
 	}
 
-	return cmd.printDesignValue(ctx)
+	return cmd.printValue(ctx)
 }

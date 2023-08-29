@@ -804,6 +804,6 @@ var networkHandlerPrefixes = []string{
 	isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
 	HandlerPrefixMemberlistCallbackBroadcastMessageString,
 	HandlerPrefixMemberlistEnsureBroadcastMessageString,
-	HandlerPrefixDesignReadString,
-	HandlerPrefixDesignWriteString,
+	HandlerPrefixNodeReadString,
+	HandlerPrefixNodeWriteString,
 }

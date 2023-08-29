@@ -122,8 +122,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
 	{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}},
 
-	{Hint: ReadDesignHeaderHint, Instance: ReadDesignHeader{}},
-	{Hint: WriteDesignHeaderHint, Instance: WriteDesignHeader{}},
+	{Hint: ReadNodeHeaderHint, Instance: ReadNodeHeader{}},
+	{Hint: WriteNodeHeaderHint, Instance: WriteNodeHeader{}},
 	// revive:enable:line-length-limit
 }
 

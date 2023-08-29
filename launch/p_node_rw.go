@@ -25,25 +25,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var PNameNetworkHandlersReadWriteDesign = ps.Name("design-network-handler")
+var PNameNetworkHandlersReadWriteNode = ps.Name("node-network-handler")
 
 var (
-	ReadDesignHeaderHint           = hint.MustNewHint("read-design-header-v0.0.1")
-	WriteDesignHeaderHint          = hint.MustNewHint("write-design-header-v0.0.1")
-	HandlerPrefixDesignReadString  = "design_read"
-	HandlerPrefixDesignWriteString = "design_write"
-	HandlerPrefixDesignRead        = quicstream.HashPrefix(HandlerPrefixDesignReadString)
-	HandlerPrefixDesignWrite       = quicstream.HashPrefix(HandlerPrefixDesignWriteString)
+	ReadNodeHeaderHint           = hint.MustNewHint("read-node-header-v0.0.1")
+	WriteNodeHeaderHint          = hint.MustNewHint("write-node-header-v0.0.1")
+	HandlerPrefixNodeReadString  = "node_read"
+	HandlerPrefixNodeWriteString = "node_write"
+	HandlerPrefixNodeRead        = quicstream.HashPrefix(HandlerPrefixNodeReadString)
+	HandlerPrefixNodeWrite       = quicstream.HashPrefix(HandlerPrefixNodeWriteString)
 )
 
 type (
-	writeDesignValueFunc     func(key, value string) (prev, next interface{}, _ error)
-	writeDesignNextValueFunc func(key, nextkey, value string) (prev, next interface{}, _ error)
-	readDesignValueFunc      func(key string) (interface{}, error)
-	readDesignNextValueFunc  func(key, nextkey string) (interface{}, error)
+	writeNodeValueFunc     func(key, value string) (prev, next interface{}, _ error)
+	writeNodeNextValueFunc func(key, nextkey, value string) (prev, next interface{}, _ error)
+	readNodeValueFunc      func(key string) (interface{}, error)
+	readNodeNextValueFunc  func(key, nextkey string) (interface{}, error)
 )
 
-func PNetworkHandlersReadWriteDesign(pctx context.Context) (context.Context, error) {
+func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params *LocalParams
 	var local base.LocalNode
@@ -56,12 +56,12 @@ func PNetworkHandlersReadWriteDesign(pctx context.Context) (context.Context, err
 		return nil, err
 	}
 
-	rf, err := readDesign(pctx)
+	rf, err := readNode(pctx)
 	if err != nil {
 		return pctx, err
 	}
 
-	wf, err := writeDesign(pctx)
+	wf, err := writeNode(pctx)
 	if err != nil {
 		return pctx, err
 	}
@@ -69,17 +69,17 @@ func PNetworkHandlersReadWriteDesign(pctx context.Context) (context.Context, err
 	var gerror error
 
 	ensureHandlerAdd(pctx, &gerror,
-		HandlerPrefixDesignReadString,
-		handlerDesignRead(local.Publickey(), params.ISAAC.NetworkID(), rf), nil)
+		HandlerPrefixNodeReadString,
+		handlerNodeRead(local.Publickey(), params.ISAAC.NetworkID(), rf), nil)
 
 	ensureHandlerAdd(pctx, &gerror,
-		HandlerPrefixDesignWriteString,
-		handlerDesignWrite(local.Publickey(), params.ISAAC.NetworkID(), wf), nil)
+		HandlerPrefixNodeWriteString,
+		handlerNodeWrite(local.Publickey(), params.ISAAC.NetworkID(), wf), nil)
 
 	return pctx, gerror
 }
 
-func writeDesignKey(f writeDesignNextValueFunc) writeDesignValueFunc {
+func writeNodeKey(f writeNodeNextValueFunc) writeNodeValueFunc {
 	return func(key, value string) (interface{}, interface{}, error) {
 		i := strings.SplitN(strings.TrimPrefix(key, "/"), "/", 2)
 
@@ -92,7 +92,7 @@ func writeDesignKey(f writeDesignNextValueFunc) writeDesignValueFunc {
 	}
 }
 
-func writeDesign(pctx context.Context) (writeDesignValueFunc, error) {
+func writeNode(pctx context.Context) (writeNodeValueFunc, error) {
 	var enc *jsonenc.Encoder
 	var design NodeDesign
 	var params *LocalParams
@@ -109,7 +109,7 @@ func writeDesign(pctx context.Context) (writeDesignValueFunc, error) {
 		return nil, err
 	}
 
-	fNode, err := writeNode(pctx)
+	fNode, err := writeStates(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func writeDesign(pctx context.Context) (writeDesignValueFunc, error) {
 	fDiscoveries := writeDiscoveries(discoveries)
 	fSyncSources := writeSyncSources(enc, design, syncSourceChecker)
 
-	return writeDesignKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
+	return writeNodeKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
 		case "node":
 			return fNode(nextkey, value)
@@ -134,13 +134,13 @@ func writeDesign(pctx context.Context) (writeDesignValueFunc, error) {
 	}), nil
 }
 
-func writeNode(pctx context.Context) (writeDesignValueFunc, error) {
+func writeStates(pctx context.Context) (writeNodeValueFunc, error) {
 	fAllowConsensus, err := writeAllowConsensus(pctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return writeDesignKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
+	return writeNodeKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
 		case "allow_consensus":
 			return fAllowConsensus(nextkey, value)
@@ -152,13 +152,13 @@ func writeNode(pctx context.Context) (writeDesignValueFunc, error) {
 
 func writeLocalParam(
 	params *LocalParams,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	fISAAC := writeLocalParamISAAC(params.ISAAC)
 	fMisc := writeLocalParamMISC(params.MISC)
 	fMemberlist := writeLocalParamMemberlist(params.Memberlist)
 	fnetwork := writeLocalParamNetwork(params.Network)
 
-	return writeDesignKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
+	return writeNodeKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
 		case "isaac":
 			return fISAAC(nextkey, value)
@@ -176,13 +176,13 @@ func writeLocalParam(
 
 func writeLocalParamISAAC(
 	params *isaac.Params,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	fThreshold := writeLocalParamISAACThreshold(params)
 	fIntervalBroadcastBallot := writeLocalParamISAACIntervalBroadcastBallot(params)
 	fWaitPreparingINITBallot := writeLocalParamISAACWaitPreparingINITBallot(params)
 	fMaxTryHandoverYBrokerSyncData := writeLocalParamISAACMaxTryHandoverYBrokerSyncData(params)
 
-	return writeDesignKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
+	return writeNodeKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
 		switch key {
 		case "threshold":
 			return fThreshold(nextkey, value)
@@ -200,8 +200,8 @@ func writeLocalParamISAAC(
 
 func writeLocalParamISAACThreshold(
 	params *isaac.Params,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
 		var s string
 		if err := yaml.Unmarshal([]byte(value), &s); err != nil {
 			return nil, nil, errors.WithStack(err)
@@ -224,9 +224,9 @@ func writeLocalParamISAACThreshold(
 
 func writeLocalParamISAACIntervalBroadcastBallot(
 	params *isaac.Params,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -243,9 +243,9 @@ func writeLocalParamISAACIntervalBroadcastBallot(
 
 func writeLocalParamISAACWaitPreparingINITBallot(
 	params *isaac.Params,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -262,8 +262,8 @@ func writeLocalParamISAACWaitPreparingINITBallot(
 
 func writeLocalParamISAACMaxTryHandoverYBrokerSyncData(
 	params *isaac.Params,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
 		d, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
@@ -281,13 +281,13 @@ func writeLocalParamISAACMaxTryHandoverYBrokerSyncData(
 
 func writeLocalParamMISC(
 	params *MISCParams,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	fSyncSourceCheckerInterval := writeLocalParamMISCSyncSourceCheckerInterval(params)
 	fValidProposalOperationExpire := writeLocalParamMISCValidProposalOperationExpire(params)
 	fValidProposalSuffrageOperationsExpire := writeLocalParamMISCValidProposalSuffrageOperationsExpire(params)
 	fMaxMessageSize := writeLocalParamMISCMaxMessageSize(params)
 
-	return writeDesignKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
+	return writeNodeKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
 		switch key {
 		case "sync_source_checker_interval":
 			return fSyncSourceCheckerInterval(nextkey, value)
@@ -305,9 +305,9 @@ func writeLocalParamMISC(
 
 func writeLocalParamMISCSyncSourceCheckerInterval(
 	params *MISCParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -324,9 +324,9 @@ func writeLocalParamMISCSyncSourceCheckerInterval(
 
 func writeLocalParamMISCValidProposalOperationExpire(
 	params *MISCParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -343,9 +343,9 @@ func writeLocalParamMISCValidProposalOperationExpire(
 
 func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 	params *MISCParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -362,8 +362,8 @@ func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 
 func writeLocalParamMISCMaxMessageSize(
 	params *MISCParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
 		i, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
@@ -381,10 +381,10 @@ func writeLocalParamMISCMaxMessageSize(
 
 func writeLocalParamMemberlist(
 	params *MemberlistParams,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	fExtraSameMemberLimit := writeLocalParamExtraSameMemberLimit(params)
 
-	return writeDesignKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
+	return writeNodeKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
 		switch key {
 		case "extra_same_member_limit":
 			return fExtraSameMemberLimit(nextkey, value)
@@ -396,8 +396,8 @@ func writeLocalParamMemberlist(
 
 func writeLocalParamExtraSameMemberLimit(
 	params *MemberlistParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
 		i, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return nil, nil, errors.WithStack(err)
@@ -415,11 +415,11 @@ func writeLocalParamExtraSameMemberLimit(
 
 func writeLocalParamNetwork(
 	params *NetworkParams,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	fTimeoutRequest := writeLocalParamNetworkTimeoutRequest(params)
 	fRateLimit := writeLocalParamNetworkRateLimit(params.RateLimit())
 
-	return writeDesignKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
+	return writeNodeKey(func(key, nextkey, value string) (prev, next interface{}, _ error) {
 		switch key {
 		case "timeout_request":
 			return fTimeoutRequest(nextkey, value)
@@ -433,9 +433,9 @@ func writeLocalParamNetwork(
 
 func writeLocalParamNetworkTimeoutRequest(
 	params *NetworkParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(_, _, value string) (prev, next interface{}, _ error) {
-		d, err := parseDesignValueDuration(value)
+) writeNodeValueFunc {
+	return writeNodeKey(func(_, _, value string) (prev, next interface{}, _ error) {
+		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -454,7 +454,7 @@ func writeSyncSources(
 	enc *jsonenc.Encoder,
 	design NodeDesign,
 	syncSourceChecker *isaacnetwork.SyncSourceChecker,
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	return func(_, value string) (prev, next interface{}, _ error) {
 		e := util.StringError("update sync source")
 
@@ -483,7 +483,7 @@ func writeSyncSources(
 
 func writeDiscoveries(
 	discoveries *util.Locked[[]quicstream.ConnInfo],
-) writeDesignValueFunc {
+) writeNodeValueFunc {
 	return func(_, value string) (prev, next interface{}, _ error) {
 		e := util.StringError("update discoveries")
 
@@ -519,8 +519,8 @@ func writeDiscoveries(
 
 func writeLocalParamNetworkRateLimit(
 	params *NetworkRateLimitParams,
-) writeDesignValueFunc {
-	return writeDesignKey(func(key, nextkey, value string) (prev, next interface{}, err error) {
+) writeNodeValueFunc {
+	return writeNodeKey(func(key, nextkey, value string) (prev, next interface{}, err error) {
 		switch key {
 		case "node":
 			prev = params.NodeRuleSet()
@@ -558,7 +558,7 @@ func writeLocalParamNetworkRateLimit(
 	})
 }
 
-func writeAllowConsensus(pctx context.Context) (writeDesignValueFunc, error) {
+func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
@@ -622,13 +622,13 @@ func unmarshalRateLimitRule(rule, value string) (interface{}, error) {
 	}
 }
 
-func handlerDesignWrite(
+func handlerNodeWrite(
 	pub base.Publickey,
 	networkID base.NetworkID,
-	f writeDesignValueFunc,
-) quicstreamheader.Handler[WriteDesignHeader] {
+	f writeNodeValueFunc,
+) quicstreamheader.Handler[WriteNodeHeader] {
 	handler := func(ctx context.Context, addr net.Addr,
-		broker *quicstreamheader.HandlerBroker, header WriteDesignHeader,
+		broker *quicstreamheader.HandlerBroker, header WriteNodeHeader,
 	) (sentresponse bool, _ error) {
 		if err := isaacnetwork.QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
@@ -671,9 +671,9 @@ func handlerDesignWrite(
 	}
 
 	return func(ctx context.Context, addr net.Addr,
-		broker *quicstreamheader.HandlerBroker, header WriteDesignHeader,
+		broker *quicstreamheader.HandlerBroker, header WriteNodeHeader,
 	) (context.Context, error) {
-		e := util.StringError("write design")
+		e := util.StringError("write node")
 
 		switch sentresponse, err := handler(ctx, addr, broker, header); {
 		case err != nil:
@@ -688,7 +688,7 @@ func handlerDesignWrite(
 	}
 }
 
-func WriteDesignFromNetworkHandler(
+func WriteNodeFromNetworkHandler(
 	ctx context.Context,
 	priv base.Privatekey,
 	networkID base.NetworkID,
@@ -696,7 +696,7 @@ func WriteDesignFromNetworkHandler(
 	value string,
 	stream quicstreamheader.StreamFunc,
 ) (found bool, _ error) {
-	header := NewWriteDesignHeader(key)
+	header := NewWriteNodeHeader(key)
 	if err := header.IsValid(nil); err != nil {
 		return false, err
 	}
@@ -743,20 +743,20 @@ func WriteDesignFromNetworkHandler(
 	return found, err
 }
 
-func ReadDesignFromNetworkHandler(
+func ReadNodeFromNetworkHandler(
 	ctx context.Context,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	key string,
 	stream quicstreamheader.StreamFunc,
 ) (t interface{}, found bool, _ error) {
-	header := NewReadDesignHeader(key)
+	header := NewReadNodeHeader(key)
 	if err := header.IsValid(nil); err != nil {
 		return t, false, err
 	}
 
 	err := stream(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		switch b, i, err := readDesignFromNetworkHandler(ctx, priv, networkID, broker, header); {
+		switch b, i, err := readNodeFromNetworkHandler(ctx, priv, networkID, broker, header); {
 		case err != nil:
 			return err
 		case !i:
@@ -775,12 +775,12 @@ func ReadDesignFromNetworkHandler(
 	return t, found, err
 }
 
-func readDesignFromNetworkHandler(
+func readNodeFromNetworkHandler(
 	ctx context.Context,
 	priv base.Privatekey,
 	networkID base.NetworkID,
 	broker *quicstreamheader.ClientBroker,
-	header ReadDesignHeader,
+	header ReadNodeHeader,
 ) ([]byte, bool, error) {
 	if err := broker.WriteRequestHead(ctx, header); err != nil {
 		return nil, false, err
@@ -821,7 +821,7 @@ func readDesignFromNetworkHandler(
 	return b, true, errors.WithStack(err)
 }
 
-func readDesignKey(f readDesignNextValueFunc) readDesignValueFunc {
+func readNodeKey(f readNodeNextValueFunc) readNodeValueFunc {
 	return func(key string) (interface{}, error) {
 		i := strings.SplitN(strings.TrimPrefix(key, "/"), "/", 2)
 
@@ -834,9 +834,9 @@ func readDesignKey(f readDesignNextValueFunc) readDesignValueFunc {
 	}
 }
 
-func readDesign(
+func readNode(
 	pctx context.Context,
-) (readDesignValueFunc, error) {
+) (readNodeValueFunc, error) {
 	var params *LocalParams
 	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
@@ -849,14 +849,14 @@ func readDesign(
 		return nil, err
 	}
 
-	fNode, err := readNode(pctx)
+	fNode, err := readStates(pctx)
 	if err != nil {
 		return nil, err
 	}
 
 	fLocalparams := readLocalParams(params)
 
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "node":
 			return fNode(nextkey)
@@ -872,13 +872,13 @@ func readDesign(
 	}), nil
 }
 
-func readNode(pctx context.Context) (readDesignValueFunc, error) {
+func readStates(pctx context.Context) (readNodeValueFunc, error) {
 	fAllowConsensus, err := readAllowConsensus(pctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "allow_consensus":
 			return fAllowConsensus(nextkey)
@@ -888,13 +888,13 @@ func readNode(pctx context.Context) (readDesignValueFunc, error) {
 	}), nil
 }
 
-func readLocalParams(params *LocalParams) readDesignValueFunc {
+func readLocalParams(params *LocalParams) readNodeValueFunc {
 	fisaac := readLocalParamISAAC(params.ISAAC)
 	fmisc := readLocalParamMISC(params.MISC)
 	fmemberlist := readLocalParamMemberlist(params.Memberlist)
 	fnetwork := readLocalParamNetwork(params.Network)
 
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "isaac":
 			return fisaac(nextkey)
@@ -910,8 +910,8 @@ func readLocalParams(params *LocalParams) readDesignValueFunc {
 	})
 }
 
-func readLocalParamISAAC(params *isaac.Params) readDesignValueFunc {
-	return readDesignKey(func(key, _ string) (interface{}, error) {
+func readLocalParamISAAC(params *isaac.Params) readNodeValueFunc {
+	return readNodeKey(func(key, _ string) (interface{}, error) {
 		switch key {
 		case "threshold":
 			return params.Threshold(), nil
@@ -927,8 +927,8 @@ func readLocalParamISAAC(params *isaac.Params) readDesignValueFunc {
 	})
 }
 
-func readLocalParamMISC(params *MISCParams) readDesignValueFunc {
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+func readLocalParamMISC(params *MISCParams) readNodeValueFunc {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "sync_source_checker_interval":
 			return util.ReadableDuration(params.SyncSourceCheckerInterval()), nil
@@ -944,8 +944,8 @@ func readLocalParamMISC(params *MISCParams) readDesignValueFunc {
 	})
 }
 
-func readLocalParamMemberlist(params *MemberlistParams) readDesignValueFunc {
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+func readLocalParamMemberlist(params *MemberlistParams) readNodeValueFunc {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "extra_same_member_limit":
 			return params.ExtraSameMemberLimit(), nil
@@ -955,10 +955,10 @@ func readLocalParamMemberlist(params *MemberlistParams) readDesignValueFunc {
 	})
 }
 
-func readLocalParamNetwork(params *NetworkParams) readDesignValueFunc {
+func readLocalParamNetwork(params *NetworkParams) readNodeValueFunc {
 	fratelimit := readLocalParamNetworkRateLimit(params.RateLimit())
 
-	return readDesignKey(func(key, nextkey string) (interface{}, error) {
+	return readNodeKey(func(key, nextkey string) (interface{}, error) {
 		switch key {
 		case "timeout_request":
 			return util.ReadableDuration(params.TimeoutRequest()), nil
@@ -970,8 +970,8 @@ func readLocalParamNetwork(params *NetworkParams) readDesignValueFunc {
 	})
 }
 
-func readLocalParamNetworkRateLimit(params *NetworkRateLimitParams) readDesignValueFunc {
-	return readDesignKey(func(key, nextkey string) (v interface{}, _ error) {
+func readLocalParamNetworkRateLimit(params *NetworkRateLimitParams) readNodeValueFunc {
+	return readNodeKey(func(key, nextkey string) (v interface{}, _ error) {
 		switch key {
 		case "node":
 			v = params.NodeRuleSet()
@@ -989,7 +989,7 @@ func readLocalParamNetworkRateLimit(params *NetworkRateLimitParams) readDesignVa
 	})
 }
 
-func readAllowConsensus(pctx context.Context) (readDesignValueFunc, error) {
+func readAllowConsensus(pctx context.Context) (readNodeValueFunc, error) {
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
@@ -1003,15 +1003,15 @@ func readAllowConsensus(pctx context.Context) (readDesignValueFunc, error) {
 	}, nil
 }
 
-func handlerDesignRead(
+func handlerNodeRead(
 	pub base.Publickey,
 	networkID base.NetworkID,
-	f readDesignValueFunc,
-) quicstreamheader.Handler[ReadDesignHeader] {
+	f readNodeValueFunc,
+) quicstreamheader.Handler[ReadNodeHeader] {
 	var sg singleflight.Group
 
 	handler := func(ctx context.Context, addr net.Addr,
-		broker *quicstreamheader.HandlerBroker, header ReadDesignHeader,
+		broker *quicstreamheader.HandlerBroker, header ReadNodeHeader,
 	) (sentresponse bool, _ error) {
 		i, err, _ := util.SingleflightDo[[]byte](&sg, header.Key, func() ([]byte, error) {
 			if err := isaacnetwork.QuicstreamHandlerVerifyNode(
@@ -1043,9 +1043,9 @@ func handlerDesignRead(
 	}
 
 	return func(ctx context.Context, addr net.Addr,
-		broker *quicstreamheader.HandlerBroker, header ReadDesignHeader,
+		broker *quicstreamheader.HandlerBroker, header ReadNodeHeader,
 	) (context.Context, error) {
-		e := util.StringError("read design")
+		e := util.StringError("read node")
 
 		switch sentresponse, err := handler(ctx, addr, broker, header); {
 		case errors.Is(err, util.ErrNotFound):
@@ -1062,13 +1062,13 @@ func handlerDesignRead(
 	}
 }
 
-type rwDesignHeader struct {
+type rwNodeHeader struct {
 	Key string
 	isaacnetwork.BaseHeader
 }
 
-func (h rwDesignHeader) IsValid(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid rwDesignHeader")
+func (h rwNodeHeader) IsValid(b []byte) error {
+	e := util.ErrInvalid.Errorf("invalid rwNodeHeader")
 
 	if err := h.BaseHinter.IsValid(b); err != nil {
 		return e.Wrap(err)
@@ -1081,30 +1081,30 @@ func (h rwDesignHeader) IsValid(b []byte) error {
 	return nil
 }
 
-type rwDesignHeaderJSONMarshaler struct {
+type rwNodeHeaderJSONMarshaler struct {
 	Key string `json:"key"`
 }
 
-func (h rwDesignHeader) MarshalJSON() ([]byte, error) {
+func (h rwNodeHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		rwDesignHeaderJSONMarshaler
+		rwNodeHeaderJSONMarshaler
 		isaacnetwork.BaseHeaderJSONMarshaler
 	}{
 		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		rwDesignHeaderJSONMarshaler: rwDesignHeaderJSONMarshaler{
+		rwNodeHeaderJSONMarshaler: rwNodeHeaderJSONMarshaler{
 			Key: h.Key,
 		},
 	})
 }
 
-func (h *rwDesignHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringError("unmarshal rwDesignHeader")
+func (h *rwNodeHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringError("unmarshal rwNodeHeader")
 
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return e.Wrap(err)
 	}
 
-	var u rwDesignHeaderJSONMarshaler
+	var u rwNodeHeaderJSONMarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)
 	}
@@ -1114,57 +1114,57 @@ func (h *rwDesignHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type WriteDesignHeader struct {
-	rwDesignHeader
+type WriteNodeHeader struct {
+	rwNodeHeader
 }
 
-func NewWriteDesignHeader(key string) WriteDesignHeader {
-	h := WriteDesignHeader{}
+func NewWriteNodeHeader(key string) WriteNodeHeader {
+	h := WriteNodeHeader{}
 
 	h.BaseHeader = isaacnetwork.BaseHeader{
-		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(WriteDesignHeaderHint, HandlerPrefixDesignWrite),
+		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(WriteNodeHeaderHint, HandlerPrefixNodeWrite),
 	}
 	h.Key = key
 
 	return h
 }
 
-func (h WriteDesignHeader) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid WriteDesignHeader")
+func (h WriteNodeHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid WriteNodeHeader")
 
-	if err := h.rwDesignHeader.IsValid(WriteDesignHeaderHint.Type().Bytes()); err != nil {
+	if err := h.rwNodeHeader.IsValid(WriteNodeHeaderHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-type ReadDesignHeader struct {
-	rwDesignHeader
+type ReadNodeHeader struct {
+	rwNodeHeader
 }
 
-func NewReadDesignHeader(key string) ReadDesignHeader {
-	h := ReadDesignHeader{}
+func NewReadNodeHeader(key string) ReadNodeHeader {
+	h := ReadNodeHeader{}
 
 	h.BaseHeader = isaacnetwork.BaseHeader{
-		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ReadDesignHeaderHint, HandlerPrefixDesignRead),
+		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ReadNodeHeaderHint, HandlerPrefixNodeRead),
 	}
 	h.Key = key
 
 	return h
 }
 
-func (h ReadDesignHeader) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid ReadDesignHeader")
+func (h ReadNodeHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid ReadNodeHeader")
 
-	if err := h.rwDesignHeader.IsValid(ReadDesignHeaderHint.Type().Bytes()); err != nil {
+	if err := h.rwNodeHeader.IsValid(ReadNodeHeaderHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-func parseDesignValueDuration(value string) (time.Duration, error) {
+func parseNodeValueDuration(value string) (time.Duration, error) {
 	var s string
 	if err := yaml.Unmarshal([]byte(value), &s); err != nil {
 		return 0, errors.WithStack(err)

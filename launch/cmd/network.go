@@ -28,10 +28,10 @@ type NetworkClientCommand struct { //nolint:govet //...
 	State             NetworkClientStateCommand             `cmd:"" name:"state" help:"get state"`
 	LastBlockMap      NetworkClientLastBlockMapCommand      `cmd:"" name:"last-blockmap" help:"get last blockmap"`
 	SetAllowConsensus NetworkClientSetAllowConsensusCommand `cmd:"" name:"set-allow-consensus" help:"set to enter consensus"`
-	Design            struct {
-		Read  NetworkClientReadDesignCommand  `cmd:"" name:"read" help:"read design value"`
-		Write NetworkClientWriteDesignCommand `cmd:"" name:"write" help:"write design value"`
-	} `cmd:"" name:"design" help:""`
+	Node              struct {
+		Read  NetworkClientReadNodeCommand  `cmd:"" name:"read" help:"read node value"`
+		Write NetworkClientWriteNodeCommand `cmd:"" name:"write" help:"write node value"`
+	} `cmd:"" name:"node" help:""`
 	//revive:enable:nested-structs
 	//revive:enable:line-length-limit
 }
