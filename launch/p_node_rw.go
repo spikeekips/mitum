@@ -49,8 +49,8 @@ var AllNodeRWKeys = []string{
 	"design.parameters.memberlist.extra_same_member_limit",
 	"design.parameters.network.timeout_request",
 	"design.parameters.network.ratelimit",
-	"design.discoveries",
 	"design.sync_sources",
+	"discovery",
 }
 
 type (
@@ -110,6 +110,14 @@ func writeNodeKey(f writeNodeNextValueFunc) writeNodeValueFunc {
 }
 
 func writeNode(pctx context.Context) (writeNodeValueFunc, error) {
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
+
+	if err := util.LoadFromContextOK(pctx,
+		DiscoveryContextKey, &discoveries,
+	); err != nil {
+		return nil, err
+	}
+
 	fStates, err := writeStates(pctx)
 	if err != nil {
 		return nil, err
@@ -120,12 +128,16 @@ func writeNode(pctx context.Context) (writeNodeValueFunc, error) {
 		return nil, err
 	}
 
+	fDiscoveries := writeDiscoveries(discoveries)
+
 	return writeNodeKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
 		case "states":
 			return fStates(nextkey, value)
 		case "design":
 			return fDesign(nextkey, value)
+		case "discovery":
+			return fDiscoveries(nextkey, value)
 		default:
 			return nil, nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -152,29 +164,24 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 	var enc *jsonenc.Encoder
 	var design NodeDesign
 	var params *LocalParams
-	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
-		DiscoveryContextKey, &discoveries,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return nil, err
 	}
 
 	fLocalparams := writeLocalParam(params)
-	fDiscoveries := writeDiscoveries(discoveries)
 	fSyncSources := writeSyncSources(enc, design, syncSourceChecker)
 
 	return writeNodeKey(func(key, nextkey, value string) (interface{}, interface{}, error) {
 		switch key {
 		case "parameters":
 			return fLocalparams(nextkey, value)
-		case "discoveries":
-			return fDiscoveries(nextkey, value)
 		case "sync_sources":
 			return fSyncSources(nextkey, value)
 		default:
@@ -870,6 +877,14 @@ func readNodeKey(f readNodeNextValueFunc) readNodeValueFunc {
 func readNode(
 	pctx context.Context,
 ) (readNodeValueFunc, error) {
+	var discoveries *util.Locked[[]quicstream.ConnInfo]
+
+	if err := util.LoadFromContextOK(pctx,
+		DiscoveryContextKey, &discoveries,
+	); err != nil {
+		return nil, err
+	}
+
 	fStates, err := readStates(pctx)
 	if err != nil {
 		return nil, err
@@ -886,6 +901,8 @@ func readNode(
 			return fStates(nextkey)
 		case "design":
 			return fDesign(nextkey)
+		case "discovery":
+			return GetDiscoveriesFromLocked(discoveries), nil
 		default:
 			return nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -910,12 +927,10 @@ func readStates(pctx context.Context) (readNodeValueFunc, error) {
 
 func readDesign(pctx context.Context) (readNodeValueFunc, error) {
 	var params *LocalParams
-	var discoveries *util.Locked[[]quicstream.ConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
-		DiscoveryContextKey, &discoveries,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return nil, err
@@ -927,8 +942,6 @@ func readDesign(pctx context.Context) (readNodeValueFunc, error) {
 		switch key {
 		case "parameters":
 			return fLocalparams(nextkey)
-		case "discoveries":
-			return GetDiscoveriesFromLocked(discoveries), nil
 		case "sync_sources":
 			return syncSourceChecker.Sources(), nil
 		default:
