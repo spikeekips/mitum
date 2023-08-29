@@ -12,7 +12,7 @@ import (
 
 type NetworkClientStateCommand struct { //nolint:govet //...
 	BaseNetworkClientCommand
-	Key  string `arg:"" name:"state key" help:"state key" default:""`
+	Key  string `arg:"" name:"state key" help:"state key"`
 	Hash string `arg:"" name:"state hash" help:"state hash" default:""`
 }
 

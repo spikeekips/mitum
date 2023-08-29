@@ -39,7 +39,7 @@ type NetworkClientCommand struct { //nolint:govet //...
 type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
-	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info (default \"localhost:4321\")" placeholder:"ConnInfo" default:"localhost:4321"`
+	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info (default \"localhost:4321\")" placeholder:"ConnInfo"`
 	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"9s"`
 	Body      *os.File            `help:"body"`
 	//revive:enable:line-length-limit
