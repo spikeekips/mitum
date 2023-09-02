@@ -163,7 +163,7 @@ func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelec
 
 		return nil, false, errors.Errorf("proposer not found in suffrage")
 	}
-	args.MinProposerWait = time.Millisecond * 300
+	args.MinProposerWait = time.Second * 3
 
 	return args
 }

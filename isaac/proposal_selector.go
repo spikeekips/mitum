@@ -41,7 +41,7 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 		RequestFunc: func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
 		},
-		RequestProposalInterval: time.Millisecond * 10,               //nolint:gomnd //...
+		RequestProposalInterval: time.Millisecond * 666,              //nolint:gomnd //...
 		MinProposerWait:         DefaultTimeoutRequest + time.Second, //nolint:gomnd //...
 		TimeoutRequest: func() time.Duration {
 			return DefaultTimeoutRequest
@@ -201,7 +201,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 			case err == nil:
 				return pr, nil
 			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-				// NOTE ignore context error fro findProposal; if context error
+				// NOTE ignore context error from findProposal; if context error
 				// is from main context, it will be catched from the main select
 				// ctx.Done().
 			case errors.Is(err, errFailedToRequestProposalToNode):
