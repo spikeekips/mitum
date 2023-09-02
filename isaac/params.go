@@ -99,6 +99,10 @@ func (p *Params) NetworkID() base.NetworkID {
 }
 
 func (p *Params) SetNetworkID(n base.NetworkID) error {
+	if err := n.IsValid(nil); err != nil {
+		return err
+	}
+
 	return p.Set(func() (bool, error) {
 		if n == nil {
 			return false, errors.Errorf("empty network id")
@@ -118,6 +122,10 @@ func (p *Params) Threshold() base.Threshold {
 }
 
 func (p *Params) SetThreshold(t base.Threshold) error {
+	if err := t.IsValid(nil); err != nil {
+		return err
+	}
+
 	return p.Set(func() (bool, error) {
 		switch {
 		case t < 1:

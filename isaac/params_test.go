@@ -46,7 +46,7 @@ func (t *testParams) TestIsValid() {
 
 	t.Run("wrong threshold", func() {
 		p := DefaultParams(networkID)
-		p.SetThreshold(33)
+		p.threshold = 33
 
 		err := p.IsValid(networkID)
 		t.Error(err)

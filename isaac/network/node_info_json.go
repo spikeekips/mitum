@@ -130,7 +130,9 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	}
 
-	_ = params.SetNetworkID(info.networkID)
+	if err := params.SetNetworkID(info.networkID); err != nil {
+		return e.Wrap(err)
+	}
 
 	info.localParams = params
 
