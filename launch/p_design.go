@@ -46,7 +46,9 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 
 	switch flag.Scheme() {
 	case "file":
-		switch d, b, err := NodeDesignFromFile(flag.URL().Path, enc); {
+		f := flag.URL().Path
+
+		switch d, b, err := NodeDesignFromFile(f, enc); {
 		case err != nil:
 			return pctx, e.Wrap(err)
 		default:

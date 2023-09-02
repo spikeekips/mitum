@@ -48,9 +48,7 @@ func (cmd *baseNetworkClientRWNodeCommand) Prepare(pctx context.Context) error {
 	return nil
 }
 
-func (cmd *baseNetworkClientRWNodeCommand) printValue(
-	ctx context.Context,
-) error {
+func (cmd *baseNetworkClientRWNodeCommand) printValue(ctx context.Context, key string) error {
 	stream, _, err := cmd.Client.Dial(ctx, cmd.Remote.ConnInfo())
 	if err != nil {
 		return err
@@ -60,13 +58,13 @@ func (cmd *baseNetworkClientRWNodeCommand) printValue(
 		ctx,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
-		cmd.Key,
+		key,
 		stream,
 	); {
 	case err != nil:
 		return err
 	case !found:
-		return util.ErrNotFound.Errorf("unknown key, %q", cmd.Key)
+		return util.ErrNotFound.Errorf("unknown key, %q", key)
 	case cmd.Format == "json":
 		b, err := util.MarshalJSON(i)
 		if err != nil {
@@ -92,9 +90,9 @@ func (cmd *baseNetworkClientRWNodeCommand) printValue(
 	return nil
 }
 
-func (*baseNetworkClientRWNodeCommand) printKeys() {
-	for i := range launch.AllNodeRWKeys {
-		_, _ = fmt.Fprintln(os.Stdout, launch.AllNodeRWKeys[i])
+func (*baseNetworkClientRWNodeCommand) printKeys(keys []string) {
+	for i := range keys {
+		_, _ = fmt.Fprintln(os.Stdout, keys[i])
 	}
 }
 
@@ -104,7 +102,7 @@ type NetworkClientReadNodeCommand struct { //nolint:govet //...
 
 func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
 	if cmd.Keys {
-		cmd.printKeys()
+		cmd.printKeys(launch.AllNodeReadKeys)
 
 		return nil
 	}
@@ -120,7 +118,7 @@ func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
 		_ = cmd.Client.Close()
 	}()
 
-	return cmd.printValue(ctx)
+	return cmd.printValue(ctx, cmd.Key)
 }
 
 type NetworkClientWriteNodeCommand struct { //nolint:govet //...
@@ -130,7 +128,7 @@ type NetworkClientWriteNodeCommand struct { //nolint:govet //...
 
 func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 	if cmd.Keys {
-		cmd.printKeys()
+		cmd.printKeys(launch.AllNodeWriteKeys)
 
 		return nil
 	}
@@ -174,7 +172,7 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 		_ = cmd.Client.Close()
 	}()
 
-	switch found, err := launch.WriteNodeFromNetworkHandler(
+	switch updated, err := launch.WriteNodeFromNetworkHandler(
 		ctx,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
@@ -184,9 +182,16 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 	); {
 	case err != nil:
 		return err
-	case !found:
-		return util.ErrNotFound.Errorf("unknown key, %q", cmd.Key)
+	case !updated:
+		return errors.Errorf("key, %q; not updated", cmd.Key)
+	default:
+		cmd.Log.Debug().Msg("updated")
 	}
 
-	return cmd.printValue(ctx)
+	key := cmd.Key
+	if strings.HasPrefix(key, "design.") {
+		key = "design._source"
+	}
+
+	return cmd.printValue(ctx, key)
 }

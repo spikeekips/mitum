@@ -1134,6 +1134,73 @@ parameters:
 	})
 }
 
+func (t *testNodeDesign) TestUpdateYAML() {
+	b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+parameters:
+  isaac:
+    threshold:
+      decimal: 66
+`)
+
+	var m *util.YAMLOrderedMap
+	t.NoError(yaml.Unmarshal(b, &m))
+
+	{
+		t.T().Logf("before marshaled:\n%s", string(b))
+
+		b, err := yaml.Marshal(m)
+		t.NoError(err)
+		t.T().Logf("after marshaled:\n%s", string(b))
+	}
+
+	t.Run("ok", func() {
+		t.NoError(updateDesignMap(m, "parameters.isaac.threshold.decimal", 77))
+
+		v, _ := m.Get("parameters")
+		v, _ = v.(*util.YAMLOrderedMap).Get("isaac")
+		v, _ = v.(*util.YAMLOrderedMap).Get("threshold")
+		v, found := v.(*util.YAMLOrderedMap).Get("decimal")
+		t.True(found)
+		t.Equal(77, v)
+
+		b, err := yaml.Marshal(m)
+		t.NoError(err)
+		t.T().Logf("after updated:\n%s", string(b))
+	})
+
+	t.Run("wrong key", func() {
+		t.Error(updateDesignMap(m, "", 88))
+		t.Error(updateDesignMap(m, ".", 88))
+		t.Error(updateDesignMap(m, ".   ", 88))
+		t.Error(updateDesignMap(m, ".   .", 88))
+	})
+
+	t.Run("add new", func() {
+		t.NoError(updateDesignMap(m, "parameters.a.b.c", 88))
+
+		v, _ := m.Get("parameters")
+		v, _ = v.(*util.YAMLOrderedMap).Get("a")
+		v, _ = v.(*util.YAMLOrderedMap).Get("b")
+		v, found := v.(*util.YAMLOrderedMap).Get("c")
+		t.True(found)
+		t.Equal(88, v)
+
+		b, err := yaml.Marshal(m)
+		t.NoError(err)
+		t.T().Logf("after updated:\n%s", string(b))
+	})
+}
+
 func TestNodeDesign(t *testing.T) {
 	suite.Run(t, new(testNodeDesign))
 }

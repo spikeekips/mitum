@@ -65,76 +65,45 @@ type NodeDesign struct { //nolint:govet //...
 func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign from file")
 
-	b, err := os.ReadFile(filepath.Clean(f))
-	if err != nil {
+	switch b, err := nodeDesignFromFile(f); {
+	case err != nil:
 		return d, nil, e.Wrap(err)
-	}
+	default:
+		if err := d.DecodeYAML(b, enc); err != nil {
+			return d, b, e.Wrap(err)
+		}
 
-	if err := d.DecodeYAML(b, enc); err != nil {
-		return d, b, e.Wrap(err)
+		return d, b, nil
 	}
-
-	return d, b, nil
 }
 
 func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru http")
 
-	httpclient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: tlsinsecure,
-			},
-		},
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
-	if err != nil {
+	switch b, err := nodeDesignFromHTTP(u, tlsinsecure); {
+	case err != nil:
 		return design, nil, e.Wrap(err)
+	default:
+		if err := design.DecodeYAML(b, enc); err != nil {
+			return design, nil, e.Wrap(err)
+		}
+
+		return design, b, nil
 	}
-
-	res, err := httpclient.Do(req)
-	if err != nil {
-		return design, nil, e.Wrap(err)
-	}
-
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		return design, nil, e.Wrap(err)
-	}
-
-	defer func() {
-		_ = res.Body.Close()
-	}()
-
-	if res.StatusCode != http.StatusOK {
-		return design, nil, e.Errorf("design not found")
-	}
-
-	if err := design.DecodeYAML(b, enc); err != nil {
-		return design, nil, e.Wrap(err)
-	}
-
-	return design, b, nil
 }
 
 func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru consul")
 
-	client, err := consulClient(addr)
-	if err != nil {
-		return design, nil, e.Wrap(err)
-	}
-
-	switch v, _, err := client.KV().Get(key, nil); {
+	switch b, err := nodeDesignFromConsul(addr, key); {
 	case err != nil:
 		return design, nil, e.Wrap(err)
 	default:
-		if err := design.DecodeYAML(v.Value, enc); err != nil {
+		if err := design.DecodeYAML(b, enc); err != nil {
 			return design, nil, e.Wrap(err)
 		}
 
-		return design, v.Value, nil
+		return design, b, nil
 	}
 }
 
@@ -756,4 +725,62 @@ func consulClient(addr string) (*consulapi.Client, error) {
 	}
 
 	return client, nil
+}
+
+func nodeDesignFromFile(f string) ([]byte, error) {
+	b, err := os.ReadFile(filepath.Clean(f))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return b, nil
+}
+
+func nodeDesignFromHTTP(u string, tlsinsecure bool) ([]byte, error) {
+	httpclient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: tlsinsecure,
+			},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	res, err := httpclient.Do(req)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	defer func() {
+		_ = res.Body.Close()
+	}()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("design not found")
+	}
+
+	return b, nil
+}
+
+func nodeDesignFromConsul(addr, key string) ([]byte, error) {
+	client, err := consulClient(addr)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	switch v, _, err := client.KV().Get(key, nil); {
+	case err != nil:
+		return nil, errors.WithStack(err)
+	default:
+		return v.Value, nil
+	}
 }

@@ -23,12 +23,11 @@ type NetworkCommand struct {
 type NetworkClientCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	//revive:disable:nested-structs
-	NodeInfo          NetworkClientNodeInfoCommand          `cmd:"" name:"node-info" help:"remote node info"`
-	SendOperation     NetworkClientSendOperationCommand     `cmd:"" name:"send-operation" help:"send operation"`
-	State             NetworkClientStateCommand             `cmd:"" name:"state" help:"get state"`
-	LastBlockMap      NetworkClientLastBlockMapCommand      `cmd:"" name:"last-blockmap" help:"get last blockmap"`
-	SetAllowConsensus NetworkClientSetAllowConsensusCommand `cmd:"" name:"set-allow-consensus" help:"set to enter consensus"`
-	Node              struct {
+	NodeInfo      NetworkClientNodeInfoCommand      `cmd:"" name:"node-info" help:"remote node info"`
+	SendOperation NetworkClientSendOperationCommand `cmd:"" name:"send-operation" help:"send operation"`
+	State         NetworkClientStateCommand         `cmd:"" name:"state" help:"get state"`
+	LastBlockMap  NetworkClientLastBlockMapCommand  `cmd:"" name:"last-blockmap" help:"get last blockmap"`
+	Node          struct {
 		Read  NetworkClientReadNodeCommand  `cmd:"" name:"read" help:"read node value"`
 		Write NetworkClientWriteNodeCommand `cmd:"" name:"write" help:"write node value"`
 	} `cmd:"" name:"node" help:""`
@@ -39,7 +38,7 @@ type NetworkClientCommand struct { //nolint:govet //...
 type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
-	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info (default \"localhost:4321\")" placeholder:"ConnInfo"`
+	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo"`
 	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"9s"`
 	Body      *os.File            `help:"body"`
 	//revive:enable:line-length-limit

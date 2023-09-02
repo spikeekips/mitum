@@ -63,7 +63,9 @@ func (p *LocalParams) IsValid(networkID base.NetworkID) error {
 		return e.Errorf("empty ISAAC")
 	}
 
-	_ = p.ISAAC.SetNetworkID(networkID)
+	if err := p.ISAAC.SetNetworkID(networkID); err != nil {
+		return e.Wrap(err)
+	}
 
 	if err := util.CheckIsValiders(networkID, false,
 		p.ISAAC,
