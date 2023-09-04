@@ -10,7 +10,7 @@ import (
 
 type INITCommand struct {
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
-	Vault         string `name:"vault" help:"privatekey path of vault"`
+	launch.PrivatekeyFlags
 	launch.DesignFlag
 	launch.DevFlags `embed:"" prefix:"dev."`
 }
@@ -25,7 +25,7 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		launch.DesignFlagContextKey:        cmd.DesignFlag,
 		launch.DevFlagsContextKey:          cmd.DevFlags,
 		launch.GenesisDesignFileContextKey: cmd.GenesisDesign,
-		launch.VaultContextKey:             cmd.Vault,
+		launch.PrivatekeyFromContextKey:    cmd.Privatekey,
 	})
 
 	pps := launch.DefaultINITPS()

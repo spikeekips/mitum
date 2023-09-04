@@ -21,7 +21,7 @@ var PNameStorageStatus = ps.Name("storage-status")
 
 type StorageStatusCommand struct { //nolint:govet //...
 	launch.DesignFlag
-	Vault           string `name:"vault" help:"privatekey path of vault"`
+	launch.PrivatekeyFlags
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
 }
@@ -34,7 +34,7 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("vault", cmd.Vault).
+		Interface("privatekey", cmd.Privatekey).
 		Interface("dev", cmd.DevFlags).
 		Msg("flags")
 
@@ -60,9 +60,9 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey: cmd.DesignFlag,
-		launch.DevFlagsContextKey:   cmd.DevFlags,
-		launch.VaultContextKey:      cmd.Vault,
+		launch.DesignFlagContextKey:     cmd.DesignFlag,
+		launch.DevFlagsContextKey:       cmd.DevFlags,
+		launch.PrivatekeyFromContextKey: cmd.Privatekey,
 	})
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")

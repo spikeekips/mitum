@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	consulapi "github.com/hashicorp/consul/api"
-	vault "github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -683,29 +682,15 @@ func defaultDatabaseURL(root string) *url.URL {
 	}
 }
 
-func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
-	e := util.StringError("load privatekey from vault")
+func loadPrivatekey(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
+	e := util.StringError("load privatekey from somewhere")
 
-	config := vault.DefaultConfig()
-
-	client, err := vault.NewClient(config)
-	if err != nil {
-		return nil, e.WithMessage(err, "create vault client")
+	var u PrivatekeyFlag
+	if err := u.UnmarshalText([]byte(path)); err != nil {
+		return nil, e.Wrap(err)
 	}
 
-	secret, err := client.KVv2("secret").Get(context.Background(), path)
-	if err != nil {
-		return nil, e.WithMessage(err, "read secret")
-	}
-
-	i := secret.Data["string"]
-
-	privs, ok := i.(string)
-	if !ok {
-		return nil, e.Errorf("read secret; expected string but %T", i)
-	}
-
-	switch priv, err := base.DecodePrivatekeyFromString(privs, enc); {
+	switch priv, err := base.DecodePrivatekeyFromString(u.Key(), enc); {
 	case err != nil:
 		return nil, e.WithMessage(err, "invalid privatekey")
 	default:

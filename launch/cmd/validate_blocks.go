@@ -19,7 +19,7 @@ var PNameValidateBlocks = ps.Name("validate-blocks")
 
 type ValidateBlocksCommand struct { //nolint:govet //...
 	launch.DesignFlag
-	Vault           string           `name:"vault" help:"privatekey path of vault"`
+	launch.PrivatekeyFlags
 	HeightRange     launch.RangeFlag `name:"range" help:"<from>-<to>" default:""`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
@@ -58,7 +58,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("vault", cmd.Vault).
+		Interface("privatekey", cmd.Privatekey).
 		Interface("dev", cmd.DevFlags).
 		Interface("from_height", cmd.fromHeight).
 		Interface("to_height", cmd.toHeight).
@@ -67,9 +67,9 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 	cmd.log = log.Log()
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey: cmd.DesignFlag,
-		launch.DevFlagsContextKey:   cmd.DevFlags,
-		launch.VaultContextKey:      cmd.Vault,
+		launch.DesignFlagContextKey:     cmd.DesignFlag,
+		launch.DevFlagsContextKey:       cmd.DevFlags,
+		launch.PrivatekeyFromContextKey: cmd.Privatekey,
 	})
 
 	pps := ps.NewPS("cmd-validate-blocks")

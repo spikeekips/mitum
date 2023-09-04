@@ -1,11 +1,13 @@
 package launch
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	vault "github.com/hashicorp/vault/api"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -255,4 +257,71 @@ func DecodePrivatekey(s string, enc encoder.Encoder) (base.Privatekey, error) {
 
 		return key, nil
 	}
+}
+
+type PrivatekeyFlag struct {
+	s   string
+	key string
+}
+
+func (f PrivatekeyFlag) String() string {
+	return f.s
+}
+
+func (f PrivatekeyFlag) Key() string {
+	return f.key
+}
+
+func (f *PrivatekeyFlag) UnmarshalText(b []byte) error {
+	e := util.StringError("PrivatekeyFlag")
+
+	s := strings.TrimSpace(string(b))
+
+	if !strings.Contains(s, "://") {
+		f.s = "<text>"
+		f.key = s
+
+		return nil
+	}
+
+	var u *url.URL
+
+	switch i, err := url.Parse(s); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		u = i
+	}
+
+	f.s = s
+
+	switch u.Scheme {
+	case "vault":
+		client, err := vault.NewClient(vault.DefaultConfig())
+		if err != nil {
+			return e.Wrap(err)
+		}
+
+		secret, err := client.KVv2("secret").Get(context.Background(), s)
+		if err != nil {
+			return e.Wrap(err)
+		}
+
+		i := secret.Data["string"]
+
+		priv, ok := i.(string)
+		if !ok {
+			return e.Errorf("read secret; expected string but %T", i)
+		}
+
+		f.key = priv
+	default:
+		return e.Errorf("unsupported privatekey url, %q", s)
+	}
+
+	return nil
+}
+
+type PrivatekeyFlags struct {
+	Privatekey PrivatekeyFlag `name:"privatekey" help:"load privatekey from somewhere" placeholder:"PRIVATEKEY"`
 }

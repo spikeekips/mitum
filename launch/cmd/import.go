@@ -23,10 +23,10 @@ var (
 type ImportCommand struct { //nolint:govet //...
 	// revive:disable:line-length-limit
 	launch.DesignFlag
-	Source          string           `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
-	HeightRange     launch.RangeFlag `name:"range" help:"<from>-<to>" default:""`
-	Vault           string           `name:"vault" help:"privatekey path of vault"`
-	Do              bool             `name:"do" help:"really do import"`
+	Source      string           `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
+	HeightRange launch.RangeFlag `name:"range" help:"<from>-<to>" default:""`
+	launch.PrivatekeyFlags
+	Do              bool `name:"do" help:"really do import"`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
 	fromHeight      base.Height
@@ -65,7 +65,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("vault", cmd.Vault).
+		Interface("privatekey", cmd.Privatekey).
 		Interface("dev", cmd.DevFlags).
 		Str("source", cmd.Source).
 		Interface("from_height", cmd.fromHeight).
@@ -76,9 +76,9 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	cmd.log = log.Log()
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey: cmd.DesignFlag,
-		launch.DevFlagsContextKey:   cmd.DevFlags,
-		launch.VaultContextKey:      cmd.Vault,
+		launch.DesignFlagContextKey:     cmd.DesignFlag,
+		launch.DevFlagsContextKey:       cmd.DevFlags,
+		launch.PrivatekeyFromContextKey: cmd.Privatekey,
 	})
 
 	pps := launch.DefaultImportPS()

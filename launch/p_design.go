@@ -21,7 +21,7 @@ var (
 	DesignContextKey            = util.ContextKey("design")
 	DesignStringContextKey      = util.ContextKey("design-string")
 	GenesisDesignContextKey     = util.ContextKey("genesis-design")
-	VaultContextKey             = util.ContextKey("vault")
+	PrivatekeyFromContextKey    = util.ContextKey("privatekey-from")
 )
 
 func PLoadDesign(pctx context.Context) (context.Context, error) {
@@ -30,13 +30,13 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var flag DesignFlag
 	var enc *jsonenc.Encoder
-	var privfromvault string
+	var privfrom PrivatekeyFlag
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		EncoderContextKey, &enc,
-		VaultContextKey, &privfromvault,
+		PrivatekeyFromContextKey, &privfrom,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -77,13 +77,13 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Interface("design", design).Msg("design loaded")
 
-	if len(privfromvault) > 0 {
-		priv, err := loadPrivatekeyFromVault(privfromvault, enc)
+	if k := privfrom.Key(); len(k) > 0 {
+		priv, err := loadPrivatekey(k, enc)
 		if err != nil {
 			return pctx, e.Wrap(err)
 		}
 
-		log.Log().Debug().Interface("privatekey", priv.Publickey()).Msg("privatekey loaded from vault")
+		log.Log().Debug().Interface("privatekey", priv.Publickey()).Msg("privatekey loaded from somewhere")
 
 		design.Privatekey = priv
 	}
