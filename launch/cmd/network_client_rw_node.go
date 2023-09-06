@@ -19,7 +19,6 @@ type baseNetworkClientRWNodeCommand struct { //nolint:govet //...
 	Privatekey string `arg:"" name:"privatekey" help:"privatekey string"`
 	Key        string `arg:"" name:"key" help:"key"`
 	Format     string `name:"format" help:"output format, {json, yaml}" default:"yaml"`
-	Keys       bool   `name:"keys" help:"all available keys"`
 	priv       base.Privatekey
 }
 
@@ -90,23 +89,11 @@ func (cmd *baseNetworkClientRWNodeCommand) printValue(ctx context.Context, key s
 	return nil
 }
 
-func (*baseNetworkClientRWNodeCommand) printKeys(keys []string) {
-	for i := range keys {
-		_, _ = fmt.Fprintln(os.Stdout, keys[i])
-	}
-}
-
 type NetworkClientReadNodeCommand struct { //nolint:govet //...
 	baseNetworkClientRWNodeCommand
 }
 
 func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
-	if cmd.Keys {
-		cmd.printKeys(launch.AllNodeReadKeys)
-
-		return nil
-	}
-
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
@@ -121,18 +108,22 @@ func (cmd *NetworkClientReadNodeCommand) Run(pctx context.Context) error {
 	return cmd.printValue(ctx, cmd.Key)
 }
 
+func (*NetworkClientReadNodeCommand) Help() string {
+	s := "## available keys\n\n"
+
+	for i := range launch.AllNodeReadKeys {
+		s += fmt.Sprintf("  - %s\n", launch.AllNodeReadKeys[i])
+	}
+
+	return s
+}
+
 type NetworkClientWriteNodeCommand struct { //nolint:govet //...
 	baseNetworkClientRWNodeCommand
 	Value string `arg:"" name:"value" help:"value" default:""`
 }
 
 func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
-	if cmd.Keys {
-		cmd.printKeys(launch.AllNodeWriteKeys)
-
-		return nil
-	}
-
 	if err := cmd.Prepare(pctx); err != nil {
 		return err
 	}
@@ -194,4 +185,14 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 	}
 
 	return cmd.printValue(ctx, key)
+}
+
+func (*NetworkClientWriteNodeCommand) Help() string {
+	s := "## available keys\n\n"
+
+	for i := range launch.AllNodeWriteKeys {
+		s += fmt.Sprintf("  - %s\n", launch.AllNodeWriteKeys[i])
+	}
+
+	return s
 }

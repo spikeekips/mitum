@@ -1,6 +1,7 @@
 package launchcmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -26,32 +27,25 @@ type extractFunc func(key, raw []byte) (map[string]interface{}, error)
 
 type DatabaseExtractCommand struct { //nolint:govet //...
 	// revive:disable:line-length-limit
-	Storage         string   `arg:"" name:"storage" help:"storage base directory" type:"existingdir" default:"./"`
-	Database        string   `arg:"" name:"database" help:"database directory" type:"existingdir" default:"./db"`
-	Count           bool     `name:"count" help:"count by prefix"`
-	Label           []string `name:"label" help:"label"`
-	Prefix          []string `name:"prefix" help:"prefix"`
-	Limit           uint64   `name:"limit" help:"limit result"`
-	Raw             bool     `name:"raw" help:"raw result"`
-	Bytes           string   `name:"bytes" help:"bytes encoder" default:"hex"`
-	PrintLabelsKeys bool     `name:"print-labels-and-keys" help:"print available labels and keys"`
-	log             *logging.Logging
-	encs            *encoder.Encoders
-	enc             encoder.Encoder
-	st              *leveldbstorage.Storage
-	filterLabel     func(string) bool
-	filterPrefix    func(string) bool
-	extracts        map[string]extractFunc
-	encodeBytes     func([]byte) string
+	Storage      string   `arg:"" name:"storage" help:"storage base directory" type:"existingdir" default:"./"`
+	Database     string   `arg:"" name:"database" help:"database directory" type:"existingdir" default:"./db"`
+	Count        bool     `name:"count" help:"count by prefix"`
+	Label        []string `name:"label" help:"label"`
+	Prefix       []string `name:"prefix" help:"prefix"`
+	Limit        uint64   `name:"limit" help:"limit result"`
+	Raw          bool     `name:"raw" help:"raw result"`
+	Bytes        string   `name:"bytes" help:"bytes encoder" default:"hex"`
+	log          *logging.Logging
+	encs         *encoder.Encoders
+	enc          encoder.Encoder
+	st           *leveldbstorage.Storage
+	filterLabel  func(string) bool
+	filterPrefix func(string) bool
+	extracts     map[string]extractFunc
+	encodeBytes  func([]byte) string
 }
 
 func (cmd *DatabaseExtractCommand) Run(pctx context.Context) error {
-	if cmd.PrintLabelsKeys {
-		cmd.printLabelsKeys()
-
-		return nil
-	}
-
 	if err := cmd.prepare(pctx); err != nil {
 		return err
 	}
@@ -228,44 +222,6 @@ func (cmd *DatabaseExtractCommand) pLoadDatabase(pctx context.Context) (context.
 	cmd.st = st
 
 	return pctx, nil
-}
-
-func (*DatabaseExtractCommand) printLabelsKeys() {
-	malllabels := isaacdatabase.AllLabelKeys()
-	alllabels := make([]string, len(malllabels))
-
-	var i int
-
-	for k := range malllabels {
-		alllabels[i] = malllabels[k]
-		i++
-	}
-
-	sort.Strings(alllabels)
-
-	_, _ = fmt.Fprintln(os.Stdout, "labels")
-
-	for i := range alllabels {
-		_, _ = fmt.Fprintln(os.Stdout, "  -", alllabels[i])
-	}
-
-	mallprefixes := isaacdatabase.AllPrefixKeys()
-	allprefixes := make([]string, len(mallprefixes))
-
-	i = 0
-
-	for k := range mallprefixes {
-		allprefixes[i] = mallprefixes[k]
-		i++
-	}
-
-	sort.Strings(allprefixes)
-
-	_, _ = fmt.Fprintln(os.Stdout, "\nprefixes")
-
-	for i := range allprefixes {
-		_, _ = fmt.Fprintln(os.Stdout, "  -", allprefixes[i])
-	}
 }
 
 func (*DatabaseExtractCommand) printValue(i interface{}) {
@@ -661,4 +617,46 @@ func (*DatabaseExtractCommand) extractTempMerged([]byte, []byte) (map[string]int
 
 func (cmd *DatabaseExtractCommand) extractBallot(key, raw []byte) (map[string]interface{}, error) {
 	return cmd.extractHinted(key, raw, new(base.Ballot))
+}
+
+func (*DatabaseExtractCommand) Help() string {
+	malllabels := isaacdatabase.AllLabelKeys()
+	alllabels := make([]string, len(malllabels))
+
+	var i int
+
+	for k := range malllabels {
+		alllabels[i] = malllabels[k]
+		i++
+	}
+
+	sort.Strings(alllabels)
+
+	buf := bytes.NewBuffer(nil)
+
+	_, _ = fmt.Fprintln(buf, "## labels")
+
+	for i := range alllabels {
+		_, _ = fmt.Fprintln(buf, "  - ", alllabels[i])
+	}
+
+	mallprefixes := isaacdatabase.AllPrefixKeys()
+	allprefixes := make([]string, len(mallprefixes))
+
+	i = 0
+
+	for k := range mallprefixes {
+		allprefixes[i] = mallprefixes[k]
+		i++
+	}
+
+	sort.Strings(allprefixes)
+
+	_, _ = fmt.Fprintln(buf, "\n## prefixes")
+
+	for i := range allprefixes {
+		_, _ = fmt.Fprintln(buf, "  - ", allprefixes[i])
+	}
+
+	return buf.String()
 }
