@@ -430,7 +430,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 			t.NotNil(broker)
 
 			fch := make(chan struct{}, 1)
-			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
+			broker.args.WhenFinished = func(string, base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 				fch <- struct{}{}
 
 				return nil
@@ -659,7 +659,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		t.False(t.ensureHandoverYBrokerAsk(broker))
 
 		fch := make(chan struct{}, 1)
-		broker.args.WhenFinished = func(base.INITVoteproof, quicstream.ConnInfo) error {
+		broker.args.WhenFinished = func(string, base.INITVoteproof, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil

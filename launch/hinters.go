@@ -18,6 +18,7 @@ import (
 var Hinters = []encoder.DecodeDetail{
 	// revive:disable:line-length-limit
 	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
+	{Hint: EventLoggingHeaderHint, Instance: EventLoggingHeader{}},
 	{Hint: base.BaseOperationProcessReasonErrorHint, Instance: base.BaseOperationProcessReasonError{}},
 	{Hint: base.BaseStateHint, Instance: base.BaseState{}},
 	{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}},
@@ -83,7 +84,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.CancelHandoverHeaderHint, Instance: isaacnetwork.CancelHandoverHeader{}},
 	{Hint: isaacnetwork.CheckHandoverHeaderHint, Instance: isaacnetwork.CheckHandoverHeader{}},
 	{Hint: isaacnetwork.CheckHandoverXHeaderHint, Instance: isaacnetwork.CheckHandoverXHeader{}},
-	{Hint: isaacnetwork.LastHandoverYLogsHeaderHint, Instance: isaacnetwork.LastHandoverYLogsHeader{}},
 	{Hint: isaacnetwork.HandoverMessageHeaderHint, Instance: isaacnetwork.HandoverMessageHeader{}},
 	{Hint: isaacnetwork.StartHandoverHeaderHint, Instance: isaacnetwork.StartHandoverHeader{}},
 	{Hint: isaacnetwork.SyncSourceConnInfoRequestHeaderHint, Instance: isaacnetwork.SyncSourceConnInfoRequestHeader{}},

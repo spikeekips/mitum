@@ -3,6 +3,8 @@ package launch
 import (
 	"context"
 
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -12,6 +14,8 @@ import (
 )
 
 var PNameGenerateGenesis = ps.Name("generate-genesis")
+
+var NodeEventLoggerName EventLoggerName = "node"
 
 func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	e := util.StringError("generate genesis block")
@@ -23,6 +27,8 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
+	var fsnodeinfo NodeInfo
+	var eventLogging *EventLogging
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -32,8 +38,19 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
+		FSNodeInfoContextKey, &fsnodeinfo,
+		EventLoggingContextKey, &eventLogging,
 	); err != nil {
 		return pctx, e.Wrap(err)
+	}
+
+	var el zerolog.Logger
+
+	switch i, found := eventLogging.Logger(NodeEventLoggerName); {
+	case !found:
+		return pctx, errors.Errorf("node event logger not found")
+	default:
+		el = i
 	}
 
 	g := NewGenesisBlockGenerator(
@@ -49,6 +66,8 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	if _, err := g.Generate(); err != nil {
 		return pctx, e.Wrap(err)
 	}
+
+	el.Debug().Interface("node_info", fsnodeinfo).Msg("node initialized")
 
 	return pctx, nil
 }

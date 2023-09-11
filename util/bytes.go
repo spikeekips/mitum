@@ -479,6 +479,19 @@ func (f *BytesFrameReader) Reader() io.Reader {
 	return f.r
 }
 
+func (f *BytesFrameReader) Body() ([]byte, error) {
+	if err := f.exhaustHeader(); err != nil {
+		return nil, err
+	}
+
+	b, err := io.ReadAll(f.r)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return b, nil
+}
+
 func (f *BytesFrameReader) BodyReader() (io.Reader, error) {
 	if err := f.exhaustHeader(); err != nil {
 		return nil, err

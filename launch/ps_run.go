@@ -58,7 +58,8 @@ func DefaultRunPS() *ps.PS {
 		PreAddOK(PNameRateLimiterContextKey, PNetworkRateLimiter).
 		PostAddOK(PNameBallotbox, PBallotbox).
 		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin).
-		PostAddOK(PNameSuffrageVoting, PSuffrageVoting)
+		PostAddOK(PNameSuffrageVoting, PSuffrageVoting).
+		PostAddOK(PNameEventLoggingNetworkHandlers, PEventLoggingNetworkHandlers)
 
 	_ = pps.POK(PNameStates).
 		PreAddOK(PNameProposerSelector, PProposerSelector).

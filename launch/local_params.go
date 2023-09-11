@@ -787,7 +787,6 @@ var networkHandlerPrefixes = []string{
 	isaacnetwork.HandlerPrefixExistsInStateOperationString,
 	isaacnetwork.HandlerPrefixHandoverMessageString,
 	isaacnetwork.HandlerPrefixLastBlockMapString,
-	isaacnetwork.HandlerPrefixLastHandoverYLogsString,
 	isaacnetwork.HandlerPrefixLastSuffrageProofString,
 	isaacnetwork.HandlerPrefixMemberlistString,
 	isaacnetwork.HandlerPrefixNodeChallengeString,
@@ -808,4 +807,5 @@ var networkHandlerPrefixes = []string{
 	HandlerPrefixMemberlistEnsureBroadcastMessageString,
 	HandlerPrefixNodeReadString,
 	HandlerPrefixNodeWriteString,
+	HandlerPrefixEventLoggingString,
 }

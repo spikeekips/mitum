@@ -116,13 +116,13 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		t.setReady(broker)
 
 		fch := make(chan struct{}, 1)
-		broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
+		broker.args.WhenFinished = func(string, base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil
 		}
 		defer func() {
-			broker.args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil }
+			broker.args.WhenFinished = func(string, base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil }
 		}()
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
@@ -159,7 +159,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		}
 
 		canceledch := make(chan error, 1)
-		broker.args.WhenCanceled = func(err error) {
+		broker.args.WhenCanceled = func(_ string, err error) {
 			canceledch <- err
 		}
 
@@ -649,7 +649,7 @@ func (t *testHandoverXBroker) TestFinish() {
 			return nil
 		}
 		fch := make(chan struct{}, 1)
-		args.WhenFinished = func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
+		args.WhenFinished = func(string, base.INITVoteproof, base.Address, quicstream.ConnInfo) error {
 			fch <- struct{}{}
 
 			return nil

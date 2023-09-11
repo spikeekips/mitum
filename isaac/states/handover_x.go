@@ -28,8 +28,8 @@ var (
 type HandoverXBrokerArgs struct {
 	SendMessageFunc          func(context.Context, quicstream.ConnInfo, HandoverMessage) error
 	CheckIsReady             func() (bool, error)
-	WhenCanceled             func(error)
-	WhenFinished             func(_ base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error
+	WhenCanceled             func(brokerID string, _ error)
+	WhenFinished             func(brokerID string, _ base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error
 	GetProposal              func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
 	Local                    base.Node
 	NetworkID                base.NetworkID
@@ -49,9 +49,9 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 			return ErrHandoverCanceled.Errorf("SendMessageFunc not implemented")
 		},
 		CheckIsReady: func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
-		WhenCanceled: func(error) {},
+		WhenCanceled: func(string, error) {},
 		ReadyEnd:     defaultHandoverXReadyEnd,
-		WhenFinished: func(base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil },
+		WhenFinished: func(string, base.INITVoteproof, base.Address, quicstream.ConnInfo) error { return nil },
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
@@ -620,7 +620,7 @@ func (broker *HandoverXBroker) challengeIsReadyOK(point base.StagePoint) error {
 func (broker *HandoverXBroker) whenCanceled(err error) {
 	broker.whenCanceledf(err)
 
-	broker.args.WhenCanceled(err)
+	broker.args.WhenCanceled(broker.ID(), err)
 }
 
 func (broker *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
@@ -628,7 +628,10 @@ func (broker *HandoverXBroker) whenFinished(vp base.INITVoteproof) (err error) {
 
 	err = broker.whenFinishedf(vp)
 
-	switch err = util.JoinErrors(err, broker.args.WhenFinished(vp, broker.args.Local.Address(), broker.connInfo)); {
+	switch err = util.JoinErrors(
+		err,
+		broker.args.WhenFinished(broker.ID(), vp, broker.args.Local.Address(), broker.connInfo),
+	); {
 	case err != nil:
 		l.Error().Interface("voteproof", vp).Err(err).Msg("failed to finish")
 	default:

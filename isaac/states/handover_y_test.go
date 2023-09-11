@@ -234,7 +234,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 		args := t.yargs(util.UUID().String())
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
+		args.WhenCanceled = func(_ string, err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
@@ -273,7 +273,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 	t.Run("error", func() {
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
+		args.WhenCanceled = func(_ string, err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
@@ -317,7 +317,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 		broker.Ask()
 
 		errch := make(chan error, 1)
-		args.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
+		args.WhenCanceled = func(_ string, err error, _ quicstream.ConnInfo) {
 			errch <- err
 		}
 
@@ -343,7 +343,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		args := t.yargs(util.UUID().String())
 
 		vpch := make(chan base.INITVoteproof, 1)
-		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.ConnInfo) error {
+		args.WhenFinished = func(_ string, vp base.INITVoteproof, _ quicstream.ConnInfo) error {
 			vpch <- vp
 
 			return nil
@@ -380,7 +380,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 	t.Run("error", func() {
 		args := t.yargs(util.UUID().String())
 
-		args.WhenFinished = func(vp base.INITVoteproof, _ quicstream.ConnInfo) error {
+		args.WhenFinished = func(_ string, vp base.INITVoteproof, _ quicstream.ConnInfo) error {
 			return errors.Errorf("hihihi")
 		}
 		args.NewDataFunc = func(_ HandoverMessageDataType, i interface{}) error { return nil }

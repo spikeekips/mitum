@@ -35,7 +35,6 @@ var (
 	CancelHandoverHeaderHint                = hint.MustNewHint("cancel-handover-header-v0.0.1")
 	HandoverMessageHeaderHint               = hint.MustNewHint("handover-message-header-v0.0.1")
 	CheckHandoverXHeaderHint                = hint.MustNewHint("check-handover-x-header-v0.0.1")
-	LastHandoverYLogsHeaderHint             = hint.MustNewHint("last-handover-y-logs-header-v0.0.1")
 )
 
 var (
@@ -64,7 +63,6 @@ var (
 	HandlerPrefixCancelHandoverString         = "cancel_handover"
 	HandlerPrefixHandoverMessageString        = "handover_message"
 	HandlerPrefixCheckHandoverXString         = "check_handover_x"
-	HandlerPrefixLastHandoverYLogsString      = "last_handover_y_logs"
 
 	HandlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
 	HandlerPrefixProposal               = quicstream.HashPrefix(HandlerPrefixProposalString)
@@ -91,7 +89,6 @@ var (
 	HandlerPrefixCancelHandover         = quicstream.HashPrefix(HandlerPrefixCancelHandoverString)
 	HandlerPrefixHandoverMessage        = quicstream.HashPrefix(HandlerPrefixHandoverMessageString)
 	HandlerPrefixCheckHandoverX         = quicstream.HashPrefix(HandlerPrefixCheckHandoverXString)
-	HandlerPrefixLastHandoverYLogs      = quicstream.HashPrefix(HandlerPrefixLastHandoverYLogsString)
 )
 
 type BaseHeader struct {
@@ -832,26 +829,6 @@ func (h CheckHandoverXHeader) Address() base.Address {
 	return h.address
 }
 
-type LastHandoverYLogsHeader struct {
-	BaseHeader
-}
-
-func NewLastHandoverYLogsHeader() LastHandoverYLogsHeader {
-	return LastHandoverYLogsHeader{
-		BaseHeader: NewBaseHeader(LastHandoverYLogsHeaderHint),
-	}
-}
-
-func (h LastHandoverYLogsHeader) IsValid([]byte) error {
-	e := util.StringError("LastHandoverYLogsHeader")
-
-	if err := h.BaseHeader.IsValid(nil); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
-}
-
 //revive:disable:cyclomatic
 
 func headerPrefixByHint(ht hint.Hint) [32]byte {
@@ -904,8 +881,6 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return HandlerPrefixHandoverMessage
 	case CheckHandoverXHeaderHint.Type():
 		return HandlerPrefixCheckHandoverX
-	case LastHandoverYLogsHeaderHint.Type():
-		return HandlerPrefixLastHandoverYLogs
 	default:
 		return [32]byte{}
 	}

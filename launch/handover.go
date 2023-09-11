@@ -2,8 +2,6 @@ package launch
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,12 +14,13 @@ import (
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
 var PNameHandoverNetworkHandlers = ps.Name("handover-network-handlers")
+
+var HandoverEventLogger EventLoggerName = "handover"
 
 func patchStatesArgsForHandover(pctx context.Context, args *isaacstates.StatesArgs) (context.Context, error) {
 	{
@@ -48,6 +47,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 	var memberlist *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+	var eventLogging *EventLogging
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -58,8 +58,18 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		MemberlistContextKey, &memberlist,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
+		EventLoggingContextKey, &eventLogging,
 	); err != nil {
 		return nil, err
+	}
+
+	var el zerolog.Logger
+
+	switch i, found := eventLogging.Logger(HandoverEventLogger); {
+	case !found:
+		return nil, errors.Errorf("handover event logger not found")
+	default:
+		el = i.With().Str("module", "handover_x").Logger()
 	}
 
 	args := isaacstates.NewHandoverXBrokerArgs(local, isaacparams.NetworkID())
@@ -68,8 +78,12 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		return client.HandoverMessage(ctx, ci, msg)
 	}
 	args.CheckIsReady = func() (bool, error) { return true, nil }
-	args.WhenCanceled = func(err error) {
-		log.Log().Debug().Err(err).Msg("handover x canceled")
+	args.WhenCanceled = func(brokerID string, err error) {
+		log.Log().Debug().Err(err).Str("broker_id", brokerID).Msg("handover x canceled")
+
+		el.Error().Err(err).
+			Str("broker_id", brokerID).
+			Msg("handover x canceled")
 	}
 
 	whenFinished := isaacstates.NewHandoverXFinishedFunc(
@@ -90,7 +104,13 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 			return nil
 		},
 	)
-	args.WhenFinished = func(vp base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error {
+	args.WhenFinished = func(brokerID string, vp base.INITVoteproof, y base.Address, yci quicstream.ConnInfo) error {
+		el.Debug().
+			Str("broker_id", brokerID).
+			Interface("y_conninfo", yci).
+			Interface("point", vp.Point()).
+			Msg("handover x finished")
+
 		return whenFinished(vp, y, yci)
 	}
 
@@ -102,6 +122,11 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 		broker := isaacstates.NewHandoverXBroker(ctx, args, yci)
 
 		_ = broker.SetLogging(log)
+
+		el.Debug().
+			Str("broker_id", broker.ID()).
+			Interface("y_conninfo", yci).
+			Msg("handover x started")
 
 		return broker, nil
 	}, nil
@@ -121,6 +146,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	var memberlist *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
 	var ballotbox *isaacstates.Ballotbox
+	var eventLogging *EventLogging
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
@@ -134,8 +160,18 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		MemberlistContextKey, &memberlist,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		BallotboxContextKey, &ballotbox,
+		EventLoggingContextKey, &eventLogging,
 	); err != nil {
 		return nil, err
+	}
+
+	var el zerolog.Logger
+
+	switch i, found := eventLogging.Logger(HandoverEventLogger); {
+	case !found:
+		return nil, errors.Errorf("handover event logger not found")
+	default:
+		el = i.With().Str("module", "handover_y").Logger()
 	}
 
 	localci := design.Network.PublishConnInfo()
@@ -160,8 +196,6 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		return nil, err
 	}
 
-	handoverYLog = util.EmptyLocked[[]json.RawMessage]()
-
 	whenFinished := isaacstates.NewHandoverYFinishedFunc(
 		func(xci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), local.Address()), xci)
@@ -171,16 +205,14 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 			return nil
 		},
 	)
-	args.WhenFinished = func(vp base.INITVoteproof, xci quicstream.ConnInfo) error {
-		log.Log().Debug().Interface("init_voteproof", vp).Msg("handover y finished")
+	args.WhenFinished = func(brokerID string, vp base.INITVoteproof, xci quicstream.ConnInfo) error {
+		log.Log().Debug().Interface("init_voteproof", vp).Str("broker_id", brokerID).Msg("handover y finished")
 
-		logHandoverYf(
-			map[string]interface{}{
-				"x_conninfo": xci,
-				"point":      vp.Point(),
-			},
-			"handover y finished",
-		)
+		el.Debug().
+			Str("broker_id", brokerID).
+			Interface("x_conninfo", xci).
+			Interface("point", vp.Point()).
+			Msg("handover y finished")
 
 		return whenFinished(vp, xci)
 	}
@@ -206,18 +238,15 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 		},
 	)
 
-	args.WhenCanceled = func(err error, xci quicstream.ConnInfo) {
-		log.Log().Debug().Err(err).Msg("handover y canceled")
+	args.WhenCanceled = func(brokerID string, err error, xci quicstream.ConnInfo) {
+		log.Log().Debug().Err(err).Str("broker_id", brokerID).Msg("handover y canceled")
 
 		whenCanceled(err, xci)
 
-		logHandoverYf(
-			map[string]interface{}{
-				"x_conninfo": xci,
-				"err":        err.Error(),
-			},
-			"handover y canceled",
-		)
+		el.Error().Err(err).
+			Str("broker_id", brokerID).
+			Interface("x_conninfo", xci).
+			Msg("handover y canceled")
 	}
 
 	args.AskRequestFunc = isaacstates.NewAskHandoverFunc(
@@ -245,14 +274,9 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 		_ = broker.SetLogging(log)
 
-		cleanHandoverYLogs()
-
-		logHandoverYf(
-			map[string]interface{}{
-				"x_conninfo": xci,
-			},
-			"handover y started",
-		)
+		el.Debug().
+			Interface("x_conninfo", xci).
+			Msg("handover y started")
 
 		return broker, nil
 	}, nil
@@ -298,10 +322,6 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	}
 
 	if err := attachCheckHandoverXHandler(pctx, local, isaacparams); err != nil {
-		return pctx, err
-	}
-
-	if err := attachLastHandoverYLogsHandler(pctx, local, isaacparams); err != nil {
 		return pctx, err
 	}
 
@@ -602,34 +622,6 @@ func attachCheckHandoverXHandler(
 	return gerror
 }
 
-func attachLastHandoverYLogsHandler(
-	pctx context.Context,
-	local base.LocalNode,
-	isaacparams *isaac.Params,
-) error {
-	var log *logging.Logging
-
-	if err := util.LoadFromContextOK(pctx,
-		LoggingContextKey, &log,
-	); err != nil {
-		return err
-	}
-
-	var gerror error
-
-	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixLastHandoverYLogsString,
-		isaacnetwork.QuicstreamHandlerLastHandoverYLogs(
-			local,
-			isaacparams.NetworkID(),
-			lastHandoverYLogs,
-		),
-		nil,
-	)
-
-	return gerror
-}
-
 func attachNewDataFuncForHandoverY(
 	pctx context.Context,
 	args *isaacstates.HandoverYBrokerArgs,
@@ -778,35 +770,4 @@ func isMemberlistJoined(local base.Address, memberlist *quicmemberlist.Memberlis
 	default:
 		return memberlist.IsJoined(), nil
 	}
-}
-
-var handoverYLog *util.Locked[[]json.RawMessage]
-
-func cleanHandoverYLogs() {
-	_ = handoverYLog.EmptyValue()
-}
-
-func logHandoverYf(m map[string]interface{}, format string, a ...interface{}) {
-	_, _ = handoverYLog.Set(func(logs []json.RawMessage, _ bool) ([]json.RawMessage, error) {
-		if _, found := m[zerolog.TimestampFieldName]; !found {
-			m[zerolog.TimestampFieldName] = localtime.Now()
-		}
-
-		m[zerolog.MessageFieldName] = fmt.Sprintf(format, a...)
-
-		b, err := util.MarshalJSON(m)
-		if err != nil {
-			return nil, err
-		}
-
-		logs = append(logs, json.RawMessage(b))
-
-		return logs, nil
-	})
-}
-
-func lastHandoverYLogs() []json.RawMessage {
-	logs, _ := handoverYLog.Value()
-
-	return logs
 }

@@ -21,6 +21,7 @@ var (
 	FlagsContextKey       = util.ContextKey("flags")
 	KongContextContextKey = util.ContextKey("kong-context")
 	LoggingContextKey     = util.ContextKey("logging")
+	LogOutContextKey      = util.ContextKey("log-out")
 )
 
 func DefaultMainPS() *ps.PS {
@@ -61,12 +62,15 @@ func PLogging(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	log, err := SetupLoggingFromFlags(flags.LoggingFlags)
+	log, logout, err := SetupLoggingFromFlags(flags.LoggingFlags)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	return context.WithValue(pctx, LoggingContextKey, log), nil
+	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
+		LoggingContextKey: log,
+		LogOutContextKey:  logout,
+	}), nil
 }
 
 func PLoggingWithCLI(pctx context.Context) (context.Context, error) {

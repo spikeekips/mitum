@@ -17,8 +17,8 @@ type HandoverYBrokerArgs struct {
 	SendMessageFunc func(context.Context, quicstream.ConnInfo, HandoverMessage) error
 	NewDataFunc     func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	WhenFinished func(base.INITVoteproof, quicstream.ConnInfo) error
-	WhenCanceled func(error, quicstream.ConnInfo)
+	WhenFinished func(string, base.INITVoteproof, quicstream.ConnInfo) error
+	WhenCanceled func(string, error, quicstream.ConnInfo)
 	SyncDataFunc func(
 		context.Context, quicstream.ConnInfo, chan<- struct{}) error //revive:disable-line:nested-structs
 	AskRequestFunc           AskHandoverFunc
@@ -37,8 +37,8 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		NewDataFunc: func(HandoverMessageDataType, interface{}) error {
 			return util.ErrNotImplemented.Errorf("NewData")
 		},
-		WhenFinished: func(base.INITVoteproof, quicstream.ConnInfo) error { return nil },
-		WhenCanceled: func(error, quicstream.ConnInfo) {},
+		WhenFinished: func(string, base.INITVoteproof, quicstream.ConnInfo) error { return nil },
+		WhenCanceled: func(string, error, quicstream.ConnInfo) {},
 		AskRequestFunc: func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
@@ -460,12 +460,12 @@ func (broker *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
 func (broker *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {
 	err := broker.whenFinishedf(vp)
 
-	return util.JoinErrors(err, broker.args.WhenFinished(vp, broker.connInfo))
+	return util.JoinErrors(err, broker.args.WhenFinished(broker.ID(), vp, broker.connInfo))
 }
 
 func (broker *HandoverYBroker) whenCanceled(err error) {
 	broker.whenCanceledf(err)
-	broker.args.WhenCanceled(err, broker.connInfo)
+	broker.args.WhenCanceled(broker.ID(), err, broker.connInfo)
 }
 
 func (broker *HandoverYBroker) patchStates(st *States) error {

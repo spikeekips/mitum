@@ -2,6 +2,7 @@ package leveldbstorage
 
 import (
 	"os"
+	"sort"
 	"syscall"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type testStorage struct {
@@ -242,6 +244,136 @@ func (t *testStorage) TestOpenLocked() {
 		var serr syscall.Errno
 		t.True(errors.As(err, &serr))
 		t.True(serr.Temporary())
+	})
+}
+
+func (t *testStorage) TestIter() {
+	st := NewMemStorage()
+	defer st.Close()
+
+	var batch leveldb.Batch
+
+	bs := make([]string, 33)
+	for i := range make([]int, 33) {
+		b := util.ULID()
+		bs[i] = b.String()
+
+		batch.Put([]byte(b.String()), b.Bytes())
+	}
+
+	t.NoError(st.Batch(&batch, nil))
+
+	t.Run("nil range", func() {
+		var rbs []string
+
+		t.NoError(st.Iter(nil, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, true))
+
+		t.Equal(33, len(rbs))
+		t.Equal(bs, rbs)
+	})
+
+	t.Run("range start", func() {
+		r := &leveldbutil.Range{Start: []byte(bs[9])}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, true))
+
+		t.Equal(24, len(rbs))
+		t.Equal(bs[9:], rbs)
+	})
+
+	t.Run("range limit", func() {
+		r := &leveldbutil.Range{Limit: []byte(bs[9])}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, true))
+
+		t.Equal(9, len(rbs))
+		t.Equal(bs[:9], rbs)
+	})
+
+	t.Run("range start + limit", func() {
+		r := &leveldbutil.Range{Start: []byte(bs[3]), Limit: []byte(bs[9])}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, true))
+
+		t.Equal(6, len(rbs))
+		t.Equal(bs[3:9], rbs)
+	})
+
+	t.Run("sort; range start < limit", func() {
+		r := &leveldbutil.Range{
+			Start: []byte(bs[9]),
+			Limit: []byte(bs[3]),
+		}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, true))
+
+		t.Equal(0, len(rbs))
+	})
+
+	t.Run("reverse sort; range start < limit", func() {
+		r := &leveldbutil.Range{
+			Start: []byte(bs[9]),
+			Limit: []byte(bs[3]),
+		}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, false))
+
+		t.Equal(0, len(rbs))
+	})
+
+	t.Run("reverse sort; range start + limit", func() {
+		r := &leveldbutil.Range{
+			Start: []byte(bs[3]),
+			Limit: []byte(bs[9]),
+		}
+
+		var rbs []string
+
+		t.NoError(st.Iter(r, func(key []byte, _ []byte) (bool, error) {
+			rbs = append(rbs, string(key))
+
+			return true, nil
+		}, false))
+
+		sbs := bs[3:9]
+		sort.Sort(sort.Reverse(sort.StringSlice(sbs)))
+
+		t.Equal(6, len(rbs))
+		t.Equal(sbs, rbs)
 	})
 }
 

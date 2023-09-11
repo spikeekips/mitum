@@ -63,7 +63,7 @@ func (f LogOutFlag) File() (io.Writer, error) {
 	}
 }
 
-func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, error) {
+func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, io.Writer, error) {
 	fs, _ := util.RemoveDuplicatedSlice(flag.Out, func(f LogOutFlag) (string, error) { return string(f), nil })
 
 	var logout io.Writer
@@ -74,7 +74,7 @@ func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, error) {
 		for i := range fs {
 			w, err := fs[i].File()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			ws[i] = w
@@ -88,5 +88,5 @@ func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, error) {
 		flag.Level.Level(),
 		flag.Format,
 		flag.ForceColor,
-	), nil
+	), logout, nil
 }

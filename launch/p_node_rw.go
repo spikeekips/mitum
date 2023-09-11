@@ -15,6 +15,7 @@ import (
 
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -27,7 +28,6 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
-	"golang.org/x/sync/singleflight"
 	"gopkg.in/yaml.v3"
 )
 
@@ -73,17 +73,31 @@ type (
 	readNodeNextValueFunc  func(key, nextkey string) (interface{}, error)
 )
 
+var NodeReadWriteEventLogger EventLoggerName = "node_readwrite"
+
 func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params *LocalParams
 	var local base.LocalNode
+	var eventLogging *EventLogging
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 		LocalContextKey, &local,
+		EventLoggingContextKey, &eventLogging,
 	); err != nil {
-		return nil, err
+		return pctx, err
+	}
+
+	var rl, wl zerolog.Logger
+
+	switch el, found := eventLogging.Logger(NodeReadWriteEventLogger); {
+	case !found:
+		return pctx, errors.Errorf("node read/write event logger not found")
+	default:
+		rl = el.With().Str("module", "read").Logger()
+		wl = el.With().Str("module", "write").Logger()
 	}
 
 	lock := &sync.RWMutex{}
@@ -102,11 +116,11 @@ func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixNodeReadString,
-		handlerNodeRead(local.Publickey(), params.ISAAC.NetworkID(), rf), nil)
+		handlerNodeRead(local.Publickey(), params.ISAAC.NetworkID(), rf, rl), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixNodeWriteString,
-		handlerNodeWrite(local.Publickey(), params.ISAAC.NetworkID(), wf), nil)
+		handlerNodeWrite(local.Publickey(), params.ISAAC.NetworkID(), wf, wl), nil)
 
 	return pctx, gerror
 }
@@ -711,45 +725,53 @@ func handlerNodeWrite(
 	pub base.Publickey,
 	networkID base.NetworkID,
 	f writeNodeValueFunc,
+	eventlogger zerolog.Logger,
 ) quicstreamheader.Handler[WriteNodeHeader] {
 	handler := func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WriteNodeHeader,
-	) (sentresponse bool, _ error) {
+		l zerolog.Logger,
+	) (sentresponse bool, value string, _ error) {
 		if err := isaacnetwork.QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,
 			pub, networkID,
 		); err != nil {
-			return false, err
+			return false, "", err
 		}
 
 		var body io.Reader
 
 		switch bodyType, _, b, _, res, err := broker.ReadBody(ctx); {
 		case err != nil:
-			return false, err
+			return false, "", err
 		case res != nil:
-			return false, res.Err()
+			return false, "", res.Err()
 		case bodyType == quicstreamheader.FixedLengthBodyType,
 			bodyType == quicstreamheader.StreamBodyType:
 			body = b
 		}
 
-		var value string
-
 		if body != nil {
 			b, err := io.ReadAll(body)
 			if err != nil {
-				return false, errors.WithStack(err)
+				return false, "", errors.WithStack(err)
 			}
 
 			value = string(b)
 		}
 
-		switch _, _, updated, err := f(header.Key, value); {
+		switch prev, next, updated, err := f(header.Key, value); {
 		case err != nil:
-			return false, err
+			return false, value, err
 		default:
-			return true, broker.WriteResponseHeadOK(ctx, updated, nil)
+			l.Debug().
+				Str("key", header.Key).
+				Str("value", value).
+				Interface("prev", prev).
+				Interface("next", next).
+				Bool("updated", updated).
+				Msg("wrote")
+
+			return true, value, broker.WriteResponseHeadOK(ctx, updated, nil)
 		}
 	}
 
@@ -758,8 +780,15 @@ func handlerNodeWrite(
 	) (context.Context, error) {
 		e := util.StringError("write node")
 
-		switch sentresponse, err := handler(ctx, addr, broker, header); {
+		l := eventlogger.With().Str("cid", util.UUID().String()).Logger()
+
+		switch sentresponse, value, err := handler(ctx, addr, broker, header, l); {
 		case err != nil:
+			l.Error().Err(err).
+				Str("key", header.Key).
+				Str("value", value).
+				Send()
+
 			if !sentresponse {
 				return ctx, e.WithMessage(broker.WriteResponseHeadOK(ctx, false, err), "write response header")
 			}
@@ -1044,43 +1073,46 @@ func handlerNodeRead(
 	pub base.Publickey,
 	networkID base.NetworkID,
 	f readNodeValueFunc,
+	eventlogger zerolog.Logger,
 ) quicstreamheader.Handler[ReadNodeHeader] {
-	var sg singleflight.Group
-
 	handler := func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header ReadNodeHeader,
 	) (sentresponse bool, _ error) {
-		i, err, _ := util.SingleflightDo[[]byte](&sg, header.Key, func() ([]byte, error) {
-			if err := isaacnetwork.QuicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				pub, networkID,
-			); err != nil {
-				return nil, err
-			}
+		if err := isaacnetwork.QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			pub, networkID,
+		); err != nil {
+			return false, err
+		}
 
+		switch body, err := func() (*bytes.Buffer, error) {
 			switch v, err := f(header.Key); {
 			case err != nil:
 				return nil, err
 			default:
 				if b, ok := v.([]byte); ok {
-					return b, nil
+					return bytes.NewBuffer(b), nil
 				}
 
-				return broker.Encoder.Marshal(v)
+				b, err := broker.Encoder.Marshal(v)
+				if err != nil {
+					return nil, err
+				}
+
+				return bytes.NewBuffer(b), nil
 			}
-		})
-		if err != nil {
+		}(); {
+		case err != nil:
 			return false, err
+		default:
+			defer body.Reset()
+
+			if err := broker.WriteResponseHeadOK(ctx, true, nil); err != nil {
+				return true, err
+			}
+
+			return true, broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, body)
 		}
-
-		body := bytes.NewBuffer(i) //nolint:forcetypeassert //...
-		defer body.Reset()
-
-		if err := broker.WriteResponseHeadOK(ctx, true, nil); err != nil {
-			return true, err
-		}
-
-		return true, broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, body)
 	}
 
 	return func(ctx context.Context, addr net.Addr,
@@ -1088,16 +1120,24 @@ func handlerNodeRead(
 	) (context.Context, error) {
 		e := util.StringError("read node")
 
+		l := eventlogger.With().Str("key", header.Key).Str("cid", util.UUID().String()).Logger()
+
 		switch sentresponse, err := handler(ctx, addr, broker, header); {
 		case errors.Is(err, util.ErrNotFound):
+			l.Error().Err(err).Msg("key not found")
+
 			return ctx, e.WithMessage(broker.WriteResponseHeadOK(ctx, false, nil), "write response header")
 		case err != nil:
+			l.Error().Err(err).Send()
+
 			if !sentresponse {
 				return ctx, e.WithMessage(broker.WriteResponseHeadOK(ctx, false, err), "write response header")
 			}
 
 			return ctx, e.Wrap(err)
 		default:
+			l.Debug().Msg("read")
+
 			return ctx, nil
 		}
 	}

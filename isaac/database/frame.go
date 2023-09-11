@@ -1,7 +1,6 @@
 package isaacdatabase
 
 import (
-	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -48,15 +47,10 @@ func ReadFrame(b []byte) (enchint string, headers [][]byte, body []byte, _ error
 		}
 	}
 
-	switch r, err := fr.BodyReader(); {
+	switch i, err := fr.Body(); {
 	case err != nil:
 		return "", nil, nil, err
 	default:
-		i, err := io.ReadAll(r)
-		if err != nil {
-			return "", nil, nil, errors.WithStack(err)
-		}
-
 		return enchint, headers, i, nil
 	}
 }
@@ -130,15 +124,10 @@ func ReadNoHeadersFrame(b []byte) ([]byte, error) {
 
 	defer buf.Reset()
 
-	switch r, err := fr.BodyReader(); {
+	switch i, err := fr.Body(); {
 	case err != nil:
 		return nil, err
 	default:
-		i, err := io.ReadAll(r)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
 		return i, nil
 	}
 }

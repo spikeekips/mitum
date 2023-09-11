@@ -34,7 +34,7 @@ func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 
 func (t *baseTestHandoverBroker) yargs(id string) *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
-	args.WhenCanceled = func(error, quicstream.ConnInfo) {}
+	args.WhenCanceled = func(string, error, quicstream.ConnInfo) {}
 	args.NewDataFunc = func(HandoverMessageDataType, interface{}) error { return nil }
 	args.AskRequestFunc = func(context.Context, quicstream.ConnInfo) (string, bool, error) {
 		return id, false, nil
@@ -102,7 +102,7 @@ func (t *testHandoverXYBroker) TestFinished() {
 		return true, nil
 	}
 	xfinishch := make(chan base.INITVoteproof, 1)
-	xargs.WhenFinished = func(vp base.INITVoteproof, _ base.Address, _ quicstream.ConnInfo) error {
+	xargs.WhenFinished = func(_ string, vp base.INITVoteproof, _ base.Address, _ quicstream.ConnInfo) error {
 		xfinishch <- vp
 
 		return nil
@@ -140,7 +140,7 @@ func (t *testHandoverXYBroker) TestFinished() {
 	}
 
 	yfinishch := make(chan base.INITVoteproof, 1)
-	yargs.WhenFinished = func(vp base.INITVoteproof, _ quicstream.ConnInfo) error {
+	yargs.WhenFinished = func(_ string, vp base.INITVoteproof, _ quicstream.ConnInfo) error {
 		yfinishch <- vp
 
 		return nil
@@ -260,12 +260,12 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	}
 
 	xcanceledch := make(chan error, 1)
-	xargs.WhenCanceled = func(err error) {
+	xargs.WhenCanceled = func(_ string, err error) {
 		xcanceledch <- err
 	}
 
 	ycanceledch := make(chan error, 1)
-	yargs.WhenCanceled = func(err error, _ quicstream.ConnInfo) {
+	yargs.WhenCanceled = func(_ string, err error, _ quicstream.ConnInfo) {
 		ycanceledch <- err
 	}
 

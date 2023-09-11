@@ -1,10 +1,8 @@
 package isaacnetwork
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 
 	"github.com/pkg/errors"
@@ -789,87 +787,6 @@ func (c *BaseClient) AskHandover(
 
 		return header.ID(), header.OK(), nil
 	}
-}
-
-func (c *BaseClient) LastHandoverYLogs(
-	ctx context.Context,
-	yci quicstream.ConnInfo, // NOTE broker y
-	priv base.Privatekey,
-	networkID base.NetworkID,
-	f func(json.RawMessage) bool,
-) error {
-	header := NewLastHandoverYLogsHeader()
-	header.SetClientID(c.ClientID())
-
-	if err := header.IsValid(nil); err != nil {
-		return err
-	}
-
-	streamer, err := c.dial(ctx, yci)
-	if err != nil {
-		return err
-	}
-
-	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		if err := broker.WriteRequestHead(ctx, header); err != nil {
-			return err
-		}
-
-		switch _, rh, err := VerifyNodeWithResponse(ctx, broker, priv, networkID); {
-		case err != nil:
-			return errors.WithMessage(err, "response")
-		case rh.Err() != nil:
-			return errors.WithMessage(rh.Err(), "response")
-		}
-
-		var br *bufio.Reader
-
-		switch bodyType, _, body, _, rh, err := broker.ReadBody(ctx); {
-		case err != nil:
-			return err
-		case rh != nil:
-			return errors.WithMessage(rh.Err(), "response")
-		case bodyType == quicstreamheader.EmptyBodyType:
-			return nil
-		case bodyType != quicstreamheader.StreamBodyType:
-			return errors.Errorf("unknown body type, %d", bodyType)
-		default:
-			br = bufio.NewReader(body)
-		}
-
-	end:
-		for {
-			b, err := br.ReadBytes('\n')
-
-			if bytes.HasSuffix(b, []byte{'\n'}) {
-				b = b[:len(b)-1]
-			}
-
-			var iseof bool
-
-			switch {
-			case err == nil:
-			case errors.Is(err, io.EOF):
-				iseof = true
-			default:
-				return errors.WithStack(err)
-			}
-
-			if len(b) > 0 {
-				if !f(json.RawMessage(b)) {
-					break end
-				}
-			}
-
-			switch {
-			case err == nil:
-			case iseof:
-				break end
-			}
-		}
-
-		return nil
-	})
 }
 
 func (c *BaseClient) verifyNodeWithResponse(

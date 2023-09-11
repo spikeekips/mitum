@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -22,6 +25,31 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
+
+var (
+	allDatabaseExtractLabels         map[leveldbstorage.KeyPrefix]string
+	allDatabase2PrefixKeys           map[leveldbstorage.KeyPrefix]string
+	allDatabaseEventPrefixKeyStrings []string
+	allDatabaseEventPrefixKeys       map[[32]byte]string
+)
+
+func init() {
+	allDatabaseExtractLabels = isaacdatabase.AllLabelKeys()
+	allDatabaseExtractLabels[launch.LeveldbLabelEventDatabase] = "event"
+
+	allDatabase2PrefixKeys = isaacdatabase.AllPrefixKeys()
+
+	allDatabaseEventPrefixKeyStrings = make([]string, len(launch.AllEventLoggerNames)+1)
+	allDatabaseEventPrefixKeys = map[[32]byte]string{}
+
+	for i := range launch.AllEventLoggerNames {
+		s := launch.AllEventLoggerNames[i]
+
+		allDatabaseEventPrefixKeyStrings[i] = "event." + string(s)
+
+		allDatabaseEventPrefixKeys[launch.EventNameKeyPrefix(s)] = "event." + string(s)
+	}
+}
 
 type extractFunc func(key, raw []byte) (map[string]interface{}, error)
 
@@ -38,11 +66,13 @@ type DatabaseExtractCommand struct { //nolint:govet //...
 	log          *logging.Logging
 	encs         *encoder.Encoders
 	enc          encoder.Encoder
-	st           *leveldbstorage.Storage
+	defaultst    *leveldbstorage.Storage
+	eventst      *leveldbstorage.Storage
 	filterLabel  func(string) bool
 	filterPrefix func(string) bool
 	extracts     map[string]extractFunc
 	encodeBytes  func([]byte) string
+	// revive:enable:line-length-limit
 }
 
 func (cmd *DatabaseExtractCommand) Run(pctx context.Context) error {
@@ -82,6 +112,8 @@ func (cmd *DatabaseExtractCommand) Run(pctx context.Context) error {
 	}()
 
 	switch {
+	case err != nil:
+		return err
 	case cmd.Count:
 		return cmd.count(nctx)
 	default:
@@ -219,7 +251,15 @@ func (cmd *DatabaseExtractCommand) pLoadDatabase(pctx context.Context) (context.
 		return pctx, err
 	}
 
-	cmd.st = st
+	cmd.defaultst = st
+
+	switch st, err := launch.LoadDefaultEventStorage(launch.LocalFSEventDatabaseDirectory(cmd.Storage), true); {
+	case os.IsNotExist(err):
+	case err != nil:
+		return pctx, err
+	default:
+		cmd.eventst = st
+	}
 
 	return pctx, nil
 }
@@ -237,19 +277,29 @@ func (cmd *DatabaseExtractCommand) count(context.Context) error {
 
 	labels := map[string]interface{}{}
 
-	alllabels := isaacdatabase.AllLabelKeys()
-	for k := range alllabels {
-		label := alllabels[k]
+	for k := range allDatabaseExtractLabels {
+		label := allDatabaseExtractLabels[k]
 		if !cmd.filterLabel(label) {
 			continue
 		}
 
 		labels[label] = 0
 
-		keyf := func(key []byte) []byte { return key }
+		var keyf func(key []byte) string
 
-		if label == "block_write" {
-			keyf = func(key []byte) []byte { return key[34:] }
+		switch label {
+		case "event":
+			keyf = func(key []byte) string {
+				return allDatabaseEventPrefixKeys[[32]byte(key[:32])]
+			}
+		case "block_write":
+			keyf = func(key []byte) string {
+				return allDatabase2PrefixKeys[leveldbstorage.KeyPrefix(key[34:][:2])]
+			}
+		default:
+			keyf = func(key []byte) string {
+				return allDatabase2PrefixKeys[leveldbstorage.KeyPrefix(key[:2])]
+			}
 		}
 
 		switch count, prefixes, err := cmd.countLabel(
@@ -274,25 +324,26 @@ func (cmd *DatabaseExtractCommand) count(context.Context) error {
 
 func (cmd *DatabaseExtractCommand) countLabel(
 	label leveldbstorage.KeyPrefix,
-	keyf func([]byte) []byte,
+	keyf func([]byte) string,
 ) (count uint64, prefixes map[string]uint64, _ error) {
 	prefixes = map[string]uint64{}
 
-	all := isaacdatabase.AllPrefixKeys()
+	st := cmd.st(label)
+	if st == nil {
+		return 0, nil, nil
+	}
 
-	pst := leveldbstorage.NewPrefixStorage(cmd.st, label[:])
+	pst := leveldbstorage.NewPrefixStorage(st, label[:])
 	if err := pst.Iter(
 		nil,
 		func(key, raw []byte) (bool, error) {
 			count++
 
-			k := keyf(key)
-
-			switch i, found := all[leveldbstorage.KeyPrefix(k[:2])]; {
-			case !found:
-				prefixes["unknown"]++
+			switch i := keyf(key); {
 			case !cmd.filterPrefix(i):
 				return true, nil
+			case len(i) < 1:
+				prefixes["unknown"]++
 			default:
 				prefixes[i]++
 			}
@@ -331,17 +382,27 @@ func (cmd *DatabaseExtractCommand) extract(context.Context) error {
 
 	var total uint64
 
-	alllabels := isaacdatabase.AllLabelKeys()
-	for k := range alllabels {
-		label := alllabels[k]
+	for k := range allDatabaseExtractLabels {
+		label := allDatabaseExtractLabels[k]
 		if !cmd.filterLabel(label) {
 			continue
 		}
 
-		keyf := func(key []byte) []byte { return key }
+		var keyf func(key []byte) string
 
-		if label == "block_write" {
-			keyf = func(key []byte) []byte { return key[34:] }
+		switch label {
+		case "event":
+			keyf = func(key []byte) string {
+				return allDatabaseEventPrefixKeys[[32]byte(key[:32])]
+			}
+		case "block_write":
+			keyf = func(key []byte) string {
+				return allDatabase2PrefixKeys[leveldbstorage.KeyPrefix(key[34:][:2])]
+			}
+		default:
+			keyf = func(key []byte) string {
+				return allDatabase2PrefixKeys[leveldbstorage.KeyPrefix(key[:2])]
+			}
 		}
 
 		switch count, err := cmd.extractLabel(k, keyf, left); {
@@ -365,26 +426,31 @@ func (cmd *DatabaseExtractCommand) extract(context.Context) error {
 
 func (cmd *DatabaseExtractCommand) extractLabel(
 	label leveldbstorage.KeyPrefix,
-	keyf func([]byte) []byte,
+	keyf func([]byte) string,
 	left uint64,
 ) (uint64, error) {
-	all := isaacdatabase.AllPrefixKeys()
-
 	var count uint64
 
-	pst := leveldbstorage.NewPrefixStorage(cmd.st, label[:])
+	labelstring := allDatabaseExtractLabels[label]
+
+	st := cmd.st(label)
+	if st == nil {
+		return 0, nil
+	}
+
+	pst := leveldbstorage.NewPrefixStorage(st, label[:])
 	if err := pst.Iter(
 		nil,
 		func(key, raw []byte) (bool, error) {
-			k := keyf(key)
+			i := keyf(key)
 
-			switch i, found := all[leveldbstorage.KeyPrefix(k[:2])]; {
-			case !found:
+			switch {
+			case len(i) < 1:
 				return true, nil
 			case !cmd.filterPrefix(i):
 				return true, nil
 			default:
-				if err := cmd.extractValue(i, key, raw); err != nil {
+				if err := cmd.extractValue(labelstring, i, key, raw); err != nil {
 					return false, err
 				}
 
@@ -403,11 +469,22 @@ func (cmd *DatabaseExtractCommand) extractLabel(
 	return count, nil
 }
 
-func (cmd *DatabaseExtractCommand) extractValue(prefix string, key, raw []byte) error {
+func (cmd *DatabaseExtractCommand) extractValue(label, prefix string, key, raw []byte) error {
 	f := func(prefix string, key, raw []byte) (map[string]interface{}, error) {
-		f, found := cmd.extracts[prefix]
-		if !found {
-			return nil, util.ErrNotFound.WithStack()
+		var f extractFunc
+
+		switch {
+		case prefix == "event.all":
+			f = cmd.extractBytes
+		case strings.HasPrefix(prefix, "event."):
+			f = cmd.extractNamedEvent
+		default:
+			i, found := cmd.extracts[prefix]
+			if !found {
+				return nil, util.ErrNotFound.WithStack()
+			}
+
+			f = i
 		}
 
 		return f(key, raw)
@@ -439,7 +516,9 @@ func (cmd *DatabaseExtractCommand) extractValue(prefix string, key, raw []byte) 
 		}
 	}
 
+	m["label"] = label
 	m["prefix"] = prefix
+
 	if len(comment) > 0 {
 		m["comment"] = comment
 	}
@@ -470,7 +549,9 @@ func (cmd *DatabaseExtractCommand) extractHinted(key, raw []byte, v interface{})
 	}, nil
 }
 
-func (cmd *DatabaseExtractCommand) extractHintedHashHeader(key, raw []byte, v interface{}) (map[string]interface{}, error) {
+func (cmd *DatabaseExtractCommand) extractHintedHashHeader(
+	key, raw []byte, v interface{},
+) (map[string]interface{}, error) {
 	m, err := cmd.extractHinted(key, raw, v)
 	if err != nil {
 		return nil, err
@@ -619,14 +700,40 @@ func (cmd *DatabaseExtractCommand) extractBallot(key, raw []byte) (map[string]in
 	return cmd.extractHinted(key, raw, new(base.Ballot))
 }
 
+func (cmd *DatabaseExtractCommand) extractNamedEvent(key, raw []byte) (m map[string]interface{}, _ error) {
+	var t time.Time
+	var offset int64
+
+	switch i, j, err := launch.LoadEventInfoFromKey(key); {
+	case err != nil:
+		return nil, err
+	default:
+		t = i
+		offset = j
+	}
+
+	switch b, err := launch.LoadRawEvent(raw); {
+	case err != nil:
+		return nil, err
+	default:
+		return map[string]interface{}{
+			"key": cmd.encodeBytes(key),
+			"meta": map[string]interface{}{
+				"time":   t,
+				"offset": offset,
+			},
+			"body": json.RawMessage(b),
+		}, nil
+	}
+}
+
 func (*DatabaseExtractCommand) Help() string {
-	malllabels := isaacdatabase.AllLabelKeys()
-	alllabels := make([]string, len(malllabels))
+	alllabels := make([]string, len(allDatabaseExtractLabels))
 
 	var i int
 
-	for k := range malllabels {
-		alllabels[i] = malllabels[k]
+	for k := range allDatabaseExtractLabels {
+		alllabels[i] = allDatabaseExtractLabels[k]
 		i++
 	}
 
@@ -640,13 +747,18 @@ func (*DatabaseExtractCommand) Help() string {
 		_, _ = fmt.Fprintln(buf, "  - ", alllabels[i])
 	}
 
-	mallprefixes := isaacdatabase.AllPrefixKeys()
-	allprefixes := make([]string, len(mallprefixes))
+	mall2prefixes := allDatabase2PrefixKeys
+	allprefixes := make([]string, len(allDatabase2PrefixKeys)+len(allDatabaseEventPrefixKeyStrings))
 
 	i = 0
 
-	for k := range mallprefixes {
-		allprefixes[i] = mallprefixes[k]
+	for k := range allDatabaseEventPrefixKeyStrings {
+		allprefixes[i] = allDatabaseEventPrefixKeyStrings[k]
+		i++
+	}
+
+	for k := range mall2prefixes {
+		allprefixes[i] = mall2prefixes[k]
 		i++
 	}
 
@@ -659,4 +771,13 @@ func (*DatabaseExtractCommand) Help() string {
 	}
 
 	return buf.String()
+}
+
+func (cmd *DatabaseExtractCommand) st(label leveldbstorage.KeyPrefix) *leveldbstorage.Storage {
+	switch label {
+	case launch.LeveldbLabelEventDatabase:
+		return cmd.eventst
+	default:
+		return cmd.defaultst
+	}
 }

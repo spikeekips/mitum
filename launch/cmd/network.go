@@ -31,6 +31,7 @@ type NetworkClientCommand struct { //nolint:govet //...
 		Read  NetworkClientReadNodeCommand  `cmd:"" name:"read" help:"read node value"`
 		Write NetworkClientWriteNodeCommand `cmd:"" name:"write" help:"write node value"`
 	} `cmd:"" name:"node" help:""`
+	Event NetworkClientEventLoggingCommand `cmd:"" name:"event" help:"event log"`
 	//revive:enable:nested-structs
 	//revive:enable:line-length-limit
 }

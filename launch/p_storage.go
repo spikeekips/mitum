@@ -44,11 +44,13 @@ var (
 	PermanentDatabaseContextKey     = util.ContextKey("permanent-database")
 	PoolDatabaseContextKey          = util.ContextKey("pool-database")
 	LastVoteproofsHandlerContextKey = util.ContextKey("last-voteproofs-handler")
+	EventLoggingContextKey          = util.ContextKey("event-logging")
 )
 
 var (
 	LocalFSDataDirectoryName           = "data"
 	LocalFSDatabaseDirectoryName       = "db"
+	LocalFSEventDatabaseDirectoryName  = "event"
 	LeveldbURIScheme                   = "leveldb"
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 )
@@ -155,6 +157,9 @@ func PCloseStorage(pctx context.Context) (context.Context, error) {
 
 	var st *leveldbstorage.Storage
 	_ = load("leveldb storage", LeveldbStorageContextKey, &st)
+
+	var eventlogging *EventLogging
+	_ = load("leveldb storage", EventLoggingContextKey, &eventlogging)
 
 	for i := range stoppers {
 		stoppers[len(stoppers)-i-1]()
@@ -398,12 +403,17 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 
 	_ = db.SetLogging(log)
 
-	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		LeveldbStorageContextKey:    st,
-		CenterDatabaseContextKey:    db,
-		PermanentDatabaseContextKey: perm,
-		PoolDatabaseContextKey:      pool,
-	}), nil
+	switch i, err := pLoadEventDatabase(pctx); {
+	case err != nil:
+		return pctx, err
+	default:
+		return util.ContextWithValues(i, map[util.ContextKey]interface{}{
+			LeveldbStorageContextKey:    st,
+			CenterDatabaseContextKey:    db,
+			PermanentDatabaseContextKey: perm,
+			PoolDatabaseContextKey:      pool,
+		}), nil
+	}
 }
 
 func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
@@ -650,6 +660,10 @@ func LocalFSDatabaseDirectory(root string) string {
 	return filepath.Join(root, LocalFSDatabaseDirectoryName)
 }
 
+func LocalFSEventDatabaseDirectory(root string) string {
+	return filepath.Join(root, LocalFSEventDatabaseDirectoryName)
+}
+
 func LoadDatabase(
 	fsnodeinfo NodeInfo,
 	permuri string,
@@ -744,5 +758,35 @@ func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (N
 		return nil, e.Errorf("network id does not match")
 	default:
 		return info, nil
+	}
+}
+
+func pLoadEventDatabase(pctx context.Context) (context.Context, error) {
+	var design NodeDesign
+	var logout io.Writer
+
+	if err := util.LoadFromContextOK(pctx,
+		DesignContextKey, &design,
+		LogOutContextKey, &logout,
+	); err != nil {
+		return pctx, err
+	}
+
+	switch el, err := NewEventLogging(LocalFSEventDatabaseDirectory(design.Storage.Base), logout); {
+	case err != nil:
+		return pctx, err
+	default:
+		for i := range AllEventLoggerNames {
+			switch n := AllEventLoggerNames[i]; n {
+			case AllEventLogger, UnknownEventLogger:
+				continue
+			default:
+				if _, err := el.Register(n); err != nil {
+					return pctx, err
+				}
+			}
+		}
+
+		return context.WithValue(pctx, EventLoggingContextKey, el), nil
 	}
 }
