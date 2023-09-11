@@ -171,7 +171,7 @@ func NewLockedMap[K lockedMapKeys, V any](
 
 	switch {
 	case size < 1:
-		return nil, errors.Errorf("new ShardedMap; empty size")
+		return nil, errors.Errorf("new LockedMap; empty size")
 	case size == 1:
 		return newMap(), nil
 	default:
