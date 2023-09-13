@@ -157,6 +157,7 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	Len() int
 	Empty()
 	Close()
+	Map() map[K]V
 }
 
 func NewLockedMap[K lockedMapKeys, V any](
@@ -359,6 +360,21 @@ func (l *SingleLockedMap[K, V]) Close() {
 	defer l.Unlock()
 
 	l.m = nil
+}
+
+func (l *SingleLockedMap[K, V]) Map() (m map[K]V) {
+	l.RLock()
+	defer l.RUnlock()
+
+	for k := range l.m {
+		if m == nil {
+			m = map[K]V{}
+		}
+
+		m[k] = l.m[k]
+	}
+
+	return m
 }
 
 type ShardedMap[K lockedMapKeys, V any] struct {
@@ -608,6 +624,28 @@ func (l *ShardedMap[K, V]) Traverse(f func(K, V) bool) bool {
 	}
 
 	return true
+}
+
+func (l *ShardedMap[K, V]) Map() (m map[K]V) {
+	l.RLock()
+	defer l.RUnlock()
+
+	for i := range l.sharded {
+		if m == nil {
+			m = map[K]V{}
+		}
+
+		if l.sharded[i] == nil {
+			continue
+		}
+
+		sm := l.sharded[i].Map()
+		for k := range sm {
+			m[k] = sm[k]
+		}
+	}
+
+	return m
 }
 
 type traverseMaper[K lockedMapKeys, V any] interface {
