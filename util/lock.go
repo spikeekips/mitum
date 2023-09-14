@@ -153,6 +153,7 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	GetOrCreate(key K, f func(value V, created bool) error, create func() (value V, _ error)) error
 	Set(key K, f func(_ V, found bool) (value V, _ error)) (value V, created bool, _ error)
 	Remove(key K, f func(value V, found bool) error) (removed bool, _ error)
+	SetOrRemove(key K, f func(_ V, found bool) (value V, remove bool, _ error)) (_ V, created, removed bool, _ error)
 	Traverse(f func(key K, value V) (keep bool)) bool
 	Len() int
 	Empty()
@@ -325,6 +326,37 @@ func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error)
 		return false, nil
 	default:
 		return false, err
+	}
+}
+
+func (l *SingleLockedMap[K, V]) SetOrRemove(
+	k K,
+	f func(V, bool) (v V, _ bool, _ error),
+) (v V, _ bool, _ bool, _ error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.m == nil {
+		return v, false, false, ErrLockedMapClosed.WithStack()
+	}
+
+	i, found := l.m[k]
+
+	switch j, remove, err := f(i, found); {
+	case errors.Is(err, ErrLockedSetIgnore):
+		return i, false, false, nil // NOTE existing value
+	case err != nil:
+		return v, false, false, err
+	case found && remove:
+		delete(l.m, k)
+
+		return v, false, true, nil
+	case !remove:
+		l.m[k] = j
+
+		return j, !found, false, nil
+	default:
+		return v, false, false, nil
 	}
 }
 
@@ -606,6 +638,25 @@ func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 		}
 
 		return removed, err
+	}
+}
+
+func (l *ShardedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (v V, _ bool, _ bool, _ error) {
+	switch i, isclosed := l.newItem(k); {
+	case isclosed:
+		return v, false, false, ErrLockedMapClosed.WithStack()
+	default:
+		j, created, removed, err := i.SetOrRemove(k, f)
+		if err == nil {
+			switch {
+			case created:
+				atomic.AddInt64(&l.length, 1)
+			case removed:
+				atomic.AddInt64(&l.length, -1)
+			}
+		}
+
+		return j, created, removed, err
 	}
 }
 

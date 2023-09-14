@@ -618,6 +618,69 @@ func (t *testSingleLockedMap) TestRemove() {
 	})
 }
 
+func (t *testSingleLockedMap) TestSetOrRemove() {
+	l := NewSingleLockedMap[string, int]()
+
+	t.Run("set; unknown", func() {
+		_, created, removed, err := l.SetOrRemove("showme", func(i int, found bool) (int, bool, error) {
+			t.False(found)
+
+			return 3, false, nil
+		})
+		t.NoError(err)
+		t.True(created)
+		t.False(removed)
+
+		i, found := l.Value("showme")
+		t.True(found)
+		t.Equal(3, i)
+	})
+
+	t.Run("set; found, not remove", func() {
+		_, created, removed, err := l.SetOrRemove("showme", func(i int, found bool) (int, bool, error) {
+			t.True(found)
+
+			return i + 3, false, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.False(removed)
+
+		i, found := l.Value("showme")
+		t.True(found)
+		t.Equal(6, i)
+	})
+
+	t.Run("remove; unknown", func() {
+		_, created, removed, err := l.SetOrRemove("findme", func(i int, found bool) (int, bool, error) {
+			t.False(found)
+
+			return 0, true, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.False(removed)
+
+		i, found := l.Value("showme")
+		t.True(found)
+		t.Equal(6, i)
+	})
+
+	t.Run("remove; found", func() {
+		_, created, removed, err := l.SetOrRemove("showme", func(i int, found bool) (int, bool, error) {
+			t.True(found)
+
+			return 0, true, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.True(removed)
+
+		_, found := l.Value("showme")
+		t.False(found)
+	})
+}
+
 func (t *testSingleLockedMap) TestTraverse() {
 	l := NewSingleLockedMap[string, int]()
 
