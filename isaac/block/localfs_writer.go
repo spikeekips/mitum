@@ -146,12 +146,14 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 		func(ctx context.Context, _ uint64) error {
 			_ = w.opsf.Close()
 
-			if err := w.m.SetItem(NewLocalBlockMapItem(
-				base.BlockMapItemTypeOperations,
-				w.opsf.Checksum(),
-				atomic.LoadUint64(&w.lenops),
-			)); err != nil {
-				return errors.Wrap(err, "set operations")
+			if l := atomic.LoadUint64(&w.lenops); l > 0 {
+				if err := w.m.SetItem(NewLocalBlockMapItem(
+					base.BlockMapItemTypeOperations,
+					w.opsf.Checksum(),
+					l,
+				)); err != nil {
+					return errors.Wrap(err, "set operations")
+				}
 			}
 
 			return nil
