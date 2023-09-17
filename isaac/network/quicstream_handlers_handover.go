@@ -13,10 +13,10 @@ import (
 )
 
 func QuicstreamHandlerStartHandover(
-	aclhandler quicstreamheader.HandlerFunc[StartHandoverHeader],
+	aclhandler quicstreamheader.Handler[StartHandoverHeader],
 	f isaacstates.StartHandoverYFunc,
 ) quicstreamheader.Handler[StartHandoverHeader] {
-	return aclhandler(func(
+	return aclhandler.Handler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
 	) (context.Context, error) {
 		err := f(ctx, header.Address(), header.ConnInfo())
@@ -26,10 +26,10 @@ func QuicstreamHandlerStartHandover(
 }
 
 func QuicstreamHandlerCancelHandover(
-	aclhandler quicstreamheader.HandlerFunc[CancelHandoverHeader],
+	aclhandler quicstreamheader.Handler[CancelHandoverHeader],
 	f func() error,
 ) quicstreamheader.Handler[CancelHandoverHeader] {
-	return aclhandler(func(
+	return aclhandler.Handler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
 	) (context.Context, error) {
 		err := f()
@@ -39,10 +39,10 @@ func QuicstreamHandlerCancelHandover(
 }
 
 func QuicstreamHandlerCheckHandover(
-	aclhandler quicstreamheader.HandlerFunc[CheckHandoverHeader],
+	aclhandler quicstreamheader.Handler[CheckHandoverHeader],
 	f isaacstates.CheckHandoverFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
-	return aclhandler(func(
+	return aclhandler.Handler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
 	) (context.Context, error) {
 		err := f(ctx, header.Address(), header.ConnInfo())

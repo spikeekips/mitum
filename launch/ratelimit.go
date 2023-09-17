@@ -1149,7 +1149,6 @@ func rateLimitHandlerFunc(
 	}
 }
 
-// FIXME convert to HandlerFunc
 func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 	ratelimiter *RateLimitHandler,
 	findPrefix func([32]byte) (string, bool),

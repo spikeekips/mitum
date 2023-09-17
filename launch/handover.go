@@ -364,7 +364,7 @@ func attachStartHandoverHandler(
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixStartHandoverString,
 		isaacnetwork.QuicstreamHandlerStartHandover(
-			ACLNetworkHandlerFunc[isaacnetwork.StartHandoverHeader](
+			ACLNetworkHandler[isaacnetwork.StartHandoverHeader](
 				aclallow,
 				HandoverACLScope,
 				NewAllowACLPerm(1),
@@ -432,7 +432,7 @@ func attachCancelHandoverHandler(
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixCancelHandoverString,
 		isaacnetwork.QuicstreamHandlerCancelHandover(
-			ACLNetworkHandlerFunc[isaacnetwork.CancelHandoverHeader](
+			ACLNetworkHandler[isaacnetwork.CancelHandoverHeader](
 				aclallow,
 				HandoverACLScope,
 				NewAllowACLPerm(1),
@@ -493,7 +493,7 @@ func attachCheckHandoverHandler(
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixCheckHandoverString,
 		isaacnetwork.QuicstreamHandlerCheckHandover(
-			ACLNetworkHandlerFunc[isaacnetwork.CheckHandoverHeader](
+			ACLNetworkHandler[isaacnetwork.CheckHandoverHeader](
 				aclallow,
 				HandoverACLScope,
 				NewAllowACLPerm(1),

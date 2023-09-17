@@ -17,17 +17,12 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 	xci := quicstream.RandomConnInfo()
 	yci := quicstream.RandomConnInfo()
 
-	aclhandler := func(handler quicstreamheader.Handler[StartHandoverHeader]) quicstreamheader.Handler[StartHandoverHeader] {
-		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader) (context.Context, error) {
-			if err := QuicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				t.Local.Publickey(), t.LocalParams.NetworkID(),
-			); err != nil {
-				return ctx, err
-			}
-
-			return handler(ctx, addr, broker, header)
-		}
+	aclhandler := func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader) (context.Context, error) {
+		err := QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			t.Local.Publickey(), t.LocalParams.NetworkID(),
+		)
+		return ctx, err
 	}
 
 	t.Run("failed to verify node", func() {
@@ -112,17 +107,12 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 func (t *testQuicstreamHandlers) TestCancelHandover() {
 	localci := quicstream.RandomConnInfo()
 
-	aclhandler := func(handler quicstreamheader.Handler[CancelHandoverHeader]) quicstreamheader.Handler[CancelHandoverHeader] {
-		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader) (context.Context, error) {
-			if err := QuicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				t.Local.Publickey(), t.LocalParams.NetworkID(),
-			); err != nil {
-				return ctx, err
-			}
-
-			return handler(ctx, addr, broker, header)
-		}
+	aclhandler := func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader) (context.Context, error) {
+		err := QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			t.Local.Publickey(), t.LocalParams.NetworkID(),
+		)
+		return ctx, err
 	}
 
 	t.Run("failed to verify node", func() {
@@ -202,17 +192,12 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 	xci := quicstream.RandomConnInfo()
 	yci := quicstream.RandomConnInfo()
 
-	aclhandler := func(handler quicstreamheader.Handler[CheckHandoverHeader]) quicstreamheader.Handler[CheckHandoverHeader] {
-		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader) (context.Context, error) {
-			if err := QuicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				t.Local.Publickey(), t.LocalParams.NetworkID(),
-			); err != nil {
-				return ctx, err
-			}
-
-			return handler(ctx, addr, broker, header)
-		}
+	aclhandler := func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader) (context.Context, error) {
+		err := QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			t.Local.Publickey(), t.LocalParams.NetworkID(),
+		)
+		return ctx, err
 	}
 
 	t.Run("failed to verify node", func() {

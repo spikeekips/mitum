@@ -579,7 +579,7 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixEventLoggingString,
 		QuicstreamHandlerEventLogging(
-			ACLNetworkHandlerFunc[EventLoggingHeader](
+			ACLNetworkHandler[EventLoggingHeader](
 				aclallow,
 				EventLoggingACLScope,
 				NewAllowACLPerm(0),
@@ -595,11 +595,11 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 }
 
 func QuicstreamHandlerEventLogging(
-	aclhandler quicstreamheader.HandlerFunc[EventLoggingHeader],
+	aclhandler quicstreamheader.Handler[EventLoggingHeader],
 	eventLogging *EventLogging,
 	maxItem uint64,
 ) quicstreamheader.Handler[EventLoggingHeader] {
-	return aclhandler(func(
+	return aclhandler.Handler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header EventLoggingHeader,
 	) (context.Context, error) {
 		m := maxItem

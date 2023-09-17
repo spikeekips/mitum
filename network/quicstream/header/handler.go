@@ -25,7 +25,16 @@ type ErrorHandler func(
 	error,
 ) (context.Context, error)
 
-type HandlerFunc[T RequestHeader] func(Handler[T]) Handler[T] // FIXME apply
+func (h Handler[T]) Handler(handler Handler[T]) Handler[T] {
+	return func(ctx context.Context, addr net.Addr, broker *HandlerBroker, header T) (context.Context, error) {
+		switch nctx, err := h(ctx, addr, broker, header); {
+		case err != nil:
+			return nctx, err
+		default:
+			return handler(nctx, addr, broker, header)
+		}
+	}
+}
 
 func NewHandler[T RequestHeader](
 	encs *encoder.Encoders,

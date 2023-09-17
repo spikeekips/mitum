@@ -486,45 +486,39 @@ func NewACLAllowFunc(acl *ACL, el zerolog.Logger) ACLAllowFunc {
 	}
 }
 
-func ACLNetworkHandlerFunc[T quicstreamheader.RequestHeader](
+func ACLNetworkHandler[T quicstreamheader.RequestHeader](
 	aclallow ACLAllowFunc,
 	scope ACLScope,
 	required ACLPerm,
 	networkID base.NetworkID,
-) quicstreamheader.HandlerFunc[T] {
-	return func(handler quicstreamheader.Handler[T]) quicstreamheader.Handler[T] {
-		return func(
-			ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T,
-		) (context.Context, error) {
-			var h ACLUser
+) quicstreamheader.Handler[T] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T,
+	) (context.Context, error) {
+		var h ACLUser
 
-			switch i, ok := (interface{})(header).(ACLUser); {
-			case !ok:
-				return ctx, errors.Errorf("invalid acl header")
-			default:
-				h = i
-			}
-
-			if err := isaacnetwork.QuicstreamHandlerVerifyNode(
-				ctx, addr, broker,
-				h.ACLUser(), networkID,
-			); err != nil {
-				return ctx, err
-			}
-
-			extra := zerolog.Dict().
-				Stringer("addr", addr).
-				Interface("header", header)
-
-			if !aclallow(h.ACLUser().String(), scope, required, extra) {
-				return ctx, ErrACLBlocked.WithStack()
-			}
-
-			if handler == nil {
-				return ctx, nil
-			}
-
-			return handler(ctx, addr, broker, header)
+		switch i, ok := (interface{})(header).(ACLUser); {
+		case !ok:
+			return ctx, errors.Errorf("invalid acl header")
+		default:
+			h = i
 		}
+
+		if err := isaacnetwork.QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			h.ACLUser(), networkID,
+		); err != nil {
+			return ctx, err
+		}
+
+		extra := zerolog.Dict().
+			Stringer("addr", addr).
+			Interface("header", header)
+
+		if !aclallow(h.ACLUser().String(), scope, required, extra) {
+			return ctx, ErrACLBlocked.WithStack()
+		}
+
+		return ctx, nil
 	}
 }
