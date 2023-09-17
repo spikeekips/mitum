@@ -1,13 +1,13 @@
 package launch
 
 import (
-	"context"
+	"io"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	vault "github.com/hashicorp/vault/api"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -133,8 +133,8 @@ var DefaultDesignURI = "./config.yml"
 // consul will be used.
 type DesignFlag struct {
 	//revive:disable:line-length-limit
-	URI                 DesignURIFlag `name:"design" help:"design uri; 'file:///config.yml', 'https://a.b.c.d/config.yml'" group:"design" default:"${design_uri}"`
-	DesignURIProperties `embed:"" prefix:"design."`
+	URI           DesignURIFlag `name:"design" help:"design uri; 'file:///config.yml', 'https://a.b.c.d/config.yml'" group:"design" default:"${design_uri}"`
+	URLProperties `embed:"" prefix:"design." group:"design"`
 	//revive:enable:line-length-limit
 }
 
@@ -146,8 +146,8 @@ func (f DesignFlag) URL() *url.URL {
 	return f.URI.loc
 }
 
-func (f DesignFlag) Properties() DesignURIProperties {
-	return f.DesignURIProperties
+func (f DesignFlag) Properties() URLProperties {
+	return f.URLProperties
 }
 
 type DesignURIFlag struct {
@@ -184,8 +184,8 @@ func (f *DesignURIFlag) UnmarshalText(b []byte) error {
 	return nil
 }
 
-type DesignURIProperties struct {
-	HTTPSTLSInsecure bool `name:"https.tls_insecure" negatable:"" help:"https tls insecure" group:"design"`
+type URLProperties struct {
+	HTTPSTLSInsecure bool `name:"https.tls_insecure" negatable:"" help:"https tls insecure"`
 }
 
 type DevFlags struct { //nolint:govet //...
@@ -246,6 +246,73 @@ func (f *RangeFlag) To() *uint64 {
 	return f.to
 }
 
+type SecretFlag struct {
+	s    string
+	body []byte
+}
+
+func (f SecretFlag) String() string {
+	return f.s
+}
+
+func (f SecretFlag) Body() []byte {
+	return f.body
+}
+
+func (f *SecretFlag) UnmarshalText(b []byte) error {
+	e := util.StringError("secret flag")
+
+	f.s = strings.TrimSpace(string(b))
+
+	switch {
+	case len(f.s) < 1:
+		return nil
+	case f.s == "-": // NOTE stdin
+		switch i, err := io.ReadAll(os.Stdin); {
+		case err != nil:
+			return e.Wrap(err)
+		default:
+			f.body = i
+
+			return nil
+		}
+	}
+
+	var u *url.URL
+
+	switch i, err := url.Parse(f.s); {
+	case err != nil:
+		return e.Wrap(err)
+	case len(i.Scheme) < 1 && len(i.Path) < 1:
+		return e.Errorf("empty")
+	default:
+		u = i
+	}
+
+	switch u.Scheme {
+	case "file", "":
+		switch i, err := os.ReadFile(u.Path); {
+		case err != nil:
+			return e.Wrap(err)
+		default:
+			f.body = i
+
+			return nil
+		}
+	case "vault":
+		switch i, err := getFromVault(u.String()); {
+		case err != nil:
+			return e.Wrap(err)
+		default:
+			f.body = i
+
+			return nil
+		}
+	default:
+		return e.Errorf("unsupported secret url, %q", f.s)
+	}
+}
+
 func DecodePrivatekey(s string, enc encoder.Encoder) (base.Privatekey, error) {
 	switch key, err := base.DecodePrivatekeyFromString(s, enc); {
 	case err != nil:
@@ -259,69 +326,14 @@ func DecodePrivatekey(s string, enc encoder.Encoder) (base.Privatekey, error) {
 	}
 }
 
-type PrivatekeyFlag struct {
-	s   string
-	key string
-}
-
-func (f PrivatekeyFlag) String() string {
-	return f.s
-}
-
-func (f PrivatekeyFlag) Key() string {
-	return f.key
-}
-
-func (f *PrivatekeyFlag) UnmarshalText(b []byte) error {
-	e := util.StringError("PrivatekeyFlag")
-
-	s := strings.TrimSpace(string(b))
-
-	if !strings.Contains(s, "://") {
-		f.s = "<text>"
-		f.key = s
-
-		return nil
-	}
-
-	var u *url.URL
-
-	switch i, err := url.Parse(s); {
-	case err != nil:
-		return e.Wrap(err)
-	default:
-		u = i
-	}
-
-	f.s = s
-
-	switch u.Scheme {
-	case "vault":
-		client, err := vault.NewClient(vault.DefaultConfig())
-		if err != nil {
-			return e.Wrap(err)
-		}
-
-		secret, err := client.KVv2("secret").Get(context.Background(), s)
-		if err != nil {
-			return e.Wrap(err)
-		}
-
-		i := secret.Data["string"]
-
-		priv, ok := i.(string)
-		if !ok {
-			return e.Errorf("read secret; expected string but %T", i)
-		}
-
-		f.key = priv
-	default:
-		return e.Errorf("unsupported privatekey url, %q", s)
-	}
-
-	return nil
-}
-
 type PrivatekeyFlags struct {
-	Privatekey PrivatekeyFlag `name:"privatekey" help:"load privatekey from somewhere" placeholder:"PRIVATEKEY"`
+	//revive:disable:line-length-limit
+	Flag SecretFlag `name:"privatekey" help:"privatekey uri; './privatekey.yml', 'file:///privatekey.yml', 'vault://a.b.c.d/privatekey'" placeholder:"URL"`
+	//revive:enable:line-length-limit
+}
+
+type ACLFlags struct {
+	//revive:disable:line-length-limit
+	Flag SecretFlag `name:"acl" help:"acl uri; './acl.yml', 'file:///acl.yml', 'vault://a.b.c.d/acl'" placeholder:"URL"`
+	//revive:enable:line-length-limit
 }

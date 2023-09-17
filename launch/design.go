@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	consulapi "github.com/hashicorp/consul/api"
+	vault "github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -64,7 +65,7 @@ type NodeDesign struct { //nolint:govet //...
 func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign from file")
 
-	switch b, err := nodeDesignFromFile(f); {
+	switch b, err := os.ReadFile(filepath.Clean(f)); {
 	case err != nil:
 		return d, nil, e.Wrap(err)
 	default:
@@ -79,7 +80,7 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru http")
 
-	switch b, err := nodeDesignFromHTTP(u, tlsinsecure); {
+	switch b, err := getFromHTTP(u, tlsinsecure); {
 	case err != nil:
 		return design, nil, e.Wrap(err)
 	default:
@@ -94,7 +95,7 @@ func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (desig
 func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru consul")
 
-	switch b, err := nodeDesignFromConsul(addr, key); {
+	switch b, err := getFromConsul(addr, key); {
 	case err != nil:
 		return design, nil, e.Wrap(err)
 	default:
@@ -682,22 +683,6 @@ func defaultDatabaseURL(root string) *url.URL {
 	}
 }
 
-func loadPrivatekey(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
-	e := util.StringError("load privatekey from somewhere")
-
-	var u PrivatekeyFlag
-	if err := u.UnmarshalText([]byte(path)); err != nil {
-		return nil, e.Wrap(err)
-	}
-
-	switch priv, err := base.DecodePrivatekeyFromString(u.Key(), enc); {
-	case err != nil:
-		return nil, e.WithMessage(err, "invalid privatekey")
-	default:
-		return priv, nil
-	}
-}
-
 func consulClient(addr string) (*consulapi.Client, error) {
 	config := consulapi.DefaultConfig()
 	if len(addr) > 0 {
@@ -712,16 +697,21 @@ func consulClient(addr string) (*consulapi.Client, error) {
 	return client, nil
 }
 
-func nodeDesignFromFile(f string) ([]byte, error) {
-	b, err := os.ReadFile(filepath.Clean(f))
+func getFromConsul(addr, key string) ([]byte, error) {
+	client, err := consulClient(addr)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	return b, nil
+	switch v, _, err := client.KV().Get(key, nil); {
+	case err != nil:
+		return nil, errors.WithStack(err)
+	default:
+		return v.Value, nil
+	}
 }
 
-func nodeDesignFromHTTP(u string, tlsinsecure bool) ([]byte, error) {
+func getFromHTTP(u string, tlsinsecure bool) ([]byte, error) {
 	httpclient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -756,16 +746,23 @@ func nodeDesignFromHTTP(u string, tlsinsecure bool) ([]byte, error) {
 	return b, nil
 }
 
-func nodeDesignFromConsul(addr, key string) ([]byte, error) {
-	client, err := consulClient(addr)
+func getFromVault(u string) ([]byte, error) {
+	client, err := vault.NewClient(vault.DefaultConfig())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	switch v, _, err := client.KV().Get(key, nil); {
-	case err != nil:
+	secret, err := client.KVv2("secret").Get(context.Background(), u)
+	if err != nil {
 		return nil, errors.WithStack(err)
-	default:
-		return v.Value, nil
 	}
+
+	i := secret.Data["string"]
+
+	s, ok := i.(string)
+	if !ok {
+		return nil, errors.Errorf("expected string but %T", i)
+	}
+
+	return []byte(s), nil
 }

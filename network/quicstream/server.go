@@ -104,6 +104,8 @@ func (srv *Server) accept(ctx context.Context, listener *quic.EarlyListener) {
 			return
 		}
 
+		// FIXME set connection id(UUID) to context
+
 		atomic.AddInt64(&count, 1)
 
 		go func() {
@@ -147,6 +149,7 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 	}()
 
 	for {
+		// FIXME set StreamID() to context
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
 			var nerr net.Error
@@ -160,8 +163,9 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 				srv.Log().Trace().Err(err).Msg("failed to accept stream; canceled")
 			case errors.As(err, &aerr):
 				errcode = aerr.ErrorCode
-
-				srv.Log().Trace().Err(err).Msg("failed to accept stream; application error")
+				if errcode != quic.ApplicationErrorCode(0) {
+					srv.Log().Trace().Err(err).Msg("failed to accept stream; application error")
+				}
 			case errors.As(err, &nerr) && nerr.Timeout():
 				errcode = 0x402
 

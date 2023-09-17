@@ -305,7 +305,7 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	if err := attachCancelHandoverHandler(pctx, local, isaacparams); err != nil {
+	if err := attachCancelHandoverHandler(pctx, isaacparams); err != nil {
 		return pctx, err
 	}
 
@@ -328,6 +328,8 @@ func PHandoverNetworkHandlers(pctx context.Context) (context.Context, error) {
 	return pctx, nil
 }
 
+var HandoverACLScope = ACLScope("handover")
+
 func attachStartHandoverHandler(
 	pctx context.Context,
 	local base.LocalNode,
@@ -348,13 +350,26 @@ func attachStartHandoverHandler(
 		return err
 	}
 
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return err
+	default:
+		aclallow = i
+	}
+
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixStartHandoverString,
 		isaacnetwork.QuicstreamHandlerStartHandover(
-			local,
-			isaacparams.NetworkID(),
+			ACLNetworkHandlerFunc[isaacnetwork.StartHandoverHeader](
+				aclallow,
+				HandoverACLScope,
+				NewAllowACLPerm(1),
+				isaacparams.NetworkID(),
+			),
 			isaacstates.NewStartHandoverYFunc(
 				local.Address(),
 				localci,
@@ -391,7 +406,6 @@ func attachStartHandoverHandler(
 
 func attachCancelHandoverHandler(
 	pctx context.Context,
-	local base.LocalNode,
 	isaacparams *isaac.Params,
 ) error {
 	var log *logging.Logging
@@ -404,13 +418,26 @@ func attachCancelHandoverHandler(
 		return err
 	}
 
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return err
+	default:
+		aclallow = i
+	}
+
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixCancelHandoverString,
 		isaacnetwork.QuicstreamHandlerCancelHandover(
-			local,
-			isaacparams.NetworkID(),
+			ACLNetworkHandlerFunc[isaacnetwork.CancelHandoverHeader](
+				aclallow,
+				HandoverACLScope,
+				NewAllowACLPerm(1),
+				isaacparams.NetworkID(),
+			),
 			func() error {
 				xch := make(chan error)
 				ych := make(chan error)
@@ -452,13 +479,26 @@ func attachCheckHandoverHandler(
 		return err
 	}
 
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return err
+	default:
+		aclallow = i
+	}
+
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixCheckHandoverString,
 		isaacnetwork.QuicstreamHandlerCheckHandover(
-			local,
-			isaacparams.NetworkID(),
+			ACLNetworkHandlerFunc[isaacnetwork.CheckHandoverHeader](
+				aclallow,
+				HandoverACLScope,
+				NewAllowACLPerm(1),
+				isaacparams.NetworkID(),
+			),
 			isaacstates.NewCheckHandoverFunc(local.Address(), localci,
 				states.AllowedConsensus,
 				func() bool {

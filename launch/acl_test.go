@@ -11,23 +11,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type testACL struct {
+type baseTestACL struct {
 	suite.Suite
 	enc *jsonenc.Encoder
 }
 
-func (t *testACL) SetupSuite() {
+func (t *baseTestACL) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 }
 
-func (t *testACL) printYAML(name string, i interface{}) {
+func (t *baseTestACL) printYAML(name string, i interface{}) {
 	b, _ := yaml.Marshal(i)
 	t.T().Logf("%s:\n%s", name, string(b))
 }
 
-func (t *testACL) compareACL(acl *ACL, om *util.YAMLOrderedMap) {
+func (t *baseTestACL) compareACL(acl *ACL, om *util.YAMLOrderedMap) {
 	om.Traverse(func(k string, v interface{}) bool {
 		am, ok := v.(*util.YAMLOrderedMap)
 		t.True(ok)
@@ -51,6 +51,18 @@ func (t *testACL) compareACL(acl *ACL, om *util.YAMLOrderedMap) {
 	})
 }
 
+func (t *testACL) checkallow(acl *ACL, user string, scope ACLScope, required, expected ACLPerm) bool {
+	given, allow := acl.Allow(user, scope, required)
+
+	t.Equal(expected, given, "expected=%s given=%s", expected, given)
+
+	return allow
+}
+
+type testACL struct {
+	baseTestACL
+}
+
 func (t *testACL) TestParseACLYAML() {
 	t.Run("ok", func() {
 		y := `
@@ -71,10 +83,11 @@ embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
 
 		acl, _ := NewACL(9, "")
 
-		om, err := parseACLYAML([]byte(y), acl, t.enc)
+		om, updated, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.NoError(err)
 		t.NotNil(om)
 		t.NotNil(acl)
+		t.True(updated)
 
 		t.printYAML("om -> yml", om)
 		t.compareACL(acl, om)
@@ -91,9 +104,49 @@ _default:
 
 		acl, _ := NewACL(9, "")
 
-		_, err := parseACLYAML([]byte(y), acl, t.enc)
+		_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.Error(err)
 		t.ErrorContains(err, "empty user")
+	})
+
+	t.Run("not updated", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  am: oo
+  cm: x
+  bm: o
+`
+		t.T().Logf("source:\n%s", y)
+
+		acl, _ := NewACL(9, "")
+
+		om, updated, err := loadACLFromYAML(acl, []byte(y), t.enc)
+		t.NoError(err)
+		t.NotNil(om)
+		t.NotNil(acl)
+		t.True(updated)
+
+		uom, uupdated, uerr := loadACLFromYAML(acl, []byte(y), t.enc)
+		t.NoError(uerr)
+		t.False(uupdated)
+		t.NotNil(uom)
+
+		t.Equal(om.Len(), uom.Len())
+		om.Traverse(func(k string, v interface{}) bool {
+			i, found := uom.Get(k)
+			t.True(found)
+			t.Equal(v, i)
+
+			return true
+		})
 	})
 }
 
@@ -107,7 +160,7 @@ mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
 `
 		acl, _ := NewACL(9, "")
 
-		_, err := parseACLYAML([]byte(y), acl, t.enc)
+		_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.Error(err)
 		t.ErrorContains(err, "decode publickey")
 	})
@@ -121,7 +174,7 @@ mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUu:
 `
 		acl, _ := NewACL(9, "")
 
-		_, err := parseACLYAML([]byte(y), acl, t.enc)
+		_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.Error(err)
 		t.ErrorContains(err, "decode publickey")
 	})
@@ -133,7 +186,7 @@ _default:
 `
 		acl, _ := NewACL(9, "")
 
-		_, err := parseACLYAML([]byte(y), acl, t.enc)
+		_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.Error(err)
 		t.ErrorContains(err, "unknown perm")
 	})
@@ -145,7 +198,7 @@ _default:
 `
 		acl, _ := NewACL(9, "")
 
-		_, err := parseACLYAML([]byte(y), acl, t.enc)
+		_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 		t.Error(err)
 		t.ErrorContains(err, "empty perm")
 	})
@@ -171,71 +224,72 @@ mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
 `
 	acl, _ := NewACL(9, "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu")
 
-	_, err := parseACLYAML([]byte(y), acl, t.enc)
+	_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 	t.NoError(err)
 
 	t.Run("default user", func() {
-		t.False(acl.Allow(defaultACLUser, ACLScope("bd"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(defaultACLUser, ACLScope("cd"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(defaultACLUser, ACLScope("cd"), NewAllowACLPerm(2)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("ad"), NewAllowACLPerm(2)))
-		t.True(acl.Allow(defaultACLUser, ACLScope("ad"), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("bd"), NewAllowACLPerm(0), aclPermProhibit))
+		t.True(t.checkallow(acl, defaultACLUser, ACLScope("cd"), NewAllowACLPerm(0), NewAllowACLPerm(1)))
+		t.True(t.checkallow(acl, defaultACLUser, ACLScope("cd"), NewAllowACLPerm(1), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("ad"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
+		t.True(t.checkallow(acl, defaultACLUser, ACLScope("ad"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
 
-		t.False(acl.Allow(defaultACLUser, ACLScope("am"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("cm"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("bm"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(defaultACLUser, ACLScope("ce"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("ce"), NewAllowACLPerm(2)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("be"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(defaultACLUser, ACLScope("ae"), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("am"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("cm"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("bm"), NewAllowACLPerm(0), aclPermProhibit))
+		t.True(t.checkallow(acl, defaultACLUser, ACLScope("ce"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("ce"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("be"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, defaultACLUser, ACLScope("ae"), NewAllowACLPerm(0), aclPermProhibit))
 	})
 
 	t.Run("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", func() {
 		u := "mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu"
-		t.False(acl.Allow(u, ACLScope("cm"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("am"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("am"), NewAllowACLPerm(2)))
-		t.False(acl.Allow(u, ACLScope("bm"), NewAllowACLPerm(2)))
-		t.True(acl.Allow(u, ACLScope("bm"), NewAllowACLPerm(1)))
+
+		t.False(t.checkallow(acl, u, ACLScope("cm"), NewAllowACLPerm(0), aclPermProhibit))
+		t.True(t.checkallow(acl, u, ACLScope("am"), NewAllowACLPerm(0), NewAllowACLPerm(1)))
+		t.True(t.checkallow(acl, u, ACLScope("am"), NewAllowACLPerm(1), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, u, ACLScope("bm"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
+		t.True(t.checkallow(acl, u, ACLScope("bm"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
 
 		t.Run("from default", func() {
-			t.False(acl.Allow(defaultACLUser, ACLScope("bd"), NewAllowACLPerm(1)))
-			t.True(acl.Allow(defaultACLUser, ACLScope("cd"), NewAllowACLPerm(1)))
-			t.True(acl.Allow(defaultACLUser, ACLScope("cd"), NewAllowACLPerm(2)))
-			t.False(acl.Allow(defaultACLUser, ACLScope("ad"), NewAllowACLPerm(2)))
-			t.True(acl.Allow(defaultACLUser, ACLScope("ad"), NewAllowACLPerm(1)))
+			t.False(t.checkallow(acl, defaultACLUser, ACLScope("bd"), NewAllowACLPerm(0), aclPermProhibit))
+			t.True(t.checkallow(acl, defaultACLUser, ACLScope("cd"), NewAllowACLPerm(0), NewAllowACLPerm(1)))
+			t.True(t.checkallow(acl, defaultACLUser, ACLScope("cd"), NewAllowACLPerm(1), NewAllowACLPerm(1)))
+			t.False(t.checkallow(acl, defaultACLUser, ACLScope("ad"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
+			t.True(t.checkallow(acl, defaultACLUser, ACLScope("ad"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
 
-			t.True(acl.Allow(defaultACLUser, ACLScope("ce"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(defaultACLUser, ACLScope("be"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(defaultACLUser, ACLScope("ae"), NewAllowACLPerm(1)))
+			t.True(t.checkallow(acl, defaultACLUser, ACLScope("ce"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
+			t.False(t.checkallow(acl, defaultACLUser, ACLScope("be"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, defaultACLUser, ACLScope("ae"), NewAllowACLPerm(0), aclPermProhibit))
 		})
 	})
 
 	t.Run("unknown user", func() {
 		u := "showme"
 
-		t.False(acl.Allow(u, ACLScope("bd"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("cd"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("cd"), NewAllowACLPerm(2)))
-		t.False(acl.Allow(u, ACLScope("ad"), NewAllowACLPerm(2)))
-		t.True(acl.Allow(u, ACLScope("ad"), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, u, ACLScope("bd"), NewAllowACLPerm(0), aclPermProhibit))
+		t.True(t.checkallow(acl, u, ACLScope("cd"), NewAllowACLPerm(0), NewAllowACLPerm(1)))
+		t.True(t.checkallow(acl, u, ACLScope("cd"), NewAllowACLPerm(1), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, u, ACLScope("ad"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
+		t.True(t.checkallow(acl, u, ACLScope("ad"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
 
-		t.False(acl.Allow(u, ACLScope("am"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("cm"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("bm"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("ce"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("be"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("ae"), NewAllowACLPerm(1)))
+		t.False(t.checkallow(acl, u, ACLScope("am"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("cm"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("bm"), NewAllowACLPerm(0), aclPermProhibit))
+		t.True(t.checkallow(acl, u, ACLScope("ce"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
+		t.False(t.checkallow(acl, u, ACLScope("be"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("ae"), NewAllowACLPerm(0), aclPermProhibit))
 	})
 
 	t.Run("super", func() {
 		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
 
-		t.True(acl.Allow(u, ACLScope("cm"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("am"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("am"), NewAllowACLPerm(2)))
-		t.True(acl.Allow(u, ACLScope("bm"), NewAllowACLPerm(2)))
-		t.True(acl.Allow(u, ACLScope("bm"), NewAllowACLPerm(1)))
+		t.True(t.checkallow(acl, u, ACLScope("cm"), NewAllowACLPerm(0), aclPermSuper))
+		t.True(t.checkallow(acl, u, ACLScope("am"), NewAllowACLPerm(0), aclPermSuper))
+		t.True(t.checkallow(acl, u, ACLScope("am"), NewAllowACLPerm(1), aclPermSuper))
+		t.True(t.checkallow(acl, u, ACLScope("bm"), NewAllowACLPerm(1), aclPermSuper))
+		t.True(t.checkallow(acl, u, ACLScope("bm"), NewAllowACLPerm(0), aclPermSuper))
 	})
 }
 
@@ -248,75 +302,78 @@ _default:
 
 	acl, _ := NewACL(9, "")
 
-	_, err := parseACLYAML([]byte(y), acl, t.enc)
+	_, _, err := loadACLFromYAML(acl, []byte(y), t.enc)
 	t.NoError(err)
 
 	t.Run("unknown user", func() {
 		u := "mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu"
 
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(1), aclPermProhibit))
 	})
 
 	t.Run("set new user", func() {
 		u := "mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu"
 
-		prev, err := acl.SetUser(u, map[ACLScope]ACLPerm{"b": NewAllowACLPerm(1)})
+		prev, updated, err := acl.setUser(u, map[ACLScope]ACLPerm{"b": NewAllowACLPerm(0)})
 		t.NoError(err)
+		t.True(updated)
 		t.Nil(prev)
 
 		t.printYAML("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", acl.m.Map())
 
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(1), aclPermProhibit))
 
-		t.True(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
+		t.True(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(0), NewAllowACLPerm(0)))
+		t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(1), NewAllowACLPerm(0)))
 
 		t.Run("unknown user", func() {
 			u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
 
-			t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
-			t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
+			t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(1), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(1), aclPermProhibit))
 		})
 	})
 
 	t.Run("set new user", func() {
 		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
 
-		prev, err := acl.SetUser(u, map[ACLScope]ACLPerm{"c": NewAllowACLPerm(2)})
+		prev, updated, err := acl.setUser(u, map[ACLScope]ACLPerm{"c": NewAllowACLPerm(1)})
 		t.NoError(err)
+		t.True(updated)
 		t.Nil(prev)
 
-		t.printYAML("embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu", acl.m.Map())
+		t.printYAML(u, acl.m.Map())
 
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(1), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(1), aclPermProhibit))
 
-		t.True(acl.Allow(u, ACLScope("c"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("c"), NewAllowACLPerm(2)))
+		t.True(t.checkallow(acl, u, ACLScope("c"), NewAllowACLPerm(0), NewAllowACLPerm(1)))
+		t.True(t.checkallow(acl, u, ACLScope("c"), NewAllowACLPerm(1), NewAllowACLPerm(1)))
 
 		t.Run("unknown user", func() {
 			u := "kmbahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
 
-			t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
-			t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
-			t.False(acl.Allow(u, ACLScope("c"), NewAllowACLPerm(1)))
-			t.False(acl.Allow(u, ACLScope("c"), NewAllowACLPerm(2)))
+			t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("a"), NewAllowACLPerm(1), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(1), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("c"), NewAllowACLPerm(0), aclPermProhibit))
+			t.False(t.checkallow(acl, u, ACLScope("c"), NewAllowACLPerm(1), aclPermProhibit))
 		})
 	})
 
 	t.Run("set new user; empty map", func() {
 		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
 
-		prev, err := acl.SetUser(u, map[ACLScope]ACLPerm{})
+		prev, updated, err := acl.setUser(u, map[ACLScope]ACLPerm{})
 		t.NoError(err)
+		t.True(updated)
 		t.NotNil(prev)
 
 		t.printYAML("prev", prev)
@@ -326,147 +383,28 @@ _default:
 	t.Run("override", func() {
 		u := "mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu"
 
-		prev, err := acl.SetUser(u, map[ACLScope]ACLPerm{"b": aclPermProhibit})
+		prev, updated, err := acl.setUser(u, map[ACLScope]ACLPerm{"b": aclPermProhibit})
 		t.NoError(err)
+		t.True(updated)
 		t.NotNil(prev)
 
 		t.printYAML("prev", prev)
 		t.printYAML("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", acl.m.Map())
 
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
-	})
-}
-
-func (t *testACL) TestUpdateScope() {
-	y := `
-_default:
-  a: x
-  b: x
-`
-	t.T().Logf("source:\n%s", y)
-
-	acl, _ := NewACL(9, "")
-
-	_, err := parseACLYAML([]byte(y), acl, t.enc)
-	t.NoError(err)
-
-	t.Run("update", func() {
-		u := defaultACLUser
-
-		prev, err := acl.UpdateScope(u, ACLScope("a"), NewAllowACLPerm(2))
-		t.NoError(err)
-		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
+		t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(0), aclPermProhibit))
+		t.False(t.checkallow(acl, u, ACLScope("b"), NewAllowACLPerm(1), aclPermProhibit))
 	})
 
-	t.Run("new", func() {
-		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
+	t.Run("override; not updated", func() {
+		u := "mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu"
 
-		prev, err := acl.UpdateScope(u, ACLScope("b"), NewAllowACLPerm(1))
+		prev, updated, err := acl.setUser(u, map[ACLScope]ACLPerm{"b": aclPermProhibit})
 		t.NoError(err)
+		t.False(updated)
+		t.NotNil(prev)
+
 		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(2)))
-
-		t.True(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(2)))
-	})
-}
-
-func (t *testACL) TestRemoveUser() {
-	y := `
-_default:
-  a: o
-  b: o
-embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
-  a: x
-  b: x
-`
-	t.T().Logf("source:\n%s", y)
-
-	acl, _ := NewACL(9, "")
-
-	_, err := parseACLYAML([]byte(y), acl, t.enc)
-	t.NoError(err)
-
-	t.Run("remove", func() {
-		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
-
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-
-		prev, err := acl.RemoveUser(u)
-		t.NoError(err)
-		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-	})
-
-	t.Run("unknown", func() {
-		u := "bmbahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-
-		prev, err := acl.RemoveUser(u)
-		t.NoError(err)
-		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-	})
-}
-
-func (t *testACL) TestRemoveScope() {
-	y := `
-_default:
-  a: o
-  b: o
-embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
-  a: x
-  b: x
-`
-	t.T().Logf("source:\n%s", y)
-
-	acl, _ := NewACL(9, "")
-
-	_, err := parseACLYAML([]byte(y), acl, t.enc)
-	t.NoError(err)
-
-	t.Run("remove", func() {
-		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
-
-		t.False(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-
-		prev, err := acl.RemoveScope(u, ACLScope("a"))
-		t.NoError(err)
-		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-	})
-
-	t.Run("remove left", func() {
-		u := "embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu"
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.False(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
-
-		prev, err := acl.RemoveScope(u, ACLScope("b"))
-		t.NoError(err)
-		t.printYAML("prev", prev)
-		t.printYAML("after", acl.m.Map())
-
-		t.True(acl.Allow(u, ACLScope("a"), NewAllowACLPerm(1)))
-		t.True(acl.Allow(u, ACLScope("b"), NewAllowACLPerm(1)))
+		t.printYAML("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", acl.m.Map())
 	})
 }
 
@@ -485,32 +423,15 @@ embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
 	acl, _ := NewACL(9, superuser)
 
 	t.Run("allow", func() {
-		t.True(acl.Allow(superuser, ACLScope("a"), NewAllowACLPerm(3)))
-		t.True(acl.Allow(superuser, ACLScope("b"), NewAllowACLPerm(3)))
-		t.True(acl.Allow(superuser, ACLScope("c"), NewAllowACLPerm(3)))
+		t.True(t.checkallow(acl, superuser, ACLScope("a"), NewAllowACLPerm(2), aclPermSuper))
+		t.True(t.checkallow(acl, superuser, ACLScope("b"), NewAllowACLPerm(2), aclPermSuper))
+		t.True(t.checkallow(acl, superuser, ACLScope("c"), NewAllowACLPerm(2), aclPermSuper))
 	})
 
 	t.Run("set user", func() {
-		_, err := acl.SetUser(superuser, map[ACLScope]ACLPerm{"c": NewAllowACLPerm(1)})
+		_, updated, err := acl.setUser(superuser, map[ACLScope]ACLPerm{"c": NewAllowACLPerm(0)})
 		t.Error(err)
-		t.ErrorContains(err, "superuser")
-	})
-
-	t.Run("remove user", func() {
-		_, err := acl.RemoveUser(superuser)
-		t.Error(err)
-		t.ErrorContains(err, "superuser")
-	})
-
-	t.Run("update scope", func() {
-		_, err := acl.UpdateScope(superuser, ACLScope("c"), NewAllowACLPerm(1))
-		t.Error(err)
-		t.ErrorContains(err, "superuser")
-	})
-
-	t.Run("remove scope", func() {
-		_, err := acl.RemoveScope(superuser, ACLScope("c"))
-		t.Error(err)
+		t.False(updated)
 		t.ErrorContains(err, "superuser")
 	})
 }
@@ -532,14 +453,14 @@ func (t *testACLPerm) TestYAMLMarshal() {
 	})
 
 	t.Run("allow1", func() {
-		b, err := yaml.Marshal(NewAllowACLPerm(1))
+		b, err := yaml.Marshal(NewAllowACLPerm(0))
 		t.NoError(err)
 
 		t.Equal("o\n", string(b))
 	})
 
 	t.Run("allow2", func() {
-		b, err := yaml.Marshal(NewAllowACLPerm(2))
+		b, err := yaml.Marshal(NewAllowACLPerm(1))
 		t.NoError(err)
 
 		t.Equal("oo\n", string(b))
@@ -560,8 +481,8 @@ func (t *testACLPerm) TestConvertACLPerm() {
 		err  string
 	}{
 		{name: "prohibit", s: "x", p: aclPermProhibit},
-		{name: "allow1", s: "o", p: NewAllowACLPerm(1)},
-		{name: "allow2", s: "oo", p: NewAllowACLPerm(2)},
+		{name: "allow1", s: "o", p: NewAllowACLPerm(0)},
+		{name: "allow2", s: "oo", p: NewAllowACLPerm(1)},
 		{name: "empty", s: "", err: "empty perm string"},
 		{name: "not o", s: "b", err: "unknown perm string"},
 		{name: "uppercase o", s: "O", err: "unknown perm string"},
@@ -590,4 +511,198 @@ func (t *testACLPerm) TestConvertACLPerm() {
 
 func TestACLPerm(t *testing.T) {
 	suite.Run(t, new(testACLPerm))
+}
+
+type testYAMLACL struct {
+	baseTestACL
+}
+
+func (t *testYAMLACL) TestNew() {
+	t.Run("ok", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  am: oo
+  cm: x
+  bm: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+`
+		t.T().Logf("source:\n%s", y)
+
+		acl, err := NewACL(9, "")
+		t.NoError(err)
+
+		yamlacl := NewYAMLACL(acl)
+		updated, err := yamlacl.Import([]byte(y), t.enc)
+		t.NoError(err)
+		t.True(updated)
+
+		m := yamlacl.Export()
+
+		t.printYAML("new", m)
+		t.compareACL(acl, m.(*util.YAMLOrderedMap))
+	})
+
+	t.Run("wrong user", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUu:
+  am: oo
+  cm: x
+  bm: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+`
+		acl, err := NewACL(9, "")
+		t.NoError(err)
+
+		yamlacl := NewYAMLACL(acl)
+		updated, err := yamlacl.Import([]byte(y), t.enc)
+		t.Error(err)
+		t.False(updated)
+		t.ErrorContains(err, "user")
+	})
+
+	t.Run("empty user", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+`
+		acl, err := NewACL(9, "")
+		t.NoError(err)
+
+		yamlacl := NewYAMLACL(acl)
+		updated, err := yamlacl.Import([]byte(y), t.enc)
+		t.Error(err)
+		t.False(updated)
+		t.ErrorContains(err, "empty user perms")
+	})
+}
+
+func (t *testYAMLACL) TestImport() {
+	t.Run("ok", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  am: oo
+  cm: x
+  bm: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+`
+		acl, err := NewACL(9, "")
+		t.NoError(err)
+
+		yamlacl := NewYAMLACL(acl)
+		updated, err := yamlacl.Import([]byte(y), t.enc)
+		t.NoError(err)
+		t.True(updated)
+
+		m := yamlacl.Export()
+
+		t.printYAML("new", m)
+		t.compareACL(acl, m.(*util.YAMLOrderedMap))
+
+		ny := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  dm: oo
+  em: x
+  fm: o
+`
+		updated, err = yamlacl.Import([]byte(ny), t.enc)
+		t.NoError(err)
+		t.True(updated)
+
+		m = yamlacl.Export()
+		t.printYAML("imported", m)
+
+		var om *util.YAMLOrderedMap
+		t.NoError(yaml.Unmarshal([]byte(ny), &om))
+
+		t.compareACL(yamlacl.ACL, om)
+	})
+
+	t.Run("not updated", func() {
+		y := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  am: oo
+  cm: x
+  bm: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+`
+		acl, err := NewACL(9, "")
+		t.NoError(err)
+
+		yamlacl := NewYAMLACL(acl)
+
+		updated, err := yamlacl.Import([]byte(y), t.enc)
+		t.NoError(err)
+		t.True(updated)
+
+		m := yamlacl.Export()
+
+		t.printYAML("new", m)
+		t.compareACL(acl, m.(*util.YAMLOrderedMap))
+
+		ny := `
+_default:
+  bd: x
+  cd: oo
+  ad: o
+embahrNvSzYDMmXn37JYR8V756PVakPGaeyjDXDRisErmpu:
+  ce: o
+  be: oo
+  ae: x
+mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu:
+  am: oo
+  cm: x
+  bm: o
+`
+		updated, err = yamlacl.Import([]byte(ny), t.enc)
+		t.NoError(err)
+		t.False(updated)
+
+		var om *util.YAMLOrderedMap
+		t.NoError(yaml.Unmarshal([]byte(y), &om))
+
+		t.compareACL(yamlacl.ACL, om)
+	})
+}
+
+func TestYAMLACL(t *testing.T) {
+	suite.Run(t, new(testYAMLACL))
 }

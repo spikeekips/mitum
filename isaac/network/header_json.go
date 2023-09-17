@@ -11,12 +11,12 @@ import (
 )
 
 type BaseHeaderJSONMarshaler struct {
-	ClientID string `json:"client_id"`
+	ClientID string `json:"client_id,omitempty"`
 	quicstreamheader.BaseHeaderJSONMarshaler
 }
 
 type BaseHeaderJSONUnmarshaler struct {
-	ClientID string `json:"client_id"`
+	ClientID string `json:"client_id,omitempty"`
 }
 
 func (h BaseHeader) JSONMarshaler() BaseHeaderJSONMarshaler {
@@ -620,22 +620,56 @@ func (h *StreamOperationsHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type caHandoverHeaderJSONMarshaler struct {
+type aclUserHeaderJSONMarshaler struct {
+	ACLUser base.Publickey `json:"acl_user"`
+}
+
+func (h aclUserHeader) jsonMarshaler() aclUserHeaderJSONMarshaler {
+	return aclUserHeaderJSONMarshaler{ACLUser: h.acluser}
+}
+
+type aclUserHeaderJSONUnmarshaler struct {
+	ACLUser string `json:"acl_user"`
+}
+
+func (h *aclUserHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	var u aclUserHeaderJSONUnmarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	switch i, err := base.DecodePublickeyFromString(u.ACLUser, enc); {
+	case err != nil:
+		return err
+	default:
+		h.acluser = i
+
+		return nil
+	}
+}
+
+type caHandoverHeaderJSONMarshalerPartial struct {
 	Address  base.Address        `json:"address"`
 	ConnInfo quicstream.ConnInfo `json:"conn_info"`
 }
 
-func (h caHandoverHeader) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		caHandoverHeaderJSONMarshaler
-		BaseHeaderJSONMarshaler
-	}{
+type caHandoverHeaderJSONMarshaler struct {
+	caHandoverHeaderJSONMarshalerPartial
+	BaseHeaderJSONMarshaler
+}
+
+func (h caHandoverHeader) jsonMarshaler() caHandoverHeaderJSONMarshaler {
+	return caHandoverHeaderJSONMarshaler{
 		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		caHandoverHeaderJSONMarshaler: caHandoverHeaderJSONMarshaler{
+		caHandoverHeaderJSONMarshalerPartial: caHandoverHeaderJSONMarshalerPartial{
 			ConnInfo: h.connInfo,
 			Address:  h.address,
 		},
-	})
+	}
+}
+
+func (h caHandoverHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.jsonMarshaler())
 }
 
 type caHandoverHeaderJSONUnmarshaler struct {
@@ -668,6 +702,60 @@ func (h *caHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	return nil
+}
+
+func (h StartHandoverHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		aclUserHeaderJSONMarshaler
+		caHandoverHeaderJSONMarshaler
+	}{
+		caHandoverHeaderJSONMarshaler: h.caHandoverHeader.jsonMarshaler(),
+		aclUserHeaderJSONMarshaler:    h.aclUserHeader.jsonMarshaler(),
+	})
+}
+
+func (h *StartHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	if err := h.caHandoverHeader.DecodeJSON(b, enc); err != nil {
+		return err
+	}
+
+	return h.aclUserHeader.DecodeJSON(b, enc)
+}
+
+func (h CheckHandoverHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		aclUserHeaderJSONMarshaler
+		caHandoverHeaderJSONMarshaler
+	}{
+		caHandoverHeaderJSONMarshaler: h.caHandoverHeader.jsonMarshaler(),
+		aclUserHeaderJSONMarshaler:    h.aclUserHeader.jsonMarshaler(),
+	})
+}
+
+func (h *CheckHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	if err := h.caHandoverHeader.DecodeJSON(b, enc); err != nil {
+		return err
+	}
+
+	return h.aclUserHeader.DecodeJSON(b, enc)
+}
+
+func (h CancelHandoverHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		aclUserHeaderJSONMarshaler
+		BaseHeaderJSONMarshaler
+	}{
+		BaseHeaderJSONMarshaler:    h.BaseHeader.JSONMarshaler(),
+		aclUserHeaderJSONMarshaler: h.aclUserHeader.jsonMarshaler(),
+	})
+}
+
+func (h *CancelHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+		return err
+	}
+
+	return h.aclUserHeader.DecodeJSON(b, enc)
 }
 
 type askHandoverResponseHeaderJSONMarshaler struct {

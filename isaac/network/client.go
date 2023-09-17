@@ -653,7 +653,7 @@ func (c *BaseClient) StartHandover(
 	address base.Address,
 	xci quicstream.ConnInfo, // NOTE broker x
 ) (bool, error) {
-	header := NewStartHandoverHeader(xci, address)
+	header := NewStartHandoverHeader(xci, address, priv.Publickey())
 	header.SetClientID(c.ClientID())
 
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, yci, priv, networkID, header); {
@@ -672,7 +672,7 @@ func (c *BaseClient) CancelHandover(
 	priv base.Privatekey,
 	networkID base.NetworkID,
 ) (bool, error) {
-	header := NewCancelHandoverHeader()
+	header := NewCancelHandoverHeader(priv.Publickey())
 	header.SetClientID(c.ClientID())
 
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, ci, priv, networkID, header); {
@@ -726,7 +726,7 @@ func (c *BaseClient) CheckHandover(
 	address base.Address,
 	yci quicstream.ConnInfo, // NOTE broker y
 ) (bool, error) {
-	header := NewCheckHandoverHeader(yci, address)
+	header := NewCheckHandoverHeader(yci, address, priv.Publickey())
 	header.SetClientID(c.ClientID())
 
 	switch _, rh, err := c.verifyNodeWithResponse(ctx, xci, priv, networkID, header); {

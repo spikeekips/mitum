@@ -29,9 +29,10 @@ type RunCommand struct { //nolint:govet //...
 	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
 	Hold      launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
 	HTTPState string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
-	exitf     func(error)
-	log       *zerolog.Logger
-	holded    bool
+	launch.ACLFlags
+	exitf  func(error)
+	log    *zerolog.Logger
+	holded bool
 	//revive:enable:line-length-limit
 }
 
@@ -43,11 +44,12 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("privatekey", cmd.Privatekey).
+		Interface("privatekey", cmd.PrivatekeyFlags).
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold).
 		Interface("http_state", cmd.HTTPState).
 		Interface("dev", cmd.DevFlags).
+		Interface("acl", cmd.ACLFlags).
 		Msg("flags")
 
 	cmd.log = log.Log()
@@ -59,10 +61,11 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	}
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:     cmd.DesignFlag,
-		launch.DevFlagsContextKey:       cmd.DevFlags,
-		launch.DiscoveryFlagContextKey:  cmd.Discovery,
-		launch.PrivatekeyFromContextKey: cmd.Privatekey,
+		launch.DesignFlagContextKey:      cmd.DesignFlag,
+		launch.DevFlagsContextKey:        cmd.DevFlags,
+		launch.DiscoveryFlagContextKey:   cmd.Discovery,
+		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
+		launch.ACLFlagsContextKey:        cmd.ACLFlags,
 	})
 
 	pps := launch.DefaultRunPS()

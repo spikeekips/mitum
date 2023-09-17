@@ -52,19 +52,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	var gerror error
-
-	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixSetAllowConsensusString,
-		isaacnetwork.QuicstreamHandlerSetAllowConsensus(
-			local.Publickey(),
-			params.ISAAC.NetworkID(),
-			states.SetAllowConsensus,
-		),
-		nil,
-	)
-
-	return pctx, gerror
+	return pctx, nil
 }
 
 func AttachHandlerOperation(pctx context.Context) error {

@@ -151,7 +151,7 @@ linters-settings:
   dogsled:
     # Checks assignments with too many blank identifiers.
     # Default: 2
-    max-blank-identifiers: 3
+    max-blank-identifiers: 9
 
   dupl:
     # Tokens count to trigger issue.

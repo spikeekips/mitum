@@ -13,66 +13,42 @@ import (
 )
 
 func QuicstreamHandlerStartHandover(
-	local base.Node,
-	networkID base.NetworkID,
+	aclhandler quicstreamheader.HandlerFunc[StartHandoverHeader],
 	f isaacstates.StartHandoverYFunc,
 ) quicstreamheader.Handler[StartHandoverHeader] {
-	return func(
+	return aclhandler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
 	) (context.Context, error) {
-		err := QuicstreamHandlerVerifyNode(
-			ctx, addr, broker,
-			local.Publickey(), networkID,
-		)
-
-		if err == nil {
-			err = f(ctx, header.Address(), header.ConnInfo())
-		}
+		err := f(ctx, header.Address(), header.ConnInfo())
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
-	}
+	})
 }
 
 func QuicstreamHandlerCancelHandover(
-	local base.Node,
-	networkID base.NetworkID,
+	aclhandler quicstreamheader.HandlerFunc[CancelHandoverHeader],
 	f func() error,
 ) quicstreamheader.Handler[CancelHandoverHeader] {
-	return func(
+	return aclhandler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
 	) (context.Context, error) {
-		err := QuicstreamHandlerVerifyNode(
-			ctx, addr, broker,
-			local.Publickey(), networkID,
-		)
-
-		if err == nil {
-			err = f()
-		}
+		err := f()
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
-	}
+	})
 }
 
 func QuicstreamHandlerCheckHandover(
-	local base.Node,
-	networkID base.NetworkID,
+	aclhandler quicstreamheader.HandlerFunc[CheckHandoverHeader],
 	f isaacstates.CheckHandoverFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
-	return func(
+	return aclhandler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
 	) (context.Context, error) {
-		err := QuicstreamHandlerVerifyNode(
-			ctx, addr, broker,
-			local.Publickey(), networkID,
-		)
-
-		if err == nil {
-			err = f(ctx, header.Address(), header.ConnInfo())
-		}
+		err := f(ctx, header.Address(), header.ConnInfo())
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
-	}
+	})
 }
 
 func QuicstreamHandlerAskHandover(

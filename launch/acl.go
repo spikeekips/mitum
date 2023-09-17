@@ -5,6 +5,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -13,7 +14,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"gopkg.in/yaml.v3"
 )
 
 type (
@@ -54,6 +54,7 @@ var ACLEventLoggerName EventLoggerName = "acl"
 type ACL struct {
 	m         util.LockedMap[ /* user */ string /* perm set */, map[ACLScope]ACLPerm]
 	superuser string
+	sync.RWMutex
 }
 
 func NewACL(mapsize uint64, superuser string) (*ACL, error) {
@@ -66,6 +67,9 @@ func NewACL(mapsize uint64, superuser string) (*ACL, error) {
 }
 
 func (acl *ACL) Allow(user string, scope ACLScope, required ACLPerm) (ACLPerm, bool) {
+	acl.RLock()
+	defer acl.RUnlock()
+
 	if required == aclPermProhibit {
 		return aclPermProhibit, false
 	}
@@ -83,7 +87,35 @@ func (acl *ACL) Allow(user string, scope ACLScope, required ACLPerm) (ACLPerm, b
 	return assigned, allow
 }
 
-func (acl *ACL) SetUser(user string, m map[ACLScope]ACLPerm) (prev map[ACLScope]ACLPerm, updated bool, _ error) {
+func (*ACL) fromDefault(perms map[ACLScope]ACLPerm, required ACLPerm) (assigned ACLPerm, allow bool) {
+	if p, found := perms[defaultACLScope]; found {
+		return p, p >= required
+	}
+
+	return assigned, false
+}
+
+func (acl *ACL) allow(user string, scope ACLScope, required ACLPerm) (assigned ACLPerm, allow bool) {
+	_ = acl.m.Get(user, func(perms map[ACLScope]ACLPerm, found bool) error {
+		if !found {
+			return nil
+		}
+
+		switch p, found := perms[scope]; {
+		case !found:
+			assigned, allow = acl.fromDefault(perms, required)
+		default:
+			assigned = p
+			allow = p >= required
+		}
+
+		return nil
+	})
+
+	return assigned, allow
+}
+
+func (acl *ACL) setUser(user string, m map[ACLScope]ACLPerm) (prev map[ACLScope]ACLPerm, updated bool, _ error) {
 	if user == acl.superuser {
 		return nil, false, errors.Errorf("superuser")
 	}
@@ -118,107 +150,6 @@ func (acl *ACL) SetUser(user string, m map[ACLScope]ACLPerm) (prev map[ACLScope]
 	}
 
 	return prev, updated, nil
-}
-
-func (acl *ACL) RemoveUser(user string) (prev map[ACLScope]ACLPerm, removed bool, _ error) {
-	if user == acl.superuser {
-		return nil, false, errors.Errorf("superuser")
-	}
-
-	removed, _ = acl.m.Remove(user, func(value map[ACLScope]ACLPerm, found bool) error {
-		if found {
-			prev = value
-		}
-
-		return nil
-	})
-
-	return prev, removed, nil
-}
-
-func (acl *ACL) SetScope(user string, scope ACLScope, p ACLPerm) (prev ACLPerm, updated bool, _ error) {
-	if user == acl.superuser {
-		return prev, false, errors.Errorf("superuser")
-	}
-
-	_, _, _ = acl.m.Set(user, func(m map[ACLScope]ACLPerm, found bool) (map[ACLScope]ACLPerm, error) {
-		prev = m[scope]
-
-		switch {
-		case !found:
-			updated = true
-
-			return map[ACLScope]ACLPerm{scope: p}, nil
-		case prev == p:
-			return nil, util.ErrLockedSetIgnore
-		default:
-			m[scope] = p
-			updated = true
-
-			return m, nil
-		}
-	})
-
-	return prev, updated, nil
-}
-
-func (acl *ACL) RemoveScope(user string, scope ACLScope) (prev ACLPerm, removed bool, _ error) {
-	if user == acl.superuser {
-		return prev, false, errors.Errorf("superuser")
-	}
-
-	_, _, _, _ = acl.m.SetOrRemove(user,
-		func(value map[ACLScope]ACLPerm, found bool) (map[ACLScope]ACLPerm, bool, error) {
-			if !found {
-				return nil, false, util.ErrLockedMapClosed
-			}
-
-			switch i, found := value[scope]; {
-			case !found:
-				return nil, false, util.ErrLockedMapClosed
-			default:
-				prev = i
-				removed = true
-
-				if len(value) < 2 {
-					return nil, true, nil
-				}
-
-				delete(value, scope)
-
-				return value, false, nil
-			}
-		})
-
-	return prev, removed, nil
-}
-
-func (*ACL) fromDefault(perms map[ACLScope]ACLPerm, required ACLPerm) (assigned ACLPerm, allow bool) {
-	if p, found := perms[defaultACLScope]; found {
-		return p, p >= required
-	}
-
-	return assigned, false
-}
-
-func (acl *ACL) allow(user string, scope ACLScope, required ACLPerm) (assigned ACLPerm, allow bool) {
-	_ = acl.m.Get(user, func(perms map[ACLScope]ACLPerm, found bool) error {
-		if !found {
-			return nil
-		}
-
-		switch p, found := perms[scope]; {
-		case !found:
-			assigned, allow = acl.fromDefault(perms, required)
-		default:
-			assigned = p
-			allow = p >= required
-		}
-
-		return nil
-	})
-
-	return assigned, allow
 }
 
 func NewAllowACLPerm(c uint8) ACLPerm {
@@ -277,6 +208,43 @@ func (p *ACLPerm) UnmarshalText(b []byte) error {
 	return nil
 }
 
+type YAMLACL struct {
+	*ACL
+	om *util.YAMLOrderedMap
+}
+
+func NewYAMLACL(acl *ACL) *YAMLACL {
+	return &YAMLACL{ACL: acl, om: util.NewYAMLOrderedMap()}
+}
+
+func (acl *YAMLACL) Import(b []byte, enc encoder.Encoder) (updated bool, _ error) {
+	if len(b) < 1 {
+		return false, nil
+	}
+
+	if _, _, err := parseACLYAML(b, enc); err != nil {
+		return false, err
+	}
+
+	acl.Lock()
+	defer acl.Unlock()
+
+	switch om, updated, err := loadACLFromYAML(acl.ACL, b, enc); {
+	case err != nil:
+		return false, err
+	case !updated:
+		return false, nil
+	default:
+		acl.om = om
+
+		return true, nil
+	}
+}
+
+func (acl *YAMLACL) Export() interface{} {
+	return acl.om
+}
+
 func loadACLFromYAML(
 	acl *ACL,
 	b []byte,
@@ -286,69 +254,74 @@ func loadACLFromYAML(
 	updated bool,
 	_ error,
 ) {
-	switch i, err := parseACLYAML(b, enc); {
+	var nom *util.YAMLOrderedMap
+
+	switch i, j, err := parseACLYAML(b, enc); {
 	case err != nil:
 		return nil, false, err
 	default:
 		om = i
+		nom = j
 	}
 
 	var ferr error
+	isnew := om.Len() != acl.m.Len()
 
-	if om.Len() == acl.m.Len() {
-		var isnew bool
-
-		om.Traverse(func(k string, v interface{}) bool {
-			var m map[ACLScope]ACLPerm
-
-			switch i, ok := v.(*util.YAMLOrderedMap); {
-			case !ok:
-				ferr = errors.Errorf("expected map, but %T", v)
-
-				return false
-			default:
-				if m, ferr = convertACLUserYAML(i); ferr != nil {
-					return false
-				}
-			}
-
-			switch i, found := acl.m.Value(k); {
-			case !found,
-				!compareACLUserValues(i, m):
-				updated = true
-
-				return false
-			default:
-				return true
-			}
-		})
-
-		switch {
-		case ferr != nil:
-			return nil, false, ferr
-		case !isnew:
-			return om, updated, nil
-		default:
-			acl.m.Empty()
-		}
-	}
-
-	om.Traverse(func(k string, v interface{}) bool {
+	nom.Traverse(func(k string, v interface{}) bool {
 		var m map[ACLScope]ACLPerm
 
-		switch i, ok := v.(*util.YAMLOrderedMap); {
+		switch i, ok := v.(map[ACLScope]ACLPerm); {
 		case !ok:
 			ferr = errors.Errorf("expected map, but %T", v)
 
 			return false
 		default:
-			if m, ferr = convertACLUserYAML(i); ferr != nil {
+			m = i
+		}
+
+		if !isnew {
+			if i, found := acl.m.Value(k); !found || !compareACLUserValues(i, m) {
+				isnew = true
+
 				return false
 			}
 		}
 
-		if len(m) > 0 {
-			if _, _, err := acl.SetUser(k, m); err != nil {
+		return true
+	})
+
+	if ferr != nil {
+		return nil, false, ferr
+	}
+
+	if !isnew {
+		_ = acl.m.Traverse(func(key string, v map[ACLScope]ACLPerm) bool {
+			if _, found := nom.Get(key); !found {
+				isnew = true
+
+				return false
+			}
+
+			return true
+		})
+	}
+
+	switch {
+	case !isnew:
+		return om, false, nil
+	default:
+		acl.m.Empty()
+	}
+
+	nom.Traverse(func(k string, v interface{}) bool {
+		switch i, ok := v.(map[ACLScope]ACLPerm); {
+		case !ok:
+			ferr = errors.Errorf("expected map, but %T", v)
+
+			return false
+		case len(i) < 1:
+		default:
+			if _, _, err := acl.setUser(k, i); err != nil {
 				ferr = err
 
 				return false
@@ -375,49 +348,9 @@ func compareACLUserValues(a, b map[ACLScope]ACLPerm) bool {
 	return true
 }
 
-func parseACLYAML(b []byte, enc encoder.Encoder) (om *util.YAMLOrderedMap, _ error) {
-	switch i, err := util.UnmarshalWithYAMLOrderedMap(b); {
-	case err != nil:
-		return nil, err
-	default:
-		j, ok := i.(*util.YAMLOrderedMap)
-		if !ok {
-			return nil, errors.Errorf("expected map, but %T", i)
-		}
-
-		om = j
-	}
-
-	var ferr error
-
-	om.Traverse(func(k string, v interface{}) bool {
-		switch {
-		case k == defaultACLUser:
-		case len(k) < 1:
-			ferr = errors.Errorf("empty user")
-
-			return false
-		default:
-			if _, ferr = base.DecodePublickeyFromString(k, enc); ferr != nil {
-				return false
-			}
-		}
-
-		if _, ok := v.(*util.YAMLOrderedMap); !ok {
-			ferr = errors.Errorf("expected map, but %T", v)
-
-			return false
-		}
-
-		return true
-	})
-
-	return om, ferr
-}
-
-func parseACLUserYAML(b []byte) (
+func parseACLYAML(b []byte, enc encoder.Encoder) (
 	om *util.YAMLOrderedMap,
-	m map[ACLScope]ACLPerm,
+	nom *util.YAMLOrderedMap,
 	_ error,
 ) {
 	switch i, err := util.UnmarshalWithYAMLOrderedMap(b); {
@@ -432,9 +365,49 @@ func parseACLUserYAML(b []byte) (
 		om = j
 	}
 
-	i, err := convertACLUserYAML(om)
+	nom = util.NewYAMLOrderedMap()
 
-	return om, i, err
+	var ferr error
+
+	om.Traverse(func(k string, v interface{}) bool {
+		switch {
+		case k == defaultACLUser:
+		case len(k) < 1:
+			ferr = errors.Errorf("empty user")
+
+			return false
+		case v == nil:
+			ferr = errors.Errorf("empty user perms")
+
+			return false
+		default:
+			if _, err := base.DecodePublickeyFromString(k, enc); err != nil {
+				ferr = errors.WithMessage(err, "user")
+
+				return false
+			}
+		}
+
+		switch i, ok := v.(*util.YAMLOrderedMap); {
+		case !ok:
+			ferr = errors.Errorf("expected map, but %T", v)
+
+			return false
+		default:
+			switch m, err := convertACLUserYAML(i); {
+			case err != nil:
+				ferr = err
+
+				return false
+			default:
+				_ = nom.Set(k, m)
+
+				return true
+			}
+		}
+	})
+
+	return om, nom, ferr
 }
 
 func convertACLUserYAML(om *util.YAMLOrderedMap) (
@@ -467,16 +440,6 @@ func convertACLUserYAML(om *util.YAMLOrderedMap) (
 	})
 
 	return m, ferr
-}
-
-func convertACLPermYAML(b []byte) (p ACLPerm, _ error) {
-	var u interface{}
-
-	if err := yaml.Unmarshal(b, &u); err != nil {
-		return p, errors.WithStack(err)
-	}
-
-	return convertACLPerm(u)
 }
 
 func convertACLPerm(i interface{}) (p ACLPerm, _ error) {

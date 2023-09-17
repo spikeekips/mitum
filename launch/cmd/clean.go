@@ -25,7 +25,7 @@ func (cmd *CleanCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("privatekey", cmd.Privatekey).
+		Interface("privatekey", cmd.PrivatekeyFlags).
 		Interface("dev", cmd.DevFlags).
 		Msg("flags")
 
@@ -50,9 +50,9 @@ func (cmd *CleanCommand) Run(pctx context.Context) error {
 		PreAddOK(launch.PNameCleanStorage, launch.PCleanStorage)
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:     cmd.DesignFlag,
-		launch.DevFlagsContextKey:       cmd.DevFlags,
-		launch.PrivatekeyFromContextKey: cmd.Privatekey,
+		launch.DesignFlagContextKey:      cmd.DesignFlag,
+		launch.DevFlagsContextKey:        cmd.DevFlags,
+		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
 	})
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")

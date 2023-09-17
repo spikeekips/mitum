@@ -66,7 +66,7 @@ func PNetworkRateLimiter(pctx context.Context) (context.Context, error) {
 				if allowed, ok := ctx.Value(RateLimiterResultAllowedContextKey).(bool); ok && !allowed {
 					rslog.Log().Debug().Func(func(e *zerolog.Event) {
 						e.Interface("result", result())
-					}).Msg("not allowed")
+					}).Msg("over ratelimit")
 				}
 
 				rslog.Log().Trace().Func(func(e *zerolog.Event) {

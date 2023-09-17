@@ -596,29 +596,6 @@ func QuicstreamHandlerSendBallots(
 	}
 }
 
-func QuicstreamHandlerSetAllowConsensus(
-	pub base.Publickey,
-	networkID base.NetworkID,
-	setf func(allow bool) (isset bool),
-) quicstreamheader.Handler[SetAllowConsensusHeader] {
-	return func(ctx context.Context, addr net.Addr,
-		broker *quicstreamheader.HandlerBroker, header SetAllowConsensusHeader,
-	) (context.Context, error) {
-		err := QuicstreamHandlerVerifyNode(
-			ctx, addr, broker,
-			pub, networkID,
-		)
-
-		var ok bool
-
-		if err == nil {
-			ok = setf(header.Allow())
-		}
-
-		return ctx, broker.WriteResponseHeadOK(ctx, ok, err)
-	}
-}
-
 func QuicstreamHandlerStreamOperations(
 	pub base.Publickey,
 	networkID base.NetworkID,

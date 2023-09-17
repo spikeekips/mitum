@@ -21,7 +21,8 @@ var (
 	DesignContextKey            = util.ContextKey("design")
 	DesignStringContextKey      = util.ContextKey("design-string")
 	GenesisDesignContextKey     = util.ContextKey("genesis-design")
-	PrivatekeyFromContextKey    = util.ContextKey("privatekey-from")
+	PrivatekeyFlagsContextKey   = util.ContextKey("privatekey-from")
+	ACLFlagsContextKey          = util.ContextKey("acl-from")
 )
 
 func PLoadDesign(pctx context.Context) (context.Context, error) {
@@ -30,13 +31,13 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var flag DesignFlag
 	var enc *jsonenc.Encoder
-	var privfrom PrivatekeyFlag
+	var privfrom PrivatekeyFlags
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		EncoderContextKey, &enc,
-		PrivatekeyFromContextKey, &privfrom,
+		PrivatekeyFlagsContextKey, &privfrom,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -77,8 +78,8 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Interface("design", design).Msg("design loaded")
 
-	if k := privfrom.Key(); len(k) > 0 {
-		priv, err := loadPrivatekey(k, enc)
+	if b := privfrom.Flag.Body(); len(b) > 0 {
+		priv, err := base.DecodePrivatekeyFromString(string(b), enc)
 		if err != nil {
 			return pctx, e.Wrap(err)
 		}

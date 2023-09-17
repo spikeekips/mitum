@@ -244,6 +244,12 @@ func TestMPrivatekeyJSON(tt *testing.T) {
 		var s string
 		t.NoError(t.enc.Unmarshal(b, &s))
 
+		{
+			_, err := DecodePrivatekeyFromString(" "+s, t.enc)
+			t.Error(err)
+			t.ErrorContains(err, "malformed private key")
+		}
+
 		uk, err := DecodePrivatekeyFromString(s, t.enc)
 		t.NoError(err)
 

@@ -25,6 +25,8 @@ type ErrorHandler func(
 	error,
 ) (context.Context, error)
 
+type HandlerFunc[T RequestHeader] func(Handler[T]) Handler[T] // FIXME apply
+
 func NewHandler[T RequestHeader](
 	encs *encoder.Encoders,
 	handler Handler[T],
@@ -69,6 +71,12 @@ func baseHandler[T RequestHeader](
 			var t T
 
 			return ctx, errors.Errorf("expected %T, but %T", t, req)
+		}
+
+		if i, ok := (interface{})(header).(util.IsValider); ok {
+			if err := i.IsValid(nil); err != nil {
+				return ctx, err
+			}
 		}
 
 		return handler(ctx, addr, broker, header)

@@ -38,7 +38,8 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameINITObjectCache, PINITObjectCache)
 
 	_ = pps.POK(PNameLocal).
-		PostAddOK(PNameDiscoveryFlag, PDiscoveryFlag)
+		PostAddOK(PNameDiscoveryFlag, PDiscoveryFlag).
+		PostAddOK(PNameLoadACL, PLoadACL)
 
 	_ = pps.POK(PNameStorage).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).

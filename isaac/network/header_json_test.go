@@ -26,6 +26,7 @@ func (t *baseTestCAHandoverHeader) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverHeaderHint, Instance: CheckHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AskHandoverHeaderHint, Instance: AskHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverXHeaderHint, Instance: CheckHandoverXHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 }
 
 func (t *baseTestCAHandoverHeader) SetupTest() {
@@ -67,6 +68,7 @@ func TestOperationRequestHeader(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u OperationRequestHeader
 		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -87,12 +89,14 @@ func TestStartHandoverHeaderEncode(tt *testing.T) {
 	t.SetT(tt)
 
 	t.newf = func(ci quicstream.ConnInfo, address base.Address) interface{} {
-		return NewStartHandoverHeader(ci, address)
+		priv := base.NewMPrivatekey()
+		return NewStartHandoverHeader(ci, address, priv.Publickey())
 	}
 
 	t.Decode = func(b []byte) interface{} {
 		var u StartHandoverHeader
 		t.NoError(encoder.Decode(t.enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -103,6 +107,7 @@ func TestStartHandoverHeaderEncode(tt *testing.T) {
 		t.Equal(ah.Hint(), bh.Hint())
 		t.Equal(ah.ConnInfo().String(), bh.ConnInfo().String())
 		t.True(ah.Address().Equal(bh.Address()))
+		t.True(ah.ACLUser().Equal(bh.ACLUser()))
 	}
 
 	suite.Run(tt, t)
@@ -113,12 +118,14 @@ func TestCheckHandoverHeaderEncode(tt *testing.T) {
 	t.SetT(tt)
 
 	t.newf = func(ci quicstream.ConnInfo, address base.Address) interface{} {
-		return NewCheckHandoverHeader(ci, address)
+		priv := base.NewMPrivatekey()
+		return NewCheckHandoverHeader(ci, address, priv.Publickey())
 	}
 
 	t.Decode = func(b []byte) interface{} {
 		var u CheckHandoverHeader
 		t.NoError(encoder.Decode(t.enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -129,6 +136,7 @@ func TestCheckHandoverHeaderEncode(tt *testing.T) {
 		t.Equal(ah.Hint(), bh.Hint())
 		t.Equal(ah.ConnInfo().String(), bh.ConnInfo().String())
 		t.True(ah.Address().Equal(bh.Address()))
+		t.True(ah.ACLUser().Equal(bh.ACLUser()))
 	}
 
 	suite.Run(tt, t)
@@ -145,6 +153,7 @@ func TestAskHandoverHeaderEncode(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u AskHandoverHeader
 		t.NoError(encoder.Decode(t.enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -181,6 +190,7 @@ func TestAskHandoverResponseHeaderEncode(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u AskHandoverResponseHeader
 		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -203,9 +213,11 @@ func TestCancelHandoverHeaderEncode(tt *testing.T) {
 
 	enc := jsonenc.NewEncoder()
 	t.NoError(enc.Add(encoder.DecodeDetail{Hint: CancelHandoverHeaderHint, Instance: CancelHandoverHeader{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 
 	t.Encode = func() (interface{}, []byte) {
-		h := NewCancelHandoverHeader()
+		priv := base.NewMPrivatekey()
+		h := NewCancelHandoverHeader(priv.Publickey())
 		t.NoError(h.IsValid(nil))
 
 		b, err := util.MarshalJSON(h)
@@ -218,6 +230,7 @@ func TestCancelHandoverHeaderEncode(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u CancelHandoverHeader
 		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -226,6 +239,7 @@ func TestCancelHandoverHeaderEncode(tt *testing.T) {
 		bh := b.(CancelHandoverHeader)
 
 		t.Equal(ah.Hint(), bh.Hint())
+		t.True(ah.ACLUser().Equal(bh.ACLUser()))
 	}
 
 	suite.Run(tt, t)
@@ -252,6 +266,7 @@ func TestHandoverMessageHeaderEncode(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u HandoverMessageHeader
 		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -276,6 +291,7 @@ func TestCheckHandoverXHeaderEncode(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u CheckHandoverXHeader
 		t.NoError(encoder.Decode(t.enc, b, &u))
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}

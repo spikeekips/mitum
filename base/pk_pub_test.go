@@ -170,6 +170,12 @@ func TestMPublickeyJSON(tt *testing.T) {
 		var s string
 		t.NoError(t.enc.Unmarshal(b, &s))
 
+		{
+			_, err := DecodePublickeyFromString(" "+s, t.enc)
+			t.Error(err)
+			t.ErrorContains(err, "malformed public key")
+		}
+
 		uk, err := DecodePublickeyFromString(s, t.enc)
 		t.NoError(err)
 

@@ -2,6 +2,7 @@ package isaacnetwork
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,10 +17,22 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 	xci := quicstream.RandomConnInfo()
 	yci := quicstream.RandomConnInfo()
 
+	aclhandler := func(handler quicstreamheader.Handler[StartHandoverHeader]) quicstreamheader.Handler[StartHandoverHeader] {
+		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader) (context.Context, error) {
+			if err := QuicstreamHandlerVerifyNode(
+				ctx, addr, broker,
+				t.Local.Publickey(), t.LocalParams.NetworkID(),
+			); err != nil {
+				return ctx, err
+			}
+
+			return handler(ctx, addr, broker, header)
+		}
+	}
+
 	t.Run("failed to verify node", func() {
 		handler := QuicstreamHandlerStartHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
@@ -42,8 +55,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 	t.Run("ok", func() {
 		startedch := make(chan struct{}, 1)
 		handler := QuicstreamHandlerStartHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error {
 				startedch <- struct{}{}
 
@@ -74,8 +86,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 
 	t.Run("start error", func() {
 		handler := QuicstreamHandlerStartHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error {
 				return errors.Errorf("hihihi")
 			},
@@ -101,10 +112,22 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 func (t *testQuicstreamHandlers) TestCancelHandover() {
 	localci := quicstream.RandomConnInfo()
 
+	aclhandler := func(handler quicstreamheader.Handler[CancelHandoverHeader]) quicstreamheader.Handler[CancelHandoverHeader] {
+		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader) (context.Context, error) {
+			if err := QuicstreamHandlerVerifyNode(
+				ctx, addr, broker,
+				t.Local.Publickey(), t.LocalParams.NetworkID(),
+			); err != nil {
+				return ctx, err
+			}
+
+			return handler(ctx, addr, broker, header)
+		}
+	}
+
 	t.Run("failed to verify node", func() {
 		handler := QuicstreamHandlerCancelHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func() error { return nil },
 		)
 
@@ -125,8 +148,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 	t.Run("ok", func() {
 		canceledch := make(chan struct{}, 1)
 		handler := QuicstreamHandlerCancelHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func() error {
 				canceledch <- struct{}{}
 
@@ -155,8 +177,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 
 	t.Run("cancel error", func() {
 		handler := QuicstreamHandlerCancelHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func() error {
 				return errors.Errorf("hihihi")
 			},
@@ -181,10 +202,22 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 	xci := quicstream.RandomConnInfo()
 	yci := quicstream.RandomConnInfo()
 
+	aclhandler := func(handler quicstreamheader.Handler[CheckHandoverHeader]) quicstreamheader.Handler[CheckHandoverHeader] {
+		return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader) (context.Context, error) {
+			if err := QuicstreamHandlerVerifyNode(
+				ctx, addr, broker,
+				t.Local.Publickey(), t.LocalParams.NetworkID(),
+			); err != nil {
+				return ctx, err
+			}
+
+			return handler(ctx, addr, broker, header)
+		}
+	}
+
 	t.Run("failed to verify node", func() {
 		handler := QuicstreamHandlerCheckHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
@@ -207,8 +240,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 	t.Run("ok", func() {
 		checkedch := make(chan struct{}, 1)
 		handler := QuicstreamHandlerCheckHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error {
 				checkedch <- struct{}{}
 
@@ -239,8 +271,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 
 	t.Run("checked error", func() {
 		handler := QuicstreamHandlerCheckHandover(
-			t.Local,
-			t.LocalParams.NetworkID(),
+			aclhandler,
 			func(context.Context, base.Address, quicstream.ConnInfo) error {
 				return errors.Errorf("hihihi")
 			},

@@ -47,9 +47,12 @@ var AllEventLoggerNames = []EventLoggerName{
 	NodeEventLoggerName,
 	NodeReadWriteEventLogger,
 	HandoverEventLogger,
+	ACLEventLoggerName,
 }
 
 var PNameEventLoggingNetworkHandlers = ps.Name("event-logging-network-handlers")
+
+var EventLoggingACLScope = ACLScope("event-logging")
 
 type EventLogging struct {
 	db *eventDatabase
@@ -418,14 +421,21 @@ func LoadEventInfoFromKey(k []byte) (t time.Time, offset int64, _ error) {
 }
 
 type EventLoggingHeader struct {
-	name EventLoggerName
+	acluser base.Publickey
+	name    EventLoggerName
 	isaacnetwork.BaseHeader
 	offsets [2]int64
 	sort    bool
 	limit   uint64
 }
 
-func NewEventLoggingHeader(name EventLoggerName, offsets [2]int64, limit uint64, sort bool) EventLoggingHeader {
+func NewEventLoggingHeader(
+	name EventLoggerName,
+	offsets [2]int64,
+	limit uint64,
+	sort bool,
+	acluser base.Publickey,
+) EventLoggingHeader {
 	return EventLoggingHeader{
 		BaseHeader: isaacnetwork.BaseHeader{
 			BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(EventLoggingHeaderHint, HandlerPrefixEventLogging),
@@ -434,6 +444,7 @@ func NewEventLoggingHeader(name EventLoggerName, offsets [2]int64, limit uint64,
 		offsets: offsets,
 		limit:   limit,
 		sort:    sort,
+		acluser: acluser,
 	}
 }
 
@@ -457,6 +468,10 @@ func (h EventLoggingHeader) IsValid([]byte) error {
 		return e.Errorf("invalid limit")
 	}
 
+	if err := util.CheckIsValiders(nil, false, h.acluser); err != nil {
+		return util.ErrInvalid.WithMessage(err, "acl user")
+	}
+
 	return nil
 }
 
@@ -476,7 +491,12 @@ func (h EventLoggingHeader) Sort() bool {
 	return h.sort
 }
 
+func (h EventLoggingHeader) ACLUser() base.Publickey {
+	return h.acluser
+}
+
 type eventLoggingHeaderJSONMarshaler struct {
+	ACLUser base.Publickey  `json:"acl_user"`
 	Name    EventLoggerName `json:"name"`
 	Offsets [2]int64        `json:"offsets"`
 	Sort    bool            `json:"sort"`
@@ -494,18 +514,34 @@ func (h EventLoggingHeader) MarshalJSON() ([]byte, error) {
 			Offsets: h.offsets,
 			Limit:   h.limit,
 			Sort:    h.sort,
+			ACLUser: h.acluser,
 		},
 	})
 }
 
-func (h *EventLoggingHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
+type eventLoggingHeaderJSONUnmarshaler struct {
+	ACLUser string          `json:"acl_user"`
+	Name    EventLoggerName `json:"name"`
+	Offsets [2]int64        `json:"offsets"`
+	Sort    bool            `json:"sort"`
+	Limit   uint64          `json:"limit"`
+}
+
+func (h *EventLoggingHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}
 
-	var u eventLoggingHeaderJSONMarshaler
+	var u eventLoggingHeaderJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return err
+	}
+
+	switch i, err := base.DecodePublickeyFromString(u.ACLUser, enc); {
+	case err != nil:
+		return err
+	default:
+		h.acluser = i
 	}
 
 	h.name = u.Name
@@ -529,13 +565,26 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 		return pctx, err
 	}
 
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return pctx, err
+	default:
+		aclallow = i
+	}
+
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixEventLoggingString,
 		QuicstreamHandlerEventLogging(
-			local.Publickey(),
-			isaacparams.NetworkID(),
+			ACLNetworkHandlerFunc[EventLoggingHeader](
+				aclallow,
+				EventLoggingACLScope,
+				NewAllowACLPerm(0),
+				isaacparams.NetworkID(),
+			),
 			eventLogging,
 			333, //nolint:gomnd //...
 		),
@@ -546,25 +595,17 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 }
 
 func QuicstreamHandlerEventLogging(
-	local base.Publickey,
-	networkID base.NetworkID,
+	aclhandler quicstreamheader.HandlerFunc[EventLoggingHeader],
 	eventLogging *EventLogging,
 	maxItem uint64,
 ) quicstreamheader.Handler[EventLoggingHeader] {
-	return func(
+	return aclhandler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header EventLoggingHeader,
 	) (context.Context, error) {
 		m := maxItem
 
 		if header.Limit() < m {
 			m = header.Limit()
-		}
-
-		if err := isaacnetwork.QuicstreamHandlerVerifyNode(
-			ctx, addr, broker,
-			local, networkID,
-		); err != nil {
-			return ctx, err
 		}
 
 		f := func(addedAt time.Time, offset int64, raw []byte) (bool, error) {
@@ -596,25 +637,17 @@ func QuicstreamHandlerEventLogging(
 		}
 
 		return ctx, broker.WriteResponseHeadOK(ctx, eerr == nil, eerr)
-	}
+	})
 }
 
 func EventLoggingFromNetworkHandler(
 	ctx context.Context,
 	stream quicstreamheader.StreamFunc,
+	header EventLoggingHeader,
 	priv base.Privatekey,
 	networkID base.NetworkID,
-	logger EventLoggerName,
-	offsets [2]int64,
-	limit uint64,
-	sort bool,
 	f func(addedAt time.Time, offset int64, raw []byte) (bool, error),
 ) error {
-	header := NewEventLoggingHeader(logger, offsets, limit, sort)
-	if err := header.IsValid(nil); err != nil {
-		return err
-	}
-
 	read := func(r io.Reader) error {
 		fr, err := util.NewBytesFrameReader(r)
 		if err != nil {

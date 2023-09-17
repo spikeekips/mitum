@@ -29,7 +29,7 @@ func (cmd *NetworkClientEventLoggingCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	header := launch.NewEventLoggingHeader(cmd.Logger, cmd.offsets, cmd.Limit, cmd.Sort)
+	header := launch.NewEventLoggingHeader(cmd.Logger, cmd.offsets, cmd.Limit, cmd.Sort, cmd.priv.Publickey())
 	if err := header.IsValid(nil); err != nil {
 		return err
 	}
@@ -51,12 +51,9 @@ func (cmd *NetworkClientEventLoggingCommand) Run(pctx context.Context) error {
 	return launch.EventLoggingFromNetworkHandler(
 		ctx,
 		stream,
+		header,
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
-		cmd.Logger,
-		cmd.offsets,
-		cmd.Limit,
-		cmd.Sort,
 		cmd.printLog,
 	)
 }

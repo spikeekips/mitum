@@ -642,6 +642,22 @@ func (h StreamOperationsHeader) Offset() []byte {
 	return h.offset
 }
 
+type aclUserHeader struct {
+	acluser base.Publickey
+}
+
+func newACLUserHeader(acluser base.Publickey) aclUserHeader {
+	return aclUserHeader{acluser: acluser}
+}
+
+func (h aclUserHeader) IsValid([]byte) error {
+	return util.ErrInvalid.WithMessage(util.CheckIsValiders(nil, false, h.acluser), "acl user")
+}
+
+func (h aclUserHeader) ACLUser() base.Publickey {
+	return h.acluser
+}
+
 type caHandoverHeader struct {
 	connInfo quicstream.ConnInfo // conn info of X
 	address  base.Address        // local address
@@ -673,12 +689,18 @@ func (h caHandoverHeader) Address() base.Address {
 }
 
 type StartHandoverHeader struct {
+	aclUserHeader
 	caHandoverHeader
 }
 
-func NewStartHandoverHeader(connInfo quicstream.ConnInfo, address base.Address) StartHandoverHeader {
+func NewStartHandoverHeader(
+	connInfo quicstream.ConnInfo,
+	address base.Address,
+	acluser base.Publickey,
+) StartHandoverHeader {
 	return StartHandoverHeader{
 		caHandoverHeader: newCAHandoverHeader(StartHandoverHeaderHint, connInfo, address),
+		aclUserHeader:    newACLUserHeader(acluser),
 	}
 }
 
@@ -687,22 +709,36 @@ func (h StartHandoverHeader) IsValid([]byte) error {
 		return util.ErrInvalid.WithMessage(err, "invalid StartHandoverHeader")
 	}
 
+	if err := h.aclUserHeader.IsValid(nil); err != nil {
+		return util.ErrInvalid.WithMessage(err, "invalid StartHandoverHeader")
+	}
+
 	return nil
 }
 
 type CheckHandoverHeader struct {
+	aclUserHeader
 	// connInfo quicstream.UDPConnInfo // conn info of y
 	caHandoverHeader
 }
 
-func NewCheckHandoverHeader(connInfo quicstream.ConnInfo, address base.Address) CheckHandoverHeader {
+func NewCheckHandoverHeader(
+	connInfo quicstream.ConnInfo,
+	address base.Address,
+	acluser base.Publickey,
+) CheckHandoverHeader {
 	return CheckHandoverHeader{
 		caHandoverHeader: newCAHandoverHeader(CheckHandoverHeaderHint, connInfo, address),
+		aclUserHeader:    newACLUserHeader(acluser),
 	}
 }
 
 func (h CheckHandoverHeader) IsValid([]byte) error {
 	if err := h.caHandoverHeader.IsValid(nil); err != nil {
+		return util.ErrInvalid.WithMessage(err, "invalid CheckHandoverHeader")
+	}
+
+	if err := h.aclUserHeader.IsValid(nil); err != nil {
 		return util.ErrInvalid.WithMessage(err, "invalid CheckHandoverHeader")
 	}
 
@@ -763,17 +799,23 @@ func (h AskHandoverResponseHeader) ID() string {
 }
 
 type CancelHandoverHeader struct {
+	aclUserHeader
 	BaseHeader
 }
 
-func NewCancelHandoverHeader() CancelHandoverHeader {
+func NewCancelHandoverHeader(acluser base.Publickey) CancelHandoverHeader {
 	return CancelHandoverHeader{
-		BaseHeader: NewBaseHeader(CancelHandoverHeaderHint),
+		BaseHeader:    NewBaseHeader(CancelHandoverHeaderHint),
+		aclUserHeader: newACLUserHeader(acluser),
 	}
 }
 
 func (h CancelHandoverHeader) IsValid([]byte) error {
 	if err := h.BaseHeader.IsValid(nil); err != nil {
+		return util.ErrInvalid.WithMessage(err, "invalid CancelHandoverHeader")
+	}
+
+	if err := h.aclUserHeader.IsValid(nil); err != nil {
 		return util.ErrInvalid.WithMessage(err, "invalid CancelHandoverHeader")
 	}
 
