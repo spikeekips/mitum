@@ -87,12 +87,12 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	isaacparams := params.ISAAC
 
-	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
-	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, m)
+	lastBlockMapf := QuicstreamHandlerLastBlockMapFunc(db)
+	suffrageNodeConnInfof := QuicstreamHandlerSuffrageNodeConnInfoFunc(db, m)
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixLastSuffrageProofString,
 		isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 			func(last util.Hash) (string, []byte, []byte, bool, error) {
@@ -118,19 +118,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 			},
 		), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSuffrageProofString,
 		isaacnetwork.QuicstreamHandlerSuffrageProof(db.SuffrageProofBytes), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixLastBlockMapString,
 		isaacnetwork.QuicstreamHandlerLastBlockMap(lastBlockMapf), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapString,
 		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapItemString,
 		isaacnetwork.QuicstreamHandlerBlockMapItem(
 			func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
@@ -166,15 +166,15 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 			},
 		), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixNodeChallengeString,
 		isaacnetwork.QuicstreamHandlerNodeChallenge(isaacparams.NetworkID(), local), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSuffrageNodeConnInfoString,
 		isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
 		isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
@@ -192,19 +192,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 			},
 		), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixStateString,
 		isaacnetwork.QuicstreamHandlerState(db.StateBytes), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixExistsInStateOperationString,
 		isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixNodeInfoString,
-		isaacnetwork.QuicstreamHandlerNodeInfo(quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil)
+		isaacnetwork.QuicstreamHandlerNodeInfo(QuicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSendBallotsString,
 		isaacnetwork.QuicstreamHandlerSendBallots(isaacparams.NetworkID(),
 			func(bl base.BallotSignFact) error {
@@ -237,7 +237,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, gerror
 	}
 
-	if err := attachMemberlistNetworkHandlers(pctx); err != nil {
+	if err := AttachMemberlistNetworkHandlers(pctx); err != nil {
 		return pctx, err
 	}
 
@@ -257,7 +257,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	limiterf, err := newSuffrageCandidateLimiterFunc(pctx)
+	limiterf, err := NewSuffrageCandidateLimiterFunc(pctx)
 	if err != nil {
 		return pctx, err
 	}
@@ -320,7 +320,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx, OperationProcessorsMapContextKey, set), nil
 }
 
-func sendOperationFilterFunc(pctx context.Context) (
+func SendOperationFilterFunc(pctx context.Context) (
 	func(base.Operation) (bool, error),
 	error,
 ) {
@@ -373,7 +373,7 @@ func sendOperationFilterFunc(pctx context.Context) (
 	}, nil
 }
 
-func quicstreamHandlerLastBlockMapFunc(
+func QuicstreamHandlerLastBlockMapFunc(
 	db isaac.Database,
 ) func(last util.Hash) (string, []byte, []byte, bool, error) {
 	return func(last util.Hash) (string, []byte, []byte, bool, error) {
@@ -395,7 +395,7 @@ func quicstreamHandlerLastBlockMapFunc(
 	}
 }
 
-func quicstreamHandlerSuffrageNodeConnInfoFunc(
+func QuicstreamHandlerSuffrageNodeConnInfoFunc(
 	db isaac.Database,
 	memberlist *quicmemberlist.Memberlist,
 ) func() ([]isaac.NodeConnInfo, error) {
@@ -434,7 +434,7 @@ func quicstreamHandlerSuffrageNodeConnInfoFunc(
 	}
 }
 
-func quicstreamHandlerGetNodeInfoFunc(
+func QuicstreamHandlerGetNodeInfoFunc(
 	enc encoder.Encoder,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func() ([]byte, error) {
@@ -510,7 +510,7 @@ func OperationPreProcess(
 	}
 }
 
-func attachMemberlistNetworkHandlers(pctx context.Context) error {
+func AttachMemberlistNetworkHandlers(pctx context.Context) error {
 	var log *logging.Logging
 	var params *LocalParams
 	var m *quicmemberlist.Memberlist
@@ -527,11 +527,11 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixMemberlistCallbackBroadcastMessageString,
 		m.CallbackBroadcastHandler(), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixMemberlistEnsureBroadcastMessageString,
 		m.EnsureBroadcastHandler(
 			params.ISAAC.NetworkID(),
@@ -562,7 +562,7 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 	return gerror
 }
 
-func ensureHandlerAdd[T quicstreamheader.RequestHeader](
+func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 	pctx context.Context,
 	gerr *error,
 	prefix string,

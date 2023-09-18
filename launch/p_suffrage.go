@@ -699,7 +699,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	}, nil
 }
 
-func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
+func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error),
 	error,
 ) {

@@ -100,11 +100,11 @@ func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixNodeReadString,
 		handlerNodeRead(local.Publickey(), params.ISAAC.NetworkID(), rf), nil)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixNodeWriteString,
 		handlerNodeWrite(local.Publickey(), params.ISAAC.NetworkID(), wf), nil)
 

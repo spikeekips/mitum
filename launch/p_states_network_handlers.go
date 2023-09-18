@@ -36,25 +36,25 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	if err := attachHandlerOperation(pctx); err != nil {
+	if err := AttachHandlerOperation(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerSendOperation(pctx); err != nil {
+	if err := AttachHandlerSendOperation(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerStreamOperations(pctx); err != nil {
+	if err := AttachHandlerStreamOperations(pctx); err != nil {
 		return pctx, err
 	}
 
-	if err := attachHandlerProposals(pctx); err != nil {
+	if err := AttachHandlerProposals(pctx); err != nil {
 		return pctx, err
 	}
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSetAllowConsensusString,
 		isaacnetwork.QuicstreamHandlerSetAllowConsensus(
 			local.Publickey(),
@@ -67,7 +67,7 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	return pctx, gerror
 }
 
-func attachHandlerOperation(pctx context.Context) error {
+func AttachHandlerOperation(pctx context.Context) error {
 	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -94,7 +94,7 @@ func attachHandlerOperation(pctx context.Context) error {
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixOperationString,
 		isaacnetwork.QuicstreamHandlerOperation(
 			pool,
@@ -154,7 +154,7 @@ func attachHandlerOperation(pctx context.Context) error {
 	return gerror
 }
 
-func attachHandlerSendOperation(pctx context.Context) error {
+func AttachHandlerSendOperation(pctx context.Context) error {
 	var log *logging.Logging
 	var params *LocalParams
 	var db isaac.Database
@@ -175,14 +175,14 @@ func attachHandlerSendOperation(pctx context.Context) error {
 		return err
 	}
 
-	sendOperationFilterf, err := sendOperationFilterFunc(pctx)
+	sendOperationFilterf, err := SendOperationFilterFunc(pctx)
 	if err != nil {
 		return err
 	}
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSendOperationString,
 		isaacnetwork.QuicstreamHandlerSendOperation(
 			params.ISAAC.NetworkID(),
@@ -209,7 +209,7 @@ func attachHandlerSendOperation(pctx context.Context) error {
 	return gerror
 }
 
-func attachHandlerStreamOperations(pctx context.Context) error {
+func AttachHandlerStreamOperations(pctx context.Context) error {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *LocalParams
@@ -226,7 +226,7 @@ func attachHandlerStreamOperations(pctx context.Context) error {
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixStreamOperationsString,
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
@@ -255,7 +255,7 @@ func attachHandlerStreamOperations(pctx context.Context) error {
 	return gerror
 }
 
-func attachHandlerProposals(pctx context.Context) error {
+func AttachHandlerProposals(pctx context.Context) error {
 	var log *logging.Logging
 	var enc encoder.Encoder
 	var local base.LocalNode
@@ -282,7 +282,7 @@ func attachHandlerProposals(pctx context.Context) error {
 
 	var gerror error
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixRequestProposalString,
 		isaacnetwork.QuicstreamHandlerRequestProposal(
 			local, pool, proposalMaker, db.LastBlockMap,
@@ -312,7 +312,7 @@ func attachHandlerProposals(pctx context.Context) error {
 		), nil,
 	)
 
-	ensureHandlerAdd(pctx, &gerror,
+	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixProposalString,
 		isaacnetwork.QuicstreamHandlerProposal(
 			pool,
