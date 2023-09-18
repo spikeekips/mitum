@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -41,7 +40,6 @@ type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
 	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
 	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo"`
 	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"9s"`
-	Body      *os.File            `help:"body"`
 	//revive:enable:line-length-limit
 }
 
@@ -86,7 +84,6 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 		Stringer("timeout", cmd.Timeout).
 		Str("network_id", cmd.NetworkID).
 		Str("client_id", cmd.ClientID).
-		Bool("has_body", cmd.Body != nil).
 		Msg("flags")
 
 	return nil

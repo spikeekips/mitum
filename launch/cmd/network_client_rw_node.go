@@ -3,7 +3,6 @@ package launchcmd
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -120,7 +119,8 @@ func (*NetworkClientReadNodeCommand) Help() string {
 
 type NetworkClientWriteNodeCommand struct { //nolint:govet //...
 	baseNetworkClientRWNodeCommand
-	Value string `arg:"" name:"value" help:"value" default:""`
+	Input  string `arg:"" name:"input" help:"input"`
+	IsFile bool   `name:"input.is-file" help:"input is file"`
 }
 
 func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
@@ -128,27 +128,20 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	var value string
+	var input string
 
-	switch {
-	case len(cmd.Value) > 0:
-		value = cmd.Value
-	case cmd.Body != nil:
-		i, err := io.ReadAll(cmd.Body)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		value = strings.TrimRight(string(i), "\n")
-	}
-
-	if len(value) < 1 {
-		return errors.Errorf("empty value")
+	switch i, err := launch.LoadInputFlag(cmd.Input, cmd.IsFile); {
+	case err != nil:
+		return err
+	case len(i) < 1:
+		return errors.Errorf("empty body")
+	default:
+		input = string(i)
 	}
 
 	cmd.Log.Debug().
 		Str("key", cmd.Key).
-		Str("value", value).
+		Str("input", input).
 		Msg("flags")
 
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
@@ -168,7 +161,7 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 		cmd.priv,
 		base.NetworkID(cmd.NetworkID),
 		cmd.Key,
-		value,
+		input,
 		stream,
 	); {
 	case err != nil:

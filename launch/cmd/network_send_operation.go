@@ -1,17 +1,18 @@
 package launchcmd
 
 import (
-	"bytes"
 	"context"
-	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type NetworkClientSendOperationCommand struct { //nolint:govet //...
 	BaseNetworkClientCommand
+	Input    string `arg:"" name:"input" help:"input; default is stdin" default:"-"`
+	IsString bool   `name:"input.is-string" help:"input is string, not file"`
 }
 
 func (cmd *NetworkClientSendOperationCommand) Run(pctx context.Context) error {
@@ -23,15 +24,21 @@ func (cmd *NetworkClientSendOperationCommand) Run(pctx context.Context) error {
 		_ = cmd.Client.Close()
 	}()
 
-	buf := bytes.NewBuffer(nil)
-
-	if _, err := io.Copy(buf, cmd.Body); err != nil {
-		return errors.WithStack(err)
-	}
-
 	var op base.Operation
-	if err := encoder.Decode(cmd.Encoder, buf.Bytes(), &op); err != nil {
+
+	switch i, err := launch.LoadInputFlag(cmd.Input, !cmd.IsString); {
+	case err != nil:
 		return err
+	case len(i) < 1:
+		return errors.Errorf("empty input")
+	default:
+		cmd.Log.Debug().
+			Str("input", string(i)).
+			Msg("input")
+
+		if err := encoder.Decode(cmd.Encoder, i, &op); err != nil {
+			return err
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)
