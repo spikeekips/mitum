@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -68,29 +67,6 @@ func (srv *Server) start(ctx context.Context, listener *quic.EarlyListener) erro
 }
 
 func (srv *Server) accept(ctx context.Context, listener *quic.EarlyListener) {
-	var count int64
-
-	go func() {
-		var lastcount int64 = -1
-
-		ticker := time.NewTicker(time.Second * 3)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				current := atomic.LoadInt64(&count)
-				if current != lastcount {
-					srv.Log().Trace().Int64("count", current).Msg("open connections")
-
-					lastcount = current
-				}
-			}
-		}
-	}()
-
 	for {
 		conn, err := listener.Accept(ctx)
 		if err != nil {
@@ -104,52 +80,25 @@ func (srv *Server) accept(ctx context.Context, listener *quic.EarlyListener) {
 			return
 		}
 
-		// FIXME set connection id(UUID) to context
-
-		atomic.AddInt64(&count, 1)
+		nctx := context.WithValue(ctx, ConnectionIDContextKey, util.UUID().String())
+		l := ConnectionLoggerFromContext(nctx, srv.Log())
+		l.Trace().Msg("new connection")
 
 		go func() {
 			select {
-			case <-ctx.Done():
+			case <-nctx.Done():
+				l.Trace().Err(nctx.Err()).Msg("connection done")
 			case <-conn.Context().Done():
+				l.Trace().Err(conn.Context().Err()).Msg("connection done")
 			}
-
-			atomic.AddInt64(&count, -1)
 		}()
 
-		go srv.handleConnection(ctx, conn)
+		go srv.handleConnection(nctx, conn)
 	}
 }
 
 func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnection) {
-	var count int64
-
-	go func() {
-		var lastcount int64 = -1
-
-		ticker := time.NewTicker(time.Second * 3)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				current := atomic.LoadInt64(&count)
-				if current != lastcount {
-					srv.Log().Trace().
-						Int64("count", atomic.LoadInt64(&current)).
-						Stringer("remote", conn.RemoteAddr()).
-						Msg("open streams")
-
-					lastcount = current
-				}
-			}
-		}
-	}()
-
 	for {
-		// FIXME set StreamID() to context
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
 			var nerr net.Error
@@ -181,18 +130,20 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 			return
 		}
 
-		atomic.AddInt64(&count, 1)
+		nctx := context.WithValue(ctx, StreamIDContextKey, stream.StreamID())
+		l := ConnectionLoggerFromContext(nctx, srv.Log())
+		l.Trace().Msg("new stream")
 
 		go func() {
 			select {
 			case <-ctx.Done():
+				l.Trace().Err(nctx.Err()).Msg("stream done")
 			case <-stream.Context().Done():
+				l.Trace().Err(conn.Context().Err()).Msg("stream done")
 			}
-
-			atomic.AddInt64(&count, -1)
 		}()
 
-		go srv.handleStream(ctx, conn.RemoteAddr(), stream)
+		go srv.handleStream(nctx, conn.RemoteAddr(), stream)
 	}
 }
 
@@ -213,7 +164,8 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 
 		stream.CancelWrite(errcode)
 
-		srv.Log().Trace().Err(err).Msg("failed to handle stream")
+		l := ConnectionLoggerFromContext(ctx, srv.Log())
+		l.Trace().Err(err).Msg("failed to handle stream")
 	}
 
 	stream.CancelRead(errcode)

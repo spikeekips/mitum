@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -105,4 +106,27 @@ func (c *Connection) openStream(ctx context.Context) (stream quic.Stream, _ erro
 	}
 
 	return stream, nil
+}
+
+var (
+	ConnectionIDContextKey = util.ContextKey("connection_id")
+	StreamIDContextKey     = util.ContextKey("stream_id")
+)
+
+func ConnectionLoggerFromContext(ctx context.Context, log *zerolog.Logger) zerolog.Logger {
+	var ed *zerolog.Event
+
+	switch i := ctx.Value(ConnectionIDContextKey); {
+	case i == nil:
+		return *log
+	default:
+		ed = zerolog.Dict()
+		ed.Str("id", i.(string)) //nolint:forcetypeassert //...
+	}
+
+	if i := ctx.Value(StreamIDContextKey); i != nil {
+		ed.Interface("stream", i)
+	}
+
+	return log.With().Dict("connection", ed).Logger()
 }
