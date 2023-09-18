@@ -48,7 +48,10 @@ var AllEventLoggerNames = []EventLoggerName{
 	NodeReadWriteEventLogger,
 	HandoverEventLogger,
 	ACLEventLoggerName,
+	EventLoggingEventLoggerName,
 }
+
+var EventLoggingEventLoggerName EventLoggerName = "event_logging"
 
 var PNameEventLoggingNetworkHandlers = ps.Name("event-logging-network-handlers")
 
@@ -574,20 +577,25 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 		aclallow = i
 	}
 
+	handler, err := QuicstreamHandlerEventLogging(
+		ACLNetworkHandler[EventLoggingHeader](
+			aclallow,
+			EventLoggingACLScope,
+			NewAllowACLPerm(0),
+			isaacparams.NetworkID(),
+		),
+		eventLogging,
+		333, //nolint:gomnd //...
+	)
+	if err != nil {
+		return pctx, err
+	}
+
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
 		HandlerPrefixEventLoggingString,
-		QuicstreamHandlerEventLogging(
-			ACLNetworkHandler[EventLoggingHeader](
-				aclallow,
-				EventLoggingACLScope,
-				NewAllowACLPerm(0),
-				isaacparams.NetworkID(),
-			),
-			eventLogging,
-			333, //nolint:gomnd //...
-		),
+		handler,
 		nil,
 	)
 
@@ -598,7 +606,16 @@ func QuicstreamHandlerEventLogging(
 	aclhandler quicstreamheader.Handler[EventLoggingHeader],
 	eventLogging *EventLogging,
 	maxItem uint64,
-) quicstreamheader.Handler[EventLoggingHeader] {
+) (quicstreamheader.Handler[EventLoggingHeader], error) {
+	var el zerolog.Logger
+
+	switch i, found := eventLogging.Logger(EventLoggingEventLoggerName); {
+	case !found:
+		return nil, errors.Errorf("event logging logger not found")
+	default:
+		el = i
+	}
+
 	return aclhandler.Handler(func(
 		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header EventLoggingHeader,
 	) (context.Context, error) {
@@ -636,8 +653,19 @@ func QuicstreamHandlerEventLogging(
 			eerr = eventLogging.IterName(header.Name(), header.Offsets(), f, header.Sort(), m)
 		}
 
+		l := quicstream.ConnectionLoggerFromContext(ctx, &el).With().
+			Uint64("limit", m).
+			Logger()
+
+		switch {
+		case eerr != nil:
+			l.Error().Err(eerr).Msg("event logging")
+		default:
+			l.Debug().Msg("event logging")
+		}
+
 		return ctx, broker.WriteResponseHeadOK(ctx, eerr == nil, eerr)
-	})
+	}), nil
 }
 
 func EventLoggingFromNetworkHandler(

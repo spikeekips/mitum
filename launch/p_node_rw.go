@@ -69,10 +69,12 @@ var AllNodeWriteKeys = []string{
 }
 
 type (
-	writeNodeValueFunc     func(key, value, acluser string) (prev, next interface{}, updated bool, _ error)
-	writeNodeNextValueFunc func(key, nextkey, value, acluser string) (prev, next interface{}, updated bool, _ error)
-	readNodeValueFunc      func(key, acluser string) (interface{}, error)
-	readNodeNextValueFunc  func(key, nextkey, acluser string) (interface{}, error)
+	//revive:disable:line-length-limit
+	writeNodeValueFunc     func(_ context.Context, key, value, acluser string) (prev, next interface{}, updated bool, _ error)
+	writeNodeNextValueFunc func(_ context.Context, key, nextkey, value, acluser string) (prev, next interface{}, updated bool, _ error)
+	readNodeValueFunc      func(_ context.Context, key, acluser string) (interface{}, error)
+	readNodeNextValueFunc  func(_ context.Context, key, nextkey, acluser string) (interface{}, error)
+	//revive:enable:line-length-limit
 )
 
 var NodeReadWriteEventLogger EventLoggerName = "node_readwrite"
@@ -140,7 +142,7 @@ func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error
 }
 
 func writeNodeKey(f writeNodeNextValueFunc) writeNodeValueFunc {
-	return func(key, value, acluser string) (interface{}, interface{}, bool, error) {
+	return func(ctx context.Context, key, value, acluser string) (interface{}, interface{}, bool, error) {
 		i := strings.SplitN(strings.TrimPrefix(key, "."), ".", 2)
 
 		var nextkey string
@@ -148,7 +150,7 @@ func writeNodeKey(f writeNodeNextValueFunc) writeNodeValueFunc {
 			nextkey = i[1]
 		}
 
-		return f(i[0], nextkey, value, acluser)
+		return f(ctx, i[0], nextkey, value, acluser)
 	}
 }
 
@@ -173,19 +175,21 @@ func writeNode(pctx context.Context, lock *sync.RWMutex) (writeNodeValueFunc, er
 		return nil, err
 	}
 
-	return writeNodeKey(func(key, nextkey, value, acluser string) (interface{}, interface{}, bool, error) {
+	return writeNodeKey(func(
+		ctx context.Context, key, nextkey, value, acluser string,
+	) (interface{}, interface{}, bool, error) {
 		lock.Lock()
 		defer lock.Unlock()
 
 		switch key {
 		case "states":
-			return fStates(nextkey, value, acluser)
+			return fStates(ctx, nextkey, value, acluser)
 		case "design":
-			return fDesign(nextkey, value, acluser)
+			return fDesign(ctx, nextkey, value, acluser)
 		case "discovery":
-			return fDiscovery(nextkey, value, acluser)
+			return fDiscovery(ctx, nextkey, value, acluser)
 		case "acl":
-			return fACL(nextkey, value, acluser)
+			return fACL(ctx, nextkey, value, acluser)
 		default:
 			return nil, nil, false, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -198,10 +202,12 @@ func writeStates(pctx context.Context) (writeNodeValueFunc, error) {
 		return nil, err
 	}
 
-	return writeNodeKey(func(key, nextkey, value, acluser string) (interface{}, interface{}, bool, error) {
+	return writeNodeKey(func(
+		ctx context.Context, key, nextkey, value, acluser string,
+	) (interface{}, interface{}, bool, error) {
 		switch key {
 		case "allow_consensus":
-			return fAllowConsensus(nextkey, value, acluser)
+			return fAllowConsensus(ctx, nextkey, value, acluser)
 		default:
 			return nil, nil, false, util.ErrNotFound.Errorf("unknown key, %q for node", key)
 		}
@@ -261,11 +267,11 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return func(key, value, acluser string) (interface{}, interface{}, bool, error) {
+	return func(ctx context.Context, key, value, acluser string) (interface{}, interface{}, bool, error) {
 		extra := zerolog.Dict().
 			Str("key", key)
 
-		if !aclallow(acluser, DesignACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, DesignACLScope, NodeWriteACLPerm, extra) {
 			return nil, nil, false, ErrACLBlocked.WithStack()
 		}
 
@@ -273,7 +279,7 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 		case !found:
 			return nil, nil, false, util.ErrNotFound.Errorf("unknown key, %q for design", key)
 		default:
-			switch prev, next, updated, err := f(key, value, acluser); {
+			switch prev, next, updated, err := f(ctx, key, value, acluser); {
 			case err != nil:
 				return nil, nil, false, err
 			case !updated:
@@ -333,7 +339,9 @@ func writeDesignMap(pctx context.Context) (map[string]writeNodeValueFunc, error)
 func writeLocalParamISAACThreshold(
 	params *isaac.Params,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		var s string
 		if err := yaml.Unmarshal([]byte(value), &s); err != nil {
 			return nil, nil, false, errors.WithStack(err)
@@ -360,7 +368,9 @@ func writeLocalParamISAACThreshold(
 func writeLocalParamISAACIntervalBroadcastBallot(
 	params *isaac.Params,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -382,7 +392,9 @@ func writeLocalParamISAACIntervalBroadcastBallot(
 func writeLocalParamISAACWaitPreparingINITBallot(
 	params *isaac.Params,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -404,7 +416,9 @@ func writeLocalParamISAACWaitPreparingINITBallot(
 func writeLocalParamISAACMaxTryHandoverYBrokerSyncData(
 	params *isaac.Params,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return nil, nil, false, errors.WithStack(err)
@@ -426,7 +440,9 @@ func writeLocalParamISAACMaxTryHandoverYBrokerSyncData(
 func writeLocalParamMISCSyncSourceCheckerInterval(
 	params *MISCParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -448,7 +464,9 @@ func writeLocalParamMISCSyncSourceCheckerInterval(
 func writeLocalParamMISCValidProposalOperationExpire(
 	params *MISCParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -470,7 +488,9 @@ func writeLocalParamMISCValidProposalOperationExpire(
 func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 	params *MISCParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -492,7 +512,9 @@ func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 func writeLocalParamMISCMaxMessageSize(
 	params *MISCParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		i, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return nil, nil, false, errors.WithStack(err)
@@ -514,29 +536,32 @@ func writeLocalParamMISCMaxMessageSize(
 func writeLocalParamExtraSameMemberLimit(
 	params *MemberlistParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
-		i, err := strconv.ParseUint(value, 10, 64)
-		if err != nil {
-			return nil, nil, false, errors.WithStack(err)
-		}
+	return writeNodeKey(
+		func(_ context.Context, _, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+			i, err := strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				return nil, nil, false, errors.WithStack(err)
+			}
 
-		prev = params.ExtraSameMemberLimit()
-		if prev == i {
-			return prev, nil, false, nil
-		}
+			prev = params.ExtraSameMemberLimit()
+			if prev == i {
+				return prev, nil, false, nil
+			}
 
-		if err := params.SetExtraSameMemberLimit(i); err != nil {
-			return nil, nil, false, err
-		}
+			if err := params.SetExtraSameMemberLimit(i); err != nil {
+				return nil, nil, false, err
+			}
 
-		return prev, params.ExtraSameMemberLimit(), true, nil
-	})
+			return prev, params.ExtraSameMemberLimit(), true, nil
+		})
 }
 
 func writeLocalParamNetworkTimeoutRequest(
 	params *NetworkParams,
 ) writeNodeValueFunc {
-	return writeNodeKey(func(_, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
 			return nil, nil, false, err
@@ -560,7 +585,7 @@ func writeSyncSources(
 	design NodeDesign,
 	syncSourceChecker *isaacnetwork.SyncSourceChecker,
 ) writeNodeValueFunc {
-	return func(_, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return func(_ context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
 		e := util.StringError("update sync source")
 
 		var sources *SyncSourcesDesign
@@ -604,8 +629,8 @@ func writeDiscovery(pctx context.Context) (writeNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return func(_, value, acluser string) (prev, next interface{}, updated bool, _ error) {
-		if !aclallow(acluser, DiscoveryACLScope, NodeWriteACLPerm, nil) {
+	return func(ctx context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeWriteACLPerm, nil) {
 			return nil, nil, false, ErrACLBlocked.WithStack()
 		}
 
@@ -662,7 +687,7 @@ func writeLocalParamNetworkRateLimit(
 		panic(fmt.Sprintf("unknown key, %q for network ratelimit", param))
 	}
 
-	return func(_, value, acluser string) (prev, next interface{}, updated bool, err error) {
+	return func(_ context.Context, _, value, acluser string) (prev, next interface{}, updated bool, err error) {
 		switch param {
 		case "node":
 			prev = params.NodeRuleSet()
@@ -718,11 +743,11 @@ func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return func(_, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return func(ctx context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
 		extra := zerolog.Dict().
 			Str("value", value)
 
-		if !aclallow(acluser, StatesAllowConsensusACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeWriteACLPerm, extra) {
 			return nil, nil, false, ErrACLBlocked.WithStack()
 		}
 
@@ -764,7 +789,9 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return writeNodeKey(func(key, nextkey, value, acluser string) (interface{}, interface{}, bool, error) {
+	return writeNodeKey(func(
+		ctx context.Context, key, nextkey, value, acluser string,
+	) (interface{}, interface{}, bool, error) {
 		fullkey := strings.Join([]string{"acl", key, nextkey}, "")
 
 		if len(key) > 0 {
@@ -773,7 +800,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 
 		extra := zerolog.Dict().Str("key", fullkey)
 
-		if !aclallow(acluser, ACLACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, ACLACLScope, NodeWriteACLPerm, extra) {
 			return nil, nil, false, ErrACLBlocked.WithStack()
 		}
 
@@ -864,7 +891,7 @@ func networkHandlerNodeWrite(
 			value = string(b)
 		}
 
-		switch prev, next, updated, err := f(header.Key, value, header.ACLUser().String()); {
+		switch prev, next, updated, err := f(ctx, header.Key, value, header.ACLUser().String()); {
 		case err != nil:
 			return false, value, err
 		default:
@@ -885,7 +912,9 @@ func networkHandlerNodeWrite(
 	) (context.Context, error) {
 		e := util.StringError("write node")
 
-		l := eventlogger.With().Str("cid", util.UUID().String()).Logger()
+		l := quicstream.ConnectionLoggerFromContext(ctx, &eventlogger).With().
+			Str("cid", util.UUID().String()).
+			Logger()
 
 		switch sentresponse, value, err := handler(ctx, addr, broker, header, l); {
 		case err != nil:
@@ -1039,7 +1068,7 @@ func readNodeFromNetworkHandler(
 }
 
 func readNodeKey(f readNodeNextValueFunc) readNodeValueFunc {
-	return func(key, acluser string) (interface{}, error) {
+	return func(ctx context.Context, key, acluser string) (interface{}, error) {
 		i := strings.SplitN(strings.TrimPrefix(key, "."), ".", 2)
 
 		var nextkey string
@@ -1047,7 +1076,7 @@ func readNodeKey(f readNodeNextValueFunc) readNodeValueFunc {
 			nextkey = i[1]
 		}
 
-		return f(i[0], nextkey, acluser)
+		return f(ctx, i[0], nextkey, acluser)
 	}
 }
 
@@ -1072,19 +1101,19 @@ func readNode(pctx context.Context, lock *sync.RWMutex) (readNodeValueFunc, erro
 		return nil, err
 	}
 
-	return readNodeKey(func(key, nextkey, acluser string) (interface{}, error) {
+	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
 		lock.RLock()
 		defer lock.RUnlock()
 
 		switch key {
 		case "states":
-			return fStates(nextkey, acluser)
+			return fStates(ctx, nextkey, acluser)
 		case "design":
-			return fDesign(nextkey, acluser)
+			return fDesign(ctx, nextkey, acluser)
 		case "discovery":
-			return fDiscovery(nextkey, acluser)
+			return fDiscovery(ctx, nextkey, acluser)
 		case "acl":
-			return fACL(nextkey, acluser)
+			return fACL(ctx, nextkey, acluser)
 		default:
 			return nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -1097,10 +1126,10 @@ func readStates(pctx context.Context) (readNodeValueFunc, error) {
 		return nil, err
 	}
 
-	return readNodeKey(func(key, nextkey, acluser string) (interface{}, error) {
+	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
 		switch key {
 		case "allow_consensus":
-			return fAllowConsensus(nextkey, acluser)
+			return fAllowConsensus(ctx, nextkey, acluser)
 		default:
 			return nil, util.ErrNotFound.Errorf("unknown key, %q for node", key)
 		}
@@ -1154,11 +1183,11 @@ func readDesign(pctx context.Context) (readNodeValueFunc, error) {
 		return b, nil
 	}
 
-	return func(key, acluser string) (interface{}, error) {
+	return func(ctx context.Context, key, acluser string) (interface{}, error) {
 		extra := zerolog.Dict().
 			Str("key", "design."+key)
 
-		if !aclallow(acluser, DesignACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, DesignACLScope, NodeReadACLPerm, extra) {
 			return nil, ErrACLBlocked.WithStack()
 		}
 
@@ -1189,11 +1218,11 @@ func readAllowConsensus(pctx context.Context) (readNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return func(_, acluser string) (interface{}, error) {
+	return func(ctx context.Context, _, acluser string) (interface{}, error) {
 		extra := zerolog.Dict().
 			Str("key", "states.allow_consensus")
 
-		if !aclallow(acluser, StatesAllowConsensusACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeReadACLPerm, extra) {
 			return nil, ErrACLBlocked.WithStack()
 		}
 
@@ -1219,11 +1248,11 @@ func readDiscovery(pctx context.Context) (readNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return func(_, acluser string) (interface{}, error) {
+	return func(ctx context.Context, _, acluser string) (interface{}, error) {
 		extra := zerolog.Dict().
 			Str("key", "discovery")
 
-		if !aclallow(acluser, DiscoveryACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeReadACLPerm, extra) {
 			return nil, ErrACLBlocked.WithStack()
 		}
 
@@ -1249,7 +1278,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 		aclallow = i
 	}
 
-	return readNodeKey(func(key, nextkey, acluser string) (interface{}, error) {
+	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
 		fullkey := strings.Join([]string{"acl", key, nextkey}, "")
 
 		if len(key) > 0 {
@@ -1258,7 +1287,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 
 		extra := zerolog.Dict().Str("key", fullkey)
 
-		if !aclallow(acluser, ACLACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, ACLACLScope, NodeReadACLPerm, extra) {
 			return nil, ErrACLBlocked.WithStack()
 		}
 
@@ -1284,7 +1313,7 @@ func networkHandlerNodeRead(
 		}
 
 		switch body, err := func() (*bytes.Buffer, error) {
-			switch v, err := f(header.Key, header.ACLUser().String()); {
+			switch v, err := f(ctx, header.Key, header.ACLUser().String()); {
 			case err != nil:
 				return nil, err
 			default:
@@ -1318,7 +1347,10 @@ func networkHandlerNodeRead(
 	) (context.Context, error) {
 		e := util.StringError("read node")
 
-		l := eventlogger.With().Str("key", header.Key).Str("cid", util.UUID().String()).Logger()
+		l := quicstream.ConnectionLoggerFromContext(ctx, &eventlogger).With().
+			Str("key", header.Key).
+			Str("cid", util.UUID().String()).
+			Logger()
 
 		switch sentresponse, err := handler(ctx, addr, broker, header); {
 		case errors.Is(err, util.ErrNotFound):

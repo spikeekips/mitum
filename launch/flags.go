@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"bytes"
 	"io"
 	"net/url"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -336,4 +338,27 @@ type ACLFlags struct {
 	//revive:disable:line-length-limit
 	Flag SecretFlag `name:"acl" help:"acl uri; './acl.yml', 'file:///acl.yml', 'vault://a.b.c.d/acl'" placeholder:"URL"`
 	//revive:enable:line-length-limit
+}
+
+func LoadInputFlag(s string, isfile bool) ([]byte, error) { // revive:disable-line:flag-parameter
+	if !isfile {
+		return []byte(s), nil
+	}
+
+	if s == "-" { // NOTE stdin
+		buf := bytes.NewBuffer(nil)
+
+		if _, err := io.Copy(buf, os.Stdin); err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		return buf.Bytes(), nil
+	}
+
+	switch i, err := os.ReadFile(s); {
+	case err != nil:
+		return nil, errors.WithStack(err)
+	default:
+		return i, nil
+	}
 }

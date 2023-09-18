@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -22,6 +23,7 @@ type (
 )
 
 type ACLAllowFunc func(
+	_ context.Context,
 	user string,
 	scope ACLScope,
 	required ACLPerm,
@@ -465,11 +467,12 @@ type ACLUser interface {
 	ACLUser() base.Publickey
 }
 
-func NewACLAllowFunc(acl *ACL, el zerolog.Logger) ACLAllowFunc {
-	return func(user string, scope ACLScope, required ACLPerm, extra *zerolog.Event) bool {
+func NewACLAllowFunc(acl *ACL, el *zerolog.Logger) ACLAllowFunc {
+	return func(ctx context.Context, user string, scope ACLScope, required ACLPerm, extra *zerolog.Event) bool {
 		assigned, allow := acl.Allow(user, scope, required)
 
-		el.Debug().
+		l := quicstream.ConnectionLoggerFromContext(ctx, el)
+		l.Debug().
 			Str("user", user).
 			Interface("scope", scope).
 			Stringer("required", required).
@@ -515,7 +518,7 @@ func ACLNetworkHandler[T quicstreamheader.RequestHeader](
 			Stringer("addr", addr).
 			Interface("header", header)
 
-		if !aclallow(h.ACLUser().String(), scope, required, extra) {
+		if !aclallow(ctx, h.ACLUser().String(), scope, required, extra) {
 			return ctx, ErrACLBlocked.WithStack()
 		}
 

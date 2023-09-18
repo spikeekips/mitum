@@ -68,6 +68,6 @@ func pACLAllowFunc(pctx context.Context) (ACLAllowFunc, error) {
 	case !found:
 		return nil, errors.Errorf("acl event logger not found")
 	default:
-		return NewACLAllowFunc(acl.ACL, i), nil
+		return NewACLAllowFunc(acl.ACL, &i), nil
 	}
 }
