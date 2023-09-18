@@ -22,20 +22,6 @@ import (
 var PNameStatesNetworkHandlers = ps.Name("states-network-handlers")
 
 func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
-	var log *logging.Logging
-	var local base.LocalNode
-	var params *LocalParams
-	var states *isaacstates.States
-
-	if err := util.LoadFromContext(pctx,
-		LoggingContextKey, &log,
-		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
-		StatesContextKey, &states,
-	); err != nil {
-		return pctx, err
-	}
-
 	if err := AttachHandlerOperation(pctx); err != nil {
 		return pctx, err
 	}
@@ -56,22 +42,16 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 }
 
 func AttachHandlerOperation(pctx context.Context) error {
-	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var params *LocalParams
 	var pool *isaacdatabase.TempPool
-	var client *isaacnetwork.BaseClient
 	var connectionPool *quicstream.ConnectionPool
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
-		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
-		QuicstreamClientContextKey, &client,
 		ConnectionPoolContextKey, &connectionPool,
 		StatesContextKey, &states,
 	); err != nil {
@@ -198,13 +178,11 @@ func AttachHandlerSendOperation(pctx context.Context) error {
 }
 
 func AttachHandlerStreamOperations(pctx context.Context) error {
-	var log *logging.Logging
 	var local base.LocalNode
 	var params *LocalParams
 	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContext(pctx,
-		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
@@ -244,10 +222,8 @@ func AttachHandlerStreamOperations(pctx context.Context) error {
 }
 
 func AttachHandlerProposals(pctx context.Context) error {
-	var log *logging.Logging
 	var enc encoder.Encoder
 	var local base.LocalNode
-	var params *LocalParams
 	var states *isaacstates.States
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
@@ -255,10 +231,8 @@ func AttachHandlerProposals(pctx context.Context) error {
 	var client isaac.NetworkClient
 
 	if err := util.LoadFromContext(pctx,
-		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
 		StatesContextKey, &states,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
