@@ -49,7 +49,7 @@ var AllACLScopes = []ACLScope{
 	EventLoggingACLScope,
 }
 
-var ErrACLBlocked = util.NewIDError("acl blocked")
+var ErrACLAccessDenied = util.NewIDError("access denied")
 
 var ACLEventLoggerName EventLoggerName = "acl"
 
@@ -519,7 +519,7 @@ func ACLNetworkHandler[T quicstreamheader.RequestHeader](
 			Interface("header", header)
 
 		if !aclallow(ctx, h.ACLUser().String(), scope, required, extra) {
-			return ctx, ErrACLBlocked.WithStack()
+			return ctx, ErrACLAccessDenied.WithStack()
 		}
 
 		return ctx, nil

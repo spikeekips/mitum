@@ -272,7 +272,7 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 			Str("key", key)
 
 		if !aclallow(ctx, acluser, DesignACLScope, NodeWriteACLPerm, extra) {
-			return nil, nil, false, ErrACLBlocked.WithStack()
+			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
 		switch f, found := m[key]; {
@@ -631,7 +631,7 @@ func writeDiscovery(pctx context.Context) (writeNodeValueFunc, error) {
 
 	return func(ctx context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
 		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeWriteACLPerm, nil) {
-			return nil, nil, false, ErrACLBlocked.WithStack()
+			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
 		e := util.StringError("update discoveries")
@@ -748,7 +748,7 @@ func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 			Str("value", value)
 
 		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeWriteACLPerm, extra) {
-			return nil, nil, false, ErrACLBlocked.WithStack()
+			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
 		var allow bool
@@ -801,7 +801,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 		extra := zerolog.Dict().Str("key", fullkey)
 
 		if !aclallow(ctx, acluser, ACLACLScope, NodeWriteACLPerm, extra) {
-			return nil, nil, false, ErrACLBlocked.WithStack()
+			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
 		prev := acl.Export()
@@ -1188,7 +1188,7 @@ func readDesign(pctx context.Context) (readNodeValueFunc, error) {
 			Str("key", "design."+key)
 
 		if !aclallow(ctx, acluser, DesignACLScope, NodeReadACLPerm, extra) {
-			return nil, ErrACLBlocked.WithStack()
+			return nil, ErrACLAccessDenied.WithStack()
 		}
 
 		switch f, found := m[key]; {
@@ -1223,7 +1223,7 @@ func readAllowConsensus(pctx context.Context) (readNodeValueFunc, error) {
 			Str("key", "states.allow_consensus")
 
 		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeReadACLPerm, extra) {
-			return nil, ErrACLBlocked.WithStack()
+			return nil, ErrACLAccessDenied.WithStack()
 		}
 
 		return states.AllowedConsensus(), nil
@@ -1253,7 +1253,7 @@ func readDiscovery(pctx context.Context) (readNodeValueFunc, error) {
 			Str("key", "discovery")
 
 		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeReadACLPerm, extra) {
-			return nil, ErrACLBlocked.WithStack()
+			return nil, ErrACLAccessDenied.WithStack()
 		}
 
 		return GetDiscoveriesFromLocked(discoveries), nil
@@ -1288,7 +1288,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 		extra := zerolog.Dict().Str("key", fullkey)
 
 		if !aclallow(ctx, acluser, ACLACLScope, NodeReadACLPerm, extra) {
-			return nil, ErrACLBlocked.WithStack()
+			return nil, ErrACLAccessDenied.WithStack()
 		}
 
 		b, err := yaml.Marshal(acl.Export())
