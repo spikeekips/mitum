@@ -1,6 +1,7 @@
 package launchcmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -180,7 +182,11 @@ func (cmd *NetworkClientWriteNodeCommand) Run(pctx context.Context) error {
 	return cmd.printValue(ctx, key)
 }
 
-func (*NetworkClientWriteNodeCommand) Help() string {
+func (cmd *NetworkClientWriteNodeCommand) Help() string {
+	if slices.Contains(os.Args[1:], "acl") {
+		return cmd.helpACL()
+	}
+
 	s := "## available keys\n\n"
 
 	for i := range launch.AllNodeWriteKeys {
@@ -188,4 +194,56 @@ func (*NetworkClientWriteNodeCommand) Help() string {
 	}
 
 	return s
+}
+
+func (*NetworkClientWriteNodeCommand) helpACL() string {
+	buf := bytes.NewBuffer(nil)
+
+	sp := func(s string, a ...interface{}) {
+		_, _ = fmt.Fprintf(buf, s, a...)
+	}
+
+	sp("## ACL: Scopes and permissions\n\n")
+
+	m := map[launch.ACLScope][]string{
+		launch.DesignACLScope: {
+			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
+			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+		},
+		launch.StatesAllowConsensusACLScope: {
+			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
+			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+		},
+		launch.DiscoveryACLScope: {
+			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
+			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+		},
+		launch.ACLACLScope: {
+			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
+			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+		},
+		launch.HandoverACLScope:     {launch.NewAllowACLPerm(0).String()},
+		launch.EventLoggingACLScope: {launch.NewAllowACLPerm(0).String()},
+	}
+
+	for i := range launch.AllACLScopes {
+		scope := launch.AllACLScopes[i]
+		required := m[scope]
+
+		var perm string
+
+		if len(required) < 2 {
+			perm = fmt.Sprintf(": %s\n", required[0])
+		}
+
+		sp("* %s%s\n", scope, perm)
+
+		if len(required) > 1 {
+			for j := range required {
+				sp("  - %s\n", required[j])
+			}
+		}
+	}
+
+	return buf.String()
 }
