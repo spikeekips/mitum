@@ -581,7 +581,7 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 		ACLNetworkHandler[EventLoggingHeader](
 			aclallow,
 			EventLoggingACLScope,
-			NewAllowACLPerm(0),
+			ReadAllowACLPerm,
 			isaacparams.NetworkID(),
 		),
 		eventLogging,

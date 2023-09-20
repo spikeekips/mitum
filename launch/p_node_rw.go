@@ -86,11 +86,6 @@ var (
 	ACLACLScope                  = ACLScope("acl")
 )
 
-var (
-	NodeReadACLPerm  = NewAllowACLPerm(0)
-	NodeWriteACLPerm = NewAllowACLPerm(1)
-)
-
 func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params *LocalParams
@@ -271,7 +266,7 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 		extra := zerolog.Dict().
 			Str("key", key)
 
-		if !aclallow(ctx, acluser, DesignACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, DesignACLScope, WriteAllowACLPerm, extra) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
@@ -630,7 +625,7 @@ func writeDiscovery(pctx context.Context) (writeNodeValueFunc, error) {
 	}
 
 	return func(ctx context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
-		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeWriteACLPerm, nil) {
+		if !aclallow(ctx, acluser, DiscoveryACLScope, WriteAllowACLPerm, nil) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
@@ -747,7 +742,7 @@ func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 		extra := zerolog.Dict().
 			Str("value", value)
 
-		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, WriteAllowACLPerm, extra) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
@@ -800,7 +795,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 
 		extra := zerolog.Dict().Str("key", fullkey)
 
-		if !aclallow(ctx, acluser, ACLACLScope, NodeWriteACLPerm, extra) {
+		if !aclallow(ctx, acluser, ACLACLScope, WriteAllowACLPerm, extra) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
@@ -1187,7 +1182,7 @@ func readDesign(pctx context.Context) (readNodeValueFunc, error) {
 		extra := zerolog.Dict().
 			Str("key", "design."+key)
 
-		if !aclallow(ctx, acluser, DesignACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, DesignACLScope, ReadAllowACLPerm, extra) {
 			return nil, ErrACLAccessDenied.WithStack()
 		}
 
@@ -1222,7 +1217,7 @@ func readAllowConsensus(pctx context.Context) (readNodeValueFunc, error) {
 		extra := zerolog.Dict().
 			Str("key", "states.allow_consensus")
 
-		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, StatesAllowConsensusACLScope, ReadAllowACLPerm, extra) {
 			return nil, ErrACLAccessDenied.WithStack()
 		}
 
@@ -1252,7 +1247,7 @@ func readDiscovery(pctx context.Context) (readNodeValueFunc, error) {
 		extra := zerolog.Dict().
 			Str("key", "discovery")
 
-		if !aclallow(ctx, acluser, DiscoveryACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, DiscoveryACLScope, ReadAllowACLPerm, extra) {
 			return nil, ErrACLAccessDenied.WithStack()
 		}
 
@@ -1287,7 +1282,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 
 		extra := zerolog.Dict().Str("key", fullkey)
 
-		if !aclallow(ctx, acluser, ACLACLScope, NodeReadACLPerm, extra) {
+		if !aclallow(ctx, acluser, ACLACLScope, ReadAllowACLPerm, extra) {
 			return nil, ErrACLAccessDenied.WithStack()
 		}
 

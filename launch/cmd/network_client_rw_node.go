@@ -207,23 +207,23 @@ func (*NetworkClientWriteNodeCommand) helpACL() string {
 
 	m := map[launch.ACLScope][]string{
 		launch.DesignACLScope: {
-			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
-			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+			fmt.Sprintf("read: %s", launch.ReadAllowACLPerm),
+			fmt.Sprintf("write: %s", launch.WriteAllowACLPerm),
 		},
 		launch.StatesAllowConsensusACLScope: {
-			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
-			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+			fmt.Sprintf("read: %s", launch.ReadAllowACLPerm),
+			fmt.Sprintf("write: %s", launch.WriteAllowACLPerm),
 		},
 		launch.DiscoveryACLScope: {
-			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
-			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+			fmt.Sprintf("read: %s", launch.ReadAllowACLPerm),
+			fmt.Sprintf("write: %s", launch.WriteAllowACLPerm),
 		},
 		launch.ACLACLScope: {
-			fmt.Sprintf("read: %s", launch.NodeReadACLPerm),
-			fmt.Sprintf("write: %s", launch.NodeWriteACLPerm),
+			fmt.Sprintf("read: %s", launch.ReadAllowACLPerm),
+			fmt.Sprintf("write: %s", launch.WriteAllowACLPerm),
 		},
-		launch.HandoverACLScope:     {launch.NewAllowACLPerm(0).String()},
-		launch.EventLoggingACLScope: {launch.NewAllowACLPerm(0).String()},
+		launch.HandoverACLScope:     {launch.WriteAllowACLPerm.String()},
+		launch.EventLoggingACLScope: {launch.ReadAllowACLPerm.String()},
 	}
 
 	for i := range launch.AllACLScopes {

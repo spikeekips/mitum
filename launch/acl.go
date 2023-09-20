@@ -40,6 +40,11 @@ const (
 	aclPermSuper    ACLPerm = 79
 )
 
+const (
+	ReadAllowACLPerm  = ACLPerm(2)
+	WriteAllowACLPerm = ACLPerm(3)
+)
+
 var AllACLScopes = []ACLScope{
 	DesignACLScope,
 	StatesAllowConsensusACLScope,

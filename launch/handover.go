@@ -367,7 +367,7 @@ func attachStartHandoverHandler(
 			ACLNetworkHandler[isaacnetwork.StartHandoverHeader](
 				aclallow,
 				HandoverACLScope,
-				NewAllowACLPerm(0),
+				WriteAllowACLPerm,
 				isaacparams.NetworkID(),
 			),
 			isaacstates.NewStartHandoverYFunc(
@@ -435,7 +435,7 @@ func attachCancelHandoverHandler(
 			ACLNetworkHandler[isaacnetwork.CancelHandoverHeader](
 				aclallow,
 				HandoverACLScope,
-				NewAllowACLPerm(0),
+				WriteAllowACLPerm,
 				isaacparams.NetworkID(),
 			),
 			func() error {
@@ -496,7 +496,7 @@ func attachCheckHandoverHandler(
 			ACLNetworkHandler[isaacnetwork.CheckHandoverHeader](
 				aclallow,
 				HandoverACLScope,
-				NewAllowACLPerm(0),
+				WriteAllowACLPerm,
 				isaacparams.NetworkID(),
 			),
 			isaacstates.NewCheckHandoverFunc(local.Address(), localci,
