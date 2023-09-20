@@ -97,61 +97,88 @@ func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 		return errors.Errorf("empty key string")
 	}
 
-	if key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.Encoder); err == nil {
-		o := struct {
-			PrivateKey base.PKKey  `json:"privatekey"` //nolint:tagliatelle //...
-			Publickey  base.PKKey  `json:"publickey"`
-			Hint       interface{} `json:"hint,omitempty"`
-			String     string      `json:"string"`
-			Type       string      `json:"type"`
-		}{
-			String:     cmd.KeyString,
-			PrivateKey: key,
-			Publickey:  key.Publickey(),
-			Type:       "privatekey",
-		}
+	var gerr error
 
-		if hinter, ok := key.(hint.Hinter); ok {
-			o.Hint = hinter.Hint()
-		}
-
-		b, err := util.MarshalJSONIndent(o)
-		if err != nil {
+	for _, f := range []func() (bool, error){cmd.loadPrivatekey, cmd.loadPublickey} {
+		switch ok, err := f(); {
+		case !ok:
+			gerr = err
+		case err != nil:
 			return err
+		default:
+			return nil
 		}
-
-		_, _ = fmt.Fprintln(os.Stdout, string(b))
-
-		return nil
 	}
 
-	if key, err := base.DecodePublickeyFromString(cmd.KeyString, cmd.Encoder); err == nil {
-		o := struct {
-			Publickey base.PKKey  `json:"publickey"`
-			Hint      interface{} `json:"hint,omitempty"`
-			String    string      `json:"string"`
-			Type      string      `json:"type"`
-		}{
-			String:    cmd.KeyString,
-			Publickey: key,
-			Type:      "publickey",
-		}
-
-		if hinter, ok := key.(hint.Hinter); ok {
-			o.Hint = hinter.Hint()
-		}
-
-		b, err := util.MarshalJSONIndent(o)
-		if err != nil {
-			return err
-		}
-
-		_, _ = fmt.Fprintln(os.Stdout, string(b))
-
-		return nil
+	if gerr != nil {
+		return gerr
 	}
 
-	return nil
+	return errors.Errorf("unknown key string")
+}
+
+func (cmd *KeyLoadCommand) loadPrivatekey() (bool, error) {
+	key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.Encoder)
+	if err != nil {
+		return false, err
+	}
+
+	o := struct {
+		PrivateKey base.PKKey  `json:"privatekey"` //nolint:tagliatelle //...
+		Publickey  base.PKKey  `json:"publickey"`
+		Hint       interface{} `json:"hint,omitempty"`
+		String     string      `json:"string"`
+		Type       string      `json:"type"`
+	}{
+		String:     cmd.KeyString,
+		PrivateKey: key,
+		Publickey:  key.Publickey(),
+		Type:       "privatekey",
+	}
+
+	if hinter, ok := key.(hint.Hinter); ok {
+		o.Hint = hinter.Hint()
+	}
+
+	b, err := util.MarshalJSONIndent(o)
+	if err != nil {
+		return true, err
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, string(b))
+
+	return true, nil
+}
+
+func (cmd *KeyLoadCommand) loadPublickey() (bool, error) {
+	key, err := base.DecodePublickeyFromString(cmd.KeyString, cmd.Encoder)
+	if err != nil {
+		return false, err
+	}
+
+	o := struct {
+		Publickey base.PKKey  `json:"publickey"`
+		Hint      interface{} `json:"hint,omitempty"`
+		String    string      `json:"string"`
+		Type      string      `json:"type"`
+	}{
+		String:    cmd.KeyString,
+		Publickey: key,
+		Type:      "publickey",
+	}
+
+	if hinter, ok := key.(hint.Hinter); ok {
+		o.Hint = hinter.Hint()
+	}
+
+	b, err := util.MarshalJSONIndent(o)
+	if err != nil {
+		return true, err
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, string(b))
+
+	return true, nil
 }
 
 type KeySignCommand struct {
