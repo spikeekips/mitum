@@ -293,6 +293,13 @@ func (f *SecretFlag) UnmarshalText(b []byte) error {
 
 	switch u.Scheme {
 	case "file", "":
+		switch fi, err := os.Stat(u.Path); {
+		case err != nil:
+			return e.Wrap(err)
+		case fi.Mode()&(1<<2) != 0:
+			return e.Errorf("too open, %q", u.Path)
+		}
+
 		switch i, err := os.ReadFile(u.Path); {
 		case err != nil:
 			return e.Wrap(err)
