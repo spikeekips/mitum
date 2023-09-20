@@ -62,7 +62,12 @@ func (*NetworkClientEventLoggingCommand) Help() string {
 	s := "## available logger name\n\n"
 
 	for i := range launch.AllEventLoggerNames {
-		s += fmt.Sprintf("  - %s\n", launch.AllEventLoggerNames[i])
+		j := launch.AllEventLoggerNames[i]
+		if j == launch.AllEventLogger {
+			continue
+		}
+
+		s += fmt.Sprintf("  - %s\n", j)
 	}
 
 	return s
