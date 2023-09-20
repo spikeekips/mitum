@@ -412,11 +412,13 @@ func (h *NodeChallengeRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) 
 		h.me = i
 	}
 
-	switch i, err := base.DecodePublickeyFromString(u.MePublickey, enc); {
-	case err != nil:
-		return e.WithMessage(err, "me pub")
-	default:
-		h.mePub = i
+	if len(u.MePublickey) > 0 {
+		switch i, err := base.DecodePublickeyFromString(u.MePublickey, enc); {
+		case err != nil:
+			return e.WithMessage(err, "me pub")
+		default:
+			h.mePub = i
+		}
 	}
 
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {

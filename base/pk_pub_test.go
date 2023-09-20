@@ -198,14 +198,11 @@ func TestNilMPublickeyJSON(tt *testing.T) {
 		var s string
 		t.NoError(t.enc.Unmarshal(b, &s))
 
-		uk, err := DecodePublickeyFromString(s, t.enc)
-		t.NoError(err)
+		_, err := DecodePublickeyFromString(s, t.enc)
+		t.Error(err)
+		t.ErrorContains(err, "empty")
 
-		return uk
-	}
-	t.compare = func(a, b PKKey) {
-		t.Nil(a)
-		t.Nil(b)
+		return nil
 	}
 
 	suite.Run(tt, t)

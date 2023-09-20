@@ -268,21 +268,21 @@ func TestNilMPrivatekeyJSON(tt *testing.T) {
 		b, err := t.enc.Marshal(nil)
 		t.NoError(err)
 
+		t.T().Log("marshaled:", string(b))
+
 		return nil, b
 	}
+
 	t.Decode = func(b []byte) interface{} {
 		var s string
 		t.NoError(t.enc.Unmarshal(b, &s))
 
-		uk, err := DecodePrivatekeyFromString(s, t.enc)
+		_, err := DecodePrivatekeyFromString(s, t.enc)
 
-		t.NoError(err)
+		t.Error(err)
+		t.ErrorContains(err, "nil")
 
-		return uk
-	}
-	t.compare = func(a, b PKKey) {
-		t.Nil(a)
-		t.Nil(b)
+		return nil
 	}
 
 	suite.Run(tt, t)

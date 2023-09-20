@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -76,31 +77,25 @@ func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
 	case err != nil:
 		return nil, e.Wrap(err)
 	case i == nil:
-		return nil, nil
+		return nil, e.Errorf("nil")
 	}
 
-	k, ok := i.(PKKey)
-	if !ok {
+	switch k, ok := i.(PKKey); {
+	case !ok:
 		return nil, e.Errorf("not PKKey, %T", i)
+	case k.String() != s:
+		return nil, e.Errorf("unknown key format")
+	default:
+		return k, nil
 	}
-
-	return k, nil
 }
 
 func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, error) {
-	if len(s) < 1 {
-		return nil, nil
-	}
-
 	e := util.StringError("decode privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
-
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, e.Wrap(err)
-	case i == nil:
-		return nil, nil
 	}
 
 	k, ok := i.(Privatekey)
@@ -113,13 +108,12 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 
 func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
 	if len(s) < 1 {
-		return nil, nil
+		return nil, errors.Errorf("decode publickey; empty")
 	}
 
 	switch i, found := objcache.Get(s); {
 	case !found:
 	case i == nil:
-		return nil, nil
 	default:
 		if err, ok := i.(error); ok {
 			return nil, err
@@ -144,18 +138,14 @@ func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	e := util.StringError("decode publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
-
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, e.Wrap(err)
-	case i == nil:
-		return nil, nil
-	default:
-		k, ok := i.(Publickey)
-		if !ok {
-			return nil, e.Errorf("not Publickey, %T", i)
-		}
-
-		return k, nil
 	}
+
+	k, ok := i.(Publickey)
+	if !ok {
+		return nil, e.Errorf("not Publickey, %T", i)
+	}
+
+	return k, nil
 }
