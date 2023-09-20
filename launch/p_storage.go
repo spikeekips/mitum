@@ -44,7 +44,7 @@ var (
 	PermanentDatabaseContextKey     = util.ContextKey("permanent-database")
 	PoolDatabaseContextKey          = util.ContextKey("pool-database")
 	LastVoteproofsHandlerContextKey = util.ContextKey("last-voteproofs-handler")
-	EventLoggingContextKey          = util.ContextKey("event-logging")
+	EventLoggingContextKey          = util.ContextKey("event-log")
 )
 
 var (

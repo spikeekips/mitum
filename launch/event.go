@@ -53,9 +53,9 @@ var AllEventLoggerNames = []EventLoggerName{
 
 var EventLoggingEventLoggerName EventLoggerName = "event_logging"
 
-var PNameEventLoggingNetworkHandlers = ps.Name("event-logging-network-handlers")
+var PNameEventLoggingNetworkHandlers = ps.Name("event-log-network-handlers")
 
-var EventLoggingACLScope = ACLScope("event-logging")
+var EventLoggingACLScope = ACLScope("event-log")
 
 type EventLogging struct {
 	db *eventDatabase
@@ -231,7 +231,7 @@ func (db *eventDatabase) put(prefix [32]byte, b []byte) error {
 	batch := st.NewBatch()
 	defer batch.Reset()
 
-	now := localtime.Now()
+	now := localtime.Now().UTC()
 
 	nk := util.ConcatBytesSlice(
 		prefix[:],
