@@ -16,15 +16,13 @@ import (
 
 var errFailedToRequestProposalToNode = util.NewIDError("request proposal to node")
 
-// ProposerSelector selects proposer between suffrage nodes. If failed to
+// ProposerSelectFunc selects proposer between suffrage nodes. If failed to
 // request proposal from remotes, local will be proposer.
-type ProposerSelector interface {
-	Select(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
-}
+type ProposerSelectFunc func(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
 
 type BaseProposalSelectorArgs struct {
 	Pool                    ProposalPool
-	ProposerSelector        ProposerSelector
+	ProposerSelectFunc      ProposerSelectFunc
 	Maker                   *ProposalMaker
 	GetNodesFunc            func(base.Height) ([]base.Node, bool, error)
 	RequestFunc             func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error)
@@ -164,7 +162,7 @@ func (p *BaseProposalSelector) selectFromProposer(
 ) (base.ProposalSignFact, base.Address, error) {
 	e := util.StringError("select proposal from proposer")
 
-	proposer, err := p.args.ProposerSelector.Select(ctx, point, nodes, previousBlock)
+	proposer, err := p.args.ProposerSelectFunc(ctx, point, nodes, previousBlock)
 	if err != nil {
 		return nil, nil, e.WithMessage(err, "select proposer")
 	}
@@ -238,7 +236,7 @@ func (p *BaseProposalSelector) proposalFromOthers(
 				ticker.Reset(p.args.RequestProposalInterval)
 			})
 
-			proposer, err := p.args.ProposerSelector.Select(ctx, point, filtered, previousBlock)
+			proposer, err := p.args.ProposerSelectFunc(ctx, point, filtered, previousBlock)
 			if err != nil {
 				return nil, errors.WithMessage(err, "select proposer")
 			}

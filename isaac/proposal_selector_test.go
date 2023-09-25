@@ -138,7 +138,7 @@ func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelec
 	args := NewBaseProposalSelectorArgs()
 
 	args.Pool = newDummyProposalPool(10)
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 	args.Maker = NewProposalMaker(t.Local, t.LocalParams.NetworkID(), func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, args.Pool)
 	args.GetNodesFunc = func(base.Height) ([]base.Node, bool, error) {
 		return nodes, len(nodes) > 0, nil
@@ -210,7 +210,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 	args := t.newargs(nodes)
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 	args.RequestFunc = func(_ context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 		return nil, false, errors.Errorf("proposer not found in suffrage")
 	}
@@ -236,7 +236,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 
 	prev := valuehash.RandomSHA512()
 	point := base.RawPoint(66, 11)
@@ -258,7 +258,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewFixedProposerSelector(
+	args.ProposerSelectFunc = NewFixedProposerSelector(
 		func(base.Point, []base.Node, util.Hash) (base.Node, error) {
 			if atomic.LoadInt64(&touched) < 1 {
 				atomic.AddInt64(&touched, 1)
@@ -268,7 +268,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 			return nodes[1], nil
 		},
-	)
+	).Select
 	args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 		if proposer.Address().Equal(nodes[2].Address()) {
 			return nil, false, context.Canceled
@@ -320,7 +320,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 	args.RequestFunc = func(_ context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 		return nil, false, errors.Errorf("proposer not found in suffrage")
 	}
@@ -357,7 +357,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 	args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 		done := make(chan struct{}, 1)
 
@@ -435,7 +435,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 
 	p := NewBaseProposalSelector(t.Local, args)
 
-	args.ProposerSelector = NewBlockBasedProposerSelector()
+	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
 	args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 		done := make(chan struct{}, 1)
 
@@ -542,7 +542,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 
 		defaultselector := NewBlockBasedProposerSelector()
 
-		args.ProposerSelector = NewFixedProposerSelector(
+		args.ProposerSelectFunc = NewFixedProposerSelector(
 			func(point base.Point, nodes []base.Node, previousBlock util.Hash) (base.Node, error) {
 				// exclude local
 				filtered := util.FilterSlice(nodes, func(i base.Node) bool {
@@ -551,7 +551,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 
 				return defaultselector.Select(context.Background(), point, filtered, previousBlock)
 			},
-		)
+		).Select
 		args.GetNodesFunc = func(base.Height) ([]base.Node, bool, error) {
 			return nodes, len(nodes) > 0, nil
 		}
@@ -561,7 +561,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 
 	args := f()
 
-	selectedproposer, err := args.ProposerSelector.Select(context.Background(), point, nodes, prev)
+	selectedproposer, err := args.ProposerSelectFunc(context.Background(), point, nodes, prev)
 	t.NoError(err)
 	t.T().Logf("selected proposer: %q", selectedproposer.Address())
 

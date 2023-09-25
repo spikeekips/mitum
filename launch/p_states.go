@@ -33,7 +33,7 @@ var (
 	BallotboxContextKey                             = util.ContextKey("ballotbox")
 	StatesContextKey                                = util.ContextKey("states")
 	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
-	ProposerSelectorContextKey                      = util.ContextKey("proposer-selector")
+	ProposerSelectFuncContextKey                    = util.ContextKey("proposer-select-func")
 	ProposalSelectorContextKey                      = util.ContextKey("proposal-selector")
 	WhenNewBlockSavedInSyncingStateFuncContextKey   = util.ContextKey("when-new-block-saved-in-syncing-state-func")
 	WhenNewBlockSavedInConsensusStateFuncContextKey = util.ContextKey("when-new-block-saved-in-consensus-state-func")

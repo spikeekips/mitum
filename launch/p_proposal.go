@@ -62,7 +62,7 @@ func PProposerSelector(pctx context.Context) (context.Context, error) {
 	}),
 	*/
 
-	return context.WithValue(pctx, ProposerSelectorContextKey, p), nil
+	return context.WithValue(pctx, ProposerSelectFuncContextKey, isaac.ProposerSelectFunc(p.Select)), nil
 }
 
 func newProposalProcessorFunc(pctx context.Context) (
@@ -484,7 +484,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	var proposalMaker *isaac.ProposalMaker
 	var m *quicmemberlist.Memberlist
 	var client isaac.NetworkClient
-	var proposerSelector isaac.ProposerSelector
+	var proposerSelectFunc isaac.ProposerSelectFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -494,7 +494,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 		ProposalMakerContextKey, &proposalMaker,
 		MemberlistContextKey, &m,
 		QuicstreamClientContextKey, &client,
-		ProposerSelectorContextKey, &proposerSelector,
+		ProposerSelectFuncContextKey, &proposerSelectFunc,
 	); err != nil {
 		return nil, err
 	}
@@ -502,7 +502,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	args := isaac.NewBaseProposalSelectorArgs()
 
 	args.Pool = pool
-	args.ProposerSelector = proposerSelector
+	args.ProposerSelectFunc = proposerSelectFunc
 	args.Maker = proposalMaker
 	args.MinProposerWait = params.Network.TimeoutRequest() + (time.Second * 2)
 	args.TimeoutRequest = params.Network.TimeoutRequest
