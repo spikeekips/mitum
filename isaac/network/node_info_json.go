@@ -30,6 +30,7 @@ type NodeInfoSuffrageJSONMarshaler struct {
 }
 
 type NodeInfoConsensusJSONMarshaler struct {
+	LastVote NodeInfoLastVote              `json:"last_vote"`
 	State    isaacstates.StateType         `json:"state"`
 	Suffrage NodeInfoSuffrageJSONMarshaler `json:"suffrage"`
 }
@@ -61,6 +62,7 @@ func (info NodeInfo) JSONMarshaler() NodeInfoJSONMarshaler {
 				Height: info.suffrageHeight,
 				Nodes:  info.consensusNodes,
 			},
+			LastVote: info.lastVote,
 		},
 		LastManifest:  info.lastManifest,
 		NetworkPolicy: info.networkPolicy,
@@ -89,6 +91,7 @@ type nodeInfoLocalJSONUnmarshaler struct {
 }
 
 type nodeInfoConsensusJSONUnmarshaler struct {
+	LastVote NodeInfoLastVote                `json:"last_vote"`
 	State    isaacstates.StateType           `json:"state"`
 	Suffrage nodeInfoSuffrageJSONUnmarshaler `json:"suffrage"`
 }
@@ -168,6 +171,8 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err := encoder.Decode(enc, u.NetworkPolicy, &info.networkPolicy); err != nil {
 		return e.Wrap(err)
 	}
+
+	info.lastVote = u.Consensus.LastVote
 
 	return nil
 }

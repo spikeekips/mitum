@@ -144,6 +144,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	var syncSourcePool *isaac.SyncSourcePool
 	var pool *isaacdatabase.TempPool
 	var m *quicmemberlist.Memberlist
+	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -157,6 +158,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		BallotStuckResolverContextKey, &args.BallotStuckResolver,
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &m,
+		NodeInfoContextKey, &nodeinfo,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -196,6 +198,9 @@ func PStates(pctx context.Context) (context.Context, error) {
 			return nil
 		},
 	)
+	args.WhenNewVoteproof = func(vp base.Voteproof) {
+		_ = nodeinfo.SetLastVote(vp.Point(), vp.Result())
+	}
 
 	states, err := isaacstates.NewStates(isaacparams.NetworkID(), local, args)
 	if err != nil {

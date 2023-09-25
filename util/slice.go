@@ -142,12 +142,11 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 			}
 		}
 
-		if found {
-			continue
+		if !found {
+			nb[n] = a[i]
+			n++
 		}
 
-		nb[n] = a[i]
-		n++
 	}
 
 	return nb[:n]

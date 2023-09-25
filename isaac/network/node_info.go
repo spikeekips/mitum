@@ -17,6 +17,7 @@ import (
 var NodeInfoHint = hint.MustNewHint("node-info-v0.0.1")
 
 type NodeInfo struct {
+	lastVote       NodeInfoLastVote
 	networkID      base.NetworkID
 	address        base.Address
 	publickey      base.Publickey
@@ -107,6 +108,10 @@ func (info NodeInfo) ConsensusState() string {
 	return info.consensusState.String()
 }
 
+func (info NodeInfo) LastVote() NodeInfoLastVote {
+	return info.lastVote
+}
+
 type NodeInfoUpdater struct {
 	startedAt time.Time
 	id        string
@@ -123,6 +128,7 @@ func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.
 			publickey:      local.Publickey(),
 			suffrageHeight: base.NilHeight,
 			version:        version,
+			lastVote:       EmptyNodeInfoLastVote(),
 		},
 		startedAt: localtime.Now().UTC(),
 	}
@@ -150,102 +156,141 @@ func (info *NodeInfoUpdater) NodeInfo() NodeInfo {
 }
 
 func (info *NodeInfoUpdater) SetConsensusState(s isaacstates.StateType) bool {
-	info.Lock()
-	defer info.Unlock()
+	return info.set(func() bool {
+		if info.n.consensusState == s {
+			return false
+		}
 
-	if info.n.consensusState == s {
-		return false
-	}
+		info.n.consensusState = s
 
-	info.n.consensusState = s
-	info.id = util.UUID().String()
-
-	return true
+		return true
+	})
 }
 
 func (info *NodeInfoUpdater) SetLastManifest(m base.Manifest) bool {
-	info.Lock()
-	defer info.Unlock()
+	return info.set(func() bool {
+		switch {
+		case info.n.lastManifest == nil, m == nil:
+		case info.n.lastManifest.Hash().Equal(m.Hash()):
+			return false
+		}
 
-	switch {
-	case info.n.lastManifest == nil, m == nil:
-	case info.n.lastManifest.Hash().Equal(m.Hash()):
-		return false
-	}
+		info.n.lastManifest = m
 
-	info.n.lastManifest = m
-	info.id = util.UUID().String()
-
-	return true
+		return true
+	})
 }
 
 func (info *NodeInfoUpdater) SetSuffrageHeight(h base.Height) bool {
-	info.Lock()
-	defer info.Unlock()
+	return info.set(func() bool {
+		if info.n.suffrageHeight == h {
+			return false
+		}
 
-	if info.n.suffrageHeight == h {
-		return false
-	}
+		info.n.suffrageHeight = h
 
-	info.n.suffrageHeight = h
-	info.id = util.UUID().String()
-
-	return true
+		return true
+	})
 }
 
 func (info *NodeInfoUpdater) SetNetworkPolicy(p base.NetworkPolicy) bool {
-	info.Lock()
-	defer info.Unlock()
+	return info.set(func() bool {
+		switch {
+		case info.n.networkPolicy == nil, p == nil:
+		case bytes.Equal(info.n.networkPolicy.HashBytes(), p.HashBytes()):
+			return false
+		}
 
-	switch {
-	case info.n.networkPolicy == nil, p == nil:
-	case bytes.Equal(info.n.networkPolicy.HashBytes(), p.HashBytes()):
-		return false
-	}
+		info.n.networkPolicy = p
 
-	info.n.networkPolicy = p
-	info.id = util.UUID().String()
-
-	return true
+		return true
+	})
 }
 
 func (info *NodeInfoUpdater) SetLocalParams(p *isaac.Params) bool {
+	return info.set(func() bool {
+		switch {
+		case info.n.localParams == nil, p == nil:
+		case info.n.localParams.ID() == p.ID():
+			return false
+		}
+
+		info.n.localParams = p
+		info.n.networkID = p.NetworkID()
+
+		return true
+	})
+}
+
+func (info *NodeInfoUpdater) SetConnInfo(c string) bool {
+	return info.set(func() bool {
+		if info.n.connInfo == c {
+			return false
+		}
+
+		info.n.connInfo = c
+
+		return true
+	})
+}
+
+func (info *NodeInfoUpdater) SetConsensusNodes(nodes []base.Node) bool {
+	return info.set(func() bool {
+		if len(info.n.consensusNodes) == len(nodes) {
+			var hasnew bool
+
+			for i := range nodes {
+				if util.CountFilteredSlice(info.n.consensusNodes, func(a base.Node) bool {
+					return !base.IsEqualNode(nodes[i], a)
+				}) > 0 {
+					hasnew = true
+
+					break
+				}
+			}
+
+			if !hasnew {
+				return false
+			}
+		}
+
+		info.n.consensusNodes = nodes
+
+		return true
+	})
+}
+
+func (info *NodeInfoUpdater) SetLastVote(point base.StagePoint, result base.VoteResult) bool {
+	return info.set(func() bool {
+		if point.Compare(info.n.lastVote.Point) < 1 {
+			return false
+		}
+
+		info.n.lastVote = NodeInfoLastVote{Point: point, Result: result}
+
+		return true
+	})
+}
+
+func (info *NodeInfoUpdater) set(f func() bool) bool {
 	info.Lock()
 	defer info.Unlock()
 
 	switch {
-	case info.n.localParams == nil, p == nil:
-	case info.n.localParams.ID() == p.ID():
+	case f():
+		info.id = util.UUID().String()
+
+		return true
+	default:
 		return false
 	}
-
-	info.n.localParams = p
-	info.n.networkID = p.NetworkID()
-	info.id = util.UUID().String()
-
-	return true
 }
 
-func (info *NodeInfoUpdater) SetConnInfo(c string) bool {
-	info.Lock()
-	defer info.Unlock()
-
-	if info.n.connInfo == c {
-		return false
-	}
-
-	info.n.connInfo = c
-	info.id = util.UUID().String()
-
-	return true
+type NodeInfoLastVote struct {
+	Result base.VoteResult `json:"result"`
+	Point  base.StagePoint `json:"point"`
 }
 
-func (info *NodeInfoUpdater) SetConsensusNodes(nodes []base.Node) bool {
-	info.Lock()
-	defer info.Unlock()
-
-	info.n.consensusNodes = nodes
-	info.id = util.UUID().String()
-
-	return true
+func EmptyNodeInfoLastVote() NodeInfoLastVote {
+	return NodeInfoLastVote{Point: base.ZeroStagePoint, Result: base.VoteResultNotYet}
 }

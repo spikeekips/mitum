@@ -63,6 +63,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 			base.RandomNode(),
 		})
 		info.SetConsensusState(isaacstates.StateBroken)
+		info.SetLastVote(base.NewStagePoint(base.RawPoint(33, 3), base.StageACCEPT), base.VoteResultMajority)
 
 		n := info.NodeInfo()
 
@@ -108,6 +109,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 
 		t.Equal(ah.version, bh.version)
 		t.Equal(ah.uptime.Round(time.Millisecond).String(), bh.uptime.Round(time.Millisecond).String())
+		t.Equal(ah.lastVote, bh.lastVote)
 	}
 
 	suite.Run(tt, t)

@@ -39,6 +39,7 @@ type StatesArgs struct {
 	BallotBroadcaster       BallotBroadcaster
 	WhenStateSwitchedFunc   func(StateType)
 	IntervalBroadcastBallot func() time.Duration
+	WhenNewVoteproof        func(base.Voteproof)
 	NewHandoverXBroker      NewHandoverXBrokerFunc
 	NewHandoverYBroker      NewHandoverYBrokerFunc
 	// AllowConsensus decides to enter Consensus states. If false, States enters
@@ -60,6 +61,7 @@ func NewStatesArgs() *StatesArgs {
 		IntervalBroadcastBallot: func() time.Duration {
 			return isaac.DefaultntervalBroadcastBallot
 		},
+		WhenNewVoteproof: func(base.Voteproof) {},
 	}
 }
 
