@@ -48,7 +48,8 @@ func EqualProposalFact(t *assert.Assertions, a, b ProposalFact) {
 	aop := a.Operations()
 	bop := b.Operations()
 	for i := range aop {
-		t.True(aop[i].Equal(bop[i]))
+		t.True(aop[i][0].Equal(bop[i][0]))
+		t.True(aop[i][1].Equal(bop[i][1]))
 	}
 	t.True(util.TimeEqual(a.ProposedAt(), b.ProposedAt()))
 }

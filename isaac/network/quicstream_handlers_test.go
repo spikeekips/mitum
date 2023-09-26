@@ -663,8 +663,11 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.LocalParams.NetworkID(),
-		func(context.Context, base.Height) ([]util.Hash, error) {
-			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+		func(context.Context, base.Height) ([][2]util.Hash, error) {
+			return [][2]util.Hash{
+				{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+				{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			}, nil
 		},
 		pool,
 	)
@@ -767,8 +770,11 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		proposalMaker := isaac.NewProposalMaker(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			func(context.Context, base.Height) ([]util.Hash, error) {
-				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+			func(context.Context, base.Height) ([][2]util.Hash, error) {
+				return [][2]util.Hash{
+					{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+					{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+				}, nil
 			},
 			npool,
 		)
@@ -808,8 +814,11 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		proposalMaker := isaac.NewProposalMaker(
 			t.Local,
 			t.LocalParams.NetworkID(),
-			func(context.Context, base.Height) ([]util.Hash, error) {
-				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+			func(context.Context, base.Height) ([][2]util.Hash, error) {
+				return [][2]util.Hash{
+					{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+					{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+				}, nil
 			},
 			npool,
 		)
@@ -838,8 +847,11 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.LocalParams.NetworkID(),
-		func(context.Context, base.Height) ([]util.Hash, error) {
-			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+		func(context.Context, base.Height) ([][2]util.Hash, error) {
+			return [][2]util.Hash{
+				{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+				{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			}, nil
 		},
 		pool,
 	)

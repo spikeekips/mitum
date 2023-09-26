@@ -115,7 +115,7 @@ type NewOperationPool interface {
 		_ base.Height,
 		limit uint64,
 		filter func(PoolOperationRecordMeta) (ok bool, err error),
-	) ([]util.Hash, error)
+	) ([][2]util.Hash, error)
 	SetOperation(context.Context, base.Operation) (bool, error)
 }
 

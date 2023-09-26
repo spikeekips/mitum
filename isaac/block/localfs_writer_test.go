@@ -148,7 +148,7 @@ func (t *testLocalFSWriter) TestSetManifest() {
 
 func (t *testLocalFSWriter) TestSetProposal() {
 	point := base.RawPoint(33, 44)
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
@@ -179,7 +179,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 
 func (t *testLocalFSWriter) TestSave() {
 	point := base.RawPoint(33, 44)
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
@@ -261,7 +261,7 @@ func (t *testLocalFSWriter) TestSave() {
 
 func (t *testLocalFSWriter) TestSaveAgain() {
 	point := base.RawPoint(33, 44)
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
@@ -300,7 +300,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 
 func (t *testLocalFSWriter) TestCancel() {
 	point := base.RawPoint(33, 44)
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
@@ -550,7 +550,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 func (t *testLocalFSWriter) TestRemove() {
 	save := func(height int64) error {
 		point := base.RawPoint(height, 44)
-		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 		_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())

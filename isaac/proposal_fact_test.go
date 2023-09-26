@@ -21,7 +21,7 @@ func (t *testProposalFact) proposal() ProposalFact {
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
 		valuehash.RandomSHA256(),
-		[]util.Hash{valuehash.RandomSHA256()},
+		[][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}},
 	)
 	_ = (interface{})(pr).(base.ProposalFact)
 
@@ -68,11 +68,11 @@ func (t *testProposalFact) TestDuplicatedOperations() {
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
 		valuehash.RandomSHA256(),
-		[]util.Hash{
-			valuehash.RandomSHA256(),
-			op,
-			valuehash.RandomSHA256(),
-			op,
+		[][2]util.Hash{
+			{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			{op, valuehash.RandomSHA256()},
+			{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			{op, valuehash.RandomSHA256()},
 		})
 
 	err := pr.IsValid(nil)
@@ -104,7 +104,7 @@ func TestProposalFactJSON(tt *testing.T) {
 		pr := NewProposalFact(base.RawPoint(33, 44),
 			base.RandomAddress("pr"),
 			valuehash.RandomSHA256(),
-			[]util.Hash{valuehash.RandomSHA256()})
+			[][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
 
 		b, err := t.enc.Marshal(&pr)
 		t.NoError(err)

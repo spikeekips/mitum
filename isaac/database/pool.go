@@ -243,7 +243,7 @@ func (db *TempPool) OperationHashes(
 	height base.Height,
 	limit uint64,
 	filter func(isaac.PoolOperationRecordMeta) (bool, error),
-) ([]util.Hash, error) {
+) ([][2]util.Hash, error) {
 	e := util.StringError("find new operations")
 
 	pst, err := db.st()
@@ -256,7 +256,7 @@ func (db *TempPool) OperationHashes(
 		nfilter = func(isaac.PoolOperationRecordMeta) (bool, error) { return true, nil }
 	}
 
-	ops := make([]util.Hash, limit)
+	ops := make([][2]util.Hash, limit)
 	removeordereds := make([][]byte, limit)
 	removeops := make([]util.Hash, limit)
 
@@ -284,7 +284,7 @@ func (db *TempPool) OperationHashes(
 				return true, nil
 			}
 
-			ops[opsindex] = meta.Operation()
+			ops[opsindex] = [2]util.Hash{meta.Operation(), meta.Fact()}
 			opsindex++
 
 			if opsindex == limit {

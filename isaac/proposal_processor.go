@@ -331,7 +331,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 	getOperationf := p.getOperationf
 
 	if err := util.RunErrgroupWorker(cctx, int64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
-		h := ophs[i]
+		h := ophs[i][0]
 		op, err := p.collectOperation(ctx, h, getOperationf)
 
 		switch {

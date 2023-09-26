@@ -227,14 +227,15 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 
 	// NOTE set operations
 	ops := make([]base.Operation, 3)
-	ophs := make([]util.Hash, len(ops))
+	ophs := make([][2]util.Hash, len(ops))
 	opstreeg, err := fixedtree.NewWriter(base.OperationFixedtreeHint, uint64(len(ops)))
 	t.NoError(err)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
 		ops[i] = op
-		ophs[i] = op.Hash()
+		ophs[i][0] = op.Hash()
+		ophs[i][1] = op.Fact().Hash()
 
 		node := base.NewInStateOperationFixedtreeNode(op.Fact().Hash(), "")
 

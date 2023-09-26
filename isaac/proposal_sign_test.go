@@ -28,7 +28,7 @@ func (t *testProposalSignFact) signfact() ProposalSignFact {
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
 		valuehash.RandomSHA256(),
-		[]util.Hash{valuehash.RandomSHA256()},
+		[][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}},
 	)
 
 	sf := NewProposalSignFact(
@@ -64,7 +64,7 @@ func (t *testProposalSignFact) TestWrongFact() {
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
 		valuehash.RandomSHA256(),
-		[]util.Hash{valuehash.RandomSHA256()},
+		[][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}},
 	)
 
 	err := sf.IsValid(t.networkID)
@@ -92,7 +92,7 @@ func TestProposalSignFactJSON(tt *testing.T) {
 		fact := NewProposalFact(base.RawPoint(33, 44),
 			base.RandomAddress("pr"),
 			valuehash.RandomSHA256(),
-			[]util.Hash{valuehash.RandomSHA256()},
+			[][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}},
 		)
 		sf := NewProposalSignFact(
 			fact,

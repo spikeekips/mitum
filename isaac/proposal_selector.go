@@ -415,7 +415,7 @@ type ProposalMaker struct {
 	*logging.Logging
 	local         base.LocalNode
 	pool          ProposalPool
-	getOperations func(context.Context, base.Height) ([]util.Hash, error)
+	getOperations func(context.Context, base.Height) ([][2]util.Hash, error)
 	networkID     base.NetworkID
 	sync.Mutex
 }
@@ -423,7 +423,7 @@ type ProposalMaker struct {
 func NewProposalMaker(
 	local base.LocalNode,
 	networkID base.NetworkID,
-	getOperations func(context.Context, base.Height) ([]util.Hash, error),
+	getOperations func(context.Context, base.Height) ([][2]util.Hash, error),
 	pool ProposalPool,
 ) *ProposalMaker {
 	return &ProposalMaker{
@@ -482,7 +482,7 @@ func (p *ProposalMaker) New(
 
 	p.Log().Trace().Func(func(e *zerolog.Event) {
 		for i := range ops {
-			e.Stringer("operation", ops[i])
+			e.Interface("operation", ops[i])
 		}
 	}).Msg("new operation for proposal maker")
 
@@ -495,7 +495,7 @@ func (p *ProposalMaker) New(
 }
 
 func (p *ProposalMaker) makeProposal(
-	point base.Point, previousBlock util.Hash, ops []util.Hash,
+	point base.Point, previousBlock util.Hash, ops [][2]util.Hash,
 ) (sf ProposalSignFact, _ error) {
 	fact := NewProposalFact(point, p.local.Address(), previousBlock, ops)
 

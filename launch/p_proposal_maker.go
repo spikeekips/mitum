@@ -54,7 +54,7 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 }
 
 func proposalMakderGetOperationsFunc(pctx context.Context) (
-	func(context.Context, base.Height) ([]util.Hash, error),
+	func(context.Context, base.Height) ([][2]util.Hash, error),
 	error,
 ) {
 	var log *logging.Logging
@@ -75,7 +75,7 @@ func proposalMakderGetOperationsFunc(pctx context.Context) (
 
 	operationfilterf := IsSupportedProposalOperationFactHintFunc()
 
-	return func(ctx context.Context, height base.Height) ([]util.Hash, error) {
+	return func(ctx context.Context, height base.Height) ([][2]util.Hash, error) {
 		policy := db.LastNetworkPolicy()
 		if policy == nil { // NOTE Usually it means empty block data
 			return nil, nil

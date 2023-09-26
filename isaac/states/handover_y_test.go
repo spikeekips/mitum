@@ -364,7 +364,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		point := base.RawPoint(33, 44)
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 
-		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 		_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 		hc := newHandoverMessageFinish(broker.ID(), ivp, pr)

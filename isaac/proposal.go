@@ -19,7 +19,7 @@ var (
 type ProposalFact struct {
 	proposedAt    time.Time
 	proposer      base.Address
-	operations    []util.Hash
+	operations    [][2]util.Hash
 	previousBlock util.Hash
 	base.BaseFact
 	point base.Point
@@ -29,7 +29,7 @@ func NewProposalFact(
 	point base.Point,
 	proposer base.Address,
 	previousBlock util.Hash,
-	operations []util.Hash,
+	operations [][2]util.Hash,
 ) ProposalFact {
 	fact := ProposalFact{
 		BaseFact:      base.NewBaseFact(ProposalFactHint, base.Token(util.ConcatByters(ProposalFactHint, point))),
@@ -53,7 +53,7 @@ func (fact ProposalFact) Proposer() base.Address {
 	return fact.proposer
 }
 
-func (fact ProposalFact) Operations() []util.Hash {
+func (fact ProposalFact) Operations() [][2]util.Hash {
 	return fact.operations
 }
 
@@ -84,7 +84,7 @@ func (fact ProposalFact) IsValid([]byte) error {
 }
 
 func (fact ProposalFact) generateHash() util.Hash {
-	bs := make([]util.Byter, len(fact.operations)+5)
+	bs := make([]util.Byter, (len(fact.operations)*2)+5)
 	bs[0] = util.BytesToByter(fact.Token())
 	bs[1] = fact.point
 	bs[2] = fact.proposer
@@ -92,7 +92,8 @@ func (fact ProposalFact) generateHash() util.Hash {
 	bs[4] = localtime.New(fact.proposedAt)
 
 	for i := range fact.operations {
-		bs[i+3] = fact.operations[i]
+		bs[(i*2)+5] = fact.operations[i][0]
+		bs[(i*2)+6] = fact.operations[i][1]
 	}
 
 	return valuehash.NewSHA256(util.ConcatByters(bs...))

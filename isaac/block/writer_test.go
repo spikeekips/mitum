@@ -52,14 +52,16 @@ func (t *testWriter) TestSetOperations() {
 
 	fswriter := &DummyBlockFSWriter{}
 
-	ops := make([]util.Hash, 33)
-	facts := make([]util.Hash, 33)
+	ophs := make([][2]util.Hash, 33)
+	ops := make([]util.Hash, len(ophs))
+	facts := make([]util.Hash, len(ophs))
 	for i := range facts {
 		ops[i] = valuehash.RandomSHA256()
 		facts[i] = valuehash.RandomSHA256()
+		ophs[i] = [2]util.Hash{ops[i], facts[i]}
 	}
 
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), facts))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
@@ -122,7 +124,7 @@ func (t *testWriter) TestSetStates() {
 
 	fswriter := &DummyBlockFSWriter{}
 
-	ophs := make([]util.Hash, 33)
+	ophs := make([][2]util.Hash, 33)
 	ops := make([]base.Operation, 33)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
@@ -130,7 +132,7 @@ func (t *testWriter) TestSetStates() {
 		t.NoError(err)
 
 		ops[i] = op
-		ophs[i] = op.Fact().Hash()
+		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 	}
 	states := make([][]base.StateMergeValue, len(ops))
 	for i := range ops {
@@ -210,16 +212,16 @@ func (t *testWriter) TestSetStatesAndClose() {
 		})
 	}
 
-	ophs := make([]util.Hash, 33)
-	facts := make([]util.Hash, 33)
-	ops := make([]base.Operation, len(facts))
+	ophs := make([][2]util.Hash, 33)
+	facts := make([]util.Hash, len(ophs))
+	ops := make([]base.Operation, len(ophs))
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
-		ophs[i] = op.Hash()
+		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 		facts[i] = op.Fact().Hash()
 	}
 	states := make([][]base.StateMergeValue, len(ops))
@@ -240,7 +242,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value(), nil)}
 	}
 
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), facts))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
@@ -258,7 +260,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 		go func() {
 			defer sem.Release(1)
 
-			t.NoError(writer.SetProcessResult(ctx, index, ophs[index], facts[index], true, nil))
+			t.NoError(writer.SetProcessResult(ctx, index, ops[index].Hash(), facts[index], true, nil))
 			t.NoError(writer.SetStates(ctx, index, states[index], ops[index]))
 		}()
 	}
@@ -291,9 +293,9 @@ func (t *testWriter) TestManifest() {
 		return nil
 	}
 
-	ops := make([]util.Hash, 33)
+	ops := make([][2]util.Hash, 33)
 	for i := range ops {
-		ops[i] = valuehash.RandomSHA256()
+		ops[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
 	}
 
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ops))

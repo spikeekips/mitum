@@ -110,7 +110,7 @@ func (t *baseEncodeTestHandoverMessage) Decode(b []byte) interface{} {
 func (t *baseEncodeTestHandoverMessage) voteproof() (base.ProposalSignFact, base.INITVoteproof) {
 	point := base.RawPoint(32, 44)
 
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, base.RandomAddress(""), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, base.RandomAddress(""), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(base.NewMPrivatekey(), t.networkID)
 
 	sfs := make([]base.BallotSignFact, 2)

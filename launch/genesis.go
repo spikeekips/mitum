@@ -178,14 +178,15 @@ func (g *GenesisBlockGenerator) networkPolicyOperation(i base.Fact) (base.Operat
 	return op, nil
 }
 
-func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
+func (g *GenesisBlockGenerator) newProposal(ops [][2]util.Hash) error {
 	e := util.StringError("make genesis proposal")
 
-	nops := make([]util.Hash, len(ops)+len(g.ops))
+	nops := make([][2]util.Hash, len(ops)+len(g.ops))
 	copy(nops[:len(ops)], ops)
 
 	for i := range g.ops {
-		nops[i+len(ops)] = g.ops[i].Hash()
+		nops[i+len(ops)][0] = g.ops[i].Hash()
+		nops[i+len(ops)][1] = g.ops[i].Fact().Hash()
 	}
 
 	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), nil, nops)

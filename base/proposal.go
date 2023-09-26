@@ -10,7 +10,7 @@ type ProposalFact interface {
 	Fact
 	Point() Point
 	Proposer() Address
-	Operations() []util.Hash // NOTE operation hash
+	Operations() [][2]util.Hash // NOTE []util.Hash{operation hash, fact hash}
 	ProposedAt() time.Time
 	PreviousBlock() util.Hash
 }
@@ -57,18 +57,30 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 	ops := fact.Operations()
 
-	if _, found := util.IsDuplicatedSlice(ops, func(op util.Hash) (bool, string) {
-		if op == nil {
+	if _, found := util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
+		if hs[0] == nil {
 			return true, ""
 		}
 
-		return true, op.String()
+		return true, hs[0].String()
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}
 
-	if err := util.CheckIsValiderSlice(nil, false, fact.Operations()); err != nil {
-		return e.Wrap(err)
+	if _, found := util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
+		if hs[1] == nil {
+			return true, ""
+		}
+
+		return true, hs[1].String()
+	}); found {
+		return util.ErrInvalid.Errorf("duplicated operation fact found")
+	}
+
+	for i := range ops {
+		if err := util.CheckIsValiders(nil, false, ops[i][0], ops[i][1]); err != nil {
+			return e.Wrap(err)
+		}
 	}
 
 	return nil

@@ -50,7 +50,7 @@ func (t *testPool) TestProposal() {
 	pst := t.NewPool()
 	defer pst.Close()
 
-	prfact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+	prfact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, {valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
 	pr := t.NewProposal(t.Local, prfact)
 
 	issaved, err := pst.SetProposal(pr)
@@ -108,7 +108,7 @@ func (t *testPool) TestCleanOldProposals() {
 
 	point := base.RawPoint(33, 44)
 
-	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevHeight().PrevHeight().PrevHeight(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevHeight().PrevHeight().PrevHeight(), t.Local, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, {valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 
 	issaved, err := pst.SetProposal(oldpr)
 	t.NoError(err)
@@ -122,13 +122,13 @@ func (t *testPool) TestCleanOldProposals() {
 		base.EqualProposalSignFact(t.Assert(), oldpr, upr)
 	})
 
-	sameheightpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevRound(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	sameheightpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevRound(), t.Local, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, {valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 
 	issaved, err = pst.SetProposal(sameheightpr)
 	t.NoError(err)
 	t.True(issaved)
 
-	newpr := t.NewProposal(t.Local, t.NewProposalFact(point, t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	newpr := t.NewProposal(t.Local, t.NewProposalFact(point, t.Local, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, {valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 
 	issaved, err = pst.SetProposal(newpr)
 	t.NoError(err)
@@ -362,7 +362,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 		for i := range rops {
 			op := ops[i].Hash()
-			rop := rops[i]
+			rop := rops[i][0]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
@@ -375,7 +375,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 		for i := range rops {
 			op := ops[i].Hash()
-			rop := rops[i]
+			rop := rops[i][0]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
@@ -396,7 +396,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 		for i := range rops {
 			op := ops[i].Hash()
-			rop := rops[i]
+			rop := rops[i][0]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
@@ -428,7 +428,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 		for i := range rops {
 			op := anothers[i].Hash()
-			rop := rops[i]
+			rop := rops[i][0]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
@@ -586,7 +586,7 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 			}
 
 			op := ops[i].Hash()
-			rop := rops[j]
+			rop := rops[j][0]
 
 			t.True(op.Equal(rop), "%d: op=%q rop=%q", i, op, rop)
 
@@ -669,7 +669,7 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 				continue
 			}
 
-			rop := rops[ropsindex]
+			rop := rops[ropsindex][0]
 			ropsindex++
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
