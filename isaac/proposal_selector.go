@@ -18,7 +18,15 @@ var errFailedToRequestProposalToNode = util.NewIDError("request proposal to node
 
 // ProposerSelectFunc selects proposer between suffrage nodes. If failed to
 // request proposal from remotes, local will be proposer.
-type ProposerSelectFunc func(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
+type (
+	ProposerSelectFunc func(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
+	ProposalSelectFunc func(
+		_ context.Context,
+		_ base.Point,
+		previousBlock util.Hash,
+		wait time.Duration, // NOTE wait to get proposal from 1st proposal, if failed, get from next others
+	) (base.ProposalSignFact, error)
+)
 
 type BaseProposalSelectorArgs struct {
 	Pool                    ProposalPool

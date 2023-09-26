@@ -34,7 +34,7 @@ var (
 	StatesContextKey                                = util.ContextKey("states")
 	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
 	ProposerSelectFuncContextKey                    = util.ContextKey("proposer-select-func")
-	ProposalSelectorContextKey                      = util.ContextKey("proposal-selector")
+	ProposalSelectFuncContextKey                    = util.ContextKey("proposal-select-func")
 	WhenNewBlockSavedInSyncingStateFuncContextKey   = util.ContextKey("when-new-block-saved-in-syncing-state-func")
 	WhenNewBlockSavedInConsensusStateFuncContextKey = util.ContextKey("when-new-block-saved-in-consensus-state-func")
 	WhenNewBlockConfirmedFuncContextKey             = util.ContextKey("when-new-block-confirmed-func")
@@ -215,8 +215,8 @@ func PStates(pctx context.Context) (context.Context, error) {
 	}
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		StatesContextKey:           states,
-		ProposalSelectorContextKey: proposalSelector,
+		StatesContextKey:             states,
+		ProposalSelectFuncContextKey: isaac.ProposalSelectFunc(proposalSelector.Select),
 	})
 
 	return patchStatesArgsForHandover(nctx, args)
@@ -418,7 +418,7 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
-	var proposalSelector *isaac.BaseProposalSelector
+	var proposalSelectf isaac.ProposalSelectFunc
 	var pps *isaac.ProposalProcessors
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
@@ -428,7 +428,7 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
-		ProposalSelectorContextKey, &proposalSelector,
+		ProposalSelectFuncContextKey, &proposalSelectf,
 		ProposalProcessorsContextKey, &pps,
 		NodeInfoContextKey, &nodeinfo,
 		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
@@ -463,7 +463,7 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
 	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
-	args.ProposalSelectFunc = proposalSelector.Select
+	args.ProposalSelectFunc = proposalSelectf
 	args.ProposalProcessors = pps
 	args.WhenNewBlockSaved = func(bm base.BlockMap) {
 		defaultWhenNewBlockSavedf(bm)
@@ -481,12 +481,12 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 
 func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArgs, error) {
 	var isaacparams *isaac.Params
-	var proposalSelector *isaac.BaseProposalSelector
+	var proposalSelectf isaac.ProposalSelectFunc
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
 
 	if err := util.LoadFromContextOK(pctx,
 		ISAACParamsContextKey, &isaacparams,
-		ProposalSelectorContextKey, &proposalSelector,
+		ProposalSelectFuncContextKey, &proposalSelectf,
 		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
 	); err != nil {
 		return nil, err
@@ -504,7 +504,7 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 
 	args := isaacstates.NewJoiningHandlerArgs()
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
-	args.ProposalSelectFunc = proposalSelector.Select
+	args.ProposalSelectFunc = proposalSelectf
 	args.JoinMemberlistFunc = joinMemberlistf
 	args.LeaveMemberlistFunc = leaveMemberlistf
 	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
@@ -1142,7 +1142,7 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
-	var proposalSelector *isaac.BaseProposalSelector
+	var proposalSelectf isaac.ProposalSelectFunc
 	var pps *isaac.ProposalProcessors
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
@@ -1152,7 +1152,7 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
-		ProposalSelectorContextKey, &proposalSelector,
+		ProposalSelectFuncContextKey, &proposalSelectf,
 		ProposalProcessorsContextKey, &pps,
 		NodeInfoContextKey, &nodeinfo,
 		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
@@ -1186,7 +1186,7 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
 	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
-	args.ProposalSelectFunc = proposalSelector.Select
+	args.ProposalSelectFunc = proposalSelectf
 	args.ProposalProcessors = pps
 	args.WhenNewBlockSaved = func(bm base.BlockMap) {
 		defaultWhenNewBlockSavedf(bm)

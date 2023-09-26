@@ -13,15 +13,10 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type (
-	// ProposalSelectFunc fetchs proposal from selected proposer
-	ProposalSelectFunc func(_ context.Context, _ base.Point, _ util.Hash, wait time.Duration) (
-		base.ProposalSignFact, error)
-	SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error)
-)
+type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error)
 
 type baseBallotHandlerArgs struct {
-	ProposalSelectFunc       ProposalSelectFunc
+	ProposalSelectFunc       isaac.ProposalSelectFunc
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
 	VoteFunc                 func(base.Ballot) (bool, error)
 	SuffrageVotingFindFunc   SuffrageVotingFindFunc
