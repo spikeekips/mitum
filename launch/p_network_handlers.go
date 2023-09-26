@@ -64,6 +64,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var svvotef isaac.SuffrageVoteFunc
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
+	var lvps *isaac.LastVoteproofsHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -81,6 +82,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
+		LastVoteproofsHandlerContextKey, &lvps,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -199,6 +201,10 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixExistsInStateOperationString,
 		isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation), nil)
+
+	if vp := lvps.Last().Cap(); vp != nil {
+		_ = nodeinfo.SetLastVote(vp.Point(), vp.Result())
+	}
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixNodeInfoString,

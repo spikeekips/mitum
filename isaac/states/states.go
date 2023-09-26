@@ -306,6 +306,8 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 
 	switch err := st.voteproofToCurrent(vp, current); {
 	case err == nil:
+		st.args.WhenNewVoteproof(vp)
+
 		return nil
 	case errors.Is(err, errIgnoreNewVoteproof):
 		return nil
