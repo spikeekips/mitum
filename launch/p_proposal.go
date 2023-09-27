@@ -95,27 +95,26 @@ func newProposalProcessorFunc(pctx context.Context) (
 	return func(proposal base.ProposalSignFact, previous base.Manifest) (
 		isaac.ProposalProcessor, error,
 	) {
-		return isaac.NewDefaultProposalProcessor(
-			proposal,
-			previous,
-			NewBlockWriterFunc(
-				local,
-				isaacparams.NetworkID(),
-				LocalFSDataDirectory(design.Storage.Base),
-				enc,
-				db,
-			),
-			db.State,
-			getProposalOperationFuncf(proposal),
-			func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
-				v, found := oprs.Find(ht)
-				if !found {
-					return nil, nil
-				}
-
-				return v(height)
-			},
+		args := isaac.NewDefaultProposalProcessorArgs()
+		args.NewWriterFunc = NewBlockWriterFunc(
+			local,
+			isaacparams.NetworkID(),
+			LocalFSDataDirectory(design.Storage.Base),
+			enc,
+			db,
 		)
+		args.GetStateFunc = db.State
+		args.GetOperationFunc = getProposalOperationFuncf(proposal)
+		args.NewOperationProcessorFunc = func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+			v, found := oprs.Find(ht)
+			if !found {
+				return nil, nil
+			}
+
+			return v(height)
+		}
+
+		return isaac.NewDefaultProposalProcessor(proposal, previous, args)
 	}, nil
 }
 
@@ -250,7 +249,14 @@ func getProposalOperationFunc(pctx context.Context) (
 	}
 
 	return func(proposal base.ProposalSignFact) isaac.OperationProcessorGetOperationFunction {
-		return func(ctx context.Context, operationhash util.Hash) (base.Operation, error) {
+		return func(ctx context.Context, operationhash, fact util.Hash) (base.Operation, error) {
+			switch found, err := db.ExistsInStateOperation(fact); {
+			case err != nil:
+				return nil, err
+			case found:
+				return nil, isaac.ErrOperationAlreadyProcessedInProcessor.Errorf("already processed")
+			}
+
 			var op base.Operation
 
 			switch i, found, err := getProposalOperationFromPoolf(ctx, operationhash); {
@@ -275,14 +281,7 @@ func getProposalOperationFunc(pctx context.Context) (
 				return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
 			}
 
-			switch found, err := db.ExistsInStateOperation(op.Fact().Hash()); {
-			case err != nil:
-				return nil, err
-			case found:
-				return nil, isaac.ErrOperationAlreadyProcessedInProcessor.Errorf("already processed")
-			default:
-				return op, nil
-			}
+			return op, nil
 		}
 	}, nil
 }

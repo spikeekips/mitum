@@ -324,25 +324,21 @@ func (g *GenesisBlockGenerator) closeDatabase() error {
 }
 
 func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalProcessor, error) {
-	return isaac.NewDefaultProposalProcessor(
-		g.proposal,
-		nil,
-		NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
-		func(key string) (base.State, bool, error) {
-			return nil, false, nil
-		},
-		func(_ context.Context, operationhash util.Hash) (base.Operation, error) {
-			for i := range g.ops {
-				op := g.ops[i]
-				if operationhash.Equal(op.Hash()) {
-					return op, nil
-				}
+	args := isaac.NewDefaultProposalProcessorArgs()
+	args.NewWriterFunc = NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db)
+	args.GetStateFunc = func(key string) (base.State, bool, error) {
+		return nil, false, nil
+	}
+	args.GetOperationFunc = func(_ context.Context, operationhash, _ util.Hash) (base.Operation, error) {
+		for i := range g.ops {
+			op := g.ops[i]
+			if operationhash.Equal(op.Hash()) {
+				return op, nil
 			}
+		}
 
-			return nil, util.ErrNotFound.Errorf("operation not found")
-		},
-		func(base.Height, hint.Hint) (base.OperationProcessor, error) {
-			return nil, nil
-		},
-	)
+		return nil, util.ErrNotFound.Errorf("operation not found")
+	}
+
+	return isaac.NewDefaultProposalProcessor(g.proposal, nil, args)
 }
