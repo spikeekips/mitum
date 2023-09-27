@@ -340,13 +340,13 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 
 		switch {
 		case err != nil:
-			l.Error().Err(err).Msg("failed to collect operation")
+			l.Debug().Err(err).Msg("failed to collect operation")
 
 			return err
 		case op == nil:
 			l.Debug().Msg("operation ignored")
 		default:
-			l.Trace().Msg("operation collected")
+			l.Debug().Msg("operation collected")
 
 			cops[index+int(i)] = op
 		}
