@@ -536,3 +536,11 @@ func (f *BytesFrameReader) exhaustHeader() error {
 
 	return err
 }
+
+func BoolToBytes(b bool) []byte { // revive:disable-line:flag-parameter
+	if b {
+		return []byte{0x1}
+	}
+
+	return []byte{0x0}
+}

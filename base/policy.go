@@ -13,6 +13,9 @@ type NetworkPolicy interface {
 	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
 	MaxSuffrageSize() uint64
 	SuffrageExpelLifespan() Height
+	// EmptyProposalNoBlock indicates, if no valid operations in proposal, new
+	// block will not be stored and moves to next round.
+	EmptyProposalNoBlock() bool
 }
 
 type NetworkPolicyStateValue interface {

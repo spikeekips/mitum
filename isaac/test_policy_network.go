@@ -28,3 +28,9 @@ func (p *NetworkPolicy) SetSuffrageExpelLifespan(i base.Height) *NetworkPolicy {
 
 	return p
 }
+
+func (p *NetworkPolicy) SetEmptyProposalNoBlock(i bool) *NetworkPolicy {
+	p.emptyProposalNoBlock = i
+
+	return p
+}

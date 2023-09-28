@@ -17,6 +17,7 @@ var (
 	// days(based on 5 second for one block)
 	DefaultSuffrageCandidateLifespan base.Height = 1 << 18
 	DefaultSuffrageExpelLifespan                 = base.Height(333) //nolint:gomnd //...
+	DefaultEmptyProposalNoBlock                  = false
 )
 
 type NetworkPolicy struct {
@@ -26,6 +27,7 @@ type NetworkPolicy struct {
 	suffrageCandidateLifespan base.Height
 	maxSuffrageSize           uint64
 	suffrageExpelLifespan     base.Height
+	emptyProposalNoBlock      bool
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {
@@ -36,6 +38,7 @@ func DefaultNetworkPolicy() NetworkPolicy {
 		suffrageCandidateLimiterRule: NewFixedSuffrageCandidateLimiterRule(1),
 		maxSuffrageSize:              DefaultMaxSuffrageSize,
 		suffrageExpelLifespan:        DefaultSuffrageExpelLifespan,
+		emptyProposalNoBlock:         DefaultEmptyProposalNoBlock,
 	}
 }
 
@@ -85,6 +88,7 @@ func (p NetworkPolicy) HashBytes() []byte {
 		util.Uint64ToBytes(p.maxSuffrageSize),
 		rule,
 		p.suffrageExpelLifespan.Bytes(),
+		util.BoolToBytes(p.emptyProposalNoBlock),
 	)
 }
 
@@ -106,6 +110,10 @@ func (p NetworkPolicy) MaxSuffrageSize() uint64 {
 
 func (p NetworkPolicy) SuffrageExpelLifespan() base.Height {
 	return p.suffrageExpelLifespan
+}
+
+func (p NetworkPolicy) EmptyProposalNoBlock() bool {
+	return p.emptyProposalNoBlock
 }
 
 type NetworkPolicyStateValue struct {

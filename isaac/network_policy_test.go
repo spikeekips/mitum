@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -27,11 +28,28 @@ func (t *testNetworkPolicy) TestIsValid() {
 		p := DefaultNetworkPolicy()
 		p.SetMaxOperationsInProposal(0)
 		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(33))
+		p.SetEmptyProposalNoBlock(true)
 
 		err := p.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
+	})
+}
+
+func (t *testNetworkPolicy) TestHashBytes() {
+	p := DefaultNetworkPolicy()
+	p.SetMaxOperationsInProposal(0)
+	p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(33))
+
+	h := valuehash.NewSHA256(p.HashBytes())
+	t.T().Log("HashBytes():", h)
+
+	t.Run("EmptyProposalNoBlock=true", func() {
+		p.SetEmptyProposalNoBlock(true)
+		nh := valuehash.NewSHA256(p.HashBytes())
+		t.T().Log("HashBytes():", nh)
+		t.NotEqual(h, nh)
 	})
 }
 
@@ -53,6 +71,7 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 		p.SetSuffrageCandidateLifespan(88)
 		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(77))
 		p.SetSuffrageExpelLifespan(base.Height(44))
+		p.SetEmptyProposalNoBlock(true)
 
 		b, err := util.MarshalJSON(p)
 		t.NoError(err)
@@ -80,6 +99,7 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 		t.Equal(ap.suffrageCandidateLifespan, bp.suffrageCandidateLifespan)
 		t.Equal(ap.maxSuffrageSize, bp.maxSuffrageSize)
 		t.Equal(ap.suffrageExpelLifespan, bp.suffrageExpelLifespan)
+		t.Equal(ap.emptyProposalNoBlock, bp.emptyProposalNoBlock)
 
 		ar := ap.SuffrageCandidateLimiterRule()
 		br := ap.SuffrageCandidateLimiterRule()

@@ -18,6 +18,7 @@ type networkPolicyJSONMarshaler struct {
 	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
 	MaxSuffrageSize           uint64      `json:"max_suffrage_size"`
 	SuffrageExpelLifespan     base.Height `json:"suffrage_expel_lifespan"`
+	EmptyProposalNoBlock      bool        `json:"empty_proposal_no_block"`
 }
 
 func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
@@ -28,6 +29,7 @@ func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 		SuffrageCandidateLimiterRule: p.suffrageCandidateLimiterRule,
 		MaxSuffrageSize:              p.maxSuffrageSize,
 		SuffrageExpelLifespan:        p.suffrageExpelLifespan,
+		EmptyProposalNoBlock:         p.emptyProposalNoBlock,
 	})
 }
 
@@ -37,6 +39,7 @@ type networkPolicyJSONUnmarshaler struct {
 	SuffrageCandidateLifespan    base.Height     `json:"suffrage_candidate_lifespan"`
 	MaxSuffrageSize              uint64          `json:"max_suffrage_size"`
 	SuffrageExpelLifespan        base.Height     `json:"suffrage_expel_lifespan"`
+	EmptyProposalNoBlock         bool            `json:"empty_proposal_no_block"`
 }
 
 func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -55,6 +58,7 @@ func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
 	p.maxSuffrageSize = u.MaxSuffrageSize
 	p.suffrageExpelLifespan = u.SuffrageExpelLifespan
+	p.emptyProposalNoBlock = u.EmptyProposalNoBlock
 
 	return nil
 }
