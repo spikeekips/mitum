@@ -7,26 +7,19 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 var errFailedToRequestProposalToNode = util.NewIDError("request proposal to node")
 
-// ProposerSelectFunc selects proposer between suffrage nodes. If failed to
-// request proposal from remotes, local will be proposer.
-type (
-	ProposerSelectFunc func(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
-	ProposalSelectFunc func(
-		_ context.Context,
-		_ base.Point,
-		previousBlock util.Hash,
-		wait time.Duration, // NOTE wait to get proposal from 1st proposal, if failed, get from next others
-	) (base.ProposalSignFact, error)
-)
+type ProposalSelectFunc func(
+	_ context.Context,
+	_ base.Point,
+	previousBlock util.Hash,
+	wait time.Duration, // NOTE wait to get proposal from 1st proposal, if failed, get from next others
+) (base.ProposalSignFact, error)
 
 type BaseProposalSelectorArgs struct {
 	Pool                    ProposalPool
@@ -366,149 +359,6 @@ func (*BaseProposalSelector) getNodes(
 
 		return nodes, true, nil
 	}
-}
-
-type FuncProposerSelector struct {
-	selectfunc func(base.Point, []base.Node, util.Hash) (base.Node, error)
-}
-
-func NewFixedProposerSelector(
-	selectfunc func(base.Point, []base.Node, util.Hash) (base.Node, error),
-) FuncProposerSelector {
-	return FuncProposerSelector{selectfunc: selectfunc}
-}
-
-func (p FuncProposerSelector) Select(
-	_ context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash,
-) (base.Node, error) {
-	return p.selectfunc(point, nodes, previousBlock)
-}
-
-type BlockBasedProposerSelector struct{}
-
-func NewBlockBasedProposerSelector() BlockBasedProposerSelector {
-	return BlockBasedProposerSelector{}
-}
-
-func (BlockBasedProposerSelector) Select(
-	_ context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash,
-) (base.Node, error) {
-	switch n := len(nodes); {
-	case n < 1:
-		return nil, errors.Errorf("empty suffrage nodes")
-	case n < 2:
-		return nodes[0], nil
-	}
-
-	var sum uint64
-
-	for _, b := range previousBlock.Bytes() {
-		sum += uint64(b)
-	}
-
-	sum += uint64(point.Height().Int64()) + point.Round().Uint64()
-
-	return nodes[int(sum%uint64(len(nodes)))], nil
-}
-
-type ProposalMaker struct {
-	*logging.Logging
-	local         base.LocalNode
-	pool          ProposalPool
-	getOperations func(context.Context, base.Height) ([][2]util.Hash, error)
-	networkID     base.NetworkID
-	sync.Mutex
-}
-
-func NewProposalMaker(
-	local base.LocalNode,
-	networkID base.NetworkID,
-	getOperations func(context.Context, base.Height) ([][2]util.Hash, error),
-	pool ProposalPool,
-) *ProposalMaker {
-	return &ProposalMaker{
-		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "proposal-maker")
-		}),
-		local:         local,
-		networkID:     networkID,
-		getOperations: getOperations,
-		pool:          pool,
-	}
-}
-
-func (p *ProposalMaker) Empty(
-	_ context.Context, point base.Point, previousBlock util.Hash,
-) (base.ProposalSignFact, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	e := util.StringError("make empty proposal")
-
-	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
-	case err != nil:
-		return nil, e.Wrap(err)
-	case found:
-		return pr, nil
-	}
-
-	pr, err := p.makeProposal(point, previousBlock, nil)
-	if err != nil {
-		return nil, e.WithMessage(err, "make empty proposal, %q", point)
-	}
-
-	return pr, nil
-}
-
-func (p *ProposalMaker) New(
-	ctx context.Context, point base.Point, previousBlock util.Hash,
-) (base.ProposalSignFact, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	e := util.StringError("make proposal, %q", point)
-
-	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
-	case err != nil:
-		return nil, e.Wrap(err)
-	case found:
-		return pr, nil
-	}
-
-	ops, err := p.getOperations(ctx, point.Height())
-	if err != nil {
-		return nil, e.WithMessage(err, "get operations")
-	}
-
-	p.Log().Trace().Func(func(e *zerolog.Event) {
-		for i := range ops {
-			e.Interface("operation", ops[i])
-		}
-	}).Msg("new operation for proposal maker")
-
-	pr, err := p.makeProposal(point, previousBlock, ops)
-	if err != nil {
-		return nil, e.Wrap(err)
-	}
-
-	return pr, nil
-}
-
-func (p *ProposalMaker) makeProposal(
-	point base.Point, previousBlock util.Hash, ops [][2]util.Hash,
-) (sf ProposalSignFact, _ error) {
-	fact := NewProposalFact(point, p.local.Address(), previousBlock, ops)
-
-	signfact := NewProposalSignFact(fact)
-	if err := signfact.Sign(p.local.Privatekey(), p.networkID); err != nil {
-		return sf, err
-	}
-
-	if _, err := p.pool.SetProposal(signfact); err != nil {
-		return sf, err
-	}
-
-	return signfact, nil
 }
 
 var errConcurrentRequestProposalFound = util.NewIDError("proposal found")
