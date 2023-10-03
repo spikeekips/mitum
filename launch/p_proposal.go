@@ -520,13 +520,11 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 func getNodesFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
 	var log *logging.Logging
 	var local base.LocalNode
-	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return err
