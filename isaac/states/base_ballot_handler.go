@@ -22,6 +22,12 @@ type baseBallotHandlerArgs struct {
 	SuffrageVotingFindFunc   SuffrageVotingFindFunc
 	IntervalBroadcastBallot  func() time.Duration
 	WaitPreparingINITBallot  func() time.Duration
+	NewINITBallotFactFunc    func(
+		point base.Point,
+		previousBlock util.Hash,
+		proposal base.ProposalSignFact,
+		expelfacts []util.Hash,
+	) (base.INITBallotFact, error)
 }
 
 func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
@@ -42,6 +48,19 @@ func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
 		},
 		WaitPreparingINITBallot: func() time.Duration {
 			return isaac.DefaultWaitPreparingINITBallot
+		},
+		NewINITBallotFactFunc: func(
+			point base.Point,
+			previousBlock util.Hash,
+			proposal base.ProposalSignFact,
+			expelfacts []util.Hash,
+		) (base.INITBallotFact, error) {
+			return isaac.NewINITBallotFact(
+				point,
+				previousBlock,
+				proposal.Fact().Hash(),
+				expelfacts,
+			), nil
 		},
 	}
 }
@@ -168,12 +187,20 @@ func (st *baseBallotHandler) makeINITBallot(
 	}
 
 	// NOTE broadcast next init ballot
-	fact := isaac.NewINITBallotFact(
+	var fact base.INITBallotFact
+
+	switch i, err := st.args.NewINITBallotFactFunc(
 		point,
 		prevBlock,
-		pr.Fact().Hash(),
+		pr,
 		expelfacts,
-	)
+	); {
+	case err != nil:
+		return nil, e.Wrap(err)
+	default:
+		fact = i
+	}
+
 	sf := isaac.NewINITBallotSignFact(fact)
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.networkID, st.local.Address()); err != nil {

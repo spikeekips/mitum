@@ -4,15 +4,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/util"
 )
 
 type ConsensusHandlerArgs struct {
+	IsEmptyProposalNoBlockFunc func() bool
+	IsEmptyProposalFunc        func(base.ProposalSignFact) (bool, error)
 	voteproofHandlerArgs
 }
 
 func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 	return &ConsensusHandlerArgs{
-		voteproofHandlerArgs: newVoteproofHandlerArgs(),
+		voteproofHandlerArgs:       newVoteproofHandlerArgs(),
+		IsEmptyProposalNoBlockFunc: func() bool { return false },
+		IsEmptyProposalFunc:        func(base.ProposalSignFact) (bool, error) { return false, nil },
 	}
 }
 
@@ -30,6 +35,32 @@ func NewNewConsensusHandlerType(
 	local base.LocalNode,
 	args *ConsensusHandlerArgs,
 ) *NewConsensusHandlerType {
+	origNewINITBallotFactFunc := args.NewINITBallotFactFunc
+	args.NewINITBallotFactFunc = func(
+		point base.Point,
+		previousBlock util.Hash,
+		proposal base.ProposalSignFact,
+		expelfacts []util.Hash,
+	) (base.INITBallotFact, error) {
+		if len(expelfacts) > 0 || !args.IsEmptyProposalNoBlockFunc() {
+			return origNewINITBallotFactFunc(point, previousBlock, proposal, expelfacts)
+		}
+
+		switch isempty, err := args.IsEmptyProposalFunc(proposal); {
+		case err != nil:
+			return nil, err
+		case !isempty:
+			return origNewINITBallotFactFunc(point, previousBlock, proposal, expelfacts)
+		}
+
+		// NOTE empty-proposal-init-ballot-fact
+		return isaac.NewEmptyProposalINITBallotFact(
+			point,
+			previousBlock,
+			proposal.Fact().Hash(),
+		), nil
+	}
+
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
 			voteproofHandler: newVoteproofHandler(StateConsensus, networkID, local, &args.voteproofHandlerArgs),

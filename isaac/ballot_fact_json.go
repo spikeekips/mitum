@@ -73,12 +73,16 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(INITBallotFactJSONMarshaler{
-		baseBallotFactJSONMarshaler: fact.jsonMarshaler(),
+func (fact INITBallotFact) jsonMarshaler() INITBallotFactJSONMarshaler {
+	return INITBallotFactJSONMarshaler{
+		baseBallotFactJSONMarshaler: fact.baseBallotFact.jsonMarshaler(),
 		PreviousBlock:               fact.previousBlock,
 		Proposal:                    fact.proposal,
-	})
+	}
+}
+
+func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(fact.jsonMarshaler())
 }
 
 func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -127,6 +131,38 @@ func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	fact.proposal = u.Proposal.Hash()
 	fact.newBlock = u.NewBlock.Hash()
+
+	return nil
+}
+
+type EmptyProposalINITBallotFactJSONMarshaler struct {
+	R string `json:"r"`
+	INITBallotFactJSONMarshaler
+}
+
+func (fact EmptyProposalINITBallotFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(EmptyProposalINITBallotFactJSONMarshaler{
+		INITBallotFactJSONMarshaler: fact.INITBallotFact.jsonMarshaler(),
+		R:                           fact.r,
+	})
+}
+
+func (fact *EmptyProposalINITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringError("decode EmptyProposalINITBallotFact")
+
+	if err := fact.INITBallotFact.DecodeJSON(b, enc); err != nil {
+		return e.Wrap(err)
+	}
+
+	var u struct {
+		R string `json:"r"`
+	}
+
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return e.Wrap(err)
+	}
+
+	fact.r = u.R
 
 	return nil
 }

@@ -207,6 +207,7 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageConfirmBallotFactHint, Instance: SuffrageConfirmBallotFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: EmptyProposalINITBallotFactHint, Instance: EmptyProposalINITBallotFact{}}))
 }
 
 func testBallotFactEncode() *baseTestBallotFactEncode {
@@ -262,8 +263,13 @@ func TestINITBallotFactJSON(tt *testing.T) {
 	}
 
 	t.compare = func(a, b base.BallotFact) {
+		ab, ok := a.(INITBallotFact)
+		t.True(ok)
 		bb, ok := b.(INITBallotFact)
 		t.True(ok)
+
+		t.True(ab.Proposal().Equal(bb.Proposal()))
+		t.True(ab.PreviousBlock().Equal(bb.PreviousBlock()))
 
 		bwfs := bb.ExpelFacts()
 		t.Equal(len(expelfacts), len(bwfs))
@@ -274,6 +280,44 @@ func TestINITBallotFactJSON(tt *testing.T) {
 
 			t.True(af.Equal(bf))
 		}
+	}
+
+	suite.Run(tt, t)
+}
+
+func TestEmptyProposalINITBallotFactJSON(tt *testing.T) {
+	t := testBallotFactEncode()
+
+	point := base.RawPoint(33, 44)
+
+	t.Encode = func() (interface{}, []byte) {
+		bl := NewEmptyProposalINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+
+		b, err := t.enc.Marshal(&bl)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return bl, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		i, err := t.enc.Decode(b)
+		t.NoError(err)
+
+		_, ok := i.(EmptyProposalINITBallotFact)
+		t.True(ok)
+
+		return i
+	}
+
+	t.compare = func(a, b base.BallotFact) {
+		ab, ok := a.(EmptyProposalINITBallotFact)
+		t.True(ok)
+		bb, ok := b.(EmptyProposalINITBallotFact)
+		t.True(ok)
+
+		t.True(ab.Proposal().Equal(bb.Proposal()))
+		t.True(ab.PreviousBlock().Equal(bb.PreviousBlock()))
 	}
 
 	suite.Run(tt, t)

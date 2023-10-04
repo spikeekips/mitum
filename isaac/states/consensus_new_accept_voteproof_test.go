@@ -239,7 +239,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	t.Equal(st.lastVoteproofs().ACCEPT().Point().Point, point.PrevHeight())
 }
 
-func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
+func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigher() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 

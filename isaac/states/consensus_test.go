@@ -1154,6 +1154,252 @@ func (t *testConsensusHandler) TestSendBallotForHandoverBrokerX() {
 	}
 }
 
+func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlock() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+	st.SetLogging(logging.TestNilLogging)
+
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+		return base.NewDummyBlockMap(base.NewDummyManifest(avp.Point().Height(), avp.BallotMajority().NewBlock())), nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.NextHeight()) {
+			ballotch <- bl
+		}
+
+		return nil
+	})
+
+	newblocksavedch := make(chan base.Height, 1)
+	st.args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		newblocksavedch <- bm.Manifest().Height()
+	}
+
+	st.args.IsEmptyProposalNoBlockFunc = func() bool {
+		return true
+	}
+	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+		return true, nil
+	}
+
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+	_ = t.PRPool.Get(point.NextHeight())
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	fact := t.PRPool.GetFact(point)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+	t.NoError(st.newVoteproof(nextavp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait saved callback"))
+
+		return
+	case height := <-newblocksavedch:
+		t.Equal(nextavp.Point().Height(), height)
+	}
+
+	t.T().Log("wait next empty prooposal init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.NextHeight(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		rfact := rbl.BallotSignFact().BallotFact()
+		_, ok = rfact.(isaac.EmptyProposalINITBallotFact)
+		t.True(ok)
+	}
+}
+
+func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlockButExpels() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+	st.SetLogging(logging.TestNilLogging)
+
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+		return base.NewDummyBlockMap(base.NewDummyManifest(avp.Point().Height(), avp.BallotMajority().NewBlock())), nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.NextHeight()) {
+			ballotch <- bl
+		}
+
+		return nil
+	})
+
+	newblocksavedch := make(chan base.Height, 1)
+	st.args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		newblocksavedch <- bm.Manifest().Height()
+	}
+
+	st.args.IsEmptyProposalNoBlockFunc = func() bool {
+		return true
+	}
+	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+		return true, nil
+	}
+	expels := t.Expels(point.NextHeight().Height(), []base.Address{nodes[0].Address()}, nodes[1:])
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageExpelOperation, error,
+	) {
+		return expels, nil
+	}
+
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+	_ = t.PRPool.Get(point.NextHeight())
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	fact := t.PRPool.GetFact(point)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+	t.NoError(st.newVoteproof(nextavp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait saved callback"))
+
+		return
+	case height := <-newblocksavedch:
+		t.Equal(nextavp.Point().Height(), height)
+	}
+
+	t.T().Log("wait next init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.NextHeight(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		rfact := rbl.BallotSignFact().BallotFact()
+		_, ok = rfact.(isaac.INITBallotFact)
+		t.True(ok)
+	}
+}
+
+func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlockButNotEmpty() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+	st.SetLogging(logging.TestNilLogging)
+
+	t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+		return base.NewDummyBlockMap(base.NewDummyManifest(avp.Point().Height(), avp.BallotMajority().NewBlock())), nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.NextHeight()) {
+			ballotch <- bl
+		}
+
+		return nil
+	})
+
+	newblocksavedch := make(chan base.Height, 1)
+	st.args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		newblocksavedch <- bm.Manifest().Height()
+	}
+
+	st.args.IsEmptyProposalNoBlockFunc = func() bool {
+		return true
+	}
+	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+		return false, nil // <-- not empty
+	}
+	expels := t.Expels(point.NextHeight().Height(), []base.Address{nodes[0].Address()}, nodes[1:])
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageExpelOperation, error,
+	) {
+		return expels, nil
+	}
+
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+	_ = t.PRPool.Get(point.NextHeight())
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	fact := t.PRPool.GetFact(point)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+	t.NoError(st.newVoteproof(nextavp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait saved callback"))
+
+		return
+	case height := <-newblocksavedch:
+		t.Equal(nextavp.Point().Height(), height)
+	}
+
+	t.T().Log("wait next init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.NextHeight(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		rfact := rbl.BallotSignFact().BallotFact()
+		_, ok = rfact.(isaac.INITBallotFact)
+		t.True(ok)
+	}
+}
+
 func TestConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testConsensusHandler))
 }

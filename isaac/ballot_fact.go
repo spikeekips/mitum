@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	INITBallotFactHint            = hint.MustNewHint("init-ballot-fact-v0.0.1")
-	ACCEPTBallotFactHint          = hint.MustNewHint("accept-ballot-fact-v0.0.1")
-	SuffrageConfirmBallotFactHint = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
+	INITBallotFactHint              = hint.MustNewHint("init-ballot-fact-v0.0.1")
+	ACCEPTBallotFactHint            = hint.MustNewHint("accept-ballot-fact-v0.0.1")
+	SuffrageConfirmBallotFactHint   = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
+	EmptyProposalINITBallotFactHint = hint.MustNewHint("empty-proposal-init-ballot-fact-v0.0.1")
 )
 
 type ExpelBallotFact interface {
@@ -268,4 +269,48 @@ func IsSuffrageConfirmBallotFact(fact base.Fact) bool {
 	_, ok := fact.(SuffrageConfirmBallotFact)
 
 	return ok
+}
+
+type EmptyProposalINITBallotFact struct {
+	r string
+	INITBallotFact
+}
+
+func NewEmptyProposalINITBallotFact(
+	point base.Point,
+	previousBlock, proposal util.Hash,
+) EmptyProposalINITBallotFact {
+	fact := EmptyProposalINITBallotFact{
+		INITBallotFact: newINITBallotFact(EmptyProposalINITBallotFactHint, point, previousBlock, proposal, nil),
+		r:              util.UUID().String(),
+	}
+
+	fact.SetHash(fact.generateHash())
+
+	return fact
+}
+
+func (fact EmptyProposalINITBallotFact) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid EmptyProposalINITBallotFact")
+
+	if err := fact.baseBallotFact.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := base.IsValidINITBallotFact(fact); err != nil {
+		return e.Wrap(err)
+	}
+
+	if len(fact.r) < 1 {
+		return e.Errorf("empty r")
+	}
+
+	return nil
+}
+
+func (fact EmptyProposalINITBallotFact) generateHash() util.Hash {
+	return valuehash.NewSHA256(util.ConcatBytesSlice(
+		fact.INITBallotFact.hashBytes(),
+		[]byte(fact.r),
+	))
 }
