@@ -113,6 +113,9 @@ func newProposalProcessorFunc(pctx context.Context) (
 
 			return v(height)
 		}
+		args.EmptyProposalNoBlockFunc = func() bool {
+			return db.LastNetworkPolicy().EmptyProposalNoBlock()
+		}
 
 		return isaac.NewDefaultProposalProcessor(proposal, previous, args)
 	}, nil

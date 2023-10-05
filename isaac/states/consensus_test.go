@@ -1189,7 +1189,7 @@ func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlock() 
 	st.args.IsEmptyProposalNoBlockFunc = func() bool {
 		return true
 	}
-	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+	st.args.IsEmptyProposalFunc = func(context.Context, base.ProposalSignFact) (bool, error) {
 		return true, nil
 	}
 
@@ -1267,7 +1267,7 @@ func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlockBut
 	st.args.IsEmptyProposalNoBlockFunc = func() bool {
 		return true
 	}
-	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+	st.args.IsEmptyProposalFunc = func(context.Context, base.ProposalSignFact) (bool, error) {
 		return true, nil
 	}
 	expels := t.Expels(point.NextHeight().Height(), []base.Address{nodes[0].Address()}, nodes[1:])
@@ -1351,7 +1351,7 @@ func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlockBut
 	st.args.IsEmptyProposalNoBlockFunc = func() bool {
 		return true
 	}
-	st.args.IsEmptyProposalFunc = func(base.ProposalSignFact) (bool, error) {
+	st.args.IsEmptyProposalFunc = func(context.Context, base.ProposalSignFact) (bool, error) {
 		return false, nil // <-- not empty
 	}
 	expels := t.Expels(point.NextHeight().Height(), []base.Address{nodes[0].Address()}, nodes[1:])
@@ -1397,6 +1397,49 @@ func (t *testConsensusHandler) TestEmptyProposalINITUnderEmptyProposalNoBlockBut
 		rfact := rbl.BallotSignFact().BallotFact()
 		_, ok = rfact.(isaac.INITBallotFact)
 		t.True(ok)
+	}
+}
+
+func (t *testConsensusHandler) TestProposalProcessorEmptyOperations() {
+	point := base.RawPoint(33, 44)
+	suf, _ := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return nil, isaac.ErrProposalProcessorEmptyOperations.Errorf("showme")
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
+		ballotch <- bl
+
+		return nil
+	})
+
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait accept ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
+
+		abl, ok := bl.(base.ACCEPTBallot)
+		t.True(ok)
+
+		_, ok = abl.BallotSignFact().Fact().(isaac.EmptyOperationsACCEPTBallotFact)
+		t.True(ok)
+
+		t.Equal(ivp.Point().Point, abl.Point().Point)
+		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignFact().BallotFact().Proposal()))
 	}
 }
 

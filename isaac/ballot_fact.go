@@ -8,10 +8,12 @@ import (
 )
 
 var (
-	INITBallotFactHint              = hint.MustNewHint("init-ballot-fact-v0.0.1")
-	ACCEPTBallotFactHint            = hint.MustNewHint("accept-ballot-fact-v0.0.1")
-	SuffrageConfirmBallotFactHint   = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
-	EmptyProposalINITBallotFactHint = hint.MustNewHint("empty-proposal-init-ballot-fact-v0.0.1")
+	INITBallotFactHint                  = hint.MustNewHint("init-ballot-fact-v0.0.1")
+	ACCEPTBallotFactHint                = hint.MustNewHint("accept-ballot-fact-v0.0.1")
+	SuffrageConfirmBallotFactHint       = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
+	EmptyProposalINITBallotFactHint     = hint.MustNewHint("empty-proposal-init-ballot-fact-v0.0.1")
+	EmptyOperationsACCEPTBallotFactHint = hint.MustNewHint("empty-operations-accept-ballot-fact-v0.0.1")
+	NotProcessedACCEPTBallotFactHint    = hint.MustNewHint("not-processed-accept-ballot-fact-v0.0.1")
 )
 
 type ExpelBallotFact interface {
@@ -180,8 +182,17 @@ func NewACCEPTBallotFact(
 	proposal, newBlock util.Hash,
 	expelfacts []util.Hash,
 ) ACCEPTBallotFact {
+	return newACCEPTBallotFact(ACCEPTBallotFactHint, point, proposal, newBlock, expelfacts)
+}
+
+func newACCEPTBallotFact(
+	ht hint.Hint,
+	point base.Point,
+	proposal, newBlock util.Hash,
+	expelfacts []util.Hash,
+) ACCEPTBallotFact {
 	fact := ACCEPTBallotFact{
-		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, expelfacts),
+		baseBallotFact: newBaseBallotFact(ht, base.StageACCEPT, point, expelfacts),
 		proposal:       proposal,
 		newBlock:       newBlock,
 	}
@@ -313,4 +324,32 @@ func (fact EmptyProposalINITBallotFact) generateHash() util.Hash {
 		fact.INITBallotFact.hashBytes(),
 		[]byte(fact.r),
 	))
+}
+
+type EmptyOperationsACCEPTBallotFact struct {
+	ACCEPTBallotFact
+}
+
+func NewEmptyOperationsACCEPTBallotFact(
+	point base.Point,
+	proposal util.Hash,
+) EmptyOperationsACCEPTBallotFact {
+	return EmptyOperationsACCEPTBallotFact{
+		ACCEPTBallotFact: newACCEPTBallotFact(
+			EmptyOperationsACCEPTBallotFactHint, point, proposal, valuehash.RandomSHA256(), nil),
+	}
+}
+
+type NotProcessedACCEPTBallotFact struct {
+	ACCEPTBallotFact
+}
+
+func NewNotProcessedACCEPTBallotFact(
+	point base.Point,
+	proposal util.Hash,
+) NotProcessedACCEPTBallotFact {
+	return NotProcessedACCEPTBallotFact{
+		ACCEPTBallotFact: newACCEPTBallotFact(
+			NotProcessedACCEPTBallotFactHint, point, proposal, valuehash.RandomSHA256(), nil),
+	}
 }

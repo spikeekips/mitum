@@ -20,12 +20,6 @@ var (
 	errIgnoreNewVoteproof   = util.NewIDError("new voteproof; ignored")
 )
 
-var (
-	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")
-	timerIDBroadcastSuffrageConfirmBallot = util.TimerID("broadcast-suffrage-confirm-ballot")
-	timerIDBroadcastACCEPTBallot          = util.TimerID("broadcast-accept-ballot")
-)
-
 type (
 	NewHandoverXBrokerFunc func(context.Context, quicstream.ConnInfo) (*HandoverXBroker, error)
 	NewHandoverYBrokerFunc func(context.Context, quicstream.ConnInfo) (*HandoverYBroker, error)

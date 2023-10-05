@@ -22,6 +22,7 @@ var (
 	ErrIgnoreStateValue                     = util.NewIDError("ignore state value")
 	ErrSuspendOperation                     = util.NewIDError("suspend operation")
 	ErrProcessorAlreadySaved                = util.NewIDError("processor already saved")
+	ErrProposalProcessorEmptyOperations     = util.NewIDError("empty operations in proposal")
 )
 
 type (
@@ -56,6 +57,7 @@ type DefaultProposalProcessorArgs struct {
 	GetStateFunc              base.GetStateFunc
 	GetOperationFunc          OperationProcessorGetOperationFunction
 	NewOperationProcessorFunc NewOperationProcessorFunc
+	EmptyProposalNoBlockFunc  func() bool
 	Retrylimit                int
 	Retryinterval             time.Duration
 	MaxWorkerSize             int64
@@ -66,9 +68,10 @@ func NewDefaultProposalProcessorArgs() *DefaultProposalProcessorArgs {
 		NewOperationProcessorFunc: func(base.Height, hint.Hint) (base.OperationProcessor, error) {
 			return nil, nil
 		},
-		Retrylimit:    15,                     //nolint:gomnd //...
-		Retryinterval: time.Millisecond * 600, //nolint:gomnd //...
-		MaxWorkerSize: 1 << 13,                //nolint:gomnd // big enough
+		Retrylimit:               15,                     //nolint:gomnd //...
+		Retryinterval:            time.Millisecond * 600, //nolint:gomnd //...
+		MaxWorkerSize:            1 << 13,                //nolint:gomnd // big enough
+		EmptyProposalNoBlockFunc: func() bool { return false },
 	}
 }
 
@@ -258,6 +261,10 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 		p.writer = writer
 	}
 
+	if len(cops) < 1 && p.args.EmptyProposalNoBlockFunc() {
+		return nil, ErrProposalProcessorEmptyOperations.Errorf("collect operations")
+	}
+
 	if len(cops) > 0 {
 		if err := p.processOperations(ctx, cops); err != nil {
 			return nil, errors.WithMessage(err, "process operations")
@@ -409,6 +416,10 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops [
 		return e.Wrap(err)
 	}
 
+	if opsindex < 1 && p.args.EmptyProposalNoBlockFunc() {
+		return ErrProposalProcessorEmptyOperations.Errorf("process")
+	}
+
 	return nil
 }
 
@@ -455,7 +466,7 @@ func (p *DefaultProposalProcessor) processOperation(
 		return p.doProcessOperation(
 			ctx, writer, getStatef, newOperationProcessor, uint64(opsindex), uint64(validindex), op)
 	}); err != nil {
-		return nctx, opsindex + 1, validindex + 1, err
+		return nctx, opsindex + 1, validindex, err
 	}
 
 	return nctx, opsindex + 1, validindex + 1, nil

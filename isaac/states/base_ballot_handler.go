@@ -23,6 +23,7 @@ type baseBallotHandlerArgs struct {
 	IntervalBroadcastBallot  func() time.Duration
 	WaitPreparingINITBallot  func() time.Duration
 	NewINITBallotFactFunc    func(
+		_ context.Context,
 		point base.Point,
 		previousBlock util.Hash,
 		proposal base.ProposalSignFact,
@@ -50,6 +51,7 @@ func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
 			return isaac.DefaultWaitPreparingINITBallot
 		},
 		NewINITBallotFactFunc: func(
+			_ context.Context,
 			point base.Point,
 			previousBlock util.Hash,
 			proposal base.ProposalSignFact,
@@ -190,6 +192,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	var fact base.INITBallotFact
 
 	switch i, err := st.args.NewINITBallotFactFunc(
+		ctx,
 		point,
 		prevBlock,
 		pr,
@@ -214,12 +217,13 @@ func (st *baseBallotHandler) makeINITBallot(
 
 func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 	ivp base.INITVoteproof,
-	manifest base.Manifest,
+	newBlock util.Hash,
 	initialWait time.Duration,
+	fact base.ACCEPTBallotFact,
 ) error {
 	e := util.StringError("prepare accept ballot")
 
-	bl, err := st.makeACCEPTBallot(ivp, manifest)
+	bl, err := st.makeACCEPTBallot(ivp, newBlock, fact)
 	if err != nil {
 		return e.Wrap(err)
 	}
@@ -257,7 +261,8 @@ func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 
 func (st *baseBallotHandler) makeACCEPTBallot(
 	ivp base.INITVoteproof,
-	manifest base.Manifest,
+	newBlock util.Hash,
+	fact base.ACCEPTBallotFact,
 ) (base.ACCEPTBallot, error) {
 	switch bl, found, err := st.ballotBroadcaster.Ballot(ivp.Point().Point, base.StageACCEPT, false); {
 	case err != nil:
@@ -268,26 +273,31 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
 	}
 
-	// NOTE add SuffrageExpelOperations into ballot from init voteproof
-	var expelfacts []util.Hash
 	var expels []base.SuffrageExpelOperation
+	afact := fact
 
-	if i, ok := ivp.(base.ExpelVoteproof); ok {
-		expels = i.Expels()
+	if fact == nil {
+		// NOTE add SuffrageExpelOperations into ballot from init voteproof
+		var expelfacts []util.Hash
 
-		expelfacts = make([]util.Hash, len(expels))
+		if i, ok := ivp.(base.ExpelVoteproof); ok {
+			expels = i.Expels()
 
-		for i := range expels {
-			expelfacts[i] = expels[i].ExpelFact().Hash()
+			expelfacts = make([]util.Hash, len(expels))
+
+			for i := range expels {
+				expelfacts[i] = expels[i].ExpelFact().Hash()
+			}
 		}
+
+		afact = isaac.NewACCEPTBallotFact(
+			ivp.Point().Point,
+			ivp.BallotMajority().Proposal(),
+			newBlock,
+			expelfacts,
+		)
 	}
 
-	afact := isaac.NewACCEPTBallotFact(
-		ivp.Point().Point,
-		ivp.BallotMajority().Proposal(),
-		manifest.Hash(),
-		expelfacts,
-	)
 	signfact := isaac.NewACCEPTBallotSignFact(afact)
 
 	if err := signfact.NodeSign(st.local.Privatekey(), st.networkID, st.local.Address()); err != nil {

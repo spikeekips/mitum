@@ -1769,6 +1769,166 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 	t.True(errors.Is(err, ErrProcessorAlreadySaved))
 }
 
+func (t *testDefaultProposalProcessor) TestEmptyCollectOperationsEmptyProposalNoBlock() {
+	point := base.RawPoint(33, 44)
+
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), nil))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer, newwriterf := t.newBlockWriter()
+	writer.manifest = manifest
+
+	t.Run("false EmptyProposalNoBlock", func() {
+		args := t.newargs(newwriterf)
+
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), nil)
+		t.NoError(err)
+		t.NotNil(m)
+	})
+
+	t.Run("EmptyProposalNoBlock", func() {
+		args := t.newargs(newwriterf)
+		args.EmptyProposalNoBlockFunc = func() bool {
+			return true
+		}
+
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), nil)
+		t.Error(err)
+		t.Nil(m)
+		t.True(errors.Is(err, ErrProposalProcessorEmptyOperations))
+	})
+
+	t.Run("EmptyProposalNoBlock, but not empty", func() {
+		ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
+
+		pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
+
+		args := t.newargs(newwriterf)
+		args.EmptyProposalNoBlockFunc = func() bool {
+			return true
+		}
+
+		var copslock sync.Mutex
+		var cops []base.Operation
+
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			op, found := ops[oph.String()]
+			if !found {
+				return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
+			}
+
+			copslock.Lock()
+			cops = append(cops, op)
+			copslock.Unlock()
+
+			return op, nil
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), nil)
+		t.NoError(err)
+		t.NotNil(m)
+
+		t.Equal(len(ophs), len(cops))
+	})
+}
+
+func (t *testDefaultProposalProcessor) TestEmptyAfterProcessEmptyProposalNoBlock() {
+	point := base.RawPoint(33, 44)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
+
+	t.Run("false EmptyProposalNoBlockFunc", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			op, found := ops[oph.String()]
+			if !found {
+				return nil, ErrOperationNotFoundInProcessor.WithStack()
+			}
+
+			return op, nil
+		}
+
+		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+			if !ht.IsCompatible(DummyOperationHint) {
+				return nil, nil
+			}
+
+			return &DummyOperationProcessor{
+				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+					return ctx, base.NewBaseOperationProcessReasonError("ignore"), nil
+				},
+				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+					return nil, base.ErrNotChangedOperationProcessReason, nil
+				},
+			}, nil
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+		m, err := opp.Process(context.Background(), nil)
+		t.NoError(err)
+		t.NotNil(m)
+	})
+
+	t.Run("EmptyProposalNoBlockFunc", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			op, found := ops[oph.String()]
+			if !found {
+				return nil, ErrOperationNotFoundInProcessor.WithStack()
+			}
+
+			return op, nil
+		}
+
+		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+			if !ht.IsCompatible(DummyOperationHint) {
+				return nil, nil
+			}
+
+			return &DummyOperationProcessor{
+				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+					return ctx, nil, ErrSuspendOperation
+				},
+				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+					return nil, nil, nil
+				},
+			}, nil
+		}
+
+		args.EmptyProposalNoBlockFunc = func() bool {
+			return true
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+		m, err := opp.Process(context.Background(), nil)
+		t.Error(err)
+		t.Nil(m)
+		t.True(errors.Is(err, ErrProposalProcessorEmptyOperations))
+	})
+}
+
 func TestDefaultProposalProcessor(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

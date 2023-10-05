@@ -413,6 +413,7 @@ func newBrokenHandlerArgs(pctx context.Context) (*isaacstates.BrokenHandlerArgs,
 	return args, nil
 }
 
+//revive:disable:function-length
 func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
 	var log *logging.Logging
 	var isaacparams *isaac.Params
@@ -475,9 +476,13 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 
 		whenNewBlockConfirmedf(height)
 	}
+	args.IsEmptyProposalNoBlockFunc = func() bool {
+		return db.LastNetworkPolicy().EmptyProposalNoBlock()
+	}
+	args.IsEmptyProposalFunc = consensusHandlerIsEmptyProposalFunc(db)
 
 	return args, nil
-}
+} //revive:enable:function-length
 
 func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArgs, error) {
 	var isaacparams *isaac.Params
@@ -1200,4 +1205,46 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 	}
 
 	return args, nil
+}
+
+func consensusHandlerIsEmptyProposalFunc(
+	db isaac.Database,
+) func(context.Context, base.ProposalSignFact) (bool, error) {
+	return func(ctx context.Context, pr base.ProposalSignFact) (bool, error) {
+		ops := pr.ProposalFact().Operations()
+		if len(ops) < 1 {
+			return true, nil
+		}
+
+		worker, _ := util.NewErrgroupWorker(ctx, 1<<10) //nolint:gomnd // big enough
+		defer worker.Close()
+
+		go func() {
+			for i := range ops {
+				fact := ops[i][1]
+
+				if err := worker.NewJob(func(context.Context, uint64) error {
+					switch found, err := db.ExistsInStateOperation(fact); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound
+					}
+
+					return nil
+				}); err != nil {
+					break
+				}
+			}
+
+			worker.Done()
+		}()
+
+		switch err := worker.Wait(); {
+		case errors.Is(err, util.ErrNotFound):
+			return false, nil
+		default:
+			return true, err
+		}
+	}
 }

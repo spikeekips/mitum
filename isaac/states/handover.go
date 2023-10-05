@@ -51,7 +51,9 @@ func (st *NewHandoverHandlerType) new() (handler, error) {
 
 	nst.args.whenNewVoteproof = nst.whenNewVoteproof
 	nst.args.whenNewBlockSaved = nst.whenNewBlockSaved
-	nst.args.prepareACCEPTBallot = func(base.INITVoteproof, base.Manifest, time.Duration) error { return nil }
+	nst.args.prepareACCEPTBallot = func(base.INITVoteproof, util.Hash, time.Duration, base.ACCEPTBallotFact) error {
+		return nil
+	}
 	nst.args.prepareNextRoundBallot = func(
 		base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration,
 	) error {

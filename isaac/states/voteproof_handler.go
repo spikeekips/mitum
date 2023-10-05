@@ -10,8 +10,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/localtime"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type voteproofHandlerArgs struct {
@@ -21,7 +19,7 @@ type voteproofHandlerArgs struct {
 	WhenNewBlockSaved            func(base.BlockMap)
 	WhenNewBlockConfirmed        func(base.Height)
 	whenNewVoteproof             func(base.Voteproof, isaac.LastVoteproofs) error
-	prepareACCEPTBallot          func(base.INITVoteproof, base.Manifest, time.Duration) error
+	prepareACCEPTBallot          func(base.INITVoteproof, util.Hash, time.Duration, base.ACCEPTBallotFact) error
 	prepareNextRoundBallot       func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error
 	prepareSuffrageConfirmBallot func(base.Voteproof)
 	prepareNextBlockBallot       func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error
@@ -42,7 +40,7 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		whenNewVoteproof: func(base.Voteproof, isaac.LastVoteproofs) error {
 			return nil
 		},
-		prepareACCEPTBallot: func(base.INITVoteproof, base.Manifest, time.Duration) error {
+		prepareACCEPTBallot: func(base.INITVoteproof, util.Hash, time.Duration, base.ACCEPTBallotFact) error {
 			return util.ErrNotImplemented.Errorf("prepareACCEPTBallot")
 		},
 		prepareNextRoundBallot: func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error {
@@ -217,6 +215,17 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 			}
 
 			return nil
+		case errors.Is(err, isaac.ErrProposalProcessorEmptyOperations):
+			fact := isaac.NewEmptyOperationsACCEPTBallotFact(
+				ivp.Point().Point,
+				ivp.BallotMajority().Proposal(),
+			)
+
+			if perr := st.args.prepareACCEPTBallot(ivp, nil, time.Nanosecond, fact); perr != nil {
+				return e.WithMessage(perr, "prepare intended empty operations accept ballot")
+			}
+
+			return nil
 		case err != nil:
 			return e.Wrap(err)
 		case manifest == nil:
@@ -225,7 +234,7 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 
 		eavp := st.lastVoteproofs().ACCEPT()
 
-		if err := st.args.prepareACCEPTBallot(ivp, manifest, time.Nanosecond); err != nil {
+		if err := st.args.prepareACCEPTBallot(ivp, manifest.Hash(), time.Nanosecond, nil); err != nil {
 			l.Error().Err(err).Msg("failed to prepare accept ballot")
 
 			return e.Wrap(err)
@@ -463,13 +472,15 @@ func (st *voteproofHandler) newINITVoteproofWithLastINITVoteproof(
 ) error {
 	livp := lvps.Cap().(base.INITVoteproof) //nolint:forcetypeassert //...
 
+	l := st.Log().With().Str("voteproof", ivp.ID()).Object("point", ivp.Point()).Logger()
+
 	switch {
 	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
-		st.Log().Debug().Msg("higher init voteproof; moves to syncing state")
+		l.Debug().Msg("higher init voteproof; moves to syncing state")
 
 		return newSyncingSwitchContextWithVoteproof(st.stt, ivp)
 	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
-		st.Log().Debug().Msg("new init voteproof draw; moves to next round")
+		l.Debug().Msg("new init voteproof draw; moves to next round")
 
 		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
@@ -479,14 +490,14 @@ func (st *voteproofHandler) newINITVoteproofWithLastINITVoteproof(
 	lavp := lvps.ACCEPT()
 
 	if lavp == nil {
-		st.Log().Debug().Msg("empty last accept voteproof; moves to broken state")
+		l.Debug().Msg("empty last accept voteproof; moves to broken state")
 
 		return newBrokenSwitchContext(st.stt, errors.Errorf("empty last accept voteproof"))
 	}
 
 	if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
 		// NOTE local stored block is different with other nodes
-		st.Log().Debug().
+		l.Debug().
 			Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
 			Stringer("new_block", m.NewBlock()).
 			Msg("previous block does not match with last accept voteproof; moves to syncing")
@@ -782,17 +793,9 @@ func (st *voteproofHandler) whenNewBlockConfirmed(vp base.ACCEPTVoteproof) {
 }
 
 func (st *voteproofHandler) wrongACCEPTBallot(_ context.Context, ivp base.INITVoteproof) error {
-	dummy := isaac.NewManifest(
-		ivp.Point().Height(),
-		ivp.BallotMajority().PreviousBlock(),
-		ivp.BallotMajority().Proposal(),
-		valuehash.RandomSHA256(),
-		valuehash.RandomSHA256(),
-		valuehash.RandomSHA256(),
-		localtime.Now(),
-	)
+	fact := isaac.NewNotProcessedACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal())
 
-	if err := st.args.prepareACCEPTBallot(ivp, dummy, time.Nanosecond); err != nil {
+	if err := st.args.prepareACCEPTBallot(ivp, nil, time.Nanosecond, fact); err != nil {
 		return errors.WithMessage(err, "prepare intended wrong accept ballot")
 	}
 

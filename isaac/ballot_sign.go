@@ -94,7 +94,7 @@ type ACCEPTBallotSignFact struct {
 	baseBallotSignFact
 }
 
-func NewACCEPTBallotSignFact(fact ACCEPTBallotFact) ACCEPTBallotSignFact {
+func NewACCEPTBallotSignFact(fact base.ACCEPTBallotFact) ACCEPTBallotSignFact {
 	return ACCEPTBallotSignFact{
 		baseBallotSignFact: newBaseBallotSignFact(ACCEPTBallotSignFactHint, fact),
 	}
