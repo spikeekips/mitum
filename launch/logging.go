@@ -80,7 +80,12 @@ func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, io.Writer, erro
 			ws[i] = w
 		}
 
-		logout = zerolog.MultiLevelWriter(ws...)
+		switch {
+		case len(ws) < 2:
+			logout = ws[0]
+		default:
+			logout = zerolog.MultiLevelWriter(ws...)
+		}
 	}
 
 	return logging.Setup(
