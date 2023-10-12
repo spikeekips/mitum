@@ -106,7 +106,7 @@ func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
 		expels = w.Expels()
 	}
 
-	voted, deferred, err := box.vote(
+	inVoteproof, deferred, err := box.vote(
 		bl.SignFact(),
 		bl.Voteproof(),
 		expels,
@@ -115,12 +115,14 @@ func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
 		return false, errors.WithMessage(err, "vote")
 	}
 
-	if voted {
-		box.Log().Debug().
-			Interface("ballot", bl).
-			Interface("sign_fact", bl.SignFact()).
-			Bool("voted", voted).
-			Msg("ballot voted")
+	switch e := box.Log().Debug().
+		Interface("ballot", bl).
+		Interface("sign_fact", bl.SignFact()).
+		Bool("in_voteproof", inVoteproof); {
+	case inVoteproof:
+		e.Msg("ballot voted")
+	default:
+		e.Msg("ballot not voted")
 	}
 
 	if deferred != nil {
@@ -129,30 +131,33 @@ func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
 		}()
 	}
 
-	if voted {
+	if inVoteproof {
 		go func() {
 			box.newBallotf(bl)
 		}()
 	}
 
-	return voted, nil
+	return inVoteproof, nil
 }
 
 func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact) (bool, error) {
-	voted, deferred, err := box.vote(sf, nil, nil)
+	inVoteproof, deferred, err := box.vote(sf, nil, nil)
 	if err != nil {
 		return false, errors.WithMessage(err, "vote sign fact")
 	}
 
-	if voted {
-		box.Log().Debug().Interface("sign_fact", sf).Bool("voted", voted).Msg("ballot voted")
+	switch e := box.Log().Debug().Interface("sign_fact", sf).Bool("in_voteproof", inVoteproof); {
+	case inVoteproof:
+		e.Msg("ballot voted")
+	default:
+		e.Msg("ballot not voted")
 	}
 
 	if deferred != nil {
 		go deferred()
 	}
 
-	return voted, nil
+	return inVoteproof, nil
 }
 
 func (box *Ballotbox) Count() bool {
@@ -354,23 +359,17 @@ func (box *Ballotbox) vote(
 	l := box.Log().With().Interface("sign_fact", signfact).Logger()
 
 	if !box.isNewBallot(fact.Point(), isaac.IsSuffrageConfirmBallotFact(fact)) {
-		l.Trace().Msg("ballot not voted; old")
-
 		return false, nil, nil
 	}
 
 	vr := box.newVoterecords(fact.Point(), isaac.IsSuffrageConfirmBallotFact(fact))
 
-	voted, validated, err := vr.vote(signfact, vp, expels, box.LastPoint())
+	inVoteproof, validated, err := vr.vote(signfact, vp, expels, box.LastPoint())
 	if err != nil {
-		l.Trace().Err(err).Msg("ballot not voted")
-
 		return false, nil, err
 	}
 
-	if voted {
-		l.Trace().Bool("validated", validated).Msg("ballot validated?")
-	}
+	l.Debug().Bool("in_voteproof", inVoteproof).Bool("validated", validated).Msg("ballot validated")
 
 	if !validated {
 		var deferred func() []base.Voteproof
@@ -389,10 +388,10 @@ func (box *Ballotbox) vote(
 			}
 		}
 
-		return voted, deferred, nil
+		return inVoteproof, deferred, nil
 	}
 
-	return voted, func() []base.Voteproof {
+	return inVoteproof, func() []base.Voteproof {
 		return box.countVoterecords(vr)
 	}, nil
 }

@@ -35,16 +35,16 @@ func (box *Ballotbox) voteAndWait(bl base.Ballot) (bool, []base.Voteproof, error
 		expels = w.Expels()
 	}
 
-	voted, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), expels)
+	in_voteproof, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), expels)
 	if err != nil {
-		return voted, nil, err
+		return in_voteproof, nil, err
 	}
 
 	if callback == nil {
-		return voted, nil, nil
+		return in_voteproof, nil, nil
 	}
 
-	return voted, callback(), nil
+	return in_voteproof, callback(), nil
 }
 
 type baseTestBallotbox struct {
