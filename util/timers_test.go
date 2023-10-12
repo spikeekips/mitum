@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -802,6 +803,64 @@ end:
 	t.Equal(1, ts.timers.Len())
 
 	t.True(len(cids) < lastcids+33)
+}
+
+func (t *testSimpleTimers) TestStopTimerCancelLongRunning() {
+	ts, _ := NewSimpleTimers(1, time.Millisecond)
+
+	t.NoError(ts.Start(context.Background()))
+	defer ts.Stop()
+
+	tid := TimerID("a")
+
+	canceledch := make(chan uint64, 1)
+	called := make(chan uint64, 1)
+
+	var runonce, cancelonce sync.Once
+
+	added, err := ts.New(
+		tid,
+		func(i uint64) time.Duration {
+			return time.Millisecond * 33
+		},
+		func(ctx context.Context, i uint64) (bool, error) {
+			if i > 0 {
+				cancelonce.Do(func() {
+					go func(i uint64) {
+						select {
+						case <-time.After(time.Second * 33):
+						case <-ctx.Done():
+							canceledch <- i
+						}
+					}(i)
+				})
+
+				runonce.Do(func() {
+					called <- i
+				})
+			}
+
+			return true, nil
+		},
+	)
+	t.NoError(err)
+	t.True(added)
+
+	select {
+	case <-time.After(time.Second):
+		t.NoError(errors.Errorf("failed to wait called"))
+	case i := <-called:
+		t.Equal(uint64(1), i)
+	}
+
+	t.NoError(ts.StopTimers([]TimerID{tid}))
+
+	select {
+	case <-time.After(time.Second):
+		t.NoError(errors.Errorf("failed to wait called"))
+	case i := <-canceledch:
+		t.Equal(uint64(1), i)
+	}
 }
 
 func TestSimpleTimers(t *testing.T) {

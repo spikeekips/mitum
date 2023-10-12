@@ -21,6 +21,7 @@ type SimpleTimer struct {
 	intervalFunc  func(uint64) time.Duration
 	callback      func(context.Context, uint64) (bool, error)
 	whenRemoved   func()
+	getCtx        func() context.Context
 	expiredLocked *Locked[time.Time]
 	id            TimerID
 	called        uint64
@@ -33,16 +34,30 @@ func NewSimpleTimer(
 	callback func(context.Context, uint64) (bool, error),
 	whenRemoved func(),
 ) *SimpleTimer {
-	if whenRemoved == nil {
-		whenRemoved = func() {} //revive:disable-line:modifies-parameter
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var nwhenRemoved func()
+
+	switch {
+	case whenRemoved == nil:
+		nwhenRemoved = func() {
+			cancel()
+		}
+	default:
+		nwhenRemoved = func() {
+			cancel()
+
+			whenRemoved()
+		}
 	}
 
 	return &SimpleTimer{
 		id:            id,
 		intervalFunc:  intervalFunc,
 		callback:      callback,
-		whenRemoved:   whenRemoved,
+		whenRemoved:   nwhenRemoved,
 		expiredLocked: NewLocked(time.Time{}),
+		getCtx:        func() context.Context { return ctx },
 	}
 }
 
@@ -66,9 +81,15 @@ func (t *SimpleTimer) prepare() bool {
 	return true
 }
 
-func (t *SimpleTimer) run(ctx context.Context) (bool, error) {
+func (t *SimpleTimer) run() (bool, error) {
 	t.Lock()
 	defer t.Unlock()
+
+	ctx := t.getCtx()
+
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
 
 	next := t.intervalFunc(t.called + 1)
 
@@ -147,7 +168,7 @@ func (ts *SimpleTimers) New(
 }
 
 func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
-	var keep bool
+	var added bool
 
 	if _, _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
 		if len(ts.ids) > 0 {
@@ -161,16 +182,16 @@ func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 			return nil, ErrLockedSetIgnore.WithStack()
 		}
 
-		keep = true
+		added = true
 
 		_ = timer.expiredLocked.SetValue(time.Now().Add(interval))
 
 		return timer, nil
 	}); err != nil {
-		return keep, err
+		return added, err
 	}
 
-	return keep, nil
+	return added, nil
 }
 
 func (ts *SimpleTimers) StopAllTimers() error {
@@ -255,8 +276,8 @@ func (ts *SimpleTimers) iterate(ctx context.Context) error {
 	for i := range timers {
 		tr := timers[i]
 
-		_ = wk.NewJob(func(ctx context.Context, _ uint64) error {
-			if keep, err := tr.run(ctx); err != nil || !keep {
+		_ = wk.NewJob(func(context.Context, uint64) error {
+			if keep, err := tr.run(); err != nil || !keep {
 				_ = ts.removeTimer(tr.id)
 			}
 
