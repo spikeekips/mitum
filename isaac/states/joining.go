@@ -53,6 +53,25 @@ func NewNewJoiningHandlerType(
 	local base.LocalNode,
 	args *JoiningHandlerArgs,
 ) *NewJoiningHandlerType {
+	origNewINITBallotFactFunc := args.NewINITBallotFactFunc
+
+	f := newEmptyProposalINITBallotFactFunc(args)
+
+	args.NewINITBallotFactFunc = func(
+		ctx context.Context,
+		point base.Point,
+		previousBlock util.Hash,
+		proposal base.ProposalSignFact,
+		expelfacts []util.Hash,
+	) (base.INITBallotFact, error) {
+		switch i, err := f(ctx, point, previousBlock, proposal, expelfacts); {
+		case i != nil || err != nil:
+			return i, err
+		default:
+			return origNewINITBallotFactFunc(ctx, point, previousBlock, proposal, expelfacts)
+		}
+	}
+
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
 			baseBallotHandler: newBaseBallotHandlerType(StateJoining, networkID, local, &args.baseBallotHandlerArgs),
@@ -126,7 +145,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 	return func() {
 		deferred()
 
-		if err := st.timers.StopAllTimers(); err != nil {
+		if err := st.bbt.StopTimers(); err != nil {
 			st.Log().Error().Err(err).Msg("failed to stop all timers")
 		}
 
@@ -212,7 +231,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 	default:
 		manifest = i
 
-		st.Log().Debug().Interface("last_manifest", manifest).Msg("new valid voteproof")
+		l.Debug().Interface("last_manifest", manifest).Msg("new valid voteproof")
 	}
 
 	switch keep, err := st.checkStuckVoteproof(vp, manifest); {
@@ -438,18 +457,12 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	case err != nil:
 		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
 	default:
 		suf = i
 	}
 
-	if err := st.defaultPrepareNextBlockBallot(avp, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	},
-		suf,
-		st.args.WaitPreparingINITBallot(),
-	); err != nil {
+	if err := st.defaultPrepareNextBlockBallot(avp, suf, st.args.WaitPreparingINITBallot()); err != nil {
 		l.Debug().Err(err).Msg("failed to prepare next block ballot")
 
 		return

@@ -127,7 +127,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 				<-time.After(wait)
 
 				if st.sts != nil && st.sts.Current() == StateSyncing {
-					if err := st.timers.StopAllTimers(); err != nil {
+					if err := st.bbt.StopTimers(); err != nil {
 						l.Error().Stringer("wait", wait).Err(err).Msg("failed to stop all timers")
 					}
 
@@ -135,7 +135,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 				}
 			}()
 		default:
-			if err := st.timers.StopAllTimers(); err != nil {
+			if err := st.bbt.StopTimers(); err != nil {
 				l.Error().Err(err).Msg("failed to stop all timers")
 			}
 
@@ -176,7 +176,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 
 	st.cancelstuck()
 
-	if err := st.timers.StopAllTimers(); err != nil {
+	if err := st.bbt.StopTimers(); err != nil {
 		st.Log().Error().Err(err).Msg("failed to stop all timers")
 	}
 
@@ -276,7 +276,9 @@ func (st *SyncingHandler) checkFinishedMoveNext(vp base.Voteproof) (notstuck boo
 		}
 
 		// NOTE expected init voteproof found, moves to consensus state
-		l.Debug().Msg("expected init voteproof found; moves to consensus state")
+		l.Debug().
+			Interface("last", st.lastVoteproofs().Cap()).
+			Msg("expected init voteproof found; moves to consensus state")
 
 		sctx, err := newConsensusSwitchContext(StateSyncing, vp)
 		if err != nil {

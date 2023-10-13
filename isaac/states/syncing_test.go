@@ -51,15 +51,8 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	newhandler := NewNewSyncingHandlerType(params.NetworkID(), local, args)
 
 	_ = newhandler.SetLogging(logging.TestNilLogging)
-	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	})
+	timers, err := util.NewSimpleTimers(2, time.Millisecond*33)
 	t.NoError(err)
-	t.NoError(timers.Start(context.Background()))
-
-	_ = newhandler.setTimers(timers)
 
 	newhandler.switchStateFunc = func(switchContext) error {
 		return nil
@@ -69,6 +62,10 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	t.NoError(err)
 
 	st := i.(*SyncingHandler)
+
+	st.bbt = newBallotBroadcastTimers(timers, func(context.Context, base.Ballot) error {
+		return nil
+	}, time.Second)
 
 	return st, func(ignoreerror bool) {
 		deferred, err := st.exit(nil)
@@ -80,7 +77,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 			deferred()
 		}
 
-		_ = timers.Stop()
+		_ = st.bbt.Stop()
 	}
 }
 

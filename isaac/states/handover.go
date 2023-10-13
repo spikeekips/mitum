@@ -55,12 +55,12 @@ func (st *NewHandoverHandlerType) new() (handler, error) {
 		return nil
 	}
 	nst.args.prepareNextRoundBallot = func(
-		base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration,
+		base.Voteproof, util.Hash, base.Suffrage, time.Duration,
 	) error {
 		return nil
 	}
 	nst.args.prepareSuffrageConfirmBallot = func(base.Voteproof) {}
-	nst.args.prepareNextBlockBallot = func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error {
+	nst.args.prepareNextBlockBallot = func(base.ACCEPTVoteproof, base.Suffrage, time.Duration) error {
 		return nil
 	}
 	nst.args.checkInState = nst.checkInState

@@ -179,7 +179,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	}
 
 	args.IsInSyncSourcePoolFunc = syncSourcePool.IsInFixed
-	args.BallotBroadcaster = isaacstates.NewDefaultBallotBroadcaster(
+	bb := isaacstates.NewDefaultBallotBroadcaster(
 		local.Address(),
 		pool,
 		func(bl base.Ballot) error {
@@ -198,6 +198,9 @@ func PStates(pctx context.Context) (context.Context, error) {
 			return nil
 		},
 	)
+	_ = bb.SetLogging(log)
+	args.BallotBroadcaster = bb
+
 	args.WhenNewVoteproof = func(vp base.Voteproof) {
 		_ = nodeinfo.SetLastVote(vp.Point(), vp.Result())
 	}
@@ -479,7 +482,7 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 	args.IsEmptyProposalNoBlockFunc = func() bool {
 		return db.LastNetworkPolicy().EmptyProposalNoBlock()
 	}
-	args.IsEmptyProposalFunc = consensusHandlerIsEmptyProposalFunc(db)
+	args.IsEmptyProposalFunc = stateHandlerIsEmptyProposalFunc(db)
 
 	return args, nil
 } //revive:enable:function-length
@@ -488,11 +491,13 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 	var isaacparams *isaac.Params
 	var proposalSelectf isaac.ProposalSelectFunc
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
 		ISAACParamsContextKey, &isaacparams,
 		ProposalSelectFuncContextKey, &proposalSelectf,
 		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return nil, err
 	}
@@ -517,6 +522,10 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 		return isaacparams.IntervalBroadcastBallot()*2 + isaacparams.WaitPreparingINITBallot()
 	}
 	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
+	args.IsEmptyProposalNoBlockFunc = func() bool {
+		return db.LastNetworkPolicy().EmptyProposalNoBlock()
+	}
+	args.IsEmptyProposalFunc = stateHandlerIsEmptyProposalFunc(db)
 
 	return args, nil
 }
@@ -1207,7 +1216,7 @@ func handoverHandlerArgs(pctx context.Context) (*isaacstates.HandoverHandlerArgs
 	return args, nil
 }
 
-func consensusHandlerIsEmptyProposalFunc(
+func stateHandlerIsEmptyProposalFunc(
 	db isaac.Database,
 ) func(context.Context, base.ProposalSignFact) (bool, error) {
 	return func(ctx context.Context, pr base.ProposalSignFact) (bool, error) {

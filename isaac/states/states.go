@@ -68,7 +68,7 @@ type States struct {
 	vpch        chan voteproofWithErrchan
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
-	timers           *util.SimpleTimers
+	bbt              *ballotBroadcastTimers
 	allowedConsensus *util.Locked[bool]
 	handoverXBroker  *util.Locked[*HandoverXBroker]
 	handoverYBroker  *util.Locked[*HandoverYBroker]
@@ -77,11 +77,7 @@ type States struct {
 }
 
 func NewStates(networkID base.NetworkID, local base.LocalNode, args *StatesArgs) (*States, error) {
-	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{ //nolint:gomnd //...
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	})
+	timers, err := util.NewSimpleTimers(1<<4, time.Millisecond*33) //nolint:gomnd //...
 	if err != nil {
 		return nil, err
 	}
@@ -97,22 +93,26 @@ func NewStates(networkID base.NetworkID, local base.LocalNode, args *StatesArgs)
 		vpch:             make(chan voteproofWithErrchan),
 		newHandlers:      map[StateType]newHandler{},
 		cs:               nil,
-		timers:           timers,
 		allowedConsensus: util.NewLocked(args.AllowConsensus),
 		handoverXBroker:  util.EmptyLocked[*HandoverXBroker](),
 		handoverYBroker:  util.EmptyLocked[*HandoverYBroker](),
 	}
 
-	cancelf := func() {}
+	st.bbt = newBallotBroadcastTimers(
+		timers,
+		func(_ context.Context, bl base.Ballot) error {
+			_ = st.args.BallotBroadcaster.Broadcast(bl)
+
+			return nil
+		},
+		st.args.IntervalBroadcastBallot(),
+	)
 
 	if st.args.Ballotbox != nil {
-		f, cancel := st.mimicBallotFunc()
-		st.args.Ballotbox.SetNewBallotFunc(f)
-
-		cancelf = cancel
+		st.args.Ballotbox.SetNewBallotFunc(st.mimicBallotFunc())
 	}
 
-	st.ContextDaemon = util.NewContextDaemon(st.startFunc(cancelf))
+	st.ContextDaemon = util.NewContextDaemon(st.start)
 
 	return st, nil
 }
@@ -184,59 +184,55 @@ func (st *States) Current() StateType {
 	return st.current().state()
 }
 
-func (st *States) startFunc(cancel func()) func(context.Context) error {
-	return func(ctx context.Context) error {
-		defer cancel()
+func (st *States) start(ctx context.Context) error {
+	if st.bbt != nil {
+		defer func() {
+			_ = st.bbt.Stop()
+		}()
+	}
 
-		if st.timers != nil {
-			defer func() {
-				_ = st.timers.Stop()
-			}()
+	defer st.Log().Debug().Msg("states stopped")
+
+	if err := st.bbt.Start(ctx); err != nil {
+		return err
+	}
+
+	// NOTE set stopped as current
+	switch newHandler, found := st.newHandlers[StateStopped]; {
+	case !found:
+		return errors.Errorf("find stopped handler")
+	default:
+		h, err := newHandler.new()
+		if err != nil {
+			return errors.WithMessage(err, "create stopped new handler")
 		}
 
-		defer st.Log().Debug().Msg("states stopped")
-
-		if err := st.timers.Start(ctx); err != nil {
-			return err
+		if _, err := h.enter(StateEmpty, nil); err != nil {
+			return errors.Errorf("enter stopped handler")
 		}
 
-		// NOTE set stopped as current
-		switch newHandler, found := st.newHandlers[StateStopped]; {
-		case !found:
-			return errors.Errorf("find stopped handler")
-		default:
-			h, err := newHandler.new()
-			if err != nil {
-				return errors.WithMessage(err, "create stopped new handler")
-			}
+		st.cs = h
+	}
 
-			if _, err := h.enter(StateEmpty, nil); err != nil {
-				return errors.Errorf("enter stopped handler")
-			}
+	// NOTE entering to booting at starting
+	if err := st.ensureSwitchState(newBootingSwitchContext(StateStopped)); err != nil {
+		return errors.Wrap(err, "enter booting state")
+	}
 
-			st.cs = h
+	serr := st.startStatesSwitch(ctx)
+
+	// st.cleanHandovers()
+
+	// NOTE exit current
+	switch current := st.current(); {
+	case current == nil:
+		return serr
+	default:
+		if err := st.switchState(newStoppedSwitchContext(current.state(), serr)); err != nil {
+			st.Log().Error().Err(err).Msg("failed to switch to stopped; ignored")
 		}
 
-		// NOTE entering to booting at starting
-		if err := st.ensureSwitchState(newBootingSwitchContext(StateStopped)); err != nil {
-			return errors.Wrap(err, "enter booting state")
-		}
-
-		serr := st.startStatesSwitch(ctx)
-
-		// st.cleanHandovers()
-
-		// NOTE exit current
-		switch current := st.current(); {
-		case current == nil:
-			return serr
-		default:
-			if err := st.switchState(newStoppedSwitchContext(current.state(), serr)); err != nil {
-				st.Log().Error().Err(err).Msg("failed to switch to stopped; ignored")
-			}
-
-			return serr
-		}
+		return serr
 	}
 }
 
@@ -572,16 +568,8 @@ func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 // mimicBallotFunc mimics incoming ballot when node can not broadcast ballot; this will
 // prevent to be gussed by the other nodes, local node is dead.
 // - ballot signer should be in sync sources
-func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
+func (st *States) mimicBallotFunc() func(base.Ballot) {
 	mimicBallotf := st.mimicBallot()
-
-	alltimerids := []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	}
-
-	timers, _ := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, alltimerids) //nolint:gomnd //...
-	_ = timers.Start(context.Background())
 
 	votef := func(bl base.Ballot) error {
 		return nil
@@ -595,108 +583,79 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 		}
 	}
 
-	var stoptimerslock sync.Mutex
+	logger := logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+		return lctx.Str("module", "states-mimic-ballot")
+	})
+	l := logger.SetLogging(st.Logging).Log()
 
 	return func(bl base.Ballot) {
-			switch s := st.current().state(); {
-			case !st.AllowedConsensus(),
-				bl.SignFact().Node().Equal(st.local.Address()):
-				return
-			case s != StateSyncing && s != StateBroken:
-				func() {
-					stoptimerslock.Lock()
-					defer stoptimerslock.Unlock()
-
-					if err := timers.StopAllTimers(); err != nil {
-						st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
-					}
-				}()
-
-				return
-			case !st.args.IsInSyncSourcePoolFunc(bl.SignFact().Node()):
-				return
-			case st.filterMimicBallot(bl):
-				return
-			}
-
-			newbl := mimicBallotf(bl)
-			if newbl == nil {
-				return
-			}
-
-			l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
-
-			go func() {
-				if err := votef(newbl); err != nil {
-					l.Error().Err(err).Msg("failed to vote mimic ballot")
-				}
-			}()
-
-			var timerid util.TimerID
-
-			switch newbl.Point().Stage() {
-			case base.StageINIT:
-				timerid = timerIDBroadcastINITBallot
-			case base.StageACCEPT:
-				timerid = timerIDBroadcastACCEPTBallot
-			default:
-				return
-			}
-
-			if err := broadcastBallot(
-				newbl,
-				timers,
-				timerid,
-				st.args.BallotBroadcaster.Broadcast,
-				st.Logging,
-				func(i uint64) time.Duration {
-					if i < 1 {
-						return time.Nanosecond
-					}
-
-					return st.args.IntervalBroadcastBallot()
-				},
-			); err != nil {
-				l.Error().Err(err).Msg("failed to broadcast mimic ballot")
-
-				return
-			}
-
-			if err := timers.StopOthers(alltimerids); err != nil {
-				l.Error().Err(err).Msg("failed to broadcast mimic ballot")
-			}
-		}, func() {
-			_ = timers.Stop()
+		switch s := st.current().state(); {
+		case s != StateSyncing && s != StateBroken:
+			return
+		case !st.AllowedConsensus(),
+			bl.SignFact().Node().Equal(st.local.Address()):
+			return
+		case !st.args.IsInSyncSourcePoolFunc(bl.SignFact().Node()):
+			return
+		case st.filterMimicBallot(bl):
+			return
 		}
-}
 
-func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
-	var lock sync.Mutex
-
-	return func(bl base.Ballot) base.Ballot {
-		lock.Lock()
-		defer lock.Unlock()
-
-		switch _, found, err := st.args.BallotBroadcaster.Ballot(
+		switch newbl, found, err := st.args.BallotBroadcaster.Ballot(
 			bl.Point().Point,
 			bl.Point().Stage(),
 			isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()),
 		); {
 		case err != nil:
-			return nil
-		case found:
-			return nil
+			l.Error().Err(err).Interface("ballot", bl).Msg("mimic ballot")
+
+			return
+		case !found:
+		case !newbl.SignFact().Node().Equal(bl.SignFact().Node()):
+			return
+		default:
+			_ = st.args.BallotBroadcaster.Broadcast(newbl)
+
+			return
 		}
 
-		l := st.Log().With().Interface("ballot", bl).Logger()
+		var newbl base.Ballot
+
+		switch i, err := mimicBallotf(bl); {
+		case err != nil:
+			l.Error().Err(err).Interface("ballot", bl).Msg("mimic ballot")
+
+			return
+		default:
+			newbl = i
+		}
+
+		ll := l.With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
+
+		go func() {
+			if err := votef(newbl); err != nil {
+				ll.Error().Err(err).Msg("failed to vote mimic ballot")
+			}
+		}()
+
+		_ = st.args.BallotBroadcaster.Broadcast(newbl)
+
+		ll.Debug().Msg("mimic ballot broadcasted")
+	}
+}
+
+func (st *States) mimicBallot() func(base.Ballot) (base.Ballot, error) {
+	var lock sync.Mutex
+
+	return func(bl base.Ballot) (base.Ballot, error) {
+		lock.Lock()
+		defer lock.Unlock()
 
 		switch i, err := st.signMimicBallot(bl); {
 		case err != nil:
-			l.Error().Err(err).Msg("failed to mimic")
-
-			return nil
+			return nil, err
 		default:
-			return i
+			return i, nil
 		}
 	}
 }
@@ -870,6 +829,10 @@ func mimicBallot(
 
 		newbl = isaac.NewINITBallot(voteproof, sf, nil)
 	case base.INITBallotFact:
+		if _, ok := t.(isaac.EmptyProposalINITBallotFact); ok {
+			t = isaac.NewEmptyProposalINITBallotFact(t.Point().Point, t.PreviousBlock(), t.Proposal())
+		}
+
 		sf := isaac.NewINITBallotSignFact(t)
 
 		if err := sf.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {
@@ -877,7 +840,11 @@ func mimicBallot(
 		}
 
 		newbl = isaac.NewINITBallot(voteproof, sf, expels)
-	case isaac.ACCEPTBallotFact:
+	case base.ACCEPTBallotFact:
+		if _, ok := t.(isaac.EmptyOperationsACCEPTBallotFact); ok {
+			t = isaac.NewEmptyOperationsACCEPTBallotFact(t.Point().Point, t.Proposal())
+		}
+
 		sf := isaac.NewACCEPTBallotSignFact(t)
 
 		if err := sf.NodeSign(local.Privatekey(), networkID, local.Address()); err != nil {

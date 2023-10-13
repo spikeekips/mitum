@@ -56,14 +56,8 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 	newhandler := NewNewJoiningHandlerType(params.NetworkID(), local, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
-	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	})
+	timers, err := util.NewSimpleTimers(2, time.Millisecond*33)
 	t.NoError(err)
-	t.NoError(timers.Start(context.Background()))
-
-	_ = newhandler.setTimers(timers)
 
 	i, err := newhandler.new()
 	t.NoError(err)
@@ -73,6 +67,11 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		return nil
 	})
+	st.bbt = newBallotBroadcastTimers(timers, func(_ context.Context, bl base.Ballot) error {
+		return st.ballotBroadcaster.Broadcast(bl)
+	}, args.IntervalBroadcastBallot())
+	t.NoError(st.bbt.Start(context.Background()))
+
 	st.switchStateFunc = func(switchContext) error {
 		return nil
 	}
@@ -82,7 +81,7 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 		t.NoError(err)
 		deferred()
 
-		_ = timers.Stop()
+		_ = st.bbt.Stop()
 	}
 }
 

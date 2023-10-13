@@ -75,7 +75,7 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
 		}
 
-		if err := st.timers.StopAllTimers(); err != nil {
+		if err := st.bbt.StopTimers(); err != nil {
 			st.Log().Error().Err(err).Msg("failed to stop all timers")
 		}
 	}, nil

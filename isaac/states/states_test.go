@@ -301,6 +301,9 @@ func (t *testStates) booted() (*States, <-chan error) {
 			return nil, false, nil
 		},
 	)
+	args.BallotBroadcaster = NewDummyBallotBroadcaster(t.local.Address(), func(base.Ballot) error {
+		return nil
+	})
 
 	st, err := NewStates(t.params.NetworkID(), t.local, args)
 	t.NoError(err)
@@ -809,9 +812,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote, nil)
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -820,6 +822,8 @@ func (t *testStates) TestMimicBallot() {
 			t.NoError(err)
 		case newbl := <-blch:
 			t.Equal(bl.Point(), newbl.Point())
+
+			t.True(bl.SignFact().Fact().Hash().Equal(newbl.SignFact().Fact().Hash()))
 		}
 	})
 
@@ -841,9 +845,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote, nil)
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -870,9 +873,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote, nil)
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -897,8 +899,7 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		})
 
-		mimicBallotFunc, cancel := st.mimicBallotFunc()
-		defer cancel()
+		mimicBallotFunc := st.mimicBallotFunc()
 
 		bl := newINITBallot(remote, nil)
 
@@ -943,9 +944,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(local, nil)
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -976,9 +976,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote, []base.SuffrageExpelOperation{expel})
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -1005,9 +1004,8 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote, nil)
 
-		f, cancel := st.mimicBallotFunc()
+		f := st.mimicBallotFunc()
 		f(bl)
-		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -1015,6 +1013,94 @@ func (t *testStates) TestMimicBallot() {
 			t.NoError(err)
 		case <-blch:
 			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("empty proposal init ballot", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.SetAllowConsensus(true)
+
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+			blch <- bl
+
+			return nil
+		})
+
+		var bl base.INITBallot
+		{
+			ivp := isaac.NewINITVoteproof(point.PrevRound())
+			ivp.SetThreshold(base.Threshold(100)).Finish()
+
+			sf := isaac.NewINITBallotSignFact(
+				isaac.NewEmptyProposalINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256()),
+			)
+			t.NoError(sf.NodeSign(remote.Privatekey(), networkID, remote.Address()))
+			bl = isaac.NewINITBallot(ivp, sf, nil)
+		}
+
+		f := st.mimicBallotFunc()
+		f(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+		case err := <-errch:
+			t.NoError(err)
+		case newbl := <-blch:
+			t.Equal(bl.Point(), newbl.Point())
+
+			rfact, ok := newbl.SignFact().Fact().(isaac.EmptyProposalINITBallotFact)
+			t.True(ok)
+			t.False(bl.SignFact().Fact().Hash().Equal(rfact.Hash()))
+		}
+	})
+
+	t.Run("empty operations accept ballot", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.SetAllowConsensus(true)
+
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+			blch <- bl
+
+			return nil
+		})
+
+		var bl base.ACCEPTBallot
+		{
+			fact := isaac.NewEmptyOperationsACCEPTBallotFact(point, valuehash.RandomSHA256())
+			fs := isaac.NewACCEPTBallotSignFact(fact)
+			t.NoError(fs.NodeSign(remote.Privatekey(), networkID, remote.Address()))
+
+			ivp := isaac.NewINITVoteproof(point.PrevRound())
+			ivp.SetThreshold(base.Threshold(100)).Finish()
+
+			bl = isaac.NewACCEPTBallot(ivp, fs, nil)
+		}
+
+		f := st.mimicBallotFunc()
+		f(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+		case err := <-errch:
+			t.NoError(err)
+		case newbl := <-blch:
+			t.Equal(bl.Point(), newbl.Point())
+
+			rfact, ok := newbl.SignFact().Fact().(isaac.EmptyOperationsACCEPTBallotFact)
+			t.True(ok)
+			t.False(bl.SignFact().Fact().Hash().Equal(rfact.Hash()))
 		}
 	})
 }

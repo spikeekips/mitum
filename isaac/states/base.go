@@ -21,7 +21,7 @@ type baseHandler struct {
 	forceSetLastVoteproof  func(base.Voteproof) bool
 	cancel                 func()
 	sts                    *States
-	timers                 *util.SimpleTimers
+	bbt                    *ballotBroadcastTimers
 	allowedConsensusLocked *util.Locked[bool]
 	switchStateFunc        func(switchContext) error
 	handoverXBrokerFunc    func() *HandoverXBroker
@@ -54,7 +54,7 @@ func newBaseHandlerType(
 			return lvps.Set(vp)
 		},
 		forceSetLastVoteproof: func(vp base.Voteproof) bool {
-			return lvps.ForceSet(vp)
+			return lvps.ForceSetLast(vp)
 		},
 	}
 }
@@ -66,7 +66,7 @@ func (st *baseHandler) new() *baseHandler {
 		stt:                    st.stt,
 		networkID:              st.networkID,
 		sts:                    st.sts,
-		timers:                 st.timers,
+		bbt:                    st.bbt,
 		cancel:                 func() {},
 		voteproofsFunc:         st.voteproofsFunc,
 		lastVoteproofFunc:      st.lastVoteproofFunc,
@@ -122,7 +122,7 @@ func (st *baseHandler) setStates(sts *States) {
 		return st.sts.AskMoveState(sctx)
 	}
 
-	st.timers = st.sts.timers
+	st.bbt = st.sts.bbt
 
 	st.voteproofsFunc = func(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 		return st.sts.voteproofs(point)

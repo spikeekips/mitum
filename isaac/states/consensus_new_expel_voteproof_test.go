@@ -221,6 +221,10 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 
 	scballotch := make(chan base.Ballot, 1)
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
+		if _, ok := bl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact); !ok {
+			return nil
+		}
+
 		if p := bl.Point(); p.Point.Equal(point.NextHeight()) && p.Stage() == base.StageINIT {
 			scballotch <- bl
 		}
@@ -312,7 +316,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 		t.True(ok)
 		sfact = i
 
-		t.T().Log("expected suffrage confirm init ballot broadcasted", sfact.Point())
+		t.T().Logf("expected suffrage confirm init ballot broadcasted, %v %T", sfact.Point(), ibl.SignFact().Fact())
 	}
 
 	confirmivp, err := t.NewINITExpelVoteproof(sfact, t.Local, nodes[:2], expels)

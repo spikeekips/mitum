@@ -45,22 +45,21 @@ func (t *baseTestConsensusHandler) newState(args *ConsensusHandlerArgs) (*Consen
 	newhandler := NewNewConsensusHandlerType(t.LocalParams.NetworkID(), t.Local, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
-	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	})
+	timers, err := util.NewSimpleTimers(3, time.Millisecond*33)
 	t.NoError(err)
-	t.NoError(timers.Start(context.Background()))
-	_ = newhandler.setTimers(timers)
 
 	i, err := newhandler.new()
 	t.NoError(err)
 
 	st := i.(*ConsensusHandler)
 
+	st.bbt = newBallotBroadcastTimers(timers, func(ctx context.Context, bl base.Ballot) error {
+		return st.broadcastBallot(ctx, bl)
+	}, args.IntervalBroadcastBallot())
+	t.NoError(st.bbt.Start(context.Background()))
+
 	return st, func() {
-		st.timers.Stop()
+		st.bbt.Stop()
 
 		deferred, err := st.exit(nil)
 		t.NoError(err)
@@ -164,17 +163,15 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	st.switchStateFunc = func(switchContext) error { return nil }
 
-	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*333, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	})
+	timers, err := util.NewSimpleTimers(3, time.Millisecond*333)
 	t.NoError(err)
-	t.NoError(timers.Start(context.Background()))
 
-	_ = st.setTimers(timers)
+	st.bbt = newBallotBroadcastTimers(timers, func(ctx context.Context, bl base.Ballot) error {
+		return st.broadcastBallot(ctx, bl)
+	}, args.IntervalBroadcastBallot())
+	t.NoError(st.bbt.Start(context.Background()))
 
-	defer timers.Stop()
+	defer st.bbt.Stop()
 
 	avp, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(avp))
@@ -440,7 +437,7 @@ func (t *testConsensusHandler) TestEnterExpelACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait accept ballot"))
+		t.NoError(errors.Errorf("timeout to wait init ballot"))
 
 		return
 	case bl := <-ballotch:

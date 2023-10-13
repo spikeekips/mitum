@@ -10,16 +10,12 @@ import (
 )
 
 type ConsensusHandlerArgs struct {
-	IsEmptyProposalNoBlockFunc func() bool
-	IsEmptyProposalFunc        func(context.Context, base.ProposalSignFact) (bool, error)
 	voteproofHandlerArgs
 }
 
 func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 	return &ConsensusHandlerArgs{
-		voteproofHandlerArgs:       newVoteproofHandlerArgs(),
-		IsEmptyProposalNoBlockFunc: func() bool { return false },
-		IsEmptyProposalFunc:        func(context.Context, base.ProposalSignFact) (bool, error) { return false, nil },
+		voteproofHandlerArgs: newVoteproofHandlerArgs(),
 	}
 }
 
@@ -38,6 +34,9 @@ func NewNewConsensusHandlerType(
 	args *ConsensusHandlerArgs,
 ) *NewConsensusHandlerType {
 	origNewINITBallotFactFunc := args.NewINITBallotFactFunc
+
+	f := newEmptyProposalINITBallotFactFunc(args)
+
 	args.NewINITBallotFactFunc = func(
 		ctx context.Context,
 		point base.Point,
@@ -45,23 +44,12 @@ func NewNewConsensusHandlerType(
 		proposal base.ProposalSignFact,
 		expelfacts []util.Hash,
 	) (base.INITBallotFact, error) {
-		if len(expelfacts) > 0 || !args.IsEmptyProposalNoBlockFunc() {
+		switch i, err := f(ctx, point, previousBlock, proposal, expelfacts); {
+		case i != nil || err != nil:
+			return i, err
+		default:
 			return origNewINITBallotFactFunc(ctx, point, previousBlock, proposal, expelfacts)
 		}
-
-		switch isempty, err := args.IsEmptyProposalFunc(ctx, proposal); {
-		case err != nil:
-			return nil, err
-		case !isempty:
-			return origNewINITBallotFactFunc(ctx, point, previousBlock, proposal, expelfacts)
-		}
-
-		// NOTE empty-proposal-init-ballot-fact
-		return isaac.NewEmptyProposalINITBallotFact(
-			point,
-			previousBlock,
-			proposal.Fact().Hash(),
-		), nil
 	}
 
 	return &NewConsensusHandlerType{
@@ -92,12 +80,12 @@ func (st *ConsensusHandler) whenNewVoteproof(vp base.Voteproof, _ isaac.LastVote
 
 	switch isFinished, err := broker.sendVoteproof(st.ctx, vp); {
 	case err != nil:
-		return err
+		st.Log().Error().Err(err).Interface("voteproof", vp).Msg("send voteproof to handover x")
 	case isFinished:
 		return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {

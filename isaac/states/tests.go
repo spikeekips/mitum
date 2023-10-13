@@ -11,12 +11,6 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-func (st *baseHandler) setTimers(t *util.SimpleTimers) *baseHandler {
-	st.timers = t
-
-	return nil
-}
-
 func newTestBlockMap(
 	height base.Height,
 	previous, previousSuffrage util.Hash,

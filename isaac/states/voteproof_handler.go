@@ -20,9 +20,9 @@ type voteproofHandlerArgs struct {
 	WhenNewBlockConfirmed        func(base.Height)
 	whenNewVoteproof             func(base.Voteproof, isaac.LastVoteproofs) error
 	prepareACCEPTBallot          func(base.INITVoteproof, util.Hash, time.Duration, base.ACCEPTBallotFact) error
-	prepareNextRoundBallot       func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error
+	prepareNextRoundBallot       func(base.Voteproof, util.Hash, base.Suffrage, time.Duration) error
 	prepareSuffrageConfirmBallot func(base.Voteproof)
-	prepareNextBlockBallot       func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error
+	prepareNextBlockBallot       func(base.ACCEPTVoteproof, base.Suffrage, time.Duration) error
 	checkInState                 func(base.Voteproof) switchContext
 	whenNewBlockSaved            func(base.BlockMap, base.ACCEPTVoteproof)
 	stt                          StateType
@@ -43,10 +43,10 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		prepareACCEPTBallot: func(base.INITVoteproof, util.Hash, time.Duration, base.ACCEPTBallotFact) error {
 			return util.ErrNotImplemented.Errorf("prepareACCEPTBallot")
 		},
-		prepareNextRoundBallot: func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error {
+		prepareNextRoundBallot: func(base.Voteproof, util.Hash, base.Suffrage, time.Duration) error {
 			return util.ErrNotImplemented.Errorf("prepareNextRoundBallot")
 		},
-		prepareNextBlockBallot: func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error {
+		prepareNextBlockBallot: func(base.ACCEPTVoteproof, base.Suffrage, time.Duration) error {
 			return util.ErrNotImplemented.Errorf("prepareNextRoundBallot")
 		},
 		whenNewBlockSaved: func(base.BlockMap, base.ACCEPTVoteproof) {},
@@ -138,7 +138,7 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 
 	switch lvps, found := st.voteproofs(vp.Point()); {
 	case !found:
-		return nil, e.Errorf("last voteproofs not found")
+		return nil, e.Errorf("last voteproofs not found, %v", vp.Point())
 	default:
 		st.vplock.Lock()
 
@@ -158,8 +158,8 @@ func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e.Wrap(err)
 	}
 
-	if st.timers != nil && !st.allowedConsensus() {
-		if err := st.timers.StopAllTimers(); err != nil {
+	if st.bbt != nil && !st.allowedConsensus() {
+		if err := st.bbt.StopTimers(); err != nil {
 			st.Log().Error().Err(err).Dict("state", switchContextLog(sctx)).Msg("failed to stop all timers")
 		}
 	}
@@ -641,15 +641,8 @@ func (st *voteproofHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 		suf = i
 	}
 
-	timerIDs := []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	}
-
 	if err := st.args.prepareNextRoundBallot(
 		vp, previousBlock,
-		timerIDs,
 		suf,
 		st.args.WaitPreparingINITBallot(),
 	); err != nil {
@@ -672,11 +665,7 @@ func (st *voteproofHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
 		go st.whenNewBlockSaved(bm, avp)
-		go st.nextBlock(avp, []util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastSuffrageConfirmBallot,
-			timerIDBroadcastACCEPTBallot,
-		})
+		go st.nextBlock(avp)
 
 		return true, nil
 	case errors.Is(err, isaac.ErrProcessorAlreadySaved):
@@ -694,7 +683,7 @@ func (st *voteproofHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 	}
 }
 
-func (st *voteproofHandler) nextBlock(avp base.ACCEPTVoteproof, timerIDs []util.TimerID) {
+func (st *voteproofHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Str("voteproof", avp.ID()).Object("point", point).Logger()
@@ -716,7 +705,7 @@ func (st *voteproofHandler) nextBlock(avp base.ACCEPTVoteproof, timerIDs []util.
 		suf = i
 	}
 
-	if err := st.args.prepareNextBlockBallot(avp, timerIDs, suf, st.args.WaitPreparingINITBallot()); err != nil {
+	if err := st.args.prepareNextBlockBallot(avp, suf, st.args.WaitPreparingINITBallot()); err != nil {
 		l.Debug().Err(err).Msg("failed to prepare next block ballot")
 
 		return

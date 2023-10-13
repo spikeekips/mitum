@@ -10,8 +10,9 @@ import (
 )
 
 func EqualVoteproof(t *assert.Assertions, a, b Voteproof) {
-	if a == nil {
-		t.Equal(a, b)
+	if a == nil || b == nil {
+		t.Equal(a == nil, b == nil)
+
 		return
 	}
 
