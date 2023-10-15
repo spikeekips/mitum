@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network"
@@ -179,6 +180,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	var client *isaacnetwork.BaseClient
 	var svvotef isaac.SuffrageVoteFunc
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
+	var oppool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -189,6 +191,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 		MemberlistContextKey, &m,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
+		PoolDatabaseContextKey, &oppool,
 	); err != nil {
 		return pctx, err
 	}
@@ -262,6 +265,13 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 				if err := client.SendBallots(context.Background(), t.ConnInfo(), ballots); err != nil {
 					l.Error().Err(err).Msg("failed to send ballots")
 				}
+			}
+		case base.Operation:
+			switch isset, err := oppool.SetOperation(context.Background(), t); {
+			case err != nil:
+				l.Error().Err(err).Msg("failed to set operation")
+			default:
+				l.Debug().Bool("set", isset).Msg("set operation")
 			}
 		default:
 			l.Debug().Interface("notify_message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
