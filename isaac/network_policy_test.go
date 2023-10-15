@@ -94,7 +94,8 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 		ap := a.(NetworkPolicy)
 		bp := b.(NetworkPolicy)
 
-		t.True(ap.Hint().Equal(bp.Hint()))
+		base.EqualNetworkPolicy(t.Assert(), ap, bp)
+
 		t.Equal(ap.maxOperationsInProposal, bp.maxOperationsInProposal)
 		t.Equal(ap.suffrageCandidateLifespan, bp.suffrageCandidateLifespan)
 		t.Equal(ap.maxSuffrageSize, bp.maxSuffrageSize)

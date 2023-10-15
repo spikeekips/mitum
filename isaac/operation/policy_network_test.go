@@ -148,9 +148,20 @@ func (t *testGenesisNetworkPolicy) TestPreProcess() {
 	op := NewGenesisNetworkPolicy(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
-	_, reason, err := op.PreProcess(context.Background(), base.NilGetState)
-	t.NoError(err)
-	t.Nil(reason)
+	t.Run("ok", func() {
+		_, reason, err := op.PreProcess(context.Background(), base.NilGetState)
+		t.NoError(err)
+		t.Nil(reason)
+	})
+
+	t.Run("not genesis", func() {
+		_, reason, err := op.PreProcess(context.Background(), func(string) (base.State, bool, error) {
+			return nil, true, nil
+		})
+		t.NoError(err)
+		t.NotNil(reason)
+		t.ErrorContains(reason, "network policy state already exists")
+	})
 }
 
 func (t *testGenesisNetworkPolicy) TestProcess() {
@@ -179,4 +190,48 @@ func (t *testGenesisNetworkPolicy) TestProcess() {
 
 func TestGenesisNetworkPolicy(t *testing.T) {
 	suite.Run(t, new(testGenesisNetworkPolicy))
+}
+
+func TestNetworkPolicyFactEncode(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		policy := isaac.DefaultNetworkPolicy()
+
+		fact := NewNetworkPolicyFact(util.UUID().Bytes(), policy)
+
+		b, err := enc.Marshal(fact)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return fact, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NetworkPolicyFactHint, Instance: NetworkPolicyFact{}}))
+
+		i, err := enc.Decode(b)
+		t.NoError(err)
+
+		_, ok := i.(NetworkPolicyFact)
+		t.True(ok)
+
+		return i
+	}
+	t.Compare = func(a, b interface{}) {
+		af, ok := a.(NetworkPolicyFact)
+		t.True(ok)
+		bf, ok := b.(NetworkPolicyFact)
+		t.True(ok)
+
+		t.NoError(bf.IsValid(nil))
+
+		base.EqualFact(t.Assert(), af, bf)
+	}
+
+	suite.Run(tt, t)
 }

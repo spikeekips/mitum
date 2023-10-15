@@ -28,21 +28,27 @@ func QuicstreamHandlerOperation(
 		enchint string, body []byte, found bool, _ error,
 	),
 ) quicstreamheader.Handler[OperationRequestHeader] {
+	if getFromHandoverX == nil {
+		getFromHandoverX = func(context.Context, OperationRequestHeader) ( //revive:disable-line:modifies-parameter
+			string, []byte, bool, error,
+		) {
+			return "", nil, false, nil
+		}
+	}
+
 	return boolBytesQUICstreamHandler(
 		func(header OperationRequestHeader) string {
 			return HandlerPrefixOperationString + header.Operation().String()
 		},
 		func(ctx context.Context, header OperationRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
-			enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation())
-			if getFromHandoverX != nil && (err == nil || !found) {
+			switch enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation()); {
+			case err != nil:
+				return "", body, found, err
+			case found:
+				return enchint, body, found, nil
+			default:
 				return getFromHandoverX(ctx, header)
 			}
-
-			if err != nil || !found {
-				return "", body, found, err
-			}
-
-			return enchint, body, found, err
 		},
 	)
 }
@@ -130,7 +136,7 @@ func QuicstreamHandlerSendOperation(
 	}
 }
 
-func QuicstreamHandlerRequestProposal(
+func QuicstreamHandlerRequestProposal( // FIXME merge into ProposalSelector
 	local base.LocalNode,
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
@@ -149,19 +155,19 @@ func QuicstreamHandlerRequestProposal(
 			return nil, err
 		case found:
 			return pr, nil
+		case !proposer.Equal(local.Address()):
+			return nil, nil
 		}
 
-		if proposer.Equal(local.Address()) {
-			switch pr, err := getFromHandoverX(ctx, header); {
-			case err != nil:
-				return nil, errors.WithMessage(err, "handover x")
-			case pr != nil:
-				if _, err := pool.SetProposal(pr); err != nil {
-					return nil, errors.WithMessage(err, "handover x; set proposal")
-				}
-
-				return pr, nil
+		switch pr, err := getFromHandoverX(ctx, header); {
+		case err != nil:
+			return nil, errors.WithMessage(err, "handover x")
+		case pr != nil:
+			if _, err := pool.SetProposal(pr); err != nil {
+				return nil, errors.WithMessage(err, "handover x; set proposal")
 			}
+
+			return pr, nil
 		}
 
 		if lastBlockMapf != nil {
@@ -171,16 +177,12 @@ func QuicstreamHandlerRequestProposal(
 			case !found:
 			case point.Height() < m.Manifest().Height()-1:
 				return nil, errors.Errorf("too old; ignored")
-			case point.Height() > m.Manifest().Height(): // NOTE empty proposal for unreachable point
+			case point.Height() > m.Manifest().Height()+1: // NOTE empty proposal for unreachable point
 				return proposalMaker.Empty(context.Background(), point, previousBlock)
 			}
 		}
 
-		if proposer.Equal(local.Address()) {
-			return proposalMaker.New(context.Background(), point, previousBlock)
-		}
-
-		return nil, nil
+		return proposalMaker.New(context.Background(), point, previousBlock)
 	}
 
 	return boolEncodeQUICstreamHandler(

@@ -9,27 +9,27 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-type GenesisNetworkPolicyFactJSONMarshaler struct {
+type baseNetworkPolicyFactJSONMarshaler struct {
 	Policy base.NetworkPolicy `json:"policy"`
 	base.BaseFactJSONMarshaler
 }
 
-func (fact GenesisNetworkPolicyFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(GenesisNetworkPolicyFactJSONMarshaler{
+func (fact baseNetworkPolicyFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(baseNetworkPolicyFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Policy:                fact.policy,
 	})
 }
 
-type GenesisNetworkPolicyFactJSONUnmarshaler struct {
+type baseNetworkPolicyFactJSONUnmarshaler struct {
 	base.BaseFactJSONUnmarshaler
 	Policy json.RawMessage `json:"policy"`
 }
 
-func (fact *GenesisNetworkPolicyFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringError("decode GenesisNetworkPolicyFact")
+func (fact *baseNetworkPolicyFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringError("decode baseNetworkPolicyFact")
 
-	var u GenesisNetworkPolicyFactJSONUnmarshaler
+	var u baseNetworkPolicyFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
 	}

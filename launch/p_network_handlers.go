@@ -323,6 +323,16 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		)
 	})
 
+	_ = set.Add(isaacoperation.NetworkPolicyHint, func(height base.Height) (base.OperationProcessor, error) {
+		return isaacoperation.NewNetworkPolicyProcessor(
+			height,
+			isaacparams.Threshold(),
+			db.State,
+			nil,
+			nil,
+		)
+	})
+
 	return context.WithValue(pctx, OperationProcessorsMapContextKey, set), nil
 }
 

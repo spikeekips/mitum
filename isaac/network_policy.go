@@ -96,24 +96,60 @@ func (p NetworkPolicy) MaxOperationsInProposal() uint64 {
 	return p.maxOperationsInProposal
 }
 
+func (p *NetworkPolicy) SetMaxOperationsInProposal(i uint64) NetworkPolicy {
+	p.maxOperationsInProposal = i
+
+	return *p
+}
+
 func (p NetworkPolicy) SuffrageCandidateLifespan() base.Height {
 	return p.suffrageCandidateLifespan
+}
+
+func (p *NetworkPolicy) SetSuffrageCandidateLifespan(i base.Height) NetworkPolicy {
+	p.suffrageCandidateLifespan = i
+
+	return *p
 }
 
 func (p NetworkPolicy) SuffrageCandidateLimiterRule() base.SuffrageCandidateLimiterRule {
 	return p.suffrageCandidateLimiterRule
 }
 
+func (p *NetworkPolicy) SetSuffrageCandidateLimiterRule(i base.SuffrageCandidateLimiterRule) NetworkPolicy {
+	p.suffrageCandidateLimiterRule = i
+
+	return *p
+}
+
 func (p NetworkPolicy) MaxSuffrageSize() uint64 {
 	return p.maxSuffrageSize
+}
+
+func (p *NetworkPolicy) SetMaxSuffrageSize(i uint64) NetworkPolicy {
+	p.maxSuffrageSize = i
+
+	return *p
 }
 
 func (p NetworkPolicy) SuffrageExpelLifespan() base.Height {
 	return p.suffrageExpelLifespan
 }
 
+func (p *NetworkPolicy) SetSuffrageExpelLifespan(i base.Height) NetworkPolicy {
+	p.suffrageExpelLifespan = i
+
+	return *p
+}
+
 func (p NetworkPolicy) EmptyProposalNoBlock() bool {
 	return p.emptyProposalNoBlock
+}
+
+func (p *NetworkPolicy) SetEmptyProposalNoBlock(i bool) NetworkPolicy {
+	p.emptyProposalNoBlock = i
+
+	return *p
 }
 
 type NetworkPolicyStateValue struct {

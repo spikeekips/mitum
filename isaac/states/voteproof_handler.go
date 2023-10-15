@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
@@ -495,11 +496,15 @@ func (st *voteproofHandler) newINITVoteproofWithLastINITVoteproof(
 		return newBrokenSwitchContext(st.stt, errors.Errorf("empty last accept voteproof"))
 	}
 
-	if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+	if m := lvps.PreviousBlockForNextRound(ivp); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m) {
 		// NOTE local stored block is different with other nodes
 		l.Debug().
 			Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
-			Stringer("new_block", m.NewBlock()).
+			Func(func(e *zerolog.Event) {
+				if m != nil {
+					e.Stringer("new_block", m)
+				}
+			}).
 			Msg("previous block does not match with last accept voteproof; moves to syncing")
 
 		return newSyncingSwitchContextWithVoteproof(st.stt, ivp)

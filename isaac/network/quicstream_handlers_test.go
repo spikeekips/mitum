@@ -726,8 +726,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		point := base.RawPoint(33, 3)
-		proposer := base.RandomAddress("")
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer, valuehash.RandomSHA256())
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), valuehash.RandomSHA256())
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(pr)
@@ -749,8 +748,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		point := base.RawPoint(33, 4)
-		proposer := base.RandomAddress("")
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer, valuehash.RandomSHA256())
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), valuehash.RandomSHA256())
 		t.Error(err)
 		t.False(found)
 		t.Nil(pr)
