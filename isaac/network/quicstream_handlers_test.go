@@ -670,10 +670,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			}, nil
 		},
 		pool,
+		nil,
 	)
 
-	handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
-		func() (base.BlockMap, bool, error) { return nil, false, nil },
+	handler := QuicstreamHandlerRequestProposal(t.Local.Address(), pool, proposalMaker,
 		func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
 	)
 
@@ -711,54 +711,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		t.Nil(pr)
 	})
 
-	t.Run("too high height", func() {
-		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
-			func() (base.BlockMap, bool, error) {
-				m := base.NewDummyManifest(base.Height(22), valuehash.RandomSHA256())
-				mp := base.NewDummyBlockMap(m)
-
-				return mp, true, nil
-			},
-			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
-		)
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
-
-		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
-
-		point := base.RawPoint(33, 3)
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), valuehash.RandomSHA256())
-		t.NoError(err)
-		t.True(found)
-		t.NotNil(pr)
-		t.Empty(pr.ProposalFact().Operations())
-	})
-
-	t.Run("too low height", func() {
-		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
-			func() (base.BlockMap, bool, error) {
-				m := base.NewDummyManifest(base.Height(44), valuehash.RandomSHA256())
-				mp := base.NewDummyBlockMap(m)
-
-				return mp, true, nil
-			},
-			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return nil, nil },
-		)
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixRequestProposal, handler)
-
-		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
-
-		point := base.RawPoint(33, 4)
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), valuehash.RandomSHA256())
-		t.Error(err)
-		t.False(found)
-		t.Nil(pr)
-		t.ErrorContains(err, "too old")
-	})
-
 	t.Run("handover x; ok", func() {
 		prev := valuehash.RandomSHA256()
 		point := base.RawPoint(33, 1)
-		xpr, err := proposalMaker.New(context.Background(), point, prev)
+		xpr, err := proposalMaker.Make(context.Background(), point, prev)
 		t.NoError(err)
 
 		t.T().Log("clear proposals from pool")
@@ -775,10 +731,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 				}, nil
 			},
 			npool,
+			nil,
 		)
 
-		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
-			nil,
+		handler := QuicstreamHandlerRequestProposal(t.Local.Address(), pool, proposalMaker,
 			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) { return xpr, nil },
 		)
 
@@ -802,7 +758,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	t.Run("handover x; error", func() {
 		prev := valuehash.RandomSHA256()
 		point := base.RawPoint(33, 1)
-		xpr, err := proposalMaker.New(context.Background(), point, prev)
+		xpr, err := proposalMaker.Make(context.Background(), point, prev)
 		t.NoError(err)
 
 		t.T().Log("clear proposals from pool")
@@ -819,10 +775,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 				}, nil
 			},
 			npool,
+			nil,
 		)
 
-		handler := QuicstreamHandlerRequestProposal(t.Local, npool, proposalMaker,
-			nil,
+		handler := QuicstreamHandlerRequestProposal(t.Local.Address(), npool, proposalMaker,
 			func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error) {
 				return xpr, errors.Errorf("hehehe")
 			},
@@ -852,10 +808,11 @@ func (t *testQuicstreamHandlers) TestProposal() {
 			}, nil
 		},
 		pool,
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
-	pr, err := proposalMaker.New(context.Background(), point, valuehash.RandomSHA256())
+	pr, err := proposalMaker.Make(context.Background(), point, valuehash.RandomSHA256())
 	t.NoError(err)
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)

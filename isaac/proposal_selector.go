@@ -74,7 +74,7 @@ func (p *BaseProposalSelector) Select(
 	case errors.Is(err, errFailedToRequestProposalToNode),
 		errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded):
-		pr, err = p.args.Maker.New(ctx, point, previousBlock)
+		pr, err = p.args.Maker.Make(ctx, point, previousBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -289,7 +289,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
 	if proposer.Address().Equal(p.local.Address()) {
-		return p.args.Maker.New(ctx, point, previousBlock)
+		return p.args.Maker.Make(ctx, point, previousBlock)
 	}
 
 	// NOTE if not found in local, request to proposer node

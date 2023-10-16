@@ -247,7 +247,7 @@ func AttachHandlerProposals(pctx context.Context) error {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixRequestProposalString,
 		isaacnetwork.QuicstreamHandlerRequestProposal(
-			local, pool, proposalMaker, db.LastBlockMap,
+			local.Address(), pool, proposalMaker,
 			func(ctx context.Context, header isaacnetwork.RequestProposalRequestHeader) (
 				base.ProposalSignFact, error,
 			) {

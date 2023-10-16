@@ -136,18 +136,21 @@ func QuicstreamHandlerSendOperation(
 	}
 }
 
-func QuicstreamHandlerRequestProposal( // FIXME merge into ProposalSelector
-	local base.LocalNode,
+func QuicstreamHandlerRequestProposal(
+	local base.Address,
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
-	lastBlockMapf func() (base.BlockMap, bool, error),
 	getFromHandoverX func(context.Context, RequestProposalRequestHeader) (base.ProposalSignFact, error),
 ) quicstreamheader.Handler[RequestProposalRequestHeader] {
 	getOrCreateProposal := func(ctx context.Context, header RequestProposalRequestHeader) (
 		base.ProposalSignFact, error,
 	) {
-		point := header.point
 		proposer := header.Proposer()
+		if !proposer.Equal(local) {
+			return nil, nil
+		}
+
+		point := header.point
 		previousBlock := header.PreviousBlock()
 
 		switch pr, found, err := pool.ProposalByPoint(point, proposer, previousBlock); {
@@ -155,7 +158,7 @@ func QuicstreamHandlerRequestProposal( // FIXME merge into ProposalSelector
 			return nil, err
 		case found:
 			return pr, nil
-		case !proposer.Equal(local.Address()):
+		case !proposer.Equal(local):
 			return nil, nil
 		}
 
@@ -170,19 +173,7 @@ func QuicstreamHandlerRequestProposal( // FIXME merge into ProposalSelector
 			return pr, nil
 		}
 
-		if lastBlockMapf != nil {
-			switch m, found, err := lastBlockMapf(); {
-			case err != nil:
-				return nil, err
-			case !found:
-			case point.Height() < m.Manifest().Height()-1:
-				return nil, errors.Errorf("too old; ignored")
-			case point.Height() > m.Manifest().Height()+1: // NOTE empty proposal for unreachable point
-				return proposalMaker.Empty(context.Background(), point, previousBlock)
-			}
-		}
-
-		return proposalMaker.New(context.Background(), point, previousBlock)
+		return proposalMaker.Make(ctx, point, previousBlock)
 	}
 
 	return boolEncodeQUICstreamHandler(

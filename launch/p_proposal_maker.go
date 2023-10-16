@@ -26,12 +26,14 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var pool *isaacdatabase.TempPool
+	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		ISAACParamsContextKey, &isaacparams,
 		PoolDatabaseContextKey, &pool,
+		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -46,6 +48,7 @@ func PProposalMaker(pctx context.Context) (context.Context, error) {
 		isaacparams.NetworkID(),
 		opf,
 		pool,
+		db.LastBlockMap,
 	)
 
 	_ = pm.SetLogging(log)

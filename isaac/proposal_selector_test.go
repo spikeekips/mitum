@@ -136,10 +136,17 @@ func (t *testBaseProposalSelector) newNodes(n int, extra ...base.Node) []base.No
 
 func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelectorArgs {
 	args := NewBaseProposalSelectorArgs()
-
 	args.Pool = newDummyProposalPool(10)
+	proposalMaker := NewProposalMaker(
+		t.Local,
+		t.LocalParams.NetworkID(),
+		func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil },
+		args.Pool,
+		nil,
+	)
+
 	args.ProposerSelectFunc = NewBlockBasedProposerSelector().Select
-	args.Maker = NewProposalMaker(t.Local, t.LocalParams.NetworkID(), func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil }, args.Pool)
+	args.Maker = proposalMaker
 	args.GetNodesFunc = func(base.Height) ([]base.Node, bool, error) {
 		return nodes, len(nodes) > 0, nil
 	}
@@ -153,11 +160,11 @@ func (t *testBaseProposalSelector) newargs(nodes []base.Node) *BaseProposalSelec
 			pr, err := NewProposalMaker(
 				n.(base.LocalNode),
 				t.LocalParams.NetworkID(),
-				func(context.Context, base.Height) ([][2]util.Hash, error) {
-					return nil, nil
-				},
+				func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil },
 				args.Pool,
-			).New(ctx, point, previousBlock)
+				nil,
+			).Make(ctx, point, previousBlock)
+
 			return pr, err == nil, err
 		}
 
@@ -285,7 +292,8 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 				t.LocalParams.NetworkID(),
 				func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil },
 				args.Pool,
-			).New(ctx, point, previousBlock)
+				nil,
+			).Make(ctx, point, previousBlock)
 
 			return pr, err == nil, err
 		}
@@ -376,12 +384,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 					continue
 				}
 
-				pr, err = NewProposalMaker(
-					n.(base.LocalNode),
-					t.LocalParams.NetworkID(),
-					func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil },
-					args.Pool,
-				).New(ctx, point, previousBlock)
+				pr, err = args.Maker.Make(ctx, point, previousBlock)
 
 				done <- struct{}{}
 
@@ -450,7 +453,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 					continue
 				}
 
-				pr, err = NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err = args.Maker.Make(ctx, point, previousBlock)
 
 				done <- struct{}{}
 
@@ -536,7 +539,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	t.T().Logf("all nodes: %d", len(nodes))
 	t.T().Logf("non-local nodes: %d", len(excludelocal))
 
-	f := func() *BaseProposalSelectorArgs {
+	newargs := func() *BaseProposalSelectorArgs {
 		args := t.newargs(nodes)
 		args.RequestProposalInterval = time.Millisecond * 300
 
@@ -559,7 +562,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 		return args
 	}
 
-	args := f()
+	args := newargs()
 
 	selectedproposer, err := args.ProposerSelectFunc(context.Background(), point, nodes, prev)
 	t.NoError(err)
@@ -575,7 +578,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	}())
 
 	t.Run("from local", func() {
-		args := f()
+		args := newargs()
 
 		p := NewBaseProposalSelector(t.Local, args)
 
@@ -588,7 +591,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	})
 
 	t.Run("failed from proposer", func() {
-		args := f()
+		args := newargs()
 
 		args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 			if proposer.Address().Equal(selectedproposer.Address()) {
@@ -601,7 +604,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 					continue
 				}
 
-				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err := args.Maker.Make(ctx, point, previousBlock)
 				return pr, err == nil, err
 			}
 
@@ -620,7 +623,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	})
 
 	t.Run("failed from proposer with context.Canceled", func() {
-		args := f()
+		args := newargs()
 
 		var requested int64
 
@@ -637,7 +640,13 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 					continue
 				}
 
-				pr, err := NewProposalMaker(n.(base.LocalNode), t.LocalParams.NetworkID(), func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil }, args.Pool).New(ctx, point, previousBlock)
+				pr, err := NewProposalMaker(
+					n.(base.LocalNode),
+					t.LocalParams.NetworkID(),
+					func(context.Context, base.Height) ([][2]util.Hash, error) { return nil, nil },
+					args.Pool,
+					nil,
+				).Make(ctx, point, previousBlock)
 				return pr, err == nil, err
 			}
 
@@ -656,7 +665,7 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 	})
 
 	t.Run("all failed", func() {
-		args := f()
+		args := newargs()
 
 		args.RequestFunc = func(ctx context.Context, point base.Point, proposer base.Node, previousBlock util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, errors.Errorf("hihihi")
