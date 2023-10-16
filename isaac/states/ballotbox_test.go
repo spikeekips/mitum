@@ -2000,7 +2000,9 @@ func (t *testBallotboxWithExpel) TestVoteproofFromSuffrageConfirmBallots() {
 			}
 
 			sf := isaac.NewINITBallotSignFact(sfact)
-			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
+			if err := sf.NodeSign(node.Privatekey(), t.networkID, node.Address()); err != nil {
+				panic(err)
+			}
 
 			bl := isaac.NewINITBallot(ivp, sf, nil)
 			// t.T().Log("ballot:", t.StringMarshal(bl))
