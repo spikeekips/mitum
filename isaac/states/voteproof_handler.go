@@ -250,15 +250,14 @@ func (st *voteproofHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		var sctx switchContext
 
 		switch saved, err := st.handleACCEPTVoteproofAfterProcessingProposal(manifest, eavp); {
-		case saved:
+		case saved && err == nil:
 			ll.Debug().Msg("new block saved by accept voteproof after processing proposal")
-		case err == nil:
-			return nil
-		case errors.As(err, &sctx):
 		default:
 			ll.Error().Err(err).Msg("failed to save new block by accept voteproof after processing proposal")
 
-			sctx = newBrokenSwitchContext(st.stt, errors.Wrap(err, "save proposal"))
+			if !errors.As(err, &sctx) {
+				sctx = newBrokenSwitchContext(st.stt, errors.Wrap(err, "save proposal"))
+			}
 		}
 
 		return sctx
