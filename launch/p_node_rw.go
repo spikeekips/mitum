@@ -309,6 +309,7 @@ func writeDesignMap(pctx context.Context) (map[string]writeNodeValueFunc, error)
 		"parameters.isaac.threshold":                           writeLocalParamISAACThreshold(params.ISAAC),
 		"parameters.isaac.interval_broadcast_ballot":           writeLocalParamISAACIntervalBroadcastBallot(params.ISAAC),
 		"parameters.isaac.wait_preparing_init_ballot":          writeLocalParamISAACWaitPreparingINITBallot(params.ISAAC),
+		"parameters.isaac.min_wait_next_block_init_ballot":     writeLocalParamISAACMinWaitNextBlockINITBallot(params.ISAAC),
 		"parameters.isaac.max_try_handover_y_broker_sync_data": writeLocalParamISAACMaxTryHandoverYBrokerSyncData(params.ISAAC),
 
 		"parameters.misc.sync_source_checker_interval":              writeLocalParamMISCSyncSourceCheckerInterval(params.MISC),
@@ -405,6 +406,30 @@ func writeLocalParamISAACWaitPreparingINITBallot(
 		}
 
 		return prev, params.WaitPreparingINITBallot(), true, nil
+	})
+}
+
+func writeLocalParamISAACMinWaitNextBlockINITBallot(
+	params *isaac.Params,
+) writeNodeValueFunc {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
+		d, err := parseNodeValueDuration(value)
+		if err != nil {
+			return nil, nil, false, err
+		}
+
+		prev = params.MinWaitNextBlockINITBallot()
+		if prev == d {
+			return prev, nil, false, nil
+		}
+
+		if err := params.SetMinWaitNextBlockINITBallot(d); err != nil {
+			return nil, nil, false, err
+		}
+
+		return prev, params.MinWaitNextBlockINITBallot(), true, nil
 	})
 }
 

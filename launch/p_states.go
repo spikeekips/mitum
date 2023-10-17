@@ -440,6 +440,15 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 		return nil, err
 	}
 
+	if t := isaacparams.MinWaitNextBlockINITBallot(); t >= isaacparams.WaitPreparingINITBallot() {
+		//revive:disable:line-length-limit
+		log.Log().Warn().
+			Dur("min_wait_next_block_init_ballot", t).
+			Dur("wait_preparing_init_ballot", isaacparams.WaitPreparingINITBallot()).
+			Msg("min_wait_next_block_init_ballot is under wait_preparing_init_ballot; min_wait_next_block_init_ballot will be ignored")
+		//revive:enable:line-length-limit
+	}
+
 	var whenNewBlockSavedf func(base.BlockMap)
 
 	switch err := util.LoadFromContext(pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedf); {
@@ -466,6 +475,7 @@ func newConsensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandle
 	args := isaacstates.NewConsensusHandlerArgs()
 	args.IntervalBroadcastBallot = isaacparams.IntervalBroadcastBallot
 	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
+	args.MinWaitNextBlockINITBallot = isaacparams.MinWaitNextBlockINITBallot
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.ProposalSelectFunc = proposalSelectf
 	args.ProposalProcessors = pps
@@ -522,6 +532,7 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 		return isaacparams.IntervalBroadcastBallot()*2 + isaacparams.WaitPreparingINITBallot()
 	}
 	args.WaitPreparingINITBallot = isaacparams.WaitPreparingINITBallot
+	args.MinWaitNextBlockINITBallot = isaacparams.MinWaitNextBlockINITBallot
 	args.IsEmptyProposalNoBlockFunc = func() bool {
 		return db.LastNetworkPolicy().EmptyProposalNoBlock()
 	}

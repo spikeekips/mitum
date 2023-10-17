@@ -13,10 +13,11 @@ import (
 var ParamsHint = hint.MustNewHint("isaac-params-v0.0.1")
 
 var (
-	DefaultntervalBroadcastBallot  = time.Second * 3
-	DefaultWaitPreparingINITBallot = time.Second * 5
-	DefaultWaitStuckInterval       = time.Second * 33
-	DefaultTimeoutRequest          = time.Second * 3
+	DefaultntervalBroadcastBallot     = time.Second * 3
+	DefaultWaitPreparingINITBallot    = time.Second * 5
+	DefaultWaitStuckInterval          = time.Second * 33
+	DefaultTimeoutRequest             = time.Second * 3
+	DefaultMinWaitNextBlockINITBallot = time.Second * 2
 )
 
 type Params struct {
@@ -28,6 +29,7 @@ type Params struct {
 	waitPreparingINITBallot       time.Duration
 	ballotStuckWait               time.Duration
 	ballotStuckResolveAfter       time.Duration
+	minWaitNextBlockINITBallot    time.Duration
 	maxTryHandoverYBrokerSyncData uint64
 }
 
@@ -50,6 +52,7 @@ func DefaultParams(networkID base.NetworkID) *Params {
 		ballotStuckWait:               time.Second * 33, //nolint:gomnd // waitPreparingINITBallot * 10
 		ballotStuckResolveAfter:       time.Second * 66, //nolint:gomnd // ballotStuckWait * 2
 		maxTryHandoverYBrokerSyncData: 33,               //nolint:gomnd //...
+		minWaitNextBlockINITBallot:    DefaultMinWaitNextBlockINITBallot,
 	}
 }
 
@@ -86,6 +89,10 @@ func (p *Params) IsValid(networkID []byte) error {
 
 	if p.ballotStuckResolveAfter < 0 {
 		return e.Errorf("wrong duration; invalid ballotStuckResolveAfter")
+	}
+
+	if p.minWaitNextBlockINITBallot < 0 {
+		return e.Errorf("wrong duration; invalid minWaitNextBlockINITBallot")
 	}
 
 	return nil
@@ -235,6 +242,28 @@ func (p *Params) SetMaxTryHandoverYBrokerSyncData(d uint64) error {
 	})
 }
 
+// MinWaitNextBlockINITBallot is used for waiting until the proposer creates new
+// block for new proposal; Too short MinWaitNextBlockINITBallot may cause empty
+// proposal.
+func (p *Params) MinWaitNextBlockINITBallot() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.minWaitNextBlockINITBallot
+}
+
+func (p *Params) SetMinWaitNextBlockINITBallot(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.minWaitNextBlockINITBallot == d {
+			return false, nil
+		}
+
+		p.minWaitNextBlockINITBallot = d
+
+		return true, nil
+	})
+}
+
 type paramsJSONMarshaler struct {
 	//revive:disable:line-length-limit
 	hint.BaseHinter
@@ -243,6 +272,7 @@ type paramsJSONMarshaler struct {
 	WaitPreparingINITBallot       util.ReadableDuration `json:"wait_preparing_init_ballot,omitempty"`
 	BallotStuckWait               util.ReadableDuration `json:"ballot_stuck_wait,omitempty"`
 	BallotStuckResolveAfter       util.ReadableDuration `json:"ballot_stuck_resolve_after,omitempty"`
+	MinWaitNextBlockINITBallot    util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	//revive:enable:line-length-limit
 }
@@ -255,6 +285,7 @@ func (p *Params) MarshalJSON() ([]byte, error) {
 		WaitPreparingINITBallot:       util.ReadableDuration(p.waitPreparingINITBallot),
 		BallotStuckResolveAfter:       util.ReadableDuration(p.ballotStuckResolveAfter),
 		BallotStuckWait:               util.ReadableDuration(p.ballotStuckWait),
+		MinWaitNextBlockINITBallot:    util.ReadableDuration(p.minWaitNextBlockINITBallot),
 		MaxTryHandoverYBrokerSyncData: p.maxTryHandoverYBrokerSyncData,
 	})
 }
@@ -266,6 +297,7 @@ type paramsJSONUnmarshaler struct {
 	WaitPreparingINITBallot       *util.ReadableDuration `json:"wait_preparing_init_ballot"`
 	BallotStuckWait               *util.ReadableDuration `json:"ballot_stuck_wait,omitempty"`
 	BallotStuckResolveAfter       *util.ReadableDuration `json:"ballot_stuck_resolve_after,omitempty"`
+	MinWaitNextBlockINITBallot    *util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData *uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	hint.BaseHinter
 	//revive:enable:line-length-limit
@@ -299,6 +331,7 @@ func (p *Params) UnmarshalJSON(b []byte) error {
 		{u.WaitPreparingINITBallot, &p.waitPreparingINITBallot},
 		{u.BallotStuckResolveAfter, &p.ballotStuckResolveAfter},
 		{u.BallotStuckWait, &p.ballotStuckWait},
+		{u.MinWaitNextBlockINITBallot, &p.minWaitNextBlockINITBallot},
 	}
 
 	for i := range durargs {

@@ -111,6 +111,7 @@ func TestParamsJSON(tt *testing.T) {
 		p := DefaultParams(networkID)
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
+		p.SetMinWaitNextBlockINITBallot(time.Second * 33)
 
 		b, err := util.MarshalJSON(p)
 		t.NoError(err)
@@ -137,6 +138,7 @@ func TestParamsJSON(tt *testing.T) {
 		t.Equal(ap.waitPreparingINITBallot, bp.waitPreparingINITBallot)
 		t.Equal(ap.ballotStuckWait, bp.ballotStuckWait)
 		t.Equal(ap.ballotStuckResolveAfter, bp.ballotStuckResolveAfter)
+		t.Equal(ap.minWaitNextBlockINITBallot, bp.minWaitNextBlockINITBallot)
 	}
 
 	suite.Run(tt, t)

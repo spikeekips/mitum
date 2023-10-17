@@ -14,13 +14,14 @@ import (
 type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error)
 
 type baseBallotHandlerArgs struct {
-	ProposalSelectFunc       isaac.ProposalSelectFunc
-	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
-	VoteFunc                 func(base.Ballot) (bool, error)
-	SuffrageVotingFindFunc   SuffrageVotingFindFunc
-	IntervalBroadcastBallot  func() time.Duration
-	WaitPreparingINITBallot  func() time.Duration
-	NewINITBallotFactFunc    func(
+	ProposalSelectFunc         isaac.ProposalSelectFunc
+	NodeInConsensusNodesFunc   isaac.NodeInConsensusNodesFunc
+	VoteFunc                   func(base.Ballot) (bool, error)
+	SuffrageVotingFindFunc     SuffrageVotingFindFunc
+	IntervalBroadcastBallot    func() time.Duration
+	WaitPreparingINITBallot    func() time.Duration
+	MinWaitNextBlockINITBallot func() time.Duration
+	NewINITBallotFactFunc      func(
 		_ context.Context,
 		point base.Point,
 		previousBlock util.Hash,
@@ -66,6 +67,7 @@ func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
 		},
 		IsEmptyProposalNoBlockFunc: func() bool { return false },
 		IsEmptyProposalFunc:        func(context.Context, base.ProposalSignFact) (bool, error) { return false, nil },
+		MinWaitNextBlockINITBallot: func() time.Duration { return time.Second * 2 },
 	}
 }
 
@@ -152,6 +154,17 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 	suf base.Suffrage,
 	initialWait time.Duration,
 ) (base.INITBallot, error) {
+	if wait := st.args.MinWaitNextBlockINITBallot(); wait < st.args.WaitPreparingINITBallot() {
+		st.Log().Debug().Dur("wait", wait).Msg("wait for next block init balllot")
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+			initialWait -= wait //revive:disable-line:modifies-parameter
+		}
+	}
+
 	bl, err := st.makeINITBallot(
 		ctx,
 		avp.Point().Point.NextHeight(),
