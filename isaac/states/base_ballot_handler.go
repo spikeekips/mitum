@@ -510,18 +510,21 @@ func (st *baseBallotHandler) defaultPrepareNextBlockBallot(
 
 	if err := st.prepareINITBallot(
 		func(ctx context.Context) base.INITBallot {
-			bl, err := st.makeNextBlockBallot(ctx, avp, suf, wait)
-			if err != nil {
+			switch bl, err := st.makeNextBlockBallot(ctx, avp, suf, wait); {
+			case errors.Is(err, context.Canceled):
+				return nil
+			case err != nil:
 				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 				return nil
+			default:
+				return bl
 			}
-
-			return bl
 		},
 		func(err error) {
 			switch {
 			case err == nil:
+			case errors.Is(err, context.Canceled):
 			case errors.Is(err, errFailedToVoteNotInConsensus):
 				l.Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
@@ -554,18 +557,21 @@ func (st *baseBallotHandler) defaultPrepareNextRoundBallot(
 
 	if err := st.prepareINITBallot(
 		func(ctx context.Context) base.INITBallot {
-			bl, err := st.makeNextRoundBallot(ctx, vp, previousBlock, suf, wait)
-			if err != nil {
+			switch bl, err := st.makeNextRoundBallot(ctx, vp, previousBlock, suf, wait); {
+			case errors.Is(err, context.Canceled):
+				return nil
+			case err != nil:
 				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 				return nil
+			default:
+				return bl
 			}
-
-			return bl
 		},
 		func(err error) {
 			switch {
 			case err == nil:
+			case errors.Is(err, context.Canceled):
 			case errors.Is(err, errFailedToVoteNotInConsensus):
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
