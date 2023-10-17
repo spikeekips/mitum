@@ -444,6 +444,8 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	if current != nil {
 		switch i, err := current.exit(sctx); {
 		case err == nil:
+			l.Debug().Msg("exited")
+
 			cdefer = i
 		case sctx.next() == StateBroken:
 			l.Error().Err(err).Msg("failed to exit current state, but next is broken state; error will be ignored")
@@ -453,6 +455,8 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 
 				return nil, nil, err
 			}
+
+			l.Error().Err(err).Msg("failed to exit state")
 
 			return nil, nil, e.WithMessage(err, "exit current state")
 		}
@@ -465,11 +469,18 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 
 	ndefer, err = nextHandler.enter(current.state(), sctx)
 	if err != nil {
-		if isSwitchContextError(err) {
+		var nsctx switchContext
+
+		if errors.As(err, &nsctx) {
+			l.Debug().Dict("next_next_state", switchContextLog(nsctx)).
+				Msg("failed to enter; another switch context")
+
 			st.cs = nextHandler
 
 			return nil, nil, err
 		}
+
+		l.Error().Err(err).Msg("failed to enter state")
 
 		return nil, nil, e.WithMessage(err, "enter next state")
 	}
@@ -508,10 +519,10 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 		return errors.Errorf("unknown next state, %q", next)
 	case next == current.state():
 		return ErrIgnoreSwitchingState.Errorf("same next state")
-	case next == StateBroken:
-		return nil
 	case nsctx.from() != current.state():
 		return ErrIgnoreSwitchingState.Errorf("current != from")
+	case next == StateBroken: // NOTE prevent new broken state, which comes from ater handler exit
+		return nil
 	}
 
 	if err := st.checkHandoverStateSwitchContext(nsctx, current.state()); err != nil {
