@@ -196,6 +196,7 @@ type DevFlags struct { //nolint:govet //...
 	AllowRiskyThreshold bool          `name:"allow-risky-threshold" help:"allow risky threshold under threshold, ${safe_threshold}" group:"dev"`
 	DelaySyncer         time.Duration `name:"delay-syncer" help:"initial delay when sync one block" group:"dev"`
 	AllowConsensus      bool          `name:"allow-consensus" help:"allow to enter consensus" group:"dev"`
+	ExitBroken          bool          `name:"exit-broken" help:"exit broken state" group:"dev"`
 	//revive:enable:struct-tag
 	//revive:enable:line-length-limit
 }

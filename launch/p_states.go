@@ -405,6 +405,14 @@ func newSyncerFunc(pctx context.Context) (
 }
 
 func newBrokenHandlerArgs(pctx context.Context) (*isaacstates.BrokenHandlerArgs, error) {
+	var devflags DevFlags
+
+	if err := util.LoadFromContextOK(pctx,
+		DevFlagsContextKey, &devflags,
+	); err != nil {
+		return nil, err
+	}
+
 	leaveMemberlistf, err := leaveMemberlistForHandlerFunc(pctx)
 	if err != nil {
 		return nil, err
@@ -412,6 +420,7 @@ func newBrokenHandlerArgs(pctx context.Context) (*isaacstates.BrokenHandlerArgs,
 
 	args := isaacstates.NewBrokenHandlerArgs()
 	args.LeaveMemberlistFunc = leaveMemberlistf
+	args.Exit = devflags.ExitBroken
 
 	return args, nil
 }

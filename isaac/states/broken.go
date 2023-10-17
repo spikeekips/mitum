@@ -10,6 +10,7 @@ var ErrUnpromising = util.NewIDError("unpromising broken error")
 
 type BrokenHandlerArgs struct {
 	LeaveMemberlistFunc func() error
+	Exit                bool
 }
 
 func NewBrokenHandlerArgs() *BrokenHandlerArgs {
@@ -64,8 +65,12 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 
 	switch err := sctx.Unwrap(); {
 	case err == nil:
-	case errors.Is(err, ErrUnpromising):
+	case errors.Is(err, ErrUnpromising), st.args.Exit:
 		return nil, e.Wrap(err)
+	}
+
+	if st.args.Exit {
+		return nil, e.Errorf("exit")
 	}
 
 	return func() {
