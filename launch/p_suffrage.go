@@ -363,11 +363,26 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
+	svbroadcastf := broadcastSuffrageVotingFunc(log, m)
+
 	sv := isaac.NewSuffrageVoting(
 		local.Address(),
 		pool,
 		db.ExistsInStateOperation,
-		broadcastSuffrageVotingFunc(log, m),
+		func(op base.SuffrageExpelOperation) error {
+			go func() {
+				l := log.Log().With().Interface("operation", op).Logger()
+
+				switch err := svbroadcastf(op); {
+				case err != nil:
+					l.Error().Err(err).Msg("failed to broadcast suffrage voting operation")
+				default:
+					l.Debug().Msg("suffrage voting operation broadcast")
+				}
+			}()
+
+			return nil
+		},
 	)
 
 	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageExpelOperation) error {
