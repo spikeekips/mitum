@@ -605,7 +605,9 @@ func (st *baseBallotHandler) requestProposal(
 		Logger()
 
 	started := time.Now()
-	defer l.Debug().Stringer("elapsed", time.Since(started)).Msg("proposal selection done")
+	defer func() {
+		l.Debug().Stringer("elapsed", time.Since(started)).Msg("proposal selection done")
+	}()
 
 	switch pr, err := st.args.ProposalSelectFunc(ctx, point, previousBlock, initialWait); {
 	case err == nil:
