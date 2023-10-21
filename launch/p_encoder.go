@@ -22,7 +22,7 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
 
-	if err := encs.AddHinter(enc); err != nil {
+	if err := encs.AddEncoder(enc); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -35,12 +35,12 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 func PAddHinters(pctx context.Context) (context.Context, error) {
 	e := util.StringError("add hinters")
 
-	var enc encoder.Encoder
-	if err := util.LoadFromContextOK(pctx, EncoderContextKey, &enc); err != nil {
+	var encs *encoder.Encoders
+	if err := util.LoadFromContextOK(pctx, EncodersContextKey, &encs); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	if err := LoadHinters(enc); err != nil {
+	if err := LoadHinters(encs); err != nil {
 		return pctx, e.Wrap(err)
 	}
 

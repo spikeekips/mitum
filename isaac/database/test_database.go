@@ -171,7 +171,7 @@ func (t *BaseTestDatabase) noerror(err error) {
 func (t *BaseTestDatabase) SetupSuite() {
 	t.Encs = encoder.NewEncoders()
 	t.Enc = jsonenc.NewEncoder()
-	t.noerror(t.Encs.AddHinter(t.Enc))
+	t.noerror(t.Encs.AddEncoder(t.Enc))
 
 	t.noerror(t.Enc.AddHinter(base.DummyManifest{}))
 	t.noerror(t.Enc.AddHinter(base.DummyBlockMap{}))

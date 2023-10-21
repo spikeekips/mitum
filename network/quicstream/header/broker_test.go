@@ -31,7 +31,7 @@ func (t *testBrokers) SetupSuite() {
 
 	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.encs.AddHinter(t.enc))
+	t.NoError(t.encs.AddEncoder(t.enc))
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: DefaultResponseHeaderHint, Instance: DefaultResponseHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyRequestHeaderHint, Instance: dummyRequestHeader{}}))

@@ -172,7 +172,7 @@ type testDefaultProposalProcessor struct {
 func (t *testDefaultProposalProcessor) SetupSuite() {
 	t.Encs = encoder.NewEncoders()
 	t.Enc = jsonenc.NewEncoder()
-	t.NoError(t.Encs.AddHinter(t.Enc))
+	t.NoError(t.Encs.AddEncoder(t.Enc))
 
 	t.NoError(t.Enc.AddHinter(base.DummyManifest{}))
 	t.NoError(t.Enc.AddHinter(base.DummyBlockMap{}))

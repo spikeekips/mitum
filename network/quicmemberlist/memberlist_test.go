@@ -35,7 +35,7 @@ func (t *testMemberlist) SetupSuite() {
 
 	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.encs.AddHinter(t.enc))
+	t.NoError(t.encs.AddEncoder(t.enc))
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
