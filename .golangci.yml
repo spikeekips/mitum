@@ -1554,6 +1554,7 @@ linters:
     - gocyclo
     - depguard
     - tagalign
+    - inamedparam
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters
