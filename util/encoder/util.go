@@ -10,7 +10,13 @@ import (
 )
 
 func Ptr(i interface{}) (ptr reflect.Value, elem reflect.Value) {
-	elem = reflect.ValueOf(i)
+	switch j, ok := i.(reflect.Value); {
+	case ok:
+		elem = j
+	default:
+		elem = reflect.ValueOf(i)
+	}
+
 	if elem.Type().Kind() == reflect.Ptr {
 		return elem, elem.Elem()
 	}
@@ -30,19 +36,29 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		return d
 	}
 
+	orig := reflect.ValueOf(v)
+	_, elem := Ptr(orig)
+	isptr := orig.Type().Kind() == reflect.Ptr
+
 	p := d.Decode
 	oht := v.(hint.Hinter).Hint() //nolint:forcetypeassert //...
 
 	// NOTE hint.BaseHinter
-	if i, j := reflect.TypeOf(v).FieldByName("BaseHinter"); j && i.Type == reflect.TypeOf(hint.BaseHinter{}) {
+	if i, j := elem.Type().FieldByName("BaseHinter"); j && i.Type == reflect.TypeOf(hint.BaseHinter{}) {
 		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 			i, err := p(b, ht)
 			if err != nil {
 				return i, errors.WithMessage(err, "decode")
 			}
 
-			n := reflect.New(reflect.TypeOf(i))
-			n.Elem().Set(reflect.ValueOf(i))
+			n := reflect.New(elem.Type())
+
+			switch {
+			case isptr:
+				n.Elem().Set(reflect.ValueOf(i).Elem())
+			default:
+				n.Elem().Set(reflect.ValueOf(i))
+			}
 
 			x := n.Elem().FieldByName("BaseHinter")
 			if !x.IsValid() || !x.CanAddr() {
@@ -54,6 +70,10 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 			}
 
 			x.Set(reflect.ValueOf(hint.NewBaseHinter(ht)))
+
+			if isptr {
+				return n.Interface(), nil
+			}
 
 			return n.Elem().Interface(), nil
 		}

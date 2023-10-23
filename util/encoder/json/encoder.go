@@ -222,7 +222,18 @@ func (*Encoder) guessHint(b []byte) (string, error) {
 func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.DecodeDetail {
 	e := util.StringError("analyze")
 
-	ptr, elem := encoder.Ptr(v)
+	orig := reflect.ValueOf(v)
+	ptr, elem := encoder.Ptr(orig)
+
+	tointerface := func(i interface{}) interface{} {
+		return reflect.ValueOf(i).Elem().Interface()
+	}
+
+	if orig.Type().Kind() == reflect.Ptr {
+		tointerface = func(i interface{}) interface{} {
+			return i
+		}
+	}
 
 	switch ptr.Interface().(type) {
 	case Decodable:
@@ -234,7 +245,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 				return nil, e.WithMessage(err, "DecodeJSON")
 			}
 
-			return reflect.ValueOf(i).Elem().Interface(), nil
+			return tointerface(i), nil
 		}
 	case json.Unmarshaler:
 		d.Desc = "JSONUnmarshaler"
@@ -245,7 +256,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 				return nil, e.WithMessage(err, "UnmarshalJSON")
 			}
 
-			return reflect.ValueOf(i).Elem().Interface(), nil
+			return tointerface(i), nil
 		}
 	case encoding.TextUnmarshaler:
 		d.Desc = "TextUnmarshaler"
@@ -256,7 +267,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 				return nil, e.WithMessage(err, "UnmarshalText")
 			}
 
-			return reflect.ValueOf(i).Elem().Interface(), nil
+			return tointerface(i), nil
 		}
 	default:
 		d.Desc = "native"
@@ -267,12 +278,12 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 				return nil, e.WithMessage(err, "native UnmarshalJSON")
 			}
 
-			return reflect.ValueOf(i).Elem().Interface(), nil
+			return tointerface(i), nil
 		}
 	}
 
 	return enc.analyzeExtensible(
-		encoder.AnalyzeSetHinter(d, elem.Interface()),
+		encoder.AnalyzeSetHinter(d, orig.Interface()),
 		ptr,
 	)
 }

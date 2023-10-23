@@ -538,6 +538,30 @@ func (t *testJSONEncoder) TestDecodeSlice() {
 	t.Equal(hrb, uhrb)
 }
 
+func (t *testJSONEncoder) TestDecodePtr() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: &sampleJSONUnmarshaler{}}))
+
+	v := &sampleJSONUnmarshaler{
+		BaseHinter: hint.NewBaseHinter(ht),
+		A:          "A",
+		B:          33,
+	}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	i, err := t.enc.Decode(b)
+	t.NoError(err)
+
+	uv, ok := i.(*sampleJSONUnmarshaler)
+	t.True(ok, "%T", i)
+
+	t.True(ht.Equal(uv.Hint()))
+	t.Equal(v, uv)
+}
+
 func TestJSONEncoder(t *testing.T) {
 	suite.Run(t, new(testJSONEncoder))
 }
