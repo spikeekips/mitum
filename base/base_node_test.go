@@ -26,7 +26,7 @@ func TestBaseNodeEncode(tt *testing.T) {
 		return node, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseNode{}}))
 

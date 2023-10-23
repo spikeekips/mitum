@@ -26,7 +26,7 @@ func (t *baseTestCAHandoverHeader) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverHeaderHint, Instance: CheckHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AskHandoverHeaderHint, Instance: AskHandoverHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CheckHandoverXHeaderHint, Instance: CheckHandoverXHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 }
 
 func (t *baseTestCAHandoverHeader) SetupTest() {
@@ -213,7 +213,7 @@ func TestCancelHandoverHeaderEncode(tt *testing.T) {
 
 	enc := jsonenc.NewEncoder()
 	t.NoError(enc.Add(encoder.DecodeDetail{Hint: CancelHandoverHeaderHint, Instance: CancelHandoverHeader{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 
 	t.Encode = func() (interface{}, []byte) {
 		priv := base.NewMPrivatekey()

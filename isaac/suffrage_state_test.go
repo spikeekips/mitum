@@ -17,7 +17,7 @@ func TestSuffrageNodeStateValueJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
 
@@ -58,7 +58,7 @@ func TestSuffrageNodesStateValueJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodesStateValueHint, Instance: SuffrageNodesStateValue{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
@@ -105,7 +105,7 @@ func TestSuffrageCandidatesStateValueJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidatesStateValueHint, Instance: SuffrageCandidatesStateValue{}}))
@@ -152,7 +152,7 @@ func TestSuffrageCandidateJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 

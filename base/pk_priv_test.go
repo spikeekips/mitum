@@ -162,15 +162,6 @@ func (t *testMPrivatekey) TestEqual() {
 	t.True(b.Equal(b))
 	t.False(priv.Equal(nil))
 	t.False(b.Equal(nil))
-
-	npriv := priv
-	npriv.BaseHinter = npriv.BaseHinter.SetHint(hint.MustNewHint("wrong-v0.0.1")).(hint.BaseHinter)
-	npriv = npriv.ensure()
-	t.False(priv.Equal(npriv))
-
-	npriv.BaseHinter = npriv.BaseHinter.SetHint(hint.MustNewHint(MPrivatekeyHint.Type().String() + "-v0.0.1")).(hint.BaseHinter)
-	npriv = npriv.ensure()
-	t.True(priv.Equal(npriv))
 }
 
 func TestMPrivatekey(t *testing.T) {
@@ -209,16 +200,16 @@ func (t *baseTestMPKKeyEncode) SetupSuite() {
 		return
 	}
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: MPrivatekey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: &MPrivatekey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 }
 
 func testMPrivatekeyEncode() *baseTestMPKKeyEncode {
 	t := new(baseTestMPKKeyEncode)
 	t.compare = func(a, b PKKey) {
-		_, ok := a.(MPrivatekey)
+		_, ok := a.(*MPrivatekey)
 		t.True(ok)
-		_, ok = b.(MPrivatekey)
+		_, ok = b.(*MPrivatekey)
 		t.True(ok)
 	}
 

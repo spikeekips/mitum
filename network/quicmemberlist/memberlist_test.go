@@ -38,7 +38,7 @@ func (t *testMemberlist) SetupSuite() {
 	t.NoError(t.encs.AddEncoder(t.enc))
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ConnInfoBroadcastMessageHint, Instance: ConnInfoBroadcastMessage{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))

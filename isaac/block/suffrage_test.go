@@ -242,7 +242,7 @@ func (t *testSuffrageProof) TestEncode() {
 
 	hints := []encoder.DecodeDetail{
 		{Hint: BlockMapHint, Instance: BlockMap{}},
-		{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
+		{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}},
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: base.BaseStateHint, Instance: base.BaseState{}},

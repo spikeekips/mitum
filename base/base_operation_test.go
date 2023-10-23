@@ -329,7 +329,7 @@ func TestBaseOperationEncode(tt *testing.T) {
 		return op, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: DummyFactHint, Instance: DummyFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseOperation{}}))
 
@@ -462,7 +462,7 @@ func TestBaseOperationEncodeExtensible(tt *testing.T) {
 		return nil, []byte(b)
 	}
 	t.Decode = func(b []byte) interface{} {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: DummyFactHint, Instance: DummyFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: dummyOperationExtensible{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: insideht, Instance: insideDummyOperationExtensible{}}))
@@ -564,7 +564,7 @@ func TestBaseNodeOperationEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: DummyFactHint, Instance: DummyFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseNodeOperation{}}))
 

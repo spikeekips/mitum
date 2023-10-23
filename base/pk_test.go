@@ -26,8 +26,8 @@ func TestDecodePrivatekeyFromString(tt *testing.T) {
 
 	enc := jsonenc.NewEncoder()
 
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: MPrivatekey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: &MPrivatekey{}}))
 
 	for i, c := range cases {
 		i := i
@@ -70,8 +70,8 @@ func TestDecodePublickeyFromString(tt *testing.T) {
 
 	enc := jsonenc.NewEncoder()
 
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: MPrivatekey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: &MPrivatekey{}}))
 
 	for i, c := range cases {
 		i := i

@@ -207,7 +207,7 @@ func (t *testBlockMap) TestEncode() {
 
 	tt.Encode = func() (interface{}, []byte) {
 		tt.enc = jsonenc.NewEncoder()
-		t.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		tt.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}}))
 		tt.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: BlockMapHint, Instance: BlockMap{}}))

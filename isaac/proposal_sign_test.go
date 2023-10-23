@@ -85,7 +85,7 @@ func TestProposalSignFactJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalSignFactHint, Instance: ProposalSignFact{}}))
 

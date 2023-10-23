@@ -6,7 +6,6 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -37,7 +36,7 @@ func (t *testMPublickey) TestParseMPublickey() {
 
 func (t *testMPublickey) TestInvalid() {
 	priv := NewMPrivatekey()
-	pub := priv.Publickey().(MPublickey)
+	pub := priv.Publickey().(*MPublickey)
 
 	{ // empty *btcec.PublicKey
 		n := pub
@@ -46,45 +45,20 @@ func (t *testMPublickey) TestInvalid() {
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty btc publickey")
 	}
-
-	{ // empty *btcec.PublicKey
-		n := pub
-		n.s = ""
-		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty publickey string")
-	}
-
-	{ // empty *btcec.PublicKey
-		n := pub
-		n.b = nil
-		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty publickey []byte")
-	}
 }
 
 func (t *testMPublickey) TestEqual() {
 	priv := NewMPrivatekey()
-	pub := priv.Publickey().(MPublickey)
+	pub := priv.Publickey().(*MPublickey)
 
 	privb := NewMPrivatekey()
-	pubb := privb.Publickey().(MPublickey)
+	pubb := privb.Publickey().(*MPublickey)
 
 	t.True(pub.Equal(pub))
 	t.False(pub.Equal(pubb))
 	t.True(pubb.Equal(pubb))
 	t.False(pub.Equal(nil))
 	t.False(pubb.Equal(nil))
-
-	npub := pub
-	npub.BaseHinter = npub.BaseHinter.SetHint(hint.MustNewHint("wrong-v0.0.1")).(hint.BaseHinter)
-	npub = npub.ensure()
-	t.False(pub.Equal(npub))
-
-	npub.BaseHinter = npub.BaseHinter.SetHint(hint.MustNewHint(MPublickeyHint.Type().String() + "-v0.0.1")).(hint.BaseHinter)
-	npub = npub.ensure()
-	t.True(pub.Equal(npub))
 }
 
 func (t *testMPublickey) TestSign() {

@@ -19,7 +19,7 @@ type baseTestACL struct {
 func (t *baseTestACL) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 }
 
 func (t *baseTestACL) printYAML(name string, i interface{}) {

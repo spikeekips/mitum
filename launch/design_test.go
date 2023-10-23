@@ -275,7 +275,7 @@ func (t *testSyncSourcesDesign) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 }
 
 func (t *testSyncSourcesDesign) TestDecode() {
@@ -408,7 +408,7 @@ func (t *testNodeDesign) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPrivatekeyHint, Instance: &base.MPrivatekey{}}))
 }
 
 func (t *testNodeDesign) TestIsValid() {
@@ -1215,7 +1215,7 @@ func (t *testGenesisOpertionsDesign) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: base.BaseNode{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}}))

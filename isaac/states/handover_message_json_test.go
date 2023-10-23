@@ -31,7 +31,7 @@ func (t *baseEncodeTestHandoverMessage) SetupSuite() {
 		{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 		{Hint: isaac.ProposalSignFactHint, Instance: isaac.ProposalSignFact{}},
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
-		{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
+		{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}},
 		{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}},
 		{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}},
 		{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}},

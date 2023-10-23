@@ -176,7 +176,7 @@ func (t *testDefaultProposalProcessor) SetupSuite() {
 
 	t.NoError(t.Enc.AddHinter(base.DummyManifest{}))
 	t.NoError(t.Enc.AddHinter(base.DummyBlockMap{}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))

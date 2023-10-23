@@ -93,7 +93,7 @@ func TestBaseSignedJSON(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 
 		s, err := NewBaseSignFromBytes(priv, nil, input)
 		t.NoError(err)
@@ -173,7 +173,7 @@ func TestBaseNodeSignJSON(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
 
 		s, err := NewBaseNodeSignFromBytes(RandomAddress(""), priv, nil, input)

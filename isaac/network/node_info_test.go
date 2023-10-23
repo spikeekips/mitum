@@ -31,7 +31,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 
 	hints := []encoder.DecodeDetail{
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
-		{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
+		{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}},
 		{Hint: base.DummyNodeHint, Instance: base.BaseNode{}},
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}},

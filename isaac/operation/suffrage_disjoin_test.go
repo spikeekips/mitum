@@ -190,7 +190,7 @@ func TestSuffrageDisjoinEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageDisjoinFactHint, Instance: SuffrageDisjoinFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageDisjoinHint, Instance: SuffrageDisjoin{}}))
 
