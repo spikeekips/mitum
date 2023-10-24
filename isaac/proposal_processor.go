@@ -244,6 +244,11 @@ func (p *DefaultProposalProcessor) isSaved() bool {
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
+	started := time.Now()
+	defer func() {
+		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("processed")
+	}()
+
 	var cops []base.Operation
 
 	switch i, err := p.collectOperations(ctx); {
@@ -259,6 +264,10 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 		return nil, errors.Wrap(err, "make new ProposalProcessor")
 	default:
 		p.writer = writer
+
+		if i, ok := writer.(logging.SetLogging); ok {
+			_ = i.SetLogging(p.Logging)
+		}
 	}
 
 	if len(cops) < 1 && p.args.EmptyProposalNoBlockFunc() {
@@ -271,9 +280,13 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 		}
 	}
 
-	manifest, err := p.writer.Manifest(ctx, p.previous)
-	if err != nil {
+	var manifest base.Manifest
+
+	switch i, err := p.createManifest(ctx); {
+	case err != nil:
 		return nil, err
+	default:
+		manifest = i
 	}
 
 	p.Log().Info().Interface("manifest", manifest).Msg("new manifest prepared")
@@ -292,6 +305,11 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 }
 
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]base.Operation, error) {
+	started := time.Now()
+	defer func() {
+		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("operations collected")
+	}()
+
 	e := util.StringError("collect operations")
 
 	var cops []base.Operation
@@ -334,7 +352,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 		workersize = p.args.MaxWorkerSize
 	}
 
-	if err := util.RunErrgroupWorker(cctx, workersize, func(ctx context.Context, i, _ uint64) error {
+	if err := util.RunErrgroupWorker(cctx, workersize, int64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
 		oph := ophs[i][0]
 		fact := ophs[i][1]
 
@@ -353,7 +371,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 		case op == nil:
 			l.Debug().Msg("operation ignored")
 		default:
-			l.Debug().Msg("operation collected")
+			l.Trace().Msg("operation collected")
 
 			cops[index+int(i)] = op
 		}
@@ -369,9 +387,15 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 }
 
 func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops []base.Operation) error {
-	e := util.StringError("process operations")
+	started := time.Now()
+	defer func() {
+		p.Log().Debug().
+			Int("operations", len(cops)).
+			Stringer("elapsed", time.Since(started)).
+			Msg("operations processed")
+	}()
 
-	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
+	e := util.StringError("process operations")
 
 	p.writer.SetOperationsSize(uint64(len(cops)))
 
@@ -782,6 +806,15 @@ func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact u
 	default:
 		return nil, false, err
 	}
+}
+
+func (p *DefaultProposalProcessor) createManifest(ctx context.Context) (base.Manifest, error) {
+	started := time.Now()
+	defer func() {
+		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("manifest processed")
+	}()
+
+	return p.writer.Manifest(ctx, p.previous)
 }
 
 type ReasonProcessedOperation struct {
