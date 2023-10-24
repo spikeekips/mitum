@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"math"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -325,7 +326,7 @@ func (g *GenesisBlockGenerator) closeDatabase() error {
 
 func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalProcessor, error) {
 	args := isaac.NewDefaultProposalProcessorArgs()
-	args.NewWriterFunc = NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db)
+	args.NewWriterFunc = NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db, math.MaxInt16)
 	args.GetStateFunc = func(key string) (base.State, bool, error) {
 		return nil, false, nil
 	}

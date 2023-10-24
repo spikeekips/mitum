@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -26,7 +27,7 @@ func (t *testWriter) TestNew() {
 	fswriter := &DummyBlockFSWriter{}
 	writer := NewWriter(nil, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil
-	}, fswriter)
+	}, fswriter, math.MaxInt8)
 
 	_ = (interface{})(writer).(isaac.BlockWriter)
 
@@ -64,7 +65,7 @@ func (t *testWriter) TestSetOperations() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter, math.MaxInt8)
 
 	writer.SetOperationsSize(uint64(len(facts)))
 
@@ -149,7 +150,7 @@ func (t *testWriter) TestSetStates() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter, math.MaxInt8)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -245,7 +246,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter, math.MaxInt8)
 
 	writer.SetOperationsSize(uint64(len(ops)))
 
@@ -303,7 +304,7 @@ func (t *testWriter) TestManifest() {
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil
-	}, fswriter)
+	}, fswriter, math.MaxInt8)
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest, err := writer.Manifest(context.Background(), previous)

@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -96,12 +97,14 @@ func newProposalProcessorFunc(pctx context.Context) (
 		isaac.ProposalProcessor, error,
 	) {
 		args := isaac.NewDefaultProposalProcessorArgs()
+		args.MaxWorkerSize = math.MaxInt16
 		args.NewWriterFunc = NewBlockWriterFunc(
 			local,
 			isaacparams.NetworkID(),
 			LocalFSDataDirectory(design.Storage.Base),
 			enc,
 			db,
+			args.MaxWorkerSize,
 		)
 		args.GetStateFunc = db.State
 		args.GetOperationFunc = getProposalOperationFuncf(proposal)

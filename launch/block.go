@@ -109,6 +109,7 @@ func NewBlockWriterFunc(
 	dataroot string,
 	enc encoder.Encoder,
 	db isaac.Database,
+	workersize int64,
 ) isaac.NewBlockWriterFunc {
 	return func(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
 		e := util.StringError("create BlockWriter")
@@ -129,6 +130,13 @@ func NewBlockWriterFunc(
 			return nil, e.Wrap(err)
 		}
 
-		return isaacblock.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+		return isaacblock.NewWriter(
+			proposal,
+			getStateFunc,
+			dbw,
+			db.MergeBlockWriteDatabase,
+			fswriter,
+			workersize,
+		), nil
 	}
 }
