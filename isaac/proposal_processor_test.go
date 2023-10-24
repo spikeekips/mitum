@@ -275,6 +275,7 @@ func (t *testDefaultProposalProcessor) newargs(
 ) *DefaultProposalProcessorArgs {
 	args := NewDefaultProposalProcessorArgs()
 	args.NewWriterFunc = newWriterFunc
+	args.GetStateFunc = base.NilGetState
 
 	return args
 }
@@ -1143,7 +1144,10 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	writer, newwriterf := t.newBlockWriter()
 	writer.manifest = manifest
-	writer.getStateFunc = func(key string) (base.State, bool, error) {
+
+	args := t.newargs(newwriterf)
+
+	args.GetStateFunc = func(key string) (base.State, bool, error) {
 		switch key {
 		case sts[ophs[1][1].String()].Key():
 			return prevsts[1], true, nil
@@ -1152,7 +1156,6 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		}
 	}
 
-	args := t.newargs(newwriterf)
 	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
 		op, found := ops[oph.String()]
 		if !found {

@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -85,6 +86,7 @@ type DefaultProposalProcessor struct {
 	writer       BlockWriter
 	ivp          base.INITVoteproof
 	oprs         *util.ShardedMap[string, base.OperationProcessor]
+	stcache      *util.ShardedMap[string, [2]interface{}]
 	processstate *util.Locked[int]
 	processlock  sync.Mutex
 }
@@ -95,6 +97,7 @@ func NewDefaultProposalProcessor(
 	args *DefaultProposalProcessorArgs,
 ) (*DefaultProposalProcessor, error) {
 	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1<<5, nil) //nolint:gomnd //...
+	stcache, _ := util.NewShardedMap[string, [2]interface{}](uint64(math.MaxUint16), nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -109,6 +112,7 @@ func NewDefaultProposalProcessor(
 		args:         args,
 		oprs:         oprs,
 		processstate: util.NewLocked(0),
+		stcache:      stcache,
 	}, nil
 }
 
@@ -259,7 +263,7 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 		cops = i
 	}
 
-	switch writer, err := p.args.NewWriterFunc(p.proposal, p.args.GetStateFunc); {
+	switch writer, err := p.args.NewWriterFunc(p.proposal, p.getStateFunc); {
 	case err != nil:
 		return nil, errors.Wrap(err, "make new ProposalProcessor")
 	default:
@@ -416,7 +420,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops [
 	var opsindex, validindex int
 
 	writer := p.writer
-	getStatef := p.args.GetStateFunc
+	getStatef := p.getStateFunc
 	newOperationProcessor := p.args.NewOperationProcessorFunc
 
 	for i := range cops {
@@ -618,12 +622,12 @@ func (p *DefaultProposalProcessor) getPreProcessor(
 		return nil, errors.Wrap(err, "get OperationProcessor for PreProcess")
 	case found:
 		return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
-			return opp.PreProcess(ctx, op, p.args.GetStateFunc) //nolint:wrapcheck //...
+			return opp.PreProcess(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
 		}, nil
 	}
 
 	return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
-		return op.PreProcess(ctx, p.args.GetStateFunc) //nolint:wrapcheck //...
+		return op.PreProcess(ctx, p.getStateFunc) //nolint:wrapcheck //...
 	}, nil
 }
 
@@ -815,6 +819,31 @@ func (p *DefaultProposalProcessor) createManifest(ctx context.Context) (base.Man
 	}()
 
 	return p.writer.Manifest(ctx, p.previous)
+}
+
+func (p *DefaultProposalProcessor) getStateFunc(key string) (st base.State, found bool, _ error) {
+	err := p.stcache.GetOrCreate(
+		key,
+		func(i [2]interface{}, _ bool) error {
+			if i[0] != nil {
+				st = i[0].(base.State) //nolint:forcetypeassert //...
+			}
+
+			found = i[1].(bool) //nolint:forcetypeassert //...
+
+			return nil
+		},
+		func() (v [2]interface{}, _ error) {
+			switch i, j, err := p.args.GetStateFunc(key); {
+			case err != nil:
+				return v, err
+			default:
+				return [2]interface{}{i, j}, nil
+			}
+		},
+	)
+
+	return st, found, err
 }
 
 type ReasonProcessedOperation struct {
