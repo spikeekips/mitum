@@ -764,8 +764,8 @@ type testBatchWork struct {
 }
 
 func (t *testBatchWork) TestSimple() {
-	size := uint64(14)
-	limit := uint64(3)
+	size := int64(14)
+	limit := int64(3)
 
 	founds := make([]byte, size)
 	foundlasts := make([]uint64, size/limit+1)
@@ -793,15 +793,15 @@ func (t *testBatchWork) TestSimple() {
 		t.NotNil(founds[i])
 	}
 
-	t.Equal(uint64(5), size/limit+1)
+	t.Equal(int64(5), size/limit+1)
 
-	for i := uint64(0); i <= size/limit; i++ {
+	for i := int64(0); i <= size/limit; i++ {
 		j := (i+1)*limit - 1
 		if j > size-1 {
 			j = size - 1
 		}
 
-		t.Equal(j, foundlasts[i])
+		t.Equal(uint64(j), foundlasts[i])
 	}
 }
 

@@ -27,8 +27,8 @@ func ImportBlocks(
 
 	if err := util.BatchWork(
 		ctx,
-		uint64((to - from + 1).Int64()),
-		uint64(batchlimit),
+		(to - from + 1).Int64(),
+		batchlimit,
 		func(ctx context.Context, last uint64) error {
 			if ims != nil {
 				if err := saveImporters(ctx, ims, mergeBlockWriterDatabasesf); err != nil {
@@ -174,7 +174,9 @@ func saveImporters(
 	default:
 		deferreds := make([]func(context.Context) error, len(ims))
 
-		if err := util.RunErrgroupWorker(ctx, int64(len(ims)), func(ctx context.Context, i, _ uint64) error {
+		n := int64(len(ims))
+
+		if err := util.RunErrgroupWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
 			deferred, err := ims[i].Save(ctx)
 			if err != nil {
 				return err
@@ -223,7 +225,9 @@ func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 		return nil
 	}
 
-	if err := util.RunErrgroupWorker(ctx, int64(len(ims)), func(ctx context.Context, i, _ uint64) error {
+	n := int64(len(ims))
+
+	if err := util.RunErrgroupWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
 		return ims[i].CancelImport(ctx)
 	}); err != nil {
 		return e.Wrap(err)

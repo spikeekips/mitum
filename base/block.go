@@ -82,7 +82,7 @@ func BatchValidateMaps(
 	ctx context.Context,
 	prev BlockMap,
 	to Height,
-	batchlimit uint64,
+	batchlimit int64,
 	blockMapf func(context.Context, Height) (BlockMap, error),
 	callback func(BlockMap) error,
 ) error {
@@ -100,12 +100,12 @@ func BatchValidateMaps(
 
 	if err := util.BatchWork(
 		ctx,
-		uint64((to - prevheight).Int64()),
+		(to - prevheight).Int64(),
 		batchlimit,
 		func(ctx context.Context, last uint64) error {
 			lastprev = newprev
 
-			switch r := (last + 1) % batchlimit; {
+			switch r := (last + 1) % uint64(batchlimit); {
 			case r == 0:
 				maps = make([]BlockMap, batchlimit)
 			default:

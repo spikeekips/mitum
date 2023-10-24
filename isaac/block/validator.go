@@ -221,13 +221,13 @@ func ValidateAllBlockMapsFromLocalFS(
 	var lastprev, newprev base.BlockMap
 	var maps []base.BlockMap
 
-	batchlimit := uint64(333) //nolint:gomnd //...
+	var batchlimit int64 = 333 //nolint:gomnd //...
 
-	if err := util.BatchWork(context.Background(), uint64(last.Int64())+1, batchlimit,
+	if err := util.BatchWork(context.Background(), last.Int64()+1, batchlimit,
 		func(_ context.Context, last uint64) error {
 			lastprev = newprev
 
-			switch r := (last + 1) % batchlimit; {
+			switch r := (last + 1) % uint64(batchlimit); {
 			case r == 0:
 				maps = make([]base.BlockMap, batchlimit)
 			default:
@@ -416,7 +416,7 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 	}
 
 	if len(ops) > 0 {
-		if err := util.BatchWork(context.Background(), uint64(len(ops)), 333, //nolint:gomnd //...
+		if err := util.BatchWork(context.Background(), int64(len(ops)), 333, //nolint:gomnd //...
 			func(context.Context, uint64) error { return nil },
 			func(_ context.Context, i, _ uint64) error {
 				op := ops[i]
@@ -459,7 +459,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 	}
 
 	if len(sts) > 0 {
-		if err := util.BatchWork(context.Background(), uint64(len(sts)), 333, //nolint:gomnd //...
+		if err := util.BatchWork(context.Background(), int64(len(sts)), 333, //nolint:gomnd //...
 			func(context.Context, uint64) error { return nil },
 			func(_ context.Context, i, _ uint64) error {
 				st := sts[i]
@@ -510,7 +510,7 @@ func ValidateBlocksFromStorage(
 
 	if err := util.BatchWork(
 		context.Background(),
-		uint64(diff.Int64())+1,
+		diff.Int64()+1,
 		333, //nolint:gomnd //...
 		func(context.Context, uint64) error {
 			return nil

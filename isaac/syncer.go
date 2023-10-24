@@ -442,13 +442,14 @@ func DistributeWorkerWithSyncSourcePool(
 		return nil
 	}
 
+	n := int64(len(ncis))
 	nsemsize := semsize
 
-	if n := int64(len(ncis)); n < nsemsize {
+	if n < nsemsize {
 		nsemsize = n
 	}
 
-	return util.RunDistributeWorker(ctx, nsemsize, errch, func(ctx context.Context, i, jobid uint64) error {
+	return util.RunDistributeWorker(ctx, nsemsize, n, errch, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 
@@ -479,13 +480,14 @@ func ErrGroupWorkerWithSyncSourcePool(
 		return nil
 	}
 
+	n := int64(len(ncis))
 	nsemsize := semsize
 
-	if n := int64(len(ncis)); n < nsemsize {
+	if n < nsemsize {
 		nsemsize = n
 	}
 
-	return util.RunErrgroupWorker(ctx, nsemsize, func(ctx context.Context, i, jobid uint64) error {
+	return util.RunErrgroupWorker(ctx, nsemsize, n, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
 

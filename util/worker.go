@@ -448,7 +448,7 @@ func (wk *ErrgroupWorker) RunChan() chan error {
 // 3. Run worker(4), done.
 func BatchWork(
 	ctx context.Context,
-	size, limit uint64,
+	size, limit int64,
 	pref func(_ context.Context, last uint64) error,
 	f func(_ context.Context, i, last uint64) error,
 ) error {
@@ -457,47 +457,47 @@ func BatchWork(
 	}
 
 	if size <= limit {
-		if err := pref(ctx, size-1); err != nil {
+		if err := pref(ctx, uint64(size-1)); err != nil {
 			return err
 		}
 
-		return RunErrgroupWorker(ctx, int64(size), func(ctx context.Context, i, _ uint64) error {
-			return f(ctx, i, size-1)
+		return RunErrgroupWorker(ctx, size, size, func(ctx context.Context, i, _ uint64) error {
+			return f(ctx, i, uint64(size-1))
 		})
 	}
 
 	var i uint64
 
 	for {
-		end := i + limit
-		if end > size {
-			end = size
+		end := i + uint64(limit)
+		if end > uint64(size) {
+			end = uint64(size)
 		}
 
 		if err := pref(ctx, end-1); err != nil {
 			return err
 		}
 
-		if err := RunErrgroupWorker(ctx, int64(end-i), func(ctx context.Context, n, _ uint64) error {
+		if err := RunErrgroupWorker(ctx, limit, int64(end-i), func(ctx context.Context, n, _ uint64) error {
 			return f(ctx, i+n, end-1)
 		}); err != nil {
 			return err
 		}
 
-		if end == size {
+		if end == uint64(size) {
 			break
 		}
 
-		i += limit
+		i += uint64(limit)
 	}
 
 	return nil
 }
 
 func RunDistributeWorker(
-	ctx context.Context, size int64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
+	ctx context.Context, workersize, size int64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
 ) error {
-	worker, err := NewDistributeWorker(ctx, size, errch)
+	worker, err := NewDistributeWorker(ctx, workersize, errch)
 	if err != nil {
 		return err
 	}
@@ -519,8 +519,12 @@ func RunDistributeWorker(
 	return worker.Wait()
 }
 
-func RunErrgroupWorker(ctx context.Context, size int64, f func(ctx context.Context, i, jobid uint64) error) error {
-	worker, err := NewErrgroupWorker(ctx, size)
+func RunErrgroupWorker(
+	ctx context.Context,
+	workersize, size int64,
+	f func(ctx context.Context, i, jobid uint64) error,
+) error {
+	worker, err := NewErrgroupWorker(ctx, workersize)
 	if err != nil {
 		return err
 	}

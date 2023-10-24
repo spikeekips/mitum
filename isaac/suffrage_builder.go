@@ -24,7 +24,7 @@ type SuffrageStateBuilder struct {
 	getSuffrageProof           GetSuffrageProofFromRemoteFunc
 	lastSuffrageCandidateState GetLastSuffrageCandidateStateRemoteFunc
 	networkID                  base.NetworkID
-	batchlimit                 uint64
+	batchlimit                 int64
 }
 
 func NewSuffrageStateBuilder(
@@ -128,12 +128,12 @@ func (s *SuffrageStateBuilder) buildBatch(
 
 	if err := util.BatchWork(
 		ctx,
-		uint64((lastheight-from).Int64())+1,
+		(lastheight-from).Int64()+1,
 		s.batchlimit,
 		func(_ context.Context, last uint64) error {
 			previous = newprev
 
-			switch r := (last + 1) % s.batchlimit; {
+			switch r := (last + 1) % uint64(s.batchlimit); {
 			case r == 0:
 				proofs = make([]base.SuffrageProof, s.batchlimit)
 			default:

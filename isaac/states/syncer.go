@@ -342,7 +342,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		ctx,
 		prev,
 		to,
-		uint64(s.args.BatchLimit),
+		s.args.BatchLimit,
 		s.fetchMap,
 		func(m base.BlockMap) error {
 			if h := m.Manifest().Height(); h%100 == 0 || h == to {

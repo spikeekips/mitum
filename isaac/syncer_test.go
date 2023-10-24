@@ -355,7 +355,7 @@ func (t *testSyncSourcePool) TestConcurrent() {
 	p := NewSyncSourcePool(sources)
 	p.renewTimeout = time.Millisecond * 10
 
-	t.NoError(util.RunErrgroupWorker(context.Background(), 333, func(_ context.Context, i uint64, _ uint64) error {
+	t.NoError(util.RunErrgroupWorker(context.Background(), 333, int64(p.Len()), func(_ context.Context, i uint64, _ uint64) error {
 		if i%3 == 0 {
 			<-time.After(p.renewTimeout + 2)
 		}

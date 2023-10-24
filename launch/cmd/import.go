@@ -234,7 +234,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 
 	if err := util.BatchWork(
 		context.Background(),
-		uint64(d.Int64())+1,
+		d.Int64()+1,
 		333, //nolint:gomnd //...
 		func(context.Context, uint64) error {
 			return nil
