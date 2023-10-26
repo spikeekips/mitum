@@ -27,8 +27,8 @@ var (
 )
 
 type (
-	NewOperationProcessorFunc         func(base.Height, hint.Hint) (base.OperationProcessor, error)
-	NewOperationProcessorInternalFunc func(base.Height) (base.OperationProcessor, error)
+	NewOperationProcessorFunc         func(base.Height, hint.Hint, base.GetStateFunc) (base.OperationProcessor, error)
+	NewOperationProcessorInternalFunc func(base.Height, base.GetStateFunc) (base.OperationProcessor, error)
 
 	// OperationProcessorGetOperationFunction works,
 	// - if operation is invalid, getOperation should return nil,
@@ -66,7 +66,7 @@ type DefaultProposalProcessorArgs struct {
 
 func NewDefaultProposalProcessorArgs() *DefaultProposalProcessorArgs {
 	return &DefaultProposalProcessorArgs{
-		NewOperationProcessorFunc: func(base.Height, hint.Hint) (base.OperationProcessor, error) {
+		NewOperationProcessorFunc: func(base.Height, hint.Hint, base.GetStateFunc) (base.OperationProcessor, error) {
 			return nil, nil
 		},
 		Retrylimit:               15,                     //nolint:gomnd //...
@@ -672,7 +672,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 		},
 		func() (opp base.OperationProcessor, _ error) {
 			if err := p.retry(ctx, func() (bool, error) {
-				i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
+				i, err := newOperationProcessor(p.proposal.Point().Height(), ht, p.getStateFunc)
 				if err != nil {
 					return true, err
 				}

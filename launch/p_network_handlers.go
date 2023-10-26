@@ -270,68 +270,73 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 
 	set := hint.NewCompatibleSet[isaac.NewOperationProcessorInternalFunc](1 << 9) //nolint:gomnd //...
 
-	_ = set.Add(isaacoperation.SuffrageCandidateHint, func(height base.Height) (base.OperationProcessor, error) {
-		policy := db.LastNetworkPolicy()
-		if policy == nil { // NOTE Usually it means empty block data
-			return nil, nil
-		}
+	_ = set.Add(isaacoperation.SuffrageCandidateHint,
+		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
+			policy := db.LastNetworkPolicy()
+			if policy == nil { // NOTE Usually it means empty block data
+				return nil, nil
+			}
 
-		return isaacoperation.NewSuffrageCandidateProcessor(
-			height,
-			db.State,
-			limiterf,
-			nil,
-			policy.SuffrageCandidateLifespan(),
-		)
-	})
+			return isaacoperation.NewSuffrageCandidateProcessor(
+				height,
+				getStatef,
+				limiterf,
+				nil,
+				policy.SuffrageCandidateLifespan(),
+			)
+		})
 
-	_ = set.Add(isaacoperation.SuffrageJoinHint, func(height base.Height) (base.OperationProcessor, error) {
-		policy := db.LastNetworkPolicy()
-		if policy == nil { // NOTE Usually it means empty block data
-			return nil, nil
-		}
+	_ = set.Add(isaacoperation.SuffrageJoinHint,
+		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
+			policy := db.LastNetworkPolicy()
+			if policy == nil { // NOTE Usually it means empty block data
+				return nil, nil
+			}
 
-		return isaacoperation.NewSuffrageJoinProcessor(
-			height,
-			isaacparams.Threshold(),
-			db.State,
-			nil,
-			nil,
-		)
-	})
+			return isaacoperation.NewSuffrageJoinProcessor(
+				height,
+				isaacparams.Threshold(),
+				getStatef,
+				nil,
+				nil,
+			)
+		})
 
-	_ = set.Add(isaac.SuffrageExpelOperationHint, func(height base.Height) (base.OperationProcessor, error) {
-		policy := db.LastNetworkPolicy()
-		if policy == nil { // NOTE Usually it means empty block data
-			return nil, nil
-		}
+	_ = set.Add(isaac.SuffrageExpelOperationHint,
+		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
+			policy := db.LastNetworkPolicy()
+			if policy == nil { // NOTE Usually it means empty block data
+				return nil, nil
+			}
 
-		return isaacoperation.NewSuffrageExpelProcessor(
-			height,
-			db.State,
-			nil,
-			nil,
-		)
-	})
+			return isaacoperation.NewSuffrageExpelProcessor(
+				height,
+				getStatef,
+				nil,
+				nil,
+			)
+		})
 
-	_ = set.Add(isaacoperation.SuffrageDisjoinHint, func(height base.Height) (base.OperationProcessor, error) {
-		return isaacoperation.NewSuffrageDisjoinProcessor(
-			height,
-			db.State,
-			nil,
-			nil,
-		)
-	})
+	_ = set.Add(isaacoperation.SuffrageDisjoinHint,
+		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
+			return isaacoperation.NewSuffrageDisjoinProcessor(
+				height,
+				getStatef,
+				nil,
+				nil,
+			)
+		})
 
-	_ = set.Add(isaacoperation.NetworkPolicyHint, func(height base.Height) (base.OperationProcessor, error) {
-		return isaacoperation.NewNetworkPolicyProcessor(
-			height,
-			isaacparams.Threshold(),
-			db.State,
-			nil,
-			nil,
-		)
-	})
+	_ = set.Add(isaacoperation.NetworkPolicyHint,
+		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
+			return isaacoperation.NewNetworkPolicyProcessor(
+				height,
+				isaacparams.Threshold(),
+				getStatef,
+				nil,
+				nil,
+			)
+		})
 
 	return context.WithValue(pctx, OperationProcessorsMapContextKey, set), nil
 }
@@ -371,7 +376,7 @@ func SendOperationFilterFunc(pctx context.Context) (
 			height = m.Manifest().Height()
 		}
 
-		f, closef, err := OperationPreProcess(oprs, op, height)
+		f, closef, err := OperationPreProcess(db, oprs, op, height)
 		if err != nil {
 			return false, err
 		}
@@ -501,6 +506,7 @@ func QuicstreamHandlerGetNodeInfoFunc(
 }
 
 func OperationPreProcess(
+	db isaac.Database,
 	oprs *hint.CompatibleSet[isaac.NewOperationProcessorInternalFunc],
 	op base.Operation,
 	height base.Height,
@@ -514,7 +520,7 @@ func OperationPreProcess(
 		return op.PreProcess, util.EmptyCancelFunc, nil
 	}
 
-	switch opp, err := f(height); {
+	switch opp, err := f(height, db.State); {
 	case err != nil:
 		return nil, nil, err
 	default:

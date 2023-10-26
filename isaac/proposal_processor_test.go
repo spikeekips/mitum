@@ -586,7 +586,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 		return op, nil
 	}
-	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 		if !ht.IsCompatible(DummyOperationHint) {
 			return nil, nil
 		}
@@ -627,7 +627,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrSuspendOperation() {
 		return op, nil
 	}
 
-	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 		if !ht.IsCompatible(DummyOperationHint) {
 			return nil, nil
 		}
@@ -690,7 +690,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 
 		return op, nil
 	}
-	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 		if !ht.IsCompatible(DummyOperationHint) {
 			return nil, nil
 		}
@@ -1245,7 +1245,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 
 		return op, nil
 	}
-	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+	args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 		if !ht.IsCompatible(DummyOperationHint) {
 			return nil, nil
 		}
@@ -1871,7 +1871,7 @@ func (t *testDefaultProposalProcessor) TestEmptyAfterProcessEmptyProposalNoBlock
 			return op, nil
 		}
 
-		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 			if !ht.IsCompatible(DummyOperationHint) {
 				return nil, nil
 			}
@@ -1905,7 +1905,7 @@ func (t *testDefaultProposalProcessor) TestEmptyAfterProcessEmptyProposalNoBlock
 			return op, nil
 		}
 
-		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+		args.NewOperationProcessorFunc = func(_ base.Height, ht hint.Hint, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
 			if !ht.IsCompatible(DummyOperationHint) {
 				return nil, nil
 			}

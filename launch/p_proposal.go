@@ -108,13 +108,14 @@ func newProposalProcessorFunc(pctx context.Context) (
 		)
 		args.GetStateFunc = db.State
 		args.GetOperationFunc = getProposalOperationFuncf(proposal)
-		args.NewOperationProcessorFunc = func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+		args.NewOperationProcessorFunc = func(height base.Height, ht hint.Hint, getStatef base.GetStateFunc,
+		) (base.OperationProcessor, error) {
 			v, found := oprs.Find(ht)
 			if !found {
 				return nil, nil
 			}
 
-			return v(height)
+			return v(height, getStatef)
 		}
 		args.EmptyProposalNoBlockFunc = func() bool {
 			return db.LastNetworkPolicy().EmptyProposalNoBlock()
