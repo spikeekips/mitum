@@ -165,36 +165,36 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta
 	return m, enchint, meta, body, nil
 }
 
-func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
+func (db *baseLeveldb) loadNetworkPolicy() (base.State, base.NetworkPolicy, bool, error) {
 	e := util.StringError("load suffrage state")
 
 	pst, err := db.st()
 	if err != nil {
-		return nil, false, e.Wrap(err)
+		return nil, nil, false, e.Wrap(err)
 	}
 
 	b, found, err := pst.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
 
 	switch {
 	case err != nil:
-		return nil, false, e.Wrap(err)
+		return nil, nil, false, e.Wrap(err)
 	case !found:
-		return nil, false, nil
+		return nil, nil, false, nil
 	case len(b) < 1:
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
 
 	var st base.State
 
 	if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
-		return nil, true, err
+		return nil, nil, true, err
 	}
 
 	if !base.IsNetworkPolicyState(st) {
-		return nil, true, e.Errorf("not NetworkPolicy state")
+		return nil, nil, true, e.Errorf("not NetworkPolicy state")
 	}
 
-	return st.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
+	return st, st.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
 }
 
 func leveldbStateKey(key string) []byte {

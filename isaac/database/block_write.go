@@ -24,6 +24,7 @@ type LeveldbBlockWrite struct {
 	policy     *util.Locked[base.State]
 	proof      *util.Locked[[3]interface{}]
 	laststates *util.ShardedMap[string, base.Height]
+	stcache    *util.GCache[string, [2]interface{}]
 	height     base.Height
 	sync.Mutex
 }
@@ -33,10 +34,16 @@ func NewLeveldbBlockWrite(
 	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	stcachesize int,
 ) *LeveldbBlockWrite {
 	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height))
 
 	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8, nil)
+
+	var stcache *util.GCache[string, [2]interface{}]
+	if stcachesize > 0 {
+		stcache = util.NewLFUGCache[string, [2]interface{}](stcachesize)
+	}
 
 	return &LeveldbBlockWrite{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
@@ -46,6 +53,7 @@ func NewLeveldbBlockWrite(
 		policy:      util.EmptyLocked[base.State](),
 		proof:       util.EmptyLocked[[3]interface{}](),
 		laststates:  laststates,
+		stcache:     stcache,
 	}
 }
 
@@ -95,6 +103,10 @@ func (db *LeveldbBlockWrite) Cancel() error {
 	}
 
 	db.clean()
+
+	if db.stcache != nil {
+		db.stcache.Purge()
+	}
 
 	return nil
 }
@@ -380,6 +392,10 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 	if err := pst.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
 		return e.Wrap(err)
+	}
+
+	if db.stcache != nil {
+		db.stcache.Set(st.Key(), [2]interface{}{st, true}, 0)
 	}
 
 	return nil

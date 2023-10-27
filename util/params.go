@@ -73,9 +73,15 @@ func (p *BaseParams) SetUint64(d uint64, f func(uint64) (bool, error)) error {
 
 func (p *BaseParams) SetInt(d int, f func(int) (bool, error)) error {
 	return p.Set(func() (bool, error) {
+		return f(d)
+	})
+}
+
+func (p *BaseParams) SetOverZeroInt(d int, f func(int) (bool, error)) error {
+	return p.Set(func() (bool, error) {
 		switch {
 		case d < 1:
-			return false, errors.Errorf("under zero")
+			return false, errors.Errorf("under 1")
 		default:
 			return f(d)
 		}

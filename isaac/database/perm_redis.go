@@ -52,12 +52,13 @@ func NewRedisPermanent(
 	st *redisstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	stcachesize int,
 ) (*RedisPermanent, error) {
 	db := &RedisPermanent{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "redis-permanent-database")
 		}),
-		basePermanent: newBasePermanent(),
+		basePermanent: newBasePermanent(stcachesize),
 		encs:          encs,
 		enc:           enc,
 		st:            st,
@@ -194,6 +195,13 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 }
 
 func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
+	switch i, j, err := db.basePermanent.state(key); {
+	case err != nil:
+		return nil, false, err
+	case j:
+		return i, j, nil
+	}
+
 	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
 	case err != nil, !found:
 		return nil, found, err
@@ -201,6 +209,8 @@ func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error)
 		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
 			return nil, true, err
 		}
+
+		db.setState(st)
 
 		return st, true, nil
 	}
@@ -362,6 +372,8 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		temp.proof, temp.proofmeta, temp.proofbody,
 		temp.policy,
 	)
+
+	db.basePermanent.mergeTempStateCache(temp.stcache)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -585,6 +597,8 @@ func (db *RedisPermanent) loadNetworkPolicy() error {
 		}
 
 		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
+
+		db.setState(st)
 
 		return nil
 	}

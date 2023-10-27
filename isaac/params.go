@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"math"
 	"reflect"
 	"time"
 
@@ -18,6 +19,7 @@ var (
 	DefaultWaitStuckInterval          = time.Second * 33
 	DefaultTimeoutRequest             = time.Second * 3
 	DefaultMinWaitNextBlockINITBallot = time.Second * 2
+	DefaultStateCacheSize             = math.MaxUint16
 )
 
 type Params struct {
@@ -31,6 +33,7 @@ type Params struct {
 	ballotStuckResolveAfter       time.Duration
 	minWaitNextBlockINITBallot    time.Duration
 	maxTryHandoverYBrokerSyncData uint64
+	stateCacheSize                int
 }
 
 func NewParams(networkID base.NetworkID) *Params {
@@ -53,6 +56,7 @@ func DefaultParams(networkID base.NetworkID) *Params {
 		ballotStuckResolveAfter:       time.Second * 66, //nolint:gomnd // ballotStuckWait * 2
 		maxTryHandoverYBrokerSyncData: 33,               //nolint:gomnd //...
 		minWaitNextBlockINITBallot:    DefaultMinWaitNextBlockINITBallot,
+		stateCacheSize:                DefaultStateCacheSize,
 	}
 }
 
@@ -93,6 +97,10 @@ func (p *Params) IsValid(networkID []byte) error {
 
 	if p.minWaitNextBlockINITBallot < 0 {
 		return e.Errorf("wrong duration; invalid minWaitNextBlockINITBallot")
+	}
+
+	if p.stateCacheSize < 0 {
+		return e.Errorf("wrong state cache size")
 	}
 
 	return nil
@@ -264,6 +272,28 @@ func (p *Params) SetMinWaitNextBlockINITBallot(d time.Duration) error {
 	})
 }
 
+func (p *Params) StateCacheSize() int {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.stateCacheSize
+}
+
+func (p *Params) SetStateCacheSize(d int) error {
+	return p.SetInt(d, func(d int) (bool, error) {
+		switch {
+		case d < 0:
+			return false, errors.Errorf("under zero")
+		case p.stateCacheSize == d:
+			return false, nil
+		default:
+			p.stateCacheSize = d
+
+			return true, nil
+		}
+	})
+}
+
 type paramsJSONMarshaler struct {
 	//revive:disable:line-length-limit
 	hint.BaseHinter
@@ -274,6 +304,7 @@ type paramsJSONMarshaler struct {
 	BallotStuckResolveAfter       util.ReadableDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MinWaitNextBlockINITBallot    util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
+	StateCacheSize                int                   `json:"state_cache_size,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -287,6 +318,7 @@ func (p *Params) MarshalJSON() ([]byte, error) {
 		BallotStuckWait:               util.ReadableDuration(p.ballotStuckWait),
 		MinWaitNextBlockINITBallot:    util.ReadableDuration(p.minWaitNextBlockINITBallot),
 		MaxTryHandoverYBrokerSyncData: p.maxTryHandoverYBrokerSyncData,
+		StateCacheSize:                p.stateCacheSize,
 	})
 }
 
@@ -299,6 +331,7 @@ type paramsJSONUnmarshaler struct {
 	BallotStuckResolveAfter       *util.ReadableDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MinWaitNextBlockINITBallot    *util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData *uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
+	StateCacheSize                *int                   `json:"state_cache_size,omitempty"`
 	hint.BaseHinter
 	//revive:enable:line-length-limit
 }
@@ -314,6 +347,7 @@ func (p *Params) UnmarshalJSON(b []byte) error {
 
 	args := [][2]interface{}{
 		{u.MaxTryHandoverYBrokerSyncData, &p.maxTryHandoverYBrokerSyncData},
+		{u.StateCacheSize, &p.stateCacheSize},
 	}
 
 	for i := range args {

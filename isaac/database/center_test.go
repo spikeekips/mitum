@@ -717,7 +717,7 @@ func (t *testCenterBlockWrite) TestMerge() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -865,7 +865,7 @@ func (t *testCenterBlockWrite) TestFindState() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -925,7 +925,7 @@ func (t *testCenterBlockWrite) TestInvalidMerge() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -996,7 +996,7 @@ func (t *testCenterBlockWrite) TestMergePermanent() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -1109,7 +1109,7 @@ func (t *testCenterLoad) TestLoadTempDatabases() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -1206,7 +1206,7 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 
@@ -1282,7 +1282,7 @@ func (t *testCenterLoad) TestRemoveBlocks() {
 
 	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 	})
 	t.NoError(err)
 

@@ -20,6 +20,7 @@ type TempLeveldb struct {
 	sufst     base.State    // NOTE last suffrage state
 	policy    base.NetworkPolicy
 	proof     base.SuffrageProof
+	stcache   *util.GCache[string, [2]interface{}]
 	proofmeta []byte
 	proofbody []byte
 	mpmeta    []byte // NOTE last blockmap bytes
@@ -32,11 +33,18 @@ func NewTempLeveldbFromPrefix(
 	prefix []byte,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	stcachesize int,
 ) (*TempLeveldb, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, prefix)
 
+	var stcache *util.GCache[string, [2]interface{}]
+	if stcachesize > 0 {
+		stcache = util.NewLFUGCache[string, [2]interface{}](stcachesize)
+	}
+
 	db := &TempLeveldb{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
+		stcache:     stcache,
 	}
 
 	if err := db.loadLastBlockMap(); err != nil {
@@ -85,7 +93,7 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 	sufst := wst.SuffrageState()
 	policy := wst.NetworkPolicy()
 
-	return &TempLeveldb{
+	db := &TempLeveldb{
 		baseLeveldb: wst.baseLeveldb,
 		mp:          mp,
 		mpmeta:      mpmeta,
@@ -95,7 +103,10 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		proof:       proof,
 		proofmeta:   proofmeta,
 		proofbody:   proofbody,
-	}, nil
+		stcache:     wst.stcache,
+	}
+
+	return db, nil
 }
 
 func (db *TempLeveldb) Close() error {
@@ -188,6 +199,10 @@ func (db *TempLeveldb) clean() {
 	db.proof = nil
 	db.proofmeta = nil
 	db.proofbody = nil
+
+	if db.stcache != nil {
+		db.stcache.Purge()
+	}
 }
 
 func (db *TempLeveldb) Height() base.Height {
@@ -239,20 +254,19 @@ func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) {
-	pst, err := db.st()
-	if err != nil {
-		return nil, false, err
+	switch incache, st, found := db.stateFromCache(key); {
+	case !incache:
+	default:
+		return st, found, nil
 	}
 
-	switch b, found, err := pst.Get(leveldbStateKey(key)); {
-	case err != nil, !found:
-		return nil, found, err
+	switch st, found, err := db.state(key); {
+	case err != nil:
+		return nil, false, err
 	default:
-		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
-			return nil, true, err
-		}
+		db.setStateCache(key, st, found)
 
-		return st, true, nil
+		return st, found, nil
 	}
 }
 
@@ -317,24 +331,21 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 func (db *TempLeveldb) loadSuffrageState() error {
 	e := util.StringError("load suffrage state")
 
-	pst, err := db.st()
-	if err != nil {
-		return e.Wrap(err)
-	}
-
-	switch b, found, err := pst.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
+	switch st, found, err := db.State(isaac.SuffrageStateKey); {
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
+		db.setStateCache(isaac.SuffrageStateKey, nil, false)
+
 		return nil
 	default:
-		if err := ReadDecodeFrame(db.encs, b, &db.sufst); err != nil {
-			return e.Wrap(err)
-		}
-
-		if !base.IsSuffrageNodesState(db.sufst) {
+		if !base.IsSuffrageNodesState(st) {
 			return e.Errorf("not suffrage state")
 		}
+
+		db.sufst = st
+
+		db.setStateCache(st.Key(), st, true)
 
 		return nil
 	}
@@ -377,14 +388,59 @@ func (db *TempLeveldb) loadSuffrageProof() error {
 }
 
 func (db *TempLeveldb) loadNetworkPolicy() error {
-	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
+	switch st, policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
 	case err != nil:
 		return err
 	case !found:
+		db.setStateCache(isaac.NetworkPolicyStateKey, nil, false)
+
 		return nil
 	default:
 		db.policy = policy
 
+		db.setStateCache(st.Key(), st, true)
+
 		return nil
 	}
+}
+
+func (db *TempLeveldb) state(key string) (st base.State, found bool, err error) {
+	pst, err := db.st()
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch b, found, err := pst.Get(leveldbStateKey(key)); {
+	case err != nil, !found:
+		return nil, found, err
+	default:
+		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
+			return nil, true, err
+		}
+
+		return st, true, nil
+	}
+}
+
+func (db *TempLeveldb) stateFromCache(key string) (bool, base.State, bool) {
+	if db.stcache == nil {
+		return false, nil, false
+	}
+
+	switch i, found := db.stcache.Get(key); {
+	case !found:
+		return false, nil, false
+	case !i[1].(bool): //nolint:forcetypeassert //...
+		return true, nil, false
+	default:
+		return true, i[0].(base.State), true //nolint:forcetypeassert //...
+	}
+}
+
+func (db *TempLeveldb) setStateCache(key string, st base.State, found bool) {
+	if db.stcache == nil {
+		return
+	}
+
+	db.stcache.Set(key, [2]interface{}{st, found}, 0)
 }

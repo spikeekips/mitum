@@ -93,6 +93,16 @@ func (t *testParams) TestIsValid() {
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
 	})
+
+	t.Run("wrong stateCacheSize", func() {
+		p := DefaultParams(networkID)
+		p.stateCacheSize = -1
+
+		err := p.IsValid(networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong state cache size")
+	})
 }
 
 func TestParams(t *testing.T) {
@@ -112,6 +122,7 @@ func TestParamsJSON(tt *testing.T) {
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 		p.SetMinWaitNextBlockINITBallot(time.Second * 33)
+		p.SetStateCacheSize(33)
 
 		b, err := util.MarshalJSON(p)
 		t.NoError(err)
@@ -139,6 +150,7 @@ func TestParamsJSON(tt *testing.T) {
 		t.Equal(ap.ballotStuckWait, bp.ballotStuckWait)
 		t.Equal(ap.ballotStuckResolveAfter, bp.ballotStuckResolveAfter)
 		t.Equal(ap.minWaitNextBlockINITBallot, bp.minWaitNextBlockINITBallot)
+		t.Equal(ap.stateCacheSize, bp.stateCacheSize)
 	}
 
 	suite.Run(tt, t)

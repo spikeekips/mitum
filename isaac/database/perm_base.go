@@ -7,18 +7,25 @@ import (
 )
 
 type basePermanent struct {
-	lenc   *util.Locked[string]             // NOTE encoder of last blockmap
-	mp     *util.Locked[[3]interface{}]     // NOTE last blockmap
-	policy *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
-	proof  *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
+	lenc    *util.Locked[string]             // NOTE encoder of last blockmap
+	mp      *util.Locked[[3]interface{}]     // NOTE last blockmap
+	policy  *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
+	proof   *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
+	stcache *util.GCache[string, base.State]
 }
 
-func newBasePermanent() *basePermanent {
+func newBasePermanent(stcachesize int) *basePermanent {
+	var stcache *util.GCache[string, base.State]
+	if stcachesize > 0 {
+		stcache = util.NewLFUGCache[string, base.State](stcachesize)
+	}
+
 	return &basePermanent{
-		lenc:   util.EmptyLocked[string](),
-		mp:     util.EmptyLocked[[3]interface{}](),
-		policy: util.EmptyLocked[base.NetworkPolicy](),
-		proof:  util.EmptyLocked[[3]interface{}](),
+		lenc:    util.EmptyLocked[string](),
+		mp:      util.EmptyLocked[[3]interface{}](),
+		policy:  util.EmptyLocked[base.NetworkPolicy](),
+		proof:   util.EmptyLocked[[3]interface{}](),
+		stcache: stcache,
 	}
 }
 
@@ -92,6 +99,24 @@ func (db *basePermanent) Clean() error {
 	return nil
 }
 
+func (db *basePermanent) state(key string) (base.State, bool, error) {
+	if db.stcache == nil {
+		return nil, false, nil
+	}
+
+	st, found := db.stcache.Get(key)
+
+	return st, found, nil
+}
+
+func (db *basePermanent) setState(st base.State) {
+	if db.stcache == nil {
+		return
+	}
+
+	db.stcache.Set(st.Key(), st, 0)
+}
+
 func (db *basePermanent) updateLast(
 	lenc string,
 	mp base.BlockMap, mpmeta, mpbody []byte,
@@ -121,4 +146,20 @@ func (db *basePermanent) updateLast(
 	})
 
 	return err == nil
+}
+
+func (db *basePermanent) mergeTempStateCache(stcache *util.GCache[string, [2]interface{}]) {
+	if stcache == nil {
+		return
+	}
+
+	stcache.Traverse(func(_ string, i [2]interface{}) bool {
+		switch {
+		case !i[1].(bool): //nolint:forcetypeassert //...
+		default:
+			db.setState(i[0].(base.State)) //nolint:forcetypeassert //...
+		}
+
+		return true
+	})
 }

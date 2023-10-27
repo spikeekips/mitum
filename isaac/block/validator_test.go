@@ -57,7 +57,7 @@ func (t *baseTestValidateBlock) buildBlocks(name string, top base.Height) (
 	st := leveldbstorage.NewMemStorage()
 	db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(),
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
-			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
 	)
 	t.NoError(err)

@@ -27,6 +27,7 @@ func NewLeveldbPermanent(
 	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	stcachesize int,
 ) (*LeveldbPermanent, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent[:])
 
@@ -34,7 +35,7 @@ func NewLeveldbPermanent(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "leveldb-permanent-database")
 		}),
-		basePermanent: newBasePermanent(),
+		basePermanent: newBasePermanent(stcachesize),
 		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
 		batchlimit:    333, //nolint:gomnd //...
 	}
@@ -186,7 +187,14 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (
 	}
 }
 
-func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err error) {
+func (db *LeveldbPermanent) State(key string) (st base.State, found bool, _ error) {
+	switch i, j, err := db.basePermanent.state(key); {
+	case err != nil:
+		return nil, false, err
+	case j:
+		return i, j, nil
+	}
+
 	pst, err := db.st()
 	if err != nil {
 		return nil, false, err
@@ -199,6 +207,8 @@ func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err er
 		if err := ReadDecodeFrame(db.encs, b, &st); err != nil {
 			return nil, true, err
 		}
+
+		db.setState(st)
 
 		return st, true, nil
 	}
@@ -378,6 +388,8 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		temp.policy,
 	)
 
+	db.basePermanent.mergeTempStateCache(temp.stcache)
+
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
 	return nil
@@ -430,13 +442,15 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 }
 
 func (db *LeveldbPermanent) loadNetworkPolicy() error {
-	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
+	switch st, policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
 	case err != nil:
 		return err
 	case !found:
 		return nil
 	default:
 		_ = db.policy.SetValue(policy)
+
+		db.setState(st)
 
 		return nil
 	}

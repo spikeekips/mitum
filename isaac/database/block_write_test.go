@@ -25,7 +25,7 @@ func (t *testLeveldbBlockWrite) SetupTest() {
 func (t *testLeveldbBlockWrite) TestNew() {
 	t.Run("valid", func() {
 		mst := leveldbstorage.NewMemStorage()
-		wst := NewLeveldbBlockWrite(base.Height(33), mst, t.Encs, t.Enc)
+		wst := NewLeveldbBlockWrite(base.Height(33), mst, t.Encs, t.Enc, 0)
 
 		_ = (interface{})(wst).(isaac.BlockWriteDatabase)
 	})

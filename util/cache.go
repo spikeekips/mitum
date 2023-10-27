@@ -28,7 +28,7 @@ func (c *GCache[K, V]) Exists(key K) bool {
 	return c.c.Has(key)
 }
 
-func (c *GCache[K, V]) Get(key string) (v V, found bool) {
+func (c *GCache[K, V]) Get(key K) (v V, found bool) {
 	i, err := c.c.Get(key)
 
 	switch {
@@ -57,4 +57,19 @@ func (c *GCache[K, V]) Close() {
 
 func (c *GCache[K, V]) Purge() {
 	c.c.Purge()
+}
+
+func (c *GCache[K, V]) Traverse(f func(K, V) bool) {
+	keys := c.c.Keys(true)
+
+	for i := range keys {
+		k := keys[i].(K) //nolint:forcetypeassert //...
+
+		switch j, found := c.Get(k); {
+		case !found:
+			continue
+		case !f(k, j):
+			return
+		}
+	}
 }

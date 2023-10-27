@@ -832,7 +832,7 @@ func loadTemp(
 			continue
 		}
 
-		temp, err := NewTempLeveldbFromPrefix(st, prefix, encs, enc)
+		temp, err := NewTempLeveldbFromPrefix(st, prefix, encs, enc, 0) // NOTE without state cache
 		if err != nil {
 			useless = append(useless, prefix)
 

@@ -131,7 +131,7 @@ func (p *MemberlistParams) RetransmitMult() int {
 }
 
 func (p *MemberlistParams) SetRetransmitMult(d int) error {
-	return p.SetInt(d, func(d int) (bool, error) {
+	return p.SetOverZeroInt(d, func(d int) (bool, error) {
 		if p.retransmitMult == d {
 			return false, nil
 		}
@@ -179,7 +179,7 @@ func (p *MemberlistParams) SuspicionMult() int {
 }
 
 func (p *MemberlistParams) SetSuspicionMult(d int) error {
-	return p.SetInt(d, func(d int) (bool, error) {
+	return p.SetOverZeroInt(d, func(d int) (bool, error) {
 		if p.suspicionMult == d {
 			return false, nil
 		}
@@ -195,7 +195,7 @@ func (p *MemberlistParams) SuspicionMaxTimeoutMult() int {
 }
 
 func (p *MemberlistParams) SetSuspicionMaxTimeoutMult(d int) error {
-	return p.SetInt(d, func(d int) (bool, error) {
+	return p.SetOverZeroInt(d, func(d int) (bool, error) {
 		if p.suspicionMaxTimeoutMult == d {
 			return false, nil
 		}
@@ -211,7 +211,7 @@ func (p *MemberlistParams) UDPBufferSize() int {
 }
 
 func (p *MemberlistParams) SetUDPBufferSize(d int) error {
-	return p.SetInt(d, func(d int) (bool, error) {
+	return p.SetOverZeroInt(d, func(d int) (bool, error) {
 		if p.udpBufferSize == d {
 			return false, nil
 		}

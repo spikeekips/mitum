@@ -199,7 +199,7 @@ func (t *BaseTestDatabase) TearDownTest() {
 }
 
 func (t *BaseTestDatabase) NewLeveldbPermanentDatabase() *LeveldbPermanent {
-	db, err := NewLeveldbPermanent(leveldbstorage.NewMemStorage(), t.Encs, t.Enc)
+	db, err := NewLeveldbPermanent(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -209,7 +209,7 @@ func (t *BaseTestDatabase) NewLeveldbPermanentDatabase() *LeveldbPermanent {
 
 func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
 	mst := leveldbstorage.NewMemStorage()
-	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc)
+	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc, 0)
 }
 
 func (t *BaseTestDatabase) NewPool() *TempPool {

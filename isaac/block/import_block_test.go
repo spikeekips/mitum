@@ -37,7 +37,7 @@ func (t *testImportBlocks) prepare(from, to base.Height) *isaacdatabase.Center {
 	st := leveldbstorage.NewMemStorage()
 	db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(),
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
-			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
 	)
 	t.NoError(err)
@@ -214,7 +214,7 @@ func (t *testImportBlocks) TestImport() {
 	st := leveldbstorage.NewMemStorage()
 	importdb, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(),
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
-			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
 	)
 	t.NoError(err)

@@ -381,6 +381,7 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var design NodeDesign
+	var isaacparams *isaac.Params
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
@@ -388,6 +389,7 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
+		ISAACParamsContextKey, &isaacparams,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		FSNodeInfoContextKey, &fsnodeinfo,
@@ -396,7 +398,7 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	st, db, perm, pool, err := LoadDatabase(
-		fsnodeinfo, design.Storage.Database.String(), design.Storage.Base, encs, enc)
+		fsnodeinfo, design.Storage.Database.String(), design.Storage.Base, encs, enc, isaacparams.StateCacheSize())
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -464,7 +466,11 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 }
 
 func LoadPermanentDatabase(
-	uri, id string, encs *encoder.Encoders, enc encoder.Encoder, root string,
+	uri, id string,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	root string,
+	stcachesize int,
 ) (*leveldbstorage.Storage, isaac.PermanentDatabase, error) {
 	e := util.StringError("load PermanentDatabase")
 
@@ -504,7 +510,7 @@ func LoadPermanentDatabase(
 			return nil, nil, e.Wrap(err)
 		}
 
-		perm, err := isaacdatabase.NewLeveldbPermanent(st, encs, enc)
+		perm, err := isaacdatabase.NewLeveldbPermanent(st, encs, enc, stcachesize)
 		if err != nil {
 			return nil, nil, e.Wrap(err)
 		}
@@ -519,7 +525,7 @@ func LoadPermanentDatabase(
 			u.Scheme = "redis"
 		}
 
-		perm, err := loadRedisPermanentDatabase(u.String(), id, encs, enc)
+		perm, err := loadRedisPermanentDatabase(u.String(), id, encs, enc, stcachesize)
 		if err != nil {
 			return nil, nil, e.WithMessage(err, "create redis PermanentDatabase")
 		}
@@ -542,7 +548,7 @@ func CleanStorage(
 		return e.Wrap(err)
 	case !found:
 	default:
-		_, perm, err := LoadPermanentDatabase(permuri, fsnodeinfo.ID(), encs, enc, root)
+		_, perm, err := LoadPermanentDatabase(permuri, fsnodeinfo.ID(), encs, enc, root, 0)
 		if err == nil {
 			if err := perm.Clean(); err != nil {
 				return e.Wrap(err)
@@ -626,7 +632,7 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 	return fsnodeinfo, nil
 }
 
-func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (
+func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder, stcachesize int) (
 	*isaacdatabase.RedisPermanent, error,
 ) {
 	e := util.StringError("load redis PermanentDatabase")
@@ -644,7 +650,7 @@ func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc enco
 		return nil, e.WithMessage(err, "create redis storage")
 	}
 
-	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc)
+	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc, stcachesize)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -670,6 +676,7 @@ func LoadDatabase(
 	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	stcachesize int,
 ) (
 	*leveldbstorage.Storage,
 	*isaacdatabase.Center,
@@ -679,7 +686,7 @@ func LoadDatabase(
 ) {
 	e := util.StringError("prepare database")
 
-	st, perm, err := LoadPermanentDatabase(permuri, fsnodeinfo.ID(), encs, enc, root)
+	st, perm, err := LoadPermanentDatabase(permuri, fsnodeinfo.ID(), encs, enc, root, stcachesize)
 
 	switch {
 	case err != nil:
@@ -704,7 +711,7 @@ func LoadDatabase(
 		enc,
 		perm,
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
-			return isaacdatabase.NewLeveldbBlockWrite(height, st, encs, enc), nil
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, encs, enc, stcachesize), nil
 		},
 	)
 	if err != nil {
