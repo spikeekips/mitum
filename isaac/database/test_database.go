@@ -215,7 +215,7 @@ func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *Lev
 func (t *BaseTestDatabase) NewPool() *TempPool {
 	mst := leveldbstorage.NewMemStorage()
 
-	db, err := newTempPool(mst, t.Encs, t.Enc)
+	db, err := newTempPool(mst, t.Encs, t.Enc, 0)
 	t.noerror(err)
 
 	return db

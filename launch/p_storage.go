@@ -398,7 +398,14 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	st, db, perm, pool, err := LoadDatabase(
-		fsnodeinfo, design.Storage.Database.String(), design.Storage.Base, encs, enc, isaacparams.StateCacheSize())
+		fsnodeinfo,
+		design.Storage.Database.String(),
+		design.Storage.Base,
+		encs,
+		enc,
+		isaacparams.StateCacheSize(),
+		isaacparams.OperationPoolCacheSize(),
+	)
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -676,7 +683,8 @@ func LoadDatabase(
 	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	stcachesize int,
+	stcachesize,
+	oppoolcachesize int,
 ) (
 	*leveldbstorage.Storage,
 	*isaacdatabase.Center,
@@ -726,7 +734,7 @@ func LoadDatabase(
 		return nil, nil, nil, nil, e.Wrap(err)
 	}
 
-	pool, err := isaacdatabase.NewTempPool(st, encs, enc)
+	pool, err := isaacdatabase.NewTempPool(st, encs, enc, oppoolcachesize)
 	if err != nil {
 		return nil, nil, nil, nil, e.Wrap(err)
 	}

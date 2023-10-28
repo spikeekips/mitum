@@ -103,6 +103,16 @@ func (t *testParams) TestIsValid() {
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong state cache size")
 	})
+
+	t.Run("wrong operationPoolCacheSize", func() {
+		p := DefaultParams(networkID)
+		p.operationPoolCacheSize = -1
+
+		err := p.IsValid(networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong operation pool cache size")
+	})
 }
 
 func TestParams(t *testing.T) {
@@ -123,6 +133,7 @@ func TestParamsJSON(tt *testing.T) {
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 		p.SetMinWaitNextBlockINITBallot(time.Second * 33)
 		p.SetStateCacheSize(33)
+		p.SetOperationPoolCacheSize(33)
 
 		b, err := util.MarshalJSON(p)
 		t.NoError(err)
@@ -151,6 +162,7 @@ func TestParamsJSON(tt *testing.T) {
 		t.Equal(ap.ballotStuckResolveAfter, bp.ballotStuckResolveAfter)
 		t.Equal(ap.minWaitNextBlockINITBallot, bp.minWaitNextBlockINITBallot)
 		t.Equal(ap.stateCacheSize, bp.stateCacheSize)
+		t.Equal(ap.operationPoolCacheSize, bp.operationPoolCacheSize)
 	}
 
 	suite.Run(tt, t)

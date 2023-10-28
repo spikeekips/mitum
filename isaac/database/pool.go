@@ -22,18 +22,34 @@ type TempPool struct {
 	*util.ContextDaemon
 	whenNewOperationsremoved          func(int, error)
 	lastvoteproofs                    *util.Locked[[2]base.Voteproof]
+	opcache                           *util.GCache[string, base.Operation]
 	cleanRemovedNewOperationsInterval time.Duration
 	cleanRemovedNewOperationsDeep     int
 	cleanRemovedProposalDeep          int
 	cleanRemovedBallotDeep            int
 }
 
-func NewTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
-	return newTempPool(st, encs, enc)
+func NewTempPool(
+	st *leveldbstorage.Storage,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	opcachesize int,
+) (*TempPool, error) {
+	return newTempPool(st, encs, enc, opcachesize)
 }
 
-func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+func newTempPool(
+	st *leveldbstorage.Storage,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	opcachesize int,
+) (*TempPool, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPool[:])
+
+	var opcache *util.GCache[string, base.Operation]
+	if opcachesize > 0 {
+		opcache = util.NewLRUGCache[string, base.Operation](opcachesize)
+	}
 
 	db := &TempPool{
 		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),
@@ -43,6 +59,7 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 		cleanRemovedProposalDeep:          3,                //nolint:gomnd //...
 		cleanRemovedBallotDeep:            3,                //nolint:gomnd //...
 		whenNewOperationsremoved:          func(int, error) {},
+		opcache:                           opcache,
 	}
 
 	db.ContextDaemon = util.NewContextDaemon(db.startClean)
@@ -190,6 +207,10 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
 	e := util.StringError("operation")
 
+	if i, found := db.opFromCache(operationhash); found {
+		return i, found, nil
+	}
+
 	pst, err := db.st()
 	if err != nil {
 		return nil, false, e.Wrap(err)
@@ -211,6 +232,8 @@ func (db *TempPool) Operation(_ context.Context, operationhash util.Hash) (op ba
 	if err := ReadDecodeFrame(db.encs, b, &op); err != nil {
 		return nil, true, e.Wrap(err)
 	}
+
+	db.setOpCache(op)
 
 	return op, true, nil
 }
@@ -396,6 +419,8 @@ func (db *TempPool) SetOperation(_ context.Context, op base.Operation) (bool, er
 	if err := pst.Batch(batch, nil); err != nil {
 		return false, e.Wrap(err)
 	}
+
+	db.setOpCache(op)
 
 	return true, nil
 }
@@ -947,6 +972,22 @@ func (db *TempPool) cleanByHeight(
 	}
 
 	return removed, pst.Batch(batch, nil)
+}
+
+func (db *TempPool) opFromCache(h util.Hash) (base.Operation, bool) {
+	if db.opcache == nil {
+		return nil, false
+	}
+
+	return db.opcache.Get(h.String())
+}
+
+func (db *TempPool) setOpCache(op base.Operation) {
+	if db.opcache == nil {
+		return
+	}
+
+	db.opcache.Set(op.Hash().String(), op, 0)
 }
 
 func newNewOperationLeveldbKeys(op util.Hash) (key []byte, orderedkey []byte) {

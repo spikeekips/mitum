@@ -246,7 +246,7 @@ func (cmd *DatabaseExtractCommand) pLoadDatabase(pctx context.Context) (context.
 	}
 
 	st, _, _, _, err := launch.LoadDatabase(
-		fsnodeinfo, cmd.Database, cmd.Storage, cmd.encs, cmd.enc, 0)
+		fsnodeinfo, cmd.Database, cmd.Storage, cmd.encs, cmd.enc, 0, 0)
 	if err != nil {
 		return pctx, err
 	}

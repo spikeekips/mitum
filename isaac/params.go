@@ -20,6 +20,7 @@ var (
 	DefaultTimeoutRequest             = time.Second * 3
 	DefaultMinWaitNextBlockINITBallot = time.Second * 2
 	DefaultStateCacheSize             = math.MaxUint16
+	DefaultOperationPoolCacheSize     = math.MaxUint16
 )
 
 type Params struct {
@@ -34,6 +35,7 @@ type Params struct {
 	minWaitNextBlockINITBallot    time.Duration
 	maxTryHandoverYBrokerSyncData uint64
 	stateCacheSize                int
+	operationPoolCacheSize        int
 }
 
 func NewParams(networkID base.NetworkID) *Params {
@@ -57,6 +59,7 @@ func DefaultParams(networkID base.NetworkID) *Params {
 		maxTryHandoverYBrokerSyncData: 33,               //nolint:gomnd //...
 		minWaitNextBlockINITBallot:    DefaultMinWaitNextBlockINITBallot,
 		stateCacheSize:                DefaultStateCacheSize,
+		operationPoolCacheSize:        DefaultOperationPoolCacheSize,
 	}
 }
 
@@ -101,6 +104,10 @@ func (p *Params) IsValid(networkID []byte) error {
 
 	if p.stateCacheSize < 0 {
 		return e.Errorf("wrong state cache size")
+	}
+
+	if p.operationPoolCacheSize < 0 {
+		return e.Errorf("wrong operation pool cache size")
 	}
 
 	return nil
@@ -294,6 +301,28 @@ func (p *Params) SetStateCacheSize(d int) error {
 	})
 }
 
+func (p *Params) OperationPoolCacheSize() int {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.operationPoolCacheSize
+}
+
+func (p *Params) SetOperationPoolCacheSize(d int) error {
+	return p.SetInt(d, func(d int) (bool, error) {
+		switch {
+		case d < 0:
+			return false, errors.Errorf("under zero")
+		case p.operationPoolCacheSize == d:
+			return false, nil
+		default:
+			p.operationPoolCacheSize = d
+
+			return true, nil
+		}
+	})
+}
+
 type paramsJSONMarshaler struct {
 	//revive:disable:line-length-limit
 	hint.BaseHinter
@@ -305,6 +334,7 @@ type paramsJSONMarshaler struct {
 	MinWaitNextBlockINITBallot    util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	StateCacheSize                int                   `json:"state_cache_size,omitempty"`
+	OperationPoolCacheSize        int                   `json:"operation_pool_cache_size,omitempty"`
 	//revive:enable:line-length-limit
 }
 
@@ -319,6 +349,7 @@ func (p *Params) MarshalJSON() ([]byte, error) {
 		MinWaitNextBlockINITBallot:    util.ReadableDuration(p.minWaitNextBlockINITBallot),
 		MaxTryHandoverYBrokerSyncData: p.maxTryHandoverYBrokerSyncData,
 		StateCacheSize:                p.stateCacheSize,
+		OperationPoolCacheSize:        p.operationPoolCacheSize,
 	})
 }
 
@@ -332,6 +363,7 @@ type paramsJSONUnmarshaler struct {
 	MinWaitNextBlockINITBallot    *util.ReadableDuration `json:"min_wait_next_block_init_ballot,omitempty"`
 	MaxTryHandoverYBrokerSyncData *uint64                `json:"max_try_handover_y_broker_sync_data,omitempty"`
 	StateCacheSize                *int                   `json:"state_cache_size,omitempty"`
+	OperationPoolCacheSize        *int                   `json:"operation_pool_cache_size,omitempty"`
 	hint.BaseHinter
 	//revive:enable:line-length-limit
 }
@@ -348,6 +380,7 @@ func (p *Params) UnmarshalJSON(b []byte) error {
 	args := [][2]interface{}{
 		{u.MaxTryHandoverYBrokerSyncData, &p.maxTryHandoverYBrokerSyncData},
 		{u.StateCacheSize, &p.stateCacheSize},
+		{u.OperationPoolCacheSize, &p.operationPoolCacheSize},
 	}
 
 	for i := range args {
