@@ -276,16 +276,12 @@ func getProposalOperationFunc(pctx context.Context) (
 			if op == nil {
 				switch i, found, err := getProposalOperationFromRemotef(ctx, proposal, operationhash); {
 				case err != nil:
-					return nil, err
+					return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
 				case !found:
 					return nil, isaac.ErrOperationNotFoundInProcessor.Errorf("not found in remote")
 				default:
 					op = i
 				}
-			}
-
-			if err := op.IsValid(isaacparams.NetworkID()); err != nil {
-				return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
 			}
 
 			return op, nil
@@ -385,7 +381,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 					case !found:
 						return nil, util.ErrLockedSetIgnore.WithStack()
 					default:
-						return op, nil
+						return op, util.ErrLockedSetIgnore.Wrap(op.IsValid(params.ISAAC.NetworkID()))
 					}
 				})
 

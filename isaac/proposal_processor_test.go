@@ -873,6 +873,67 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1][1]))
 }
 
+func (t *testDefaultProposalProcessor) TestCollectOperationButWithOperationReasonError() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
+
+	for i := range ops {
+		i := i
+		op := ops[i].(DummyOperation)
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+			return ctx, nil, nil
+		}
+
+		ops[i] = op
+	}
+
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer, newwriterf := t.newBlockWriter()
+	writer.manifest = manifest
+
+	args := t.newargs(newwriterf)
+	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+		if oph.Equal(ophs[1][0]) {
+			return nil, ErrInvalidOperationInProcessor.Errorf("showme")
+		}
+
+		op, found := ops[oph.String()]
+		if !found {
+			return nil, ErrOperationNotFoundInProcessor.WithStack()
+		}
+
+		return op, nil
+	}
+	args.Retrylimit = 1
+	args.Retryinterval = 1
+
+	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+	m, err := opp.Process(context.Background(), nil)
+	t.NoError(err)
+	t.NotNil(m)
+
+	writer.opstreeg.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+		node := n.(base.OperationFixedtreeNode)
+
+		switch {
+		case index == 1:
+			t.False(node.InState())
+			t.NotNil(node.Reason())
+			t.Contains(node.Reason().Msg(), "showme")
+		default:
+			t.True(node.InState())
+			t.Nil(node.Reason())
+		}
+
+		return true, nil
+	})
+}
+
 func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError() {
 	point := base.RawPoint(33, 44)
 

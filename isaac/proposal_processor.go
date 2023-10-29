@@ -32,12 +32,12 @@ type (
 
 	// OperationProcessorGetOperationFunction works,
 	// - if operation is invalid, getOperation should return nil,
-	// InvalidOperationInProcessorError; it will be not processed and it's fact
+	// ErrInvalidOperationInProcessor; it will be not processed and it's fact
 	// hash will be stored.
 	// - if operation not found in remote, getOperation should return nil,
-	// OperationNotFoundInProcessorError; it will be ignored.
+	// ErrOperationNotFoundInProcessor; it will be ignored.
 	// - if operation is known, return nil,
-	// OperationAlreadyProcessedInProcessorError; it will be ignored.
+	// ErrOperationAlreadyProcessedInProcessor; it will be ignored.
 	// - if operation fact not match with fact in proposal,
 	// return ErrNotProposalProcessorProcessed; it will stop processing proposal
 	// and makes wrong ACCEPT ballot for next round.
@@ -467,6 +467,8 @@ func (p *DefaultProposalProcessor) processOperation(
 		}); err != nil {
 			return ctx, 0, 0, err
 		}
+
+		return ctx, opsindex + 1, validindex, nil
 	}
 
 	var nctx context.Context
@@ -801,10 +803,15 @@ func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact u
 
 		return op, true, nil
 	case errors.Is(err, util.ErrInvalid),
-		errors.Is(err, ErrInvalidOperationInProcessor),
 		errors.Is(err, ErrOperationNotFoundInProcessor),
 		errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
 		return nil, true, nil
+	case errors.Is(err, ErrInvalidOperationInProcessor):
+		return NewReasonProcessedOperation(
+			oph,
+			fact,
+			base.NewBaseOperationProcessReasonError(err.Error()),
+		), true, nil
 	case errors.Is(err, ErrNotProposalProcessorProcessed):
 		return nil, true, err
 	default:
