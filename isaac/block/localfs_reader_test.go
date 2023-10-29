@@ -103,7 +103,7 @@ func (t *testLocalFSReader) TestReader() {
 	})
 
 	t.Run("known and found", func() {
-		f, found, err := r.Reader(base.BlockMapItemTypeProposal)
+		f, found, err := r.UncompressedReader(base.BlockMapItemTypeProposal)
 		t.NoError(err)
 		t.True(found)
 		defer f.Close()
@@ -381,18 +381,28 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	// NOTE modify proposal.json
 	i, _ := BlockFileName(base.BlockMapItemTypeProposal, t.Enc.Hint().Type().String())
 	path := filepath.Join(root, i)
+
+	t.T().Log("file:", path)
+
 	f, err := os.Open(path)
 	t.NoError(err)
 
-	b, err := io.ReadAll(f)
+	gf, err := util.NewGzipReader(f)
 	t.NoError(err)
+
+	b, err := io.ReadAll(gf)
+	t.NoError(err)
+	gf.Close()
 
 	b = append(b, '\n')
 	nf, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	t.NoError(err)
-	_, err = nf.Write(b)
+
+	gnf := util.NewGzipWriter(nf)
+
+	_, err = gnf.Write(b)
 	t.NoError(err)
-	nf.Close()
+	gnf.Close()
 
 	t.Run("load proposal after modifying", func() {
 		r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)

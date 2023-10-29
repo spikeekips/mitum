@@ -841,7 +841,8 @@ func isListBlockMapItemType(t base.BlockMapItemType) bool {
 
 func isCompressedBlockMapItemType(t base.BlockMapItemType) bool {
 	switch t {
-	case base.BlockMapItemTypeOperations,
+	case base.BlockMapItemTypeProposal,
+		base.BlockMapItemTypeOperations,
 		base.BlockMapItemTypeOperationsTree,
 		base.BlockMapItemTypeStates,
 		base.BlockMapItemTypeStatesTree:

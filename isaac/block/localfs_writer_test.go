@@ -168,8 +168,10 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	// NOTE compare checksum
 	t.Run("compare checksum", func() {
 		buf := bytes.NewBuffer(nil)
+		gf := util.NewGzipWriter(buf)
 
-		t.NoError(t.Enc.StreamEncoder(buf).Encode(pr))
+		t.NoError(t.Enc.StreamEncoder(gf).Encode(pr))
+		gf.Close()
 
 		checksum := util.SHA256Checksum(buf.Bytes())
 
