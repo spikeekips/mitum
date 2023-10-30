@@ -145,6 +145,54 @@ func (t *testGenerator) TestWriter() {
 	}
 }
 
+func (t *testGenerator) TestShrinkEmptyNode() {
+	nodes := t.nodesWithoutHash(33)
+
+	g, err := NewWriter(t.ht, uint64(len(nodes))+3)
+	t.NoError(err)
+
+	var index uint64
+
+	for i := range nodes {
+		switch i {
+		case 9, 11, 13:
+			index++
+		}
+
+		t.NoError(g.Add(index, nodes[i].(BaseNode)))
+
+		index++
+	}
+
+	t.T().Log("writer len, before write:", g.Len())
+
+	generated := make([]Node, len(nodes))
+
+	var root Node
+	w := func(index uint64, n Node) error {
+		if index == 0 {
+			root = n
+		}
+		generated[index] = n
+
+		return nil
+	}
+
+	t.NoError(g.Write(w))
+	t.T().Log("writer len, after write:", g.Len())
+
+	t.Equal(len(nodes), g.Len())
+
+	nodes, err = generateNodesHash(nodes, func(uint64, Node) error { return nil })
+	t.NoError(err)
+
+	t.True(root.Hash().Equal(nodes[0].Hash()))
+
+	for i := range nodes {
+		t.True(nodes[i].Equal(generated[i]))
+	}
+}
+
 func TestGenerator(t *testing.T) {
 	suite.Run(t, new(testGenerator))
 }

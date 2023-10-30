@@ -111,24 +111,24 @@ func (g *Writer) shrinkNodes() {
 	g.Lock()
 	defer g.Unlock()
 
-	if len(g.nodes) < 1 {
+	if n := len(g.nodes); n < 1 {
 		return
 	}
 
-	var n int64 = -1
+	for i := 0; i < len(g.nodes); {
+		if g.nodes[i] != nil {
+			i++
 
-	for i := range g.nodes {
-		n = int64(len(g.nodes) - i)
-		if g.nodes[n-1] != nil {
-			break
+			continue
 		}
-	}
 
-	if int64(len(g.nodes)) == n {
-		return
-	}
+		if i < len(g.nodes)-1 {
+			copy(g.nodes[i:], g.nodes[i+1:])
+		}
 
-	g.nodes = g.nodes[:n]
+		g.nodes[len(g.nodes)-1] = nil
+		g.nodes = g.nodes[:len(g.nodes)-1]
+	}
 }
 
 func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {
