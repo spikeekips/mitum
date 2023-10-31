@@ -220,7 +220,7 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 	return s
 }
 
-func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
+func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, op util.Hash) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -233,7 +233,7 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.H
 		return errors.Errorf("unsupported suffrage state value, %T", value)
 	}
 
-	s.AddOperations(ops)
+	s.AddOperation(op)
 
 	return nil
 }

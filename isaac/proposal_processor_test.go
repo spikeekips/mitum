@@ -88,7 +88,7 @@ func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states [
 		_ = w.sts.GetOrCreate(
 			stv.Key(),
 			func(j base.StateValueMerger, _ bool) error {
-				if err := j.Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
+				if err := j.Merge(stv, op.Fact().Hash()); err != nil {
 					return e.WithMessage(err, "failed to merge")
 				}
 

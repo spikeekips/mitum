@@ -100,7 +100,7 @@ func (t *testNetworkPolicyProcessor) TestNew() {
 
 	mv := mergevalues[0]
 	merger := mv.Merger(height, policyst)
-	t.NoError(merger.Merge(mv.Value(), []util.Hash{op.Hash()}))
+	t.NoError(merger.Merge(mv.Value(), op.Hash()))
 	t.NoError(merger.Close())
 
 	t.NotNil(merger.Hash())

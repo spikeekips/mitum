@@ -114,7 +114,7 @@ func (t *testSuffrageExpelProcessor) TestNew() {
 			mergers[v.Key()] = merger
 		}
 
-		merger.Merge(v.Value(), []util.Hash{op.Hash()})
+		merger.Merge(v.Value(), op.Hash())
 	}
 
 	for _, merger := range mergers {

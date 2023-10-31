@@ -177,7 +177,7 @@ func NewSuffrageCandidatesStateValueMerger(height base.Height, st base.State) *S
 	return s
 }
 
-func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
+func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, op util.Hash) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -190,7 +190,7 @@ func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, ops []
 		return errors.Errorf("unknown SuffrageCandidatesStateValue, %T", value)
 	}
 
-	s.AddOperations(ops)
+	s.AddOperation(op)
 
 	return nil
 }

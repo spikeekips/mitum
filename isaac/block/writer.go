@@ -143,7 +143,7 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 	return e.Wrap(w.states.GetOrCreate(
 		stv.Key(),
 		func(i base.StateValueMerger, _ bool) error {
-			if err := i.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+			if err := i.Merge(stv.Value(), operation.Fact().Hash()); err != nil {
 				return e.WithMessage(err, "merge")
 			}
 

@@ -287,13 +287,13 @@ func (s *BaseStateValueMerger) Operations() []util.Hash {
 	return s.nst.Operations()
 }
 
-func (s *BaseStateValueMerger) Merge(value StateValue, ops []util.Hash) error {
+func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
 	s.Lock()
 	defer s.Unlock()
 
 	s.value = value
 
-	s.AddOperations(ops)
+	s.AddOperation(op)
 
 	return nil
 }
@@ -322,10 +322,10 @@ func (s *BaseStateValueMerger) Close() error {
 	return nil
 }
 
-func (s *BaseStateValueMerger) AddOperations(ops []util.Hash) {
-	nops := make([]util.Hash, len(s.ops)+len(ops))
+func (s *BaseStateValueMerger) AddOperation(op util.Hash) {
+	nops := make([]util.Hash, len(s.ops)+1)
 	copy(nops[:len(s.ops)], s.ops)
-	copy(nops[len(s.ops):], ops)
+	nops[len(s.ops)] = op
 
 	s.ops = nops
 }

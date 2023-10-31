@@ -69,7 +69,7 @@ func newDummySimpleStateValueMerger(height Height, key string, st State) *dummyS
 	}
 }
 
-func (s *dummySimpleStateValueMerger) Merge(value StateValue, ops []util.Hash) error {
+func (s *dummySimpleStateValueMerger) Merge(value StateValue, op util.Hash) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -79,7 +79,7 @@ func (s *dummySimpleStateValueMerger) Merge(value StateValue, ops []util.Hash) e
 	}
 	s.S += i.I
 
-	s.AddOperations(ops)
+	s.AddOperation(op)
 
 	return nil
 }
@@ -136,7 +136,7 @@ func (t *testStateValueMerger) TestAsyncMerge() {
 
 			i := i
 			t.NoError(worker.NewJob(func(context.Context, uint64) error {
-				return merger.Merge(v, []util.Hash{ops[i]})
+				return merger.Merge(v, ops[i])
 			}))
 		}
 		worker.Done()
@@ -181,9 +181,9 @@ func (t *testStateValueMerger) TestMergedSameHash() {
 
 			i := i
 			t.NoError(worker.NewJob(func(context.Context, uint64) error {
-				_ = merger0.Merge(v, []util.Hash{ops[i]})
+				_ = merger0.Merge(v, ops[i])
 
-				return merger1.Merge(v, []util.Hash{ops[len(ops)-i-1]})
+				return merger1.Merge(v, ops[len(ops)-i-1])
 			}))
 		}
 
@@ -261,7 +261,7 @@ func TestStateValueMergerEncode(tt *testing.T) {
 	merger := sv.Merger(Height(44), st)
 
 	t.Encode = func() (interface{}, []byte) {
-		t.NoError(merger.Merge(newDummySimpleStateValue(77), []util.Hash{valuehash.RandomSHA256()}))
+		t.NoError(merger.Merge(newDummySimpleStateValue(77), valuehash.RandomSHA256()))
 		t.NoError(merger.Close())
 
 		b, err := enc.Marshal(merger)
