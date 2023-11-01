@@ -264,24 +264,33 @@ func getProposalOperationFunc(pctx context.Context) (
 				return nil, isaac.ErrOperationAlreadyProcessedInProcessor.Errorf("already processed")
 			}
 
-			var op base.Operation
-
 			switch i, found, err := getProposalOperationFromPoolf(ctx, operationhash); {
 			case err != nil:
 				return nil, err
 			case found:
-				op = i
+				return i, nil
 			}
 
-			if op == nil {
-				switch i, found, err := getProposalOperationFromRemotef(ctx, proposal, operationhash); {
-				case err != nil:
-					return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
-				case !found:
-					return nil, isaac.ErrOperationNotFoundInProcessor.Errorf("not found in remote")
-				default:
-					op = i
-				}
+			var op base.Operation
+
+			if err := util.Retry(
+				ctx,
+				func() (bool, error) {
+					switch i, found, err := getProposalOperationFromRemotef(ctx, proposal, operationhash); {
+					case err != nil:
+						return true, isaac.ErrOperationNotFoundInProcessor.Wrap(err)
+					case !found:
+						return true, isaac.ErrOperationNotFoundInProcessor.Errorf("not found in remote")
+					default:
+						op = i
+
+						return false, nil
+					}
+				},
+				15,                   //nolint:gomnd //...
+				time.Millisecond*333, //nolint:gomnd //...
+			); err != nil {
+				return nil, err
 			}
 
 			return op, nil

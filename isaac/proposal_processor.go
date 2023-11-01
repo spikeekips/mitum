@@ -365,9 +365,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 			Stringer("fact", fact).
 			Logger()
 
-		op, err := p.collectOperation(ctx, oph, fact)
-
-		switch {
+		switch op, err := p.getOperation(ctx, oph, fact); {
 		case err != nil:
 			l.Debug().Err(err).Msg("failed to collect operation")
 
@@ -734,32 +732,6 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVote
 	return m, nil
 }
 
-func (p *DefaultProposalProcessor) collectOperation(
-	ctx context.Context,
-	oph, fact util.Hash,
-) (base.Operation, error) {
-	e := util.StringError("collect operation, %q %q", oph, fact)
-
-	var op base.Operation
-
-	if err := p.retry(ctx, func() (bool, error) {
-		switch j, ok, err := p.getOperation(ctx, oph, fact); {
-		case err == nil:
-			op = j
-
-			return false, nil
-		case ok:
-			return false, err
-		default:
-			return true, err
-		}
-	}); err != nil {
-		return nil, e.Wrap(err)
-	}
-
-	return op, nil
-}
-
 func (*DefaultProposalProcessor) deferctx(ctx context.Context, cancel func()) (func(), func()) {
 	donech := make(chan struct{}, 1)
 
@@ -780,42 +752,36 @@ func (*DefaultProposalProcessor) deferctx(ctx context.Context, cancel func()) (f
 		}
 }
 
-func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact util.Hash) (
-	_ base.Operation,
-	ok bool,
-	_ error,
-) {
+func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact util.Hash) (base.Operation, error) {
 	switch op, err := p.args.GetOperationFunc(ctx, oph, fact); {
 	case err == nil:
 		if op == nil {
-			return nil, true, nil
+			return nil, nil
 		}
 
 		// NOTE suffrage expel operation should be in voteproof.
 		if _, ok := op.(base.SuffrageExpelOperation); ok {
-			return nil, true, nil
+			return nil, nil
 		}
 
 		// NOTE fetched operation fact hash != fact hash, stop processing
 		if !op.Fact().Hash().Equal(fact) {
-			return nil, true, ErrNotProposalProcessorProcessed
+			return nil, ErrNotProposalProcessorProcessed
 		}
 
-		return op, true, nil
+		return op, nil
 	case errors.Is(err, util.ErrInvalid),
 		errors.Is(err, ErrOperationNotFoundInProcessor),
 		errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
-		return nil, true, nil
+		return nil, nil
 	case errors.Is(err, ErrInvalidOperationInProcessor):
 		return NewReasonProcessedOperation(
 			oph,
 			fact,
 			base.NewBaseOperationProcessReasonError(err.Error()),
-		), true, nil
-	case errors.Is(err, ErrNotProposalProcessorProcessed):
-		return nil, true, err
+		), nil
 	default:
-		return nil, false, err
+		return nil, err
 	}
 }
 
