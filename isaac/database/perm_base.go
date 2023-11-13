@@ -7,25 +7,30 @@ import (
 )
 
 type basePermanent struct {
-	lenc    *util.Locked[string]             // NOTE encoder of last blockmap
-	mp      *util.Locked[[3]interface{}]     // NOTE last blockmap
-	policy  *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
-	proof   *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
-	stcache *util.GCache[string, base.State]
+	lenc                  *util.Locked[string]             // NOTE encoder of last blockmap
+	mp                    *util.Locked[[3]interface{}]     // NOTE last blockmap
+	policy                *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
+	proof                 *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
+	stcache               *util.GCache[string, base.State]
+	instateoperationcache *util.GCache[string, bool]
 }
 
-func newBasePermanent(stcachesize int) *basePermanent {
+func newBasePermanent(cachesize int) *basePermanent {
 	var stcache *util.GCache[string, base.State]
-	if stcachesize > 0 {
-		stcache = util.NewLFUGCache[string, base.State](stcachesize)
+	var instateoperationcache *util.GCache[string, bool]
+
+	if cachesize > 0 {
+		stcache = util.NewLFUGCache[string, base.State](cachesize)
+		instateoperationcache = util.NewLFUGCache[string, bool](cachesize)
 	}
 
 	return &basePermanent{
-		lenc:    util.EmptyLocked[string](),
-		mp:      util.EmptyLocked[[3]interface{}](),
-		policy:  util.EmptyLocked[base.NetworkPolicy](),
-		proof:   util.EmptyLocked[[3]interface{}](),
-		stcache: stcache,
+		lenc:                  util.EmptyLocked[string](),
+		mp:                    util.EmptyLocked[[3]interface{}](),
+		policy:                util.EmptyLocked[base.NetworkPolicy](),
+		proof:                 util.EmptyLocked[[3]interface{}](),
+		stcache:               stcache,
+		instateoperationcache: instateoperationcache,
 	}
 }
 
@@ -148,18 +153,31 @@ func (db *basePermanent) updateLast(
 	return err == nil
 }
 
-func (db *basePermanent) mergeTempStateCache(stcache *util.GCache[string, [2]interface{}]) {
-	if stcache == nil {
-		return
+func (db *basePermanent) mergeTempCaches(
+	stcache *util.GCache[string, [2]interface{}],
+	instateoperationcache util.LockedMap[string, bool],
+) {
+	if stcache != nil {
+		stcache.Traverse(func(_ string, i [2]interface{}) bool {
+			switch {
+			case !i[1].(bool): //nolint:forcetypeassert //...
+			default:
+				db.setState(i[0].(base.State)) //nolint:forcetypeassert //...
+			}
+
+			return true
+		})
 	}
 
-	stcache.Traverse(func(_ string, i [2]interface{}) bool {
-		switch {
-		case !i[1].(bool): //nolint:forcetypeassert //...
-		default:
-			db.setState(i[0].(base.State)) //nolint:forcetypeassert //...
-		}
+	if instateoperationcache != nil && db.instateoperationcache != nil {
+		instateoperationcache.Traverse(func(key string, found bool) bool {
+			if !found {
+				return true
+			}
 
-		return true
-	})
+			db.instateoperationcache.Set(key, true, 0)
+
+			return true
+		})
+	}
 }

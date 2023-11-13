@@ -16,15 +16,16 @@ import (
 
 type TempLeveldb struct {
 	*baseLeveldb
-	mp        base.BlockMap // NOTE last blockmap
-	sufst     base.State    // NOTE last suffrage state
-	policy    base.NetworkPolicy
-	proof     base.SuffrageProof
-	stcache   *util.GCache[string, [2]interface{}]
-	proofmeta []byte
-	proofbody []byte
-	mpmeta    []byte // NOTE last blockmap bytes
-	mpbody    []byte // NOTE last blockmap bytes
+	mp                    base.BlockMap // NOTE last blockmap
+	sufst                 base.State    // NOTE last suffrage state
+	policy                base.NetworkPolicy
+	proof                 base.SuffrageProof
+	stcache               *util.GCache[string, [2]interface{}]
+	instateoperationcache util.LockedMap[string, bool]
+	proofmeta             []byte
+	proofbody             []byte
+	mpmeta                []byte // NOTE last blockmap bytes
+	mpbody                []byte // NOTE last blockmap bytes
 	sync.Mutex
 }
 
@@ -43,8 +44,9 @@ func NewTempLeveldbFromPrefix(
 	}
 
 	db := &TempLeveldb{
-		baseLeveldb: newBaseLeveldb(pst, encs, enc),
-		stcache:     stcache,
+		baseLeveldb:           newBaseLeveldb(pst, encs, enc),
+		stcache:               stcache,
+		instateoperationcache: util.NewSingleLockedMap[string, bool](),
 	}
 
 	if err := db.loadLastBlockMap(); err != nil {
@@ -60,6 +62,10 @@ func NewTempLeveldbFromPrefix(
 	}
 
 	if err := db.loadNetworkPolicy(); err != nil {
+		return nil, err
+	}
+
+	if err := db.loadInStateOperations(); err != nil {
 		return nil, err
 	}
 
@@ -104,6 +110,10 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		proofmeta:   proofmeta,
 		proofbody:   proofbody,
 		stcache:     wst.stcache,
+	}
+
+	if wst.instateoperationcache.Len() > 0 {
+		db.instateoperationcache = wst.instateoperationcache
 	}
 
 	return db, nil
@@ -287,7 +297,13 @@ func (db *TempLeveldb) StateBytes(key string) (enchint string, meta, body []byte
 }
 
 func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
-	return db.existsInStateOperation(h)
+	if db.instateoperationcache == nil {
+		return false, nil
+	}
+
+	found, _ := db.instateoperationcache.Value(h.String())
+
+	return found, nil
 }
 
 func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
@@ -402,6 +418,31 @@ func (db *TempLeveldb) loadNetworkPolicy() error {
 
 		return nil
 	}
+}
+
+func (db *TempLeveldb) loadInStateOperations() error {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	if err := pst.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation[:]),
+		func(_ []byte, b []byte) (bool, error) {
+			_ = db.instateoperationcache.SetValue(string(b), true)
+
+			return true, nil
+		},
+		false,
+	); err != nil {
+		return err
+	}
+
+	if db.instateoperationcache.Len() < 1 {
+		db.instateoperationcache = nil
+	}
+
+	return nil
 }
 
 func (db *TempLeveldb) state(key string) (st base.State, found bool, err error) {

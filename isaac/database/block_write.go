@@ -19,13 +19,14 @@ import (
 
 type LeveldbBlockWrite struct {
 	*baseLeveldb
-	mp         *util.Locked[[3]interface{}]
-	sufst      *util.Locked[base.State]
-	policy     *util.Locked[base.State]
-	proof      *util.Locked[[3]interface{}]
-	laststates *util.ShardedMap[string, base.Height]
-	stcache    *util.GCache[string, [2]interface{}]
-	height     base.Height
+	mp                    *util.Locked[[3]interface{}]
+	sufst                 *util.Locked[base.State]
+	policy                *util.Locked[base.State]
+	proof                 *util.Locked[[3]interface{}]
+	laststates            *util.ShardedMap[string, base.Height]
+	stcache               *util.GCache[string, [2]interface{}]
+	instateoperationcache util.LockedMap[string, bool]
+	height                base.Height
 	sync.Mutex
 }
 
@@ -46,14 +47,15 @@ func NewLeveldbBlockWrite(
 	}
 
 	return &LeveldbBlockWrite{
-		baseLeveldb: newBaseLeveldb(pst, encs, enc),
-		height:      height,
-		mp:          util.EmptyLocked[[3]interface{}](),
-		sufst:       util.EmptyLocked[base.State](),
-		policy:      util.EmptyLocked[base.State](),
-		proof:       util.EmptyLocked[[3]interface{}](),
-		laststates:  laststates,
-		stcache:     stcache,
+		baseLeveldb:           newBaseLeveldb(pst, encs, enc),
+		height:                height,
+		mp:                    util.EmptyLocked[[3]interface{}](),
+		sufst:                 util.EmptyLocked[base.State](),
+		policy:                util.EmptyLocked[base.State](),
+		proof:                 util.EmptyLocked[[3]interface{}](),
+		laststates:            laststates,
+		stcache:               stcache,
+		instateoperationcache: util.NewSingleLockedMap[string, bool](),
 	}
 }
 
@@ -108,6 +110,8 @@ func (db *LeveldbBlockWrite) Cancel() error {
 		db.stcache.Purge()
 	}
 
+	db.instateoperationcache.Close()
+
 	return nil
 }
 
@@ -143,9 +147,11 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 			for j := range ops {
 				op := ops[j]
 
-				if err := pst.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
+				if err := pst.Put(leveldbInStateOperationKey(op), []byte(op.String()), nil); err != nil {
 					return err
 				}
+
+				db.instateoperationcache.SetValue(op.String(), true)
 			}
 
 			return nil

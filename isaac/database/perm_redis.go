@@ -233,10 +233,22 @@ func (db *RedisPermanent) StateBytes(key string) (enchint string, meta, body []b
 func (db *RedisPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
 	e := util.StringError("check instate operation")
 
-	switch found, err := db.st.Exists(context.Background(), redisInStateOperationKey(h)); {
+	if db.instateoperationcache != nil {
+		switch found, incache := db.instateoperationcache.Get(h.String()); {
+		case !incache:
+		case found:
+			return true, nil
+		}
+	}
+
+	switch found, err := db.st.Exists(context.Background(), redisInStateOperationKey(h.String())); {
 	case err != nil:
 		return false, e.Wrap(err)
 	default:
+		if db.instateoperationcache != nil && found {
+			db.instateoperationcache.Set(h.String(), true, 0)
+		}
+
 		return found, nil
 	}
 }
@@ -373,7 +385,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		temp.policy,
 	)
 
-	db.basePermanent.mergeTempStateCache(temp.stcache)
+	db.basePermanent.mergeTempCaches(temp.stcache, temp.instateoperationcache)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -393,7 +405,7 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	if err := tpst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation[:]),
 		func(_, b []byte) (bool, error) {
-			if err := db.st.Set(ctx, redisInStateOperationKey(valuehash.Bytes(b)), b); err != nil {
+			if err := db.st.Set(ctx, redisInStateOperationKey(string(b)), b); err != nil {
 				return false, err
 			}
 
@@ -644,8 +656,8 @@ func redisStateKey(key string) string {
 	return redisStateKeyPrerfix + "-" + key
 }
 
-func redisInStateOperationKey(h util.Hash) string {
-	return redisInStateOperationKeyPrerfix + "-" + h.String()
+func redisInStateOperationKey(s string) string {
+	return redisInStateOperationKeyPrerfix + "-" + s
 }
 
 func redisKnownOperationKey(h util.Hash) string {

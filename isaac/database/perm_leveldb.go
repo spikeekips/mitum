@@ -234,7 +234,24 @@ func (db *LeveldbPermanent) StateBytes(key string) (enchint string, meta, body [
 }
 
 func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
-	return db.existsInStateOperation(h)
+	if db.instateoperationcache != nil {
+		switch found, incache := db.instateoperationcache.Get(h.String()); {
+		case !incache:
+		case found:
+			return true, nil
+		}
+	}
+
+	switch found, err := db.existsInStateOperation(h); {
+	case err != nil:
+		return false, err
+	default:
+		if db.instateoperationcache != nil && found {
+			db.instateoperationcache.Set(h.String(), true, 0)
+		}
+
+		return found, nil
+	}
 }
 
 func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
@@ -388,7 +405,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		temp.policy,
 	)
 
-	db.basePermanent.mergeTempStateCache(temp.stcache)
+	db.basePermanent.mergeTempCaches(temp.stcache, temp.instateoperationcache)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
