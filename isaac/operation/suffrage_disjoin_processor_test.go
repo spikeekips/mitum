@@ -160,7 +160,6 @@ func (t *testSuffrageDisjoinProcessor) TestFromEmptyState() {
 	)
 	t.Error(err)
 	t.ErrorContains(err, "empty state")
-	t.True(errors.Is(err, isaac.ErrStopProcessingRetry))
 }
 
 func (t *testSuffrageDisjoinProcessor) TestPreProcessed() {

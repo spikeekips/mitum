@@ -38,7 +38,7 @@ func NewSuffrageDisjoinProcessor(
 	case err != nil:
 		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
+		return nil, e.Errorf("empty state")
 	default:
 		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 		p.suffrage = map[string]base.SuffrageNodeStateValue{}

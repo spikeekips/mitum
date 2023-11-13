@@ -19,7 +19,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -283,17 +282,17 @@ func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
 	// NOTE check height directory
 	switch _, err := os.Stat(heightdirectory); {
 	case err == nil:
-		return nil, isaac.ErrStopProcessingRetry.Errorf("save fs writer; height directory already exists")
+		return nil, errors.Errorf("save fs writer; height directory already exists")
 	case os.IsNotExist(err):
 	default:
-		return nil, isaac.ErrStopProcessingRetry.Errorf("save fs writer; check height directory")
+		return nil, errors.Errorf("save fs writer; check height directory")
 	}
 
 	switch m, err := w.save(ctx, heightdirectory); {
 	case err != nil:
 		_ = os.RemoveAll(heightdirectory)
 
-		return nil, isaac.ErrStopProcessingRetry.WithMessage(err, "save fs writer")
+		return nil, errors.WithMessage(err, "save fs writer")
 	default:
 		return m, nil
 	}

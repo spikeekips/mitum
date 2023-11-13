@@ -42,7 +42,7 @@ func NewNetworkPolicyProcessor(
 	case err != nil:
 		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
+		return nil, e.Errorf("empty state")
 	default:
 		p.stv = i.Value().(base.NetworkPolicyStateValue) //nolint:forcetypeassert //...
 		p.policy = p.stv.Policy()
@@ -52,13 +52,13 @@ func NewNetworkPolicyProcessor(
 	case err != nil:
 		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
+		return nil, e.Errorf("empty state")
 	default:
 		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 		suf, err := sufstv.Suffrage()
 		if err != nil {
-			return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"))
+			return nil, e.Errorf("get suffrage from state")
 		}
 
 		p.suffrage = suf

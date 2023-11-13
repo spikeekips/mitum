@@ -40,13 +40,13 @@ func NewSuffrageExpelProcessor(
 	case err != nil:
 		return nil, e.Wrap(err)
 	case !found, i == nil:
-		return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("empty state"))
+		return nil, e.Errorf("empty state")
 	default:
 		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
-			return nil, e.Wrap(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"))
+			return nil, e.Errorf("get suffrage from state")
 		}
 
 		p.suffrage = suf

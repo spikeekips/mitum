@@ -377,8 +377,6 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -593,8 +591,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 		return nil, errors.Errorf("hehehe")
 	}
-	args.Retrylimit = 3
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -861,8 +857,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -908,8 +902,6 @@ func (t *testDefaultProposalProcessor) TestCollectOperationButWithOperationReaso
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -971,8 +963,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -995,53 +985,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 
 		return true, nil
 	})
-}
-
-func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
-	point := base.RawPoint(33, 44)
-
-	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
-
-	var called int
-	for i := range ops {
-		op := ops[i].(DummyOperation)
-		if op.Fact().Hash().Equal(ophs[1][1]) {
-			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
-				called++
-				return ctx, nil, errors.Errorf("findme: %q", op.Fact().Hash())
-			}
-		}
-
-		ops[i] = op
-	}
-
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
-
-	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockWriter()
-	writer.manifest = manifest
-
-	args := t.newargs(newwriterf)
-	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
-		op, found := ops[oph.String()]
-		if !found {
-			return nil, ErrOperationNotFoundInProcessor.WithStack()
-		}
-
-		return op, nil
-	}
-	args.Retrylimit = 3
-	args.Retryinterval = 1
-
-	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
-
-	m, err := opp.Process(context.Background(), nil)
-	t.Error(err)
-	t.Nil(m)
-
-	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1][1]))
-	t.Equal(args.Retrylimit, called)
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
@@ -1093,8 +1036,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -1397,105 +1338,12 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
 	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
-}
-
-func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
-	point := base.RawPoint(33, 44)
-
-	var called int
-	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
-	for i := range ops {
-		op := ops[i].(DummyOperation)
-
-		if op.Fact().Hash().Equal(ophs[1][1]) {
-			op.process = func(ctx context.Context, getStateFunc base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-				called++
-				return nil, nil, errors.Errorf("findme: %q", op.Fact().Hash())
-			}
-		}
-
-		ops[i] = op
-	}
-
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
-
-	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockWriter()
-	writer.manifest = manifest
-
-	args := t.newargs(newwriterf)
-	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
-		op, found := ops[oph.String()]
-		if !found {
-			return nil, ErrOperationNotFoundInProcessor.WithStack()
-		}
-
-		return op, nil
-	}
-	args.Retrylimit = 3
-	args.Retryinterval = 1
-
-	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
-
-	m, err := opp.Process(context.Background(), nil)
-	t.Error(err)
-	t.Nil(m)
-
-	t.ErrorContains(err, "process operation")
-	t.Equal(args.Retrylimit, called)
-}
-
-func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
-	point := base.RawPoint(33, 44)
-
-	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
-
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
-
-	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockWriter()
-	writer.manifest = manifest
-
-	var called int
-	writer.setstatesf = func(ctx context.Context, index uint64, sts []base.StateMergeValue, op base.Operation) error {
-		if index == 2 {
-			called++
-			return errors.Errorf("findme: %q", op.Fact().Hash())
-		}
-
-		return writer.setStates(ctx, index, sts, op)
-	}
-
-	args := t.newargs(newwriterf)
-	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
-		op, found := ops[oph.String()]
-		if !found {
-			return nil, ErrOperationNotFoundInProcessor.WithStack()
-		}
-
-		return op, nil
-	}
-	args.Retrylimit = 2
-	args.Retryinterval = 1
-
-	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
-
-	m, err := opp.Process(context.Background(), nil)
-	t.Error(err)
-	t.Nil(m)
-
-	t.ErrorContains(err, "process operation")
-	t.Equal(args.Retrylimit, called)
 }
 
 func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
@@ -1549,8 +1397,6 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -1623,8 +1469,6 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 
 		return op, nil
 	}
-	args.Retrylimit = 1
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
@@ -1759,8 +1603,6 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
 		return ops[oph.String()], nil
 	}
-	args.Retrylimit = 2
-	args.Retryinterval = 1
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 

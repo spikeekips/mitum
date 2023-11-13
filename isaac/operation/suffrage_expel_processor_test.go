@@ -166,7 +166,6 @@ func (t *testSuffrageExpelProcessor) TestFromEmptyState() {
 	)
 	t.Error(err)
 	t.ErrorContains(err, "empty state")
-	t.True(errors.Is(err, isaac.ErrStopProcessingRetry))
 }
 
 func (t *testSuffrageExpelProcessor) TestPreProcessed() {
