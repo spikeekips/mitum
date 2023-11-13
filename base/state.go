@@ -33,7 +33,7 @@ type StateMergeValue interface {
 
 type StateValueMerger interface {
 	State
-	Merge(value StateValue, operation util.Hash) error
+	Merge(value StateValue, operationfact util.Hash) error
 	Close() error
 }
 
