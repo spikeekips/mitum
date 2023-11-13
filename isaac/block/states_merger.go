@@ -13,9 +13,9 @@ import (
 type StatesMerger interface {
 	SetStates(_ context.Context, opindex uint64, _ []base.StateMergeValue, operationfacthash util.Hash) error
 	CloseStates(
-		context.Context,
-		func(keysLength uint64) error,
-		func(newState base.State, index uint64) error,
+		_ context.Context,
+		beforeClose func(keysLength uint64) error,
+		oneState func(newState base.State, index uint64) error,
 	) error
 	Len() int
 	Close() error
