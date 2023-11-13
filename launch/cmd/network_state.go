@@ -32,7 +32,12 @@ func (cmd *NetworkClientStateCommand) Run(pctx context.Context) error {
 	var h util.Hash
 
 	if len(strings.TrimSpace(cmd.Hash)) > 0 {
-		h = valuehash.NewBytesFromString(cmd.Hash)
+		switch i, err := valuehash.NewBytesFromString(cmd.Hash); {
+		case err != nil:
+			return err
+		default:
+			h = i
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(pctx, cmd.Timeout)

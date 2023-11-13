@@ -147,7 +147,7 @@ func TestMPublickeyJSON(tt *testing.T) {
 		{
 			_, err := DecodePublickeyFromString(" "+s, t.enc)
 			t.Error(err)
-			t.ErrorContains(err, "malformed public key")
+			t.ErrorContains(err, "invalid byte")
 		}
 
 		uk, err := DecodePublickeyFromString(s, t.enc)

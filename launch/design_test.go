@@ -324,7 +324,7 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		b := []byte(`
 - type: sync-source-node
   address: showme-nodesas
-  publickey: oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu
+  publickey: 0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu
   publish: 1.2.3.4:1234
   tls_insecure: true
 `)
@@ -343,7 +343,7 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		a, ok := (i.Source).(isaac.NodeConnInfo)
 		t.True(ok)
 		t.Equal("showme-nodesas", a.Address().String())
-		t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", a.Publickey().String())
+		t.Equal("0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu", a.Publickey().String())
 		t.Equal("1.2.3.4:1234", a.Addr().String())
 		t.True(a.TLSInsecure())
 	})
@@ -637,7 +637,7 @@ func (t *testNodeDesign) TestDecode() {
 	t.Run("ok", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -683,7 +683,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -762,7 +762,7 @@ parameters:
 	t.Run("empty network", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 storage:
   base: /tmp/a/b/c
@@ -773,7 +773,7 @@ storage:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Nil(a.Network.Bind)
@@ -787,7 +787,7 @@ storage:
 	t.Run("empty storage", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -799,7 +799,7 @@ network:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -813,7 +813,7 @@ network:
 	t.Run("missing isaac params", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -832,7 +832,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -855,7 +855,7 @@ parameters:
 	t.Run("missing params", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -870,7 +870,7 @@ storage:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -889,7 +889,7 @@ storage:
 	t.Run("missing memberlist params", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -913,7 +913,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -946,7 +946,7 @@ parameters:
 	t.Run("missing misc params", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -968,7 +968,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -1001,7 +1001,7 @@ parameters:
 	t.Run("missing network params", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -1026,7 +1026,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -1068,7 +1068,7 @@ func (t *testNodeDesign) TestEncode() {
 	t.Run("ok", func() {
 		b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -1089,7 +1089,7 @@ parameters:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -1108,7 +1108,7 @@ parameters:
 		t.NoError(ua.DecodeYAML(ub, t.enc))
 
 		t.Equal("no0sas", ua.Address.String())
-		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", ua.Privatekey.String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", ua.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(ua.NetworkID))
 
 		t.Equal("0.0.0.0:1234", ua.Network.Bind.String())
@@ -1137,7 +1137,7 @@ parameters:
 func (t *testNodeDesign) TestUpdateYAML() {
 	b := []byte(`
 address: no0sas
-privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+privatekey: 58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234

@@ -431,35 +431,34 @@ func TestBaseOperationEncodeExtensible(tt *testing.T) {
 	networkID := NetworkID("dummy-network-id")
 
 	t.Encode = func() (interface{}, []byte) {
-		b := `
-{
-  "hash": "G8znFJSYix9UzB8fWFgEcfSnamkdnQfunh5uMRjNoBst",
-  "fact": {
-    "_hint": "dummyfact-v1.2.3",
-    "H": "7X3TXhEhWQEp6rjPCLGxJ7QwB3GBzntEvVzZBeKhoHLr",
-    "Token": "pfEb1rnJQ86UrmQ6hyxrqQ==",
-    "V": "96c811bf-3921-4ab7-bd39-8fdd6c448ed7"
-  },
-  "signs": [
-    {
-      "signed_at": "2023-02-25T06:36:11.58028639Z",
-      "signer": "dXXonLEHvi7ohuiZoka2etuKY3bRwzK6Kk9jU74D9nSimpu",
-      "signature": "AN1rKvtRdk1qsKqrFcFS44mzNcLVTvb8ZCjJymbmbWeiK7aUgrHnHNP5TQQQ2aKC8qStjAM2RFM4bCJp8gM26yy9pPT5C3H9g"
-    }
-  ],
-  "_hint": "dummyoperation-v0.0.3",
-  "I": {
-    "_hint": "dummyoperation-inside-v0.0.3",
-    "A": "A",
-    "killme": "eatme"
-  },
-  "showme": "findme"
-}
-`
+		fact := NewDummyFact(util.UUID().Bytes(), util.UUID().String())
+		inside := insideDummyOperationExtensible{
+			BaseHinter: hint.NewBaseHinter(insideht),
+			A:          util.UUID().String(),
+		}
 
-		t.T().Log("marshaled:", b)
+		op := dummyOperationExtensible{
+			BaseOperation: NewBaseOperation(ht, fact),
+			I:             inside,
+		}
+		t.NoError(op.Sign(NewMPrivatekey(), networkID))
 
-		return nil, []byte(b)
+		b, err := enc.Marshal(op)
+		t.NoError(err)
+
+		// add extra fields
+		var u map[string]interface{}
+		t.NoError(enc.Unmarshal(b, &u))
+		u["showme"] = "findme"
+
+		ui := u["I"].(map[string]interface{})
+		ui["killme"] = "eatme"
+
+		s := util.MustMarshalJSONIndentString(u)
+
+		t.T().Log("marshaled:", s)
+
+		return nil, []byte(s)
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: &MPublickey{}}))

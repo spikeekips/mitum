@@ -1,12 +1,12 @@
 package base
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
-	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -40,16 +40,21 @@ func ParseMPublickey(s string) (*MPublickey, error) {
 }
 
 func LoadMPublickey(s string) (*MPublickey, error) {
-	k, err := btcec.ParsePubKey(base58.Decode(s))
-	if err != nil {
-		return nil, util.ErrInvalid.WithMessage(err, "load publickey")
-	}
+	switch i, err := hex.DecodeString(s); {
+	case err != nil:
+		return nil, err
+	default:
+		k, err := btcec.ParsePubKey(i)
+		if err != nil {
+			return nil, util.ErrInvalid.WithMessage(err, "load publickey")
+		}
 
-	return NewMPublickey(k), nil
+		return NewMPublickey(k), nil
+	}
 }
 
 func (k *MPublickey) String() string {
-	return fmt.Sprintf("%s%s", base58.Encode(k.k.SerializeCompressed()), k.Hint().Type().String())
+	return fmt.Sprintf("%s%s", hex.EncodeToString(k.k.SerializeCompressed()), k.Hint().Type().String())
 }
 
 func (k *MPublickey) Bytes() []byte {

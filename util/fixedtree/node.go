@@ -39,7 +39,12 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 	case len(l) != 2:
 		return n, e.Errorf("invalid string")
 	case len(l[0]) > 0:
-		n.h = valuehash.NewBytesFromString(l[0])
+		switch i, err := valuehash.NewBytesFromString(l[0]); {
+		case err != nil:
+			return n, e.Wrap(err)
+		default:
+			n.h = i
+		}
 	}
 
 	n.key = l[1]

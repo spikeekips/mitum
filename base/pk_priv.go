@@ -1,13 +1,13 @@
 package base
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
 	btcec_ecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -57,15 +57,16 @@ func ParseMPrivatekey(s string) (*MPrivatekey, error) {
 }
 
 func LoadMPrivatekey(s string) (*MPrivatekey, error) {
-	b := base58.Decode(s)
+	switch b, err := hex.DecodeString(s); {
+	case err != nil:
+		return nil, util.ErrInvalid.WithMessage(err, "private key")
+	case len(b) < 1:
+		return nil, util.ErrInvalid.Errorf("empty private key")
+	default:
+		priv, _ := btcec.PrivKeyFromBytes(b)
 
-	if len(b) < 1 {
-		return nil, util.ErrInvalid.Errorf("malformed private key")
+		return newMPrivatekeyFromPrivateKey(priv), nil
 	}
-
-	priv, _ := btcec.PrivKeyFromBytes(b)
-
-	return newMPrivatekeyFromPrivateKey(priv), nil
 }
 
 func newMPrivatekeyFromPrivateKey(priv *btcec.PrivateKey) *MPrivatekey {
@@ -76,7 +77,7 @@ func newMPrivatekeyFromPrivateKey(priv *btcec.PrivateKey) *MPrivatekey {
 }
 
 func (k *MPrivatekey) String() string {
-	return fmt.Sprintf("%s%s", base58.Encode(k.priv.Serialize()), k.Hint().Type().String())
+	return fmt.Sprintf("%s%s", hex.EncodeToString(k.priv.Serialize()), k.Hint().Type().String())
 }
 
 func (k *MPrivatekey) Bytes() []byte {

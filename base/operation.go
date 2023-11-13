@@ -79,13 +79,13 @@ func NewNotInStateOperationFixedtreeNode(facthash util.Hash, reason string) Oper
 }
 
 func (no OperationFixedtreeNode) InState() bool {
-	_, instate := ParseTreeNodeOperationKey(no.Key())
+	_, instate, _ := ParseTreeNodeOperationKey(no.Key())
 
 	return instate
 }
 
 func (no OperationFixedtreeNode) Operation() util.Hash {
-	h, _ := ParseTreeNodeOperationKey(no.Key())
+	h, _, _ := ParseTreeNodeOperationKey(no.Key())
 
 	return h
 }
@@ -212,7 +212,7 @@ func (e *BaseOperationProcessReasonError) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func ParseTreeNodeOperationKey(s string) (util.Hash, bool) {
+func ParseTreeNodeOperationKey(s string) (util.Hash, bool, error) {
 	k := s
 
 	var notInState bool
@@ -222,7 +222,12 @@ func ParseTreeNodeOperationKey(s string) (util.Hash, bool) {
 		notInState = true
 	}
 
-	return valuehash.NewBytesFromString(k), !notInState
+	switch i, err := valuehash.NewBytesFromString(k); {
+	case err != nil:
+		return nil, false, err
+	default:
+		return i, !notInState, nil
+	}
 }
 
 type BaseOperationProcessor struct {

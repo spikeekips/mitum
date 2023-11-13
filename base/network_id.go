@@ -2,7 +2,7 @@ package base
 
 import (
 	"bytes"
-	"encoding/base64"
+	"encoding/hex"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -38,11 +38,11 @@ func (ni NetworkID) Equal(a NetworkID) bool {
 }
 
 func (ni NetworkID) MarshalText() ([]byte, error) {
-	return []byte(base64.StdEncoding.EncodeToString(ni.Bytes())), nil
+	return []byte(hex.EncodeToString(ni.Bytes())), nil
 }
 
 func (ni *NetworkID) UnmarshalText(b []byte) error {
-	s, err := base64.StdEncoding.DecodeString(string(b))
+	s, err := hex.DecodeString(string(b))
 	if err != nil {
 		return errors.Wrap(err, "unmarshal NetworkID")
 	}

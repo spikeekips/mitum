@@ -18,10 +18,10 @@ func TestDecodePrivatekeyFromString(tt *testing.T) {
 		expected string
 		err      string
 	}{
-		{name: "ok", s: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84mpr", expected: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84mpr"},
-		{name: "unknown hint", s: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84unk", err: "find decoder by type"},
-		{name: "publickey", s: "hCCF87ntRpCwwY1uAwb4AMZdf1JYXRD4VeT8WpchE4dJmpu", err: "not Privatekey"},
-		{name: "String() not match", s: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84YYYYYYYYYYYYmpr", err: "unknown key format"},
+		{name: "ok", s: "58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", expected: "58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr"},
+		{name: "unknown hint", s: "58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0unk", err: "find decoder by type"},
+		{name: "publickey", s: "0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu", err: "not Privatekey"},
+		{name: "String() not match", s: "0b4d4c59b46e472b860be9a7d65d112cmpr", err: "unknown key format"},
 	}
 
 	enc := jsonenc.NewEncoder()
@@ -62,10 +62,10 @@ func TestDecodePublickeyFromString(tt *testing.T) {
 		expected string
 		err      string
 	}{
-		{name: "ok", s: "hCCF87ntRpCwwY1uAwb4AMZdf1JYXRD4VeT8WpchE4dJmpu", expected: "hCCF87ntRpCwwY1uAwb4AMZdf1JYXRD4VeT8WpchE4dJmpu"},
-		{name: "unknown hint", s: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84unk", err: "find decoder by type"},
-		{name: "privatekey", s: "4L7bTPQHphG6TP6VPAnTUgS9w31eSqxFFHkUVW5saS84mpr", err: "not Publickey"},
-		{name: "String() not match", s: "hCCF87ntRpCwwY1uAwb4AMZdf1JYXRD4VeT8WpchE4dJYYYYYmpu", err: "malformed"},
+		{name: "ok", s: "0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu", expected: "0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu"},
+		{name: "unknown hint", s: "0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eeunk", err: "find decoder by type"},
+		{name: "privatekey", s: "58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", err: "not Publickey"},
+		{name: "String() not match", s: "0b4d4c59b46e472b860be9a7d65d112cmpu", err: "malformed"},
 	}
 
 	enc := jsonenc.NewEncoder()

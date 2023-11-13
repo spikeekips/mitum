@@ -21,7 +21,7 @@ func (t *testBlake3256) TestNew() {
 	h = NewBlake3256(b)
 
 	t.T().Log(h.String())
-	t.Equal("5DeBwvk8DuUriS3ppjvh31AAYfB7UcmfQjuFV2z9kroj", h.String())
+	t.Equal("3eabc450d5d854f35b9207d42f80ac4edad842d0979551c9cfd7f1749642ee92", h.String())
 
 	t.NotEqual(initial, h.Bytes())
 

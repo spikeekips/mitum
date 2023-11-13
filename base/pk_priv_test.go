@@ -35,8 +35,8 @@ func (t *testMPrivatekey) TestFromSeedStatic() {
 		priv, err := NewMPrivatekeyFromSeed(seed)
 		t.NoError(err)
 
-		t.Equal("6yixbhwXXf9hpTnwgHJimSACCtLiTJuNRbvfaAhijzP1mpr", priv.String())
-		t.Equal("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", priv.Publickey().String())
+		t.Equal("58d2671582e7866ab98bc0024c4c474b81b2f0846f06c0696ebd50a9dd3127e0mpr", priv.String())
+		t.Equal("0298d7f011bcf398780caca0ea975744bd74fc0c59eca14ac5910ede19d398e3eempu", priv.Publickey().String())
 	}
 }
 
@@ -132,7 +132,7 @@ func (t *testMPrivatekey) TestParseMPrivatekeyButEmpty() {
 		t.Error(err)
 
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "malformed private key")
+		t.ErrorContains(err, "invalid byte")
 	})
 }
 
@@ -238,7 +238,7 @@ func TestMPrivatekeyJSON(tt *testing.T) {
 		{
 			_, err := DecodePrivatekeyFromString(" "+s, t.enc)
 			t.Error(err)
-			t.ErrorContains(err, "malformed private key")
+			t.ErrorContains(err, "invalid byte")
 		}
 
 		uk, err := DecodePrivatekeyFromString(s, t.enc)

@@ -1,14 +1,13 @@
 package util
 
 import (
+	"encoding/hex"
 	"fmt"
-
-	"github.com/btcsuite/btcutil/base58"
 )
 
 type Hash interface {
 	Equal(Hash) bool
-	fmt.Stringer // NOTE usually String() value is the base58 encoded of Bytes()
+	fmt.Stringer // NOTE usually String() value is the hex encoded of Bytes()
 	Byter
 	IsValider
 }
@@ -23,9 +22,9 @@ type HashByter interface {
 }
 
 func EncodeHash(b []byte) string {
-	return base58.Encode(b)
+	return hex.EncodeToString(b)
 }
 
-func DecodeHash(s string) []byte {
-	return base58.Decode(s)
+func DecodeHash(s string) ([]byte, error) {
+	return hex.DecodeString(s)
 }

@@ -9,9 +9,7 @@ require (
 	github.com/beevik/ntp v1.3.0
 	github.com/bluele/gcache v0.0.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
-	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.2
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/bytedance/sonic v1.10.2
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/hashicorp/consul/api v1.25.1

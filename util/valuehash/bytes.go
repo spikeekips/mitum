@@ -23,8 +23,13 @@ func NewHashFromBytes(b []byte) util.Hash {
 	return NewBytes(b)
 }
 
-func NewBytesFromString(s string) Bytes {
-	return NewBytes(util.DecodeHash(s))
+func NewBytesFromString(s string) (Bytes, error) {
+	switch i, err := util.DecodeHash(s); {
+	case err != nil:
+		return nil, err
+	default:
+		return NewBytes(i), nil
+	}
 }
 
 func (h Bytes) String() string {
@@ -60,9 +65,14 @@ func (h Bytes) MarshalText() ([]byte, error) {
 }
 
 func (h *Bytes) UnmarshalText(b []byte) error {
-	*h = NewBytesFromString(string(b))
+	switch i, err := NewBytesFromString(string(b)); {
+	case err != nil:
+		return err
+	default:
+		*h = i
 
-	return nil
+		return nil
+	}
 }
 
 type HashDecoder struct {
