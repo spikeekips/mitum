@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -208,6 +209,7 @@ type SuffrageJoinStateValueMerger struct {
 	existing  base.SuffrageNodesStateValue
 	joined    []base.Node
 	disjoined []base.Address
+	sync.Mutex
 }
 
 func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *SuffrageJoinStateValueMerger {
@@ -239,6 +241,9 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, op util.Hash
 }
 
 func (s *SuffrageJoinStateValueMerger) Close() error {
+	s.Lock()
+	defer s.Unlock()
+
 	newvalue, err := s.close()
 	if err != nil {
 		return errors.WithMessage(err, "close SuffrageJoinStateValueMerger")
@@ -250,9 +255,6 @@ func (s *SuffrageJoinStateValueMerger) Close() error {
 }
 
 func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
-	s.Lock()
-	defer s.Unlock()
-
 	if len(s.disjoined) < 1 && len(s.joined) < 1 {
 		return nil, base.ErrIgnoreStateValue.Errorf("no nodes changes")
 	}

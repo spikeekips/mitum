@@ -79,7 +79,7 @@ func (s *dummySimpleStateValueMerger) Merge(value StateValue, op util.Hash) erro
 	}
 	s.S += i.I
 
-	s.AddOperation(op)
+	s.addOperation(op)
 
 	return nil
 }

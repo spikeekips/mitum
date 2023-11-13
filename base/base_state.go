@@ -11,6 +11,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
+	"golang.org/x/exp/slices"
 )
 
 var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
@@ -291,7 +292,7 @@ func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
 
 	s.value = value
 
-	s.AddOperation(op)
+	s.addOperation(op)
 
 	return nil
 }
@@ -319,15 +320,28 @@ func (s *BaseStateValueMerger) Close() error {
 }
 
 func (s *BaseStateValueMerger) AddOperation(op util.Hash) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.addOperation(op)
+}
+
+func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(s.nst)
+}
+
+func (s *BaseStateValueMerger) addOperation(op util.Hash) {
+	if slices.IndexFunc(s.ops, func(i util.Hash) bool {
+		return i.Equal(op)
+	}) >= 0 {
+		return
+	}
+
 	nops := make([]util.Hash, len(s.ops)+1)
 	copy(nops[:len(s.ops)], s.ops)
 	nops[len(s.ops)] = op
 
 	s.ops = nops
-}
-
-func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(s.nst)
 }
 
 type BaseStateMergeValue struct {

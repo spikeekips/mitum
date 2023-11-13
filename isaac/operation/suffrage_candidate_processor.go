@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -161,6 +162,7 @@ type SuffrageCandidatesStateValueMerger struct {
 	existings []base.SuffrageCandidateStateValue
 	added     []base.SuffrageCandidateStateValue
 	removes   []base.Address
+	sync.Mutex
 }
 
 func NewSuffrageCandidatesStateValueMerger(height base.Height, st base.State) *SuffrageCandidatesStateValueMerger {
@@ -196,6 +198,9 @@ func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, op uti
 }
 
 func (s *SuffrageCandidatesStateValueMerger) Close() error {
+	s.Lock()
+	defer s.Unlock()
+
 	newvalue, err := s.close()
 	if err != nil {
 		return errors.WithMessage(err, "close SuffrageCandidatesStateValueMerger")
@@ -207,9 +212,6 @@ func (s *SuffrageCandidatesStateValueMerger) Close() error {
 }
 
 func (s *SuffrageCandidatesStateValueMerger) close() (base.StateValue, error) {
-	s.Lock()
-	defer s.Unlock()
-
 	if len(s.removes) < 1 && len(s.added) < 1 {
 		return nil, base.ErrIgnoreStateValue.Errorf("empty newly added or removes nodes")
 	}
