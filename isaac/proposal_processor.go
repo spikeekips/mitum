@@ -20,7 +20,6 @@ var (
 	ErrOperationNotFoundInProcessor         = util.NewIDError("operation not found")
 	ErrOperationAlreadyProcessedInProcessor = util.NewIDError("operation already processed")
 	ErrStopProcessingRetry                  = util.NewIDError("stop processing retrying")
-	ErrIgnoreStateValue                     = util.NewIDError("ignore state value")
 	ErrSuspendOperation                     = util.NewIDError("suspend operation")
 	ErrProcessorAlreadySaved                = util.NewIDError("processor already saved")
 	ErrProposalProcessorEmptyOperations     = util.NewIDError("empty operations in proposal")

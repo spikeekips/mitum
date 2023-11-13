@@ -15,6 +15,8 @@ import (
 
 var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
 
+var ErrIgnoreStateValue = util.NewIDError("ignore state value")
+
 type BaseState struct {
 	h        util.Hash
 	previous util.Hash
@@ -215,19 +217,15 @@ type BaseStateValueMerger struct {
 }
 
 func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
-	var value StateValue
-
 	nkey := key
 
 	if st != nil {
 		nkey = st.Key()
-		value = st.Value()
 	}
 
 	return &BaseStateValueMerger{
 		State:  st,
 		height: height,
-		value:  value,
 		key:    nkey,
 	}
 }
@@ -302,10 +300,8 @@ func (s *BaseStateValueMerger) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
-	e := util.StringError("close BaseStateValueMerger")
-
-	if s.value == nil {
-		return e.Errorf("empty value")
+	if s.value == nil || len(s.ops) < 1 {
+		return ErrIgnoreStateValue.Errorf("empty state value")
 	}
 
 	sort.Slice(s.ops, func(i, j int) bool {

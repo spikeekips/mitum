@@ -88,7 +88,9 @@ func (s *dummySimpleStateValueMerger) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
-	s.SetValue(newDummySimpleStateValue(s.S))
+	if len(s.ops) > 0 {
+		s.SetValue(newDummySimpleStateValue(s.S))
+	}
 
 	return s.BaseStateValueMerger.Close()
 }
@@ -116,6 +118,20 @@ func (t *testStateValueMerger) TestNew() {
 		v := newDummySimpleStateValue(55)
 		merger := v.Merger(Height(44), st)
 		_ = (merger).(State)
+	})
+
+	t.Run("not merged", func() {
+		height := Height(33)
+
+		st := newDummyState(height, util.UUID().String(), sv, valuehash.RandomSHA256())
+
+		merger := sv.Merger(height+1, st)
+
+		err := merger.Close()
+		t.Error(err)
+		t.True(errors.Is(err, ErrIgnoreStateValue))
+
+		t.Nil(merger.Value())
 	})
 }
 

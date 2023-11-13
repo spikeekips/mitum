@@ -213,7 +213,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 				switch {
 				case err == nil:
-				case errors.Is(err, isaac.ErrIgnoreStateValue):
+				case errors.Is(err, base.ErrIgnoreStateValue):
 					return nil
 				default:
 					return err

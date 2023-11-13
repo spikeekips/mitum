@@ -253,6 +253,10 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	s.Lock()
 	defer s.Unlock()
 
+	if len(s.disjoined) < 1 && len(s.joined) < 1 {
+		return nil, base.ErrIgnoreStateValue.Errorf("no nodes changes")
+	}
+
 	existingnodes := s.existing.Nodes()
 
 	if len(s.disjoined) > 0 {

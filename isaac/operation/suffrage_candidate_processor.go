@@ -211,7 +211,7 @@ func (s *SuffrageCandidatesStateValueMerger) close() (base.StateValue, error) {
 	defer s.Unlock()
 
 	if len(s.removes) < 1 && len(s.added) < 1 {
-		return nil, isaac.ErrIgnoreStateValue.Errorf("empty newly added or removes nodes")
+		return nil, base.ErrIgnoreStateValue.Errorf("empty newly added or removes nodes")
 	}
 
 	existings := s.existings
