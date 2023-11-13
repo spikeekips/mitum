@@ -2,8 +2,6 @@ package isaacblock
 
 import (
 	"context"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,7 +37,7 @@ type Writer struct {
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
-	states        *util.ShardedMap[string, base.StateValueMerger]
+	statesMerger  StatesMerger
 	ststree       fixedtree.Tree
 	workersize    int64
 	sync.RWMutex
@@ -53,7 +51,11 @@ func NewWriter(
 	fswriter FSWriter,
 	workersize int64,
 ) *Writer {
-	states, _ := util.NewShardedMap[string, base.StateValueMerger](1<<9, nil) //nolint:gomnd //...
+	statesMerger := NewDefaultStatesMerger( //revive:disable-line:modifies-parameter
+		proposal.ProposalFact().Point().Height(),
+		getStateFunc,
+		workersize,
+	)
 
 	return &Writer{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -64,8 +66,8 @@ func NewWriter(
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
-		states:        states,
 		workersize:    workersize,
+		statesMerger:  statesMerger,
 	}
 }
 
@@ -124,10 +126,8 @@ func (w *Writer) SetStates(
 		return e.Errorf("not yet written")
 	}
 
-	for i := range states {
-		if err := w.SetState(ctx, states[i], operation); err != nil {
-			return e.Wrap(err)
-		}
+	if err := w.statesMerger.SetStates(ctx, index, states, operation.Fact().Hash()); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := w.fswriter.SetOperation(ctx, index, operation); err != nil {
@@ -137,105 +137,25 @@ func (w *Writer) SetStates(
 	return nil
 }
 
-func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
-	e := util.StringError("set state")
-
-	return e.Wrap(w.states.GetOrCreate(
-		stv.Key(),
-		func(i base.StateValueMerger, _ bool) error {
-			if err := i.Merge(stv.Value(), operation.Fact().Hash()); err != nil {
-				return e.WithMessage(err, "merge")
-			}
-
-			return nil
-		},
-		func() (base.StateValueMerger, error) {
-			var st base.State
-
-			switch j, found, err := w.getStateFunc(stv.Key()); {
-			case err != nil:
-				return nil, err
-			case found:
-				st = j
-			}
-
-			return stv.Merger(w.proposal.Point().Height(), st), nil
-		},
-	))
-}
-
 func (w *Writer) closeStateValues(ctx context.Context) error {
 	started := time.Now()
 	defer func() {
 		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("close state values")
 	}()
 
-	if w.states.Len() < 1 {
+	if w.statesMerger.Len() < 1 {
 		return nil
 	}
 
 	e := util.StringError("close state values")
 
-	sortedkeys := w.sortStateKeys()
-
 	var tg *fixedtree.Writer
 
-	{
-		startedtg := time.Now()
-
-		switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(sortedkeys))); {
-		case err != nil:
-			return e.Wrap(err)
-		default:
-			tg = i
-
-			w.Log().Debug().Stringer("elapsed", time.Since(startedtg)).Msg("new state tree")
-		}
-	}
-
-	{
-		startedworker := time.Now()
-
-		worker, err := util.NewErrgroupWorker(ctx, w.workersize)
-		if err != nil {
-			return e.Wrap(err)
-		}
-
-		defer worker.Close()
-
-		for i := range sortedkeys {
-			st, _ := w.states.Value(sortedkeys[i])
-
-			index := uint64(i)
-
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				nst, err := w.closeStateValue(tg, st, index)
-
-				switch {
-				case err == nil:
-				case errors.Is(err, base.ErrIgnoreStateValue):
-					return nil
-				default:
-					return err
-				}
-
-				if err := w.fswriter.SetState(ctx, index, nst); err != nil {
-					return err
-				}
-
-				return w.db.SetStates([]base.State{nst})
-			}); err != nil {
-				return e.Wrap(err)
-			}
-		}
-
-		worker.Done()
-
-		if err := worker.Wait(); err != nil {
-			return e.Wrap(err)
-		}
-
-		w.Log().Debug().Stringer("elapsed", time.Since(startedworker)).Msg("states merged")
+	switch i, err := w.statesMergerClose(ctx); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		tg = i
 	}
 
 	if err := w.saveStatesTree(ctx, tg); err != nil {
@@ -255,19 +175,48 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 	return nil
 }
 
-func (*Writer) closeStateValue(
-	tg *fixedtree.Writer, st base.State, index uint64,
-) (base.State, error) {
-	stm, ok := st.(base.StateValueMerger)
-	if !ok {
-		return st, tg.Add(index, fixedtree.NewBaseNode(st.Hash().String()))
-	}
+func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _ error) {
+	started := time.Now()
+	defer func() {
+		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("close states merger")
+	}()
 
-	if err := stm.Close(); err != nil {
+	if err := w.statesMerger.CloseStates(
+		ctx,
+		func(keysLength uint64) error {
+			if keysLength < 1 {
+				return nil
+			}
+
+			startedtg := time.Now()
+
+			switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, keysLength); {
+			case err != nil:
+				return err
+			default:
+				tg = i
+
+				w.Log().Debug().Stringer("elapsed", time.Since(startedtg)).Msg("new state tree")
+
+				return nil
+			}
+		},
+		func(st base.State, index uint64) error {
+			if err := tg.Add(index, fixedtree.NewBaseNode(st.Hash().String())); err != nil {
+				return err
+			}
+
+			if err := w.fswriter.SetState(ctx, index, st); err != nil {
+				return err
+			}
+
+			return w.db.SetStates([]base.State{st})
+		},
+	); err != nil {
 		return nil, err
 	}
 
-	return stm, tg.Add(index, fixedtree.NewBaseNode(stm.Hash().String()))
+	return tg, nil
 }
 
 func (w *Writer) saveStatesTree(
@@ -433,7 +382,7 @@ func (w *Writer) close() error {
 	w.mergeDatabase = nil
 	w.opstreeg = nil
 	w.getStateFunc = nil
-	w.states.Close()
+	_ = w.statesMerger.Close()
 	w.ststree = fixedtree.Tree{}
 
 	return nil
@@ -445,26 +394,4 @@ func (w *Writer) setProposal(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (w *Writer) sortStateKeys() []string {
-	started := time.Now()
-	defer func() {
-		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("state keys sorted")
-	}()
-
-	var sortedkeys []string
-	w.states.Traverse(func(k string, _ base.StateValueMerger) bool {
-		sortedkeys = append(sortedkeys, k)
-
-		return true
-	})
-
-	if len(sortedkeys) > 0 {
-		sort.Slice(sortedkeys, func(i, j int) bool {
-			return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
-		})
-	}
-
-	return sortedkeys
 }

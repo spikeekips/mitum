@@ -24,8 +24,10 @@ func (t *testWriter) TestNew() {
 	db := t.NewLeveldbBlockWriteDatabase(height)
 	defer db.DeepClose()
 
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(base.RawPoint(33, 44), t.Local.Address(), valuehash.RandomSHA256(), nil))
+
 	fswriter := &DummyBlockFSWriter{}
-	writer := NewWriter(nil, nil, db, func(isaac.BlockWriteDatabase) error {
+	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter, math.MaxInt8)
 
@@ -33,13 +35,6 @@ func (t *testWriter) TestNew() {
 
 	t.Run("empty previous", func() {
 		m, err := writer.Manifest(context.Background(), nil)
-		t.Error(err)
-		t.Nil(m)
-	})
-
-	t.Run("empty proposal", func() {
-		previous := base.NewDummyManifest(height-1, valuehash.RandomSHA256())
-		m, err := writer.Manifest(context.Background(), previous)
 		t.Error(err)
 		t.Nil(m)
 	})
@@ -171,10 +166,11 @@ func (t *testWriter) TestSetStates() {
 
 	for i := range states {
 		sts := states[i]
+		stmerger := writer.statesMerger.(*DefaultStatesMerger)
 
 		for j := range sts {
 			st := sts[j]
-			merger, found := writer.states.Value(st.Key())
+			merger, found := stmerger.stvmmap.Value(st.Key())
 			t.True(found)
 
 			t.NoError(merger.Close())
