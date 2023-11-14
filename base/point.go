@@ -73,7 +73,7 @@ func (h Height) Bytes() []byte {
 }
 
 func (h Height) String() string {
-	return fmt.Sprintf("%d", h)
+	return strconv.FormatInt(h.Int64(), 10)
 }
 
 func (h Height) FixedString() string {

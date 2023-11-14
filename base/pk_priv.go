@@ -2,7 +2,6 @@ package base
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
@@ -77,7 +76,12 @@ func newMPrivatekeyFromPrivateKey(priv *btcec.PrivateKey) *MPrivatekey {
 }
 
 func (k *MPrivatekey) String() string {
-	return fmt.Sprintf("%s%s", hex.EncodeToString(k.priv.Serialize()), k.Hint().Type().String())
+	var s strings.Builder
+
+	_, _ = s.WriteString(hex.EncodeToString(k.priv.Serialize()))
+	_, _ = s.WriteString(k.Hint().Type().String())
+
+	return s.String()
 }
 
 func (k *MPrivatekey) Bytes() []byte {

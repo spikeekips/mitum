@@ -2,7 +2,6 @@ package base
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
@@ -54,7 +53,12 @@ func LoadMPublickey(s string) (*MPublickey, error) {
 }
 
 func (k *MPublickey) String() string {
-	return fmt.Sprintf("%s%s", hex.EncodeToString(k.k.SerializeCompressed()), k.Hint().Type().String())
+	var s strings.Builder
+
+	_, _ = s.WriteString(hex.EncodeToString(k.k.SerializeCompressed()))
+	_, _ = s.WriteString(k.Hint().Type().String())
+
+	return s.String()
 }
 
 func (k *MPublickey) Bytes() []byte {

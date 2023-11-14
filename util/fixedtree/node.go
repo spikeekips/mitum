@@ -1,7 +1,6 @@
 package fixedtree
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -123,12 +122,16 @@ func (n BaseNode) String() string {
 	case n.isempty:
 		return emptyNodeString
 	default:
-		var h string
+		var s strings.Builder
+
 		if n.h != nil {
-			h = n.h.String()
+			_, _ = s.WriteString(n.h.String())
 		}
 
-		return fmt.Sprintf("%s %s", h, n.key)
+		_, _ = s.WriteString(" ")
+		_, _ = s.WriteString(n.key)
+
+		return s.String()
 	}
 }
 

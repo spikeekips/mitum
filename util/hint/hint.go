@@ -2,7 +2,6 @@ package hint
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -169,5 +168,11 @@ func (ht *Hint) UnmarshalText(b []byte) error {
 }
 
 func hintString(t Type, v util.Version) string {
-	return fmt.Sprintf("%s-%s", t, v)
+	var s strings.Builder
+
+	_, _ = s.WriteString(t.String())
+	_, _ = s.WriteString("-")
+	_, _ = s.WriteString(v.String())
+
+	return s.String()
 }
