@@ -173,10 +173,11 @@ func (t *testWriter) TestSetStates() {
 			merger, found := stmerger.stvmmap.Value(st.Key())
 			t.True(found)
 
-			t.NoError(merger.Close())
+			nst, err := merger.CloseValue()
+			t.NoError(err)
 
-			t.Equal(st.Key(), merger.Key())
-			t.True(base.IsEqualStateValue(st, merger.Value()))
+			t.Equal(st.Key(), nst.Key())
+			t.True(base.IsEqualStateValue(st, nst.Value()))
 		}
 	}
 }

@@ -3,7 +3,6 @@ package isaac
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -719,7 +718,8 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 		h := ophs[i][1]
 		st := sts[h.String()]
 
-		var bst base.State
+		var bst base.StateValueMerger
+
 		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
 			if v.Key() == st.Key() {
 				bst = v
@@ -737,9 +737,10 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 		}
 
 		t.NotNil(bst)
-		_ = bst.(io.Closer).Close()
+		nst, err := bst.CloseValue()
+		t.NoError(err)
 
-		bops := bst.Operations()
+		bops := nst.Operations()
 		t.Equal(1, len(bops))
 		t.True(h.Equal(bops[0]))
 	}
@@ -797,7 +798,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 		h := ophs[i][1]
 		st := sts[h.String()]
 
-		var bst base.State
+		var bst base.StateValueMerger
 		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
 			if v.Key() == st.Key() {
 				bst = v
@@ -816,9 +817,10 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 
 		t.NotNil(bst)
 
-		_ = bst.(io.Closer).Close()
+		nst, err := bst.CloseValue()
+		t.NoError(err)
 
-		bops := bst.Operations()
+		bops := nst.Operations()
 		t.Equal(1, len(bops))
 		t.True(h.Equal(bops[0]))
 	}
@@ -1179,7 +1181,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		h := ophs[i][1]
 		st := sts[h.String()]
 
-		var bst base.State
+		var bst base.StateValueMerger
 		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
 			if v.Key() == st.Key() {
 				bst = v
@@ -1197,17 +1199,18 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		}
 
 		t.NotNil(bst)
-		_ = bst.(io.Closer).Close()
+		nst, err := bst.CloseValue()
+		t.NoError(err)
 
-		t.Equal(point.Height(), bst.Height())
-		t.True(base.IsEqualStateValue(st, bst.Value()))
+		t.Equal(point.Height(), nst.Height())
+		t.True(base.IsEqualStateValue(st, nst.Value()))
 
-		bops := bst.Operations()
+		bops := nst.Operations()
 		t.Equal(1, len(bops))
 		t.True(h.Equal(bops[0]))
 
 		if i == 1 {
-			t.True(prevsts[1].Hash().Equal(bst.Previous()))
+			t.True(prevsts[1].Hash().Equal(nst.Previous()))
 		}
 	}
 
@@ -1280,7 +1283,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 		h := ophs[i][1]
 		st := sts[h.String()]
 
-		var bst base.State
+		var bst base.StateValueMerger
 		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
 			if v.Key() == st.Key() {
 				bst = v
@@ -1298,9 +1301,10 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 		}
 
 		t.NotNil(bst)
-		_ = bst.(io.Closer).Close()
+		nst, err := bst.CloseValue()
+		t.NoError(err)
 
-		bops := bst.Operations()
+		bops := nst.Operations()
 		t.Equal(1, len(bops))
 		t.True(h.Equal(bops[0]))
 	}

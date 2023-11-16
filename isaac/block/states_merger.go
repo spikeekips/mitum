@@ -89,8 +89,8 @@ func (sm *DefaultStatesMerger) CloseStates(
 			index := uint64(i)
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				switch newst, err := sm.closeStateValue(stvm); {
-				case errors.Is(err, base.ErrIgnoreStateValue):
+				switch newst, err := stvm.CloseValue(); {
+				case newst == nil, errors.Is(err, base.ErrIgnoreStateValue):
 					return nil
 				case err != nil:
 					return err
@@ -111,6 +111,31 @@ func (sm *DefaultStatesMerger) Len() int {
 }
 
 func (sm *DefaultStatesMerger) Close() error {
+	if sm.stvmmap.Len() < 1 {
+		return nil
+	}
+
+	worker, err := util.NewErrgroupWorker(context.Background(), sm.workersize)
+	if err != nil {
+		return err
+	}
+
+	defer worker.Close()
+
+	go func() {
+		defer worker.Done()
+
+		sm.stvmmap.Traverse(func(_ string, merger base.StateValueMerger) bool {
+			return worker.NewJob(func(ctx context.Context, _ uint64) error {
+				_ = merger.Close()
+
+				return nil
+			}) == nil
+		})
+	}()
+
+	_ = worker.Wait()
+
 	sm.stvmmap.Close()
 
 	return nil
@@ -160,17 +185,4 @@ func (sm *DefaultStatesMerger) sortStateKeys() []string {
 	}
 
 	return sortedkeys
-}
-
-func (*DefaultStatesMerger) closeStateValue(st base.State) (base.State, error) {
-	stvm, ok := st.(base.StateValueMerger)
-	if !ok {
-		return st, nil
-	}
-
-	if err := stvm.Close(); err != nil {
-		return nil, err
-	}
-
-	return stvm, nil
 }

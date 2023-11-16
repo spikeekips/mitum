@@ -60,15 +60,16 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 		t.NoError(merger.Merge(mergevalues[i].Value(), op.Hash()))
 	}
 
-	t.NoError(merger.Close())
+	nst, err := merger.CloseValue()
+	t.NoError(err)
 
-	t.NotNil(merger.Hash())
-	t.Equal(height, merger.Height())
-	t.Nil(merger.Previous())
-	t.Equal(1, len(merger.Operations()))
-	t.True(op.Hash().Equal(merger.Operations()[0]))
+	t.NotNil(nst.Hash())
+	t.Equal(height, nst.Height())
+	t.Nil(nst.Previous())
+	t.Equal(1, len(nst.Operations()))
+	t.True(op.Hash().Equal(nst.Operations()[0]))
 
-	v := merger.Value()
+	v := nst.Value()
 	t.NotNil(v)
 
 	cv := v.(base.SuffrageCandidatesStateValue)
@@ -142,15 +143,16 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 		t.NoError(merger.Merge(mergevalues[i].Value(), op.Hash()))
 	}
 
-	t.NoError(merger.Close())
+	nst, err := merger.CloseValue()
+	t.NoError(err)
 
-	t.NotNil(merger.Hash())
-	t.Equal(height, merger.Height())
-	t.True(st.Hash().Equal(merger.Previous()))
-	t.Equal(1, len(merger.Operations()))
-	t.True(op.Hash().Equal(merger.Operations()[0]))
+	t.NotNil(nst.Hash())
+	t.Equal(height, nst.Height())
+	t.True(st.Hash().Equal(nst.Previous()))
+	t.Equal(1, len(nst.Operations()))
+	t.True(op.Hash().Equal(nst.Operations()[0]))
 
-	v := merger.Value()
+	v := nst.Value()
 	t.NotNil(v)
 
 	ucv := v.(base.SuffrageCandidatesStateValue)
@@ -482,24 +484,25 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	worker.Done()
 	t.NoError(worker.Wait())
 
-	t.NoError(merger.Close())
+	nst, err := merger.CloseValue()
+	t.NoError(err)
 
-	t.NotNil(merger.Hash())
-	t.Equal(height, merger.Height())
-	t.Nil(merger.Previous())
-	t.Equal(len(ops), len(merger.Operations()))
+	t.NotNil(nst.Hash())
+	t.Equal(height, nst.Height())
+	t.Nil(nst.Previous())
+	t.Equal(len(ops), len(nst.Operations()))
 
 	sort.Slice(ops, func(i, j int) bool {
 		return strings.Compare(ops[i].Hash().String(), ops[j].Hash().String()) < 0
 	})
 
-	mops := merger.Operations()
+	mops := nst.Operations()
 
 	for i := range ops {
 		t.True(ops[i].Hash().Equal(mops[i]))
 	}
 
-	v := merger.Value()
+	v := nst.Value()
 	t.NotNil(v)
 
 	cv := v.(base.SuffrageCandidatesStateValue)

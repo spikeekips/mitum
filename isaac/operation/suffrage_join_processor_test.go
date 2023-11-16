@@ -128,6 +128,8 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 		merger.Merge(v.Value(), op.Hash())
 	}
 
+	var ncandidatest, nsuffragest base.State
+
 	for _, merger := range mergers {
 
 		var st base.State
@@ -139,26 +141,36 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 			st = suffragest
 		}
 
-		t.NoError(merger.Close())
+		nst, err := merger.CloseValue()
+		t.NoError(err)
 
-		t.NotNil(merger.Hash())
-		t.Equal(height, merger.Height())
-		t.True(st.Hash().Equal(merger.Previous()))
-		t.Equal(1, len(merger.Operations()))
-		t.True(op.Hash().Equal(merger.Operations()[0]))
+		switch merger.Key() {
+		case isaac.SuffrageCandidateStateKey:
+			ncandidatest = nst
+		case isaac.SuffrageStateKey:
+			nsuffragest = nst
+		}
+
+		t.NotNil(nst.Hash())
+		t.Equal(height, nst.Height())
+		t.True(st.Hash().Equal(nst.Previous()))
+		t.Equal(1, len(nst.Operations()))
+		t.True(op.Hash().Equal(nst.Operations()[0]))
 	}
 
 	t.Run("empty candidate", func() {
-		merger := mergers[isaac.SuffrageCandidateStateKey]
-		ucv := merger.Value().(base.SuffrageCandidatesStateValue)
+		t.NotNil(ncandidatest)
+
+		ucv := ncandidatest.Value().(base.SuffrageCandidatesStateValue)
 		t.NotNil(ucv)
 
 		t.Equal(0, len(ucv.Nodes()))
 	})
 
 	t.Run("new joined suffrage node", func() {
-		merger := mergers[isaac.SuffrageStateKey]
-		uv := merger.Value().(base.SuffrageNodesStateValue)
+		t.NotNil(nsuffragest)
+
+		uv := nsuffragest.Value().(base.SuffrageNodesStateValue)
 		t.NotNil(uv)
 
 		t.Equal(2, len(uv.Nodes()))

@@ -202,6 +202,10 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 			}
 		},
 		func(st base.State, index uint64) error {
+			if _, ok := st.(base.StateValueMerger); ok {
+				return errors.Errorf("expect pure State, not StateValueMerger, %T", st)
+			}
+
 			if err := tg.Add(index, fixedtree.NewBaseNode(st.Hash().String())); err != nil {
 				return err
 			}

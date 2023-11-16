@@ -32,9 +32,10 @@ type StateMergeValue interface {
 }
 
 type StateValueMerger interface {
-	State
+	Key() string
 	Merge(value StateValue, operationfact util.Hash) error
-	Close() error
+	CloseValue() (newState State, _ error)
+	Close() error // NOTE can go to sync.Pool
 }
 
 type GetStateFunc func(key string) (State, bool, error)

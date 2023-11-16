@@ -14,6 +14,12 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+var stateValueMergerPool = sync.Pool{
+	New: func() any {
+		return &BaseStateValueMerger{}
+	},
+}
+
 var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
 
 var ErrIgnoreStateValue = util.NewIDError("ignore state value")
@@ -208,9 +214,8 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type BaseStateValueMerger struct {
-	State
+	st     State
 	value  StateValue
-	nst    State
 	key    string
 	ops    []util.Hash
 	height Height
@@ -218,72 +223,44 @@ type BaseStateValueMerger struct {
 }
 
 func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
+	s := stateValueMergerPool.Get().(*BaseStateValueMerger) //nolint:forcetypeassert //...
+
+	s.Reset(height, key, st)
+
+	return s
+}
+
+func (s *BaseStateValueMerger) Reset(height Height, key string, st State) {
 	nkey := key
 
 	if st != nil {
 		nkey = st.Key()
 	}
 
-	return &BaseStateValueMerger{
-		State:  st,
-		height: height,
-		key:    nkey,
-	}
+	s.st = st
+	s.height = height
+	s.key = nkey
+	s.value = nil
+	s.ops = nil
 }
 
-func (s *BaseStateValueMerger) Hash() util.Hash {
-	s.RLock()
-	defer s.RUnlock()
+func (s *BaseStateValueMerger) Close() error {
+	s.Lock()
+	defer s.Unlock()
 
-	if s.nst == nil {
-		return nil
-	}
+	s.height = 0
+	s.st = nil
+	s.key = ""
+	s.value = nil
+	s.ops = nil
 
-	return s.nst.Hash()
+	stateValueMergerPool.Put(s)
+
+	return nil
 }
 
 func (s *BaseStateValueMerger) Key() string {
 	return s.key
-}
-
-func (s *BaseStateValueMerger) Height() Height {
-	return s.height
-}
-
-func (s *BaseStateValueMerger) Previous() util.Hash {
-	s.RLock()
-	defer s.RUnlock()
-
-	if s.nst == nil {
-		return nil
-	}
-
-	return s.nst.Previous()
-}
-
-func (s *BaseStateValueMerger) Value() StateValue {
-	s.RLock()
-	defer s.RUnlock()
-
-	if s.nst == nil {
-		return nil
-	}
-
-	return s.nst.Value()
-}
-
-func (s *BaseStateValueMerger) SetValue(v StateValue) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.value = v
-}
-
-func (s *BaseStateValueMerger) Operations() []util.Hash {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.nst.Operations()
 }
 
 func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
@@ -297,12 +274,12 @@ func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
 	return nil
 }
 
-func (s *BaseStateValueMerger) Close() error {
+func (s *BaseStateValueMerger) CloseValue() (State, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	if s.value == nil || len(s.ops) < 1 {
-		return ErrIgnoreStateValue.Errorf("empty state value")
+		return nil, ErrIgnoreStateValue.Errorf("empty state value")
 	}
 
 	sort.Slice(s.ops, func(i, j int) bool {
@@ -310,13 +287,11 @@ func (s *BaseStateValueMerger) Close() error {
 	})
 
 	var previous util.Hash
-	if s.State != nil {
-		previous = s.State.Hash()
+	if s.st != nil {
+		previous = s.st.Hash()
 	}
 
-	s.nst = NewBaseState(s.height, s.key, s.value, previous, s.ops)
-
-	return nil
+	return NewBaseState(s.height, s.key, s.value, previous, s.ops), nil
 }
 
 func (s *BaseStateValueMerger) AddOperation(op util.Hash) {
@@ -326,8 +301,19 @@ func (s *BaseStateValueMerger) AddOperation(op util.Hash) {
 	s.addOperation(op)
 }
 
-func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(s.nst)
+func (s *BaseStateValueMerger) Height() Height {
+	return s.height
+}
+
+func (s *BaseStateValueMerger) State() State {
+	return s.st
+}
+
+func (s *BaseStateValueMerger) SetValue(v StateValue) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.value = v
 }
 
 func (s *BaseStateValueMerger) addOperation(op util.Hash) {

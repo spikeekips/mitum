@@ -240,21 +240,21 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, op util.Hash
 	return nil
 }
 
-func (s *SuffrageJoinStateValueMerger) Close() error {
+func (s *SuffrageJoinStateValueMerger) CloseValue() (base.State, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	newvalue, err := s.close()
+	newvalue, err := s.closeValue()
 	if err != nil {
-		return errors.WithMessage(err, "close SuffrageJoinStateValueMerger")
+		return nil, errors.WithMessage(err, "close SuffrageJoinStateValueMerger")
 	}
 
 	s.BaseStateValueMerger.SetValue(newvalue)
 
-	return s.BaseStateValueMerger.Close()
+	return s.BaseStateValueMerger.CloseValue()
 }
 
-func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
+func (s *SuffrageJoinStateValueMerger) closeValue() (base.StateValue, error) {
 	if len(s.disjoined) < 1 && len(s.joined) < 1 {
 		return nil, base.ErrIgnoreStateValue.Errorf("no nodes changes")
 	}

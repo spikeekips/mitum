@@ -64,8 +64,15 @@ type dummySimpleStateValueMerger struct {
 }
 
 func newDummySimpleStateValueMerger(height Height, key string, st State) *dummySimpleStateValueMerger {
+	var i int64
+
+	if st != nil {
+		i = st.Value().(dummySimpleStateValue).I
+	}
+
 	return &dummySimpleStateValueMerger{
 		BaseStateValueMerger: NewBaseStateValueMerger(height, key, st),
+		S:                    i,
 	}
 }
 
@@ -84,7 +91,7 @@ func (s *dummySimpleStateValueMerger) Merge(value StateValue, op util.Hash) erro
 	return nil
 }
 
-func (s *dummySimpleStateValueMerger) Close() error {
+func (s *dummySimpleStateValueMerger) CloseValue() (State, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -92,7 +99,7 @@ func (s *dummySimpleStateValueMerger) Close() error {
 		s.SetValue(newDummySimpleStateValue(s.S))
 	}
 
-	return s.BaseStateValueMerger.Close()
+	return s.BaseStateValueMerger.CloseValue()
 }
 
 type testStateValueMerger struct {
@@ -117,7 +124,7 @@ func (t *testStateValueMerger) TestNew() {
 
 		v := newDummySimpleStateValue(55)
 		merger := v.Merger(Height(44), st)
-		_ = (merger).(State)
+		t.NotNil(merger)
 	})
 
 	t.Run("not merged", func() {
@@ -127,11 +134,11 @@ func (t *testStateValueMerger) TestNew() {
 
 		merger := sv.Merger(height+1, st)
 
-		err := merger.Close()
+		nst, err := merger.CloseValue()
 		t.Error(err)
 		t.True(errors.Is(err, ErrIgnoreStateValue))
 
-		t.Nil(merger.Value())
+		t.Nil(nst)
 	})
 }
 
@@ -160,18 +167,15 @@ func (t *testStateValueMerger) TestAsyncMerge() {
 
 	t.NoError(worker.Wait())
 
-	t.NoError(merger.Close())
+	nst, err := merger.CloseValue()
+	t.NoError(err)
+	t.NotNil(nst)
 
 	dm := merger.(*dummySimpleStateValueMerger)
 
-	t.Run("added value", func() {
-		t.Equal(int64(301*150), dm.S)
-	})
-
-	t.Run("State inside merger still same", func() {
-		t.True(IsEqualState(st, dm.State))
-		t.False(IsEqualState(st, dm))
-	})
+	expected := sv.I + 301*150
+	t.Equal(expected, dm.S)
+	t.Equal(expected, nst.Value().(dummySimpleStateValue).I)
 }
 
 func (t *testStateValueMerger) TestMergedSameHash() {
@@ -208,22 +212,29 @@ func (t *testStateValueMerger) TestMergedSameHash() {
 
 	t.NoError(worker.Wait())
 
-	t.NoError(merger0.Close())
-	t.NoError(merger1.Close())
+	nst0, err := merger0.CloseValue()
+	t.NoError(err)
+	nst1, err := merger1.CloseValue()
+	t.NoError(err)
 
 	dm0 := merger0.(*dummySimpleStateValueMerger)
 	dm1 := merger1.(*dummySimpleStateValueMerger)
 
+	expected := sv.I + 301*150
+
 	t.Run("2 mergers has same value", func() {
-		t.Equal(int64(301*150), dm0.S)
+		t.Equal(expected, dm0.S)
 		t.Equal(dm0.S, dm1.S)
+
+		t.Equal(expected, nst0.Value().(dummySimpleStateValue).I)
+		t.Equal(expected, nst1.Value().(dummySimpleStateValue).I)
 	})
 
 	t.Run("2 mergers has same hash", func() {
-		t.NotNil(dm0.Hash())
-		t.NotNil(dm1.Hash())
+		t.NotNil(nst0.Hash())
+		t.NotNil(nst1.Hash())
 
-		t.True(dm0.Hash().Equal(dm1.Hash()))
+		t.True(nst0.Hash().Equal(nst1.Hash()))
 	})
 }
 
@@ -278,14 +289,15 @@ func TestStateValueMergerEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(merger.Merge(newDummySimpleStateValue(77), valuehash.RandomSHA256()))
-		t.NoError(merger.Close())
+		nst, err := merger.CloseValue()
+		t.NoError(err)
 
-		b, err := enc.Marshal(merger)
+		b, err := enc.Marshal(nst)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
 
-		return merger.(*dummySimpleStateValueMerger), b
+		return nst, b
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: dummySimpleStateValueHint, Instance: dummySimpleStateValue{}}))

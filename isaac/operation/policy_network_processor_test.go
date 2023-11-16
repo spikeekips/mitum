@@ -101,15 +101,16 @@ func (t *testNetworkPolicyProcessor) TestNew() {
 	mv := mergevalues[0]
 	merger := mv.Merger(height, policyst)
 	t.NoError(merger.Merge(mv.Value(), op.Hash()))
-	t.NoError(merger.Close())
+	nst, err := merger.CloseValue()
+	t.NoError(err)
 
-	t.NotNil(merger.Hash())
-	t.Equal(isaac.NetworkPolicyStateKey, merger.Key())
-	t.Equal(height, merger.Height())
-	t.True(policyst.Hash().Equal(merger.Previous()))
-	t.True(op.Hash().Equal(merger.Operations()[0]))
+	t.NotNil(nst.Hash())
+	t.Equal(isaac.NetworkPolicyStateKey, nst.Key())
+	t.Equal(height, nst.Height())
+	t.True(policyst.Hash().Equal(nst.Previous()))
+	t.True(op.Hash().Equal(nst.Operations()[0]))
 
-	newpolicyvalue, ok := merger.Value().(base.NetworkPolicyStateValue)
+	newpolicyvalue, ok := nst.Value().(base.NetworkPolicyStateValue)
 	t.True(ok)
 	rnewpolicy := newpolicyvalue.Policy()
 
