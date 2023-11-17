@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"math"
@@ -168,7 +169,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	// NOTE compare checksum
 	t.Run("compare checksum", func() {
 		buf := bytes.NewBuffer(nil)
-		gf := util.NewGzipWriter(buf)
+		gf, _ := util.NewGzipWriter(buf, gzip.BestSpeed)
 
 		t.NoError(t.Enc.StreamEncoder(gf).Encode(pr))
 		gf.Close()

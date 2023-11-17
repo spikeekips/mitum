@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"os"
@@ -398,7 +399,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	nf, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	t.NoError(err)
 
-	gnf := util.NewGzipWriter(nf)
+	gnf, _ := util.NewGzipWriter(nf, gzip.BestSpeed)
 
 	_, err = gnf.Write(b)
 	t.NoError(err)

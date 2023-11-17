@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -539,7 +540,12 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.Checksu
 		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
 
 		if isCompressedBlockMapItemType(t) {
-			cw = util.NewDummyChecksumWriter(util.NewGzipWriter(cw), cw)
+			switch gw, err := util.NewGzipWriter(cw, gzip.BestSpeed); {
+			case err != nil:
+				return nil, err
+			default:
+				cw = util.NewDummyChecksumWriter(gw, cw)
+			}
 		}
 
 		return cw, nil

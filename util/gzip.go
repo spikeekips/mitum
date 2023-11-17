@@ -15,8 +15,13 @@ type GzipWriter struct {
 	sync.Mutex
 }
 
-func NewGzipWriter(f io.Writer) *GzipWriter {
-	return &GzipWriter{Writer: f, gw: gzip.NewWriter(f)}
+func NewGzipWriter(f io.Writer, level int) (*GzipWriter, error) {
+	gw, err := gzip.NewWriterLevel(f, level)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &GzipWriter{Writer: f, gw: gw}, nil
 }
 
 func (w *GzipWriter) Write(p []byte) (int, error) {
