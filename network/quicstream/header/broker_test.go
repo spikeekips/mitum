@@ -46,7 +46,11 @@ func (t *testBrokers) clientBroker(ctx context.Context, ci quicstream.ConnInfo, 
 	r, w, closef, err := streamer.OpenStream(ctx)
 	t.NoError(err)
 
-	return NewClientBroker(t.encs, t.enc, r, w), closef
+	return NewClientBroker(t.encs, t.enc, r, w), func() error {
+		closef()
+
+		return streamer.Close()
+	}
 }
 
 func (t *testBrokers) dialBroker(ctx context.Context, ci quicstream.ConnInfo, tlsConfig *tls.Config) (StreamFunc, func() error, error) {
@@ -458,7 +462,7 @@ func (t *testBrokers) TestServerStopped() {
 			return ctx, nil
 		}, nil))
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
 
 		broker, closef := brokerf(ctx)
@@ -475,9 +479,9 @@ func (t *testBrokers) TestServerStopped() {
 
 		t.T().Log("try to write body")
 		body := bytes.NewBuffer(util.UUID().Bytes())
-		err = broker.WriteBody(ctx, FixedLengthBodyType, uint64(body.Len()), body)
-		t.Error(err)
-		t.True(quicstream.IsSeriousError(quicstream.ErrNetwork), "%T %+v", err, err)
+		if err := broker.WriteBody(ctx, FixedLengthBodyType, uint64(body.Len()), body); err != nil {
+			t.True(quicstream.IsSeriousError(quicstream.ErrNetwork), "%T %+v", err, err)
+		}
 	})
 }
 

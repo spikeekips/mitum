@@ -66,6 +66,7 @@ func (t *testConnection) TestDial() {
 		)
 		t.NoError(err)
 		t.NotNil(conn)
+		t.NoError(conn.Close())
 	})
 
 	t.Run("close", func() {
@@ -110,6 +111,8 @@ func (t *testConnection) TestOpenStream() {
 		defer t.T().Log("server stopped")
 
 		conn := t.NewConnection(t.Bind, nil)
+		defer conn.Close()
+
 		t.T().Log("connected", conn.ID())
 
 		{
@@ -195,6 +198,7 @@ func (t *testConnection) TestEcho() {
 	defer t.T().Log("server stopped")
 
 	conn := t.NewConnection(t.Bind, nil)
+	defer conn.Close()
 	t.T().Log("connected")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -268,6 +272,7 @@ func (t *testConnection) TestClosed() {
 			&quic.Config{MaxIdleTimeout: time.Minute},
 		)
 		t.NoError(err)
+		defer conn.Close()
 
 		t.T().Log("wait closed")
 		<-time.After(time.Second * 9)
@@ -293,6 +298,7 @@ func (t *testConnection) TestClosed() {
 			&quic.Config{MaxIdleTimeout: time.Millisecond * 33},
 		)
 		t.NoError(err)
+		defer conn.Close()
 
 		t.T().Log("wait closed")
 		<-time.After(time.Second * 3)
@@ -318,6 +324,7 @@ func (t *testConnection) TestClosed() {
 			&quic.Config{MaxIdleTimeout: time.Minute},
 		)
 		t.NoError(err)
+		defer conn.Close()
 
 		t.T().Log("open stream")
 		t.NoError(conn.Stream(context.Background(), func(_ context.Context, r io.Reader, w io.WriteCloser) error {
@@ -360,6 +367,7 @@ func (t *testConnection) TestClosed() {
 			&quic.Config{MaxIdleTimeout: time.Millisecond * 33},
 		)
 		t.NoError(err)
+		defer conn.Close()
 
 		t.T().Log("open stream")
 		t.NoError(conn.Stream(context.Background(), func(_ context.Context, r io.Reader, w io.WriteCloser) error {

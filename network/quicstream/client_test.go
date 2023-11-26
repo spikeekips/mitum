@@ -38,6 +38,7 @@ func (t *testConnectionPool) TestDial() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		_, ci, deferred := t.prepareServer(nil, nil)
 		defer deferred()
@@ -61,6 +62,7 @@ func (t *testConnectionPool) TestDial() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		ci := RandomConnInfo()
 
@@ -83,6 +85,7 @@ func (t *testConnectionPool) TestDial() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		var conns int64 = 9999
 		quicconfig := &quic.Config{MaxIncomingStreams: conns}
@@ -157,6 +160,7 @@ func (t *testConnectionPool) TestCloseAll() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		_, ci, deferred := t.prepareServer(&quic.Config{MaxIdleTimeout: time.Millisecond * 33}, nil)
 		defer deferred()
@@ -179,6 +183,7 @@ func (t *testConnectionPool) TestClean() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		_, ci, deferred := t.prepareServer(&quic.Config{MaxIdleTimeout: time.Millisecond * 33}, nil)
 		defer deferred()
@@ -199,6 +204,7 @@ func (t *testConnectionPool) TestClean() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		_, ci, deferred := t.prepareServer(nil, func(ctx context.Context, _ net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 			if _, err := io.ReadAll(r); err != nil {
@@ -240,6 +246,7 @@ func (t *testConnectionPool) TestClean() {
 		))
 		t.NoError(err)
 		defer p.Stop()
+		defer p.CloseAll()
 
 		_, ci, deferred := t.prepareServer(nil, nil)
 		defer deferred()
