@@ -17,7 +17,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -41,7 +40,6 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var encs *encoder.Encoders
-	var enc *jsonenc.Encoder
 	var local base.LocalNode
 	var params *LocalParams
 	var client *isaacnetwork.BaseClient
@@ -50,7 +48,6 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
@@ -62,7 +59,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	headerdial := quicstreamheader.NewDialFunc(
 		connectionPool.Dial,
 		encs,
-		enc,
+		encs.Default(),
 	)
 
 	localnode, err := memberlistLocalNode(pctx)
@@ -75,7 +72,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	args := quicmemberlist.NewMemberlistArgs(enc, config)
+	args := quicmemberlist.NewMemberlistArgs(encs.JSON(), config)
 	args.ExtraSameMemberLimit = params.Memberlist.ExtraSameMemberLimit
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
 		HandlerPrefixMemberlistCallbackBroadcastMessage,
@@ -173,7 +170,6 @@ func PPatchMemberlist(pctx context.Context) (ctx context.Context, err error) {
 
 func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	var enc encoder.Encoder
 	var isaacparams *isaac.Params
 	var ballotbox *isaacstates.Ballotbox
 	var m *quicmemberlist.Memberlist
@@ -184,7 +180,6 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
 		ISAACParamsContextKey, &isaacparams,
 		BallotboxContextKey, &ballotbox,
 		QuicstreamClientContextKey, &client,
@@ -362,7 +357,7 @@ func memberlistConfig(
 	connectionPool *quicstream.ConnectionPool,
 ) (*memberlist.Config, error) {
 	var log *logging.Logging
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 	var design NodeDesign
 	var fsnodeinfo NodeInfo
 	var local base.LocalNode
@@ -370,11 +365,10 @@ func memberlistConfig(
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
-		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -416,7 +410,7 @@ func memberlistConfig(
 	config.Alive = alive
 
 	config.Events = quicmemberlist.NewEventsDelegate(
-		enc,
+		encs.JSON(),
 		func(member quicmemberlist.Member) {
 			l := log.Log().With().Interface("member", member).Logger()
 
@@ -513,11 +507,11 @@ func memberlistTransport(
 
 func memberlistAlive(pctx context.Context) (*quicmemberlist.AliveDelegate, error) {
 	var design NodeDesign
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 	); err != nil {
 		return nil, err
 	}
@@ -533,7 +527,7 @@ func memberlistAlive(pctx context.Context) (*quicmemberlist.AliveDelegate, error
 	}
 
 	return quicmemberlist.NewAliveDelegate(
-		enc,
+		encs.JSON(),
 		design.Network.Publish(),
 		nc,
 		al,

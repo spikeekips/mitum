@@ -78,7 +78,7 @@ func (cmd *NetworkClientEventLoggingCommand) Prepare(pctx context.Context) error
 		return err
 	}
 
-	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.JSONEncoder); {
 	case err != nil:
 		return err
 	default:
@@ -107,7 +107,7 @@ func (cmd *NetworkClientEventLoggingCommand) printLog(addedAt time.Time, offset 
 		"log":    json.RawMessage(raw),
 	}
 
-	if err := cmd.Encoder.StreamEncoder(os.Stdout).Encode(m); err != nil {
+	if err := cmd.JSONEncoder.StreamEncoder(os.Stdout).Encode(m); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to encode: %q\n", string(raw))
 	}
 

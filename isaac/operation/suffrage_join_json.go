@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
 type suffrageJoinFactJSONMarshaler struct {
@@ -29,7 +28,7 @@ type suffrageJoinFactJSONUnmarshaler struct {
 	StartHeight base.Height `json:"start_height"`
 }
 
-func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageJoinFact")
 
 	var u suffrageJoinFactJSONUnmarshaler
@@ -68,7 +67,7 @@ type suffrageGenesisJoinFactJSONUnmarshaler struct {
 	base.BaseFactJSONUnmarshaler
 }
 
-func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageGenesisJoinFact")
 
 	var u suffrageGenesisJoinFactJSONUnmarshaler

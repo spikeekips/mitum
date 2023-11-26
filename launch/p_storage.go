@@ -21,7 +21,6 @@ import (
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
@@ -262,17 +261,20 @@ func PCleanStorage(pctx context.Context) (context.Context, error) {
 
 	var design NodeDesign
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	if err := CleanStorage(design.Storage.Database.String(), design.Storage.Base, encs, enc); err != nil {
+	if err := CleanStorage(
+		design.Storage.Database.String(),
+		design.Storage.Base,
+		encs,
+		encs.Default(),
+	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -283,13 +285,13 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 	e := util.StringError("create localfs")
 
 	var design NodeDesign
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
 	var version util.Version
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		ISAACParamsContextKey, &isaacparams,
 		VersionContextKey, &version,
 	); err != nil {
@@ -297,7 +299,7 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 	}
 
 	fsnodeinfo, err := CreateLocalFS(
-		CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, enc)
+		CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, encs.Default())
 	if err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -310,17 +312,17 @@ func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 
 	var design NodeDesign
 	var isaacparams *isaac.Params
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, enc)
+	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, encs.Default())
 
 	switch {
 	case err == nil:
@@ -343,19 +345,17 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var isaacparams *isaac.Params
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 
 	if err := util.LoadFromContextOK(pctx,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, enc)
+	fsnodeinfo, err := CheckLocalFS(isaacparams.NetworkID(), design.Storage.Base, encs.Default())
 
 	switch {
 	case err == nil:
@@ -365,7 +365,7 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 	case errors.Is(err, os.ErrNotExist):
 		// NOTE database will be no cleaned.
 		fsnodeinfo, err = CreateLocalFS(
-			CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, enc)
+			CreateDefaultNodeInfo(isaacparams.NetworkID(), version), design.Storage.Base, encs.Default())
 		if err != nil {
 			return pctx, e.Wrap(err)
 		}
@@ -383,7 +383,6 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var isaacparams *isaac.Params
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
 
 	if err := util.LoadFromContextOK(pctx,
@@ -391,7 +390,6 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		ISAACParamsContextKey, &isaacparams,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		FSNodeInfoContextKey, &fsnodeinfo,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -402,7 +400,7 @@ func PLoadDatabase(pctx context.Context) (context.Context, error) {
 		design.Storage.Database.String(),
 		design.Storage.Base,
 		encs,
-		enc,
+		encs.Default(),
 		isaacparams.StateCacheSize(),
 		isaacparams.OperationPoolCacheSize(),
 	)
@@ -429,7 +427,6 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var design NodeDesign
 	var encs *encoder.Encoders
-	var enc *jsonenc.Encoder
 	var isaacparams *isaac.Params
 	var db isaac.Database
 
@@ -437,7 +434,6 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -447,7 +443,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	if err := isaacblock.ValidateLastBlocks(
 		LocalFSDataDirectory(design.Storage.Base),
 		encs,
-		enc,
+		encs.Default(),
 		db,
 		isaacparams.NetworkID(),
 	); err != nil {

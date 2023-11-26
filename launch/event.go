@@ -18,7 +18,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/ps"
@@ -530,7 +530,7 @@ type eventLoggingHeaderJSONUnmarshaler struct {
 	Limit   uint64          `json:"limit"`
 }
 
-func (h *EventLoggingHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *EventLoggingHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}

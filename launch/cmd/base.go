@@ -7,15 +7,14 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
 type BaseCommand struct {
-	Encoders *encoder.Encoders `kong:"-"`
-	Encoder  *jsonenc.Encoder  `kong:"-"`
-	Log      *zerolog.Logger   `kong:"-"`
+	Encoders    *encoder.Encoders `kong:"-"`
+	JSONEncoder encoder.Encoder   `kong:"-"`
+	Log         *zerolog.Logger   `kong:"-"`
 }
 
 func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
@@ -39,8 +38,11 @@ func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
 		return nctx, err
 	}
 
-	return nctx, util.LoadFromContextOK(nctx,
-		launch.EncodersContextKey, &cmd.Encoders,
-		launch.EncoderContextKey, &cmd.Encoder,
-	)
+	if err := util.LoadFromContextOK(nctx, launch.EncodersContextKey, &cmd.Encoders); err != nil {
+		return nctx, err
+	}
+
+	cmd.JSONEncoder = cmd.Encoders.JSON()
+
+	return nctx, nil
 }

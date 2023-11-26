@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -81,7 +80,7 @@ func (fact DummyOperationFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (fact *DummyOperationFact) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
+func (fact *DummyOperationFact) DecodeJSON(b []byte, _ encoder.Encoder) error {
 	var u struct {
 		H     valuehash.HashDecoder
 		Token base.Token
@@ -167,7 +166,7 @@ func (op DummyOperation) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (op *DummyOperation) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u struct {
 		H    valuehash.HashDecoder
 		Fact json.RawMessage

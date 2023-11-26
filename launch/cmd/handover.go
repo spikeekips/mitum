@@ -35,7 +35,7 @@ func (cmd *baseHandoverCommand) run(pctx context.Context) (func(), error) {
 
 	cmd.yci = cmd.Remote.ConnInfo()
 
-	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.JSONEncoder); {
 	case err != nil:
 		return nil, err
 	default:

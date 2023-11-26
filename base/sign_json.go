@@ -2,7 +2,7 @@ package base
 
 import (
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
@@ -30,7 +30,7 @@ type baseSignJSONUnmarshaler struct {
 	Signature Signature      `json:"signature"`
 }
 
-func (si *BaseSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (si *BaseSign) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("faied to decode BaseSign")
 
 	var u baseSignJSONUnmarshaler
@@ -70,7 +70,7 @@ type baseNodeSignJSONUnmarshaler struct {
 	Node string `json:"node"`
 }
 
-func (si *BaseNodeSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (si *BaseNodeSign) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode BaseNodeSign")
 
 	var u baseNodeSignJSONUnmarshaler

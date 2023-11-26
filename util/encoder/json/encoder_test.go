@@ -73,7 +73,7 @@ type sampleDecodable struct {
 	B int
 }
 
-func (s *sampleDecodable) DecodeJSON(b []byte, _ *Encoder) error {
+func (s *sampleDecodable) DecodeJSON(b []byte, _ encoder.Encoder) error {
 	var v struct {
 		A string
 		B int
@@ -728,7 +728,7 @@ func (d dummyJSONMarshaledDecodable) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(d.insideDummyJSONMarshaled)
 }
 
-func (d *dummyJSONMarshaledDecodable) DecodeJSON(b []byte, enc *Encoder) error {
+func (d *dummyJSONMarshaledDecodable) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := enc.Unmarshal(b, &d.insideDummyJSONMarshaled); err != nil {
 		return err
 	}
@@ -799,7 +799,7 @@ type fieldDummyJSONMarshaledUnmarshaler struct {
 	E string
 }
 
-func (d *fieldDummyJSONMarshaled) DecodeJSON(b []byte, enc *Encoder) error {
+func (d *fieldDummyJSONMarshaled) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u fieldDummyJSONMarshaledUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
@@ -919,7 +919,7 @@ type embedDummyJSONMarshaledMarshaler struct {
 	E string
 }
 
-func (d *embedDummyJSONMarshaled) DecodeJSON(b []byte, enc *Encoder) error {
+func (d *embedDummyJSONMarshaled) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := enc.Unmarshal(b, &d.dummyJSONMarshaled); err != nil {
 		return err
 	}

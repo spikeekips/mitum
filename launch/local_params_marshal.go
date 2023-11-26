@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"gopkg.in/yaml.v3"
 )
@@ -54,7 +54,7 @@ type LocalParamsYAMLUnmarshaler struct {
 	Network    *NetworkParams         `yaml:"network,omitempty"`
 }
 
-func (p *LocalParams) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (p *LocalParams) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	if len(b) < 1 {
 		return nil
 	}
@@ -67,11 +67,11 @@ func (p *LocalParams) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	}
 
-	switch lb, err := enc.Marshal(u.ISAAC); {
+	switch lb, err := jsonencoder.Marshal(u.ISAAC); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := enc.Unmarshal(lb, p.ISAAC); err != nil {
+		if err := jsonencoder.Unmarshal(lb, p.ISAAC); err != nil {
 			return e.Wrap(err)
 		}
 

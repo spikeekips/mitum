@@ -8,7 +8,6 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"golang.org/x/exp/slices"
@@ -184,7 +183,7 @@ type baseStateJSONUnmarshaler struct {
 	Height     HeightDecoder           `json:"height"`
 }
 
-func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *BaseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode BaseState")
 
 	var u baseStateJSONUnmarshaler

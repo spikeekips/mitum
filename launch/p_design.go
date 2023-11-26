@@ -5,7 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -30,17 +30,19 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var flag DesignFlag
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 	var privfrom PrivatekeyFlags
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		PrivatekeyFlagsContextKey, &privfrom,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
+
+	jsonencoder := encs.JSON()
 
 	var design NodeDesign
 	var designString string
@@ -49,7 +51,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	case "file":
 		f := flag.URL().Path
 
-		switch d, b, err := NodeDesignFromFile(f, enc); {
+		switch d, b, err := NodeDesignFromFile(f, jsonencoder); {
 		case err != nil:
 			return pctx, e.Wrap(err)
 		default:
@@ -57,7 +59,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 			designString = string(b)
 		}
 	case "http", "https":
-		switch d, b, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, enc); {
+		switch d, b, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, jsonencoder); {
 		case err != nil:
 			return pctx, e.Wrap(err)
 		default:
@@ -65,7 +67,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 			designString = string(b)
 		}
 	case "consul":
-		switch d, b, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, enc); {
+		switch d, b, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, jsonencoder); {
 		case err != nil:
 			return pctx, e.Wrap(err)
 		default:
@@ -79,7 +81,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 	log.Log().Debug().Interface("design", design).Msg("design loaded")
 
 	if b := privfrom.Flag.Body(); len(b) > 0 {
-		priv, err := base.DecodePrivatekeyFromString(string(b), enc)
+		priv, err := base.DecodePrivatekeyFromString(string(b), jsonencoder)
 		if err != nil {
 			return pctx, e.Wrap(err)
 		}
@@ -108,12 +110,12 @@ func PGenesisDesign(pctx context.Context) (context.Context, error) {
 		return pctx, e.Wrap(err)
 	}
 
-	var enc *jsonenc.Encoder
-	if err := util.LoadFromContextOK(pctx, EncoderContextKey, &enc); err != nil {
+	var encs *encoder.Encoders
+	if err := util.LoadFromContextOK(pctx, EncodersContextKey, &encs); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	switch d, b, err := GenesisDesignFromFile(designfile, enc); {
+	switch d, b, err := GenesisDesignFromFile(designfile, encs.JSON()); {
 	case err != nil:
 		return pctx, e.Wrap(err)
 	default:

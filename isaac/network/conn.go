@@ -6,7 +6,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -98,7 +98,7 @@ func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (n *NodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *NodeConnInfo) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode NodeConnInfo")
 
 	if err := n.BaseNode.DecodeJSON(b, enc); err != nil {

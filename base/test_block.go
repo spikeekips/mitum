@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
@@ -301,7 +302,7 @@ func (m DummyBlockMap) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (m *DummyBlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (m *DummyBlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u struct {
 		B json.RawMessage
 		M json.RawMessage

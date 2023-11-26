@@ -98,12 +98,12 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	e := util.StringError("storage status")
 
 	var design launch.NodeDesign
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.DesignContextKey, &design,
-		launch.EncoderContextKey, &enc,
+		launch.EncodersContextKey, &encs,
 		launch.ISAACParamsContextKey, &isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -127,7 +127,7 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 
 	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("localfs information")
 
-	if err := cmd.localfs(localfsroot, enc, isaacparams.NetworkID()); err != nil {
+	if err := cmd.localfs(localfsroot, encs.Default(), isaacparams.NetworkID()); err != nil {
 		return pctx, e.Wrap(err)
 	}
 

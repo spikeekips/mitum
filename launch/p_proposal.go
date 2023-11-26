@@ -70,7 +70,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	func(base.ProposalSignFact, base.Manifest) (isaac.ProposalProcessor, error),
 	error,
 ) {
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var design NodeDesign
 	var local base.LocalNode
 	var isaacparams *isaac.Params
@@ -78,7 +78,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var oprs *hint.CompatibleSet[isaac.NewOperationProcessorInternalFunc]
 
 	if err := util.LoadFromContextOK(pctx,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		ISAACParamsContextKey, &isaacparams,
@@ -102,7 +102,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 			local,
 			isaacparams.NetworkID(),
 			LocalFSDataDirectory(design.Storage.Base),
-			enc,
+			encs.Default(),
 			db,
 			args.MaxWorkerSize,
 		)

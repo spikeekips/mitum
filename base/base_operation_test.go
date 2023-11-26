@@ -403,7 +403,7 @@ type dummyOperationExtensibleUnmarshaller struct {
 	I json.RawMessage
 }
 
-func (op *dummyOperationExtensible) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (op *dummyOperationExtensible) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := op.BaseOperation.DecodeJSON(b, enc); err != nil {
 		return err
 	}

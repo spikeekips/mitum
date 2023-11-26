@@ -24,7 +24,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	e := util.StringError("prepare SyncSourceChecker")
 
 	var log *logging.Logging
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var design NodeDesign
 	var local base.LocalNode
 	var params *LocalParams
@@ -32,7 +32,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -57,7 +57,7 @@ func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 		params.ISAAC.NetworkID(),
 		client,
 		params.MISC.SyncSourceCheckerInterval(),
-		enc,
+		encs.Default(),
 		sources,
 		func(ncis []isaac.NodeConnInfo, _ error) {
 			syncSourcePool.UpdateFixed(ncis)

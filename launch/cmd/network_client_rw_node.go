@@ -38,7 +38,7 @@ func (cmd *baseNetworkClientRWNodeCommand) Prepare(pctx context.Context) error {
 		return errors.Errorf("unsupported format, %q", cmd.Format)
 	}
 
-	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.Encoder); {
+	switch key, err := launch.DecodePrivatekey(cmd.Privatekey, cmd.JSONEncoder); {
 	case err != nil:
 		return err
 	default:

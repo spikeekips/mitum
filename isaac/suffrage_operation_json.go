@@ -3,7 +3,7 @@ package isaac
 import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type suffrageExpelFactJSONMarshaler struct {
@@ -32,7 +32,7 @@ type suffrageExpelFactJSONUnmarshaler struct {
 	End   base.Height `json:"end"`
 }
 
-func (fact *SuffrageExpelFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *SuffrageExpelFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageExpelFact")
 
 	var u suffrageExpelFactJSONUnmarshaler

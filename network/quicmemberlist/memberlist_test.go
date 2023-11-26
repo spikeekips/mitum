@@ -33,17 +33,16 @@ type testMemberlist struct {
 func (t *testMemberlist) SetupSuite() {
 	t.BaseTest.SetupSuite()
 
-	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.encs.AddEncoder(t.enc))
+	t.encs = encoder.NewEncoders(t.enc, t.enc)
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ConnInfoBroadcastMessageHint, Instance: ConnInfoBroadcastMessage{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: EnsureBroadcastMessageHeaderHint, Instance: EnsureBroadcastMessageHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: ConnInfoBroadcastMessageHint, Instance: ConnInfoBroadcastMessage{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: EnsureBroadcastMessageHeaderHint, Instance: EnsureBroadcastMessageHeader{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}}))
 }
 
 func (t *testMemberlist) SetupTest() {

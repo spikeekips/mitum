@@ -51,7 +51,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
 	var params *LocalParams
@@ -69,7 +68,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -208,7 +206,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixNodeInfoString,
-		isaacnetwork.QuicstreamHandlerNodeInfo(QuicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)), nil)
+		isaacnetwork.QuicstreamHandlerNodeInfo(QuicstreamHandlerGetNodeInfoFunc(encs.Default(), nodeinfo)), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixSendBallotsString,

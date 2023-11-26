@@ -24,7 +24,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
@@ -290,13 +290,13 @@ func writeDesign(pctx context.Context) (writeNodeValueFunc, error) {
 }
 
 func writeDesignMap(pctx context.Context) (map[string]writeNodeValueFunc, error) {
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 	var design NodeDesign
 	var params *LocalParams
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(pctx,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
@@ -325,7 +325,7 @@ func writeDesignMap(pctx context.Context) (map[string]writeNodeValueFunc, error)
 		"parameters.network.ratelimit.suffrage": writeLocalParamNetworkRateLimit(params.Network.RateLimit(), "suffrage"),
 		"parameters.network.ratelimit.default":  writeLocalParamNetworkRateLimit(params.Network.RateLimit(), "default"),
 
-		"parameters.sync_sources": writeSyncSources(enc, design, syncSourceChecker),
+		"parameters.sync_sources": writeSyncSources(encs.JSON(), design, syncSourceChecker),
 		//revive:enable:line-length-limit
 	}
 
@@ -601,7 +601,7 @@ func writeLocalParamNetworkTimeoutRequest(
 }
 
 func writeSyncSources(
-	enc *jsonenc.Encoder,
+	jsonencoder encoder.Encoder,
 	design NodeDesign,
 	syncSourceChecker *isaacnetwork.SyncSourceChecker,
 ) writeNodeValueFunc {
@@ -609,7 +609,7 @@ func writeSyncSources(
 		e := util.StringError("update sync source")
 
 		var sources *SyncSourcesDesign
-		if err := sources.DecodeYAML([]byte(value), enc); err != nil {
+		if err := sources.DecodeYAML([]byte(value), jsonencoder); err != nil {
 			return nil, nil, false, e.Wrap(err)
 		}
 
@@ -790,11 +790,11 @@ func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 }
 
 func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 	var acl *YAMLACL
 
 	if err := util.LoadFromContextOK(pctx,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		ACLContextKey, &acl,
 	); err != nil {
 		return nil, err
@@ -826,7 +826,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 
 		prev := acl.Export()
 
-		switch updated, err := acl.Import([]byte(value), enc); {
+		switch updated, err := acl.Import([]byte(value), encs.JSON()); {
 		case err != nil:
 			return nil, nil, false, err
 		default:
@@ -1459,7 +1459,7 @@ type rwNodeHeaderJSONUnmarshaler struct {
 	ACLUser string `json:"acl_user"`
 }
 
-func (h *rwNodeHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *rwNodeHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal rwNodeHeader")
 
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {

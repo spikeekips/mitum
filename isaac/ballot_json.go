@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -32,7 +31,7 @@ type baseBallotJSONUnmarshaler struct {
 	Expels    []json.RawMessage `json:"expels,omitempty"`
 }
 
-func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (bl *baseBallot) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode baseBallot")
 
 	var u baseBallotJSONUnmarshaler

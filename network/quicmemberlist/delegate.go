@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
@@ -83,7 +83,7 @@ func (d *Delegate) resetBroadcastQueue() {
 
 type AliveDelegate struct {
 	*logging.Logging
-	enc             *jsonenc.Encoder
+	enc             encoder.Encoder
 	laddr           *net.UDPAddr
 	allowf          DelegateNodeFunc // NOTE allowf controls which node can be entered or not
 	storeconninfof  DelegateStoreConnInfo
@@ -93,7 +93,7 @@ type AliveDelegate struct {
 }
 
 func NewAliveDelegate(
-	enc *jsonenc.Encoder,
+	jsonencoder encoder.Encoder,
 	laddr *net.UDPAddr,
 	challengef DelegateNodeFunc,
 	allowf DelegateNodeFunc,
@@ -112,7 +112,7 @@ func NewAliveDelegate(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-alive-delegate")
 		}),
-		enc:             enc,
+		enc:             jsonencoder,
 		laddr:           laddr,
 		challengef:      nchallengef,
 		allowf:          nallowf,
@@ -171,13 +171,13 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 type EventsDelegate struct {
 	*logging.Logging
-	enc     *jsonenc.Encoder
+	enc     encoder.Encoder
 	joinedf DelegateJoinedFunc
 	leftf   DelegateLeftFunc
 }
 
 func NewEventsDelegate(
-	enc *jsonenc.Encoder,
+	jsonencoder encoder.Encoder,
 	joinedf DelegateJoinedFunc,
 	leftf DelegateLeftFunc,
 ) *EventsDelegate {
@@ -195,7 +195,7 @@ func NewEventsDelegate(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-events-delegate")
 		}),
-		enc:     enc,
+		enc:     jsonencoder,
 		joinedf: njoinedf,
 		leftf:   nleftf,
 	}

@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -22,13 +22,13 @@ func PLoadACL(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var aclfrom ACLFlags
 	var local base.LocalNode
-	var enc *jsonenc.Encoder
+	var encs *encoder.Encoders
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		ACLFlagsContextKey, &aclfrom,
 		LocalContextKey, &local,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func PLoadACL(pctx context.Context) (context.Context, error) {
 	if b := aclfrom.Flag.Body(); len(b) > 0 {
 		log.Log().Debug().Msg("acl source found")
 
-		if _, err := acl.Import(b, enc); err != nil {
+		if _, err := acl.Import(b, encs.JSON()); err != nil {
 			return pctx, e.Wrap(err)
 		}
 	}

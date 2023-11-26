@@ -169,17 +169,16 @@ type testDefaultProposalProcessor struct {
 }
 
 func (t *testDefaultProposalProcessor) SetupSuite() {
-	t.Encs = encoder.NewEncoders()
 	t.Enc = jsonenc.NewEncoder()
-	t.NoError(t.Encs.AddEncoder(t.Enc))
+	t.Encs = encoder.NewEncoders(t.Enc, t.Enc)
 
-	t.NoError(t.Enc.AddHinter(base.DummyManifest{}))
-	t.NoError(t.Enc.AddHinter(base.DummyBlockMap{}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationHint, Instance: DummyOperation{}}))
+	t.NoError(t.Encs.AddHinter(base.DummyManifest{}))
+	t.NoError(t.Encs.AddHinter(base.DummyBlockMap{}))
+	t.NoError(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
+	t.NoError(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
+	t.NoError(t.Encs.AddDetail(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))
+	t.NoError(t.Encs.AddDetail(encoder.DecodeDetail{Hint: DummyOperationHint, Instance: DummyOperation{}}))
 }
 
 func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.ProposalSignFact {

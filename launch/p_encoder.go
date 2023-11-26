@@ -13,23 +13,13 @@ var (
 	PNameEncoder       = ps.Name("encoder")
 	PNameAddHinters    = ps.Name("add-hinters")
 	EncodersContextKey = util.ContextKey("encoders")
-	EncoderContextKey  = util.ContextKey("encoder")
 )
 
 func PEncoder(pctx context.Context) (context.Context, error) {
-	e := util.StringError("prepare encoders")
-
-	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
+	encs := encoder.NewEncoders(enc, enc)
 
-	if err := encs.AddEncoder(enc); err != nil {
-		return pctx, e.Wrap(err)
-	}
-
-	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		EncodersContextKey: encs,
-		EncoderContextKey:  enc,
-	}), nil
+	return context.WithValue(pctx, EncodersContextKey, encs), nil
 }
 
 func PAddHinters(pctx context.Context) (context.Context, error) {

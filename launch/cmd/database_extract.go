@@ -218,12 +218,11 @@ func (cmd *DatabaseExtractCommand) prepareFilters(context.Context) error {
 }
 
 func (cmd *DatabaseExtractCommand) pLoadDatabase(pctx context.Context) (context.Context, error) {
-	if err := util.LoadFromContextOK(pctx,
-		launch.EncodersContextKey, &cmd.encs,
-		launch.EncoderContextKey, &cmd.enc,
-	); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.EncodersContextKey, &cmd.encs); err != nil {
 		return pctx, err
 	}
+
+	cmd.enc = cmd.encs.Default()
 
 	var fsnodeinfo launch.NodeInfo
 

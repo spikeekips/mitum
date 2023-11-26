@@ -104,7 +104,6 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	e := util.StringError("import blocks")
 
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var design launch.NodeDesign
 	var local base.LocalNode
 	var isaacparams *isaac.Params
@@ -112,7 +111,6 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
-		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,
 		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
@@ -141,7 +139,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		}
 	}
 
-	if err := cmd.validateSourceBlocks(last, enc, isaacparams); err != nil {
+	if err := cmd.validateSourceBlocks(last, encs.Default(), isaacparams); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -157,14 +155,14 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		cmd.fromHeight,
 		last,
 		encs,
-		enc,
+		encs.Default(),
 		db,
 		isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	if err := cmd.validateImported(last, enc, design, isaacparams, db); err != nil {
+	if err := cmd.validateImported(last, encs.Default(), design, isaacparams, db); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -175,13 +173,11 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error
 	var last base.Height
 
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
-		launch.EncoderContextKey, &enc,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -283,13 +279,11 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 	var last base.Height
 
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
-		launch.EncoderContextKey, &enc,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -326,7 +320,11 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 		}
 	}
 
-	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(source, enc, isaacparams.NetworkID()); {
+	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(
+		source,
+		encs.Default(),
+		isaacparams.NetworkID(),
+	); {
 	case err != nil:
 		return nfromHeight, toHeight, last, err
 	case !found, i < base.GenesisHeight:

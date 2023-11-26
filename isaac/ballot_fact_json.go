@@ -3,7 +3,7 @@ package isaac
 import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -51,7 +51,7 @@ func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
 	}
 }
 
-func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *baseBallotFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode baseBallotFact")
 
 	var u baseBallotFactJSONUnmarshaler
@@ -85,7 +85,7 @@ func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(fact.jsonMarshaler())
 }
 
-func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *INITBallotFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode INITBallotFact")
 
 	var ub baseBallotFact
@@ -114,7 +114,7 @@ func (fact ACCEPTBallotFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode ACCEPTBallotFact")
 
 	var ub baseBallotFact
@@ -147,7 +147,7 @@ func (fact EmptyProposalINITBallotFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (fact *EmptyProposalINITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *EmptyProposalINITBallotFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode EmptyProposalINITBallotFact")
 
 	if err := fact.INITBallotFact.DecodeJSON(b, enc); err != nil {

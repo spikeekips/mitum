@@ -3,7 +3,7 @@ package base
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -65,7 +65,7 @@ type BaseNodeJSONUnmarshaler struct {
 	Publickey string `json:"publickey"`
 }
 
-func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *BaseNode) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode BaseNode")
 
 	var u BaseNodeJSONUnmarshaler

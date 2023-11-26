@@ -137,7 +137,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	args := isaacstates.NewStatesArgs()
 
 	var log *logging.Logging
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var devflags DevFlags
 	var local base.LocalNode
 	var isaacparams *isaac.Params
@@ -148,7 +148,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		DevFlagsContextKey, &devflags,
 		LocalContextKey, &local,
 		ISAACParamsContextKey, &isaacparams,
@@ -185,7 +185,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		func(bl base.Ballot) error {
 			ee := util.StringError("broadcast ballot")
 
-			b, err := enc.Marshal(bl)
+			b, err := encs.Default().Marshal(bl)
 			if err != nil {
 				return ee.Wrap(err)
 			}
@@ -631,7 +631,6 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.SyncerArgs, error), error) {
 	var log *logging.Logging
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var devflags DevFlags
 	var design NodeDesign
 	var params *LocalParams
@@ -645,7 +644,6 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		DevFlagsContextKey, &devflags,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
@@ -698,7 +696,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	return func(height base.Height) (args isaacstates.SyncerArgs, _ error) {
 		var tempsyncpool isaac.TempSyncPool
 
-		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, st, enc); {
+		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, st, encs.Default()); {
 		case err != nil:
 			return args, isaacstates.ErrUnpromising.Wrap(err)
 		default:

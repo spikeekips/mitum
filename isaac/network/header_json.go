@@ -6,7 +6,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -62,7 +62,7 @@ type operationRequestHeaderJSONUnmarshaler struct {
 	Operation valuehash.HashDecoder `json:"operation"`
 }
 
-func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
+func (h *OperationRequestHeader) DecodeJSON(b []byte, _ encoder.Encoder) error {
 	e := util.StringError("decode OperationRequestHeader")
 
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
@@ -117,7 +117,7 @@ type requestProposalRequestHeaderJSONUnmarshaler struct {
 	Point         base.Point            `json:"point"`
 }
 
-func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode RequestProposalHeader")
 
 	var u requestProposalRequestHeaderJSONUnmarshaler
@@ -397,7 +397,7 @@ type NodeChallengeRequestHeaderJSONUnmarshaler struct {
 	Input       []byte `json:"input"`
 }
 
-func (h *NodeChallengeRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *NodeChallengeRequestHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal NodeChallengeHeader")
 	var u NodeChallengeRequestHeaderJSONUnmarshaler
 
@@ -634,7 +634,7 @@ type aclUserHeaderJSONUnmarshaler struct {
 	ACLUser string `json:"acl_user"`
 }
 
-func (h *aclUserHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *aclUserHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u aclUserHeaderJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
@@ -679,7 +679,7 @@ type caHandoverHeaderJSONUnmarshaler struct {
 	Address  string `json:"address"`
 }
 
-func (h *caHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *caHandoverHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}
@@ -716,7 +716,7 @@ func (h StartHandoverHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *StartHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *StartHandoverHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := h.caHandoverHeader.DecodeJSON(b, enc); err != nil {
 		return err
 	}
@@ -734,7 +734,7 @@ func (h CheckHandoverHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *CheckHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *CheckHandoverHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := h.caHandoverHeader.DecodeJSON(b, enc); err != nil {
 		return err
 	}
@@ -752,7 +752,7 @@ func (h CancelHandoverHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *CancelHandoverHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *CancelHandoverHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}
@@ -813,7 +813,7 @@ type checkHandoverXHeaderJSONUnmarshaler struct {
 	Address string `json:"address"`
 }
 
-func (h *CheckHandoverXHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *CheckHandoverXHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -255,7 +255,7 @@ func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *EnsureBroadcastMessageHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *EnsureBroadcastMessageHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode EnsureBroadcastMessageHeader")
 
 	var u ensureBroadcastMessageHeaderJSONMarshaler

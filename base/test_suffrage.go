@@ -8,7 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/assert"
@@ -99,7 +99,7 @@ type dummySuffrageProofUnmarshaler struct {
 	ST json.RawMessage `json:"state"`
 }
 
-func (p *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (p *DummySuffrageProof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("failed to decode DummySuffrageProof")
 
 	var u dummySuffrageProofUnmarshaler

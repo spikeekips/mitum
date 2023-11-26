@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -118,7 +117,7 @@ type operationFixedtreeNodeJSONUnmarshaler struct {
 	Reason json.RawMessage `json:"reason"`
 }
 
-func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode OperationFixedtreeNode")
 
 	var ub fixedtree.BaseNode

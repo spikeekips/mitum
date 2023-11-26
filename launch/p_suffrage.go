@@ -12,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
@@ -343,7 +342,6 @@ func nodeInConsensusNodesFunc(
 func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var enc encoder.Encoder
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var m *quicmemberlist.Memberlist
@@ -353,7 +351,6 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		EncoderContextKey, &enc,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &m,

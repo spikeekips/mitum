@@ -9,11 +9,11 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"gopkg.in/yaml.v3"
 )
 
-func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *SyncSource) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode SyncSource")
 
 	var v interface{}
@@ -43,7 +43,7 @@ func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 			ty = j
 		}
 
-		if err := d.decodeYAMLMap(ty, b, enc); err != nil {
+		if err := d.decodeYAMLMap(ty, b, jsonencoder); err != nil {
 			return e.Wrap(err)
 		}
 
@@ -74,12 +74,12 @@ func (d *SyncSource) decodeString(s string) error {
 	}
 }
 
-func (d *SyncSource) decodeYAMLMap(t string, b []byte, enc *jsonenc.Encoder) error {
+func (d *SyncSource) decodeYAMLMap(t string, b []byte, jsonencoder encoder.Encoder) error {
 	ty := SyncSourceType(t)
 
 	switch ty {
 	case SyncSourceTypeNode:
-		i, err := d.decodeYAMLNodeConnInfo(b, enc)
+		i, err := d.decodeYAMLNodeConnInfo(b, jsonencoder)
 		if err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ func (d *SyncSource) decodeYAMLMap(t string, b []byte, enc *jsonenc.Encoder) err
 		return nil
 	case SyncSourceTypeSuffrageNodes,
 		SyncSourceTypeSyncSources:
-		i, err := d.decodeYAMLConnInfo(b, enc)
+		i, err := d.decodeYAMLConnInfo(b, jsonencoder)
 		if err != nil {
 			return err
 		}
@@ -111,7 +111,7 @@ type syncSourceNodeUnmarshaler struct {
 	TLSInsecure bool   `yaml:"tls_insecure"`
 }
 
-func (SyncSource) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.NodeConnInfo, error) {
+func (SyncSource) decodeYAMLNodeConnInfo(b []byte, jsonencoder encoder.Encoder) (isaac.NodeConnInfo, error) {
 	e := util.StringError("decode node of SyncSource")
 
 	var u syncSourceNodeUnmarshaler
@@ -120,12 +120,12 @@ func (SyncSource) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.
 		return nil, e.Wrap(err)
 	}
 
-	address, err := base.DecodeAddress(u.Address, enc)
+	address, err := base.DecodeAddress(u.Address, jsonencoder)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
 
-	pub, err := base.DecodePublickeyFromString(u.Publickey, enc)
+	pub, err := base.DecodePublickeyFromString(u.Publickey, jsonencoder)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -143,7 +143,7 @@ type syncSourceConnInfoUnmarshaler struct {
 }
 
 func (SyncSource) decodeYAMLConnInfo(
-	b []byte, _ *jsonenc.Encoder,
+	b []byte, _ encoder.Encoder,
 ) (ci quicmemberlist.NamedConnInfo, _ error) {
 	e := util.StringError("decode conninfo of SyncSource")
 

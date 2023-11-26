@@ -11,7 +11,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -101,7 +100,7 @@ type nodeInfoSuffrageJSONUnmarshaler struct {
 	Height base.Height       `json:"height"`
 }
 
-func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (info *NodeInfo) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode NodeInfo")
 
 	var u nodeInfoJSONUnmarshaler

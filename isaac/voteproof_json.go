@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -84,7 +83,7 @@ type baseVoteproofJSONUnmarshaler struct {
 	Threshold  base.Threshold        `json:"threshold"`
 }
 
-func (vp *baseVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder) (u baseVoteproofJSONUnmarshaler, _ error) {
+func (vp *baseVoteproof) decodeJSON(b []byte, enc encoder.Encoder) (u baseVoteproofJSONUnmarshaler, _ error) {
 	e := util.StringError("decode baseVoteproof")
 
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -119,13 +118,13 @@ func (vp *baseVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder) (u baseVotep
 	return u, nil
 }
 
-func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *baseVoteproof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	_, err := vp.decodeJSON(b, enc)
 
 	return err
 }
 
-func decodeExpelVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler, i interface{}) error {
+func decodeExpelVoteproofJSON(_ []byte, enc encoder.Encoder, u baseVoteproofJSONUnmarshaler, i interface{}) error {
 	expels := make([]base.SuffrageExpelOperation, len(u.Expels))
 
 	for i := range u.Expels {
@@ -147,16 +146,16 @@ func decodeExpelVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproofJSO
 }
 
 func (vp *baseExpelVoteproof) decodeJSON(
-	b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler,
+	b []byte, enc encoder.Encoder, u baseVoteproofJSONUnmarshaler,
 ) (err error) {
 	return decodeExpelVoteproofJSON(b, enc, u, vp)
 }
 
-func (vp *baseStuckVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
+func (vp *baseStuckVoteproof) decodeJSON(b []byte, enc encoder.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
 	return decodeExpelVoteproofJSON(b, enc, u, vp)
 }
 
-func (vp *INITExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *INITExpelVoteproof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode INITExpelVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
@@ -171,7 +170,7 @@ func (vp *INITExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode INITStuckVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
@@ -186,7 +185,7 @@ func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func (vp *ACCEPTExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *ACCEPTExpelVoteproof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode ACCEPTExpelVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
@@ -201,7 +200,7 @@ func (vp *ACCEPTExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error
 	return nil
 }
 
-func (vp *ACCEPTStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *ACCEPTStuckVoteproof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode ACCEPTStuckVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)

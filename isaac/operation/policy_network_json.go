@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
 type baseNetworkPolicyFactJSONMarshaler struct {
@@ -26,7 +25,7 @@ type baseNetworkPolicyFactJSONUnmarshaler struct {
 	Policy json.RawMessage `json:"policy"`
 }
 
-func (fact *baseNetworkPolicyFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *baseNetworkPolicyFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode baseNetworkPolicyFact")
 
 	var u baseNetworkPolicyFactJSONUnmarshaler

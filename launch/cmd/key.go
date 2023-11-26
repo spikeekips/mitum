@@ -118,7 +118,7 @@ func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *KeyLoadCommand) loadPrivatekey() (bool, error) {
-	key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.Encoder)
+	key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.JSONEncoder)
 	if err != nil {
 		return false, err
 	}
@@ -151,7 +151,7 @@ func (cmd *KeyLoadCommand) loadPrivatekey() (bool, error) {
 }
 
 func (cmd *KeyLoadCommand) loadPublickey() (bool, error) {
-	key, err := base.DecodePublickeyFromString(cmd.KeyString, cmd.Encoder)
+	key, err := base.DecodePublickeyFromString(cmd.KeyString, cmd.JSONEncoder)
 	if err != nil {
 		return false, err
 	}
@@ -245,7 +245,7 @@ func (cmd *KeySignCommand) prepare(pctx context.Context) error {
 		return err
 	}
 
-	switch key, err := base.DecodePrivatekeyFromString(cmd.Privatekey, cmd.Encoder); {
+	switch key, err := base.DecodePrivatekeyFromString(cmd.Privatekey, cmd.JSONEncoder); {
 	case err != nil:
 		return err
 	default:
@@ -285,7 +285,7 @@ func (cmd *KeySignCommand) loadBody() (interface{}, error) {
 
 	cmd.Log.Debug().Str("raw_body", string(body)).Msg("read body")
 
-	elem, err := cmd.Encoder.Decode(body)
+	elem, err := cmd.JSONEncoder.Decode(body)
 	if err != nil {
 		return nil, err
 	}

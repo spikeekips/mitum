@@ -6,12 +6,32 @@ import (
 
 type Encoders struct {
 	*hint.CompatibleSet[Encoder]
+	defaultenc Encoder
+	jenc       Encoder
 }
 
-func NewEncoders() *Encoders {
-	return &Encoders{
+func NewEncoders(defaultenc, jenc Encoder) *Encoders {
+	encs := &Encoders{
 		CompatibleSet: hint.NewCompatibleSet[Encoder](3), //nolint:gomnd // small number of encoders
+		defaultenc:    defaultenc,
+		jenc:          jenc,
 	}
+
+	_ = encs.AddEncoder(defaultenc)
+
+	if !jenc.Hint().Equal(defaultenc.Hint()) {
+		_ = encs.AddEncoder(jenc)
+	}
+
+	return encs
+}
+
+func (encs *Encoders) Default() Encoder {
+	return encs.defaultenc
+}
+
+func (encs *Encoders) JSON() Encoder {
+	return encs.jenc
 }
 
 func (encs *Encoders) AddEncoder(enc Encoder) error {

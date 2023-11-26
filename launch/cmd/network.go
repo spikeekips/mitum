@@ -73,7 +73,7 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 	}
 
 	cmd.Client = isaacnetwork.NewBaseClient(
-		cmd.Encoders, cmd.Encoder,
+		cmd.Encoders, cmd.JSONEncoder,
 		connectionPool.Dial,
 		connectionPool.CloseAll,
 	)

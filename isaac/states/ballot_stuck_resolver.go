@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/exp/slices"
@@ -470,7 +470,7 @@ type missingBallotsRequestsMessageJSONUnmarshaler struct {
 	hint.BaseHinter
 }
 
-func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode MissingBallotsRequestsMessage")
 
 	var u missingBallotsRequestsMessageJSONUnmarshaler

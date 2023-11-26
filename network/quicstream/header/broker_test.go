@@ -29,12 +29,11 @@ type testBrokers struct {
 func (t *testBrokers) SetupSuite() {
 	t.BaseTest.SetupSuite()
 
-	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.encs.AddEncoder(t.enc))
+	t.encs = encoder.NewEncoders(t.enc, t.enc)
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: DefaultResponseHeaderHint, Instance: DefaultResponseHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyRequestHeaderHint, Instance: dummyRequestHeader{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: DefaultResponseHeaderHint, Instance: DefaultResponseHeader{}}))
+	t.NoError(t.encs.AddDetail(encoder.DecodeDetail{Hint: dummyRequestHeaderHint, Instance: dummyRequestHeader{}}))
 }
 
 func (t *testBrokers) clientBroker(ctx context.Context, ci quicstream.ConnInfo, tlsConfig *tls.Config) (*ClientBroker, func() error) {

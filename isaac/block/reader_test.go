@@ -53,9 +53,8 @@ func (t *testBlockReaders) TestNew() {
 }
 
 func (t *testBlockReaders) TestLoadReader() {
-	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
-	t.NoError(encs.AddEncoder(enc))
+	encs := encoder.NewEncoders(enc, enc)
 
 	readers := NewBlockReaders()
 

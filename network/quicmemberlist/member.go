@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 )
@@ -52,12 +52,12 @@ func NewMember(
 	return newMemberWithMeta(name, addr, newMemberMeta(address, publickey, publish, tlsinsecure))
 }
 
-func newMemberFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseMember, error) {
+func newMemberFromMemberlist(node *memberlist.Node, jsonencoder encoder.Encoder) (BaseMember, error) {
 	e := util.StringError("new Member from memberlist.Node")
 
 	var meta memberMeta
 
-	if err := meta.DecodeJSON(node.Meta, enc); err != nil {
+	if err := meta.DecodeJSON(node.Meta, jsonencoder); err != nil {
 		return BaseMember{}, e.WithMessage(err, "decode NodeMeta")
 	}
 
@@ -213,7 +213,7 @@ func (n BaseMember) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (n *BaseMember) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *BaseMember) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode Member")
 
 	var u baseMemberJSONMarshaler
@@ -294,22 +294,22 @@ type memberMetaJSONUnmarshaler struct {
 	TLSInsecure bool   `json:"tls_insecure"`
 }
 
-func (n *memberMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *memberMeta) DecodeJSON(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode MemberMeta")
 
 	var u memberMetaJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
+	if err := jsonencoder.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
 	}
 
-	switch i, err := base.DecodeAddress(u.Address, enc); {
+	switch i, err := base.DecodeAddress(u.Address, jsonencoder); {
 	case err != nil:
 		return e.WithMessage(err, "decode node address")
 	default:
 		n.address = i
 	}
 
-	switch i, err := base.DecodePublickeyFromString(u.Publickey, enc); {
+	switch i, err := base.DecodePublickeyFromString(u.Publickey, jsonencoder); {
 	case err != nil:
 		return e.WithMessage(err, "decode publickey")
 	default:

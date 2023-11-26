@@ -34,12 +34,10 @@ var (
 
 func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var params *LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {
 		return pctx, errors.WithMessage(err, "network client")
@@ -54,7 +52,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	client := NewNetworkClient(encs, enc, connectionPool) //nolint:gomnd //...
+	client := NewNetworkClient(encs, encs.Default(), connectionPool) //nolint:gomnd //...
 
 	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
 		QuicstreamClientContextKey: client,
@@ -66,15 +64,11 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	e := util.StringError("prepare network")
 
 	var log *logging.Logging
-	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var design NodeDesign
 	var params *LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 	); err != nil {

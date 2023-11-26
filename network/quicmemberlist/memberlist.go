@@ -23,7 +23,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/exp/slices"
@@ -37,7 +36,7 @@ var (
 )
 
 type MemberlistArgs struct {
-	Encoder                           *jsonenc.Encoder
+	Encoder                           encoder.Encoder
 	Config                            *memberlist.Config
 	PatchedConfig                     *memberlist.Config
 	FetchCallbackBroadcastMessageFunc func(context.Context, ConnInfoBroadcastMessage) ([]byte, encoder.Encoder, error)
@@ -58,9 +57,9 @@ type MemberlistArgs struct {
 	PongEnsureBroadcastMessageExpire     time.Duration
 }
 
-func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *MemberlistArgs {
+func NewMemberlistArgs(jsonencoder encoder.Encoder, config *memberlist.Config) *MemberlistArgs {
 	return &MemberlistArgs{
-		Encoder:                              enc,
+		Encoder:                              jsonencoder,
 		Config:                               config,
 		ExtraSameMemberLimit:                 func() uint64 { return 1 },
 		WhenLeftFunc:                         func(Member) {},
@@ -1027,7 +1026,7 @@ func (srv *Memberlist) handleUserMsgs(ctx context.Context, sem *semaphore.Weight
 
 func (srv *Memberlist) handleUserMsg(b []byte) {
 	body := b
-	var enc encoder.Encoder = srv.args.Encoder
+	enc := srv.args.Encoder
 
 	switch {
 	case bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix):

@@ -43,14 +43,12 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 func AttachHandlerOperation(pctx context.Context) error {
 	var encs *encoder.Encoders
-	var enc encoder.Encoder
 	var pool *isaacdatabase.TempPool
 	var connectionPool *quicstream.ConnectionPool
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
 		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
 		PoolDatabaseContextKey, &pool,
 		ConnectionPoolContextKey, &connectionPool,
 		StatesContextKey, &states,
@@ -58,7 +56,7 @@ func AttachHandlerOperation(pctx context.Context) error {
 		return err
 	}
 
-	headerdial := quicstreamheader.NewDialFunc(connectionPool.Dial, encs, enc)
+	headerdial := quicstreamheader.NewDialFunc(connectionPool.Dial, encs, encs.Default())
 
 	var gerror error
 
@@ -222,7 +220,7 @@ func AttachHandlerStreamOperations(pctx context.Context) error {
 }
 
 func AttachHandlerProposals(pctx context.Context) error {
-	var enc encoder.Encoder
+	var encs *encoder.Encoders
 	var local base.LocalNode
 	var states *isaacstates.States
 	var pool *isaacdatabase.TempPool
@@ -231,7 +229,7 @@ func AttachHandlerProposals(pctx context.Context) error {
 	var client isaac.NetworkClient
 
 	if err := util.LoadFromContext(pctx,
-		EncoderContextKey, &enc,
+		EncodersContextKey, &encs,
 		LocalContextKey, &local,
 		StatesContextKey, &states,
 		PoolDatabaseContextKey, &pool,
@@ -294,12 +292,12 @@ func AttachHandlerProposals(pctx context.Context) error {
 				case pr == nil:
 					return "", nil, false, nil
 				default:
-					b, err := enc.Marshal(pr)
+					b, err := encs.Default().Marshal(pr)
 					if err != nil {
 						return "", nil, false, err
 					}
 
-					return enc.Hint().String(), b, true, nil
+					return encs.Default().Hint().String(), b, true, nil
 				}
 			},
 		),

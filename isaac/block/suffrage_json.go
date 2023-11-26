@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -33,7 +32,7 @@ type SuffrageProofJSONUnmarshaler struct {
 	Proof fixedtree.Proof `json:"proof"`
 }
 
-func (s *SuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *SuffrageProof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageProof")
 
 	var u SuffrageProofJSONUnmarshaler

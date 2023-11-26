@@ -24,7 +24,6 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,14 +61,14 @@ type NodeDesign struct { //nolint:govet //...
 	TimeServer     string
 }
 
-func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
+func NodeDesignFromFile(f string, jsonencoder encoder.Encoder) (d NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign from file")
 
 	switch b, err := os.ReadFile(filepath.Clean(f)); {
 	case err != nil:
 		return d, nil, e.Wrap(err)
 	default:
-		if err := d.DecodeYAML(b, enc); err != nil {
+		if err := d.DecodeYAML(b, jsonencoder); err != nil {
 			return d, b, e.Wrap(err)
 		}
 
@@ -77,14 +76,18 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 	}
 }
 
-func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
+func NodeDesignFromHTTP(
+	u string,
+	tlsinsecure bool,
+	jsonencoder encoder.Encoder,
+) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru http")
 
 	switch b, err := getFromHTTP(u, tlsinsecure); {
 	case err != nil:
 		return design, nil, e.Wrap(err)
 	default:
-		if err := design.DecodeYAML(b, enc); err != nil {
+		if err := design.DecodeYAML(b, jsonencoder); err != nil {
 			return design, nil, e.Wrap(err)
 		}
 
@@ -92,14 +95,14 @@ func NodeDesignFromHTTP(u string, tlsinsecure bool, enc *jsonenc.Encoder) (desig
 	}
 }
 
-func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
+func NodeDesignFromConsul(addr, key string, jsonencoder encoder.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringError("load NodeDesign thru consul")
 
 	switch b, err := getFromConsul(addr, key); {
 	case err != nil:
 		return design, nil, e.Wrap(err)
 	default:
-		if err := design.DecodeYAML(b, enc); err != nil {
+		if err := design.DecodeYAML(b, jsonencoder); err != nil {
 			return design, nil, e.Wrap(err)
 		}
 
@@ -229,7 +232,7 @@ func (d NodeDesign) MarshalYAML() (interface{}, error) {
 	return d.marshaler(), nil
 }
 
-func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *NodeDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode NodeDesign")
 
 	var u NodeDesignYAMLUnmarshaler
@@ -237,14 +240,14 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	}
 
-	switch address, err := base.DecodeAddress(u.Address, enc); {
+	switch address, err := base.DecodeAddress(u.Address, jsonencoder); {
 	case err != nil:
 		return e.WithMessage(err, "invalid address")
 	default:
 		d.Address = address
 	}
 
-	switch priv, err := base.DecodePrivatekeyFromString(u.Privatekey, enc); {
+	switch priv, err := base.DecodePrivatekeyFromString(u.Privatekey, jsonencoder); {
 	case err != nil:
 		return e.WithMessage(err, "invalid privatekey")
 	default:
@@ -253,14 +256,14 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 	d.NetworkID = base.NetworkID([]byte(u.NetworkID))
 
-	switch i, err := u.Network.Decode(enc); {
+	switch i, err := u.Network.Decode(jsonencoder); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
 		d.Network = i
 	}
 
-	switch i, err := u.Storage.Decode(enc); {
+	switch i, err := u.Storage.Decode(jsonencoder); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
@@ -272,7 +275,7 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	default:
 		d.SyncSources = NewSyncSourcesDesign(nil)
-		if err := d.SyncSources.DecodeYAML(sb, enc); err != nil {
+		if err := d.SyncSources.DecodeYAML(sb, jsonencoder); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -283,7 +286,7 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := d.LocalParams.DecodeYAML(lb, enc); err != nil {
+		if err := d.LocalParams.DecodeYAML(lb, jsonencoder); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -374,7 +377,7 @@ func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
 	return d.marshaler(), nil
 }
 
-func (y *NodeNetworkDesignMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
+func (y *NodeNetworkDesignMarshaler) Decode(encoder.Encoder) (d NodeNetworkDesign, _ error) {
 	e := util.StringError("decode NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
@@ -392,7 +395,7 @@ func (y *NodeNetworkDesignMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesi
 	return d, nil
 }
 
-func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *NodeNetworkDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode NodeNetworkDesign")
 
 	var u NodeNetworkDesignMarshaler
@@ -401,7 +404,7 @@ func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	}
 
-	switch i, err := u.Decode(enc); {
+	switch i, err := u.Decode(jsonencoder); {
 	case err != nil:
 		return err
 	default:
@@ -453,7 +456,7 @@ func (d *NodeStorageDesign) Patch(node base.Address) error {
 	return nil
 }
 
-func (y *NodeStorageDesignLMarshaler) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
+func (y *NodeStorageDesignLMarshaler) Decode(encoder.Encoder) (d NodeStorageDesign, _ error) {
 	e := util.StringError("decode NodeStorageDesign")
 
 	d.Base = strings.TrimSpace(y.Base)
@@ -490,7 +493,7 @@ func (d NodeStorageDesign) MarshalYAML() (interface{}, error) {
 	return d.marshaler(), nil
 }
 
-func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *NodeStorageDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode NodeStorageDesign")
 
 	var u NodeStorageDesignLMarshaler
@@ -499,7 +502,7 @@ func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e.Wrap(err)
 	}
 
-	switch i, err := u.Decode(enc); {
+	switch i, err := u.Decode(jsonencoder); {
 	case err != nil:
 		return err
 	default:
@@ -513,7 +516,7 @@ type GenesisDesign struct {
 	Facts []base.Fact `yaml:"facts" json:"facts"`
 }
 
-func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ []byte, _ error) {
+func GenesisDesignFromFile(f string, jsonencoder encoder.Encoder) (d GenesisDesign, _ []byte, _ error) {
 	e := util.StringError("load GenesisDesign from file")
 
 	b, err := os.ReadFile(filepath.Clean(f))
@@ -521,7 +524,7 @@ func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ [
 		return d, nil, e.Wrap(err)
 	}
 
-	if err := d.DecodeYAML(b, enc); err != nil {
+	if err := d.DecodeYAML(b, jsonencoder); err != nil {
 		return d, b, e.Wrap(err)
 	}
 
@@ -540,7 +543,7 @@ func (*GenesisDesign) IsValid([]byte) error {
 	return nil
 }
 
-func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *GenesisDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode GenesisOpertionsDesign")
 
 	var u GenesisDesignYAMLUnmarshaler
@@ -557,7 +560,7 @@ func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 			return e.Wrap(err)
 		}
 
-		if err := encoder.Decode(enc, bj, &d.Facts[i]); err != nil {
+		if err := encoder.Decode(jsonencoder, bj, &d.Facts[i]); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -645,7 +648,7 @@ func (d *SyncSourcesDesign) MarshalYAML() (interface{}, error) {
 	return d.l, nil
 }
 
-func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func (d *SyncSourcesDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 	e := util.StringError("decode SyncSourcesDesign")
 
 	var v []interface{}
@@ -663,7 +666,7 @@ func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 		var s isaacnetwork.SyncSource
 
-		switch err := s.DecodeYAML(vb, enc); {
+		switch err := s.DecodeYAML(vb, jsonencoder); {
 		case err != nil:
 			return e.Wrap(err)
 		default:

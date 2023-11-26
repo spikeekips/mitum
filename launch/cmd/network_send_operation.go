@@ -36,7 +36,7 @@ func (cmd *NetworkClientSendOperationCommand) Run(pctx context.Context) error {
 			Str("input", string(i)).
 			Msg("input")
 
-		if err := encoder.Decode(cmd.Encoder, i, &op); err != nil {
+		if err := encoder.Decode(cmd.JSONEncoder, i, &op); err != nil {
 			return err
 		}
 	}

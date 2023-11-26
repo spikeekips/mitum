@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -41,7 +40,7 @@ func (fact ProposalFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *ProposalFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode ProposalFact")
 
 	var u proposalFactJSONUnmarshaler
@@ -93,7 +92,7 @@ func (sf ProposalSignFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (sf *ProposalSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (sf *ProposalSignFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode proposalSignFact")
 
 	var u proposalSignFactJSONUnmarshaler

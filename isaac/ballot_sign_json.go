@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -30,7 +29,7 @@ func (sf baseBallotSignFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode BaseBallotSignFact")
 
 	var u baseBallotSignFactJSONUnmarshaler

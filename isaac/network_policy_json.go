@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -42,7 +41,7 @@ type networkPolicyJSONUnmarshaler struct {
 	EmptyProposalNoBlock         bool            `json:"empty_proposal_no_block"`
 }
 
-func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (p *NetworkPolicy) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal NetworkPolicy")
 
 	var u networkPolicyJSONUnmarshaler
@@ -79,7 +78,7 @@ type NetworkPolicyStateValueJSONUnmarshaler struct {
 	Policy json.RawMessage `json:"policy"`
 }
 
-func (s *NetworkPolicyStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *NetworkPolicyStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode NetworkPolicyStateValue")
 
 	var u NetworkPolicyStateValueJSONUnmarshaler

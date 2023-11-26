@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -108,7 +107,7 @@ func (h HandoverMessageFinish) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *HandoverMessageFinish) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *HandoverMessageFinish) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal HandoverMessageFinish")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
@@ -186,7 +185,7 @@ func (h HandoverMessageChallengeBlockMap) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *HandoverMessageChallengeBlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *HandoverMessageChallengeBlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal HandoverMessageChallengeBlockMap")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
@@ -266,7 +265,7 @@ func (h HandoverMessageData) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *HandoverMessageData) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (h *HandoverMessageData) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("unmarshal HandoverMessageData")
 
 	if err := util.UnmarshalJSON(b, &h.baseHandoverMessage); err != nil {
@@ -294,7 +293,7 @@ func (h *HandoverMessageData) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 func (h *HandoverMessageData) decodeDataJSON(
-	dataType HandoverMessageDataType, b []byte, enc *jsonenc.Encoder,
+	dataType HandoverMessageDataType, b []byte, enc encoder.Encoder,
 ) (interface{}, error) {
 	switch dataType {
 	case HandoverMessageDataTypeINITVoteproof:
@@ -304,7 +303,7 @@ func (h *HandoverMessageData) decodeDataJSON(
 	}
 }
 
-func (*HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc *jsonenc.Encoder) (interface{}, error) {
+func (*HandoverMessageData) decodeJSONINITVoteproof(b []byte, enc encoder.Encoder) (interface{}, error) {
 	var u []json.RawMessage
 
 	if err := enc.Unmarshal(b, &u); err != nil {

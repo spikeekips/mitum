@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -35,7 +34,7 @@ func (s SuffrageNodeStateValue) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageNodeStateValue")
 
 	var u suffrageNodeStateValueJSONMarshaler
@@ -75,7 +74,7 @@ type suffrageNodesStateValueJSONUnmarshaler struct {
 	Height base.HeightDecoder `json:"height"`
 }
 
-func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageNodesStateValue")
 
 	var u suffrageNodesStateValueJSONUnmarshaler
@@ -118,7 +117,7 @@ type SuffrageCandidateJSONUnmarshaler struct {
 	Deadline base.HeightDecoder `json:"deadline"`
 }
 
-func (suf *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (suf *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageCandidateStateValue")
 
 	var u SuffrageCandidateJSONUnmarshaler
@@ -152,7 +151,7 @@ type suffrageCandidatesStateValueJSONUnmarshaler struct {
 	Nodes []json.RawMessage `json:"nodes"`
 }
 
-func (s *SuffrageCandidatesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (s *SuffrageCandidatesStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode SuffrageCandidatesStateValue")
 
 	var u suffrageCandidatesStateValueJSONUnmarshaler

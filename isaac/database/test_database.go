@@ -123,7 +123,7 @@ func (proof DummySuffrageProof) Prove(previousState base.State) error {
 	return nil
 }
 
-func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u struct {
 		ID string
 		ST json.RawMessage
@@ -169,25 +169,24 @@ func (t *BaseTestDatabase) noerror(err error) {
 }
 
 func (t *BaseTestDatabase) SetupSuite() {
-	t.Encs = encoder.NewEncoders()
 	t.Enc = jsonenc.NewEncoder()
-	t.noerror(t.Encs.AddEncoder(t.Enc))
+	t.Encs = encoder.NewEncoders(t.Enc, t.Enc)
 
-	t.noerror(t.Enc.AddHinter(base.DummyManifest{}))
-	t.noerror(t.Enc.AddHinter(base.DummyBlockMap{}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyStateValueHint, Instance: base.DummyStateValue{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: base.BaseState{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalSignFactHint, Instance: isaac.ProposalSignFact{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyStateValueHint, Instance: isaac.NetworkPolicyStateValue{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: DummySuffrageProofHint, Instance: DummySuffrageProof{}}))
+	t.noerror(t.Encs.AddHinter(base.DummyManifest{}))
+	t.noerror(t.Encs.AddHinter(base.DummyBlockMap{}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: &base.MPublickey{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.DummyStateValueHint, Instance: base.DummyStateValue{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: base.BaseState{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.ProposalSignFactHint, Instance: isaac.ProposalSignFact{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.NetworkPolicyStateValueHint, Instance: isaac.NetworkPolicyStateValue{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}}))
+	t.noerror(t.Encs.AddDetail(encoder.DecodeDetail{Hint: DummySuffrageProofHint, Instance: DummySuffrageProof{}}))
 }
 
 func (t *BaseTestDatabase) SetupTest() {
