@@ -159,7 +159,7 @@ func NewConnInfoDialFunc(networkID base.NetworkID, params *NetworkParams) quicst
 }
 
 func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {
-	key, err := rsa.GenerateKey(rand.Reader, 1024) //nolint:gomnd //...
+	key, err := rsa.GenerateKey(rand.Reader, 2048) //nolint:gomnd //...
 	if err != nil {
 		panic(err)
 	}
