@@ -331,8 +331,8 @@ func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
 }
 
 type BlockMapItemRequestHeaderJSONMarshaler struct {
-	Item   base.BlockMapItemType `json:"item"`
-	Height base.Height           `json:"height"`
+	Item   base.BlockItemType `json:"item"`
+	Height base.Height        `json:"height"`
 }
 
 func (h BlockMapItemRequestHeader) MarshalJSON() ([]byte, error) {
@@ -349,8 +349,8 @@ func (h BlockMapItemRequestHeader) MarshalJSON() ([]byte, error) {
 }
 
 type BlockMapItemRequestHeaderJSONUnmarshaler struct {
-	Item   base.BlockMapItemType `json:"item"`
-	Height base.Height           `json:"height"`
+	Item   base.BlockItemType `json:"item"`
+	Height base.Height        `json:"height"`
 }
 
 func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {

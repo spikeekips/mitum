@@ -27,20 +27,20 @@ func (t *testBlockMap) SetupSuite() {
 	t.networkID = util.UUID().Bytes()
 }
 
-func (t *testBlockMap) newitem(ty base.BlockMapItemType) BlockMapItem {
+func (t *testBlockMap) newitem(ty base.BlockItemType) BlockMapItem {
 	return NewLocalBlockMapItem(ty, util.UUID().String())
 }
 
 func (t *testBlockMap) newmap() BlockMap {
 	m := NewBlockMap(LocalFSWriterHint, jsonenc.JSONEncoderHint)
 
-	for _, i := range []base.BlockMapItemType{
-		base.BlockMapItemTypeProposal,
-		base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree,
-		base.BlockMapItemTypeVoteproofs,
+	for _, i := range []base.BlockItemType{
+		base.BlockItemProposal,
+		base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree,
+		base.BlockItemVoteproofs,
 	} {
 		t.NoError(m.SetItem(t.newitem(i)))
 	}
@@ -93,7 +93,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("proposal not set", func() {
 		m := t.newmap()
-		m.items.RemoveValue(base.BlockMapItemTypeProposal)
+		m.items.RemoveValue(base.BlockItemProposal)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -102,7 +102,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("empty proposal", func() {
 		m := t.newmap()
-		m.items.SetValue(base.BlockMapItemTypeProposal, nil)
+		m.items.SetValue(base.BlockItemProposal, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -111,7 +111,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("voteproofs not set", func() {
 		m := t.newmap()
-		m.items.RemoveValue(base.BlockMapItemTypeVoteproofs)
+		m.items.RemoveValue(base.BlockItemVoteproofs)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -120,7 +120,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("empty voteproofs", func() {
 		m := t.newmap()
-		m.items.SetValue(base.BlockMapItemTypeVoteproofs, nil)
+		m.items.SetValue(base.BlockItemVoteproofs, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -129,7 +129,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("invalid item", func() {
 		m := t.newmap()
-		m.items.SetValue(base.BlockMapItemTypeVoteproofs, t.newitem(base.BlockMapItemType("hehe")))
+		m.items.SetValue(base.BlockItemVoteproofs, t.newitem(base.BlockItemType("hehe")))
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -150,16 +150,16 @@ func (t *testBlockMap) TestSetItem() {
 	m := t.newmap()
 
 	t.Run("override", func() {
-		olditem, found := m.Item(base.BlockMapItemTypeProposal)
+		olditem, found := m.Item(base.BlockItemProposal)
 		t.True(found)
 		t.NotNil(olditem)
 
-		newitem := t.newitem(base.BlockMapItemTypeProposal)
+		newitem := t.newitem(base.BlockItemProposal)
 		t.NoError(m.SetItem(newitem))
 
 		t.NotEqual(olditem.Checksum(), newitem.Checksum())
 
-		ritem, found := m.Item(base.BlockMapItemTypeProposal)
+		ritem, found := m.Item(base.BlockItemProposal)
 		t.True(found)
 		t.NotNil(ritem)
 
@@ -167,7 +167,7 @@ func (t *testBlockMap) TestSetItem() {
 	})
 
 	t.Run("unknown data type", func() {
-		newitem := t.newitem(base.BlockMapItemType("findme"))
+		newitem := t.newitem(base.BlockItemType("findme"))
 		err := m.SetItem(newitem)
 
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -185,7 +185,7 @@ func (t *testBlockMap) TestVerify() {
 		m := t.newmap()
 		t.NoError(m.IsValid(t.networkID))
 
-		olditem, found := m.Item(base.BlockMapItemTypeProposal)
+		olditem, found := m.Item(base.BlockItemProposal)
 		t.True(found)
 		t.NotNil(olditem)
 
@@ -255,18 +255,18 @@ func (t *testBlockMapItem) TestNew() {
 	t.NoError(err)
 	checksum := util.UUID().String()
 
-	item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, checksum)
+	item := NewBlockMapItem(base.BlockItemProposal, *u, checksum)
 	_ = (interface{})(item).(base.BlockMapItem)
 
 	t.NoError(item.IsValid(nil))
 
-	t.Equal(base.BlockMapItemTypeProposal, item.Type())
+	t.Equal(base.BlockItemProposal, item.Type())
 	t.Equal(u.String(), item.URL().String())
 	t.Equal(checksum, item.Checksum())
 }
 
 func (t *testBlockMapItem) TestLocal() {
-	ty := base.BlockMapItemTypeProposal
+	ty := base.BlockItemProposal
 	m0 := NewLocalBlockMapItem(ty, util.UUID().String())
 	m1 := NewLocalBlockMapItem(ty, util.UUID().String())
 
@@ -278,7 +278,7 @@ func (t *testBlockMapItem) TestLocal() {
 func (t *testBlockMapItem) TestInvalid() {
 	t.Run("invalid data type", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemType("findme"), *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemType("findme"), *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -287,7 +287,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("empty checksum", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, "")
+		item := NewBlockMapItem(base.BlockItemProposal, *u, "")
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -295,7 +295,7 @@ func (t *testBlockMapItem) TestInvalid() {
 	})
 
 	t.Run("empty url", func() {
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, url.URL{}, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemProposal, url.URL{}, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -304,7 +304,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("empty url scheme", func() {
 		u, _ := url.Parse("showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -313,7 +313,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("unsupported url scheme", func() {
 		u, _ := url.Parse("showme://findme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -339,7 +339,7 @@ func TestBlockMapItemEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
 
 		b, err := t.enc.Marshal(item)
 		t.NoError(err)

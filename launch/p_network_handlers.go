@@ -133,7 +133,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapItemString,
 		isaacnetwork.QuicstreamHandlerBlockMapItem(
-			func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			func(height base.Height, item base.BlockItemType) (io.ReadCloser, bool, error) {
 				e := util.StringError("get BlockMapItem")
 
 				var menc encoder.Encoder

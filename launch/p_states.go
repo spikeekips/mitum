@@ -924,7 +924,7 @@ func syncerBlockMapItemFunc(
 		nrequestTimeoutf = requestTimeoutf
 	}
 
-	return func(ctx context.Context, height base.Height, item base.BlockMapItemType,
+	return func(ctx context.Context, height base.Height, item base.BlockItemType,
 		f func(io.Reader, bool) error,
 	) error {
 		e := util.StringError("fetch blockmap item")
@@ -953,7 +953,7 @@ func setLastVoteproofsfFromBlockReaderFunc(
 	lvps *isaac.LastVoteproofsHandler,
 ) (func(isaac.BlockReader) error, error) {
 	return func(reader isaac.BlockReader) error {
-		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+		switch v, found, err := reader.Item(base.BlockItemVoteproofs); {
 		case err != nil:
 			return err
 		case !found:

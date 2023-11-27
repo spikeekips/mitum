@@ -355,12 +355,12 @@ func (h BlockMapRequestHeader) Height() base.Height {
 }
 
 type BlockMapItemRequestHeader struct {
-	item base.BlockMapItemType
+	item base.BlockItemType
 	BaseHeader
 	height base.Height
 }
 
-func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
+func NewBlockMapItemRequestHeader(height base.Height, item base.BlockItemType) BlockMapItemRequestHeader {
 	return BlockMapItemRequestHeader{
 		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
 		height:     height,
@@ -386,7 +386,7 @@ func (h BlockMapItemRequestHeader) Height() base.Height {
 	return h.height
 }
 
-func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
+func (h BlockMapItemRequestHeader) Item() base.BlockItemType {
 	return h.item
 }
 

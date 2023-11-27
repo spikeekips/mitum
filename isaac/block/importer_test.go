@@ -92,32 +92,32 @@ func (t *testBlockImporter) TestWriteProposal() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeProposal)
+	i, found, err := reader.Item(base.BlockItemProposal)
 	t.NoError(err)
 	t.True(found)
 
 	pr := i.(base.ProposalSignFact)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeProposal)
+	r, found, err := reader.Reader(base.BlockItemProposal)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeProposal)
+		cr, found, err := reader.ChecksumReader(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeProposal, r))
+	t.NoError(im.WriteItem(base.BlockItemProposal, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeProposal)
+		i, found, err := tempreader.Item(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 
@@ -126,7 +126,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 
 		base.EqualProposalSignFact(t.Assert(), pr, rpr)
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeProposal)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 
@@ -148,32 +148,32 @@ func (t *testBlockImporter) TestWriteOperations() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeOperations)
+	i, found, err := reader.Item(base.BlockItemOperations)
 	t.NoError(err)
 	t.True(found)
 
 	ops := i.([]base.Operation)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeOperations)
+	r, found, err := reader.Reader(base.BlockItemOperations)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeOperations)
+		cr, found, err := reader.ChecksumReader(base.BlockItemOperations)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeOperations, r))
+	t.NoError(im.WriteItem(base.BlockItemOperations, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeOperations)
+		i, found, err := tempreader.Item(base.BlockItemOperations)
 		t.NoError(err)
 		t.True(found)
 
@@ -185,7 +185,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 			base.EqualOperation(t.Assert(), ops[i], rops[i])
 		}
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeOperations)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemOperations)
 		t.NoError(err)
 		t.True(found)
 
@@ -218,39 +218,39 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeOperationsTree)
+	i, found, err := reader.Item(base.BlockItemOperationsTree)
 	t.NoError(err)
 	t.True(found)
 
 	tr := i.(fixedtree.Tree)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeOperationsTree)
+	r, found, err := reader.Reader(base.BlockItemOperationsTree)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeOperationsTree)
+		cr, found, err := reader.ChecksumReader(base.BlockItemOperationsTree)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeOperationsTree, r))
+	t.NoError(im.WriteItem(base.BlockItemOperationsTree, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeOperationsTree)
+		i, found, err := tempreader.Item(base.BlockItemOperationsTree)
 		t.NoError(err)
 		t.True(found)
 
 		rtr, ok := i.(fixedtree.Tree)
 		t.True(ok)
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeOperationsTree)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemOperationsTree)
 		t.NoError(err)
 		t.True(found)
 
@@ -280,39 +280,39 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeVoteproofs)
+	i, found, err := reader.Item(base.BlockItemVoteproofs)
 	t.NoError(err)
 	t.True(found)
 
 	vps := i.([2]base.Voteproof)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeVoteproofs)
+	r, found, err := reader.Reader(base.BlockItemVoteproofs)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeVoteproofs)
+		cr, found, err := reader.ChecksumReader(base.BlockItemVoteproofs)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeVoteproofs, r))
+	t.NoError(im.WriteItem(base.BlockItemVoteproofs, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeVoteproofs)
+		i, found, err := tempreader.Item(base.BlockItemVoteproofs)
 		t.NoError(err)
 		t.True(found)
 
 		rvps, ok := i.([2]base.Voteproof)
 		t.True(ok)
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeVoteproofs)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemVoteproofs)
 		t.NoError(err)
 		t.True(found)
 
@@ -338,32 +338,32 @@ func (t *testBlockImporter) TestWriteStates() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeStates)
+	i, found, err := reader.Item(base.BlockItemStates)
 	t.NoError(err)
 	t.True(found)
 
 	sts := i.([]base.State)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeStates)
+	r, found, err := reader.Reader(base.BlockItemStates)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeStates)
+		cr, found, err := reader.ChecksumReader(base.BlockItemStates)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeStates, r))
+	t.NoError(im.WriteItem(base.BlockItemStates, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeStates)
+		i, found, err := tempreader.Item(base.BlockItemStates)
 		t.NoError(err)
 		t.True(found)
 
@@ -375,7 +375,7 @@ func (t *testBlockImporter) TestWriteStates() {
 			t.True(base.IsEqualState(sts[i], rsts[i]))
 		}
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeStates)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemStates)
 		t.NoError(err)
 		t.True(found)
 
@@ -412,39 +412,39 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	i, found, err := reader.Item(base.BlockMapItemTypeStatesTree)
+	i, found, err := reader.Item(base.BlockItemStatesTree)
 	t.NoError(err)
 	t.True(found)
 
 	tr := i.(fixedtree.Tree)
 
-	r, found, err := reader.Reader(base.BlockMapItemTypeStatesTree)
+	r, found, err := reader.Reader(base.BlockItemStatesTree)
 	t.NoError(err)
 	t.True(found)
 
 	var checksum string
 	{
-		cr, found, err := reader.ChecksumReader(base.BlockMapItemTypeStatesTree)
+		cr, found, err := reader.ChecksumReader(base.BlockItemStatesTree)
 		t.NoError(err)
 		t.True(found)
 
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockMapItemTypeStatesTree, r))
+	t.NoError(im.WriteItem(base.BlockItemStatesTree, r))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
 
-		i, found, err := tempreader.Item(base.BlockMapItemTypeStatesTree)
+		i, found, err := tempreader.Item(base.BlockItemStatesTree)
 		t.NoError(err)
 		t.True(found)
 
 		rtr, ok := i.(fixedtree.Tree)
 		t.True(ok)
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeStatesTree)
+		cr, found, err := tempreader.ChecksumReader(base.BlockItemStatesTree)
 		t.NoError(err)
 		t.True(found)
 

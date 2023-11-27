@@ -24,7 +24,7 @@ import (
 
 type DummyBlockImporter struct {
 	WriteMapf     func(base.BlockMap) error
-	WriteItemf    func(base.BlockMapItemType, io.Reader) error
+	WriteItemf    func(base.BlockItemType, io.Reader) error
 	Savef         func(context.Context) (func(context.Context) error, error)
 	Mergef        func(context.Context) error
 	CancelImportf func(context.Context) error
@@ -42,7 +42,7 @@ func (im *DummyBlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *DummyBlockImporter) WriteItem(item base.BlockMapItemType, r io.Reader) error {
+func (im *DummyBlockImporter) WriteItem(item base.BlockItemType, r io.Reader) error {
 	if im.WriteItemf != nil {
 		return im.WriteItemf(item, r)
 	}

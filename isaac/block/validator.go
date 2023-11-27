@@ -375,17 +375,17 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 		}
 
 		switch item.Type() {
-		case base.BlockMapItemTypeProposal:
+		case base.BlockItemProposal:
 			rerr = util.InterfaceSetValue(i, &pr)
-		case base.BlockMapItemTypeOperations:
+		case base.BlockItemOperations:
 			rerr = util.InterfaceSetValue(i, &ops)
-		case base.BlockMapItemTypeOperationsTree:
+		case base.BlockItemOperationsTree:
 			rerr = util.InterfaceSetValue(i, &opstree)
-		case base.BlockMapItemTypeStates:
+		case base.BlockItemStates:
 			rerr = util.InterfaceSetValue(i, &sts)
-		case base.BlockMapItemTypeStatesTree:
+		case base.BlockItemStatesTree:
 			rerr = util.InterfaceSetValue(i, &ststree)
-		case base.BlockMapItemTypeVoteproofs:
+		case base.BlockItemVoteproofs:
 			rerr = util.InterfaceSetValue(i, &vps)
 		}
 

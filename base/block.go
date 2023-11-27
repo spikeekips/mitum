@@ -27,7 +27,7 @@ type Manifest interface {
 type BlockMap interface {
 	NodeSign
 	Manifest() Manifest
-	Item(BlockMapItemType) (BlockMapItem, bool)
+	Item(BlockItemType) (BlockMapItem, bool)
 	Items(func(BlockMapItem) bool)
 	Writer() hint.Hint
 	Encoder() hint.Hint
@@ -35,37 +35,37 @@ type BlockMap interface {
 
 type BlockMapItem interface {
 	util.IsValider
-	Type() BlockMapItemType
+	Type() BlockItemType
 	URL() *url.URL
 	Checksum() string
 }
 
-type BlockMapItemType string
+type BlockItemType string
 
 var (
-	BlockMapItemTypeProposal       BlockMapItemType = "blockmapitem_proposal"
-	BlockMapItemTypeOperations     BlockMapItemType = "blockmapitem_operations"
-	BlockMapItemTypeOperationsTree BlockMapItemType = "blockmapitem_operations_tree"
-	BlockMapItemTypeStates         BlockMapItemType = "blockmapitem_states"
-	BlockMapItemTypeStatesTree     BlockMapItemType = "blockmapitem_states_tree"
-	BlockMapItemTypeVoteproofs     BlockMapItemType = "blockmapitem_voteproofs"
+	BlockItemProposal       BlockItemType = "proposal"
+	BlockItemOperations     BlockItemType = "operations"
+	BlockItemOperationsTree BlockItemType = "operations_tree"
+	BlockItemStates         BlockItemType = "states"
+	BlockItemStatesTree     BlockItemType = "states_tree"
+	BlockItemVoteproofs     BlockItemType = "voteproofs"
 )
 
-func (t BlockMapItemType) IsValid([]byte) error {
+func (t BlockItemType) IsValid([]byte) error {
 	switch t {
-	case BlockMapItemTypeProposal,
-		BlockMapItemTypeOperations,
-		BlockMapItemTypeOperationsTree,
-		BlockMapItemTypeStates,
-		BlockMapItemTypeStatesTree,
-		BlockMapItemTypeVoteproofs:
+	case BlockItemProposal,
+		BlockItemOperations,
+		BlockItemOperationsTree,
+		BlockItemStates,
+		BlockItemStatesTree,
+		BlockItemVoteproofs:
 		return nil
 	default:
 		return util.ErrInvalid.Errorf("unknown block map item type, %q", t)
 	}
 }
 
-func (t BlockMapItemType) String() string {
+func (t BlockItemType) String() string {
 	return string(t)
 }
 

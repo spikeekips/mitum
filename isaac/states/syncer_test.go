@@ -78,7 +78,7 @@ func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
 }
 
 func (t *testSyncer) dummyBlockMapItemFunc() isaacblock.ImportBlocksBlockMapItemFunc {
-	return func(context.Context, base.Height, base.BlockMapItemType, func(io.Reader, bool) error) error {
+	return func(context.Context, base.Height, base.BlockItemType, func(io.Reader, bool) error) error {
 		return nil
 	}
 }

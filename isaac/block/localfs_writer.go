@@ -33,13 +33,13 @@ var rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
 
 var (
 	blockMapFilename = "map"
-	blockFilenames   = map[base.BlockMapItemType]string{
-		base.BlockMapItemTypeProposal:       "proposal",
-		base.BlockMapItemTypeOperations:     "operations",
-		base.BlockMapItemTypeOperationsTree: "operations_tree",
-		base.BlockMapItemTypeStates:         "states",
-		base.BlockMapItemTypeStatesTree:     "states_tree",
-		base.BlockMapItemTypeVoteproofs:     "voteproofs",
+	blockFilenames   = map[base.BlockItemType]string{
+		base.BlockItemProposal:       "proposal",
+		base.BlockItemOperations:     "operations",
+		base.BlockItemOperationsTree: "operations_tree",
+		base.BlockItemStates:         "states",
+		base.BlockItemStatesTree:     "states_tree",
+		base.BlockItemVoteproofs:     "voteproofs",
 	}
 	BlockTempDirectoryPrefix = "temp"
 )
@@ -106,14 +106,14 @@ func NewLocalFSWriter(
 		m:          NewBlockMap(LocalFSWriterHint, enc.Hint()),
 	}
 
-	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeOperations); {
+	switch f, err := w.newChecksumWriter(base.BlockItemOperations); {
 	case err != nil:
 		return nil, e.WithMessage(err, "create operations file")
 	default:
 		w.opsf = f
 	}
 
-	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeStates); {
+	switch f, err := w.newChecksumWriter(base.BlockItemStates); {
 	case err != nil:
 		return nil, e.WithMessage(err, "create states file")
 	default:
@@ -124,7 +124,7 @@ func NewLocalFSWriter(
 }
 
 func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignFact) error {
-	if err := w.writeItem(base.BlockMapItemTypeProposal, pr); err != nil {
+	if err := w.writeItem(base.BlockItemProposal, pr); err != nil {
 		return errors.Wrap(err, "set proposal in fs writer")
 	}
 
@@ -150,14 +150,14 @@ func (w *LocalFSWriter) SetOperation(_ context.Context, total, _ uint64, op base
 func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Writer) error {
 	if _, err := w.setTree(
 		ctx,
-		base.BlockMapItemTypeOperationsTree,
+		base.BlockItemOperationsTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.opsf.Close()
 
 			if l := atomic.LoadUint64(&w.lenops); l > 0 {
 				if err := w.m.SetItem(NewLocalBlockMapItem(
-					base.BlockMapItemTypeOperations,
+					base.BlockItemOperations,
 					w.opsf.Checksum(),
 				)); err != nil {
 					return errors.Wrap(err, "set operations")
@@ -188,13 +188,13 @@ func (w *LocalFSWriter) SetState(_ context.Context, total, _ uint64, st base.Sta
 func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, err error) {
 	tr, err = w.setTree(
 		ctx,
-		base.BlockMapItemTypeStatesTree,
+		base.BlockItemStatesTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.stsf.Close()
 
 			if eerr := w.m.SetItem(NewLocalBlockMapItem(
-				base.BlockMapItemTypeStates,
+				base.BlockItemStates,
 				w.stsf.Checksum(),
 			)); eerr != nil {
 				return errors.Wrap(eerr, "set states")
@@ -249,13 +249,13 @@ func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVote
 }
 
 func (w *LocalFSWriter) saveVoteproofs() error {
-	if _, found := w.m.Item(base.BlockMapItemTypeVoteproofs); found {
+	if _, found := w.m.Item(base.BlockItemVoteproofs); found {
 		return nil
 	}
 
 	e := util.StringError("save voteproofs ")
 
-	f, err := w.newChecksumWriter(base.BlockMapItemTypeVoteproofs)
+	f, err := w.newChecksumWriter(base.BlockItemVoteproofs)
 	if err != nil {
 		return e.Wrap(err)
 	}
@@ -275,7 +275,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	}
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(
-		base.BlockMapItemTypeVoteproofs,
+		base.BlockItemVoteproofs,
 		f.Checksum(),
 	)); err != nil {
 		return e.Wrap(err)
@@ -317,7 +317,7 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 	if w.opsf != nil {
 		_ = w.opsf.Close()
 
-		if item, found := w.m.Item(base.BlockMapItemTypeOperations); !found || item == nil {
+		if item, found := w.m.Item(base.BlockItemOperations); !found || item == nil {
 			// NOTE remove empty operations file
 			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name()))
 		}
@@ -326,13 +326,13 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 	if w.stsf != nil {
 		_ = w.stsf.Close()
 
-		if item, found := w.m.Item(base.BlockMapItemTypeStates); !found || item == nil {
+		if item, found := w.m.Item(base.BlockItemStates); !found || item == nil {
 			// NOTE remove empty states file
 			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name()))
 		}
 	}
 
-	if item, found := w.m.Item(base.BlockMapItemTypeVoteproofs); !found || item == nil {
+	if item, found := w.m.Item(base.BlockItemVoteproofs); !found || item == nil {
 		return nil, errors.Errorf("empty voteproofs")
 	}
 
@@ -400,7 +400,7 @@ func (w *LocalFSWriter) close() error {
 
 func (w *LocalFSWriter) setTree(
 	ctx context.Context,
-	treetype base.BlockMapItemType,
+	treetype base.BlockItemType,
 	tw *fixedtree.Writer,
 	newjob util.ContextWorkerCallback,
 ) (tr fixedtree.Tree, _ error) {
@@ -496,7 +496,7 @@ func (w *LocalFSWriter) saveMap() error {
 	return nil
 }
 
-func (w *LocalFSWriter) filename(t base.BlockMapItemType) (filename string, temppath string, err error) {
+func (w *LocalFSWriter) filename(t base.BlockItemType) (filename string, temppath string, err error) {
 	f, err := BlockFileName(t, w.enc.Hint().Type().String())
 	if err != nil {
 		return "", "", err
@@ -505,7 +505,7 @@ func (w *LocalFSWriter) filename(t base.BlockMapItemType) (filename string, temp
 	return f, filepath.Join(w.temp, f), nil
 }
 
-func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error {
+func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 	cw, err := w.newChecksumWriter(t)
 	if err != nil {
 		return err
@@ -547,7 +547,7 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 	return errors.WithStack(err)
 }
 
-func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.ChecksumWriter, error) {
+func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
 
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
@@ -743,7 +743,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 	}
 }
 
-func BlockFileName(t base.BlockMapItemType, hinttype string) (string, error) {
+func BlockFileName(t base.BlockItemType, hinttype string) (string, error) {
 	name, found := blockFilenames[t]
 	if !found {
 		return "", errors.Errorf("unknown block map item type, %q", t)
@@ -849,26 +849,26 @@ func listFileExtFromEncoder(hinttype string) string {
 	}
 }
 
-func isListBlockMapItemType(t base.BlockMapItemType) bool {
+func isListBlockMapItemType(t base.BlockItemType) bool {
 	switch t {
-	case base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree,
-		base.BlockMapItemTypeVoteproofs:
+	case base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree,
+		base.BlockItemVoteproofs:
 		return true
 	default:
 		return false
 	}
 }
 
-func isCompressedBlockMapItemType(t base.BlockMapItemType) bool {
+func isCompressedBlockMapItemType(t base.BlockItemType) bool {
 	switch t {
-	case base.BlockMapItemTypeProposal,
-		base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree:
+	case base.BlockItemProposal,
+		base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree:
 		return true
 	default:
 		return false

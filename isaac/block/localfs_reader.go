@@ -18,8 +18,8 @@ import (
 type LocalFSReader struct {
 	enc      encoder.Encoder
 	mapl     *util.Locked[base.BlockMap]
-	readersl *util.ShardedMap[base.BlockMapItemType, error]
-	itemsl   *util.ShardedMap[base.BlockMapItemType, [3]interface{}]
+	readersl *util.ShardedMap[base.BlockItemType, error]
+	itemsl   *util.ShardedMap[base.BlockItemType, [3]interface{}]
 	root     string
 }
 
@@ -33,8 +33,8 @@ func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) 
 		return nil, e.Errorf("map file is directory")
 	}
 
-	readersl, _ := util.NewShardedMap[base.BlockMapItemType, error](6, nil)        //nolint:gomnd //...
-	itemsl, _ := util.NewShardedMap[base.BlockMapItemType, [3]interface{}](6, nil) //nolint:gomnd //...
+	readersl, _ := util.NewShardedMap[base.BlockItemType, error](6, nil)        //nolint:gomnd //...
+	itemsl, _ := util.NewShardedMap[base.BlockItemType, [3]interface{}](6, nil) //nolint:gomnd //...
 
 	return &LocalFSReader{
 		root:     root,
@@ -111,7 +111,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 	}
 }
 
-func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
+func (r *LocalFSReader) Reader(t base.BlockItemType) (io.ReadCloser, bool, error) {
 	e := util.StringError("make reader, %q", t)
 
 	var fpath string
@@ -160,7 +160,7 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 	}
 }
 
-func (r *LocalFSReader) UncompressedReader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
+func (r *LocalFSReader) UncompressedReader(t base.BlockItemType) (io.ReadCloser, bool, error) {
 	i, found, err := r.Reader(t)
 	if err != nil {
 		return nil, false, err
@@ -179,7 +179,7 @@ func (r *LocalFSReader) UncompressedReader(t base.BlockMapItemType) (io.ReadClos
 	}
 }
 
-func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
+func (r *LocalFSReader) ChecksumReader(t base.BlockItemType) (util.ChecksumReader, bool, error) {
 	e := util.StringError("make reader, %q", t)
 
 	var fpath string
@@ -245,7 +245,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 	}
 }
 
-func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found bool, _ error) {
+func (r *LocalFSReader) Item(t base.BlockItemType) (item interface{}, found bool, _ error) {
 	err := r.itemsl.GetOrCreate(
 		t,
 		func(i [3]interface{}, _ bool) error {
@@ -291,7 +291,7 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 	return nil
 }
 
-func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error) {
+func (r *LocalFSReader) item(t base.BlockItemType) (interface{}, bool, error) {
 	e := util.StringError("load item, %q", t)
 
 	var item base.BlockMapItem
@@ -351,7 +351,7 @@ func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface
 	}
 
 	switch item.Type() {
-	case base.BlockMapItemTypeProposal:
+	case base.BlockItemProposal:
 		var u base.ProposalSignFact
 		if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
 			return nil, err
@@ -365,15 +365,15 @@ func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface
 
 func (r *LocalFSReader) loadItems(item base.BlockMapItem, f io.Reader) (interface{}, error) {
 	switch item.Type() {
-	case base.BlockMapItemTypeOperations:
+	case base.BlockItemOperations:
 		return r.loadOperations(f)
-	case base.BlockMapItemTypeOperationsTree:
+	case base.BlockItemOperationsTree:
 		return r.loadOperationsTree(f)
-	case base.BlockMapItemTypeStates:
+	case base.BlockItemStates:
 		return r.loadStates(f)
-	case base.BlockMapItemTypeStatesTree:
+	case base.BlockItemStatesTree:
 		return r.loadStatesTree(f)
-	case base.BlockMapItemTypeVoteproofs:
+	case base.BlockItemVoteproofs:
 		return r.loadVoteproofs(f)
 	default:
 		return nil, errors.Errorf("unsupported list items, %q", item.Type())

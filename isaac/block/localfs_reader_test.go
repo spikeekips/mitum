@@ -77,7 +77,7 @@ func (t *testLocalFSReader) TestReader() {
 	t.NoError(err)
 
 	t.Run("unknown", func() {
-		f, found, err := r.Reader(base.BlockMapItemType("findme"))
+		f, found, err := r.Reader(base.BlockItemType("findme"))
 		t.Error(err)
 		t.False(found)
 		t.Nil(f)
@@ -86,13 +86,13 @@ func (t *testLocalFSReader) TestReader() {
 	})
 
 	t.Run("all knowns", func() {
-		types := []base.BlockMapItemType{
-			base.BlockMapItemTypeProposal,
-			base.BlockMapItemTypeOperations,
-			base.BlockMapItemTypeOperationsTree,
-			base.BlockMapItemTypeStates,
-			base.BlockMapItemTypeStatesTree,
-			base.BlockMapItemTypeVoteproofs,
+		types := []base.BlockItemType{
+			base.BlockItemProposal,
+			base.BlockItemOperations,
+			base.BlockItemOperationsTree,
+			base.BlockItemStates,
+			base.BlockItemStatesTree,
+			base.BlockItemVoteproofs,
 		}
 
 		for i := range types {
@@ -104,7 +104,7 @@ func (t *testLocalFSReader) TestReader() {
 	})
 
 	t.Run("known and found", func() {
-		f, found, err := r.UncompressedReader(base.BlockMapItemTypeProposal)
+		f, found, err := r.UncompressedReader(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 		defer f.Close()
@@ -128,10 +128,10 @@ func (t *testLocalFSReader) TestReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc.Hint().Type().String())
+		fname, _ := BlockFileName(base.BlockItemOperations, t.Enc.Hint().Type().String())
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
-		f, found, err := r.Reader(base.BlockMapItemTypeOperations)
+		f, found, err := r.Reader(base.BlockItemOperations)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(f)
@@ -155,7 +155,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 	t.NoError(err)
 
 	t.Run("unknown", func() {
-		f, found, err := r.ChecksumReader(base.BlockMapItemType("findme"))
+		f, found, err := r.ChecksumReader(base.BlockItemType("findme"))
 		t.Error(err)
 		t.False(found)
 		t.Nil(f)
@@ -164,13 +164,13 @@ func (t *testLocalFSReader) TestChecksumReader() {
 	})
 
 	t.Run("all knowns", func() {
-		types := []base.BlockMapItemType{
-			base.BlockMapItemTypeProposal,
-			base.BlockMapItemTypeOperations,
-			base.BlockMapItemTypeOperationsTree,
-			base.BlockMapItemTypeStates,
-			base.BlockMapItemTypeStatesTree,
-			base.BlockMapItemTypeVoteproofs,
+		types := []base.BlockItemType{
+			base.BlockItemProposal,
+			base.BlockItemOperations,
+			base.BlockItemOperationsTree,
+			base.BlockItemStates,
+			base.BlockItemStatesTree,
+			base.BlockItemVoteproofs,
 		}
 
 		for i := range types {
@@ -182,7 +182,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 	})
 
 	t.Run("known and found", func() {
-		f, found, err := r.ChecksumReader(base.BlockMapItemTypeProposal)
+		f, found, err := r.ChecksumReader(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 		defer f.Close()
@@ -206,10 +206,10 @@ func (t *testLocalFSReader) TestChecksumReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc.Hint().Type().String())
+		fname, _ := BlockFileName(base.BlockItemOperations, t.Enc.Hint().Type().String())
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
-		f, found, err := r.ChecksumReader(base.BlockMapItemTypeOperations)
+		f, found, err := r.ChecksumReader(base.BlockItemOperations)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(f)
@@ -227,20 +227,20 @@ func (t *testLocalFSReader) TestItem() {
 	t.NoError(err)
 
 	t.Run("unknown", func() {
-		f, found, err := r.Item(base.BlockMapItemType("findme"))
+		f, found, err := r.Item(base.BlockItemType("findme"))
 		t.NoError(err)
 		t.False(found)
 		t.Nil(f)
 	})
 
 	t.Run("all knowns", func() {
-		types := []base.BlockMapItemType{
-			base.BlockMapItemTypeProposal,
-			base.BlockMapItemTypeOperations,
-			base.BlockMapItemTypeOperationsTree,
-			base.BlockMapItemTypeStates,
-			base.BlockMapItemTypeStatesTree,
-			base.BlockMapItemTypeVoteproofs,
+		types := []base.BlockItemType{
+			base.BlockItemProposal,
+			base.BlockItemOperations,
+			base.BlockItemOperationsTree,
+			base.BlockItemStates,
+			base.BlockItemStatesTree,
+			base.BlockItemVoteproofs,
 		}
 
 		for i := range types {
@@ -252,7 +252,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("proposal", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeProposal)
+		v, found, err := r.Item(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -264,7 +264,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("operations", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeOperations)
+		v, found, err := r.Item(base.BlockItemOperations)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -290,7 +290,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("operations tree", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeOperationsTree)
+		v, found, err := r.Item(base.BlockItemOperationsTree)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -310,7 +310,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("states", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeStates)
+		v, found, err := r.Item(base.BlockItemStates)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -336,7 +336,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("states tree", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeStatesTree)
+		v, found, err := r.Item(base.BlockItemStatesTree)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -356,7 +356,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("voteproofs", func() {
-		v, found, err := r.Item(base.BlockMapItemTypeVoteproofs)
+		v, found, err := r.Item(base.BlockItemVoteproofs)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -386,7 +386,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 
 		root = r.root
 
-		v, found, err := r.Item(base.BlockMapItemTypeProposal)
+		v, found, err := r.Item(base.BlockItemProposal)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -398,7 +398,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	})
 
 	// NOTE modify proposal.json
-	i, _ := BlockFileName(base.BlockMapItemTypeProposal, t.Enc.Hint().Type().String())
+	i, _ := BlockFileName(base.BlockItemProposal, t.Enc.Hint().Type().String())
 	path := filepath.Join(root, i)
 
 	t.T().Log("file:", path)
@@ -427,7 +427,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 		r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 		t.NoError(err)
 
-		v, found, err := r.Item(base.BlockMapItemTypeProposal)
+		v, found, err := r.Item(base.BlockItemProposal)
 		t.Error(err)
 		t.ErrorContains(err, "checksum mismatch")
 		t.True(found)

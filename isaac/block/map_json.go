@@ -11,8 +11,8 @@ import (
 )
 
 type blockMapJSONMarshaler struct {
-	Manifest base.Manifest                               `json:"manifest"`
-	Items    map[base.BlockMapItemType]base.BlockMapItem `json:"items"`
+	Manifest base.Manifest                            `json:"manifest"`
+	Items    map[base.BlockItemType]base.BlockMapItem `json:"items"`
 	base.BaseNodeSignJSONMarshaler
 	hint.BaseHinter
 	Writer  hint.Hint `json:"writer"`
@@ -20,9 +20,9 @@ type blockMapJSONMarshaler struct {
 }
 
 func (m BlockMap) MarshalJSON() ([]byte, error) {
-	items := map[base.BlockMapItemType]base.BlockMapItem{}
+	items := map[base.BlockItemType]base.BlockMapItem{}
 
-	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
+	m.items.Traverse(func(_ base.BlockItemType, v base.BlockMapItem) bool {
 		if v != nil {
 			items[v.Type()] = v
 		}
@@ -41,10 +41,10 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 }
 
 type blockMapJSONUnmarshaler struct {
-	Items    map[base.BlockMapItemType]json.RawMessage `json:"items"`
-	Manifest json.RawMessage                           `json:"manifest"`
-	Writer   hint.Hint                                 `json:"writer"`
-	Encoder  hint.Hint                                 `json:"encoder"`
+	Items    map[base.BlockItemType]json.RawMessage `json:"items"`
+	Manifest json.RawMessage                        `json:"manifest"`
+	Writer   hint.Hint                              `json:"writer"`
+	Encoder  hint.Hint                              `json:"encoder"`
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
@@ -63,7 +63,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 		return e.WithMessage(err, "decode manifest")
 	}
 
-	items := util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem]()
+	items := util.NewSingleLockedMap[base.BlockItemType, base.BlockMapItem]()
 
 	for k := range u.Items {
 		var ui BlockMapItem
@@ -82,9 +82,9 @@ func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 }
 
 type blockMapItemJSONMarshaler struct {
-	Type     base.BlockMapItemType `json:"type"`
-	URL      string                `json:"url"`
-	Checksum string                `json:"checksum"`
+	Type     base.BlockItemType `json:"type"`
+	URL      string             `json:"url"`
+	Checksum string             `json:"checksum"`
 }
 
 func (item BlockMapItem) MarshalJSON() ([]byte, error) {
@@ -96,9 +96,9 @@ func (item BlockMapItem) MarshalJSON() ([]byte, error) {
 }
 
 type blockMapItemJSONUnmarshaler struct {
-	Type     base.BlockMapItemType `json:"type"`
-	URL      string                `json:"url"`
-	Checksum string                `json:"checksum"`
+	Type     base.BlockItemType `json:"type"`
+	URL      string             `json:"url"`
+	Checksum string             `json:"checksum"`
 }
 
 func (item *BlockMapItem) UnmarshalJSON(b []byte) error {

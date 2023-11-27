@@ -127,7 +127,7 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
 	t.NoError(err)
 
-	r, found, err := reader.UncompressedReader(base.BlockMapItemTypeStates)
+	r, found, err := reader.UncompressedReader(base.BlockItemStates)
 	t.NoError(err)
 	t.True(found)
 
@@ -158,7 +158,7 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
 	t.NoError(err)
 
-	r, found, err := reader.UncompressedReader(base.BlockMapItemTypeOperations)
+	r, found, err := reader.UncompressedReader(base.BlockItemOperations)
 	t.NoError(err)
 	t.True(found)
 
@@ -189,7 +189,7 @@ func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.He
 	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
 	t.NoError(err)
 
-	r, found, err := reader.UncompressedReader(base.BlockMapItemTypeVoteproofs)
+	r, found, err := reader.UncompressedReader(base.BlockItemVoteproofs)
 	t.NoError(err)
 	t.True(found)
 
@@ -247,7 +247,7 @@ func (t *testImportBlocks) TestImport() {
 
 			return m, found, err
 		},
-		func(_ context.Context, height base.Height, item base.BlockMapItemType, f func(io.Reader, bool) error) error {
+		func(_ context.Context, height base.Height, item base.BlockItemType, f func(io.Reader, bool) error) error {
 			reader, err := NewLocalFSReaderFromHeight(t.Root, height, t.Enc)
 			if err != nil {
 				return err
@@ -278,7 +278,7 @@ func (t *testImportBlocks) TestImport() {
 			)
 		},
 		func(reader isaac.BlockReader) error {
-			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+			switch v, found, err := reader.Item(base.BlockItemVoteproofs); {
 			case err != nil:
 				return err
 			case !found:
@@ -350,7 +350,7 @@ func (t *testImportBlocks) TestImport() {
 		t.NoError(err)
 		t.True(found)
 
-		item, found := m.Item(base.BlockMapItemTypeStates)
+		item, found := m.Item(base.BlockItemStates)
 		t.True(found)
 
 		origsts := t.loadStatesFromLocalFS(t.Root, to, item)
@@ -376,7 +376,7 @@ func (t *testImportBlocks) TestImport() {
 			t.NoError(err)
 			t.True(found)
 
-			item, found := m.Item(base.BlockMapItemTypeStates)
+			item, found := m.Item(base.BlockItemStates)
 			t.True(found)
 
 			origsts := t.loadStatesFromLocalFS(t.Root, i, item)
@@ -396,7 +396,7 @@ func (t *testImportBlocks) TestImport() {
 			t.NoError(err)
 			t.True(found)
 
-			item, found := m.Item(base.BlockMapItemTypeOperations)
+			item, found := m.Item(base.BlockItemOperations)
 			t.True(found)
 
 			origops := t.loadOperationsFromLocalFS(t.Root, i, item)
@@ -416,7 +416,7 @@ func (t *testImportBlocks) TestImport() {
 			t.NoError(err)
 			t.True(found)
 
-			item, found := m.Item(base.BlockMapItemTypeStates)
+			item, found := m.Item(base.BlockItemStates)
 			t.True(found)
 
 			origsts := t.loadStatesFromLocalFS(t.Root, i, item)
@@ -444,7 +444,7 @@ func (t *testImportBlocks) TestImport() {
 			t.NoError(err)
 			t.True(found)
 
-			item, found := m.Item(base.BlockMapItemTypeOperations)
+			item, found := m.Item(base.BlockItemOperations)
 			t.True(found)
 
 			origops := t.loadOperationsFromLocalFS(t.Root, i, item)
@@ -469,7 +469,7 @@ func (t *testImportBlocks) TestImport() {
 			t.NoError(err)
 			t.True(found)
 
-			item, found := m.Item(base.BlockMapItemTypeVoteproofs)
+			item, found := m.Item(base.BlockItemVoteproofs)
 			t.True(found)
 
 			origvps := t.loadVoteproofsFromLocalFS(t.Root, i, item)

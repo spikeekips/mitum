@@ -109,7 +109,7 @@ type testLocalFSWriter struct {
 	BaseTestLocalBlockFS
 }
 
-func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockMapItemType, islist bool) (string, io.Reader, error) {
+func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockItemType, islist bool) (string, io.Reader, error) {
 	fname, err := BlockFileName(d, t.Enc.Hint().Type().String())
 	t.NoError(err)
 
@@ -158,7 +158,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
 
-	fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeProposal, false)
+	fpath, f, err := t.findTempFile(fs.temp, base.BlockItemProposal, false)
 	t.NoError(err)
 	t.T().Log("temp file:", fpath)
 	t.NotNil(f)
@@ -174,7 +174,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 		head = i
 	}
 
-	item, found := fs.m.Item(base.BlockMapItemTypeProposal)
+	item, found := fs.m.Item(base.BlockItemProposal)
 	t.True(found)
 	t.NoError(item.IsValid(nil))
 
@@ -227,20 +227,20 @@ func (t *testLocalFSWriter) TestSave() {
 	t.T().Log("blockmap:", string(b))
 
 	t.Run("operations(tree) should be empty in map", func() {
-		_, found := m.Item(base.BlockMapItemTypeOperations)
+		_, found := m.Item(base.BlockItemOperations)
 		t.False(found)
-		_, found = m.Item(base.BlockMapItemTypeOperationsTree)
+		_, found = m.Item(base.BlockItemOperationsTree)
 		t.False(found)
 	})
 
 	t.Run("states(tree) should be empty in map", func() {
-		_, found := m.Item(base.BlockMapItemTypeStates)
+		_, found := m.Item(base.BlockItemStates)
 		t.False(found)
-		_, found = m.Item(base.BlockMapItemTypeStatesTree)
+		_, found = m.Item(base.BlockItemStatesTree)
 		t.False(found)
 	})
 
-	checkfile := func(d base.BlockMapItemType) {
+	checkfile := func(d base.BlockItemType) {
 		fname, err := BlockFileName(d, t.Enc.Hint().Type().String())
 		t.NoError(err)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
@@ -253,8 +253,8 @@ func (t *testLocalFSWriter) TestSave() {
 		t.NoError(err)
 		t.True(fi.IsDir())
 
-		checkfile(base.BlockMapItemTypeProposal)
-		checkfile(base.BlockMapItemTypeVoteproofs)
+		checkfile(base.BlockItemProposal)
+		checkfile(base.BlockItemVoteproofs)
 	})
 
 	t.Run("check map file", func() {
@@ -360,12 +360,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemVoteproofs, false)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockItemVoteproofs)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 	})
@@ -376,12 +376,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemVoteproofs, false)
 		t.Error(err)
 		t.T().Log("temp file:", fpath)
 		t.Nil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockItemVoteproofs)
 		t.False(found)
 		t.Nil(item)
 	})
@@ -392,12 +392,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemVoteproofs, false)
 		t.Error(err)
 		t.T().Log("temp file:", fpath)
 		t.Nil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockItemVoteproofs)
 		t.False(found)
 		t.Nil(item)
 	})
@@ -448,12 +448,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	t.NoError(fs.SetOperationsTree(ctx, opstreeg))
 
 	t.Run("operations file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeOperations, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemOperations, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeOperations)
+		item, found := fs.m.Item(base.BlockItemOperations)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -467,12 +467,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	})
 
 	t.Run("operations tree file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeOperationsTree, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemOperationsTree, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeOperationsTree)
+		item, found := fs.m.Item(base.BlockItemOperationsTree)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -535,12 +535,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 	t.NoError(err)
 
 	t.Run("states file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeStates, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemStates, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeStates)
+		item, found := fs.m.Item(base.BlockItemStates)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -554,12 +554,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 	})
 
 	t.Run("states tree file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeStatesTree, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemStatesTree, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockMapItemTypeStatesTree)
+		item, found := fs.m.Item(base.BlockItemStatesTree)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 

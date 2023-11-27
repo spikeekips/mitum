@@ -29,7 +29,7 @@ var BlockDirectoryHeightFormat = "%021s"
 
 type BlockMap struct {
 	manifest base.Manifest
-	items    *util.SingleLockedMap[base.BlockMapItemType, base.BlockMapItem]
+	items    *util.SingleLockedMap[base.BlockItemType, base.BlockMapItem]
 	base.BaseNodeSign
 	hint.BaseHinter
 	writer  hint.Hint
@@ -41,7 +41,7 @@ func NewBlockMap(writer, enc hint.Hint) BlockMap {
 		BaseHinter: hint.NewBaseHinter(BlockMapHint),
 		writer:     writer,
 		encoder:    enc,
-		items:      util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem](),
+		items:      util.NewSingleLockedMap[base.BlockItemType, base.BlockMapItem](),
 	}
 }
 
@@ -61,7 +61,7 @@ func (m BlockMap) IsValid(b []byte) error {
 
 	var vs []util.IsValider
 
-	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
+	m.items.Traverse(func(_ base.BlockItemType, v base.BlockMapItem) bool {
 		if v != nil {
 			vs = append(vs, v)
 		}
@@ -96,7 +96,7 @@ func (m *BlockMap) SetManifest(manifest base.Manifest) {
 	m.manifest = manifest
 }
 
-func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
+func (m BlockMap) Item(t base.BlockItemType) (base.BlockMapItem, bool) {
 	switch i, found := m.items.Value(t); {
 	case !found, i == nil:
 		return nil, false
@@ -118,7 +118,7 @@ func (m *BlockMap) SetItem(item base.BlockMapItem) error {
 }
 
 func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
-	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
+	m.items.Traverse(func(_ base.BlockItemType, v base.BlockMapItem) bool {
 		if v == nil {
 			return true
 		}
@@ -139,7 +139,7 @@ func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.
 }
 
 func (m BlockMap) checkItems() error {
-	check := func(t base.BlockMapItemType) bool {
+	check := func(t base.BlockItemType) bool {
 		switch i, found := m.items.Value(t); {
 		case !found, i == nil:
 			return false
@@ -148,22 +148,22 @@ func (m BlockMap) checkItems() error {
 		}
 	}
 
-	if !check(base.BlockMapItemTypeProposal) {
+	if !check(base.BlockItemProposal) {
 		return util.ErrInvalid.Errorf("empty proposal")
 	}
 
-	if !check(base.BlockMapItemTypeVoteproofs) {
+	if !check(base.BlockItemVoteproofs) {
 		return util.ErrInvalid.Errorf("empty voteproofs")
 	}
 
 	if m.manifest.OperationsTree() != nil {
-		if !check(base.BlockMapItemTypeOperationsTree) {
+		if !check(base.BlockItemOperationsTree) {
 			return util.ErrInvalid.Errorf("empty operations tree")
 		}
 	}
 
 	if m.manifest.StatesTree() != nil {
-		if !check(base.BlockMapItemTypeStatesTree) {
+		if !check(base.BlockItemStatesTree) {
 			return util.ErrInvalid.Errorf("empty states tree")
 		}
 	}
@@ -178,7 +178,7 @@ func (BlockMap) Bytes() []byte {
 func (m BlockMap) signedBytes() []byte {
 	var ts [][]byte
 
-	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
+	m.items.Traverse(func(_ base.BlockItemType, v base.BlockMapItem) bool {
 		if v != nil {
 			// NOTE only checksum will be included in signature
 			ts = append(ts, []byte(v.Checksum()))
@@ -200,12 +200,12 @@ func (m BlockMap) signedBytes() []byte {
 }
 
 type BlockMapItem struct {
-	t        base.BlockMapItemType
+	t        base.BlockItemType
 	url      url.URL
 	checksum string
 }
 
-func NewBlockMapItem(t base.BlockMapItemType, u url.URL, checksum string) BlockMapItem {
+func NewBlockMapItem(t base.BlockItemType, u url.URL, checksum string) BlockMapItem {
 	return BlockMapItem{
 		t:        t,
 		url:      u,
@@ -213,7 +213,7 @@ func NewBlockMapItem(t base.BlockMapItemType, u url.URL, checksum string) BlockM
 	}
 }
 
-func NewLocalBlockMapItem(t base.BlockMapItemType, checksum string) BlockMapItem {
+func NewLocalBlockMapItem(t base.BlockItemType, checksum string) BlockMapItem {
 	return NewBlockMapItem(t, fileBlockURL, checksum)
 }
 
@@ -243,7 +243,7 @@ func (item BlockMapItem) IsValid([]byte) error {
 	return nil
 }
 
-func (item BlockMapItem) Type() base.BlockMapItemType {
+func (item BlockMapItem) Type() base.BlockItemType {
 	return item.t
 }
 

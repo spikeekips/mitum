@@ -241,7 +241,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		_ = reader.Close()
 	}()
 
-	switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+	switch v, found, err := reader.Item(base.BlockItemVoteproofs); {
 	case err != nil:
 		return nctx, e.Wrap(err)
 	case !found:

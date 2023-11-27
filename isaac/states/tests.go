@@ -19,13 +19,13 @@ func newTestBlockMap(
 ) (m isaacblock.BlockMap, _ error) {
 	m = isaacblock.NewBlockMap(isaacblock.LocalFSWriterHint, jsonenc.JSONEncoderHint)
 
-	for _, i := range []base.BlockMapItemType{
-		base.BlockMapItemTypeProposal,
-		base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree,
-		base.BlockMapItemTypeVoteproofs,
+	for _, i := range []base.BlockItemType{
+		base.BlockItemProposal,
+		base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree,
+		base.BlockItemVoteproofs,
 	} {
 		if err := m.SetItem(newTestBlockMapItem(i)); err != nil {
 			return m, err
@@ -49,6 +49,6 @@ func newTestBlockMap(
 	return m, err
 }
 
-func newTestBlockMapItem(t base.BlockMapItemType) isaacblock.BlockMapItem {
+func newTestBlockMapItem(t base.BlockItemType) isaacblock.BlockMapItem {
 	return isaacblock.NewLocalBlockMapItem(t, util.UUID().String())
 }

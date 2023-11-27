@@ -455,7 +455,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 }
 
 func (c *BaseClient) BlockMapItem(
-	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockMapItemType,
+	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockItemType,
 	f func(io.Reader, bool) error,
 ) error {
 	header := NewBlockMapItemRequestHeader(height, item)

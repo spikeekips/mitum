@@ -271,7 +271,7 @@ func (m DummyBlockMap) Manifest() Manifest {
 	return m.M
 }
 
-func (m DummyBlockMap) Item(BlockMapItemType) (BlockMapItem, bool) {
+func (m DummyBlockMap) Item(BlockItemType) (BlockMapItem, bool) {
 	return nil, false
 }
 

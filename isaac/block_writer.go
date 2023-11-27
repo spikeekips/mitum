@@ -27,15 +27,15 @@ type BlockWriter interface {
 
 type BlockReader interface {
 	BlockMap() (base.BlockMap, bool, error)
-	Reader(base.BlockMapItemType) (io.ReadCloser, bool, error)
-	ChecksumReader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
-	Item(base.BlockMapItemType) (interface{}, bool, error)
+	Reader(base.BlockItemType) (io.ReadCloser, bool, error)
+	ChecksumReader(base.BlockItemType) (util.ChecksumReader, bool, error)
+	Item(base.BlockItemType) (interface{}, bool, error)
 	Items(func(base.BlockMapItem, interface{}, bool, error) bool) error
 }
 
 type BlockImporter interface {
 	WriteMap(base.BlockMap) error
-	WriteItem(base.BlockMapItemType, io.Reader) error
+	WriteItem(base.BlockItemType, io.Reader) error
 	Save(context.Context) (func(context.Context) error, error)
 	CancelImport(context.Context) error
 	Reader() (BlockReader, error)

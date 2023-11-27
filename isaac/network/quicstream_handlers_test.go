@@ -1172,13 +1172,13 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 
 	t.Run("known item", func() {
 		height := base.Height(33)
-		item := base.BlockMapItemTypeVoteproofs
+		item := base.BlockItemVoteproofs
 
 		body := util.UUID().Bytes()
 		r := bytes.NewBuffer(body)
 
 		handler := QuicstreamHandlerBlockMapItem(
-			func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			func(h base.Height, i base.BlockItemType) (io.ReadCloser, bool, error) {
 				if h != height {
 					return nil, false, nil
 				}
@@ -1218,7 +1218,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 
 	t.Run("unknown item", func() {
 		handler := QuicstreamHandlerBlockMapItem(
-			func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			func(h base.Height, i base.BlockItemType) (io.ReadCloser, bool, error) {
 				return nil, false, nil
 			},
 		)
@@ -1229,7 +1229,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		var rb []byte
 		var found bool
 
-		err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockMapItemTypeVoteproofs, func(r io.Reader, rfound bool) error {
+		err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, rfound bool) error {
 			if rfound {
 				b, err := io.ReadAll(r)
 				if err != nil {

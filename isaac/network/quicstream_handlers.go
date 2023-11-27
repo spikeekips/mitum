@@ -292,7 +292,7 @@ func QuicstreamHandlerBlockMap(
 }
 
 func QuicstreamHandlerBlockMapItem(
-	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
+	blockMapItemf func(base.Height, base.BlockItemType) (io.ReadCloser, bool, error),
 ) quicstreamheader.Handler[BlockMapItemRequestHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header BlockMapItemRequestHeader,

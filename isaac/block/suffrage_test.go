@@ -87,20 +87,20 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 	t.proof, _ = tr.Proof(t.current.Hash().String())
 }
 
-func (t *testSuffrageProof) newitem(ty base.BlockMapItemType) BlockMapItem {
+func (t *testSuffrageProof) newitem(ty base.BlockItemType) BlockMapItem {
 	return NewLocalBlockMapItem(ty, util.UUID().String())
 }
 
 func (t *testSuffrageProof) newmap(height base.Height, local base.LocalNode) BlockMap {
 	m := NewBlockMap(LocalFSWriterHint, jsonenc.JSONEncoderHint)
 
-	for _, i := range []base.BlockMapItemType{
-		base.BlockMapItemTypeProposal,
-		base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree,
-		base.BlockMapItemTypeVoteproofs,
+	for _, i := range []base.BlockItemType{
+		base.BlockItemProposal,
+		base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree,
+		base.BlockItemVoteproofs,
 	} {
 		t.NoError(m.SetItem(t.newitem(i)))
 	}

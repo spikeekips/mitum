@@ -17,7 +17,7 @@ import (
 type (
 	ImportBlocksBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	ImportBlocksBlockMapItemFunc func(
-		context.Context, base.Height, base.BlockMapItemType, func(io.Reader, bool) error,
+		context.Context, base.Height, base.BlockItemType, func(io.Reader, bool) error,
 	) error
 )
 
@@ -27,7 +27,7 @@ type BlockImporter struct {
 	bwdb                     isaac.BlockWriteDatabase
 	sufst                    base.State
 	localfs                  *LocalFSImporter
-	finisheds                *util.ShardedMap[base.BlockMapItemType, bool]
+	finisheds                *util.ShardedMap[base.BlockItemType, bool]
 	mergeBlockWriteDatabasef func(context.Context) error
 	root                     string
 	networkID                base.NetworkID
@@ -55,7 +55,7 @@ func NewBlockImporter(
 		return nil, e.Wrap(err)
 	}
 
-	finisheds, _ := util.NewShardedMap[base.BlockMapItemType, bool](6, nil) //nolint:gomnd //...
+	finisheds, _ := util.NewShardedMap[base.BlockItemType, bool](6, nil) //nolint:gomnd //...
 
 	im := &BlockImporter{
 		root:                     root,
@@ -103,7 +103,7 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
+func (im *BlockImporter) WriteItem(t base.BlockItemType, r io.Reader) error {
 	e := util.StringError("write item")
 
 	if err := im.importItem(t, r); err != nil {
@@ -164,7 +164,7 @@ func (im *BlockImporter) CancelImport(context.Context) error {
 	return nil
 }
 
-func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error {
+func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 	item, found := im.m.Item(t)
 	if !found {
 		return nil
@@ -210,13 +210,13 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	var ierr error
 
 	switch t {
-	case base.BlockMapItemTypeStatesTree:
+	case base.BlockItemStatesTree:
 		ierr = im.importStatesTree(cr)
-	case base.BlockMapItemTypeStates:
+	case base.BlockItemStates:
 		ierr = im.importStates(cr)
-	case base.BlockMapItemTypeOperations:
+	case base.BlockItemOperations:
 		ierr = im.importOperations(cr)
-	case base.BlockMapItemTypeVoteproofs:
+	case base.BlockItemVoteproofs:
 		ierr = im.importVoteproofs(cr)
 	default:
 		ierr = im.importOther(cr)
