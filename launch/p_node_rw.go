@@ -1650,6 +1650,10 @@ func writeDesignFileFunc(flag DesignFlag) (func([]byte) error, error) {
 				return errors.WithStack(err)
 			}
 
+			defer func() {
+				_ = f.Close()
+			}()
+
 			_, err = f.Write(b)
 
 			return errors.WithStack(err)

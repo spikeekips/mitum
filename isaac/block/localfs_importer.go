@@ -58,6 +58,10 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 			return e.Wrap(err)
 		}
 
+		defer func() {
+			_ = j.Close()
+		}()
+
 		w = j
 	}
 
