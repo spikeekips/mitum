@@ -5,12 +5,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type LocalFSReader struct {
@@ -75,7 +77,16 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 					_ = f.Close()
 				}()
 
-				i, err := io.ReadAll(f)
+				var br io.Reader = f
+
+				switch i, _, _, err := readBaseHeader(br); {
+				case err != nil:
+					return nil, err
+				default:
+					br = i
+				}
+
+				i, err := io.ReadAll(br)
 				if err != nil {
 					return nil, errors.WithStack(err)
 				}
@@ -330,10 +341,19 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 }
 
 func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface{}, error) {
+	br := f
+
+	switch i, _, _, err := readBaseHeader(br); {
+	case err != nil:
+		return nil, err
+	default:
+		br = i
+	}
+
 	switch item.Type() {
 	case base.BlockMapItemTypeProposal:
 		var u base.ProposalSignFact
-		if err := encoder.DecodeReader(r.enc, f, &u); err != nil {
+		if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
 			return nil, err
 		}
 
@@ -346,30 +366,39 @@ func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface
 func (r *LocalFSReader) loadItems(item base.BlockMapItem, f io.Reader) (interface{}, error) {
 	switch item.Type() {
 	case base.BlockMapItemTypeOperations:
-		return r.loadOperations(item, f)
+		return r.loadOperations(f)
 	case base.BlockMapItemTypeOperationsTree:
-		return r.loadOperationsTree(item, f)
+		return r.loadOperationsTree(f)
 	case base.BlockMapItemTypeStates:
-		return r.loadStates(item, f)
+		return r.loadStates(f)
 	case base.BlockMapItemTypeStatesTree:
-		return r.loadStatesTree(item, f)
+		return r.loadStatesTree(f)
 	case base.BlockMapItemTypeVoteproofs:
-		return r.loadVoteproofs(item, f)
+		return r.loadVoteproofs(f)
 	default:
 		return nil, errors.Errorf("unsupported list items, %q", item.Type())
 	}
 }
 
-func (r *LocalFSReader) loadOperations( //nolint:dupl //...
-	item base.BlockMapItem, f io.Reader,
-) ([]base.Operation, error) {
-	if item.Num() < 1 {
+func (r *LocalFSReader) loadOperations(f io.Reader) ([]base.Operation, error) {
+	var ops []base.Operation
+	var count uint64
+	br := f
+
+	switch i, _, _, j, err := readCountHeader(br); {
+	case err != nil:
+		return nil, err
+	case j < 1:
 		return nil, nil
+	default:
+		br = i
+		count = j
+		ops = make([]base.Operation, count)
 	}
 
-	ops := make([]base.Operation, item.Num())
+	var last uint64
 
-	if err := LoadRawItemsWithWorker(f, item.Num(), r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -377,41 +406,48 @@ func (r *LocalFSReader) loadOperations( //nolint:dupl //...
 
 		ops[index] = op
 
+		atomic.AddUint64(&last, 1)
+
 		return nil
 	},
 	); err != nil {
 		return nil, err
 	}
 
-	return ops, nil
-}
-
-func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) (fixedtree.Tree, error) {
-	tr, err := LoadTree(r.enc, item, f, func(i interface{}) (fixedtree.Node, error) {
-		node, ok := i.(base.OperationFixedtreeNode)
-		if !ok {
-			return nil, errors.Errorf("not OperationFixedtreeNode, %T", i)
-		}
-
-		return node, nil
-	})
-	if err != nil {
-		return fixedtree.Tree{}, errors.Wrap(err, "load OperationsTree")
-	}
-
-	return tr, nil
-}
-
-func (r *LocalFSReader) loadStates( //nolint:dupl //...
-	item base.BlockMapItem, f io.Reader,
-) ([]base.State, error) {
-	if item.Num() < 1 {
+	switch i := atomic.LoadUint64(&last); {
+	case i < 1:
 		return nil, nil
+	default:
+		return ops[:i], nil
+	}
+}
+
+func (r *LocalFSReader) loadOperationsTree(f io.Reader) (fixedtree.Tree, error) {
+	switch i, err := r.loadTree(f); {
+	case err != nil:
+		return fixedtree.Tree{}, errors.Wrap(err, "load OperationsTree")
+	default:
+		return i, nil
+	}
+}
+
+func (r *LocalFSReader) loadStates(f io.Reader) ([]base.State, error) {
+	var count uint64
+	var sts []base.State
+	br := f
+
+	switch i, _, _, j, err := readCountHeader(br); {
+	case err != nil:
+		return nil, err
+	case j < 1:
+		return nil, nil
+	default:
+		count = j
+		sts = make([]base.State, count)
+		br = i
 	}
 
-	sts := make([]base.State, item.Num())
-
-	if err := LoadRawItemsWithWorker(f, item.Num(), r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("expected State, but %T", v)
@@ -427,61 +463,82 @@ func (r *LocalFSReader) loadStates( //nolint:dupl //...
 	return sts, nil
 }
 
-func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (fixedtree.Tree, error) {
-	tr, err := LoadTree(r.enc, item, f, func(i interface{}) (fixedtree.Node, error) {
+func (r *LocalFSReader) loadStatesTree(f io.Reader) (fixedtree.Tree, error) {
+	switch i, err := r.loadTree(f); {
+	case err != nil:
+		return fixedtree.Tree{}, errors.Wrap(err, "load StatesTree")
+	default:
+		return i, nil
+	}
+}
+
+func (r *LocalFSReader) loadTree(f io.Reader) (fixedtree.Tree, error) {
+	br := f
+	var count uint64
+	var treehint hint.Hint
+
+	switch i, _, _, j, k, err := readTreeHeader(br); {
+	case err != nil:
+		return fixedtree.Tree{}, err
+	case j < 1:
+		return fixedtree.Tree{}, nil
+	default:
+		br = i
+		count = j
+		treehint = k
+	}
+
+	return LoadTree(r.enc, count, treehint, br, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(fixedtree.Node)
 		if !ok {
-			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
+			return nil, errors.Errorf("not fixedtree.Node, %T", i)
 		}
 
 		return node, nil
 	})
-	if err != nil {
-		return fixedtree.Tree{}, errors.Wrap(err, "load StatesTree")
-	}
-
-	return tr, nil
 }
 
-func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]base.Voteproof, error) {
-	if item.Num() < 1 {
-		return nil, nil
+func (r *LocalFSReader) loadVoteproofs(f io.Reader) (vps [2]base.Voteproof, _ error) {
+	br := f
+
+	switch i, _, _, err := readBaseHeader(br); {
+	case err != nil:
+		return vps, err
+	default:
+		br = i
 	}
 
-	vps, err := LoadVoteproofsFromReader(f, item.Num(), r.enc.Decode)
-	if err != nil {
-		return nil, err
+	switch i, err := LoadVoteproofsFromReader(br, r.enc.Decode); {
+	case err != nil:
+		return vps, err
+	default:
+		return i, nil
 	}
-
-	return vps, nil
 }
 
 func LoadVoteproofsFromReader(
 	r io.Reader,
-	num uint64,
 	decode func([]byte) (interface{}, error),
-) ([]base.Voteproof, error) {
+) (vps [2]base.Voteproof, _ error) {
 	e := util.StringError("load voteproofs")
 
-	vps := make([]base.Voteproof, num)
-
-	if err := LoadRawItemsWithWorker(r, num, decode, func(i uint64, v interface{}) error { //nolint:gomnd //...
+	if err := LoadRawItemsWithWorker(r, 2, decode, func(i uint64, v interface{}) error { //nolint:gomnd //...
 		switch t := v.(type) {
 		case base.INITVoteproof:
-			vps[i] = t
+			vps[0] = t
 		case base.ACCEPTVoteproof:
-			vps[i] = t
+			vps[1] = t
 		default:
 			return errors.Errorf("not voteproof, %T", v)
 		}
 
 		return nil
 	}); err != nil {
-		return nil, e.Wrap(err)
+		return vps, e.Wrap(err)
 	}
 
 	if vps[0] == nil || vps[1] == nil {
-		return nil, e.Errorf("missing")
+		return vps, e.Errorf("missing")
 	}
 
 	return vps, nil

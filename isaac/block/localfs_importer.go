@@ -52,6 +52,10 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 		return e.Wrap(err)
 	}
 
+	if err := writeBaseHeader(w, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: l.enc.Hint()}); err != nil {
+		return e.Wrap(err)
+	}
+
 	if err := util.PipeReadWrite(
 		context.Background(),
 		func(_ context.Context, pr io.Reader) error {

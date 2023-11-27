@@ -36,11 +36,11 @@ type BlockMap struct {
 	encoder hint.Hint
 }
 
-func NewBlockMap(writer, encoder hint.Hint) BlockMap {
+func NewBlockMap(writer, enc hint.Hint) BlockMap {
 	return BlockMap{
 		BaseHinter: hint.NewBaseHinter(BlockMapHint),
 		writer:     writer,
-		encoder:    encoder,
+		encoder:    enc,
 		items:      util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem](),
 	}
 }
@@ -180,8 +180,8 @@ func (m BlockMap) signedBytes() []byte {
 
 	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
-			// NOTE only checksum and num will be included in signature
-			ts = append(ts, util.ConcatBytesSlice([]byte(v.Checksum()), util.Uint64ToBytes(v.Num())))
+			// NOTE only checksum will be included in signature
+			ts = append(ts, []byte(v.Checksum()))
 		}
 
 		return true
@@ -203,20 +203,18 @@ type BlockMapItem struct {
 	t        base.BlockMapItemType
 	url      url.URL
 	checksum string
-	num      uint64
 }
 
-func NewBlockMapItem(t base.BlockMapItemType, u url.URL, checksum string, num uint64) BlockMapItem {
+func NewBlockMapItem(t base.BlockMapItemType, u url.URL, checksum string) BlockMapItem {
 	return BlockMapItem{
 		t:        t,
 		url:      u,
 		checksum: checksum,
-		num:      num,
 	}
 }
 
-func NewLocalBlockMapItem(t base.BlockMapItemType, checksum string, num uint64) BlockMapItem {
-	return NewBlockMapItem(t, fileBlockURL, checksum, num)
+func NewLocalBlockMapItem(t base.BlockMapItemType, checksum string) BlockMapItem {
+	return NewBlockMapItem(t, fileBlockURL, checksum)
 }
 
 func (item BlockMapItem) IsValid([]byte) error {
@@ -224,10 +222,6 @@ func (item BlockMapItem) IsValid([]byte) error {
 
 	if err := item.t.IsValid(nil); err != nil {
 		return e.Wrap(err)
-	}
-
-	if item.num < 1 {
-		return e.Errorf("zero num")
 	}
 
 	if n := len(item.checksum); n < 1 {
@@ -259,8 +253,4 @@ func (item BlockMapItem) URL() *url.URL {
 
 func (item BlockMapItem) Checksum() string {
 	return item.checksum
-}
-
-func (item BlockMapItem) Num() uint64 {
-	return item.num
 }

@@ -150,6 +150,8 @@ func (t *testWriter) TestSetStates() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	writer.SetOperationsSize(uint64(len(ops)))
+
 	sem := semaphore.NewWeighted(int64(len(ops)))
 	for i := range states {
 		index := uint64(i)
@@ -191,7 +193,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 	fswriter := &DummyBlockFSWriter{}
 
 	var sufststored base.State
-	fswriter.setStatef = func(_ context.Context, _ uint64, st base.State) error {
+	fswriter.setStatef = func(_ context.Context, _, _ uint64, st base.State) error {
 		if string(st.Key()) == isaac.SuffrageStateKey {
 			sufststored = st
 		}

@@ -16,9 +16,9 @@ import (
 
 type FSWriter interface {
 	SetProposal(context.Context, base.ProposalSignFact) error
-	SetOperation(context.Context, uint64, base.Operation) error
+	SetOperation(_ context.Context, total, index uint64, _ base.Operation) error
 	SetOperationsTree(context.Context, *fixedtree.Writer) error
-	SetState(context.Context, uint64, base.State) error
+	SetState(_ context.Context, total, index uint64, _ base.State) error
 	SetStatesTree(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
@@ -130,7 +130,7 @@ func (w *Writer) SetStates(
 		return e.Wrap(err)
 	}
 
-	if err := w.fswriter.SetOperation(ctx, index, operation); err != nil {
+	if err := w.fswriter.SetOperation(ctx, uint64(w.opstreeg.Len()), index, operation); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -183,14 +183,14 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 
 	if err := w.statesMerger.CloseStates(
 		ctx,
-		func(keysLength uint64) error {
-			if keysLength < 1 {
+		func(keyscount uint64) error {
+			if keyscount < 1 {
 				return nil
 			}
 
 			startedtg := time.Now()
 
-			switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, keysLength); {
+			switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, keyscount); {
 			case err != nil:
 				return err
 			default:
@@ -201,7 +201,7 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 				return nil
 			}
 		},
-		func(st base.State, index uint64) error {
+		func(st base.State, total, index uint64) error {
 			if _, ok := st.(base.StateValueMerger); ok {
 				return errors.Errorf("expect pure State, not StateValueMerger, %T", st)
 			}
@@ -210,7 +210,7 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 				return err
 			}
 
-			if err := w.fswriter.SetState(ctx, index, st); err != nil {
+			if err := w.fswriter.SetState(ctx, total, index, st); err != nil {
 				return err
 			}
 

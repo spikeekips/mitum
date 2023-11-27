@@ -1,6 +1,7 @@
 package isaacblock
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -23,9 +24,9 @@ import (
 
 type DummyBlockFSWriter struct {
 	setProposalf        func(context.Context, base.ProposalSignFact) error
-	setOperationf       func(context.Context, uint64, base.Operation) error
+	setOperationf       func(context.Context, uint64, uint64, base.Operation) error
 	setOperationsTreef  func(context.Context, *fixedtree.Writer) error
-	setStatef           func(context.Context, uint64, base.State) error
+	setStatef           func(context.Context, uint64, uint64, base.State) error
 	setStatesTreef      func(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
@@ -41,9 +42,9 @@ func (w *DummyBlockFSWriter) SetProposal(ctx context.Context, pr base.ProposalSi
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, index uint64, op base.Operation) error {
+func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, total, index uint64, op base.Operation) error {
 	if w.setOperationf != nil {
-		return w.setOperationf(ctx, index, op)
+		return w.setOperationf(ctx, total, index, op)
 	}
 	return nil
 }
@@ -55,9 +56,9 @@ func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtre
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetState(ctx context.Context, index uint64, st base.State) error {
+func (w *DummyBlockFSWriter) SetState(ctx context.Context, total, index uint64, st base.State) error {
 	if w.setStatef != nil {
-		return w.setStatef(ctx, index, st)
+		return w.setStatef(ctx, total, index, st)
 	}
 	return nil
 }
@@ -162,6 +163,17 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	t.T().Log("temp file:", fpath)
 	t.NotNil(f)
 
+	// NOTE find header
+	var head []byte
+
+	{
+		gf, _ := util.NewGzipReader(f)
+		br := bufio.NewReader(gf)
+		i, err := br.ReadBytes('\n')
+		t.NoError(err)
+		head = i
+	}
+
 	item, found := fs.m.Item(base.BlockMapItemTypeProposal)
 	t.True(found)
 	t.NoError(item.IsValid(nil))
@@ -170,6 +182,8 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	t.Run("compare checksum", func() {
 		buf := bytes.NewBuffer(nil)
 		gf, _ := util.NewGzipWriter(buf, gzip.BestSpeed)
+
+		gf.Write(head)
 
 		t.NoError(t.Enc.StreamEncoder(gf).Encode(pr))
 		gf.Close()
@@ -249,7 +263,16 @@ func (t *testLocalFSWriter) TestSave() {
 		f, err := os.Open(fpath)
 		t.NoError(err)
 
-		b, err := io.ReadAll(f)
+		var br io.Reader = f
+
+		switch i, _, _, err := readBaseHeader(br); {
+		case err != nil:
+			t.NoError(err)
+		default:
+			br = i
+		}
+
+		b, err := io.ReadAll(br)
 		t.NoError(err)
 
 		hinter, err := t.Enc.Decode(b)
@@ -412,7 +435,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		go func() {
 			defer sem.Release(1)
 
-			if err := fs.SetOperation(context.Background(), i, op); err != nil {
+			if err := fs.SetOperation(context.Background(), uint64(len(ops)), i, op); err != nil {
 				panic(err)
 			}
 		}()
@@ -498,7 +521,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 		go func() {
 			defer sem.Release(1)
 
-			if err := fs.SetState(context.Background(), i, st); err != nil {
+			if err := fs.SetState(context.Background(), uint64(len(stts)), i, st); err != nil {
 				panic(err)
 			}
 		}()

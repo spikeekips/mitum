@@ -1,6 +1,7 @@
 package isaacblock
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -56,9 +57,11 @@ type LocalFSWriter struct {
 	m          BlockMap
 	networkID  base.NetworkID
 	hint.BaseHinter
-	lenops uint64
-	height base.Height
-	saved  bool
+	lenops           uint64
+	height           base.Height
+	saved            bool
+	opsHeaderOnce    sync.Once
+	statesHeaderOnce sync.Once
 	sync.Mutex
 }
 
@@ -128,7 +131,13 @@ func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignFact)
 	return nil
 }
 
-func (w *LocalFSWriter) SetOperation(_ context.Context, _ uint64, op base.Operation) error {
+func (w *LocalFSWriter) SetOperation(_ context.Context, total, _ uint64, op base.Operation) error {
+	w.opsHeaderOnce.Do(func() {
+		// NOTE the total of operations is not exact number of operations; it is
+		// maximum number.
+		_ = writeCountHeader(w.opsf, LocalFSWriterHint, w.enc.Hint(), total)
+	})
+
 	if err := w.appendfile(w.opsf, op); err != nil {
 		return errors.Wrap(err, "set operation")
 	}
@@ -150,7 +159,6 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 				if err := w.m.SetItem(NewLocalBlockMapItem(
 					base.BlockMapItemTypeOperations,
 					w.opsf.Checksum(),
-					l,
 				)); err != nil {
 					return errors.Wrap(err, "set operations")
 				}
@@ -165,7 +173,11 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 	return nil
 }
 
-func (w *LocalFSWriter) SetState(_ context.Context, _ uint64, st base.State) error {
+func (w *LocalFSWriter) SetState(_ context.Context, total, _ uint64, st base.State) error {
+	w.statesHeaderOnce.Do(func() {
+		_ = writeCountHeader(w.stsf, LocalFSWriterHint, w.enc.Hint(), total)
+	})
+
 	if err := w.appendfile(w.stsf, st); err != nil {
 		return errors.Wrap(err, "set state")
 	}
@@ -184,7 +196,6 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 			if eerr := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeStates,
 				w.stsf.Checksum(),
-				uint64(tw.Len()),
 			)); eerr != nil {
 				return errors.Wrap(eerr, "set states")
 			}
@@ -253,6 +264,10 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		_ = f.Close()
 	}()
 
+	if err := writeBaseHeader(f, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
+		return e.Wrap(err)
+	}
+
 	for i := range w.vps {
 		if err := w.appendfile(f, w.vps[i]); err != nil {
 			return e.Wrap(err)
@@ -262,7 +277,6 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	if err := w.m.SetItem(NewLocalBlockMapItem(
 		base.BlockMapItemTypeVoteproofs,
 		f.Checksum(),
-		uint64(len(w.vps)),
 	)); err != nil {
 		return e.Wrap(err)
 	}
@@ -408,7 +422,7 @@ func (w *LocalFSWriter) setTree(
 		_ = tf.Close()
 	}()
 
-	if err := w.writefile(tf, append(tw.Hint().Bytes(), '\n')); err != nil {
+	if err := writeTreeHeader(tf, LocalFSWriterHint, w.enc.Hint(), uint64(tw.Len()), tw.Hint()); err != nil {
 		return tr, e.Wrap(err)
 	}
 
@@ -446,7 +460,7 @@ func (w *LocalFSWriter) setTree(
 		tr = i
 	}
 
-	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
+	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum())); err != nil {
 		return tr, e.Wrap(err)
 	}
 
@@ -469,6 +483,10 @@ func (w *LocalFSWriter) saveMap() error {
 	)
 	if err != nil {
 		return e.WithMessage(err, "create map file")
+	}
+
+	if err := writeBaseHeader(f, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := w.writefileonce(f, w.m); err != nil {
@@ -497,17 +515,17 @@ func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error 
 		_ = cw.Close()
 	}()
 
+	if err := writeBaseHeader(cw, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
+		return err
+	}
+
 	if err := w.writefileonce(cw, i); err != nil {
 		return err
 	}
 
 	_ = cw.Close()
 
-	return w.m.SetItem(NewLocalBlockMapItem(
-		t,
-		cw.Checksum(),
-		1,
-	))
+	return w.m.SetItem(NewLocalBlockMapItem(t, cw.Checksum()))
 }
 
 func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
@@ -912,5 +930,139 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 		in.Node = j
 
 		return in, nil
+	}
+}
+
+func writeBaseHeader(f io.Writer, hs interface{}) error {
+	switch b, err := util.MarshalJSON(hs); {
+	case err != nil:
+		return err
+	default:
+		var s strings.Builder
+		_, _ = s.WriteString("# ")
+		_, _ = s.WriteString(string(b))
+		_, _ = s.WriteString("\n")
+
+		if _, err := f.Write([]byte(s.String())); err != nil {
+			return errors.WithStack(err)
+		}
+
+		return nil
+	}
+}
+
+type baseItemsHeader struct {
+	Writer  hint.Hint `json:"writer"`
+	Encoder hint.Hint `json:"encoder"`
+}
+
+type countItemsHeader struct {
+	baseItemsHeader
+	Count uint64 `json:"count"`
+}
+
+type treeItemsHeader struct {
+	Tree hint.Hint `json:"tree"`
+	countItemsHeader
+}
+
+func writeCountHeader(f io.Writer, writer, enc hint.Hint, count uint64) error {
+	return writeBaseHeader(f, countItemsHeader{
+		baseItemsHeader: baseItemsHeader{Writer: writer, Encoder: enc},
+		Count:           count,
+	})
+}
+
+func writeTreeHeader(f io.Writer, writer, enc hint.Hint, count uint64, tree hint.Hint) error {
+	return writeBaseHeader(f, treeItemsHeader{
+		countItemsHeader: countItemsHeader{
+			baseItemsHeader: baseItemsHeader{Writer: writer, Encoder: enc},
+			Count:           count,
+		},
+		Tree: tree,
+	})
+}
+
+func readItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
+	if i, ok := f.(*bufio.Reader); ok {
+		br = i
+	} else {
+		br = bufio.NewReader(f)
+	}
+
+	for {
+		var iseof bool
+		var b []byte
+
+		switch i, err := br.ReadBytes('\n'); {
+		case errors.Is(err, io.EOF):
+			iseof = true
+		case err != nil:
+			return br, errors.WithStack(err)
+		default:
+			b = i
+		}
+
+		if !bytes.HasPrefix(b, []byte("# ")) {
+			if iseof {
+				return br, nil
+			}
+
+			continue
+		}
+
+		if err := util.UnmarshalJSON(b[2:], v); err != nil {
+			return br, err
+		}
+
+		return br, nil
+	}
+}
+
+func readBaseHeader(f io.Reader) (
+	_ *bufio.Reader,
+	writer, enc hint.Hint,
+	_ error,
+) {
+	var u baseItemsHeader
+
+	switch i, err := readItemsHeader(f, &u); {
+	case err != nil:
+		return nil, writer, enc, err
+	default:
+		return i, u.Writer, u.Encoder, nil
+	}
+}
+
+func readCountHeader(f io.Reader) (
+	_ *bufio.Reader,
+	writer, enc hint.Hint,
+	_ uint64,
+	_ error,
+) {
+	var u countItemsHeader
+
+	switch i, err := readItemsHeader(f, &u); {
+	case err != nil:
+		return nil, writer, enc, 0, err
+	default:
+		return i, u.Writer, u.Encoder, u.Count, nil
+	}
+}
+
+func readTreeHeader(f io.Reader) (
+	_ *bufio.Reader,
+	writer, enc hint.Hint,
+	_ uint64,
+	tree hint.Hint,
+	_ error,
+) {
+	var u treeItemsHeader
+
+	switch i, err := readItemsHeader(f, &u); {
+	case err != nil:
+		return nil, writer, enc, 0, tree, err
+	default:
+		return i, u.Writer, u.Encoder, u.Count, u.Tree, nil
 	}
 }

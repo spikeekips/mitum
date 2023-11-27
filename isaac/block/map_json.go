@@ -85,7 +85,6 @@ type blockMapItemJSONMarshaler struct {
 	Type     base.BlockMapItemType `json:"type"`
 	URL      string                `json:"url"`
 	Checksum string                `json:"checksum"`
-	Num      uint64                `json:"num"`
 }
 
 func (item BlockMapItem) MarshalJSON() ([]byte, error) {
@@ -93,7 +92,6 @@ func (item BlockMapItem) MarshalJSON() ([]byte, error) {
 		Type:     item.t,
 		URL:      item.url.String(),
 		Checksum: item.checksum,
-		Num:      item.num,
 	})
 }
 
@@ -101,7 +99,6 @@ type blockMapItemJSONUnmarshaler struct {
 	Type     base.BlockMapItemType `json:"type"`
 	URL      string                `json:"url"`
 	Checksum string                `json:"checksum"`
-	Num      uint64                `json:"num"`
 }
 
 func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
@@ -121,7 +118,6 @@ func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 
 	item.t = u.Type
 	item.checksum = u.Checksum
-	item.num = u.Num
 
 	return nil
 }

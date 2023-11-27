@@ -239,7 +239,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 
 		node := base.NewInStateOperationFixedtreeNode(op.Fact().Hash(), "")
 
-		t.NoError(fs.SetOperation(context.Background(), uint64(i), op))
+		t.NoError(fs.SetOperation(context.Background(), 3, uint64(i), op))
 		t.NoError(opstreeg.Add(uint64(i), node))
 	}
 
@@ -269,7 +269,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 		node := fixedtree.NewBaseNode(key)
 		t.NoError(sttstreeg.Add(uint64(i), node))
 
-		t.NoError(fs.SetState(context.Background(), uint64(i), stts[i]))
+		t.NoError(fs.SetState(context.Background(), uint64(len(stts)), uint64(i), stts[i]))
 	}
 
 	_, err = fs.SetStatesTree(context.Background(), sttstreeg)

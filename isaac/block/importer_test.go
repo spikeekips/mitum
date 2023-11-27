@@ -284,7 +284,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	t.NoError(err)
 	t.True(found)
 
-	vps := i.([]base.Voteproof)
+	vps := i.([2]base.Voteproof)
 
 	r, found, err := reader.Reader(base.BlockMapItemTypeVoteproofs)
 	t.NoError(err)
@@ -309,7 +309,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 		t.NoError(err)
 		t.True(found)
 
-		rvps, ok := i.([]base.Voteproof)
+		rvps, ok := i.([2]base.Voteproof)
 		t.True(ok)
 
 		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeVoteproofs)

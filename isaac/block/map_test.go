@@ -28,7 +28,7 @@ func (t *testBlockMap) SetupSuite() {
 }
 
 func (t *testBlockMap) newitem(ty base.BlockMapItemType) BlockMapItem {
-	return NewLocalBlockMapItem(ty, util.UUID().String(), 1)
+	return NewLocalBlockMapItem(ty, util.UUID().String())
 }
 
 func (t *testBlockMap) newmap() BlockMap {
@@ -190,7 +190,7 @@ func (t *testBlockMap) TestVerify() {
 		t.NotNil(olditem)
 
 		u := url.URL{Scheme: "https", Host: util.UUID().String(), Path: util.UUID().String()}
-		newitem := NewBlockMapItem(olditem.Type(), u, olditem.Checksum(), olditem.Num())
+		newitem := NewBlockMapItem(olditem.Type(), u, olditem.Checksum())
 		t.NoError(m.SetItem(newitem))
 
 		t.NoError(m.IsValid(t.networkID))
@@ -255,7 +255,7 @@ func (t *testBlockMapItem) TestNew() {
 	t.NoError(err)
 	checksum := util.UUID().String()
 
-	item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, checksum, 1)
+	item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, checksum)
 	_ = (interface{})(item).(base.BlockMapItem)
 
 	t.NoError(item.IsValid(nil))
@@ -267,8 +267,8 @@ func (t *testBlockMapItem) TestNew() {
 
 func (t *testBlockMapItem) TestLocal() {
 	ty := base.BlockMapItemTypeProposal
-	m0 := NewLocalBlockMapItem(ty, util.UUID().String(), 1)
-	m1 := NewLocalBlockMapItem(ty, util.UUID().String(), 1)
+	m0 := NewLocalBlockMapItem(ty, util.UUID().String())
+	m1 := NewLocalBlockMapItem(ty, util.UUID().String())
 
 	t.T().Log("fileBlockURL:", fileBlockURL.String())
 	t.T().Log("m0.url:", m0.URL())
@@ -278,7 +278,7 @@ func (t *testBlockMapItem) TestLocal() {
 func (t *testBlockMapItem) TestInvalid() {
 	t.Run("invalid data type", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemType("findme"), *u, util.UUID().String(), 1)
+		item := NewBlockMapItem(base.BlockMapItemType("findme"), *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -287,7 +287,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("empty checksum", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, "", 1)
+		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, "")
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -295,7 +295,7 @@ func (t *testBlockMapItem) TestInvalid() {
 	})
 
 	t.Run("empty url", func() {
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, url.URL{}, util.UUID().String(), 1)
+		item := NewBlockMapItem(base.BlockMapItemTypeProposal, url.URL{}, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -304,7 +304,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("empty url scheme", func() {
 		u, _ := url.Parse("showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String(), 1)
+		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -313,7 +313,7 @@ func (t *testBlockMapItem) TestInvalid() {
 
 	t.Run("unsupported url scheme", func() {
 		u, _ := url.Parse("showme://findme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String(), 1)
+		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -339,7 +339,7 @@ func TestBlockMapItemEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String(), 1)
+		item := NewBlockMapItem(base.BlockMapItemTypeProposal, *u, util.UUID().String())
 
 		b, err := t.enc.Marshal(item)
 		t.NoError(err)

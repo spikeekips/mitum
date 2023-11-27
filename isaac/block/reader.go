@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io"
 
@@ -63,11 +64,12 @@ func LoadBlockReader(
 
 func LoadTree(
 	enc encoder.Encoder,
-	item base.BlockMapItem,
+	count uint64,
+	treehint hint.Hint,
 	f io.Reader,
 	callback func(interface{}) (fixedtree.Node, error),
 ) (tr fixedtree.Tree, err error) {
-	if item.Num() < 1 {
+	if count < 1 {
 		return tr, nil
 	}
 
@@ -75,21 +77,16 @@ func LoadTree(
 
 	br := bufio.NewReader(f)
 
-	ht, err := LoadTreeHint(br)
-	if err != nil {
-		return tr, e.Wrap(err)
-	}
-
-	nodes := make([]fixedtree.Node, item.Num())
-	if tr, err = fixedtree.NewTree(ht, nodes); err != nil {
+	nodes := make([]fixedtree.Node, count)
+	if tr, err = fixedtree.NewTree(treehint, nodes); err != nil {
 		return tr, e.Wrap(err)
 	}
 
 	if err := LoadRawItemsWithWorker(
 		br,
-		item.Num(),
+		count,
 		func(b []byte) (interface{}, error) {
-			return unmarshalIndexedTreeNode(enc, b, ht)
+			return unmarshalIndexedTreeNode(enc, b, treehint)
 		},
 		func(_ uint64, v interface{}) error {
 			in := v.(indexedTreeNode) //nolint:forcetypeassert //...
@@ -123,11 +120,13 @@ func LoadRawItems(
 end:
 	for {
 		b, err := br.ReadBytes('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return errors.WithStack(err)
-		}
 
-		if len(b) > 0 {
+		switch {
+		case err != nil && !errors.Is(err, io.EOF):
+			return errors.WithStack(err)
+		case len(b) < 1,
+			bytes.HasPrefix(b, []byte("# ")):
+		default:
 			v, eerr := decode(b)
 			if eerr != nil {
 				return errors.WithStack(eerr)

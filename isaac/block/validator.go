@@ -357,7 +357,7 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 	ops []base.Operation,
 	sts []base.State,
 	opstree, ststree fixedtree.Tree,
-	vps []base.Voteproof,
+	vps [2]base.Voteproof,
 	rerr error,
 ) {
 	err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
@@ -484,7 +484,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 	return nil
 }
 
-func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps []base.Voteproof, m base.Manifest) error {
+func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Voteproof, m base.Manifest) error {
 	for i := range vps {
 		if vps[i] == nil {
 			continue

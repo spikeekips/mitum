@@ -38,7 +38,6 @@ type BlockMapItem interface {
 	Type() BlockMapItemType
 	URL() *url.URL
 	Checksum() string
-	Num() uint64
 }
 
 type BlockMapItemType string
@@ -284,13 +283,10 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 	return nil
 }
 
-func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
+func ValidateVoteproofsWithManifest(vps [2]Voteproof, manifest Manifest) error {
 	e := util.StringError("invalid voteproofs by manifest")
 
-	switch {
-	case len(vps) != 2:
-		return e.Errorf("not voteproofs")
-	case vps[0] == nil, vps[1] == nil:
+	if vps[0] == nil || vps[1] == nil {
 		return e.Errorf("empty voteproof")
 	}
 
@@ -396,8 +392,6 @@ func IsEqualBlockMapItem(a, b BlockMapItem) error {
 	case a.Checksum() != b.Checksum():
 		return errors.Errorf(
 			"different blockmap item checksum, %q; %q != %q", a.Type(), a.Checksum(), b.Checksum())
-	case a.Num() != b.Num():
-		return errors.Errorf("different blockmap item num, %q; %q != %q", a.Type(), a.Num(), b.Num())
 	default:
 		return nil
 	}

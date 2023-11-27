@@ -14,8 +14,8 @@ type StatesMerger interface {
 	SetStates(_ context.Context, opindex uint64, _ []base.StateMergeValue, operationfacthash util.Hash) error
 	CloseStates(
 		_ context.Context,
-		beforeClose func(keysLength uint64) error,
-		oneState func(newState base.State, index uint64) error,
+		beforeClose func(keyscount uint64) error,
+		oneState func(newState base.State, total, index uint64) error,
 	) error
 	Len() int
 	Close() error
@@ -60,8 +60,8 @@ func (sm *DefaultStatesMerger) SetStates(
 
 func (sm *DefaultStatesMerger) CloseStates(
 	ctx context.Context,
-	beforeClose func(keysLength uint64) error,
-	oneState func(newState base.State, index uint64) error,
+	beforeClose func(keyscount uint64) error,
+	oneState func(newState base.State, total, index uint64) error,
 ) error {
 	if sm.stvmmap.Len() < 1 {
 		return beforeClose(0)
@@ -69,7 +69,9 @@ func (sm *DefaultStatesMerger) CloseStates(
 
 	sortedkeys := sm.sortStateKeys()
 
-	if err := beforeClose(uint64(len(sortedkeys))); err != nil {
+	total := uint64(len(sortedkeys))
+
+	if err := beforeClose(total); err != nil {
 		return err
 	}
 
@@ -95,7 +97,7 @@ func (sm *DefaultStatesMerger) CloseStates(
 				case err != nil:
 					return err
 				default:
-					return oneState(newst, index)
+					return oneState(newst, total, index)
 				}
 			}); err != nil {
 				break

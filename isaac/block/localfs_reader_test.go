@@ -109,7 +109,16 @@ func (t *testLocalFSReader) TestReader() {
 		t.True(found)
 		defer f.Close()
 
-		b, err := io.ReadAll(f)
+		var br io.Reader = f
+
+		switch i, _, _, err := readBaseHeader(br); {
+		case err != nil:
+			t.NoError(err)
+		default:
+			br = i
+		}
+
+		b, err := io.ReadAll(br)
 		t.NoError(err)
 		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
@@ -178,7 +187,16 @@ func (t *testLocalFSReader) TestChecksumReader() {
 		t.True(found)
 		defer f.Close()
 
-		b, err := io.ReadAll(f)
+		var br io.Reader = f
+
+		switch i, _, _, err := readBaseHeader(br); {
+		case err != nil:
+			t.NoError(err)
+		default:
+			br = i
+		}
+
+		b, err := io.ReadAll(br)
 		t.NoError(err)
 		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
@@ -343,7 +361,7 @@ func (t *testLocalFSReader) TestItem() {
 		t.True(found)
 		t.NotNil(v)
 
-		uvps, ok := v.([]base.Voteproof)
+		uvps, ok := v.([2]base.Voteproof)
 		t.True(ok)
 		t.Equal(2, len(uvps))
 

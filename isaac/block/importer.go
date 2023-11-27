@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type (
@@ -210,17 +211,15 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 
 	switch t {
 	case base.BlockMapItemTypeStatesTree:
-		ierr = im.importStatesTree(item, cr)
+		ierr = im.importStatesTree(cr)
 	case base.BlockMapItemTypeStates:
-		ierr = im.importStates(item, cr)
+		ierr = im.importStates(cr)
 	case base.BlockMapItemTypeOperations:
-		ierr = im.importOperations(item, cr)
+		ierr = im.importOperations(cr)
 	case base.BlockMapItemTypeVoteproofs:
-		ierr = im.importVoteproofs(item, cr)
+		ierr = im.importVoteproofs(cr)
 	default:
-		if _, err := io.ReadAll(cr); err != nil {
-			return errors.WithStack(err)
-		}
+		ierr = im.importOther(cr)
 	}
 
 	if ierr != nil {
@@ -254,15 +253,27 @@ func (im *BlockImporter) isfinished() bool {
 	return !notyet
 }
 
-func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) error {
+func (im *BlockImporter) importOperations(r io.Reader) error {
 	e := util.StringError("import operations")
 
-	ops := make([]util.Hash, item.Num())
+	var left uint64
+	var ops []util.Hash
+	br := r
+
+	switch i, _, _, count, err := readCountHeader(br); {
+	case err != nil:
+		return err
+	case count < 1:
+		return nil
+	default:
+		left = count
+		ops = make([]util.Hash, count)
+		br = i
+	}
+
 	if uint64(len(ops)) > im.batchlimit {
 		ops = make([]util.Hash, im.batchlimit)
 	}
-
-	left := item.Num()
 
 	var index uint64
 
@@ -275,7 +286,7 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 		}
 	}
 
-	if err := LoadRawItems(r, im.enc.Decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItems(br, im.enc.Decode, func(_ uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -314,19 +325,31 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 	return nil
 }
 
-func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error {
+func (im *BlockImporter) importStates(r io.Reader) error {
 	e := util.StringError("import states")
 
-	sts := make([]base.State, item.Num())
+	var left uint64
+	var sts []base.State
+	br := r
+
+	switch i, _, _, count, err := readCountHeader(br); {
+	case err != nil:
+		return err
+	case count < 1:
+		return nil
+	default:
+		left = count
+		sts = make([]base.State, count)
+		br = i
+	}
+
 	if uint64(len(sts)) > im.batchlimit {
 		sts = make([]base.State, im.batchlimit)
 	}
 
-	left := item.Num()
-
 	var index uint64
 
-	if err := LoadRawItems(r, im.enc.Decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItems(br, im.enc.Decode, func(_ uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("not State, %T", v)
@@ -369,10 +392,26 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 	return nil
 }
 
-func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) error {
+func (im *BlockImporter) importStatesTree(r io.Reader) error {
 	e := util.StringError("import states tree")
 
-	tr, err := LoadTree(im.enc, item, r, func(i interface{}) (fixedtree.Node, error) {
+	br := r
+
+	var count uint64
+	var treehint hint.Hint
+
+	switch i, _, _, j, k, err := readTreeHeader(br); {
+	case err != nil:
+		return err
+	case j < 1:
+		return nil
+	default:
+		br = i
+		count = j
+		treehint = k
+	}
+
+	tr, err := LoadTree(im.enc, count, treehint, br, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(fixedtree.Node)
 		if !ok {
 			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
@@ -389,10 +428,19 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 	return nil
 }
 
-func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) error {
+func (im *BlockImporter) importVoteproofs(r io.Reader) error {
 	e := util.StringError("import voteproofs")
 
-	vps, err := LoadVoteproofsFromReader(r, item.Num(), im.enc.Decode)
+	br := r
+
+	switch i, _, _, err := readBaseHeader(br); {
+	case err != nil:
+		return err
+	default:
+		br = i
+	}
+
+	vps, err := LoadVoteproofsFromReader(br, im.enc.Decode)
 	if err != nil {
 		return e.Wrap(err)
 	}
@@ -409,6 +457,23 @@ func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) e
 
 	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (*BlockImporter) importOther(r io.Reader) error {
+	br := r
+
+	switch i, _, _, err := readBaseHeader(br); {
+	case err != nil:
+		return err
+	default:
+		br = i
+	}
+
+	if _, err := io.ReadAll(br); err != nil {
+		return errors.WithStack(err)
 	}
 
 	return nil

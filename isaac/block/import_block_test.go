@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -130,7 +131,9 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 	t.NoError(err)
 	t.True(found)
 
-	sts := make([]base.State, item.Num())
+	sts := make([]base.State, 1024)
+
+	var last uint64
 
 	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		st, ok := v.(base.State)
@@ -143,11 +146,12 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 		}
 
 		sts[i] = st
+		atomic.AddUint64(&last, 1)
 
 		return nil
 	}))
 
-	return sts
+	return sts[:last]
 }
 
 func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.Operation {
@@ -158,7 +162,9 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 	t.NoError(err)
 	t.True(found)
 
-	ops := make([]base.Operation, item.Num())
+	ops := make([]base.Operation, 1024)
+
+	var last uint64
 
 	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
@@ -171,14 +177,15 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 		}
 
 		ops[i] = op
+		atomic.AddUint64(&last, 1)
 
 		return nil
 	}))
 
-	return ops
+	return ops[:last]
 }
 
-func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.Voteproof {
+func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.Height, item base.BlockMapItem) [2]base.Voteproof {
 	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
 	t.NoError(err)
 
@@ -186,7 +193,7 @@ func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.He
 	t.NoError(err)
 	t.True(found)
 
-	vps := make([]base.Voteproof, item.Num())
+	var vps [2]base.Voteproof
 
 	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		vp, ok := v.(base.Voteproof)
@@ -198,7 +205,12 @@ func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.He
 			return err
 		}
 
-		vps[i] = vp
+		switch vp.(type) {
+		case base.INITVoteproof:
+			vps[0] = vp
+		case base.ACCEPTVoteproof:
+			vps[1] = vp
+		}
 
 		return nil
 	}))
@@ -272,7 +284,7 @@ func (t *testImportBlocks) TestImport() {
 			case !found:
 				return errors.Errorf("voteproofs not found at last")
 			default:
-				vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
+				vps := v.([2]base.Voteproof) //nolint:forcetypeassert //...
 
 				_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
 				_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
