@@ -174,7 +174,7 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 		return errors.Errorf("not allowed ChecksumReader")
 	}
 
-	var tr io.ReadCloser
+	var cr util.ChecksumReader
 
 	switch w, err := im.localfs.WriteItem(t); {
 	case err != nil:
@@ -184,46 +184,38 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 			_ = w.Close()
 		}()
 
-		tr = io.NopCloser(io.TeeReader(r, w))
-	}
+		f := io.NopCloser(io.TeeReader(r, w))
 
-	var cr util.ChecksumReader
+		if isCompressedBlockMapItemType(t) {
+			i, err := util.NewGzipReader(f)
+			if err != nil {
+				return err
+			}
 
-	switch {
-	case isCompressedBlockMapItemType(t):
-		j := util.NewHashChecksumReader(tr, sha256.New())
-
-		gr, err := util.NewGzipReader(j)
-		if err != nil {
-			return err
+			f = i
 		}
 
-		cr = util.NewDummyChecksumReader(gr, j)
-	default:
-		cr = util.NewHashChecksumReader(tr, sha256.New())
+		cr = util.NewHashChecksumReader(f, sha256.New())
+		defer func() {
+			_ = cr.Close()
+		}()
 	}
 
-	defer func() {
-		_ = cr.Close()
-	}()
-
-	var ierr error
-
-	switch t {
-	case base.BlockItemStatesTree:
-		ierr = im.importStatesTree(cr)
-	case base.BlockItemStates:
-		ierr = im.importStates(cr)
-	case base.BlockItemOperations:
-		ierr = im.importOperations(cr)
-	case base.BlockItemVoteproofs:
-		ierr = im.importVoteproofs(cr)
-	default:
-		ierr = im.importOther(cr)
-	}
-
-	if ierr != nil {
-		return ierr
+	if err := func() error {
+		switch t {
+		case base.BlockItemStatesTree:
+			return im.importStatesTree(cr)
+		case base.BlockItemStates:
+			return im.importStates(cr)
+		case base.BlockItemOperations:
+			return im.importOperations(cr)
+		case base.BlockItemVoteproofs:
+			return im.importVoteproofs(cr)
+		default:
+			return im.importOther(cr)
+		}
+	}(); err != nil {
+		return err
 	}
 
 	if cr.Checksum() != item.Checksum() {

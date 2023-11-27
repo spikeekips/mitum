@@ -80,7 +80,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 			default:
 				switch f, err := os.Open(filepath.Join(r.root, i)); {
 				case err != nil:
-					return nil, errors.WithStack(err)
+					return nil, err //nolint:wrapcheck //...
 				default:
 					defer func() {
 						_ = f.Close()
@@ -173,22 +173,25 @@ func (r *LocalFSReader) Reader(t base.BlockItemType) (io.ReadCloser, bool, error
 }
 
 func (r *LocalFSReader) UncompressedReader(t base.BlockItemType) (io.ReadCloser, bool, error) {
-	i, found, err := r.Reader(t)
-	if err != nil {
-		return nil, false, err
-	}
+	var f io.ReadCloser
 
-	switch {
-	case isCompressedBlockMapItemType(t):
-		gr, gerr := util.NewGzipReader(util.NewHashChecksumReader(i, sha256.New()))
-		if gerr != nil {
-			return nil, false, gerr
-		}
-
-		return gr, true, nil
+	switch i, found, err := r.Reader(t); {
+	case err != nil, !found:
+		return nil, found, err
 	default:
-		return i, found, err
+		f = i
 	}
+
+	if isCompressedBlockMapItemType(t) {
+		switch i, err := util.NewGzipReader(f); {
+		case err != nil:
+			return nil, false, err
+		default:
+			f = i
+		}
+	}
+
+	return util.NewHashChecksumReader(f, sha256.New()), true, nil
 }
 
 func (r *LocalFSReader) ChecksumReader(t base.BlockItemType) (util.ChecksumReader, bool, error) {
@@ -226,34 +229,39 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockItemType) (util.ChecksumReade
 		return nil, false, e.Wrap(err)
 	}
 
-	var f util.ChecksumReader
+	switch i, err := func() (io.ReadCloser, error) {
+		var f io.ReadCloser
 
-	rawf, err := os.Open(filepath.Clean(fpath))
-	if err == nil {
-		cr := util.NewHashChecksumReader(rawf, sha256.New())
-
-		switch {
-		case isCompressedBlockMapItemType(t):
-			gr, eerr := util.NewGzipReader(cr)
-			if eerr != nil {
-				err = eerr
-			}
-
-			f = util.NewDummyChecksumReader(gr, cr)
+		switch i, err := os.Open(filepath.Clean(fpath)); {
+		case err != nil:
+			return nil, err //nolint:wrapcheck //...
 		default:
-			f = cr
+			f = i
 		}
-	}
 
-	_ = r.readersl.SetValue(t, err)
+		if isCompressedBlockMapItemType(t) {
+			switch i, err := util.NewGzipReader(f); {
+			case err != nil:
+				return nil, err
+			default:
+				f = i
+			}
+		}
 
-	switch {
-	case err == nil:
-		return f, true, nil
+		return f, nil
+	}(); {
 	case os.IsNotExist(err):
+		_ = r.readersl.SetValue(t, err)
+
 		return nil, false, nil
-	default:
+	case err != nil:
+		_ = r.readersl.SetValue(t, err)
+
 		return nil, false, e.Wrap(err)
+	default:
+		_ = r.readersl.SetValue(t, nil)
+
+		return util.NewHashChecksumReader(i, sha256.New()), true, nil
 	}
 }
 

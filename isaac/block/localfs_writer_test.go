@@ -3,7 +3,6 @@ package isaacblock
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"io"
 	"math"
@@ -180,13 +179,8 @@ func (t *testLocalFSWriter) TestSetProposal() {
 
 	// NOTE compare checksum
 	t.Run("compare checksum", func() {
-		buf := bytes.NewBuffer(nil)
-		gf, _ := util.NewGzipWriter(buf, gzip.BestSpeed)
-
-		gf.Write(head)
-
-		t.NoError(t.Enc.StreamEncoder(gf).Encode(pr))
-		gf.Close()
+		buf := bytes.NewBuffer(head)
+		t.NoError(t.Enc.StreamEncoder(buf).Encode(pr))
 
 		checksum := util.SHA256Checksum(buf.Bytes())
 
@@ -460,12 +454,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		b, err := io.ReadAll(f)
+		g, err := util.NewGzipReader(f)
+		t.NoError(err)
+		b, err := io.ReadAll(g)
 		t.NoError(err)
 
-		checksum := util.SHA256Checksum(b)
-
-		t.Equal(checksum, item.Checksum())
+		t.Equal(item.Checksum(), util.SHA256Checksum(b))
 	})
 
 	t.Run("operations tree file", func() {
@@ -479,12 +473,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		b, err := io.ReadAll(f)
+		g, err := util.NewGzipReader(f)
+		t.NoError(err)
+		b, err := io.ReadAll(g)
 		t.NoError(err)
 
-		checksum := util.SHA256Checksum(b)
-
-		t.Equal(checksum, item.Checksum())
+		t.Equal(item.Checksum(), util.SHA256Checksum(b))
 	})
 }
 
@@ -547,12 +541,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		b, err := io.ReadAll(f)
+		g, err := util.NewGzipReader(f)
+		t.NoError(err)
+		b, err := io.ReadAll(g)
 		t.NoError(err)
 
-		checksum := util.SHA256Checksum(b)
-
-		t.Equal(checksum, item.Checksum())
+		t.Equal(item.Checksum(), util.SHA256Checksum(b))
 	})
 
 	t.Run("states tree file", func() {
@@ -566,12 +560,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		b, err := io.ReadAll(f)
+		g, err := util.NewGzipReader(f)
+		t.NoError(err)
+		b, err := io.ReadAll(g)
 		t.NoError(err)
 
-		checksum := util.SHA256Checksum(b)
-
-		t.Equal(checksum, item.Checksum())
+		t.Equal(item.Checksum(), util.SHA256Checksum(b))
 	})
 }
 

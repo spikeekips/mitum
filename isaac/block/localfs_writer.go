@@ -559,24 +559,25 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
 
-	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
+	var f io.WriteCloser
+
+	switch i, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
 	case err != nil:
 		return nil, errors.Wrapf(err, "open file, %q", temppath)
 	default:
-		var cw util.ChecksumWriter
-		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
-
-		if isCompressedBlockMapItemType(t) {
-			switch gw, err := util.NewGzipWriter(cw, gzip.BestSpeed); {
-			case err != nil:
-				return nil, err
-			default:
-				cw = util.NewDummyChecksumWriter(gw, cw)
-			}
-		}
-
-		return cw, nil
+		f = i
 	}
+
+	if isCompressedBlockMapItemType(t) {
+		switch i, err := util.NewGzipWriter(f, gzip.BestSpeed); {
+		case err != nil:
+			return nil, err
+		default:
+			f = i
+		}
+	}
+
+	return util.NewHashChecksumWriter(fname, f, sha256.New()), nil
 }
 
 func HeightDirectory(height base.Height) string {

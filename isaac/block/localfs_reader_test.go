@@ -145,7 +145,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 	t.NoError(err)
 
 	{
-		t.PrintFS(fs.root)
+		t.PrintFS(t.Root)
 
 		b, _ := util.MarshalJSONIndent(m)
 		t.T().Log("blockmap:", string(b))
