@@ -26,11 +26,16 @@ type LocalFSReader struct {
 func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) {
 	e := util.StringError("NewLocalFSReader")
 
-	switch fi, err := os.Stat(filepath.Join(root, blockFSMapFilename(enc.Hint().Type().String()))); {
+	switch i, err := BlockFileName(base.BlockItemMap, enc.Hint().Type().String()); {
 	case err != nil:
-		return nil, e.WithMessage(err, "invalid block directory")
-	case fi.IsDir():
-		return nil, e.Errorf("map file is directory")
+		return nil, e.Wrap(err)
+	default:
+		switch fi, err := os.Stat(filepath.Join(root, i)); {
+		case err != nil:
+			return nil, e.WithMessage(err, "invalid block directory")
+		case fi.IsDir():
+			return nil, e.Errorf("map file is directory")
+		}
 	}
 
 	readersl, _ := util.NewShardedMap[base.BlockItemType, error](6, nil)        //nolint:gomnd //...
@@ -67,30 +72,37 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 			return nil
 		},
 		func() (base.BlockMap, error) {
+			var br io.Reader
+
+			switch i, err := BlockFileName(base.BlockItemMap, r.enc.Hint().Type().String()); {
+			case err != nil:
+				return nil, err
+			default:
+				switch f, err := os.Open(filepath.Join(r.root, i)); {
+				case err != nil:
+					return nil, errors.WithStack(err)
+				default:
+					defer func() {
+						_ = f.Close()
+					}()
+
+					br = f
+				}
+			}
+
+			switch i, _, _, err := readBaseHeader(br); {
+			case err != nil:
+				return nil, err
+			default:
+				br = i
+			}
+
 			var b []byte
 
-			switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
+			switch i, err := io.ReadAll(br); {
 			case err != nil:
 				return nil, errors.WithStack(err)
 			default:
-				defer func() {
-					_ = f.Close()
-				}()
-
-				var br io.Reader = f
-
-				switch i, _, _, err := readBaseHeader(br); {
-				case err != nil:
-					return nil, err
-				default:
-					br = i
-				}
-
-				i, err := io.ReadAll(br)
-				if err != nil {
-					return nil, errors.WithStack(err)
-				}
-
 				b = i
 			}
 

@@ -32,8 +32,8 @@ var LocalFSWriterHint = hint.MustNewHint("local-block-fs-writer-v0.0.1")
 var rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
 
 var (
-	blockMapFilename = "map"
-	blockFilenames   = map[base.BlockItemType]string{
+	blockFilenames = map[base.BlockItemType]string{
+		base.BlockItemMap:            "map",
 		base.BlockItemProposal:       "proposal",
 		base.BlockItemOperations:     "operations",
 		base.BlockItemOperationsTree: "operations_tree",
@@ -475,14 +475,23 @@ func (w *LocalFSWriter) saveMap() error {
 		return e.Wrap(err)
 	}
 
-	// NOTE save blockmap
-	f, err := os.OpenFile(
-		filepath.Join(w.temp, blockFSMapFilename(w.enc.Hint().Type().String())),
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-		0o600,
-	)
-	if err != nil {
-		return e.WithMessage(err, "create map file")
+	var f io.Writer
+
+	switch i, err := BlockFileName(base.BlockItemMap, w.enc.Hint().Type().String()); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		// NOTE save blockmap
+		j, err := os.OpenFile(filepath.Join(w.temp, i), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		if err != nil {
+			return e.WithMessage(err, "create map file")
+		}
+
+		defer func() {
+			_ = j.Close()
+		}()
+
+		f = j
 	}
 
 	if err := writeBaseHeader(f, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
@@ -873,10 +882,6 @@ func isCompressedBlockMapItemType(t base.BlockItemType) bool {
 	default:
 		return false
 	}
-}
-
-func blockFSMapFilename(hinttype string) string {
-	return fmt.Sprintf("%s%s", blockMapFilename, fileExtFromEncoder(hinttype))
 }
 
 func marshalIndexedTreeNode(enc encoder.Encoder, index uint64, n fixedtree.Node) ([]byte, error) {

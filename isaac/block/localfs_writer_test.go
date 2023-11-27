@@ -258,7 +258,9 @@ func (t *testLocalFSWriter) TestSave() {
 	})
 
 	t.Run("check map file", func() {
-		fname := blockFSMapFilename(t.Enc.Hint().Type().String())
+		fname, err := BlockFileName(base.BlockItemMap, t.Enc.Hint().Type().String())
+		t.NoError(err)
+
 		fpath := filepath.Join(newroot, fname)
 		f, err := os.Open(fpath)
 		t.NoError(err)

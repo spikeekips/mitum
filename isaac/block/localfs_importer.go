@@ -47,9 +47,18 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	e := util.StringError("write map to localfs")
 
-	w, err := l.newWriter(blockFSMapFilename(l.enc.Hint().Type().String()))
-	if err != nil {
+	var w io.WriteCloser
+
+	switch i, err := BlockFileName(base.BlockItemMap, l.enc.Hint().Type().String()); {
+	case err != nil:
 		return e.Wrap(err)
+	default:
+		j, err := l.newWriter(i)
+		if err != nil {
+			return e.Wrap(err)
+		}
+
+		w = j
 	}
 
 	if err := writeBaseHeader(w, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: l.enc.Hint()}); err != nil {
