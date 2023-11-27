@@ -1067,7 +1067,9 @@ func (t *testConsensusHandler) TestSendBallotForHandoverBrokerX() {
 				return nil
 			}
 
-			sendch <- ballot
+			if point.NextHeight().Equal(ballot.Point().Point) {
+				sendch <- ballot
+			}
 		}
 
 		return nil
