@@ -1,8 +1,6 @@
 package util
 
 import (
-	"bytes"
-	"compress/gzip"
 	"crypto/sha256"
 	"io"
 	"strings"
@@ -63,35 +61,6 @@ func (t *testChecksumReader) TestChecksumBeforeReadAll() {
 	t.Equal(s[:1], string(p))
 
 	t.NotEqual(checksum, checksumstring(cr.h))
-	t.Equal(checksum, cr.Checksum())
-}
-
-func (t *testChecksumReader) TestDummyChecksumReader() {
-	s := UUID().String()
-
-	buf := bytes.NewBuffer(nil)
-
-	gw := gzip.NewWriter(buf)
-	_, err := io.Copy(gw, strings.NewReader(s))
-	t.NoError(err)
-
-	gw.Close()
-
-	checksum := SHA256Checksum(buf.Bytes())
-
-	cr := NewHashChecksumReader(io.NopCloser(buf), sha256.New())
-	defer cr.Close()
-
-	gr, err := NewGzipReader(cr)
-	t.NoError(err)
-
-	dummy := NewDummyChecksumReader(gr, cr)
-	_ = (interface{})(dummy).(ChecksumReader)
-
-	us, err := io.ReadAll(dummy)
-	t.NoError(err)
-
-	t.Equal(s, string(us))
 	t.Equal(checksum, cr.Checksum())
 }
 

@@ -184,7 +184,7 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 			_ = w.Close()
 		}()
 
-		f := io.NopCloser(io.TeeReader(r, w))
+		f := io.TeeReader(r, w)
 
 		if isCompressedBlockMapItemType(t) {
 			i, err := util.NewGzipReader(f)
@@ -196,9 +196,6 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 		}
 
 		cr = util.NewHashChecksumReader(f, sha256.New())
-		defer func() {
-			_ = cr.Close()
-		}()
 	}
 
 	if err := func() error {

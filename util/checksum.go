@@ -100,19 +100,20 @@ func (w *DummyChecksumWriter) Checksum() string {
 }
 
 type ChecksumReader interface {
-	io.ReadCloser
+	io.Reader
 	Checksum() string
+	Close() error
 }
 
 type HashChecksumReader struct {
-	r        io.ReadCloser
+	r        io.Reader
 	h        hash.Hash
 	m        io.Reader
 	checksum string
 	sync.Mutex
 }
 
-func NewHashChecksumReader(r io.ReadCloser, h hash.Hash) *HashChecksumReader {
+func NewHashChecksumReader(r io.Reader, h hash.Hash) *HashChecksumReader {
 	return &HashChecksumReader{
 		m: io.TeeReader(r, h),
 		r: r,
@@ -121,8 +122,10 @@ func NewHashChecksumReader(r io.ReadCloser, h hash.Hash) *HashChecksumReader {
 }
 
 func (r *HashChecksumReader) Close() error {
-	if err := r.r.Close(); err != nil {
-		return errors.WithStack(err)
+	if i, ok := r.r.(io.Closer); ok {
+		if err := i.Close(); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil
@@ -160,22 +163,6 @@ func (r *HashChecksumReader) Checksum() string {
 	r.h.Reset()
 
 	return r.checksum
-}
-
-type DummyChecksumReader struct {
-	io.ReadCloser
-	cr ChecksumReader
-}
-
-func NewDummyChecksumReader(f io.ReadCloser, cr ChecksumReader) *DummyChecksumReader {
-	return &DummyChecksumReader{
-		ReadCloser: f,
-		cr:         cr,
-	}
-}
-
-func (r *DummyChecksumReader) Checksum() string {
-	return r.cr.Checksum()
 }
 
 func checksumstring(h hash.Hash) string {
