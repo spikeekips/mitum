@@ -655,7 +655,7 @@ func (t *testLocalFSWriter) TestRemove() {
 
 		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(top), t.Enc)
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.True(errors.Is(err, util.ErrNotFound))
 
 		for i := bottom; i < top; i++ {
 			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
@@ -670,11 +670,11 @@ func (t *testLocalFSWriter) TestRemove() {
 
 		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(bottom), t.Enc)
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.True(errors.Is(err, util.ErrNotFound))
 
 		for i := bottom; i < top; i++ {
 			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
-			t.True(errors.Is(err, os.ErrNotExist))
+			t.True(errors.Is(err, util.ErrNotFound))
 		}
 	})
 }

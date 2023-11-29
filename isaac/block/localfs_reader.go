@@ -17,37 +17,43 @@ import (
 
 type LocalFSReader struct {
 	enc      encoder.Encoder
-	mapl     *util.Locked[base.BlockMap]
+	bm       base.BlockMap
+	bfiles   base.BlockItemFiles
 	readersl *util.ShardedMap[base.BlockItemType, error]
 	itemsl   *util.ShardedMap[base.BlockItemType, [3]interface{}]
 	root     string
 }
 
 func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) {
-	e := util.StringError("NewLocalFSReader")
-
-	switch i, err := BlockFileName(base.BlockItemMap, enc.Hint().Type().String()); {
-	case err != nil:
-		return nil, e.Wrap(err)
-	default:
-		switch fi, err := os.Stat(filepath.Join(root, i)); {
-		case err != nil:
-			return nil, e.WithMessage(err, "invalid block directory")
-		case fi.IsDir():
-			return nil, e.Errorf("map file is directory")
-		}
-	}
-
 	readersl, _ := util.NewShardedMap[base.BlockItemType, error](6, nil)        //nolint:gomnd //...
 	itemsl, _ := util.NewShardedMap[base.BlockItemType, [3]interface{}](6, nil) //nolint:gomnd //...
 
-	return &LocalFSReader{
+	r := &LocalFSReader{
 		root:     root,
 		enc:      enc,
-		mapl:     util.EmptyLocked[base.BlockMap](),
 		readersl: readersl,
 		itemsl:   itemsl,
-	}, nil
+	}
+
+	switch i, found, err := r.loadBlockMap(); {
+	case err != nil:
+		return nil, err
+	case !found:
+		return nil, util.ErrNotFound.Errorf("blockmap")
+	default:
+		r.bm = i
+	}
+
+	switch i, found, err := r.loadBlockItemFiles(); {
+	case err != nil:
+		return nil, err
+	case !found:
+		return nil, util.ErrNotFound.Errorf("block item files")
+	default:
+		r.bfiles = i
+	}
+
+	return r, nil
 }
 
 func NewLocalFSReaderFromHeight(baseroot string, height base.Height, enc encoder.Encoder) (*LocalFSReader, error) {
@@ -55,7 +61,6 @@ func NewLocalFSReaderFromHeight(baseroot string, height base.Height, enc encoder
 }
 
 func (r *LocalFSReader) Close() error {
-	r.mapl.EmptyValue()
 	r.readersl.Close()
 	r.itemsl.Close()
 
@@ -63,64 +68,11 @@ func (r *LocalFSReader) Close() error {
 }
 
 func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
-	var m base.BlockMap
+	return r.bm, true, nil
+}
 
-	switch err := r.mapl.GetOrCreate(
-		func(i base.BlockMap, _ bool) error {
-			m = i
-
-			return nil
-		},
-		func() (base.BlockMap, error) {
-			var br io.Reader
-
-			switch i, err := BlockFileName(base.BlockItemMap, r.enc.Hint().Type().String()); {
-			case err != nil:
-				return nil, err
-			default:
-				switch f, err := os.Open(filepath.Join(r.root, i)); {
-				case err != nil:
-					return nil, err //nolint:wrapcheck //...
-				default:
-					defer func() {
-						_ = f.Close()
-					}()
-
-					br = f
-				}
-			}
-
-			switch i, _, _, err := readBaseHeader(br); {
-			case err != nil:
-				return nil, err
-			default:
-				br = i
-			}
-
-			var b []byte
-
-			switch i, err := io.ReadAll(br); {
-			case err != nil:
-				return nil, errors.WithStack(err)
-			default:
-				b = i
-			}
-
-			var um base.BlockMap
-			if err := encoder.Decode(r.enc, b, &um); err != nil {
-				return nil, err
-			}
-
-			return um, nil
-		},
-	); {
-	case err == nil:
-		return m, true, nil
-	case os.IsNotExist(err):
-		return nil, false, nil
-	default:
-		return nil, false, errors.Wrap(err, "load BlockMap")
-	}
+func (r *LocalFSReader) BlockItemFiles() (base.BlockItemFiles, bool, error) {
+	return r.bfiles, true, nil
 }
 
 func (r *LocalFSReader) Reader(t base.BlockItemType) (io.ReadCloser, bool, error) {
@@ -291,18 +243,7 @@ func (r *LocalFSReader) Item(t base.BlockItemType) (item interface{}, found bool
 }
 
 func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {
-	var m base.BlockMap
-
-	switch i, found, err := r.BlockMap(); {
-	case err != nil:
-		return err
-	case !found:
-		return util.ErrNotFound.Errorf("BlockMap not found")
-	default:
-		m = i
-	}
-
-	m.Items(func(item base.BlockMapItem) bool {
+	r.bm.Items(func(item base.BlockMapItem) bool {
 		i, found, err := r.Item(item.Type())
 
 		return f(item, i, found, err)
@@ -311,18 +252,71 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 	return nil
 }
 
+func (r *LocalFSReader) loadBlockMap() (base.BlockMap, bool, error) {
+	var f io.ReadCloser
+
+	switch i, found, err := r.Reader(base.BlockItemMap); {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
+		f = i
+	}
+
+	switch i, err := r.loadItem(f); {
+	case err != nil:
+		return nil, true, err
+	default:
+		bm, ok := i.(base.BlockMap)
+		if !ok {
+			return nil, true, errors.Errorf("expected blockmap, but %T", i)
+		}
+
+		return bm, true, nil
+	}
+}
+
+func (r *LocalFSReader) loadBlockItemFiles() (base.BlockItemFiles, bool, error) {
+	var f io.ReadCloser
+
+	fpath := filepath.Join(filepath.Dir(r.root), base.BlockItemFilesName(r.bm.Manifest().Height()))
+
+	switch i, err := os.Open(filepath.Clean(fpath)); {
+	case os.IsNotExist(err):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, errors.WithStack(err)
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
+		f = i
+	}
+
+	var u base.BlockItemFiles
+	if err := encoder.DecodeReader(r.enc, f, &u); err != nil {
+		return nil, true, err
+	}
+
+	return u, true, nil
+}
+
 func (r *LocalFSReader) item(t base.BlockItemType) (interface{}, bool, error) {
 	e := util.StringError("load item, %q", t)
 
 	var item base.BlockMapItem
 
-	switch m, found, err := r.BlockMap(); {
-	case err != nil || !found:
-		return nil, found, e.Wrap(err)
+	switch i, found := r.bm.Item(t); {
+	case !found:
+		return nil, false, nil
 	default:
-		if item, found = m.Item(t); !found {
-			return nil, false, nil
-		}
+		item = i
 	}
 
 	var f util.ChecksumReader
@@ -345,7 +339,7 @@ func (r *LocalFSReader) item(t base.BlockItemType) (interface{}, bool, error) {
 
 	switch {
 	case !isListBlockMapItemType(t):
-		i, err = r.loadItem(item, f)
+		i, err = r.loadItem(f)
 	default:
 		i, err = r.loadItems(item, f)
 	}
@@ -360,7 +354,7 @@ func (r *LocalFSReader) item(t base.BlockItemType) (interface{}, bool, error) {
 	}
 }
 
-func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface{}, error) {
+func (r *LocalFSReader) loadItem(f io.Reader) (u interface{}, _ error) {
 	br := f
 
 	switch i, _, _, err := readBaseHeader(br); {
@@ -370,17 +364,11 @@ func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface
 		br = i
 	}
 
-	switch item.Type() {
-	case base.BlockItemProposal:
-		var u base.ProposalSignFact
-		if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
-			return nil, err
-		}
-
-		return u, nil
-	default:
-		return nil, errors.Errorf("unsupported list items, %q", item.Type())
+	if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
+		return nil, err
 	}
+
+	return u, nil
 }
 
 func (r *LocalFSReader) loadItems(item base.BlockMapItem, f io.Reader) (interface{}, error) {

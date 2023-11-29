@@ -168,9 +168,7 @@ func (t *testValidateLastBlocks) TestDifferentHash() {
 	t.NoError(err)
 	t.True(removed)
 
-	lastheightdirectory := filepath.Join(a, HeightDirectory(3))
-
-	t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(3)), lastheightdirectory))
+	t.NoError(moveHeightDirectory(3, t.Root, a))
 
 	err = ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
 	t.Error(err)
@@ -203,7 +201,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 	t.Run("last not found", func() {
 		err := ValidateAllBlockMapsFromLocalFS(a, t.Enc, 4, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.True(errors.Is(err, util.ErrNotFound))
 	})
 
 	t.Run("missing", func() {
@@ -213,7 +211,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 
 		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.True(errors.Is(err, util.ErrNotFound))
 	})
 }
 
@@ -229,13 +227,11 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 		_, err = fs.Save(context.Background())
 		t.NoError(err)
 
-		lastheightdirectory := filepath.Join(a, HeightDirectory(2))
-
-		t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(2)), lastheightdirectory))
+		t.NoError(moveHeightDirectory(2, t.Root, a))
 
 		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.ErrorContains(err, "previous does not match")
+		t.ErrorContains(err, "previous does not match", "%+v", err)
 	})
 
 	t.Run("wrong height", func() {
@@ -261,4 +257,17 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 
 func TestValidateAllBlockMapsFromLocalFS(t *testing.T) {
 	suite.Run(t, new(testValidateAllBlockMapsFromLocalFS))
+}
+
+func moveHeightDirectory(height base.Height, sourceroot, destroot string) error {
+	sh := filepath.Join(sourceroot, HeightDirectory(height))
+	dh := filepath.Join(destroot, HeightDirectory(height))
+	sf := BlockItemFilesPath(sourceroot, height)
+	df := BlockItemFilesPath(destroot, height)
+
+	if err := os.Rename(sh, dh); err != nil {
+		return err
+	}
+
+	return os.Rename(sf, df)
 }

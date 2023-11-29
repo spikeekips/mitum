@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,6 +36,21 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 	return m
 }
 
+func (t *testBlockImporter) copyBlockItemFiles(root, temp string, height base.Height) {
+	p := filepath.Join(BlockItemFilesPath(root, height))
+	s, err := os.Open(p)
+	t.NoError(err)
+
+	p = filepath.Join(filepath.Dir(temp), base.BlockItemFilesName(height))
+	d, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	t.NoError(err)
+
+	io.Copy(d, s)
+
+	s.Close()
+	d.Close()
+}
+
 func (t *testBlockImporter) TestNew() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
@@ -57,6 +73,8 @@ func (t *testBlockImporter) TestWriteMap() {
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
+
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 	t.NoError(err)
@@ -118,6 +136,8 @@ func (t *testBlockImporter) TestWriteProposal() {
 
 	t.NoError(im.WriteItem(base.BlockItemProposal, dr))
 
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
+
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
@@ -176,6 +196,8 @@ func (t *testBlockImporter) TestWriteOperations() {
 	t.NoError(err)
 
 	t.NoError(im.WriteItem(base.BlockItemOperations, dr))
+
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -250,6 +272,8 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 
 	t.NoError(im.WriteItem(base.BlockItemOperationsTree, dr))
 
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
+
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
@@ -315,6 +339,8 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 
 	t.NoError(im.WriteItem(base.BlockItemVoteproofs, dr))
 
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
+
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
@@ -375,6 +401,8 @@ func (t *testBlockImporter) TestWriteStates() {
 	t.NoError(err)
 
 	t.NoError(im.WriteItem(base.BlockItemStates, dr))
+
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -453,6 +481,8 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 
 	t.NoError(im.WriteItem(base.BlockItemStatesTree, dr))
 
+	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
+
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
 		t.NoError(err)
@@ -516,7 +546,7 @@ func (t *testBlockImporter) TestSave() {
 	t.Run("no files in new directory", func() {
 		_, err := NewLocalFSReaderFromHeight(newroot, point.Height(), t.Enc)
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.True(errors.Is(err, util.ErrNotFound))
 	})
 
 	_, err = im.Save(context.Background())
