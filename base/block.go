@@ -71,6 +71,22 @@ func (t BlockItemType) String() string {
 	return string(t)
 }
 
+func BlockItemFilesName(height Height) string {
+	return height.String() + ".json"
+}
+
+type BlockItemFile interface {
+	util.IsValider
+	URI() url.URL
+	CompressFormat() string
+}
+
+type BlockItemFiles interface {
+	util.IsValider
+	Item(BlockItemType) (BlockItemFile, bool)
+	Items() map[BlockItemType]BlockItemFile
+}
+
 func ValidateManifests(m Manifest, previous util.Hash) error {
 	if !m.Previous().Equal(previous) {
 		return errors.Errorf("previous does not match")

@@ -365,3 +365,300 @@ func TestBlockMapItemEncode(tt *testing.T) {
 
 	suite.Run(tt, t)
 }
+
+type testBlockItemFile struct {
+	suite.Suite
+}
+
+func (t *testBlockItemFile) TestNew() {
+	f := NewLocalFSBlockItemFile("proposal.gz", "")
+	_ = (interface{})(f).(base.BlockItemFile)
+
+	t.Run("proposal.gz", func() {
+		f := NewLocalFSBlockItemFile("proposal.gz", "")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal("localfs", f.URI().Scheme)
+		t.Equal("/proposal.gz", f.URI().Path)
+
+		t.Equal(f.CompressFormat(), "")
+	})
+
+	t.Run("proposal.json.gz", func() {
+		f := NewLocalFSBlockItemFile("proposal.json.gz", "")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal("localfs", f.URI().Scheme)
+		t.Equal("/proposal.json.gz", f.URI().Path)
+
+		t.Equal(f.CompressFormat(), "gz")
+	})
+
+	t.Run("url", func() {
+		u, err := url.Parse("https://a/b/c/d.xz")
+		t.NoError(err)
+
+		f := NewBlockItemFile(*u, "gz")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal(*u, f.URI())
+		t.Equal(f.CompressFormat(), "gz")
+	})
+}
+
+func (t *testBlockItemFile) TestIsValid() {
+	t.Run("empty uri", func() {
+		f := NewBlockItemFile(url.URL{}, "")
+		err := f.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty uri")
+	})
+
+	t.Run("empty uri scheme", func() {
+		u, err := url.Parse("https://a/b/c/d.xz")
+		t.NoError(err)
+		u.Scheme = ""
+
+		f := NewBlockItemFile(*u, "")
+		err = f.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty uri scheme")
+	})
+
+	t.Run("file, localfs: empty path", func() {
+		f := NewLocalFSBlockItemFile("", "")
+		f.uri.Path = ""
+
+		err := f.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty filename in file uri")
+	})
+}
+
+func (t *testBlockItemFile) TestCompressFormat() {
+	t.Run("empty", func() {
+		f := NewLocalFSBlockItemFile("proposal.json", "")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal("", f.CompressFormat())
+	})
+
+	t.Run("from filename", func() {
+		f := NewLocalFSBlockItemFile("proposal.json.gz", "")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal("gz", f.CompressFormat())
+	})
+
+	t.Run("from CompressFormat", func() {
+		f := NewLocalFSBlockItemFile("proposal.gz", "xz")
+		t.NoError(f.IsValid(nil))
+
+		t.Equal("xz", f.CompressFormat())
+	})
+}
+
+func TestBlockItemFile(t *testing.T) {
+	suite.Run(t, new(testBlockItemFile))
+}
+
+func TestBlockItemFileEncode(tt *testing.T) {
+	t := new(testBlockMapItemEncode)
+
+	t.enc = jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockItemFileHint, Instance: BlockItemFile{}}))
+
+		f := NewLocalFSBlockItemFile("proposal.gz", "bz")
+
+		t.NoError(f.IsValid(nil))
+
+		b, err := t.enc.Marshal(f)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return f, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		u, err := t.enc.Decode(b)
+		t.NoError(err)
+
+		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		af, ok := a.(BlockItemFile)
+		t.True(ok)
+		bf, ok := b.(BlockItemFile)
+		t.True(ok)
+
+		t.NoError(bf.IsValid(nil))
+
+		t.Equal(af.URI(), bf.URI())
+		t.Equal(af.CompressFormat(), bf.CompressFormat())
+	}
+
+	suite.Run(tt, t)
+}
+
+type testBlockItemFiles struct {
+	suite.Suite
+}
+
+func (t *testBlockItemFiles) TestNew() {
+	files := map[base.BlockItemType]base.BlockItemFile{
+		base.BlockItemMap:        NewLocalFSBlockItemFile("m.json", ""),
+		base.BlockItemProposal:   NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+		base.BlockItemVoteproofs: NewLocalFSBlockItemFile("v.ndjson", ""),
+	}
+
+	fs := NewBlockItemFiles(files)
+
+	_ = (interface{})(fs).(base.BlockItemFiles)
+
+	t.NoError(fs.IsValid(nil))
+
+	var i base.BlockItemFile
+	var found bool
+
+	i, found = fs.Item(base.BlockItemMap)
+	t.True(found)
+	t.Equal("localfs", i.URI().Scheme)
+	t.Equal("/m.json", i.URI().Path)
+
+	i, found = fs.Item(base.BlockItemProposal)
+	t.True(found)
+	t.Equal("file", i.URI().Scheme)
+	t.Equal("/a/b/c/p.json.gz", i.URI().Path)
+
+	i, found = fs.Item(base.BlockItemVoteproofs)
+	t.True(found)
+	t.Equal("localfs", i.URI().Scheme)
+	t.Equal("/v.ndjson", i.URI().Path)
+}
+
+func (t *testBlockItemFiles) TestIsValid() {
+	t.Run("ok", func() {
+		files := map[base.BlockItemType]base.BlockItemFile{
+			base.BlockItemMap:        NewLocalFSBlockItemFile("m.json", ""),
+			base.BlockItemProposal:   NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+			base.BlockItemVoteproofs: NewLocalFSBlockItemFile("v.ndjson", ""),
+		}
+
+		fs := NewBlockItemFiles(files)
+		t.NoError(fs.IsValid(nil))
+	})
+
+	t.Run("must be file missing", func() {
+		files := map[base.BlockItemType]base.BlockItemFile{
+			base.BlockItemProposal:   NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+			base.BlockItemVoteproofs: NewLocalFSBlockItemFile("v.ndjson", ""),
+		}
+
+		fs := NewBlockItemFiles(files)
+		err := fs.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "important item file")
+	})
+
+	t.Run("wrong file", func() {
+		files := map[base.BlockItemType]base.BlockItemFile{
+			base.BlockItemMap:        NewLocalFSBlockItemFile("", ""),
+			base.BlockItemProposal:   NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+			base.BlockItemVoteproofs: NewLocalFSBlockItemFile("v.ndjson", ""),
+		}
+
+		fs := NewBlockItemFiles(files)
+		err := fs.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty filename")
+	})
+
+	t.Run("empty items", func() {
+		fs := NewBlockItemFiles(nil)
+
+		err := fs.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty items")
+	})
+}
+
+func (t *testBlockItemFiles) TestFile() {
+	files := map[base.BlockItemType]base.BlockItemFile{
+		base.BlockItemMap:        NewLocalFSBlockItemFile("m.json", ""),
+		base.BlockItemProposal:   NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+		base.BlockItemVoteproofs: NewLocalFSBlockItemFile("v.ndjson", ""),
+	}
+
+	fs := NewBlockItemFiles(files)
+
+	t.Run("found", func() {
+		i, found := fs.Item(base.BlockItemVoteproofs)
+		t.True(found)
+
+		t.Equal("localfs", i.URI().Scheme)
+		t.Equal("/v.ndjson", i.URI().Path)
+	})
+
+	t.Run("not found", func() {
+		i, found := fs.Item(base.BlockItemOperationsTree)
+		t.False(found)
+		t.Nil(i)
+	})
+
+	t.Run("Files()", func() {
+		t.Equal(files, fs.Items())
+	})
+}
+
+func TestBlockItemFiles(t *testing.T) {
+	suite.Run(t, new(testBlockItemFiles))
+}
+
+func TestBlockItemFilesEncode(tt *testing.T) {
+	t := new(testBlockMapItemEncode)
+
+	t.enc = jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockItemFileHint, Instance: BlockItemFile{}}))
+		t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockItemFilesHint, Instance: BlockItemFiles{}}))
+
+		files := map[base.BlockItemType]base.BlockItemFile{
+			base.BlockItemMap:            NewLocalFSBlockItemFile("m.json", ""),
+			base.BlockItemProposal:       NewFileBlockItemFile("/a/b/c/p.json.gz", ""),
+			base.BlockItemVoteproofs:     NewLocalFSBlockItemFile("v.ndjson", ""),
+			base.BlockItemOperationsTree: NewLocalFSBlockItemFile("o.ndjson.bz", ""),
+		}
+
+		fs := NewBlockItemFiles(files)
+
+		t.NoError(fs.IsValid(nil))
+
+		b, err := t.enc.Marshal(fs)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return fs, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		u, err := t.enc.Decode(b)
+		t.NoError(err)
+
+		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		af, ok := a.(BlockItemFiles)
+		t.True(ok)
+		bf, ok := b.(BlockItemFiles)
+		t.True(ok)
+
+		t.NoError(bf.IsValid(nil))
+
+		t.Equal(af.Items(), bf.Items())
+	}
+
+	suite.Run(tt, t)
+}

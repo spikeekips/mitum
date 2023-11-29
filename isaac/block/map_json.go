@@ -121,3 +121,73 @@ func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
+
+type BlockItemFileJSONMarshaler struct {
+	URI            string `json:"uri"`
+	CompressFormat string `json:"compress_format,omitempty"`
+	hint.BaseHinter
+}
+
+func (f BlockItemFile) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(BlockItemFileJSONMarshaler{
+		BaseHinter:     f.BaseHinter,
+		URI:            f.uri.String(),
+		CompressFormat: f.compressFormat,
+	})
+}
+
+func (f *BlockItemFile) UnmarshalJSON(b []byte) error {
+	var u BlockItemFileJSONMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	switch i, err := url.Parse(u.URI); {
+	case err != nil:
+		return util.ErrInvalid.Wrap(err)
+	default:
+		f.uri = *i
+	}
+
+	f.compressFormat = u.CompressFormat
+
+	return nil
+}
+
+type BlockItemFilesJSONMarshaler struct {
+	Items map[base.BlockItemType]base.BlockItemFile `json:"items"`
+	hint.BaseHinter
+}
+
+func (f BlockItemFiles) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(BlockItemFilesJSONMarshaler{
+		BaseHinter: f.BaseHinter,
+		Items:      f.items,
+	})
+}
+
+type BlockItemFilesJSONUnmarshaler struct {
+	Items map[base.BlockItemType]json.RawMessage `json:"items"`
+	hint.BaseHinter
+}
+
+func (f *BlockItemFiles) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u BlockItemFilesJSONUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	f.items = map[base.BlockItemType]base.BlockItemFile{}
+
+	for i := range u.Items {
+		var j base.BlockItemFile
+
+		if err := encoder.Decode(enc, u.Items[i], &j); err != nil {
+			return err
+		}
+
+		f.items[i] = j
+	}
+
+	return nil
+}

@@ -129,7 +129,17 @@ func importBlock(
 				case !found:
 					return e.Wrap(util.ErrNotFound.Errorf("blockMapItem not found"))
 				default:
-					return im.WriteItem(item.Type(), r)
+					compressformat := ""
+					if isCompressedBlockMapItemType(item.Type()) {
+						compressformat = "gz"
+					}
+
+					dr, err := util.NewCompressedReader(r, compressformat, nil)
+					if err != nil {
+						return e.Wrap(err)
+					}
+
+					return im.WriteItem(item.Type(), dr)
 				}
 			})
 		}); err != nil {

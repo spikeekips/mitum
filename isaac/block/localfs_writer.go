@@ -49,6 +49,7 @@ type LocalFSWriter struct {
 	local      base.LocalNode
 	opsf       util.ChecksumWriter
 	stsf       util.ChecksumWriter
+	bfiles     *BlockItemFilesMaker
 	enc        encoder.Encoder
 	root       string
 	id         string
@@ -68,7 +69,7 @@ type LocalFSWriter struct {
 func NewLocalFSWriter(
 	root string,
 	height base.Height,
-	enc encoder.Encoder,
+	jsonenc, enc encoder.Encoder,
 	local base.LocalNode,
 	networkID base.NetworkID,
 ) (*LocalFSWriter, error) {
@@ -104,6 +105,7 @@ func NewLocalFSWriter(
 		heightbase: HeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockMap(LocalFSWriterHint, enc.Hint()),
+		bfiles:     NewBlockItemFilesMaker(jsonenc),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockItemOperations); {
@@ -281,6 +283,8 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		return e.Wrap(err)
 	}
 
+	_ = w.bfiles.SetItem(base.BlockItemVoteproofs, NewLocalFSBlockItemFile(f.Name(), ""))
+
 	return nil
 }
 
@@ -317,18 +321,24 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 	if w.opsf != nil {
 		_ = w.opsf.Close()
 
-		if item, found := w.m.Item(base.BlockItemOperations); !found || item == nil {
+		switch item, found := w.m.Item(base.BlockItemOperations); {
+		case !found || item == nil:
 			// NOTE remove empty operations file
 			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name()))
+		default:
+			_ = w.bfiles.SetItem(base.BlockItemOperations, NewLocalFSBlockItemFile(w.opsf.Name(), ""))
 		}
 	}
 
 	if w.stsf != nil {
 		_ = w.stsf.Close()
 
-		if item, found := w.m.Item(base.BlockItemStates); !found || item == nil {
+		switch item, found := w.m.Item(base.BlockItemStates); {
+		case !found || item == nil:
 			// NOTE remove empty states file
 			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name()))
+		default:
+			_ = w.bfiles.SetItem(base.BlockItemStates, NewLocalFSBlockItemFile(w.stsf.Name(), ""))
 		}
 	}
 
@@ -352,6 +362,10 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 	}
 
 	m := w.m
+
+	if err := w.bfiles.Save(BlockItemFilesPath(w.root, w.height)); err != nil {
+		return nil, err
+	}
 
 	if err := w.close(); err != nil {
 		return nil, err
@@ -464,6 +478,8 @@ func (w *LocalFSWriter) setTree(
 		return tr, e.Wrap(err)
 	}
 
+	_ = w.bfiles.SetItem(treetype, NewLocalFSBlockItemFile(tf.Name(), ""))
+
 	return tr, nil
 }
 
@@ -475,31 +491,8 @@ func (w *LocalFSWriter) saveMap() error {
 		return e.Wrap(err)
 	}
 
-	var f io.Writer
-
-	switch i, err := BlockFileName(base.BlockItemMap, w.enc.Hint().Type().String()); {
-	case err != nil:
-		return e.Wrap(err)
-	default:
-		// NOTE save blockmap
-		j, err := os.OpenFile(filepath.Join(w.temp, i), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-		if err != nil {
-			return e.WithMessage(err, "create map file")
-		}
-
-		defer func() {
-			_ = j.Close()
-		}()
-
-		f = j
-	}
-
-	if err := writeBaseHeader(f, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := w.writefileonce(f, w.m); err != nil {
-		return e.Wrap(err)
+	if err := w.writeItem(base.BlockItemMap, w.m); err != nil {
+		return errors.Wrap(err, "blockmap in fs writer")
 	}
 
 	return nil
@@ -534,7 +527,13 @@ func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 
 	_ = cw.Close()
 
-	return w.m.SetItem(NewLocalBlockMapItem(t, cw.Checksum()))
+	_ = w.bfiles.SetItem(t, NewLocalFSBlockItemFile(cw.Name(), ""))
+
+	if t != base.BlockItemMap {
+		return w.m.SetItem(NewLocalBlockMapItem(t, cw.Checksum()))
+	}
+
+	return nil
 }
 
 func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
@@ -792,9 +791,13 @@ func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
 		if err := os.RemoveAll(heightdirectory); err != nil {
 			return false, errors.WithMessagef(err, "remove %q", heightdirectory)
 		}
-
-		return true, nil
 	}
+
+	if err := os.Remove(BlockItemFilesPath(root, height)); err != nil {
+		return false, errors.WithMessagef(err, "files.json")
+	}
+
+	return true, nil
 }
 
 func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {

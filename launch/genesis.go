@@ -18,7 +18,7 @@ import (
 
 type GenesisBlockGenerator struct {
 	local    base.LocalNode
-	enc      encoder.Encoder
+	encs     *encoder.Encoders
 	db       isaac.Database
 	proposal base.ProposalSignFact
 	ivp      base.INITVoteproof
@@ -33,7 +33,7 @@ type GenesisBlockGenerator struct {
 func NewGenesisBlockGenerator(
 	local base.LocalNode,
 	networkID base.NetworkID,
-	enc encoder.Encoder,
+	encs *encoder.Encoders,
 	db isaac.Database,
 	dataroot string,
 	facts []base.Fact,
@@ -44,7 +44,7 @@ func NewGenesisBlockGenerator(
 		}),
 		local:     local,
 		networkID: networkID,
-		enc:       enc,
+		encs:      encs,
 		db:        db,
 		dataroot:  dataroot,
 		facts:     facts,
@@ -66,7 +66,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 		return nil, e.Wrap(err)
 	}
 
-	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(g.dataroot, base.GenesisHeight, g.enc)
+	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(g.dataroot, base.GenesisHeight, g.encs.Default())
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -326,7 +326,8 @@ func (g *GenesisBlockGenerator) closeDatabase() error {
 
 func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalProcessor, error) {
 	args := isaac.NewDefaultProposalProcessorArgs()
-	args.NewWriterFunc = NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db, math.MaxInt16)
+	args.NewWriterFunc = NewBlockWriterFunc(
+		g.local, g.networkID, g.dataroot, g.encs.JSON(), g.encs.Default(), g.db, math.MaxInt16)
 	args.GetStateFunc = func(key string) (base.State, bool, error) {
 		return nil, false, nil
 	}

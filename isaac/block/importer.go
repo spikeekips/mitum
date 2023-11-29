@@ -50,7 +50,7 @@ func NewBlockImporter(
 		return nil, e.Errorf("unknown encoder, %q", m.Encoder())
 	}
 
-	localfs, err := NewLocalFSImporter(root, enc, m)
+	localfs, err := NewLocalFSImporter(root, encs.JSON(), enc, m)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -103,7 +103,7 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *BlockImporter) WriteItem(t base.BlockItemType, r io.Reader) error {
+func (im *BlockImporter) WriteItem(t base.BlockItemType, r *util.CompressedReader) error {
 	e := util.StringError("write item")
 
 	if err := im.importItem(t, r); err != nil {
@@ -164,14 +164,10 @@ func (im *BlockImporter) CancelImport(context.Context) error {
 	return nil
 }
 
-func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
+func (im *BlockImporter) importItem(t base.BlockItemType, r *util.CompressedReader) error {
 	item, found := im.m.Item(t)
 	if !found {
 		return nil
-	}
-
-	if _, ok := r.(util.ChecksumReader); ok {
-		return errors.Errorf("not allowed ChecksumReader")
 	}
 
 	var cr util.ChecksumReader
@@ -184,15 +180,9 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r io.Reader) error {
 			_ = w.Close()
 		}()
 
-		f := io.TeeReader(r, w)
-
-		if isCompressedBlockMapItemType(t) {
-			i, err := util.NewGzipReader(f)
-			if err != nil {
-				return err
-			}
-
-			f = i
+		f, err := r.Tee(w)
+		if err != nil {
+			return err
 		}
 
 		cr = util.NewHashChecksumReader(f, sha256.New())

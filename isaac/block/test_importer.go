@@ -42,7 +42,7 @@ func (im *DummyBlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *DummyBlockImporter) WriteItem(item base.BlockItemType, r io.Reader) error {
+func (im *DummyBlockImporter) WriteItem(item base.BlockItemType, r *util.CompressedReader) error {
 	if im.WriteItemf != nil {
 		return im.WriteItemf(item, r)
 	}
@@ -95,6 +95,8 @@ func (t *BaseTestLocalBlockFS) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemFileHint, Instance: BlockItemFile{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemFilesHint, Instance: BlockItemFiles{}}))
 }
 
 func (t *BaseTestLocalBlockFS) SetupTest() {
@@ -222,7 +224,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 
 	ctx := context.Background()
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	// NOTE set operations

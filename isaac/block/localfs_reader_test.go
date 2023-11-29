@@ -406,7 +406,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	f, err := os.Open(path)
 	t.NoError(err)
 
-	gf, err := util.NewGzipReader(f)
+	gf, err := util.NewSafeGzipReadCloser(f)
 	t.NoError(err)
 
 	b, err := io.ReadAll(gf)

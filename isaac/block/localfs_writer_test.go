@@ -14,6 +14,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -122,7 +123,7 @@ func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockItemType, isli
 }
 
 func (t *testLocalFSWriter) TestNew() {
-	fs, err := NewLocalFSWriter(t.Root, base.Height(33), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, base.Height(33), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	_ = (interface{})(fs).(FSWriter)
@@ -137,7 +138,7 @@ func (t *testLocalFSWriter) TestSetManifest() {
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	t.Nil(fs.m.Manifest())
@@ -152,7 +153,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
@@ -166,7 +167,7 @@ func (t *testLocalFSWriter) TestSetProposal() {
 	var head []byte
 
 	{
-		gf, _ := util.NewGzipReader(f)
+		gf, _ := util.NewSafeGzipReadCloser(f)
 		br := bufio.NewReader(gf)
 		i, err := br.ReadBytes('\n')
 		t.NoError(err)
@@ -193,7 +194,7 @@ func (t *testLocalFSWriter) TestSave() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -279,6 +280,29 @@ func (t *testLocalFSWriter) TestSave() {
 
 		base.EqualBlockMap(t.Assert(), m, um)
 	})
+
+	t.Run("check files file", func() {
+		fpath := filepath.Join(filepath.Dir(newroot), base.BlockItemFilesName(point.Height()))
+		f, err := os.Open(fpath)
+		t.NoError(err)
+
+		var bfiles base.BlockItemFiles
+		t.NoError(encoder.DecodeReader(t.Enc, f, &bfiles))
+
+		check := func(t base.BlockItemType) bool {
+			_, found := bfiles.Item(t)
+
+			return found
+		}
+
+		t.True(check(base.BlockItemMap))
+		t.True(check(base.BlockItemProposal))
+		t.True(check(base.BlockItemVoteproofs))
+		t.False(check(base.BlockItemOperations))
+		t.False(check(base.BlockItemOperationsTree))
+		t.False(check(base.BlockItemStatesTree))
+		t.False(check(base.BlockItemStatesTree))
+	})
 }
 
 func (t *testLocalFSWriter) TestSaveAgain() {
@@ -286,7 +310,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -302,7 +326,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 	t.NotNil(m)
 
 	t.Run("save again", func() {
-		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -325,7 +349,7 @@ func (t *testLocalFSWriter) TestCancel() {
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -350,7 +374,7 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 
 	ivp, avp := t.Voteproofs(point)
 	t.Run("both", func() {
-		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
@@ -367,7 +391,7 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 	})
 
 	t.Run("without init", func() {
-		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
@@ -383,7 +407,7 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 	})
 
 	t.Run("without accept", func() {
-		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
@@ -402,7 +426,7 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 func (t *testLocalFSWriter) TestSetOperations() {
 	point := base.RawPoint(33, 44)
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	ops := make([]base.Operation, 33)
@@ -454,7 +478,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		g, err := util.NewGzipReader(f)
+		g, err := util.NewSafeGzipReadCloser(f)
 		t.NoError(err)
 		b, err := io.ReadAll(g)
 		t.NoError(err)
@@ -473,7 +497,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		g, err := util.NewGzipReader(f)
+		g, err := util.NewSafeGzipReadCloser(f)
 		t.NoError(err)
 		b, err := io.ReadAll(g)
 		t.NoError(err)
@@ -485,7 +509,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 func (t *testLocalFSWriter) TestSetStates() {
 	point := base.RawPoint(33, 44)
 
-	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	stts := make([]base.State, 33)
@@ -541,7 +565,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		g, err := util.NewGzipReader(f)
+		g, err := util.NewSafeGzipReadCloser(f)
 		t.NoError(err)
 		b, err := io.ReadAll(g)
 		t.NoError(err)
@@ -560,7 +584,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 		t.NoError(item.IsValid(nil))
 
 		// NOTE compare checksum
-		g, err := util.NewGzipReader(f)
+		g, err := util.NewSafeGzipReadCloser(f)
 		t.NoError(err)
 		b, err := io.ReadAll(g)
 		t.NoError(err)
@@ -575,7 +599,7 @@ func (t *testLocalFSWriter) TestRemove() {
 		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}))
 		_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
-		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Enc, t.Local, t.LocalParams.NetworkID())
 		if err != nil {
 			return err
 		}

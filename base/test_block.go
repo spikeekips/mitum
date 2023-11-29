@@ -340,7 +340,7 @@ func EqualBlockMap(t *assert.Assertions, a, b BlockMap) {
 
 	a.Items(func(ai BlockMapItem) bool {
 		bi, found := b.Item(ai.Type())
-		t.True(found)
+		t.True(found, ai.Type())
 
 		EqualBlockMapItem(t, ai, bi)
 

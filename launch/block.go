@@ -107,7 +107,7 @@ func NewBlockWriterFunc(
 	local base.LocalNode,
 	networkID base.NetworkID,
 	dataroot string,
-	enc encoder.Encoder,
+	jsonenc, enc encoder.Encoder,
 	db isaac.Database,
 	workersize int64,
 ) isaac.NewBlockWriterFunc {
@@ -122,7 +122,7 @@ func NewBlockWriterFunc(
 		fswriter, err := isaacblock.NewLocalFSWriter(
 			dataroot,
 			proposal.Point().Height(),
-			enc,
+			jsonenc, enc,
 			local,
 			networkID,
 		)

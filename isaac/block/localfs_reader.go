@@ -183,7 +183,7 @@ func (r *LocalFSReader) UncompressedReader(t base.BlockItemType) (io.ReadCloser,
 	}
 
 	if isCompressedBlockMapItemType(t) {
-		switch i, err := util.NewGzipReader(f); {
+		switch i, err := util.NewSafeGzipReadCloser(f); {
 		case err != nil:
 			return nil, false, err
 		default:
@@ -240,7 +240,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockItemType) (util.ChecksumReade
 		}
 
 		if isCompressedBlockMapItemType(t) {
-			switch i, err := util.NewGzipReader(f); {
+			switch i, err := util.NewSafeGzipReadCloser(f); {
 			case err != nil:
 				return nil, err
 			default:

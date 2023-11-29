@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -111,7 +113,10 @@ func (t *testBlockImporter) TestWriteProposal() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemProposal, r))
+	dr, err := util.NewCompressedReader(r, "gz", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemProposal, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -167,7 +172,10 @@ func (t *testBlockImporter) TestWriteOperations() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemOperations, r))
+	dr, err := util.NewCompressedReader(r, "gz", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemOperations, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -237,7 +245,10 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemOperationsTree, r))
+	dr, err := util.NewCompressedReader(r, "gz", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemOperationsTree, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -299,7 +310,10 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemVoteproofs, r))
+	dr, err := util.NewCompressedReader(r, "", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemVoteproofs, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -357,7 +371,10 @@ func (t *testBlockImporter) TestWriteStates() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemStates, r))
+	dr, err := util.NewCompressedReader(r, "gz", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemStates, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -431,7 +448,10 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 		checksum = cr.Checksum()
 	}
 
-	t.NoError(im.WriteItem(base.BlockItemStatesTree, r))
+	dr, err := util.NewCompressedReader(r, "gz", nil)
+	t.NoError(err)
+
+	t.NoError(im.WriteItem(base.BlockItemStatesTree, dr))
 
 	t.Run("in localfs", func() {
 		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -480,7 +500,15 @@ func (t *testBlockImporter) TestSave() {
 		t.NoError(err)
 		t.True(found)
 
-		t.NoError(im.WriteItem(item.Type(), r), "failed: %q", item.Type())
+		compressformat := ""
+		if isCompressedBlockMapItemType(item.Type()) {
+			compressformat = "gz"
+		}
+
+		dr, err := util.NewCompressedReader(r, compressformat, nil)
+		t.NoError(err)
+
+		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())
 
 		return true
 	})
@@ -509,6 +537,29 @@ func (t *testBlockImporter) TestSave() {
 
 			return true
 		})
+	})
+
+	t.Run("check files file", func() {
+		fpath := filepath.Join(filepath.Dir(newroot), filepath.Dir(HeightDirectory(point.Height())), base.BlockItemFilesName(point.Height()))
+		f, err := os.Open(fpath)
+		t.NoError(err)
+
+		var bfiles base.BlockItemFiles
+		t.NoError(encoder.DecodeReader(t.Enc, f, &bfiles))
+
+		check := func(t base.BlockItemType) bool {
+			_, found := bfiles.Item(t)
+
+			return found
+		}
+
+		t.True(check(base.BlockItemMap))
+		t.True(check(base.BlockItemProposal))
+		t.True(check(base.BlockItemVoteproofs))
+		t.True(check(base.BlockItemOperations))
+		t.True(check(base.BlockItemOperationsTree))
+		t.True(check(base.BlockItemStatesTree))
+		t.True(check(base.BlockItemStatesTree))
 	})
 }
 
@@ -542,7 +593,15 @@ func (t *testBlockImporter) TestCancelImport() {
 		t.NoError(err)
 		t.True(found)
 
-		t.NoError(im.WriteItem(item.Type(), r), "failed: %q", item.Type())
+		compressformat := ""
+		if isCompressedBlockMapItemType(item.Type()) {
+			compressformat = "gz"
+		}
+
+		dr, err := util.NewCompressedReader(r, compressformat, nil)
+		t.NoError(err)
+
+		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())
 
 		return true
 	})

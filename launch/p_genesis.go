@@ -56,7 +56,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	g := NewGenesisBlockGenerator(
 		local,
 		isaacparams.NetworkID(),
-		encs.Default(),
+		encs,
 		db,
 		LocalFSDataDirectory(design.Storage.Base),
 		genesisDesign.Facts,

@@ -102,6 +102,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 			local,
 			isaacparams.NetworkID(),
 			LocalFSDataDirectory(design.Storage.Base),
+			encs.JSON(),
 			encs.Default(),
 			db,
 			args.MaxWorkerSize,
