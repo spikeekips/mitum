@@ -925,7 +925,7 @@ func syncerBlockMapItemFunc(
 	}
 
 	return func(ctx context.Context, height base.Height, item base.BlockItemType,
-		f func(io.Reader, bool) error,
+		f func(io.Reader, bool, string) error,
 	) error {
 		e := util.StringError("fetch blockmap item")
 

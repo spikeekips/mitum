@@ -35,6 +35,7 @@ var (
 	CancelHandoverHeaderHint                = hint.MustNewHint("cancel-handover-header-v0.0.1")
 	HandoverMessageHeaderHint               = hint.MustNewHint("handover-message-header-v0.0.1")
 	CheckHandoverXHeaderHint                = hint.MustNewHint("check-handover-x-header-v0.0.1")
+	BlockItemResponseHeaderHint             = hint.MustNewHint("block-item-response-header-v0.0.1")
 )
 
 var (
@@ -871,8 +872,27 @@ func (h CheckHandoverXHeader) Address() base.Address {
 	return h.address
 }
 
-//revive:disable:cyclomatic
+type BlockItemResponseHeader struct {
+	compressFormat string
+	quicstreamheader.BaseResponseHeader
+}
 
+func NewBlockItemResponseHeader(ok bool, err error, compressFormat string) BlockItemResponseHeader {
+	return BlockItemResponseHeader{
+		BaseResponseHeader: quicstreamheader.NewBaseResponseHeader(BlockItemResponseHeaderHint, ok, err),
+		compressFormat:     compressFormat,
+	}
+}
+
+func (h BlockItemResponseHeader) IsValid([]byte) error {
+	return util.ErrInvalid.WithMessage(h.BaseResponseHeader.IsValid(nil), "BlockItemResponseHeader")
+}
+
+func (h BlockItemResponseHeader) CompressFormat() string {
+	return h.compressFormat
+}
+
+//revive:disable:cyclomatic
 func headerPrefixByHint(ht hint.Hint) [32]byte {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
@@ -926,6 +946,5 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 	default:
 		return [32]byte{}
 	}
+	//revive:enable:cyclomatic
 }
-
-//revive:enable:cyclomatic

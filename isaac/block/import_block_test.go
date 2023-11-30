@@ -247,10 +247,15 @@ func (t *testImportBlocks) TestImport() {
 
 			return m, found, err
 		},
-		func(_ context.Context, height base.Height, item base.BlockItemType, f func(io.Reader, bool) error) error {
+		func(_ context.Context, height base.Height, item base.BlockItemType, f func(io.Reader, bool, string) error) error {
 			reader, err := NewLocalFSReaderFromHeight(t.Root, height, t.Enc)
 			if err != nil {
 				return err
+			}
+
+			compressFormat := ""
+			if isCompressedBlockMapItemType(item) {
+				compressFormat = "gz"
 			}
 
 			r, found, err := reader.Reader(item)
@@ -258,7 +263,7 @@ func (t *testImportBlocks) TestImport() {
 				return err
 			}
 
-			return f(r, found)
+			return f(r, found, compressFormat)
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
 			bwdb, err := importdb.NewBlockWriteDatabase(m.Manifest().Height())

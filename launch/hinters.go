@@ -84,6 +84,7 @@ var Hinters = []encoder.DecodeDetail{
 
 	{Hint: isaacnetwork.AskHandoverHeaderHint, Instance: isaacnetwork.AskHandoverHeader{}},
 	{Hint: isaacnetwork.AskHandoverResponseHeaderHint, Instance: isaacnetwork.AskHandoverResponseHeader{}},
+	{Hint: isaacnetwork.BlockItemResponseHeaderHint, Instance: isaacnetwork.BlockItemResponseHeader{}},
 	{Hint: isaacnetwork.CancelHandoverHeaderHint, Instance: isaacnetwork.CancelHandoverHeader{}},
 	{Hint: isaacnetwork.CheckHandoverHeaderHint, Instance: isaacnetwork.CheckHandoverHeader{}},
 	{Hint: isaacnetwork.CheckHandoverXHeaderHint, Instance: isaacnetwork.CheckHandoverXHeader{}},

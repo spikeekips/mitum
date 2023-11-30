@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/bluele/gcache"
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
@@ -61,18 +62,35 @@ func ImportBlocks(
 		},
 		func(
 			_ context.Context, height base.Height, item base.BlockItemType,
-			f func(r io.Reader, found bool) error,
+			f func(r io.Reader, found bool, compressFormat string) error,
 		) error {
-			reader, err := getreader(height)
-			if err != nil {
+			var reader isaac.BlockReader
+
+			switch i, err := getreader(height); {
+			case err != nil:
 				return err
+			default:
+				reader = i
+			}
+
+			var compressFormat string
+
+			switch i, found, err := reader.BlockItemFiles(); {
+			case err != nil:
+				return err
+			case !found:
+				return errors.Errorf("block item files not found")
+			default:
+				if j, found := i.Item(item); found {
+					compressFormat = j.CompressFormat()
+				}
 			}
 
 			switch r, found, err := reader.Reader(item); {
 			case err != nil:
 				return err
 			default:
-				return f(r, found)
+				return f(r, found, compressFormat)
 			}
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {

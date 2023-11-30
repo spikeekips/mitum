@@ -305,3 +305,41 @@ func TestCheckHandoverXHeaderEncode(tt *testing.T) {
 
 	suite.Run(tt, t)
 }
+
+func TestBlockItemResponseHeaderEncode(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+	t.SetT(tt)
+
+	enc := jsonenc.NewEncoder()
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: BlockItemResponseHeaderHint, Instance: BlockItemResponseHeader{}}))
+
+	t.Encode = func() (interface{}, []byte) {
+		h := NewBlockItemResponseHeader(true, errors.Errorf("hehehe"), "bz")
+		t.NoError(h.IsValid(nil))
+
+		b, err := util.MarshalJSON(h)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return h, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		var u BlockItemResponseHeader
+		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(u.IsValid(nil))
+
+		return u
+	}
+	t.Compare = func(a interface{}, b interface{}) {
+		ah := a.(BlockItemResponseHeader)
+		bh := b.(BlockItemResponseHeader)
+
+		t.Equal(ah.Hint(), bh.Hint())
+		t.Equal(ah.CompressFormat(), bh.CompressFormat())
+		t.Equal(ah.OK(), bh.OK())
+		t.Equal(ah.Err().Error(), bh.Err().Error())
+	}
+
+	suite.Run(tt, t)
+}

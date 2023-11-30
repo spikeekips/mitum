@@ -17,7 +17,7 @@ import (
 type (
 	ImportBlocksBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	ImportBlocksBlockMapItemFunc func(
-		context.Context, base.Height, base.BlockItemType, func(io.Reader, bool) error,
+		context.Context, base.Height, base.BlockItemType, func(_ io.Reader, found bool, compressFormat string) error,
 	) error
 )
 

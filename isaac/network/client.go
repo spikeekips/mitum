@@ -456,7 +456,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 func (c *BaseClient) BlockMapItem(
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockItemType,
-	f func(io.Reader, bool) error,
+	f func(_ io.Reader, found bool, compressFormat string) error,
 ) error {
 	header := NewBlockMapItemRequestHeader(height, item)
 	header.SetClientID(c.ClientID())
@@ -477,7 +477,12 @@ func (c *BaseClient) BlockMapItem(
 		case h.Err() != nil:
 			return h.Err()
 		default:
-			return f(body, h.OK())
+			i, ok := h.(BlockItemResponseHeader)
+			if !ok {
+				return errors.Errorf("expect BlockItemResponseHeader, but %T", h)
+			}
+
+			return f(body, h.OK(), i.CompressFormat())
 		}
 	})
 }

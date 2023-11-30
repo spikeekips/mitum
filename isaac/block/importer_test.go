@@ -530,12 +530,12 @@ func (t *testBlockImporter) TestSave() {
 		t.NoError(err)
 		t.True(found)
 
-		compressformat := ""
+		compressFormat := ""
 		if isCompressedBlockMapItemType(item.Type()) {
-			compressformat = "gz"
+			compressFormat = "gz"
 		}
 
-		dr, err := util.NewCompressedReader(r, compressformat, nil)
+		dr, err := util.NewCompressedReader(r, compressFormat, nil)
 		t.NoError(err)
 
 		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())
@@ -623,12 +623,12 @@ func (t *testBlockImporter) TestCancelImport() {
 		t.NoError(err)
 		t.True(found)
 
-		compressformat := ""
+		compressFormat := ""
 		if isCompressedBlockMapItemType(item.Type()) {
-			compressformat = "gz"
+			compressFormat = "gz"
 		}
 
-		dr, err := util.NewCompressedReader(r, compressformat, nil)
+		dr, err := util.NewCompressedReader(r, compressFormat, nil)
 		t.NoError(err)
 
 		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())

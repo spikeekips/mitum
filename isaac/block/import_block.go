@@ -124,17 +124,12 @@ func importBlock(
 
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return blockMapItemf(ctx, height, item.Type(), func(r io.Reader, found bool) error {
+			return blockMapItemf(ctx, height, item.Type(), func(r io.Reader, found bool, compressFormat string) error {
 				switch {
 				case !found:
 					return e.Wrap(util.ErrNotFound.Errorf("blockMapItem not found"))
 				default:
-					compressformat := ""
-					if isCompressedBlockMapItemType(item.Type()) {
-						compressformat = "gz"
-					}
-
-					dr, err := util.NewCompressedReader(r, compressformat, nil)
+					dr, err := util.NewCompressedReader(r, compressFormat, nil)
 					if err != nil {
 						return e.Wrap(err)
 					}

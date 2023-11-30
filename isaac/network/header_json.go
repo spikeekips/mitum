@@ -832,3 +832,36 @@ func (h *CheckHandoverXHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 	return nil
 }
+
+type blockItemResponseHeaderJSONMarshaler struct {
+	CompressFormat string `json:"compress_format"`
+}
+
+func (h BlockItemResponseHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		blockItemResponseHeaderJSONMarshaler
+		quicstreamheader.BaseResponseHeaderJSONMarshaler
+	}{
+		BaseResponseHeaderJSONMarshaler: h.BaseResponseHeader.JSONMarshaler(),
+		blockItemResponseHeaderJSONMarshaler: blockItemResponseHeaderJSONMarshaler{
+			CompressFormat: h.compressFormat,
+		},
+	})
+}
+
+func (h *BlockItemResponseHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringError("unmarshal BlockItemResponseHeader")
+
+	if err := util.UnmarshalJSON(b, &h.BaseResponseHeader); err != nil {
+		return e.Wrap(err)
+	}
+
+	var u blockItemResponseHeaderJSONMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e.Wrap(err)
+	}
+
+	h.compressFormat = u.CompressFormat
+
+	return nil
+}

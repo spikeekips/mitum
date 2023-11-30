@@ -133,36 +133,56 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapItemString,
 		isaacnetwork.QuicstreamHandlerBlockMapItem(
-			func(height base.Height, item base.BlockItemType) (io.ReadCloser, bool, error) {
+			func(height base.Height, item base.BlockItemType) (io.ReadCloser, bool, string, error) {
 				e := util.StringError("get BlockMapItem")
 
 				var menc encoder.Encoder
 
 				switch m, found, err := db.BlockMap(height); {
 				case err != nil:
-					return nil, false, e.Wrap(err)
+					return nil, false, "", e.Wrap(err)
 				case !found:
-					return nil, false, e.Wrap(storage.ErrNotFound.Errorf("BlockMap not found"))
+					return nil, false, "", e.Wrap(storage.ErrNotFound.Errorf("BlockMap not found"))
 				default:
 					i, found := encs.Find(m.Encoder())
 					if !found {
-						return nil, false, e.Wrap(storage.ErrNotFound.Errorf("encoder of BlockMap not found"))
+						return nil, false, "", e.Wrap(storage.ErrNotFound.Errorf("encoder of BlockMap not found"))
 					}
 
 					menc = i
 				}
 
-				reader, err := isaacblock.NewLocalFSReaderFromHeight(
-					LocalFSDataDirectory(design.Storage.Base), height, menc,
-				)
-				if err != nil {
-					return nil, false, e.Wrap(err)
-				}
-				defer func() {
-					_ = reader.Close()
-				}()
+				var reader isaac.BlockReader
+				var compressFormat string
 
-				return reader.Reader(item)
+				switch i, err := isaacblock.NewLocalFSReaderFromHeight(
+					LocalFSDataDirectory(design.Storage.Base), height, menc,
+				); {
+				case err != nil:
+					return nil, false, "", e.Wrap(err)
+				default:
+					defer func() {
+						_ = i.Close()
+					}()
+
+					reader = i
+				}
+
+				switch i, found, err := reader.BlockItemFiles(); {
+				case err != nil, !found:
+					return nil, found, "", err
+				default:
+					t, found := i.Item(item)
+					if !found {
+						return nil, false, "", err
+					}
+
+					compressFormat = t.CompressFormat()
+				}
+
+				r, found, err := reader.Reader(item)
+
+				return r, found, compressFormat, err
 			},
 		), nil)
 
