@@ -22,16 +22,7 @@ var (
 	BlockItemFilesHint = hint.MustNewHint("block-item-files-v0.0.1")
 )
 
-var (
-	LocalFSBlockItemScheme          = "localfs"
-	supportedBlockMapItemURLSchemes = map[string]struct{}{
-		LocalFSBlockItemScheme: {},
-		"file":                 {},
-		"http":                 {},
-		"https":                {},
-	}
-	fileBlockURL = url.URL{Scheme: LocalFSBlockItemScheme}
-)
+var LocalFSBlockItemScheme = "localfs"
 
 var BlockDirectoryHeightFormat = "%021s"
 
@@ -209,20 +200,18 @@ func (m BlockMap) signedBytes() []byte {
 
 type BlockMapItem struct {
 	t        base.BlockItemType
-	url      url.URL
 	checksum string
 }
 
-func NewBlockMapItem(t base.BlockItemType, u url.URL, checksum string) BlockMapItem {
+func NewBlockMapItem(t base.BlockItemType, checksum string) BlockMapItem {
 	return BlockMapItem{
 		t:        t,
-		url:      u,
 		checksum: checksum,
 	}
 }
 
 func NewLocalBlockMapItem(t base.BlockItemType, checksum string) BlockMapItem {
-	return NewBlockMapItem(t, fileBlockURL, checksum)
+	return NewBlockMapItem(t, checksum)
 }
 
 func (item BlockMapItem) IsValid([]byte) error {
@@ -236,27 +225,11 @@ func (item BlockMapItem) IsValid([]byte) error {
 		return e.Errorf("empty checksum")
 	}
 
-	switch {
-	case len(item.url.String()) < 1:
-		return e.Errorf("empty url")
-	case len(item.url.Scheme) < 1:
-		return e.Errorf("empty url scheme")
-	default:
-		scheme := strings.ToLower(item.url.Scheme)
-		if _, found := supportedBlockMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
-			return e.Errorf("unsupported url scheme found, %q", scheme)
-		}
-	}
-
 	return nil
 }
 
 func (item BlockMapItem) Type() base.BlockItemType {
 	return item.t
-}
-
-func (item BlockMapItem) URL() *url.URL {
-	return &item.url
 }
 
 func (item BlockMapItem) Checksum() string {

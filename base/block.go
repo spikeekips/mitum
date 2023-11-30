@@ -36,7 +36,6 @@ type BlockMap interface {
 type BlockMapItem interface {
 	util.IsValider
 	Type() BlockItemType
-	URL() *url.URL
 	Checksum() string
 }
 
@@ -405,8 +404,6 @@ func IsEqualBlockMapItem(a, b BlockMapItem) error {
 	switch {
 	case a.Type() != b.Type():
 		return errors.Errorf("different blockmap item; %q != %q", a.Type(), b.Type())
-	case a.URL().String() != b.URL().String():
-		return errors.Errorf("different blockmap item url, %q; %q != %q", a.Type(), a.URL(), b.URL())
 	case a.Checksum() != b.Checksum():
 		return errors.Errorf(
 			"different blockmap item checksum, %q; %q != %q", a.Type(), a.Checksum(), b.Checksum())

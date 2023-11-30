@@ -350,6 +350,5 @@ func EqualBlockMap(t *assert.Assertions, a, b BlockMap) {
 
 func EqualBlockMapItem(t *assert.Assertions, a, b BlockMapItem) {
 	t.Equal(a.Type(), b.Type())
-	t.Equal(a.URL().String(), b.URL().String())
 	t.Equal(a.Checksum(), b.Checksum())
 }

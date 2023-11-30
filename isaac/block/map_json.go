@@ -83,21 +83,18 @@ func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 type blockMapItemJSONMarshaler struct {
 	Type     base.BlockItemType `json:"type"`
-	URL      string             `json:"url"`
 	Checksum string             `json:"checksum"`
 }
 
 func (item BlockMapItem) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(blockMapItemJSONMarshaler{
 		Type:     item.t,
-		URL:      item.url.String(),
 		Checksum: item.checksum,
 	})
 }
 
 type blockMapItemJSONUnmarshaler struct {
 	Type     base.BlockItemType `json:"type"`
-	URL      string             `json:"url"`
 	Checksum string             `json:"checksum"`
 }
 
@@ -107,13 +104,6 @@ func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)
-	}
-
-	switch i, err := url.Parse(u.URL); {
-	case err != nil:
-		return e.WithMessage(err, "parse url")
-	default:
-		item.url = *i
 	}
 
 	item.t = u.Type

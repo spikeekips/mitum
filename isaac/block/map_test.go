@@ -189,8 +189,7 @@ func (t *testBlockMap) TestVerify() {
 		t.True(found)
 		t.NotNil(olditem)
 
-		u := url.URL{Scheme: "https", Host: util.UUID().String(), Path: util.UUID().String()}
-		newitem := NewBlockMapItem(olditem.Type(), u, olditem.Checksum())
+		newitem := NewBlockMapItem(olditem.Type(), olditem.Checksum())
 		t.NoError(m.SetItem(newitem))
 
 		t.NoError(m.IsValid(t.networkID))
@@ -216,6 +215,8 @@ func (t *testBlockMap) TestEncode() {
 
 		b, err := tt.enc.Marshal(m)
 		tt.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return m, b
 	}
@@ -251,34 +252,20 @@ type testBlockMapItem struct {
 }
 
 func (t *testBlockMapItem) TestNew() {
-	u, err := url.Parse("file://showme")
-	t.NoError(err)
 	checksum := util.UUID().String()
 
-	item := NewBlockMapItem(base.BlockItemProposal, *u, checksum)
+	item := NewBlockMapItem(base.BlockItemProposal, checksum)
 	_ = (interface{})(item).(base.BlockMapItem)
 
 	t.NoError(item.IsValid(nil))
 
 	t.Equal(base.BlockItemProposal, item.Type())
-	t.Equal(u.String(), item.URL().String())
 	t.Equal(checksum, item.Checksum())
-}
-
-func (t *testBlockMapItem) TestLocal() {
-	ty := base.BlockItemProposal
-	m0 := NewLocalBlockMapItem(ty, util.UUID().String())
-	m1 := NewLocalBlockMapItem(ty, util.UUID().String())
-
-	t.T().Log("fileBlockURL:", fileBlockURL.String())
-	t.T().Log("m0.url:", m0.URL())
-	t.T().Log("m1.url:", m1.URL())
 }
 
 func (t *testBlockMapItem) TestInvalid() {
 	t.Run("invalid data type", func() {
-		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockItemType("findme"), *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemType("findme"), util.UUID().String())
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -286,38 +273,11 @@ func (t *testBlockMapItem) TestInvalid() {
 	})
 
 	t.Run("empty checksum", func() {
-		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockItemProposal, *u, "")
+		item := NewBlockMapItem(base.BlockItemProposal, "")
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty checksum")
-	})
-
-	t.Run("empty url", func() {
-		item := NewBlockMapItem(base.BlockItemProposal, url.URL{}, util.UUID().String())
-
-		err := item.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty url")
-	})
-
-	t.Run("empty url scheme", func() {
-		u, _ := url.Parse("showme")
-		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
-
-		err := item.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty url")
-	})
-
-	t.Run("unsupported url scheme", func() {
-		u, _ := url.Parse("showme://findme")
-		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
-
-		err := item.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "unsupported url scheme found")
 	})
 }
 
@@ -338,8 +298,7 @@ func TestBlockMapItemEncode(tt *testing.T) {
 	t := new(testBlockMapItemEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		u, _ := url.Parse("file://showme")
-		item := NewBlockMapItem(base.BlockItemProposal, *u, util.UUID().String())
+		item := NewBlockMapItem(base.BlockItemProposal, util.UUID().String())
 
 		b, err := t.enc.Marshal(item)
 		t.NoError(err)
