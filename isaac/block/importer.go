@@ -23,6 +23,7 @@ type (
 
 type BlockImporter struct {
 	m                        base.BlockMap
+	encs                     *encoder.Encoders
 	enc                      encoder.Encoder
 	bwdb                     isaac.BlockWriteDatabase
 	sufst                    base.State
@@ -60,6 +61,7 @@ func NewBlockImporter(
 	im := &BlockImporter{
 		root:                     root,
 		m:                        m,
+		encs:                     encs,
 		enc:                      enc,
 		localfs:                  localfs,
 		bwdb:                     bwdb,
@@ -237,9 +239,11 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 
 	var left uint64
 	var ops []util.Hash
+	var enc encoder.Encoder
+
 	br := r
 
-	switch i, _, _, count, err := readCountHeader(br); {
+	switch i, _, enchint, count, err := readCountHeader(br); {
 	case err != nil:
 		return err
 	case count < 1:
@@ -248,6 +252,13 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 		left = count
 		ops = make([]util.Hash, count)
 		br = i
+
+		j, found := im.encs.Find(enchint)
+		if !found {
+			return e.Errorf("unknown encoder, %q", enchint)
+		}
+
+		enc = j
 	}
 
 	if uint64(len(ops)) > im.batchlimit {
@@ -265,7 +276,7 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 		}
 	}
 
-	if err := LoadRawItems(br, im.enc.Decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItems(br, enc.Decode, func(_ uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -309,9 +320,11 @@ func (im *BlockImporter) importStates(r io.Reader) error {
 
 	var left uint64
 	var sts []base.State
+	var enc encoder.Encoder
+
 	br := r
 
-	switch i, _, _, count, err := readCountHeader(br); {
+	switch i, _, enchint, count, err := readCountHeader(br); {
 	case err != nil:
 		return err
 	case count < 1:
@@ -320,6 +333,13 @@ func (im *BlockImporter) importStates(r io.Reader) error {
 		left = count
 		sts = make([]base.State, count)
 		br = i
+
+		j, found := im.encs.Find(enchint)
+		if !found {
+			return e.Errorf("unknown encoder, %q", enchint)
+		}
+
+		enc = j
 	}
 
 	if uint64(len(sts)) > im.batchlimit {
@@ -328,7 +348,7 @@ func (im *BlockImporter) importStates(r io.Reader) error {
 
 	var index uint64
 
-	if err := LoadRawItems(br, im.enc.Decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItems(br, enc.Decode, func(_ uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("not State, %T", v)
@@ -378,8 +398,9 @@ func (im *BlockImporter) importStatesTree(r io.Reader) error {
 
 	var count uint64
 	var treehint hint.Hint
+	var enc encoder.Encoder
 
-	switch i, _, _, j, k, err := readTreeHeader(br); {
+	switch i, _, enchint, j, k, err := readTreeHeader(br); {
 	case err != nil:
 		return err
 	case j < 1:
@@ -388,9 +409,16 @@ func (im *BlockImporter) importStatesTree(r io.Reader) error {
 		br = i
 		count = j
 		treehint = k
+
+		j, found := im.encs.Find(enchint)
+		if !found {
+			return e.Errorf("unknown encoder, %q", enchint)
+		}
+
+		enc = j
 	}
 
-	tr, err := LoadTree(im.enc, count, treehint, br, func(i interface{}) (fixedtree.Node, error) {
+	tr, err := LoadTree(enc, count, treehint, br, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(fixedtree.Node)
 		if !ok {
 			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
@@ -410,16 +438,25 @@ func (im *BlockImporter) importStatesTree(r io.Reader) error {
 func (im *BlockImporter) importVoteproofs(r io.Reader) error {
 	e := util.StringError("import voteproofs")
 
+	var enc encoder.Encoder
+
 	br := r
 
-	switch i, _, _, err := readBaseHeader(br); {
+	switch i, _, enchint, err := readBaseHeader(br); {
 	case err != nil:
 		return err
 	default:
 		br = i
+
+		j, found := im.encs.Find(enchint)
+		if !found {
+			return e.Errorf("unknown encoder, %q", enchint)
+		}
+
+		enc = j
 	}
 
-	vps, err := LoadVoteproofsFromReader(br, im.enc.Decode)
+	vps, err := LoadVoteproofsFromReader(br, enc.Decode)
 	if err != nil {
 		return e.Wrap(err)
 	}
