@@ -23,14 +23,14 @@ var (
 )
 
 var (
-	LocalBlockMapScheme             = "file+block"
+	LocalFSBlockItemScheme          = "localfs"
 	supportedBlockMapItemURLSchemes = map[string]struct{}{
-		LocalBlockMapScheme: {},
-		"file":              {},
-		"http":              {},
-		"https":             {},
+		LocalFSBlockItemScheme: {},
+		"file":                 {},
+		"http":                 {},
+		"https":                {},
 	}
-	fileBlockURL = url.URL{Scheme: LocalBlockMapScheme}
+	fileBlockURL = url.URL{Scheme: LocalFSBlockItemScheme}
 )
 
 var BlockDirectoryHeightFormat = "%021s"
@@ -278,7 +278,7 @@ func NewBlockItemFile(uri url.URL, compressFormat string) BlockItemFile {
 }
 
 func NewLocalFSBlockItemFile(f string, compressFormat string) BlockItemFile {
-	uri := url.URL{Scheme: "localfs"}
+	uri := url.URL{Scheme: LocalFSBlockItemScheme}
 
 	if len(f) > 0 && !strings.HasPrefix(f, "/") {
 		uri.Path = "/" + f
@@ -299,7 +299,7 @@ func (f BlockItemFile) IsValid([]byte) error {
 	switch {
 	case len(f.uri.Scheme) < 1:
 		return util.ErrInvalid.Errorf("empty uri scheme")
-	case f.uri.Scheme == "localfs", f.uri.Scheme == "file":
+	case f.uri.Scheme == LocalFSBlockItemScheme, f.uri.Scheme == "file":
 		if len(f.uri.Path) < 1 {
 			return util.ErrInvalid.Errorf("empty filename in file uri")
 		}
@@ -317,7 +317,7 @@ func (f BlockItemFile) CompressFormat() string {
 		return f.compressFormat
 	}
 
-	if s := f.uri.Scheme; s != "localfs" && s != "file" {
+	if s := f.uri.Scheme; s != LocalFSBlockItemScheme && s != "file" {
 		return ""
 	}
 
