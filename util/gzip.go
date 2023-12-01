@@ -124,9 +124,17 @@ func NewCompressedReader(
 	}, nil
 }
 
+// Close only closes decompress Reader.
 func (r *CompressedReader) Close() error {
-	if i, ok := r.Reader.(io.Closer); ok {
-		return errors.WithStack(i.Close())
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.cr != nil {
+		if i, ok := r.cr.(io.Closer); ok {
+			if err := i.Close(); err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	}
 
 	return nil
