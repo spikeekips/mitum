@@ -124,6 +124,14 @@ func NewCompressedReader(
 	}, nil
 }
 
+func (r *CompressedReader) Close() error {
+	if i, ok := r.Reader.(io.Closer); ok {
+		return errors.WithStack(i.Close())
+	}
+
+	return nil
+}
+
 func (r *CompressedReader) Tee(tee io.Writer) (io.Reader, error) {
 	r.Lock()
 	defer r.Unlock()
