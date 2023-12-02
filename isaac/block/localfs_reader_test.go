@@ -111,7 +111,7 @@ func (t *testLocalFSReader) TestReader() {
 
 		var br io.Reader = f
 
-		switch i, _, _, err := readBaseHeader(br); {
+		switch i, _, _, err := loadBaseHeader(br); {
 		case err != nil:
 			t.NoError(err)
 		default:
@@ -189,7 +189,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 
 		var br io.Reader = f
 
-		switch i, _, _, err := readBaseHeader(br); {
+		switch i, _, _, err := loadBaseHeader(br); {
 		case err != nil:
 			t.NoError(err)
 		default:

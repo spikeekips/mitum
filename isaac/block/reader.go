@@ -2,9 +2,8 @@ package isaacblock
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"io"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -12,192 +11,202 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
-type NewBlockReaderFunc func(base.Height, encoder.Encoder) (isaac.BlockReader, error)
-
-type BlockReaders struct {
-	*hint.CompatibleSet[NewBlockReaderFunc]
+type ItemReader struct {
+	dr            io.Reader
+	enc           encoder.Encoder
+	r             *util.CompressedReader
+	t             base.BlockItemType
+	maxWorkerSize uint64
+	sync.Mutex
 }
 
-func NewBlockReaders() *BlockReaders {
-	return &BlockReaders{
-		CompatibleSet: hint.NewCompatibleSet[NewBlockReaderFunc](8), //nolint:gomnd //...
+func NewDefaultItemReaderFunc(workerSize uint64) NewItemReaderFunc {
+	return func(
+		t base.BlockItemType,
+		enc encoder.Encoder,
+		r *util.CompressedReader,
+	) (isaac.BlockItemReader, error) {
+		return &ItemReader{
+			t:             t,
+			enc:           enc,
+			r:             r,
+			maxWorkerSize: workerSize,
+		}, nil
 	}
 }
 
-func (rs *BlockReaders) Add(ht hint.Hint, v interface{}) error {
-	r, ok := v.(NewBlockReaderFunc)
-	if !ok {
-		f, ok := v.(func(base.Height, encoder.Encoder) (isaac.BlockReader, error))
-		if !ok {
-			return errors.Errorf("not valid NewBlockReaderFunc")
+func (r *ItemReader) Type() base.BlockItemType {
+	return r.t
+}
+
+func (r *ItemReader) Reader() *util.CompressedReader {
+	return r.r
+}
+
+func (r *ItemReader) Decode(f func(interface{}) error) error {
+	r.Lock()
+	defer r.Unlock()
+
+	if r.dr == nil {
+		switch i, err := r.r.Decompress(); {
+		case err != nil:
+			return err
+		default:
+			r.dr = i
 		}
-
-		r = NewBlockReaderFunc(f)
 	}
 
-	return rs.CompatibleSet.Add(ht, r)
+	switch r.t {
+	case base.BlockItemMap, base.BlockItemProposal:
+		return r.decodeOneItem(f)
+	case base.BlockItemOperations, base.BlockItemStates:
+		return r.decodeCountItems(f)
+	case base.BlockItemOperationsTree,
+		base.BlockItemStatesTree:
+		return r.decodeTree(f)
+	case base.BlockItemVoteproofs:
+		return r.decodeVoteproofs(f)
+	default:
+		return errors.Errorf("unknown block item, %q", r.t)
+	}
 }
 
-func LoadBlockReader(
-	readers *BlockReaders,
-	encs *encoder.Encoders,
-	writerhint, enchint hint.Hint,
-	height base.Height,
-) (isaac.BlockReader, error) {
-	e := util.StringError("load BlockReader")
-
-	f, found := readers.Find(writerhint)
-	if !found {
-		return nil, e.Errorf("unknown writer hint, %q", writerhint)
-	}
-
-	enc, found := encs.Find(enchint)
-	if !found {
-		return nil, e.Errorf("unknown encoder hint, %q", enchint)
-	}
-
-	return f(height, enc)
-}
-
-func LoadTree(
-	enc encoder.Encoder,
-	count uint64,
-	treehint hint.Hint,
-	f io.Reader,
-	callback func(interface{}) (fixedtree.Node, error),
-) (tr fixedtree.Tree, err error) {
-	if count < 1 {
-		return tr, nil
-	}
-
-	e := util.StringError("load tree")
-
-	br := bufio.NewReader(f)
-
-	nodes := make([]fixedtree.Node, count)
-	if tr, err = fixedtree.NewTree(treehint, nodes); err != nil {
-		return tr, e.Wrap(err)
-	}
-
-	if err := LoadRawItemsWithWorker(
-		br,
-		count,
-		func(b []byte) (interface{}, error) {
-			return unmarshalIndexedTreeNode(enc, b, treehint)
-		},
-		func(_ uint64, v interface{}) error {
-			in := v.(indexedTreeNode) //nolint:forcetypeassert //...
-			n, err := callback(in.Node)
-			if err != nil {
-				return err
-			}
-
-			return tr.Set(in.Index, n)
-		},
-	); err != nil {
-		return tr, e.Wrap(err)
-	}
-
-	return tr, nil
-}
-
-func LoadRawItems(
-	f io.Reader,
-	decode func([]byte) (interface{}, error),
-	callback func(uint64, interface{}) error,
-) error {
+func (r *ItemReader) decodeOneItem(f func(interface{}) error) error {
 	var br *bufio.Reader
-	if i, ok := f.(*bufio.Reader); ok {
+
+	switch i, _, err := readItemsHeader(r.dr); {
+	case err != nil:
+		return err
+	default:
 		br = i
-	} else {
-		br = bufio.NewReader(f)
 	}
 
-	var index uint64
-end:
-	for {
-		b, err := br.ReadBytes('\n')
+	var u interface{}
 
-		switch {
-		case err != nil && !errors.Is(err, io.EOF):
-			return errors.WithStack(err)
-		case len(b) < 1,
-			bytes.HasPrefix(b, []byte("# ")):
-		default:
-			v, eerr := decode(b)
-			if eerr != nil {
-				return errors.WithStack(eerr)
-			}
-
-			if eerr := callback(index, v); eerr != nil {
-				return eerr
-			}
-
-			index++
-		}
-
-		switch {
-		case err == nil:
-		case errors.Is(err, io.EOF):
-			break end
-		default:
-			return errors.WithStack(err)
-		}
-	}
-
-	return nil
-}
-
-func LoadRawItemsWithWorker(
-	f io.Reader,
-	num uint64,
-	decode func([]byte) (interface{}, error),
-	callback func(uint64, interface{}) error,
-) error {
-	worker, err := util.NewErrgroupWorker(context.Background(), int64(num))
-	if err != nil {
+	if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
 		return err
 	}
 
-	defer worker.Close()
+	return f(u)
+}
 
-	if err := LoadRawItems(f, decode, func(index uint64, v interface{}) error {
-		return worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return callback(index, v)
-		})
+func (r *ItemReader) decodeCountItems(f func(interface{}) error) error {
+	var br *bufio.Reader
+	var u countItemsHeader
+
+	switch i, err := loadItemsHeader(r.dr, &u); {
+	case err != nil:
+		return err
+	default:
+		br = i
+	}
+
+	if u.Count < 1 {
+		return f(nil)
+	}
+
+	workerSize := r.maxWorkerSize
+	if u.Count < workerSize {
+		workerSize = u.Count
+	}
+
+	l := make([]interface{}, u.Count)
+
+	if err := DecodeLineItemsWithWorker(br, workerSize, r.enc.Decode, func(index uint64, v interface{}) error {
+		l[index] = v
+
+		return nil
 	}); err != nil {
 		return err
 	}
 
-	worker.Done()
-
-	return worker.Wait()
+	return f(l)
 }
 
-func LoadTreeHint(br *bufio.Reader) (ht hint.Hint, _ error) {
-end:
-	for {
-		s, err := br.ReadString('\n')
+func (r *ItemReader) decodeTree(f func(interface{}) error) error {
+	var br *bufio.Reader
+	var u treeItemsHeader
 
-		switch {
-		case err != nil:
-			return ht, errors.WithStack(err)
-		case len(s) < 1:
-			continue end
-		}
-
-		ht, err = hint.ParseHint(s)
-		if err != nil {
-			return ht, errors.Wrap(err, "load tree hint")
-		}
-
-		if err := ht.IsValid(nil); err != nil {
-			return ht, errors.Wrap(err, "load tree hint")
-		}
-
-		return ht, nil
+	switch i, err := loadItemsHeader(r.dr, &u); {
+	case err != nil:
+		return err
+	default:
+		br = i
 	}
+
+	if u.Count < 1 {
+		return f(nil)
+	}
+
+	workerSize := r.maxWorkerSize
+	if u.Count < workerSize {
+		workerSize = u.Count
+	}
+
+	nodes := make([]fixedtree.Node, u.Count)
+
+	var tr fixedtree.Tree
+
+	switch i, err := fixedtree.NewTree(u.Tree, nodes); {
+	case err != nil:
+		return err
+	default:
+		tr = i
+	}
+
+	if err := DecodeLineItemsWithWorker(
+		br,
+		workerSize,
+		func(b []byte) (interface{}, error) {
+			return unmarshalIndexedTreeNode(r.enc, b, u.Tree)
+		},
+		func(_ uint64, v interface{}) error {
+			in, ok := v.(indexedTreeNode) //nolint:forcetypeassert //...
+			if !ok {
+				return errors.Errorf("not indexedTreeNode, %T", v)
+			}
+
+			return tr.Set(in.Index, in.Node)
+		},
+	); err != nil {
+		return err
+	}
+
+	return f(tr)
+}
+
+func (r *ItemReader) decodeVoteproofs(f func(interface{}) error) error {
+	var br *bufio.Reader
+
+	switch i, _, err := readItemsHeader(r.dr); {
+	case err != nil:
+		return err
+	default:
+		br = i
+	}
+
+	var vps [2]base.Voteproof
+
+	if err := DecodeLineItemsWithWorker(br, 2, r.enc.Decode, func(_ uint64, v interface{}) error {
+		switch t := v.(type) {
+		case base.INITVoteproof:
+			vps[0] = t
+		case base.ACCEPTVoteproof:
+			vps[1] = t
+		default:
+			return errors.Errorf("not voteproof, %T", v)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if vps[0] == nil || vps[1] == nil {
+		return errors.Errorf("missing")
+	}
+
+	return f(vps)
 }

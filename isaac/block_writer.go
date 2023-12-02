@@ -41,3 +41,9 @@ type BlockImporter interface {
 	CancelImport(context.Context) error
 	Reader() (BlockReader, error)
 }
+
+type BlockItemReader interface {
+	Type() base.BlockItemType
+	Reader() *util.CompressedReader
+	Decode(func(interface{}) error) error
+}

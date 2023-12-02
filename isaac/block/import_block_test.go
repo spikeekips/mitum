@@ -135,7 +135,7 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 
 	var last uint64
 
-	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
+	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("not State, %T", v)
@@ -166,7 +166,7 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 
 	var last uint64
 
-	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
+	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -195,7 +195,7 @@ func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.He
 
 	var vps [2]base.Voteproof
 
-	t.NoError(LoadRawItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
+	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
 		vp, ok := v.(base.Voteproof)
 		if !ok {
 			return errors.Errorf("not Voteproof, %T", v)

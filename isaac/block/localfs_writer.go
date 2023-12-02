@@ -992,7 +992,7 @@ func writeTreeHeader(f io.Writer, writer, enc hint.Hint, count uint64, tree hint
 	})
 }
 
-func readItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
+func readItemsHeader(f io.Reader) (br *bufio.Reader, _ []byte, _ error) {
 	if i, ok := f.(*bufio.Reader); ok {
 		br = i
 	} else {
@@ -1007,20 +1007,29 @@ func readItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
 		case errors.Is(err, io.EOF):
 			iseof = true
 		case err != nil:
-			return br, errors.WithStack(err)
+			return br, nil, errors.WithStack(err)
 		default:
 			b = i
 		}
 
 		if !bytes.HasPrefix(b, []byte("# ")) {
 			if iseof {
-				return br, nil
+				return br, nil, io.EOF
 			}
 
 			continue
 		}
 
-		if err := util.UnmarshalJSON(b[2:], v); err != nil {
+		return br, b[2:], nil
+	}
+}
+
+func loadItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
+	switch br, b, err := readItemsHeader(f); {
+	case err != nil:
+		return br, err
+	default:
+		if err := util.UnmarshalJSON(b, v); err != nil {
 			return br, err
 		}
 
@@ -1028,14 +1037,14 @@ func readItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
 	}
 }
 
-func readBaseHeader(f io.Reader) (
+func loadBaseHeader(f io.Reader) (
 	_ *bufio.Reader,
 	writer, enc hint.Hint,
 	_ error,
 ) {
 	var u baseItemsHeader
 
-	switch i, err := readItemsHeader(f, &u); {
+	switch i, err := loadItemsHeader(f, &u); {
 	case err != nil:
 		return nil, writer, enc, err
 	default:
@@ -1043,7 +1052,7 @@ func readBaseHeader(f io.Reader) (
 	}
 }
 
-func readCountHeader(f io.Reader) (
+func loadCountHeader(f io.Reader) (
 	_ *bufio.Reader,
 	writer, enc hint.Hint,
 	_ uint64,
@@ -1051,7 +1060,7 @@ func readCountHeader(f io.Reader) (
 ) {
 	var u countItemsHeader
 
-	switch i, err := readItemsHeader(f, &u); {
+	switch i, err := loadItemsHeader(f, &u); {
 	case err != nil:
 		return nil, writer, enc, 0, err
 	default:
@@ -1059,7 +1068,7 @@ func readCountHeader(f io.Reader) (
 	}
 }
 
-func readTreeHeader(f io.Reader) (
+func loadTreeHeader(f io.Reader) (
 	_ *bufio.Reader,
 	writer, enc hint.Hint,
 	_ uint64,
@@ -1068,7 +1077,7 @@ func readTreeHeader(f io.Reader) (
 ) {
 	var u treeItemsHeader
 
-	switch i, err := readItemsHeader(f, &u); {
+	switch i, err := loadItemsHeader(f, &u); {
 	case err != nil:
 		return nil, writer, enc, 0, tree, err
 	default:

@@ -357,7 +357,7 @@ func (r *LocalFSReader) item(t base.BlockItemType) (interface{}, bool, error) {
 func (r *LocalFSReader) loadItem(f io.Reader) (u interface{}, _ error) {
 	br := f
 
-	switch i, _, _, err := readBaseHeader(br); {
+	switch i, _, _, err := loadBaseHeader(br); {
 	case err != nil:
 		return nil, err
 	default:
@@ -393,7 +393,7 @@ func (r *LocalFSReader) loadOperations(f io.Reader) ([]base.Operation, error) {
 	var count uint64
 	br := f
 
-	switch i, _, _, j, err := readCountHeader(br); {
+	switch i, _, _, j, err := loadCountHeader(br); {
 	case err != nil:
 		return nil, err
 	case j < 1:
@@ -406,7 +406,7 @@ func (r *LocalFSReader) loadOperations(f io.Reader) ([]base.Operation, error) {
 
 	var last uint64
 
-	if err := LoadRawItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := DecodeLineItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -444,7 +444,7 @@ func (r *LocalFSReader) loadStates(f io.Reader) ([]base.State, error) {
 	var sts []base.State
 	br := f
 
-	switch i, _, _, j, err := readCountHeader(br); {
+	switch i, _, _, j, err := loadCountHeader(br); {
 	case err != nil:
 		return nil, err
 	case j < 1:
@@ -455,7 +455,7 @@ func (r *LocalFSReader) loadStates(f io.Reader) ([]base.State, error) {
 		br = i
 	}
 
-	if err := LoadRawItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := DecodeLineItemsWithWorker(br, count, r.enc.Decode, func(index uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("expected State, but %T", v)
@@ -485,7 +485,7 @@ func (r *LocalFSReader) loadTree(f io.Reader) (fixedtree.Tree, error) {
 	var count uint64
 	var treehint hint.Hint
 
-	switch i, _, _, j, k, err := readTreeHeader(br); {
+	switch i, _, _, j, k, err := loadTreeHeader(br); {
 	case err != nil:
 		return fixedtree.Tree{}, err
 	case j < 1:
@@ -509,7 +509,7 @@ func (r *LocalFSReader) loadTree(f io.Reader) (fixedtree.Tree, error) {
 func (r *LocalFSReader) loadVoteproofs(f io.Reader) (vps [2]base.Voteproof, _ error) {
 	br := f
 
-	switch i, _, _, err := readBaseHeader(br); {
+	switch i, _, _, err := loadBaseHeader(br); {
 	case err != nil:
 		return vps, err
 	default:
@@ -530,7 +530,7 @@ func LoadVoteproofsFromReader(
 ) (vps [2]base.Voteproof, _ error) {
 	e := util.StringError("load voteproofs")
 
-	if err := LoadRawItemsWithWorker(r, 2, decode, func(i uint64, v interface{}) error { //nolint:gomnd //...
+	if err := DecodeLineItemsWithWorker(r, 2, decode, func(i uint64, v interface{}) error { //nolint:gomnd //...
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t

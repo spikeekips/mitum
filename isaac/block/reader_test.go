@@ -1,85 +1,317 @@
 package isaacblock
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockReaders struct {
-	suite.Suite
+type testItemReader struct {
+	BaseTestLocalBlockFS
 }
 
-func (t *testBlockReaders) TestNew() {
-	readers := NewBlockReaders()
+func (t *testItemReader) prepare() (fixedtree.Tree, fixedtree.Tree) {
+	fs, _, _, opstree, _, sttstree, _ := t.PrepareFS(base.RawPoint(33, 0), nil, nil)
+	_, err := fs.Save(context.Background())
+	t.NoError(err)
 
-	t.Run("unknown", func() {
-		f, found := readers.Find(hint.MustNewHint("ab-v0.0.1"))
-		t.False(found)
-		t.Nil(f)
+	return opstree, sttstree
+}
+
+func (t *testItemReader) pick(it base.BlockItemType) *util.CompressedReader {
+	var compressFormat string
+	if isCompressedBlockMapItemType(it) {
+		compressFormat = "gz"
+	}
+
+	f := t.openFile(it)
+
+	cr, err := util.NewCompressedReader(f, compressFormat, nil)
+	t.NoError(err)
+
+	return cr
+}
+
+func (t *testItemReader) openFile(it base.BlockItemType) *os.File {
+	n, err := BlockFileName(it, t.Enc.Hint().Type().String())
+	t.NoError(err)
+
+	f, err := os.Open(filepath.Join(t.Root, HeightDirectory(33), n))
+	t.NoError(err)
+
+	return f
+}
+
+func (t *testItemReader) loadItem(it base.BlockItemType) (u interface{}) {
+	var f io.ReadCloser
+
+	f = t.openFile(it)
+	defer f.Close()
+
+	if isCompressedBlockMapItemType(it) {
+		i, err := gzip.NewReader(f)
+		t.NoError(err)
+		f = i
+	}
+
+	br, _, err := readItemsHeader(f)
+	t.NoError(err)
+
+	if isListBlockMapItemType(it) {
+		var n []interface{}
+
+		t.NoError(DecodeLineItems(br, t.Enc.Decode, func(index uint64, v interface{}) error {
+			n = append(n, v)
+
+			return nil
+		}))
+
+		return n
+	}
+
+	t.NoError(encoder.DecodeReader(t.Enc, br, &u))
+	return u
+}
+
+func (t *testItemReader) TestDecode() {
+	opstree, sttstree := t.prepare()
+
+	t.Run("blockmap", func() {
+		cr := t.pick(base.BlockItemMap)
+
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemMap, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemMap, reader.Type())
+		t.Equal("", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			i, ok := v.(base.BlockMap)
+			t.True(ok)
+
+			j, ok := t.loadItem(base.BlockItemMap).(base.BlockMap)
+			t.True(ok)
+
+			base.IsEqualBlockMap(j, i)
+
+			return nil
+		}))
 	})
 
-	t.Run("known", func() {
-		ht := hint.MustNewHint("abc-v0.0.1")
+	t.Run("proposal", func() {
+		cr := t.pick(base.BlockItemProposal)
 
-		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (isaac.BlockReader, error) { return nil, nil }))
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemProposal, t.Enc, cr)
+		t.NoError(err)
 
-		f, found := readers.Find(ht)
-		t.True(found)
-		t.NotNil(f)
+		t.Equal(base.BlockItemProposal, reader.Type())
+		t.Equal("gz", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			i, ok := v.(base.ProposalSignFact)
+			t.True(ok)
+
+			j, ok := t.loadItem(base.BlockItemProposal).(base.ProposalSignFact)
+			t.True(ok)
+
+			base.EqualProposalSignFact(t.Assert(), j, i)
+
+			return nil
+		}))
 	})
 
-	t.Run("compatible", func() {
-		ht := hint.MustNewHint("abc-v0.0.9")
+	t.Run("operations", func() {
+		cr := t.pick(base.BlockItemOperations)
 
-		f, found := readers.Find(ht)
-		t.True(found)
-		t.NotNil(f)
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemOperations, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemOperations, reader.Type())
+		t.Equal("gz", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			a, ok := v.([]interface{})
+			t.True(ok)
+
+			b, ok := t.loadItem(base.BlockItemOperations).([]interface{})
+			t.True(ok)
+
+			t.Equal(len(b), len(a))
+
+			for i := range a {
+				ao, ok := a[i].(base.Operation)
+				t.True(ok)
+				bo, ok := b[i].(base.Operation)
+				t.True(ok)
+
+				base.EqualOperation(t.Assert(), bo, ao)
+			}
+
+			return nil
+		}))
 	})
 
-	t.Run("not compatible", func() {
-		ht := hint.MustNewHint("abc-v1.0.1")
+	t.Run("states", func() {
+		cr := t.pick(base.BlockItemStates)
 
-		f, found := readers.Find(ht)
-		t.False(found)
-		t.Nil(f)
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemStates, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemStates, reader.Type())
+		t.Equal("gz", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			a, ok := v.([]interface{})
+			t.True(ok)
+
+			b, ok := t.loadItem(base.BlockItemStates).([]interface{})
+			t.True(ok)
+
+			t.Equal(len(b), len(a))
+
+			for i := range a {
+				ao, ok := a[i].(base.State)
+				t.True(ok)
+				bo, ok := b[i].(base.State)
+				t.True(ok)
+
+				t.True(base.IsEqualState(bo, ao))
+			}
+
+			return nil
+		}))
+	})
+
+	t.Run("operations_tree", func() {
+		cr := t.pick(base.BlockItemOperationsTree)
+
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemOperationsTree, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemOperationsTree, reader.Type())
+		t.Equal("gz", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			atr, ok := v.(fixedtree.Tree)
+			t.True(ok)
+
+			atr.Traverse(func(index uint64, a fixedtree.Node) (bool, error) {
+				b := opstree.Node(index)
+
+				t.True(a.Equal(b))
+
+				return true, nil
+			})
+
+			return nil
+		}))
+	})
+
+	t.Run("states_tree", func() {
+		cr := t.pick(base.BlockItemStatesTree)
+
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemStatesTree, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemStatesTree, reader.Type())
+		t.Equal("gz", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			atr, ok := v.(fixedtree.Tree)
+			t.True(ok)
+
+			atr.Traverse(func(index uint64, a fixedtree.Node) (bool, error) {
+				b := sttstree.Node(index)
+
+				t.True(a.Equal(b))
+
+				return true, nil
+			})
+
+			return nil
+		}))
+	})
+
+	t.Run("voteproofs", func() {
+		cr := t.pick(base.BlockItemVoteproofs)
+
+		f := NewDefaultItemReaderFunc(3)
+		reader, err := f(base.BlockItemVoteproofs, t.Enc, cr)
+		t.NoError(err)
+
+		t.Equal(base.BlockItemVoteproofs, reader.Type())
+		t.Equal("", reader.Reader().Format)
+
+		t.NoError(reader.Decode(func(v interface{}) error {
+			a, ok := v.([2]base.Voteproof)
+			t.True(ok)
+
+			b, ok := t.loadItem(base.BlockItemVoteproofs).([]interface{})
+			t.True(ok)
+
+			t.Equal(len(a), len(b))
+
+			for i := range a {
+				base.EqualVoteproof(t.Assert(), a[i], b[i].(base.Voteproof))
+			}
+			return nil
+		}))
 	})
 }
 
-func (t *testBlockReaders) TestLoadReader() {
-	enc := jsonenc.NewEncoder()
-	encs := encoder.NewEncoders(enc, enc)
+func (t *testItemReader) TestTee() {
+	t.prepare()
 
-	readers := NewBlockReaders()
+	cr := t.pick(base.BlockItemMap)
 
-	writerhint := hint.MustNewHint("writer-v0.0.1")
-	t.NoError(readers.Add(writerhint, func(base.Height, encoder.Encoder) (isaac.BlockReader, error) { return nil, errors.Errorf("findme") }))
+	f := NewDefaultItemReaderFunc(3)
+	reader, err := f(base.BlockItemMap, t.Enc, cr)
+	t.NoError(err)
 
-	t.Run("known", func() {
-		_, err := LoadBlockReader(readers, encs, writerhint, enc.Hint(), base.Height(66))
-		t.Error(err)
-		t.ErrorContains(err, "findme")
-	})
+	buf := bytes.NewBuffer(nil)
+	_, err = reader.Reader().Tee(buf)
+	t.NoError(err)
 
-	t.Run("unknown writer", func() {
-		_, err := LoadBlockReader(readers, encs, hint.MustNewHint("hehe-v0.0.1"), enc.Hint(), base.Height(66))
-		t.Error(err)
-		t.ErrorContains(err, "unknown writer hint")
-	})
+	t.Equal(base.BlockItemMap, reader.Type())
+	t.Equal("", reader.Reader().Format)
 
-	t.Run("unknown encodeer", func() {
-		_, err := LoadBlockReader(readers, encs, writerhint, hint.MustNewHint("hehe-v0.0.1"), base.Height(66))
-		t.Error(err)
-		t.ErrorContains(err, "unknown encoder hint")
-	})
+	t.NoError(reader.Decode(func(v interface{}) error {
+		i, ok := v.(base.BlockMap)
+		t.True(ok)
+
+		j, ok := t.loadItem(base.BlockItemMap).(base.BlockMap)
+		t.True(ok)
+
+		base.IsEqualBlockMap(j, i)
+
+		return nil
+	}))
+
+	of := t.openFile(base.BlockItemMap)
+	defer of.Close()
+
+	b, err := io.ReadAll(of)
+	t.NoError(err)
+
+	t.Equal(b, buf.Bytes())
 }
 
-func TestBlockReaders(t *testing.T) {
-	suite.Run(t, new(testBlockReaders))
+func TestItemReader(t *testing.T) {
+	suite.Run(t, new(testItemReader))
 }

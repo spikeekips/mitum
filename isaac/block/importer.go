@@ -243,7 +243,7 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 
 	br := r
 
-	switch i, _, enchint, count, err := readCountHeader(br); {
+	switch i, _, enchint, count, err := loadCountHeader(br); {
 	case err != nil:
 		return err
 	case count < 1:
@@ -276,7 +276,7 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 		}
 	}
 
-	if err := LoadRawItems(br, enc.Decode, func(_ uint64, v interface{}) error {
+	if err := DecodeLineItems(br, enc.Decode, func(_ uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -324,7 +324,7 @@ func (im *BlockImporter) importStates(r io.Reader) error {
 
 	br := r
 
-	switch i, _, enchint, count, err := readCountHeader(br); {
+	switch i, _, enchint, count, err := loadCountHeader(br); {
 	case err != nil:
 		return err
 	case count < 1:
@@ -348,7 +348,7 @@ func (im *BlockImporter) importStates(r io.Reader) error {
 
 	var index uint64
 
-	if err := LoadRawItems(br, enc.Decode, func(_ uint64, v interface{}) error {
+	if err := DecodeLineItems(br, enc.Decode, func(_ uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("not State, %T", v)
@@ -400,7 +400,7 @@ func (im *BlockImporter) importStatesTree(r io.Reader) error {
 	var treehint hint.Hint
 	var enc encoder.Encoder
 
-	switch i, _, enchint, j, k, err := readTreeHeader(br); {
+	switch i, _, enchint, j, k, err := loadTreeHeader(br); {
 	case err != nil:
 		return err
 	case j < 1:
@@ -442,7 +442,7 @@ func (im *BlockImporter) importVoteproofs(r io.Reader) error {
 
 	br := r
 
-	switch i, _, enchint, err := readBaseHeader(br); {
+	switch i, _, enchint, err := loadBaseHeader(br); {
 	case err != nil:
 		return err
 	default:
@@ -481,7 +481,7 @@ func (im *BlockImporter) importVoteproofs(r io.Reader) error {
 func (*BlockImporter) importOther(r io.Reader) error {
 	br := r
 
-	switch i, _, _, err := readBaseHeader(br); {
+	switch i, _, _, err := loadBaseHeader(br); {
 	case err != nil:
 		return err
 	default:
