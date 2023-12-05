@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -31,12 +32,21 @@ func (r *dummyItemReader) Reader() *util.CompressedReader {
 	return r.r
 }
 
-func (r *dummyItemReader) DecodeHeader(v interface{}) error {
-	return util.ErrNotImplemented.Errorf("decode header")
+func (r *dummyItemReader) Decode() (interface{}, error) {
+	switch i, err := r.r.Decompress(); {
+	case err != nil:
+		return nil, err
+	default:
+		_, err := io.ReadAll(i)
+
+		return nil, err
+	}
 }
 
-func (r *dummyItemReader) Decode(f func(interface{}) error) error {
-	return util.ErrNotImplemented.Errorf("decode")
+func (r *dummyItemReader) DecodeItems(f func(uint64, uint64, interface{}) error) (uint64, error) {
+	_, err := r.Decode()
+
+	return 0, err
 }
 
 func newItemReaderFunc(writerhint hint.Hint) NewItemReaderFunc {
@@ -61,6 +71,17 @@ func (t *testReaders) prepare(height base.Height) {
 	t.NoError(err)
 }
 
+func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.File {
+	fname, err := BlockFileName(it, t.Encs.JSON().Hint().Type().String())
+	t.NoError(err)
+	p := filepath.Join(t.Root, HeightDirectory(height), fname)
+
+	f, err := os.Open(p)
+	t.NoError(err)
+
+	return f
+}
+
 func (t *testReaders) updateItem(height base.Height, it base.BlockItemType, b []byte) {
 	fname, err := BlockFileName(it, t.Encs.JSON().Hint().Type().String())
 	t.NoError(err)
@@ -75,24 +96,19 @@ func (t *testReaders) updateItem(height base.Height, it base.BlockItemType, b []
 }
 
 func (t *testReaders) updateItemHeader(height base.Height, writerhint hint.Hint, it base.BlockItemType) {
-	fname, err := BlockFileName(it, t.Encs.JSON().Hint().Type().String())
-	t.NoError(err)
-
-	p := filepath.Join(t.Root, HeightDirectory(height), fname)
+	f := t.openFile(height, it)
 
 	// NOTE update writerhint
 	buf := bytes.NewBuffer(nil)
 	{
-		f, err := os.Open(p)
-		t.NoError(err)
-		defer f.Close()
-
 		switch br, _, _, err := loadBaseHeader(f); {
 		case err != nil:
 			t.NoError(err)
 		default:
 			io.Copy(buf, br)
 		}
+
+		f.Close()
 	}
 
 	t.NoError(writeBaseHeader(buf, baseItemsHeader{Writer: writerhint, Encoder: t.Encs.JSON().Hint()}))
@@ -100,7 +116,7 @@ func (t *testReaders) updateItemHeader(height base.Height, writerhint hint.Hint,
 	t.updateItem(height, it, buf.Bytes())
 }
 
-func (t *testReaders) TestNew() {
+func (t *testReaders) TestItem() {
 	height := base.Height(33)
 
 	t.prepare(height)
@@ -171,6 +187,86 @@ func (t *testReaders) TestNew() {
 		})
 		t.False(found)
 		t.NoError(err)
+	})
+}
+
+func (t *testReaders) TestItemFromReader() {
+	height := base.Height(33)
+
+	t.prepare(height)
+
+	readers := NewReaders(t.Root, t.Encs, nil)
+
+	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
+
+	t.Run("ok", func() {
+		f := t.openFile(height, base.BlockItemMap)
+		defer f.Close()
+
+		called := make(chan isaac.BlockItemReader, 1)
+		found, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+			called <- r
+
+			return nil
+		})
+		t.True(found)
+		t.NoError(err)
+
+		r := <-called
+		t.Equal(LocalFSWriterHint, r.(*dummyItemReader).ht)
+	})
+
+	t.Run("decode", func() {
+		ht := hint.MustNewHint("local-block-fs-writer-v0.1.1")
+
+		t.updateItemHeader(height, ht, base.BlockItemMap)
+		defer func() {
+			t.updateItemHeader(height, LocalFSWriterHint, base.BlockItemMap)
+		}()
+
+		f := t.openFile(height, base.BlockItemMap)
+		defer f.Close()
+
+		buf := bytes.NewBuffer(nil)
+		_, err := io.Copy(buf, f)
+		t.NoError(err)
+
+		_, err = f.Seek(0, 0)
+		t.NoError(err)
+
+		found, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+			rbuf := bytes.NewBuffer(nil)
+
+			_, err := r.Reader().Tee(rbuf, nil)
+			t.NoError(err)
+
+			_, err = r.Decode()
+			t.NoError(err)
+
+			t.Equal(buf.Bytes(), rbuf.Bytes())
+
+			return nil
+		})
+		t.True(found)
+		t.NoError(err)
+	})
+
+	t.Run("closed reader", func() {
+		ht := hint.MustNewHint("local-block-fs-writer-v0.1.1")
+
+		t.updateItemHeader(height, ht, base.BlockItemMap)
+		defer func() {
+			t.updateItemHeader(height, LocalFSWriterHint, base.BlockItemMap)
+		}()
+
+		f := t.openFile(height, base.BlockItemMap)
+		f.Close() // close
+
+		_, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+			return nil
+		})
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrClosed))
 	})
 }
 

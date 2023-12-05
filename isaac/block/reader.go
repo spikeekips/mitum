@@ -45,40 +45,64 @@ func (r *ItemReader) Reader() *util.CompressedReader {
 	return r.r
 }
 
-func (r *ItemReader) Decode(f func(interface{}) error) error {
+func (r *ItemReader) Decode() (interface{}, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	if r.dr == nil {
-		switch i, err := r.r.Decompress(); {
-		case err != nil:
-			return err
-		default:
-			r.dr = i
-		}
+	if err := r.decompressed(); err != nil {
+		return nil, err
 	}
 
 	switch r.t {
 	case base.BlockItemMap, base.BlockItemProposal:
-		return r.decodeOneItem(f)
+		return r.decodeOneItem()
 	case base.BlockItemOperations, base.BlockItemStates:
-		return r.decodeCountItems(f)
+		i, n, err := r.decodeCountItems(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return i[:n], nil
 	case base.BlockItemOperationsTree,
 		base.BlockItemStatesTree:
-		return r.decodeTree(f)
+		return r.decodeTree(nil)
 	case base.BlockItemVoteproofs:
-		return r.decodeVoteproofs(f)
+		return r.decodeVoteproofs()
 	default:
-		return errors.Errorf("unknown block item, %q", r.t)
+		return nil, errors.Errorf("unknown block item, %q", r.t)
 	}
 }
 
-func (r *ItemReader) decodeOneItem(f func(interface{}) error) error {
+func (r *ItemReader) DecodeItems(f func(uint64, uint64, interface{}) error) (uint64, error) {
+	r.Lock()
+	defer r.Unlock()
+
+	if err := r.decompressed(); err != nil {
+		return 0, err
+	}
+
+	switch r.t {
+	case base.BlockItemMap,
+		base.BlockItemProposal,
+		base.BlockItemVoteproofs,
+		base.BlockItemStatesTree,
+		base.BlockItemStatesTree:
+		return 0, errors.Errorf("unsupported items type, %q", r.t)
+	case base.BlockItemOperations, base.BlockItemStates:
+		_, n, err := r.decodeCountItems(f)
+
+		return n, err
+	default:
+		return 0, errors.Errorf("unknown block item, %q", r.t)
+	}
+}
+
+func (r *ItemReader) decodeOneItem() (interface{}, error) {
 	var br *bufio.Reader
 
 	switch i, _, err := readItemsHeader(r.dr); {
 	case err != nil:
-		return err
+		return nil, err
 	default:
 		br = i
 	}
@@ -86,25 +110,41 @@ func (r *ItemReader) decodeOneItem(f func(interface{}) error) error {
 	var u interface{}
 
 	if err := encoder.DecodeReader(r.enc, br, &u); err != nil {
-		return err
+		return nil, err
 	}
 
-	return f(u)
+	return u, nil
 }
 
-func (r *ItemReader) decodeCountItems(f func(interface{}) error) error {
+func (r *ItemReader) decodeCountItems(item func(uint64, uint64, interface{}) error) ([]interface{}, uint64, error) {
+	var l []interface{}
+
+	if item == nil {
+		var once sync.Once
+
+		item = func(total uint64, index uint64, v interface{}) error { //revive:disable-line:modifies-parameter
+			once.Do(func() {
+				l = make([]interface{}, total)
+			})
+
+			l[index] = v
+
+			return nil
+		}
+	}
+
 	var br *bufio.Reader
 	var u countItemsHeader
 
 	switch i, err := loadItemsHeader(r.dr, &u); {
 	case err != nil:
-		return err
+		return nil, 0, err
 	default:
 		br = i
 	}
 
 	if u.Count < 1 {
-		return f(nil)
+		return nil, 0, nil
 	}
 
 	workerSize := r.maxWorkerSize
@@ -112,32 +152,40 @@ func (r *ItemReader) decodeCountItems(f func(interface{}) error) error {
 		workerSize = u.Count
 	}
 
-	l := make([]interface{}, u.Count)
+	switch count, err := DecodeLineItemsWithWorker(
+		br, workerSize, r.enc.Decode,
+		func(index uint64, v interface{}) error {
+			return item(u.Count, index, v)
+		},
+	); {
+	case err != nil:
+		return nil, 0, err
+	default:
+		if l != nil {
+			l = l[:count]
+		}
 
-	if err := DecodeLineItemsWithWorker(br, workerSize, r.enc.Decode, func(index uint64, v interface{}) error {
-		l[index] = v
-
-		return nil
-	}); err != nil {
-		return err
+		return l, count, nil
 	}
-
-	return f(l)
 }
 
-func (r *ItemReader) decodeTree(f func(interface{}) error) error {
+func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (tr fixedtree.Tree, _ error) {
+	if item == nil {
+		item = func(uint64, uint64, interface{}) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
 	var br *bufio.Reader
 	var u treeItemsHeader
 
 	switch i, err := loadItemsHeader(r.dr, &u); {
 	case err != nil:
-		return err
+		return tr, err
 	default:
 		br = i
 	}
 
 	if u.Count < 1 {
-		return f(nil)
+		return tr, nil
 	}
 
 	workerSize := r.maxWorkerSize
@@ -147,49 +195,51 @@ func (r *ItemReader) decodeTree(f func(interface{}) error) error {
 
 	nodes := make([]fixedtree.Node, u.Count)
 
-	var tr fixedtree.Tree
-
 	switch i, err := fixedtree.NewTree(u.Tree, nodes); {
 	case err != nil:
-		return err
+		return tr, err
 	default:
 		tr = i
 	}
 
-	if err := DecodeLineItemsWithWorker(
+	if _, err := DecodeLineItemsWithWorker(
 		br,
 		workerSize,
 		func(b []byte) (interface{}, error) {
 			return unmarshalIndexedTreeNode(r.enc, b, u.Tree)
 		},
-		func(_ uint64, v interface{}) error {
+		func(index uint64, v interface{}) error {
 			in, ok := v.(indexedTreeNode) //nolint:forcetypeassert //...
 			if !ok {
 				return errors.Errorf("not indexedTreeNode, %T", v)
 			}
 
+			if err := item(u.Count, in.Index, in.Node); err != nil {
+				return err
+			}
+
 			return tr.Set(in.Index, in.Node)
 		},
 	); err != nil {
-		return err
+		return tr, err
 	}
 
-	return f(tr)
+	return tr, nil
 }
 
-func (r *ItemReader) decodeVoteproofs(f func(interface{}) error) error {
+func (r *ItemReader) decodeVoteproofs() (interface{}, error) {
 	var br *bufio.Reader
 
 	switch i, _, err := readItemsHeader(r.dr); {
 	case err != nil:
-		return err
+		return nil, err
 	default:
 		br = i
 	}
 
 	var vps [2]base.Voteproof
 
-	if err := DecodeLineItemsWithWorker(br, 2, r.enc.Decode, func(_ uint64, v interface{}) error {
+	if _, err := DecodeLineItemsWithWorker(br, 2, r.enc.Decode, func(_ uint64, v interface{}) error {
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t
@@ -201,12 +251,25 @@ func (r *ItemReader) decodeVoteproofs(f func(interface{}) error) error {
 
 		return nil
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	if vps[0] == nil || vps[1] == nil {
-		return errors.Errorf("missing")
+		return nil, errors.Errorf("missing")
 	}
 
-	return f(vps)
+	return vps, nil
+}
+
+func (r *ItemReader) decompressed() error {
+	if r.dr == nil {
+		switch i, err := r.r.Decompress(); {
+		case err != nil:
+			return err
+		default:
+			r.dr = i
+		}
+	}
+
+	return nil
 }

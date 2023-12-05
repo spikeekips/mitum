@@ -1,8 +1,11 @@
 package util
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 func CleanDirectory(root string, filter func(path string) bool) error {
@@ -35,4 +38,56 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 	}
 
 	return nil
+}
+
+type BufferedResetReader struct {
+	io.Reader
+	r   io.Reader
+	buf *bytes.Buffer
+	sync.RWMutex
+}
+
+func NewBufferedResetReader(r io.Reader) *BufferedResetReader {
+	buf := bytes.NewBuffer(nil)
+
+	return &BufferedResetReader{
+		Reader: io.TeeReader(r, buf),
+		r:      r,
+		buf:    buf,
+	}
+}
+
+func (s *BufferedResetReader) Close() error {
+	s.Lock()
+	defer s.Unlock()
+
+	s.buf.Reset()
+	s.buf = nil
+
+	return nil
+}
+
+func (s *BufferedResetReader) Reset() {
+	s.Lock()
+	defer s.Unlock()
+
+	switch {
+	case s.buf == nil:
+		return
+	case s.buf.Len() < 1:
+		s.Reader = s.r
+	default:
+		s.Reader = io.MultiReader(s.buf, s.r)
+	}
+}
+
+func (s *BufferedResetReader) Read(p []byte) (int, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.buf == nil {
+		return 0, os.ErrClosed
+	}
+
+	return s.Reader.Read(p) //nolint:wrapcheck //...
 }

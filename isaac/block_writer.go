@@ -36,14 +36,14 @@ type BlockReader interface {
 
 type BlockImporter interface {
 	WriteMap(base.BlockMap) error
-	WriteItem(base.BlockItemType, *util.CompressedReader) error
+	WriteItem(base.BlockItemType, BlockItemReader) error
 	Save(context.Context) (func(context.Context) error, error)
 	CancelImport(context.Context) error
-	Reader() (BlockReader, error)
 }
 
 type BlockItemReader interface {
 	Type() base.BlockItemType
 	Reader() *util.CompressedReader
-	Decode(func(interface{}) error) error
+	Decode() (interface{}, error)
+	DecodeItems(func(total uint64, index uint64, _ interface{}) error) (count uint64, _ error)
 }

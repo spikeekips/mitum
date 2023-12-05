@@ -24,7 +24,7 @@ type ChecksumWriter interface {
 }
 
 type HashChecksumWriter struct {
-	w        io.WriteCloser
+	w        io.Writer
 	h        hash.Hash
 	m        io.Writer
 	fname    string
@@ -32,7 +32,7 @@ type HashChecksumWriter struct {
 	sync.Mutex
 }
 
-func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChecksumWriter {
+func NewHashChecksumWriterWithWriter(fname string, w io.Writer, h hash.Hash) *HashChecksumWriter {
 	return &HashChecksumWriter{
 		m:     io.MultiWriter(h, w),
 		w:     w,
@@ -41,9 +41,19 @@ func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChe
 	}
 }
 
+func NewHashChecksumWriter(h hash.Hash) *HashChecksumWriter {
+	return &HashChecksumWriter{
+		m: h,
+		w: io.Discard,
+		h: h,
+	}
+}
+
 func (w *HashChecksumWriter) Close() error {
-	if err := w.w.Close(); err != nil {
-		return errors.WithStack(err)
+	if i, ok := w.w.(io.Closer); ok {
+		if err := i.Close(); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil

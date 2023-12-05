@@ -9,7 +9,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
@@ -85,31 +84,21 @@ func (er *ErrValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
 }
 
 func ValidateLastBlocks(
-	localfsroot string,
-	localfsencs *encoder.Encoders,
-	defaultLocalfsencs encoder.Encoder,
+	readers *Readers,
 	db isaac.Database,
 	networkID base.NetworkID,
 ) error {
 	var lastmapdb, lastmaplocalfs base.BlockMap
-
-	localfsenc := defaultLocalfsencs
 
 	switch i, found, err := loadLastBlockMapFromDatabase(db, networkID); {
 	case err != nil:
 		return errors.WithMessage(err, "last BlockMap from database")
 	case !found:
 	default:
-		j, found := localfsencs.Find(i.Encoder())
-		if !found {
-			return errors.Errorf("encoder of last blockmap not found")
-		}
-
 		lastmapdb = i
-		localfsenc = j
 	}
 
-	switch last, found, err := loadLastBlockMapFromLocalFS(localfsroot, localfsenc, networkID); {
+	switch last, found, err := loadLastBlockMapFromLocalFS(readers, networkID); {
 	case err != nil:
 		return errors.WithMessage(err, "find last height from localfs")
 	case !found:
@@ -156,13 +145,12 @@ func loadLastBlockMapFromDatabase(db isaac.Database, networkID base.NetworkID) (
 }
 
 func loadLastBlockMapFromLocalFS(
-	localfsroot string,
-	localfsenc encoder.Encoder,
+	readers *Readers,
 	networkID base.NetworkID,
 ) (base.BlockMap, bool, error) {
 	var last base.Height
 
-	switch i, found, err := FindLastHeightFromLocalFS(localfsroot, localfsenc, networkID); {
+	switch i, found, err := FindLastHeightFromLocalFS(readers, networkID); {
 	case err != nil:
 		return nil, false, err
 	case !found:
@@ -171,27 +159,9 @@ func loadLastBlockMapFromLocalFS(
 		last = i
 	}
 
-	reader, err := NewLocalFSReaderFromHeight(localfsroot, last, localfsenc)
-	if err != nil {
-		return nil, false, err
-	}
-
-	switch i, found, err := loadBlockMapFromReader(reader, networkID); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
-	default:
-		return i, true, nil
-	}
-}
-
-func loadBlockMapFromReader(reader *LocalFSReader, networkID base.NetworkID) (base.BlockMap, bool, error) {
-	switch i, found, err := reader.BlockMap(); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
+	switch i, found, err := ReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil); {
+	case err != nil, !found:
+		return nil, found, err
 	default:
 		if err := i.IsValid(networkID); err != nil {
 			return nil, false, err
@@ -202,14 +172,13 @@ func loadBlockMapFromReader(reader *LocalFSReader, networkID base.NetworkID) (ba
 }
 
 func ValidateAllBlockMapsFromLocalFS(
-	dataroot string,
-	enc encoder.Encoder,
+	readers *Readers,
 	last base.Height,
 	networkID base.NetworkID,
 ) error {
 	e := util.StringError("validate localfs")
 
-	switch fi, err := os.Stat(dataroot); {
+	switch fi, err := os.Stat(readers.Root()); {
 	case err != nil:
 		return e.Wrap(err)
 	case !fi.IsDir():
@@ -241,22 +210,13 @@ func ValidateAllBlockMapsFromLocalFS(
 
 			var m base.BlockMap
 
-			switch reader, err := NewLocalFSReaderFromHeight(dataroot, height, enc); {
+			switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
 			case err != nil:
 				return err
+			case !found:
+				return util.ErrNotFound.Errorf("blockmap")
 			default:
-				switch j, found, err := reader.BlockMap(); {
-				case err != nil:
-					return err
-				case !found:
-					return util.ErrNotFound.Errorf("BlockMap not found")
-				default:
-					if err := j.IsValid(networkID); err != nil {
-						return err
-					}
-
-					m = j
-				}
+				m = i
 			}
 
 			if m.Manifest().Height() != height {
@@ -288,9 +248,8 @@ func ValidateAllBlockMapsFromLocalFS(
 }
 
 func ValidateBlockFromLocalFS(
+	readers *Readers,
 	height base.Height,
-	dataroot string,
-	enc encoder.Encoder,
 	networkID base.NetworkID,
 	validateBlockMapf func(base.BlockMap) error,
 	validateOperationf func(base.Operation) error,
@@ -298,22 +257,13 @@ func ValidateBlockFromLocalFS(
 ) error {
 	e := util.StringError("validate imported block")
 
-	var reader *LocalFSReader
-
-	switch i, err := NewLocalFSReaderFromHeight(dataroot, height, enc); {
-	case err != nil:
-		return e.Wrap(err)
-	default:
-		reader = i
-	}
-
 	var m base.BlockMap
 
-	switch i, found, err := loadBlockMapFromReader(reader, networkID); {
+	switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
-		return e.Wrap(util.ErrNotFound.Errorf("BlockMap not found"))
+		return e.Wrap(util.ErrNotFound.Errorf("blockmap"))
 	default:
 		if err := i.IsValid(networkID); err != nil {
 			return err
@@ -328,7 +278,7 @@ func ValidateBlockFromLocalFS(
 		m = i
 	}
 
-	pr, ops, sts, opstree, ststree, vps, err := loadBlockItemsFromReader(reader)
+	pr, ops, sts, opstree, ststree, vps, err := loadBlockItemsFromReader(readers, height)
 	if err != nil {
 		return err
 	}
@@ -352,7 +302,7 @@ func ValidateBlockFromLocalFS(
 	return validateVoteproofsFromLocalFS(networkID, vps, m.Manifest())
 }
 
-func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:function-result-limit
+func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:disable-line:function-result-limit
 	pr base.ProposalSignFact,
 	ops []base.Operation,
 	sts []base.State,
@@ -360,14 +310,29 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 	vps [2]base.Voteproof,
 	rerr error,
 ) {
-	err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
-		switch {
+	var bm base.BlockMap
+
+	switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+	case err != nil:
+		return pr, ops, sts, opstree, ststree, vps, err
+	case !found:
+		return pr, ops, sts, opstree, ststree, vps, util.ErrNotFound.Errorf("blockmap")
+	default:
+		bm = i
+	}
+
+	bm.Items(func(item base.BlockMapItem) bool {
+		var i interface{}
+
+		switch v, found, err := ReadersDecode[interface{}](readers, height, item.Type(), nil); {
 		case err != nil:
 			rerr = err
 		case !found:
-			rerr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
-		case i == nil:
+			rerr = util.ErrNotFound.Errorf("BlockMapItem, %q", item.Type())
+		case v == nil:
 			rerr = util.ErrNotFound.Errorf("empty BlockMapItem found, %q", item.Type())
+		default:
+			i = v
 		}
 
 		if rerr != nil {
@@ -391,9 +356,6 @@ func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:fun
 
 		return rerr == nil
 	})
-	if err != nil {
-		rerr = err
-	}
 
 	return pr, ops, sts, opstree, ststree, vps, rerr
 }
@@ -499,9 +461,8 @@ func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Votepro
 }
 
 func ValidateBlocksFromStorage(
-	root string,
+	readers *Readers,
 	fromHeight, toHeight base.Height,
-	enc encoder.Encoder,
 	networkID base.NetworkID,
 	db isaac.Database,
 	whenBlockDonef func(base.BlockMap, error) error,
@@ -528,7 +489,7 @@ func ValidateBlocksFromStorage(
 				mapdb = i
 			}
 
-			err := ValidateBlockFromLocalFS(height, root, enc, networkID,
+			err := ValidateBlockFromLocalFS(readers, height, networkID,
 				func(m base.BlockMap) error {
 					return base.IsEqualBlockMap(mapdb, m)
 				},

@@ -24,7 +24,7 @@ import (
 
 type DummyBlockImporter struct {
 	WriteMapf     func(base.BlockMap) error
-	WriteItemf    func(base.BlockItemType, io.Reader) error
+	WriteItemf    func(base.BlockItemType, isaac.BlockItemReader) error
 	Savef         func(context.Context) (func(context.Context) error, error)
 	Mergef        func(context.Context) error
 	CancelImportf func(context.Context) error
@@ -42,9 +42,9 @@ func (im *DummyBlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *DummyBlockImporter) WriteItem(item base.BlockItemType, r *util.CompressedReader) error {
+func (im *DummyBlockImporter) WriteItem(item base.BlockItemType, ir isaac.BlockItemReader) error {
 	if im.WriteItemf != nil {
-		return im.WriteItemf(item, r)
+		return im.WriteItemf(item, ir)
 	}
 
 	return nil
@@ -77,6 +77,7 @@ func (im *DummyBlockImporter) CancelImport(ctx context.Context) error {
 type BaseTestLocalBlockFS struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
+	Readers *Readers
 }
 
 func (t *BaseTestLocalBlockFS) SetupSuite() {
@@ -102,6 +103,14 @@ func (t *BaseTestLocalBlockFS) SetupSuite() {
 func (t *BaseTestLocalBlockFS) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
+	t.Readers = t.NewReaders(t.Root)
+}
+
+func (t *BaseTestLocalBlockFS) NewReaders(root string) *Readers {
+	readers := NewReaders(root, t.Encs, nil)
+	t.NoError(readers.Add(LocalFSWriterHint, NewDefaultItemReaderFunc(3)))
+
+	return readers
 }
 
 func (t *BaseTestLocalBlockFS) Voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {

@@ -14,15 +14,15 @@ func ImportBlocks(
 	ctx context.Context,
 	from, to base.Height,
 	batchlimit int64,
+	readers *Readers,
 	blockMapf ImportBlocksBlockMapFunc,
-	blockMapItemf ImportBlocksBlockMapItemFunc,
+	blockItemf ImportBlocksBlockMapItemFunc,
 	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
-	setLastVoteproofsFunc func(isaac.BlockReader) error,
+	setLastVoteproofsFunc func([2]base.Voteproof, bool) error,
 	mergeBlockWriterDatabasesf func(context.Context) error,
 ) error {
 	e := util.StringError("import blocks; %d - %d", from, to)
 
-	var lastim isaac.BlockImporter
 	var ims []isaac.BlockImporter
 
 	if err := util.BatchWork(
@@ -61,15 +61,11 @@ func ImportBlocks(
 				return err
 			}
 
-			if err := importBlock(ctx, height, m, im, blockMapItemf); err != nil {
+			if err := importBlock(ctx, height, m, im, readers, blockItemf); err != nil {
 				return err
 			}
 
 			ims[(height-from).Int64()%batchlimit] = im
-
-			if height == to {
-				lastim = im
-			}
 
 			return nil
 		},
@@ -83,12 +79,12 @@ func ImportBlocks(
 		}
 	}
 
-	switch reader, err := lastim.Reader(); {
-	case err != nil:
-		return e.Wrap(err)
-	case setLastVoteproofsFunc != nil:
-		if err := setLastVoteproofsFunc(reader); err != nil {
-			return e.Wrap(err)
+	if setLastVoteproofsFunc != nil {
+		switch vps, found, err := ReadersDecode[[2]base.Voteproof](readers, to, base.BlockItemVoteproofs, nil); {
+		case err != nil:
+			return e.WithMessage(err, "last voteproof")
+		default:
+			return setLastVoteproofsFunc(vps, found)
 		}
 	}
 
@@ -100,6 +96,7 @@ func importBlock(
 	height base.Height,
 	m base.BlockMap,
 	im isaac.BlockImporter,
+	readers *Readers,
 	blockMapItemf ImportBlocksBlockMapItemFunc,
 ) error {
 	e := util.StringError("import block, %d", height)
@@ -125,16 +122,24 @@ func importBlock(
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 			return blockMapItemf(ctx, height, item.Type(), func(r io.Reader, found bool, compressFormat string) error {
-				switch {
-				case !found:
-					return e.Wrap(util.ErrNotFound.Errorf("blockMapItem not found"))
-				default:
-					dr, err := util.NewCompressedReader(r, compressFormat, nil)
-					if err != nil {
-						return e.Wrap(err)
-					}
+				if !found {
+					return e.Wrap(util.ErrNotFound.Errorf("blockItem not found, %q", item.Type()))
+				}
 
-					return im.WriteItem(item.Type(), dr)
+				switch found, err := readers.ItemFromReader(
+					item.Type(),
+					r,
+					compressFormat,
+					func(ir isaac.BlockItemReader) error {
+						return im.WriteItem(ir.Type(), ir)
+					},
+				); {
+				case err != nil:
+					return e.Wrap(err)
+				case !found:
+					return e.Wrap(util.ErrNotFound.Errorf("blockItem not found"))
+				default:
+					return nil
 				}
 			})
 		}); err != nil {

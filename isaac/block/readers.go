@@ -13,16 +13,177 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 	"golang.org/x/sync/singleflight"
 )
+
+type ItemReaderFunc func(
+	base.Height,
+	base.BlockItemType,
+	func(isaac.BlockItemReader) error,
+) (bool, error)
 
 type NewItemReaderFunc func(
 	base.BlockItemType,
 	encoder.Encoder,
 	*util.CompressedReader,
 ) (isaac.BlockItemReader, error)
+
+func ReadersDecode[T any](
+	readers *Readers,
+	height base.Height,
+	t base.BlockItemType,
+	f func(ir isaac.BlockItemReader) error,
+) (target T, _ bool, _ error) {
+	if f == nil {
+		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
+		if err := f(ir); err != nil {
+			return err
+		}
+
+		switch i, err := ir.Decode(); {
+		case err != nil:
+			return err
+		default:
+			v, ok := i.(T)
+			if !ok {
+				return errors.Errorf("expected %T, but %T", target, i)
+			}
+
+			target = v
+
+			return nil
+		}
+	}); {
+	case err != nil, !found:
+		return target, found, err
+	default:
+		return target, true, nil
+	}
+}
+
+func ReadersDecodeItems[T any](
+	readers *Readers,
+	height base.Height,
+	t base.BlockItemType,
+	item func(uint64, uint64, T) error,
+	f func(ir isaac.BlockItemReader) error,
+) (count uint64, _ bool, _ error) {
+	if f == nil {
+		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	var target T
+
+	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
+		if err := f(ir); err != nil {
+			return err
+		}
+
+		switch i, err := ir.DecodeItems(func(total, index uint64, v interface{}) error {
+			i, ok := v.(T)
+			if !ok {
+				return errors.Errorf("expected %T, but %T", target, v)
+			}
+
+			return item(total, index, i)
+		}); {
+		case err != nil:
+			return err
+		default:
+			count = i
+
+			return nil
+		}
+	}); {
+	case err != nil, !found:
+		return 0, found, err
+	default:
+		return count, true, nil
+	}
+}
+
+func ReadersDecodeFromReader[T any](
+	readers *Readers,
+	t base.BlockItemType,
+	r io.Reader,
+	compressFormat string,
+	f func(ir isaac.BlockItemReader) error,
+) (target T, _ bool, _ error) {
+	if f == nil {
+		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+		if err := f(ir); err != nil {
+			return err
+		}
+
+		switch i, err := ir.Decode(); {
+		case err != nil:
+			return err
+		default:
+			v, ok := i.(T)
+			if !ok {
+				return errors.Errorf("expected %T, but %T", target, i)
+			}
+
+			target = v
+
+			return nil
+		}
+	}); {
+	case err != nil, !found:
+		return target, found, err
+	default:
+		return target, true, nil
+	}
+}
+
+func ReadersDecodeItemsFromReader[T any](
+	readers *Readers,
+	t base.BlockItemType,
+	r io.Reader,
+	compressFormat string,
+	item func(uint64, uint64, T) error,
+	f func(ir isaac.BlockItemReader) error,
+) (count uint64, _ bool, _ error) {
+	if f == nil {
+		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	var target T
+
+	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+		if err := f(ir); err != nil {
+			return err
+		}
+
+		switch i, err := ir.DecodeItems(func(total, index uint64, v interface{}) error {
+			i, ok := v.(T)
+			if !ok {
+				return errors.Errorf("expected %T, but %T", target, v)
+			}
+
+			return item(total, index, i)
+		}); {
+		case err != nil:
+			return err
+		default:
+			count = i
+
+			return nil
+		}
+	}); {
+	case err != nil, !found:
+		return 0, found, err
+	default:
+		return count, true, nil
+	}
+}
 
 type Readers struct {
 	*hint.CompatibleSet[NewItemReaderFunc]
@@ -51,6 +212,10 @@ func NewReaders(
 	}
 }
 
+func (rs *Readers) Root() string {
+	return rs.root
+}
+
 func (rs *Readers) Add(writerhint hint.Hint, v NewItemReaderFunc) error {
 	return rs.CompatibleSet.Add(writerhint, v)
 }
@@ -69,49 +234,25 @@ func (rs *Readers) Item(
 		bfile = i
 	}
 
-	var f *os.File
-
-	switch i, found, err := rs.readFile(height, bfile); {
+	switch f, found, err := rs.readFile(height, bfile); {
 	case err != nil, !found:
 		return found, err
 	default:
 		defer func() {
-			_ = i.Close()
+			_ = f.Close()
 		}()
 
-		f = i
+		return rs.itemFromReader(t, f, bfile.CompressFormat(), callback)
 	}
+}
 
-	var readerf NewItemReaderFunc
-	var enc encoder.Encoder
-
-	switch i, e, found, err := rs.findBlockReader(bfile, f); {
-	case err != nil, !found:
-		return found, err
-	default:
-		readerf = i
-		enc = e
-	}
-
-	var cr *util.CompressedReader
-
-	switch i, err := util.NewCompressedReader(f, bfile.CompressFormat(), rs.decompressReader); {
-	case err != nil:
-		return true, err
-	default:
-		defer func() {
-			_ = i.Close()
-		}()
-
-		cr = i
-	}
-
-	switch i, err := readerf(t, enc, cr); {
-	case err != nil:
-		return true, err
-	default:
-		return true, callback(i)
-	}
+func (rs *Readers) ItemFromReader(
+	t base.BlockItemType,
+	r io.Reader,
+	compressFormat string,
+	callback func(isaac.BlockItemReader) error,
+) (bool, error) {
+	return rs.itemFromReader(t, r, compressFormat, callback)
 }
 
 func (rs *Readers) ItemFiles(height base.Height) (base.BlockItemFiles, bool, error) {
@@ -179,7 +320,7 @@ func (rs *Readers) readFile(height base.Height, bfile base.BlockItemFile) (*os.F
 	}
 }
 
-func (rs *Readers) findBlockReader(bfile base.BlockItemFile, f *os.File) (
+func (rs *Readers) findBlockReader(f io.Reader, compressFormat string) (
 	NewItemReaderFunc,
 	encoder.Encoder,
 	bool,
@@ -187,7 +328,7 @@ func (rs *Readers) findBlockReader(bfile base.BlockItemFile, f *os.File) (
 ) {
 	var dr io.Reader
 
-	switch i, err := rs.decompressReader(bfile.CompressFormat()); {
+	switch i, err := rs.decompressReader(compressFormat); {
 	case err != nil:
 		return nil, nil, false, err
 	default:
@@ -205,10 +346,6 @@ func (rs *Readers) findBlockReader(bfile base.BlockItemFile, f *os.File) (
 	case err != nil:
 		return nil, nil, false, err
 	default:
-		if _, err := f.Seek(0, 0); err != nil {
-			return nil, nil, false, errors.WithStack(err)
-		}
-
 		r, found := rs.Find(writerhint)
 		if !found {
 			return nil, nil, false, nil
@@ -223,53 +360,78 @@ func (rs *Readers) findBlockReader(bfile base.BlockItemFile, f *os.File) (
 	}
 }
 
-func LoadTree(
-	enc encoder.Encoder,
-	count uint64,
-	treehint hint.Hint,
-	f io.Reader,
-	callback func(interface{}) (fixedtree.Node, error),
-) (tr fixedtree.Tree, err error) {
-	if count < 1 {
-		return tr, nil
+func (rs *Readers) itemFromReader(
+	t base.BlockItemType,
+	r io.Reader,
+	compressFormat string,
+	callback func(isaac.BlockItemReader) error,
+) (bool, error) {
+	var br io.Reader
+	var resetf func() error
+
+	switch rt := r.(type) {
+	case io.Seeker:
+		br = r
+		resetf = func() error {
+			_, err := rt.Seek(0, 0)
+			return errors.WithStack(err)
+		}
+	default:
+		i := util.NewBufferedResetReader(r)
+		defer func() {
+			_ = i.Close()
+		}()
+
+		resetf = func() error {
+			i.Reset()
+
+			return nil
+		}
+
+		br = i
 	}
 
-	e := util.StringError("load tree")
+	var readerf NewItemReaderFunc
+	var enc encoder.Encoder
 
-	br := bufio.NewReader(f)
+	switch i, e, found, err := rs.findBlockReader(br, compressFormat); {
+	case err != nil, !found:
+		return found, err
+	default:
+		if err := resetf(); err != nil {
+			return false, err
+		}
 
-	nodes := make([]fixedtree.Node, count)
-	if tr, err = fixedtree.NewTree(treehint, nodes); err != nil {
-		return tr, e.Wrap(err)
+		readerf = i
+		enc = e
 	}
 
-	if err := DecodeLineItemsWithWorker(
-		br,
-		count,
-		func(b []byte) (interface{}, error) {
-			return unmarshalIndexedTreeNode(enc, b, treehint)
-		},
-		func(_ uint64, v interface{}) error {
-			in := v.(indexedTreeNode) //nolint:forcetypeassert //...
-			n, err := callback(in.Node)
-			if err != nil {
-				return err
-			}
+	var cr *util.CompressedReader
 
-			return tr.Set(in.Index, n)
-		},
-	); err != nil {
-		return tr, e.Wrap(err)
+	switch i, err := util.NewCompressedReader(br, compressFormat, rs.decompressReader); {
+	case err != nil:
+		return true, err
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
+		cr = i
 	}
 
-	return tr, nil
+	switch i, err := readerf(t, enc, cr); {
+	case err != nil:
+		return true, err
+	default:
+		return true, callback(i)
+	}
 }
 
 func DecodeLineItems(
 	f io.Reader,
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
-) error {
+) (count uint64, _ error) {
 	var br *bufio.Reader
 	if i, ok := f.(*bufio.Reader); ok {
 		br = i
@@ -284,17 +446,17 @@ end:
 
 		switch {
 		case err != nil && !errors.Is(err, io.EOF):
-			return errors.WithStack(err)
+			return 0, errors.WithStack(err)
 		case len(b) < 1,
 			bytes.HasPrefix(b, []byte("# ")):
 		default:
 			v, eerr := decode(b)
 			if eerr != nil {
-				return errors.WithStack(eerr)
+				return 0, errors.WithStack(eerr)
 			}
 
 			if eerr := callback(index, v); eerr != nil {
-				return eerr
+				return 0, eerr
 			}
 
 			index++
@@ -305,11 +467,11 @@ end:
 		case errors.Is(err, io.EOF):
 			break end
 		default:
-			return errors.WithStack(err)
+			return 0, errors.WithStack(err)
 		}
 	}
 
-	return nil
+	return index, nil
 }
 
 func DecodeLineItemsWithWorker(
@@ -317,49 +479,25 @@ func DecodeLineItemsWithWorker(
 	num uint64,
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
-) error {
+) (count uint64, _ error) {
 	worker, err := util.NewErrgroupWorker(context.Background(), int64(num))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer worker.Close()
 
-	if err := DecodeLineItems(f, decode, func(index uint64, v interface{}) error {
+	switch i, err := DecodeLineItems(f, decode, func(index uint64, v interface{}) error {
 		return worker.NewJob(func(ctx context.Context, _ uint64) error {
 			return callback(index, v)
 		})
-	}); err != nil {
-		return err
-	}
+	}); {
+	case err != nil:
+		return 0, err
+	default:
+		worker.Done()
 
-	worker.Done()
-
-	return worker.Wait()
-}
-
-func LoadTreeHint(br *bufio.Reader) (ht hint.Hint, _ error) {
-end:
-	for {
-		s, err := br.ReadString('\n')
-
-		switch {
-		case err != nil:
-			return ht, errors.WithStack(err)
-		case len(s) < 1:
-			continue end
-		}
-
-		ht, err = hint.ParseHint(s)
-		if err != nil {
-			return ht, errors.Wrap(err, "load tree hint")
-		}
-
-		if err := ht.IsValid(nil); err != nil {
-			return ht, errors.Wrap(err, "load tree hint")
-		}
-
-		return ht, nil
+		return i, worker.Wait()
 	}
 }
 

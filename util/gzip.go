@@ -140,7 +140,21 @@ func (r *CompressedReader) Close() error {
 	return nil
 }
 
-func (r *CompressedReader) Tee(tee io.Writer) (io.Reader, error) {
+// Exaust read all unread bytes from Decompress().
+func (r *CompressedReader) Exaust() error {
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.cr == nil {
+		return nil
+	}
+
+	_, err := io.ReadAll(r.cr)
+
+	return errors.WithStack(err)
+}
+
+func (r *CompressedReader) Tee(tee, decompressed io.Writer) (io.Reader, error) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -154,9 +168,20 @@ func (r *CompressedReader) Tee(tee io.Writer) (io.Reader, error) {
 	if r.cr == nil {
 		r.decompressed = 2
 
-		switch i, err := r.decompressReader(io.TeeReader(r.Reader, tee)); {
+		var nr io.Reader
+
+		switch {
+		case tee == nil:
+			nr = r.Reader
+		default:
+			nr = io.TeeReader(r.Reader, tee)
+		}
+
+		switch i, err := r.decompressReader(nr); {
 		case err != nil:
 			return nil, err
+		case decompressed != nil:
+			r.cr = io.TeeReader(i, decompressed)
 		default:
 			r.cr = i
 		}

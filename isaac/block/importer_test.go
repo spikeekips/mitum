@@ -2,12 +2,12 @@ package isaacblock
 
 import (
 	"context"
-	"io"
+	"crypto/sha256"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -26,29 +26,21 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	m, found, err := reader.BlockMap()
-	t.NoError(err)
+	m, found, err := ReadersDecode[base.BlockMap](t.Readers, point.Height(), base.BlockItemMap, nil)
 	t.True(found)
+	t.NoError(err)
 
 	return m
 }
 
-func (t *testBlockImporter) copyBlockItemFiles(root, temp string, height base.Height) {
-	p := filepath.Join(BlockItemFilesPath(root, height))
-	s, err := os.Open(p)
+func (t *testBlockImporter) openFile(root string, it base.BlockItemType) *os.File {
+	n, err := BlockFileName(it, t.Enc.Hint().Type().String())
 	t.NoError(err)
 
-	p = filepath.Join(filepath.Dir(temp), base.BlockItemFilesName(height))
-	d, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	f, err := os.Open(filepath.Join(root, n))
 	t.NoError(err)
 
-	io.Copy(d, s)
-
-	s.Close()
-	d.Close()
+	return f
 }
 
 func (t *testBlockImporter) TestNew() {
@@ -74,17 +66,15 @@ func (t *testBlockImporter) TestWriteMap() {
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
-
-	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-	t.NoError(err)
-
 	t.Run("map in localfs", func() {
-		rm, found, err := reader.BlockMap()
+		f := t.openFile(im.localfs.temp, base.BlockItemMap)
+		defer f.Close()
+
+		rbm, found, err := ReadersDecodeFromReader[base.BlockMap](t.Readers, base.BlockItemMap, f, "", nil)
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualBlockMap(t.Assert(), m, rm)
+		base.EqualBlockMap(t.Assert(), m, rbm)
 	})
 
 	t.Run("map in bwdb", func() {
@@ -102,6 +92,18 @@ func (t *testBlockImporter) TestWriteProposal() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	pr, found, err := ReadersDecode[base.ProposalSignFact](t.Readers, point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
+		_, err := ir.Reader().Tee(nil, cw)
+
+		return err
+	})
+	t.True(found)
+	t.NoError(err)
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -109,53 +111,28 @@ func (t *testBlockImporter) TestWriteProposal() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemProposal)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemProposal, ir)
+	})
 	t.True(found)
-
-	pr := i.(base.ProposalSignFact)
-
-	r, found, err := reader.Reader(base.BlockItemProposal)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemProposal)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "gz", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemProposal, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemProposal)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemProposal)
-		t.NoError(err)
+		cw := util.NewHashChecksumWriter(sha256.New())
+		rpr, found, err := ReadersDecodeFromReader[base.ProposalSignFact](t.Readers, base.BlockItemProposal, f, "gz", func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		})
 		t.True(found)
-
-		rpr, ok := i.(base.ProposalSignFact)
-		t.True(ok)
+		t.NoError(err)
 
 		base.EqualProposalSignFact(t.Assert(), pr, rpr)
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemProposal)
-		t.NoError(err)
-		t.True(found)
-
-		t.Equal(checksum, cr.Checksum())
+		t.Equal(checksum, cw.Checksum())
 	})
 }
 
@@ -163,6 +140,33 @@ func (t *testBlockImporter) TestWriteOperations() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	var ops []base.Operation
+	var once sync.Once
+
+	cw := util.NewHashChecksumWriter(sha256.New())
+	count, found, err := ReadersDecodeItems[base.Operation](t.Readers, point.Height(), base.BlockItemOperations,
+		func(total, index uint64, v base.Operation) error {
+			once.Do(func() {
+				ops = make([]base.Operation, total)
+			})
+
+			ops[index] = v
+
+			return nil
+		},
+		func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		},
+	)
+	t.True(found)
+	t.NoError(err)
+
+	ops = ops[:count]
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -170,56 +174,48 @@ func (t *testBlockImporter) TestWriteOperations() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemOperations)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemOperations, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemOperations, ir)
+	})
 	t.True(found)
-
-	ops := i.([]base.Operation)
-
-	r, found, err := reader.Reader(base.BlockItemOperations)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemOperations)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "gz", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemOperations, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemOperations)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemOperations)
-		t.NoError(err)
+		var rops []base.Operation
+		var once sync.Once
+
+		cw := util.NewHashChecksumWriter(sha256.New())
+		count, found, err := ReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
+			func(total, index uint64, v base.Operation) error {
+				once.Do(func() {
+					rops = make([]base.Operation, total)
+				})
+
+				rops[index] = v
+
+				return nil
+			},
+			func(ir isaac.BlockItemReader) error {
+				_, err := ir.Reader().Tee(nil, cw)
+
+				return err
+			},
+		)
 		t.True(found)
+		t.NoError(err)
+		rops = rops[:count]
 
-		rops, ok := i.([]base.Operation)
-		t.True(ok)
+		rchecksum := cw.Checksum()
 
 		t.Equal(len(ops), len(rops))
 		for i := range ops {
 			base.EqualOperation(t.Assert(), ops[i], rops[i])
 		}
 
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemOperations)
-		t.NoError(err)
-		t.True(found)
-
-		t.Equal(checksum, cr.Checksum())
+		t.Equal(checksum, rchecksum)
 	})
 
 	t.Run("in bwdb", func() {
@@ -238,6 +234,18 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	tr, found, err := ReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
+		_, err := ir.Reader().Tee(nil, cw)
+
+		return err
+	})
+	t.True(found)
+	t.NoError(err)
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -245,51 +253,28 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemOperationsTree)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemOperationsTree, ir)
+	})
 	t.True(found)
-
-	tr := i.(fixedtree.Tree)
-
-	r, found, err := reader.Reader(base.BlockItemOperationsTree)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemOperationsTree)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "gz", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemOperationsTree, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemOperationsTree)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemOperationsTree)
-		t.NoError(err)
+		var rtr fixedtree.Tree
+		cw := util.NewHashChecksumWriter(sha256.New())
+
+		rtr, found, err := ReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemOperationsTree, f, "gz", func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		})
 		t.True(found)
-
-		rtr, ok := i.(fixedtree.Tree)
-		t.True(ok)
-
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemOperationsTree)
 		t.NoError(err)
-		t.True(found)
 
-		t.Equal(checksum, cr.Checksum())
+		t.Equal(checksum, cw.Checksum())
 
 		_ = tr.Traverse(func(index uint64, a fixedtree.Node) (bool, error) {
 			b := rtr.Node(index)
@@ -305,6 +290,19 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	var vps [2]base.Voteproof
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	vps, found, err := ReadersDecode[[2]base.Voteproof](t.Readers, point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
+		_, err := ir.Reader().Tee(nil, cw)
+
+		return err
+	})
+	t.True(found)
+	t.NoError(err)
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -312,51 +310,27 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemVoteproofs)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemVoteproofs, ir)
+	})
 	t.True(found)
-
-	vps := i.([2]base.Voteproof)
-
-	r, found, err := reader.Reader(base.BlockItemVoteproofs)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemVoteproofs)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemVoteproofs, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemVoteproofs)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemVoteproofs)
-		t.NoError(err)
+		cw := util.NewHashChecksumWriter(sha256.New())
+
+		rvps, found, err := ReadersDecodeFromReader[[2]base.Voteproof](t.Readers, base.BlockItemVoteproofs, f, "", func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		})
 		t.True(found)
-
-		rvps, ok := i.([2]base.Voteproof)
-		t.True(ok)
-
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemVoteproofs)
 		t.NoError(err)
-		t.True(found)
 
-		t.Equal(checksum, cr.Checksum())
+		t.Equal(checksum, cw.Checksum())
 		t.Equal(len(vps), len(rvps))
 
 		base.EqualVoteproof(t.Assert(), vps[0], rvps[0])
@@ -368,6 +342,32 @@ func (t *testBlockImporter) TestWriteStates() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	var sts []base.State
+	var once sync.Once
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	count, found, err := ReadersDecodeItems[base.State](t.Readers, point.Height(), base.BlockItemStates,
+		func(total, index uint64, v base.State) error {
+			once.Do(func() {
+				sts = make([]base.State, total)
+			})
+
+			sts[index] = v
+
+			return nil
+		},
+		func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		},
+	)
+	t.True(found)
+	t.NoError(err)
+	sts = sts[:count]
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -375,56 +375,46 @@ func (t *testBlockImporter) TestWriteStates() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemStates)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemStates, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemStates, ir)
+	})
 	t.True(found)
-
-	sts := i.([]base.State)
-
-	r, found, err := reader.Reader(base.BlockItemStates)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemStates)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "gz", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemStates, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemStates)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemStates)
-		t.NoError(err)
+		var rsts []base.State
+		var once sync.Once
+		cw := util.NewHashChecksumWriter(sha256.New())
+
+		count, found, err := ReadersDecodeItemsFromReader(t.Readers, base.BlockItemStates, f, "gz",
+			func(total, index uint64, v base.State) error {
+				once.Do(func() {
+					rsts = make([]base.State, total)
+				})
+
+				rsts[index] = v
+
+				return nil
+			},
+			func(ir isaac.BlockItemReader) error {
+				_, err := ir.Reader().Tee(nil, cw)
+
+				return err
+			},
+		)
 		t.True(found)
+		t.NoError(err)
+		t.Equal(checksum, cw.Checksum())
 
-		rsts, ok := i.([]base.State)
-		t.True(ok)
+		rsts = rsts[:count]
 
 		t.Equal(len(sts), len(rsts))
 		for i := range sts {
 			t.True(base.IsEqualState(sts[i], rsts[i]))
 		}
-
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemStates)
-		t.NoError(err)
-		t.True(found)
-
-		t.Equal(checksum, cr.Checksum())
 	})
 
 	t.Run("in bwdb", func() {
@@ -447,6 +437,17 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
+	cw := util.NewHashChecksumWriter(sha256.New())
+	tr, found, err := ReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
+		_, err := ir.Reader().Tee(nil, cw)
+
+		return err
+	})
+	t.True(found)
+	t.NoError(err)
+
+	checksum := cw.Checksum()
+
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -454,51 +455,26 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
-	i, found, err := reader.Item(base.BlockItemStatesTree)
-	t.NoError(err)
+	found, err = t.Readers.Item(point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
+		return im.WriteItem(base.BlockItemStatesTree, ir)
+	})
 	t.True(found)
-
-	tr := i.(fixedtree.Tree)
-
-	r, found, err := reader.Reader(base.BlockItemStatesTree)
 	t.NoError(err)
-	t.True(found)
-
-	var checksum string
-	{
-		cr, found, err := reader.ChecksumReader(base.BlockItemStatesTree)
-		t.NoError(err)
-		t.True(found)
-
-		checksum = cr.Checksum()
-	}
-
-	dr, err := util.NewCompressedReader(r, "gz", nil)
-	t.NoError(err)
-
-	t.NoError(im.WriteItem(base.BlockItemStatesTree, dr))
-
-	t.copyBlockItemFiles(im.localfs.root, im.localfs.temp, m.Manifest().Height())
 
 	t.Run("in localfs", func() {
-		tempreader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
-		t.NoError(err)
+		f := t.openFile(im.localfs.temp, base.BlockItemStatesTree)
+		defer f.Close()
 
-		i, found, err := tempreader.Item(base.BlockItemStatesTree)
-		t.NoError(err)
+		cw := util.NewHashChecksumWriter(sha256.New())
+
+		rtr, found, err := ReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemStatesTree, f, "gz", func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		})
 		t.True(found)
-
-		rtr, ok := i.(fixedtree.Tree)
-		t.True(ok)
-
-		cr, found, err := tempreader.ChecksumReader(base.BlockItemStatesTree)
 		t.NoError(err)
-		t.True(found)
-
-		t.Equal(checksum, cr.Checksum())
+		t.Equal(checksum, cw.Checksum())
 
 		_ = tr.Traverse(func(index uint64, a fixedtree.Node) (bool, error) {
 			b := rtr.Node(index)
@@ -514,9 +490,6 @@ func (t *testBlockImporter) TestSave() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
@@ -526,27 +499,23 @@ func (t *testBlockImporter) TestSave() {
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
-		r, found, err := reader.Reader(item.Type())
-		t.NoError(err)
+		found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+			return im.WriteItem(item.Type(), ir)
+		})
 		t.True(found)
-
-		compressFormat := ""
-		if isCompressedBlockMapItemType(item.Type()) {
-			compressFormat = "gz"
-		}
-
-		dr, err := util.NewCompressedReader(r, compressFormat, nil)
-		t.NoError(err)
-
-		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())
+		t.NoError(err, "failed: %q", item.Type())
 
 		return true
 	})
 
 	t.Run("no files in new directory", func() {
-		_, err := NewLocalFSReaderFromHeight(newroot, point.Height(), t.Enc)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		m.Items(func(item base.BlockMapItem) bool {
+			found, err := t.NewReaders(newroot).Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error { return nil })
+			t.NoError(err)
+			t.False(found)
+
+			return true
+		})
 	})
 
 	_, err = im.Save(context.Background())
@@ -555,15 +524,24 @@ func (t *testBlockImporter) TestSave() {
 	t.PrintFS(newroot)
 
 	t.Run("check files in new directory", func() {
-		newreader, err := NewLocalFSReaderFromHeight(newroot, point.Height(), t.Enc)
-		t.NoError(err)
+		newreaders := t.NewReaders(newroot)
 
 		m.Items(func(item base.BlockMapItem) bool {
-			r, found, err := newreader.ChecksumReader(item.Type())
+			cw := util.NewHashChecksumWriter(sha256.New())
+
+			found, err := newreaders.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+				if _, err := ir.Reader().Tee(nil, cw); err != nil {
+					return err
+				}
+
+				_, err := ir.Decode()
+
+				return err
+			})
 			t.NoError(err)
 			t.True(found)
 
-			t.Equal(item.Checksum(), r.Checksum())
+			t.Equal(item.Checksum(), cw.Checksum())
 
 			return true
 		})
@@ -597,9 +575,6 @@ func (t *testBlockImporter) TestCancelImport() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
-	t.NoError(err)
-
 	newroot := filepath.Join(t.Root, "save")
 
 	t.Run("cancel before save", func() {
@@ -619,19 +594,11 @@ func (t *testBlockImporter) TestCancelImport() {
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
-		r, found, err := reader.Reader(item.Type())
-		t.NoError(err)
+		found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+			return im.WriteItem(item.Type(), ir)
+		})
 		t.True(found)
-
-		compressFormat := ""
-		if isCompressedBlockMapItemType(item.Type()) {
-			compressFormat = "gz"
-		}
-
-		dr, err := util.NewCompressedReader(r, compressFormat, nil)
-		t.NoError(err)
-
-		t.NoError(im.WriteItem(item.Type(), dr), "failed: %q", item.Type())
+		t.NoError(err, "failed: %q", item.Type())
 
 		return true
 	})

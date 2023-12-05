@@ -2,12 +2,12 @@ package isaacblock
 
 import (
 	"context"
+	"crypto/sha256"
 	"io"
 	"os"
-	"sync/atomic"
+	"sync"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -77,10 +77,6 @@ func (t *testImportBlocks) prepare(from, to base.Height) *isaacdatabase.Center {
 	return db
 }
 
-func (t *testImportBlocks) localfsReader(root string, height base.Height) (*LocalFSReader, error) {
-	return NewLocalFSReaderFromHeight(root, height, t.Enc)
-}
-
 func (t *testImportBlocks) TestPrepare() {
 	from, to := base.GenesisHeight, base.GenesisHeight+3
 
@@ -93,12 +89,10 @@ func (t *testImportBlocks) TestPrepare() {
 			t.True(found)
 			t.Equal(i, m.Manifest().Height())
 
-			reader, err := t.localfsReader(t.Root, i)
-			t.NoError(err)
-
-			rm, found, err := reader.BlockMap()
+			rm, found, err := ReadersDecode[base.BlockMap](t.Readers, i, base.BlockItemMap, nil)
 			t.NoError(err)
 			t.True(found)
+
 			t.Equal(i, rm.Manifest().Height())
 
 			base.EqualBlockMap(t.Assert(), m, rm)
@@ -111,12 +105,10 @@ func (t *testImportBlocks) TestPrepare() {
 		t.True(found)
 		t.Equal(to, m.Manifest().Height())
 
-		reader, err := t.localfsReader(t.Root, to)
-		t.NoError(err)
-
-		rm, found, err := reader.BlockMap()
+		rm, found, err := ReadersDecode[base.BlockMap](t.Readers, to, base.BlockItemMap, nil)
 		t.NoError(err)
 		t.True(found)
+
 		t.Equal(to, rm.Manifest().Height())
 
 		base.EqualBlockMap(t.Assert(), m, rm)
@@ -124,96 +116,88 @@ func (t *testImportBlocks) TestPrepare() {
 }
 
 func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.State {
-	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
-	t.NoError(err)
+	var sts []base.State
+	var once sync.Once
 
-	r, found, err := reader.UncompressedReader(base.BlockItemStates)
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	count, found, err := ReadersDecodeItems[base.State](t.NewReaders(root), height, base.BlockItemStates,
+		func(total uint64, index uint64, st base.State) error {
+			once.Do(func() {
+				sts = make([]base.State, total)
+			})
+
+			if err := st.IsValid(nil); err != nil {
+				return err
+			}
+
+			sts[index] = st
+
+			return nil
+		},
+		func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		},
+	)
 	t.NoError(err)
 	t.True(found)
+	t.Equal(item.Checksum(), cw.Checksum())
 
-	sts := make([]base.State, 1024)
-
-	var last uint64
-
-	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
-		st, ok := v.(base.State)
-		if !ok {
-			return errors.Errorf("not State, %T", v)
-		}
-
-		if err := st.IsValid(nil); err != nil {
-			return err
-		}
-
-		sts[i] = st
-		atomic.AddUint64(&last, 1)
-
-		return nil
-	}))
-
-	return sts[:last]
+	return sts[:count]
 }
 
 func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.Operation {
-	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
-	t.NoError(err)
+	var ops []base.Operation
+	var once sync.Once
 
-	r, found, err := reader.UncompressedReader(base.BlockItemOperations)
+	cw := util.NewHashChecksumWriter(sha256.New())
+
+	count, found, err := ReadersDecodeItems[base.Operation](t.NewReaders(root), height, base.BlockItemOperations,
+		func(total uint64, index uint64, op base.Operation) error {
+			once.Do(func() {
+				ops = make([]base.Operation, total)
+			})
+
+			if err := op.IsValid(nil); err != nil {
+				return err
+			}
+
+			ops[index] = op
+
+			return nil
+		},
+		func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		},
+	)
 	t.NoError(err)
 	t.True(found)
+	t.Equal(item.Checksum(), cw.Checksum())
 
-	ops := make([]base.Operation, 1024)
-
-	var last uint64
-
-	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
-		op, ok := v.(base.Operation)
-		if !ok {
-			return errors.Errorf("not Operation, %T", v)
-		}
-
-		if err := op.IsValid(nil); err != nil {
-			return err
-		}
-
-		ops[i] = op
-		atomic.AddUint64(&last, 1)
-
-		return nil
-	}))
-
-	return ops[:last]
+	return ops[:count]
 }
 
 func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.Height, item base.BlockMapItem) [2]base.Voteproof {
-	reader, err := NewLocalFSReaderFromHeight(root, height, t.Enc)
-	t.NoError(err)
+	cw := util.NewHashChecksumWriter(sha256.New())
 
-	r, found, err := reader.UncompressedReader(base.BlockItemVoteproofs)
+	vps, found, err := ReadersDecode[[2]base.Voteproof](t.NewReaders(root), height, base.BlockItemVoteproofs,
+		func(ir isaac.BlockItemReader) error {
+			_, err := ir.Reader().Tee(nil, cw)
+
+			return err
+		},
+	)
 	t.NoError(err)
 	t.True(found)
 
-	var vps [2]base.Voteproof
+	t.NoError(vps[0].IsValid(t.LocalParams.NetworkID()))
+	t.NoError(vps[1].IsValid(t.LocalParams.NetworkID()))
 
-	t.NoError(DecodeLineItems(r, t.Enc.Decode, func(i uint64, v interface{}) error {
-		vp, ok := v.(base.Voteproof)
-		if !ok {
-			return errors.Errorf("not Voteproof, %T", v)
-		}
-
-		if err := vp.IsValid(t.LocalParams.NetworkID()); err != nil {
-			return err
-		}
-
-		switch vp.(type) {
-		case base.INITVoteproof:
-			vps[0] = vp
-		case base.ACCEPTVoteproof:
-			vps[1] = vp
-		}
-
-		return nil
-	}))
+	t.Equal(item.Checksum(), cw.Checksum())
 
 	return vps
 }
@@ -237,33 +221,26 @@ func (t *testImportBlocks) TestImport() {
 		context.Background(),
 		from, to,
 		3,
+		t.Readers,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			reader, err := NewLocalFSReaderFromHeight(t.Root, height, t.Enc)
+			rm, found, err := ReadersDecode[base.BlockMap](t.Readers, height, base.BlockItemMap, nil)
 			if err != nil {
 				return nil, false, err
 			}
 
-			m, found, err := reader.BlockMap()
-
-			return m, found, err
+			return rm, found, nil
 		},
 		func(_ context.Context, height base.Height, item base.BlockItemType, f func(io.Reader, bool, string) error) error {
-			reader, err := NewLocalFSReaderFromHeight(t.Root, height, t.Enc)
-			if err != nil {
+			switch found, err := t.Readers.Item(height, item, func(ir isaac.BlockItemReader) error {
+				return f(ir.Reader(), true, ir.Reader().Format)
+			}); {
+			case err != nil:
 				return err
+			case !found:
+				return f(nil, false, "")
+			default:
+				return nil
 			}
-
-			compressFormat := ""
-			if isCompressedBlockMapItemType(item) {
-				compressFormat = "gz"
-			}
-
-			r, found, err := reader.Reader(item)
-			if err != nil {
-				return err
-			}
-
-			return f(r, found, compressFormat)
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
 			bwdb, err := importdb.NewBlockWriteDatabase(m.Manifest().Height())
@@ -282,20 +259,15 @@ func (t *testImportBlocks) TestImport() {
 				t.LocalParams.NetworkID(),
 			)
 		},
-		func(reader isaac.BlockReader) error {
-			switch v, found, err := reader.Item(base.BlockItemVoteproofs); {
-			case err != nil:
-				return err
-			case !found:
-				return errors.Errorf("voteproofs not found at last")
-			default:
-				vps := v.([2]base.Voteproof) //nolint:forcetypeassert //...
-
-				_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
-				_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
-
-				return nil
+		func(vps [2]base.Voteproof, found bool) error {
+			if !found {
+				return util.ErrNotFound.Errorf("last voteproof")
 			}
+
+			_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
+			_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
+
+			return nil
 		},
 		func(context.Context) error {
 			return importdb.MergeAllPermanent()

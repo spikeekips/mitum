@@ -2,11 +2,11 @@ package isaacblock
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -95,6 +95,10 @@ func (t *baseTestValidateBlock) buildBlocks(name string, top base.Height) (
 	return root, db
 }
 
+func (t *baseTestValidateBlock) readers(root string) *Readers {
+	return t.NewReaders(root)
+}
+
 type testValidateLastBlocks struct {
 	baseTestValidateBlock
 }
@@ -105,11 +109,11 @@ func (t *testValidateLastBlocks) TestOK() {
 	t.WalkFS(a)
 
 	t.Run("ok", func() {
-		t.NoError(ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID()))
+		t.NoError(ValidateLastBlocks(t.readers(a), db, t.LocalParams.NetworkID()))
 	})
 
 	t.Run("wrong localfs root", func() {
-		err := ValidateLastBlocks("/tmp", t.Encs, t.Enc, db, t.LocalParams.NetworkID())
+		err := ValidateLastBlocks(t.NewReaders("/tmp"), db, t.LocalParams.NetworkID())
 		t.Error(err)
 	})
 }
@@ -117,23 +121,22 @@ func (t *testValidateLastBlocks) TestOK() {
 func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 	t.Run("not found in database", func() {
 		a, _ := t.buildBlocks("no0", 3)
+		readers := t.readers(a)
 
 		st := leveldbstorage.NewMemStorage()
 		db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(), nil)
 		t.NoError(err)
 
-		err = ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
+		err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInLocalFS))
 	})
 
 	t.Run("not found in localfs", func() {
 		_, db := t.buildBlocks("no1", 3)
+		readers := t.readers("/tmp")
 
-		temp, _ := os.MkdirTemp("", "mitum-test-imported")
-		defer os.RemoveAll(temp)
-
-		err := ValidateLastBlocks(temp, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
+		err := ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInDatabase))
 	})
@@ -141,12 +144,13 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 
 func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase() {
 	a, db := t.buildBlocks("no0", 3)
+	readers := t.readers(a)
 
 	removed, err := db.RemoveBlocks(3)
 	t.NoError(err)
 	t.True(removed)
 
-	err = ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
+	err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
 	t.Error(err)
 
 	var derr *ErrValidatedDifferentHeightBlockMaps
@@ -158,6 +162,7 @@ func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase(
 
 func (t *testValidateLastBlocks) TestDifferentHash() {
 	a, db := t.buildBlocks("no0", 3)
+	readers := t.readers(a)
 
 	t.T().Log("override block of height, 3")
 	fs, _, _, _, _, _, _ := t.PrepareFS(base.NewPoint(3, 0), nil, nil)
@@ -170,7 +175,7 @@ func (t *testValidateLastBlocks) TestDifferentHash() {
 
 	t.NoError(moveHeightDirectory(3, t.Root, a))
 
-	err = ValidateLastBlocks(a, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
+	err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
 	t.Error(err)
 	t.ErrorContains(err, "different manifest hash")
 }
@@ -186,20 +191,20 @@ type testValidateAllBlockMapsFromLocalFS struct {
 func (t *testValidateAllBlockMapsFromLocalFS) TestOK() {
 	a := t.buildLocalFS("no0", 3)
 
-	t.NoError(ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID()))
+	t.NoError(ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID()))
 }
 
 func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 	a := t.buildLocalFS("no0", 3)
 
 	t.Run("empty", func() {
-		err := ValidateAllBlockMapsFromLocalFS(util.UUID().String(), t.Enc, 3, t.LocalParams.NetworkID())
+		err := ValidateAllBlockMapsFromLocalFS(t.readers(util.UUID().String()), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, os.ErrNotExist))
 	})
 
 	t.Run("last not found", func() {
-		err := ValidateAllBlockMapsFromLocalFS(a, t.Enc, 4, t.LocalParams.NetworkID())
+		err := ValidateAllBlockMapsFromLocalFS(t.readers(a), 4, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 	})
@@ -209,7 +214,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 		t.NoError(err)
 		t.True(removed)
 
-		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 	})
@@ -229,7 +234,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 
 		t.NoError(moveHeightDirectory(2, t.Root, a))
 
-		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.ErrorContains(err, "previous does not match", "%+v", err)
 	})
@@ -247,9 +252,10 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 
 		lastheightdirectory := filepath.Join(a, HeightDirectory(2))
 
+		t.NoError(os.Rename(BlockItemFilesPath(t.Root, 1), BlockItemFilesPath(a, 2)))
 		t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(1)), lastheightdirectory))
 
-		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.ErrorContains(err, "different height blockmaps")
 	})

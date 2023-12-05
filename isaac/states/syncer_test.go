@@ -24,6 +24,7 @@ import (
 type testSyncer struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
+	readers *isaacblock.Readers
 }
 
 func (t *testSyncer) SetupSuite() {
@@ -41,6 +42,9 @@ func (t *testSyncer) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
+
+	t.readers = isaacblock.NewReaders(t.Root, t.Encs, nil)
+	t.NoError(t.readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(3)))
 }
 
 func (t *testSyncer) SetupTest() {
@@ -83,8 +87,8 @@ func (t *testSyncer) dummyBlockMapItemFunc() isaacblock.ImportBlocksBlockMapItem
 	}
 }
 
-func (t *testSyncer) dummySetLastVoteproofs() func(isaac.BlockReader) error {
-	return func(isaac.BlockReader) error {
+func (t *testSyncer) dummySetLastVoteproofs() func([2]base.Voteproof, bool) error {
+	return func([2]base.Voteproof, bool) error {
 		return nil
 	}
 }
@@ -323,6 +327,7 @@ func (t *testSyncer) TestFetchMaps() {
 				ctx,
 				from, to,
 				batchlimit,
+				t.readers,
 				blockMapf,
 				t.dummyBlockMapItemFunc(),
 				t.dummyNewBlockImporterFunc(),
@@ -375,6 +380,7 @@ func (t *testSyncer) TestFetchMaps() {
 				ctx,
 				from, to,
 				batchlimit,
+				t.readers,
 				blockMapf,
 				t.dummyBlockMapItemFunc(),
 				t.dummyNewBlockImporterFunc(),
@@ -422,6 +428,7 @@ func (t *testSyncer) TestFetchMaps() {
 				ctx,
 				from, to,
 				batchlimit,
+				t.readers,
 				blockMapf,
 				t.dummyBlockMapItemFunc(),
 				t.dummyNewBlockImporterFunc(),
@@ -469,6 +476,7 @@ func (t *testSyncer) TestFetchMaps() {
 				ctx,
 				from, to,
 				batchlimit,
+				t.readers,
 				blockMapf,
 				t.dummyBlockMapItemFunc(),
 				t.dummyNewBlockImporterFunc(),
@@ -538,6 +546,7 @@ func (t *testSyncer) TestFetchMaps() {
 				ctx,
 				from, to,
 				batchlimit,
+				t.readers,
 				blockMapf,
 				t.dummyBlockMapItemFunc(),
 				t.dummyNewBlockImporterFunc(),
@@ -587,10 +596,11 @@ func (t *testSyncer) TestFetchBlockItem() {
 			ctx,
 			from, to,
 			batchlimit,
+			t.readers,
 			blockMapf,
 			t.dummyBlockMapItemFunc(),
 			t.dummyNewBlockImporterFunc(),
-			func(isaac.BlockReader) error {
+			func([2]base.Voteproof, bool) error {
 				lastvoteproofsavedch <- struct{}{}
 
 				return nil
@@ -665,6 +675,7 @@ func (t *testSyncer) TestFetchDifferentMap() {
 			ctx,
 			from, to,
 			batchlimit,
+			t.readers,
 			blockMapf,
 			t.dummyBlockMapItemFunc(),
 			t.dummyNewBlockImporterFunc(),

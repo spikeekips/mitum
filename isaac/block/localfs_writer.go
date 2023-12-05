@@ -576,7 +576,7 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWr
 		}
 	}
 
-	return util.NewHashChecksumWriter(fname, f, sha256.New()), nil
+	return util.NewHashChecksumWriterWithWriter(fname, f, sha256.New()), nil
 }
 
 func HeightDirectory(height base.Height) string {
@@ -641,10 +641,11 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 }
 
 func FindLastHeightFromLocalFS(
-	baseroot string, enc encoder.Encoder, networkID base.NetworkID,
+	readers *Readers, networkID base.NetworkID,
 ) (last base.Height, found bool, _ error) {
 	e := util.StringError("find last height from localfs")
 
+	baseroot := readers.Root()
 	last = base.NilHeight
 
 	switch h, found, err := FindHighestDirectory(baseroot); {
@@ -665,16 +666,9 @@ func FindLastHeightFromLocalFS(
 
 		last = height
 
-		reader, err := NewLocalFSReader(h, enc)
-		if err != nil {
-			return last, false, e.Wrap(err)
-		}
-
-		switch i, found, err := reader.BlockMap(); {
-		case err != nil:
-			return last, false, e.Wrap(err)
-		case !found:
-			return last, false, nil
+		switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+		case err != nil, !found:
+			return last, found, e.Wrap(err)
 		default:
 			if err := i.IsValid(networkID); err != nil {
 				return last, false, e.Wrap(err)

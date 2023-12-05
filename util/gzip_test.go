@@ -108,7 +108,7 @@ func (t *testCompressedReader) TestReadGzipReader() {
 
 		wbuf := bytes.NewBuffer(nil)
 
-		tr, err := cr.Tee(wbuf)
+		tr, err := cr.Tee(wbuf, nil)
 		t.NoError(err)
 
 		b, err := io.ReadAll(tr)
@@ -116,6 +116,35 @@ func (t *testCompressedReader) TestReadGzipReader() {
 		t.Equal(content, b)
 
 		t.Equal(compressed, wbuf.Bytes())
+	})
+
+	t.Run("Tee with decompress", func() {
+		buf := bytes.NewBuffer(nil)
+
+		gw, err := NewGzipWriter(buf, gzip.BestSpeed)
+		t.NoError(err)
+		n, err := gw.Write(content)
+		t.NoError(err)
+		t.Equal(len(content), n)
+		t.NoError(gw.Close())
+
+		compressed := buf.Bytes()
+
+		cr, err := NewCompressedReader(io.NopCloser(buf), "gz", nil)
+		t.NoError(err)
+
+		wbuf := bytes.NewBuffer(nil)
+		dbuf := bytes.NewBuffer(nil)
+
+		tr, err := cr.Tee(wbuf, dbuf)
+		t.NoError(err)
+
+		b, err := io.ReadAll(tr)
+		t.NoError(err)
+		t.Equal(content, b)
+
+		t.Equal(compressed, wbuf.Bytes())
+		t.Equal(content, dbuf.Bytes())
 	})
 
 	t.Run("Tee, Decompress", func() {
@@ -135,7 +164,7 @@ func (t *testCompressedReader) TestReadGzipReader() {
 
 		wbuf := bytes.NewBuffer(nil)
 
-		_, err = cr.Tee(wbuf)
+		_, err = cr.Tee(wbuf, nil)
 		t.NoError(err)
 
 		dr, err := cr.Decompress()
@@ -223,7 +252,7 @@ func (t *testCompressedReader) TestReadNotCompressedReader() {
 
 		wbuf := bytes.NewBuffer(nil)
 
-		tr, err := cr.Tee(wbuf)
+		tr, err := cr.Tee(wbuf, nil)
 		t.NoError(err)
 
 		b, err := io.ReadAll(tr)
@@ -231,6 +260,26 @@ func (t *testCompressedReader) TestReadNotCompressedReader() {
 		t.Equal(content, b)
 
 		t.Equal(content, wbuf.Bytes())
+	})
+
+	t.Run("Tee with decompressed", func() {
+		buf := bytes.NewBuffer(content)
+
+		cr, err := NewCompressedReader(io.NopCloser(buf), "", nil)
+		t.NoError(err)
+
+		wbuf := bytes.NewBuffer(nil)
+		dbuf := bytes.NewBuffer(nil)
+
+		tr, err := cr.Tee(wbuf, dbuf)
+		t.NoError(err)
+
+		b, err := io.ReadAll(tr)
+		t.NoError(err)
+		t.Equal(content, b)
+
+		t.Equal(content, wbuf.Bytes())
+		t.Equal(content, dbuf.Bytes())
 	})
 
 	t.Run("Tee, Decompress", func() {
@@ -241,7 +290,7 @@ func (t *testCompressedReader) TestReadNotCompressedReader() {
 
 		wbuf := bytes.NewBuffer(nil)
 
-		_, err = cr.Tee(wbuf)
+		_, err = cr.Tee(wbuf, nil)
 		t.NoError(err)
 
 		dr, err := cr.Decompress()

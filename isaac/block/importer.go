@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"io"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -11,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type (
@@ -78,10 +78,6 @@ func NewBlockImporter(
 	return im, nil
 }
 
-func (im *BlockImporter) Reader() (isaac.BlockReader, error) {
-	return NewLocalFSReaderFromHeight(im.root, im.m.Manifest().Height(), im.enc)
-}
-
 func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 	e := util.StringError("write BlockMap")
 
@@ -105,10 +101,10 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (im *BlockImporter) WriteItem(t base.BlockItemType, r *util.CompressedReader) error {
+func (im *BlockImporter) WriteItem(t base.BlockItemType, ir isaac.BlockItemReader) error {
 	e := util.StringError("write item")
 
-	if err := im.importItem(t, r); err != nil {
+	if err := im.importItem(t, ir); err != nil {
 		return e.WithMessage(err, "import item, %q", t)
 	}
 
@@ -166,13 +162,13 @@ func (im *BlockImporter) CancelImport(context.Context) error {
 	return nil
 }
 
-func (im *BlockImporter) importItem(t base.BlockItemType, r *util.CompressedReader) error {
+func (im *BlockImporter) importItem(t base.BlockItemType, ir isaac.BlockItemReader) error {
 	item, found := im.m.Item(t)
 	if !found {
 		return nil
 	}
 
-	var cr util.ChecksumReader
+	var cw util.ChecksumWriter
 
 	switch w, err := im.localfs.WriteItem(t); {
 	case err != nil:
@@ -182,33 +178,35 @@ func (im *BlockImporter) importItem(t base.BlockItemType, r *util.CompressedRead
 			_ = w.Close()
 		}()
 
-		f, err := r.Tee(w)
-		if err != nil {
+		cw = util.NewHashChecksumWriter(sha256.New())
+		defer func() {
+			_ = cw.Close()
+		}()
+
+		if _, err := ir.Reader().Tee(w, cw); err != nil {
 			return err
 		}
-
-		cr = util.NewHashChecksumReader(f, sha256.New())
 	}
 
 	if err := func() error {
 		switch t {
 		case base.BlockItemStatesTree:
-			return im.importStatesTree(cr)
+			return im.importStatesTree(ir)
 		case base.BlockItemStates:
-			return im.importStates(cr)
+			return im.importStates(ir)
 		case base.BlockItemOperations:
-			return im.importOperations(cr)
+			return im.importOperations(ir)
 		case base.BlockItemVoteproofs:
-			return im.importVoteproofs(cr)
+			return im.importVoteproofs(ir)
 		default:
-			return im.importOther(cr)
+			return im.importOther(ir)
 		}
 	}(); err != nil {
 		return err
 	}
 
-	if cr.Checksum() != item.Checksum() {
-		return errors.Errorf("checksum does not match, expected=%q != %q", item.Checksum(), cr.Checksum())
+	if cw.Checksum() != item.Checksum() {
+		return errors.Errorf("checksum does not match, expected=%q != %q", item.Checksum(), cw.Checksum())
 	}
 
 	return nil
@@ -234,39 +232,7 @@ func (im *BlockImporter) isfinished() bool {
 	return !notyet
 }
 
-func (im *BlockImporter) importOperations(r io.Reader) error {
-	e := util.StringError("import operations")
-
-	var left uint64
-	var ops []util.Hash
-	var enc encoder.Encoder
-
-	br := r
-
-	switch i, _, enchint, count, err := loadCountHeader(br); {
-	case err != nil:
-		return err
-	case count < 1:
-		return nil
-	default:
-		left = count
-		ops = make([]util.Hash, count)
-		br = i
-
-		j, found := im.encs.Find(enchint)
-		if !found {
-			return e.Errorf("unknown encoder, %q", enchint)
-		}
-
-		enc = j
-	}
-
-	if uint64(len(ops)) > im.batchlimit {
-		ops = make([]util.Hash, im.batchlimit)
-	}
-
-	var index uint64
-
+func (im *BlockImporter) importOperations(ir isaac.BlockItemReader) error {
 	validate := func(op base.Operation) error {
 		return op.IsValid(im.networkID)
 	}
@@ -276,219 +242,120 @@ func (im *BlockImporter) importOperations(r io.Reader) error {
 		}
 	}
 
-	if err := DecodeLineItems(br, enc.Decode, func(_ uint64, v interface{}) error {
-		op, ok := v.(base.Operation)
-		if !ok {
-			return errors.Errorf("not Operation, %T", v)
-		}
+	var once sync.Once
+	var ops []base.Operation
+	var ophs []util.Hash
 
-		if err := validate(op); err != nil {
-			return err
-		}
+	switch i, err := ir.DecodeItems(
+		func(total, index uint64, v interface{}) error {
+			once.Do(func() {
+				ops = make([]base.Operation, total)
+				ophs = make([]util.Hash, total)
+			})
 
-		ops[index] = op.Hash()
+			op, ok := v.(base.Operation)
+			if !ok {
+				return errors.Errorf("expected base.Operation, but %T", v)
+			}
 
-		if index == uint64(len(ops))-1 {
-			if err := im.bwdb.SetOperations(ops); err != nil {
+			if err := validate(op); err != nil {
 				return err
 			}
 
-			index = 0
-
-			switch left = left - uint64(len(ops)); {
-			case left > im.batchlimit:
-				ops = make([]util.Hash, im.batchlimit)
-			default:
-				ops = make([]util.Hash, left)
-			}
+			ops[index] = op
+			ophs[index] = op.Hash()
 
 			return nil
-		}
+		},
+	); {
+	case err != nil:
+		return err
+	default:
+		ops = ops[:i]
 
-		index++
-
-		return nil
-	}); err != nil {
-		return e.Wrap(err)
+		return im.bwdb.SetOperations(ophs[:len(ops)])
 	}
-
-	return nil
 }
 
-func (im *BlockImporter) importStates(r io.Reader) error {
-	e := util.StringError("import states")
-
-	var left uint64
+func (im *BlockImporter) importStates(ir isaac.BlockItemReader) error {
+	var once sync.Once
 	var sts []base.State
-	var enc encoder.Encoder
 
-	br := r
+	switch i, err := ir.DecodeItems(
+		func(total, index uint64, v interface{}) error {
+			once.Do(func() {
+				sts = make([]base.State, total)
+			})
 
-	switch i, _, enchint, count, err := loadCountHeader(br); {
-	case err != nil:
-		return err
-	case count < 1:
-		return nil
-	default:
-		left = count
-		sts = make([]base.State, count)
-		br = i
+			st, ok := v.(base.State)
+			if !ok {
+				return errors.Errorf("expected base.State, but %T", v)
+			}
 
-		j, found := im.encs.Find(enchint)
-		if !found {
-			return e.Errorf("unknown encoder, %q", enchint)
-		}
-
-		enc = j
-	}
-
-	if uint64(len(sts)) > im.batchlimit {
-		sts = make([]base.State, im.batchlimit)
-	}
-
-	var index uint64
-
-	if err := DecodeLineItems(br, enc.Decode, func(_ uint64, v interface{}) error {
-		st, ok := v.(base.State)
-		if !ok {
-			return errors.Errorf("not State, %T", v)
-		}
-
-		if err := st.IsValid(nil); err != nil {
-			return err
-		}
-
-		if base.IsSuffrageNodesState(st) {
-			im.sufst = st
-		}
-
-		sts[index] = st
-
-		if index == uint64(len(sts))-1 {
-			if err := im.bwdb.SetStates(sts); err != nil {
+			if err := st.IsValid(nil); err != nil {
 				return err
 			}
 
-			index = 0
-
-			switch left = left - uint64(len(sts)); {
-			case left > im.batchlimit:
-				sts = make([]base.State, im.batchlimit)
-			default:
-				sts = make([]base.State, left)
+			if base.IsSuffrageNodesState(st) {
+				im.sufst = st
 			}
 
+			sts[index] = st
+
 			return nil
-		}
-
-		index++
-
-		return nil
-	}); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
-}
-
-func (im *BlockImporter) importStatesTree(r io.Reader) error {
-	e := util.StringError("import states tree")
-
-	br := r
-
-	var count uint64
-	var treehint hint.Hint
-	var enc encoder.Encoder
-
-	switch i, _, enchint, j, k, err := loadTreeHeader(br); {
+		},
+	); {
 	case err != nil:
 		return err
-	case j < 1:
-		return nil
 	default:
-		br = i
-		count = j
-		treehint = k
+		sts = sts[:i]
 
-		j, found := im.encs.Find(enchint)
-		if !found {
-			return e.Errorf("unknown encoder, %q", enchint)
-		}
-
-		enc = j
+		return im.bwdb.SetStates(sts)
 	}
+}
 
-	tr, err := LoadTree(enc, count, treehint, br, func(i interface{}) (fixedtree.Node, error) {
-		node, ok := i.(fixedtree.Node)
+func (im *BlockImporter) importStatesTree(ir isaac.BlockItemReader) error {
+	switch v, err := ir.Decode(); {
+	case err != nil:
+		return errors.WithMessage(err, "states tree")
+	default:
+		tr, ok := v.(fixedtree.Tree)
 		if !ok {
-			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
+			return errors.Errorf("expected fixedtree.Tree, but %T", v)
 		}
 
-		return node, nil
-	})
-	if err != nil {
-		return e.WithMessage(err, "load StatesTree")
+		im.statestree = tr
+
+		return nil
 	}
-
-	im.statestree = tr
-
-	return nil
 }
 
-func (im *BlockImporter) importVoteproofs(r io.Reader) error {
-	e := util.StringError("import voteproofs")
-
-	var enc encoder.Encoder
-
-	br := r
-
-	switch i, _, enchint, err := loadBaseHeader(br); {
+func (im *BlockImporter) importVoteproofs(ir isaac.BlockItemReader) error {
+	switch v, err := ir.Decode(); {
 	case err != nil:
-		return err
+		return errors.WithMessage(err, "voteproofs")
 	default:
-		br = i
-
-		j, found := im.encs.Find(enchint)
-		if !found {
-			return e.Errorf("unknown encoder, %q", enchint)
+		vps, ok := v.([2]base.Voteproof)
+		if !ok {
+			return errors.Errorf("expected [2]base.Voteproof, but %T", v)
 		}
 
-		enc = j
-	}
-
-	vps, err := LoadVoteproofsFromReader(br, enc.Decode)
-	if err != nil {
-		return e.Wrap(err)
-	}
-
-	for i := range vps {
-		if vps[i] == nil {
-			continue
+		for i := range vps {
+			if err := vps[i].IsValid(im.networkID); err != nil {
+				return err
+			}
 		}
 
-		if err := vps[i].IsValid(im.networkID); err != nil {
-			return e.Wrap(err)
+		if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
+			return err
 		}
-	}
 
-	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
-		return e.Wrap(err)
+		return nil
 	}
-
-	return nil
 }
 
-func (*BlockImporter) importOther(r io.Reader) error {
-	br := r
-
-	switch i, _, _, err := loadBaseHeader(br); {
-	case err != nil:
-		return err
-	default:
-		br = i
-	}
-
-	if _, err := io.ReadAll(br); err != nil {
+func (*BlockImporter) importOther(ir isaac.BlockItemReader) error {
+	if err := ir.Reader().Exaust(); err != nil {
 		return errors.WithStack(err)
 	}
 
