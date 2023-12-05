@@ -1179,18 +1179,21 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		r := bytes.NewBuffer(body)
 
 		handler := QuicstreamHandlerBlockMapItem(
-			func(h base.Height, i base.BlockItemType) (io.ReadCloser, bool, string, error) {
+			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
 				if h != height {
-					return nil, false, "", nil
+					return false, nil
 				}
 
 				if i != item {
-					return nil, false, "", nil
+					return false, nil
 				}
 
-				return io.NopCloser(r), true, "", nil
-			},
-		)
+				if err := f(r, ""); err != nil {
+					return false, err
+				}
+
+				return true, nil
+			})
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
@@ -1219,8 +1222,8 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 
 	t.Run("unknown item", func() {
 		handler := QuicstreamHandlerBlockMapItem(
-			func(h base.Height, i base.BlockItemType) (io.ReadCloser, bool, string, error) {
-				return nil, false, "", nil
+			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
+				return false, nil
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)

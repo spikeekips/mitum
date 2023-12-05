@@ -3,6 +3,11 @@
 
 package util
 
+import (
+	"sort"
+	"strings"
+)
+
 func (ts *SimpleTimers) TimerIDs() []TimerID {
 	var ids []TimerID
 
@@ -10,6 +15,10 @@ func (ts *SimpleTimers) TimerIDs() []TimerID {
 		ids = append(ids, id)
 
 		return true
+	})
+
+	sort.Slice(ids, func(i, j int) bool {
+		return strings.Compare(ids[i].String(), ids[j].String()) < 0
 	})
 
 	return ids

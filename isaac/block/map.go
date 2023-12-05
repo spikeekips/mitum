@@ -31,15 +31,11 @@ type BlockMap struct {
 	items    *util.SingleLockedMap[base.BlockItemType, base.BlockMapItem]
 	base.BaseNodeSign
 	hint.BaseHinter
-	writer  hint.Hint
-	encoder hint.Hint
 }
 
-func NewBlockMap(writer, enc hint.Hint) BlockMap {
+func NewBlockMap() BlockMap {
 	return BlockMap{
 		BaseHinter: hint.NewBaseHinter(BlockMapHint),
-		writer:     writer,
-		encoder:    enc,
 		items:      util.NewSingleLockedMap[base.BlockItemType, base.BlockMapItem](),
 	}
 }
@@ -50,7 +46,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValiders(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSign); err != nil {
+	if err := util.CheckIsValiders(nil, false, m.manifest, m.BaseNodeSign); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -77,14 +73,6 @@ func (m BlockMap) IsValid(b []byte) error {
 	}
 
 	return nil
-}
-
-func (m BlockMap) Writer() hint.Hint {
-	return m.writer
-}
-
-func (m BlockMap) Encoder() hint.Hint {
-	return m.encoder
 }
 
 func (m BlockMap) Manifest() base.Manifest {

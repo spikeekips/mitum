@@ -110,7 +110,7 @@ type testLocalFSWriter struct {
 }
 
 func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockItemType, islist bool) (string, io.Reader, error) {
-	fname, err := BlockFileName(d, t.Enc.Hint().Type().String())
+	fname, err := DefaultBlockFileName(d, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	fpath := filepath.Join(temp, fname)
@@ -236,7 +236,7 @@ func (t *testLocalFSWriter) TestSave() {
 	})
 
 	checkfile := func(d base.BlockItemType) {
-		fname, err := BlockFileName(d, t.Enc.Hint().Type().String())
+		fname, err := DefaultBlockFileName(d, t.Enc.Hint().Type())
 		t.NoError(err)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
 		t.NoError(err)
@@ -253,7 +253,7 @@ func (t *testLocalFSWriter) TestSave() {
 	})
 
 	t.Run("check map file", func() {
-		fname, err := BlockFileName(base.BlockItemMap, t.Enc.Hint().Type().String())
+		fname, err := DefaultBlockFileName(base.BlockItemMap, t.Enc.Hint().Type())
 		t.NoError(err)
 
 		fpath := filepath.Join(newroot, fname)
@@ -636,6 +636,19 @@ func (t *testLocalFSWriter) TestRemove() {
 
 	t.PrintFS(t.Root)
 
+	checkBlockDirectory := func(height int64) error {
+		switch fi, err := os.Stat(filepath.Join(t.Root, HeightDirectory(base.Height(height)))); {
+		case os.IsNotExist(err):
+			return util.ErrNotFound
+		case err != nil:
+			return err
+		case !fi.IsDir():
+			return errors.Errorf("root is not directory")
+		default:
+			return nil
+		}
+	}
+
 	t.Run("remove over top", func() {
 		removed, err := RemoveBlocksFromLocalFS(t.Root, base.Height(top+1))
 		t.NoError(err)
@@ -653,13 +666,12 @@ func (t *testLocalFSWriter) TestRemove() {
 		t.NoError(err)
 		t.True(removed)
 
-		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(top), t.Enc)
+		err = checkBlockDirectory(top)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 
 		for i := bottom; i < top; i++ {
-			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
-			t.NoError(err)
+			t.NoError(checkBlockDirectory(i))
 		}
 	})
 
@@ -668,12 +680,12 @@ func (t *testLocalFSWriter) TestRemove() {
 		t.NoError(err)
 		t.True(removed)
 
-		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(bottom), t.Enc)
+		err = checkBlockDirectory(bottom)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 
 		for i := bottom; i < top; i++ {
-			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
+			err = checkBlockDirectory(i)
 			t.True(errors.Is(err, util.ErrNotFound))
 		}
 	})

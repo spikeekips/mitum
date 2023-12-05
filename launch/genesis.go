@@ -17,12 +17,13 @@ import (
 )
 
 type GenesisBlockGenerator struct {
-	local    base.LocalNode
-	encs     *encoder.Encoders
-	db       isaac.Database
-	proposal base.ProposalSignFact
-	ivp      base.INITVoteproof
-	avp      base.ACCEPTVoteproof
+	local      base.LocalNode
+	encs       *encoder.Encoders
+	newReaders func(string) *isaacblock.Readers
+	db         isaac.Database
+	proposal   base.ProposalSignFact
+	ivp        base.INITVoteproof
+	avp        base.ACCEPTVoteproof
 	*logging.Logging
 	dataroot  string
 	networkID base.NetworkID
@@ -37,17 +38,19 @@ func NewGenesisBlockGenerator(
 	db isaac.Database,
 	dataroot string,
 	facts []base.Fact,
+	newReaders func(string) *isaacblock.Readers,
 ) *GenesisBlockGenerator {
 	return &GenesisBlockGenerator{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "genesis-block-generator")
 		}),
-		local:     local,
-		networkID: networkID,
-		encs:      encs,
-		db:        db,
-		dataroot:  dataroot,
-		facts:     facts,
+		local:      local,
+		networkID:  networkID,
+		encs:       encs,
+		db:         db,
+		dataroot:   dataroot,
+		facts:      facts,
+		newReaders: newReaders,
 	}
 }
 
@@ -66,16 +69,18 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 		return nil, e.Wrap(err)
 	}
 
-	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(g.dataroot, base.GenesisHeight, g.encs.Default())
-	if err != nil {
-		return nil, e.Wrap(err)
-	}
+	readers := g.newReaders(g.dataroot)
 
-	switch blockmap, found, err := fsreader.BlockMap(); {
+	switch blockmap, found, err := isaacblock.ReadersDecode[base.BlockMap](
+		readers,
+		base.GenesisHeight,
+		base.BlockItemMap,
+		nil,
+	); {
 	case err != nil:
 		return nil, e.Wrap(err)
 	case !found:
-		return nil, errors.Errorf("blockmap not found")
+		return nil, util.ErrNotFound.Errorf("blockmap")
 	default:
 		if err := blockmap.IsValid(g.networkID); err != nil {
 			return nil, e.Wrap(err)

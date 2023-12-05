@@ -24,7 +24,9 @@ func DefaultINITPS() *ps.PS {
 	_ = pps.POK(PNameStorage).
 		PreAddOK(PNameCleanStorage, PCleanStorage).
 		PreAddOK(PNameCreateLocalFS, PCreateLocalFS).
-		PreAddOK(PNameLoadDatabase, PLoadDatabase)
+		PreAddOK(PNameLoadDatabase, PLoadDatabase).
+		PostAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
+		PostAddOK(PNameBlockReaders, PBlockReaders)
 
 	return pps
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type BlockWriter interface {
@@ -43,6 +44,7 @@ type BlockImporter interface {
 
 type BlockItemReader interface {
 	Type() base.BlockItemType
+	Encoder() encoder.Encoder
 	Reader() *util.CompressedReader
 	Decode() (interface{}, error)
 	DecodeItems(func(total uint64, index uint64, _ interface{}) error) (count uint64, _ error)

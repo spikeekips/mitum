@@ -88,6 +88,8 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 		PostAddOK(launch.PNameCheckDesign, launch.PCheckDesign)
 
 	_ = pps.POK(launch.PNameStorage).
+		PreAddOK(launch.PNameBlockReadersDecompressFunc, launch.PBlockReadersDecompressFunc).
+		PreAddOK(launch.PNameBlockReaders, launch.PBlockReaders).
 		PreAddOK(launch.PNameCheckLocalFS, launch.PCheckLocalFS).
 		PreAddOK(launch.PNameLoadDatabase, launch.PLoadDatabase).
 		PostAddOK(launch.PNameCheckLeveldbStorage, launch.PCheckLeveldbStorage).
@@ -118,6 +120,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
+	var newReaders func(string) *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
@@ -125,15 +128,16 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
+		launch.NewBlockReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
 	var last base.Height
 
-	root := launch.LocalFSDataDirectory(design.Storage.Base)
+	readers := newReaders(launch.LocalFSDataDirectory(design.Storage.Base))
 
-	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, root, cmd.fromHeight, cmd.toHeight); {
+	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, readers, cmd.fromHeight, cmd.toHeight); {
 	case err != nil:
 		return pctx, e.Wrap(err)
 	default:
@@ -162,7 +166,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	if err := isaacblock.ValidateBlocksFromStorage(
-		root, cmd.fromHeight, last, encs.Default(), isaacparams.NetworkID(), db,
+		readers, cmd.fromHeight, last, isaacparams.NetworkID(), db,
 		cmd.whenBlockDone,
 	); err != nil {
 		return pctx, e.Wrap(err)

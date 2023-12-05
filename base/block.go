@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type Manifest interface {
@@ -29,8 +28,6 @@ type BlockMap interface {
 	Manifest() Manifest
 	Item(BlockItemType) (BlockMapItem, bool)
 	Items(func(BlockMapItem) bool)
-	Writer() hint.Hint
-	Encoder() hint.Hint
 }
 
 type BlockMapItem interface {

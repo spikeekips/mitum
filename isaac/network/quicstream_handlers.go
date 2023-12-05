@@ -292,30 +292,42 @@ func QuicstreamHandlerBlockMap(
 }
 
 func QuicstreamHandlerBlockMapItem(
-	blockMapItemf func(base.Height, base.BlockItemType) (io.ReadCloser, bool, string, error),
+	blockMapItemf func(base.Height, base.BlockItemType, func(io.Reader, string) error) (bool, error),
 ) quicstreamheader.Handler[BlockMapItemRequestHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header BlockMapItemRequestHeader,
 	) (context.Context, error) {
-		switch itemr, found, compressFormat, err := blockMapItemf(header.Height(), header.Item()); {
+		gctx := ctx
+
+		switch found, err := blockMapItemf(
+			header.Height(),
+			header.Item(),
+			func(r io.Reader, compressFormat string) error {
+				if err := broker.WriteResponseHead(ctx,
+					NewBlockItemResponseHeader(true, nil, compressFormat),
+				); err != nil {
+					return err
+				}
+
+				if err := broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, r); err != nil {
+					return err
+				}
+
+				gctx = ctx
+
+				return nil
+			},
+		); {
 		case err != nil:
 			return ctx, err
-		case !found, itemr == nil:
+		case !found:
 			if err := broker.WriteResponseHead(ctx, NewBlockItemResponseHeader(false, nil, "")); err != nil {
 				return ctx, err
 			}
 
 			return ctx, broker.WriteBody(ctx, quicstreamheader.EmptyBodyType, 0, nil)
 		default:
-			defer func() {
-				_ = itemr.Close()
-			}()
-
-			if err := broker.WriteResponseHead(ctx, NewBlockItemResponseHeader(true, nil, compressFormat)); err != nil {
-				return ctx, err
-			}
-
-			return ctx, broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, itemr)
+			return gctx, nil
 		}
 	}
 }

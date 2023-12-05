@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type LocalFSImporter struct {
@@ -51,7 +52,7 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 
 	var w io.WriteCloser
 
-	switch i, err := BlockFileName(base.BlockItemMap, l.enc.Hint().Type().String()); {
+	switch i, err := DefaultBlockFileName(base.BlockItemMap, l.enc.Hint().Type()); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
@@ -92,10 +93,14 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (l *LocalFSImporter) WriteItem(t base.BlockItemType) (io.WriteCloser, error) {
+func (l *LocalFSImporter) WriteItem(
+	t base.BlockItemType,
+	enc hint.Hint,
+	compressFormat string,
+) (io.WriteCloser, error) {
 	e := util.StringError("write item to localfs")
 
-	f, err := BlockFileName(t, l.enc.Hint().Type().String())
+	f, err := BlockFileName(t, enc.Type(), compressFormat)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}

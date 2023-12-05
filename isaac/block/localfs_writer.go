@@ -27,7 +27,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var LocalFSWriterHint = hint.MustNewHint("local-block-fs-writer-v0.0.1")
+var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-v0.0.1")
 
 var rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
 
@@ -104,7 +104,7 @@ func NewLocalFSWriter(
 		networkID:  networkID,
 		heightbase: HeightDirectory(height),
 		temp:       temp,
-		m:          NewBlockMap(LocalFSWriterHint, enc.Hint()),
+		m:          NewBlockMap(),
 		bfiles:     NewBlockItemFilesMaker(jsonenc),
 	}
 
@@ -499,7 +499,7 @@ func (w *LocalFSWriter) saveMap() error {
 }
 
 func (w *LocalFSWriter) filename(t base.BlockItemType) (filename string, temppath string, err error) {
-	f, err := BlockFileName(t, w.enc.Hint().Type().String())
+	f, err := DefaultBlockFileName(t, w.enc.Hint().Type())
 	if err != nil {
 		return "", "", err
 	}
@@ -746,22 +746,29 @@ func findHighestDirectory(root string) (string, bool, error) {
 	}
 }
 
-func BlockFileName(t base.BlockItemType, hinttype string) (string, error) {
+func BlockFileName(t base.BlockItemType, hinttype hint.Type, compressFormat string) (string, error) {
 	name, found := blockFilenames[t]
 	if !found {
 		return "", errors.Errorf("unknown block map item type, %q", t)
 	}
 
-	ext := fileExtFromEncoder(hinttype)
-	if isListBlockMapItemType(t) {
-		ext = listFileExtFromEncoder(hinttype)
+	ext, _ := encoder.EncodersExtension(hinttype)
+
+	if len(compressFormat) > 0 {
+		ext += "." + compressFormat
 	}
+
+	return fmt.Sprintf("%s.%s", name, ext), nil
+}
+
+func DefaultBlockFileName(t base.BlockItemType, hinttype hint.Type) (string, error) {
+	var compressFormat string
 
 	if isCompressedBlockMapItemType(t) {
-		ext += ".gz"
+		compressFormat = "gz"
 	}
 
-	return fmt.Sprintf("%s%s", name, ext), nil
+	return BlockFileName(t, hinttype, compressFormat)
 }
 
 func CleanBlockTempDirectory(root string) error {
@@ -836,37 +843,6 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func fileExtFromEncoder(hinttype string) string {
-	switch {
-	case strings.Contains(strings.ToLower(hinttype), "json"):
-		return ".json"
-	default:
-		return ".b" // NOTE means b(ytes)
-	}
-}
-
-func listFileExtFromEncoder(hinttype string) string {
-	switch {
-	case strings.Contains(strings.ToLower(hinttype), "json"):
-		return ".ndjson"
-	default:
-		return ".blist"
-	}
-}
-
-func isListBlockMapItemType(t base.BlockItemType) bool {
-	switch t {
-	case base.BlockItemOperations,
-		base.BlockItemOperationsTree,
-		base.BlockItemStates,
-		base.BlockItemStatesTree,
-		base.BlockItemVoteproofs:
-		return true
-	default:
-		return false
-	}
 }
 
 func isCompressedBlockMapItemType(t base.BlockItemType) bool {
@@ -1043,38 +1019,5 @@ func loadBaseHeader(f io.Reader) (
 		return nil, writer, enc, err
 	default:
 		return i, u.Writer, u.Encoder, nil
-	}
-}
-
-func loadCountHeader(f io.Reader) (
-	_ *bufio.Reader,
-	writer, enc hint.Hint,
-	_ uint64,
-	_ error,
-) {
-	var u countItemsHeader
-
-	switch i, err := loadItemsHeader(f, &u); {
-	case err != nil:
-		return nil, writer, enc, 0, err
-	default:
-		return i, u.Writer, u.Encoder, u.Count, nil
-	}
-}
-
-func loadTreeHeader(f io.Reader) (
-	_ *bufio.Reader,
-	writer, enc hint.Hint,
-	_ uint64,
-	tree hint.Hint,
-	_ error,
-) {
-	var u treeItemsHeader
-
-	switch i, err := loadItemsHeader(f, &u); {
-	case err != nil:
-		return nil, writer, enc, 0, tree, err
-	default:
-		return i, u.Writer, u.Encoder, u.Count, u.Tree, nil
 	}
 }

@@ -75,7 +75,7 @@ func checkLoadFromContextOK(ctx context.Context, a ...interface{}) error {
 
 		k, ok := b.(ContextKey)
 		if !ok {
-			return errors.Errorf("expected ContextKey, not %T", b)
+			return errors.Errorf("expected ContextKey, not %T: %v", b, b)
 		}
 
 		if ctx.Value(k) == nil {

@@ -64,6 +64,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 	var lvps *isaac.LastVoteproofsHandler
+	var readers *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -81,6 +82,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 		LastVoteproofsHandlerContextKey, &lvps,
+		BlockReadersContextKey, &readers,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -133,56 +135,15 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapItemString,
 		isaacnetwork.QuicstreamHandlerBlockMapItem(
-			func(height base.Height, item base.BlockItemType) (io.ReadCloser, bool, string, error) {
-				e := util.StringError("get BlockMapItem")
-
-				var menc encoder.Encoder
-
-				switch m, found, err := db.BlockMap(height); {
-				case err != nil:
-					return nil, false, "", e.Wrap(err)
-				case !found:
-					return nil, false, "", e.Wrap(storage.ErrNotFound.Errorf("BlockMap not found"))
-				default:
-					i, found := encs.Find(m.Encoder())
-					if !found {
-						return nil, false, "", e.Wrap(storage.ErrNotFound.Errorf("encoder of BlockMap not found"))
-					}
-
-					menc = i
-				}
-
-				var reader isaac.BlockReader
-				var compressFormat string
-
-				switch i, err := isaacblock.NewLocalFSReaderFromHeight(
-					LocalFSDataDirectory(design.Storage.Base), height, menc,
-				); {
-				case err != nil:
-					return nil, false, "", e.Wrap(err)
-				default:
-					defer func() {
-						_ = i.Close()
-					}()
-
-					reader = i
-				}
-
-				switch i, found, err := reader.BlockItemFiles(); {
+			func(height base.Height, item base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
+				switch found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
+					return f(ir.Reader(), ir.Reader().Format)
+				}); {
 				case err != nil, !found:
-					return nil, found, "", err
+					return found, err
 				default:
-					t, found := i.Item(item)
-					if !found {
-						return nil, false, "", err
-					}
-
-					compressFormat = t.CompressFormat()
+					return true, nil
 				}
-
-				r, found, err := reader.Reader(item)
-
-				return r, found, compressFormat, err
 			},
 		), nil)
 

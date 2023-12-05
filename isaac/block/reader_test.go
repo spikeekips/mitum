@@ -17,6 +17,19 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func isListBlockMapItemType(t base.BlockItemType) bool {
+	switch t {
+	case base.BlockItemOperations,
+		base.BlockItemOperationsTree,
+		base.BlockItemStates,
+		base.BlockItemStatesTree,
+		base.BlockItemVoteproofs:
+		return true
+	default:
+		return false
+	}
+}
+
 type testItemReader struct {
 	BaseTestLocalBlockFS
 }
@@ -44,7 +57,7 @@ func (t *testItemReader) pick(it base.BlockItemType) *util.CompressedReader {
 }
 
 func (t *testItemReader) openFile(it base.BlockItemType) *os.File {
-	n, err := BlockFileName(it, t.Enc.Hint().Type().String())
+	n, err := DefaultBlockFileName(it, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	f, err := os.Open(filepath.Join(t.Root, HeightDirectory(33), n))
@@ -362,7 +375,7 @@ func (t *testItemReader) TestDecodeItems() {
 
 			u.Count = u.Count * 2
 
-			fname, err := BlockFileName(base.BlockItemOperations, t.Enc.Hint().Type().String())
+			fname, err := DefaultBlockFileName(base.BlockItemOperations, t.Enc.Hint().Type())
 			t.NoError(err)
 
 			cf, err := os.OpenFile(filepath.Join(t.Root, HeightDirectory(33), fname), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)

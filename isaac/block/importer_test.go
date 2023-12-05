@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -34,7 +33,7 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 }
 
 func (t *testBlockImporter) openFile(root string, it base.BlockItemType) *os.File {
-	n, err := BlockFileName(it, t.Enc.Hint().Type().String())
+	n, err := DefaultBlockFileName(it, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	f, err := os.Open(filepath.Join(root, n))
@@ -140,20 +139,9 @@ func (t *testBlockImporter) TestWriteOperations() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	var ops []base.Operation
-	var once sync.Once
-
 	cw := util.NewHashChecksumWriter(sha256.New())
-	count, found, err := ReadersDecodeItems[base.Operation](t.Readers, point.Height(), base.BlockItemOperations,
-		func(total, index uint64, v base.Operation) error {
-			once.Do(func() {
-				ops = make([]base.Operation, total)
-			})
-
-			ops[index] = v
-
-			return nil
-		},
+	_, ops, found, err := ReadersDecodeItems[base.Operation](t.Readers, point.Height(), base.BlockItemOperations,
+		nil,
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
@@ -162,8 +150,6 @@ func (t *testBlockImporter) TestWriteOperations() {
 	)
 	t.True(found)
 	t.NoError(err)
-
-	ops = ops[:count]
 
 	checksum := cw.Checksum()
 
@@ -184,20 +170,9 @@ func (t *testBlockImporter) TestWriteOperations() {
 		f := t.openFile(im.localfs.temp, base.BlockItemOperations)
 		defer f.Close()
 
-		var rops []base.Operation
-		var once sync.Once
-
 		cw := util.NewHashChecksumWriter(sha256.New())
-		count, found, err := ReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
-			func(total, index uint64, v base.Operation) error {
-				once.Do(func() {
-					rops = make([]base.Operation, total)
-				})
-
-				rops[index] = v
-
-				return nil
-			},
+		_, rops, found, err := ReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
+			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
 
@@ -206,7 +181,6 @@ func (t *testBlockImporter) TestWriteOperations() {
 		)
 		t.True(found)
 		t.NoError(err)
-		rops = rops[:count]
 
 		rchecksum := cw.Checksum()
 
@@ -342,20 +316,10 @@ func (t *testBlockImporter) TestWriteStates() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	var sts []base.State
-	var once sync.Once
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	count, found, err := ReadersDecodeItems[base.State](t.Readers, point.Height(), base.BlockItemStates,
-		func(total, index uint64, v base.State) error {
-			once.Do(func() {
-				sts = make([]base.State, total)
-			})
-
-			sts[index] = v
-
-			return nil
-		},
+	_, sts, found, err := ReadersDecodeItems[base.State](t.Readers, point.Height(), base.BlockItemStates,
+		nil,
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
@@ -364,7 +328,6 @@ func (t *testBlockImporter) TestWriteStates() {
 	)
 	t.True(found)
 	t.NoError(err)
-	sts = sts[:count]
 
 	checksum := cw.Checksum()
 
@@ -385,20 +348,10 @@ func (t *testBlockImporter) TestWriteStates() {
 		f := t.openFile(im.localfs.temp, base.BlockItemStates)
 		defer f.Close()
 
-		var rsts []base.State
-		var once sync.Once
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		count, found, err := ReadersDecodeItemsFromReader(t.Readers, base.BlockItemStates, f, "gz",
-			func(total, index uint64, v base.State) error {
-				once.Do(func() {
-					rsts = make([]base.State, total)
-				})
-
-				rsts[index] = v
-
-				return nil
-			},
+		_, rsts, found, err := ReadersDecodeItemsFromReader[base.State](t.Readers, base.BlockItemStates, f, "gz",
+			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
 
@@ -408,8 +361,6 @@ func (t *testBlockImporter) TestWriteStates() {
 		t.True(found)
 		t.NoError(err)
 		t.Equal(checksum, cw.Checksum())
-
-		rsts = rsts[:count]
 
 		t.Equal(len(sts), len(rsts))
 		for i := range sts {
@@ -574,6 +525,7 @@ func (t *testBlockImporter) TestSave() {
 func (t *testBlockImporter) TestCancelImport() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
+	t.PrintFS(t.Root)
 
 	newroot := filepath.Join(t.Root, "save")
 
@@ -597,8 +549,8 @@ func (t *testBlockImporter) TestCancelImport() {
 		found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
 			return im.WriteItem(item.Type(), ir)
 		})
-		t.True(found)
-		t.NoError(err, "failed: %q", item.Type())
+		t.True(found, "not found, %q", item.Type())
+		t.NoError(err, "failed, %q", item.Type())
 
 		return true
 	})

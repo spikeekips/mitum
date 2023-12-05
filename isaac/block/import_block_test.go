@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"io"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -116,24 +115,11 @@ func (t *testImportBlocks) TestPrepare() {
 }
 
 func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.State {
-	var sts []base.State
-	var once sync.Once
-
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	count, found, err := ReadersDecodeItems[base.State](t.NewReaders(root), height, base.BlockItemStates,
+	count, sts, found, err := ReadersDecodeItems[base.State](t.NewReaders(root), height, base.BlockItemStates,
 		func(total uint64, index uint64, st base.State) error {
-			once.Do(func() {
-				sts = make([]base.State, total)
-			})
-
-			if err := st.IsValid(nil); err != nil {
-				return err
-			}
-
-			sts[index] = st
-
-			return nil
+			return st.IsValid(nil)
 		},
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
@@ -143,30 +129,18 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 	)
 	t.NoError(err)
 	t.True(found)
+	t.Equal(count, uint64(len(sts)))
 	t.Equal(item.Checksum(), cw.Checksum())
 
-	return sts[:count]
+	return sts
 }
 
 func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.Operation {
-	var ops []base.Operation
-	var once sync.Once
-
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	count, found, err := ReadersDecodeItems[base.Operation](t.NewReaders(root), height, base.BlockItemOperations,
+	count, ops, found, err := ReadersDecodeItems[base.Operation](t.NewReaders(root), height, base.BlockItemOperations,
 		func(total uint64, index uint64, op base.Operation) error {
-			once.Do(func() {
-				ops = make([]base.Operation, total)
-			})
-
-			if err := op.IsValid(nil); err != nil {
-				return err
-			}
-
-			ops[index] = op
-
-			return nil
+			return op.IsValid(nil)
 		},
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
@@ -176,9 +150,10 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 	)
 	t.NoError(err)
 	t.True(found)
+	t.Equal(count, uint64(len(ops)))
 	t.Equal(item.Checksum(), cw.Checksum())
 
-	return ops[:count]
+	return ops
 }
 
 func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.Height, item base.BlockMapItem) [2]base.Voteproof {

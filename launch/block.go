@@ -3,10 +3,7 @@ package launch
 import (
 	"context"
 	"io"
-	"math"
-	"sync"
 
-	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -16,81 +13,34 @@ import (
 )
 
 func ImportBlocks(
-	from, root string,
+	fromreaders,
+	toreaders *isaacblock.Readers,
 	fromHeight, toHeight base.Height,
 	encs *encoder.Encoders,
-	enc encoder.Encoder,
 	db isaac.Database,
 	params *isaac.Params,
 ) error {
-	e := util.StringError("import blocks")
-
-	readercache := gcache.New(math.MaxInt).LRU().Build()
-	var readerLock sync.Mutex
-	getreader := func(height base.Height) (isaac.BlockReader, error) {
-		readerLock.Lock()
-		defer readerLock.Unlock()
-
-		reader, err := readercache.Get(height)
-		if err != nil {
-			i, err := isaacblock.NewLocalFSReaderFromHeight(from, height, enc)
-			if err != nil {
-				return nil, err
-			}
-
-			_ = readercache.Set(height, i)
-
-			reader = i
-		}
-
-		return reader.(isaac.BlockReader), nil //nolint:forcetypeassert //...
-	}
-
 	if err := isaacblock.ImportBlocks(
 		context.Background(),
 		fromHeight, toHeight,
 		333, //nolint:gomnd //...
+		toreaders,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			reader, err := getreader(height)
-			if err != nil {
-				return nil, false, err
-			}
-
-			m, found, err := reader.BlockMap()
-
-			return m, found, err
+			return isaacblock.ReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
 		},
 		func(
 			_ context.Context, height base.Height, item base.BlockItemType,
 			f func(r io.Reader, found bool, compressFormat string) error,
 		) error {
-			var reader isaac.BlockReader
-
-			switch i, err := getreader(height); {
-			case err != nil:
-				return err
-			default:
-				reader = i
-			}
-
-			var compressFormat string
-
-			switch i, found, err := reader.BlockItemFiles(); {
+			switch found, err := fromreaders.Item(height, item, func(ir isaac.BlockItemReader) error {
+				return f(ir.Reader(), true, ir.Reader().Format)
+			}); {
 			case err != nil:
 				return err
 			case !found:
-				return errors.Errorf("block item files not found")
+				return f(nil, false, "")
 			default:
-				if j, found := i.Item(item); found {
-					compressFormat = j.CompressFormat()
-				}
-			}
-
-			switch r, found, err := reader.Reader(item); {
-			case err != nil:
-				return err
-			default:
-				return f(r, found, compressFormat)
+				return nil
 			}
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
@@ -100,7 +50,7 @@ func ImportBlocks(
 			}
 
 			return isaacblock.NewBlockImporter(
-				LocalFSDataDirectory(root),
+				toreaders.Root(),
 				encs,
 				m,
 				bwdb,
@@ -115,7 +65,7 @@ func ImportBlocks(
 			return db.MergeAllPermanent()
 		},
 	); err != nil {
-		return e.Wrap(err)
+		return errors.WithMessagef(err, "import blocks")
 	}
 
 	return nil

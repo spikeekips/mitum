@@ -24,6 +24,7 @@ type StorageStatusCommand struct { //nolint:govet //...
 	launch.PrivatekeyFlags
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
+	readers         *isaacblock.Readers
 }
 
 func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
@@ -56,6 +57,8 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 		PostAddOK(launch.PNameCheckDesign, launch.PCheckDesign)
 
 	_ = pps.POK(launch.PNameStorage).
+		PreAddOK(launch.PNameBlockReadersDecompressFunc, launch.PBlockReadersDecompressFunc).
+		PreAddOK(launch.PNameBlockReaders, launch.PBlockReaders).
 		PreAddOK(launch.PNameCheckLocalFS, cmd.pCheckLocalFS).
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
@@ -100,11 +103,13 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	var design launch.NodeDesign
 	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
+	var newReaders func(string) *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.DesignContextKey, &design,
 		launch.EncodersContextKey, &encs,
 		launch.ISAACParamsContextKey, &isaacparams,
+		launch.NewBlockReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -127,7 +132,9 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 
 	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("localfs information")
 
-	if err := cmd.localfs(localfsroot, encs.Default(), isaacparams.NetworkID()); err != nil {
+	cmd.readers = newReaders(localfsroot)
+
+	if err := cmd.localfs(localfsroot, isaacparams.NetworkID()); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -138,9 +145,9 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	return pctx, nil
 }
 
-func (cmd *StorageStatusCommand) localfs(root string, enc encoder.Encoder, networkID base.NetworkID) error {
+func (cmd *StorageStatusCommand) localfs(root string, networkID base.NetworkID) error {
 	// NOTE last block
-	switch last, found, err := isaacblock.FindLastHeightFromLocalFS(root, enc, networkID); {
+	switch last, found, err := isaacblock.FindLastHeightFromLocalFS(cmd.readers, networkID); {
 	case err != nil:
 		return err
 	case !found:

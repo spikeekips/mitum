@@ -3,11 +3,18 @@ package encoder
 import (
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
+
+var encodersExtensionMap map[hint.Type]string
+
+func init() {
+	encodersExtensionMap = map[hint.Type]string{}
+}
 
 func Ptr(i interface{}) (ptr reflect.Value, elem reflect.Value) {
 	switch j, ok := i.(reflect.Value); {
@@ -125,4 +132,22 @@ func DecodeReader(enc Encoder, r io.Reader, v interface{}) error {
 	}
 
 	return nil
+}
+
+func EncodersExtension(t hint.Type) (string, bool) {
+	i, found := encodersExtensionMap[t]
+
+	return i, found
+}
+
+func AddEncodersExtension(t hint.Type, ext string) (bool, error) {
+	if strings.HasPrefix(ext, ".") {
+		return false, errors.Errorf("extension should not have '.' prefix")
+	}
+
+	_, found := encodersExtensionMap[t]
+
+	encodersExtensionMap[t] = ext
+
+	return !found, nil
 }

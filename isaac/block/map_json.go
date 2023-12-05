@@ -15,8 +15,6 @@ type blockMapJSONMarshaler struct {
 	Items    map[base.BlockItemType]base.BlockMapItem `json:"items"`
 	base.BaseNodeSignJSONMarshaler
 	hint.BaseHinter
-	Writer  hint.Hint `json:"writer"`
-	Encoder hint.Hint `json:"encoder"`
 }
 
 func (m BlockMap) MarshalJSON() ([]byte, error) {
@@ -33,8 +31,6 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(blockMapJSONMarshaler{
 		BaseHinter:                m.BaseHinter,
 		BaseNodeSignJSONMarshaler: m.BaseNodeSign.JSONMarshaler(),
-		Writer:                    m.writer,
-		Encoder:                   m.encoder,
 		Manifest:                  m.manifest,
 		Items:                     items,
 	})
@@ -43,8 +39,6 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 type blockMapJSONUnmarshaler struct {
 	Items    map[base.BlockItemType]json.RawMessage `json:"items"`
 	Manifest json.RawMessage                        `json:"manifest"`
-	Writer   hint.Hint                              `json:"writer"`
-	Encoder  hint.Hint                              `json:"encoder"`
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
@@ -74,8 +68,6 @@ func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 		_ = items.SetValue(ui.Type(), ui)
 	}
 
-	m.writer = u.Writer
-	m.encoder = u.Encoder
 	m.items = items
 
 	return nil

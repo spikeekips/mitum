@@ -640,6 +640,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var syncSourcePool *isaac.SyncSourcePool
 	var lvps *isaac.LastVoteproofsHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
+	var readers *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -653,6 +654,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		SyncSourcePoolContextKey, &syncSourcePool,
 		LastVoteproofsHandlerContextKey, &lvps,
 		NodeInfoContextKey, &nodeinfo,
+		BlockReadersContextKey, &readers,
 	); err != nil {
 		return nil, err
 	}
@@ -726,6 +728,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				ctx,
 				from, to,
 				batchlimit,
+				readers,
 				blockMapf,
 				syncerBlockMapItemFunc(client, conninfocache, params.Network.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
@@ -951,21 +954,16 @@ func syncerBlockMapItemFunc(
 
 func setLastVoteproofsfFromBlockReaderFunc(
 	lvps *isaac.LastVoteproofsHandler,
-) (func(isaac.BlockReader) error, error) {
-	return func(reader isaac.BlockReader) error {
-		switch v, found, err := reader.Item(base.BlockItemVoteproofs); {
-		case err != nil:
-			return err
-		case !found:
-			return errors.Errorf("voteproofs not found at last")
-		default:
-			vps := v.([2]base.Voteproof) //nolint:forcetypeassert //...
-
-			_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
-			_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
-
-			return nil
+) (func([2]base.Voteproof, bool) error, error) {
+	return func(vps [2]base.Voteproof, found bool) error {
+		if !found {
+			return util.ErrNotFound.Errorf("last voteproofs")
 		}
+
+		_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
+		_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
+
+		return nil
 	}, nil
 }
 

@@ -20,6 +20,8 @@ func DefaultImportPS() *ps.PS {
 		PostAddOK(PNameINITObjectCache, PINITObjectCache)
 
 	_ = pps.POK(PNameStorage).
+		PreAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
+		PreAddOK(PNameBlockReaders, PBlockReaders).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).

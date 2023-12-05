@@ -216,6 +216,10 @@ func ValidateAllBlockMapsFromLocalFS(
 			case !found:
 				return util.ErrNotFound.Errorf("blockmap")
 			default:
+				if err := i.IsValid(networkID); err != nil {
+					return err
+				}
+
 				m = i
 			}
 
@@ -308,7 +312,7 @@ func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:d
 	sts []base.State,
 	opstree, ststree fixedtree.Tree,
 	vps [2]base.Voteproof,
-	rerr error,
+	_ error,
 ) {
 	var bm base.BlockMap
 
@@ -321,43 +325,66 @@ func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:d
 		bm = i
 	}
 
-	bm.Items(func(item base.BlockMapItem) bool {
-		var i interface{}
-
-		switch v, found, err := ReadersDecode[interface{}](readers, height, item.Type(), nil); {
-		case err != nil:
-			rerr = err
-		case !found:
-			rerr = util.ErrNotFound.Errorf("BlockMapItem, %q", item.Type())
-		case v == nil:
-			rerr = util.ErrNotFound.Errorf("empty BlockMapItem found, %q", item.Type())
-		default:
-			i = v
-		}
-
-		if rerr != nil {
-			return false
-		}
-
-		switch item.Type() {
+	load := func(item base.BlockItemType) error {
+		switch item {
 		case base.BlockItemProposal:
-			rerr = util.InterfaceSetValue(i, &pr)
-		case base.BlockItemOperations:
-			rerr = util.InterfaceSetValue(i, &ops)
+			return decodeBlockItemFromReader[base.ProposalSignFact](readers, height, item, &pr)
 		case base.BlockItemOperationsTree:
-			rerr = util.InterfaceSetValue(i, &opstree)
-		case base.BlockItemStates:
-			rerr = util.InterfaceSetValue(i, &sts)
+			return decodeBlockItemFromReader[fixedtree.Tree](readers, height, item, &opstree)
 		case base.BlockItemStatesTree:
-			rerr = util.InterfaceSetValue(i, &ststree)
+			return decodeBlockItemFromReader[fixedtree.Tree](readers, height, item, &ststree)
 		case base.BlockItemVoteproofs:
-			rerr = util.InterfaceSetValue(i, &vps)
+			return decodeBlockItemFromReader[[2]base.Voteproof](readers, height, item, &vps)
+		case base.BlockItemOperations:
+			return decodeBlockItemsFromReader[base.Operation](readers, height, item, &ops)
+		case base.BlockItemStates:
+			return decodeBlockItemsFromReader[base.State](readers, height, item, &sts)
+		default:
+			return errors.Errorf("unknown item, %q", item)
 		}
+	}
+
+	var rerr error
+
+	bm.Items(func(item base.BlockMapItem) bool {
+		rerr = load(item.Type())
 
 		return rerr == nil
 	})
 
 	return pr, ops, sts, opstree, ststree, vps, rerr
+}
+
+func decodeBlockItemFromReader[T any](
+	readers *Readers,
+	height base.Height,
+	item base.BlockItemType,
+	v interface{},
+) error {
+	switch i, found, err := ReadersDecode[T](readers, height, item, nil); {
+	case err != nil:
+		return err
+	case !found:
+		return util.ErrNotFound.Errorf("BlockMapItem, %q", item)
+	default:
+		return util.InterfaceSetValue(i, v)
+	}
+}
+
+func decodeBlockItemsFromReader[T any](
+	readers *Readers,
+	height base.Height,
+	item base.BlockItemType,
+	v interface{},
+) error {
+	switch _, i, found, err := ReadersDecodeItems[T](readers, height, item, nil, nil); {
+	case err != nil:
+		return err
+	case !found:
+		return util.ErrNotFound.Errorf("BlockMapItem, %q", item)
+	default:
+		return util.InterfaceSetValue(i, v)
+	}
 }
 
 func ValidateOperationsOfBlock( //nolint:dupl //...

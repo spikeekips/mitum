@@ -108,6 +108,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
+	var newReaders func(string) *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
@@ -115,13 +116,16 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
+		launch.NewBlockReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
+	sourceReaders := newReaders(cmd.Source)
+
 	var last base.Height
 
-	switch i, err := cmd.checkHeights(pctx); {
+	switch i, err := cmd.checkHeights(pctx, sourceReaders); {
 	case err != nil:
 		return pctx, e.Wrap(err)
 	default:
@@ -139,7 +143,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		}
 	}
 
-	if err := cmd.validateSourceBlocks(last, encs.Default(), isaacparams); err != nil {
+	if err := cmd.validateSourceBlocks(sourceReaders, last, isaacparams); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -150,41 +154,40 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	}
 
 	if err := launch.ImportBlocks(
-		cmd.Source,
-		design.Storage.Base,
+		sourceReaders,
+		newReaders(launch.LocalFSDataDirectory(design.Storage.Base)),
 		cmd.fromHeight,
 		last,
 		encs,
-		encs.Default(),
 		db,
 		isaacparams,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
-	if err := cmd.validateImported(last, encs.Default(), design, isaacparams, db); err != nil {
+	importedReaders := newReaders(launch.LocalFSDataDirectory(design.Storage.Base))
+
+	if err := cmd.validateImported(importedReaders, last, isaacparams, db); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
 	return pctx, nil
 }
 
-func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error) {
+func (cmd *ImportCommand) checkHeights(pctx context.Context, readers *isaacblock.Readers) (base.Height, error) {
 	var last base.Height
 
-	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
-		launch.EncodersContextKey, &encs,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
 		return last, err
 	}
 
-	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, cmd.Source, cmd.fromHeight, cmd.toHeight); {
+	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, readers, cmd.fromHeight, cmd.toHeight); {
 	case err != nil:
 		return last, err
 	default:
@@ -220,8 +223,8 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error
 }
 
 func (cmd *ImportCommand) validateSourceBlocks(
+	sourceReaders *isaacblock.Readers,
 	last base.Height,
-	enc encoder.Encoder,
 	params *isaac.Params,
 ) error {
 	e := util.StringError("validate source blocks")
@@ -238,7 +241,12 @@ func (cmd *ImportCommand) validateSourceBlocks(
 		func(_ context.Context, i, _ uint64) error {
 			height := base.Height(int64(i) + cmd.fromHeight.Int64())
 
-			return isaacblock.ValidateBlockFromLocalFS(height, cmd.Source, enc, params.NetworkID(), nil, nil, nil)
+			return isaacblock.ValidateBlockFromLocalFS(
+				sourceReaders,
+				height,
+				params.NetworkID(),
+				nil, nil, nil,
+			)
 		},
 	); err != nil {
 		return e.Wrap(err)
@@ -250,18 +258,15 @@ func (cmd *ImportCommand) validateSourceBlocks(
 }
 
 func (cmd *ImportCommand) validateImported(
+	importedReaders *isaacblock.Readers,
 	last base.Height,
-	enc encoder.Encoder,
-	design launch.NodeDesign,
 	params *isaac.Params,
 	db isaac.Database,
 ) error {
 	e := util.StringError("validate imported")
 
-	root := launch.LocalFSDataDirectory(design.Storage.Base)
-
 	if err := isaacblock.ValidateBlocksFromStorage(
-		root, cmd.fromHeight, last, enc, params.NetworkID(), db, nil); err != nil {
+		importedReaders, cmd.fromHeight, last, params.NetworkID(), db, nil); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -270,7 +275,7 @@ func (cmd *ImportCommand) validateImported(
 	return nil
 }
 
-func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight base.Height) (
+func checkLastHeight(pctx context.Context, readers *isaacblock.Readers, fromHeight, toHeight base.Height) (
 	base.Height,
 	base.Height,
 	base.Height,
@@ -321,8 +326,7 @@ func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight b
 	}
 
 	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(
-		source,
-		encs.Default(),
+		readers,
 		isaacparams.NetworkID(),
 	); {
 	case err != nil:

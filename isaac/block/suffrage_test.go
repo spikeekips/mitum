@@ -92,7 +92,7 @@ func (t *testSuffrageProof) newitem(ty base.BlockItemType) BlockMapItem {
 }
 
 func (t *testSuffrageProof) newmap(height base.Height, local base.LocalNode) BlockMap {
-	m := NewBlockMap(LocalFSWriterHint, jsonenc.JSONEncoderHint)
+	m := NewBlockMap()
 
 	for _, i := range []base.BlockItemType{
 		base.BlockItemProposal,

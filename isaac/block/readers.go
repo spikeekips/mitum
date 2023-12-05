@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -35,25 +36,14 @@ func ReadersDecode[T any](
 	t base.BlockItemType,
 	f func(ir isaac.BlockItemReader) error,
 ) (target T, _ bool, _ error) {
-	if f == nil {
-		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
-	}
+	irf := readersDecodeFunc[T](f)
 
 	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
-		if err := f(ir); err != nil {
-			return err
-		}
-
-		switch i, err := ir.Decode(); {
+		switch i, err := irf(ir); {
 		case err != nil:
 			return err
 		default:
-			v, ok := i.(T)
-			if !ok {
-				return errors.Errorf("expected %T, but %T", target, i)
-			}
-
-			target = v
+			target = i
 
 			return nil
 		}
@@ -71,38 +61,18 @@ func ReadersDecodeItems[T any](
 	t base.BlockItemType,
 	item func(uint64, uint64, T) error,
 	f func(ir isaac.BlockItemReader) error,
-) (count uint64, _ bool, _ error) {
-	if f == nil {
-		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
-	}
-
-	var target T
+) (count uint64, l []T, found bool, _ error) {
+	irf, countf := readersDecodeItemsFuncs(item, f)
 
 	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
-		if err := f(ir); err != nil {
-			return err
-		}
-
-		switch i, err := ir.DecodeItems(func(total, index uint64, v interface{}) error {
-			i, ok := v.(T)
-			if !ok {
-				return errors.Errorf("expected %T, but %T", target, v)
-			}
-
-			return item(total, index, i)
-		}); {
-		case err != nil:
-			return err
-		default:
-			count = i
-
-			return nil
-		}
+		return irf(ir)
 	}); {
 	case err != nil, !found:
-		return 0, found, err
+		return 0, nil, found, err
 	default:
-		return count, true, nil
+		count, l = countf()
+
+		return count, l, true, nil
 	}
 }
 
@@ -113,25 +83,14 @@ func ReadersDecodeFromReader[T any](
 	compressFormat string,
 	f func(ir isaac.BlockItemReader) error,
 ) (target T, _ bool, _ error) {
-	if f == nil {
-		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
-	}
+	irf := readersDecodeFunc[T](f)
 
 	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
-		if err := f(ir); err != nil {
-			return err
-		}
-
-		switch i, err := ir.Decode(); {
+		switch i, err := irf(ir); {
 		case err != nil:
 			return err
 		default:
-			v, ok := i.(T)
-			if !ok {
-				return errors.Errorf("expected %T, but %T", target, i)
-			}
-
-			target = v
+			target = i
 
 			return nil
 		}
@@ -150,39 +109,102 @@ func ReadersDecodeItemsFromReader[T any](
 	compressFormat string,
 	item func(uint64, uint64, T) error,
 	f func(ir isaac.BlockItemReader) error,
-) (count uint64, _ bool, _ error) {
+) (count uint64, l []T, found bool, _ error) {
+	irf, countf := readersDecodeItemsFuncs(item, f)
+
+	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+		return irf(ir)
+	}); {
+	case err != nil, !found:
+		return 0, nil, found, err
+	default:
+		count, l = countf()
+
+		return count, l, true, nil
+	}
+}
+
+func readersDecodeFunc[T any](
+	f func(ir isaac.BlockItemReader) error,
+) func(isaac.BlockItemReader) (T, error) {
 	if f == nil {
 		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
 	}
 
-	var target T
-
-	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+	return func(ir isaac.BlockItemReader) (target T, _ error) {
 		if err := f(ir); err != nil {
-			return err
+			return target, err
 		}
 
-		switch i, err := ir.DecodeItems(func(total, index uint64, v interface{}) error {
-			i, ok := v.(T)
+		switch i, err := ir.Decode(); {
+		case err != nil:
+			return target, err
+		default:
+			v, ok := i.(T)
 			if !ok {
-				return errors.Errorf("expected %T, but %T", target, v)
+				return target, errors.Errorf("expected %T, but %T", target, i)
 			}
 
-			return item(total, index, i)
-		}); {
-		case err != nil:
-			return err
-		default:
-			count = i
-
-			return nil
+			return v, nil
 		}
-	}); {
-	case err != nil, !found:
-		return 0, found, err
-	default:
-		return count, true, nil
 	}
+}
+
+func readersDecodeItemsFuncs[T any](
+	item func(uint64, uint64, T) error,
+	f func(ir isaac.BlockItemReader) error,
+) (
+	func(ir isaac.BlockItemReader) error,
+	func() (uint64, []T),
+) {
+	if item == nil {
+		item = func(uint64, uint64, T) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	if f == nil {
+		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+	}
+
+	var l []T
+	var once sync.Once
+	var count uint64
+
+	return func(ir isaac.BlockItemReader) error {
+			if err := f(ir); err != nil {
+				return err
+			}
+
+			switch i, err := ir.DecodeItems(func(total, index uint64, v interface{}) error {
+				i, ok := v.(T)
+				if !ok {
+					var target T
+
+					return errors.Errorf("expected %T, but %T", target, v)
+				}
+
+				if err := item(total, index, i); err != nil {
+					return err
+				}
+
+				once.Do(func() {
+					l = make([]T, total)
+				})
+
+				l[index] = i
+
+				return nil
+			}); {
+			case err != nil:
+				return err
+			default:
+				count = i
+
+				return nil
+			}
+		},
+		func() (uint64, []T) {
+			return count, l[:count]
+		}
 }
 
 type Readers struct {

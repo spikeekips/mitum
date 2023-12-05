@@ -42,6 +42,8 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameLoadACL, PLoadACL)
 
 	_ = pps.POK(PNameStorage).
+		PreAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
+		PreAddOK(PNameBlockReaders, PBlockReaders).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).

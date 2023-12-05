@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -29,6 +30,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	var db isaac.Database
 	var fsnodeinfo NodeInfo
 	var eventLogging *EventLogging
+	var newReaders func(string) *isaacblock.Readers
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -40,6 +42,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		CenterDatabaseContextKey, &db,
 		FSNodeInfoContextKey, &fsnodeinfo,
 		EventLoggingContextKey, &eventLogging,
+		NewBlockReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -60,6 +63,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		db,
 		LocalFSDataDirectory(design.Storage.Base),
 		genesisDesign.Facts,
+		newReaders,
 	)
 	_ = g.SetLogging(log)
 

@@ -28,6 +28,10 @@ func (r *dummyItemReader) Type() base.BlockItemType {
 	return r.t
 }
 
+func (r *dummyItemReader) Encoder() encoder.Encoder {
+	return r.enc
+}
+
 func (r *dummyItemReader) Reader() *util.CompressedReader {
 	return r.r
 }
@@ -72,7 +76,7 @@ func (t *testReaders) prepare(height base.Height) {
 }
 
 func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.File {
-	fname, err := BlockFileName(it, t.Encs.JSON().Hint().Type().String())
+	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
 	p := filepath.Join(t.Root, HeightDirectory(height), fname)
 
@@ -83,7 +87,7 @@ func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.Fi
 }
 
 func (t *testReaders) updateItem(height base.Height, it base.BlockItemType, b []byte) {
-	fname, err := BlockFileName(it, t.Encs.JSON().Hint().Type().String())
+	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
 	p := filepath.Join(t.Root, HeightDirectory(height), fname)
 
@@ -154,7 +158,7 @@ func (t *testReaders) TestItem() {
 	})
 
 	t.Run("compatible", func() {
-		ht := hint.MustNewHint("local-block-fs-writer-v0.1.1")
+		ht := hint.MustNewHint("block-localfs-writer-v0.1.1")
 
 		t.updateItemHeader(height, ht, base.BlockItemMap)
 		defer func() {
@@ -175,7 +179,7 @@ func (t *testReaders) TestItem() {
 	})
 
 	t.Run("not compatible", func() {
-		ht := hint.MustNewHint("local-block-fs-writer-v1.0.0")
+		ht := hint.MustNewHint("block-localfs-writer-v1.0.0")
 
 		t.updateItemHeader(height, ht, base.BlockItemMap)
 		defer func() {
@@ -217,7 +221,7 @@ func (t *testReaders) TestItemFromReader() {
 	})
 
 	t.Run("decode", func() {
-		ht := hint.MustNewHint("local-block-fs-writer-v0.1.1")
+		ht := hint.MustNewHint("block-localfs-writer-v0.1.1")
 
 		t.updateItemHeader(height, ht, base.BlockItemMap)
 		defer func() {

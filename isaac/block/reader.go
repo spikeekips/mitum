@@ -41,6 +41,10 @@ func (r *ItemReader) Type() base.BlockItemType {
 	return r.t
 }
 
+func (r *ItemReader) Encoder() encoder.Encoder {
+	return r.enc
+}
+
 func (r *ItemReader) Reader() *util.CompressedReader {
 	return r.r
 }

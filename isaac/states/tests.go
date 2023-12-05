@@ -7,7 +7,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -17,7 +16,7 @@ func newTestBlockMap(
 	local base.LocalNode,
 	networkID base.NetworkID,
 ) (m isaacblock.BlockMap, _ error) {
-	m = isaacblock.NewBlockMap(isaacblock.LocalFSWriterHint, jsonenc.JSONEncoderHint)
+	m = isaacblock.NewBlockMap()
 
 	for _, i := range []base.BlockItemType{
 		base.BlockItemProposal,

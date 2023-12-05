@@ -24,7 +24,6 @@ type (
 type BlockImporter struct {
 	m                        base.BlockMap
 	encs                     *encoder.Encoders
-	enc                      encoder.Encoder
 	bwdb                     isaac.BlockWriteDatabase
 	sufst                    base.State
 	localfs                  *LocalFSImporter
@@ -46,12 +45,7 @@ func NewBlockImporter(
 ) (*BlockImporter, error) {
 	e := util.StringError(" BlockImporter")
 
-	enc, found := encs.Find(m.Encoder())
-	if !found {
-		return nil, e.Errorf("unknown encoder, %q", m.Encoder())
-	}
-
-	localfs, err := NewLocalFSImporter(root, encs.JSON(), enc, m)
+	localfs, err := NewLocalFSImporter(root, encs.JSON(), encs.Default(), m)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -62,7 +56,6 @@ func NewBlockImporter(
 		root:                     root,
 		m:                        m,
 		encs:                     encs,
-		enc:                      enc,
 		localfs:                  localfs,
 		bwdb:                     bwdb,
 		networkID:                networkID,
@@ -170,7 +163,7 @@ func (im *BlockImporter) importItem(t base.BlockItemType, ir isaac.BlockItemRead
 
 	var cw util.ChecksumWriter
 
-	switch w, err := im.localfs.WriteItem(t); {
+	switch w, err := im.localfs.WriteItem(t, ir.Encoder().Hint(), ir.Reader().Format); {
 	case err != nil:
 		return err
 	default:

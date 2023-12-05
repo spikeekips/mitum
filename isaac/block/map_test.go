@@ -32,7 +32,7 @@ func (t *testBlockMap) newitem(ty base.BlockItemType) BlockMapItem {
 }
 
 func (t *testBlockMap) newmap() BlockMap {
-	m := NewBlockMap(LocalFSWriterHint, jsonenc.JSONEncoderHint)
+	m := NewBlockMap()
 
 	for _, i := range []base.BlockItemType{
 		base.BlockItemProposal,
@@ -59,9 +59,6 @@ func (t *testBlockMap) TestNew() {
 	t.NoError(m.IsValid(t.networkID))
 
 	t.NotNil(m.Manifest())
-
-	t.True(LocalFSWriterHint.Equal(m.writer))
-	t.True(jsonenc.JSONEncoderHint.Equal(m.encoder))
 }
 
 func (t *testBlockMap) TestInvalid() {
