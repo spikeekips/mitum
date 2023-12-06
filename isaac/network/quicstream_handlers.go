@@ -291,11 +291,11 @@ func QuicstreamHandlerBlockMap(
 	)
 }
 
-func QuicstreamHandlerBlockMapItem(
+func QuicstreamHandlerBlockItem(
 	blockMapItemf func(base.Height, base.BlockItemType, func(io.Reader, string) error) (bool, error),
-) quicstreamheader.Handler[BlockMapItemRequestHeader] {
+) quicstreamheader.Handler[BlockItemRequestHeader] {
 	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, header BlockMapItemRequestHeader,
+		broker *quicstreamheader.HandlerBroker, header BlockItemRequestHeader,
 	) (context.Context, error) {
 		gctx := ctx
 

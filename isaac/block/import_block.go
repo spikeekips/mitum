@@ -16,7 +16,7 @@ func ImportBlocks(
 	batchlimit int64,
 	readers *Readers,
 	blockMapf ImportBlocksBlockMapFunc,
-	blockItemf ImportBlocksBlockMapItemFunc,
+	blockItemf ImportBlocksBlockItemFunc,
 	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
 	setLastVoteproofsFunc func([2]base.Voteproof, bool) error,
 	mergeBlockWriterDatabasesf func(context.Context) error,
@@ -97,7 +97,7 @@ func importBlock(
 	m base.BlockMap,
 	im isaac.BlockImporter,
 	readers *Readers,
-	blockMapItemf ImportBlocksBlockMapItemFunc,
+	blockMapItemf ImportBlocksBlockItemFunc,
 ) error {
 	e := util.StringError("import block, %d", height)
 

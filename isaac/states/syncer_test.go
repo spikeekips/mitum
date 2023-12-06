@@ -81,7 +81,7 @@ func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
 	}
 }
 
-func (t *testSyncer) dummyBlockMapItemFunc() isaacblock.ImportBlocksBlockMapItemFunc {
+func (t *testSyncer) dummyBlockItemFunc() isaacblock.ImportBlocksBlockItemFunc {
 	return func(context.Context, base.Height, base.BlockItemType, func(io.Reader, bool, string) error) error {
 		return nil
 	}
@@ -329,7 +329,7 @@ func (t *testSyncer) TestFetchMaps() {
 				batchlimit,
 				t.readers,
 				blockMapf,
-				t.dummyBlockMapItemFunc(),
+				t.dummyBlockItemFunc(),
 				t.dummyNewBlockImporterFunc(),
 				t.dummySetLastVoteproofs(),
 				nil,
@@ -382,7 +382,7 @@ func (t *testSyncer) TestFetchMaps() {
 				batchlimit,
 				t.readers,
 				blockMapf,
-				t.dummyBlockMapItemFunc(),
+				t.dummyBlockItemFunc(),
 				t.dummyNewBlockImporterFunc(),
 				t.dummySetLastVoteproofs(),
 				nil,
@@ -430,7 +430,7 @@ func (t *testSyncer) TestFetchMaps() {
 				batchlimit,
 				t.readers,
 				blockMapf,
-				t.dummyBlockMapItemFunc(),
+				t.dummyBlockItemFunc(),
 				t.dummyNewBlockImporterFunc(),
 				t.dummySetLastVoteproofs(),
 				nil,
@@ -478,7 +478,7 @@ func (t *testSyncer) TestFetchMaps() {
 				batchlimit,
 				t.readers,
 				blockMapf,
-				t.dummyBlockMapItemFunc(),
+				t.dummyBlockItemFunc(),
 				t.dummyNewBlockImporterFunc(),
 				t.dummySetLastVoteproofs(),
 				nil,
@@ -548,7 +548,7 @@ func (t *testSyncer) TestFetchMaps() {
 				batchlimit,
 				t.readers,
 				blockMapf,
-				t.dummyBlockMapItemFunc(),
+				t.dummyBlockItemFunc(),
 				t.dummyNewBlockImporterFunc(),
 				t.dummySetLastVoteproofs(),
 				nil,
@@ -598,7 +598,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 			batchlimit,
 			t.readers,
 			blockMapf,
-			t.dummyBlockMapItemFunc(),
+			t.dummyBlockItemFunc(),
 			t.dummyNewBlockImporterFunc(),
 			func([2]base.Voteproof, bool) error {
 				lastvoteproofsavedch <- struct{}{}
@@ -677,7 +677,7 @@ func (t *testSyncer) TestFetchDifferentMap() {
 			batchlimit,
 			t.readers,
 			blockMapf,
-			t.dummyBlockMapItemFunc(),
+			t.dummyBlockItemFunc(),
 			t.dummyNewBlockImporterFunc(),
 			t.dummySetLastVoteproofs(),
 			nil,

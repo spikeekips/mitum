@@ -454,11 +454,11 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 	return bm, ok, err
 }
 
-func (c *BaseClient) BlockMapItem(
+func (c *BaseClient) BlockItem(
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockItemType,
 	f func(_ io.Reader, found bool, compressFormat string) error,
 ) error {
-	header := NewBlockMapItemRequestHeader(height, item)
+	header := NewBlockItemRequestHeader(height, item)
 	header.SetClientID(c.ClientID())
 
 	if err := header.IsValid(nil); err != nil {

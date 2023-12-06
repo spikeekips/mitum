@@ -730,7 +730,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				batchlimit,
 				readers,
 				blockMapf,
-				syncerBlockMapItemFunc(client, conninfocache, params.Network.TimeoutRequest),
+				syncerBlockItemFunc(client, conninfocache, params.Network.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -914,11 +914,11 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	}
 }
 
-func syncerBlockMapItemFunc(
+func syncerBlockItemFunc(
 	client *isaacnetwork.BaseClient,
 	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
 	requestTimeoutf func() time.Duration,
-) isaacblock.ImportBlocksBlockMapItemFunc {
+) isaacblock.ImportBlocksBlockItemFunc {
 	nrequestTimeoutf := func() time.Duration {
 		return isaac.DefaultTimeoutRequest
 	}
@@ -930,7 +930,7 @@ func syncerBlockMapItemFunc(
 	return func(ctx context.Context, height base.Height, item base.BlockItemType,
 		f func(io.Reader, bool, string) error,
 	) error {
-		e := util.StringError("fetch blockmap item")
+		e := util.StringError("fetch block item")
 
 		var ci quicstream.ConnInfo
 
@@ -944,7 +944,7 @@ func syncerBlockMapItemFunc(
 		cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer ctxcancel()
 
-		if err := client.BlockMapItem(cctx, ci, height, item, f); err != nil {
+		if err := client.BlockItem(cctx, ci, height, item, f); err != nil {
 			return e.Wrap(err)
 		}
 

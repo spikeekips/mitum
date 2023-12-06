@@ -185,7 +185,7 @@ func ValidateAllBlockMapsFromLocalFS(
 		return e.Errorf("not directory")
 	}
 
-	// NOTE check all blockmap items
+	// NOTE check all block items
 	var validateLock sync.Mutex
 	var lastprev, newprev base.BlockMap
 	var maps []base.BlockMap
@@ -365,7 +365,7 @@ func decodeBlockItemFromReader[T any](
 	case err != nil:
 		return err
 	case !found:
-		return util.ErrNotFound.Errorf("BlockMapItem, %q", item)
+		return util.ErrNotFound.Errorf("block item, %q", item)
 	default:
 		return util.InterfaceSetValue(i, v)
 	}
@@ -381,7 +381,7 @@ func decodeBlockItemsFromReader[T any](
 	case err != nil:
 		return err
 	case !found:
-		return util.ErrNotFound.Errorf("BlockMapItem, %q", item)
+		return util.ErrNotFound.Errorf("block item, %q", item)
 	default:
 		return util.InterfaceSetValue(i, v)
 	}

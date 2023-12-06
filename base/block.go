@@ -382,7 +382,7 @@ func IsEqualBlockMap(a, b BlockMap) error {
 	a.Items(func(ai BlockMapItem) bool {
 		bi, found := b.Item(ai.Type())
 		if !found {
-			err = errors.Errorf("blockmap item, %q not found", ai.Type())
+			err = errors.Errorf("block item, %q not found", ai.Type())
 
 			return false
 		}
@@ -400,10 +400,10 @@ func IsEqualBlockMap(a, b BlockMap) error {
 func IsEqualBlockMapItem(a, b BlockMapItem) error {
 	switch {
 	case a.Type() != b.Type():
-		return errors.Errorf("different blockmap item; %q != %q", a.Type(), b.Type())
+		return errors.Errorf("different block item; %q != %q", a.Type(), b.Type())
 	case a.Checksum() != b.Checksum():
 		return errors.Errorf(
-			"different blockmap item checksum, %q; %q != %q", a.Type(), a.Checksum(), b.Checksum())
+			"different block item checksum, %q; %q != %q", a.Type(), a.Checksum(), b.Checksum())
 	default:
 		return nil
 	}

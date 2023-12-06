@@ -93,7 +93,7 @@ func (m BlockMap) Item(t base.BlockItemType) (base.BlockMapItem, bool) {
 }
 
 func (m *BlockMap) SetItem(item base.BlockMapItem) error {
-	e := util.StringError("set blockmap item")
+	e := util.StringError("set block item")
 
 	if err := item.IsValid(nil); err != nil {
 		return e.Wrap(err)
@@ -196,10 +196,6 @@ func NewBlockMapItem(t base.BlockItemType, checksum string) BlockMapItem {
 		t:        t,
 		checksum: checksum,
 	}
-}
-
-func NewLocalBlockMapItem(t base.BlockItemType, checksum string) BlockMapItem {
-	return NewBlockMapItem(t, checksum)
 }
 
 func (item BlockMapItem) IsValid([]byte) error {

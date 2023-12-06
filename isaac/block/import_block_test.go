@@ -278,7 +278,7 @@ func (t *testImportBlocks) TestImport() {
 		}
 	})
 
-	t.Run("compare blockmap items from db", func() {
+	t.Run("compare block items from db", func() {
 		m, found, err := fromdb.LastBlockMap()
 		t.NoError(err)
 		t.True(found)

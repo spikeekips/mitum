@@ -18,7 +18,7 @@ var (
 	SuffrageProofRequestHeaderHint          = hint.MustNewHint("suffrage-proof-header-v0.0.1")
 	LastBlockMapRequestHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
 	BlockMapRequestHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemRequestHeaderHint           = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	BlockItemRequestHeaderHint              = hint.MustNewHint("block-item-header-v0.0.1")
 	NodeChallengeRequestHeaderHint          = hint.MustNewHint("node-challenge-header-v0.0.1")
 	SuffrageNodeConnInfoRequestHeaderHint   = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
 	SyncSourceConnInfoRequestHeaderHint     = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
@@ -45,7 +45,7 @@ var (
 	HandlerPrefixSuffrageProofString          = "suffrage_proof"
 	HandlerPrefixLastBlockMapString           = "last_blockmap"
 	HandlerPrefixBlockMapString               = "blockmap"
-	HandlerPrefixBlockMapItemString           = "blockmap_item"
+	HandlerPrefixBlockItemString              = "block_item"
 	HandlerPrefixMemberlistString             = "memberlist"
 	HandlerPrefixNodeChallengeString          = "node_challenge"
 	HandlerPrefixSuffrageNodeConnInfoString   = "suffrage_node_conninfo"
@@ -71,7 +71,7 @@ var (
 	HandlerPrefixSuffrageProof          = quicstream.HashPrefix(HandlerPrefixSuffrageProofString)
 	HandlerPrefixLastBlockMap           = quicstream.HashPrefix(HandlerPrefixLastBlockMapString)
 	HandlerPrefixBlockMap               = quicstream.HashPrefix(HandlerPrefixBlockMapString)
-	HandlerPrefixBlockMapItem           = quicstream.HashPrefix(HandlerPrefixBlockMapItemString)
+	HandlerPrefixBlockItem              = quicstream.HashPrefix(HandlerPrefixBlockItemString)
 	HandlerPrefixMemberlist             = quicstream.HashPrefix(HandlerPrefixMemberlistString)
 	HandlerPrefixNodeChallenge          = quicstream.HashPrefix(HandlerPrefixNodeChallengeString)
 	HandlerPrefixSuffrageNodeConnInfo   = quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfoString)
@@ -355,24 +355,24 @@ func (h BlockMapRequestHeader) Height() base.Height {
 	return h.height
 }
 
-type BlockMapItemRequestHeader struct {
+type BlockItemRequestHeader struct {
 	item base.BlockItemType
 	BaseHeader
 	height base.Height
 }
 
-func NewBlockMapItemRequestHeader(height base.Height, item base.BlockItemType) BlockMapItemRequestHeader {
-	return BlockMapItemRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
+func NewBlockItemRequestHeader(height base.Height, item base.BlockItemType) BlockItemRequestHeader {
+	return BlockItemRequestHeader{
+		BaseHeader: NewBaseHeader(BlockItemRequestHeaderHint),
 		height:     height,
 		item:       item,
 	}
 }
 
-func (h BlockMapItemRequestHeader) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid BlockMapItemHeader")
+func (h BlockItemRequestHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid BlockItemHeader")
 
-	if err := h.BaseHinter.IsValid(BlockMapItemRequestHeaderHint.Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(BlockItemRequestHeaderHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -383,11 +383,11 @@ func (h BlockMapItemRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-func (h BlockMapItemRequestHeader) Height() base.Height {
+func (h BlockItemRequestHeader) Height() base.Height {
 	return h.height
 }
 
-func (h BlockMapItemRequestHeader) Item() base.BlockItemType {
+func (h BlockItemRequestHeader) Item() base.BlockItemType {
 	return h.item
 }
 
@@ -907,8 +907,8 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return HandlerPrefixLastBlockMap
 	case BlockMapRequestHeaderHint.Type():
 		return HandlerPrefixBlockMap
-	case BlockMapItemRequestHeaderHint.Type():
-		return HandlerPrefixBlockMapItem
+	case BlockItemRequestHeaderHint.Type():
+		return HandlerPrefixBlockItem
 	case NodeChallengeRequestHeaderHint.Type():
 		return HandlerPrefixNodeChallenge
 	case SuffrageNodeConnInfoRequestHeaderHint.Type():

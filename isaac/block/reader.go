@@ -28,13 +28,22 @@ func NewDefaultItemReaderFunc(workerSize uint64) NewItemReaderFunc {
 		enc encoder.Encoder,
 		r *util.CompressedReader,
 	) (isaac.BlockItemReader, error) {
-		return &ItemReader{
-			t:             t,
-			enc:           enc,
-			r:             r,
-			maxWorkerSize: workerSize,
-		}, nil
+		return NewItemReader(t, enc, r, workerSize)
 	}
+}
+
+func NewItemReader(
+	t base.BlockItemType,
+	enc encoder.Encoder,
+	r *util.CompressedReader,
+	workerSize uint64,
+) (isaac.BlockItemReader, error) {
+	return &ItemReader{
+		t:             t,
+		enc:           enc,
+		r:             r,
+		maxWorkerSize: workerSize,
+	}, nil
 }
 
 func (r *ItemReader) Type() base.BlockItemType {

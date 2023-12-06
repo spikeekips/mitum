@@ -20,7 +20,7 @@ type NetworkClient interface { //nolint:interfacebloat //..
 	SuffrageProof(_ context.Context, connInfo quicstream.ConnInfo, suffrageheight base.Height) (_ base.SuffrageProof, found bool, _ error)
 	LastBlockMap(_ context.Context, _ quicstream.ConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quicstream.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
-	BlockMapItem(context.Context, quicstream.ConnInfo, base.Height, base.BlockItemType, func(_ io.Reader, found bool, compressFormat string) error) error
+	BlockItem(context.Context, quicstream.ConnInfo, base.Height, base.BlockItemType, func(_ io.Reader, found bool, compressFormat string) error) error
 	NodeChallenge(_ context.Context, _ quicstream.ConnInfo, _ base.NetworkID, _ base.Address, _ base.Publickey, input []byte, me base.LocalNode) (base.Signature, error)
 	SuffrageNodeConnInfo(context.Context, quicstream.ConnInfo) ([]NodeConnInfo, error)
 	SyncSourceConnInfo(context.Context, quicstream.ConnInfo) ([]NodeConnInfo, error)

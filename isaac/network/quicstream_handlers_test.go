@@ -35,7 +35,7 @@ func (t *testQuicstreamHandlers) SetupTest() {
 func (t *testQuicstreamHandlers) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapItemRequestHeaderHint, Instance: BlockMapItemRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemRequestHeaderHint, Instance: BlockItemRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapRequestHeaderHint, Instance: BlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapRequestHeaderHint, Instance: LastBlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastSuffrageProofRequestHeaderHint, Instance: LastSuffrageProofRequestHeader{}}))
@@ -1168,7 +1168,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 }
 
-func (t *testQuicstreamHandlers) TestBlockMapItem() {
+func (t *testQuicstreamHandlers) TestBlockItem() {
 	ci := quicstream.UnsafeConnInfo(nil, true)
 
 	t.Run("known item", func() {
@@ -1178,7 +1178,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		body := util.UUID().Bytes()
 		r := bytes.NewBuffer(body)
 
-		handler := QuicstreamHandlerBlockMapItem(
+		handler := QuicstreamHandlerBlockItem(
 			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
 				if h != height {
 					return false, nil
@@ -1194,14 +1194,14 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 
 				return true, nil
 			})
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		var rb []byte
 		var found bool
 
-		t.NoError(c.BlockMapItem(context.Background(), ci, height, item, func(r io.Reader, rfound bool, compressFormat string) error {
+		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, rfound bool, compressFormat string) error {
 			if rfound {
 				b, err := io.ReadAll(r)
 				if err != nil {
@@ -1221,19 +1221,19 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 	})
 
 	t.Run("unknown item", func() {
-		handler := QuicstreamHandlerBlockMapItem(
+		handler := QuicstreamHandlerBlockItem(
 			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
 				return false, nil
 			},
 		)
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockMapItem, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
 		var rb []byte
 		var found bool
 
-		err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, rfound bool, compressFormat string) error {
+		err := c.BlockItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, rfound bool, compressFormat string) error {
 			if rfound {
 				b, err := io.ReadAll(r)
 				if err != nil {

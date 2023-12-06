@@ -133,8 +133,8 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixBlockMapItemString,
-		isaacnetwork.QuicstreamHandlerBlockMapItem(
+		isaacnetwork.HandlerPrefixBlockItemString,
+		isaacnetwork.QuicstreamHandlerBlockItem(
 			func(height base.Height, item base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
 				switch found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
 					return f(ir.Reader(), ir.Reader().Format)

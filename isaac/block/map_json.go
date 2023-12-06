@@ -62,7 +62,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	for k := range u.Items {
 		var ui BlockMapItem
 		if err := enc.Unmarshal(u.Items[k], &ui); err != nil {
-			return e.WithMessage(err, "unmarshal blockmap item, %q", k)
+			return e.WithMessage(err, "unmarshal block item, %q", k)
 		}
 
 		_ = items.SetValue(ui.Type(), ui)

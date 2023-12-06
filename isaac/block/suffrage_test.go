@@ -88,7 +88,7 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 }
 
 func (t *testSuffrageProof) newitem(ty base.BlockItemType) BlockMapItem {
-	return NewLocalBlockMapItem(ty, util.UUID().String())
+	return NewBlockMapItem(ty, util.UUID().String())
 }
 
 func (t *testSuffrageProof) newmap(height base.Height, local base.LocalNode) BlockMap {

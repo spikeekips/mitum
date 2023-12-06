@@ -28,7 +28,7 @@ func (t *testBlockMap) SetupSuite() {
 }
 
 func (t *testBlockMap) newitem(ty base.BlockItemType) BlockMapItem {
-	return NewLocalBlockMapItem(ty, util.UUID().String())
+	return NewBlockMapItem(ty, util.UUID().String())
 }
 
 func (t *testBlockMap) newmap() BlockMap {

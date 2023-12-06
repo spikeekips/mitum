@@ -330,32 +330,32 @@ func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type BlockMapItemRequestHeaderJSONMarshaler struct {
+type BlockItemRequestHeaderJSONMarshaler struct {
 	Item   base.BlockItemType `json:"item"`
 	Height base.Height        `json:"height"`
 }
 
-func (h BlockMapItemRequestHeader) MarshalJSON() ([]byte, error) {
+func (h BlockItemRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BlockMapItemRequestHeaderJSONMarshaler
+		BlockItemRequestHeaderJSONMarshaler
 		BaseHeaderJSONMarshaler
 	}{
 		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		BlockMapItemRequestHeaderJSONMarshaler: BlockMapItemRequestHeaderJSONMarshaler{
+		BlockItemRequestHeaderJSONMarshaler: BlockItemRequestHeaderJSONMarshaler{
 			Height: h.height,
 			Item:   h.item,
 		},
 	})
 }
 
-type BlockMapItemRequestHeaderJSONUnmarshaler struct {
+type BlockItemRequestHeaderJSONUnmarshaler struct {
 	Item   base.BlockItemType `json:"item"`
 	Height base.Height        `json:"height"`
 }
 
-func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringError("unmarshal BlockMapItemHeader")
-	var u BlockMapItemRequestHeaderJSONUnmarshaler
+func (h *BlockItemRequestHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringError("unmarshal BlockItemHeader")
+	var u BlockItemRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)

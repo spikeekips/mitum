@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func isListBlockMapItemType(t base.BlockItemType) bool {
+func isListBlockItemType(t base.BlockItemType) bool {
 	switch t {
 	case base.BlockItemOperations,
 		base.BlockItemOperationsTree,
@@ -44,7 +44,7 @@ func (t *testItemReader) prepare() (fixedtree.Tree, fixedtree.Tree) {
 
 func (t *testItemReader) pick(it base.BlockItemType) *util.CompressedReader {
 	var compressFormat string
-	if isCompressedBlockMapItemType(it) {
+	if isCompressedBlockItemType(it) {
 		compressFormat = "gz"
 	}
 
@@ -72,7 +72,7 @@ func (t *testItemReader) loadItem(it base.BlockItemType) (u interface{}) {
 	f = t.openFile(it)
 	defer f.Close()
 
-	if isCompressedBlockMapItemType(it) {
+	if isCompressedBlockItemType(it) {
 		i, err := gzip.NewReader(f)
 		t.NoError(err)
 		f = i
@@ -81,7 +81,7 @@ func (t *testItemReader) loadItem(it base.BlockItemType) (u interface{}) {
 	br, _, err := readItemsHeader(f)
 	t.NoError(err)
 
-	if isListBlockMapItemType(it) {
+	if isListBlockItemType(it) {
 		var n []interface{}
 
 		_, err := DecodeLineItems(br, t.Enc.Decode, func(index uint64, v interface{}) error {

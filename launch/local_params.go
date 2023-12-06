@@ -780,7 +780,7 @@ func (p *NetworkRateLimitParams) IsValid([]byte) error {
 var networkHandlerPrefixes = []string{
 	isaacnetwork.HandlerPrefixAskHandoverString,
 	isaacnetwork.HandlerPrefixBlockMapString,
-	isaacnetwork.HandlerPrefixBlockMapItemString,
+	isaacnetwork.HandlerPrefixBlockItemString,
 	isaacnetwork.HandlerPrefixCancelHandoverString,
 	isaacnetwork.HandlerPrefixCheckHandoverString,
 	isaacnetwork.HandlerPrefixCheckHandoverXString,

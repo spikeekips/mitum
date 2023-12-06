@@ -49,5 +49,5 @@ func newTestBlockMap(
 }
 
 func newTestBlockMapItem(t base.BlockItemType) isaacblock.BlockMapItem {
-	return isaacblock.NewLocalBlockMapItem(t, util.UUID().String())
+	return isaacblock.NewBlockMapItem(t, util.UUID().String())
 }

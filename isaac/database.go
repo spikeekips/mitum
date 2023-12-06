@@ -9,7 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-// Database serves BlockMapItem like blockmap, states and operations from
+// Database serves some of block items like blockmap, states and operations from
 // TempDatabases and PermanentDatabase. It has several TempDatabases and one
 // PermanentDatabase.
 type Database interface { //nolint:interfacebloat //..
@@ -45,7 +45,7 @@ type BaseDatabase interface {
 }
 
 // TempDatabase is the temporary database; it contains only blockmap and
-// others of one block for storing BlockMapItem fast.
+// others of one block for storing some of block items fast.
 type TempDatabase interface {
 	BaseDatabase
 	Height() base.Height
@@ -74,7 +74,7 @@ type BlockWriteDatabase interface { //nolint:interfacebloat //..
 	TempDatabase() (TempDatabase, error)
 }
 
-// PermanentDatabase stores BlockMapItem permanently.
+// PermanentDatabase stores some of block items permanently.
 type PermanentDatabase interface { //nolint:interfacebloat //..
 	BaseDatabase
 	Close() error

@@ -158,7 +158,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 			_ = w.opsf.Close()
 
 			if l := atomic.LoadUint64(&w.lenops); l > 0 {
-				if err := w.m.SetItem(NewLocalBlockMapItem(
+				if err := w.m.SetItem(NewBlockMapItem(
 					base.BlockItemOperations,
 					w.opsf.Checksum(),
 				)); err != nil {
@@ -195,7 +195,7 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 		func(ctx context.Context, _ uint64) error {
 			_ = w.stsf.Close()
 
-			if eerr := w.m.SetItem(NewLocalBlockMapItem(
+			if eerr := w.m.SetItem(NewBlockMapItem(
 				base.BlockItemStates,
 				w.stsf.Checksum(),
 			)); eerr != nil {
@@ -276,7 +276,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		}
 	}
 
-	if err := w.m.SetItem(NewLocalBlockMapItem(
+	if err := w.m.SetItem(NewBlockMapItem(
 		base.BlockItemVoteproofs,
 		f.Checksum(),
 	)); err != nil {
@@ -474,7 +474,7 @@ func (w *LocalFSWriter) setTree(
 		tr = i
 	}
 
-	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum())); err != nil {
+	if err := w.m.SetItem(NewBlockMapItem(treetype, tf.Checksum())); err != nil {
 		return tr, e.Wrap(err)
 	}
 
@@ -530,7 +530,7 @@ func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 	_ = w.bfiles.SetItem(t, NewLocalFSBlockItemFile(cw.Name(), ""))
 
 	if t != base.BlockItemMap {
-		return w.m.SetItem(NewLocalBlockMapItem(t, cw.Checksum()))
+		return w.m.SetItem(NewBlockMapItem(t, cw.Checksum()))
 	}
 
 	return nil
@@ -567,7 +567,7 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWr
 		f = i
 	}
 
-	if isCompressedBlockMapItemType(t) {
+	if isCompressedBlockItemType(t) {
 		switch i, err := util.NewGzipWriter(f, gzip.BestSpeed); {
 		case err != nil:
 			return nil, err
@@ -764,7 +764,7 @@ func BlockFileName(t base.BlockItemType, hinttype hint.Type, compressFormat stri
 func DefaultBlockFileName(t base.BlockItemType, hinttype hint.Type) (string, error) {
 	var compressFormat string
 
-	if isCompressedBlockMapItemType(t) {
+	if isCompressedBlockItemType(t) {
 		compressFormat = "gz"
 	}
 
@@ -845,7 +845,7 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 	return true, nil
 }
 
-func isCompressedBlockMapItemType(t base.BlockItemType) bool {
+func isCompressedBlockItemType(t base.BlockItemType) bool {
 	switch t {
 	case base.BlockItemProposal,
 		base.BlockItemOperations,
