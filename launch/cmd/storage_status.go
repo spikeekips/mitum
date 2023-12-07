@@ -24,7 +24,7 @@ type StorageStatusCommand struct { //nolint:govet //...
 	launch.PrivatekeyFlags
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
-	readers         *isaacblock.Readers
+	readers         *isaac.BlockItemReaders
 }
 
 func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
@@ -103,7 +103,7 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	var design launch.NodeDesign
 	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
-	var newReaders func(string) *isaacblock.Readers
+	var newReaders func(string) *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.DesignContextKey, &design,

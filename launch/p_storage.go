@@ -204,7 +204,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var center isaac.Database
-	var readers *isaacblock.Readers
+	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
@@ -230,7 +230,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		bm = m
 	}
 
-	switch i, found, err := isaacblock.ReadersDecode[base.BlockMap](
+	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
 		readers,
 		bm.Manifest().Height(),
 		base.BlockItemMap,
@@ -246,7 +246,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		}
 	}
 
-	switch vps, found, err := isaacblock.ReadersDecode[[2]base.Voteproof](
+	switch vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](
 		readers,
 		bm.Manifest().Height(),
 		base.BlockItemVoteproofs,
@@ -404,8 +404,8 @@ func PBlockReaders(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	newReaders := func(root string) *isaacblock.Readers {
-		readers := isaacblock.NewReaders(root, encs, decompress)
+	newReaders := func(root string) *isaac.BlockItemReaders {
+		readers := isaac.NewBlockItemReaders(root, encs, decompress)
 		_ = readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(1<<6)) //nolint:gomnd //...
 
 		return readers
@@ -472,7 +472,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var readers *isaacblock.Readers
+	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,

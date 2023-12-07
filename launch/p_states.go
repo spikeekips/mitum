@@ -640,7 +640,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var syncSourcePool *isaac.SyncSourcePool
 	var lvps *isaac.LastVoteproofsHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
-	var readers *isaacblock.Readers
+	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,

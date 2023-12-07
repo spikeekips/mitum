@@ -84,7 +84,7 @@ func (er *ErrValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
 }
 
 func ValidateLastBlocks(
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	db isaac.Database,
 	networkID base.NetworkID,
 ) error {
@@ -145,7 +145,7 @@ func loadLastBlockMapFromDatabase(db isaac.Database, networkID base.NetworkID) (
 }
 
 func loadLastBlockMapFromLocalFS(
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	networkID base.NetworkID,
 ) (base.BlockMap, bool, error) {
 	var last base.Height
@@ -159,7 +159,7 @@ func loadLastBlockMapFromLocalFS(
 		last = i
 	}
 
-	switch i, found, err := ReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil); {
 	case err != nil, !found:
 		return nil, found, err
 	default:
@@ -172,7 +172,7 @@ func loadLastBlockMapFromLocalFS(
 }
 
 func ValidateAllBlockMapsFromLocalFS(
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	last base.Height,
 	networkID base.NetworkID,
 ) error {
@@ -210,7 +210,8 @@ func ValidateAllBlockMapsFromLocalFS(
 
 			var m base.BlockMap
 
-			switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+			switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
+				readers, height, base.BlockItemMap, nil); {
 			case err != nil:
 				return err
 			case !found:
@@ -252,7 +253,7 @@ func ValidateAllBlockMapsFromLocalFS(
 }
 
 func ValidateBlockFromLocalFS(
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	height base.Height,
 	networkID base.NetworkID,
 	validateBlockMapf func(base.BlockMap) error,
@@ -263,7 +264,7 @@ func ValidateBlockFromLocalFS(
 
 	var m base.BlockMap
 
-	switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
@@ -306,7 +307,10 @@ func ValidateBlockFromLocalFS(
 	return validateVoteproofsFromLocalFS(networkID, vps, m.Manifest())
 }
 
-func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:disable-line:function-result-limit
+func loadBlockItemsFromReader( //revive:disable-line:function-result-limit
+	readers *isaac.BlockItemReaders,
+	height base.Height,
+) (
 	pr base.ProposalSignFact,
 	ops []base.Operation,
 	sts []base.State,
@@ -316,7 +320,7 @@ func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:d
 ) {
 	var bm base.BlockMap
 
-	switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
 	case err != nil:
 		return pr, ops, sts, opstree, ststree, vps, err
 	case !found:
@@ -356,12 +360,12 @@ func loadBlockItemsFromReader(readers *Readers, height base.Height) ( //revive:d
 }
 
 func decodeBlockItemFromReader[T any](
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	height base.Height,
 	item base.BlockItemType,
 	v interface{},
 ) error {
-	switch i, found, err := ReadersDecode[T](readers, height, item, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[T](readers, height, item, nil); {
 	case err != nil:
 		return err
 	case !found:
@@ -372,12 +376,12 @@ func decodeBlockItemFromReader[T any](
 }
 
 func decodeBlockItemsFromReader[T any](
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	height base.Height,
 	item base.BlockItemType,
 	v interface{},
 ) error {
-	switch _, i, found, err := ReadersDecodeItems[T](readers, height, item, nil, nil); {
+	switch _, i, found, err := isaac.BlockItemReadersDecodeItems[T](readers, height, item, nil, nil); {
 	case err != nil:
 		return err
 	case !found:
@@ -488,7 +492,7 @@ func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Votepro
 }
 
 func ValidateBlocksFromStorage(
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	fromHeight, toHeight base.Height,
 	networkID base.NetworkID,
 	db isaac.Database,

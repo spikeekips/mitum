@@ -108,7 +108,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var newReaders func(string) *isaacblock.Readers
+	var newReaders func(string) *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
@@ -174,7 +174,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 	return pctx, nil
 }
 
-func (cmd *ImportCommand) checkHeights(pctx context.Context, readers *isaacblock.Readers) (base.Height, error) {
+func (cmd *ImportCommand) checkHeights(pctx context.Context, readers *isaac.BlockItemReaders) (base.Height, error) {
 	var last base.Height
 
 	var isaacparams *isaac.Params
@@ -223,7 +223,7 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context, readers *isaacblock
 }
 
 func (cmd *ImportCommand) validateSourceBlocks(
-	sourceReaders *isaacblock.Readers,
+	sourceReaders *isaac.BlockItemReaders,
 	last base.Height,
 	params *isaac.Params,
 ) error {
@@ -258,7 +258,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 }
 
 func (cmd *ImportCommand) validateImported(
-	importedReaders *isaacblock.Readers,
+	importedReaders *isaac.BlockItemReaders,
 	last base.Height,
 	params *isaac.Params,
 	db isaac.Database,
@@ -275,7 +275,7 @@ func (cmd *ImportCommand) validateImported(
 	return nil
 }
 
-func checkLastHeight(pctx context.Context, readers *isaacblock.Readers, fromHeight, toHeight base.Height) (
+func checkLastHeight(pctx context.Context, readers *isaac.BlockItemReaders, fromHeight, toHeight base.Height) (
 	base.Height,
 	base.Height,
 	base.Height,

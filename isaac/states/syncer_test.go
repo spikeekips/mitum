@@ -24,7 +24,7 @@ import (
 type testSyncer struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
-	readers *isaacblock.Readers
+	readers *isaac.BlockItemReaders
 }
 
 func (t *testSyncer) SetupSuite() {
@@ -43,7 +43,7 @@ func (t *testSyncer) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
 
-	t.readers = isaacblock.NewReaders(t.Root, t.Encs, nil)
+	t.readers = isaac.NewBlockItemReaders(t.Root, t.Encs, nil)
 	t.NoError(t.readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(3)))
 }
 

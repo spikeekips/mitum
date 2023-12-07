@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -60,7 +61,7 @@ func (t *testItemReader) openFile(it base.BlockItemType) *os.File {
 	n, err := DefaultBlockFileName(it, t.Enc.Hint().Type())
 	t.NoError(err)
 
-	f, err := os.Open(filepath.Join(t.Root, HeightDirectory(33), n))
+	f, err := os.Open(filepath.Join(t.Root, isaac.BlockHeightDirectory(33), n))
 	t.NoError(err)
 
 	return f
@@ -78,13 +79,13 @@ func (t *testItemReader) loadItem(it base.BlockItemType) (u interface{}) {
 		f = i
 	}
 
-	br, _, err := readItemsHeader(f)
+	br, _, err := isaac.ReadBlockItemFileHeader(f)
 	t.NoError(err)
 
 	if isListBlockItemType(it) {
 		var n []interface{}
 
-		_, err := DecodeLineItems(br, t.Enc.Decode, func(index uint64, v interface{}) error {
+		_, err := isaac.BlockItemDecodeLineItems(br, t.Enc.Decode, func(index uint64, v interface{}) error {
 			n = append(n, v)
 
 			return nil
@@ -368,7 +369,7 @@ func (t *testItemReader) TestDecodeItems() {
 			gr, err := gzip.NewReader(f)
 			t.NoError(err)
 
-			br, err := loadItemsHeader(gr, &u)
+			br, err := isaac.LoadBlockItemFileHeader(gr, &u)
 			t.NoError(err)
 
 			t.T().Log("count:", u.Count)
@@ -378,7 +379,7 @@ func (t *testItemReader) TestDecodeItems() {
 			fname, err := DefaultBlockFileName(base.BlockItemOperations, t.Enc.Hint().Type())
 			t.NoError(err)
 
-			cf, err := os.OpenFile(filepath.Join(t.Root, HeightDirectory(33), fname), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+			cf, err := os.OpenFile(filepath.Join(t.Root, isaac.BlockHeightDirectory(33), fname), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 			t.NoError(err)
 
 			gw := gzip.NewWriter(cf)

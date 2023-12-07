@@ -1,7 +1,6 @@
 package isaacblock
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -102,7 +102,7 @@ func NewLocalFSWriter(
 		enc:        enc,
 		local:      local,
 		networkID:  networkID,
-		heightbase: HeightDirectory(height),
+		heightbase: isaac.BlockHeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockMap(),
 		bfiles:     NewBlockItemFilesMaker(jsonenc),
@@ -266,7 +266,9 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		_ = f.Close()
 	}()
 
-	if err := writeBaseHeader(f, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
+	if err := writeBaseHeader(f,
+		isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()},
+	); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -363,7 +365,7 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 
 	m := w.m
 
-	if err := w.bfiles.Save(BlockItemFilesPath(w.root, w.height)); err != nil {
+	if err := w.bfiles.Save(isaac.BlockItemFilesPath(w.root, w.height)); err != nil {
 		return nil, err
 	}
 
@@ -517,7 +519,9 @@ func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 		_ = cw.Close()
 	}()
 
-	if err := writeBaseHeader(cw, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()}); err != nil {
+	if err := writeBaseHeader(cw,
+		isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: w.enc.Hint()},
+	); err != nil {
 		return err
 	}
 
@@ -579,40 +583,6 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWr
 	return util.NewHashChecksumWriterWithWriter(fname, f, sha256.New()), nil
 }
 
-func HeightDirectory(height base.Height) string {
-	h := height.String()
-	if height < 0 {
-		h = strings.ReplaceAll(h, "-", "_")
-	}
-
-	p := fmt.Sprintf(BlockDirectoryHeightFormat, h)
-
-	sl := make([]string, 7)
-	var i int
-
-	for {
-		e := (i * 3) + 3 //nolint:gomnd //...
-		if e > len(p) {
-			e = len(p)
-		}
-
-		s := p[i*3 : e]
-		if len(s) < 1 {
-			break
-		}
-
-		sl[i] = s
-
-		if len(s) < 3 { //nolint:gomnd //...
-			break
-		}
-
-		i++
-	}
-
-	return "/" + strings.Join(sl, "/")
-}
-
 func HeightFromDirectory(s string) (base.Height, error) {
 	hs := strings.Replace(s, "/", "", -1)
 
@@ -641,7 +611,7 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 }
 
 func FindLastHeightFromLocalFS(
-	readers *Readers, networkID base.NetworkID,
+	readers *isaac.BlockItemReaders, networkID base.NetworkID,
 ) (last base.Height, found bool, _ error) {
 	e := util.StringError("find last height from localfs")
 
@@ -666,7 +636,7 @@ func FindLastHeightFromLocalFS(
 
 		last = height
 
-		switch i, found, err := ReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+		switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
 		case err != nil, !found:
 			return last, found, e.Wrap(err)
 		default:
@@ -781,7 +751,7 @@ func CleanBlockTempDirectory(root string) error {
 }
 
 func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
-	heightdirectory := filepath.Join(root, HeightDirectory(height))
+	heightdirectory := filepath.Join(root, isaac.BlockHeightDirectory(height))
 
 	switch _, err := os.Stat(heightdirectory); {
 	case errors.Is(err, os.ErrNotExist):
@@ -794,7 +764,7 @@ func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
 		}
 	}
 
-	if err := os.Remove(BlockItemFilesPath(root, height)); err != nil {
+	if err := os.Remove(isaac.BlockItemFilesPath(root, height)); err != nil {
 		return false, errors.WithMessagef(err, "files.json")
 	}
 
@@ -930,13 +900,8 @@ func writeBaseHeader(f io.Writer, hs interface{}) error {
 	}
 }
 
-type baseItemsHeader struct {
-	Writer  hint.Hint `json:"writer"`
-	Encoder hint.Hint `json:"encoder"`
-}
-
 type countItemsHeader struct {
-	baseItemsHeader
+	isaac.BlockItemFileBaseItemsHeader
 	Count uint64 `json:"count"`
 }
 
@@ -947,77 +912,17 @@ type treeItemsHeader struct {
 
 func writeCountHeader(f io.Writer, writer, enc hint.Hint, count uint64) error {
 	return writeBaseHeader(f, countItemsHeader{
-		baseItemsHeader: baseItemsHeader{Writer: writer, Encoder: enc},
-		Count:           count,
+		BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: writer, Encoder: enc},
+		Count:                        count,
 	})
 }
 
 func writeTreeHeader(f io.Writer, writer, enc hint.Hint, count uint64, tree hint.Hint) error {
 	return writeBaseHeader(f, treeItemsHeader{
 		countItemsHeader: countItemsHeader{
-			baseItemsHeader: baseItemsHeader{Writer: writer, Encoder: enc},
-			Count:           count,
+			BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: writer, Encoder: enc},
+			Count:                        count,
 		},
 		Tree: tree,
 	})
-}
-
-func readItemsHeader(f io.Reader) (br *bufio.Reader, _ []byte, _ error) {
-	if i, ok := f.(*bufio.Reader); ok {
-		br = i
-	} else {
-		br = bufio.NewReader(f)
-	}
-
-	for {
-		var iseof bool
-		var b []byte
-
-		switch i, err := br.ReadBytes('\n'); {
-		case errors.Is(err, io.EOF):
-			iseof = true
-		case err != nil:
-			return br, nil, errors.WithStack(err)
-		default:
-			b = i
-		}
-
-		if !bytes.HasPrefix(b, []byte("# ")) {
-			if iseof {
-				return br, nil, io.EOF
-			}
-
-			continue
-		}
-
-		return br, b[2:], nil
-	}
-}
-
-func loadItemsHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
-	switch br, b, err := readItemsHeader(f); {
-	case err != nil:
-		return br, err
-	default:
-		if err := util.UnmarshalJSON(b, v); err != nil {
-			return br, err
-		}
-
-		return br, nil
-	}
-}
-
-func loadBaseHeader(f io.Reader) (
-	_ *bufio.Reader,
-	writer, enc hint.Hint,
-	_ error,
-) {
-	var u baseItemsHeader
-
-	switch i, err := loadItemsHeader(f, &u); {
-	case err != nil:
-		return nil, writer, enc, err
-	default:
-		return i, u.Writer, u.Encoder, nil
-	}
 }

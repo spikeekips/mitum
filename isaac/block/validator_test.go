@@ -95,7 +95,7 @@ func (t *baseTestValidateBlock) buildBlocks(name string, top base.Height) (
 	return root, db
 }
 
-func (t *baseTestValidateBlock) readers(root string) *Readers {
+func (t *baseTestValidateBlock) readers(root string) *isaac.BlockItemReaders {
 	return t.NewReaders(root)
 }
 
@@ -250,10 +250,10 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 		_, err = fs.Save(context.Background())
 		t.NoError(err)
 
-		lastheightdirectory := filepath.Join(a, HeightDirectory(2))
+		lastheightdirectory := filepath.Join(a, isaac.BlockHeightDirectory(2))
 
-		t.NoError(os.Rename(BlockItemFilesPath(t.Root, 1), BlockItemFilesPath(a, 2)))
-		t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(1)), lastheightdirectory))
+		t.NoError(os.Rename(isaac.BlockItemFilesPath(t.Root, 1), isaac.BlockItemFilesPath(a, 2)))
+		t.NoError(os.Rename(filepath.Join(t.Root, isaac.BlockHeightDirectory(1)), lastheightdirectory))
 
 		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
@@ -266,10 +266,10 @@ func TestValidateAllBlockMapsFromLocalFS(t *testing.T) {
 }
 
 func moveHeightDirectory(height base.Height, sourceroot, destroot string) error {
-	sh := filepath.Join(sourceroot, HeightDirectory(height))
-	dh := filepath.Join(destroot, HeightDirectory(height))
-	sf := BlockItemFilesPath(sourceroot, height)
-	df := BlockItemFilesPath(destroot, height)
+	sh := filepath.Join(sourceroot, isaac.BlockHeightDirectory(height))
+	dh := filepath.Join(destroot, isaac.BlockHeightDirectory(height))
+	sf := isaac.BlockItemFilesPath(sourceroot, height)
+	df := isaac.BlockItemFilesPath(destroot, height)
 
 	if err := os.Rename(sh, dh); err != nil {
 		return err

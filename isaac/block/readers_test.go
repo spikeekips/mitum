@@ -53,7 +53,7 @@ func (r *dummyItemReader) DecodeItems(f func(uint64, uint64, interface{}) error)
 	return 0, err
 }
 
-func newItemReaderFunc(writerhint hint.Hint) NewItemReaderFunc {
+func newItemReaderFunc(writerhint hint.Hint) isaac.NewBlockItemReaderFunc {
 	return func(t base.BlockItemType, enc encoder.Encoder, r *util.CompressedReader) (isaac.BlockItemReader, error) {
 		return &dummyItemReader{
 			t:   t,
@@ -78,7 +78,7 @@ func (t *testReaders) prepare(height base.Height) {
 func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.File {
 	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
-	p := filepath.Join(t.Root, HeightDirectory(height), fname)
+	p := filepath.Join(t.Root, isaac.BlockHeightDirectory(height), fname)
 
 	f, err := os.Open(p)
 	t.NoError(err)
@@ -89,7 +89,7 @@ func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.Fi
 func (t *testReaders) updateItem(height base.Height, it base.BlockItemType, b []byte) {
 	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
-	p := filepath.Join(t.Root, HeightDirectory(height), fname)
+	p := filepath.Join(t.Root, isaac.BlockHeightDirectory(height), fname)
 
 	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	t.NoError(err)
@@ -105,7 +105,7 @@ func (t *testReaders) updateItemHeader(height base.Height, writerhint hint.Hint,
 	// NOTE update writerhint
 	buf := bytes.NewBuffer(nil)
 	{
-		switch br, _, _, err := loadBaseHeader(f); {
+		switch br, _, _, err := isaac.LoadBlockItemFileBaseHeader(f); {
 		case err != nil:
 			t.NoError(err)
 		default:
@@ -115,7 +115,7 @@ func (t *testReaders) updateItemHeader(height base.Height, writerhint hint.Hint,
 		f.Close()
 	}
 
-	t.NoError(writeBaseHeader(buf, baseItemsHeader{Writer: writerhint, Encoder: t.Encs.JSON().Hint()}))
+	t.NoError(writeBaseHeader(buf, isaac.BlockItemFileBaseItemsHeader{Writer: writerhint, Encoder: t.Encs.JSON().Hint()}))
 
 	t.updateItem(height, it, buf.Bytes())
 }
@@ -125,7 +125,7 @@ func (t *testReaders) TestItem() {
 
 	t.prepare(height)
 
-	readers := NewReaders(t.Root, t.Encs, nil)
+	readers := isaac.NewBlockItemReaders(t.Root, t.Encs, nil)
 
 	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
 
@@ -199,7 +199,7 @@ func (t *testReaders) TestItemFromReader() {
 
 	t.prepare(height)
 
-	readers := NewReaders(t.Root, t.Encs, nil)
+	readers := isaac.NewBlockItemReaders(t.Root, t.Encs, nil)
 
 	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
 
@@ -279,7 +279,7 @@ func (t *testReaders) TestBrokenItemFiles() {
 
 	t.prepare(height)
 
-	readers := NewReaders(t.Root, t.Encs, nil)
+	readers := isaac.NewBlockItemReaders(t.Root, t.Encs, nil)
 	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
 
 	t.updateItem(height, base.BlockItemMap, []byte("hehehe"))
@@ -296,7 +296,7 @@ func (t *testReaders) TestCompressedItemFile() {
 
 	t.prepare(height)
 
-	readers := NewReaders(t.Root, t.Encs, nil)
+	readers := isaac.NewBlockItemReaders(t.Root, t.Encs, nil)
 	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
 
 	t.Run("not compressed", func() {

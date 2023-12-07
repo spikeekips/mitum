@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -70,7 +71,9 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 		w = j
 	}
 
-	if err := writeBaseHeader(w, baseItemsHeader{Writer: LocalFSWriterHint, Encoder: l.enc.Hint()}); err != nil {
+	if err := writeBaseHeader(w,
+		isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: l.enc.Hint()},
+	); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -111,7 +114,7 @@ func (l *LocalFSImporter) WriteItem(
 }
 
 func (l *LocalFSImporter) Save() error {
-	heightdirectory := filepath.Join(l.root, HeightDirectory(l.height))
+	heightdirectory := filepath.Join(l.root, isaac.BlockHeightDirectory(l.height))
 
 	if err := l.save(heightdirectory); err != nil {
 		_ = os.RemoveAll(heightdirectory)
@@ -144,7 +147,7 @@ func (l *LocalFSImporter) save(heightdirectory string) error {
 		return errors.WithStack(err)
 	}
 
-	return l.bfiles.Save(BlockItemFilesPath(l.root, l.height))
+	return l.bfiles.Save(isaac.BlockItemFilesPath(l.root, l.height))
 }
 
 func (l *LocalFSImporter) Cancel() error {
@@ -160,7 +163,7 @@ func (l *LocalFSImporter) Cancel() error {
 		return e.WithMessage(err, "check temp directory")
 	}
 
-	d := filepath.Join(l.root, HeightDirectory(l.height))
+	d := filepath.Join(l.root, isaac.BlockHeightDirectory(l.height))
 
 	switch _, err := os.Stat(d); {
 	case err == nil:

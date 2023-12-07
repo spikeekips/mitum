@@ -25,7 +25,7 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	m, found, err := ReadersDecode[base.BlockMap](t.Readers, point.Height(), base.BlockItemMap, nil)
+	m, found, err := isaac.BlockItemReadersDecode[base.BlockMap](t.Readers, point.Height(), base.BlockItemMap, nil)
 	t.True(found)
 	t.NoError(err)
 
@@ -69,7 +69,7 @@ func (t *testBlockImporter) TestWriteMap() {
 		f := t.openFile(im.localfs.temp, base.BlockItemMap)
 		defer f.Close()
 
-		rbm, found, err := ReadersDecodeFromReader[base.BlockMap](t.Readers, base.BlockItemMap, f, "", nil)
+		rbm, found, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](t.Readers, base.BlockItemMap, f, "", nil)
 		t.NoError(err)
 		t.True(found)
 
@@ -93,7 +93,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	pr, found, err := ReadersDecode[base.ProposalSignFact](t.Readers, point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
+	pr, found, err := isaac.BlockItemReadersDecode[base.ProposalSignFact](t.Readers, point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
 		_, err := ir.Reader().Tee(nil, cw)
 
 		return err
@@ -121,7 +121,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 		defer f.Close()
 
 		cw := util.NewHashChecksumWriter(sha256.New())
-		rpr, found, err := ReadersDecodeFromReader[base.ProposalSignFact](t.Readers, base.BlockItemProposal, f, "gz", func(ir isaac.BlockItemReader) error {
+		rpr, found, err := isaac.BlockItemReadersDecodeFromReader[base.ProposalSignFact](t.Readers, base.BlockItemProposal, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
@@ -140,7 +140,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	m := t.prepare(point)
 
 	cw := util.NewHashChecksumWriter(sha256.New())
-	_, ops, found, err := ReadersDecodeItems[base.Operation](t.Readers, point.Height(), base.BlockItemOperations,
+	_, ops, found, err := isaac.BlockItemReadersDecodeItems[base.Operation](t.Readers, point.Height(), base.BlockItemOperations,
 		nil,
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
@@ -171,7 +171,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 		defer f.Close()
 
 		cw := util.NewHashChecksumWriter(sha256.New())
-		_, rops, found, err := ReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
+		_, rops, found, err := isaac.BlockItemReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
 			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
@@ -210,7 +210,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	tr, found, err := ReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
+	tr, found, err := isaac.BlockItemReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
 		_, err := ir.Reader().Tee(nil, cw)
 
 		return err
@@ -240,7 +240,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 		var rtr fixedtree.Tree
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rtr, found, err := ReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemOperationsTree, f, "gz", func(ir isaac.BlockItemReader) error {
+		rtr, found, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemOperationsTree, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
@@ -267,7 +267,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	var vps [2]base.Voteproof
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	vps, found, err := ReadersDecode[[2]base.Voteproof](t.Readers, point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
+	vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](t.Readers, point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
 		_, err := ir.Reader().Tee(nil, cw)
 
 		return err
@@ -296,7 +296,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rvps, found, err := ReadersDecodeFromReader[[2]base.Voteproof](t.Readers, base.BlockItemVoteproofs, f, "", func(ir isaac.BlockItemReader) error {
+		rvps, found, err := isaac.BlockItemReadersDecodeFromReader[[2]base.Voteproof](t.Readers, base.BlockItemVoteproofs, f, "", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
@@ -318,7 +318,7 @@ func (t *testBlockImporter) TestWriteStates() {
 
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	_, sts, found, err := ReadersDecodeItems[base.State](t.Readers, point.Height(), base.BlockItemStates,
+	_, sts, found, err := isaac.BlockItemReadersDecodeItems[base.State](t.Readers, point.Height(), base.BlockItemStates,
 		nil,
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
@@ -350,7 +350,7 @@ func (t *testBlockImporter) TestWriteStates() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		_, rsts, found, err := ReadersDecodeItemsFromReader[base.State](t.Readers, base.BlockItemStates, f, "gz",
+		_, rsts, found, err := isaac.BlockItemReadersDecodeItemsFromReader[base.State](t.Readers, base.BlockItemStates, f, "gz",
 			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
@@ -389,7 +389,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	m := t.prepare(point)
 
 	cw := util.NewHashChecksumWriter(sha256.New())
-	tr, found, err := ReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
+	tr, found, err := isaac.BlockItemReadersDecode[fixedtree.Tree](t.Readers, point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
 		_, err := ir.Reader().Tee(nil, cw)
 
 		return err
@@ -418,7 +418,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rtr, found, err := ReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemStatesTree, f, "gz", func(ir isaac.BlockItemReader) error {
+		rtr, found, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemStatesTree, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
@@ -499,7 +499,7 @@ func (t *testBlockImporter) TestSave() {
 	})
 
 	t.Run("check files file", func() {
-		fpath := filepath.Join(filepath.Dir(newroot), filepath.Dir(HeightDirectory(point.Height())), base.BlockItemFilesName(point.Height()))
+		fpath := filepath.Join(filepath.Dir(newroot), filepath.Dir(isaac.BlockHeightDirectory(point.Height())), base.BlockItemFilesName(point.Height()))
 		f, err := os.Open(fpath)
 		t.NoError(err)
 

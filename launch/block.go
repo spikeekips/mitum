@@ -14,7 +14,7 @@ import (
 
 func ImportBlocks(
 	fromreaders,
-	toreaders *isaacblock.Readers,
+	toreaders *isaac.BlockItemReaders,
 	fromHeight, toHeight base.Height,
 	encs *encoder.Encoders,
 	db isaac.Database,
@@ -26,7 +26,7 @@ func ImportBlocks(
 		333, //nolint:gomnd //...
 		toreaders,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			return isaacblock.ReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
+			return isaac.BlockItemReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
 		},
 		func(
 			_ context.Context, height base.Height, item base.BlockItemType,

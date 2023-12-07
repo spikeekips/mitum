@@ -120,7 +120,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var newReaders func(string) *isaacblock.Readers
+	var newReaders func(string) *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,

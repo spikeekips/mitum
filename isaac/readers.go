@@ -1,44 +1,50 @@
-package isaacblock
+package isaac
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"golang.org/x/sync/singleflight"
 )
 
-type ItemReaderFunc func(
+var (
+	LocalFSBlockItemScheme     = "localfs"
+	BlockDirectoryHeightFormat = "%021s"
+)
+
+type BlockItemReaderFunc func(
 	base.Height,
 	base.BlockItemType,
-	func(isaac.BlockItemReader) error,
+	func(BlockItemReader) error,
 ) (bool, error)
 
-type NewItemReaderFunc func(
+type NewBlockItemReaderFunc func(
 	base.BlockItemType,
 	encoder.Encoder,
 	*util.CompressedReader,
-) (isaac.BlockItemReader, error)
+) (BlockItemReader, error)
 
-func ReadersDecode[T any](
-	readers *Readers,
+func BlockItemReadersDecode[T any](
+	readers *BlockItemReaders,
 	height base.Height,
 	t base.BlockItemType,
-	f func(ir isaac.BlockItemReader) error,
+	f func(ir BlockItemReader) error,
 ) (target T, _ bool, _ error) {
-	irf := readersDecodeFunc[T](f)
+	irf := blockItemReadersDecodeFunc[T](f)
 
-	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
+	switch found, err := readers.Item(height, t, func(ir BlockItemReader) error {
 		switch i, err := irf(ir); {
 		case err != nil:
 			return err
@@ -55,16 +61,16 @@ func ReadersDecode[T any](
 	}
 }
 
-func ReadersDecodeItems[T any](
-	readers *Readers,
+func BlockItemReadersDecodeItems[T any](
+	readers *BlockItemReaders,
 	height base.Height,
 	t base.BlockItemType,
 	item func(uint64, uint64, T) error,
-	f func(ir isaac.BlockItemReader) error,
+	f func(ir BlockItemReader) error,
 ) (count uint64, l []T, found bool, _ error) {
-	irf, countf := readersDecodeItemsFuncs(item, f)
+	irf, countf := blockItemReadersDecodeItemsFuncs(item, f)
 
-	switch found, err := readers.Item(height, t, func(ir isaac.BlockItemReader) error {
+	switch found, err := readers.Item(height, t, func(ir BlockItemReader) error {
 		return irf(ir)
 	}); {
 	case err != nil, !found:
@@ -76,16 +82,16 @@ func ReadersDecodeItems[T any](
 	}
 }
 
-func ReadersDecodeFromReader[T any](
-	readers *Readers,
+func BlockItemReadersDecodeFromReader[T any](
+	readers *BlockItemReaders,
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
-	f func(ir isaac.BlockItemReader) error,
+	f func(ir BlockItemReader) error,
 ) (target T, _ bool, _ error) {
-	irf := readersDecodeFunc[T](f)
+	irf := blockItemReadersDecodeFunc[T](f)
 
-	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir BlockItemReader) error {
 		switch i, err := irf(ir); {
 		case err != nil:
 			return err
@@ -102,17 +108,17 @@ func ReadersDecodeFromReader[T any](
 	}
 }
 
-func ReadersDecodeItemsFromReader[T any](
-	readers *Readers,
+func BlockItemReadersDecodeItemsFromReader[T any](
+	readers *BlockItemReaders,
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
 	item func(uint64, uint64, T) error,
-	f func(ir isaac.BlockItemReader) error,
+	f func(ir BlockItemReader) error,
 ) (count uint64, l []T, found bool, _ error) {
-	irf, countf := readersDecodeItemsFuncs(item, f)
+	irf, countf := blockItemReadersDecodeItemsFuncs(item, f)
 
-	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir isaac.BlockItemReader) error {
+	switch found, err := readers.ItemFromReader(t, r, compressFormat, func(ir BlockItemReader) error {
 		return irf(ir)
 	}); {
 	case err != nil, !found:
@@ -124,14 +130,14 @@ func ReadersDecodeItemsFromReader[T any](
 	}
 }
 
-func readersDecodeFunc[T any](
-	f func(ir isaac.BlockItemReader) error,
-) func(isaac.BlockItemReader) (T, error) {
+func blockItemReadersDecodeFunc[T any](
+	f func(ir BlockItemReader) error,
+) func(BlockItemReader) (T, error) {
 	if f == nil {
-		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+		f = func(ir BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
 	}
 
-	return func(ir isaac.BlockItemReader) (target T, _ error) {
+	return func(ir BlockItemReader) (target T, _ error) {
 		if err := f(ir); err != nil {
 			return target, err
 		}
@@ -150,11 +156,11 @@ func readersDecodeFunc[T any](
 	}
 }
 
-func readersDecodeItemsFuncs[T any](
+func blockItemReadersDecodeItemsFuncs[T any](
 	item func(uint64, uint64, T) error,
-	f func(ir isaac.BlockItemReader) error,
+	f func(ir BlockItemReader) error,
 ) (
-	func(ir isaac.BlockItemReader) error,
+	func(ir BlockItemReader) error,
 	func() (uint64, []T),
 ) {
 	if item == nil {
@@ -162,14 +168,14 @@ func readersDecodeItemsFuncs[T any](
 	}
 
 	if f == nil {
-		f = func(ir isaac.BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+		f = func(ir BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
 	}
 
 	var l []T
 	var once sync.Once
 	var count uint64
 
-	return func(ir isaac.BlockItemReader) error {
+	return func(ir BlockItemReader) error {
 			if err := f(ir); err != nil {
 				return err
 			}
@@ -207,8 +213,8 @@ func readersDecodeItemsFuncs[T any](
 		}
 }
 
-type Readers struct {
-	*hint.CompatibleSet[NewItemReaderFunc]
+type BlockItemReaders struct {
+	*hint.CompatibleSet[NewBlockItemReaderFunc]
 	encs             *encoder.Encoders
 	bfilescache      *util.GCache[base.Height, base.BlockItemFiles]
 	decompressReader util.DecompressReaderFunc
@@ -216,17 +222,17 @@ type Readers struct {
 	root             string
 }
 
-func NewReaders(
+func NewBlockItemReaders(
 	root string,
 	encs *encoder.Encoders,
 	decompressReader util.DecompressReaderFunc,
-) *Readers {
+) *BlockItemReaders {
 	if decompressReader == nil {
 		decompressReader = util.DefaultDecompressReaderFunc //revive:disable-line:modifies-parameter
 	}
 
-	return &Readers{
-		CompatibleSet:    hint.NewCompatibleSet[NewItemReaderFunc](8), //nolint:gomnd //...
+	return &BlockItemReaders{
+		CompatibleSet:    hint.NewCompatibleSet[NewBlockItemReaderFunc](8), //nolint:gomnd //...
 		root:             root,
 		encs:             encs,
 		decompressReader: decompressReader,
@@ -234,18 +240,18 @@ func NewReaders(
 	}
 }
 
-func (rs *Readers) Root() string {
+func (rs *BlockItemReaders) Root() string {
 	return rs.root
 }
 
-func (rs *Readers) Add(writerhint hint.Hint, v NewItemReaderFunc) error {
+func (rs *BlockItemReaders) Add(writerhint hint.Hint, v NewBlockItemReaderFunc) error {
 	return rs.CompatibleSet.Add(writerhint, v)
 }
 
-func (rs *Readers) Item(
+func (rs *BlockItemReaders) Item(
 	height base.Height,
 	t base.BlockItemType,
-	callback func(isaac.BlockItemReader) error,
+	callback func(BlockItemReader) error,
 ) (bool, error) {
 	var bfile base.BlockItemFile
 
@@ -268,16 +274,16 @@ func (rs *Readers) Item(
 	}
 }
 
-func (rs *Readers) ItemFromReader(
+func (rs *BlockItemReaders) ItemFromReader(
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
-	callback func(isaac.BlockItemReader) error,
+	callback func(BlockItemReader) error,
 ) (bool, error) {
 	return rs.itemFromReader(t, r, compressFormat, callback)
 }
 
-func (rs *Readers) ItemFiles(height base.Height) (base.BlockItemFiles, bool, error) {
+func (rs *BlockItemReaders) ItemFiles(height base.Height) (base.BlockItemFiles, bool, error) {
 	i, err, _ := util.SingleflightDo[[2]interface{}](
 		&rs.bfilessg,
 		height.String(),
@@ -309,7 +315,7 @@ func (rs *Readers) ItemFiles(height base.Height) (base.BlockItemFiles, bool, err
 	}
 }
 
-func (rs *Readers) ItemFile(height base.Height, t base.BlockItemType) (base.BlockItemFile, bool, error) {
+func (rs *BlockItemReaders) ItemFile(height base.Height, t base.BlockItemType) (base.BlockItemFile, bool, error) {
 	switch bfiles, found, err := rs.ItemFiles(height); {
 	case err != nil, !found:
 		return nil, found, err
@@ -320,12 +326,12 @@ func (rs *Readers) ItemFile(height base.Height, t base.BlockItemType) (base.Bloc
 	}
 }
 
-func (rs *Readers) readFile(height base.Height, bfile base.BlockItemFile) (*os.File, bool, error) {
+func (rs *BlockItemReaders) readFile(height base.Height, bfile base.BlockItemFile) (*os.File, bool, error) {
 	var p string
 
 	switch u := bfile.URI(); u.Scheme {
 	case LocalFSBlockItemScheme:
-		p = filepath.Join(rs.root, HeightDirectory(height), u.Path)
+		p = filepath.Join(rs.root, BlockHeightDirectory(height), u.Path)
 	case "file":
 		p = u.Path
 	default:
@@ -342,8 +348,8 @@ func (rs *Readers) readFile(height base.Height, bfile base.BlockItemFile) (*os.F
 	}
 }
 
-func (rs *Readers) findBlockReader(f io.Reader, compressFormat string) (
-	NewItemReaderFunc,
+func (rs *BlockItemReaders) findBlockReader(f io.Reader, compressFormat string) (
+	NewBlockItemReaderFunc,
 	encoder.Encoder,
 	bool,
 	error,
@@ -362,7 +368,7 @@ func (rs *Readers) findBlockReader(f io.Reader, compressFormat string) (
 		dr = j
 	}
 
-	switch _, writerhint, enchint, err := loadBaseHeader(dr); {
+	switch _, writerhint, enchint, err := LoadBlockItemFileBaseHeader(dr); {
 	case errors.Is(err, io.EOF):
 		return nil, nil, false, nil
 	case err != nil:
@@ -382,11 +388,11 @@ func (rs *Readers) findBlockReader(f io.Reader, compressFormat string) (
 	}
 }
 
-func (rs *Readers) itemFromReader(
+func (rs *BlockItemReaders) itemFromReader(
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
-	callback func(isaac.BlockItemReader) error,
+	callback func(BlockItemReader) error,
 ) (bool, error) {
 	var br io.Reader
 	var resetf func() error
@@ -413,7 +419,7 @@ func (rs *Readers) itemFromReader(
 		br = i
 	}
 
-	var readerf NewItemReaderFunc
+	var readerf NewBlockItemReaderFunc
 	var enc encoder.Encoder
 
 	switch i, e, found, err := rs.findBlockReader(br, compressFormat); {
@@ -449,7 +455,7 @@ func (rs *Readers) itemFromReader(
 	}
 }
 
-func DecodeLineItems(
+func BlockItemDecodeLineItems(
 	f io.Reader,
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
@@ -496,7 +502,7 @@ end:
 	return index, nil
 }
 
-func DecodeLineItemsWithWorker(
+func BlockItemDecodeLineItemsWithWorker(
 	f io.Reader,
 	num uint64,
 	decode func([]byte) (interface{}, error),
@@ -509,7 +515,7 @@ func DecodeLineItemsWithWorker(
 
 	defer worker.Close()
 
-	switch i, err := DecodeLineItems(f, decode, func(index uint64, v interface{}) error {
+	switch i, err := BlockItemDecodeLineItems(f, decode, func(index uint64, v interface{}) error {
 		return worker.NewJob(func(ctx context.Context, _ uint64) error {
 			return callback(index, v)
 		})
@@ -544,4 +550,110 @@ func LoadBlockItemFilesPath(
 
 		return bfiles, true, nil
 	}
+}
+
+func BlockHeightDirectory(height base.Height) string {
+	h := height.String()
+	if height < 0 {
+		h = strings.ReplaceAll(h, "-", "_")
+	}
+
+	p := fmt.Sprintf(BlockDirectoryHeightFormat, h)
+
+	sl := make([]string, 7)
+	var i int
+
+	for {
+		e := (i * 3) + 3 //nolint:gomnd //...
+		if e > len(p) {
+			e = len(p)
+		}
+
+		s := p[i*3 : e]
+		if len(s) < 1 {
+			break
+		}
+
+		sl[i] = s
+
+		if len(s) < 3 { //nolint:gomnd //...
+			break
+		}
+
+		i++
+	}
+
+	return "/" + strings.Join(sl, "/")
+}
+
+type BlockItemFileBaseItemsHeader struct {
+	Writer  hint.Hint `json:"writer"`
+	Encoder hint.Hint `json:"encoder"`
+}
+
+func LoadBlockItemFileBaseHeader(f io.Reader) (
+	_ *bufio.Reader,
+	writer, enc hint.Hint,
+	_ error,
+) {
+	var u BlockItemFileBaseItemsHeader
+
+	switch i, err := LoadBlockItemFileHeader(f, &u); {
+	case err != nil:
+		return nil, writer, enc, err
+	default:
+		return i, u.Writer, u.Encoder, nil
+	}
+}
+
+func ReadBlockItemFileHeader(f io.Reader) (br *bufio.Reader, _ []byte, _ error) {
+	if i, ok := f.(*bufio.Reader); ok {
+		br = i
+	} else {
+		br = bufio.NewReader(f)
+	}
+
+	for {
+		var iseof bool
+		var b []byte
+
+		switch i, err := br.ReadBytes('\n'); {
+		case errors.Is(err, io.EOF):
+			iseof = true
+		case err != nil:
+			return br, nil, errors.WithStack(err)
+		default:
+			b = i
+		}
+
+		if !bytes.HasPrefix(b, []byte("# ")) {
+			if iseof {
+				return br, nil, io.EOF
+			}
+
+			continue
+		}
+
+		return br, b[2:], nil
+	}
+}
+
+func LoadBlockItemFileHeader(f io.Reader, v interface{}) (br *bufio.Reader, _ error) {
+	switch br, b, err := ReadBlockItemFileHeader(f); {
+	case err != nil:
+		return br, err
+	default:
+		if err := util.UnmarshalJSON(b, v); err != nil {
+			return br, err
+		}
+
+		return br, nil
+	}
+}
+
+func BlockItemFilesPath(root string, height base.Height) string {
+	return filepath.Join(
+		filepath.Dir(filepath.Join(root, BlockHeightDirectory(height))),
+		base.BlockItemFilesName(height),
+	)
 }

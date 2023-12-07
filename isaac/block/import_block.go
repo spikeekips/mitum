@@ -14,7 +14,7 @@ func ImportBlocks(
 	ctx context.Context,
 	from, to base.Height,
 	batchlimit int64,
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	blockMapf ImportBlocksBlockMapFunc,
 	blockItemf ImportBlocksBlockItemFunc,
 	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
@@ -80,7 +80,8 @@ func ImportBlocks(
 	}
 
 	if setLastVoteproofsFunc != nil {
-		switch vps, found, err := ReadersDecode[[2]base.Voteproof](readers, to, base.BlockItemVoteproofs, nil); {
+		switch vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](
+			readers, to, base.BlockItemVoteproofs, nil); {
 		case err != nil:
 			return e.WithMessage(err, "last voteproof")
 		default:
@@ -96,7 +97,7 @@ func importBlock(
 	height base.Height,
 	m base.BlockMap,
 	im isaac.BlockImporter,
-	readers *Readers,
+	readers *isaac.BlockItemReaders,
 	blockMapItemf ImportBlocksBlockItemFunc,
 ) error {
 	e := util.StringError("import block, %d", height)

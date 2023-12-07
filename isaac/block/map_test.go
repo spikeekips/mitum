@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -334,7 +335,7 @@ func (t *testBlockItemFile) TestNew() {
 		f := NewLocalFSBlockItemFile("proposal.gz", "")
 		t.NoError(f.IsValid(nil))
 
-		t.Equal(LocalFSBlockItemScheme, f.URI().Scheme)
+		t.Equal(isaac.LocalFSBlockItemScheme, f.URI().Scheme)
 		t.Equal("/proposal.gz", f.URI().Path)
 
 		t.Equal(f.CompressFormat(), "")
@@ -344,7 +345,7 @@ func (t *testBlockItemFile) TestNew() {
 		f := NewLocalFSBlockItemFile("proposal.json.gz", "")
 		t.NoError(f.IsValid(nil))
 
-		t.Equal(LocalFSBlockItemScheme, f.URI().Scheme)
+		t.Equal(isaac.LocalFSBlockItemScheme, f.URI().Scheme)
 		t.Equal("/proposal.json.gz", f.URI().Path)
 
 		t.Equal(f.CompressFormat(), "gz")
@@ -480,7 +481,7 @@ func (t *testBlockItemFiles) TestNew() {
 
 	i, found = fs.Item(base.BlockItemMap)
 	t.True(found)
-	t.Equal(LocalFSBlockItemScheme, i.URI().Scheme)
+	t.Equal(isaac.LocalFSBlockItemScheme, i.URI().Scheme)
 	t.Equal("/m.json", i.URI().Path)
 
 	i, found = fs.Item(base.BlockItemProposal)
@@ -490,7 +491,7 @@ func (t *testBlockItemFiles) TestNew() {
 
 	i, found = fs.Item(base.BlockItemVoteproofs)
 	t.True(found)
-	t.Equal(LocalFSBlockItemScheme, i.URI().Scheme)
+	t.Equal(isaac.LocalFSBlockItemScheme, i.URI().Scheme)
 	t.Equal("/v.ndjson", i.URI().Path)
 }
 
@@ -553,7 +554,7 @@ func (t *testBlockItemFiles) TestFile() {
 		i, found := fs.Item(base.BlockItemVoteproofs)
 		t.True(found)
 
-		t.Equal(LocalFSBlockItemScheme, i.URI().Scheme)
+		t.Equal(isaac.LocalFSBlockItemScheme, i.URI().Scheme)
 		t.Equal("/v.ndjson", i.URI().Path)
 	})
 

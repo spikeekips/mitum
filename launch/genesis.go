@@ -8,7 +8,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -19,7 +18,7 @@ import (
 type GenesisBlockGenerator struct {
 	local      base.LocalNode
 	encs       *encoder.Encoders
-	newReaders func(string) *isaacblock.Readers
+	newReaders func(string) *isaac.BlockItemReaders
 	db         isaac.Database
 	proposal   base.ProposalSignFact
 	ivp        base.INITVoteproof
@@ -38,7 +37,7 @@ func NewGenesisBlockGenerator(
 	db isaac.Database,
 	dataroot string,
 	facts []base.Fact,
-	newReaders func(string) *isaacblock.Readers,
+	newReaders func(string) *isaac.BlockItemReaders,
 ) *GenesisBlockGenerator {
 	return &GenesisBlockGenerator{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -71,7 +70,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 
 	readers := g.newReaders(g.dataroot)
 
-	switch blockmap, found, err := isaacblock.ReadersDecode[base.BlockMap](
+	switch blockmap, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
 		readers,
 		base.GenesisHeight,
 		base.BlockItemMap,

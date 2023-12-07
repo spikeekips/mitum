@@ -9,7 +9,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
@@ -64,7 +63,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 	var lvps *isaac.LastVoteproofsHandler
-	var readers *isaacblock.Readers
+	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,

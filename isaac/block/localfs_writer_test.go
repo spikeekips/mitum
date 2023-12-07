@@ -262,7 +262,7 @@ func (t *testLocalFSWriter) TestSave() {
 
 		var br io.Reader = f
 
-		switch i, _, _, err := loadBaseHeader(br); {
+		switch i, _, _, err := isaac.LoadBlockItemFileBaseHeader(br); {
 		case err != nil:
 			t.NoError(err)
 		default:
@@ -637,7 +637,7 @@ func (t *testLocalFSWriter) TestRemove() {
 	t.PrintFS(t.Root)
 
 	checkBlockDirectory := func(height int64) error {
-		switch fi, err := os.Stat(filepath.Join(t.Root, HeightDirectory(base.Height(height)))); {
+		switch fi, err := os.Stat(filepath.Join(t.Root, isaac.BlockHeightDirectory(base.Height(height)))); {
 		case os.IsNotExist(err):
 			return util.ErrNotFound
 		case err != nil:
@@ -717,7 +717,7 @@ func (t *testHeightDirectory) prepareFS(root string, heights []uint64, others []
 		t.NoError(os.MkdirAll(
 			filepath.Join(
 				root,
-				HeightDirectory(base.Height(int64(heights[i]))),
+				isaac.BlockHeightDirectory(base.Height(int64(heights[i]))),
 			),
 			0o700,
 		))

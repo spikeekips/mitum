@@ -77,7 +77,7 @@ func (im *DummyBlockImporter) CancelImport(ctx context.Context) error {
 type BaseTestLocalBlockFS struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
-	Readers *Readers
+	Readers *isaac.BlockItemReaders
 }
 
 func (t *BaseTestLocalBlockFS) SetupSuite() {
@@ -106,8 +106,8 @@ func (t *BaseTestLocalBlockFS) SetupTest() {
 	t.Readers = t.NewReaders(t.Root)
 }
 
-func (t *BaseTestLocalBlockFS) NewReaders(root string) *Readers {
-	readers := NewReaders(root, t.Encs, nil)
+func (t *BaseTestLocalBlockFS) NewReaders(root string) *isaac.BlockItemReaders {
+	readers := isaac.NewBlockItemReaders(root, t.Encs, nil)
 	t.NoError(readers.Add(LocalFSWriterHint, NewDefaultItemReaderFunc(3)))
 
 	return readers

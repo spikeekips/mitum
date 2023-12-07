@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -21,10 +22,6 @@ var (
 	BlockItemFileHint  = hint.MustNewHint("block-item-file-v0.0.1")
 	BlockItemFilesHint = hint.MustNewHint("block-item-files-v0.0.1")
 )
-
-var LocalFSBlockItemScheme = "localfs"
-
-var BlockDirectoryHeightFormat = "%021s"
 
 type BlockMap struct {
 	manifest base.Manifest
@@ -235,7 +232,7 @@ func NewBlockItemFile(uri url.URL, compressFormat string) BlockItemFile {
 }
 
 func NewLocalFSBlockItemFile(f string, compressFormat string) BlockItemFile {
-	uri := url.URL{Scheme: LocalFSBlockItemScheme}
+	uri := url.URL{Scheme: isaac.LocalFSBlockItemScheme}
 
 	if len(f) > 0 && !strings.HasPrefix(f, "/") {
 		uri.Path = "/" + f
@@ -256,7 +253,7 @@ func (f BlockItemFile) IsValid([]byte) error {
 	switch {
 	case len(f.uri.Scheme) < 1:
 		return util.ErrInvalid.Errorf("empty uri scheme")
-	case f.uri.Scheme == LocalFSBlockItemScheme, f.uri.Scheme == "file":
+	case f.uri.Scheme == isaac.LocalFSBlockItemScheme, f.uri.Scheme == "file":
 		if len(f.uri.Path) < 1 {
 			return util.ErrInvalid.Errorf("empty filename in file uri")
 		}
@@ -274,7 +271,7 @@ func (f BlockItemFile) CompressFormat() string {
 		return f.compressFormat
 	}
 
-	if s := f.uri.Scheme; s != LocalFSBlockItemScheme && s != "file" {
+	if s := f.uri.Scheme; s != isaac.LocalFSBlockItemScheme && s != "file" {
 		return ""
 	}
 
@@ -382,13 +379,6 @@ func (f *BlockItemFilesMaker) SetItem(t base.BlockItemType, i base.BlockItemFile
 	f.files.items[t] = i
 
 	return !found
-}
-
-func BlockItemFilesPath(root string, height base.Height) string {
-	return filepath.Join(
-		filepath.Dir(filepath.Join(root, HeightDirectory(height))),
-		base.BlockItemFilesName(height),
-	)
 }
 
 func (f *BlockItemFilesMaker) Save(s string) error {

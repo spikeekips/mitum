@@ -22,7 +22,7 @@ type ItemReader struct {
 	sync.Mutex
 }
 
-func NewDefaultItemReaderFunc(workerSize uint64) NewItemReaderFunc {
+func NewDefaultItemReaderFunc(workerSize uint64) isaac.NewBlockItemReaderFunc {
 	return func(
 		t base.BlockItemType,
 		enc encoder.Encoder,
@@ -113,7 +113,7 @@ func (r *ItemReader) DecodeItems(f func(uint64, uint64, interface{}) error) (uin
 func (r *ItemReader) decodeOneItem() (interface{}, error) {
 	var br *bufio.Reader
 
-	switch i, _, err := readItemsHeader(r.dr); {
+	switch i, _, err := isaac.ReadBlockItemFileHeader(r.dr); {
 	case err != nil:
 		return nil, err
 	default:
@@ -149,7 +149,7 @@ func (r *ItemReader) decodeCountItems(item func(uint64, uint64, interface{}) err
 	var br *bufio.Reader
 	var u countItemsHeader
 
-	switch i, err := loadItemsHeader(r.dr, &u); {
+	switch i, err := isaac.LoadBlockItemFileHeader(r.dr, &u); {
 	case err != nil:
 		return nil, 0, err
 	default:
@@ -165,7 +165,7 @@ func (r *ItemReader) decodeCountItems(item func(uint64, uint64, interface{}) err
 		workerSize = u.Count
 	}
 
-	switch count, err := DecodeLineItemsWithWorker(
+	switch count, err := isaac.BlockItemDecodeLineItemsWithWorker(
 		br, workerSize, r.enc.Decode,
 		func(index uint64, v interface{}) error {
 			return item(u.Count, index, v)
@@ -190,7 +190,7 @@ func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (t
 	var br *bufio.Reader
 	var u treeItemsHeader
 
-	switch i, err := loadItemsHeader(r.dr, &u); {
+	switch i, err := isaac.LoadBlockItemFileHeader(r.dr, &u); {
 	case err != nil:
 		return tr, err
 	default:
@@ -215,7 +215,7 @@ func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (t
 		tr = i
 	}
 
-	if _, err := DecodeLineItemsWithWorker(
+	if _, err := isaac.BlockItemDecodeLineItemsWithWorker(
 		br,
 		workerSize,
 		func(b []byte) (interface{}, error) {
@@ -243,7 +243,7 @@ func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (t
 func (r *ItemReader) decodeVoteproofs() (interface{}, error) {
 	var br *bufio.Reader
 
-	switch i, _, err := readItemsHeader(r.dr); {
+	switch i, _, err := isaac.ReadBlockItemFileHeader(r.dr); {
 	case err != nil:
 		return nil, err
 	default:
@@ -252,7 +252,7 @@ func (r *ItemReader) decodeVoteproofs() (interface{}, error) {
 
 	var vps [2]base.Voteproof
 
-	if _, err := DecodeLineItemsWithWorker(br, 2, r.enc.Decode, func(_ uint64, v interface{}) error {
+	if _, err := isaac.BlockItemDecodeLineItemsWithWorker(br, 2, r.enc.Decode, func(_ uint64, v interface{}) error {
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t

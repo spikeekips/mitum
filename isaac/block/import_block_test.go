@@ -88,7 +88,7 @@ func (t *testImportBlocks) TestPrepare() {
 			t.True(found)
 			t.Equal(i, m.Manifest().Height())
 
-			rm, found, err := ReadersDecode[base.BlockMap](t.Readers, i, base.BlockItemMap, nil)
+			rm, found, err := isaac.BlockItemReadersDecode[base.BlockMap](t.Readers, i, base.BlockItemMap, nil)
 			t.NoError(err)
 			t.True(found)
 
@@ -104,7 +104,7 @@ func (t *testImportBlocks) TestPrepare() {
 		t.True(found)
 		t.Equal(to, m.Manifest().Height())
 
-		rm, found, err := ReadersDecode[base.BlockMap](t.Readers, to, base.BlockItemMap, nil)
+		rm, found, err := isaac.BlockItemReadersDecode[base.BlockMap](t.Readers, to, base.BlockItemMap, nil)
 		t.NoError(err)
 		t.True(found)
 
@@ -117,7 +117,7 @@ func (t *testImportBlocks) TestPrepare() {
 func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.State {
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	count, sts, found, err := ReadersDecodeItems[base.State](t.NewReaders(root), height, base.BlockItemStates,
+	count, sts, found, err := isaac.BlockItemReadersDecodeItems[base.State](t.NewReaders(root), height, base.BlockItemStates,
 		func(total uint64, index uint64, st base.State) error {
 			return st.IsValid(nil)
 		},
@@ -138,7 +138,7 @@ func (t *testImportBlocks) loadStatesFromLocalFS(root string, height base.Height
 func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.Height, item base.BlockMapItem) []base.Operation {
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	count, ops, found, err := ReadersDecodeItems[base.Operation](t.NewReaders(root), height, base.BlockItemOperations,
+	count, ops, found, err := isaac.BlockItemReadersDecodeItems[base.Operation](t.NewReaders(root), height, base.BlockItemOperations,
 		func(total uint64, index uint64, op base.Operation) error {
 			return op.IsValid(nil)
 		},
@@ -159,7 +159,7 @@ func (t *testImportBlocks) loadOperationsFromLocalFS(root string, height base.He
 func (t *testImportBlocks) loadVoteproofsFromLocalFS(root string, height base.Height, item base.BlockMapItem) [2]base.Voteproof {
 	cw := util.NewHashChecksumWriter(sha256.New())
 
-	vps, found, err := ReadersDecode[[2]base.Voteproof](t.NewReaders(root), height, base.BlockItemVoteproofs,
+	vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](t.NewReaders(root), height, base.BlockItemVoteproofs,
 		func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
@@ -198,7 +198,7 @@ func (t *testImportBlocks) TestImport() {
 		3,
 		t.Readers,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			rm, found, err := ReadersDecode[base.BlockMap](t.Readers, height, base.BlockItemMap, nil)
+			rm, found, err := isaac.BlockItemReadersDecode[base.BlockMap](t.Readers, height, base.BlockItemMap, nil)
 			if err != nil {
 				return nil, false, err
 			}
