@@ -49,7 +49,7 @@ type LocalFSWriter struct {
 	local      base.LocalNode
 	opsf       util.ChecksumWriter
 	stsf       util.ChecksumWriter
-	bfiles     *BlockItemFilesMaker
+	bfiles     *isaac.BlockItemFilesMaker
 	enc        encoder.Encoder
 	root       string
 	id         string
@@ -105,7 +105,7 @@ func NewLocalFSWriter(
 		heightbase: isaac.BlockHeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockMap(),
-		bfiles:     NewBlockItemFilesMaker(jsonenc),
+		bfiles:     isaac.NewBlockItemFilesMaker(jsonenc),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockItemOperations); {
@@ -285,7 +285,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		return e.Wrap(err)
 	}
 
-	_ = w.bfiles.SetItem(base.BlockItemVoteproofs, NewLocalFSBlockItemFile(f.Name(), ""))
+	_ = w.bfiles.SetItem(base.BlockItemVoteproofs, isaac.NewLocalFSBlockItemFile(f.Name(), ""))
 
 	return nil
 }
@@ -328,7 +328,7 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 			// NOTE remove empty operations file
 			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name()))
 		default:
-			_ = w.bfiles.SetItem(base.BlockItemOperations, NewLocalFSBlockItemFile(w.opsf.Name(), ""))
+			_ = w.bfiles.SetItem(base.BlockItemOperations, isaac.NewLocalFSBlockItemFile(w.opsf.Name(), ""))
 		}
 	}
 
@@ -340,7 +340,7 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 			// NOTE remove empty states file
 			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name()))
 		default:
-			_ = w.bfiles.SetItem(base.BlockItemStates, NewLocalFSBlockItemFile(w.stsf.Name(), ""))
+			_ = w.bfiles.SetItem(base.BlockItemStates, isaac.NewLocalFSBlockItemFile(w.stsf.Name(), ""))
 		}
 	}
 
@@ -480,7 +480,7 @@ func (w *LocalFSWriter) setTree(
 		return tr, e.Wrap(err)
 	}
 
-	_ = w.bfiles.SetItem(treetype, NewLocalFSBlockItemFile(tf.Name(), ""))
+	_ = w.bfiles.SetItem(treetype, isaac.NewLocalFSBlockItemFile(tf.Name(), ""))
 
 	return tr, nil
 }
@@ -531,7 +531,7 @@ func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 
 	_ = cw.Close()
 
-	_ = w.bfiles.SetItem(t, NewLocalFSBlockItemFile(cw.Name(), ""))
+	_ = w.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(cw.Name(), ""))
 
 	if t != base.BlockItemMap {
 		return w.m.SetItem(NewBlockMapItem(t, cw.Checksum()))

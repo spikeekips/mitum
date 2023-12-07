@@ -56,8 +56,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 	{Hint: isaac.SuffrageExpelOperationHint, Instance: isaac.SuffrageExpelOperation{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
-	{Hint: isaacblock.BlockItemFileHint, Instance: isaacblock.BlockItemFile{}},
-	{Hint: isaacblock.BlockItemFilesHint, Instance: isaacblock.BlockItemFiles{}},
+	{Hint: isaac.BlockItemFileHint, Instance: isaac.BlockItemFile{}},
+	{Hint: isaac.BlockItemFilesHint, Instance: isaac.BlockItemFiles{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},
 	{
 		Hint:     isaacnetwork.ExistsInStateOperationRequestHeaderHint,

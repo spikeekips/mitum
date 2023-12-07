@@ -96,8 +96,8 @@ func (t *BaseTestLocalBlockFS) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemFileHint, Instance: BlockItemFile{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemFilesHint, Instance: BlockItemFiles{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.BlockItemFileHint, Instance: isaac.BlockItemFile{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.BlockItemFilesHint, Instance: isaac.BlockItemFiles{}}))
 }
 
 func (t *BaseTestLocalBlockFS) SetupTest() {

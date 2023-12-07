@@ -18,7 +18,7 @@ import (
 type LocalFSImporter struct {
 	root   string
 	enc    encoder.Encoder
-	bfiles *BlockItemFilesMaker
+	bfiles *isaac.BlockItemFilesMaker
 	temp   string
 	height base.Height
 }
@@ -43,7 +43,7 @@ func NewLocalFSImporter(root string, jsonenc, enc encoder.Encoder, m base.BlockM
 		root:   abs,
 		enc:    enc,
 		temp:   temp,
-		bfiles: NewBlockItemFilesMaker(jsonenc),
+		bfiles: isaac.NewBlockItemFilesMaker(jsonenc),
 	}, nil
 }
 
@@ -57,7 +57,7 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		_ = l.bfiles.SetItem(base.BlockItemMap, NewLocalFSBlockItemFile(i, ""))
+		_ = l.bfiles.SetItem(base.BlockItemMap, isaac.NewLocalFSBlockItemFile(i, ""))
 
 		j, err := l.newWriter(i)
 		if err != nil {
@@ -108,7 +108,7 @@ func (l *LocalFSImporter) WriteItem(
 		return nil, e.Wrap(err)
 	}
 
-	_ = l.bfiles.SetItem(t, NewLocalFSBlockItemFile(f, ""))
+	_ = l.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(f, ""))
 
 	return l.newWriter(f)
 }
