@@ -613,7 +613,7 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 func FindLastHeightFromLocalFS(
 	readers *isaac.BlockItemReaders, networkID base.NetworkID,
 ) (last base.Height, found bool, _ error) {
-	e := util.StringError("find last height from localfs")
+	e := util.StringError("find last height from local fs")
 
 	baseroot := readers.Root()
 	last = base.NilHeight

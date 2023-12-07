@@ -1155,7 +1155,7 @@ func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error),
 			sp.Purge() // NOTE purge suffrage cache
 		}
 
-		// NOTE remove from localfs
+		// NOTE remove from local fs
 		switch removed, err := isaacblock.RemoveBlocksFromLocalFS(design.Storage.Base, height); {
 		case err != nil:
 			return false, err

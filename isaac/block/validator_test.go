@@ -112,7 +112,7 @@ func (t *testValidateLastBlocks) TestOK() {
 		t.NoError(ValidateLastBlocks(t.readers(a), db, t.LocalParams.NetworkID()))
 	})
 
-	t.Run("wrong localfs root", func() {
+	t.Run("wrong local fs root", func() {
 		err := ValidateLastBlocks(t.NewReaders("/tmp"), db, t.LocalParams.NetworkID())
 		t.Error(err)
 	})
@@ -132,7 +132,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInLocalFS))
 	})
 
-	t.Run("not found in localfs", func() {
+	t.Run("not found in local fs", func() {
 		_, db := t.buildBlocks("no1", 3)
 		readers := t.readers("/tmp")
 

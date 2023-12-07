@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	ErrLastBlockMapOnlyInDatabase = util.NewIDError("last blockmap found in database, but not in localfs")
-	ErrLastBlockMapOnlyInLocalFS  = util.NewIDError("last blockmap found in localfs, but not in database")
+	ErrLastBlockMapOnlyInDatabase = util.NewIDError("last blockmap found in database, but not in local fs")
+	ErrLastBlockMapOnlyInLocalFS  = util.NewIDError("last blockmap found in local fs, but not in database")
 )
 
 type ErrValidatedDifferentHeightBlockMaps struct {
@@ -100,7 +100,7 @@ func ValidateLastBlocks(
 
 	switch last, found, err := loadLastBlockMapFromLocalFS(readers, networkID); {
 	case err != nil:
-		return errors.WithMessage(err, "find last height from localfs")
+		return errors.WithMessage(err, "find last height from local fs")
 	case !found:
 	default:
 		lastmaplocalfs = last
@@ -176,7 +176,7 @@ func ValidateAllBlockMapsFromLocalFS(
 	last base.Height,
 	networkID base.NetworkID,
 ) error {
-	e := util.StringError("validate localfs")
+	e := util.StringError("validate local fs")
 
 	switch fi, err := os.Stat(readers.Root()); {
 	case err != nil:

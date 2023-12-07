@@ -49,7 +49,7 @@ func NewLocalFSImporter(root string, jsonenc, enc encoder.Encoder, m base.BlockM
 
 // WriteMap writes BlockMap; BlockMap should be already sign.
 func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
-	e := util.StringError("write map to localfs")
+	e := util.StringError("write map to local fs")
 
 	var w io.WriteCloser
 
@@ -101,7 +101,7 @@ func (l *LocalFSImporter) WriteItem(
 	enc hint.Hint,
 	compressFormat string,
 ) (io.WriteCloser, error) {
-	e := util.StringError("write item to localfs")
+	e := util.StringError("write item to local fs")
 
 	f, err := BlockFileName(t, enc.Type(), compressFormat)
 	if err != nil {
@@ -119,7 +119,7 @@ func (l *LocalFSImporter) Save() error {
 	if err := l.save(heightdirectory); err != nil {
 		_ = os.RemoveAll(heightdirectory)
 
-		return errors.WithMessage(err, "save localfs")
+		return errors.WithMessage(err, "save local fs")
 	}
 
 	return nil
@@ -151,7 +151,7 @@ func (l *LocalFSImporter) save(heightdirectory string) error {
 }
 
 func (l *LocalFSImporter) Cancel() error {
-	e := util.StringError("cancel localfs")
+	e := util.StringError("cancel local fs")
 
 	switch _, err := os.Stat(l.temp); {
 	case err == nil:

@@ -10,11 +10,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var (
-	BlockMapHint       = hint.MustNewHint("blockmap-v0.0.1")
-	BlockItemFileHint  = hint.MustNewHint("block-item-file-v0.0.1")
-	BlockItemFilesHint = hint.MustNewHint("block-item-files-v0.0.1")
-)
+var BlockMapHint = hint.MustNewHint("blockmap-v0.0.1")
 
 type BlockMap struct {
 	manifest base.Manifest

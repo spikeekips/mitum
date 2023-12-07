@@ -85,7 +85,7 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 func (cmd *StorageStatusCommand) pCheckLocalFS(pctx context.Context) (context.Context, error) {
 	switch nctx, err := launch.PCheckLocalFS(pctx); {
 	case err == nil:
-		cmd.log.Info().Msg("localfs checked")
+		cmd.log.Info().Msg("local fs checked")
 
 		return nctx, nil
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, util.ErrNotFound):
@@ -126,11 +126,11 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 
 	cmd.log.Info().
 		Str("base", design.Storage.Base).
-		Str("localfs", localfsroot).
+		Str("local_fs", localfsroot).
 		Str("database", dbroot).
 		Msg("config")
 
-	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("localfs information")
+	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("local fs information")
 
 	cmd.readers = newReaders(localfsroot)
 
@@ -183,7 +183,7 @@ func (cmd *StorageStatusCommand) localfs(root string, networkID base.NetworkID) 
 		Uint64("files", countFiles).
 		Uint64("directories", countDirs).
 		Uint64("disk_usage", diskusage).
-		Msg("localfs files and directories")
+		Msg("local fs files and directories")
 
 	return nil
 }

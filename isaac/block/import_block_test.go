@@ -322,7 +322,7 @@ func (t *testImportBlocks) TestImport() {
 		}
 	})
 
-	t.Run("compare states from localfs", func() {
+	t.Run("compare states from local fs", func() {
 		for i := from; i <= to; i++ {
 			m, found, err := fromdb.BlockMap(i)
 			t.NoError(err)
@@ -342,7 +342,7 @@ func (t *testImportBlocks) TestImport() {
 		}
 	})
 
-	t.Run("compare operations from localfs", func() {
+	t.Run("compare operations from local fs", func() {
 		for i := from; i <= to; i++ {
 			m, found, err := fromdb.BlockMap(i)
 			t.NoError(err)
@@ -415,7 +415,7 @@ func (t *testImportBlocks) TestImport() {
 		}
 	})
 
-	t.Run("compare voteproofs from localfs", func() {
+	t.Run("compare voteproofs from local fs", func() {
 		for i := from; i <= to; i++ {
 			m, found, err := fromdb.BlockMap(i)
 			t.NoError(err)

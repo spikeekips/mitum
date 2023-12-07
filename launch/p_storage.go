@@ -239,10 +239,10 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	case err != nil:
 		return nctx, e.Wrap(err)
 	case !found:
-		return nctx, e.Wrap(util.ErrNotFound.Errorf("blockmap in localfs"))
+		return nctx, e.Wrap(util.ErrNotFound.Errorf("blockmap in local fs"))
 	default:
 		if err := base.IsEqualBlockMap(bm, i); err != nil {
-			return nctx, e.WithMessage(err, "different blockmap in db and localfs")
+			return nctx, e.WithMessage(err, "different blockmap in db and local fs")
 		}
 	}
 
@@ -255,7 +255,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	case err != nil:
 		return nctx, e.Wrap(err)
 	case !found:
-		return nctx, e.Wrap(util.ErrNotFound.Errorf("last voteproofs not found in localfs"))
+		return nctx, e.Wrap(util.ErrNotFound.Errorf("last voteproofs not found in local fs"))
 	default:
 		lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
 		lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
@@ -290,7 +290,7 @@ func PCleanStorage(pctx context.Context) (context.Context, error) {
 }
 
 func PCreateLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringError("create localfs")
+	e := util.StringError("create local fs")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
@@ -316,7 +316,7 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringError("check localfs")
+	e := util.StringError("check local fs")
 
 	var design NodeDesign
 	var isaacparams *isaac.Params
@@ -347,7 +347,7 @@ func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringError("check localfs")
+	e := util.StringError("check local fs")
 
 	var version util.Version
 	var design NodeDesign
@@ -495,7 +495,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 
 			switch {
 			case derr.DatabaseHeight() > derr.LocalFSHeight():
-				l.Error().Msg("last blocks is missing in localfs; fill the missing blocks into localfs")
+				l.Error().Msg("last blocks is missing in local fs; fill the missing blocks into local fs")
 			case derr.DatabaseHeight() < derr.LocalFSHeight():
 				l.Error().Msg("last blocks is missing in database; import the missing blocks")
 			}
@@ -616,14 +616,14 @@ func RemoveLocalFS(root string) error {
 
 		return found
 	}); err != nil {
-		return errors.Wrap(err, "remove localfs")
+		return errors.Wrap(err, "remove local fs")
 	}
 
 	return nil
 }
 
 func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo, error) {
-	e := util.StringError("initialize localfs")
+	e := util.StringError("initialize local fs")
 
 	switch fi, err := os.Stat(root); {
 	case os.IsNotExist(err):
@@ -778,7 +778,7 @@ func LoadDatabase(
 }
 
 func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (NodeInfo, error) {
-	e := util.StringError("check localfs")
+	e := util.StringError("check local fs")
 
 	switch fi, err := os.Stat(root); {
 	case err != nil:

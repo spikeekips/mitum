@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	LocalFSBlockItemScheme     = "localfs"
+	LocalFSBlockItemScheme     = "local"
 	BlockDirectoryHeightFormat = "%021s"
 )
 
