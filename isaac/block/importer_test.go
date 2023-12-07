@@ -65,13 +65,12 @@ func (t *testBlockImporter) TestWriteMap() {
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 
-	t.Run("map in localfs", func() {
+	t.Run("map in local fs", func() {
 		f := t.openFile(im.localfs.temp, base.BlockItemMap)
 		defer f.Close()
 
-		rbm, found, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](t.Readers, base.BlockItemMap, f, "", nil)
+		rbm, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](t.Readers, base.BlockItemMap, f, "", nil)
 		t.NoError(err)
-		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), m, rbm)
 	})
@@ -121,12 +120,11 @@ func (t *testBlockImporter) TestWriteProposal() {
 		defer f.Close()
 
 		cw := util.NewHashChecksumWriter(sha256.New())
-		rpr, found, err := isaac.BlockItemReadersDecodeFromReader[base.ProposalSignFact](t.Readers, base.BlockItemProposal, f, "gz", func(ir isaac.BlockItemReader) error {
+		rpr, err := isaac.BlockItemReadersDecodeFromReader[base.ProposalSignFact](t.Readers, base.BlockItemProposal, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
 		})
-		t.True(found)
 		t.NoError(err)
 
 		base.EqualProposalSignFact(t.Assert(), pr, rpr)
@@ -171,7 +169,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 		defer f.Close()
 
 		cw := util.NewHashChecksumWriter(sha256.New())
-		_, rops, found, err := isaac.BlockItemReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
+		_, rops, err := isaac.BlockItemReadersDecodeItemsFromReader[base.Operation](t.Readers, base.BlockItemOperations, f, "gz",
 			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
@@ -179,7 +177,6 @@ func (t *testBlockImporter) TestWriteOperations() {
 				return err
 			},
 		)
-		t.True(found)
 		t.NoError(err)
 
 		rchecksum := cw.Checksum()
@@ -240,12 +237,11 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 		var rtr fixedtree.Tree
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rtr, found, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemOperationsTree, f, "gz", func(ir isaac.BlockItemReader) error {
+		rtr, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemOperationsTree, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
 		})
-		t.True(found)
 		t.NoError(err)
 
 		t.Equal(checksum, cw.Checksum())
@@ -296,12 +292,11 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rvps, found, err := isaac.BlockItemReadersDecodeFromReader[[2]base.Voteproof](t.Readers, base.BlockItemVoteproofs, f, "", func(ir isaac.BlockItemReader) error {
+		rvps, err := isaac.BlockItemReadersDecodeFromReader[[2]base.Voteproof](t.Readers, base.BlockItemVoteproofs, f, "", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
 		})
-		t.True(found)
 		t.NoError(err)
 
 		t.Equal(checksum, cw.Checksum())
@@ -350,7 +345,7 @@ func (t *testBlockImporter) TestWriteStates() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		_, rsts, found, err := isaac.BlockItemReadersDecodeItemsFromReader[base.State](t.Readers, base.BlockItemStates, f, "gz",
+		_, rsts, err := isaac.BlockItemReadersDecodeItemsFromReader[base.State](t.Readers, base.BlockItemStates, f, "gz",
 			nil,
 			func(ir isaac.BlockItemReader) error {
 				_, err := ir.Reader().Tee(nil, cw)
@@ -358,7 +353,6 @@ func (t *testBlockImporter) TestWriteStates() {
 				return err
 			},
 		)
-		t.True(found)
 		t.NoError(err)
 		t.Equal(checksum, cw.Checksum())
 
@@ -418,12 +412,11 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 
 		cw := util.NewHashChecksumWriter(sha256.New())
 
-		rtr, found, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemStatesTree, f, "gz", func(ir isaac.BlockItemReader) error {
+		rtr, err := isaac.BlockItemReadersDecodeFromReader[fixedtree.Tree](t.Readers, base.BlockItemStatesTree, f, "gz", func(ir isaac.BlockItemReader) error {
 			_, err := ir.Reader().Tee(nil, cw)
 
 			return err
 		})
-		t.True(found)
 		t.NoError(err)
 		t.Equal(checksum, cw.Checksum())
 

@@ -154,7 +154,9 @@ func (t *testReaders) TestItem() {
 			return nil
 		})
 		t.False(found)
-		t.NoError(err)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorContains(err, "writer")
 	})
 
 	t.Run("compatible", func() {
@@ -190,7 +192,9 @@ func (t *testReaders) TestItem() {
 			return nil
 		})
 		t.False(found)
-		t.NoError(err)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorContains(err, "writer")
 	})
 }
 
@@ -208,13 +212,11 @@ func (t *testReaders) TestItemFromReader() {
 		defer f.Close()
 
 		called := make(chan isaac.BlockItemReader, 1)
-		found, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+		t.NoError(readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
 			called <- r
 
 			return nil
-		})
-		t.True(found)
-		t.NoError(err)
+		}))
 
 		r := <-called
 		t.Equal(LocalFSWriterHint, r.(*dummyItemReader).ht)
@@ -238,7 +240,7 @@ func (t *testReaders) TestItemFromReader() {
 		_, err = f.Seek(0, 0)
 		t.NoError(err)
 
-		found, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+		t.NoError(readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
 			rbuf := bytes.NewBuffer(nil)
 
 			_, err := r.Reader().Tee(rbuf, nil)
@@ -250,9 +252,7 @@ func (t *testReaders) TestItemFromReader() {
 			t.Equal(buf.Bytes(), rbuf.Bytes())
 
 			return nil
-		})
-		t.True(found)
-		t.NoError(err)
+		}))
 	})
 
 	t.Run("closed reader", func() {
@@ -266,7 +266,7 @@ func (t *testReaders) TestItemFromReader() {
 		f := t.openFile(height, base.BlockItemMap)
 		f.Close() // close
 
-		_, err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
+		err := readers.ItemFromReader(base.BlockItemMap, f, "", func(r isaac.BlockItemReader) error {
 			return nil
 		})
 		t.Error(err)
@@ -288,7 +288,9 @@ func (t *testReaders) TestBrokenItemFiles() {
 		return nil
 	})
 	t.False(found)
-	t.NoError(err)
+	t.Error(err)
+	t.True(errors.Is(err, util.ErrNotFound))
+	t.ErrorContains(err, "header")
 }
 
 func (t *testReaders) TestCompressedItemFile() {

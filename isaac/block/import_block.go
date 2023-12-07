@@ -127,21 +127,18 @@ func importBlock(
 					return e.Wrap(util.ErrNotFound.Errorf("blockItem not found, %q", item.Type()))
 				}
 
-				switch found, err := readers.ItemFromReader(
+				if err := readers.ItemFromReader(
 					item.Type(),
 					r,
 					compressFormat,
 					func(ir isaac.BlockItemReader) error {
 						return im.WriteItem(ir.Type(), ir)
 					},
-				); {
-				case err != nil:
+				); err != nil {
 					return e.Wrap(err)
-				case !found:
-					return e.Wrap(util.ErrNotFound.Errorf("blockItem not found"))
-				default:
-					return nil
 				}
+
+				return nil
 			})
 		}); err != nil {
 			return false
