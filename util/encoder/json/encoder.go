@@ -12,7 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var JSONEncoderHint = hint.MustNewHint("json-encoder-v2.0.0")
+var JSONEncoderHint = hint.MustNewHint("json-encoder-v0.0.1")
 
 type Encoder struct {
 	decoders *hint.CompatibleSet[encoder.DecodeDetail]
