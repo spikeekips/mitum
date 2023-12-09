@@ -14,6 +14,7 @@ func DefaultRunPS() *ps.PS {
 		AddOK(PNameProposalMaker, PProposalMaker, nil, PNameStorage).
 		AddOK(PNameNetwork, PNetwork, nil, PNameStorage).
 		AddOK(PNameMemberlist, PMemberlist, nil, PNameNetwork).
+		AddOK(PNameBlockReaders, PBlockReaders, nil, PNameDesign).
 		AddOK(PNameStartStorage, PStartStorage, PCloseStorage, PNameStartNetwork).
 		AddOK(PNameStartNetwork, PStartNetwork, PCloseNetwork, PNameStates).
 		AddOK(PNameStartMemberlist, PStartMemberlist, PCloseMemberlist, PNameStartNetwork).
@@ -41,9 +42,11 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameDiscoveryFlag, PDiscoveryFlag).
 		PostAddOK(PNameLoadACL, PLoadACL)
 
-	_ = pps.POK(PNameStorage).
+	_ = pps.POK(PNameBlockReaders).
 		PreAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
-		PreAddOK(PNameBlockReaders, PBlockReaders).
+		PostAddOK(PNameRemotesBlockItemReaderFunc, PRemotesBlockItemReaderFunc)
+
+	_ = pps.POK(PNameStorage).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).

@@ -79,6 +79,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 		AddOK(launch.PNameEncoder, launch.PEncoder, nil).
 		AddOK(launch.PNameDesign, launch.PLoadDesign, nil, launch.PNameEncoder).
 		AddOK(launch.PNameLocal, launch.PLocal, nil, launch.PNameDesign).
+		AddOK(launch.PNameBlockReaders, launch.PBlockReaders, nil, launch.PNameDesign).
 		AddOK(launch.PNameStorage, launch.PStorage, launch.PCloseStorage, launch.PNameLocal)
 
 	_ = pps.POK(launch.PNameEncoder).
@@ -87,9 +88,11 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 	_ = pps.POK(launch.PNameDesign).
 		PostAddOK(launch.PNameCheckDesign, launch.PCheckDesign)
 
-	_ = pps.POK(launch.PNameStorage).
+	_ = pps.POK(launch.PNameBlockReaders).
 		PreAddOK(launch.PNameBlockReadersDecompressFunc, launch.PBlockReadersDecompressFunc).
-		PreAddOK(launch.PNameBlockReaders, launch.PBlockReaders).
+		PostAddOK(launch.PNameRemotesBlockItemReaderFunc, launch.PRemotesBlockItemReaderFunc)
+
+	_ = pps.POK(launch.PNameStorage).
 		PreAddOK(launch.PNameCheckLocalFS, launch.PCheckLocalFS).
 		PreAddOK(launch.PNameLoadDatabase, launch.PLoadDatabase).
 		PostAddOK(launch.PNameCheckLeveldbStorage, launch.PCheckLeveldbStorage).
@@ -137,7 +140,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 
 	readers := newReaders(launch.LocalFSDataDirectory(design.Storage.Base))
 
-	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, readers, cmd.fromHeight, cmd.toHeight); {
+	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, readers.Root(), cmd.fromHeight, cmd.toHeight); {
 	case err != nil:
 		return pctx, e.Wrap(err)
 	default:

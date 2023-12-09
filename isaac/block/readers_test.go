@@ -131,7 +131,7 @@ func (t *testReaders) TestItem() {
 
 	t.Run("known", func() {
 		called := make(chan isaac.BlockItemReader, 1)
-		found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
 			called <- r
 
 			return nil
@@ -150,7 +150,7 @@ func (t *testReaders) TestItem() {
 			t.updateItemHeader(height, LocalFSWriterHint, base.BlockItemMap)
 		}()
 
-		found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
 			return nil
 		})
 		t.False(found)
@@ -168,7 +168,7 @@ func (t *testReaders) TestItem() {
 		}()
 
 		called := make(chan isaac.BlockItemReader, 1)
-		found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
 			called <- r
 
 			return nil
@@ -188,7 +188,7 @@ func (t *testReaders) TestItem() {
 			t.updateItemHeader(height, LocalFSWriterHint, base.BlockItemMap)
 		}()
 
-		found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
 			return nil
 		})
 		t.False(found)
@@ -284,7 +284,7 @@ func (t *testReaders) TestBrokenItemFiles() {
 
 	t.updateItem(height, base.BlockItemMap, []byte("hehehe"))
 
-	found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
+	_, found, err := readers.Item(height, base.BlockItemMap, func(isaac.BlockItemReader) error {
 		return nil
 	})
 	t.False(found)
@@ -302,7 +302,7 @@ func (t *testReaders) TestCompressedItemFile() {
 	t.NoError(readers.Add(LocalFSWriterHint, newItemReaderFunc(LocalFSWriterHint)))
 
 	t.Run("not compressed", func() {
-		found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemMap, func(r isaac.BlockItemReader) error {
 			t.Empty(r.Reader().Format)
 
 			return nil
@@ -312,7 +312,7 @@ func (t *testReaders) TestCompressedItemFile() {
 	})
 
 	t.Run("compressed", func() {
-		found, err := readers.Item(height, base.BlockItemOperations, func(r isaac.BlockItemReader) error {
+		_, found, err := readers.Item(height, base.BlockItemOperations, func(r isaac.BlockItemReader) error {
 			t.Equal("gz", r.Reader().Format)
 
 			return nil

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/spikeekips/mitum/base"
@@ -134,14 +135,19 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockItemString,
 		isaacnetwork.QuicstreamHandlerBlockItem(
-			func(height base.Height, item base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
-				switch found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
-					return f(ir.Reader(), ir.Reader().Format)
+			func(height base.Height, item base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
+				switch bfile, found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
+					return f(ir.Reader(), true, url.URL{}, ir.Reader().Format)
 				}); {
-				case err != nil, !found:
-					return found, err
+				case err != nil:
+					return err
+				case !found && bfile != nil:
+					// NOTE if not in local, but itemfile exists, found is true
+					return f(nil, true, bfile.URI(), bfile.CompressFormat())
+				case !found:
+					return f(nil, false, url.URL{}, "")
 				default:
-					return true, nil
+					return nil
 				}
 			},
 		), nil)

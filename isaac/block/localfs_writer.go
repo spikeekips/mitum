@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -29,7 +28,10 @@ import (
 
 var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-v0.0.1")
 
-var rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
+var (
+	rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
+	rBlockItemFiles  = regexp.MustCompile(`^([0-9][0-9]*)\.json$`)
+)
 
 var (
 	blockFilenames = map[base.BlockItemType]string{
@@ -594,126 +596,108 @@ func HeightFromDirectory(s string) (base.Height, error) {
 	return h, nil
 }
 
-func FindHighestDirectory(root string) (highest string, found bool, _ error) {
-	abs, err := filepath.Abs(filepath.Clean(root))
-	if err != nil {
-		return "", false, errors.WithStack(err)
-	}
-
-	switch highest, found, err = findHighestDirectory(abs); {
+func FindHighestDirectory(root string) (_ base.Height, directory string, found bool, _ error) {
+	switch h, f, err := FindHighestBlockItemFiles(root, 0); {
 	case err != nil:
-		return highest, found, err
-	case !found:
-		return highest, found, nil
+		return -1, "", false, err
+	case len(f) < 1, h < 0:
+		return -1, "", false, nil
 	default:
-		return highest, found, nil
+		return base.Height(h), filepath.Join(root, isaac.BlockHeightDirectory(base.Height(h))), true, nil
 	}
 }
 
-func FindLastHeightFromLocalFS(
-	readers *isaac.BlockItemReaders, networkID base.NetworkID,
-) (last base.Height, found bool, _ error) {
-	e := util.StringError("find last height from local fs")
-
-	baseroot := readers.Root()
-	last = base.NilHeight
-
-	switch h, found, err := FindHighestDirectory(baseroot); {
-	case err != nil:
-		return last, false, e.Wrap(err)
-	case !found:
-		return last, false, nil
-	default:
-		rel, err := filepath.Rel(baseroot, h)
-		if err != nil {
-			return last, false, e.Wrap(err)
-		}
-
-		height, err := HeightFromDirectory(rel)
-		if err != nil {
-			return last, false, nil
-		}
-
-		last = height
-
-		switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
-		case err != nil, !found:
-			return last, found, e.Wrap(err)
-		default:
-			if err := i.IsValid(networkID); err != nil {
-				return last, false, e.Wrap(err)
-			}
-
-			return last, true, nil
-		}
-	}
-}
-
-func findHighestDirectory(root string) (string, bool, error) {
-	var highest string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		switch {
-		case err != nil:
-			return errors.WithStack(err)
-		case !info.IsDir():
-			return nil
-		}
-
-		var names []string
-
-		switch files, err := os.ReadDir(path); {
-		case err != nil:
-			return errors.WithStack(err)
-		default:
-			var foundsubs bool
-			filtered := util.FilterSlice(files, func(f fs.DirEntry) bool {
-				switch {
-				case !f.IsDir(), !rHeightDirectory.MatchString(f.Name()):
-					return false
-				default:
-					if !foundsubs {
-						foundsubs = true
-					}
-
-					return true
-				}
-			})
-
-			if !foundsubs {
-				highest = path
-
-				return util.ErrNotFound.WithStack()
-			}
-
-			names = make([]string, len(filtered))
-			for i := range filtered {
-				names[i] = filtered[i].Name()
-			}
-
-			sort.Slice(names, func(i, j int) bool {
-				return strings.Compare(names[i], names[j]) > 0
-			})
-		}
-
-		switch a, found, err := findHighestDirectory(filepath.Join(path, names[0])); {
-		case err != nil:
-			if !errors.Is(err, util.ErrNotFound) {
-				return err
-			}
-		case !found:
-		default:
-			highest = a
-		}
-
-		return util.ErrNotFound.WithStack()
-	})
-
+func FindHighestBlockItemFiles(p string, depth int) (height int64, lastpath string, _ error) {
 	switch {
-	case err == nil, errors.Is(err, util.ErrNotFound):
-		return highest, highest != "", nil
-	default:
-		return highest, false, errors.WithStack(err)
+	case depth > 6: //nolint:gomnd //...
+		return -1, "", nil
+	case depth == 6: //nolint:gomnd //...
+		return findHighestBlockItemFilesInDirectory(p)
 	}
+
+	var last string
+
+	switch i, err := os.ReadDir(p); {
+	case err != nil:
+		return -1, "", errors.WithStack(err)
+	case len(i) < 1:
+		return -1, "", nil
+	default:
+		files := util.FilterSlice(i, func(i os.DirEntry) bool {
+			return i.IsDir() && rHeightDirectory.MatchString(i.Name())
+		})
+
+		if len(files) < 1 {
+			return -1, "", nil
+		}
+
+		if len(files) > 1 {
+			sort.Slice(files, func(i, j int) bool {
+				return strings.Compare(files[i].Name(), files[j].Name()) > 0
+			})
+		}
+
+		last = files[0].Name()
+	}
+
+	lastpath = filepath.Join(p, last)
+
+	switch i, j, err := FindHighestBlockItemFiles(lastpath, depth+1); {
+	case err != nil:
+		return -1, "", err
+	case len(j) > 0:
+		return i, j, nil
+	default:
+		return -1, lastpath, nil
+	}
+}
+
+func findHighestBlockItemFilesInDirectory(p string) (int64, string, error) {
+	var files []os.DirEntry
+
+	switch i, err := os.ReadDir(p); {
+	case err != nil:
+		return -1, "", errors.WithStack(err)
+	case len(i) < 1:
+		return -1, "", nil
+	default:
+		files = util.FilterSlice(i, func(i os.DirEntry) bool {
+			return !i.IsDir() && rBlockItemFiles.MatchString(i.Name())
+		})
+
+		if len(files) < 1 {
+			return -1, "", nil
+		}
+	}
+
+	var last string
+	var highest *int64
+
+	for i := range files {
+		f := files[i]
+
+		switch j := rBlockItemFiles.FindStringSubmatch(f.Name()); {
+		case len(j) < 2:
+			continue
+		default:
+			u, err := strconv.ParseInt(j[1], 10, 64)
+			if err != nil {
+				continue
+			}
+
+			if highest == nil || u > *highest {
+				highest = &u
+
+				last = f.Name()
+			}
+		}
+	}
+
+	if highest == nil {
+		return -1, "", nil
+	}
+
+	return *highest, filepath.Join(p, last), nil
 }
 
 func BlockFileName(t base.BlockItemType, hinttype hint.Type, compressFormat string) (string, error) {
@@ -753,19 +737,18 @@ func CleanBlockTempDirectory(root string) error {
 func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
 	heightdirectory := filepath.Join(root, isaac.BlockHeightDirectory(height))
 
+	if err := os.Remove(isaac.BlockItemFilesPath(root, height)); err != nil {
+		return false, errors.WithMessagef(err, "files.json")
+	}
+
 	switch _, err := os.Stat(heightdirectory); {
 	case errors.Is(err, os.ErrNotExist):
-		return false, errors.WithMessagef(err, "height directory, %q does not exist", heightdirectory)
 	case err != nil:
 		return false, errors.WithMessagef(err, "check height directory, %q", heightdirectory)
 	default:
 		if err := os.RemoveAll(heightdirectory); err != nil {
 			return false, errors.WithMessagef(err, "remove %q", heightdirectory)
 		}
-	}
-
-	if err := os.Remove(isaac.BlockItemFilesPath(root, height)); err != nil {
-		return false, errors.WithMessagef(err, "files.json")
 	}
 
 	return true, nil
@@ -785,25 +768,15 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 
 	var top base.Height
 
-	switch i, found, err := FindHighestDirectory(root); {
+	switch h, _, found, err := FindHighestDirectory(root); {
 	case err != nil:
 		return false, err
 	case !found:
 		return false, nil
+	case h < height:
+		return false, nil
 	default:
-		rel, err := filepath.Rel(root, i)
-		if err != nil {
-			return false, errors.WithStack(err)
-		}
-
-		switch h, err := HeightFromDirectory(rel); {
-		case err != nil:
-			return false, err
-		case height > h:
-			return false, nil
-		default:
-			top = h
-		}
+		top = h
 	}
 
 	for i := top; i >= height; i-- {

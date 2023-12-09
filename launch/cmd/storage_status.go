@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/launch"
@@ -24,7 +23,6 @@ type StorageStatusCommand struct { //nolint:govet //...
 	launch.PrivatekeyFlags
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
-	readers         *isaac.BlockItemReaders
 }
 
 func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
@@ -48,6 +46,7 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 		AddOK(launch.PNameEncoder, launch.PEncoder, nil).
 		AddOK(launch.PNameDesign, launch.PLoadDesign, nil, launch.PNameEncoder).
 		AddOK(launch.PNameLocal, launch.PLocal, nil, launch.PNameDesign).
+		AddOK(launch.PNameBlockReaders, launch.PBlockReaders, nil, launch.PNameDesign).
 		AddOK(launch.PNameStorage, launch.PStorage, launch.PCloseStorage, launch.PNameLocal)
 
 	_ = pps.POK(launch.PNameEncoder).
@@ -56,9 +55,11 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 	_ = pps.POK(launch.PNameDesign).
 		PostAddOK(launch.PNameCheckDesign, launch.PCheckDesign)
 
-	_ = pps.POK(launch.PNameStorage).
+	_ = pps.POK(launch.PNameBlockReaders).
 		PreAddOK(launch.PNameBlockReadersDecompressFunc, launch.PBlockReadersDecompressFunc).
-		PreAddOK(launch.PNameBlockReaders, launch.PBlockReaders).
+		PostAddOK(launch.PNameRemotesBlockItemReaderFunc, launch.PRemotesBlockItemReaderFunc)
+
+	_ = pps.POK(launch.PNameStorage).
 		PreAddOK(launch.PNameCheckLocalFS, cmd.pCheckLocalFS).
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
@@ -132,9 +133,7 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 
 	cmd.log.Info().Interface("node_info", fsnodeinfo).Msg("local fs information")
 
-	cmd.readers = newReaders(localfsroot)
-
-	if err := cmd.localfs(localfsroot, isaacparams.NetworkID()); err != nil {
+	if err := cmd.localfs(localfsroot); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -145,9 +144,9 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	return pctx, nil
 }
 
-func (cmd *StorageStatusCommand) localfs(root string, networkID base.NetworkID) error {
+func (cmd *StorageStatusCommand) localfs(root string) error {
 	// NOTE last block
-	switch last, found, err := isaacblock.FindLastHeightFromLocalFS(cmd.readers, networkID); {
+	switch last, _, found, err := isaacblock.FindHighestDirectory(root); {
 	case err != nil:
 		return err
 	case !found:

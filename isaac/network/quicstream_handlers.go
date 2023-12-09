@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/pkg/errors"
@@ -292,24 +293,37 @@ func QuicstreamHandlerBlockMap(
 }
 
 func QuicstreamHandlerBlockItem(
-	blockMapItemf func(base.Height, base.BlockItemType, func(io.Reader, string) error) (bool, error),
+	blockMapItemf func(
+		base.Height,
+		base.BlockItemType,
+		func(_ io.Reader, found bool, uri url.URL, compressFormat string) error,
+	) error,
 ) quicstreamheader.Handler[BlockItemRequestHeader] {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header BlockItemRequestHeader,
 	) (context.Context, error) {
 		gctx := ctx
 
-		switch found, err := blockMapItemf(
+		if err := blockMapItemf(
 			header.Height(),
 			header.Item(),
-			func(r io.Reader, compressFormat string) error {
+			func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
 				if err := broker.WriteResponseHead(ctx,
-					NewBlockItemResponseHeader(true, nil, compressFormat),
+					NewBlockItemResponseHeader(found, nil, uri, compressFormat),
 				); err != nil {
 					return err
 				}
 
-				if err := broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, r); err != nil {
+				var bodyType quicstreamheader.BodyType
+
+				switch {
+				case found:
+					bodyType = quicstreamheader.StreamBodyType
+				default:
+					bodyType = quicstreamheader.EmptyBodyType
+				}
+
+				if err := broker.WriteBody(ctx, bodyType, 0, r); err != nil {
 					return err
 				}
 
@@ -317,18 +331,11 @@ func QuicstreamHandlerBlockItem(
 
 				return nil
 			},
-		); {
-		case err != nil:
-			return ctx, err
-		case !found:
-			if err := broker.WriteResponseHead(ctx, NewBlockItemResponseHeader(false, nil, "")); err != nil {
-				return ctx, err
-			}
-
-			return ctx, broker.WriteBody(ctx, quicstreamheader.EmptyBodyType, 0, nil)
-		default:
-			return gctx, nil
+		); err != nil {
+			return gctx, err
 		}
+
+		return gctx, nil
 	}
 }
 

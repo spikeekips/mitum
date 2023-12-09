@@ -206,7 +206,7 @@ func (t *testImportBlocks) TestImport() {
 			return rm, found, nil
 		},
 		func(_ context.Context, height base.Height, item base.BlockItemType, f func(io.Reader, bool, string) error) error {
-			switch found, err := t.Readers.Item(height, item, func(ir isaac.BlockItemReader) error {
+			switch _, found, err := t.Readers.Item(height, item, func(ir isaac.BlockItemReader) error {
 				return f(ir.Reader(), true, ir.Reader().Format)
 			}); {
 			case err != nil:

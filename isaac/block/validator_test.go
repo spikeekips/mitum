@@ -109,11 +109,11 @@ func (t *testValidateLastBlocks) TestOK() {
 	t.WalkFS(a)
 
 	t.Run("ok", func() {
-		t.NoError(ValidateLastBlocks(t.readers(a), db, t.LocalParams.NetworkID()))
+		t.NoError(ValidateLastBlocks(t.readers(a), nil, db, t.LocalParams.NetworkID()))
 	})
 
 	t.Run("wrong local fs root", func() {
-		err := ValidateLastBlocks(t.NewReaders("/tmp"), db, t.LocalParams.NetworkID())
+		err := ValidateLastBlocks(t.NewReaders("/tmp"), nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 	})
 }
@@ -127,7 +127,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(), nil)
 		t.NoError(err)
 
-		err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
+		err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInLocalFS))
 	})
@@ -136,7 +136,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		_, db := t.buildBlocks("no1", 3)
 		readers := t.readers("/tmp")
 
-		err := ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
+		err := ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInDatabase))
 	})
@@ -150,7 +150,7 @@ func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase(
 	t.NoError(err)
 	t.True(removed)
 
-	err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
+	err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 	t.Error(err)
 
 	var derr *ErrValidatedDifferentHeightBlockMaps
@@ -175,7 +175,7 @@ func (t *testValidateLastBlocks) TestDifferentHash() {
 
 	t.NoError(moveHeightDirectory(3, t.Root, a))
 
-	err = ValidateLastBlocks(readers, db, t.LocalParams.NetworkID())
+	err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 	t.Error(err)
 	t.ErrorContains(err, "different manifest hash")
 }

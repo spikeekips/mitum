@@ -178,7 +178,7 @@ func (f BlockItemFile) IsValid([]byte) error {
 	switch {
 	case len(f.uri.Scheme) < 1:
 		return util.ErrInvalid.Errorf("empty uri scheme")
-	case f.uri.Scheme == LocalFSBlockItemScheme, f.uri.Scheme == "file":
+	case IsInLocalBlockItemFile(f.uri):
 		if len(f.uri.Path) < 1 {
 			return util.ErrInvalid.Errorf("empty filename in file uri")
 		}

@@ -28,27 +28,22 @@ import (
 )
 
 var (
-	PNameStorage                         = ps.Name("storage")
-	PNameStartStorage                    = ps.Name("start-storage")
-	PNameCheckLeveldbStorage             = ps.Name("check-leveldb-storage")
-	PNameLoadFromDatabase                = ps.Name("load-from-database")
-	PNameCleanStorage                    = ps.Name("clean-storage")
-	PNameCreateLocalFS                   = ps.Name("create-localfs")
-	PNameCheckLocalFS                    = ps.Name("check-localfs")
-	PNameLoadDatabase                    = ps.Name("load-database")
-	PNameCheckBlocksOfStorage            = ps.Name("check-blocks-of-storage")
-	PNameBlockReadersDecompressFunc      = ps.Name("block-readers-decompress-func")
-	PNameBlockReaders                    = ps.Name("block-readers")
-	FSNodeInfoContextKey                 = util.ContextKey("fs-node-info")
-	LeveldbStorageContextKey             = util.ContextKey("leveldb-storage")
-	CenterDatabaseContextKey             = util.ContextKey("center-database")
-	PermanentDatabaseContextKey          = util.ContextKey("permanent-database")
-	PoolDatabaseContextKey               = util.ContextKey("pool-database")
-	LastVoteproofsHandlerContextKey      = util.ContextKey("last-voteproofs-handler")
-	EventLoggingContextKey               = util.ContextKey("event-log")
-	BlockReadersDecompressFuncContextKey = util.ContextKey("block-readers-decompress-func")
-	NewBlockReadersFuncContextKey        = util.ContextKey("new-block-readers-func")
-	BlockReadersContextKey               = util.ContextKey("block-readers")
+	PNameStorage                    = ps.Name("storage")
+	PNameStartStorage               = ps.Name("start-storage")
+	PNameCheckLeveldbStorage        = ps.Name("check-leveldb-storage")
+	PNameLoadFromDatabase           = ps.Name("load-from-database")
+	PNameCleanStorage               = ps.Name("clean-storage")
+	PNameCreateLocalFS              = ps.Name("create-localfs")
+	PNameCheckLocalFS               = ps.Name("check-localfs")
+	PNameLoadDatabase               = ps.Name("load-database")
+	PNameCheckBlocksOfStorage       = ps.Name("check-blocks-of-storage")
+	FSNodeInfoContextKey            = util.ContextKey("fs-node-info")
+	LeveldbStorageContextKey        = util.ContextKey("leveldb-storage")
+	CenterDatabaseContextKey        = util.ContextKey("center-database")
+	PermanentDatabaseContextKey     = util.ContextKey("permanent-database")
+	PoolDatabaseContextKey          = util.ContextKey("pool-database")
+	LastVoteproofsHandlerContextKey = util.ContextKey("last-voteproofs-handler")
+	EventLoggingContextKey          = util.ContextKey("event-log")
 )
 
 var (
@@ -384,41 +379,6 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx, FSNodeInfoContextKey, fsnodeinfo), nil
 }
 
-func PBlockReadersDecompressFunc(pctx context.Context) (context.Context, error) {
-	return context.WithValue(pctx,
-		BlockReadersDecompressFuncContextKey,
-		util.DecompressReaderFunc(util.DefaultDecompressReaderFunc),
-	), nil
-}
-
-func PBlockReaders(pctx context.Context) (context.Context, error) {
-	var design NodeDesign
-	var encs *encoder.Encoders
-	var decompress util.DecompressReaderFunc
-
-	if err := util.LoadFromContextOK(pctx,
-		DesignContextKey, &design,
-		EncodersContextKey, &encs,
-		BlockReadersDecompressFuncContextKey, &decompress,
-	); err != nil {
-		return pctx, err
-	}
-
-	newReaders := func(root string) *isaac.BlockItemReaders {
-		readers := isaac.NewBlockItemReaders(root, encs, decompress)
-		_ = readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(1<<6)) //nolint:gomnd //...
-
-		return readers
-	}
-
-	readers := newReaders(LocalFSDataDirectory(design.Storage.Base))
-
-	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		NewBlockReadersFuncContextKey: newReaders,
-		BlockReadersContextKey:        readers,
-	}), nil
-}
-
 func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	e := util.StringError("load database")
 
@@ -473,6 +433,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	var isaacparams *isaac.Params
 	var db isaac.Database
 	var readers *isaac.BlockItemReaders
+	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -481,11 +442,12 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
 		BlockReadersContextKey, &readers,
+		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, err
 	}
 
-	if err := isaacblock.ValidateLastBlocks(readers, db, isaacparams.NetworkID()); err != nil {
+	if err := isaacblock.ValidateLastBlocks(readers, fromRemotes, db, isaacparams.NetworkID()); err != nil {
 		var derr isaacblock.ErrValidatedDifferentHeightBlockMaps
 		if errors.As(err, &derr) {
 			l := log.Log().With().Err(err).

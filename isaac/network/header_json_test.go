@@ -1,6 +1,7 @@
 package isaacnetwork
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -314,7 +315,7 @@ func TestBlockItemResponseHeaderEncode(tt *testing.T) {
 	t.NoError(enc.Add(encoder.DecodeDetail{Hint: BlockItemResponseHeaderHint, Instance: BlockItemResponseHeader{}}))
 
 	t.Encode = func() (interface{}, []byte) {
-		h := NewBlockItemResponseHeader(true, errors.Errorf("hehehe"), "bz")
+		h := NewBlockItemResponseHeader(true, errors.Errorf("hehehe"), url.URL{Scheme: "https", Host: "a.b.c"}, "bz")
 		t.NoError(h.IsValid(nil))
 
 		b, err := util.MarshalJSON(h)
@@ -336,6 +337,7 @@ func TestBlockItemResponseHeaderEncode(tt *testing.T) {
 		bh := b.(BlockItemResponseHeader)
 
 		t.Equal(ah.Hint(), bh.Hint())
+		t.Equal(ah.URI(), bh.URI())
 		t.Equal(ah.CompressFormat(), bh.CompressFormat())
 		t.Equal(ah.OK(), bh.OK())
 		t.Equal(ah.Err().Error(), bh.Err().Error())

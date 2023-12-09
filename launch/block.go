@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"io"
+	"net/url"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -13,7 +14,8 @@ import (
 )
 
 func ImportBlocks(
-	fromreaders,
+	fromreaders *isaac.BlockItemReaders,
+	fromremotes isaac.RemotesBlockItemReadFunc,
 	toreaders *isaac.BlockItemReaders,
 	fromHeight, toHeight base.Height,
 	encs *encoder.Encoders,
@@ -25,18 +27,81 @@ func ImportBlocks(
 		fromHeight, toHeight,
 		333, //nolint:gomnd //...
 		toreaders,
-		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			return isaac.BlockItemReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
+		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
+			var uri url.URL
+			var compressFormat string
+
+			switch itemfile, found, err := fromreaders.ItemFile(height, base.BlockItemMap); {
+			case err != nil, !found:
+				return nil, found, err
+			default:
+				uri = itemfile.URI()
+				compressFormat = itemfile.CompressFormat()
+			}
+
+			if isaac.IsInLocalBlockItemFile(uri) {
+				return isaac.BlockItemReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
+			}
+
+			var bm base.BlockMap
+
+			switch known, found, err := fromremotes(ctx, uri, compressFormat,
+				func(r io.Reader, compressFormat string) error {
+					i, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](
+						fromreaders,
+						base.BlockItemMap,
+						r,
+						compressFormat,
+						nil,
+					)
+
+					bm = i
+
+					return err
+				},
+			); {
+			case err != nil:
+				return nil, false, err
+			case !known:
+				return nil, false, errors.Errorf("unknown remote, %v", uri)
+			case !found:
+				return nil, false, nil
+			default:
+				return bm, true, nil
+			}
 		},
 		func(
-			_ context.Context, height base.Height, item base.BlockItemType,
+			ctx context.Context, height base.Height, item base.BlockItemType,
 			f func(r io.Reader, found bool, compressFormat string) error,
 		) error {
-			switch found, err := fromreaders.Item(height, item, func(ir isaac.BlockItemReader) error {
+			var uri url.URL
+			var compressFormat string
+
+			switch itemfile, found, err := fromreaders.Item(height, item, func(ir isaac.BlockItemReader) error {
 				return f(ir.Reader(), true, ir.Reader().Format)
 			}); {
 			case err != nil:
 				return err
+			case !found:
+				if itemfile == nil {
+					return f(nil, false, "")
+				}
+
+				uri = itemfile.URI()
+				compressFormat = itemfile.CompressFormat()
+			default:
+				return nil
+			}
+
+			switch known, found, err := fromremotes(ctx, uri, compressFormat,
+				func(r io.Reader, compressFormat string) error {
+					return f(r, true, compressFormat)
+				},
+			); {
+			case err != nil:
+				return err
+			case !known:
+				return errors.Errorf("unknown remote, %v", uri)
 			case !found:
 				return f(nil, false, "")
 			default:

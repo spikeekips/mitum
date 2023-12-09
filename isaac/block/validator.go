@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"context"
+	"io"
 	"os"
 	"sync"
 
@@ -85,6 +86,7 @@ func (er *ErrValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
 
 func ValidateLastBlocks(
 	readers *isaac.BlockItemReaders,
+	remotes isaac.RemotesBlockItemReadFunc,
 	db isaac.Database,
 	networkID base.NetworkID,
 ) error {
@@ -98,11 +100,15 @@ func ValidateLastBlocks(
 		lastmapdb = i
 	}
 
-	switch last, found, err := loadLastBlockMapFromLocalFS(readers, networkID); {
+	switch last, found, err := loadLastBlockMapFromLocalFS(readers, remotes); {
 	case err != nil:
 		return errors.WithMessage(err, "find last height from local fs")
 	case !found:
 	default:
+		if err := last.IsValid(networkID); err != nil {
+			return errors.WithMessage(err, "invalid last height from local fs")
+		}
+
 		lastmaplocalfs = last
 	}
 
@@ -146,11 +152,11 @@ func loadLastBlockMapFromDatabase(db isaac.Database, networkID base.NetworkID) (
 
 func loadLastBlockMapFromLocalFS(
 	readers *isaac.BlockItemReaders,
-	networkID base.NetworkID,
+	remotes isaac.RemotesBlockItemReadFunc,
 ) (base.BlockMap, bool, error) {
 	var last base.Height
 
-	switch i, found, err := FindLastHeightFromLocalFS(readers, networkID); {
+	switch i, _, found, err := FindHighestDirectory(readers.Root()); {
 	case err != nil:
 		return nil, false, err
 	case !found:
@@ -159,15 +165,42 @@ func loadLastBlockMapFromLocalFS(
 		last = i
 	}
 
-	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil); {
+	var itemfile base.BlockItemFile
+
+	switch i, found, err := readers.ItemFiles(last); {
 	case err != nil, !found:
 		return nil, found, err
 	default:
-		if err := i.IsValid(networkID); err != nil {
-			return nil, false, err
+		j, found := i.Item(base.BlockItemMap)
+		if !found {
+			return nil, false, nil
 		}
 
-		return i, true, nil
+		itemfile = j
+	}
+
+	if isaac.IsInLocalBlockItemFile(itemfile.URI()) {
+		return isaac.BlockItemReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil)
+	}
+
+	var bm base.BlockMap
+
+	switch known, found, err := remotes(context.Background(), itemfile.URI(), itemfile.CompressFormat(),
+		func(r io.Reader, compressFormat string) error {
+			i, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](
+				readers, base.BlockItemMap, r, compressFormat, nil)
+			if err == nil {
+				bm = i
+			}
+
+			return err
+		}); {
+	case err != nil, !found:
+		return nil, found, err
+	case !known:
+		return nil, found, errors.Errorf("unknown uri, %v", itemfile.URI())
+	default:
+		return bm, true, nil
 	}
 }
 

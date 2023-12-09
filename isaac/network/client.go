@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/url"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -456,7 +457,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 func (c *BaseClient) BlockItem(
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockItemType,
-	f func(_ io.Reader, found bool, compressFormat string) error,
+	f func(_ io.Reader, found bool, uri url.URL, compressFormat string) error,
 ) error {
 	header := NewBlockItemRequestHeader(height, item)
 	header.SetClientID(c.ClientID())
@@ -482,7 +483,7 @@ func (c *BaseClient) BlockItem(
 				return errors.Errorf("expect BlockItemResponseHeader, but %T", h)
 			}
 
-			return f(body, h.OK(), i.CompressFormat())
+			return f(body, h.OK(), i.URI(), i.CompressFormat())
 		}
 	})
 }

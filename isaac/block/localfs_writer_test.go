@@ -714,13 +714,13 @@ func (t *testHeightDirectory) TearDownTest() {
 
 func (t *testHeightDirectory) prepareFS(root string, heights []uint64, others []string) {
 	for i := range heights {
-		t.NoError(os.MkdirAll(
-			filepath.Join(
-				root,
-				isaac.BlockHeightDirectory(base.Height(int64(heights[i]))),
-			),
-			0o700,
-		))
+		f := isaac.BlockItemFilesPath(root, base.Height(int64(heights[i])))
+
+		t.NoError(os.MkdirAll(filepath.Dir(f), 0o700))
+
+		of, err := os.Create(f)
+		t.NoError(err)
+		t.NoError(of.Close())
 	}
 
 	for i := range others {
@@ -730,11 +730,8 @@ func (t *testHeightDirectory) prepareFS(root string, heights []uint64, others []
 
 func (t *testHeightDirectory) walk(root string) {
 	t.NoError(filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		switch {
-		case err != nil:
+		if err != nil {
 			return err
-		case !info.IsDir():
-			return nil
 		}
 
 		t.T().Log(" >", path)
@@ -745,22 +742,24 @@ func (t *testHeightDirectory) walk(root string) {
 
 func (t *testHeightDirectory) TestFindHighest() {
 	cases := []struct {
-		name    string
-		heights []uint64
-		others  []string
-		r       uint64
+		name                 string
+		heights              []uint64
+		others               []string
+		r                    int64
+		removeBlockItemFiles bool
 	}{
-		{"same level", []uint64{0, 1, 2, 3}, nil, 3},
+		{"same level", []uint64{0, 1, 2, 3}, nil, 3, false},
 		{
 			"max",
 			[]uint64{0, 1, 2, uint64(math.MaxInt64)},
 			nil,
-			uint64(math.MaxInt64),
+			int64(math.MaxInt64),
+			false,
 		},
-		{"zero level", []uint64{0}, nil, 0},
-		{"different level #0", []uint64{0, 1, 2, 3333333}, nil, 3333333},
-		{"different level #1", []uint64{0, 1, 2, 1333333, 3333333, 3333334, 3333339}, nil, 3333339},
-		{"different level #2", []uint64{0, 1, 2, 1333333, 3333333, 9333333333}, nil, 9333333333},
+		{"zero level", []uint64{0}, nil, 0, false},
+		{"different level #0", []uint64{0, 1, 2, 3333333}, nil, 3333333, false},
+		{"different level #1", []uint64{0, 1, 2, 1333333, 3333333, 3333334, 3333339}, nil, 3333339, false},
+		{"different level #2", []uint64{0, 1, 2, 1333333, 3333333, 9333333333}, nil, 9333333333, false},
 		{
 			"not height directory #0",
 			[]uint64{0, 1, 2, 1333333, 3333333, 9333333333},
@@ -769,6 +768,7 @@ func (t *testHeightDirectory) TestFindHighest() {
 				"900000000000000000",
 			},
 			9333333333,
+			false,
 		},
 		{
 			"not height directory #1",
@@ -777,6 +777,21 @@ func (t *testHeightDirectory) TestFindHighest() {
 				"000/000/000/009/43a/433",
 			},
 			9333333333,
+			false,
+		},
+		{
+			"multiple files.json",
+			[]uint64{0, 33340000000, 33340000001, 33340000002, 33340000003, 33333333333, 33333333334, 33333333335},
+			nil,
+			33340000003,
+			false,
+		},
+		{
+			"no block item files",
+			[]uint64{0, 33340000000, 33340000001, 33340000002, 33340000003, 33333333333, 33333333334, 33333333335},
+			nil,
+			-1,
+			true,
 		},
 	}
 
@@ -789,20 +804,39 @@ func (t *testHeightDirectory) TestFindHighest() {
 				root := filepath.Join(t.root, util.UUID().String())
 				t.prepareFS(root, c.heights, c.others)
 
+				if c.removeBlockItemFiles {
+					t.NoError(filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+						if err != nil {
+							return err
+						}
+
+						if !info.IsDir() && filepath.Ext(info.Name()) == ".json" {
+							t.NoError(os.Remove(path))
+						}
+
+						return nil
+					}))
+				}
+
 				t.walk(root)
 
-				d, found, err := FindHighestDirectory(root)
+				h, d, found, err := FindHighestDirectory(root)
 				t.NoError(err, "%d: %v", i, c.name)
-				t.True(found, "%d: %v", i, c.name)
-				t.NotEmpty(d, "%d: %v", i, c.name)
+				t.Equal(c.r >= 0, found, "%d: %v", i, c.name)
+				t.Equal(c.r, h.Int64(), "%d: %v; %v != %v", i, c.name, c.r, h.Int64())
 
-				rel, err := filepath.Rel(root, d)
-				t.NoError(err, "%d: %v", i, c.name)
+				if c.r >= 0 {
+					t.NotEmpty(d, "%d: %v", i, c.name)
 
-				rh, err := HeightFromDirectory(rel)
-				t.NoError(err, "%d: %v", i, c.name)
+					rel, err := filepath.Rel(root, d)
+					t.NoError(err, "%d: %v", i, c.name)
 
-				t.Equal(c.r, uint64(rh.Int64()), "%d: %v; %v != %v", i, c.name, c.r, rh.Int64())
+					rh, err := HeightFromDirectory(rel)
+					t.NoError(err, "%d: %v", i, c.name)
+
+					t.Equal(rh, h, rel)
+					t.Equal(c.r, rh.Int64(), "%d: %v; %v != %v", i, c.name, c.r, rh.Int64())
+				}
 			},
 		)
 	}

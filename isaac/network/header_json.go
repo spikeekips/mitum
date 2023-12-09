@@ -1,6 +1,8 @@
 package isaacnetwork
 
 import (
+	"net/url"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -834,16 +836,23 @@ func (h *CheckHandoverXHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
 }
 
 type blockItemResponseHeaderJSONMarshaler struct {
+	URI            string `json:"uri,omitempty"`
 	CompressFormat string `json:"compress_format"`
 }
 
 func (h BlockItemResponseHeader) MarshalJSON() ([]byte, error) {
+	var uri string
+	if len(h.uri.Scheme) > 0 {
+		uri = h.uri.String()
+	}
+
 	return util.MarshalJSON(struct {
 		blockItemResponseHeaderJSONMarshaler
 		quicstreamheader.BaseResponseHeaderJSONMarshaler
 	}{
 		BaseResponseHeaderJSONMarshaler: h.BaseResponseHeader.JSONMarshaler(),
 		blockItemResponseHeaderJSONMarshaler: blockItemResponseHeaderJSONMarshaler{
+			URI:            uri,
 			CompressFormat: h.compressFormat,
 		},
 	})
@@ -859,6 +868,13 @@ func (h *BlockItemResponseHeader) UnmarshalJSON(b []byte) error {
 	var u blockItemResponseHeaderJSONMarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)
+	}
+
+	switch i, err := url.Parse(u.URI); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		h.uri = *i
 	}
 
 	h.compressFormat = u.CompressFormat

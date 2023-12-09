@@ -10,6 +10,7 @@ func DefaultImportPS() *ps.PS {
 		AddOK(PNameDesign, PLoadDesign, nil, PNameEncoder).
 		AddOK(PNameTimeSyncer, PStartTimeSyncer, PCloseTimeSyncer, PNameDesign).
 		AddOK(PNameLocal, PLocal, nil, PNameDesign).
+		AddOK(PNameBlockReaders, PBlockReaders, nil, PNameDesign).
 		AddOK(PNameStorage, PStorage, PCloseStorage, PNameLocal)
 
 	_ = pps.POK(PNameEncoder).
@@ -19,9 +20,11 @@ func DefaultImportPS() *ps.PS {
 		PostAddOK(PNameCheckDesign, PCheckDesign).
 		PostAddOK(PNameINITObjectCache, PINITObjectCache)
 
-	_ = pps.POK(PNameStorage).
+	_ = pps.POK(PNameBlockReaders).
 		PreAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
-		PreAddOK(PNameBlockReaders, PBlockReaders).
+		PostAddOK(PNameRemotesBlockItemReaderFunc, PRemotesBlockItemReaderFunc)
+
+	_ = pps.POK(PNameStorage).
 		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).

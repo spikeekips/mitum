@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/url"
 	"testing"
 	"time"
 
@@ -1179,78 +1180,87 @@ func (t *testQuicstreamHandlers) TestBlockItem() {
 		r := bytes.NewBuffer(body)
 
 		handler := QuicstreamHandlerBlockItem(
-			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
+			func(h base.Height, i base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
 				if h != height {
-					return false, nil
+					return nil
 				}
 
 				if i != item {
-					return false, nil
+					return nil
 				}
 
-				if err := f(r, ""); err != nil {
-					return false, err
+				if err := f(r, true, url.URL{}, ""); err != nil {
+					return err
 				}
 
-				return true, nil
+				return nil
 			})
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
-		var rb []byte
-		var found bool
+		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
+			t.True(found)
 
-		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, rfound bool, compressFormat string) error {
-			if rfound {
-				b, err := io.ReadAll(r)
-				if err != nil {
-					return err
-				}
-
-				rb = b
-			}
-
-			found = rfound
+			b, err := io.ReadAll(r)
+			t.NoError(err)
+			t.Equal(body, b)
+			t.Empty(uri.Scheme)
 
 			return nil
 		}))
-
-		t.True(found)
-		t.Equal(body, rb, "%q != %q", string(body), string(rb))
 	})
 
 	t.Run("unknown item", func() {
 		handler := QuicstreamHandlerBlockItem(
-			func(h base.Height, i base.BlockItemType, f func(io.Reader, string) error) (bool, error) {
-				return false, nil
+			func(h base.Height, i base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
+				return f(nil, false, url.URL{}, "")
 			},
 		)
 		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItem, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
-		var rb []byte
-		var found bool
-
-		err := c.BlockItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, rfound bool, compressFormat string) error {
-			if rfound {
-				b, err := io.ReadAll(r)
-				if err != nil {
-					return err
-				}
-
-				rb = b
-			}
-
-			found = rfound
+		t.NoError(c.BlockItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
+			t.Nil(r)
+			t.False(found)
+			t.Empty(uri.Scheme)
+			t.Empty(compressFormat)
 
 			return nil
-		})
-		t.NoError(err)
+		}))
+	})
 
-		t.False(found)
-		t.Nil(rb)
+	t.Run("known, but in remote", func() {
+		height := base.Height(33)
+		item := base.BlockItemVoteproofs
+
+		remote := url.URL{Scheme: "https", Host: "a.b.c"}
+
+		handler := QuicstreamHandlerBlockItem(
+			func(h base.Height, i base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
+				if h != height {
+					return nil
+				}
+
+				if i != item {
+					return nil
+				}
+
+				return f(nil, false, remote, "bz")
+			})
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItem, handler)
+
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
+
+		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
+			t.False(found)
+			t.Nil(r)
+			t.Equal(remote, uri)
+			t.Equal(compressFormat, "bz")
+
+			return nil
+		}))
 	})
 }
 

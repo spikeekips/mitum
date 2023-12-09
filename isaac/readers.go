@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +47,7 @@ func BlockItemReadersDecode[T any](
 ) (target T, _ bool, _ error) {
 	irf := blockItemReadersDecodeFunc[T](f)
 
-	switch found, err := readers.Item(height, t, func(ir BlockItemReader) error {
+	switch _, found, err := readers.Item(height, t, func(ir BlockItemReader) error {
 		switch i, err := irf(ir); {
 		case err != nil:
 			return err
@@ -70,7 +73,7 @@ func BlockItemReadersDecodeItems[T any](
 ) (count uint64, l []T, found bool, _ error) {
 	irf, countf := blockItemReadersDecodeItemsFuncs(item, f)
 
-	switch found, err := readers.Item(height, t, func(ir BlockItemReader) error {
+	switch _, found, err := readers.Item(height, t, func(ir BlockItemReader) error {
 		return irf(ir)
 	}); {
 	case err != nil, !found:
@@ -246,10 +249,10 @@ func (rs *BlockItemReaders) Add(writerhint hint.Hint, v NewBlockItemReaderFunc) 
 	return rs.CompatibleSet.Add(writerhint, v)
 }
 
-func (rs *BlockItemReaders) Item(
+func (rs *BlockItemReaders) Reader(
 	height base.Height,
 	t base.BlockItemType,
-	callback func(BlockItemReader) error,
+	callback func(_ io.Reader, compressFormat string) error,
 ) (bool, error) {
 	var bfile base.BlockItemFile
 
@@ -259,8 +262,6 @@ func (rs *BlockItemReaders) Item(
 	default:
 		bfile = i
 	}
-
-	var f *os.File
 
 	switch i, found, err := rs.readFile(height, bfile); {
 	case err != nil:
@@ -272,14 +273,50 @@ func (rs *BlockItemReaders) Item(
 			_ = i.Close()
 		}()
 
+		if err := callback(i, bfile.CompressFormat()); err != nil {
+			return true, err
+		}
+
+		return true, nil
+	}
+}
+
+func (rs *BlockItemReaders) Item(
+	height base.Height,
+	t base.BlockItemType,
+	callback func(BlockItemReader) error,
+) (base.BlockItemFile, bool, error) {
+	var bfile base.BlockItemFile
+
+	switch i, found, err := rs.ItemFile(height, t); {
+	case err != nil, !found:
+		return nil, found, errors.WithMessage(err, t.String())
+	case i.URI().Scheme != LocalFSBlockItemScheme:
+		return i, false, nil
+	default:
+		bfile = i
+	}
+
+	var f *os.File
+
+	switch i, found, err := rs.readFile(height, bfile); {
+	case err != nil:
+		return bfile, false, errors.WithMessage(err, t.String())
+	case !found:
+		return bfile, false, util.ErrNotFound.Errorf("item file, %q", t)
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
 		f = i
 	}
 
 	if err := rs.itemFromReader(t, f, bfile.CompressFormat(), callback); err != nil {
-		return false, errors.WithMessage(err, t.String())
+		return bfile, false, errors.WithMessage(err, t.String())
 	}
 
-	return true, nil
+	return bfile, true, nil
 }
 
 func (rs *BlockItemReaders) ItemFromReader(
@@ -663,4 +700,78 @@ func BlockItemFilesPath(root string, height base.Height) string {
 		filepath.Dir(filepath.Join(root, BlockHeightDirectory(height))),
 		base.BlockItemFilesName(height),
 	)
+}
+
+type RemotesBlockItemReadFunc func(
+	_ context.Context,
+	uri url.URL,
+	compressFormat string,
+	callback func(_ io.Reader, compressFormat string) error,
+) (known, found bool, _ error)
+
+type RemoteBlockItemReadFunc func(context.Context, url.URL, func(io.Reader) error) (bool, error)
+
+func NewDefaultRemotesBlockItemReadFunc(insecure bool) RemotesBlockItemReadFunc {
+	httpf := HTTPBlockItemReadFunc(insecure)
+
+	return func(
+		ctx context.Context,
+		uri url.URL,
+		compressFormat string,
+		callback func(io.Reader, string) error,
+	) (bool, bool, error) {
+		switch uri.Scheme {
+		case LocalFSBlockItemScheme:
+			return true, false, nil
+		case "http", "https":
+			found, err := httpf(ctx, uri, func(r io.Reader) error {
+				return callback(r, compressFormat)
+			})
+
+			return true, found, err
+		default:
+			return false, false, nil
+		}
+	}
+}
+
+func HTTPBlockItemReadFunc(insecure bool) RemoteBlockItemReadFunc {
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: insecure,
+			},
+		},
+	}
+
+	return func(ctx context.Context, uri url.URL, callback func(io.Reader) error) (bool, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), nil)
+		if err != nil {
+			return false, errors.WithStack(err)
+		}
+
+		res, err := client.Do(req)
+		if err != nil {
+			return false, errors.WithStack(err)
+		}
+
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if res.StatusCode != http.StatusOK {
+			return false, nil
+		}
+
+		return true, callback(res.Body)
+	}
+}
+
+func IsInLocalBlockItemFile(uri url.URL) bool {
+	switch uri.Scheme {
+	case LocalFSBlockItemScheme, "file":
+		return true
+	default:
+		return false
+	}
 }

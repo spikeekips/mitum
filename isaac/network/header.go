@@ -1,6 +1,8 @@
 package isaacnetwork
 
 import (
+	"net/url"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -873,19 +875,25 @@ func (h CheckHandoverXHeader) Address() base.Address {
 }
 
 type BlockItemResponseHeader struct {
+	uri            url.URL
 	compressFormat string
 	quicstreamheader.BaseResponseHeader
 }
 
-func NewBlockItemResponseHeader(ok bool, err error, compressFormat string) BlockItemResponseHeader {
+func NewBlockItemResponseHeader(ok bool, err error, uri url.URL, compressFormat string) BlockItemResponseHeader {
 	return BlockItemResponseHeader{
 		BaseResponseHeader: quicstreamheader.NewBaseResponseHeader(BlockItemResponseHeaderHint, ok, err),
+		uri:                uri,
 		compressFormat:     compressFormat,
 	}
 }
 
 func (h BlockItemResponseHeader) IsValid([]byte) error {
 	return util.ErrInvalid.WithMessage(h.BaseResponseHeader.IsValid(nil), "BlockItemResponseHeader")
+}
+
+func (h BlockItemResponseHeader) URI() url.URL {
+	return h.uri
 }
 
 func (h BlockItemResponseHeader) CompressFormat() string {

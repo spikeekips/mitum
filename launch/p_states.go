@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/pkg/errors"
@@ -641,6 +642,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var lvps *isaac.LastVoteproofsHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 	var readers *isaac.BlockItemReaders
+	var remotesItem isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -655,6 +657,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		LastVoteproofsHandlerContextKey, &lvps,
 		NodeInfoContextKey, &nodeinfo,
 		BlockReadersContextKey, &readers,
+		RemotesBlockItemReaderFuncContextKey, &remotesItem,
 	); err != nil {
 		return nil, err
 	}
@@ -730,7 +733,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				batchlimit,
 				readers,
 				blockMapf,
-				syncerBlockItemFunc(client, conninfocache, params.Network.TimeoutRequest),
+				syncerBlockItemFunc(client, conninfocache, params.Network.TimeoutRequest, remotesItem),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -918,6 +921,7 @@ func syncerBlockItemFunc(
 	client *isaacnetwork.BaseClient,
 	conninfocache util.LockedMap[base.Height, quicstream.ConnInfo],
 	requestTimeoutf func() time.Duration,
+	fromRemote isaac.RemotesBlockItemReadFunc,
 ) isaacblock.ImportBlocksBlockItemFunc {
 	nrequestTimeoutf := func() time.Duration {
 		return isaac.DefaultTimeoutRequest
@@ -944,7 +948,32 @@ func syncerBlockItemFunc(
 		cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer ctxcancel()
 
-		if err := client.BlockItem(cctx, ci, height, item, f); err != nil {
+		if err := client.BlockItem(cctx, ci, height, item,
+			func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
+				switch {
+				case r != nil:
+					return f(r, found, compressFormat)
+				case !found:
+					return f(nil, false, "")
+				}
+
+				cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
+				defer ctxcancel()
+
+				switch _, found, err := fromRemote(cctx, uri, compressFormat,
+					func(r io.Reader, compressFormat string) error {
+						return f(r, true, compressFormat)
+					},
+				); {
+				case err != nil:
+					return err
+				case !found:
+					return f(nil, false, "")
+				default:
+					return nil
+				}
+			},
+		); err != nil {
 			return e.Wrap(err)
 		}
 

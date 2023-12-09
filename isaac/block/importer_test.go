@@ -109,7 +109,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemProposal, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemProposal, ir)
 	})
 	t.True(found)
@@ -158,7 +158,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemOperations, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemOperations, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemOperations, ir)
 	})
 	t.True(found)
@@ -224,7 +224,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemOperationsTree, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemOperationsTree, ir)
 	})
 	t.True(found)
@@ -280,7 +280,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemVoteproofs, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemVoteproofs, ir)
 	})
 	t.True(found)
@@ -333,7 +333,7 @@ func (t *testBlockImporter) TestWriteStates() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemStates, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemStates, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemStates, ir)
 	})
 	t.True(found)
@@ -400,7 +400,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	t.NoError(err)
 	im.batchlimit = 2
 
-	found, err = t.Readers.Item(point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
+	_, found, err = t.Readers.Item(point.Height(), base.BlockItemStatesTree, func(ir isaac.BlockItemReader) error {
 		return im.WriteItem(base.BlockItemStatesTree, ir)
 	})
 	t.True(found)
@@ -443,7 +443,7 @@ func (t *testBlockImporter) TestSave() {
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
-		found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+		_, found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
 			return im.WriteItem(item.Type(), ir)
 		})
 		t.True(found)
@@ -454,7 +454,7 @@ func (t *testBlockImporter) TestSave() {
 
 	t.Run("no files in new directory", func() {
 		m.Items(func(item base.BlockMapItem) bool {
-			found, err := t.NewReaders(newroot).Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error { return nil })
+			_, found, err := t.NewReaders(newroot).Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error { return nil })
 			t.NoError(err)
 			t.False(found)
 
@@ -473,7 +473,7 @@ func (t *testBlockImporter) TestSave() {
 		m.Items(func(item base.BlockMapItem) bool {
 			cw := util.NewHashChecksumWriter(sha256.New())
 
-			found, err := newreaders.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+			_, found, err := newreaders.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
 				if _, err := ir.Reader().Tee(nil, cw); err != nil {
 					return err
 				}
@@ -539,7 +539,7 @@ func (t *testBlockImporter) TestCancelImport() {
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
-		found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
+		_, found, err := t.Readers.Item(point.Height(), item.Type(), func(ir isaac.BlockItemReader) error {
 			return im.WriteItem(item.Type(), ir)
 		})
 		t.True(found, "not found, %q", item.Type())

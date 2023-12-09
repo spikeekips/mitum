@@ -61,8 +61,10 @@ func (s *BufferedResetReader) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
-	s.buf.Reset()
-	s.buf = nil
+	if s.buf != nil {
+		s.buf.Reset()
+		s.buf = nil
+	}
 
 	return nil
 }
