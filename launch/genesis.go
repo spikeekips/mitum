@@ -71,7 +71,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 	readers := g.newReaders(g.dataroot)
 
 	switch blockmap, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
-		readers,
+		readers.Item,
 		base.GenesisHeight,
 		base.BlockItemMap,
 		nil,

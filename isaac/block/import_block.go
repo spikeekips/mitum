@@ -81,7 +81,7 @@ func ImportBlocks(
 
 	if setLastVoteproofsFunc != nil {
 		switch vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](
-			readers, to, base.BlockItemVoteproofs, nil); {
+			readers.Item, to, base.BlockItemVoteproofs, nil); {
 		case err != nil:
 			return e.WithMessage(err, "last voteproof")
 		default:
@@ -98,7 +98,7 @@ func importBlock(
 	m base.BlockMap,
 	im isaac.BlockImporter,
 	readers *isaac.BlockItemReaders,
-	blockMapItemf ImportBlocksBlockItemFunc,
+	blockItemf ImportBlocksBlockItemFunc,
 ) error {
 	e := util.StringError("import block, %d", height)
 
@@ -122,7 +122,7 @@ func importBlock(
 
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return blockMapItemf(ctx, height, item.Type(), func(r io.Reader, found bool, compressFormat string) error {
+			return blockItemf(ctx, height, item.Type(), func(r io.Reader, found bool, compressFormat string) error {
 				if !found {
 					return e.Wrap(util.ErrNotFound.Errorf("blockItem not found, %q", item.Type()))
 				}

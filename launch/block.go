@@ -28,47 +28,12 @@ func ImportBlocks(
 		333, //nolint:gomnd //...
 		toreaders,
 		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
-			var uri url.URL
-			var compressFormat string
-
-			switch itemfile, found, err := fromreaders.ItemFile(height, base.BlockItemMap); {
-			case err != nil, !found:
-				return nil, found, err
-			default:
-				uri = itemfile.URI()
-				compressFormat = itemfile.CompressFormat()
-			}
-
-			if isaac.IsInLocalBlockItemFile(uri) {
-				return isaac.BlockItemReadersDecode[base.BlockMap](fromreaders, height, base.BlockItemMap, nil)
-			}
-
-			var bm base.BlockMap
-
-			switch known, found, err := fromremotes(ctx, uri, compressFormat,
-				func(r io.Reader, compressFormat string) error {
-					i, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](
-						fromreaders,
-						base.BlockItemMap,
-						r,
-						compressFormat,
-						nil,
-					)
-
-					bm = i
-
-					return err
-				},
-			); {
-			case err != nil:
-				return nil, false, err
-			case !known:
-				return nil, false, errors.Errorf("unknown remote, %v", uri)
-			case !found:
-				return nil, false, nil
-			default:
-				return bm, true, nil
-			}
+			return isaac.BlockItemReadersDecode[base.BlockMap](
+				isaac.BlockItemReadersItemFuncWithRemote(fromreaders, fromremotes, nil),
+				height,
+				base.BlockItemMap,
+				nil,
+			)
 		},
 		func(
 			ctx context.Context, height base.Height, item base.BlockItemType,

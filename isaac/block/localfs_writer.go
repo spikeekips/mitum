@@ -287,7 +287,9 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		return e.Wrap(err)
 	}
 
-	_ = w.bfiles.SetItem(base.BlockItemVoteproofs, isaac.NewLocalFSBlockItemFile(f.Name(), ""))
+	if _, err := w.bfiles.SetItem(base.BlockItemVoteproofs, isaac.NewLocalFSBlockItemFile(f.Name(), "")); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -330,7 +332,10 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 			// NOTE remove empty operations file
 			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name()))
 		default:
-			_ = w.bfiles.SetItem(base.BlockItemOperations, isaac.NewLocalFSBlockItemFile(w.opsf.Name(), ""))
+			if _, err := w.bfiles.SetItem(
+				base.BlockItemOperations, isaac.NewLocalFSBlockItemFile(w.opsf.Name(), "")); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -342,7 +347,10 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 			// NOTE remove empty states file
 			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name()))
 		default:
-			_ = w.bfiles.SetItem(base.BlockItemStates, isaac.NewLocalFSBlockItemFile(w.stsf.Name(), ""))
+			if _, err := w.bfiles.SetItem(
+				base.BlockItemStates, isaac.NewLocalFSBlockItemFile(w.stsf.Name(), "")); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -482,7 +490,9 @@ func (w *LocalFSWriter) setTree(
 		return tr, e.Wrap(err)
 	}
 
-	_ = w.bfiles.SetItem(treetype, isaac.NewLocalFSBlockItemFile(tf.Name(), ""))
+	if _, err := w.bfiles.SetItem(treetype, isaac.NewLocalFSBlockItemFile(tf.Name(), "")); err != nil {
+		return tr, e.Wrap(err)
+	}
 
 	return tr, nil
 }
@@ -533,7 +543,9 @@ func (w *LocalFSWriter) writeItem(t base.BlockItemType, i interface{}) error {
 
 	_ = cw.Close()
 
-	_ = w.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(cw.Name(), ""))
+	if _, err := w.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(cw.Name(), "")); err != nil {
+		return err
+	}
 
 	if t != base.BlockItemMap {
 		return w.m.SetItem(NewBlockMapItem(t, cw.Checksum()))

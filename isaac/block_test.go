@@ -119,6 +119,16 @@ func (t *testBlockItemFile) TestIsValid() {
 		t.ErrorContains(err, "empty uri scheme")
 	})
 
+	t.Run("empty hostname in remote uri", func() {
+		u, err := url.Parse("https:///d.xz")
+		t.NoError(err)
+
+		f := NewBlockItemFile(*u, "")
+		err = f.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty hostname")
+	})
+
 	t.Run("file, localfs: empty path", func() {
 		f := NewLocalFSBlockItemFile("", "")
 		f.uri.Path = ""

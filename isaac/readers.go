@@ -27,10 +27,12 @@ var (
 	BlockDirectoryHeightFormat = "%021s"
 )
 
+type BlockItemReaderCallbackFunc func(BlockItemReader) error
+
 type BlockItemReaderFunc func(
 	base.Height,
 	base.BlockItemType,
-	func(BlockItemReader) error,
+	BlockItemReaderCallbackFunc,
 ) (bool, error)
 
 type NewBlockItemReaderFunc func(
@@ -39,15 +41,28 @@ type NewBlockItemReaderFunc func(
 	*util.CompressedReader,
 ) (BlockItemReader, error)
 
+type BlockItemReadersItemFunc func( // FIXME set context
+	base.Height,
+	base.BlockItemType,
+	BlockItemReaderCallbackFunc,
+) (base.BlockItemFile, bool, error)
+
+type BlockItemReadersFromReaderFunc func(
+	_ base.BlockItemType,
+	_ io.Reader,
+	compressFormat string,
+	_ BlockItemReaderCallbackFunc,
+) error
+
 func BlockItemReadersDecode[T any](
-	readers *BlockItemReaders,
+	itemf BlockItemReadersItemFunc,
 	height base.Height,
 	t base.BlockItemType,
 	f func(ir BlockItemReader) error,
 ) (target T, _ bool, _ error) {
 	irf := blockItemReadersDecodeFunc[T](f)
 
-	switch _, found, err := readers.Item(height, t, func(ir BlockItemReader) error {
+	switch _, found, err := itemf(height, t, func(ir BlockItemReader) error {
 		switch i, err := irf(ir); {
 		case err != nil:
 			return err
@@ -65,7 +80,7 @@ func BlockItemReadersDecode[T any](
 }
 
 func BlockItemReadersDecodeItems[T any](
-	readers *BlockItemReaders,
+	itemf BlockItemReadersItemFunc,
 	height base.Height,
 	t base.BlockItemType,
 	item func(uint64, uint64, T) error,
@@ -73,7 +88,7 @@ func BlockItemReadersDecodeItems[T any](
 ) (count uint64, l []T, found bool, _ error) {
 	irf, countf := blockItemReadersDecodeItemsFuncs(item, f)
 
-	switch _, found, err := readers.Item(height, t, func(ir BlockItemReader) error {
+	switch _, found, err := itemf(height, t, func(ir BlockItemReader) error {
 		return irf(ir)
 	}); {
 	case err != nil, !found:
@@ -86,7 +101,7 @@ func BlockItemReadersDecodeItems[T any](
 }
 
 func BlockItemReadersDecodeFromReader[T any](
-	readers *BlockItemReaders,
+	itemf BlockItemReadersFromReaderFunc,
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
@@ -94,7 +109,7 @@ func BlockItemReadersDecodeFromReader[T any](
 ) (target T, _ error) {
 	irf := blockItemReadersDecodeFunc[T](f)
 
-	if err := readers.ItemFromReader(t, r, compressFormat, func(ir BlockItemReader) error {
+	if err := itemf(t, r, compressFormat, func(ir BlockItemReader) error {
 		switch i, err := irf(ir); {
 		case err != nil:
 			return err
@@ -111,7 +126,7 @@ func BlockItemReadersDecodeFromReader[T any](
 }
 
 func BlockItemReadersDecodeItemsFromReader[T any](
-	readers *BlockItemReaders,
+	itemf BlockItemReadersFromReaderFunc,
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
@@ -120,7 +135,7 @@ func BlockItemReadersDecodeItemsFromReader[T any](
 ) (count uint64, l []T, _ error) {
 	irf, countf := blockItemReadersDecodeItemsFuncs(item, f)
 
-	if err := readers.ItemFromReader(t, r, compressFormat, func(ir BlockItemReader) error {
+	if err := itemf(t, r, compressFormat, func(ir BlockItemReader) error {
 		return irf(ir)
 	}); err != nil {
 		return 0, nil, err
@@ -284,7 +299,7 @@ func (rs *BlockItemReaders) Reader(
 func (rs *BlockItemReaders) Item(
 	height base.Height,
 	t base.BlockItemType,
-	callback func(BlockItemReader) error,
+	callback BlockItemReaderCallbackFunc,
 ) (base.BlockItemFile, bool, error) {
 	var bfile base.BlockItemFile
 
@@ -323,7 +338,7 @@ func (rs *BlockItemReaders) ItemFromReader(
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
-	callback func(BlockItemReader) error,
+	callback BlockItemReaderCallbackFunc,
 ) error {
 	return rs.itemFromReader(t, r, compressFormat, callback)
 }
@@ -425,7 +440,7 @@ func (rs *BlockItemReaders) findBlockReader(f io.Reader, compressFormat string) 
 
 		e, found := rs.encs.Find(enchint)
 		if !found {
-			return nil, nil, util.ErrNotFound.Errorf("encoder")
+			return nil, nil, util.ErrNotFound.Errorf("encoder, %q", enchint)
 		}
 
 		return r, e, nil
@@ -436,7 +451,7 @@ func (rs *BlockItemReaders) itemFromReader(
 	t base.BlockItemType,
 	r io.Reader,
 	compressFormat string,
-	callback func(BlockItemReader) error,
+	callback BlockItemReaderCallbackFunc,
 ) error {
 	var br io.Reader
 	var resetf func() error
@@ -752,7 +767,7 @@ func HTTPBlockItemReadFunc(insecure bool) RemoteBlockItemReadFunc {
 
 		res, err := client.Do(req)
 		if err != nil {
-			return false, errors.WithStack(err)
+			return false, nil // NOTE ignore error
 		}
 
 		defer func() {
@@ -773,5 +788,54 @@ func IsInLocalBlockItemFile(uri url.URL) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func BlockItemReadersItemFuncWithRemote(
+	readers *BlockItemReaders,
+	fromRemotes RemotesBlockItemReadFunc,
+	callback func(itemfile base.BlockItemFile, ir BlockItemReader, callback BlockItemReaderCallbackFunc) error,
+) BlockItemReadersItemFunc {
+	if callback == nil {
+		callback = func( //revive:disable-line:modifies-parameter
+			_ base.BlockItemFile, ir BlockItemReader, f BlockItemReaderCallbackFunc,
+		) error {
+			return f(ir)
+		}
+	}
+
+	return func(
+		height base.Height,
+		t base.BlockItemType,
+		f BlockItemReaderCallbackFunc,
+	) (base.BlockItemFile, bool, error) {
+		var itf base.BlockItemFile
+
+		switch i, found, err := readers.ItemFile(height, t); {
+		case err != nil, !found:
+			return nil, found, err
+		case IsInLocalBlockItemFile(i.URI()):
+			return readers.Item(height, t, func(ir BlockItemReader) error {
+				return callback(i, ir, f)
+			})
+		default:
+			itf = i
+		}
+
+		switch known, found, err := fromRemotes(context.Background(), itf.URI(), itf.CompressFormat(),
+			func(r io.Reader, compressFormat string) error {
+				return readers.ItemFromReader(t, r, compressFormat,
+					func(ir BlockItemReader) error {
+						return callback(itf, ir, f)
+					},
+				)
+			}); {
+		case err != nil, !found:
+			return nil, found, err
+		case !known:
+			return nil, found, errors.Errorf("unknown remote item file, %v", itf.URI())
+		default:
+			return itf, true, nil
+		}
 	}
 }

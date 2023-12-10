@@ -2,7 +2,6 @@ package isaacblock
 
 import (
 	"context"
-	"io"
 	"os"
 	"sync"
 
@@ -165,43 +164,12 @@ func loadLastBlockMapFromLocalFS(
 		last = i
 	}
 
-	var itemfile base.BlockItemFile
-
-	switch i, found, err := readers.ItemFiles(last); {
-	case err != nil, !found:
-		return nil, found, err
-	default:
-		j, found := i.Item(base.BlockItemMap)
-		if !found {
-			return nil, false, nil
-		}
-
-		itemfile = j
-	}
-
-	if isaac.IsInLocalBlockItemFile(itemfile.URI()) {
-		return isaac.BlockItemReadersDecode[base.BlockMap](readers, last, base.BlockItemMap, nil)
-	}
-
-	var bm base.BlockMap
-
-	switch known, found, err := remotes(context.Background(), itemfile.URI(), itemfile.CompressFormat(),
-		func(r io.Reader, compressFormat string) error {
-			i, err := isaac.BlockItemReadersDecodeFromReader[base.BlockMap](
-				readers, base.BlockItemMap, r, compressFormat, nil)
-			if err == nil {
-				bm = i
-			}
-
-			return err
-		}); {
-	case err != nil, !found:
-		return nil, found, err
-	case !known:
-		return nil, found, errors.Errorf("unknown uri, %v", itemfile.URI())
-	default:
-		return bm, true, nil
-	}
+	return isaac.BlockItemReadersDecode[base.BlockMap](
+		isaac.BlockItemReadersItemFuncWithRemote(readers, remotes, nil),
+		last,
+		base.BlockItemMap,
+		nil,
+	)
 }
 
 func ValidateAllBlockMapsFromLocalFS(
@@ -244,7 +212,7 @@ func ValidateAllBlockMapsFromLocalFS(
 			var m base.BlockMap
 
 			switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
-				readers, height, base.BlockItemMap, nil); {
+				readers.Item, height, base.BlockItemMap, nil); {
 			case err != nil:
 				return err
 			case !found:
@@ -286,7 +254,7 @@ func ValidateAllBlockMapsFromLocalFS(
 }
 
 func ValidateBlockFromLocalFS(
-	readers *isaac.BlockItemReaders,
+	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	networkID base.NetworkID,
 	validateBlockMapf func(base.BlockMap) error,
@@ -295,9 +263,9 @@ func ValidateBlockFromLocalFS(
 ) error {
 	e := util.StringError("validate imported block")
 
-	var m base.BlockMap
+	var bm base.BlockMap
 
-	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](itemf, height, base.BlockItemMap, nil); {
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
@@ -313,10 +281,10 @@ func ValidateBlockFromLocalFS(
 			}
 		}
 
-		m = i
+		bm = i
 	}
 
-	pr, ops, sts, opstree, ststree, vps, err := loadBlockItemsFromReader(readers, height)
+	pr, ops, sts, opstree, ststree, vps, err := loadBlockItemsFromReader(bm, itemf, height)
 	if err != nil {
 		return err
 	}
@@ -325,23 +293,24 @@ func ValidateBlockFromLocalFS(
 		return err
 	}
 
-	if err := base.ValidateProposalWithManifest(pr, m.Manifest()); err != nil {
+	if err := base.ValidateProposalWithManifest(pr, bm.Manifest()); err != nil {
 		return err
 	}
 
-	if err := ValidateOperationsOfBlock(opstree, ops, m.Manifest(), networkID, validateOperationf); err != nil {
+	if err := ValidateOperationsOfBlock(opstree, ops, bm.Manifest(), networkID, validateOperationf); err != nil {
 		return err
 	}
 
-	if err := ValidateStatesOfBlock(ststree, sts, m.Manifest(), networkID, validateStatef); err != nil {
+	if err := ValidateStatesOfBlock(ststree, sts, bm.Manifest(), networkID, validateStatef); err != nil {
 		return err
 	}
 
-	return validateVoteproofsFromLocalFS(networkID, vps, m.Manifest())
+	return validateVoteproofsFromLocalFS(networkID, vps, bm.Manifest())
 }
 
 func loadBlockItemsFromReader( //revive:disable-line:function-result-limit
-	readers *isaac.BlockItemReaders,
+	bm base.BlockMap,
+	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 ) (
 	pr base.ProposalSignFact,
@@ -351,31 +320,20 @@ func loadBlockItemsFromReader( //revive:disable-line:function-result-limit
 	vps [2]base.Voteproof,
 	_ error,
 ) {
-	var bm base.BlockMap
-
-	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](readers, height, base.BlockItemMap, nil); {
-	case err != nil:
-		return pr, ops, sts, opstree, ststree, vps, err
-	case !found:
-		return pr, ops, sts, opstree, ststree, vps, util.ErrNotFound.Errorf("blockmap")
-	default:
-		bm = i
-	}
-
 	load := func(item base.BlockItemType) error {
 		switch item {
 		case base.BlockItemProposal:
-			return decodeBlockItemFromReader[base.ProposalSignFact](readers, height, item, &pr)
+			return decodeBlockItemFromReader[base.ProposalSignFact](itemf, height, item, &pr)
 		case base.BlockItemOperationsTree:
-			return decodeBlockItemFromReader[fixedtree.Tree](readers, height, item, &opstree)
+			return decodeBlockItemFromReader[fixedtree.Tree](itemf, height, item, &opstree)
 		case base.BlockItemStatesTree:
-			return decodeBlockItemFromReader[fixedtree.Tree](readers, height, item, &ststree)
+			return decodeBlockItemFromReader[fixedtree.Tree](itemf, height, item, &ststree)
 		case base.BlockItemVoteproofs:
-			return decodeBlockItemFromReader[[2]base.Voteproof](readers, height, item, &vps)
+			return decodeBlockItemFromReader[[2]base.Voteproof](itemf, height, item, &vps)
 		case base.BlockItemOperations:
-			return decodeBlockItemsFromReader[base.Operation](readers, height, item, &ops)
+			return decodeBlockItemsFromReader[base.Operation](itemf, height, item, &ops)
 		case base.BlockItemStates:
-			return decodeBlockItemsFromReader[base.State](readers, height, item, &sts)
+			return decodeBlockItemsFromReader[base.State](itemf, height, item, &sts)
 		default:
 			return errors.Errorf("unknown item, %q", item)
 		}
@@ -393,12 +351,12 @@ func loadBlockItemsFromReader( //revive:disable-line:function-result-limit
 }
 
 func decodeBlockItemFromReader[T any](
-	readers *isaac.BlockItemReaders,
+	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	item base.BlockItemType,
 	v interface{},
 ) error {
-	switch i, found, err := isaac.BlockItemReadersDecode[T](readers, height, item, nil); {
+	switch i, found, err := isaac.BlockItemReadersDecode[T](itemf, height, item, nil); {
 	case err != nil:
 		return err
 	case !found:
@@ -409,12 +367,12 @@ func decodeBlockItemFromReader[T any](
 }
 
 func decodeBlockItemsFromReader[T any](
-	readers *isaac.BlockItemReaders,
+	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	item base.BlockItemType,
 	v interface{},
 ) error {
-	switch _, i, found, err := isaac.BlockItemReadersDecodeItems[T](readers, height, item, nil, nil); {
+	switch _, i, found, err := isaac.BlockItemReadersDecodeItems[T](itemf, height, item, nil, nil); {
 	case err != nil:
 		return err
 	case !found:
@@ -525,7 +483,7 @@ func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Votepro
 }
 
 func ValidateBlocksFromStorage(
-	readers *isaac.BlockItemReaders,
+	itemf isaac.BlockItemReadersItemFunc,
 	fromHeight, toHeight base.Height,
 	networkID base.NetworkID,
 	db isaac.Database,
@@ -553,7 +511,7 @@ func ValidateBlocksFromStorage(
 				mapdb = i
 			}
 
-			err := ValidateBlockFromLocalFS(readers, height, networkID,
+			err := ValidateBlockFromLocalFS(itemf, height, networkID,
 				func(m base.BlockMap) error {
 					return base.IsEqualBlockMap(mapdb, m)
 				},

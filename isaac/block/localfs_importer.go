@@ -57,7 +57,9 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		_ = l.bfiles.SetItem(base.BlockItemMap, isaac.NewLocalFSBlockItemFile(i, ""))
+		if _, err := l.bfiles.SetItem(base.BlockItemMap, isaac.NewLocalFSBlockItemFile(i, "")); err != nil {
+			return err
+		}
 
 		j, err := l.newWriter(i)
 		if err != nil {
@@ -108,7 +110,9 @@ func (l *LocalFSImporter) WriteItem(
 		return nil, e.Wrap(err)
 	}
 
-	_ = l.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(f, ""))
+	if _, err := l.bfiles.SetItem(t, isaac.NewLocalFSBlockItemFile(f, "")); err != nil {
+		return nil, err
+	}
 
 	return l.newWriter(f)
 }

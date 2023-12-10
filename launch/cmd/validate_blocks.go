@@ -169,7 +169,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	if err := isaacblock.ValidateBlocksFromStorage(
-		readers, cmd.fromHeight, last, isaacparams.NetworkID(), db,
+		readers.Item, cmd.fromHeight, last, isaacparams.NetworkID(), db,
 		cmd.whenBlockDone,
 	); err != nil {
 		return pctx, e.Wrap(err)

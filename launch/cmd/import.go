@@ -1,7 +1,13 @@
 package launchcmd
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
+	"net/url"
+	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -13,6 +19,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
@@ -26,7 +33,8 @@ type ImportCommand struct { //nolint:govet //...
 	Source      string           `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
 	HeightRange launch.RangeFlag `name:"range" help:"<from>-<to>" default:""`
 	launch.PrivatekeyFlags
-	Do              bool `name:"do" help:"really do import"`
+	Do              bool   `name:"do" help:"really do import"`
+	CacheDirectory  string `name:"cache-directory" help:"directory for remote block item file"`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
 	fromHeight      base.Height
@@ -41,27 +49,15 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	cmd.fromHeight, cmd.toHeight = base.NilHeight, base.NilHeight
+	cmd.log = log.Log()
 
-	if h := cmd.HeightRange.From(); h != nil {
-		cmd.fromHeight = base.Height(*h)
-
-		if err := cmd.fromHeight.IsValid(nil); err != nil {
-			return errors.WithMessagef(err, "invalid from height; from=%d", *h)
-		}
+	if err := cmd.prepare(); err != nil {
+		return err
 	}
 
-	if h := cmd.HeightRange.To(); h != nil {
-		cmd.toHeight = base.Height(*h)
-
-		if err := cmd.toHeight.IsValid(nil); err != nil {
-			return errors.WithMessagef(err, "invalid to height; to=%d", *h)
-		}
-
-		if cmd.fromHeight > cmd.toHeight {
-			return errors.Errorf("from height is higher than to; from=%d to=%d", cmd.fromHeight, cmd.toHeight)
-		}
-	}
+	defer func() {
+		_ = os.RemoveAll(cmd.CacheDirectory)
+	}()
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
@@ -71,9 +67,8 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		Interface("from_height", cmd.fromHeight).
 		Interface("to_height", cmd.toHeight).
 		Bool("do", cmd.Do).
+		Str("cache_directory", cmd.CacheDirectory).
 		Msg("flags")
-
-	cmd.log = log.Log()
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
 		launch.DesignFlagContextKey:      cmd.DesignFlag,
@@ -98,6 +93,63 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	}()
 
 	return err
+}
+
+func (cmd *ImportCommand) prepare() error {
+	cmd.fromHeight, cmd.toHeight = base.NilHeight, base.NilHeight
+
+	if h := cmd.HeightRange.From(); h != nil {
+		cmd.fromHeight = base.Height(*h)
+
+		if err := cmd.fromHeight.IsValid(nil); err != nil {
+			return errors.WithMessagef(err, "invalid from height; from=%d", *h)
+		}
+	}
+
+	if h := cmd.HeightRange.To(); h != nil {
+		cmd.toHeight = base.Height(*h)
+
+		if err := cmd.toHeight.IsValid(nil); err != nil {
+			return errors.WithMessagef(err, "invalid to height; to=%d", *h)
+		}
+
+		if cmd.fromHeight > cmd.toHeight {
+			return errors.Errorf("from height is higher than to; from=%d to=%d", cmd.fromHeight, cmd.toHeight)
+		}
+	}
+
+	var checkCacheDirectory func() error
+
+	switch {
+	case len(cmd.CacheDirectory) < 1:
+		checkCacheDirectory = func() error {
+			i, err := os.MkdirTemp("", "mitum-import-")
+			if err != nil {
+				return errors.WithStack(err)
+			}
+
+			cmd.CacheDirectory = i
+
+			return nil
+		}
+	default:
+		checkCacheDirectory = func() error {
+			switch fi, err := os.Stat(cmd.CacheDirectory); {
+			case os.IsNotExist(err):
+				if err = os.MkdirAll(filepath.Clean(cmd.CacheDirectory), 0o700); err != nil {
+					return errors.WithStack(err)
+				}
+			case err != nil:
+				return errors.WithStack(err)
+			case !fi.IsDir():
+				return errors.Errorf("cache directory is not directory")
+			}
+
+			return nil
+		}
+	}
+
+	return checkCacheDirectory()
 }
 
 func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
@@ -145,7 +197,11 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		}
 	}
 
-	if err := cmd.validateSourceBlocks(sourceReaders, last, isaacparams); err != nil {
+	if err := cmd.validateSourceBlocks(
+		cmd.loadItemFile(sourceReaders, fromRemotes, cmd.Do),
+		last,
+		isaacparams.NetworkID(),
+	); err != nil {
 		return pctx, e.Wrap(err)
 	}
 
@@ -157,7 +213,20 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 
 	if err := launch.ImportBlocks(
 		sourceReaders,
-		fromRemotes,
+		func(ctx context.Context,
+			uri url.URL,
+			compressFormat string,
+			callback func(_ io.Reader, compressFormat string) error,
+		) (known, found bool, _ error) {
+			switch found, err := cmd.readTempRemoteItemFile(uri, compressFormat, callback); {
+			case err != nil:
+				return false, false, err
+			case found:
+				return true, true, nil
+			default:
+				return fromRemotes(ctx, uri, compressFormat, callback)
+			}
+		},
 		newReaders(launch.LocalFSDataDirectory(design.Storage.Base)),
 		cmd.fromHeight,
 		last,
@@ -226,13 +295,11 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error
 }
 
 func (cmd *ImportCommand) validateSourceBlocks(
-	sourceReaders *isaac.BlockItemReaders,
+	itemf isaac.BlockItemReadersItemFunc,
 	last base.Height,
-	params *isaac.Params,
+	networkID base.NetworkID,
 ) error {
-	// FIXME support remote item
-	return nil
-
+	// NOTE if cmd.Do is true, save the remote item files in temp directory.
 	e := util.StringError("validate source blocks")
 
 	d := last - cmd.fromHeight
@@ -248,9 +315,9 @@ func (cmd *ImportCommand) validateSourceBlocks(
 			height := base.Height(int64(i) + cmd.fromHeight.Int64())
 
 			return isaacblock.ValidateBlockFromLocalFS(
-				sourceReaders,
+				itemf,
 				height,
-				params.NetworkID(),
+				networkID,
 				nil, nil, nil,
 			)
 		},
@@ -263,6 +330,41 @@ func (cmd *ImportCommand) validateSourceBlocks(
 	return nil
 }
 
+func (cmd *ImportCommand) loadItemFile( //revive:disable-line:flag-parameter
+	sourceReaders *isaac.BlockItemReaders,
+	fromRemotes isaac.RemotesBlockItemReadFunc,
+	saveTemp bool,
+) isaac.BlockItemReadersItemFunc {
+	return isaac.BlockItemReadersItemFuncWithRemote(
+		sourceReaders,
+		fromRemotes,
+		func(itemfile base.BlockItemFile, ir isaac.BlockItemReader, f isaac.BlockItemReaderCallbackFunc) error {
+			if isaac.IsInLocalBlockItemFile(itemfile.URI()) {
+				return f(ir)
+			}
+
+			if !saveTemp {
+				return f(ir)
+			}
+
+			buf := bytes.NewBuffer(nil)
+			defer func() {
+				buf.Reset()
+			}()
+
+			if _, err := ir.Reader().Tee(buf, nil); err != nil {
+				return err
+			}
+
+			if err := f(ir); err != nil {
+				return err
+			}
+
+			return cmd.writeTempRemoteItemFile(itemfile.URI(), itemfile.CompressFormat(), buf)
+		},
+	)
+}
+
 func (cmd *ImportCommand) validateImported(
 	importedReaders *isaac.BlockItemReaders,
 	last base.Height,
@@ -272,13 +374,68 @@ func (cmd *ImportCommand) validateImported(
 	e := util.StringError("validate imported")
 
 	if err := isaacblock.ValidateBlocksFromStorage(
-		importedReaders, cmd.fromHeight, last, params.NetworkID(), db, nil); err != nil {
+		importedReaders.Item, cmd.fromHeight, last, params.NetworkID(), db, nil); err != nil {
 		return e.Wrap(err)
 	}
 
 	cmd.log.Debug().Msg("imported blocks validated")
 
 	return nil
+}
+
+func (cmd *ImportCommand) tempRemoteItemFileName(uri url.URL, compressFormat string) string {
+	h := valuehash.NewSHA256(util.ConcatBytesSlice(
+		[]byte(fmt.Sprintf("%v", uri)),
+		[]byte(compressFormat),
+	))
+
+	return filepath.Join(cmd.CacheDirectory, util.DelmSplitStrings(h.String(), "/", 32)) //nolint:gomnd //...
+}
+
+func (cmd *ImportCommand) writeTempRemoteItemFile(
+	uri url.URL,
+	compressFormat string,
+	r io.Reader,
+) error {
+	p := cmd.tempRemoteItemFileName(uri, compressFormat)
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return errors.WithStack(err)
+	}
+
+	switch f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600); {
+	case err != nil:
+		return errors.WithStack(err)
+	default:
+		defer func() {
+			_ = f.Close()
+		}()
+
+		if _, err := io.Copy(f, r); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
+
+func (cmd *ImportCommand) readTempRemoteItemFile(
+	uri url.URL,
+	compressFormat string,
+	f func(io.Reader, string) error,
+) (bool, error) {
+	switch i, err := os.Open(cmd.tempRemoteItemFileName(uri, compressFormat)); {
+	case os.IsNotExist(err):
+		return false, nil
+	case err != nil:
+		return false, errors.WithStack(err)
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
+		return true, f(i, compressFormat)
+	}
 }
 
 func checkLastHeight(pctx context.Context, root string, fromHeight, toHeight base.Height) (

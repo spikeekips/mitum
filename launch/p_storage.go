@@ -200,12 +200,14 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var center isaac.Database
 	var readers *isaac.BlockItemReaders
+	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
 		BlockReadersContextKey, &readers,
+		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -226,7 +228,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
-		readers,
+		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil),
 		bm.Manifest().Height(),
 		base.BlockItemMap,
 		nil,
@@ -242,7 +244,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	switch vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](
-		readers,
+		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil),
 		bm.Manifest().Height(),
 		base.BlockItemVoteproofs,
 		nil,

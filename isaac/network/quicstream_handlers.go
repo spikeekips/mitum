@@ -314,13 +314,10 @@ func QuicstreamHandlerBlockItem(
 					return err
 				}
 
-				var bodyType quicstreamheader.BodyType
+				bodyType := quicstreamheader.EmptyBodyType
 
-				switch {
-				case found:
+				if r != nil {
 					bodyType = quicstreamheader.StreamBodyType
-				default:
-					bodyType = quicstreamheader.EmptyBodyType
 				}
 
 				if err := broker.WriteBody(ctx, bodyType, 0, r); err != nil {
