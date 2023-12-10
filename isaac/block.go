@@ -182,6 +182,8 @@ func (f BlockItemFile) IsValid([]byte) error {
 		if len(f.uri.Path) < 1 {
 			return util.ErrInvalid.Errorf("empty filename in file uri")
 		}
+	case len(f.uri.Host) < 1:
+		return util.ErrInvalid.Errorf("empty hostname in remote uri")
 	}
 
 	return nil
@@ -295,15 +297,19 @@ func (f *BlockItemFilesMaker) Files() BlockItemFiles {
 	return f.files
 }
 
-func (f *BlockItemFilesMaker) SetItem(t base.BlockItemType, i base.BlockItemFile) bool {
+func (f *BlockItemFilesMaker) SetItem(t base.BlockItemType, i base.BlockItemFile) (bool, error) {
 	f.Lock()
 	defer f.Unlock()
+
+	if err := i.IsValid(nil); err != nil {
+		return false, err
+	}
 
 	_, found := f.files.items[t]
 
 	f.files.items[t] = i
 
-	return !found
+	return !found, nil
 }
 
 func (f *BlockItemFilesMaker) Save(s string) error {
