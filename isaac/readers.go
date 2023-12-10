@@ -41,7 +41,7 @@ type NewBlockItemReaderFunc func(
 	*util.CompressedReader,
 ) (BlockItemReader, error)
 
-type BlockItemReadersItemFunc func( // FIXME set context
+type BlockItemReadersItemFunc func(
 	base.Height,
 	base.BlockItemType,
 	BlockItemReaderCallbackFunc,
@@ -795,7 +795,7 @@ func BlockItemReadersItemFuncWithRemote(
 	readers *BlockItemReaders,
 	fromRemotes RemotesBlockItemReadFunc,
 	callback func(itemfile base.BlockItemFile, ir BlockItemReader, callback BlockItemReaderCallbackFunc) error,
-) BlockItemReadersItemFunc {
+) func(context.Context) BlockItemReadersItemFunc {
 	if callback == nil {
 		callback = func( //revive:disable-line:modifies-parameter
 			_ base.BlockItemFile, ir BlockItemReader, f BlockItemReaderCallbackFunc,
@@ -804,38 +804,40 @@ func BlockItemReadersItemFuncWithRemote(
 		}
 	}
 
-	return func(
-		height base.Height,
-		t base.BlockItemType,
-		f BlockItemReaderCallbackFunc,
-	) (base.BlockItemFile, bool, error) {
-		var itf base.BlockItemFile
+	return func(ctx context.Context) BlockItemReadersItemFunc {
+		return func(
+			height base.Height,
+			t base.BlockItemType,
+			f BlockItemReaderCallbackFunc,
+		) (base.BlockItemFile, bool, error) {
+			var itf base.BlockItemFile
 
-		switch i, found, err := readers.ItemFile(height, t); {
-		case err != nil, !found:
-			return nil, found, err
-		case IsInLocalBlockItemFile(i.URI()):
-			return readers.Item(height, t, func(ir BlockItemReader) error {
-				return callback(i, ir, f)
-			})
-		default:
-			itf = i
-		}
+			switch i, found, err := readers.ItemFile(height, t); {
+			case err != nil, !found:
+				return nil, found, err
+			case IsInLocalBlockItemFile(i.URI()):
+				return readers.Item(height, t, func(ir BlockItemReader) error {
+					return callback(i, ir, f)
+				})
+			default:
+				itf = i
+			}
 
-		switch known, found, err := fromRemotes(context.Background(), itf.URI(), itf.CompressFormat(),
-			func(r io.Reader, compressFormat string) error {
-				return readers.ItemFromReader(t, r, compressFormat,
-					func(ir BlockItemReader) error {
-						return callback(itf, ir, f)
-					},
-				)
-			}); {
-		case err != nil, !found:
-			return nil, found, err
-		case !known:
-			return nil, found, errors.Errorf("unknown remote item file, %v", itf.URI())
-		default:
-			return itf, true, nil
+			switch known, found, err := fromRemotes(ctx, itf.URI(), itf.CompressFormat(),
+				func(r io.Reader, compressFormat string) error {
+					return readers.ItemFromReader(t, r, compressFormat,
+						func(ir BlockItemReader) error {
+							return callback(itf, ir, f)
+						},
+					)
+				}); {
+			case err != nil, !found:
+				return nil, found, err
+			case !known:
+				return nil, found, errors.Errorf("unknown remote item file, %v", itf.URI())
+			default:
+				return itf, true, nil
+			}
 		}
 	}
 }

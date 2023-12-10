@@ -228,7 +228,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
-		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil),
+		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil)(context.Background()),
 		bm.Manifest().Height(),
 		base.BlockItemMap,
 		nil,
@@ -244,7 +244,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	}
 
 	switch vps, found, err := isaac.BlockItemReadersDecode[[2]base.Voteproof](
-		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil),
+		isaac.BlockItemReadersItemFuncWithRemote(readers, fromRemotes, nil)(context.Background()),
 		bm.Manifest().Height(),
 		base.BlockItemVoteproofs,
 		nil,

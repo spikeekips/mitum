@@ -362,7 +362,7 @@ func (cmd *ImportCommand) loadItemFile( //revive:disable-line:flag-parameter
 
 			return cmd.writeTempRemoteItemFile(itemfile.URI(), itemfile.CompressFormat(), buf)
 		},
-	)
+	)(context.Background())
 }
 
 func (cmd *ImportCommand) validateImported(

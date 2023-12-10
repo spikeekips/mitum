@@ -165,7 +165,7 @@ func loadLastBlockMapFromLocalFS(
 	}
 
 	return isaac.BlockItemReadersDecode[base.BlockMap](
-		isaac.BlockItemReadersItemFuncWithRemote(readers, remotes, nil),
+		isaac.BlockItemReadersItemFuncWithRemote(readers, remotes, nil)(context.Background()),
 		last,
 		base.BlockItemMap,
 		nil,

@@ -29,7 +29,7 @@ func ImportBlocks(
 		toreaders,
 		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
 			return isaac.BlockItemReadersDecode[base.BlockMap](
-				isaac.BlockItemReadersItemFuncWithRemote(fromreaders, fromremotes, nil),
+				isaac.BlockItemReadersItemFuncWithRemote(fromreaders, fromremotes, nil)(ctx),
 				height,
 				base.BlockItemMap,
 				nil,
