@@ -399,11 +399,23 @@ func (cmd *ImportCommand) writeTempRemoteItemFile(
 ) error {
 	p := cmd.tempRemoteItemFileName(uri, compressFormat)
 
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+	switch fi, err := os.Stat(p); {
+	case os.IsNotExist(err):
+	case err != nil:
+		return errors.WithStack(err)
+	case fi.IsDir():
+		return errors.Errorf("directory")
+	default:
+		return nil
+	}
+
+	switch err := os.MkdirAll(filepath.Dir(p), 0o700); {
+	case os.IsExist(err):
+	case err != nil:
 		return errors.WithStack(err)
 	}
 
-	switch f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600); {
+	switch f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); {
 	case err != nil:
 		return errors.WithStack(err)
 	default:
