@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/exp/slices"
@@ -176,15 +175,9 @@ func (s *SuffrageVoting) merge(existing, newop base.SuffrageExpelOperation) (bas
 		return newop, s.db.SetSuffrageExpelOperation(newop)
 	}
 
-	ptr := reflect.New(reflect.ValueOf(existing).Type()).Interface()
-
-	if err := util.InterfaceSetValue(existing, ptr); err != nil {
+	var nodesigner base.NodeSigner
+	if err := util.ReflectPtrSetInterfaceValue(existing, &nodesigner); err != nil {
 		return nil, err
-	}
-
-	nodesigner, ok := ptr.(base.NodeSigner)
-	if !ok {
-		return nil, errors.Errorf("expected NodeSigner, but %T", existing)
 	}
 
 	switch added, err := nodesigner.AddNodeSigns(newop.NodeSigns()); {
@@ -276,15 +269,9 @@ func (*SuffrageVoting) filterSigns(
 		return op, nil
 	}
 
-	ptr := reflect.New(reflect.ValueOf(op).Type()).Interface()
-
-	if err := util.InterfaceSetValue(op, ptr); err != nil {
+	var nodesigner base.NodeSigner
+	if err := util.ReflectPtrSetInterfaceValue(op, &nodesigner); err != nil {
 		return nil, err
-	}
-
-	nodesigner, ok := ptr.(base.NodeSigner)
-	if !ok {
-		return nil, errors.Errorf("expected NodeSigner, but %T", ptr)
 	}
 
 	if err := nodesigner.SetNodeSigns(filtered); err != nil {

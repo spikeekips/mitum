@@ -129,7 +129,7 @@ func load(ctx context.Context, key ContextKey, v interface{}) error {
 		return nil
 	}
 
-	if err := InterfaceSetValue(i, v); err != nil {
+	if err := ReflectSetInterfaceValue(i, v); err != nil {
 		return errors.WithMessagef(err, "load value from context, %q", key)
 	}
 

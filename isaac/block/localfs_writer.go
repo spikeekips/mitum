@@ -856,12 +856,9 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	case err != nil:
 		return in, err
 	default:
-		j, ok := i.(fixedtree.Node)
-		if !ok {
-			return in, errors.Errorf("expected fixedtree.Node, but %T", i)
+		if err := util.SetInterfaceValue(i, &in.Node); err != nil {
+			return in, err
 		}
-
-		in.Node = j
 
 		return in, nil
 	}

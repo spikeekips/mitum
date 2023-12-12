@@ -1561,11 +1561,8 @@ func omapFromDesignMap(m *util.YAMLOrderedMap, key string) (lastkey string, _ *u
 			continue
 		}
 
-		switch n, ok := j.(*util.YAMLOrderedMap); {
-		case !ok:
-			return "", nil, errors.Errorf("not *YAMLOrderedMap, %T", j)
-		default:
-			p = n
+		if err := util.SetInterfaceValue(j, &p); err != nil {
+			return "", nil, err
 		}
 	}
 

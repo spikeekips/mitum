@@ -161,7 +161,7 @@ func (t *testSuffrageProof) TestInvalid() {
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "expected SuffrageNodesStateValue")
+		t.ErrorContains(err, "expected base.SuffrageNodesStateValue")
 	})
 
 	t.Run("height not match", func() {

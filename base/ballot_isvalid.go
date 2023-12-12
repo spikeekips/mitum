@@ -108,13 +108,13 @@ func IsValidACCEPTBallot(bl ACCEPTBallot, _ []byte) error {
 		return e.Errorf("ACCEPTBallotSignFact expected, not %T", bl.SignFact())
 	}
 
-	ivp, ok := bl.Voteproof().(INITVoteproof)
-	if !ok {
+	switch ivp, err := util.AssertInterfaceValue[INITVoteproof](bl.Voteproof()); {
+	case err != nil:
 		return e.Errorf("not init voteproof in accept ballot, %T", bl.Voteproof())
-	}
-
-	if err := checkVoteproofInACCEPTBallot(bl, ivp); err != nil {
-		return e.Wrap(err)
+	default:
+		if err := checkVoteproofInACCEPTBallot(bl, ivp); err != nil {
+			return e.Wrap(err)
+		}
 	}
 
 	return nil

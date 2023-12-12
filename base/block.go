@@ -235,16 +235,16 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 	}
 
 	if err := tr.Traverse(func(_ uint64, node fixedtree.Node) (bool, error) {
-		on, ok := node.(OperationFixedtreeNode)
-		if !ok {
-			return false, errors.Errorf("expected OperationFixedtreeNode, but %T", node)
-		}
+		switch on, err := util.AssertInterfaceValue[OperationFixedtreeNode](node); {
+		case err != nil:
+			return false, err
+		default:
+			if _, found := mops[on.Operation().String()]; !found {
+				return false, errors.Errorf("operation in tree not found in operations")
+			}
 
-		if _, found := mops[on.Operation().String()]; !found {
-			return false, errors.Errorf("operation in tree not found in operations")
+			return true, nil
 		}
-
-		return true, nil
 	}); err != nil {
 		return e.Wrap(err)
 	}
@@ -305,21 +305,13 @@ func ValidateVoteproofsWithManifest(vps [2]Voteproof, manifest Manifest) error {
 	}
 
 	var ivp INITVoteproof
-
-	switch i, ok := vps[0].(INITVoteproof); {
-	case !ok:
-		return e.Errorf("expected INITVoteproof, but %T", vps[0])
-	default:
-		ivp = i
+	if err := util.SetInterfaceValue(vps[0], &ivp); err != nil {
+		return e.Wrap(err)
 	}
 
 	var avp ACCEPTVoteproof
-
-	switch i, ok := vps[1].(ACCEPTVoteproof); {
-	case !ok:
-		return e.Errorf("expected ACCEPTVoteproof, but %T", vps[0])
-	default:
-		avp = i
+	if err := util.SetInterfaceValue(vps[1], &avp); err != nil {
+		return e.Wrap(err)
 	}
 
 	switch {

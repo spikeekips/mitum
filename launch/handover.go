@@ -684,19 +684,19 @@ func attachNewDataFuncForHandoverY(
 		case isaacstates.HandoverMessageDataTypeVoteproof,
 			isaacstates.HandoverMessageDataTypeINITVoteproof:
 		case isaacstates.HandoverMessageDataTypeProposal:
-			pr, ok := i.(base.ProposalSignFact)
-			if !ok {
-				return errors.Errorf("expected ProposalSignFact, but %T", i)
+			pr, err := util.AssertInterfaceValue[base.ProposalSignFact](i)
+			if err != nil {
+				return err
 			}
 
-			_, err := pool.SetProposal(pr)
+			_, err = pool.SetProposal(pr)
 
 			return err
 		case isaacstates.HandoverMessageDataTypeOperation,
 			isaacstates.HandoverMessageDataTypeSuffrageVoting:
-			op, ok := i.(base.Operation)
-			if !ok {
-				return errors.Errorf("expected Operation, but %T", i)
+			var op base.Operation
+			if err := util.SetInterfaceValue(i, &op); err != nil {
+				return err
 			}
 
 			switch t := op.(type) {
@@ -713,14 +713,14 @@ func attachNewDataFuncForHandoverY(
 				return err
 			}
 		case isaacstates.HandoverMessageDataTypeBallot:
-			ballot, ok := i.(base.Ballot)
-			if !ok {
-				return errors.Errorf("expected Ballot, but %T", i)
+			switch ballot, err := util.AssertInterfaceValue[base.Ballot](i); {
+			case err != nil:
+				return err
+			default:
+				_, err := ballotbox.Vote(ballot)
+
+				return err
 			}
-
-			_, err := ballotbox.Vote(ballot)
-
-			return err
 		default:
 			return errors.Errorf("unknown data type, %v", d)
 		}

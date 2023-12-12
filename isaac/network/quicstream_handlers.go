@@ -588,17 +588,17 @@ func QuicstreamHandlerSendBallots(
 			return ctx, e.Errorf("empty body")
 		default:
 			for i := range u {
-				bl, ok := u[i].(base.BallotSignFact)
-				if !ok {
-					return ctx, e.Errorf("expected BallotSignFact, but %T", u[i])
-				}
-
-				if err = bl.IsValid(networkID); err != nil {
+				switch bl, err := util.AssertInterfaceValue[base.BallotSignFact](u[i]); {
+				case err != nil:
 					return ctx, e.Wrap(err)
-				}
+				default:
+					if err = bl.IsValid(networkID); err != nil {
+						return ctx, e.Wrap(err)
+					}
 
-				if err = votef(bl); err != nil {
-					return ctx, e.Wrap(err)
+					if err = votef(bl); err != nil {
+						return ctx, e.Wrap(err)
+					}
 				}
 			}
 		}
@@ -773,7 +773,7 @@ func boolEncodeQUICstreamHandler[T quicstreamheader.RequestHeader](
 				return [2]interface{}{}, oerr
 			}
 
-			return [2]interface{}{j, bo}, oerr
+			return [2]interface{}{j, bo}, nil
 		})
 		if err != nil {
 			return ctx, errors.WithStack(err)

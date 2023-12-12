@@ -199,12 +199,13 @@ func (p *MemberlistParams) unmarshal(u memberlistParamsUnmarshaler) error {
 
 	for i := range durargs {
 		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
+		t := durargs[i][1].(*time.Duration)         //nolint:forcetypeassert //...
 
 		if reflect.ValueOf(v).IsZero() {
 			continue
 		}
 
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
+		if err := util.SetInterfaceValue[time.Duration](time.Duration(*v), t); err != nil {
 			return err
 		}
 	}
@@ -297,12 +298,13 @@ func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 
 	for i := range durargs {
 		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
+		t := durargs[i][1].(*time.Duration)         //nolint:forcetypeassert //...
 
 		if reflect.ValueOf(v).IsZero() {
 			continue
 		}
 
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
+		if err := util.SetInterfaceValue(time.Duration(*v), t); err != nil {
 			return err
 		}
 	}
@@ -422,12 +424,13 @@ func (p *NetworkParams) unmarshal(u networkParamsYAMLUnmarshaler) error {
 
 	for i := range durargs {
 		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
+		t := durargs[i][1].(*time.Duration)         //nolint:forcetypeassert //...
 
 		if reflect.ValueOf(v).IsZero() {
 			continue
 		}
 
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
+		if err := util.SetInterfaceValue(time.Duration(*v), t); err != nil {
 			return err
 		}
 	}

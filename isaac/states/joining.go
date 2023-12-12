@@ -95,9 +95,9 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 		return nil, e.Wrap(err)
 	}
 
-	jctx, ok := i.(joiningSwitchContext)
-	if !ok {
-		return nil, e.Errorf("invalid stateSwitchContext, not for joining state; %T", i)
+	var jctx joiningSwitchContext
+	if err := util.SetInterfaceValue(i, &jctx); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	vp := jctx.vp

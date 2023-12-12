@@ -105,13 +105,12 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 	var sctx voteproofSwitchContext
 	var vp base.Voteproof
 
-	switch j, ok := i.(voteproofSwitchContext); {
-	case !ok:
-		return nil, e.Errorf("invalid switchContext, %T", i)
-	case j.voteproof() == nil:
+	switch err := util.SetInterfaceValue(i, &sctx); {
+	case err != nil:
+		return nil, e.Wrap(err)
+	case sctx.voteproof() == nil:
 		return nil, e.Errorf("invalid switchContext, empty voteproof")
 	default:
-		sctx = j
 		vp = sctx.voteproof()
 	}
 

@@ -83,9 +83,9 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 
 	sfs := op.Signs()
 
-	fact, ok := op.Fact().(SuffrageCandidateFact)
-	if !ok {
-		return e.Errorf("not SuffrageCandidateFact, %T", op.Fact())
+	var fact SuffrageCandidateFact
+	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
+		return e.Wrap(err)
 	}
 
 	var foundsigner bool

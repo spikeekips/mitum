@@ -296,7 +296,7 @@ func (cmd *KeySignCommand) loadBody() (interface{}, error) {
 
 	ptr := reflect.New(reflect.ValueOf(elem).Type()).Interface()
 
-	if err := util.InterfaceSetValue(elem, ptr); err != nil {
+	if err := util.ReflectSetInterfaceValue(elem, ptr); err != nil {
 		return nil, err
 	}
 

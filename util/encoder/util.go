@@ -104,7 +104,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 	return d
 }
 
-func Decode(enc Encoder, b []byte, v interface{}) error {
+func Decode[T any](enc Encoder, b []byte, v *T) error {
 	e := util.StringError("decode")
 
 	hinter, err := enc.Decode(b)
@@ -112,14 +112,14 @@ func Decode(enc Encoder, b []byte, v interface{}) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.InterfaceSetValue(hinter, v); err != nil {
+	if err := util.SetInterfaceValue(hinter, v); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-func DecodeReader(enc Encoder, r io.Reader, v interface{}) error {
+func DecodeReader[T any](enc Encoder, r io.Reader, v *T) error {
 	e := util.StringError("DecodeReader")
 
 	b, err := io.ReadAll(r)

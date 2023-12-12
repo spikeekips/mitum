@@ -178,9 +178,9 @@ func (op SuffrageJoin) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	fact, ok := op.Fact().(SuffrageJoinFact)
-	if !ok {
-		return e.Errorf("not SuffrageJoinFact, %T", op.Fact())
+	var fact SuffrageJoinFact
+	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
+		return e.Wrap(err)
 	}
 
 	var foundsigner bool

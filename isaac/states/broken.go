@@ -58,9 +58,9 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 		return nil, e.Wrap(err)
 	}
 
-	sctx, ok := i.(baseErrorSwitchContext)
-	if !ok {
-		return nil, e.Errorf("invalid stateSwitchContext, not for broken state; %T", i)
+	var sctx baseErrorSwitchContext
+	if err := util.SetInterfaceValue(i, &sctx); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	switch err := sctx.Unwrap(); {

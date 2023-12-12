@@ -80,7 +80,7 @@ func EncodeFrame(enc encoder.Encoder, headers [][]byte, v interface{}) (marshale
 	return marshaled, b, nil
 }
 
-func DecodeFrame(encs *encoder.Encoders, enchint string, b []byte, v interface{}) error {
+func DecodeFrame[T any](encs *encoder.Encoders, enchint string, b []byte, v *T) error {
 	switch _, enc, found, err := encs.FindByString(enchint); {
 	case err != nil:
 		return err
@@ -91,7 +91,7 @@ func DecodeFrame(encs *encoder.Encoders, enchint string, b []byte, v interface{}
 	}
 }
 
-func ReadDecodeFrame(encs *encoder.Encoders, b []byte, v interface{}) error {
+func ReadDecodeFrame[T any](encs *encoder.Encoders, b []byte, v *T) error {
 	enchint, _, body, err := ReadFrame(b)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func ReadNoHeadersFrame(b []byte) ([]byte, error) {
 	}
 }
 
-func ReadDecodeOneHeaderFrame(encs *encoder.Encoders, b []byte, v interface{}) (header []byte, _ error) {
+func ReadDecodeOneHeaderFrame[T any](encs *encoder.Encoders, b []byte, v *T) (header []byte, _ error) {
 	enchint, header, body, err := ReadOneHeaderFrame(b)
 	if err != nil {
 		return nil, err

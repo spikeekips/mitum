@@ -246,19 +246,19 @@ func (im *BlockImporter) importOperations(ir isaac.BlockItemReader) error {
 				ophs = make([]util.Hash, total)
 			})
 
-			op, ok := v.(base.Operation)
-			if !ok {
-				return errors.Errorf("expected base.Operation, but %T", v)
-			}
-
-			if err := validate(op); err != nil {
+			switch op, err := util.AssertInterfaceValue[base.Operation](v); {
+			case err != nil:
 				return err
+			default:
+				if err := validate(op); err != nil {
+					return err
+				}
+
+				ops[index] = op
+				ophs[index] = op.Hash()
+
+				return nil
 			}
-
-			ops[index] = op
-			ophs[index] = op.Hash()
-
-			return nil
 		},
 	); {
 	case err != nil:
@@ -280,22 +280,22 @@ func (im *BlockImporter) importStates(ir isaac.BlockItemReader) error {
 				sts = make([]base.State, total)
 			})
 
-			st, ok := v.(base.State)
-			if !ok {
-				return errors.Errorf("expected base.State, but %T", v)
-			}
-
-			if err := st.IsValid(nil); err != nil {
+			switch st, err := util.AssertInterfaceValue[base.State](v); {
+			case err != nil:
 				return err
+			default:
+				if err := st.IsValid(nil); err != nil {
+					return err
+				}
+
+				if base.IsSuffrageNodesState(st) {
+					im.sufst = st
+				}
+
+				sts[index] = st
+
+				return nil
 			}
-
-			if base.IsSuffrageNodesState(st) {
-				im.sufst = st
-			}
-
-			sts[index] = st
-
-			return nil
 		},
 	); {
 	case err != nil:
@@ -312,14 +312,7 @@ func (im *BlockImporter) importStatesTree(ir isaac.BlockItemReader) error {
 	case err != nil:
 		return errors.WithMessage(err, "states tree")
 	default:
-		tr, ok := v.(fixedtree.Tree)
-		if !ok {
-			return errors.Errorf("expected fixedtree.Tree, but %T", v)
-		}
-
-		im.statestree = tr
-
-		return nil
+		return util.SetInterfaceValue(v, &im.statestree)
 	}
 }
 
@@ -328,22 +321,22 @@ func (im *BlockImporter) importVoteproofs(ir isaac.BlockItemReader) error {
 	case err != nil:
 		return errors.WithMessage(err, "voteproofs")
 	default:
-		vps, ok := v.([2]base.Voteproof)
-		if !ok {
-			return errors.Errorf("expected [2]base.Voteproof, but %T", v)
-		}
+		switch vps, err := util.AssertInterfaceValue[[2]base.Voteproof](v); {
+		case err != nil:
+			return err
+		default:
+			for i := range vps {
+				if err := vps[i].IsValid(im.networkID); err != nil {
+					return err
+				}
+			}
 
-		for i := range vps {
-			if err := vps[i].IsValid(im.networkID); err != nil {
+			if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 				return err
 			}
-		}
 
-		if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
-			return err
+			return nil
 		}
-
-		return nil
 	}
 }
 

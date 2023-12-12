@@ -95,9 +95,9 @@ func (op SuffrageDisjoin) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	fact, ok := op.Fact().(SuffrageDisjoinFact)
-	if !ok {
-		return e.Errorf("not SuffrageDisjoinFact, %T", op.Fact())
+	var fact SuffrageDisjoinFact
+	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
+		return e.Wrap(err)
 	}
 
 	switch sfs := op.Signs(); {

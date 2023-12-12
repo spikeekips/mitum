@@ -95,7 +95,7 @@ func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
 	}
 }
 
-func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, error) {
+func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (k Privatekey, _ error) {
 	e := util.StringError("decode privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
@@ -103,9 +103,8 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 		return nil, e.Wrap(err)
 	}
 
-	k, ok := i.(Privatekey)
-	if !ok {
-		return nil, e.Errorf("not Privatekey, %T", i)
+	if err := util.SetInterfaceValue(i, &k); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	return k, nil
@@ -139,7 +138,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	return pub, nil
 }
 
-func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
+func decodePublickeyFromString(s string, enc encoder.Encoder) (k Publickey, _ error) {
 	e := util.StringError("decode publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
@@ -147,9 +146,8 @@ func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 		return nil, e.Wrap(err)
 	}
 
-	k, ok := i.(Publickey)
-	if !ok {
-		return nil, e.Errorf("not Publickey, %T", i)
+	if err := util.SetInterfaceValue(i, &k); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	return k, nil

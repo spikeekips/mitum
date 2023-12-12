@@ -760,12 +760,10 @@ func getFromVault(u string) ([]byte, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	i := secret.Data["string"]
-
-	s, ok := i.(string)
-	if !ok {
-		return nil, errors.Errorf("expected string but %T", i)
+	switch s, err := util.AssertInterfaceValue[string](secret.Data["string"]); {
+	case err != nil:
+		return nil, err
+	default:
+		return []byte(s), nil
 	}
-
-	return []byte(s), nil
 }

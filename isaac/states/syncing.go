@@ -92,9 +92,9 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		return nil, e.Wrap(err)
 	}
 
-	sctx, ok := i.(SyncingSwitchContext)
-	if !ok {
-		return nil, e.Errorf("invalid stateSwitchContext, not for syncing state; %T", i)
+	var sctx SyncingSwitchContext
+	if err := util.SetInterfaceValue(i, &sctx); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	switch sc, err := st.args.NewSyncerFunc(sctx.height); {

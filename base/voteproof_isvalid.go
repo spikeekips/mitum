@@ -111,16 +111,15 @@ func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 	if majority != nil {
 		var foundMajority bool
 
+	end:
 		for i := range vs {
-			fact, ok := vs[i].Fact().(BallotFact)
-			if !ok {
-				return util.ErrInvalid.Errorf("invalid ballot fact")
-			}
-
-			if fact.Hash().Equal(majority) {
+			switch fact, err := util.AssertInterfaceValue[BallotFact](vs[i].Fact()); {
+			case err != nil:
+				return util.ErrInvalid.Wrap(err)
+			case fact.Hash().Equal(majority):
 				foundMajority = true
 
-				break
+				break end
 			}
 		}
 

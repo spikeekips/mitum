@@ -155,12 +155,14 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 			return true, ""
 		}
 
-		ns, ok := i.(NodeSign)
-		if !ok {
-			duplicatederr = errors.Errorf("not NodeSign, %T", i)
-		}
+		switch ns, err := util.AssertInterfaceValue[NodeSign](i); {
+		case err != nil:
+			duplicatederr = err
 
-		return duplicatederr == nil, ns.Node().String()
+			return false, ""
+		default:
+			return true, ns.Node().String()
+		}
 	}); {
 	case duplicatederr != nil:
 		return e.Wrap(duplicatederr)

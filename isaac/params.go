@@ -377,20 +377,16 @@ func (p *Params) UnmarshalJSON(b []byte) error {
 	p.BaseParams = util.NewBaseParams()
 	p.BaseHinter = u.BaseHinter
 
-	args := [][2]interface{}{
-		{u.MaxTryHandoverYBrokerSyncData, &p.maxTryHandoverYBrokerSyncData},
-		{u.StateCacheSize, &p.stateCacheSize},
-		{u.OperationPoolCacheSize, &p.operationPoolCacheSize},
+	if u.MaxTryHandoverYBrokerSyncData != nil {
+		p.maxTryHandoverYBrokerSyncData = *u.MaxTryHandoverYBrokerSyncData
 	}
 
-	for i := range args {
-		if reflect.ValueOf(args[i][0]).IsZero() {
-			continue
-		}
+	if u.StateCacheSize != nil {
+		p.stateCacheSize = *u.StateCacheSize
+	}
 
-		if err := util.InterfaceSetValue(reflect.ValueOf(args[i][0]).Elem().Interface(), args[i][1]); err != nil {
-			return err
-		}
+	if u.OperationPoolCacheSize != nil {
+		p.operationPoolCacheSize = *u.OperationPoolCacheSize
 	}
 
 	durargs := [][2]interface{}{
@@ -403,12 +399,13 @@ func (p *Params) UnmarshalJSON(b []byte) error {
 
 	for i := range durargs {
 		v := durargs[i][0].(*util.ReadableDuration) //nolint:forcetypeassert //...
+		t := durargs[i][1].(*time.Duration)         //nolint:forcetypeassert //...
 
 		if reflect.ValueOf(v).IsZero() {
 			continue
 		}
 
-		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
+		if err := util.SetInterfaceValue(time.Duration(*v), t); err != nil {
 			return err
 		}
 	}

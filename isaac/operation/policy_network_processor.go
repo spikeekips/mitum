@@ -88,9 +88,9 @@ func (p *NetworkPolicyProcessor) PreProcess(ctx context.Context, op base.Operati
 		return ctx, base.NewBaseOperationProcessReasonError("only one network policy operation allowed"), nil
 	}
 
-	noop, ok := op.(base.NodeSignFact)
-	if !ok {
-		return ctx, nil, e.Errorf("not NodeSignFact, %T", op)
+	var noop base.NodeSignFact
+	if err := util.SetInterfaceValue(op, &noop); err != nil {
+		return ctx, nil, e.Wrap(err)
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {

@@ -61,7 +61,7 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	return ad, nil
 }
 
-func decodeAddress(s string, enc encoder.Encoder) (Address, error) {
+func decodeAddress(s string, enc encoder.Encoder) (ad Address, _ error) {
 	e := util.StringError("decode address")
 
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
@@ -72,9 +72,8 @@ func decodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	case i == nil:
 		return nil, nil
 	default:
-		ad, ok := i.(Address)
-		if !ok {
-			return nil, e.Errorf("not Address, %T", i)
+		if err := util.SetInterfaceValue(i, &ad); err != nil {
+			return nil, e.Wrap(err)
 		}
 
 		return ad, nil

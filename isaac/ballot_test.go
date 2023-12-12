@@ -393,7 +393,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "wrong voteproof")
+		t.ErrorContains(err, "expected base.ExpelVoteproof,")
 	})
 
 	t.Run("not majority in voteproof", func() {

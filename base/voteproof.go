@@ -40,32 +40,30 @@ type StuckVoteproof interface {
 	IsStuckVoteproof() bool // NOTE should be true
 }
 
-func EnsureINITVoteproof(vp Voteproof) (INITVoteproof, error) {
-	e := util.StringError("invalid INITVoteproof")
+func EnsureINITVoteproof(vp Voteproof) (ivp INITVoteproof, _ error) {
+	e := util.ErrInvalid.Errorf("invalid INITVoteproof")
 
 	if vp.Point().Stage() != StageINIT {
-		return nil, e.Wrap(util.ErrInvalid.Errorf("wrong point stage"))
+		return nil, e.Errorf("wrong point stage")
 	}
 
-	i, ok := vp.(INITVoteproof)
-	if !ok {
-		return nil, e.Wrap(util.ErrInvalid.Errorf("expected INITVoteproof, but %T", vp))
+	if err := util.SetInterfaceValue(vp, &ivp); err != nil {
+		return nil, e.Wrap(err)
 	}
 
-	return i, nil
+	return ivp, nil
 }
 
-func EnsureACCEPTVoteproof(vp Voteproof) (ACCEPTVoteproof, error) {
-	e := util.StringError("invalid ACCEPTVoteproof")
+func EnsureACCEPTVoteproof(vp Voteproof) (avp ACCEPTVoteproof, _ error) {
+	e := util.ErrInvalid.Errorf("invalid ACCEPTVoteproof")
 
 	if vp.Point().Stage() != StageACCEPT {
-		return nil, e.Wrap(util.ErrInvalid.Errorf("wrong point stage"))
+		return nil, e.Errorf("wrong point stage")
 	}
 
-	i, ok := vp.(ACCEPTVoteproof)
-	if !ok {
-		return nil, e.Wrap(util.ErrInvalid.Errorf("expected ACCEPTVoteproof, but %T", vp))
+	if err := util.SetInterfaceValue(vp, &avp); err != nil {
+		return nil, e.Wrap(err)
 	}
 
-	return i, nil
+	return avp, nil
 }

@@ -432,12 +432,12 @@ func FixedSuffrageCandidateLimiterFunc() func(
 	base.SuffrageCandidateLimiterRule,
 ) (base.SuffrageCandidateLimiter, error) {
 	return func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
-		i, ok := rule.(isaac.FixedSuffrageCandidateLimiterRule)
-		if !ok {
-			return nil, errors.Errorf("expected FixedSuffrageCandidateLimiterRule, not %T", rule)
+		switch i, err := util.AssertInterfaceValue[isaac.FixedSuffrageCandidateLimiterRule](rule); {
+		case err != nil:
+			return nil, err
+		default:
+			return isaac.NewFixedSuffrageCandidateLimiter(i), nil
 		}
-
-		return isaac.NewFixedSuffrageCandidateLimiter(i), nil
 	}
 }
 
@@ -445,9 +445,9 @@ func MajoritySuffrageCandidateLimiterFunc(
 	db isaac.Database,
 ) func(base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
 	return func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
-		i, ok := rule.(isaac.MajoritySuffrageCandidateLimiterRule)
-		if !ok {
-			return nil, errors.Errorf("expected MajoritySuffrageCandidateLimiterRule, not %T", rule)
+		var i isaac.MajoritySuffrageCandidateLimiterRule
+		if err := util.SetInterfaceValue(rule, &i); err != nil {
+			return nil, err
 		}
 
 		proof, found, err := db.LastSuffrageProof()

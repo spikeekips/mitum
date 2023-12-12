@@ -73,9 +73,9 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	var signer base.Publickey
 
-	switch sf, ok := op.(base.NodeSignFact); {
-	case !ok:
-		return ctx, nil, e.Errorf("not NodeSignFact, %T", op)
+	switch sf, err := util.AssertInterfaceValue[base.NodeSignFact](op); {
+	case err != nil:
+		return ctx, nil, e.Wrap(err)
 	default:
 		signer = sf.NodeSigns()[0].Signer()
 	}

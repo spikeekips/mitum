@@ -97,9 +97,9 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 
 	e := util.StringError("preprocess for SuffrageJoin")
 
-	noop, ok := op.(base.NodeSignFact)
-	if !ok {
-		return ctx, nil, e.Errorf("not NodeSignFact, %T", op)
+	var noop base.NodeSignFact
+	if err := util.SetInterfaceValue(op, &noop); err != nil {
+		return ctx, nil, err
 	}
 
 	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
@@ -184,9 +184,9 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 }
 
 func (*SuffrageJoinProcessor) findCandidateFromSigns(op base.Operation) (base.Node, error) {
-	fact, ok := op.Fact().(SuffrageJoinFact)
-	if !ok {
-		return nil, errors.Errorf("not SuffrageJoinFact, %T", op.Fact())
+	var fact SuffrageJoinFact
+	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
+		return nil, err
 	}
 
 	sfs := op.Signs()

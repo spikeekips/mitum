@@ -29,25 +29,22 @@ func (d *SyncSource) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 
 		return nil
 	case map[string]interface{}:
-		var ty string
-
 		switch i, found := t["type"]; {
 		case !found:
 			return e.Errorf("missing type")
 		default:
-			j, ok := i.(string)
-			if !ok {
-				return e.Errorf("type should be string, not %T", i)
+			ty, err := util.AssertInterfaceValue[string](i)
+			if err != nil {
+				return e.Wrap(err)
 			}
 
-			ty = j
+			if err := d.decodeYAMLMap(ty, b, jsonencoder); err != nil {
+				return e.Wrap(err)
+			}
+
+			return nil
 		}
 
-		if err := d.decodeYAMLMap(ty, b, jsonencoder); err != nil {
-			return e.Wrap(err)
-		}
-
-		return nil
 	default:
 		return e.Errorf("unsupported format found, %q", string(b))
 	}

@@ -1,7 +1,6 @@
 package isaacstates
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -272,81 +271,32 @@ func (h HandoverMessageData) DataType() HandoverMessageDataType {
 }
 
 func (h HandoverMessageData) LoadVoteproofData() (base.Voteproof, error) {
-	vp, ok := h.data.(base.Voteproof)
-	if !ok {
-		return nil, errors.Errorf("invalid voteproof data; expected voteproof, but %T", h.data)
-	}
-
-	return vp, nil
+	return util.AssertInterfaceValue[base.Voteproof](h.data)
 }
 
-func (h HandoverMessageData) LoadINITVoteproofData() (base.ProposalSignFact, base.INITVoteproof, error) {
+func (h HandoverMessageData) LoadINITVoteproofData() (pr base.ProposalSignFact, ivp base.INITVoteproof, _ error) {
 	e := util.StringError("invalid init voteproof data")
 
 	var i []interface{}
 
-	switch j, ok := h.data.([]interface{}); {
-	case !ok:
-		return nil, nil, e.Errorf("expected []interface{}, but %T", h.data)
-	case len(j) < 2:
+	switch err := util.SetInterfaceValue(h.data, &i); {
+	case err != nil:
+		return nil, nil, e.Wrap(err)
+	case len(i) < 2:
 		return nil, nil, e.Errorf("expected [2]interface{}")
-	default:
-		i = j
 	}
-
-	var pr base.ProposalSignFact
 
 	if i[0] != nil {
-		j, ok := i[0].(base.ProposalSignFact)
-		if !ok {
-			return nil, nil, e.Errorf("expected ProposalSignFact, but %T", i[0])
+		if err := util.SetInterfaceValue(i[0], &pr); err != nil {
+			return nil, nil, e.Wrap(err)
 		}
-
-		pr = j
 	}
 
-	vp, ok := i[1].(base.INITVoteproof)
-	if !ok {
-		return nil, nil, e.Errorf("expected init voteproof, but %T", i[1])
+	if err := util.SetInterfaceValue(i[1], &ivp); err != nil {
+		return nil, nil, e.Wrap(err)
 	}
 
-	return pr, vp, nil
-}
-
-func (h HandoverMessageData) LoadBallotData() (base.Ballot, error) {
-	i, ok := h.data.(base.Ballot)
-	if !ok {
-		return nil, errors.Errorf("expected voteproof, but %T", h.data)
-	}
-
-	return i, nil
-}
-
-func (h HandoverMessageData) LoadProposalData() (base.ProposalSignFact, error) {
-	i, ok := h.data.(base.ProposalSignFact)
-	if !ok {
-		return nil, errors.Errorf("expected proposal, but %T", h.data)
-	}
-
-	return i, nil
-}
-
-func (h HandoverMessageData) LoadOperationData() (base.Operation, error) {
-	i, ok := h.data.(base.Operation)
-	if !ok {
-		return nil, errors.Errorf("expected operation, but %T", h.data)
-	}
-
-	return i, nil
-}
-
-func (h HandoverMessageData) LoadSuffrageVotingData() (base.SuffrageExpelOperation, error) {
-	i, ok := h.data.(base.SuffrageExpelOperation)
-	if !ok {
-		return nil, errors.Errorf("expected SuffrageExpelOperation, but %T", h.data)
-	}
-
-	return i, nil
+	return pr, ivp, nil
 }
 
 func (h HandoverMessageData) isValidData(b []byte) error {
@@ -407,7 +357,7 @@ func (h HandoverMessageData) isValidINITVoteproof(b []byte) error {
 func (h HandoverMessageData) isValidBallot(b []byte) error {
 	e := util.ErrInvalid.Errorf("invalid ballot")
 
-	switch vp, err := h.LoadBallotData(); {
+	switch vp, err := util.AssertInterfaceValue[base.Ballot](h.data); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
@@ -422,11 +372,11 @@ func (h HandoverMessageData) isValidBallot(b []byte) error {
 func (h HandoverMessageData) isValidProposal(b []byte) error {
 	e := util.ErrInvalid.Errorf("invalid proposal")
 
-	switch vp, err := h.LoadProposalData(); {
+	switch pr, err := util.AssertInterfaceValue[base.ProposalSignFact](h.data); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := vp.IsValid(b); err != nil {
+		if err := pr.IsValid(b); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -437,11 +387,11 @@ func (h HandoverMessageData) isValidProposal(b []byte) error {
 func (h HandoverMessageData) isValidOperation(b []byte) error {
 	e := util.ErrInvalid.Errorf("invalid operation")
 
-	switch vp, err := h.LoadOperationData(); {
+	switch op, err := util.AssertInterfaceValue[base.Operation](h.data); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := vp.IsValid(b); err != nil {
+		if err := op.IsValid(b); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -452,11 +402,11 @@ func (h HandoverMessageData) isValidOperation(b []byte) error {
 func (h HandoverMessageData) isValidSuffrageVoting(b []byte) error {
 	e := util.ErrInvalid.Errorf("invalid suffrage voting")
 
-	switch vp, err := h.LoadSuffrageVotingData(); {
+	switch sv, err := util.AssertInterfaceValue[base.SuffrageExpelOperation](h.data); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
-		if err := vp.IsValid(b); err != nil {
+		if err := sv.IsValid(b); err != nil {
 			return e.Wrap(err)
 		}
 	}

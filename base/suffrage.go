@@ -36,17 +36,16 @@ type SuffrageCandidatesStateValue interface {
 	Nodes() []SuffrageCandidateStateValue
 }
 
-func InterfaceIsSuffrageNodesState(i interface{}) (State, error) {
-	switch st, ok := i.(State); {
-	case !ok:
-		return nil, errors.Errorf("not suffrage state: %T", i)
-	default:
-		if _, err := LoadSuffrageNodesStateValue(st); err != nil {
-			return nil, err
-		}
-
-		return st, nil
+func InterfaceIsSuffrageNodesState(i interface{}) (st State, _ error) {
+	if err := util.SetInterfaceValue(i, &st); err != nil {
+		return nil, err
 	}
+
+	if _, err := LoadSuffrageNodesStateValue(st); err != nil {
+		return nil, err
+	}
+
+	return st, nil
 }
 
 func LoadNodesFromSuffrageCandidatesState(st State) ([]SuffrageCandidateStateValue, error) {
@@ -54,12 +53,12 @@ func LoadNodesFromSuffrageCandidatesState(st State) ([]SuffrageCandidateStateVal
 	case st == nil:
 		return nil, nil
 	default:
-		i, ok := v.(SuffrageCandidatesStateValue)
-		if !ok {
-			return nil, errors.Errorf("expected SuffrageCandidatesStateValue, not %T", v)
+		switch suf, err := util.AssertInterfaceValue[SuffrageCandidatesStateValue](v); {
+		case err != nil:
+			return nil, err
+		default:
+			return suf.Nodes(), nil
 		}
-
-		return i.Nodes(), nil
 	}
 }
 
@@ -69,17 +68,16 @@ func IsSuffrageNodesState(st State) bool {
 	return err == nil
 }
 
-func LoadSuffrageNodesStateValue(st State) (SuffrageNodesStateValue, error) {
+func LoadSuffrageNodesStateValue(st State) (v SuffrageNodesStateValue, _ error) {
 	if st == nil || st.Value() == nil {
 		return nil, errors.Errorf("empty state")
 	}
 
-	j, ok := st.Value().(SuffrageNodesStateValue)
-	if !ok {
-		return nil, errors.Errorf("expected SuffrageNodesStateValue, but %T", st.Value())
+	if err := util.SetInterfaceValue(st.Value(), &v); err != nil {
+		return nil, err
 	}
 
-	return j, nil
+	return v, nil
 }
 
 type SuffrageProof interface {

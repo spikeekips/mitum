@@ -354,7 +354,7 @@ func decodeBlockItemFromReader[T any](
 	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	item base.BlockItemType,
-	v interface{},
+	v *T,
 ) error {
 	switch i, found, err := isaac.BlockItemReadersDecode[T](itemf, height, item, nil); {
 	case err != nil:
@@ -362,7 +362,7 @@ func decodeBlockItemFromReader[T any](
 	case !found:
 		return util.ErrNotFound.Errorf("block item, %q", item)
 	default:
-		return util.InterfaceSetValue(i, v)
+		return util.SetInterfaceValue(i, v)
 	}
 }
 
@@ -370,7 +370,7 @@ func decodeBlockItemsFromReader[T any](
 	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	item base.BlockItemType,
-	v interface{},
+	v *[]T,
 ) error {
 	switch _, i, found, err := isaac.BlockItemReadersDecodeItems[T](itemf, height, item, nil, nil); {
 	case err != nil:
@@ -378,7 +378,7 @@ func decodeBlockItemsFromReader[T any](
 	case !found:
 		return util.ErrNotFound.Errorf("block item, %q", item)
 	default:
-		return util.InterfaceSetValue(i, v)
+		return util.SetInterfaceValue(i, v)
 	}
 }
 

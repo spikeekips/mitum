@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -442,9 +441,9 @@ func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
 	r.Lock()
 	defer r.Unlock()
 
-	switch i, ok := l.(*SuffrageRateLimiterRuleSet); {
-	case !ok:
-		return errors.Errorf("expected *SuffrageRateLimiterRuleSet, but %T", l)
+	switch i, err := util.AssertInterfaceValue[*SuffrageRateLimiterRuleSet](l); {
+	case err != nil:
+		return err
 	default:
 		i.IsInConsensusNodesFunc = r.IsInConsensusNodesFunc
 	}

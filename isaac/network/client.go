@@ -478,12 +478,12 @@ func (c *BaseClient) BlockItem(
 		case h.Err() != nil:
 			return h.Err()
 		default:
-			i, ok := h.(BlockItemResponseHeader)
-			if !ok {
-				return errors.Errorf("expect BlockItemResponseHeader, but %T", h)
+			switch i, err := util.AssertInterfaceValue[BlockItemResponseHeader](h); {
+			case err != nil:
+				return err
+			default:
+				return f(body, h.OK(), i.URI(), i.CompressFormat())
 			}
-
-			return f(body, h.OK(), i.URI(), i.CompressFormat())
 		}
 	})
 }
@@ -782,16 +782,16 @@ func (c *BaseClient) AskHandover(
 	case rh.Err() != nil:
 		return "", false, errors.WithMessage(rh.Err(), "response")
 	default:
-		header, ok := rh.(AskHandoverResponseHeader)
-		if !ok {
-			return "", false, errors.Errorf("expect AskHandoverResponseHeader, but %T", rh)
-		}
-
-		if err := header.IsValid(nil); err != nil {
+		switch header, err := util.AssertInterfaceValue[AskHandoverResponseHeader](rh); {
+		case err != nil:
 			return "", false, err
-		}
+		default:
+			if err := header.IsValid(nil); err != nil {
+				return "", false, err
+			}
 
-		return header.ID(), header.OK(), nil
+			return header.ID(), header.OK(), nil
+		}
 	}
 }
 
@@ -852,19 +852,19 @@ func (c *BaseClient) requestNodeConnInfos(
 				}
 
 				u, rerr := enc.DecodeSlice(b)
-				if err != nil {
+				if rerr != nil {
 					return rerr
 				}
 
 				cis = make([]isaac.NodeConnInfo, len(u))
 
 				for i := range u {
-					rci, ok := u[i].(isaac.NodeConnInfo)
-					if !ok {
-						return errors.Errorf("expected NodeConnInfo, but %T", u[i])
+					switch rci, rerr := util.AssertInterfaceValue[isaac.NodeConnInfo](u[i]); {
+					case rerr != nil:
+						return rerr
+					default:
+						cis[i] = rci
 					}
-
-					cis[i] = rci
 				}
 
 				return nil

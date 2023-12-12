@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func InterfaceSetValue(v, target interface{}) error {
+func ReflectSetInterfaceValue(v, target interface{}) error {
 	switch {
 	case v == nil:
 		return nil
@@ -37,4 +37,45 @@ func InterfaceSetValue(v, target interface{}) error {
 	elem.Set(reflect.ValueOf(v))
 
 	return nil
+}
+
+func ReflectPtrSetInterfaceValue[T any](v interface{}, t *T) error {
+	if v == nil {
+		return nil
+	}
+
+	ptr := reflect.New(reflect.ValueOf(v).Type()).Interface()
+	if err := ReflectSetInterfaceValue(v, ptr); err != nil {
+		return err
+	}
+
+	return SetInterfaceValue(ptr, t)
+}
+
+func AssertInterfaceValue[T any](v interface{}) (t T, _ error) {
+	if v == nil {
+		return t, errors.Errorf("nil")
+	}
+
+	i, ok := v.(T)
+	if !ok {
+		return t, errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem(), v)
+	}
+
+	return i, nil
+}
+
+func SetInterfaceValue[T any](v interface{}, t *T) error {
+	if v == nil {
+		return nil
+	}
+
+	switch i, err := AssertInterfaceValue[T](v); {
+	case err != nil:
+		return err
+	default:
+		*t = i
+
+		return nil
+	}
 }

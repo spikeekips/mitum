@@ -254,9 +254,9 @@ func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) 
 
 	// NOTE SuffrageConfirm INIT ballot does use expels from voteproof
 	// instead of from it's body.
-	switch w, ok := vp.(base.ExpelVoteproof); {
-	case !ok:
-		return e.Errorf("wrong voteproof; expected ExpelVoteproof, but %T", vp)
+	switch w, err := util.AssertInterfaceValue[base.ExpelVoteproof](vp); {
+	case err != nil:
+		return e.Wrap(err)
 	case len(w.Expels()) < 1:
 		return e.Errorf("wrong voteproof; empty expels")
 	case len(bl.expels) > 0:
@@ -346,12 +346,14 @@ func (bl ACCEPTBallot) isValidACCEPTExpels() error {
 		return nil
 	}
 
-	wvp, ok := bl.vp.(base.HasExpels)
-	if !ok {
-		return e.Errorf("invalid init voteproof; expels not found")
-	}
+	var expels []base.SuffrageExpelOperation
 
-	expels := wvp.Expels()
+	switch wvp, err := util.AssertInterfaceValue[base.HasExpels](bl.vp); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		expels = wvp.Expels()
+	}
 
 	if len(bl.expels) != len(expels) {
 		return e.Errorf("invalid init voteproof; insufficient expels")

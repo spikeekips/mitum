@@ -277,16 +277,10 @@ func loadACLFromYAML(
 	nom.Traverse(func(k string, v interface{}) bool {
 		var m map[ACLScope]ACLPerm
 
-		switch i, ok := v.(map[ACLScope]ACLPerm); {
-		case !ok:
-			ferr = errors.Errorf("expected map, but %T", v)
-
+		switch m, ferr = util.AssertInterfaceValue[map[ACLScope]ACLPerm](v); {
+		case ferr != nil:
 			return false
-		default:
-			m = i
-		}
-
-		if !isnew {
+		case !isnew:
 			if i, found := acl.m.Value(k); !found || !compareACLUserValues(i, m) {
 				isnew = true
 
@@ -321,9 +315,9 @@ func loadACLFromYAML(
 	}
 
 	nom.Traverse(func(k string, v interface{}) bool {
-		switch i, ok := v.(map[ACLScope]ACLPerm); {
-		case !ok:
-			ferr = errors.Errorf("expected map, but %T", v)
+		switch i, err := util.AssertInterfaceValue[map[ACLScope]ACLPerm](v); {
+		case err != nil:
+			ferr = err
 
 			return false
 		case len(i) < 1:
@@ -364,12 +358,9 @@ func parseACLYAML(b []byte, enc encoder.Encoder) (
 	case err != nil:
 		return nil, nil, err
 	default:
-		j, ok := i.(*util.YAMLOrderedMap)
-		if !ok {
-			return nil, nil, errors.Errorf("expected map, but %T", i)
+		if err := util.SetInterfaceValue(i, &om); err != nil {
+			return nil, nil, err
 		}
-
-		om = j
 	}
 
 	nom = util.NewYAMLOrderedMap()

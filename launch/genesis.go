@@ -105,9 +105,9 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 
 		var err error
 
-		hinter, ok := fact.(hint.Hinter)
-		if !ok {
-			return errors.Errorf("fact does not support Hinter")
+		var hinter hint.Hinter
+		if err = util.SetInterfaceValue(fact, &hinter); err != nil {
+			return err
 		}
 
 		switch ht := hinter.Hint(); {
@@ -138,15 +138,17 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, error) {
 	e := util.StringError("make join operation")
 
-	basefact, ok := i.(isaacoperation.SuffrageGenesisJoinFact)
-	if !ok {
-		return nil, e.Errorf("expected SuffrageGenesisJoinFact, not %T", i)
-	}
+	var fact isaacoperation.SuffrageGenesisJoinFact
 
-	fact := isaacoperation.NewSuffrageGenesisJoinFact(basefact.Nodes(), g.networkID)
-
-	if err := fact.IsValid(g.networkID); err != nil {
+	switch basefact, err := util.AssertInterfaceValue[isaacoperation.SuffrageGenesisJoinFact](i); {
+	case err != nil:
 		return nil, e.Wrap(err)
+	default:
+		fact = isaacoperation.NewSuffrageGenesisJoinFact(basefact.Nodes(), g.networkID)
+
+		if err := fact.IsValid(g.networkID); err != nil {
+			return nil, e.Wrap(err)
+		}
 	}
 
 	op := isaacoperation.NewSuffrageGenesisJoin(fact)
@@ -162,15 +164,17 @@ func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, erro
 func (g *GenesisBlockGenerator) networkPolicyOperation(i base.Fact) (base.Operation, error) {
 	e := util.StringError("make join operation")
 
-	basefact, ok := i.(isaacoperation.GenesisNetworkPolicyFact)
-	if !ok {
-		return nil, e.Errorf("expected GenesisNetworkPolicyFact, not %T", i)
-	}
+	var fact isaacoperation.GenesisNetworkPolicyFact
 
-	fact := isaacoperation.NewGenesisNetworkPolicyFact(basefact.Policy())
+	switch basefact, err := util.AssertInterfaceValue[isaacoperation.GenesisNetworkPolicyFact](i); {
+	case err != nil:
+		return nil, err
+	default:
+		fact = isaacoperation.NewGenesisNetworkPolicyFact(basefact.Policy())
 
-	if err := fact.IsValid(nil); err != nil {
-		return nil, e.Wrap(err)
+		if err := fact.IsValid(nil); err != nil {
+			return nil, e.Wrap(err)
+		}
 	}
 
 	op := isaacoperation.NewGenesisNetworkPolicy(fact)

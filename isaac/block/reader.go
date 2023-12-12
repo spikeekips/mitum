@@ -222,16 +222,16 @@ func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (t
 			return unmarshalIndexedTreeNode(r.enc, b, u.Tree)
 		},
 		func(index uint64, v interface{}) error {
-			in, ok := v.(indexedTreeNode) //nolint:forcetypeassert //...
-			if !ok {
-				return errors.Errorf("not indexedTreeNode, %T", v)
-			}
-
-			if err := item(u.Count, in.Index, in.Node); err != nil {
+			switch in, err := util.AssertInterfaceValue[indexedTreeNode](v); {
+			case err != nil:
 				return err
-			}
+			default:
+				if err := item(u.Count, in.Index, in.Node); err != nil {
+					return err
+				}
 
-			return tr.Set(in.Index, in.Node)
+				return tr.Set(in.Index, in.Node)
+			}
 		},
 	); err != nil {
 		return tr, err
