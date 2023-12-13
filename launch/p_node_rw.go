@@ -850,7 +850,7 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 	); err != nil {
 		return nil, err
 	}
@@ -1396,7 +1396,7 @@ func readBlockItemFiles(pctx context.Context) (readNodeValueFunc, error) {
 	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 	); err != nil {
 		return nil, err
 	}

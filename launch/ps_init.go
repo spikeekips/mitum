@@ -10,7 +10,7 @@ func DefaultINITPS() *ps.PS {
 		AddOK(PNameDesign, PLoadDesign, nil, PNameEncoder).
 		AddOK(PNameTimeSyncer, PStartTimeSyncer, PCloseTimeSyncer, PNameDesign).
 		AddOK(PNameLocal, PLocal, nil, PNameDesign).
-		AddOK(PNameBlockReaders, PBlockReaders, nil, PNameDesign).
+		AddOK(PNameBlockItemReaders, PBlockItemReaders, nil, PNameDesign).
 		AddOK(PNameStorage, PStorage, PCloseStorage, PNameLocal).
 		AddOK(PNameGenerateGenesis, PGenerateGenesis, nil, PNameStorage)
 
@@ -22,8 +22,8 @@ func DefaultINITPS() *ps.PS {
 		PostAddOK(PNameINITObjectCache, PINITObjectCache).
 		PostAddOK(PNameGenesisDesign, PGenesisDesign)
 
-	_ = pps.POK(PNameBlockReaders).
-		PreAddOK(PNameBlockReadersDecompressFunc, PBlockReadersDecompressFunc).
+	_ = pps.POK(PNameBlockItemReaders).
+		PreAddOK(PNameBlockItemReadersDecompressFunc, PBlockItemReadersDecompressFunc).
 		PostAddOK(PNameRemotesBlockItemReaderFunc, PRemotesBlockItemReaderFunc)
 
 	_ = pps.POK(PNameStorage).

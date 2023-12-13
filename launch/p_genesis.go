@@ -41,7 +41,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		CenterDatabaseContextKey, &db,
 		FSNodeInfoContextKey, &fsnodeinfo,
 		EventLoggingContextKey, &eventLogging,
-		NewBlockReadersFuncContextKey, &newReaders,
+		NewBlockItemReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}

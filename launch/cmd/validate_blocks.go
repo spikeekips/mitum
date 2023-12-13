@@ -79,7 +79,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 		AddOK(launch.PNameEncoder, launch.PEncoder, nil).
 		AddOK(launch.PNameDesign, launch.PLoadDesign, nil, launch.PNameEncoder).
 		AddOK(launch.PNameLocal, launch.PLocal, nil, launch.PNameDesign).
-		AddOK(launch.PNameBlockReaders, launch.PBlockReaders, nil, launch.PNameDesign).
+		AddOK(launch.PNameBlockItemReaders, launch.PBlockItemReaders, nil, launch.PNameDesign).
 		AddOK(launch.PNameStorage, launch.PStorage, launch.PCloseStorage, launch.PNameLocal)
 
 	_ = pps.POK(launch.PNameEncoder).
@@ -88,8 +88,8 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 	_ = pps.POK(launch.PNameDesign).
 		PostAddOK(launch.PNameCheckDesign, launch.PCheckDesign)
 
-	_ = pps.POK(launch.PNameBlockReaders).
-		PreAddOK(launch.PNameBlockReadersDecompressFunc, launch.PBlockReadersDecompressFunc).
+	_ = pps.POK(launch.PNameBlockItemReaders).
+		PreAddOK(launch.PNameBlockItemReadersDecompressFunc, launch.PBlockItemReadersDecompressFunc).
 		PostAddOK(launch.PNameRemotesBlockItemReaderFunc, launch.PRemotesBlockItemReaderFunc)
 
 	_ = pps.POK(launch.PNameStorage).
@@ -132,7 +132,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
-		launch.NewBlockReadersFuncContextKey, &newReaders,
+		launch.NewBlockItemReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}

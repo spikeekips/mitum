@@ -82,7 +82,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 		LastVoteproofsHandlerContextKey, &lvps,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}

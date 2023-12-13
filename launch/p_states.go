@@ -656,7 +656,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		SyncSourcePoolContextKey, &syncSourcePool,
 		LastVoteproofsHandlerContextKey, &lvps,
 		NodeInfoContextKey, &nodeinfo,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 		RemotesBlockItemReaderFuncContextKey, &remotesItem,
 	); err != nil {
 		return nil, err

@@ -12,16 +12,16 @@ import (
 )
 
 var (
-	PNameBlockReadersDecompressFunc      = ps.Name("block-readers-decompress-func")
-	PNameBlockReaders                    = ps.Name("block-readers")
-	PNameRemotesBlockItemReaderFunc      = ps.Name("remotes-block-item-reader-func")
-	BlockReadersDecompressFuncContextKey = util.ContextKey("block-readers-decompress-func")
-	NewBlockReadersFuncContextKey        = util.ContextKey("new-block-readers-func")
-	BlockReadersContextKey               = util.ContextKey("block-readers") // FIXME renem BlockReaders -> BlockItemReaders
-	RemotesBlockItemReaderFuncContextKey = util.ContextKey("remotes-block-item-reader-func")
+	PNameBlockItemReadersDecompressFunc      = ps.Name("block-item-readers-decompress-func")
+	PNameBlockItemReaders                    = ps.Name("block-item-readers")
+	PNameRemotesBlockItemReaderFunc          = ps.Name("remotes-block-item-reader-func")
+	BlockItemReadersDecompressFuncContextKey = util.ContextKey("block-item-readers-decompress-func")
+	NewBlockItemReadersFuncContextKey        = util.ContextKey("new-block-item-readers-func")
+	BlockItemReadersContextKey               = util.ContextKey("block-item-readers")
+	RemotesBlockItemReaderFuncContextKey     = util.ContextKey("remotes-block-item-reader-func")
 )
 
-func PBlockReaders(pctx context.Context) (context.Context, error) {
+func PBlockItemReaders(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var design NodeDesign
 	var encs *encoder.Encoders
@@ -31,7 +31,7 @@ func PBlockReaders(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
-		BlockReadersDecompressFuncContextKey, &decompress,
+		BlockItemReadersDecompressFuncContextKey, &decompress,
 	); err != nil {
 		return pctx, err
 	}
@@ -52,14 +52,14 @@ func PBlockReaders(pctx context.Context) (context.Context, error) {
 	_ = readers.SetLogging(log)
 
 	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		NewBlockReadersFuncContextKey: newReaders,
-		BlockReadersContextKey:        readers,
+		NewBlockItemReadersFuncContextKey: newReaders,
+		BlockItemReadersContextKey:        readers,
 	}), nil
 }
 
-func PBlockReadersDecompressFunc(pctx context.Context) (context.Context, error) {
+func PBlockItemReadersDecompressFunc(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx,
-		BlockReadersDecompressFuncContextKey,
+		BlockItemReadersDecompressFuncContextKey,
 		util.DecompressReaderFunc(util.DefaultDecompressReaderFunc),
 	), nil
 }

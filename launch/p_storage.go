@@ -100,7 +100,7 @@ func PStartStorage(pctx context.Context) (context.Context, error) {
 	_ = load("center database", CenterDatabaseContextKey, &db)
 
 	var readers *isaac.BlockItemReaders
-	_ = load("block item readers", BlockReadersContextKey, &readers)
+	_ = load("block item readers", BlockItemReadersContextKey, &readers)
 
 	for i := range starters {
 		starters[i]()
@@ -210,7 +210,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -447,7 +447,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		EncodersContextKey, &encs,
 		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, err
@@ -481,7 +481,7 @@ func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
 
 	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
-		BlockReadersContextKey, &readers,
+		BlockItemReadersContextKey, &readers,
 	); err != nil {
 		return pctx, err
 	}

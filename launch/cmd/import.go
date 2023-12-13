@@ -169,7 +169,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
-		launch.NewBlockReadersFuncContextKey, &newReaders,
+		launch.NewBlockItemReadersFuncContextKey, &newReaders,
 		launch.RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, e.Wrap(err)
