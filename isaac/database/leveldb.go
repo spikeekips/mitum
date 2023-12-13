@@ -38,6 +38,7 @@ var (
 	leveldbKeySuffrageExpelOperation        = leveldbstorage.KeyPrefix{0x02, 0x0f}
 	leveldbKeyTempMerged                    = leveldbstorage.KeyPrefix{0x02, 0x10}
 	leveldbKeyPrefixBallot                  = leveldbstorage.KeyPrefix{0x02, 0x11}
+	leveldbKeyPrefixEmptyHeight             = leveldbstorage.KeyPrefix{0x02, 0x12}
 )
 
 type baseLeveldb struct {
@@ -311,6 +312,10 @@ func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { //
 	}
 
 	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixBallot, point.Bytes(), s)
+}
+
+func leveldbEmptyHeight(height base.Height) []byte { // revive:disable-line:flag-parameter
+	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixEmptyHeight, height.Bytes())
 }
 
 func heightFromleveldbKey(b []byte, prefix leveldbstorage.KeyPrefix) (base.Height, error) {

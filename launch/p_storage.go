@@ -164,6 +164,9 @@ func PCloseStorage(pctx context.Context) (context.Context, error) {
 	var eventlogging *EventLogging
 	_ = load("leveldb storage", EventLoggingContextKey, &eventlogging)
 
+	var readers *isaac.BlockItemReaders
+	_ = load("block item readers", BlockItemReadersContextKey, &readers)
+
 	for i := range stoppers {
 		stoppers[len(stoppers)-i-1]()
 	}
@@ -203,14 +206,14 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var center isaac.Database
-	var readers *isaac.BlockItemReaders
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
-		BlockItemReadersContextKey, &readers,
+		NewBlockItemReadersFuncContextKey, &newReaders,
 		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, e.Wrap(err)
@@ -229,6 +232,17 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 		return nctx, nil
 	default:
 		bm = m
+	}
+
+	var readers *isaac.BlockItemReaders
+
+	switch i, err := newReaders(pctx, LocalFSDataDirectory(design.Storage.Base), nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		defer i.Close()
+
+		readers = i
 	}
 
 	switch i, found, err := isaac.BlockItemReadersDecode[base.BlockMap](
@@ -438,7 +452,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var readers *isaac.BlockItemReaders
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
@@ -447,10 +461,21 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		EncodersContextKey, &encs,
 		ISAACParamsContextKey, &isaacparams,
 		CenterDatabaseContextKey, &db,
-		BlockItemReadersContextKey, &readers,
+		NewBlockItemReadersFuncContextKey, &newReaders,
 		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return pctx, err
+	}
+
+	var readers *isaac.BlockItemReaders
+
+	switch i, err := newReaders(pctx, LocalFSDataDirectory(design.Storage.Base), nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		defer i.Close()
+
+		readers = i
 	}
 
 	if err := isaacblock.ValidateLastBlocks(readers, fromRemotes, db, isaacparams.NetworkID()); err != nil {
@@ -476,19 +501,48 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 }
 
 func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
-	var db isaac.Database
-	var readers *isaac.BlockItemReaders
+	var design NodeDesign
+	var decompress util.DecompressReaderFunc
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
+	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(pctx,
-		CenterDatabaseContextKey, &db,
-		BlockItemReadersContextKey, &readers,
+		DesignContextKey, &design,
+		BlockItemReadersDecompressFuncContextKey, &decompress,
+		NewBlockItemReadersFuncContextKey, &newReaders,
+		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return pctx, err
 	}
 
-	// FIXME
+	args := isaac.NewBlockItemReadersArgs()
+	args.DecompressReaderFunc = decompress
+	args.LoadEmptyHeightsFunc = func() (heights []base.Height, _ error) {
+		err := pool.EmptyHeights(func(height base.Height) error {
+			heights = append(heights, height)
 
-	return pctx, nil
+			return nil
+		})
+
+		return heights, err
+	}
+	args.AddEmptyHeightFunc = func(height base.Height) error {
+		_, err := pool.AddEmptyHeight(height)
+
+		return err
+	}
+	args.CancelAddedEmptyHeightFunc = func(height base.Height) error {
+		_, err := pool.RemoveEmptyHeight(height)
+
+		return err
+	}
+
+	switch readers, err := newReaders(pctx, LocalFSDataDirectory(design.Storage.Base), args); {
+	case err != nil:
+		return pctx, err
+	default:
+		return context.WithValue(pctx, BlockItemReadersContextKey, readers), nil
+	}
 }
 
 func LoadPermanentDatabase(

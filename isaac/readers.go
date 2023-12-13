@@ -247,8 +247,8 @@ func NewBlockItemReadersArgs() *BlockItemReadersArgs {
 		LoadEmptyHeightsFunc:       func() ([]base.Height, error) { return nil, nil },
 		AddEmptyHeightFunc:         func(base.Height) error { return nil },
 		CancelAddedEmptyHeightFunc: func(base.Height) error { return nil },
-		RemoveEmptyAfter:           time.Minute,
-		RemoveEmptyInterval:        time.Minute,
+		RemoveEmptyAfter:           time.Minute * 3, //nolint:gomnd //...
+		RemoveEmptyInterval:        time.Minute * 9, //nolint:gomnd //...
 	}
 }
 
@@ -292,6 +292,13 @@ func NewBlockItemReaders(
 	readers.ContextDaemon = util.NewContextDaemon(readers.start)
 
 	return readers
+}
+
+func (rs *BlockItemReaders) Close() {
+	_ = rs.Stop()
+	rs.CompatibleSet = nil
+	rs.bfilescache.Purge()
+	rs.emptyHeightsLock.Close()
 }
 
 func (rs *BlockItemReaders) Root() string {
@@ -439,7 +446,7 @@ func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (update
 	_, _, _, err := rs.emptyHeightsLock.SetOrRemove(
 		height,
 		func(_ time.Time, found bool) (t time.Time, _ bool, _ error) {
-			switch bfiles, bupdated, isempty, err := rs.writeItemFiles(height, b); {
+			switch bupdated, isempty, err := rs.writeItemFiles(height, b); {
 			case err != nil:
 				return t, found, err
 			case !bupdated:
@@ -447,7 +454,7 @@ func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (update
 			default:
 				updated = true
 
-				rs.bfilescache.Set(height, bfiles, 0)
+				_ = rs.bfilescache.Remove(height)
 
 				if isempty { // NOTE no files in local, remove height directory (in queue)
 					if err := rs.args.AddEmptyHeightFunc(height); err != nil {
@@ -470,7 +477,6 @@ func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (update
 }
 
 func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
-	_ base.BlockItemFiles,
 	updated bool,
 	isempty bool,
 	_ error,
@@ -479,7 +485,7 @@ func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
 
 	switch i, found, err := rs.ItemFiles(height); {
 	case err != nil, !found:
-		return nil, false, false, err
+		return false, false, err
 	default:
 		oldbfiles = i
 	}
@@ -488,10 +494,10 @@ func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
 
 	switch err := encoder.Decode(rs.encs.JSON(), b, &newbfiles); {
 	case err != nil:
-		return nil, false, false, err
+		return false, false, err
 	default:
 		if err := newbfiles.IsValid(nil); err != nil {
-			return nil, false, false, err
+			return false, false, err
 		}
 	}
 
@@ -500,29 +506,31 @@ func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
 	// NOTE compare with old
 	for i := range oldbfiles.Items() {
 		if _, found := newbfiles.Item(i); !found {
-			return nil, false, false, errors.Errorf("item, %q not found", i)
+			return false, false, errors.Errorf("item, %q not found", i)
 		}
 	}
 
-	switch i, err := os.CreateTemp("", "blockitemfiles"); {
+	fpath := BlockItemFilesPath(rs.root, height)
+
+	switch i, err := os.CreateTemp(filepath.Dir(fpath), "blockitemfiles-"); {
 	case err != nil:
-		return nil, true, false, errors.WithStack(err)
+		return true, false, errors.WithStack(err)
 	default:
 		if _, err := i.Write(b); err != nil {
 			_ = i.Close()
 
-			return nil, true, false, errors.WithStack(err)
+			return true, false, errors.WithStack(err)
 		}
 
 		if err := i.Close(); err != nil {
-			return nil, true, false, errors.WithStack(err)
+			return true, false, errors.WithStack(err)
 		}
 
-		if err := os.Rename(i.Name(), BlockItemFilesPath(rs.root, height)); err != nil {
-			return nil, true, false, errors.WithStack(err)
+		if err := os.Rename(i.Name(), fpath); err != nil {
+			return true, false, errors.WithStack(err)
 		}
 
-		return newbfiles, true, oldHasLocal && !newHasLocal, nil
+		return true, oldHasLocal && !newHasLocal, nil
 	}
 }
 
@@ -680,19 +688,19 @@ func (rs *BlockItemReaders) loadAndRemoveEmptyHeightDirectories() (removed uint6
 	for i := range heights {
 		height := heights[i]
 
-		ok, err := rs.removeEmptyHeightDirectory(height)
-		if err != nil {
+		switch ok, err := rs.removeEmptyHeightDirectory(height); {
+		case err != nil:
 			rs.Log().Error().Err(err).Interface("height", height).Msg("failed to remove empty height")
 
 			return removed, err
-		}
-
-		if ok {
+		default:
 			if err := rs.args.CancelAddedEmptyHeightFunc(height); err != nil {
 				return 0, err
 			}
 
-			removed++
+			if ok {
+				removed++
+			}
 		}
 	}
 

@@ -783,6 +783,66 @@ func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
 	return true, nil
 }
 
+func (db *TempPool) EmptyHeights(f func(base.Height) error) error {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	return pst.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixEmptyHeight[:]),
+		func(key, _ []byte) (bool, error) {
+			height, err := heightFromleveldbKey(key, leveldbKeyPrefixEmptyHeight)
+			if err != nil {
+				return false, err
+			}
+
+			return true, f(height)
+		},
+		true,
+	)
+}
+
+func (db *TempPool) AddEmptyHeight(height base.Height) (bool, error) {
+	var pst *leveldbstorage.PrefixStorage
+
+	switch i, err := db.st(); {
+	case err != nil:
+		return false, err
+	default:
+		pst = i
+	}
+
+	key := leveldbEmptyHeight(height)
+
+	switch found, err := pst.Exists(key); {
+	case err != nil, found:
+		return false, err
+	default:
+		return true, pst.Put(key, nil, nil)
+	}
+}
+
+func (db *TempPool) RemoveEmptyHeight(height base.Height) (bool, error) {
+	var pst *leveldbstorage.PrefixStorage
+
+	switch i, err := db.st(); {
+	case err != nil:
+		return false, err
+	default:
+		pst = i
+	}
+
+	key := leveldbEmptyHeight(height)
+
+	switch found, err := pst.Exists(key); {
+	case err != nil, !found:
+		return false, err
+	default:
+		return true, pst.Delete(key, nil)
+	}
+}
+
 func (db *TempPool) startClean(ctx context.Context) error {
 	ticker := time.NewTicker(db.cleanRemovedNewOperationsInterval)
 	defer ticker.Stop()

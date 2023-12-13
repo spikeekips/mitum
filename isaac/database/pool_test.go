@@ -265,6 +265,72 @@ func (t *testPool) TestBallot() {
 	})
 }
 
+func (t *testPool) TestEmptyHeight() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	t.Run("add", func() {
+		added, err := pst.AddEmptyHeight(33)
+		t.NoError(err)
+		t.True(added)
+
+		st, err := pst.st()
+		t.NoError(err)
+
+		found, err := st.Exists(leveldbEmptyHeight(33))
+		t.NoError(err)
+		t.True(found)
+	})
+
+	t.Run("add again", func() {
+		added, err := pst.AddEmptyHeight(33)
+		t.NoError(err)
+		t.False(added)
+
+		st, err := pst.st()
+		t.NoError(err)
+
+		found, err := st.Exists(leveldbEmptyHeight(33))
+		t.NoError(err)
+		t.True(found)
+	})
+
+	t.Run("remove", func() {
+		removed, err := pst.RemoveEmptyHeight(33)
+		t.NoError(err)
+		t.True(removed)
+
+		st, err := pst.st()
+		t.NoError(err)
+
+		found, err := st.Exists(leveldbEmptyHeight(33))
+		t.NoError(err)
+		t.False(found)
+	})
+
+	t.Run("traverse", func() {
+		var heights []int64
+
+		for i := int64(0); i < 9; i++ {
+			heights = append(heights, i)
+
+			added, err := pst.AddEmptyHeight(base.Height(i))
+			t.NoError(err)
+			t.True(added)
+		}
+
+		var rheights []int64
+
+		t.NoError(pst.EmptyHeights(func(height base.Height) error {
+			rheights = append(rheights, height.Int64())
+
+			return nil
+		}))
+
+		t.Equal(heights, rheights)
+	})
+}
+
 func TestPool(t *testing.T) {
 	suite.Run(t, new(testPool))
 }

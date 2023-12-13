@@ -124,7 +124,7 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var newReaders func(string) *isaac.BlockItemReaders
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
@@ -139,7 +139,14 @@ func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context
 
 	var last base.Height
 
-	readers := newReaders(launch.LocalFSDataDirectory(design.Storage.Base))
+	var readers *isaac.BlockItemReaders
+
+	switch i, err := newReaders(pctx, launch.LocalFSDataDirectory(design.Storage.Base), nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		readers = i
+	}
 
 	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, readers.Root(), cmd.fromHeight, cmd.toHeight); {
 	case err != nil:

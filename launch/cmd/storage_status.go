@@ -105,13 +105,11 @@ func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.C
 	var design launch.NodeDesign
 	var encs *encoder.Encoders
 	var isaacparams *isaac.Params
-	var newReaders func(string) *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.DesignContextKey, &design,
 		launch.EncodersContextKey, &encs,
 		launch.ISAACParamsContextKey, &isaacparams,
-		launch.NewBlockItemReadersFuncContextKey, &newReaders,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}

@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	PNameImportBlocks = ps.Name("import-blocks")
-	PNameCheckStorage = ps.Name("check-blocks")
+	pNamePreImportBlocks = ps.Name("cmd-pre-import-blocks")
+	pNameImportBlocks    = ps.Name("cmd-import-blocks")
 )
 
 type ImportCommand struct { //nolint:govet //...
@@ -39,7 +39,11 @@ type ImportCommand struct { //nolint:govet //...
 	launch.DevFlags `embed:"" prefix:"dev."`
 	fromHeight      base.Height
 	toHeight        base.Height
+	lastHeight      base.Height
 	prevblockmap    base.BlockMap
+	sourceReaders   *isaac.BlockItemReaders
+	toReaders       *isaac.BlockItemReaders
+	importedReaders *isaac.BlockItemReaders
 	// revive:enable:line-length-limit
 }
 
@@ -79,7 +83,10 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	pps := launch.DefaultImportPS()
 	_ = pps.SetLogging(log)
 
-	_ = pps.AddOK(PNameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
+	_ = pps.AddOK(pNameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
+
+	_ = pps.POK(pNameImportBlocks).
+		PreAddOK(pNamePreImportBlocks, cmd.preImportBlocks)
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
@@ -152,38 +159,42 @@ func (cmd *ImportCommand) prepare() error {
 	return checkCacheDirectory()
 }
 
-func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
-	e := util.StringError("import blocks")
-
-	var encs *encoder.Encoders
+func (cmd *ImportCommand) preImportBlocks(pctx context.Context) (context.Context, error) {
 	var design launch.NodeDesign
-	var local base.LocalNode
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var newReaders func(string) *isaac.BlockItemReaders
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
-		launch.EncodersContextKey, &encs,
 		launch.DesignContextKey, &design,
-		launch.LocalContextKey, &local,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
 		launch.NewBlockItemReadersFuncContextKey, &newReaders,
 		launch.RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
-		return pctx, e.Wrap(err)
+		return pctx, err
 	}
 
-	sourceReaders := newReaders(cmd.Source)
-
-	var last base.Height
-
-	switch i, err := cmd.checkHeights(pctx); {
+	switch i, err := newReaders(pctx, cmd.Source, nil); {
 	case err != nil:
-		return pctx, e.Wrap(err)
+		return pctx, err
 	default:
-		last = i
+		cmd.sourceReaders = i
+	}
+
+	switch i, err := newReaders(pctx, launch.LocalFSDataDirectory(design.Storage.Base), nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		cmd.toReaders = i
+	}
+
+	switch i, err := newReaders(pctx, launch.LocalFSDataDirectory(design.Storage.Base), nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		cmd.importedReaders = i
 	}
 
 	if cmd.fromHeight > base.GenesisHeight {
@@ -197,22 +208,49 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		}
 	}
 
-	if err := cmd.validateSourceBlocks(
-		cmd.loadItemFile(sourceReaders, fromRemotes, cmd.Do),
-		last,
-		isaacparams.NetworkID(),
-	); err != nil {
-		return pctx, e.Wrap(err)
+	switch i, err := cmd.checkHeights(pctx); {
+	case err != nil:
+		return pctx, err
+	default:
+		cmd.lastHeight = i
 	}
 
+	if err := cmd.validateSourceBlocks(
+		cmd.loadItemFile(cmd.sourceReaders, fromRemotes, cmd.Do),
+		cmd.lastHeight,
+		isaacparams.NetworkID(),
+	); err != nil {
+		return pctx, err
+	}
+
+	return pctx, nil
+}
+
+func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
 	if !cmd.Do {
 		cmd.log.Debug().Msg("to import really blocks, `--do`")
 
 		return pctx, nil
 	}
 
+	e := util.StringError("import blocks")
+
+	var encs *encoder.Encoders
+	var isaacparams *isaac.Params
+	var db isaac.Database
+	var fromRemotes isaac.RemotesBlockItemReadFunc
+
+	if err := util.LoadFromContextOK(pctx,
+		launch.EncodersContextKey, &encs,
+		launch.ISAACParamsContextKey, &isaacparams,
+		launch.CenterDatabaseContextKey, &db,
+		launch.RemotesBlockItemReaderFuncContextKey, &fromRemotes,
+	); err != nil {
+		return pctx, e.Wrap(err)
+	}
+
 	if err := launch.ImportBlocks(
-		sourceReaders,
+		cmd.sourceReaders,
 		func(ctx context.Context,
 			uri url.URL,
 			compressFormat string,
@@ -227,9 +265,9 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 				return fromRemotes(ctx, uri, compressFormat, callback)
 			}
 		},
-		newReaders(launch.LocalFSDataDirectory(design.Storage.Base)),
+		cmd.toReaders,
 		cmd.fromHeight,
-		last,
+		cmd.lastHeight,
 		encs,
 		db,
 		isaacparams,
@@ -237,9 +275,7 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		return pctx, e.Wrap(err)
 	}
 
-	importedReaders := newReaders(launch.LocalFSDataDirectory(design.Storage.Base))
-
-	if err := cmd.validateImported(importedReaders, last, isaacparams, db); err != nil {
+	if err := cmd.validateImported(cmd.importedReaders, cmd.lastHeight, isaacparams, db); err != nil {
 		return pctx, e.Wrap(err)
 	}
 

@@ -29,7 +29,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	var db isaac.Database
 	var fsnodeinfo NodeInfo
 	var eventLogging *EventLogging
-	var newReaders func(string) *isaac.BlockItemReaders
+	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -55,14 +55,34 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 		el = i
 	}
 
+	root := LocalFSDataDirectory(design.Storage.Base)
+
+	var readers *isaac.BlockItemReaders
+
+	switch i, err := newReaders(pctx, root, nil); {
+	case err != nil:
+		return pctx, err
+	default:
+		defer i.Close()
+
+		readers = i
+	}
+
 	g := NewGenesisBlockGenerator(
 		local,
 		isaacparams.NetworkID(),
 		encs,
 		db,
-		LocalFSDataDirectory(design.Storage.Base),
+		root,
 		genesisDesign.Facts,
-		newReaders,
+		func() (base.BlockMap, bool, error) {
+			return isaac.BlockItemReadersDecode[base.BlockMap](
+				readers.Item,
+				base.GenesisHeight,
+				base.BlockItemMap,
+				nil,
+			)
+		},
 	)
 	_ = g.SetLogging(log)
 

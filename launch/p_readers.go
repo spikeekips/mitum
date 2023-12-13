@@ -23,38 +23,52 @@ var (
 
 func PBlockItemReaders(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	var design NodeDesign
 	var encs *encoder.Encoders
 	var decompress util.DecompressReaderFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		BlockItemReadersDecompressFuncContextKey, &decompress,
 	); err != nil {
 		return pctx, err
 	}
 
-	args := isaac.NewBlockItemReadersArgs()
-	args.DecompressReaderFunc = decompress
+	newReaders := func(
+		pctx context.Context, root string, args *isaac.BlockItemReadersArgs,
+	) (*isaac.BlockItemReaders, error) {
+		var log *logging.Logging
+		var encs *encoder.Encoders
 
-	newReaders := func(root string) *isaac.BlockItemReaders {
+		if err := util.LoadFromContextOK(pctx,
+			LoggingContextKey, &log,
+			EncodersContextKey, &encs,
+		); err != nil {
+			return nil, err
+		}
+
+		if args == nil {
+			var decompress util.DecompressReaderFunc
+
+			if err := util.LoadFromContextOK(pctx,
+				BlockItemReadersDecompressFuncContextKey, &decompress,
+			); err != nil {
+				return nil, err
+			}
+
+			args = isaac.NewBlockItemReadersArgs()
+			args.DecompressReaderFunc = decompress
+		}
+
 		readers := isaac.NewBlockItemReaders(root, encs, args)
 		_ = readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(1<<6)) //nolint:gomnd //...
 
 		_ = readers.SetLogging(log)
 
-		return readers
+		return readers, nil
 	}
 
-	readers := newReaders(LocalFSDataDirectory(design.Storage.Base))
-	_ = readers.SetLogging(log)
-
-	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		NewBlockItemReadersFuncContextKey: newReaders,
-		BlockItemReadersContextKey:        readers,
-	}), nil
+	return context.WithValue(pctx, NewBlockItemReadersFuncContextKey, newReaders), nil
 }
 
 func PBlockItemReadersDecompressFunc(pctx context.Context) (context.Context, error) {

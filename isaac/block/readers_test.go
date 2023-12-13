@@ -493,6 +493,45 @@ func (t *testReaders) TestWriteItemFiles() {
 		checkUpdatedBytes(33, b33)
 	})
 
+	t.Run("write no local items, but write local items", func() {
+		// update block item files
+		bfiles, found, err := readers.ItemFiles(height)
+		t.NoError(err)
+		t.True(found)
+
+		newbfiles := isaac.NewBlockItemFilesMaker(t.Encs.JSON())
+
+		for i := range bfiles.Items() {
+			var newitem base.BlockItemFile = isaac.NewFileBlockItemFile(util.UUID().String(), "gz")
+			if i == base.BlockItemMap {
+				newitem = isaac.NewLocalFSBlockItemFile(util.UUID().String(), "gz")
+			}
+
+			added, err := newbfiles.SetItem(i, newitem)
+			t.NoError(err)
+			t.True(added)
+		}
+
+		b33, err := newbfiles.Bytes()
+		t.NoError(err)
+		t.T().Log("new block item files:", string(b33))
+
+		updated, err := readers.WriteItemFiles(height, b33)
+		t.NoError(err)
+		t.True(updated)
+
+		checkUpdatedBytes(33, b33)
+
+		select {
+		case <-time.After(time.Millisecond * 100):
+			t.NoError(errors.Errorf("not canceled"))
+		case height := <-ech:
+			t.Equal(int64(33)*-1, height)
+		}
+
+		t.False(readers.EmptyHeightsLock().Exists(height))
+	})
+
 	t.Run("some items missing", func() {
 		var oldbfilesbytes []byte
 		_, _ = readers.ItemFilesReader(height, func(r io.Reader) error {
