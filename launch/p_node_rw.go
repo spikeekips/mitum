@@ -48,6 +48,7 @@ var AllNodeReadKeys = []string{
 	"design._generated", // NOTE generated design from source
 	"discovery",
 	"acl",
+	"block_item_files",
 }
 
 var AllNodeWriteKeys = []string{
@@ -84,6 +85,7 @@ var (
 	StatesAllowConsensusACLScope = ACLScope("states.allow_consensus")
 	DiscoveryACLScope            = ACLScope("discovery")
 	ACLACLScope                  = ACLScope("acl")
+	BlockItemFilesACLScope       = ACLScope("block_item_files")
 )
 
 func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error) {
@@ -170,6 +172,11 @@ func writeNode(pctx context.Context, lock *sync.RWMutex) (writeNodeValueFunc, er
 		return nil, err
 	}
 
+	fBlockItemFiles, err := writeBlockItemFiles(pctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return writeNodeKey(func(
 		ctx context.Context, key, nextkey, value, acluser string,
 	) (interface{}, interface{}, bool, error) {
@@ -185,6 +192,8 @@ func writeNode(pctx context.Context, lock *sync.RWMutex) (writeNodeValueFunc, er
 			return fDiscovery(ctx, nextkey, value, acluser)
 		case "acl":
 			return fACL(ctx, nextkey, value, acluser)
+		case "block_item_files":
+			return fBlockItemFiles(ctx, nextkey, value, acluser)
 		default:
 			return nil, nil, false, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -812,7 +821,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 	return writeNodeKey(func(
 		ctx context.Context, key, nextkey, value, acluser string,
 	) (interface{}, interface{}, bool, error) {
-		fullkey := strings.Join([]string{"acl", key, nextkey}, "")
+		fullkey := fullKey("acl", key, nextkey)
 
 		if len(key) > 0 {
 			return nil, nil, false, errors.Errorf("unknown key, %q", fullkey)
@@ -831,6 +840,65 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 			return nil, nil, false, err
 		default:
 			return prev, acl.Export(), updated, nil
+		}
+	}), nil
+}
+
+func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
+	var encs *encoder.Encoders
+	var readers *isaac.BlockItemReaders
+
+	if err := util.LoadFromContextOK(pctx,
+		EncodersContextKey, &encs,
+		BlockReadersContextKey, &readers,
+	); err != nil {
+		return nil, err
+	}
+
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return nil, err
+	default:
+		aclallow = i
+	}
+
+	return writeNodeKey(func(
+		ctx context.Context, key, nextkey, value, acluser string,
+	) (interface{}, interface{}, bool, error) {
+		fullkey := fullKey("block_item_files", key, nextkey)
+
+		if len(key) < 1 {
+			return nil, nil, false, errors.Errorf("wrong key, %q", fullkey)
+		}
+
+		var height base.Height
+		switch i, err := base.ParseHeightString(key); {
+		case err != nil:
+			return nil, nil, false, err
+		default:
+			height = i
+		}
+
+		switch found, err := readers.ItemFilesReader(height, func(io.Reader) error { return nil }); {
+		case err != nil:
+			return nil, nil, false, err
+		case !found:
+			return nil, nil, false, errors.Errorf("block item files not found")
+		}
+
+		extra := zerolog.Dict().Str("key", fullkey)
+
+		if !aclallow(ctx, acluser, BlockItemFilesACLScope, WriteAllowACLPerm, extra) {
+			return nil, nil, false, ErrACLAccessDenied.WithStack()
+		}
+
+		switch found, err := readers.WriteItemFiles(height, []byte(value)); {
+		case err != nil, !found:
+			return nil, nil, found, err
+		default:
+			return nil, nil, true, nil
 		}
 	}), nil
 }
@@ -1121,6 +1189,11 @@ func readNode(pctx context.Context, lock *sync.RWMutex) (readNodeValueFunc, erro
 		return nil, err
 	}
 
+	fBlockItemFiles, err := readBlockItemFiles(pctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
 		lock.RLock()
 		defer lock.RUnlock()
@@ -1134,6 +1207,8 @@ func readNode(pctx context.Context, lock *sync.RWMutex) (readNodeValueFunc, erro
 			return fDiscovery(ctx, nextkey, acluser)
 		case "acl":
 			return fACL(ctx, nextkey, acluser)
+		case "block_item_files":
+			return fBlockItemFiles(ctx, nextkey, acluser)
 		default:
 			return nil, util.ErrNotFound.Errorf("unknown key, %q for params", key)
 		}
@@ -1299,7 +1374,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 	}
 
 	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
-		fullkey := strings.Join([]string{"acl", key, nextkey}, "")
+		fullkey := fullKey("acl", key, nextkey)
 
 		if len(key) > 0 {
 			return nil, errors.Errorf("unknown key, %q", fullkey)
@@ -1314,6 +1389,64 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 		b, err := yaml.Marshal(acl.Export())
 
 		return b, errors.WithStack(err)
+	}), nil
+}
+
+func readBlockItemFiles(pctx context.Context) (readNodeValueFunc, error) {
+	var readers *isaac.BlockItemReaders
+
+	if err := util.LoadFromContextOK(pctx,
+		BlockReadersContextKey, &readers,
+	); err != nil {
+		return nil, err
+	}
+
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return nil, err
+	default:
+		aclallow = i
+	}
+
+	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
+		fullkey := fullKey("block_item_files", key, nextkey)
+
+		if len(key) < 1 {
+			return nil, errors.Errorf("wrong key, %q", fullkey)
+		}
+
+		var height base.Height
+		switch i, err := base.ParseHeightString(key); {
+		case err != nil:
+			return nil, err
+		default:
+			height = i
+		}
+
+		extra := zerolog.Dict().Str("key", fullkey)
+
+		if !aclallow(ctx, acluser, BlockItemFilesACLScope, ReadAllowACLPerm, extra) {
+			return nil, ErrACLAccessDenied.WithStack()
+		}
+
+		var b []byte
+
+		switch found, err := readers.ItemFilesReader(height, func(r io.Reader) error {
+			i, err := io.ReadAll(r)
+
+			b = i
+
+			return errors.WithStack(err)
+		}); {
+		case err != nil:
+			return nil, err
+		case !found:
+			return nil, errors.Errorf("block item files not found")
+		default:
+			return b, nil
+		}
 	}), nil
 }
 
@@ -1673,4 +1806,10 @@ func writeDesignFileFunc(flag DesignFlag) (func([]byte) error, error) {
 	default:
 		return nil, errors.Errorf("unknown design uri, %q", flag.URL())
 	}
+}
+
+func fullKey(keys ...string) string {
+	return strings.Join(util.FilterSlice(keys, func(i string) bool {
+		return len(i) > 0
+	}), ".")
 }

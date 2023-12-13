@@ -29,7 +29,8 @@ func DefaultImportPS() *ps.PS {
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
 		PostAddOK(PNameLoadFromDatabase, PLoadFromDatabase).
-		PostAddOK(PNameCheckBlocksOfStorage, PCheckBlocksOfStorage)
+		PostAddOK(PNameCheckBlocksOfStorage, PCheckBlocksOfStorage).
+		PostAddOK(PNamePatchBlockItemReaders, PPatchBlockItemReaders)
 
 	return pps
 }

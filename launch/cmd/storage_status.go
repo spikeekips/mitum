@@ -61,6 +61,7 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 
 	_ = pps.POK(launch.PNameStorage).
 		PreAddOK(launch.PNameCheckLocalFS, cmd.pCheckLocalFS).
+		PostAddOK(launch.PNamePatchBlockItemReaders, launch.PPatchBlockItemReaders).
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{

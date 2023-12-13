@@ -627,17 +627,22 @@ func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	switch i, found, isclosed := l.loadItem(k); {
 	case isclosed:
 		return false, ErrLockedMapClosed.WithStack()
-	case !found:
-		var v V
-
-		return false, f(v, false)
-	default:
+	case found:
 		removed, err := i.Remove(k, f)
 		if err == nil && removed {
 			atomic.AddInt64(&l.length, -1)
 		}
 
 		return removed, err
+	}
+
+	var v V
+
+	switch err := f(v, false); {
+	case errors.Is(err, ErrLockedSetIgnore):
+		return false, nil
+	default:
+		return false, err
 	}
 }
 

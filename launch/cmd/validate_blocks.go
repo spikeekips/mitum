@@ -98,6 +98,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 		PostAddOK(launch.PNameCheckLeveldbStorage, launch.PCheckLeveldbStorage).
 		PostAddOK(launch.PNameLoadFromDatabase, launch.PLoadFromDatabase).
 		PostAddOK(launch.PNameCheckBlocksOfStorage, launch.PCheckBlocksOfStorage).
+		PostAddOK(launch.PNamePatchBlockItemReaders, launch.PPatchBlockItemReaders).
 		PostAddOK(launch.PNameNodeInfo, launch.PNodeInfo).
 		PostAddOK(PNameValidateBlocks, cmd.pValidateBlocks)
 

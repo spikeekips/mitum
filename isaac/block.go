@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"bytes"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -167,7 +168,13 @@ func NewLocalFSBlockItemFile(f string, compressFormat string) BlockItemFile {
 }
 
 func NewFileBlockItemFile(f string, compressFormat string) BlockItemFile {
-	return NewBlockItemFile(url.URL{Scheme: "file", Path: f}, compressFormat)
+	uri := url.URL{Scheme: "file", Path: f}
+
+	if len(f) > 0 && !strings.HasPrefix(f, "/") {
+		uri.Path = "/" + f
+	}
+
+	return NewBlockItemFile(uri, compressFormat)
 }
 
 func (f BlockItemFile) IsValid([]byte) error {
@@ -310,6 +317,16 @@ func (f *BlockItemFilesMaker) SetItem(t base.BlockItemType, i base.BlockItemFile
 	f.files.items[t] = i
 
 	return !found, nil
+}
+
+func (f *BlockItemFilesMaker) Bytes() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+
+	if err := f.enc.StreamEncoder(buf).Encode(f.files); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 func (f *BlockItemFilesMaker) Save(s string) error {

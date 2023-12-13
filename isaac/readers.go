@@ -13,12 +13,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -229,11 +232,34 @@ func blockItemReadersDecodeItemsFuncs[T any](
 		}
 }
 
+type BlockItemReadersArgs struct {
+	DecompressReaderFunc       util.DecompressReaderFunc
+	LoadEmptyHeightsFunc       func() ([]base.Height, error)
+	AddEmptyHeightFunc         func(base.Height) error
+	CancelAddedEmptyHeightFunc func(base.Height) error
+	RemoveEmptyAfter           time.Duration
+	RemoveEmptyInterval        time.Duration
+}
+
+func NewBlockItemReadersArgs() *BlockItemReadersArgs {
+	return &BlockItemReadersArgs{
+		DecompressReaderFunc:       util.DefaultDecompressReaderFunc,
+		LoadEmptyHeightsFunc:       func() ([]base.Height, error) { return nil, nil },
+		AddEmptyHeightFunc:         func(base.Height) error { return nil },
+		CancelAddedEmptyHeightFunc: func(base.Height) error { return nil },
+		RemoveEmptyAfter:           time.Minute,
+		RemoveEmptyInterval:        time.Minute,
+	}
+}
+
 type BlockItemReaders struct {
 	*hint.CompatibleSet[NewBlockItemReaderFunc]
+	args *BlockItemReadersArgs
+	*util.ContextDaemon
+	*logging.Logging
 	encs             *encoder.Encoders
 	bfilescache      *util.GCache[base.Height, base.BlockItemFiles]
-	decompressReader util.DecompressReaderFunc
+	emptyHeightsLock util.LockedMap[base.Height, time.Time]
 	bfilessg         singleflight.Group
 	root             string
 }
@@ -241,19 +267,31 @@ type BlockItemReaders struct {
 func NewBlockItemReaders(
 	root string,
 	encs *encoder.Encoders,
-	decompressReader util.DecompressReaderFunc,
+	args *BlockItemReadersArgs,
 ) *BlockItemReaders {
-	if decompressReader == nil {
-		decompressReader = util.DefaultDecompressReaderFunc //revive:disable-line:modifies-parameter
+	if args == nil {
+		args = NewBlockItemReadersArgs() //revive:disable-line:modifies-parameter
 	}
 
-	return &BlockItemReaders{
+	emptyHeightDirectoryLock, _ := util.NewShardedMap[base.Height, time.Time](1<<5, nil) //nolint:gomnd //...
+
+	readers := &BlockItemReaders{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "block-item-readers")
+		}),
 		CompatibleSet:    hint.NewCompatibleSet[NewBlockItemReaderFunc](8), //nolint:gomnd //...
 		root:             root,
 		encs:             encs,
-		decompressReader: decompressReader,
 		bfilescache:      util.NewLFUGCache[base.Height, base.BlockItemFiles](1 << 9), //nolint:gomnd //...
+		args:             args,
+		emptyHeightsLock: emptyHeightDirectoryLock,
 	}
+
+	_, _ = readers.loadAndRemoveEmptyHeightDirectories()
+
+	readers.ContextDaemon = util.NewContextDaemon(readers.start)
+
+	return readers
 }
 
 func (rs *BlockItemReaders) Root() string {
@@ -375,6 +413,119 @@ func (rs *BlockItemReaders) ItemFiles(height base.Height) (base.BlockItemFiles, 
 	}
 }
 
+func (rs *BlockItemReaders) ItemFilesReader(
+	height base.Height,
+	f func(io.Reader) error,
+) (bool, error) {
+	switch i, err := os.Open(BlockItemFilesPath(rs.root, height)); {
+	case os.IsNotExist(err):
+		return false, nil
+	case err != nil:
+		return false, errors.WithStack(err)
+	default:
+		defer func() {
+			_ = i.Close()
+		}()
+
+		if f == nil {
+			return true, nil
+		}
+
+		return true, f(i)
+	}
+}
+
+func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (updated bool, _ error) {
+	_, _, _, err := rs.emptyHeightsLock.SetOrRemove(
+		height,
+		func(_ time.Time, found bool) (t time.Time, _ bool, _ error) {
+			switch bfiles, bupdated, isempty, err := rs.writeItemFiles(height, b); {
+			case err != nil:
+				return t, found, err
+			case !bupdated:
+				return t, false, util.ErrLockedSetIgnore
+			default:
+				updated = true
+
+				rs.bfilescache.Set(height, bfiles, 0)
+
+				if isempty { // NOTE no files in local, remove height directory (in queue)
+					if err := rs.args.AddEmptyHeightFunc(height); err != nil {
+						return t, found, err
+					}
+
+					return time.Now(), false, nil
+				}
+
+				if err := rs.args.CancelAddedEmptyHeightFunc(height); err != nil {
+					return t, found, err
+				}
+
+				return t, true, nil
+			}
+		},
+	)
+
+	return updated, err
+}
+
+func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
+	_ base.BlockItemFiles,
+	updated bool,
+	isempty bool,
+	_ error,
+) {
+	var oldbfiles base.BlockItemFiles
+
+	switch i, found, err := rs.ItemFiles(height); {
+	case err != nil, !found:
+		return nil, false, false, err
+	default:
+		oldbfiles = i
+	}
+
+	var newbfiles base.BlockItemFiles
+
+	switch err := encoder.Decode(rs.encs.JSON(), b, &newbfiles); {
+	case err != nil:
+		return nil, false, false, err
+	default:
+		if err := newbfiles.IsValid(nil); err != nil {
+			return nil, false, false, err
+		}
+	}
+
+	oldHasLocal, newHasLocal := rs.isInLocalFS(oldbfiles), rs.isInLocalFS(newbfiles)
+
+	// NOTE compare with old
+	for i := range oldbfiles.Items() {
+		if _, found := newbfiles.Item(i); !found {
+			return nil, false, false, errors.Errorf("item, %q not found", i)
+		}
+	}
+
+	switch i, err := os.CreateTemp("", "blockitemfiles"); {
+	case err != nil:
+		return nil, true, false, errors.WithStack(err)
+	default:
+		if _, err := i.Write(b); err != nil {
+			_ = i.Close()
+
+			return nil, true, false, errors.WithStack(err)
+		}
+
+		if err := i.Close(); err != nil {
+			return nil, true, false, errors.WithStack(err)
+		}
+
+		if err := os.Rename(i.Name(), BlockItemFilesPath(rs.root, height)); err != nil {
+			return nil, true, false, errors.WithStack(err)
+		}
+
+		return newbfiles, true, oldHasLocal && !newHasLocal, nil
+	}
+}
+
 func (rs *BlockItemReaders) ItemFile(height base.Height, t base.BlockItemType) (base.BlockItemFile, bool, error) {
 	switch bfiles, found, err := rs.ItemFiles(height); {
 	case err != nil, !found:
@@ -415,7 +566,7 @@ func (rs *BlockItemReaders) findBlockReader(f io.Reader, compressFormat string) 
 ) {
 	var dr io.Reader
 
-	switch i, err := rs.decompressReader(compressFormat); {
+	switch i, err := rs.args.DecompressReaderFunc(compressFormat); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -495,7 +646,7 @@ func (rs *BlockItemReaders) itemFromReader(
 
 	var cr *util.CompressedReader
 
-	switch i, err := util.NewCompressedReader(br, compressFormat, rs.decompressReader); {
+	switch i, err := util.NewCompressedReader(br, compressFormat, rs.args.DecompressReaderFunc); {
 	case err != nil:
 		return err
 	default:
@@ -512,6 +663,149 @@ func (rs *BlockItemReaders) itemFromReader(
 	default:
 		return callback(i)
 	}
+}
+
+func (rs *BlockItemReaders) loadAndRemoveEmptyHeightDirectories() (removed uint64, _ error) {
+	var heights []base.Height
+
+	switch i, err := rs.args.LoadEmptyHeightsFunc(); {
+	case err != nil:
+		return 0, err
+	case len(i) < 1:
+		return 0, nil
+	default:
+		heights = i
+	}
+
+	for i := range heights {
+		height := heights[i]
+
+		ok, err := rs.removeEmptyHeightDirectory(height)
+		if err != nil {
+			rs.Log().Error().Err(err).Interface("height", height).Msg("failed to remove empty height")
+
+			return removed, err
+		}
+
+		if ok {
+			if err := rs.args.CancelAddedEmptyHeightFunc(height); err != nil {
+				return 0, err
+			}
+
+			removed++
+		}
+	}
+
+	return removed, nil
+}
+
+func (rs *BlockItemReaders) removeEmptyHeightsLock() (removed uint64, _ error) {
+	var heights []base.Height
+
+	_ = rs.emptyHeightsLock.Traverse(func(height base.Height, inserted time.Time) bool {
+		if time.Since(inserted) < rs.args.RemoveEmptyAfter {
+			return true
+		}
+
+		heights = append(heights, height)
+
+		return true
+	})
+
+	for i := range heights {
+		ok, err := rs.removeEmptyHeightLock(heights[i])
+		if err != nil {
+			rs.Log().Error().Err(err).Interface("height", heights[i]).Msg("failed to remove empty height")
+
+			return removed, err
+		}
+
+		if ok {
+			removed++
+		}
+	}
+
+	return removed, nil
+}
+
+func (rs *BlockItemReaders) removeEmptyHeightLock(height base.Height) (bool, error) {
+	return rs.emptyHeightsLock.Remove(height, func(inserted time.Time, found bool) error {
+		switch {
+		case !found:
+			return util.ErrLockedSetIgnore
+		case time.Since(inserted) < rs.args.RemoveEmptyAfter:
+			return util.ErrLockedSetIgnore
+		}
+
+		switch removed, err := rs.removeEmptyHeightDirectory(height); {
+		case err != nil:
+			return err
+		case !removed:
+			return util.ErrLockedSetIgnore
+		default:
+			return nil
+		}
+	})
+}
+
+func (rs *BlockItemReaders) removeEmptyHeightDirectory(height base.Height) (bool, error) {
+	switch i, found, err := rs.ItemFiles(height); {
+	case err != nil, !found:
+		return true, err
+	case rs.isInLocalFS(i): // NOTE if local item files found, the height directory will be ignored.
+		return true, nil
+	}
+
+	d := filepath.Join(rs.root, BlockHeightDirectory(height))
+
+	switch i, err := os.Stat(d); {
+	case errors.Is(err, os.ErrNotExist):
+		return true, nil
+	case err != nil:
+		return false, errors.WithMessagef(err, d)
+	case !i.IsDir():
+		return true, nil
+	}
+
+	if err := os.RemoveAll(d); err != nil {
+		return false, errors.WithMessagef(err, "remove %q", d)
+	}
+
+	return true, nil
+}
+
+func (rs *BlockItemReaders) start(ctx context.Context) error {
+	ticker := time.NewTicker(rs.args.RemoveEmptyInterval)
+	defer ticker.Stop()
+
+end:
+	for {
+		select {
+		case <-ctx.Done():
+			break end
+		case <-ticker.C:
+			switch removed, err := rs.removeEmptyHeightsLock(); {
+			case err != nil:
+				rs.Log().Error().Err(err).Msg("remove empty height directories")
+			case removed > 0:
+				rs.Log().Debug().Uint64("removed", removed).Msg("empty height directories removed")
+			}
+		}
+	}
+
+	return nil
+}
+
+func (*BlockItemReaders) isInLocalFS(f base.BlockItemFiles) bool {
+	m := f.Items()
+
+	for i := range m {
+		if m[i].URI().Scheme == LocalFSBlockItemScheme {
+			return true
+		}
+	}
+
+	return false
 }
 
 func BlockItemDecodeLineItems(

@@ -52,6 +52,7 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
 		PostAddOK(PNameLoadFromDatabase, PLoadFromDatabase).
 		PostAddOK(PNameCheckBlocksOfStorage, PCheckBlocksOfStorage).
+		PostAddOK(PNamePatchBlockItemReaders, PPatchBlockItemReaders).
 		PostAddOK(PNameNodeInfo, PNodeInfo)
 
 	_ = pps.POK(PNameNetwork).

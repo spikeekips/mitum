@@ -37,6 +37,7 @@ var (
 	PNameCheckLocalFS               = ps.Name("check-localfs")
 	PNameLoadDatabase               = ps.Name("load-database")
 	PNameCheckBlocksOfStorage       = ps.Name("check-blocks-of-storage")
+	PNamePatchBlockItemReaders      = ps.Name("patch-block-item-readers")
 	FSNodeInfoContextKey            = util.ContextKey("fs-node-info")
 	LeveldbStorageContextKey        = util.ContextKey("leveldb-storage")
 	CenterDatabaseContextKey        = util.ContextKey("center-database")
@@ -97,6 +98,9 @@ func PStartStorage(pctx context.Context) (context.Context, error) {
 
 	var db isaac.Database
 	_ = load("center database", CenterDatabaseContextKey, &db)
+
+	var readers *isaac.BlockItemReaders
+	_ = load("block item readers", BlockReadersContextKey, &readers)
 
 	for i := range starters {
 		starters[i]()
@@ -467,6 +471,22 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 			return pctx, err
 		}
 	}
+
+	return pctx, nil
+}
+
+func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
+	var db isaac.Database
+	var readers *isaac.BlockItemReaders
+
+	if err := util.LoadFromContextOK(pctx,
+		CenterDatabaseContextKey, &db,
+		BlockReadersContextKey, &readers,
+	); err != nil {
+		return pctx, err
+	}
+
+	// FIXME
 
 	return pctx, nil
 }
