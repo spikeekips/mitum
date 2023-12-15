@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -909,6 +910,10 @@ func LoadBlockItemFilesPath(
 			return nil, false, err
 		}
 
+		if bfiles == nil {
+			return nil, false, errors.Errorf("empty block item file")
+		}
+
 		return bfiles, true, nil
 	}
 }
@@ -1028,8 +1033,8 @@ type RemotesBlockItemReadFunc func(
 
 type RemoteBlockItemReadFunc func(context.Context, url.URL, func(io.Reader) error) (bool, error)
 
-func NewDefaultRemotesBlockItemReadFunc(insecure bool) RemotesBlockItemReadFunc {
-	httpf := HTTPBlockItemReadFunc(insecure)
+func NewDefaultRemotesBlockItemReadFunc() RemotesBlockItemReadFunc {
+	httpf := HTTPBlockItemReadFunc()
 
 	return func(
 		ctx context.Context,
@@ -1052,7 +1057,25 @@ func NewDefaultRemotesBlockItemReadFunc(insecure bool) RemotesBlockItemReadFunc 
 	}
 }
 
-func HTTPBlockItemReadFunc(insecure bool) RemoteBlockItemReadFunc {
+var HTTPInsecureFlag = "https_insecure"
+
+// HTTPBlockItemReadFunc reads block item thru http, https. If there is
+// `#https_insecure` fragment in url, connection has `InsecureSkipVerify` in
+// tls.
+func HTTPBlockItemReadFunc() RemoteBlockItemReadFunc {
+	secure := httpBlockItemReadFunc(false)
+	insecure := httpBlockItemReadFunc(true)
+
+	return func(ctx context.Context, uri url.URL, callback func(io.Reader) error) (bool, error) {
+		if uri.Scheme == "https" && network.HasTLSInsecure(uri.Fragment, HTTPInsecureFlag) {
+			return insecure(ctx, uri, callback)
+		}
+
+		return secure(ctx, uri, callback)
+	}
+}
+
+func httpBlockItemReadFunc(insecure bool) RemoteBlockItemReadFunc {
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{

@@ -362,7 +362,7 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 	httpclient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: network.HasTLSInsecure(u.Fragment),
+				InsecureSkipVerify: network.HasTLSInsecure(u.Fragment, network.DefaultTLSInsecureFlag),
 			},
 		},
 	}

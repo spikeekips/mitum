@@ -81,6 +81,6 @@ func PBlockItemReadersDecompressFunc(pctx context.Context) (context.Context, err
 func PRemotesBlockItemReaderFunc(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx,
 		RemotesBlockItemReaderFuncContextKey,
-		isaac.NewDefaultRemotesBlockItemReadFunc(true),
+		isaac.NewDefaultRemotesBlockItemReadFunc(),
 	), nil
 }

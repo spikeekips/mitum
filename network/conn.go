@@ -17,13 +17,15 @@ type ConnInfo interface {
 	TLSInsecure() bool
 }
 
-func HasTLSInsecure(s string) bool {
+var DefaultTLSInsecureFlag = "tls_insecure"
+
+func HasTLSInsecure(s, flag string) bool {
 	v, err := url.ParseQuery(s)
 	if err != nil {
 		return false
 	}
 
-	return v.Has("tls_insecure")
+	return v.Has(flag)
 }
 
 func ParseTLSInsecure(s string) (string, bool) {
@@ -31,7 +33,7 @@ func ParseTLSInsecure(s string) (string, bool) {
 	case i < 0:
 		return s, false
 	case len(s[i:]) > 0:
-		return s[:i], HasTLSInsecure(s[i+1:])
+		return s[:i], HasTLSInsecure(s[i+1:], DefaultTLSInsecureFlag)
 	default:
 		return s[:i], false
 	}
