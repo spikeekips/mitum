@@ -742,7 +742,7 @@ func (t *testReaders) TestRemoveEmptyHeightLock() {
 
 		oldfiles := t.fsfiles()
 
-		args.RemoveEmptyAfter = 1
+		args.RemoveEmptyAfter = func() time.Duration { return 1 }
 		readers.EmptyHeightsLock().SetValue(height, time.Now().Add(time.Second*-1))
 
 		removed, err := readers.RemoveEmptyHeightsLock()
@@ -781,7 +781,7 @@ func (t *testReaders) TestRemoveEmptyHeightLock() {
 			t.True(updated)
 		}
 
-		args.RemoveEmptyAfter = 1
+		args.RemoveEmptyAfter = func() time.Duration { return 1 }
 		readers.EmptyHeightsLock().SetValue(height, time.Now().Add(time.Minute))
 
 		removed, err := readers.RemoveEmptyHeightsLock()
@@ -820,7 +820,7 @@ func (t *testReaders) TestRemoveEmptyHeightLock() {
 			t.True(updated)
 		}
 
-		args.RemoveEmptyAfter = 1
+		args.RemoveEmptyAfter = func() time.Duration { return 1 }
 		readers.EmptyHeightsLock().SetValue(height, time.Now().Add(time.Second*-1))
 
 		removed, err := readers.RemoveEmptyHeightsLock()
@@ -870,8 +870,8 @@ func (t *testReaders) TestStartToRemove() {
 
 	oldfiles := t.fsfiles()
 
-	args.RemoveEmptyAfter = 1
-	args.RemoveEmptyInterval = time.Millisecond * 33
+	args.RemoveEmptyAfter = func() time.Duration { return 1 }
+	args.RemoveEmptyInterval = func() time.Duration { return time.Millisecond * 33 }
 	// 2 heights are expired
 	readers.EmptyHeightsLock().SetValue(removeheight, time.Now().Add(time.Minute*-1))
 	readers.EmptyHeightsLock().SetValue(notremoveheight, time.Now().Add(time.Minute))

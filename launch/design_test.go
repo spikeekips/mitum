@@ -653,6 +653,8 @@ parameters:
   misc:
     valid_proposal_operation_expire: 11s
     object_cache_size: 33
+    block_item_readers_remove_empty_after: 4h
+    block_item_readers_remove_empty_interval: 5h
   memberlist:
     tcp_timeout: 6s
     udp_buffer_size: 333
@@ -702,6 +704,8 @@ parameters:
 		misc := defaultMISCParams()
 		misc.SetValidProposalOperationExpire(time.Second * 11)
 		misc.SetObjectCacheSize(33)
+		misc.SetBlockItemReadersRemoveEmptyAfter(time.Hour * 4)
+		misc.SetBlockItemReadersRemoveEmptyInterval(time.Hour * 5)
 
 		equalMISCParams(t.Assert(), misc, a.LocalParams.MISC)
 
@@ -1530,6 +1534,8 @@ func equalMISCParams(t *assert.Assertions, a, b *MISCParams) {
 	t.Equal(a.SyncSourceCheckerInterval(), b.SyncSourceCheckerInterval())
 	t.Equal(a.ValidProposalOperationExpire(), b.ValidProposalOperationExpire())
 	t.Equal(a.ValidProposalSuffrageOperationsExpire(), b.ValidProposalSuffrageOperationsExpire())
+	t.Equal(a.BlockItemReadersRemoveEmptyAfter(), b.BlockItemReadersRemoveEmptyAfter())
+	t.Equal(a.BlockItemReadersRemoveEmptyInterval(), b.BlockItemReadersRemoveEmptyInterval())
 	t.Equal(a.MaxMessageSize(), b.MaxMessageSize())
 	t.Equal(a.ObjectCacheSize(), b.ObjectCacheSize())
 }

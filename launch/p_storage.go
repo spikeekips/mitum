@@ -516,6 +516,8 @@ func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
 	}
 
 	args := isaac.NewBlockItemReadersArgs()
+	args.RemoveEmptyAfter = design.LocalParams.MISC.BlockItemReadersRemoveEmptyAfter
+	args.RemoveEmptyInterval = design.LocalParams.MISC.BlockItemReadersRemoveEmptyInterval
 	args.DecompressReaderFunc = decompress
 	args.LoadEmptyHeightsFunc = func() (heights []base.Height, _ error) {
 		err := pool.EmptyHeights(func(height base.Height) error {

@@ -3,6 +3,7 @@ package launch
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net"
@@ -324,6 +325,8 @@ func writeDesignMap(pctx context.Context) (map[string]writeNodeValueFunc, error)
 		"parameters.misc.sync_source_checker_interval":              writeLocalParamMISCSyncSourceCheckerInterval(params.MISC),
 		"parameters.misc.valid_proposal_operation_expire":           writeLocalParamMISCValidProposalOperationExpire(params.MISC),
 		"parameters.misc.valid_proposal_suffrage_operations_expire": writeLocalParamMISCValidProposalSuffrageOperationsExpire(params.MISC),
+		"parameters.misc.block_item_readers_remove_empty_after":     writeLocalParamMISCBlockItemReadersRemoveEmptyAfter(params.MISC),
+		"parameters.misc.block_item_readers_remove_empty_interval":  writeLocalParamMISCBlockItemReadersRemoveEmptyInterval(params.MISC),
 		"parameters.misc.max_message_size":                          writeLocalParamMISCMaxMessageSize(params.MISC),
 
 		"parameters.memberlist.extra_same_member_limit": writeLocalParamExtraSameMemberLimit(params.Memberlist),
@@ -535,6 +538,54 @@ func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 		}
 
 		return prev, params.ValidProposalSuffrageOperationsExpire(), true, nil
+	})
+}
+
+func writeLocalParamMISCBlockItemReadersRemoveEmptyAfter(
+	params *MISCParams,
+) writeNodeValueFunc {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
+		d, err := parseNodeValueDuration(value)
+		if err != nil {
+			return nil, nil, false, err
+		}
+
+		prev = params.BlockItemReadersRemoveEmptyAfter()
+		if prev == d {
+			return prev, nil, false, nil
+		}
+
+		if err := params.SetBlockItemReadersRemoveEmptyAfter(d); err != nil {
+			return nil, nil, false, err
+		}
+
+		return prev, params.BlockItemReadersRemoveEmptyAfter(), true, nil
+	})
+}
+
+func writeLocalParamMISCBlockItemReadersRemoveEmptyInterval(
+	params *MISCParams,
+) writeNodeValueFunc {
+	return writeNodeKey(func(
+		_ context.Context, _, _, value, acluser string,
+	) (prev, next interface{}, updated bool, _ error) {
+		d, err := parseNodeValueDuration(value)
+		if err != nil {
+			return nil, nil, false, err
+		}
+
+		prev = params.BlockItemReadersRemoveEmptyInterval()
+		if prev == d {
+			return prev, nil, false, nil
+		}
+
+		if err := params.SetBlockItemReadersRemoveEmptyInterval(d); err != nil {
+			return nil, nil, false, err
+		}
+
+		return prev, params.BlockItemReadersRemoveEmptyInterval(), true, nil
 	})
 }
 
@@ -846,11 +897,15 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 
 func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 	var encs *encoder.Encoders
+	var db isaac.Database
 	var readers *isaac.BlockItemReaders
+	var fromRemotes isaac.RemotesBlockItemReadFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
+		CenterDatabaseContextKey, &db,
 		BlockItemReadersContextKey, &readers,
+		RemotesBlockItemReaderFuncContextKey, &fromRemotes,
 	); err != nil {
 		return nil, err
 	}
@@ -863,6 +918,8 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 	default:
 		aclallow = i
 	}
+
+	readitemf := isaac.BlockItemReadByBlockItemFileFuncWithRemote(readers, fromRemotes)
 
 	return writeNodeKey(func(
 		ctx context.Context, key, nextkey, value, acluser string,
@@ -894,6 +951,17 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
+		if err := validateUploadedBlockItemFiles(
+			ctx,
+			encs.JSON(),
+			height,
+			[]byte(value),
+			db.BlockMap,
+			readitemf,
+		); err != nil {
+			return nil, nil, true, err
+		}
+
 		switch found, err := readers.WriteItemFiles(height, []byte(value)); {
 		case err != nil, !found:
 			return nil, nil, found, err
@@ -901,6 +969,91 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 			return nil, nil, true, nil
 		}
 	}), nil
+}
+
+func validateUploadedBlockItemFiles(
+	ctx context.Context,
+	jsonenc encoder.Encoder,
+	height base.Height,
+	b []byte,
+	blockmapf func(base.Height) (base.BlockMap, bool, error),
+	readitemf func(
+		context.Context, base.Height, base.BlockItemType, base.BlockItemFile, isaac.BlockItemReaderCallbackFunc,
+	) (bool, error),
+) error {
+	var bfiles base.BlockItemFiles
+
+	switch err := encoder.Decode(jsonenc, b, &bfiles); {
+	case err != nil:
+		return err
+	default:
+		if err := bfiles.IsValid(nil); err != nil {
+			return err
+		}
+	}
+
+	var bm base.BlockMap
+
+	switch i, found, err := blockmapf(height); {
+	case err != nil:
+		return err
+	case !found:
+		return util.ErrNotFound.Errorf("blockmap")
+	default:
+		bm = i
+	}
+
+	if err := base.ValidateBlockItemFilesWithBlockMap(bm, bfiles); err != nil {
+		return err
+	}
+
+	var berr error
+
+	bm.Items(func(item base.BlockMapItem) bool {
+		var bfile base.BlockItemFile
+
+		switch i, found := bfiles.Item(item.Type()); {
+		case !found:
+			berr = util.ErrNotFound.Errorf("block item file, %q", item.Type())
+
+			return false
+		default:
+			bfile = i
+		}
+
+		// NOTE verify checksum
+		switch found, err := readitemf(ctx, height, item.Type(), bfile, func(ir isaac.BlockItemReader) error {
+			switch i, err := ir.Reader().Decompress(); {
+			case err != nil:
+				return err
+			default:
+				cr := util.NewHashChecksumReader(i, sha256.New())
+
+				if _, err := io.ReadAll(cr); err != nil {
+					return errors.Errorf("checksum reader")
+				}
+
+				if item.Checksum() != cr.Checksum() {
+					return errors.Errorf("checksum does not match")
+				}
+			}
+
+			return nil
+		}); {
+		case err != nil:
+			berr = err
+
+			return false
+		case !found:
+			berr = util.ErrNotFound.Errorf("%s; %v", item.Type(), bfile.URI())
+
+			return false
+		default:
+			return true
+		}
+	})
+
+	return berr
 }
 
 func unmarshalRateLimitRule(rule, value string) (interface{}, error) {

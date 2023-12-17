@@ -400,3 +400,27 @@ func IsEqualBlockMapItem(a, b BlockMapItem) error {
 		return nil
 	}
 }
+
+func ValidateBlockItemFilesWithBlockMap(bm BlockMap, bfiles BlockItemFiles) error {
+	if bm == nil {
+		return util.ErrInvalid.Errorf("empty block map")
+	}
+
+	if bfiles == nil {
+		return util.ErrInvalid.Errorf("empty block item files")
+	}
+
+	var ierr error
+
+	bm.Items(func(item BlockMapItem) bool {
+		if _, found := bfiles.Item(item.Type()); !found {
+			ierr = util.ErrInvalid.Errorf("item not found in block item files, %q", item.Type())
+
+			return false
+		}
+
+		return true
+	})
+
+	return ierr
+}

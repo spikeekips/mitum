@@ -238,9 +238,14 @@ type BlockItemReadersArgs struct {
 	LoadEmptyHeightsFunc       func() ([]base.Height, error)
 	AddEmptyHeightFunc         func(base.Height) error
 	CancelAddedEmptyHeightFunc func(base.Height) error
-	RemoveEmptyAfter           time.Duration
-	RemoveEmptyInterval        time.Duration
+	RemoveEmptyAfter           func() time.Duration
+	RemoveEmptyInterval        func() time.Duration
 }
+
+var (
+	DefaultBlockItemReadersRemoveEmptyAfter    = time.Minute * 9
+	DefaultBlockItemReadersRemoveEmptyInterval = time.Minute * 3
+)
 
 func NewBlockItemReadersArgs() *BlockItemReadersArgs {
 	return &BlockItemReadersArgs{
@@ -248,8 +253,8 @@ func NewBlockItemReadersArgs() *BlockItemReadersArgs {
 		LoadEmptyHeightsFunc:       func() ([]base.Height, error) { return nil, nil },
 		AddEmptyHeightFunc:         func(base.Height) error { return nil },
 		CancelAddedEmptyHeightFunc: func(base.Height) error { return nil },
-		RemoveEmptyAfter:           time.Minute * 3, //nolint:gomnd //...
-		RemoveEmptyInterval:        time.Minute * 9, //nolint:gomnd //...
+		RemoveEmptyAfter:           func() time.Duration { return DefaultBlockItemReadersRemoveEmptyAfter },
+		RemoveEmptyInterval:        func() time.Duration { return DefaultBlockItemReadersRemoveEmptyInterval },
 	}
 }
 
@@ -324,7 +329,7 @@ func (rs *BlockItemReaders) Reader(
 		bfile = i
 	}
 
-	switch i, found, err := rs.readFile(height, bfile); {
+	switch i, found, err := rs.ReadFileFromItemFile(height, bfile); {
 	case err != nil:
 		return false, errors.WithMessage(err, t.String())
 	case !found:
@@ -360,7 +365,7 @@ func (rs *BlockItemReaders) Item(
 
 	var f *os.File
 
-	switch i, found, err := rs.readFile(height, bfile); {
+	switch i, found, err := rs.ReadFileFromItemFile(height, bfile); {
 	case err != nil:
 		return bfile, false, errors.WithMessage(err, t.String())
 	case !found:
@@ -386,6 +391,12 @@ func (rs *BlockItemReaders) ItemFromReader(
 	compressFormat string,
 	callback BlockItemReaderCallbackFunc,
 ) error {
+	if callback == nil {
+		callback = func(BlockItemReader) error { //revive:disable-line:modifies-parameter
+			return nil
+		}
+	}
+
 	return rs.itemFromReader(t, r, compressFormat, callback)
 }
 
@@ -546,7 +557,7 @@ func (rs *BlockItemReaders) ItemFile(height base.Height, t base.BlockItemType) (
 	}
 }
 
-func (rs *BlockItemReaders) readFile(height base.Height, bfile base.BlockItemFile) (*os.File, bool, error) {
+func (rs *BlockItemReaders) ReadFileFromItemFile(height base.Height, bfile base.BlockItemFile) (*os.File, bool, error) {
 	var p string
 
 	switch u := bfile.URI(); u.Scheme {
@@ -712,7 +723,7 @@ func (rs *BlockItemReaders) removeEmptyHeightsLock() (removed uint64, _ error) {
 	var heights []base.Height
 
 	_ = rs.emptyHeightsLock.Traverse(func(height base.Height, inserted time.Time) bool {
-		if time.Since(inserted) < rs.args.RemoveEmptyAfter {
+		if time.Since(inserted) < rs.removeEmptyAfter() {
 			return true
 		}
 
@@ -742,7 +753,7 @@ func (rs *BlockItemReaders) removeEmptyHeightLock(height base.Height) (bool, err
 		switch {
 		case !found:
 			return util.ErrLockedSetIgnore
-		case time.Since(inserted) < rs.args.RemoveEmptyAfter:
+		case time.Since(inserted) < rs.removeEmptyAfter():
 			return util.ErrLockedSetIgnore
 		}
 
@@ -761,7 +772,7 @@ func (rs *BlockItemReaders) removeEmptyHeightDirectory(height base.Height) (bool
 	switch i, found, err := rs.ItemFiles(height); {
 	case err != nil, !found:
 		return true, err
-	case rs.isInLocalFS(i): // NOTE if local item files found, the height directory will be ignored.
+	case rs.isInLocalFS(i): // NOTE if local item files found, ignored.
 		return true, nil
 	}
 
@@ -784,7 +795,9 @@ func (rs *BlockItemReaders) removeEmptyHeightDirectory(height base.Height) (bool
 }
 
 func (rs *BlockItemReaders) start(ctx context.Context) error {
-	ticker := time.NewTicker(rs.args.RemoveEmptyInterval)
+	interval := rs.removeEmptyInterval()
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 end:
@@ -798,6 +811,14 @@ end:
 				rs.Log().Error().Err(err).Msg("remove empty height directories")
 			case removed > 0:
 				rs.Log().Debug().Uint64("removed", removed).Msg("empty height directories removed")
+			}
+
+			switch i := rs.removeEmptyInterval(); {
+			case i < 1:
+				rs.Log().Error().Stringer("interval", i).Msg("zero interval")
+			case i != interval:
+				ticker.Reset(i)
+				interval = i
 			}
 		}
 	}
@@ -815,6 +836,27 @@ func (*BlockItemReaders) isInLocalFS(f base.BlockItemFiles) bool {
 	}
 
 	return false
+}
+
+func (rs *BlockItemReaders) removeEmptyInterval() (d time.Duration) {
+	if d = rs.args.RemoveEmptyInterval(); d < 1 {
+		d = DefaultBlockItemReadersRemoveEmptyInterval
+	}
+
+	if i := rs.removeEmptyAfter(); d > i {
+		return i
+	}
+
+	return d
+}
+
+func (rs *BlockItemReaders) removeEmptyAfter() time.Duration {
+	switch d := rs.args.RemoveEmptyAfter(); {
+	case d < 1:
+		return DefaultBlockItemReadersRemoveEmptyAfter
+	default:
+		return d
+	}
 }
 
 func BlockItemDecodeLineItems(
@@ -1163,6 +1205,52 @@ func BlockItemReadersItemFuncWithRemote(
 			default:
 				return itf, true, nil
 			}
+		}
+	}
+}
+
+func BlockItemReadByBlockItemFileFuncWithRemote(
+	readers *BlockItemReaders,
+	fromRemotes RemotesBlockItemReadFunc,
+) func(
+	context.Context,
+	base.Height,
+	base.BlockItemType,
+	base.BlockItemFile,
+	BlockItemReaderCallbackFunc,
+) (bool, error) {
+	return func(
+		ctx context.Context,
+		height base.Height,
+		t base.BlockItemType,
+		bfile base.BlockItemFile,
+		callback BlockItemReaderCallbackFunc,
+	) (bool, error) {
+		if IsInLocalBlockItemFile(bfile.URI()) {
+			switch f, found, err := readers.ReadFileFromItemFile(height, bfile); {
+			case err != nil, !found:
+				return found, err
+			default:
+				defer func() {
+					_ = f.Close()
+				}()
+
+				if err := readers.ItemFromReader(t, f, bfile.CompressFormat(), callback); err != nil {
+					return false, errors.WithMessage(err, t.String())
+				}
+			}
+		}
+
+		switch known, found, err := fromRemotes(ctx, bfile.URI(), bfile.CompressFormat(),
+			func(r io.Reader, compressFormat string) error {
+				return readers.ItemFromReader(t, r, compressFormat, callback)
+			}); {
+		case err != nil, !found:
+			return found, err
+		case !known:
+			return found, errors.Errorf("unknown remote item file, %v", bfile.URI())
+		default:
+			return true, nil
 		}
 	}
 }

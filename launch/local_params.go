@@ -243,6 +243,8 @@ type MISCParams struct {
 	syncSourceCheckerInterval             time.Duration
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
+	blockItemReadersRemoveEmptyAfter      time.Duration
+	blockItemReadersRemoveEmptyInterval   time.Duration
 	maxMessageSize                        uint64
 	objectCacheSize                       uint64
 }
@@ -253,6 +255,8 @@ func defaultMISCParams() *MISCParams {
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,
+		blockItemReadersRemoveEmptyAfter:      isaac.DefaultBlockItemReadersRemoveEmptyAfter,
+		blockItemReadersRemoveEmptyInterval:   isaac.DefaultBlockItemReadersRemoveEmptyInterval,
 		maxMessageSize:                        1 << 18, //nolint:gomnd //...
 		objectCacheSize:                       1 << 13, //nolint:gomnd // big enough
 	}
@@ -275,6 +279,14 @@ func (p *MISCParams) IsValid([]byte) error {
 
 	if p.validProposalSuffrageOperationsExpire < 0 {
 		return e.Errorf("wrong duration; invalid validProposalSuffrageOperationsExpire")
+	}
+
+	if p.blockItemReadersRemoveEmptyAfter < 0 {
+		return e.Errorf("wrong duration; invalid blockItemReadersRemoveEmptyAfter")
+	}
+
+	if p.blockItemReadersRemoveEmptyInterval < 0 {
+		return e.Errorf("wrong duration; invalid blockItemReadersRemoveEmptyInterval")
 	}
 
 	if p.maxMessageSize < 1 {
@@ -349,6 +361,49 @@ func (p *MISCParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) e
 		}
 
 		p.validProposalSuffrageOperationsExpire = d
+
+		return true, nil
+	})
+}
+
+// BlockItemReadersRemoveEmptyAfter removes empty block item directory after
+// the duration. Zero duration not allowed.
+func (p *MISCParams) BlockItemReadersRemoveEmptyAfter() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.blockItemReadersRemoveEmptyAfter
+}
+
+func (p *MISCParams) SetBlockItemReadersRemoveEmptyAfter(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.blockItemReadersRemoveEmptyAfter == d {
+			return false, nil
+		}
+
+		p.blockItemReadersRemoveEmptyAfter = d
+
+		return true, nil
+	})
+}
+
+// BlockItemReadersRemoveEmptyInterval is the interval to remove empty block
+// item directory after BlockItemReadersRemoveEmptyAfter. Zero duration not
+// allowed.
+func (p *MISCParams) BlockItemReadersRemoveEmptyInterval() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.blockItemReadersRemoveEmptyInterval
+}
+
+func (p *MISCParams) SetBlockItemReadersRemoveEmptyInterval(d time.Duration) error {
+	return p.SetDuration(d, func(d time.Duration) (bool, error) {
+		if p.blockItemReadersRemoveEmptyInterval == d {
+			return false, nil
+		}
+
+		p.blockItemReadersRemoveEmptyInterval = d
 
 		return true, nil
 	})

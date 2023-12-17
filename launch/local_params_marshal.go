@@ -218,6 +218,8 @@ type miscParamsYAMLMarshaler struct {
 	SyncSourceCheckerInterval             util.ReadableDuration `json:"sync_source_checker_interval,omitempty" yaml:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
+	BlockItemReadersRemoveEmptyAfter      util.ReadableDuration `json:"block_item_readers_remove_empty_after,omitempty" yaml:"block_item_readers_remove_empty_after,omitempty"`
+	BlockItemReadersRemoveEmptyInterval   util.ReadableDuration `json:"block_item_readers_remove_empty_interval,omitempty" yaml:"block_item_readers_remove_empty_interval,omitempty"`
 	MaxMessageSize                        uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
 	ObjectCacheSize                       uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
 	//revive:enable:line-length-limit
@@ -228,6 +230,8 @@ func (p *MISCParams) marshaler() miscParamsYAMLMarshaler {
 		SyncSourceCheckerInterval:             util.ReadableDuration(p.syncSourceCheckerInterval),
 		ValidProposalOperationExpire:          util.ReadableDuration(p.validProposalOperationExpire),
 		ValidProposalSuffrageOperationsExpire: util.ReadableDuration(p.validProposalSuffrageOperationsExpire),
+		BlockItemReadersRemoveEmptyAfter:      util.ReadableDuration(p.blockItemReadersRemoveEmptyAfter),
+		BlockItemReadersRemoveEmptyInterval:   util.ReadableDuration(p.blockItemReadersRemoveEmptyInterval),
 		MaxMessageSize:                        p.maxMessageSize,
 		ObjectCacheSize:                       p.objectCacheSize,
 	}
@@ -246,6 +250,8 @@ type miscParamsYAMLUnmarshaler struct {
 	SyncSourceCheckerInterval             *util.ReadableDuration `json:"sync_source_checker_interval,omitempty" yaml:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          *util.ReadableDuration `json:"valid_proposal_operation_expire,omitempty" yaml:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire *util.ReadableDuration `json:"valid_proposal_suffrage_operations_expire,omitempty" yaml:"valid_proposal_suffrage_operations_expire,omitempty"`
+	BlockItemReadersRemoveEmptyAfter      *util.ReadableDuration `json:"block_item_readers_remove_empty_after,omitempty" yaml:"block_item_readers_remove_empty_after,omitempty"`
+	BlockItemReadersRemoveEmptyInterval   *util.ReadableDuration `json:"block_item_readers_remove_empty_interval,omitempty" yaml:"block_item_readers_remove_empty_interval,omitempty"`
 	MaxMessageSize                        *uint64                `json:"max_message_size,omitempty" yaml:"max_message_size,omitempty"`
 	ObjectCacheSize                       *uint64                `json:"object_cache_size,omitempty" yaml:"object_cache_size,omitempty"`
 	//revive:enable:line-length-limit
@@ -294,6 +300,8 @@ func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
 		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},
 		{u.ValidProposalSuffrageOperationsExpire, &p.validProposalSuffrageOperationsExpire},
+		{u.BlockItemReadersRemoveEmptyAfter, &p.blockItemReadersRemoveEmptyAfter},
+		{u.BlockItemReadersRemoveEmptyInterval, &p.blockItemReadersRemoveEmptyInterval},
 	}
 
 	for i := range durargs {
