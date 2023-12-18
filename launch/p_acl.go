@@ -64,7 +64,7 @@ func pACLAllowFunc(pctx context.Context) (ACLAllowFunc, error) {
 		return nil, err
 	}
 
-	switch i, found := eventLogging.Logger(ACLEventLoggerName); {
+	switch i, found := eventLogging.Logger(ACLEventLogger); {
 	case !found:
 		return nil, errors.Errorf("acl event logger not found")
 	default:

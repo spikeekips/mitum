@@ -15,7 +15,7 @@ import (
 
 var PNameGenerateGenesis = ps.Name("generate-genesis")
 
-var NodeEventLoggerName EventLoggerName = "node"
+var NodeEventLogger EventLoggerName = "node"
 
 func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 	e := util.StringError("generate genesis block")
@@ -48,7 +48,7 @@ func PGenerateGenesis(pctx context.Context) (context.Context, error) {
 
 	var el zerolog.Logger
 
-	switch i, found := eventLogging.Logger(NodeEventLoggerName); {
+	switch i, found := eventLogging.Logger(NodeEventLogger); {
 	case !found:
 		return pctx, errors.Errorf("node event logger not found")
 	default:

@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
@@ -54,6 +55,8 @@ var (
 	LeveldbURIScheme                   = "leveldb"
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 )
+
+var BlockItemFilesEventLogger EventLoggerName = "block-item-files"
 
 func PStorage(pctx context.Context) (context.Context, error) {
 	return pctx, nil
@@ -505,14 +508,25 @@ func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
 	var decompress util.DecompressReaderFunc
 	var newReaders func(context.Context, string, *isaac.BlockItemReadersArgs) (*isaac.BlockItemReaders, error)
 	var pool *isaacdatabase.TempPool
+	var eventLogging *EventLogging
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		BlockItemReadersDecompressFuncContextKey, &decompress,
 		NewBlockItemReadersFuncContextKey, &newReaders,
 		PoolDatabaseContextKey, &pool,
+		EventLoggingContextKey, &eventLogging,
 	); err != nil {
 		return pctx, err
+	}
+
+	var el zerolog.Logger
+
+	switch i, found := eventLogging.Logger(BlockItemFilesEventLogger); {
+	case !found:
+		return nil, errors.Errorf("block item files event logger not found")
+	default:
+		el = i.With().Str("module", "block_item_files").Logger()
 	}
 
 	args := isaac.NewBlockItemReadersArgs()
@@ -537,6 +551,15 @@ func PPatchBlockItemReaders(pctx context.Context) (context.Context, error) {
 		_, err := pool.RemoveEmptyHeight(height)
 
 		return err
+	}
+	args.WhenBlockItemFilesUpdated = func(prev base.BlockItemFiles, updated base.BlockItemFiles) {
+		el.Debug().Dict("block_item_files", zerolog.Dict().
+			Interface("prev", prev).
+			Interface("updated", updated),
+		).Msg("new block item files updated")
+	}
+	args.WhenEmptyHeightDirectoryRemoved = func(height base.Height) {
+		el.Debug().Interface("height", height).Msg("empty height directory removed")
 	}
 
 	switch readers, err := newReaders(pctx, LocalFSDataDirectory(design.Storage.Base), args); {

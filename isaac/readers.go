@@ -234,12 +234,14 @@ func blockItemReadersDecodeItemsFuncs[T any](
 }
 
 type BlockItemReadersArgs struct {
-	DecompressReaderFunc       util.DecompressReaderFunc
-	LoadEmptyHeightsFunc       func() ([]base.Height, error)
-	AddEmptyHeightFunc         func(base.Height) error
-	CancelAddedEmptyHeightFunc func(base.Height) error
-	RemoveEmptyAfter           func() time.Duration
-	RemoveEmptyInterval        func() time.Duration
+	DecompressReaderFunc            util.DecompressReaderFunc
+	LoadEmptyHeightsFunc            func() ([]base.Height, error)
+	AddEmptyHeightFunc              func(base.Height) error
+	CancelAddedEmptyHeightFunc      func(base.Height) error
+	RemoveEmptyAfter                func() time.Duration
+	RemoveEmptyInterval             func() time.Duration
+	WhenBlockItemFilesUpdated       func(prev base.BlockItemFiles, updated base.BlockItemFiles)
+	WhenEmptyHeightDirectoryRemoved func(base.Height)
 }
 
 var (
@@ -249,12 +251,14 @@ var (
 
 func NewBlockItemReadersArgs() *BlockItemReadersArgs {
 	return &BlockItemReadersArgs{
-		DecompressReaderFunc:       util.DefaultDecompressReaderFunc,
-		LoadEmptyHeightsFunc:       func() ([]base.Height, error) { return nil, nil },
-		AddEmptyHeightFunc:         func(base.Height) error { return nil },
-		CancelAddedEmptyHeightFunc: func(base.Height) error { return nil },
-		RemoveEmptyAfter:           func() time.Duration { return DefaultBlockItemReadersRemoveEmptyAfter },
-		RemoveEmptyInterval:        func() time.Duration { return DefaultBlockItemReadersRemoveEmptyInterval },
+		DecompressReaderFunc:            util.DefaultDecompressReaderFunc,
+		LoadEmptyHeightsFunc:            func() ([]base.Height, error) { return nil, nil },
+		AddEmptyHeightFunc:              func(base.Height) error { return nil },
+		CancelAddedEmptyHeightFunc:      func(base.Height) error { return nil },
+		RemoveEmptyAfter:                func() time.Duration { return DefaultBlockItemReadersRemoveEmptyAfter },
+		RemoveEmptyInterval:             func() time.Duration { return DefaultBlockItemReadersRemoveEmptyInterval },
+		WhenBlockItemFilesUpdated:       func(prev base.BlockItemFiles, updated base.BlockItemFiles) {},
+		WhenEmptyHeightDirectoryRemoved: func(base.Height) {},
 	}
 }
 
@@ -458,11 +462,18 @@ func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (update
 	_, _, _, err := rs.emptyHeightsLock.SetOrRemove(
 		height,
 		func(_ time.Time, found bool) (t time.Time, _ bool, _ error) {
-			switch bupdated, isempty, err := rs.writeItemFiles(height, b); {
+			var oldbfiles base.BlockItemFiles
+
+			switch i, ifound, err := rs.ItemFiles(height); {
+			case err != nil, !ifound:
+				return t, true, err
+			default:
+				oldbfiles = i
+			}
+
+			switch isempty, err := rs.writeItemFiles(height, oldbfiles, b); {
 			case err != nil:
 				return t, found, err
-			case !bupdated:
-				return t, false, util.ErrLockedSetIgnore
 			default:
 				updated = true
 
@@ -488,28 +499,20 @@ func (rs *BlockItemReaders) WriteItemFiles(height base.Height, b []byte) (update
 	return updated, err
 }
 
-func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
-	updated bool,
+func (rs *BlockItemReaders) writeItemFiles(height base.Height, oldbfiles base.BlockItemFiles, b []byte) (
 	isempty bool,
 	_ error,
 ) {
-	var oldbfiles base.BlockItemFiles
-
-	switch i, found, err := rs.ItemFiles(height); {
-	case err != nil, !found:
-		return false, false, err
-	default:
-		oldbfiles = i
-	}
-
 	var newbfiles base.BlockItemFiles
 
 	switch err := encoder.Decode(rs.encs.JSON(), b, &newbfiles); {
 	case err != nil:
-		return false, false, err
+		return false, err
+	case newbfiles == nil:
+		return false, errors.Errorf("empty")
 	default:
 		if err := newbfiles.IsValid(nil); err != nil {
-			return false, false, err
+			return false, err
 		}
 	}
 
@@ -518,7 +521,7 @@ func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
 	// NOTE compare with old
 	for i := range oldbfiles.Items() {
 		if _, found := newbfiles.Item(i); !found {
-			return false, false, errors.Errorf("item, %q not found", i)
+			return false, errors.Errorf("item, %q not found", i)
 		}
 	}
 
@@ -526,23 +529,25 @@ func (rs *BlockItemReaders) writeItemFiles(height base.Height, b []byte) (
 
 	switch i, err := os.CreateTemp(filepath.Dir(fpath), "blockitemfiles-"); {
 	case err != nil:
-		return true, false, errors.WithStack(err)
+		return false, errors.WithStack(err)
 	default:
 		if _, err := i.Write(b); err != nil {
 			_ = i.Close()
 
-			return true, false, errors.WithStack(err)
+			return false, errors.WithStack(err)
 		}
 
 		if err := i.Close(); err != nil {
-			return true, false, errors.WithStack(err)
+			return false, errors.WithStack(err)
 		}
 
 		if err := os.Rename(i.Name(), fpath); err != nil {
-			return true, false, errors.WithStack(err)
+			return false, errors.WithStack(err)
 		}
 
-		return true, oldHasLocal && !newHasLocal, nil
+		rs.args.WhenBlockItemFilesUpdated(oldbfiles, newbfiles)
+
+		return oldHasLocal && !newHasLocal, nil
 	}
 }
 
@@ -763,6 +768,8 @@ func (rs *BlockItemReaders) removeEmptyHeightLock(height base.Height) (bool, err
 		case !removed:
 			return util.ErrLockedSetIgnore
 		default:
+			rs.args.WhenEmptyHeightDirectoryRemoved(height)
+
 			return nil
 		}
 	})

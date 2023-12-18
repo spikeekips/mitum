@@ -56,7 +56,7 @@ var AllACLScopes = []ACLScope{
 
 var ErrACLAccessDenied = util.NewIDError("access denied")
 
-var ACLEventLoggerName EventLoggerName = "acl"
+var ACLEventLogger EventLoggerName = "acl"
 
 type ACL struct {
 	m         util.LockedMap[ /* user */ string /* perm set */, map[ACLScope]ACLPerm]

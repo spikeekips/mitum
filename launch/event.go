@@ -44,14 +44,15 @@ var (
 var AllEventLoggerNames = []EventLoggerName{
 	AllEventLogger,
 	UnknownEventLogger,
-	NodeEventLoggerName,
+	NodeEventLogger,
 	NodeReadWriteEventLogger,
 	HandoverEventLogger,
-	ACLEventLoggerName,
-	EventLoggingEventLoggerName,
+	ACLEventLogger,
+	EventLoggingEventLogger,
+	BlockItemFilesEventLogger,
 }
 
-var EventLoggingEventLoggerName EventLoggerName = "event_logging"
+var EventLoggingEventLogger EventLoggerName = "event_logging"
 
 var PNameEventLoggingNetworkHandlers = ps.Name("event-log-network-handlers")
 
@@ -609,7 +610,7 @@ func QuicstreamHandlerEventLogging(
 ) (quicstreamheader.Handler[EventLoggingHeader], error) {
 	var el zerolog.Logger
 
-	switch i, found := eventLogging.Logger(EventLoggingEventLoggerName); {
+	switch i, found := eventLogging.Logger(EventLoggingEventLogger); {
 	case !found:
 		return nil, errors.Errorf("event logging logger not found")
 	default:
