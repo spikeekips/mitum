@@ -3,7 +3,6 @@ package launchcmd
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -421,7 +420,7 @@ func (cmd *ImportCommand) validateImported(
 
 func (cmd *ImportCommand) tempRemoteItemFileName(uri url.URL, compressFormat string) string {
 	h := valuehash.NewSHA256(util.ConcatBytesSlice(
-		[]byte(fmt.Sprintf("%v", uri)),
+		[]byte((&uri).String()),
 		[]byte(compressFormat),
 	))
 

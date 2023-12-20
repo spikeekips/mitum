@@ -66,7 +66,7 @@ func ImportBlocks(
 			case err != nil:
 				return err
 			case !known:
-				return errors.Errorf("unknown remote, %v", uri)
+				return errors.Errorf("unknown remote, %q", &uri)
 			case !found:
 				return f(nil, false, "")
 			default:
