@@ -171,8 +171,8 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 	}
 
 	for i := range sfs {
-		if _, ok := sfs[i].(NodeSign); !ok {
-			return e.Errorf("not NodeSign, %T", sfs[i])
+		if _, err := util.AssertInterfaceValue[NodeSign](sfs[i]); err != nil {
+			return e.Wrap(err)
 		}
 	}
 

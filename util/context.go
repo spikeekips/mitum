@@ -97,8 +97,8 @@ func checkLoadArgs(a []interface{}) error {
 	for i := 0; i < len(a)/2; i++ {
 		b := a[i*2]
 
-		if _, ok := b.(ContextKey); !ok {
-			return errors.Errorf("expected ContextKey, not %T", b)
+		if _, err := AssertInterfaceValue[ContextKey](b); err != nil {
+			return err
 		}
 	}
 

@@ -83,9 +83,9 @@ func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
 		return nil, errors.Errorf("nil")
 	}
 
-	switch k, ok := i.(PKKey); {
-	case !ok:
-		return nil, errors.Errorf("not PKKey, %T", i)
+	switch k, err := util.AssertInterfaceValue[PKKey](i); {
+	case err != nil:
+		return nil, err
 	case k.String() != s:
 		return nil, errors.Errorf("unknown key format")
 	default:
@@ -123,7 +123,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 			return nil, e.Wrap(err)
 		}
 
-		return i.(Publickey), nil //nolint:forcetypeassert //...
+		return util.AssertInterfaceValue[Publickey](i)
 	}
 
 	pub, err := decodePublickeyFromString(s, enc)

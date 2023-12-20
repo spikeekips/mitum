@@ -332,8 +332,8 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 func (st *baseBallotHandler) defaultPrepareSuffrageConfirmBallot(vp base.Voteproof) {
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
-	if _, ok := vp.(base.ExpelVoteproof); !ok {
-		l.Error().Msg("expected ExpelVoteproof for suffrage sign voting")
+	if _, err := util.AssertInterfaceValue[base.ExpelVoteproof](vp); err != nil {
+		l.Error().Err(err).Msg("wrong ExpelVoteproof for suffrage sign voting")
 
 		return
 	}

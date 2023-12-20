@@ -93,8 +93,8 @@ func IsValidProposalSignFact(sf ProposalSignFact, networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if _, ok := sf.Fact().(ProposalFact); !ok {
-		return e.Errorf("not ProposalFact, %T", sf.Fact())
+	if _, err := util.AssertInterfaceValue[ProposalFact](sf.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil

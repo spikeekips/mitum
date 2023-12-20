@@ -228,8 +228,8 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 		return e.Errorf("multiple signs found")
 	}
 
-	if _, ok := op.Fact().(SuffrageGenesisJoinFact); !ok {
-		return e.Errorf("not SuffrageGenesisJoinFact, %T", op.Fact())
+	if _, err := util.AssertInterfaceValue[SuffrageGenesisJoinFact](op.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil

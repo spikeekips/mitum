@@ -168,12 +168,9 @@ func (BaseOperationProcessReasonError) Hint() hint.Hint {
 }
 
 func (e BaseOperationProcessReasonError) Is(err error) bool {
-	b, ok := err.(BaseOperationProcessReasonError) //nolint:errorlint // ...
-	if !ok {
-		return false
-	}
+	b, eerr := util.AssertInterfaceValue[BaseOperationProcessReasonError](err)
 
-	return e.id == b.id
+	return eerr == nil && e.id == b.id
 }
 
 func (e BaseOperationProcessReasonError) Msg() string {

@@ -472,15 +472,15 @@ func (broker *baseBroker) readHead(
 
 	switch dataType {
 	case RequestHeaderDataType:
-		if _, ok := header.(RequestHeader); !ok {
-			return nil, nil, errors.Errorf("expected request header, but %T", header)
+		if _, err := util.AssertInterfaceValue[RequestHeader](header); err != nil {
+			return nil, nil, err
 		}
 	case ResponseHeaderDataType:
-		if _, ok := header.(ResponseHeader); !ok {
-			return nil, nil, errors.Errorf("expected response header, but %T", header)
+		if _, err := util.AssertInterfaceValue[ResponseHeader](header); err != nil {
+			return nil, nil, err
 		}
 	default:
-		return nil, nil, errors.Errorf("expected header, but %v", header)
+		return nil, nil, errors.Errorf("unknown data type header, %v", dataType)
 	}
 
 	return enc, header, nil

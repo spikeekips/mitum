@@ -72,8 +72,8 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 		return e.Errorf("multiple signs found")
 	}
 
-	if _, ok := op.Fact().(GenesisNetworkPolicyFact); !ok {
-		return e.Errorf("not GenesisNetworkPolicyFact, %T", op.Fact())
+	if _, err := util.AssertInterfaceValue[GenesisNetworkPolicyFact](op.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -180,8 +180,8 @@ func (op NetworkPolicy) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if _, ok := op.Fact().(NetworkPolicyFact); !ok {
-		return e.Errorf("not NetworkPolicyFact, %T", op.Fact())
+	if _, err := util.AssertInterfaceValue[NetworkPolicyFact](op.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil

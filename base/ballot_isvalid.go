@@ -20,8 +20,8 @@ func IsValidBallot(bl Ballot, networkID []byte) error {
 func IsValidINITBallot(bl INITBallot, _ []byte) error {
 	e := util.ErrInvalid.Errorf("init ballot")
 
-	if _, ok := bl.SignFact().(INITBallotSignFact); !ok {
-		return e.Errorf("INITBallotSignFact expected, not %T", bl.SignFact())
+	if _, err := util.AssertInterfaceValue[INITBallotSignFact](bl.SignFact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	switch bl.Voteproof().Point().Stage() { //nolint:exhaustive // state already checked
@@ -104,8 +104,8 @@ func isValidVoteproofInACCEPTBallot(bl Ballot, vp INITVoteproof) error {
 func IsValidACCEPTBallot(bl ACCEPTBallot, _ []byte) error {
 	e := util.ErrInvalid.Errorf("accept ballot")
 
-	if _, ok := bl.SignFact().(ACCEPTBallotSignFact); !ok {
-		return e.Errorf("ACCEPTBallotSignFact expected, not %T", bl.SignFact())
+	if _, err := util.AssertInterfaceValue[ACCEPTBallotSignFact](bl.SignFact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	switch ivp, err := util.AssertInterfaceValue[INITVoteproof](bl.Voteproof()); {
@@ -191,8 +191,8 @@ func IsValidINITBallotSignFact(sf BallotSignFact, networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if _, ok := sf.Fact().(INITBallotFact); !ok {
-		return e.Errorf("not INITBallotFact, %T", sf.Fact())
+	if _, err := util.AssertInterfaceValue[INITBallotFact](sf.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -205,8 +205,8 @@ func IsValidACCEPTBallotSignFact(sf BallotSignFact, networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if _, ok := sf.Fact().(ACCEPTBallotFact); !ok {
-		return e.Errorf("not ACCEPTBallotFact, %T", sf.Fact())
+	if _, err := util.AssertInterfaceValue[ACCEPTBallotFact](sf.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil

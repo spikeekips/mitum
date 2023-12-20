@@ -248,8 +248,8 @@ func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) 
 		return e.Errorf("wrong voteproof; vote result should be %q, not %q", base.VoteResultMajority, r)
 	}
 
-	if _, ok := vp.Majority().(base.INITBallotFact); !ok {
-		return e.Errorf("wrong voteproof; majority should be INITBallotFact, not %q", vp.Majority())
+	if _, err := util.AssertInterfaceValue[base.INITBallotFact](vp.Majority()); err != nil {
+		return e.Wrap(err)
 	}
 
 	// NOTE SuffrageConfirm INIT ballot does use expels from voteproof

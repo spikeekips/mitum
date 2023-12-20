@@ -124,8 +124,8 @@ func (op *SuffrageExpelOperation) SetToken(base.Token) error {
 func (op SuffrageExpelOperation) IsValid(networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid SuffrageExpelOperation")
 
-	if _, ok := op.Fact().(SuffrageExpelFact); !ok {
-		return e.Errorf("not SuffrageExpelFact, %T", op.Fact())
+	if _, err := util.AssertInterfaceValue[SuffrageExpelFact](op.Fact()); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := op.BaseNodeOperation.IsValid(networkID); err != nil {
