@@ -28,23 +28,7 @@ import (
 
 var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-v0.0.1")
 
-var (
-	rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
-	rBlockItemFiles  = regexp.MustCompile(`^([0-9][0-9]*)\.json$`)
-)
-
-var (
-	blockFilenames = map[base.BlockItemType]string{
-		base.BlockItemMap:            "map",
-		base.BlockItemProposal:       "proposal",
-		base.BlockItemOperations:     "operations",
-		base.BlockItemOperationsTree: "operations_tree",
-		base.BlockItemStates:         "states",
-		base.BlockItemStatesTree:     "states_tree",
-		base.BlockItemVoteproofs:     "voteproofs",
-	}
-	BlockTempDirectoryPrefix = "temp"
-)
+var BlockTempDirectoryPrefix = "temp"
 
 type LocalFSWriter struct {
 	vps        [2]base.Voteproof
@@ -513,7 +497,7 @@ func (w *LocalFSWriter) saveMap() error {
 }
 
 func (w *LocalFSWriter) filename(t base.BlockItemType) (filename string, temppath string, err error) {
-	f, err := DefaultBlockFileName(t, w.enc.Hint().Type())
+	f, err := DefaultBlockItemFileName(t, w.enc.Hint().Type())
 	if err != nil {
 		return "", "", err
 	}
@@ -619,6 +603,11 @@ func FindHighestDirectory(root string) (_ base.Height, directory string, found b
 	}
 }
 
+var (
+	rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
+	rBlockItemFiles  = regexp.MustCompile(`^([0-9][0-9]*)\.json$`)
+)
+
 func FindHighestBlockItemFiles(p string, depth int) (height int64, lastpath string, _ error) {
 	switch {
 	case depth > 6: //nolint:gomnd //...
@@ -712,10 +701,9 @@ func findHighestBlockItemFilesInDirectory(p string) (int64, string, error) {
 	return *highest, filepath.Join(p, last), nil
 }
 
-func BlockFileName(t base.BlockItemType, hinttype hint.Type, compressFormat string) (string, error) {
-	name, found := blockFilenames[t]
-	if !found {
-		return "", errors.Errorf("unknown block map item type, %q", t)
+func BlockItemFileName(t base.BlockItemType, hinttype hint.Type, compressFormat string) (string, error) {
+	if err := t.IsValid(nil); err != nil {
+		return "", err
 	}
 
 	ext, _ := encoder.EncodersExtension(hinttype)
@@ -724,17 +712,17 @@ func BlockFileName(t base.BlockItemType, hinttype hint.Type, compressFormat stri
 		ext += "." + compressFormat
 	}
 
-	return fmt.Sprintf("%s.%s", name, ext), nil
+	return fmt.Sprintf("%s.%s", t.String(), ext), nil
 }
 
-func DefaultBlockFileName(t base.BlockItemType, hinttype hint.Type) (string, error) {
+func DefaultBlockItemFileName(t base.BlockItemType, hinttype hint.Type) (string, error) {
 	var compressFormat string
 
 	if isCompressedBlockItemType(t) {
 		compressFormat = "gz"
 	}
 
-	return BlockFileName(t, hinttype, compressFormat)
+	return BlockItemFileName(t, hinttype, compressFormat)
 }
 
 func CleanBlockTempDirectory(root string) error {

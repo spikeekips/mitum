@@ -53,7 +53,7 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 
 	var w io.WriteCloser
 
-	switch i, err := DefaultBlockFileName(base.BlockItemMap, l.enc.Hint().Type()); {
+	switch i, err := DefaultBlockItemFileName(base.BlockItemMap, l.enc.Hint().Type()); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
@@ -105,7 +105,7 @@ func (l *LocalFSImporter) WriteItem(
 ) (io.WriteCloser, error) {
 	e := util.StringError("write item to local fs")
 
-	f, err := BlockFileName(t, enc.Type(), compressFormat)
+	f, err := BlockItemFileName(t, enc.Type(), compressFormat)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}

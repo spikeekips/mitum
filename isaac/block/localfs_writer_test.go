@@ -110,7 +110,7 @@ type testLocalFSWriter struct {
 }
 
 func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockItemType, islist bool) (string, io.Reader, error) {
-	fname, err := DefaultBlockFileName(d, t.Enc.Hint().Type())
+	fname, err := DefaultBlockItemFileName(d, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	fpath := filepath.Join(temp, fname)
@@ -236,7 +236,7 @@ func (t *testLocalFSWriter) TestSave() {
 	})
 
 	checkfile := func(d base.BlockItemType) {
-		fname, err := DefaultBlockFileName(d, t.Enc.Hint().Type())
+		fname, err := DefaultBlockItemFileName(d, t.Enc.Hint().Type())
 		t.NoError(err)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
 		t.NoError(err)
@@ -253,7 +253,7 @@ func (t *testLocalFSWriter) TestSave() {
 	})
 
 	t.Run("check map file", func() {
-		fname, err := DefaultBlockFileName(base.BlockItemMap, t.Enc.Hint().Type())
+		fname, err := DefaultBlockItemFileName(base.BlockItemMap, t.Enc.Hint().Type())
 		t.NoError(err)
 
 		fpath := filepath.Join(newroot, fname)

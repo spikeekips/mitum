@@ -80,7 +80,7 @@ func (t *testReaders) prepare(height base.Height) {
 }
 
 func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.File {
-	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
+	fname, err := DefaultBlockItemFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
 	p := filepath.Join(t.Root, isaac.BlockHeightDirectory(height), fname)
 
@@ -91,7 +91,7 @@ func (t *testReaders) openFile(height base.Height, it base.BlockItemType) *os.Fi
 }
 
 func (t *testReaders) updateItem(height base.Height, it base.BlockItemType, b []byte) {
-	fname, err := DefaultBlockFileName(it, t.Encs.JSON().Hint().Type())
+	fname, err := DefaultBlockItemFileName(it, t.Encs.JSON().Hint().Type())
 	t.NoError(err)
 	p := filepath.Join(t.Root, isaac.BlockHeightDirectory(height), fname)
 

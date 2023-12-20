@@ -58,7 +58,7 @@ func (t *testItemReader) pick(it base.BlockItemType) *util.CompressedReader {
 }
 
 func (t *testItemReader) openFile(it base.BlockItemType) *os.File {
-	n, err := DefaultBlockFileName(it, t.Enc.Hint().Type())
+	n, err := DefaultBlockItemFileName(it, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	f, err := os.Open(filepath.Join(t.Root, isaac.BlockHeightDirectory(33), n))
@@ -376,7 +376,7 @@ func (t *testItemReader) TestDecodeItems() {
 
 			u.Count = u.Count * 2
 
-			fname, err := DefaultBlockFileName(base.BlockItemOperations, t.Enc.Hint().Type())
+			fname, err := DefaultBlockItemFileName(base.BlockItemOperations, t.Enc.Hint().Type())
 			t.NoError(err)
 
 			cf, err := os.OpenFile(filepath.Join(t.Root, isaac.BlockHeightDirectory(33), fname), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)

@@ -33,7 +33,7 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 }
 
 func (t *testBlockImporter) openFile(root string, it base.BlockItemType) *os.File {
-	n, err := DefaultBlockFileName(it, t.Enc.Hint().Type())
+	n, err := DefaultBlockItemFileName(it, t.Enc.Hint().Type())
 	t.NoError(err)
 
 	f, err := os.Open(filepath.Join(root, n))
