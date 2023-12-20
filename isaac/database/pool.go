@@ -792,7 +792,7 @@ func (db *TempPool) EmptyHeights(f func(base.Height) error) error {
 	return pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixEmptyHeight[:]),
 		func(key, _ []byte) (bool, error) {
-			height, err := heightFromleveldbKey(key, leveldbKeyPrefixEmptyHeight)
+			height, err := heightFromKey(key, leveldbKeyPrefixEmptyHeight)
 			if err != nil {
 				return false, err
 			}
@@ -880,7 +880,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 	_ = pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation[:]),
 		func(key, _ []byte) (bool, error) {
-			i, err := heightFromleveldbKey(key, leveldbKeyPrefixRemovedNewOperation)
+			i, err := heightFromKey(key, leveldbKeyPrefixRemovedNewOperation)
 			if err != nil {
 				return true, nil
 			}
@@ -976,7 +976,7 @@ func (db *TempPool) cleanByHeight(
 	_ = pst.Iter(
 		leveldbutil.BytesPrefix(prefix[:]),
 		func(key, b []byte) (bool, error) {
-			i, err := heightFromleveldbKey(key, prefix)
+			i, err := heightFromKey(key, prefix)
 			if err != nil {
 				keys = append(keys, [3]interface{}{key, b, nil})
 

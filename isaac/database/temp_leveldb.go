@@ -73,14 +73,12 @@ func NewTempLeveldbFromPrefix(
 }
 
 func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, error) {
-	e := util.StringError("new TempLeveldbDatabase from TempLeveldbDatabase")
-
 	var mp base.BlockMap
 	var mpmeta, mpb []byte
 
 	switch i, meta, j := wst.blockmaps(); {
 	case i == nil:
-		return nil, e.Errorf("empty blockmap")
+		return nil, errors.Errorf("empty blockmap")
 	default:
 		mp = i
 		mpmeta = meta

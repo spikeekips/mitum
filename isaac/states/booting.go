@@ -86,7 +86,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 				Interface("manifest", manifest).
 				Msg("manifest and last accept voteproof do not match")
 
-			return nil, e.Wrap(err)
+			return nil, e.WithMessage(err, "compare manifest with accept voteproof")
 		}
 	}
 
@@ -122,13 +122,11 @@ func newBootingSwitchContext(from StateType) bootingSwitchContext {
 }
 
 func compareManifestWithACCEPTVoteproof(manifest base.Manifest, vp base.ACCEPTVoteproof) error {
-	e := util.StringError("compare manifest with accept voteproof")
-
 	switch {
 	case manifest.Height() != vp.Point().Height():
-		return e.Errorf("height does not match; %d != %d", manifest.Height(), vp.Point().Height())
+		return errors.Errorf("height does not match; %d != %d", manifest.Height(), vp.Point().Height())
 	case !manifest.Hash().Equal(vp.BallotMajority().NewBlock()):
-		return e.Errorf("hash does not match")
+		return errors.Errorf("hash does not match")
 	default:
 		return nil
 	}

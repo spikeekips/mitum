@@ -816,20 +816,18 @@ type indexedTreeNode struct {
 }
 
 func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in indexedTreeNode, _ error) {
-	e := util.StringError("unmarshal indexed tree node")
-
 	bf := bytes.NewBuffer(b)
 	defer bf.Reset()
 
 	switch i, err := bf.ReadBytes(','); {
 	case err != nil:
-		return in, e.Wrap(err)
+		return in, errors.WithStack(err)
 	case len(i) < 2:
-		return in, e.Errorf("find index string")
+		return in, errors.Errorf("find index string")
 	default:
 		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)
 		if err != nil {
-			return in, e.Wrap(err)
+			return in, errors.WithStack(err)
 		}
 
 		in.Index = index
@@ -837,7 +835,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 
 	left, err := io.ReadAll(bf)
 	if err != nil {
-		return in, e.Wrap(err)
+		return in, errors.WithStack(err)
 	}
 
 	switch i, err := enc.DecodeWithHint(left, ht); {

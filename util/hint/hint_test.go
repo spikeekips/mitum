@@ -34,8 +34,8 @@ func (t *testHint) TestParse() {
 		{name: "valid", s: "showme-v1.2.3+incompatible"},
 		{name: "ended with whitespace", s: "showme-v1.2.3 "},
 		{name: "started with whitespace", s: " showme-v1.2.3 "},
-		{name: "empty version #0", s: "showme", err: "invalid hint string"},
-		{name: "empty version #1", s: "showme-", err: "invalid hint string"},
+		{name: "empty version #0", s: "showme", err: "empty version"},
+		{name: "empty version #1", s: "showme-", err: "empty version"},
 		{name: "inside v+hyphen", s: "sho-vwme-v1.2.3+incompatible", expected: "sho-vwme-v1.2.3+incompatible"},
 	}
 
@@ -77,8 +77,8 @@ func (t *testHint) TestIsValid() {
 		expected string
 		err      string
 	}{
-		{name: "hyphen-v", s: "sho-v1.2.3wme-v1.2.3+incompatible", expected: "sho-v1.2.3wme-v1.2.3+incompatible", err: "invalid version in hint"},
-		{name: "too long version", s: "showme-v1.2.3+" + strings.Repeat("a", MaxVersionLength-6), err: "too long version in hint"},
+		{name: "hyphen-v", s: "sho-v1.2.3wme-v1.2.3+incompatible", expected: "sho-v1.2.3wme-v1.2.3+incompatible", err: "empty version"},
+		{name: "too long version", s: "showme-v1.2.3+" + strings.Repeat("a", MaxVersionLength-6), err: "too long version"},
 	}
 
 	for i, c := range cases {

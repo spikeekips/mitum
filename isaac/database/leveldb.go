@@ -318,8 +318,8 @@ func leveldbEmptyHeight(height base.Height) []byte { // revive:disable-line:flag
 	return leveldbstorage.NewPrefixKey(leveldbKeyPrefixEmptyHeight, height.Bytes())
 }
 
-func heightFromleveldbKey(b []byte, prefix leveldbstorage.KeyPrefix) (base.Height, error) {
-	e := util.StringError("parse height from leveldbBlockMapKey")
+func heightFromKey(b []byte, prefix leveldbstorage.KeyPrefix) (base.Height, error) {
+	e := util.StringError("parse height from key")
 
 	if len(b) < len(prefix)+8 {
 		return base.NilHeight, e.Errorf("too short")

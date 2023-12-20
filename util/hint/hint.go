@@ -74,13 +74,11 @@ func ParseHint(s string) (Hint, error) {
 }
 
 func parseHint(s string) (Hint, error) {
-	e := util.ErrInvalid.Errorf("invalid hint string")
-
 	var ns string
 
 	switch b := []byte(s); {
 	case len(b) < MinHintLength:
-		return Hint{}, e.Errorf("too short hint string")
+		return Hint{}, errors.Errorf("too short hint")
 	default:
 		ns = string(bytes.TrimRight(b, "\x00"))
 	}
@@ -88,7 +86,7 @@ func parseHint(s string) (Hint, error) {
 	ns = strings.TrimSpace(ns)
 
 	if l := regVersion.FindStringIndex(ns); len(l) < 1 {
-		return Hint{}, util.ErrInvalid.Errorf("invalid hint string, %q", ns)
+		return Hint{}, errors.Errorf("empty version, %q", ns)
 	}
 
 	return EnsureParseHint(ns), nil
@@ -105,15 +103,15 @@ func MustNewHint(s string) Hint {
 
 func (ht Hint) IsValid([]byte) error {
 	if err := ht.t.IsValid(nil); err != nil {
-		return errors.WithMessage(err, "invalid type in hint")
+		return errors.WithMessage(err, "type")
 	}
 
 	if err := ht.v.IsValid(nil); err != nil {
-		return errors.WithMessage(err, "invalid version in hint")
+		return errors.WithMessage(err, "version")
 	}
 
 	if l := len(ht.v.String()); l > MaxVersionLength {
-		return util.ErrInvalid.Errorf("too long version in hint, %d > %d", l, MaxVersionLength)
+		return util.ErrInvalid.Errorf("too long version, %d > %d", l, MaxVersionLength)
 	}
 
 	if len(ht.s) < 1 || len(ht.b) < 1 {

@@ -338,7 +338,7 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 
 		temp, err := newTempLeveldbFromBlockWriteStorage(db)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithMessage(err, "new TempLeveldbDatabase from TempLeveldbDatabase")
 		}
 
 		return temp, nil
@@ -446,28 +446,11 @@ func emptyPrefixStoragePrefixByHeight(label leveldbstorage.KeyPrefix, height bas
 }
 
 func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
-	e := util.StringError("parse prefix of PrefixStorage from key")
-
 	if len(b) < prefixStoragePrefixByHeightLength {
-		return nil, e.Errorf("wrong key of prefix storage prefix")
+		return nil, errors.Errorf("wrong key of prefix storage prefix")
 	}
 
 	return b[:prefixStoragePrefixByHeightLength], nil
-}
-
-func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
-	e := util.StringError("parse height from PrefixStoragePrefix")
-
-	if len(b) < prefixStoragePrefixByHeightLength {
-		return base.NilHeight, e.Errorf("wrong key of prefix storage prefix")
-	}
-
-	h, err := base.ParseHeightBytes(b[2:10])
-	if err != nil {
-		return base.NilHeight, e.Wrap(err)
-	}
-
-	return h, nil
 }
 
 // removeHigherHeights removes all the BlockWrite labeled data higher than

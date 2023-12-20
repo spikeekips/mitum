@@ -38,12 +38,12 @@ func EnsureParseVersion(s string) Version {
 // ParseVersion tries to parse version string and also checks IsValid().
 func ParseVersion(s string) (Version, error) {
 	if !strings.HasPrefix(s, "v") {
-		return Version{}, ErrInvalid.Errorf("invalid version string, %q", s)
+		return Version{}, ErrInvalid.Errorf("invalid version, %q", s)
 	}
 
 	v, err := semver.NewVersion(s)
 	if err != nil {
-		return Version{}, ErrInvalid.WithMessage(err, "version string=%q", s)
+		return Version{}, ErrInvalid.WithMessage(err, "version")
 	}
 
 	p := newVersion(v)

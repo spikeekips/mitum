@@ -455,7 +455,7 @@ func (db *RedisPermanent) mergeSuffrageProofsTempDatabaseFromLeveldb(ctx context
 	return tpst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof[:]),
 		func(k, b []byte) (bool, error) {
-			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProof)
+			height, err := heightFromKey(k, leveldbKeySuffrageProof)
 			if err != nil {
 				return false, err
 			}
@@ -479,7 +479,7 @@ func (db *RedisPermanent) mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveld
 	return tpst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight[:]),
 		func(k, b []byte) (bool, error) {
-			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProofByBlockHeight)
+			height, err := heightFromKey(k, leveldbKeySuffrageProofByBlockHeight)
 			if err != nil {
 				return false, err
 			}
@@ -511,7 +511,7 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 	return tpst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap[:]),
 		func(k, b []byte) (bool, error) {
-			height, err := heightFromleveldbKey(k, leveldbKeyPrefixBlockMap)
+			height, err := heightFromKey(k, leveldbKeyPrefixBlockMap)
 			if err != nil {
 				return false, err
 			}

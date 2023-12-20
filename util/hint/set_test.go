@@ -152,7 +152,7 @@ func (t *testCompatibleSet) TestFindByString() {
 		t.False(found)
 		t.Error(err)
 		t.Nil(v)
-		t.ErrorContains(err, "invalid hint string")
+		t.ErrorContains(err, "empty version")
 	})
 }
 

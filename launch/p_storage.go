@@ -740,24 +740,22 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder, stcachesize int) (
 	*isaacdatabase.RedisPermanent, error,
 ) {
-	e := util.StringError("load redis PermanentDatabase")
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
 	defer cancel()
 
 	option, err := redis.ParseURL(uri)
 	if err != nil {
-		return nil, e.WithMessage(err, "invalid redis url")
+		return nil, errors.WithMessage(err, "invalid redis url")
 	}
 
 	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
 	if err != nil {
-		return nil, e.WithMessage(err, "create redis storage")
+		return nil, errors.WithMessage(err, "create redis storage")
 	}
 
 	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc, stcachesize)
 	if err != nil {
-		return nil, e.Wrap(err)
+		return nil, err
 	}
 
 	return perm, nil

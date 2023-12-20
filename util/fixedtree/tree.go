@@ -122,11 +122,9 @@ func (t Tree) Proof(key string) (Proof, error) {
 }
 
 func childrenNodes(nodes []Node, index uint64) (c [2]Node, err error) {
-	e := util.StringError("generate node hash")
-
 	i, err := children(len(nodes), index)
 	if err != nil {
-		return c, e.Wrap(err)
+		return c, errors.WithMessage(err, "children node hashes")
 	}
 
 	switch {

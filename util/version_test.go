@@ -60,7 +60,7 @@ func (t *testVersion) TestParse() {
 		patch      uint64
 	}{
 		{name: "simple", s: "v1.2.3", major: 1, minor: 2, patch: 3, prerelease: ""},
-		{name: "not v prefix", s: "1.2.3", err: "invalid version string"},
+		{name: "not v prefix", s: "1.2.3", err: "version"},
 		{name: "go style", s: "v1.2.3", major: 1, minor: 2, patch: 3, prerelease: ""},
 		{name: "+prerelease", s: "v1.2.3-alpha", major: 1, minor: 2, patch: 3, prerelease: "alpha"},
 		{name: "+prerelease+version", s: "v1.2.3-alpha.4", major: 1, minor: 2, patch: 3, prerelease: "alpha.4"},
@@ -145,7 +145,7 @@ func (t *testVersion) TestIsValid() {
 		{name: "empty", s: "", err: "empty version string"},
 		{name: "empty with blank#0", s: "  ", err: "empty version string"},
 		{name: "empty with blank#1", s: "\t\t", err: "empty version string"},
-		{name: "without v", s: "1.2.3", err: "invalid version string"},
+		{name: "without v", s: "1.2.3", err: "version"},
 		{name: "invalid semver#0", s: "va.2.3", err: "invalid semver"},
 		{name: "invalid semver#1", s: "v1=beta", err: "invalid semver"},
 	}

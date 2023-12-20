@@ -3,6 +3,7 @@ package base
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -51,6 +52,7 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 
 	ad, err := decodeAddress(s, enc)
 	if err != nil {
+		err = errors.WithMessage(err, "address")
 		objcache.Set(s, err, nil)
 
 		return nil, err
@@ -62,18 +64,16 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 }
 
 func decodeAddress(s string, enc encoder.Encoder) (ad Address, _ error) {
-	e := util.StringError("decode address")
-
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
 
 	switch {
 	case err != nil:
-		return nil, e.Wrap(err)
+		return nil, err
 	case i == nil:
 		return nil, nil
 	default:
 		if err := util.SetInterfaceValue(i, &ad); err != nil {
-			return nil, e.Wrap(err)
+			return nil, err
 		}
 
 		return ad, nil
