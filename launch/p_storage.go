@@ -481,7 +481,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 		readers = i
 	}
 
-	if err := isaacblock.ValidateLastBlocks(readers, fromRemotes, db, isaacparams.NetworkID()); err != nil {
+	if err := isaacblock.IsValidLastBlocks(readers, fromRemotes, db, isaacparams.NetworkID()); err != nil {
 		var derr isaacblock.ErrValidatedDifferentHeightBlockMaps
 		if errors.As(err, &derr) {
 			l := log.Log().With().Err(err).

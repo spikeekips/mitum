@@ -246,7 +246,7 @@ func (pps *ProposalProcessors) fetchFact(
 func (pps *ProposalProcessors) newProcessor(
 	ctx context.Context, point base.Point, facthash util.Hash, previous base.Manifest,
 ) (ProposalProcessor, error) {
-	e := util.StringError(" processor, %q", facthash)
+	e := util.StringError("processor, %q", facthash)
 
 	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 

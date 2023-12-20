@@ -43,7 +43,7 @@ func NewBlockImporter(
 	mergeBlockWriteDatabasef func(context.Context) error,
 	networkID base.NetworkID,
 ) (*BlockImporter, error) {
-	e := util.StringError(" BlockImporter")
+	e := util.StringError("BlockImporter")
 
 	localfs, err := NewLocalFSImporter(root, encs.JSON(), encs.Default(), m)
 	if err != nil {
@@ -231,7 +231,7 @@ func (im *BlockImporter) importOperations(ir isaac.BlockItemReader) error {
 	}
 	if im.m.Manifest().Height() == base.GenesisHeight {
 		validate = func(op base.Operation) error {
-			return base.ValidateGenesisOperation(op, im.networkID, im.m.Signer())
+			return base.IsValidGenesisOperation(op, im.networkID, im.m.Signer())
 		}
 	}
 
@@ -331,7 +331,7 @@ func (im *BlockImporter) importVoteproofs(ir isaac.BlockItemReader) error {
 				}
 			}
 
-			if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
+			if err := base.IsValidVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 				return err
 			}
 

@@ -44,7 +44,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 		)
 		t.Error(err)
 		t.False(started)
-		t.ErrorContains(err, "signature verification failed")
+		t.ErrorContains(err, "signature verification")
 	})
 
 	t.Run("ok", func() {
@@ -132,7 +132,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 		)
 		t.Error(err)
 		t.False(canceled)
-		t.ErrorContains(err, "signature verification failed")
+		t.ErrorContains(err, "signature verification")
 	})
 
 	t.Run("ok", func() {
@@ -219,7 +219,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 		)
 		t.Error(err)
 		t.False(checked)
-		t.ErrorContains(err, "signature verification failed")
+		t.ErrorContains(err, "signature verification")
 	})
 
 	t.Run("ok", func() {
@@ -308,7 +308,7 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 		t.Error(err)
 		t.Empty(rid)
 		t.False(canmove)
-		t.ErrorContains(err, "signature verification failed")
+		t.ErrorContains(err, "signature verification")
 	})
 
 	t.Run("ok", func() {
@@ -461,7 +461,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 		)
 		t.Error(err)
 		t.False(checked)
-		t.ErrorContains(err, "signature verification failed")
+		t.ErrorContains(err, "signature verification")
 	})
 
 	t.Run("ok", func() {

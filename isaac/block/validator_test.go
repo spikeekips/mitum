@@ -109,11 +109,11 @@ func (t *testValidateLastBlocks) TestOK() {
 	t.WalkFS(a)
 
 	t.Run("ok", func() {
-		t.NoError(ValidateLastBlocks(t.readers(a), nil, db, t.LocalParams.NetworkID()))
+		t.NoError(IsValidLastBlocks(t.readers(a), nil, db, t.LocalParams.NetworkID()))
 	})
 
 	t.Run("wrong local fs root", func() {
-		err := ValidateLastBlocks(t.NewReaders("/tmp"), nil, db, t.LocalParams.NetworkID())
+		err := IsValidLastBlocks(t.NewReaders("/tmp"), nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 	})
 }
@@ -127,7 +127,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(), nil)
 		t.NoError(err)
 
-		err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
+		err = IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInLocalFS))
 	})
@@ -136,7 +136,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		_, db := t.buildBlocks("no1", 3)
 		readers := t.readers("/tmp")
 
-		err := ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
+		err := IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, ErrLastBlockMapOnlyInDatabase))
 	})
@@ -150,7 +150,7 @@ func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase(
 	t.NoError(err)
 	t.True(removed)
 
-	err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
+	err = IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 	t.Error(err)
 
 	var derr *ErrValidatedDifferentHeightBlockMaps
@@ -175,7 +175,7 @@ func (t *testValidateLastBlocks) TestDifferentHash() {
 
 	t.NoError(moveHeightDirectory(3, t.Root, a))
 
-	err = ValidateLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
+	err = IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 	t.Error(err)
 	t.ErrorContains(err, "different manifest hash")
 }
@@ -191,20 +191,20 @@ type testValidateAllBlockMapsFromLocalFS struct {
 func (t *testValidateAllBlockMapsFromLocalFS) TestOK() {
 	a := t.buildLocalFS("no0", 3)
 
-	t.NoError(ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID()))
+	t.NoError(IsValidAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID()))
 }
 
 func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 	a := t.buildLocalFS("no0", 3)
 
 	t.Run("empty", func() {
-		err := ValidateAllBlockMapsFromLocalFS(t.readers(util.UUID().String()), 3, t.LocalParams.NetworkID())
+		err := IsValidAllBlockMapsFromLocalFS(t.readers(util.UUID().String()), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, os.ErrNotExist))
 	})
 
 	t.Run("last not found", func() {
-		err := ValidateAllBlockMapsFromLocalFS(t.readers(a), 4, t.LocalParams.NetworkID())
+		err := IsValidAllBlockMapsFromLocalFS(t.readers(a), 4, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 	})
@@ -214,7 +214,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 		t.NoError(err)
 		t.True(removed)
 
-		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
+		err = IsValidAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrNotFound))
 	})
@@ -234,7 +234,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 
 		t.NoError(moveHeightDirectory(2, t.Root, a))
 
-		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
+		err = IsValidAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.ErrorContains(err, "previous does not match", "%+v", err)
 	})
@@ -255,7 +255,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
 		t.NoError(os.Rename(isaac.BlockItemFilesPath(t.Root, 1), isaac.BlockItemFilesPath(a, 2)))
 		t.NoError(os.Rename(filepath.Join(t.Root, isaac.BlockHeightDirectory(1)), lastheightdirectory))
 
-		err = ValidateAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
+		err = IsValidAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
 		t.ErrorContains(err, "different height blockmaps")
 	})

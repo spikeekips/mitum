@@ -275,7 +275,7 @@ func (h HandoverMessageData) LoadVoteproofData() (base.Voteproof, error) {
 }
 
 func (h HandoverMessageData) LoadINITVoteproofData() (pr base.ProposalSignFact, ivp base.INITVoteproof, _ error) {
-	e := util.StringError("invalid init voteproof data")
+	e := util.ErrInvalid.Errorf("init voteproof data")
 
 	var i []interface{}
 
@@ -319,7 +319,7 @@ func (h HandoverMessageData) isValidData(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidVoteproof(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid voteproof")
+	e := util.ErrInvalid.Errorf("voteproof")
 
 	switch vp, err := h.LoadVoteproofData(); {
 	case err != nil:
@@ -334,7 +334,7 @@ func (h HandoverMessageData) isValidVoteproof(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidINITVoteproof(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid init voteproof")
+	e := util.ErrInvalid.Errorf("init voteproof")
 
 	switch pr, vp, err := h.LoadINITVoteproofData(); {
 	case err != nil:
@@ -355,7 +355,7 @@ func (h HandoverMessageData) isValidINITVoteproof(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidBallot(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid ballot")
+	e := util.ErrInvalid.Errorf("ballot")
 
 	switch vp, err := util.AssertInterfaceValue[base.Ballot](h.data); {
 	case err != nil:
@@ -370,7 +370,7 @@ func (h HandoverMessageData) isValidBallot(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidProposal(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid proposal")
+	e := util.ErrInvalid.Errorf("proposal")
 
 	switch pr, err := util.AssertInterfaceValue[base.ProposalSignFact](h.data); {
 	case err != nil:
@@ -385,7 +385,7 @@ func (h HandoverMessageData) isValidProposal(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidOperation(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid operation")
+	e := util.ErrInvalid.Errorf("operation")
 
 	switch op, err := util.AssertInterfaceValue[base.Operation](h.data); {
 	case err != nil:
@@ -400,7 +400,7 @@ func (h HandoverMessageData) isValidOperation(b []byte) error {
 }
 
 func (h HandoverMessageData) isValidSuffrageVoting(b []byte) error {
-	e := util.ErrInvalid.Errorf("invalid suffrage voting")
+	e := util.ErrInvalid.Errorf("suffrage voting")
 
 	switch sv, err := util.AssertInterfaceValue[base.SuffrageExpelOperation](h.data); {
 	case err != nil:

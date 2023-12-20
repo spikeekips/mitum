@@ -24,13 +24,13 @@ func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
 }
 
 func (p Proof) IsValid(b []byte) error {
-	e := util.StringError("invalid Proof")
+	e := util.ErrInvalid.Errorf("Proof")
 
 	switch n := len(p.nodes); {
 	case n < 1:
-		return e.Wrap(util.ErrInvalid.Errorf("empty extracted"))
+		return e.Errorf("empty extracted")
 	case n%2 != 1:
-		return e.Wrap(util.ErrInvalid.Errorf("invalid number of extracted"))
+		return e.Errorf("invalid number of extracted")
 	}
 
 end:
@@ -39,7 +39,7 @@ end:
 
 		switch {
 		case i > 2 && n == nil:
-			return e.Wrap(util.ErrInvalid.Errorf("empty node found at %d", i))
+			return e.Errorf("empty node found at %d", i)
 		case n == nil:
 			continue end
 		}
@@ -56,7 +56,7 @@ end:
 
 		return true, n.Key()
 	}); found {
-		return errors.Errorf("duplicated key found")
+		return e.Errorf("duplicated key found")
 	}
 
 	if _, found := util.IsDuplicatedSlice(p.nodes, func(n Node) (bool, string) {
@@ -66,7 +66,7 @@ end:
 
 		return true, n.Hash().String()
 	}); found {
-		return errors.Errorf("duplicated hash found")
+		return e.Errorf("duplicated hash found")
 	}
 
 	return nil

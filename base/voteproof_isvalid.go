@@ -148,19 +148,19 @@ func IsValidACCEPTVoteproof(vp ACCEPTVoteproof, _ NetworkID) error {
 }
 
 func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
-	e := util.StringError("invalid fact in voteproof")
+	e := util.ErrInvalid.Errorf("invalid fact in voteproof")
 
 	// NOTE check point
 	if !vp.Point().Equal(fact.Point()) {
-		return e.Wrap(util.ErrInvalid.Errorf(
-			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point()))
+		return e.Errorf(
+			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point())
 	}
 
 	return nil
 }
 
 func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
-	e := util.StringError("invalid sign fact in voteproof")
+	e := util.ErrInvalid.Errorf("invalid sign fact in voteproof")
 
 	if err := isValidFactInVoteproof( //nolint:forcetypeassert // already checked
 		vp, sf.Fact().(BallotFact)); err != nil {
@@ -171,7 +171,7 @@ func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
 }
 
 func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) error {
-	e := util.StringError("invalid voteproof with suffrage")
+	e := util.ErrInvalid.Errorf("invalid voteproof with suffrage")
 
 	sfs := vp.SignFacts()
 
@@ -180,9 +180,9 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) erro
 
 		switch {
 		case !suf.Exists(n.Node()):
-			return e.Wrap(util.ErrInvalid.Errorf("unknown node found, %q", n.Node()))
+			return e.Errorf("unknown node found, %q", n.Node())
 		case !suf.ExistsPublickey(n.Node(), n.Signer()):
-			return e.Wrap(util.ErrInvalid.Errorf("wrong publickey"))
+			return e.Errorf("wrong publickey")
 		}
 	}
 
@@ -192,18 +192,18 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) erro
 
 		switch {
 		case result != vp.Result():
-			return e.Wrap(util.ErrInvalid.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result))
+			return e.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result)
 		case result == VoteResultDraw:
 			if vp.Majority() != nil {
-				return e.Wrap(util.ErrInvalid.Errorf("not empty majority for draw"))
+				return e.Errorf("not empty majority for draw")
 			}
 		case result == VoteResultMajority:
 			if vp.Majority() == nil {
-				return e.Wrap(util.ErrInvalid.Errorf("empty majority for majority"))
+				return e.Errorf("empty majority for majority")
 			}
 
 			if !vp.Majority().Hash().Equal(m[majoritykey].Hash()) {
-				return e.Wrap(util.ErrInvalid.Errorf("wrong majority for majority"))
+				return e.Errorf("wrong majority for majority")
 			}
 		}
 	}

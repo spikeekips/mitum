@@ -83,7 +83,7 @@ func (er *ErrValidatedDifferentHeightBlockMaps) LocalFSHeight() base.Height {
 	return er.localfs
 }
 
-func ValidateLastBlocks(
+func IsValidLastBlocks(
 	readers *isaac.BlockItemReaders,
 	remotes isaac.RemotesBlockItemReadFunc,
 	db isaac.Database,
@@ -172,7 +172,7 @@ func loadLastBlockMapFromLocalFS(
 	)
 }
 
-func ValidateAllBlockMapsFromLocalFS(
+func IsValidAllBlockMapsFromLocalFS(
 	readers *isaac.BlockItemReaders,
 	last base.Height,
 	networkID base.NetworkID,
@@ -233,7 +233,7 @@ func ValidateAllBlockMapsFromLocalFS(
 				validateLock.Lock()
 				defer validateLock.Unlock()
 
-				if err := base.ValidateMaps(m, maps, lastprev); err != nil {
+				if err := base.IsValidMaps(m, maps, lastprev); err != nil {
 					return err
 				}
 
@@ -253,7 +253,7 @@ func ValidateAllBlockMapsFromLocalFS(
 	return nil
 }
 
-func ValidateBlockFromLocalFS(
+func IsValidBlockFromLocalFS(
 	itemf isaac.BlockItemReadersItemFunc,
 	height base.Height,
 	networkID base.NetworkID,
@@ -293,19 +293,19 @@ func ValidateBlockFromLocalFS(
 		return err
 	}
 
-	if err := base.ValidateProposalWithManifest(pr, bm.Manifest()); err != nil {
+	if err := base.IsValidProposalWithManifest(pr, bm.Manifest()); err != nil {
 		return err
 	}
 
-	if err := ValidateOperationsOfBlock(opstree, ops, bm.Manifest(), networkID, validateOperationf); err != nil {
+	if err := IsValidOperationsOfBlock(opstree, ops, bm.Manifest(), networkID, validateOperationf); err != nil {
 		return err
 	}
 
-	if err := ValidateStatesOfBlock(ststree, sts, bm.Manifest(), networkID, validateStatef); err != nil {
+	if err := IsValidStatesOfBlock(ststree, sts, bm.Manifest(), networkID, validateStatef); err != nil {
 		return err
 	}
 
-	return validateVoteproofsFromLocalFS(networkID, vps, bm.Manifest())
+	return isValidVoteproofsFromLocalFS(networkID, vps, bm.Manifest())
 }
 
 func loadBlockItemsFromReader( //revive:disable-line:function-result-limit
@@ -382,7 +382,7 @@ func decodeBlockItemsFromReader[T any](
 	}
 }
 
-func ValidateOperationsOfBlock( //nolint:dupl //...
+func IsValidOperationsOfBlock( //nolint:dupl //...
 	opstree fixedtree.Tree,
 	ops []base.Operation,
 	manifest base.Manifest,
@@ -395,7 +395,7 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 		return e.Wrap(err)
 	}
 
-	if err := base.ValidateOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
+	if err := base.IsValidOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -425,7 +425,7 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 	return nil
 }
 
-func ValidateStatesOfBlock( //nolint:dupl //...
+func IsValidStatesOfBlock( //nolint:dupl //...
 	ststree fixedtree.Tree,
 	sts []base.State,
 	manifest base.Manifest,
@@ -438,7 +438,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 		return e.Wrap(err)
 	}
 
-	if err := base.ValidateStatesTreeWithManifest(ststree, sts, manifest); err != nil {
+	if err := base.IsValidStatesTreeWithManifest(ststree, sts, manifest); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -468,7 +468,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 	return nil
 }
 
-func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Voteproof, m base.Manifest) error {
+func isValidVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Voteproof, m base.Manifest) error {
 	for i := range vps {
 		if vps[i] == nil {
 			continue
@@ -479,10 +479,10 @@ func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps [2]base.Votepro
 		}
 	}
 
-	return base.ValidateVoteproofsWithManifest(vps, m)
+	return base.IsValidVoteproofsWithManifest(vps, m)
 }
 
-func ValidateBlocksFromStorage(
+func IsValidBlocksFromStorage(
 	itemf isaac.BlockItemReadersItemFunc,
 	fromHeight, toHeight base.Height,
 	networkID base.NetworkID,
@@ -511,7 +511,7 @@ func ValidateBlocksFromStorage(
 				mapdb = i
 			}
 
-			err := ValidateBlockFromLocalFS(itemf, height, networkID,
+			err := IsValidBlockFromLocalFS(itemf, height, networkID,
 				func(m base.BlockMap) error {
 					return base.IsEqualBlockMap(mapdb, m)
 				},

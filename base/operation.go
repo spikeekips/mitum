@@ -241,8 +241,6 @@ func NewBaseOperationProcessor(
 	newPreProcessConstraintFunc NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc NewOperationProcessorProcessFunc,
 ) (*BaseOperationProcessor, error) {
-	e := util.StringError("new BaseOperationProcessor")
-
 	p := &BaseOperationProcessor{
 		height: height,
 	}
@@ -253,7 +251,7 @@ func NewBaseOperationProcessor(
 	default:
 		i, err := newPreProcessConstraintFunc(height, getStateFunc)
 		if err != nil {
-			return nil, e.Wrap(err)
+			return nil, err
 		}
 
 		p.PreProcessConstraintFunc = i
@@ -265,7 +263,7 @@ func NewBaseOperationProcessor(
 	default:
 		i, err := newProcessConstraintFunc(height, getStateFunc)
 		if err != nil {
-			return nil, e.Wrap(err)
+			return nil, err
 		}
 
 		p.ProcessConstraintFunc = i

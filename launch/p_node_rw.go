@@ -951,7 +951,7 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 			return nil, nil, false, ErrACLAccessDenied.WithStack()
 		}
 
-		if err := validateUploadedBlockItemFiles(
+		if err := isValidUploadedBlockItemFiles(
 			ctx,
 			encs.JSON(),
 			height,
@@ -971,7 +971,7 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 	}), nil
 }
 
-func validateUploadedBlockItemFiles(
+func isValidUploadedBlockItemFiles(
 	ctx context.Context,
 	jsonenc encoder.Encoder,
 	height base.Height,
@@ -1003,7 +1003,7 @@ func validateUploadedBlockItemFiles(
 		bm = i
 	}
 
-	if err := base.ValidateBlockItemFilesWithBlockMap(bm, bfiles); err != nil {
+	if err := base.IsValidBlockItemFilesWithBlockMap(bm, bfiles); err != nil {
 		return err
 	}
 

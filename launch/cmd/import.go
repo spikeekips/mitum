@@ -350,7 +350,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 		func(_ context.Context, i, _ uint64) error {
 			height := base.Height(int64(i) + cmd.fromHeight.Int64())
 
-			return isaacblock.ValidateBlockFromLocalFS(
+			return isaacblock.IsValidBlockFromLocalFS(
 				itemf,
 				height,
 				networkID,
@@ -409,7 +409,7 @@ func (cmd *ImportCommand) validateImported(
 ) error {
 	e := util.StringError("validate imported")
 
-	if err := isaacblock.ValidateBlocksFromStorage(
+	if err := isaacblock.IsValidBlocksFromStorage(
 		importedReaders.Item, cmd.fromHeight, last, params.NetworkID(), db, nil); err != nil {
 		return e.Wrap(err)
 	}

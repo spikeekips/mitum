@@ -338,7 +338,7 @@ func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height)
 func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
 	var last base.BlockMap
 
-	if err := base.BatchValidateMaps(
+	if err := base.BatchIsValidMaps(
 		ctx,
 		prev,
 		to,

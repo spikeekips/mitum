@@ -24,7 +24,7 @@ type ProposalSignFact interface {
 }
 
 func IsValidProposalFact(fact ProposalFact) error {
-	e := util.StringError("invalid ProposalFact")
+	e := util.ErrInvalid.Errorf("invalid ProposalFact")
 	if err := IsValidFact(fact, nil); err != nil {
 		return e.Wrap(err)
 	}
@@ -45,13 +45,13 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 	switch h := fact.Point().Height(); {
 	case h == GenesisHeight && fact.PreviousBlock() != nil:
-		return util.ErrInvalid.Errorf("previous block should be nil for genesis proposal")
+		return e.Errorf("previous block should be nil for genesis proposal")
 	case h == GenesisHeight:
 	case fact.PreviousBlock() == nil:
-		return util.ErrInvalid.Errorf("nil previous block")
+		return e.Errorf("nil previous block")
 	default:
 		if err := fact.PreviousBlock().IsValid(nil); err != nil {
-			return e.Wrap(util.ErrInvalid.WithMessage(err, "invalid previous block"))
+			return e.WithMessage(err, "invalid previous block")
 		}
 	}
 
@@ -64,7 +64,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 		return true, hs[0].String()
 	}); found {
-		return util.ErrInvalid.Errorf("duplicated operation found")
+		return e.Errorf("duplicated operation found")
 	}
 
 	if _, found := util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
@@ -74,7 +74,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 		return true, hs[1].String()
 	}); found {
-		return util.ErrInvalid.Errorf("duplicated operation fact found")
+		return e.Errorf("duplicated operation fact found")
 	}
 
 	for i := range ops {
@@ -87,14 +87,14 @@ func IsValidProposalFact(fact ProposalFact) error {
 }
 
 func IsValidProposalSignFact(sf ProposalSignFact, networkID []byte) error {
-	e := util.StringError("invalid ProposalSignFact")
+	e := util.ErrInvalid.Errorf("invalid ProposalSignFact")
 
 	if err := IsValidSignFact(sf, networkID); err != nil {
 		return e.Wrap(err)
 	}
 
 	if _, ok := sf.Fact().(ProposalFact); !ok {
-		return e.Wrap(util.ErrInvalid.Errorf("not ProposalFact, %T", sf.Fact()))
+		return e.Errorf("not ProposalFact, %T", sf.Fact())
 	}
 
 	return nil

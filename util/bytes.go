@@ -163,22 +163,18 @@ func EnsureWrite(w io.Writer, b []byte) (int, error) {
 }
 
 func WriteLength(w io.Writer, i uint64) error {
-	e := StringError("LengthedBytes")
-
 	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
-		return e.WithMessage(err, "write length")
+		return errors.WithStack(err)
 	}
 
 	return nil
 }
 
 func WriteLengthed(w io.Writer, b []byte) error {
-	e := StringError("LengthedBytes")
-
 	i := uint64(len(b))
 
 	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
-		return e.WithMessage(err, "write length")
+		return errors.WithStack(err)
 	}
 
 	if i < 1 {
@@ -186,7 +182,7 @@ func WriteLengthed(w io.Writer, b []byte) error {
 	}
 
 	if _, err := w.Write(b); err != nil {
-		return e.WithMessage(err, "write body")
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -266,15 +262,13 @@ func NewLengthedBytesSlice(m [][]byte) ([]byte, error) {
 }
 
 func WriteLengthedSlice(w io.Writer, m [][]byte) error {
-	e := StringError("WriteLengthedBytesSlice")
-
 	if _, err := w.Write(Uint64ToBytes(uint64(len(m)))); err != nil {
-		return e.WithMessage(err, "write body length")
+		return errors.WithStack(err)
 	}
 
 	for i := range m {
 		if err := WriteLengthed(w, m[i]); err != nil {
-			return e.WithMessage(err, "write body")
+			return err
 		}
 	}
 
@@ -282,17 +276,15 @@ func WriteLengthedSlice(w io.Writer, m [][]byte) error {
 }
 
 func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
-	e := StringError("ReadLengthedBytesSlice")
-
 	if len(b) < 8 { //nolint:gomnd //...
-		return nil, nil, e.Errorf("empty m length")
+		return nil, nil, errors.Errorf("empty m length")
 	}
 
 	switch i, err := ReadLengthBytes(b); {
 	case err != nil:
-		return nil, nil, e.WithMessage(err, "wrong m length")
+		return nil, nil, err
 	case i > maxLengthBytes:
-		return nil, nil, errors.Errorf("huge size, %v", i)
+		return nil, nil, err
 	default:
 		m = make([][]byte, i)
 
@@ -302,7 +294,7 @@ func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
 	for i := range m {
 		j, k, err := ReadLengthedBytes(left)
 		if err != nil {
-			return nil, nil, e.WithMessage(err, "read left")
+			return nil, nil, err
 		}
 
 		m[i] = j

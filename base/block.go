@@ -83,15 +83,15 @@ type BlockItemFiles interface {
 	Items() map[BlockItemType]BlockItemFile
 }
 
-func ValidateManifests(m Manifest, previous util.Hash) error {
+func IsValidManifests(m Manifest, previous util.Hash) error {
 	if !m.Previous().Equal(previous) {
-		return errors.Errorf("previous does not match")
+		return util.ErrInvalid.Errorf("manifests; previous does not match")
 	}
 
 	return nil
 }
 
-func BatchValidateMaps(
+func BatchIsValidMaps(
 	ctx context.Context,
 	prev BlockMap,
 	to Height,
@@ -99,7 +99,7 @@ func BatchValidateMaps(
 	blockMapf func(context.Context, Height) (BlockMap, error),
 	callback func(BlockMap) error,
 ) error {
-	e := util.StringError("validate BlockMaps in batch")
+	e := util.ErrInvalid.Errorf("blockmaps in batch")
 
 	prevheight := NilHeight
 	if prev != nil {
@@ -140,7 +140,7 @@ func BatchValidateMaps(
 				validateLock.Lock()
 				defer validateLock.Unlock()
 
-				if err = ValidateMaps(m, maps, lastprev); err != nil {
+				if err = IsValidMaps(m, maps, lastprev); err != nil {
 					return err
 				}
 
@@ -162,15 +162,15 @@ func BatchValidateMaps(
 	return nil
 }
 
-func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
+func IsValidMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
+	e := util.ErrInvalid.Errorf("blockmaps")
+
 	prev := NilHeight
 	if previous != nil {
 		prev = previous.Manifest().Height()
 	}
 
 	index := (m.Manifest().Height() - prev - 1).Int64()
-
-	e := util.StringError("validate BlockMaps")
 
 	if index < 0 || index >= int64(len(maps)) {
 		return e.Errorf("invalid BlockMaps found; wrong index")
@@ -181,18 +181,18 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 	switch {
 	case index == 0 && m.Manifest().Height() == GenesisHeight:
 	case index == 0 && m.Manifest().Height() != GenesisHeight:
-		if err := ValidateManifests(m.Manifest(), previous.Manifest().Hash()); err != nil {
+		if err := IsValidManifests(m.Manifest(), previous.Manifest().Hash()); err != nil {
 			return e.Wrap(err)
 		}
 	case maps[index-1] != nil:
-		if err := ValidateManifests(m.Manifest(), maps[index-1].Manifest().Hash()); err != nil {
+		if err := IsValidManifests(m.Manifest(), maps[index-1].Manifest().Hash()); err != nil {
 			return e.Wrap(err)
 		}
 	}
 
 	// revive:disable-next-line:optimize-operands-order
 	if index+1 < int64(len(maps)) && maps[index+1] != nil {
-		if err := ValidateManifests(maps[index+1].Manifest(), m.Manifest().Hash()); err != nil {
+		if err := IsValidManifests(maps[index+1].Manifest(), m.Manifest().Hash()); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -200,8 +200,8 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 	return nil
 }
 
-func ValidateProposalWithManifest(proposal ProposalSignFact, manifest Manifest) error {
-	e := util.StringError("invalid proposal by manifest")
+func IsValidProposalWithManifest(proposal ProposalSignFact, manifest Manifest) error {
+	e := util.ErrInvalid.Errorf("proposal with manifest")
 
 	switch {
 	case proposal.Point().Height() != manifest.Height():
@@ -213,8 +213,8 @@ func ValidateProposalWithManifest(proposal ProposalSignFact, manifest Manifest) 
 	return nil
 }
 
-func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, manifest Manifest) error {
-	e := util.StringError("invalid operations and it's tree by manifest")
+func IsValidOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, manifest Manifest) error {
+	e := util.ErrInvalid.Errorf("operations and tree with manifest")
 
 	switch n := len(ops); {
 	case tr.Len() != n:
@@ -256,8 +256,8 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 	return nil
 }
 
-func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Manifest) error {
-	e := util.StringError("invalid states and it's tree by manifest")
+func IsValidStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Manifest) error {
+	e := util.ErrInvalid.Errorf("states and tree with manifest")
 
 	switch n := len(sts); {
 	case tr.Len() != n:
@@ -297,8 +297,8 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 	return nil
 }
 
-func ValidateVoteproofsWithManifest(vps [2]Voteproof, manifest Manifest) error {
-	e := util.StringError("invalid voteproofs by manifest")
+func IsValidVoteproofsWithManifest(vps [2]Voteproof, manifest Manifest) error {
+	e := util.ErrInvalid.Errorf("voteproofs with manifest")
 
 	if vps[0] == nil || vps[1] == nil {
 		return e.Errorf("empty voteproof")
@@ -325,9 +325,11 @@ func ValidateVoteproofsWithManifest(vps [2]Voteproof, manifest Manifest) error {
 	return nil
 }
 
-func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publickey) error {
+func IsValidGenesisOperation(op Operation, networkID NetworkID, signer Publickey) error {
+	e := util.ErrInvalid.Errorf("genesis operation")
+
 	if err := op.IsValid(networkID); err != nil {
-		return err
+		return e.Wrap(err)
 	}
 
 	signs := op.Signs()
@@ -343,7 +345,7 @@ func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publicke
 	}
 
 	if !found {
-		return util.ErrInvalid.Errorf("genesis block creator not signs genesis operation, %q", op.Hash())
+		return e.Errorf("genesis block creator not signs genesis operation, %q", op.Hash())
 	}
 
 	return nil
@@ -401,20 +403,22 @@ func IsEqualBlockMapItem(a, b BlockMapItem) error {
 	}
 }
 
-func ValidateBlockItemFilesWithBlockMap(bm BlockMap, bfiles BlockItemFiles) error {
+func IsValidBlockItemFilesWithBlockMap(bm BlockMap, bfiles BlockItemFiles) error {
+	e := util.ErrInvalid.Errorf("block item files with blockmap")
+
 	if bm == nil {
-		return util.ErrInvalid.Errorf("empty block map")
+		return e.Errorf("empty block map")
 	}
 
 	if bfiles == nil {
-		return util.ErrInvalid.Errorf("empty block item files")
+		return e.Errorf("empty block item files")
 	}
 
 	var ierr error
 
 	bm.Items(func(item BlockMapItem) bool {
 		if _, found := bfiles.Item(item.Type()); !found {
-			ierr = util.ErrInvalid.Errorf("item not found in block item files, %q", item.Type())
+			ierr = errors.Errorf("item not found in block item files, %q", item.Type())
 
 			return false
 		}
@@ -422,5 +426,5 @@ func ValidateBlockItemFilesWithBlockMap(bm BlockMap, bfiles BlockItemFiles) erro
 		return true
 	})
 
-	return ierr
+	return util.ErrInvalid.Wrap(ierr)
 }

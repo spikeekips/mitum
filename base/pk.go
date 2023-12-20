@@ -12,7 +12,7 @@ import (
 
 const PKKeyTypeSize = 3
 
-var ErrSignatureVerification = util.NewIDError("signature verification failed")
+var ErrSignatureVerification = util.NewIDError("signature verification")
 
 type PKKey interface {
 	fmt.Stringer
@@ -74,22 +74,20 @@ func (sg *Signature) UnmarshalText(b []byte) error {
 }
 
 func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
-	e := util.StringError("decode pk key")
-
 	i, err := enc.DecodeWithFixedHintType(s, PKKeyTypeSize)
 
 	switch {
 	case err != nil:
-		return nil, e.Wrap(err)
+		return nil, err
 	case i == nil:
-		return nil, e.Errorf("nil")
+		return nil, errors.Errorf("nil")
 	}
 
 	switch k, ok := i.(PKKey); {
 	case !ok:
-		return nil, e.Errorf("not PKKey, %T", i)
+		return nil, errors.Errorf("not PKKey, %T", i)
 	case k.String() != s:
-		return nil, e.Errorf("unknown key format")
+		return nil, errors.Errorf("unknown key format")
 	default:
 		return k, nil
 	}
@@ -111,8 +109,10 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (k Privatekey, _ 
 }
 
 func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
+	e := util.StringError("decode publickey")
+
 	if len(s) < 1 {
-		return nil, errors.Errorf("decode publickey; empty")
+		return nil, e.Errorf("empty")
 	}
 
 	switch i, found := objcache.Get(s); {
@@ -120,7 +120,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	case i == nil:
 	default:
 		if err, ok := i.(error); ok {
-			return nil, err
+			return nil, e.Wrap(err)
 		}
 
 		return i.(Publickey), nil //nolint:forcetypeassert //...
@@ -130,7 +130,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	if err != nil {
 		objcache.Set(s, err, nil)
 
-		return nil, err
+		return nil, e.Wrap(err)
 	}
 
 	objcache.Set(s, pub, nil)
@@ -139,15 +139,13 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 }
 
 func decodePublickeyFromString(s string, enc encoder.Encoder) (k Publickey, _ error) {
-	e := util.StringError("decode publickey")
-
 	i, err := decodePKKeyFromString(s, enc)
 	if err != nil {
-		return nil, e.Wrap(err)
+		return nil, err
 	}
 
 	if err := util.SetInterfaceValue(i, &k); err != nil {
-		return nil, e.Wrap(err)
+		return nil, err
 	}
 
 	return k, nil

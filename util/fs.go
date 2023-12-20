@@ -6,23 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 func CleanDirectory(root string, filter func(path string) bool) error {
-	e := StringError("clean directory")
-
 	switch fi, err := os.Stat(root); {
 	case os.IsNotExist(err):
 		return nil
 	case err != nil:
-		return e.Wrap(err)
+		return errors.WithStack(err)
 	case !fi.IsDir():
-		return e.Errorf("not directory")
+		return errors.Errorf("not directory")
 	}
 
 	subs, err := os.ReadDir(root)
 	if err != nil {
-		return e.Wrap(err)
+		return errors.WithStack(err)
 	}
 
 	for i := range subs {
@@ -33,7 +33,7 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 		}
 
 		if err := os.RemoveAll(filepath.Join(root, n)); err != nil {
-			return e.Wrap(err)
+			return errors.WithStack(err)
 		}
 	}
 
