@@ -95,7 +95,7 @@ func main() {
 	if err := func() error {
 		defer log.Log().Debug().Msg("stopped")
 
-		return errors.WithStack(kctx.Run(pctx))
+		return errors.WithStack(kctx.Run(kctx, pctx))
 	}(); err != nil {
 		log.Log().Error().Err(err).Msg("stopped by error")
 

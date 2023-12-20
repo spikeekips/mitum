@@ -293,7 +293,7 @@ func QuicstreamHandlerBlockMap(
 }
 
 func QuicstreamHandlerBlockItem(
-	blockMapItemf func(
+	blockItemf func(
 		base.Height,
 		base.BlockItemType,
 		func(_ io.Reader, found bool, uri url.URL, compressFormat string) error,
@@ -304,7 +304,7 @@ func QuicstreamHandlerBlockItem(
 	) (context.Context, error) {
 		gctx := ctx
 
-		if err := blockMapItemf(
+		if err := blockItemf(
 			header.Height(),
 			header.Item(),
 			func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
@@ -333,6 +333,24 @@ func QuicstreamHandlerBlockItem(
 		}
 
 		return gctx, nil
+	}
+}
+
+func QuicstreamHandlerBlockItemFiles(
+	blockItemFilesf func(
+		base.Height,
+		func(_ io.Reader, found bool) error,
+	) error,
+) quicstreamheader.Handler[BlockItemFilesRequestHeader] {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, header BlockItemFilesRequestHeader,
+	) (context.Context, error) {
+		return ctx, blockItemFilesf(
+			header.Height(),
+			func(r io.Reader, found bool) error {
+				return writeResponseStream(ctx, broker, found, nil, r)
+			},
+		)
 	}
 }
 

@@ -836,6 +836,7 @@ var networkHandlerPrefixes = []string{
 	isaacnetwork.HandlerPrefixAskHandoverString,
 	isaacnetwork.HandlerPrefixBlockMapString,
 	isaacnetwork.HandlerPrefixBlockItemString,
+	isaacnetwork.HandlerPrefixBlockItemFilesString,
 	isaacnetwork.HandlerPrefixCancelHandoverString,
 	isaacnetwork.HandlerPrefixCheckHandoverString,
 	isaacnetwork.HandlerPrefixCheckHandoverXString,

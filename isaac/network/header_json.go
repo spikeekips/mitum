@@ -332,32 +332,27 @@ func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type BlockItemRequestHeaderJSONMarshaler struct {
+type blockItemRequestHeaderJSONMarshaler struct {
 	Item   base.BlockItemType `json:"item"`
 	Height base.Height        `json:"height"`
 }
 
 func (h BlockItemRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BlockItemRequestHeaderJSONMarshaler
+		blockItemRequestHeaderJSONMarshaler
 		BaseHeaderJSONMarshaler
 	}{
 		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		BlockItemRequestHeaderJSONMarshaler: BlockItemRequestHeaderJSONMarshaler{
+		blockItemRequestHeaderJSONMarshaler: blockItemRequestHeaderJSONMarshaler{
 			Height: h.height,
 			Item:   h.item,
 		},
 	})
 }
 
-type BlockItemRequestHeaderJSONUnmarshaler struct {
-	Item   base.BlockItemType `json:"item"`
-	Height base.Height        `json:"height"`
-}
-
 func (h *BlockItemRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringError("unmarshal BlockItemHeader")
-	var u BlockItemRequestHeaderJSONUnmarshaler
+	e := util.StringError("unmarshal BlockItemRequestHeader")
+	var u blockItemRequestHeaderJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e.Wrap(err)
@@ -371,6 +366,41 @@ func (h *BlockItemRequestHeader) UnmarshalJSON(b []byte) error {
 	h.item = u.Item
 
 	return nil
+}
+
+type blockItemFilesRequestHeaderJSONMarshaler struct {
+	Height base.Height `json:"height"`
+}
+
+func (h BlockItemFilesRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		aclUserHeaderJSONMarshaler
+		BaseHeaderJSONMarshaler
+		blockItemFilesRequestHeaderJSONMarshaler
+	}{
+		BaseHeaderJSONMarshaler:    h.BaseHeader.JSONMarshaler(),
+		aclUserHeaderJSONMarshaler: h.aclUserHeader.jsonMarshaler(),
+		blockItemFilesRequestHeaderJSONMarshaler: blockItemFilesRequestHeaderJSONMarshaler{
+			Height: h.height,
+		},
+	})
+}
+
+func (h *BlockItemFilesRequestHeader) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	e := util.StringError("unmarshal BlockItemFilesRequestHeader")
+	var u blockItemFilesRequestHeaderJSONMarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+		return e.Wrap(err)
+	}
+
+	h.height = u.Height
+
+	return h.aclUserHeader.DecodeJSON(b, enc)
 }
 
 type NodeChallengeRequestHeaderJSONMarshaler struct {

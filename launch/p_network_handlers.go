@@ -64,7 +64,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 	var lvps *isaac.LastVoteproofsHandler
-	var readers *isaac.BlockItemReaders
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -82,7 +81,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 		LastVoteproofsHandlerContextKey, &lvps,
-		BlockItemReadersContextKey, &readers,
 	); err != nil {
 		return pctx, e.Wrap(err)
 	}
@@ -131,26 +129,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixBlockMapString,
 		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil)
-
-	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixBlockItemString,
-		isaacnetwork.QuicstreamHandlerBlockItem(
-			func(height base.Height, item base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
-				switch bfile, found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
-					return f(ir.Reader(), true, url.URL{}, ir.Reader().Format)
-				}); {
-				case err != nil:
-					return err
-				case !found && bfile != nil:
-					// NOTE if not in local, but itemfile exists, found is true
-					return f(nil, true, bfile.URI(), bfile.CompressFormat())
-				case !found:
-					return f(nil, false, url.URL{}, "")
-				default:
-					return nil
-				}
-			},
-		), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
 		isaacnetwork.HandlerPrefixNodeChallengeString,
@@ -225,6 +203,10 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	if gerror != nil {
 		return pctx, gerror
+	}
+
+	if err := AttachBlockItemsNetworkHandlers(pctx); err != nil {
+		return pctx, err
 	}
 
 	if err := AttachMemberlistNetworkHandlers(pctx); err != nil {
@@ -564,6 +546,78 @@ func AttachMemberlistNetworkHandlers(pctx context.Context) error {
 				}
 			},
 		), nil)
+
+	return gerror
+}
+
+func AttachBlockItemsNetworkHandlers(pctx context.Context) error {
+	var params *LocalParams
+	var readers *isaac.BlockItemReaders
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		BlockItemReadersContextKey, &readers,
+	); err != nil {
+		return err
+	}
+
+	isaacparams := params.ISAAC
+
+	var aclallow ACLAllowFunc
+
+	switch i, err := pACLAllowFunc(pctx); {
+	case err != nil:
+		return err
+	default:
+		aclallow = i
+	}
+
+	var gerror error
+
+	EnsureHandlerAdd(pctx, &gerror,
+		isaacnetwork.HandlerPrefixBlockItemString,
+		isaacnetwork.QuicstreamHandlerBlockItem(
+			func(height base.Height, item base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
+				switch bfile, found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
+					return f(ir.Reader(), true, url.URL{}, ir.Reader().Format)
+				}); {
+				case err != nil:
+					return err
+				case !found && bfile != nil:
+					// NOTE if not in local, but itemfile exists, found is true
+					return f(nil, true, bfile.URI(), bfile.CompressFormat())
+				case !found:
+					return f(nil, false, url.URL{}, "")
+				default:
+					return nil
+				}
+			},
+		), nil)
+
+	EnsureHandlerAdd(pctx, &gerror,
+		isaacnetwork.HandlerPrefixBlockItemFilesString,
+		ACLNetworkHandler[isaacnetwork.BlockItemFilesRequestHeader](
+			aclallow,
+			BlockItemFilesACLScope,
+			ReadAllowACLPerm,
+			isaacparams.NetworkID(),
+		).Handler(
+			isaacnetwork.QuicstreamHandlerBlockItemFiles(
+				func(height base.Height, f func(io.Reader, bool) error) error {
+					switch found, err := readers.ItemFilesReader(height, func(r io.Reader) error {
+						return f(r, true)
+					}); {
+					case err != nil:
+						return err
+					case !found:
+						return f(nil, false)
+					default:
+						return nil
+					}
+				},
+			),
+		),
+		nil)
 
 	return gerror
 }

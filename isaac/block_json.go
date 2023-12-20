@@ -71,7 +71,7 @@ func (m *Manifest) UnmarshalJSON(b []byte) error {
 }
 
 type BlockItemFileJSONMarshaler struct {
-	URI            string `json:"uri"`
+	URI            string `json:"uri,omitempty"`
 	CompressFormat string `json:"compress_format,omitempty"`
 	hint.BaseHinter
 }

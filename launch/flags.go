@@ -275,7 +275,8 @@ func (f *SecretFlag) UnmarshalText(b []byte) error {
 		case err != nil:
 			return e.Wrap(err)
 		default:
-			f.body = i
+			j, _ := strings.CutSuffix(string(i), "\n")
+			f.body = []byte(j)
 
 			return nil
 		}
@@ -334,6 +335,12 @@ func DecodePrivatekey(s string, enc encoder.Encoder) (base.Privatekey, error) {
 
 		return key, nil
 	}
+}
+
+type PrivatekeyArgument struct {
+	//revive:disable:line-length-limit
+	Flag SecretFlag `arg:"" name:"privatekey" help:"privatekey uri; './privatekey.yml', 'file:///privatekey.yml', 'vault://a.b.c.d/privatekey'" placeholder:"URL"`
+	//revive:enable:line-length-limit
 }
 
 type PrivatekeyFlags struct {

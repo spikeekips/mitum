@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemRequestHeaderHint, Instance: BlockItemRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockItemFilesRequestHeaderHint, Instance: BlockItemFilesRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapRequestHeaderHint, Instance: BlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapRequestHeaderHint, Instance: LastBlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastSuffrageProofRequestHeaderHint, Instance: LastSuffrageProofRequestHeader{}}))
@@ -1199,16 +1201,16 @@ func (t *testQuicstreamHandlers) TestBlockItem() {
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
-		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
-			t.True(found)
-
+		found, err := c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, uri url.URL, compressFormat string) error {
 			b, err := io.ReadAll(r)
 			t.NoError(err)
 			t.Equal(body, b)
 			t.Empty(uri.Scheme)
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.True(found)
 	})
 
 	t.Run("unknown item", func() {
@@ -1221,14 +1223,16 @@ func (t *testQuicstreamHandlers) TestBlockItem() {
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
-		t.NoError(c.BlockItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
+		found, err := c.BlockItem(context.Background(), ci, base.Height(33), base.BlockItemVoteproofs, func(r io.Reader, uri url.URL, compressFormat string) error {
 			t.Nil(r)
-			t.False(found)
 			t.Empty(uri.Scheme)
 			t.Empty(compressFormat)
 
 			return nil
-		}))
+		})
+
+		t.NoError(err)
+		t.False(found)
 	})
 
 	t.Run("known, but in remote", func() {
@@ -1253,14 +1257,99 @@ func (t *testQuicstreamHandlers) TestBlockItem() {
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
-		t.NoError(c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
-			t.False(found)
+		found, err := c.BlockItem(context.Background(), ci, height, item, func(r io.Reader, uri url.URL, compressFormat string) error {
 			t.Nil(r)
 			t.Equal(remote, uri)
 			t.Equal(compressFormat, "bz")
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.False(found)
+	})
+}
+
+func (t *testQuicstreamHandlers) TestBlockItemFiles() {
+	ci := quicstream.UnsafeConnInfo(nil, true)
+
+	var aclhandler quicstreamheader.Handler[BlockItemFilesRequestHeader] = func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header BlockItemFilesRequestHeader) (context.Context, error) {
+		err := QuicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			t.Local.Publickey(), t.LocalParams.NetworkID(),
+		)
+		return ctx, err
+	}
+
+	t.Run("known", func() {
+		height := base.Height(33)
+
+		body := util.UUID().Bytes()
+
+		r := bytes.NewBuffer(body)
+
+		handler := QuicstreamHandlerBlockItemFiles(
+			func(h base.Height, f func(io.Reader, bool) error) error {
+				if h != height {
+					return nil
+				}
+
+				if err := f(r, true); err != nil {
+					return err
+				}
+
+				return nil
+			})
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItemFiles, aclhandler.Handler(handler))
+
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
+
+		rfound, err := c.BlockItemFiles(context.Background(), ci, height, t.Local.Privatekey(), t.LocalParams.NetworkID(), func(r io.Reader) error {
+			b, err := io.ReadAll(r)
+			t.NoError(err)
+			t.Equal(body, b)
+
+			return nil
+		})
+		t.NoError(err)
+		t.True(rfound)
+	})
+
+	t.Run("unkknown", func() {
+		height := base.Height(34)
+
+		body := util.UUID().Bytes()
+
+		r := bytes.NewBuffer(body)
+
+		handler := QuicstreamHandlerBlockItemFiles(
+			func(h base.Height, f func(io.Reader, bool) error) error {
+				var o io.Reader = r
+
+				found := h != height
+				if !found {
+					o = nil
+				}
+
+				if err := f(o, found); err != nil {
+					return err
+				}
+
+				return nil
+			})
+		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixBlockItemFiles, aclhandler.Handler(handler))
+
+		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
+
+		var called int64
+
+		rfound, err := c.BlockItemFiles(context.Background(), ci, height, t.Local.Privatekey(), t.LocalParams.NetworkID(), func(r io.Reader) error {
+			atomic.AddInt64(&called, 1)
+
+			return nil
+		})
+		t.NoError(err)
+		t.False(rfound)
+		t.Equal(int64(0), atomic.LoadInt64(&called))
 	})
 }
 

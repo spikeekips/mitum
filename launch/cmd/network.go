@@ -22,11 +22,13 @@ type NetworkCommand struct {
 type NetworkClientCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	//revive:disable:nested-structs
-	NodeInfo      NetworkClientNodeInfoCommand      `cmd:"" name:"node-info" help:"remote node info"`
-	SendOperation NetworkClientSendOperationCommand `cmd:"" name:"send-operation" help:"send operation"`
-	State         NetworkClientStateCommand         `cmd:"" name:"state" help:"get state"`
-	LastBlockMap  NetworkClientLastBlockMapCommand  `cmd:"" name:"last-blockmap" help:"get last blockmap"`
-	Node          struct {
+	NodeInfo       NetworkClientNodeInfoCommand       `cmd:"" name:"node-info" help:"remote node info"`
+	SendOperation  NetworkClientSendOperationCommand  `cmd:"" name:"send-operation" help:"send operation"`
+	State          NetworkClientStateCommand          `cmd:"" name:"state" help:"get state"`
+	LastBlockMap   NetworkClientLastBlockMapCommand   `cmd:"" name:"last-blockmap" help:"get last blockmap"`
+	BlockItemFiles NetworkClientBlockItemFilesCommand `cmd:"" name:"block-item-files" help:"download block item files"`
+	BlockItemFile  NetworkClientBlockItemFileCommand  `cmd:"" name:"block-item-file" help:"download block item file"`
+	Node           struct {
 		Read  NetworkClientReadNodeCommand  `cmd:"" name:"read" help:"read node value"`
 		Write NetworkClientWriteNodeCommand `cmd:"" name:"write" help:"write node value"`
 	} `cmd:"" name:"node" help:""`

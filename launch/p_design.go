@@ -86,7 +86,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 			return pctx, e.Wrap(err)
 		}
 
-		log.Log().Debug().Interface("privatekey", priv.Publickey()).Msg("privatekey loaded from somewhere")
+		log.Log().Debug().Interface("publickey", priv.Publickey()).Msg("privatekey loaded from somewhere")
 
 		design.Privatekey = priv
 	}

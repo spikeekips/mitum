@@ -948,13 +948,10 @@ func syncerBlockItemFunc(
 		cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer ctxcancel()
 
-		if err := client.BlockItem(cctx, ci, height, item,
-			func(r io.Reader, found bool, uri url.URL, compressFormat string) error {
-				switch {
-				case r != nil:
-					return f(r, found, compressFormat)
-				case !found:
-					return f(nil, false, "")
+		switch found, err := client.BlockItem(cctx, ci, height, item,
+			func(r io.Reader, uri url.URL, compressFormat string) error {
+				if r != nil {
+					return f(r, true, compressFormat)
 				}
 
 				cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
@@ -973,11 +970,14 @@ func syncerBlockItemFunc(
 					return nil
 				}
 			},
-		); err != nil {
+		); {
+		case err != nil:
 			return e.Wrap(err)
+		case !found:
+			return f(nil, false, "")
+		default:
+			return nil
 		}
-
-		return nil
 	}
 }
 

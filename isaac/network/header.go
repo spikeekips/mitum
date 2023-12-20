@@ -21,6 +21,7 @@ var (
 	LastBlockMapRequestHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
 	BlockMapRequestHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
 	BlockItemRequestHeaderHint              = hint.MustNewHint("block-item-header-v0.0.1")
+	BlockItemFilesRequestHeaderHint         = hint.MustNewHint("block-item-files-header-v0.0.1")
 	NodeChallengeRequestHeaderHint          = hint.MustNewHint("node-challenge-header-v0.0.1")
 	SuffrageNodeConnInfoRequestHeaderHint   = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
 	SyncSourceConnInfoRequestHeaderHint     = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
@@ -48,6 +49,7 @@ var (
 	HandlerPrefixLastBlockMapString           = "last_blockmap"
 	HandlerPrefixBlockMapString               = "blockmap"
 	HandlerPrefixBlockItemString              = "block_item"
+	HandlerPrefixBlockItemFilesString         = "block_item_files"
 	HandlerPrefixMemberlistString             = "memberlist"
 	HandlerPrefixNodeChallengeString          = "node_challenge"
 	HandlerPrefixSuffrageNodeConnInfoString   = "suffrage_node_conninfo"
@@ -74,6 +76,7 @@ var (
 	HandlerPrefixLastBlockMap           = quicstream.HashPrefix(HandlerPrefixLastBlockMapString)
 	HandlerPrefixBlockMap               = quicstream.HashPrefix(HandlerPrefixBlockMapString)
 	HandlerPrefixBlockItem              = quicstream.HashPrefix(HandlerPrefixBlockItemString)
+	HandlerPrefixBlockItemFiles         = quicstream.HashPrefix(HandlerPrefixBlockItemFilesString)
 	HandlerPrefixMemberlist             = quicstream.HashPrefix(HandlerPrefixMemberlistString)
 	HandlerPrefixNodeChallenge          = quicstream.HashPrefix(HandlerPrefixNodeChallengeString)
 	HandlerPrefixSuffrageNodeConnInfo   = quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfoString)
@@ -391,6 +394,38 @@ func (h BlockItemRequestHeader) Height() base.Height {
 
 func (h BlockItemRequestHeader) Item() base.BlockItemType {
 	return h.item
+}
+
+type BlockItemFilesRequestHeader struct {
+	aclUserHeader
+	BaseHeader
+	height base.Height
+}
+
+func NewBlockItemFilesRequestHeader(height base.Height, acluser base.Publickey) BlockItemFilesRequestHeader {
+	return BlockItemFilesRequestHeader{
+		BaseHeader:    NewBaseHeader(BlockItemFilesRequestHeaderHint),
+		aclUserHeader: newACLUserHeader(acluser),
+		height:        height,
+	}
+}
+
+func (h BlockItemFilesRequestHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid BlockItemFilesRequestHeader")
+
+	if err := h.BaseHinter.IsValid(BlockItemFilesRequestHeaderHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := util.CheckIsValiders(nil, false, h.height, h.aclUserHeader); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (h BlockItemFilesRequestHeader) Height() base.Height {
+	return h.height
 }
 
 type NodeChallengeRequestHeader struct {
@@ -917,6 +952,8 @@ func headerPrefixByHint(ht hint.Hint) [32]byte {
 		return HandlerPrefixBlockMap
 	case BlockItemRequestHeaderHint.Type():
 		return HandlerPrefixBlockItem
+	case BlockItemFilesRequestHeaderHint.Type():
+		return HandlerPrefixBlockItemFiles
 	case NodeChallengeRequestHeaderHint.Type():
 		return HandlerPrefixNodeChallenge
 	case SuffrageNodeConnInfoRequestHeaderHint.Type():

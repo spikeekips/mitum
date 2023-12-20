@@ -457,35 +457,92 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 func (c *BaseClient) BlockItem(
 	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockItemType,
-	f func(_ io.Reader, found bool, uri url.URL, compressFormat string) error,
-) error {
+	f func(_ io.Reader, uri url.URL, compressFormat string) error,
+) (found bool, _ error) {
 	header := NewBlockItemRequestHeader(height, item)
 	header.SetClientID(c.ClientID())
 
 	if err := header.IsValid(nil); err != nil {
-		return err
+		return false, err
 	}
 
 	streamer, err := c.dial(ctx, ci)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		switch h, _, body, err := hcReqResBody(ctx, broker, header); {
+	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		switch h, _, body, rerr := hcReqResBody(ctx, broker, header); {
+		case rerr != nil:
+			return rerr
+		case h.Err() != nil:
+			return h.Err()
+		case !h.OK():
+			return nil
+		default:
+			found = true
+
+			switch i, rerr := util.AssertInterfaceValue[BlockItemResponseHeader](h); {
+			case rerr != nil:
+				return rerr
+			default:
+				return f(body, i.URI(), i.CompressFormat())
+			}
+		}
+	})
+
+	return found, err
+}
+
+func (c *BaseClient) BlockItemFiles(
+	ctx context.Context, ci quicstream.ConnInfo,
+	height base.Height,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	f func(io.Reader) error,
+) (bool, error) {
+	header := NewBlockItemFilesRequestHeader(height, priv.Publickey())
+	header.SetClientID(c.ClientID())
+
+	if err := header.IsValid(nil); err != nil {
+		return false, err
+	}
+
+	streamer, err := c.dial(ctx, ci)
+	if err != nil {
+		return false, err
+	}
+
+	var found bool
+
+	if err := streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		if err := VerifyNode(ctx, broker, priv, networkID); err != nil {
+			return err
+		}
+
+		switch h, _, body, err := hcResBody(ctx, broker); {
 		case err != nil:
 			return err
 		case h.Err() != nil:
 			return h.Err()
+		case !h.OK(), body == nil:
+			found = false
+
+			return nil
 		default:
-			switch i, err := util.AssertInterfaceValue[BlockItemResponseHeader](h); {
-			case err != nil:
-				return err
-			default:
-				return f(body, h.OK(), i.URI(), i.CompressFormat())
-			}
+			found = true
+
+			return f(body)
 		}
-	})
+	}); err != nil {
+		return found, err
+	}
+
+	return found, nil
 }
 
 func (c *BaseClient) NodeChallenge(
@@ -1130,6 +1187,45 @@ func hcReqResBody(
 	var rh quicstreamheader.ResponseHeader
 
 	switch enc, h, err := hcReqRes(ctx, broker, header); {
+	case err != nil:
+		return nil, nil, nil, err
+	case h.Err() != nil:
+		return h, nil, nil, nil
+	default:
+		renc = enc
+		rh = h
+	}
+
+	switch bodyType, bodyLength, body, _, res, err := broker.ReadBody(ctx); {
+	case err != nil:
+		return rh, renc, nil, err
+	case res != nil:
+		return res, renc, nil, nil
+	case bodyType == quicstreamheader.EmptyBodyType:
+		return rh, renc, nil, nil
+	case bodyType == quicstreamheader.FixedLengthBodyType:
+		if bodyLength < 1 {
+			return rh, renc, nil, nil
+		}
+
+		return rh, renc, body, nil
+	case bodyType == quicstreamheader.StreamBodyType:
+		return rh, renc, body, nil
+	default:
+		return rh, renc, nil, errors.Errorf("unknown body type, %d", bodyType)
+	}
+}
+
+func hcResBody(ctx context.Context, broker *quicstreamheader.ClientBroker) (
+	_ quicstreamheader.ResponseHeader,
+	_ encoder.Encoder,
+	responseBody io.Reader,
+	_ error,
+) {
+	var renc encoder.Encoder
+	var rh quicstreamheader.ResponseHeader
+
+	switch enc, h, err := broker.ReadResponseHead(ctx); {
 	case err != nil:
 		return nil, nil, nil, err
 	case h.Err() != nil:
