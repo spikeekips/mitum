@@ -10,6 +10,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
@@ -18,11 +19,25 @@ import (
 
 type testRedisStorage struct {
 	suite.Suite
+	mredis   *miniredis.Miniredis
+	moptions *redis.Options
+}
+
+func (t *testRedisStorage) SetupTest() {
+	t.mredis = miniredis.RunT(t.T())
+	t.moptions = &redis.Options{
+		Network: "tcp",
+		Addr:    t.mredis.Addr(),
+	}
+}
+
+func (t *testRedisStorage) TearDownTest() {
+	t.mredis.Close()
 }
 
 func (t *testRedisStorage) TestNew() {
 	t.Run("default", func() {
-		st, err := NewStorage(context.Background(), &redis.Options{}, "test")
+		st, err := NewStorage(context.Background(), t.moptions, "test")
 		t.NoError(err)
 		t.NotNil(st)
 
@@ -40,7 +55,7 @@ func (t *testRedisStorage) TestNew() {
 }
 
 func (t *testRedisStorage) TestClose() {
-	st, err := NewStorage(context.Background(), &redis.Options{}, "test")
+	st, err := NewStorage(context.Background(), t.moptions, "test")
 	t.NoError(err)
 	t.NotNil(st)
 
@@ -83,7 +98,7 @@ func (t *testRedisStorage) TestClose() {
 }
 
 func (t *testRedisStorage) TestGetSet() {
-	st, err := NewStorage(context.Background(), &redis.Options{}, "test")
+	st, err := NewStorage(context.Background(), t.moptions, "test")
 	t.NoError(err)
 	t.NotNil(st)
 
@@ -118,7 +133,7 @@ func (t *testRedisStorage) TestGetSet() {
 }
 
 func (t *testRedisStorage) TestZAddArgs() {
-	st, err := NewStorage(context.Background(), &redis.Options{}, "test")
+	st, err := NewStorage(context.Background(), t.moptions, "test")
 	t.NoError(err)
 	t.NotNil(st)
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -21,8 +22,17 @@ type testRedisPermanent struct {
 
 func TestRedisPermanent(tt *testing.T) {
 	t := new(testRedisPermanent)
+
+	mredis := miniredis.RunT(tt)
+	defer mredis.Close()
+
+	moptions := &redis.Options{
+		Network: "tcp",
+		Addr:    mredis.Addr(),
+	}
+
 	t.newDB = func() isaac.PermanentDatabase {
-		st, err := redisstorage.NewStorage(context.Background(), &redis.Options{}, util.UUID().String())
+		st, err := redisstorage.NewStorage(context.Background(), moptions, util.UUID().String())
 		t.NoError(err)
 
 		db, err := NewRedisPermanent(st, t.Encs, t.Enc, 0)
