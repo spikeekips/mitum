@@ -44,10 +44,10 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 		switch renc, rh, err := broker.ReadResponseHead(ctx); {
 		case err != nil:
 			return err
-		case !rh.OK():
-			return errors.Errorf("not ok")
 		case rh.Err() != nil:
 			return rh.Err()
+		case !rh.OK():
+			return errors.Errorf("not ok")
 		default:
 			enc = renc
 		}

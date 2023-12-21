@@ -1,9 +1,7 @@
 package launch
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"time"
@@ -21,7 +19,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -425,43 +422,27 @@ func QuicstreamHandlerGetNodeInfoFunc(
 	enc encoder.Encoder,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func() ([]byte, error) {
-	startedAt := nodeinfo.StartedAt()
-	lastid := util.EmptyLocked[string]()
-
-	uptimet := []byte("<uptime>")
-	updateUptime := func(b []byte) []byte {
-		return bytes.Replace(
-			b,
-			uptimet,
-			[]byte(fmt.Sprintf("%0.3f", localtime.Now().UTC().Sub(startedAt).Seconds())),
-			1,
-		)
-	}
-
-	var lastb []byte
+	lastid := util.EmptyLocked[[2]interface{}]()
 
 	return func() ([]byte, error) {
 		var b []byte
 
-		if _, err := lastid.Set(func(last string, isempty bool) (string, error) {
-			if !isempty && nodeinfo.ID() == last {
-				b = updateUptime(lastb)
+		if _, err := lastid.Set(func(v [2]interface{}, isempty bool) (vv [2]interface{}, _ error) {
+			switch {
+			case isempty:
+			case v[0].(string) == nodeinfo.ID(): //nolint:forcetypeassert //...
+				b = v[1].([]byte) //nolint:forcetypeassert //...
 
-				return "", util.ErrLockedSetIgnore.WithStack()
+				return vv, util.ErrLockedSetIgnore
 			}
 
-			jm := nodeinfo.NodeInfo().JSONMarshaler()
-			jm.Local.Uptime = string(uptimet)
-
-			switch i, err := enc.Marshal(jm); {
+			switch i, err := enc.Marshal(nodeinfo.NodeInfo()); {
 			case err != nil:
-				return "", err
+				return vv, err
 			default:
-				lastb = i
+				b = i
 
-				b = updateUptime(i)
-
-				return nodeinfo.ID(), nil
+				return [2]interface{}{nodeinfo.ID(), i}, nil
 			}
 		}); err != nil {
 			return nil, err

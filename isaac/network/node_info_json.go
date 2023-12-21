@@ -2,9 +2,6 @@ package isaacnetwork
 
 import (
 	"encoding/json"
-	"fmt"
-	"strconv"
-	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -12,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/localtime"
 )
 
 type NodeInfoLocalJSONMarshaler struct {
@@ -19,7 +17,7 @@ type NodeInfoLocalJSONMarshaler struct {
 	Publickey   base.Publickey `json:"publickey"`
 	LocalParams *isaac.Params  `json:"parameters"` //nolint:tagliatelle //...
 	ConnInfo    string         `json:"conn_info"`
-	Uptime      string         `json:"uptime"`
+	StartedAt   localtime.Time `json:"started_at"`
 	Version     util.Version   `json:"version"`
 }
 
@@ -53,7 +51,7 @@ func (info NodeInfo) JSONMarshaler() NodeInfoJSONMarshaler {
 			LocalParams: info.localParams,
 			ConnInfo:    info.connInfo,
 			Version:     info.version,
-			Uptime:      fmt.Sprintf("%0.3f", info.uptime.Seconds()),
+			StartedAt:   localtime.New(info.startedAt),
 		},
 		Consensus: NodeInfoConsensusJSONMarshaler{
 			State: info.consensusState,
@@ -84,7 +82,7 @@ type nodeInfoLocalJSONUnmarshaler struct {
 	Address     string          `json:"address"`
 	Publickey   string          `json:"publickey"`
 	ConnInfo    string          `json:"conn_info"`
-	Uptime      string          `json:"uptime"`
+	StartedAt   localtime.Time  `json:"started_at"`
 	LocalParams json.RawMessage `json:"parameters"` //nolint:tagliatelle //...
 	Version     util.Version    `json:"version"`
 }
@@ -110,6 +108,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	}
 
 	info.networkID = u.NetworkID
+	info.startedAt = u.Local.StartedAt.Time
 
 	// NOTE local
 	switch i, err := base.DecodeAddress(u.Local.Address, enc); {
@@ -140,13 +139,6 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 	info.connInfo = u.Local.ConnInfo
 	info.version = u.Local.Version
-
-	switch f, err := strconv.ParseFloat(u.Local.Uptime, 64); {
-	case err != nil:
-		return e.WithMessage(err, "parse uptime, %q", u.Local.Uptime)
-	default:
-		info.uptime = time.Duration(int64(f * float64(1_000_000_000))) //nolint:gomnd //...
-	}
 
 	// NOTE consensus
 	info.consensusState = u.Consensus.State

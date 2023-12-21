@@ -47,7 +47,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		info := NewNodeInfoUpdater(networkID, base.RandomNode(), util.MustNewVersion("v1.2.3"))
-		info.startedAt = time.Now().Add(((time.Hour + time.Nanosecond*33) * -1))
+		info.n.startedAt = time.Now().Add(((time.Hour + time.Nanosecond*33) * -1))
 		info.SetLastManifest(base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256()))
 		info.SetSuffrageHeight(base.Height(44))
 		info.SetNetworkPolicy(isaac.DefaultNetworkPolicy())
@@ -108,7 +108,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 		}
 
 		t.Equal(ah.version, bh.version)
-		t.Equal(ah.uptime.Round(time.Millisecond).String(), bh.uptime.Round(time.Millisecond).String())
+		t.True(util.TimeEqual(ah.startedAt, bh.startedAt))
 		t.Equal(ah.lastVote, bh.lastVote)
 	}
 

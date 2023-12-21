@@ -27,9 +27,9 @@ type NodeInfo struct {
 	consensusState isaacstates.StateType
 	consensusNodes []base.Node
 	hint.BaseHinter
+	startedAt      time.Time
 	version        util.Version
 	suffrageHeight base.Height
-	uptime         time.Duration
 }
 
 func (info NodeInfo) IsValid(networkID base.NetworkID) error {
@@ -50,8 +50,8 @@ func (info NodeInfo) IsValid(networkID base.NetworkID) error {
 		}),
 		info.version,
 		util.DummyIsValider(func([]byte) error {
-			if info.uptime < 1 {
-				return errors.Errorf("empty started at")
+			if info.startedAt.IsZero() {
+				return errors.Errorf("zero started at")
 			}
 
 			return nil
@@ -111,10 +111,13 @@ func (info NodeInfo) LastVote() NodeInfoLastVote {
 	return info.lastVote
 }
 
+func (info NodeInfo) StartedAt() time.Time {
+	return info.startedAt
+}
+
 type NodeInfoUpdater struct {
-	startedAt time.Time
-	id        string
-	n         NodeInfo
+	id string
+	n  NodeInfo
 	sync.RWMutex
 }
 
@@ -128,13 +131,9 @@ func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.
 			suffrageHeight: base.NilHeight,
 			version:        version,
 			lastVote:       EmptyNodeInfoLastVote(),
+			startedAt:      localtime.Now().UTC(),
 		},
-		startedAt: localtime.Now().UTC(),
 	}
-}
-
-func (info *NodeInfoUpdater) StartedAt() time.Time {
-	return info.startedAt
 }
 
 func (info *NodeInfoUpdater) ID() string {
@@ -148,10 +147,7 @@ func (info *NodeInfoUpdater) NodeInfo() NodeInfo {
 	info.RLock()
 	defer info.RUnlock()
 
-	n := info.n
-	n.uptime = localtime.Now().UTC().Sub(info.startedAt)
-
-	return n
+	return info.n
 }
 
 func (info *NodeInfoUpdater) SetConsensusState(s isaacstates.StateType) bool {
