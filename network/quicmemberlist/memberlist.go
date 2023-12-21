@@ -510,13 +510,13 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 
 		_, _, _ = srv.ebrecords.Set(req.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
 			if !found {
-				return nil, util.ErrLockedSetIgnore.WithStack()
+				return nil, util.ErrLockedSetIgnore
 			}
 
 			if slices.IndexFunc(nodes, func(i base.Address) bool {
 				return i.Equal(req.Node())
 			}) >= 0 {
-				return nil, util.ErrLockedSetIgnore.WithStack()
+				return nil, util.ErrLockedSetIgnore
 			}
 
 			nodes = append(nodes, req.Node())

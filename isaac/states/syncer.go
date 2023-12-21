@@ -261,9 +261,9 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 	prev, err := s.prevvalue.Set(func(i base.BlockMap, _ bool) (base.BlockMap, error) {
 		switch {
 		case i == nil:
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		case s.checkedprevs.Exists(i.Manifest().Height()):
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		}
 
 		newprev, err := s.checkPrevMap(ctx, i)
@@ -277,7 +277,7 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 		case newprev != nil:
 			return newprev, nil
 		default:
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		}
 	})
 	if err != nil {

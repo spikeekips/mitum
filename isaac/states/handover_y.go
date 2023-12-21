@@ -426,7 +426,7 @@ func (broker *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 
 	_, _ = broker.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
-			return false, util.ErrLockedSetIgnore.WithStack()
+			return false, util.ErrLockedSetIgnore
 		}
 
 		if pr := hc.Proposal(); pr != nil {

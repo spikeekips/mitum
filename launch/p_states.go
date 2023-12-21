@@ -818,7 +818,7 @@ func syncerLastBlockMapFunc(
 
 						return m, nil
 					default:
-						return nil, util.ErrLockedSetIgnore.Errorf("old BlockMap")
+						return nil, util.ErrLockedSetIgnore
 					}
 				})
 

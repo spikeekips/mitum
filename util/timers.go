@@ -179,7 +179,7 @@ func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 
 		interval := timer.intervalFunc(0)
 		if interval < 1 {
-			return nil, ErrLockedSetIgnore.WithStack()
+			return nil, ErrLockedSetIgnore
 		}
 
 		added = true

@@ -147,7 +147,7 @@ func (acl *ACL) setUser(user string, m map[ACLScope]ACLPerm) (prev map[ACLScope]
 			prev = i
 
 			if compareACLUserValues(prev, m) {
-				return nil, util.ErrLockedMapClosed
+				return nil, util.ErrLockedSetIgnore
 			}
 
 			updated = true

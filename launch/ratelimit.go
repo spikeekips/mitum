@@ -321,7 +321,7 @@ func (r *RateLimitHandler) rateLimiterFunc(
 		case isnew:
 			return i, nil
 		default:
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		}
 	}
 }
@@ -922,7 +922,7 @@ func (p *addrPool) addNode(addr string, node base.Address) bool {
 
 		_, created, _ = p.addrs.Set(addr, func(_ base.Address, found bool) (base.Address, error) {
 			if found {
-				return nil, util.ErrLockedSetIgnore.WithStack()
+				return nil, util.ErrLockedSetIgnore
 			}
 
 			_ = p.lastAccessedAt.SetValue(addr, time.Now())

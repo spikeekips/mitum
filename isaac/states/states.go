@@ -760,7 +760,7 @@ func (st *States) setAllowConsensus(allow bool) bool { // revive:disable-line:fl
 
 	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
 		if prev == allow {
-			return false, util.ErrLockedSetIgnore.WithStack()
+			return false, util.ErrLockedSetIgnore
 		}
 
 		isset = true

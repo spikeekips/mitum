@@ -222,7 +222,7 @@ func (broker *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSi
 
 	_, err := broker.isFinishedLocked.Set(func(i, _ bool) (bool, error) {
 		if i {
-			return false, util.ErrLockedSetIgnore.WithStack()
+			return false, util.ErrLockedSetIgnore
 		}
 
 		defer func() {

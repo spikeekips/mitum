@@ -664,7 +664,7 @@ func (l *LongRunningMemberlistJoin) Join(cis ...quicstream.ConnInfo) <-chan stru
 			default:
 				donech = c
 
-				return nil, util.ErrLockedSetIgnore.WithStack()
+				return nil, util.ErrLockedSetIgnore
 			}
 		}
 

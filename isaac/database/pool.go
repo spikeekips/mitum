@@ -703,7 +703,7 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 	if _, err := db.lastvoteproofs.Set(func(old [2]base.Voteproof, isempty bool) ([2]base.Voteproof, error) {
 		if !isempty {
 			if ivp.Point().Compare(old[0].Point()) < 1 {
-				return [2]base.Voteproof{}, util.ErrLockedSetIgnore.WithStack()
+				return [2]base.Voteproof{}, util.ErrLockedSetIgnore
 			}
 		}
 

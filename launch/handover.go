@@ -187,7 +187,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 	if err := attachNewDataFuncForHandoverY(pctx, args, func(op util.Hash) {
 		_, _ = lastoffsetop.Set(func(_ util.Hash, isempty bool) (util.Hash, error) {
 			if !isempty {
-				return nil, util.ErrLockedSetIgnore.WithStack()
+				return nil, util.ErrLockedSetIgnore
 			}
 
 			return op, nil

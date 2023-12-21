@@ -95,7 +95,7 @@ func (c *ConnectionPool) Dial(ctx context.Context, ci ConnInfo) (Streamer, error
 		if old != nil && old.Context().Err() == nil {
 			conn = old
 
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		}
 
 		switch i, err := c.dialf(ctx, ci); {
@@ -188,7 +188,7 @@ func (c *ConnectionPool) clean() {
 				conn != nil && conn.Context().Err() != nil:
 				return nil
 			default:
-				return util.ErrLockedSetIgnore.WithStack()
+				return util.ErrLockedSetIgnore
 			}
 		})
 	}

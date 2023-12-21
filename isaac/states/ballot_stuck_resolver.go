@@ -67,7 +67,7 @@ func (c *DefaultBallotStuckResolver) NewPoint(ctx context.Context, point base.St
 
 	_, _ = c.cancelf.Set(func(previous func(), isempty bool) (func(), error) {
 		if point.Compare(c.point) < 1 {
-			return nil, util.ErrLockedSetIgnore.WithStack()
+			return nil, util.ErrLockedSetIgnore
 		}
 
 		c.point = point
@@ -136,7 +136,7 @@ func (c *DefaultBallotStuckResolver) Clean() {
 func (c *DefaultBallotStuckResolver) Cancel(point base.StagePoint) {
 	_ = c.cancelf.Empty(func(cancel func(), _ bool) error {
 		if point.Compare(c.point) < 0 {
-			return util.ErrLockedSetIgnore.WithStack()
+			return util.ErrLockedSetIgnore
 		}
 
 		if cancel != nil {

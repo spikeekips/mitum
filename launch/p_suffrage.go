@@ -529,7 +529,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 					lastheight = h
 
 					if !updated {
-						return nil, util.ErrLockedSetIgnore.Errorf("not updated")
+						return nil, util.ErrLockedSetIgnore
 					}
 
 					switch {
@@ -538,7 +538,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 
 						return proof, nil
 					default:
-						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+						return nil, util.ErrLockedSetIgnore
 					}
 				})
 
@@ -604,7 +604,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 
 							_, _ = result.Set(func(_ [2]interface{}, isempty bool) ([2]interface{}, error) {
 								if !isempty {
-									return [2]interface{}{}, util.ErrLockedSetIgnore.Errorf("already set")
+									return [2]interface{}{}, util.ErrLockedSetIgnore
 								}
 
 								return [2]interface{}{a, b}, nil
@@ -692,7 +692,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 					case v == nil, st.Height() > v.Height():
 						return st, nil
 					default:
-						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+						return nil, util.ErrLockedSetIgnore
 					}
 				})
 

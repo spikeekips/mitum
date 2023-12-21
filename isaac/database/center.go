@@ -334,7 +334,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 	return db.dig(func(p isaac.TempDatabase) (bool, error) {
 		if _, err := l.Set(func(old base.Height, _ bool) (base.Height, error) {
 			if p.Height() <= old {
-				return base.NilHeight, util.ErrLockedSetIgnore.Errorf("old")
+				return base.NilHeight, util.ErrLockedSetIgnore
 			}
 
 			switch found, err := f(key, p); {
@@ -345,7 +345,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 			case found:
 				return p.Height(), nil
 			default:
-				return base.NilHeight, util.ErrLockedSetIgnore.Errorf("not found")
+				return base.NilHeight, util.ErrLockedSetIgnore
 			}
 		}); err != nil {
 			return false, err

@@ -402,11 +402,11 @@ func (box *Ballotbox) isNewBallot( //revive:disable-line:flag-parameter
 ) bool {
 	_, err := box.lsp.Set(func(last isaac.LastPoint, isempty bool) (v isaac.LastPoint, _ error) {
 		if isempty {
-			return v, util.ErrLockedSetIgnore.WithStack()
+			return v, util.ErrLockedSetIgnore
 		}
 
 		if isaac.IsNewBallot(last, point, isSuffrageConfirm) {
-			return v, util.ErrLockedSetIgnore.WithStack()
+			return v, util.ErrLockedSetIgnore
 		}
 
 		return v, errors.Errorf("old ballot")

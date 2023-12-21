@@ -245,7 +245,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		if !isempty {
 			if m.Manifest().Height() <= i[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
-				return v, util.ErrLockedSetIgnore.WithStack()
+				return v, util.ErrLockedSetIgnore
 			}
 		}
 
@@ -293,7 +293,7 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 		switch {
 		case isempty:
 		case proof.SuffrageHeight() <= i[0].(base.SuffrageProof).SuffrageHeight(): //nolint:forcetypeassert //...
-			return v, util.ErrLockedSetIgnore.WithStack()
+			return v, util.ErrLockedSetIgnore
 		}
 
 		var meta []byte
