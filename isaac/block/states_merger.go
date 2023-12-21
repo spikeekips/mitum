@@ -3,7 +3,6 @@ package isaacblock
 import (
 	"context"
 	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -181,9 +180,7 @@ func (sm *DefaultStatesMerger) sortStateKeys() []string {
 	})
 
 	if len(sortedkeys) > 0 {
-		sort.Slice(sortedkeys, func(i, j int) bool {
-			return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
-		})
+		sort.Strings(sortedkeys)
 	}
 
 	return sortedkeys
