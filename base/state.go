@@ -1,8 +1,6 @@
 package base
 
 import (
-	"bytes"
-
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -69,12 +67,5 @@ func IsEqualState(a, b State) bool {
 }
 
 func IsEqualStateValue(a, b StateValue) bool {
-	switch {
-	case a == nil || b == nil:
-		return false
-	case !bytes.Equal(a.HashBytes(), b.HashBytes()):
-		return false
-	default:
-		return true
-	}
+	return util.IsEqualHashByter(a, b)
 }

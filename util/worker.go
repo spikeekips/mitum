@@ -10,6 +10,13 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+type distributedWorker interface {
+	NewJob(ContextWorkerCallback) error
+	Done()
+	Wait() error
+	Close()
+}
+
 var baseSemWorkerPool = sync.Pool{
 	New: func() interface{} {
 		return new(BaseSemWorker)
@@ -495,28 +502,16 @@ func BatchWork(
 }
 
 func RunDistributeWorker(
-	ctx context.Context, workersize, size int64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
+	ctx context.Context,
+	workersize, size int64,
+	errch chan error,
+	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
-	worker, err := NewDistributeWorker(ctx, workersize, errch)
-	if err != nil {
-		return err
-	}
-
-	defer worker.Close()
-
-	for i := int64(0); i < size; i++ {
-		i := i
-
-		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-			return f(ctx, uint64(i), jobid)
-		}); err != nil {
-			return err
-		}
-	}
-
-	worker.Done()
-
-	return worker.Wait()
+	return runWorker(ctx, size, f,
+		func(ctx context.Context) (distributedWorker, error) {
+			return NewDistributeWorker(ctx, workersize, errch)
+		},
+	)
 }
 
 func RunErrgroupWorker(
@@ -524,7 +519,20 @@ func RunErrgroupWorker(
 	workersize, size int64,
 	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
-	worker, err := NewErrgroupWorker(ctx, workersize)
+	return runWorker(ctx, size, f,
+		func(ctx context.Context) (distributedWorker, error) {
+			return NewErrgroupWorker(ctx, workersize)
+		},
+	)
+}
+
+func runWorker(
+	ctx context.Context,
+	size int64,
+	f func(ctx context.Context, i, jobid uint64) error,
+	workerf func(context.Context) (distributedWorker, error),
+) error {
+	worker, err := workerf(ctx)
 	if err != nil {
 		return err
 	}

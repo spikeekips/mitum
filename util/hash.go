@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 )
@@ -27,4 +28,14 @@ func EncodeHash(b []byte) string {
 
 func DecodeHash(s string) ([]byte, error) {
 	return hex.DecodeString(s)
+}
+
+func IsEqualHashByter(a, b HashByter) bool {
+	switch {
+	case a == nil || b == nil:
+	case bytes.Equal(a.HashBytes(), b.HashBytes()):
+		return true
+	}
+
+	return false
 }

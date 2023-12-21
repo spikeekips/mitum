@@ -1,7 +1,6 @@
 package isaacnetwork
 
 import (
-	"bytes"
 	"sync"
 	"time"
 
@@ -195,9 +194,7 @@ func (info *NodeInfoUpdater) SetSuffrageHeight(h base.Height) bool {
 
 func (info *NodeInfoUpdater) SetNetworkPolicy(p base.NetworkPolicy) bool {
 	return info.set(func() bool {
-		switch {
-		case info.n.networkPolicy == nil, p == nil:
-		case bytes.Equal(info.n.networkPolicy.HashBytes(), p.HashBytes()):
+		if base.IsEqualNetworkPolicy(info.n.networkPolicy, p) {
 			return false
 		}
 

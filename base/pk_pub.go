@@ -78,12 +78,7 @@ func (k *MPublickey) IsValid([]byte) error {
 }
 
 func (k *MPublickey) Equal(b PKKey) bool {
-	switch {
-	case b == nil:
-		return false
-	default:
-		return k.String() == b.String()
-	}
+	return IsEqualPKKey(k, b)
 }
 
 func (k *MPublickey) Verify(input []byte, sig Signature) error {

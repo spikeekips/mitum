@@ -154,39 +154,14 @@ func (cmd *StorageStatusCommand) localfs(root string) error {
 		cmd.log.Info().Interface("last_height", last).Msg("last block found")
 	}
 
-	// NOTE number of directories and files
-	// NOTE disk usage
-
-	var countFiles, countDirs, diskusage uint64
-
-	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case info.IsDir():
-			countDirs++
-		default:
-			countFiles++
-			diskusage += uint64(info.Size())
-		}
-
-		return nil
-	}); err != nil {
-		return errors.WithStack(err)
-	}
-
-	cmd.log.Info().
-		Uint64("files", countFiles).
-		Uint64("directories", countDirs).
-		Uint64("disk_usage", diskusage).
-		Msg("local fs files and directories")
-
-	return nil
+	return cmd.countFiles(root, "localfs")
 }
 
 func (cmd *StorageStatusCommand) database(root string) error {
+	return cmd.countFiles(root, "database")
+}
+
+func (cmd *StorageStatusCommand) countFiles(root, name string) error {
 	var countFiles, countDirs, diskusage uint64
 
 	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -211,7 +186,7 @@ func (cmd *StorageStatusCommand) database(root string) error {
 		Uint64("files", countFiles).
 		Uint64("directories", countDirs).
 		Uint64("disk_usage", diskusage).
-		Msg("database files and directories")
+		Msgf("%s files and directories", name)
 
 	return nil
 }

@@ -105,12 +105,7 @@ func (k *MPrivatekey) Publickey() Publickey {
 }
 
 func (k *MPrivatekey) Equal(b PKKey) bool {
-	switch {
-	case b == nil:
-		return false
-	default:
-		return k.String() == b.String()
-	}
+	return IsEqualPKKey(k, b)
 }
 
 func (k *MPrivatekey) Sign(b []byte) (Signature, error) {

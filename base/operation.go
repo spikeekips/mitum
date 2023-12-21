@@ -51,30 +51,25 @@ type OperationFixedtreeNode struct {
 	inState bool
 }
 
-func NewInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
+func newInStateOperationFixedtreeNode(facthash string, reason string, inState bool) OperationFixedtreeNode {
 	var operr OperationProcessReasonError
 	if len(reason) > 0 {
 		operr = NewBaseOperationProcessReasonError(reason)
 	}
 
 	return OperationFixedtreeNode{
-		BaseNode: fixedtree.NewBaseNode(facthash.String()),
-		inState:  true,
+		BaseNode: fixedtree.NewBaseNode(facthash),
+		inState:  inState,
 		reason:   operr,
 	}
 }
 
-func NewNotInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
-	var operr OperationProcessReasonError
-	if len(reason) > 0 {
-		operr = NewBaseOperationProcessReasonError(reason)
-	}
+func NewInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
+	return newInStateOperationFixedtreeNode(facthash.String(), reason, true)
+}
 
-	return OperationFixedtreeNode{
-		BaseNode: fixedtree.NewBaseNode(facthash.String() + "-"),
-		inState:  false,
-		reason:   operr,
-	}
+func NewNotInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
+	return newInStateOperationFixedtreeNode(facthash.String()+"-", reason, false)
 }
 
 func (no OperationFixedtreeNode) InState() bool {

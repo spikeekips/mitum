@@ -150,3 +150,12 @@ func decodePublickeyFromString(s string, enc encoder.Encoder) (k Publickey, _ er
 
 	return k, nil
 }
+
+func IsEqualPKKey(a, b PKKey) bool {
+	switch {
+	case a == nil, b == nil:
+		return false
+	default:
+		return a.String() == b.String()
+	}
+}

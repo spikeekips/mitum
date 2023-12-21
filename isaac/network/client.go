@@ -389,34 +389,7 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 	header := NewLastBlockMapRequestHeader(manifest)
 	header.SetClientID(c.ClientID())
 
-	if err := header.IsValid(nil); err != nil {
-		return nil, false, err
-	}
-
-	streamer, err := c.dial(ctx, ci)
-	if err != nil {
-		return nil, false, err
-	}
-
-	err = streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		rok, rerr := HCReqResBodyDecOK(
-			ctx,
-			broker,
-			header,
-			func(enc encoder.Encoder, r io.Reader) error {
-				return encoder.DecodeReader(enc, r, &bm)
-			},
-		)
-		if rerr != nil {
-			return rerr
-		}
-
-		ok = rok
-
-		return nil
-	})
-
-	return bm, ok, err
+	return c.blockMap(ctx, ci, header)
 }
 
 func (c *BaseClient) BlockMap( //nolint:dupl //...
@@ -425,6 +398,12 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 	header := NewBlockMapRequestHeader(height)
 	header.SetClientID(c.ClientID())
 
+	return c.blockMap(ctx, ci, header)
+}
+
+func (c *BaseClient) blockMap(
+	ctx context.Context, ci quicstream.ConnInfo, header quicstreamheader.RequestHeader,
+) (bm base.BlockMap, ok bool, _ error) {
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
@@ -1196,24 +1175,9 @@ func hcReqResBody(
 		rh = h
 	}
 
-	switch bodyType, bodyLength, body, _, res, err := broker.ReadBody(ctx); {
-	case err != nil:
-		return rh, renc, nil, err
-	case res != nil:
-		return res, renc, nil, nil
-	case bodyType == quicstreamheader.EmptyBodyType:
-		return rh, renc, nil, nil
-	case bodyType == quicstreamheader.FixedLengthBodyType:
-		if bodyLength < 1 {
-			return rh, renc, nil, nil
-		}
+	body, err := hcBody(ctx, broker)
 
-		return rh, renc, body, nil
-	case bodyType == quicstreamheader.StreamBodyType:
-		return rh, renc, body, nil
-	default:
-		return rh, renc, nil, errors.Errorf("unknown body type, %d", bodyType)
-	}
+	return rh, renc, body, err
 }
 
 func hcResBody(ctx context.Context, broker *quicstreamheader.ClientBroker) (
@@ -1235,24 +1199,9 @@ func hcResBody(ctx context.Context, broker *quicstreamheader.ClientBroker) (
 		rh = h
 	}
 
-	switch bodyType, bodyLength, body, _, res, err := broker.ReadBody(ctx); {
-	case err != nil:
-		return rh, renc, nil, err
-	case res != nil:
-		return res, renc, nil, nil
-	case bodyType == quicstreamheader.EmptyBodyType:
-		return rh, renc, nil, nil
-	case bodyType == quicstreamheader.FixedLengthBodyType:
-		if bodyLength < 1 {
-			return rh, renc, nil, nil
-		}
+	body, err := hcBody(ctx, broker)
 
-		return rh, renc, body, nil
-	case bodyType == quicstreamheader.StreamBodyType:
-		return rh, renc, body, nil
-	default:
-		return rh, renc, nil, errors.Errorf("unknown body type, %d", bodyType)
-	}
+	return rh, renc, body, err
 }
 
 func hcReqRes(
@@ -1391,4 +1340,25 @@ func ReadBodyNotEmpty(ctx context.Context, broker quicstreamheader.ReadBodyBroke
 	}
 
 	return bodyType, bodyLength, body, enc, res, nil
+}
+
+func hcBody(ctx context.Context, broker *quicstreamheader.ClientBroker) (io.Reader, error) {
+	switch bodyType, bodyLength, body, _, res, err := broker.ReadBody(ctx); {
+	case err != nil:
+		return nil, err
+	case res != nil:
+		return nil, nil
+	case bodyType == quicstreamheader.EmptyBodyType:
+		return nil, nil
+	case bodyType == quicstreamheader.FixedLengthBodyType:
+		if bodyLength < 1 {
+			return nil, nil
+		}
+
+		return body, nil
+	case bodyType == quicstreamheader.StreamBodyType:
+		return body, nil
+	default:
+		return nil, errors.Errorf("unknown body type, %d", bodyType)
+	}
 }
