@@ -1016,7 +1016,8 @@ linters-settings:
         severity: warning
         disabled: false
         arguments:
-          - [ "call-chain", "loop" ]
+          #- [ "call-chain", "loop" ]
+          - [ "loop", "method-call", "recover", "immediate-recover", "return" ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#dot-imports
       - name: dot-imports
         severity: warning

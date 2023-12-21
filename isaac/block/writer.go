@@ -3,7 +3,6 @@ package isaacblock
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -138,10 +137,7 @@ func (w *Writer) SetStates(
 }
 
 func (w *Writer) closeStateValues(ctx context.Context) error {
-	started := time.Now()
-	defer func() {
-		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("close state values")
-	}()
+	defer logging.TimeElapsed()(w.Log().Debug(), "close state values")
 
 	if w.statesMerger.Len() < 1 {
 		return nil
@@ -162,24 +158,17 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		return e.Wrap(err)
 	}
 
-	{
-		starteddb := time.Now()
+	defer logging.TimeElapsed()(w.Log().Debug(), "db write")
 
-		if err := w.db.Write(); err != nil {
-			return e.Wrap(err)
-		}
-
-		w.Log().Debug().Stringer("elapsed", time.Since(starteddb)).Msg("db write")
+	if err := w.db.Write(); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _ error) {
-	started := time.Now()
-	defer func() {
-		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("close states merger")
-	}()
+	defer logging.TimeElapsed()(w.Log().Debug(), "close states merger")
 
 	if err := w.statesMerger.CloseStates(
 		ctx,
@@ -188,15 +177,13 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 				return nil
 			}
 
-			startedtg := time.Now()
+			defer logging.TimeElapsed()(w.Log().Debug(), "new state tree")
 
 			switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, keyscount); {
 			case err != nil:
 				return err
 			default:
 				tg = i
-
-				w.Log().Debug().Stringer("elapsed", time.Since(startedtg)).Msg("new state tree")
 
 				return nil
 			}
@@ -226,10 +213,7 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 func (w *Writer) saveStatesTree(
 	ctx context.Context, tg *fixedtree.Writer,
 ) error {
-	started := time.Now()
-	defer func() {
-		w.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("save state tree")
-	}()
+	defer logging.TimeElapsed()(w.Log().Debug(), "save state tree")
 
 	i, err := w.fswriter.SetStatesTree(ctx, tg)
 	if err != nil {

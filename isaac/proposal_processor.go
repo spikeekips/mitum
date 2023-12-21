@@ -5,7 +5,6 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -209,10 +208,7 @@ func (p *DefaultProposalProcessor) isCanceled() bool {
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
-	started := time.Now()
-	defer func() {
-		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("processed")
-	}()
+	defer logging.TimeElapsed()(p.Log().Debug(), "processed")
 
 	var cops, reserved []base.Operation
 
@@ -260,10 +256,7 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) (base.Manifest, 
 }
 
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (cops, reserved []base.Operation, _ error) {
-	started := time.Now()
-	defer func() {
-		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("operations collected")
-	}()
+	defer logging.TimeElapsed()(p.Log().Debug(), "operations collected")
 
 	e := util.StringError("collect operations")
 
@@ -333,16 +326,13 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (cops,
 }
 
 func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops, reserved []base.Operation) error {
-	started := time.Now()
-	defer func() {
+	defer logging.TimeElapsed()(
 		p.Log().Debug().
 			Dict("operations", zerolog.Dict().
 				Int("proposal", len(cops)).
 				Int("reserved", len(reserved)),
-			).
-			Stringer("elapsed", time.Since(started)).
-			Msg("operations processed")
-	}()
+			),
+		"operations processed")
 
 	e := util.StringError("process operations")
 
@@ -679,10 +669,7 @@ func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact u
 }
 
 func (p *DefaultProposalProcessor) createManifest(ctx context.Context) (base.Manifest, error) {
-	started := time.Now()
-	defer func() {
-		p.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("manifest processed")
-	}()
+	defer logging.TimeElapsed()(p.Log().Debug(), "manifest processed")
 
 	return p.writer.Manifest(ctx, p.previous)
 }

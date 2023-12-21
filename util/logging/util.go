@@ -91,3 +91,11 @@ type ZerologObjectMarshaler func(*zerolog.Event)
 func (z ZerologObjectMarshaler) MarshalZerologObject(e *zerolog.Event) {
 	z(e)
 }
+
+func TimeElapsed() func(*zerolog.Event, string) {
+	started := time.Now()
+
+	return func(e *zerolog.Event, msg string) {
+		e.CallerSkipFrame(1).Stringer("elapsed", time.Since(started)).Msg(msg)
+	}
+}

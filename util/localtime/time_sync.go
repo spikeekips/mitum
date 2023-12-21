@@ -78,11 +78,12 @@ end:
 		case <-ctx.Done():
 			break end
 		case <-ticker.C:
-			started := time.Now()
+			elapsed := logging.TimeElapsed()
+
 			if err := ts.check(); err != nil {
-				ts.Log().Error().Err(err).Stringer("elapsed", time.Since(started)).Msg("failed to check sync time")
+				elapsed(ts.Log().Error().Err(err), "failed to check sync time")
 			} else {
-				ts.Log().Debug().Stringer("elapsed", time.Since(started)).Msg("time sync checked")
+				elapsed(ts.Log().Debug(), "time sync checked")
 			}
 		}
 	}
