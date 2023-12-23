@@ -223,13 +223,15 @@ func IsValidOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, manif
 		return nil
 	}
 
-	mops, duplicated := util.IsDuplicatedSlice(ops, func(i Operation) (bool, string) {
+	mops, duplicated := util.IsDuplicatedSliceWithMap(ops, func(i Operation) (bool, string) {
 		if i == nil {
 			return true, ""
 		}
 
 		return true, i.Fact().Hash().String()
 	})
+	defer clear(mops)
+
 	if duplicated {
 		return e.Errorf("duplicated operation found in operations")
 	}
@@ -266,13 +268,15 @@ func IsValidStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Mani
 		return nil
 	}
 
-	msts, duplicated := util.IsDuplicatedSlice(sts, func(i State) (bool, string) {
+	msts, duplicated := util.IsDuplicatedSliceWithMap(sts, func(i State) (bool, string) {
 		if i == nil {
 			return true, ""
 		}
 
 		return true, i.Hash().String()
 	})
+	defer clear(msts)
+
 	if duplicated {
 		return e.Errorf("duplicated state found in states")
 	}

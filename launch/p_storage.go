@@ -673,6 +673,7 @@ func RemoveLocalFS(root string) error {
 		LocalFSDataDirectoryName:     {},
 		LocalFSDatabaseDirectoryName: {},
 	}
+	defer clear(knowns)
 
 	if err := util.CleanDirectory(root, func(name string) bool {
 		_, found := knowns[name]

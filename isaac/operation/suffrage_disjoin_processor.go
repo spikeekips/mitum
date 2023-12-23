@@ -60,8 +60,8 @@ func (p *SuffrageDisjoinProcessor) Close() error {
 		return err
 	}
 
-	p.suffrage = nil
-	p.preprocessed = nil
+	clear(p.suffrage)
+	clear(p.preprocessed)
 
 	return nil
 }

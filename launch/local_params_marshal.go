@@ -548,6 +548,8 @@ func (p *NetworkRateLimitParams) UnmarshalYAML(y *yaml.Node) error {
 		return e.Wrap(err)
 	}
 
+	defer clear(u)
+
 	switch b, err := util.MarshalJSON(u); {
 	case err != nil:
 		return e.Wrap(err)

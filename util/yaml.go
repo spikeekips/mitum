@@ -61,7 +61,7 @@ func (m *YAMLOrderedMap) Len() int {
 
 func (m *YAMLOrderedMap) Clear() {
 	m.keys = nil
-	m.m = map[string]interface{}{}
+	clear(m.m)
 }
 
 func (m *YAMLOrderedMap) MarshalYAML() (interface{}, error) {

@@ -18,6 +18,7 @@ type blockMapJSONMarshaler struct {
 
 func (m BlockMap) MarshalJSON() ([]byte, error) {
 	items := map[base.BlockItemType]base.BlockMapItem{}
+	defer clear(items)
 
 	m.items.Traverse(func(_ base.BlockItemType, v base.BlockMapItem) bool {
 		if v != nil {

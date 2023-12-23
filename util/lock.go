@@ -1,6 +1,7 @@
 package util
 
 import (
+	"cmp"
 	"crypto/rand"
 	"fmt"
 	"math"
@@ -10,7 +11,6 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/constraints"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -140,11 +140,7 @@ func (l *Locked[T]) Empty(f func(_ T, isempty bool) error) error {
 	}
 }
 
-type lockedMapKeys interface {
-	constraints.Integer | constraints.Float | ~string
-}
-
-type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
+type LockedMap[K cmp.Ordered, V any] interface { //nolint:interfacebloat //...
 	Exists(key K) (found bool)
 	Value(key K) (value V, found bool)
 	SetValue(key K, value V) (added bool)
@@ -161,7 +157,7 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	Map() map[K]V
 }
 
-func NewLockedMap[K lockedMapKeys, V any](
+func NewLockedMap[K cmp.Ordered, V any](
 	size uint64,
 	newMap func() LockedMap[K, V],
 ) (LockedMap[K, V], error) {
@@ -181,12 +177,12 @@ func NewLockedMap[K lockedMapKeys, V any](
 	}
 }
 
-type SingleLockedMap[K lockedMapKeys, V any] struct {
+type SingleLockedMap[K cmp.Ordered, V any] struct {
 	m map[K]V
 	sync.RWMutex
 }
 
-func NewSingleLockedMap[K lockedMapKeys, V any]() *SingleLockedMap[K, V] {
+func NewSingleLockedMap[K cmp.Ordered, V any]() *SingleLockedMap[K, V] {
 	return &SingleLockedMap[K, V]{
 		m: map[K]V{},
 	}
@@ -384,13 +380,14 @@ func (l *SingleLockedMap[K, V]) Empty() {
 	l.Lock()
 	defer l.Unlock()
 
-	l.m = map[K]V{}
+	clear(l.m)
 }
 
 func (l *SingleLockedMap[K, V]) Close() {
 	l.Lock()
 	defer l.Unlock()
 
+	clear(l.m)
 	l.m = nil
 }
 
@@ -409,7 +406,7 @@ func (l *SingleLockedMap[K, V]) Map() (m map[K]V) {
 	return m
 }
 
-type ShardedMap[K lockedMapKeys, V any] struct {
+type ShardedMap[K cmp.Ordered, V any] struct {
 	hashf   func(interface{}) (uint64, interface{})
 	newMap  func() LockedMap[K, V]
 	sharded []LockedMap[K, V]
@@ -418,7 +415,7 @@ type ShardedMap[K lockedMapKeys, V any] struct {
 	sync.RWMutex
 }
 
-func NewShardedMap[K lockedMapKeys, V any](
+func NewShardedMap[K cmp.Ordered, V any](
 	size uint64,
 	newMap func() LockedMap[K, V],
 ) (*ShardedMap[K, V], error) {
@@ -434,7 +431,7 @@ func NewShardedMap[K lockedMapKeys, V any](
 	)
 }
 
-func NewDeepShardedMap[K lockedMapKeys, V any](
+func NewDeepShardedMap[K cmp.Ordered, V any](
 	sizes []uint64,
 	newMap func() LockedMap[K, V],
 ) (*ShardedMap[K, V], error) {
@@ -493,7 +490,7 @@ func NewDeepShardedMap[K lockedMapKeys, V any](
 	return NewShardedMapWithSeed(seed, sizes[0], hashf, newMaps[0])
 }
 
-func NewShardedMapWithSeed[K lockedMapKeys, V any](
+func NewShardedMapWithSeed[K cmp.Ordered, V any](
 	seed uint32,
 	size uint64,
 	hashf func(interface{}, uint64) (uint64, interface{}),
@@ -704,7 +701,7 @@ func (l *ShardedMap[K, V]) Map() (m map[K]V) {
 	return m
 }
 
-type traverseMaper[K lockedMapKeys, V any] interface {
+type traverseMaper[K cmp.Ordered, V any] interface {
 	TraverseMap(f func(LockedMap[K, V]) bool) bool
 }
 
@@ -748,6 +745,7 @@ func (l *ShardedMap[K, V]) Close() {
 		l.sharded[i].Close()
 	}
 
+	clear(l.sharded)
 	l.sharded = nil
 	atomic.StoreInt64(&l.length, 0)
 }

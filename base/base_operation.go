@@ -150,7 +150,7 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 
 	var duplicatederr error
 
-	switch _, duplicated := util.IsDuplicatedSlice(sfs, func(i Sign) (bool, string) {
+	switch duplicated := util.IsDuplicatedSlice(sfs, func(i Sign) (bool, string) {
 		if i == nil {
 			return true, ""
 		}
@@ -213,13 +213,13 @@ func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node
 }
 
 func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
-	if _, duplicated := util.IsDuplicatedSlice(signs, func(i NodeSign) (bool, string) {
+	if util.IsDuplicatedSlice(signs, func(i NodeSign) (bool, string) {
 		if i == nil {
 			return true, ""
 		}
 
 		return true, i.Node().String()
-	}); duplicated {
+	}) {
 		return errors.Errorf("duplicated signs found")
 	}
 

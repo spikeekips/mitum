@@ -152,9 +152,9 @@ func (srv *Memberlist) Join(cis []quicstream.ConnInfo) error {
 		return e.Errorf("empty conninfos")
 	}
 
-	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.ConnInfo) (bool, string) {
+	if util.IsDuplicatedSlice(cis, func(i quicstream.ConnInfo) (bool, string) {
 		return true, i.UDPAddr().String()
-	}); found {
+	}) {
 		return e.Errorf("duplicated conninfo found")
 	}
 

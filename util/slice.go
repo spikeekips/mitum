@@ -7,7 +7,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) (map[string]T, bool) {
+func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) bool {
+	m, isdup := IsDuplicatedSliceWithMap(s, keyf)
+	clear(m)
+
+	return isdup
+}
+
+func IsDuplicatedSliceWithMap[T any](s []T, keyf func(T) (bool, string)) (map[string]T, bool) {
 	if len(s) < 1 {
 		return nil, false
 	}
@@ -79,6 +86,7 @@ func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error)
 	var index int
 
 	m := map[string]struct{}{}
+	defer clear(m)
 
 	for i := range s {
 		switch k, err := f(s[i]); {

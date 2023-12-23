@@ -272,6 +272,8 @@ func (cmd *KeySignCommand) loadBody() (interface{}, error) {
 	}
 
 	var u map[string]interface{}
+	defer clear(u)
+
 	if err := util.UnmarshalJSON(body, &u); err != nil {
 		return nil, err
 	}

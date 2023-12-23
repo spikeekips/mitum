@@ -275,6 +275,7 @@ func (cmd *DatabaseExtractCommand) count(context.Context) error {
 	var total uint64
 
 	labels := map[string]interface{}{}
+	defer clear(labels)
 
 	for k := range allDatabaseExtractLabels {
 		label := allDatabaseExtractLabels[k]
@@ -490,6 +491,8 @@ func (cmd *DatabaseExtractCommand) extractValue(label, prefix string, key, raw [
 	}
 
 	var m map[string]interface{}
+	defer clear(m)
+
 	var err error
 
 	if !cmd.Raw {

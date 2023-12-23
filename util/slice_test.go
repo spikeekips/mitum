@@ -51,7 +51,7 @@ func TestIsDuplicatedSlice(tt *testing.T) {
 		t.Run(c.name, func() {
 			sl := makeInterfaceSlice(c.s)
 
-			_, isduplicated := IsDuplicatedSlice(sl, c.k)
+			isduplicated := IsDuplicatedSlice(sl, c.k)
 			t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
 		})
 	}
@@ -61,7 +61,7 @@ func TestIsDuplicatedSlice(tt *testing.T) {
 
 		var n int
 
-		_, isduplicated := IsDuplicatedSlice(sl, func(i string) (bool, string) {
+		isduplicated := IsDuplicatedSlice(sl, func(i string) (bool, string) {
 			if n == 2 {
 				return false, i
 			}

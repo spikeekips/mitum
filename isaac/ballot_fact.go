@@ -57,13 +57,13 @@ func (fact baseBallotFact) IsValid([]byte) error {
 			return util.ErrInvalid.WithMessage(err, "wrong expelfacts")
 		}
 
-		if _, found := util.IsDuplicatedSlice(fact.expelfacts, func(i util.Hash) (bool, string) {
+		if util.IsDuplicatedSlice(fact.expelfacts, func(i util.Hash) (bool, string) {
 			if i == nil {
 				return true, ""
 			}
 
 			return true, i.String()
-		}); found {
+		}) {
 			return util.ErrInvalid.Errorf("duplicated expel fact found")
 		}
 	}

@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -60,11 +61,7 @@ func (bbt *ballotBroadcastTimers) StopTimers() error {
 	bbt.Lock()
 	defer bbt.Unlock()
 
-	defer func() {
-		for i := range bbt.points {
-			delete(bbt.points, i)
-		}
-	}()
+	defer clear(bbt.points)
 
 	return bbt.timers.StopAllTimers()
 }
@@ -223,14 +220,15 @@ func (bbt *ballotBroadcastTimers) removeTimerIDs(point base.StagePoint, timerIDs
 
 	var actives []util.TimerID
 
-	for ti := range bbt.points {
-		switch {
-		case filter(ti, bbt.points[ti]):
-			actives = append(actives, ti)
-		default:
-			delete(bbt.points, ti)
+	maps.DeleteFunc(bbt.points, func(k util.TimerID, v base.StagePoint) bool {
+		if filter(k, v) {
+			actives = append(actives, k)
+
+			return false
 		}
-	}
+
+		return true
+	})
 
 	return bbt.timers.StopOthers(actives)
 }

@@ -315,6 +315,7 @@ func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
 
 	_ = box.removed.Get(func(removed []*voterecords, isempty bool) error {
 		removedm := map[string]struct{}{}
+		defer clear(removedm)
 
 		if len(removed) > 0 {
 			for i := range removed {
@@ -822,16 +823,12 @@ func (vr *voterecords) countFromBallots(suf base.Suffrage) {
 	for i := range vr.ballots {
 		signfact := vr.ballots[i]
 
-		if err := vr.isValidBallot(signfact, suf); err != nil {
-			delete(vr.ballots, i)
-
-			continue
+		if err := vr.isValidBallot(signfact, suf); err == nil {
+			vr.voted[signfact.Node().String()] = signfact
 		}
-
-		vr.voted[signfact.Node().String()] = signfact
 	}
 
-	vr.ballots = map[string]base.BallotSignFact{}
+	clear(vr.ballots)
 }
 
 func (vr *voterecords) countFromVoted(
@@ -845,6 +842,7 @@ func (vr *voterecords) countFromVoted(
 	}
 
 	sfs, set, m := vr.sfs(vr.voted)
+	defer clear(m)
 
 	var expelsnotyet bool
 
@@ -1027,8 +1025,6 @@ func (vr *voterecords) copyVoted(suf base.Suffrage) map[string]base.BallotSignFa
 
 			if vp != nil {
 				if err := vr.isValidBallot(signfact, suf); err != nil {
-					delete(vr.ballots, i)
-
 					continue
 				}
 			}
@@ -1036,7 +1032,7 @@ func (vr *voterecords) copyVoted(suf base.Suffrage) map[string]base.BallotSignFa
 			voted[signfact.Node().String()] = signfact
 		}
 
-		vr.ballots = map[string]base.BallotSignFact{}
+		clear(vr.ballots)
 	}
 
 	return voted
@@ -1085,6 +1081,7 @@ func (vr *voterecords) stuckVoteproof(
 	}
 
 	filteredvoted := map[string]base.BallotSignFact{}
+	defer clear(filteredvoted)
 
 	_ = util.FilterMap(voted, func(k string, sf base.BallotSignFact) bool {
 		if slices.IndexFunc(expels, func(i base.SuffrageExpelOperation) bool {
@@ -1199,11 +1196,19 @@ func (vr *voterecords) countWithExpels(
 
 		var majority base.BallotFact
 
-		switch result, majoritykey := newthreshold.VoteResult(quorum, set); result {
-		case base.VoteResultDraw:
-		case base.VoteResultMajority:
-			majority = m[majoritykey]
-		default:
+		if !func() bool {
+			defer clear(m)
+
+			switch result, majoritykey := newthreshold.VoteResult(quorum, set); result {
+			case base.VoteResultDraw:
+			case base.VoteResultMajority:
+				majority = m[majoritykey]
+			default:
+				return false
+			}
+
+			return true
+		}() {
 			continue
 		}
 
@@ -1303,10 +1308,10 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	vr.sp = base.ZeroStagePoint
 	vr.isValidVoteproof = nil
 	vr.getSuffrageFunc = nil
-	vr.voted = nil
-	vr.ballots = nil
-	vr.expels = nil
-	vr.vps = nil
+	clear(vr.voted)
+	clear(vr.ballots)
+	clear(vr.expels)
+	clear(vr.vps)
 	vr.log = zerolog.Nop()
 
 	voterecordsPool.Put(vr)
@@ -1330,6 +1335,7 @@ func sortBallotSignFactsByExpels(
 	}
 
 	mw := map[string][3]interface{}{}
+	defer clear(mw)
 
 	for i := range signfacts {
 		signfact := signfacts[i]

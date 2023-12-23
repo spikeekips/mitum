@@ -115,6 +115,7 @@ func (r *RateLimiterRule) UnmarshalText(b []byte) error {
 
 func (m RateLimiterRuleMap) MarshalJSON() ([]byte, error) {
 	n := map[string]RateLimiterRule{}
+	defer clear(n)
 
 	for i := range m.m {
 		n[i] = m.m[i]
@@ -129,6 +130,8 @@ func (m RateLimiterRuleMap) MarshalJSON() ([]byte, error) {
 
 func (m *RateLimiterRuleMap) UnmarshalJSON(b []byte) error {
 	var u map[string]RateLimiterRule
+	defer clear(u)
+
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return err
 	}
@@ -156,6 +159,13 @@ func (rs NetRateLimiterRuleSet) MarshalJSON() ([]byte, error) {
 	}
 
 	n := make([]map[string]RateLimiterRuleMap, len(rs.ipnets))
+	defer func() {
+		for i := range n {
+			clear(n[i])
+		}
+
+		clear(n)
+	}()
 
 	for i := range rs.ipnets {
 		ip := rs.ipnets[i]
@@ -169,6 +179,8 @@ func (rs NetRateLimiterRuleSet) MarshalJSON() ([]byte, error) {
 
 func (rs *NetRateLimiterRuleSet) UnmarshalJSON(b []byte) error {
 	var u []map[string]RateLimiterRuleMap
+	defer clear(u)
+
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return err
 	}

@@ -62,7 +62,7 @@ func (p *SuffrageExpelProcessor) Close() error {
 
 	p.sufstv = nil
 	p.suffrage = nil
-	p.preprocessed = nil
+	clear(p.preprocessed)
 
 	return nil
 }

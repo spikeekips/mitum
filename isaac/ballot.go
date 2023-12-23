@@ -122,7 +122,7 @@ func (bl *baseBallot) isValidExpels(networkID []byte, expels []base.SuffrageExpe
 
 		var werr error
 
-		if _, found := util.IsDuplicatedSlice(expels, func(i base.SuffrageExpelOperation) (bool, string) {
+		if found := util.IsDuplicatedSlice(expels, func(i base.SuffrageExpelOperation) (bool, string) {
 			if i == nil {
 				return true, ""
 			}

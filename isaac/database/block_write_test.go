@@ -43,7 +43,7 @@ func (t *testLeveldbBlockWrite) Test2Writers() {
 		sorted[i] = wst
 	}
 
-	_, duplicated := util.IsDuplicatedSlice(wsts, func(i *LeveldbBlockWrite) (bool, string) {
+	duplicated := util.IsDuplicatedSlice(wsts, func(i *LeveldbBlockWrite) (bool, string) {
 		return true, string(i.pst.Prefix())
 	})
 	t.False(duplicated)

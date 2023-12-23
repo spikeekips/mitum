@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"maps"
 	"net"
 	"sync"
 	"time"
@@ -182,11 +183,9 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 		p.fixedids[i] = p.makeid(fixed[i])
 	}
 
-	for id := range p.nonfixed {
-		if slices.Index(p.fixedids, id) >= 0 {
-			delete(p.nonfixed, id)
-		}
-	}
+	maps.DeleteFunc(p.nonfixed, func(id string, _ NodeConnInfo) bool {
+		return slices.Index(p.fixedids, id) >= 0
+	})
 
 	return true
 }

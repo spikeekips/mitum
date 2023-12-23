@@ -49,23 +49,23 @@ end:
 		}
 	}
 
-	if _, found := util.IsDuplicatedSlice(p.nodes, func(n Node) (bool, string) {
+	if util.IsDuplicatedSlice(p.nodes, func(n Node) (bool, string) {
 		if n.IsEmpty() {
 			return true, util.UUID().String()
 		}
 
 		return true, n.Key()
-	}); found {
+	}) {
 		return e.Errorf("duplicated key found")
 	}
 
-	if _, found := util.IsDuplicatedSlice(p.nodes, func(n Node) (bool, string) {
+	if util.IsDuplicatedSlice(p.nodes, func(n Node) (bool, string) {
 		if n.IsEmpty() {
 			return true, valuehash.Bytes(util.UUID().Bytes()).String()
 		}
 
 		return true, n.Hash().String()
-	}); found {
+	}) {
 		return e.Errorf("duplicated hash found")
 	}
 

@@ -106,6 +106,7 @@ func (cmd *NetworkClientEventLoggingCommand) printLog(addedAt time.Time, offset 
 		"offset": offset,
 		"log":    json.RawMessage(raw),
 	}
+	defer clear(m)
 
 	if err := cmd.JSONEncoder.StreamEncoder(os.Stdout).Encode(m); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to encode: %q\n", string(raw))

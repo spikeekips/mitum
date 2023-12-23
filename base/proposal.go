@@ -57,23 +57,23 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 	ops := fact.Operations()
 
-	if _, found := util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
+	if util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
 		if hs[0] == nil {
 			return true, ""
 		}
 
 		return true, hs[0].String()
-	}); found {
+	}) {
 		return e.Errorf("duplicated operation found")
 	}
 
-	if _, found := util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
+	if util.IsDuplicatedSlice(ops, func(hs [2]util.Hash) (bool, string) {
 		if hs[1] == nil {
 			return true, ""
 		}
 
 		return true, hs[1].String()
-	}); found {
+	}) {
 		return e.Errorf("duplicated operation fact found")
 	}
 

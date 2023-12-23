@@ -92,6 +92,7 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 	g.ops = make([]base.Operation, len(g.facts))
 
 	types := map[string]struct{}{}
+	defer clear(types)
 
 	for i := range g.facts {
 		fact := g.facts[i]

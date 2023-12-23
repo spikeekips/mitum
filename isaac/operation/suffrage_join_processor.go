@@ -81,8 +81,8 @@ func (p *SuffrageJoinProcessor) Close() error {
 
 	p.sufstv = nil
 	p.suffrage = nil
-	p.candidates = nil
-	p.preprocessed = nil
+	clear(p.candidates)
+	clear(p.preprocessed)
 	p.threshold = 0
 
 	return nil

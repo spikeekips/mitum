@@ -100,7 +100,10 @@ func FindVoteResult(quorum, threshold uint, s []string) (result VoteResult, key 
 	}
 
 	keys := map[uint]string{}
+	defer clear(keys)
+
 	count := map[string]uint{}
+	defer clear(count)
 
 	for i := range s {
 		count[s[i]]++

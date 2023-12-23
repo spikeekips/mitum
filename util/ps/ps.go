@@ -398,6 +398,7 @@ func (ps *PS) SetLogging(l *logging.Logging) *logging.Logging {
 
 func (ps *PS) Verbose() []Name {
 	called := map[Name]struct{}{}
+	defer clear(called)
 
 	var f func(name Name) []Name
 

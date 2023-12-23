@@ -484,7 +484,7 @@ func isValidithdrawVoteproof(networkID []byte, expels []base.SuffrageExpelOperat
 
 	var n int
 
-	if _, found := util.IsDuplicatedSlice(expels, func(i base.SuffrageExpelOperation) (bool, string) {
+	if util.IsDuplicatedSlice(expels, func(i base.SuffrageExpelOperation) (bool, string) {
 		if i == nil {
 			return true, ""
 		}
@@ -495,7 +495,7 @@ func isValidithdrawVoteproof(networkID []byte, expels []base.SuffrageExpelOperat
 		n++
 
 		return true, node.String()
-	}); found {
+	}) {
 		return util.ErrInvalid.Errorf("duplicated expel node found")
 	}
 

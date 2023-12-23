@@ -82,9 +82,9 @@ func (p *SuffrageCandidateProcessor) Close() error {
 		return err
 	}
 
-	p.suffrages = nil
-	p.existings = nil
-	p.preprocessed = nil
+	clear(p.suffrages)
+	clear(p.existings)
+	clear(p.preprocessed)
 	p.startheight = base.NilHeight
 	p.deadlineheight = base.NilHeight
 
