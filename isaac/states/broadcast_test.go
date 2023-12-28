@@ -96,7 +96,7 @@ func (t *testBallotBroadcastTimers) TestINIT() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait ballot"))
+			t.Fail("failed to wait ballot")
 		case rbl := <-bch:
 			base.EqualBallot(t.Assert(), bl, rbl)
 		}
@@ -132,7 +132,7 @@ func (t *testBallotBroadcastTimers) TestINIT() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait ballot"))
+			t.Fail("failed to wait ballot")
 		case rbl := <-bch:
 			base.EqualBallot(t.Assert(), bl, rbl)
 		}
@@ -182,7 +182,7 @@ func (t *testBallotBroadcastTimers) TestNotRemove() {
 		if slices.Index(expected, ballotBroadcastTimerID(timerIDBroadcastINITBallot, pa)) >= 0 {
 			select {
 			case <-time.After(time.Second):
-				t.NoError(errors.Errorf("failed to wait ballot"))
+				t.Fail("failed to wait ballot")
 			case rbl := <-bch:
 				t.NotNil(rbl)
 			}
@@ -191,7 +191,7 @@ func (t *testBallotBroadcastTimers) TestNotRemove() {
 		if slices.Index(expected, ballotBroadcastTimerID(timerIDBroadcastINITBallot, pb)) >= 0 {
 			select {
 			case <-time.After(time.Second):
-				t.NoError(errors.Errorf("failed to wait ballot"))
+				t.Fail("failed to wait ballot")
 			case rbl := <-bchi:
 				t.NotNil(rbl)
 			}
@@ -200,7 +200,7 @@ func (t *testBallotBroadcastTimers) TestNotRemove() {
 		if slices.Index(expected, ballotBroadcastTimerID(timerIDBroadcastACCEPTBallot, pb)) >= 0 {
 			select {
 			case <-time.After(time.Second):
-				t.NoError(errors.Errorf("failed to wait ballot"))
+				t.Fail("failed to wait ballot")
 			case rbl := <-bcha:
 				t.NotNil(rbl)
 			}
@@ -272,14 +272,14 @@ func (t *testBallotBroadcastTimers) TestNotRemove() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait ballot"))
+			t.Fail("failed to wait ballot")
 		case rbl := <-bch:
 			t.NotNil(rbl)
 		}
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait ballot"))
+			t.Fail("failed to wait ballot")
 		case rbl := <-bcha:
 			t.NotNil(rbl)
 		}
@@ -373,7 +373,7 @@ func (t *testBallotBroadcastTimers) TestRemove() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait ballot"))
+			t.Fail("failed to wait ballot")
 		case rbl := <-bch:
 			t.NotNil(rbl)
 		}
@@ -381,13 +381,13 @@ func (t *testBallotBroadcastTimers) TestRemove() {
 		select {
 		case <-time.After(time.Second):
 		case <-bchi:
-			t.NoError(errors.Errorf("unexpected ballot"))
+			t.Fail("unexpected ballot")
 		}
 
 		select {
 		case <-time.After(time.Second):
 		case <-bcha:
-			t.NoError(errors.Errorf("unexpected ballot"))
+			t.Fail("unexpected ballot")
 		}
 
 		t.T().Log("active timers:", bbt.timers.TimerIDs())
@@ -455,7 +455,7 @@ func (t *testBallotBroadcastTimers) TestRemove() {
 		select {
 		case <-time.After(time.Second):
 		case <-called:
-			t.NoError(errors.Errorf("unexpected ballot"))
+			t.Fail("unexpected ballot")
 		}
 	})
 }
@@ -484,7 +484,7 @@ func (t *testBallotBroadcastTimers) TestSetBroadcaster() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait ballot"))
+		t.Fail("failed to wait ballot")
 	case rbl := <-bch:
 		base.EqualBallot(t.Assert(), bl, rbl)
 	}
@@ -506,7 +506,7 @@ func (t *testBallotBroadcastTimers) TestSetBroadcaster() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait ballot"))
+		t.Fail("failed to wait ballot")
 	case rbl := <-nbch:
 		base.EqualBallot(t.Assert(), nbl, rbl)
 	}

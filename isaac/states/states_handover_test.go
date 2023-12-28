@@ -59,7 +59,7 @@ func (t *testStates) TestSwitchHandover() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -77,7 +77,7 @@ func (t *testStates) TestSwitchHandover() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-handoverenterch:
-			t.NoError(errors.Errorf("entered handover; but allowed consensus"))
+			t.Fail("entered handover; but allowed consensus")
 		}
 
 		t.T().Log("current", st.current().state())
@@ -97,7 +97,7 @@ func (t *testStates) TestSwitchHandover() {
 		select {
 		case <-time.After(time.Second * 3):
 		case <-handoverenterch:
-			t.NoError(errors.Errorf("entered handover; but under handover"))
+			t.Fail("entered handover; but under handover")
 		}
 
 		t.T().Log("current", st.current().state())
@@ -136,7 +136,7 @@ func (t *testStates) TestSwitchHandover() {
 		select {
 		case <-time.After(time.Second * 3):
 		case <-handoverenterch:
-			t.NoError(errors.Errorf("unexpected swithching"))
+			t.Fail("unexpected swithching")
 		}
 
 		t.T().Log("current", st.current().state())
@@ -161,7 +161,7 @@ func (t *testStates) TestSwitchHandover() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-handoverenterch:
 			t.Equal(StateHandover, st.current().state())
 		}
@@ -190,12 +190,12 @@ func (t *testStates) TestSwitchHandover() {
 		select {
 		case <-time.After(time.Second * 3):
 		case <-consensusenterch:
-			t.NoError(errors.Errorf("entered consensus; but under handover"))
+			t.Fail("entered consensus; but under handover")
 		}
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case sctx := <-handoverenterch:
 			t.T().Log("entered handover")
 			t.Equal(StateHandover, st.current().state())
@@ -362,7 +362,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait syncing state"))
+			t.Fail("failed to wait syncing state")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -406,7 +406,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 
 			select {
 			case <-time.After(time.Second * 3):
-				t.NoError(errors.Errorf("failed to enter consensus"))
+				t.Fail("failed to enter consensus")
 			case <-consensusenterch:
 			}
 
@@ -440,7 +440,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 
 			select {
 			case <-time.After(time.Second * 3):
-				t.NoError(errors.Errorf("failed to wait syncing state"))
+				t.Fail("failed to wait syncing state")
 			case <-syncingenterch:
 				t.Equal(StateSyncing, st.current().state())
 			}
@@ -449,7 +449,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 
 			select {
 			case <-time.After(time.Second * 2):
-				t.NoError(errors.Errorf("failed to finish"))
+				t.Fail("failed to finish")
 			case <-fch:
 				isfinished, _ := broker.isFinishedLocked.Value()
 				t.True(isfinished)
@@ -502,7 +502,7 @@ func (t *testStates) TestYBrokerAskCanMoveConsensus() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to wait"))
+		t.Fail("failed to wait")
 	case <-syncingenterch:
 		t.T().Log("current", st.current().state())
 
@@ -609,7 +609,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait syncing state"))
+			t.Fail("failed to wait syncing state")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -670,7 +670,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to finish"))
+			t.Fail("failed to finish")
 		case <-fch:
 		}
 
@@ -680,7 +680,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait syncing state"))
+			t.Fail("failed to wait syncing state")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -1074,7 +1074,7 @@ func (t *testHandoverFuncs) TestAskReceived() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait set allow consensus"))
+			t.Fail("failed to wait set allow consensus")
 		case <-setallowedch:
 		}
 	})

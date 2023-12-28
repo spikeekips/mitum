@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util/logging"
@@ -105,7 +104,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 		select {
 		case <-time.After(time.Millisecond * 600):
 		case <-votedch:
-			t.NoError(errors.Errorf("should be cancled before suffrage voting"))
+			t.Fail("should be cancled before suffrage voting")
 		}
 
 		r.Cancel(newpoint)
@@ -143,7 +142,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait suffrage voting, but failed"))
+			t.Fail("wait suffrage voting, but failed")
 		case <-votedch:
 		}
 
@@ -182,7 +181,7 @@ func (t *testDefaultBallotStuckResolver) TestClean() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-votedch:
-			t.NoError(errors.Errorf("should be cancled before suffrage voting"))
+			t.Fail("should be cancled before suffrage voting")
 		}
 
 		t.Equal(base.ZeroStagePoint, r.point)
@@ -225,7 +224,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreGatherMissingBallots() {
 	select {
 	case <-time.After(time.Second * 2):
 	case <-votedch:
-		t.NoError(errors.Errorf("should be cancled before suffrage voting"))
+		t.Fail("should be cancled before suffrage voting")
 	}
 }
 
@@ -267,7 +266,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting(
 	select {
 	case <-time.After(time.Second * 2):
 	case <-votedch:
-		t.NoError(errors.Errorf("should be cancled before suffrage voting"))
+		t.Fail("should be cancled before suffrage voting")
 	}
 }
 
@@ -292,7 +291,7 @@ func (t *testDefaultBallotStuckResolver) TestNextRound() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next round, but failed"))
+		t.Fail("wait next round, but failed")
 	case vp := <-r.Voteproof():
 		t.NotNil(vp)
 	}

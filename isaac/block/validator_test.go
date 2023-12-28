@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -129,7 +128,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 
 		err = IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, ErrLastBlockMapOnlyInLocalFS))
+		t.ErrorIs(err, ErrLastBlockMapOnlyInLocalFS)
 	})
 
 	t.Run("not found in local fs", func() {
@@ -138,7 +137,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 
 		err := IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, ErrLastBlockMapOnlyInDatabase))
+		t.ErrorIs(err, ErrLastBlockMapOnlyInDatabase)
 	})
 }
 
@@ -155,7 +154,7 @@ func (t *testValidateLastBlocks) TestDifferentHeight_BlockMapNotFoundInDatabase(
 
 	var derr *ErrValidatedDifferentHeightBlockMaps
 
-	t.True(errors.As(err, &derr))
+	t.ErrorAs(err, &derr)
 	t.Equal(base.Height(2), derr.DatabaseHeight())
 	t.Equal(base.Height(3), derr.LocalFSHeight())
 }
@@ -200,13 +199,13 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 	t.Run("empty", func() {
 		err := IsValidAllBlockMapsFromLocalFS(t.readers(util.UUID().String()), 3, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrNotExist))
+		t.ErrorIs(err, os.ErrNotExist)
 	})
 
 	t.Run("last not found", func() {
 		err := IsValidAllBlockMapsFromLocalFS(t.readers(a), 4, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 	})
 
 	t.Run("missing", func() {
@@ -216,7 +215,7 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 
 		err = IsValidAllBlockMapsFromLocalFS(t.readers(a), 3, t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 	})
 }
 

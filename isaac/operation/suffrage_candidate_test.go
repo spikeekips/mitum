@@ -1,7 +1,6 @@
 package isaacoperation
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -137,7 +136,7 @@ func (t *testSuffrageCandidate) TestSign() {
 
 		err := op.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "not signed by candidate")
 	})
 
@@ -148,7 +147,7 @@ func (t *testSuffrageCandidate) TestSign() {
 
 		err := op.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "not signed by candidate")
 	})
 }

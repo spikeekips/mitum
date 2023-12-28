@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -71,7 +70,7 @@ func (t *testBaseOperation) TestNew() {
 	t.Run("invalid network id", func() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	})
 
 	_ = (interface{})(op).(Operation)
@@ -90,7 +89,7 @@ func (t *testBaseOperation) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 
@@ -103,7 +102,7 @@ func (t *testBaseOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 
@@ -112,7 +111,7 @@ func (t *testBaseOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty signs")
 	})
 
@@ -121,7 +120,7 @@ func (t *testBaseOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	})
 }
 
@@ -199,7 +198,7 @@ func (t *testBaseNodeOperation) TestNew() {
 	t.Run("invalid network id", func() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	})
 
 	_ = (interface{})(op).(Operation)
@@ -218,7 +217,7 @@ func (t *testBaseNodeOperation) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 
@@ -231,7 +230,7 @@ func (t *testBaseNodeOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 
@@ -240,7 +239,7 @@ func (t *testBaseNodeOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty signs")
 	})
 
@@ -249,7 +248,7 @@ func (t *testBaseNodeOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	})
 
 	t.Run("duplicated sign", func() {

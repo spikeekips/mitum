@@ -46,7 +46,7 @@ func (t *testHandoverXBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("cancel(); isCanceled", func() {
@@ -60,7 +60,7 @@ func (t *testHandoverXBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -132,7 +132,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait finished"))
+			t.Fail("failed to wait finished")
 		case <-fch:
 			isfinishedl, _ := broker.isFinishedLocked.Value()
 			t.True(isfinishedl)
@@ -166,15 +166,15 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		_, err := broker.sendVoteproof(ctx, ivp)
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait cancel"))
+			t.Fail("failed to wait cancel")
 		case err = <-canceledch:
 			t.ErrorContains(err, "hihihi")
 		}
@@ -196,7 +196,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	broker = NewHandoverXBroker(context.Background(), args, quicstream.ConnInfo{})
@@ -246,7 +246,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -267,7 +267,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("receive; wrong publickey", func() {
@@ -286,7 +286,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("receive without no previous voteproof", func() {
@@ -301,7 +301,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("receive; last not accept voteproof", func() {
@@ -423,7 +423,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -440,7 +440,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("before no previous voteproof", func() {
@@ -453,7 +453,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("not higher previous HandoverMessageChallenge", func() {
@@ -504,7 +504,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageFinish"))
+			t.Fail("failed to wait HandoverMessageFinish")
 		case h := <-sendch:
 			t.Equal(broker.ID(), h.HandoverID())
 			t.False(h.OK())
@@ -543,7 +543,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageFinish"))
+			t.Fail("failed to wait HandoverMessageFinish")
 		case h := <-sendch:
 			t.Equal(broker.ID(), h.HandoverID())
 			t.True(h.OK())
@@ -585,7 +585,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageChallengeResponse"))
+			t.Fail("failed to wait HandoverMessageChallengeResponse")
 		case rhc := <-sendch:
 			t.False(rhc.OK())
 			t.Nil(rhc.Err())
@@ -627,7 +627,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageChallenge() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageChallengeResponse"))
+			t.Fail("failed to wait HandoverMessageChallengeResponse")
 		case rhc := <-sendch:
 			t.False(rhc.OK())
 			t.NotNil(rhc.Err())
@@ -660,7 +660,7 @@ func (t *testHandoverXBroker) TestFinish() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait HandoverMessageFinish"))
+			t.Fail("failed to wait HandoverMessageFinish")
 		case h := <-sendch:
 			t.Equal(broker.ID(), h.HandoverID())
 			t.Nil(h.INITVoteproof())
@@ -668,7 +668,7 @@ func (t *testHandoverXBroker) TestFinish() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait to finish"))
+			t.Fail("failed to wait to finish")
 		case <-fch:
 			i, _ := broker.isFinishedLocked.Value()
 			t.True(i)
@@ -689,7 +689,7 @@ func (t *testHandoverXBroker) TestFinish() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 

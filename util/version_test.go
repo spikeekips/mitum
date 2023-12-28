@@ -2,9 +2,9 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -17,7 +17,7 @@ func (t *testVersion) TestParseError() {
 	_, err := ParseVersion(o)
 	t.Error(err)
 	t.ErrorContains(err, "Invalid Semantic Version")
-	t.True(errors.Is(err, ErrInvalid))
+	t.ErrorIs(err, ErrInvalid)
 }
 
 func (t *testVersion) TestEnsureParseVersion() {
@@ -27,7 +27,7 @@ func (t *testVersion) TestEnsureParseVersion() {
 		err := v.IsValid(nil)
 		t.Error(err)
 		t.ErrorContains(err, "empty version string")
-		t.True(errors.Is(err, ErrInvalid))
+		t.ErrorIs(err, ErrInvalid)
 	}
 
 	{ // valid version string
@@ -78,7 +78,7 @@ func (t *testVersion) TestParse() {
 				v, err := ParseVersion(c.s)
 				if len(c.err) > 0 {
 					if err == nil {
-						t.NoError(errors.Errorf("error expected, %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
+						t.Fail(fmt.Sprintf("error expected, %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
 
 						return
 					}
@@ -89,7 +89,7 @@ func (t *testVersion) TestParse() {
 				}
 
 				if err != nil {
-					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
+					t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
 
 					return
 				}
@@ -160,19 +160,19 @@ func (t *testVersion) TestIsValid() {
 				err := v.IsValid(nil)
 				if len(c.err) > 0 {
 					if err == nil {
-						t.NoError(errors.Errorf("error expected, %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
+						t.Fail(fmt.Sprintf("error expected, %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
 
 						return
 					}
 
-					t.True(errors.Is(err, ErrInvalid))
+					t.ErrorIs(err, ErrInvalid)
 					t.ErrorContains(err, c.err, "%d(%q): %v; %+v", i, c.s, c.name, err)
 
 					return
 				}
 
 				if err != nil {
-					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
+					t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
 
 					return
 				}

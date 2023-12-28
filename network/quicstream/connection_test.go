@@ -39,10 +39,10 @@ func (t *testConnection) TestDial() {
 		t.T().Logf("error: %T %+v", err, err)
 
 		var operr *net.OpError
-		t.True(errors.As(err, &operr))
+		t.ErrorAs(err, &operr)
 
 		t.T().Logf("op error: %T %+v", operr.Err, operr.Err)
-		t.True(errors.Is(err, context.DeadlineExceeded))
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 
 	srv := t.NewDefaultServer(nil, nil)
@@ -136,7 +136,7 @@ func (t *testConnection) TestOpenStream() {
 				return nil
 			})
 			t.Error(err)
-			t.True(errors.Is(err, ErrOpenStream))
+			t.ErrorIs(err, ErrOpenStream)
 		}
 
 		opench <- struct{}{}

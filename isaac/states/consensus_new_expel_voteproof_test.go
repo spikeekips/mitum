@@ -70,7 +70,7 @@ func (t *testExpelsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case m := <-processedch:
@@ -146,7 +146,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVotepro
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case bl := <-scballotch:
@@ -181,7 +181,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVotepro
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case m := <-processedch:
@@ -258,7 +258,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case m := <-processedch:
@@ -278,7 +278,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -303,7 +303,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case bl := <-scballotch:
@@ -328,7 +328,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case m := <-processedch:
@@ -509,7 +509,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproof()
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case bl := <-initballotch:
@@ -533,7 +533,7 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproof()
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case m := <-processedch:
@@ -631,7 +631,7 @@ func (t *testExpelsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case bl := <-initballotch:
@@ -651,7 +651,7 @@ func (t *testExpelsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
+		t.Fail("timeout to wait suffrage confirm init ballot")
 
 		return
 	case bl := <-scballotch:
@@ -726,7 +726,7 @@ func (t *testExpelsConsensusHandler) TestEnterINITStuckVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+		t.Fail("wait next init ballot, but failed")
 
 		return
 	case bl := <-ballotch:
@@ -769,7 +769,7 @@ func (t *testExpelsConsensusHandler) TestINITStuckVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+		t.Fail("wait next init ballot, but failed")
 
 		return
 	case bl := <-nextinitballotch:
@@ -804,7 +804,7 @@ func (t *testExpelsConsensusHandler) TestINITStuckVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next round init ballot, but failed"))
+		t.Fail("wait next round init ballot, but failed")
 
 		return
 	case bl := <-nextroundballotch:
@@ -851,7 +851,7 @@ func (t *testExpelsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+		t.Fail("wait next init ballot, but failed")
 
 		return
 	case bl := <-nextinitballotch:
@@ -888,7 +888,7 @@ func (t *testExpelsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 
 		t.T().Log("switching to syncing state")
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(nextpoint.Height()-1, ssctx.height)
 	}
 }
@@ -953,7 +953,7 @@ func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait accept ballot, but failed"))
+		t.Fail("wait accept ballot, but failed")
 
 		return
 	case bl := <-acceptballotch:
@@ -987,7 +987,7 @@ func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait next round ballot, but failed"))
+		t.Fail("wait next round ballot, but failed")
 
 		return
 	case bl := <-nextroundballotch:
@@ -1062,7 +1062,7 @@ func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait accept ballot, but failed"))
+		t.Fail("wait accept ballot, but failed")
 
 		return
 	case bl := <-acceptballotch:
@@ -1098,7 +1098,7 @@ func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 
 		t.T().Log("switching to syncing state")
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(nextpoint.Height()-1, ssctx.height)
 	}
 }

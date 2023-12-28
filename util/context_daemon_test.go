@@ -29,7 +29,7 @@ func (t *testContextDaemon) TestNew() {
 	t.True(ed.IsStarted())
 
 	err := ed.Start(context.Background())
-	t.True(errors.Is(err, ErrDaemonAlreadyStarted))
+	t.ErrorIs(err, ErrDaemonAlreadyStarted)
 
 	<-time.After(time.Millisecond * 100)
 
@@ -41,7 +41,7 @@ func (t *testContextDaemon) TestNew() {
 	t.True(timeStopped.Sub(timeStopping) > 0)
 
 	err = ed.Stop()
-	t.True(errors.Is(err, ErrDaemonAlreadyStopped))
+	t.ErrorIs(err, ErrDaemonAlreadyStopped)
 }
 
 func (t *testContextDaemon) TestFuncStopped() {
@@ -73,7 +73,7 @@ func (t *testContextDaemon) TestStop() {
 	t.True(time.Since(timeStopping) > stopAfter)
 
 	// stop again
-	t.True(errors.Is(ed.Stop(), ErrDaemonAlreadyStopped))
+	t.ErrorIs(ed.Stop(), ErrDaemonAlreadyStopped)
 }
 
 func (t *testContextDaemon) TestStartAgain() {
@@ -94,7 +94,7 @@ func (t *testContextDaemon) TestStartAgain() {
 	t.NoError(ed.Stop())
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("wait to stop, but failed"))
+		t.Fail("wait to stop, but failed")
 		return
 	case <-resultchan:
 	}
@@ -107,7 +107,7 @@ func (t *testContextDaemon) TestStartAgain() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("wait to stop, but failed"))
+		t.Fail("wait to stop, but failed")
 		return
 	case <-resultchan:
 	}
@@ -120,7 +120,7 @@ func (t *testContextDaemon) TestWait() {
 
 	err := <-ed.Wait(context.Background())
 	t.ErrorContains(err, "show me")
-	t.True(errors.Is(ed.Stop(), ErrDaemonAlreadyStopped))
+	t.ErrorIs(ed.Stop(), ErrDaemonAlreadyStopped)
 
 	ed = NewContextDaemon(func(_ context.Context) error {
 		<-time.After(time.Second * 2)

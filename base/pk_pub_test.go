@@ -1,7 +1,6 @@
 package base
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
@@ -42,7 +41,7 @@ func (t *testMPublickey) TestInvalid() {
 		n := pub
 		n.k = nil
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty btc publickey")
 	}
 }
@@ -75,7 +74,7 @@ func (t *testMPublickey) TestSign() {
 	{ // different input
 		err = priv.Publickey().Verify([]byte("findme"), sig)
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	}
 
 	{ // wrong signature
@@ -85,13 +84,13 @@ func (t *testMPublickey) TestSign() {
 
 		err = priv.Publickey().Verify(input, sig)
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	}
 
 	{ // different publickey
 		err = NewMPrivatekey().Publickey().Verify(input, sig)
 		t.Error(err)
-		t.True(errors.Is(err, ErrSignatureVerification))
+		t.ErrorIs(err, ErrSignatureVerification)
 	}
 }
 

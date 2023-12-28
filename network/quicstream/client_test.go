@@ -70,7 +70,7 @@ func (t *testConnectionPool) TestDial() {
 		t.Error(err)
 
 		var nerr *net.OpError
-		t.True(errors.As(err, &nerr))
+		t.ErrorAs(err, &nerr)
 
 		t.Equal(0, p.conns.Len())
 

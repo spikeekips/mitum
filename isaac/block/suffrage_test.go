@@ -3,7 +3,6 @@ package isaacblock
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -135,7 +134,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "type does not match")
 	})
 
@@ -144,7 +143,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("nil state", func() {
@@ -152,7 +151,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("wrong suffrage state", func() {
@@ -160,7 +159,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "expected base.SuffrageNodesStateValue")
 	})
 
@@ -177,7 +176,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "state height does not match with manifest")
 	})
 }

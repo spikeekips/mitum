@@ -2,7 +2,6 @@ package valuehash
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -71,7 +70,7 @@ func (t *testStatic) TestEmpty32() {
 	h := L32{}
 
 	err := h.IsValid(nil)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty hash")
 }
 
@@ -79,7 +78,7 @@ func (t *testStatic) TestEmpty64() {
 	h := L64{}
 
 	err := h.IsValid(nil)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty hash")
 }
 

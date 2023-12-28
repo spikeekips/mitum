@@ -71,7 +71,7 @@ func (t *testProposalProcessors) TestProcess() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save"))
+		t.Fail("timeout to wait save")
 	case ravp := <-savech:
 		base.EqualVoteproof(t.Assert(), avp, ravp)
 	}
@@ -117,7 +117,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait result"))
+		t.Fail("timeout to wait result")
 	case <-processch:
 	}
 
@@ -176,7 +176,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait result"))
+		t.Fail("timeout to wait result")
 	case <-processch:
 	}
 
@@ -187,7 +187,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait cancel"))
+		t.Fail("timeout to wait cancel")
 	case <-cancelch:
 	}
 }
@@ -209,7 +209,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	t.Error(err)
 	t.Nil(processf)
 
-	t.True(errors.Is(err, util.ErrNotFound))
+	t.ErrorIs(err, util.ErrNotFound)
 	t.ErrorContains(err, "hehehe")
 }
 
@@ -230,7 +230,7 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 	t.Error(err)
 	t.Nil(processf)
 
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 	t.ErrorContains(err, "canceled")
 }
 
@@ -256,7 +256,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 	t.T().Log("process")
 	_, err := pps.Process(context.Background(), point, valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 	t.ErrorContains(err, "canceled")
 
 	t.True(atomic.LoadInt64(&try) > 2)
@@ -371,8 +371,8 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 	rmanifest, err := processf(context.Background())
 	t.Error(err)
 
-	t.True(errors.Is(err, context.Canceled))
-	t.True(errors.Is(err, ErrNotProposalProcessorProcessed))
+	t.ErrorIs(err, context.Canceled)
+	t.ErrorIs(err, ErrNotProposalProcessorProcessed)
 	t.Nil(rmanifest)
 }
 

@@ -77,9 +77,9 @@ func (t *testRetry) TestCancel() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to cancel"))
+		t.Fail("failed to cancel")
 	case err := <-donech:
-		t.True(errors.Is(err, context.Canceled))
+		t.ErrorIs(err, context.Canceled)
 	}
 }
 

@@ -177,7 +177,7 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join"))
+		t.Fail("local failed to join")
 	case node := <-joinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -216,7 +216,7 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join"))
+		t.Fail("local failed to join")
 	case node := <-joinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -237,7 +237,7 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 
 		select {
 		case <-time.After(time.Second * 10):
-			t.NoError(errors.Errorf("local failed to left"))
+			t.Fail("local failed to left")
 		case node := <-leftch:
 			t.True(isEqualAddress(lci, node))
 			t.Equal(0, srv.MembersLen())
@@ -249,7 +249,7 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("local failed to left"))
+			t.Fail("local failed to left")
 		case node := <-joinedch:
 			t.True(isEqualAddress(lci, node))
 			t.Equal(1, srv.MembersLen())
@@ -306,7 +306,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case node := <-ljoinedch:
 		t.True(isEqualAddress(rci, node))
 
@@ -329,7 +329,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("remote failed to join to local"))
+		t.Fail("remote failed to join to local")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 
@@ -405,7 +405,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join"))
+		t.Fail("local failed to join")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -468,7 +468,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join"))
+		t.Fail("local failed to join")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -528,14 +528,14 @@ func (t *testMemberlist) TestLocalLeave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case node := <-ljoinedch:
 		t.True(isEqualAddress(rci, node))
 	}
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("remote failed to join to local"))
+		t.Fail("remote failed to join to local")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -546,7 +546,7 @@ func (t *testMemberlist) TestLocalLeave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to leave from local"))
+		t.Fail("local failed to leave from local")
 	case node := <-lleftch:
 		t.True(isEqualAddress(lci, node))
 		t.Equal(0, lsrv.MembersLen())
@@ -554,7 +554,7 @@ func (t *testMemberlist) TestLocalLeave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to leave from remote"))
+		t.Fail("local failed to leave from remote")
 	case node := <-rleftch:
 		t.True(isEqualAddress(lci, node))
 		t.Equal(1, rsrv.MembersLen())
@@ -569,14 +569,14 @@ func (t *testMemberlist) TestLocalLeave() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("local failed to join to remote"))
+			t.Fail("local failed to join to remote")
 		case node := <-ljoinedch:
 			t.True(isEqualAddress(rci, node))
 		}
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("remote failed to join to local"))
+			t.Fail("remote failed to join to local")
 		case node := <-rjoinedch:
 			t.True(isEqualAddress(lci, node))
 		}
@@ -631,14 +631,14 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case node := <-ljoinedch:
 		t.True(isEqualAddress(rci, node))
 	}
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("remote failed to join to local"))
+		t.Fail("remote failed to join to local")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 	}
@@ -649,7 +649,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to leave from remote"))
+		t.Fail("local failed to leave from remote")
 	case node := <-rleftch:
 		t.True(isEqualAddress(lci, node))
 		t.Equal(1, rsrv.MembersLen())
@@ -770,7 +770,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case node := <-ljoinedch:
 		t.True(isEqualAddress(rci0, node))
 
@@ -860,7 +860,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	t.NoError(err)
 	err = remote.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty publish")
 
 	rdelegate := rsrv.args.PatchedConfig.Delegate.(*Delegate)
@@ -878,7 +878,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	select {
 	case <-time.After(time.Second * 2):
 	case <-ljoinedch:
-		t.NoError(errors.Errorf("unexpected; local joined to remote"))
+		t.Fail("unexpected; local joined to remote")
 	}
 }
 
@@ -922,7 +922,7 @@ func (t *testMemberlist) checkJoined(
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case node := <-ljoinedch:
 		t.True(isEqualAddress(rci, node))
 
@@ -945,7 +945,7 @@ func (t *testMemberlist) checkJoined(
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("remote failed to join to local"))
+		t.Fail("remote failed to join to local")
 	case node := <-rjoinedch:
 		t.True(isEqualAddress(lci, node))
 
@@ -991,7 +991,7 @@ func (t *testMemberlist) checkJoined2(
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("local failed to join to remote"))
+		t.Fail("local failed to join to remote")
 	case <-ljoinedch:
 		t.Equal(len(rsrvs)+1, lsrv.MembersLen())
 
@@ -1015,7 +1015,7 @@ func (t *testMemberlist) checkJoined2(
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("remote failed to join"))
+			t.Fail("remote failed to join")
 		case <-ch:
 			t.Equal(len(rsrvs)+1, srv.MembersLen())
 
@@ -1096,7 +1096,7 @@ func (t *testMemberlist) TestBroadcast() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("remote failed to be notify msg"))
+		t.Fail("remote failed to be notify msg")
 	case b := <-rbroadcastedch:
 		t.Equal(uid.Bytes(), b)
 	}
@@ -1183,7 +1183,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("remote failed to be notify msg"))
+			t.Fail("remote failed to be notify msg")
 		case b := <-rbroadcastedch:
 			t.T().Log("received:", b)
 			t.Equal(uid.Bytes(), b)
@@ -1207,7 +1207,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 		case <-time.After(time.Second * 2):
 		case b := <-rbroadcastedch:
 			t.T().Log("received:", b)
-			t.NoError(errors.Errorf("unexpected callback broadcasted message"))
+			t.Fail("unexpected callback broadcasted message")
 		}
 	})
 }
@@ -1402,7 +1402,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 6):
-			t.NoError(errors.Errorf("failed to wait ensured"))
+			t.Fail("failed to wait ensured")
 		case err := <-notifych:
 			t.NoError(err)
 
@@ -1424,7 +1424,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 6):
-			t.NoError(errors.Errorf("failed to wait ensured"))
+			t.Fail("failed to wait ensured")
 		case err := <-notifych:
 			t.NoError(err)
 
@@ -1445,7 +1445,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 15):
-			t.NoError(errors.Errorf("failed to wait ensured"))
+			t.Fail("failed to wait ensured")
 		case err := <-notifych:
 			t.Error(err)
 			t.ErrorContains(err, "over max retry")
@@ -1463,7 +1463,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 15):
-			t.NoError(errors.Errorf("failed to wait ensured"))
+			t.Fail("failed to wait ensured")
 		case err := <-notifych:
 			t.Error(err)
 			t.ErrorContains(err, "over max retry")
@@ -1490,7 +1490,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 		select {
 		case <-time.After(time.Second * 15):
-			t.NoError(errors.Errorf("failed to wait ensured"))
+			t.Fail("failed to wait ensured")
 		case err := <-notifych:
 			t.NoError(err)
 

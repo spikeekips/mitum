@@ -57,7 +57,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait"))
+		t.Fail("timeout to wait")
 
 		return
 	case <-prch:
@@ -72,7 +72,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(ssctx.height, newpoint.Height()-1)
 }
 
@@ -115,7 +115,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundMajorityButAlr
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait"))
+		t.Fail("timeout to wait")
 
 		return
 	case processed = <-prch:
@@ -132,7 +132,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundMajorityButAlr
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait new processed proposal"))
+		t.Fail("timeout to wait new processed proposal")
 
 		return
 	case newprocessed := <-prch:
@@ -196,7 +196,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait"))
+		t.Fail("timeout to wait")
 
 		return
 	case processed = <-prch:
@@ -216,7 +216,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait new next round init ballot"))
+		t.Fail("timeout to wait new next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -277,7 +277,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -286,7 +286,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	t.T().Log("wait next init ballot")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+		t.Fail("timeout to wait next init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -300,7 +300,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	t.T().Log("new draw init voteproof")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -311,7 +311,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	err = st.newVoteproof(newivp)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
 
@@ -375,7 +375,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	t.T().Log("wait new block saved:", point)
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -384,7 +384,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	t.T().Log("wait next init ballot:", point.NextHeight())
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+		t.Fail("timeout to wait next init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -398,7 +398,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -410,7 +410,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait to be confirmed"))
+		t.Fail("timeout to wait to be confirmed")
 	case height := <-confirmedch:
 		t.Equal(newivp.Point().Height()-1, height)
 	}
@@ -418,7 +418,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	t.T().Log("next init voteproof:", newivp.Point())
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -481,7 +481,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -490,7 +490,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	t.T().Log("wait next init ballot")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+		t.Fail("timeout to wait next init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -504,7 +504,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	t.T().Log("new draw init voteproof")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -519,7 +519,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	t.T().Log("new draw init voteproof again")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case bl := <-ballotch:
@@ -585,7 +585,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -598,7 +598,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	t.T().Log("wait next accept ballot")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next accept ballot"))
+		t.Fail("timeout to wait next accept ballot")
 
 		return
 	case bl := <-ballotch:
@@ -658,7 +658,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -668,7 +668,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	err = st.newVoteproof(newivp)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
 
@@ -723,7 +723,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -738,7 +738,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	err = st.newVoteproof(newivp)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
 
@@ -802,7 +802,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -815,7 +815,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	t.T().Log("wait next accept ballot")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next accept ballot"))
+		t.Fail("timeout to wait next accept ballot")
 
 		return
 	case bl := <-ballotch:
@@ -824,12 +824,12 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait to switch syncing state"))
+		t.Fail("timeout to wait to switch syncing state")
 
 		return
 	case sctx := <-sctxch:
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(sctx, &ssctx))
+		t.ErrorAs(sctx, &ssctx)
 		t.Equal(nextavp.Point().Height()-1, ssctx.height)
 	}
 }
@@ -888,7 +888,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestProcessContextCancele
 	t.T().Log("wait new block saved")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+		t.Fail("timeout to wait save proposal processor")
 
 		return
 	case <-savedch:
@@ -901,7 +901,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestProcessContextCancele
 	t.T().Log("wait next accept ballot")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next accept ballot"))
+		t.Fail("timeout to wait next accept ballot")
 
 		return
 	case bl := <-ballotch:

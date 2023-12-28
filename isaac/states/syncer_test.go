@@ -156,7 +156,7 @@ func (t *testSyncer) TestAddChan() {
 
 		select {
 		case <-time.After(time.Millisecond * 300):
-			t.NoError(errors.Errorf("waits height from addch, but not"))
+			t.Fail("waits height from addch, but not")
 		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
@@ -175,7 +175,7 @@ func (t *testSyncer) TestAddChan() {
 
 		select {
 		case <-time.After(time.Millisecond * 300):
-			t.NoError(errors.Errorf("waits height from addch, but not"))
+			t.Fail("waits height from addch, but not")
 		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
@@ -193,7 +193,7 @@ func (t *testSyncer) TestAddChan() {
 
 		select {
 		case <-time.After(time.Millisecond * 300):
-			t.NoError(errors.Errorf("waits height from addch, but not"))
+			t.Fail("waits height from addch, but not")
 		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
@@ -219,7 +219,7 @@ func (t *testSyncer) TestCancel() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("waits whenStopped, but failed"))
+		t.Fail("waits whenStopped, but failed")
 	case r := <-stoppedch:
 		t.Equal(stopped, r)
 	}
@@ -563,7 +563,7 @@ func (t *testSyncer) TestFetchMaps() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("waits to be finished, but not"))
+			t.Fail("waits to be finished, but not")
 		case height := <-s.Finished():
 			t.Equal(to, height)
 
@@ -625,7 +625,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait to set last voteproofs"))
+		t.Fail("wait to set last voteproofs")
 	case <-lastvoteproofsavedch:
 	}
 }
@@ -692,14 +692,14 @@ func (t *testSyncer) TestFetchDifferentMap() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait previous block to be remove"))
+		t.Fail("failed to wait previous block to be remove")
 	case height := <-removeprevch:
 		t.Equal(diffprev.Manifest().Height(), height)
 	}
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait finished"))
+		t.Fail("failed to wait finished")
 	case height := <-s.Finished():
 		t.Equal(to, height)
 		t.NoError(s.Err())
@@ -749,14 +749,14 @@ func (t *testSyncer) TestFetchDifferentMapFailedToRemovePrevious() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait previous block to be remove"))
+		t.Fail("failed to wait previous block to be remove")
 	case height := <-removeprevch:
 		t.Equal(diffprev.Manifest().Height(), height)
 	}
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait done"))
+		t.Fail("failed to wait done")
 	case <-s.Done():
 		t.Error(s.Err())
 		t.ErrorContains(s.Err(), "previous manifest does not match with remotes")

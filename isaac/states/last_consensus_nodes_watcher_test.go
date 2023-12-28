@@ -92,13 +92,13 @@ func (t *testLastConsensusNodesWatcher) TestLocalAhead() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to get from remote"))
+		t.Fail("failed to get from remote")
 	case <-called:
 	}
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to update"))
+		t.Fail("failed to update")
 	case <-updatedch:
 	}
 
@@ -271,7 +271,7 @@ func (t *testLastConsensusNodesWatcher) TestSameButLocalFirst() {
 	select {
 	case <-time.After(time.Second):
 	case <-updatedch:
-		t.NoError(errors.Errorf("update, unexpected"))
+		t.Fail("update, unexpected")
 	}
 
 	proof, candidatest, err := u.Last()
@@ -351,7 +351,7 @@ func (t *testLastConsensusNodesWatcher) TestLast3() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait new proofs"))
+		t.Fail("failed to wait new proofs")
 	case height := <-updatedch:
 		t.Equal(lastheight0, height)
 	}
@@ -388,7 +388,7 @@ func (t *testLastConsensusNodesWatcher) TestLast3() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait new proofs"))
+		t.Fail("failed to wait new proofs")
 	case height := <-updatedch:
 		t.Equal(lastheight1, height)
 	}

@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -117,7 +116,7 @@ e
 		n, err := br.Read(p)
 		t.Error(err)
 		t.Equal(0, n)
-		t.True(errors.Is(err, os.ErrClosed))
+		t.ErrorIs(err, os.ErrClosed)
 	})
 }
 

@@ -3,7 +3,6 @@ package valuehash
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
@@ -71,7 +70,7 @@ func (t *testBytes) TestSHA256WithPrefix() {
 
 	h = RandomSHA256WithPrefix(bytes.Repeat([]byte("s"), 53)) // NOTE 52 is max prefix length
 	err := h.IsValid(nil)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "over max")
 
 	{
@@ -101,7 +100,7 @@ func (t *testBytes) TestSHA512WithPrefix() {
 
 	h = RandomSHA512WithPrefix(bytes.Repeat([]byte("s"), 21)) // NOTE 20 is max prefix length
 	err := h.IsValid(nil)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "over max")
 
 	{

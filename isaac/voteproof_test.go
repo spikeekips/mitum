@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -74,7 +73,7 @@ func (t *testVoteproof) TestEmptyID() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty id")
 }
 
@@ -84,7 +83,7 @@ func (t *testVoteproof) TestInvalidStage() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "wrong stage")
 }
 
@@ -94,7 +93,7 @@ func (t *testVoteproof) TestInvalidVoteResult() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "not yet finished")
 }
 
@@ -113,7 +112,7 @@ func (t *testVoteproof) TestEmptySignFacts() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty sign facts")
 }
 
@@ -133,7 +132,7 @@ func (t *testVoteproof) TestInvalidPoint() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "invalid point")
 }
 
@@ -152,7 +151,7 @@ func (t *testVoteproof) TestDuplicatedNodeInSignFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "duplicated node found")
 }
 
@@ -168,7 +167,7 @@ func (t *testVoteproof) TestInvalidSignFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "verify sign")
 }
 
@@ -189,7 +188,7 @@ func (t *testVoteproof) TestWrongPointOfSignFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "point does not match")
 	t.ErrorContains(err, "invalid sign fact")
 }
@@ -207,7 +206,7 @@ func (t *testVoteproof) TestWrongPointOfMajority() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "point does not match")
 	t.ErrorContains(err, "invalid majority")
 }
@@ -221,7 +220,7 @@ func (t *testVoteproof) TestMajorityNotFoundInSignFacts() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "majoirty not found in sign facts")
 }
 
@@ -249,7 +248,7 @@ func (t *testVoteproof) TestWrongMajorityWithSuffrage() {
 
 	err := base.IsValidVoteproofWithSuffrage(ivp, suf, ivp.Threshold())
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "wrong majority")
 }
 
@@ -264,7 +263,7 @@ func (t *testVoteproof) TestUnknownNode() {
 
 	err := base.IsValidVoteproofWithSuffrage(ivp, suf, ivp.Threshold())
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "unknown node found")
 }
 
@@ -449,7 +448,7 @@ func (t *testVoteproof) TestINITWithExpels() {
 
 		err = IsValidVoteproofWithSuffrage(ivp, suf)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong result")
 	})
 
@@ -639,12 +638,12 @@ func (t *testVoteproof) TestStuckVoteproof() {
 
 		err := vp.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty expels")
 
 		err = IsValidVoteproofWithSuffrage(vp, suf)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "not enough sign facts with expels")
 	})
 
@@ -663,7 +662,7 @@ func (t *testVoteproof) TestStuckVoteproof() {
 		t.NoError(vp.IsValid(t.networkID))
 		err := IsValidVoteproofWithSuffrage(vp, suf)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "not enough sign facts with expels")
 	})
 }

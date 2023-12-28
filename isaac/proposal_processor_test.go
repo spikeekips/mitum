@@ -1059,7 +1059,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	err := <-donech
 	t.Error(err)
 
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 	t.ErrorContains(err, "pre process operation")
 }
 
@@ -1419,7 +1419,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	err := <-donech
 	t.Error(err)
 
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 	t.ErrorContains(err, "process operation")
 }
 
@@ -1492,7 +1492,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	err := <-donech
 	t.Error(err)
 
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 	t.ErrorContains(err, "process operation")
 }
 
@@ -1581,7 +1581,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait to save"))
+		t.Fail("failed to wait to save")
 	case <-savech:
 	}
 }
@@ -1669,13 +1669,13 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait to save"))
+		t.Fail("failed to wait to save")
 	case <-savech:
 	}
 
 	_, err = opp.Save(context.Background(), avp)
 	t.Error(err)
-	t.True(errors.Is(err, ErrProcessorAlreadySaved))
+	t.ErrorIs(err, ErrProcessorAlreadySaved)
 }
 
 func (t *testDefaultProposalProcessor) TestEmptyCollectOperationsEmptyProposalNoBlock() {
@@ -1717,7 +1717,7 @@ func (t *testDefaultProposalProcessor) TestEmptyCollectOperationsEmptyProposalNo
 		m, err := opp.Process(context.Background(), nil)
 		t.Error(err)
 		t.Nil(m)
-		t.True(errors.Is(err, ErrProposalProcessorEmptyOperations))
+		t.ErrorIs(err, ErrProposalProcessorEmptyOperations)
 	})
 
 	t.Run("EmptyProposalNoBlock, but not empty", func() {
@@ -1834,7 +1834,7 @@ func (t *testDefaultProposalProcessor) TestEmptyAfterProcessEmptyProposalNoBlock
 		m, err := opp.Process(context.Background(), nil)
 		t.Error(err)
 		t.Nil(m)
-		t.True(errors.Is(err, ErrProposalProcessorEmptyOperations))
+		t.ErrorIs(err, ErrProposalProcessorEmptyOperations)
 	})
 }
 

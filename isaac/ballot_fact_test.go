@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -70,7 +69,7 @@ func (t *testBaseBallotFact) TestInValid() {
 
 		err := bl.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("WrongHash", func() {
@@ -79,7 +78,7 @@ func (t *testBaseBallotFact) TestInValid() {
 
 		err := bl.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("WrongStage", func() {
@@ -88,7 +87,7 @@ func (t *testBaseBallotFact) TestInValid() {
 
 		err := bl.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("empty expel facts", func() {
@@ -183,7 +182,7 @@ func (t *testSuffrageConfirmBallotFact) TestIsValid() {
 
 		err := bl.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty expel facts")
 	})
 }

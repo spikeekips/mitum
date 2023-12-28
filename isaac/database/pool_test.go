@@ -936,7 +936,7 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("wait filtered3 removed, but nothing happened"))
+		t.Fail("wait filtered3 removed, but nothing happened")
 	case removed := <-removedch:
 		t.Equal(len(filtered3), removed)
 	}
@@ -948,7 +948,7 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait filtered4 removed, but nothing happened"))
+			t.Fail("wait filtered4 removed, but nothing happened")
 		case removed := <-removedch:
 			t.Equal(len(filtered4), removed)
 		}

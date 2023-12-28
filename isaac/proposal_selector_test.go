@@ -422,7 +422,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 		pr, err := p.selectInternal(context.Background(), point, prev, 0)
 		t.Error(err)
 		t.Nil(pr)
-		t.True(errors.Is(err, context.DeadlineExceeded))
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 
 	t.Run("Select; local proposer", func() {
@@ -506,7 +506,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 		<-done
 
 		t.Nil(pr)
-		t.True(errors.Is(err, context.Canceled))
+		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "context canceled")
 	})
 

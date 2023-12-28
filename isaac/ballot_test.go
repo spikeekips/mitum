@@ -3,7 +3,6 @@ package isaac
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -43,7 +42,7 @@ func (t *testBaseBallot) TestEmptyVoteproof() {
 	}
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testBaseBallot) TestEmptySignFact() {
@@ -60,7 +59,7 @@ func (t *testBaseBallot) TestEmptySignFact() {
 	}
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testBaseBallot) TestExpelNodeInSigns() {
@@ -116,7 +115,7 @@ func (t *testBaseBallot) TestInvalidExpel() {
 		bl := t.ballot(point, nil, nil, expels, expelfacts)
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty signs")
 	})
 
@@ -137,7 +136,7 @@ func (t *testBaseBallot) TestInvalidExpel() {
 
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong start height in expel")
 	})
 
@@ -168,7 +167,7 @@ func (t *testBaseBallot) TestInvalidExpel() {
 
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "duplicated expel node found")
 	})
 }
@@ -194,7 +193,7 @@ func (t *testBaseBallot) TestUnknownExpel() {
 	bl := t.ballot(point, nil, nil, expels, expelfacts)
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "expel fact hash not matched")
 }
 
@@ -211,7 +210,7 @@ func (t *testBaseBallot) TestExpelNodeSelfSign() {
 	bl := t.ballot(point, nil, nil, []SuffrageExpelOperation{expel}, []util.Hash{fact.Hash()})
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "valid node signs not found")
 }
 
@@ -231,7 +230,7 @@ func (t *testBaseBallot) TestExpelsMismatch() {
 	bl := t.ballot(point, expels, expelfacts, expels, expelfacts[:len(expelfacts)-1])
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "number of expels not matched")
 }
 
@@ -318,7 +317,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		bl := NewINITBallot(ivp, signfact, []base.SuffrageExpelOperation{expel})
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "not empty expels")
 	})
 
@@ -343,7 +342,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "number of expels not matched")
 	})
 
@@ -368,7 +367,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		bl := NewINITBallot(avp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong voteproof")
 		t.ErrorContains(err, "stage should be INIT")
 	})
@@ -392,7 +391,7 @@ func (t *testINITBallot) TestSignIsValid() {
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "expected base.ExpelVoteproof,")
 	})
 
@@ -415,7 +414,7 @@ func (t *testINITBallot) TestSignIsValid() {
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong voteproof")
 		t.ErrorContains(err, `vote result should be "MAJORITY"`)
 	})
@@ -440,7 +439,7 @@ func (t *testINITBallot) TestSignIsValid() {
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong voteproof")
 		t.ErrorContains(err, "wrong previous block with suffrage confirm ballot fact")
 	})
@@ -465,7 +464,7 @@ func (t *testINITBallot) TestSignIsValid() {
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong voteproof")
 		t.ErrorContains(err, "wrong proposal with suffrage confirm ballot fact")
 	})
@@ -598,7 +597,7 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "next round not match")
 }
 

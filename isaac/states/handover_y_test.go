@@ -35,7 +35,7 @@ func (t *testHandoverYBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("cancel(); isCanceled", func() {
@@ -49,7 +49,7 @@ func (t *testHandoverYBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -141,7 +141,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-sendch:
-			t.NoError(errors.Errorf("unexpected handover message"))
+			t.Fail("unexpected handover message")
 		}
 	})
 
@@ -167,7 +167,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.T().Log("broker will be cancled")
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 
 	t.Run("ask func error; ensure", func() {
@@ -199,7 +199,7 @@ func (t *testHandoverYBroker) TestAsk() {
 		t.T().Log("broker will be cancled")
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -246,7 +246,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 
 		err = <-errch
 		t.Error(err)
@@ -284,7 +284,7 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 
 		err = <-errch
 		t.Error(err)
@@ -327,14 +327,14 @@ func (t *testHandoverYBroker) TestReceiveMessageChallengeResponse() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait cancel"))
+			t.Fail("failed to wait cancel")
 		case err = <-errch:
 			t.ErrorContains(err, "hihihi")
 		}
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 
@@ -394,12 +394,12 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		hc := newHandoverMessageFinish(broker.ID(), ivp, nil)
 		err := broker.Receive(hc)
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 		t.ErrorContains(err, "hihihi")
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, ErrHandoverCanceled))
+		t.ErrorIs(err, ErrHandoverCanceled)
 	})
 }
 

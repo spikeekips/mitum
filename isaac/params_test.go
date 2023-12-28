@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -30,7 +29,7 @@ func (t *testParams) TestIsValid() {
 		p := DefaultParams(networkID)
 		err := p.IsValid(base.RandomNetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "network id does not match")
 	})
 
@@ -40,7 +39,7 @@ func (t *testParams) TestIsValid() {
 		p := DefaultParams(wrongnetworkID)
 		err := p.IsValid(wrongnetworkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "network id too long")
 	})
 
@@ -50,7 +49,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "under min threshold")
 	})
 
@@ -60,7 +59,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -70,7 +69,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -80,7 +79,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -90,7 +89,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -100,7 +99,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong state cache size")
 	})
 
@@ -110,7 +109,7 @@ func (t *testParams) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "wrong operation pool cache size")
 	})
 }

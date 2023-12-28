@@ -3,7 +3,6 @@ package isaac
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -54,7 +53,7 @@ func (t *testProposalSignFact) TestEmptySigns() {
 
 	err := sf.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testProposalSignFact) TestWrongFact() {
@@ -69,7 +68,7 @@ func (t *testProposalSignFact) TestWrongFact() {
 
 	err := sf.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func TestProposalSignFact(tt *testing.T) {

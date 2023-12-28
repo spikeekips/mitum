@@ -190,7 +190,7 @@ func (t *testBrokers) TestRequestHeader() {
 			select {
 			case <-time.After(time.Second * 2):
 			case <-errch:
-				t.NoError(errors.Errorf("err handler called"))
+				t.Fail("err handler called")
 			}
 
 			return nil
@@ -231,7 +231,7 @@ func (t *testBrokers) TestRequestHeader() {
 
 			select {
 			case <-time.After(time.Second * 2):
-				t.NoError(errors.Errorf("failed to wait response"))
+				t.Fail("failed to wait response")
 			case err := <-errch:
 				t.NoError(err)
 
@@ -277,7 +277,7 @@ func (t *testBrokers) TestRequestHeader() {
 			err := broker.WriteRequestHead(ctx, reqh)
 
 			t.Error(err)
-			t.True(errors.Is(err, quicstream.ErrNetwork))
+			t.ErrorIs(err, quicstream.ErrNetwork)
 
 			return nil
 		})
@@ -313,7 +313,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait handler error"))
+			t.Fail("failed to wait handler error")
 		case err := <-errch:
 			t.Error(err)
 			t.ErrorContains(err, "hohoho")
@@ -322,7 +322,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		t.T().Log("error handler")
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait error handler"))
+			t.Fail("failed to wait error handler")
 		case err := <-errhandlerch:
 			t.Error(err)
 			t.ErrorContains(err, "hehehe")
@@ -363,7 +363,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		t.T().Log("error handler")
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait error handler"))
+			t.Fail("failed to wait error handler")
 		case err := <-errhandlerch:
 			t.Error(err)
 			t.ErrorContains(err, "hehehe")
@@ -404,7 +404,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait response"))
+			t.Fail("failed to wait response")
 		case err := <-errch:
 			t.NoError(err)
 		}
@@ -510,7 +510,7 @@ func (t *testBrokers) TestReadBody() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait response"))
+			t.Fail("failed to wait response")
 		case err := <-errch:
 			t.NoError(err)
 		}
@@ -548,7 +548,7 @@ func (t *testBrokers) TestReadBody() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait response"))
+			t.Fail("failed to wait response")
 		case err := <-errch:
 			t.NoError(err)
 		}

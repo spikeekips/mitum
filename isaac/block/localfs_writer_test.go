@@ -668,7 +668,7 @@ func (t *testLocalFSWriter) TestRemove() {
 
 		err = checkBlockDirectory(top)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 
 		for i := bottom; i < top; i++ {
 			t.NoError(checkBlockDirectory(i))
@@ -682,11 +682,11 @@ func (t *testLocalFSWriter) TestRemove() {
 
 		err = checkBlockDirectory(bottom)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 
 		for i := bottom; i < top; i++ {
 			err = checkBlockDirectory(i)
-			t.True(errors.Is(err, util.ErrNotFound))
+			t.ErrorIs(err, util.ErrNotFound)
 		}
 	})
 }

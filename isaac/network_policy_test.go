@@ -3,7 +3,6 @@ package isaac
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -32,7 +31,7 @@ func (t *testNetworkPolicy) TestIsValid() {
 
 		err := p.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 	})
 }

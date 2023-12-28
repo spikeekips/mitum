@@ -185,14 +185,14 @@ func (t *testHandoverXYBroker) TestFinished() {
 	t.T().Log("wait to finish")
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to wait x finish"))
+		t.Fail("failed to wait x finish")
 	case vp := <-xfinishch:
 		base.EqualVoteproof(t.Assert(), lastvp, vp)
 	}
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to wait y finish"))
+		t.Fail("failed to wait y finish")
 	case vp := <-yfinishch:
 		base.EqualVoteproof(t.Assert(), lastvp, vp)
 	}
@@ -285,25 +285,25 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait xbroker canceled"))
+			t.Fail("failed to wait xbroker canceled")
 		case err := <-xcanceledch:
 			t.Error(err)
-			t.True(errors.Is(err, ErrHandoverCanceled))
+			t.ErrorIs(err, ErrHandoverCanceled)
 
 			err = xbroker.isCanceled()
 			t.Error(err)
-			t.True(errors.Is(err, ErrHandoverCanceled))
+			t.ErrorIs(err, ErrHandoverCanceled)
 		}
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to wait ybroker canceled"))
+			t.Fail("failed to wait ybroker canceled")
 		case err := <-ycanceledch:
 			t.NoError(err)
 
 			err = ybroker.isCanceled()
 			t.Error(err)
-			t.True(errors.Is(err, ErrHandoverCanceled))
+			t.ErrorIs(err, ErrHandoverCanceled)
 		}
 	})
 }

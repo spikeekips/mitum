@@ -218,7 +218,7 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -272,7 +272,7 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -344,7 +344,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -394,7 +394,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 
 		return
 	case vp := <-box.Voteproof():
@@ -440,7 +440,7 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 
 		return
 	case vp := <-box.Voteproof():
@@ -540,7 +540,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -681,7 +681,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -946,7 +946,7 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -1018,7 +1018,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 		select {
 		case <-time.After(time.Second):
 		case <-box.Voteproof():
-			t.NoError(errors.Errorf("no voteproof expected"))
+			t.Fail("no voteproof expected")
 		}
 	})
 
@@ -1033,7 +1033,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("failed to wait voteproof"))
+			t.Fail("failed to wait voteproof")
 		case vp := <-box.Voteproof():
 			t.NoError(vp.IsValid(t.networkID))
 		}
@@ -1051,7 +1051,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 		select {
 		case <-time.After(time.Second):
 		case <-box.Voteproof():
-			t.NoError(errors.Errorf("no voteproof expected"))
+			t.Fail("no voteproof expected")
 		}
 	})
 }
@@ -1838,7 +1838,7 @@ func (t *testBallotboxWithExpel) TestINITBallotButDraw() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.Equal(base.VoteResultDraw, vp.Result())
 	}
@@ -1924,7 +1924,7 @@ func (t *testBallotboxWithExpel) TestSuffrageConfirmBallots() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
@@ -2019,7 +2019,7 @@ func (t *testBallotboxWithExpel) TestVoteproofFromSuffrageConfirmBallots() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait voteproof"))
+		t.Fail("failed to wait voteproof")
 	case vp := <-box.Voteproof():
 		// NOTE init voteproof from suffrage confirm ballot
 		t.NoError(vp.IsValid(t.networkID))

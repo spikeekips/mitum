@@ -3,7 +3,6 @@ package hint
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -26,7 +25,7 @@ func (t *testBaseHinter) TestIsValidWithUnknownType() {
 	b := NewBaseHinter(MustNewHint("abc-v1.2.3"))
 	err := b.IsValid(Type("showme").Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "type does not match")
 }
 

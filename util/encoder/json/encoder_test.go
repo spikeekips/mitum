@@ -2,7 +2,6 @@ package jsonenc
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -144,7 +143,7 @@ func (t *testJSONEncoder) TestAddEmptyDecodeFuncAndInstance() {
 	}
 
 	err := t.enc.Add(d)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "instance and decode func are empty")
 }
 
@@ -501,7 +500,7 @@ func (t *testJSONEncoder) TestDecodeUnknown() {
 	t.NoError(err)
 
 	_, err = t.enc.Decode(b)
-	t.True(errors.Is(err, util.ErrNotFound))
+	t.ErrorIs(err, util.ErrNotFound)
 	t.ErrorContains(err, "find decoder")
 }
 

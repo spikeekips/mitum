@@ -297,7 +297,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait broadcast operation, but failed"))
+			t.Fail("wait broadcast operation, but failed")
 		case b := <-ch:
 			var rop isaac.DummyOperation
 
@@ -862,7 +862,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 		pr, found, err := c.Proposal(context.Background(), ci, nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid ProposalHeader")
 		t.False(found)
 		t.Nil(pr)
@@ -1526,7 +1526,7 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("wait ballot, but failed"))
+			t.Fail("wait ballot, but failed")
 		case bl := <-votedch:
 			base.EqualBallotSignFact(t.Assert(), ballots[0], bl)
 

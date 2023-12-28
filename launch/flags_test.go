@@ -1,9 +1,9 @@
 package launch
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -45,7 +45,7 @@ func TestRangeFlag(tt *testing.T) {
 
 			if len(c.err) > 0 {
 				if err == nil {
-					t.NoError(errors.Errorf("expected error, but nil error: %+v", c.err), "%d: %v", i, c.name)
+					t.Fail(fmt.Sprintf("expected error, but nil error: %+v", c.err), "%d: %v", i, c.name)
 
 					return
 				}
@@ -56,7 +56,7 @@ func TestRangeFlag(tt *testing.T) {
 			}
 
 			if err != nil {
-				t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
+				t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d: %v", i, c.name)
 
 				return
 			}

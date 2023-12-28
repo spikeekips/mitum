@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -36,7 +35,7 @@ func (t *testSign) TestEmptySigner() {
 
 	err := s.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "invalid BaseSign")
 }
 
@@ -49,7 +48,7 @@ func (t *testSign) TestEmptySignature() {
 
 	err := s.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty signature")
 }
 
@@ -62,7 +61,7 @@ func (t *testSign) TestZeroSignedAt() {
 
 	err := s.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "empty signedAt")
 }
 
@@ -78,7 +77,7 @@ func (t *testSign) TestSignedAndVerify() {
 
 	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, ErrSignatureVerification))
+	t.ErrorIs(err, ErrSignatureVerification)
 }
 
 func TestSigns(t *testing.T) {
@@ -154,11 +153,11 @@ func (t *testNodeSign) TestSignedAndVerify() {
 
 	err = s.BaseSign.Verify(nil, input)
 	t.Error(err)
-	t.True(errors.Is(err, ErrSignatureVerification))
+	t.ErrorIs(err, ErrSignatureVerification)
 
 	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, ErrSignatureVerification))
+	t.ErrorIs(err, ErrSignatureVerification)
 }
 
 func TestNodeSign(t *testing.T) {

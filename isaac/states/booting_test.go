@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -58,7 +57,7 @@ func (t *testBootingHandler) TestNew() {
 	t.Nil(deferred)
 
 	var rsctx joiningSwitchContext
-	t.True(errors.As(err, &rsctx))
+	t.ErrorAs(err, &rsctx)
 
 	avp := st.lastVoteproofs().ACCEPT()
 	base.EqualVoteproof(t.Assert(), avp, rsctx.vp)
@@ -73,7 +72,7 @@ func (t *testBootingHandler) TestEmptyManifest() {
 	t.Error(err)
 
 	var rsctx SyncingSwitchContext
-	t.True(errors.As(err, &rsctx))
+	t.ErrorAs(err, &rsctx)
 	t.Equal(base.GenesisHeight, rsctx.height)
 }
 
@@ -115,7 +114,7 @@ func (t *testBootingHandler) TestNotInSuffrage() {
 	t.Error(err)
 
 	var rsctx SyncingSwitchContext
-	t.True(errors.As(err, &rsctx))
+	t.ErrorAs(err, &rsctx)
 	manifest, _, _ := st.args.LastManifestFunc()
 
 	t.Equal(manifest.Height(), rsctx.height)

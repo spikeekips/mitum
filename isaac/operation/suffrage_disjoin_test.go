@@ -1,7 +1,6 @@
 package isaacoperation
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -29,7 +28,7 @@ func (t *testSuffrageDisjoinFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid BaseFact")
 	})
 
@@ -37,7 +36,7 @@ func (t *testSuffrageDisjoinFact) TestIsValid() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), nil, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageDisjoin")
 	})
 
@@ -46,7 +45,7 @@ func (t *testSuffrageDisjoinFact) TestIsValid() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), addr, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageDisjoin")
 	})
 
@@ -54,7 +53,7 @@ func (t *testSuffrageDisjoinFact) TestIsValid() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.NilHeight)
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageDisjoin")
 	})
 
@@ -64,7 +63,7 @@ func (t *testSuffrageDisjoinFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 }
@@ -137,7 +136,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, base.ErrSignatureVerification))
+		t.ErrorIs(err, base.ErrSignatureVerification)
 	})
 
 	t.Run("different node", func() {
@@ -159,7 +158,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 
 		err := op.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "multiple signs found")
 	})
 }

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -164,7 +163,7 @@ func (t *testReaders) TestItem() {
 		})
 		t.False(found)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 		t.ErrorContains(err, "writer")
 	})
 
@@ -202,7 +201,7 @@ func (t *testReaders) TestItem() {
 		})
 		t.False(found)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 		t.ErrorContains(err, "writer")
 	})
 }
@@ -277,7 +276,7 @@ func (t *testReaders) TestItemFromReader() {
 			return nil
 		})
 		t.Error(err)
-		t.True(errors.Is(err, os.ErrClosed))
+		t.ErrorIs(err, os.ErrClosed)
 	})
 }
 
@@ -295,7 +294,7 @@ func (t *testReaders) TestBrokenItemFiles() {
 	})
 	t.False(found)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrNotFound))
+	t.ErrorIs(err, util.ErrNotFound)
 	t.ErrorContains(err, "header")
 }
 
@@ -388,7 +387,7 @@ func (t *testReaders) TestWriteItemFiles() {
 		select {
 		case <-time.After(time.Millisecond * 100):
 		case <-ech:
-			t.NoError(errors.Errorf("aded or removed"))
+			t.Fail("aded or removed")
 		}
 	})
 
@@ -411,7 +410,7 @@ func (t *testReaders) TestWriteItemFiles() {
 
 		select {
 		case <-time.After(time.Millisecond * 100):
-			t.NoError(errors.Errorf("not canceled"))
+			t.Fail("not canceled")
 		case height := <-ech:
 			t.Equal(int64(-33), height)
 		}
@@ -450,7 +449,7 @@ func (t *testReaders) TestWriteItemFiles() {
 
 		select {
 		case <-time.After(time.Millisecond * 100):
-			t.NoError(errors.Errorf("not canceled"))
+			t.Fail("not canceled")
 		case height := <-ech:
 			t.Equal(int64(-33), height)
 		}
@@ -485,7 +484,7 @@ func (t *testReaders) TestWriteItemFiles() {
 
 		select {
 		case <-time.After(time.Millisecond * 100):
-			t.NoError(errors.Errorf("not canceled"))
+			t.Fail("not canceled")
 		case height := <-ech:
 			t.Equal(int64(33), height)
 		}
@@ -524,7 +523,7 @@ func (t *testReaders) TestWriteItemFiles() {
 
 		select {
 		case <-time.After(time.Millisecond * 100):
-			t.NoError(errors.Errorf("not canceled"))
+			t.Fail("not canceled")
 		case height := <-ech:
 			t.Equal(int64(33)*-1, height)
 		}
@@ -577,7 +576,7 @@ func (t *testReaders) TestWriteItemFiles() {
 		select {
 		case <-time.After(time.Millisecond * 100):
 		case <-ech:
-			t.NoError(errors.Errorf("aded or removed"))
+			t.Fail("aded or removed")
 		}
 
 		checkUpdatedBytes(33, oldbfilesbytes)
@@ -620,7 +619,7 @@ func (t *testReaders) TestWriteItemFiles() {
 		select {
 		case <-time.After(time.Millisecond * 100):
 		case <-ech:
-			t.NoError(errors.Errorf("aded or removed"))
+			t.Fail("aded or removed")
 		}
 
 		checkUpdatedBytes(33, oldbfilesbytes)
@@ -697,7 +696,7 @@ func (t *testReaders) TestLoadAndRemoveEmptyHeight() {
 		for {
 			select {
 			case <-time.After(time.Millisecond * 100):
-				t.NoError(errors.Errorf("not canceled"))
+				t.Fail("not canceled")
 			case height := <-ech:
 				canceleds = append(canceleds, base.Height(height*-1))
 				if len(canceleds) == len(loadedHeights) {
@@ -906,7 +905,7 @@ func (t *testReaders) TestStartToRemove() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("something wrong"))
+		t.Fail("something wrong")
 	case <-okch:
 	}
 

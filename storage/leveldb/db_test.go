@@ -6,7 +6,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -231,7 +230,7 @@ func (t *testStorage) TestOpenLocked() {
 		t.Error(err)
 
 		var serr syscall.Errno
-		t.True(errors.As(err, &serr))
+		t.ErrorAs(err, &serr)
 		t.True(serr.Temporary())
 	})
 
@@ -242,7 +241,7 @@ func (t *testStorage) TestOpenLocked() {
 		t.Error(err)
 
 		var serr syscall.Errno
-		t.True(errors.As(err, &serr))
+		t.ErrorAs(err, &serr)
 		t.True(serr.Temporary())
 	})
 }

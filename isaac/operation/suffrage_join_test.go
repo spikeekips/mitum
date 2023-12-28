@@ -2,7 +2,6 @@ package isaacoperation
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -31,7 +30,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid BaseFact")
 	})
 
@@ -39,7 +38,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), nil, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageJoin")
 	})
 
@@ -48,7 +47,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), addr, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageJoin")
 	})
 
@@ -56,7 +55,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.NilHeight)
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageJoin")
 	})
 
@@ -66,7 +65,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 }
@@ -139,7 +138,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, base.ErrSignatureVerification))
+		t.ErrorIs(err, base.ErrSignatureVerification)
 	})
 
 	t.Run("different node", func() {
@@ -235,7 +234,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid BaseFact")
 	})
 
@@ -243,7 +242,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 		fact := NewSuffrageGenesisJoinFact(nil, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 	})
 
@@ -254,7 +253,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 		fact := NewSuffrageGenesisJoinFact([]base.Node{node}, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 	})
 
@@ -264,7 +263,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 		fact := NewSuffrageGenesisJoinFact([]base.Node{node}, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 	})
 
@@ -274,7 +273,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 		t.ErrorContains(err, "wrong token")
 	})
@@ -285,7 +284,7 @@ func (t *testSuffrageGenesisJoinFact) TestIsValid() {
 
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 }
@@ -375,7 +374,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 	})
 
@@ -389,7 +388,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "multiple signs found")
 	})
 

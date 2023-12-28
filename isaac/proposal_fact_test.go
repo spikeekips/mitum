@@ -3,7 +3,6 @@ package isaac
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -41,7 +40,7 @@ func (t *testProposalFact) TestEmptyHash() {
 
 	err := pr.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testProposalFact) TestWrongHash() {
@@ -50,7 +49,7 @@ func (t *testProposalFact) TestWrongHash() {
 
 	err := pr.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testProposalFact) TestWrongPoint() {
@@ -59,7 +58,7 @@ func (t *testProposalFact) TestWrongPoint() {
 
 	err := pr.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testProposalFact) TestDuplicatedOperations() {
@@ -77,7 +76,7 @@ func (t *testProposalFact) TestDuplicatedOperations() {
 
 	err := pr.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "duplicated operation found")
 }
 

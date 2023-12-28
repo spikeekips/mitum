@@ -149,7 +149,7 @@ func (t *testSyncSourcePool) TestUpdate() {
 
 		_, _, err := p.Pick()
 		t.Error(err)
-		t.True(errors.Is(err, ErrEmptySyncSources))
+		t.ErrorIs(err, ErrEmptySyncSources)
 	})
 
 	t.Run("update and in nonfixed", func() {
@@ -344,7 +344,7 @@ func (t *testSyncSourcePool) TestNextButEmpty() {
 
 	next, id, err := p.Pick()
 	t.Error(err)
-	t.True(errors.Is(err, ErrEmptySyncSources))
+	t.ErrorIs(err, ErrEmptySyncSources)
 	t.Nil(next)
 	t.Empty(id)
 }
@@ -557,7 +557,7 @@ func (t *testSyncSourcePool) TestPickMultiple() {
 		t.T().Log("empty sources")
 		ncis, reports, err := p.PickMultiple(3)
 		t.Error(err)
-		t.True(errors.Is(err, ErrEmptySyncSources))
+		t.ErrorIs(err, ErrEmptySyncSources)
 		t.Empty(ncis)
 		t.Empty(reports)
 

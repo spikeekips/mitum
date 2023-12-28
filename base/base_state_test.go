@@ -136,7 +136,7 @@ func (t *testStateValueMerger) TestNew() {
 
 		nst, err := merger.CloseValue()
 		t.Error(err)
-		t.True(errors.Is(err, ErrIgnoreStateValue))
+		t.ErrorIs(err, ErrIgnoreStateValue)
 
 		t.Nil(nst)
 	})

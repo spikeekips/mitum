@@ -3,7 +3,6 @@ package fixedtree
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -70,7 +69,7 @@ func (t *testTree) TestInvalid() {
 		tr, err := NewTree(t.ht, nodes)
 		t.NoError(err)
 		err = tr.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty hash")
 	})
 
@@ -84,7 +83,7 @@ func (t *testTree) TestInvalid() {
 		tr, err := NewTree(t.ht, nodes)
 		t.NoError(err)
 		err = tr.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 }

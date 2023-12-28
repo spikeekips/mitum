@@ -2,7 +2,6 @@ package isaacoperation
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -106,7 +105,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 		fact := NewGenesisNetworkPolicyFact(policy)
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 
 		op := NewGenesisNetworkPolicy(fact)
@@ -114,7 +113,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 
 		err = op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 	})
 
@@ -133,7 +132,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "multiple signs found")
 	})
 }

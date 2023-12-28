@@ -112,7 +112,7 @@ func (t *testJoiningHandler) TestNew() {
 	err = st.newVoteproof(ivp)
 
 	var ssctx consensusSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	base.EqualVoteproof(t.Assert(), ivp, ssctx.vp)
 }
 
@@ -139,7 +139,7 @@ func (t *testJoiningHandler) TestLocalNotInSuffrage() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(manifest.Height(), ssctx.height)
 }
 
@@ -189,7 +189,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		err = st.newVoteproof(ivp)
 
 		var ssctx baseErrorSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(ssctx.next(), StateBroken)
 		t.ErrorContains(err, "get last manifest")
 	})
@@ -259,7 +259,7 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 		err = st.newVoteproof(ivp)
 
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	})
 
@@ -285,7 +285,7 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 		err = st.newVoteproof(ivp)
 
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	})
 }
@@ -331,7 +331,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 5):
-		t.NoError(errors.Errorf("timeout to wait init ballot for next block"))
+		t.Fail("timeout to wait init ballot for next block")
 
 		return
 	case bl := <-ballotch:
@@ -389,7 +389,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		err = st.newVoteproof(avp)
 
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(avp.Point().Height(), ssctx.height)
 	})
 
@@ -416,7 +416,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		err = st.newVoteproof(avp)
 
 		var ssctx SyncingSwitchContext
-		t.True(errors.As(err, &ssctx))
+		t.ErrorAs(err, &ssctx)
 		t.Equal(avp.Point().Height()-1, ssctx.height)
 	})
 }
@@ -448,7 +448,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	t.Error(err)
 
 	var ssctx consensusSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	base.EqualVoteproof(t.Assert(), ivp, ssctx.vp)
 }
 
@@ -478,7 +478,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	err = st.newVoteproof(avp)
 
 	var ssctx consensusSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	base.EqualVoteproof(t.Assert(), avp, ssctx.vp)
 }
 
@@ -517,12 +517,12 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	t.T().Log("wait to switch state")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case sctx := <-switchch:
 		var ssctx consensusSwitchContext
-		t.True(errors.As(sctx, &ssctx))
+		t.ErrorAs(sctx, &ssctx)
 		base.EqualVoteproof(t.Assert(), ivp, ssctx.vp)
 	}
 }
@@ -562,12 +562,12 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	t.T().Log("wait to switch state")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+		t.Fail("timeout to wait next round init ballot")
 
 		return
 	case sctx := <-switchch:
 		var ssctx consensusSwitchContext
-		t.True(errors.As(sctx, &ssctx))
+		t.ErrorAs(sctx, &ssctx)
 		base.EqualVoteproof(t.Assert(), avp, ssctx.vp)
 	}
 }
@@ -595,7 +595,7 @@ func (t *testJoiningHandler) TestEnterButNotInConsensusNodes() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	t.Equal(point.Height(), ssctx.height)
 }
 
@@ -647,7 +647,7 @@ func (t *testJoiningHandler) TestStuckINITVoteproof() {
 	err = st.newVoteproof(stuckivp)
 
 	var ssctx consensusSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	base.EqualVoteproof(t.Assert(), stuckivp, ssctx.vp)
 }
 
@@ -705,7 +705,7 @@ func (t *testJoiningHandler) TestStuckACCEPTVoteproof() {
 	t.Error(err)
 
 	var ssctx consensusSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 	base.EqualVoteproof(t.Assert(), stuckivp, ssctx.vp)
 }
 

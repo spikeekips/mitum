@@ -3,7 +3,6 @@ package isaacblock
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -68,7 +67,7 @@ func (t *testBlockMap) TestInvalid() {
 		m := t.newmap()
 		m.BaseHinter = hint.NewBaseHinter(base.StringAddressHint)
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "type does not match")
 	})
 
@@ -83,7 +82,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.manifest = manifest
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "kikiki")
 	})
 
@@ -92,7 +91,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.items.RemoveValue(base.BlockItemProposal)
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty proposal")
 	})
 
@@ -101,7 +100,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.items.SetValue(base.BlockItemProposal, nil)
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty proposal")
 	})
 
@@ -110,7 +109,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.items.RemoveValue(base.BlockItemVoteproofs)
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty voteproofs")
 	})
 
@@ -119,7 +118,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.items.SetValue(base.BlockItemVoteproofs, nil)
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty voteproofs")
 	})
 
@@ -128,7 +127,7 @@ func (t *testBlockMap) TestInvalid() {
 		m.items.SetValue(base.BlockItemVoteproofs, t.newitem(base.BlockItemType("hehe")))
 
 		err := m.IsValid(t.networkID)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid item found")
 		t.ErrorContains(err, "hehe")
 	})
@@ -137,8 +136,8 @@ func (t *testBlockMap) TestInvalid() {
 		m := t.newmap()
 
 		err := m.IsValid(util.UUID().Bytes())
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.True(errors.Is(err, base.ErrSignatureVerification))
+		t.ErrorIs(err, util.ErrInvalid)
+		t.ErrorIs(err, base.ErrSignatureVerification)
 	})
 }
 
@@ -166,7 +165,7 @@ func (t *testBlockMap) TestSetItem() {
 		newitem := t.newitem(base.BlockItemType("findme"))
 		err := m.SetItem(newitem)
 
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "unknown block map item type")
 	})
 }
@@ -264,7 +263,7 @@ func (t *testBlockMapItem) TestInvalid() {
 		item := NewBlockMapItem(base.BlockItemType("findme"), util.UUID().String())
 
 		err := item.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "unknown block map item type")
 	})
 
@@ -272,7 +271,7 @@ func (t *testBlockMapItem) TestInvalid() {
 		item := NewBlockMapItem(base.BlockItemProposal, "")
 
 		err := item.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty checksum")
 	})
 }

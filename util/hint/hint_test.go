@@ -2,10 +2,10 @@ package hint
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -48,7 +48,7 @@ func (t *testHint) TestParse() {
 				ht, err := ParseHint(c.s)
 				if len(c.err) > 0 {
 					if err == nil {
-						t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
+						t.Fail(fmt.Sprintf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
 
 						return
 					}
@@ -57,7 +57,7 @@ func (t *testHint) TestParse() {
 
 					return
 				} else if err != nil {
-					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
+					t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
 
 					return
 				}
@@ -93,7 +93,7 @@ func (t *testHint) TestIsValid() {
 				err = ht.IsValid(nil)
 				if len(c.err) > 0 {
 					if err == nil {
-						t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
+						t.Fail(fmt.Sprintf("expected %q, but nil error", c.err), "%d(%q): %v", i, c.s, c.name)
 
 						return
 					}
@@ -102,7 +102,7 @@ func (t *testHint) TestIsValid() {
 
 					return
 				} else if err != nil {
-					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
+					t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d(%q): %v", i, c.s, c.name)
 
 					return
 				}

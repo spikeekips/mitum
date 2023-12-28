@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -8,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -594,7 +594,7 @@ func (t *testNodeDesign) TestIsValid() {
 		}
 
 		err := a.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid time server")
 
 		switch s := err.Error(); {
@@ -602,7 +602,7 @@ func (t *testNodeDesign) TestIsValid() {
 		case strings.Contains(s, "failure in name resolution"):
 		case strings.Contains(s, "server misbehaving"):
 		default:
-			t.NoError(errors.Errorf("unknown error: %+v", err))
+			t.Fail(fmt.Sprintf("unknown error: %+v", err))
 		}
 	})
 
@@ -615,7 +615,7 @@ func (t *testNodeDesign) TestIsValid() {
 		}
 
 		err := a.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid time server")
 	})
 
@@ -1412,13 +1412,13 @@ func (t *testNetworkParams) TestGetHandlerTimeout() {
 	t.Run("get; unknown", func() {
 		_, err := params.HandlerTimeout(util.UUID().String())
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 	})
 
 	t.Run("set; unknown", func() {
 		err := params.SetHandlerTimeout(util.UUID().String(), time.Second)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrNotFound))
+		t.ErrorIs(err, util.ErrNotFound)
 	})
 
 	t.Run("not set", func() {

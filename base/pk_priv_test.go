@@ -1,7 +1,6 @@
 package base
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
@@ -102,7 +101,7 @@ func (t *testMPrivatekey) TestFromSeedButTooShort() {
 	seed := util.UUID().String()[:PrivatekeyMinSeedSize-1]
 
 	_, err := NewMPrivatekeyFromSeed(seed)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "too short")
 }
 
@@ -117,13 +116,13 @@ func (t *testMPrivatekey) TestParseMPrivatekey() {
 func (t *testMPrivatekey) TestParseMPrivatekeyButEmpty() {
 	t.Run("empty", func() {
 		_, err := ParseMPrivatekey("")
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "unknown privatekey string")
 	})
 
 	t.Run("empty body", func() {
 		_, err := ParseMPrivatekey(MPrivatekeyHint.Type().String())
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid privatekey string")
 	})
 
@@ -131,7 +130,7 @@ func (t *testMPrivatekey) TestParseMPrivatekeyButEmpty() {
 		_, err := ParseMPrivatekey(util.UUID().String() + MPrivatekeyHint.Type().String())
 		t.Error(err)
 
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid byte")
 	})
 }

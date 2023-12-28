@@ -172,7 +172,7 @@ func (t *testHandoverHandler) TestEnterButEmptyHandoverYBroker() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 
 	t.Equal(ivp.Point().Height().SafePrev(), ssctx.height)
 }
@@ -203,7 +203,7 @@ func (t *testHandoverHandler) TestEnterButAllowedConsensus() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 
 	t.Equal(ivp.Point().Height().SafePrev(), ssctx.height)
 }
@@ -257,7 +257,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	t.T().Log("wait to send stagepoint")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait send stagepoint"))
+		t.Fail("timeout to wait send stagepoint")
 
 		return
 	case i := <-brokersentch:
@@ -270,7 +270,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	t.T().Log("wait process proposal")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait new processed proposal"))
+		t.Fail("timeout to wait new processed proposal")
 
 		return
 	case processed := <-prch:
@@ -282,7 +282,7 @@ func (t *testHandoverHandler) TestEnterExpectedINITVoteproof() {
 	select {
 	case <-time.After(time.Second):
 	case <-ballotch:
-		t.NoError(errors.Errorf("unexpected ballot broadcasted"))
+		t.Fail("unexpected ballot broadcasted")
 	}
 }
 
@@ -346,7 +346,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	t.T().Log("wait to send stagepoint")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait send stagepoint"))
+		t.Fail("timeout to wait send stagepoint")
 
 		return
 	case i := <-brokersentch:
@@ -359,7 +359,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	t.T().Log("wait process proposal")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait new processed proposal"))
+		t.Fail("timeout to wait new processed proposal")
 
 		return
 	case processed := <-prch:
@@ -374,7 +374,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save block"))
+		t.Fail("timeout to wait save block")
 
 		return
 	case ravp := <-savedch:
@@ -384,7 +384,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	t.T().Log("wait blockmap challenge")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait blockmap challenge"))
+		t.Fail("timeout to wait blockmap challenge")
 
 		return
 	case i := <-brokersentch:
@@ -399,7 +399,7 @@ func (t *testHandoverHandler) TestACCEPTVoteproof() {
 	select {
 	case <-time.After(time.Second):
 	case <-ballotch:
-		t.NoError(errors.Errorf("unexpected ballot broadcasted"))
+		t.Fail("unexpected ballot broadcasted")
 	}
 }
 
@@ -437,7 +437,7 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	t.T().Log("wait to send stagepoint")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait send stagepoint"))
+		t.Fail("timeout to wait send stagepoint")
 
 		return
 	case i := <-brokersentch:
@@ -454,7 +454,7 @@ func (t *testHandoverHandler) TestFinishedButHigherVoteproof() {
 	t.Error(err)
 
 	var ssctx SyncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	t.ErrorAs(err, &ssctx)
 
 	t.Equal(nextivp.Point().Height().SafePrev(), ssctx.height)
 }
@@ -497,7 +497,7 @@ func (t *testHandoverHandler) TestFinishedWithINITVoteproof() {
 	t.T().Log("wait process proposal")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait new processed proposal"))
+		t.Fail("timeout to wait new processed proposal")
 
 		return
 	case processed := <-prch:
@@ -512,7 +512,7 @@ func (t *testHandoverHandler) TestFinishedWithINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait save block"))
+		t.Fail("timeout to wait save block")
 
 		return
 	case ravp := <-savedch:
@@ -524,7 +524,7 @@ func (t *testHandoverHandler) TestFinishedWithINITVoteproof() {
 	t.Error(err)
 
 	var csctx consensusSwitchContext
-	t.True(errors.As(err, &csctx))
+	t.ErrorAs(err, &csctx)
 
 	fvp, ok := csctx.voteproof().(handoverFinishedVoteporof)
 	t.True(ok)

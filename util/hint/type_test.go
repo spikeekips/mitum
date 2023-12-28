@@ -1,10 +1,10 @@
 package hint
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -40,14 +40,14 @@ func TestTypeIsValid(tt *testing.T) {
 			err := ty.IsValid(nil)
 			if len(c.err) > 0 {
 				if err == nil {
-					t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d: %v", i, c.name)
+					t.Fail(fmt.Sprintf("expected %q, but nil error", c.err), "%d: %v", i, c.name)
 
 					return
 				}
 
 				t.ErrorContains(err, c.err, "%d: %v", i, c.name)
 			} else if err != nil {
-				t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
+				t.Fail(fmt.Sprintf("expected nil error, but %+v", err), "%d: %v", i, c.name)
 
 				return
 			}

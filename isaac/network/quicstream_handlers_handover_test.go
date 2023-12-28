@@ -74,7 +74,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not started"))
+			t.Fail("not started")
 		case <-startedch:
 		}
 	})
@@ -160,7 +160,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not canceled"))
+			t.Fail("not canceled")
 		case <-canceledch:
 		}
 	})
@@ -249,7 +249,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not checked"))
+			t.Fail("not checked")
 		case <-checkedch:
 		}
 	})
@@ -340,7 +340,7 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not asked"))
+			t.Fail("not asked")
 		case <-askedch:
 		}
 	})
@@ -398,7 +398,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not sent"))
+			t.Fail("not sent")
 		case <-sentch:
 		}
 	})
@@ -491,7 +491,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 
 		select {
 		case <-time.After(time.Second):
-			t.NoError(errors.Errorf("not checked"))
+			t.Fail("not checked")
 		case <-checkedch:
 		}
 	})

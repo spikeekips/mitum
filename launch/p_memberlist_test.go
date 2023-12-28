@@ -39,13 +39,13 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 		select {
 		case <-time.After(time.Second * 1):
 		case <-ch0:
-			t.NoError(errors.Errorf("second join was finished unexpectedly"))
+			t.Fail("second join was finished unexpectedly")
 		}
 
 		select {
 		case <-time.After(time.Second * 1):
 		case <-ch1:
-			t.NoError(errors.Errorf("second join was finished unexpectedly"))
+			t.Fail("second join was finished unexpectedly")
 		}
 	})
 
@@ -54,13 +54,13 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait to done ch0, but failed"))
+			t.Fail("wait to done ch0, but failed")
 		case <-ch0:
 		}
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait to done ch1, but failed"))
+			t.Fail("wait to done ch1, but failed")
 		case <-ch1:
 		}
 	})
@@ -83,7 +83,7 @@ func (t *testLongRunningMemberlistJoin) TestCancel() {
 
 	select {
 	case <-time.After(time.Second * 1):
-		t.NoError(errors.Errorf("wait to done, but failed"))
+		t.Fail("wait to done, but failed")
 	case <-ch:
 	}
 }

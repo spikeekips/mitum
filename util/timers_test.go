@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -848,7 +847,7 @@ func (t *testSimpleTimers) TestStopTimerCancelLongRunning() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait called"))
+		t.Fail("failed to wait called")
 	case i := <-called:
 		t.Equal(uint64(1), i)
 	}
@@ -857,7 +856,7 @@ func (t *testSimpleTimers) TestStopTimerCancelLongRunning() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to wait called"))
+		t.Fail("failed to wait called")
 	case i := <-canceledch:
 		t.Equal(uint64(1), i)
 	}

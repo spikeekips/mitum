@@ -4,7 +4,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network"
@@ -38,7 +37,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 		t.Error(err)
 
 		var dnserr *net.DNSError
-		t.True(errors.As(err, &dnserr))
+		t.ErrorAs(err, &dnserr)
 	})
 
 	t.Run("dns error", func() {
@@ -48,7 +47,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 		t.Error(err)
 
 		var dnserr *net.DNSError
-		t.True(errors.As(err, &dnserr))
+		t.ErrorAs(err, &dnserr)
 	})
 
 	t.Run("empty host", func() {
@@ -56,7 +55,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 
 		_, err := NewNodeConnInfo(node, ":1234", true)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 
 	t.Run("empty port", func() {
@@ -64,7 +63,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 
 		_, err := NewNodeConnInfo(node, "a.b.c.d", true)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 }
 

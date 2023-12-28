@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -83,7 +82,7 @@ func (t *testPrefixStorage) TestClose() {
 		found, err := pst.Exists(util.UUID().Bytes())
 		t.False(found)
 		t.Error(err)
-		t.True(errors.Is(err, storage.ErrClosed))
+		t.ErrorIs(err, storage.ErrClosed)
 	})
 
 	t.Run("original storage after closed", func() {
@@ -242,7 +241,7 @@ func (t *testPrefixStorage) TestPut() {
 	t.Run("nil key", func() {
 		err := pst.Put(nil, nil, nil)
 		t.Error(err)
-		t.True(errors.Is(err, storage.ErrClosed))
+		t.ErrorIs(err, storage.ErrClosed)
 	})
 }
 

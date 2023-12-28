@@ -288,7 +288,7 @@ func (t *testEnsureRead) TestRead() {
 
 		select {
 		case <-time.After(time.Millisecond * 100):
-			t.NoError(errors.Errorf("waits read, but failed"))
+			t.Fail("waits read, but failed")
 		case i := <-donech:
 			n, err := i[0].(uint64), i[1]
 
@@ -323,7 +323,7 @@ func (t *testEnsureRead) TestRead() {
 		t.Error(err)
 		t.Equal(n, uint64(len(s)))
 
-		t.True(errors.Is(err, context.DeadlineExceeded))
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 
 	t.Run("EOF before full", func() {

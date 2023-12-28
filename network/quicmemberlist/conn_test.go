@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -50,7 +49,7 @@ func (t *testQConn) TestRead() {
 		)
 
 		t.Error(err)
-		t.True(errors.Is(err, context.DeadlineExceeded))
+		t.ErrorIs(err, context.DeadlineExceeded)
 	})
 
 	t.Run("before write", func() {
@@ -111,7 +110,7 @@ func (t *testQConn) TestRead() {
 
 		rb := make([]byte, 1024)
 		n, err := c.Read(rb)
-		t.True(errors.Is(err, io.EOF))
+		t.ErrorIs(err, io.EOF)
 		t.Equal(0, n)
 	})
 }
@@ -146,7 +145,7 @@ func (t *testQConn) TestWrite() {
 		c.Close()
 
 		n, err := c.Write(util.UUID().Bytes())
-		t.True(errors.Is(err, net.ErrClosed))
+		t.ErrorIs(err, net.ErrClosed)
 		t.Equal(0, n)
 	})
 }
@@ -162,7 +161,7 @@ func (t *testQConn) TestClose() {
 		t.NoError(c.Close())
 
 		err := c.Close()
-		t.True(errors.Is(err, net.ErrClosed))
+		t.ErrorIs(err, net.ErrClosed)
 	})
 }
 
@@ -176,7 +175,7 @@ func (t *testQConn) TestSetReadDeadline() {
 		n, err := c.Read(b)
 
 		t.Equal(0, n)
-		t.True(errors.Is(err, os.ErrDeadlineExceeded))
+		t.ErrorIs(err, os.ErrDeadlineExceeded)
 	})
 
 	t.Run("zero time", func() {
@@ -208,7 +207,7 @@ func (t *testQConn) TestSetWriteDeadline() {
 		c.SetWriteDeadline(time.Now().Add(time.Millisecond * 300))
 		n, err := c.Write(util.UUID().Bytes())
 		t.Equal(0, n)
-		t.True(errors.Is(err, os.ErrDeadlineExceeded))
+		t.ErrorIs(err, os.ErrDeadlineExceeded)
 	})
 
 	t.Run("zero time", func() {

@@ -765,7 +765,7 @@ func (t *testSingleLockedMap) TestClose() {
 		},
 	)
 	t.Error(err)
-	t.True(errors.Is(err, ErrLockedMapClosed))
+	t.ErrorIs(err, ErrLockedMapClosed)
 
 	i, created, err := l.Set("showme", func(i int, found bool) (int, error) {
 		t.False(found)
@@ -776,7 +776,7 @@ func (t *testSingleLockedMap) TestClose() {
 	t.Error(err)
 	t.False(created)
 	t.Zero(i)
-	t.True(errors.Is(err, ErrLockedMapClosed))
+	t.ErrorIs(err, ErrLockedMapClosed)
 }
 
 func TestSingleLockedMap(t *testing.T) {
@@ -1234,7 +1234,7 @@ func (t *testShardedMap) TestClose() {
 			},
 		)
 		t.Error(err)
-		t.True(errors.Is(err, ErrLockedMapClosed))
+		t.ErrorIs(err, ErrLockedMapClosed)
 
 		i, created, err := m.Set(1, func(int, bool) (int, error) {
 			return 3, nil
@@ -1242,7 +1242,7 @@ func (t *testShardedMap) TestClose() {
 		t.Error(err)
 		t.Zero(i)
 		t.False(created)
-		t.True(errors.Is(err, ErrLockedMapClosed))
+		t.ErrorIs(err, ErrLockedMapClosed)
 	})
 
 	t.Run("close empty", func() {

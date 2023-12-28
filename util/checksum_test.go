@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -40,7 +39,7 @@ func (t *testChecksumReader) TestNew() {
 		n, err := cr.Read(p)
 
 		t.Equal(0, n)
-		t.True(errors.Is(err, io.EOF))
+		t.ErrorIs(err, io.EOF)
 	})
 }
 

@@ -34,9 +34,9 @@ func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.S
 
 	switch {
 	case point.Height() == base.GenesisHeight && previous != nil:
-		t.NoError(errors.Errorf("previous state was given for genesis"))
+		t.Fail("previous state was given for genesis")
 	case point.Height() != base.GenesisHeight && previous == nil:
-		t.NoError(errors.Errorf("empty previous state was given"))
+		t.Fail("empty previous state was given")
 	}
 
 	var previoushash util.Hash

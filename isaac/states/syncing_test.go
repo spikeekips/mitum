@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -158,7 +159,7 @@ func (t *testSyncingHandler) TestExit() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to wait to leave memberlist"))
+			t.Fail("failed to wait to leave memberlist")
 		case <-leftch:
 		}
 	})
@@ -323,7 +324,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		err = st.newVoteproof(ivp)
 
 		var csctx consensusSwitchContext
-		t.True(errors.As(err, &csctx))
+		t.ErrorAs(err, &csctx)
 		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 	})
 
@@ -355,7 +356,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		err = st.newVoteproof(avp)
 
 		var csctx consensusSwitchContext
-		t.True(errors.As(err, &csctx))
+		t.ErrorAs(err, &csctx)
 		base.EqualVoteproof(t.Assert(), avp, csctx.vp)
 	})
 }
@@ -396,7 +397,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		select {
 		case <-time.After(time.Second * 1):
 		case sctx := <-sctxch:
-			t.NoError(errors.Errorf("unexpected switch state"), "next=%q err=%q", sctx.next(), sctx.Error())
+			t.Fail(fmt.Sprintf("unexpected switch state, next=%q err=%q", sctx.next(), sctx.Error()))
 		}
 
 		t.Equal(point.Height(), syncer.Top())
@@ -436,7 +437,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		select {
 		case <-time.After(time.Second * 1):
 		case <-sctxch:
-			t.NoError(errors.Errorf("unexpected switch state"))
+			t.Fail("unexpected switch state")
 		}
 
 		t.Equal(ivp.Point().Height()-1, syncer.Top())
@@ -476,7 +477,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		select {
 		case <-time.After(time.Second * 1):
 		case <-sctxch:
-			t.NoError(errors.Errorf("unexpected switch state"))
+			t.Fail("unexpected switch state")
 		}
 	})
 
@@ -513,7 +514,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		select {
 		case <-time.After(time.Second * 1):
 		case <-sctxch:
-			t.NoError(errors.Errorf("unexpected switch state"))
+			t.Fail("unexpected switch state")
 		}
 
 		t.Equal(avp.Point().Height(), syncer.Top())
@@ -558,17 +559,17 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("timeout to wait finished height"))
+			t.Fail("timeout to wait finished height")
 		case height := <-finishedheightch:
 			t.Equal(point.Height(), height)
 		}
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("timeout to switch consensus state"))
+			t.Fail("timeout to switch consensus state")
 		case sctx := <-sctxch:
 			var csctx consensusSwitchContext
-			t.True(errors.As(sctx, &csctx))
+			t.ErrorAs(sctx, &csctx)
 			base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 		}
 	})
@@ -611,10 +612,10 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("timeout to switch joining state"))
+			t.Fail("timeout to switch joining state")
 		case sctx := <-sctxch:
 			var jsctx joiningSwitchContext
-			t.True(errors.As(sctx, &jsctx))
+			t.ErrorAs(sctx, &jsctx)
 			base.EqualVoteproof(t.Assert(), avp, jsctx.vp)
 		}
 	})
@@ -656,7 +657,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		select {
 		case <-time.After(time.Second * 1):
 		case sctx := <-sctxch:
-			t.NoError(errors.Errorf("unexpected to switch state, %v", sctx.next()))
+			t.Fail(fmt.Sprintf("unexpected to switch state, %v", sctx.next()))
 		}
 	})
 
@@ -697,7 +698,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		select {
 		case <-time.After(time.Second * 2):
 		case sctx := <-sctxch:
-			t.NoError(errors.Errorf("unexpected; switched another state: -> %s, %+v", sctx.next(), sctx.Error()))
+			t.Fail(fmt.Sprintf("unexpected; switched another state: -> %s, %+v", sctx.next(), sctx.Error()))
 		}
 	})
 
@@ -745,10 +746,10 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("timeout to switch joining state"))
+			t.Fail("timeout to switch joining state")
 		case sctx := <-sctxch:
 			var jsctx joiningSwitchContext
-			t.True(errors.As(sctx, &jsctx))
+			t.ErrorAs(sctx, &jsctx)
 			base.EqualVoteproof(t.Assert(), newavp, jsctx.vp)
 		}
 	})
@@ -775,10 +776,10 @@ func (t *testSyncingHandler) TestSyncerErr() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to switch joining state"))
+		t.Fail("timeout to switch joining state")
 	case sctx := <-sctxch:
 		var bsctx baseErrorSwitchContext
-		t.True(errors.As(sctx, &bsctx))
+		t.ErrorAs(sctx, &bsctx)
 		t.ErrorContains(bsctx.err, "kekeke")
 	}
 }
@@ -803,7 +804,7 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-sctxch:
-			t.NoError(errors.Errorf("without last voteproof, keep waiting"))
+			t.Fail("without last voteproof, keep waiting")
 		}
 	})
 
@@ -833,10 +834,10 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("failed to switch joining state"))
+			t.Fail("failed to switch joining state")
 		case sctx := <-sctxch:
 			var jsctx joiningSwitchContext
-			t.True(errors.As(sctx, &jsctx))
+			t.ErrorAs(sctx, &jsctx)
 			base.EqualVoteproof(t.Assert(), ivp, jsctx.vp)
 		}
 	})
@@ -870,7 +871,7 @@ func (t *testSyncingHandler) TestStuckWithoutVoteproof() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-sctxch:
-			t.NoError(errors.Errorf("not allowed consensus, keep waiting"))
+			t.Fail("not allowed consensus, keep waiting")
 		}
 	})
 }
@@ -909,13 +910,13 @@ func (t *testSyncingHandler) TestAskHandover() {
 		err = st.newVoteproof(ivp)
 
 		var csctx consensusSwitchContext
-		t.True(errors.As(err, &csctx))
+		t.ErrorAs(err, &csctx)
 		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 
 		select {
 		case <-time.After(time.Second * 1):
 		case <-askedch:
-			t.NoError(errors.Errorf("unexpected asking"))
+			t.Fail("unexpected asking")
 		}
 	})
 
@@ -955,7 +956,7 @@ func (t *testSyncingHandler) TestAskHandover() {
 
 		select {
 		case <-time.After(time.Second * 1):
-			t.NoError(errors.Errorf("failed to ask"))
+			t.Fail("failed to ask")
 		case <-askedch:
 		}
 	})
@@ -1066,7 +1067,7 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 			err = st.newVoteproof(ivp)
 
 			var csctx consensusSwitchContext
-			t.True(errors.As(err, &csctx))
+			t.ErrorAs(err, &csctx)
 			base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 		})
 
@@ -1118,7 +1119,7 @@ func (t *testSyncingHandler) TestMovesToHandover() {
 		err = st.newVoteproof(ivp)
 
 		var csctx consensusSwitchContext
-		t.True(errors.As(err, &csctx))
+		t.ErrorAs(err, &csctx)
 		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 
 		t.True(st.allowedConsensus())

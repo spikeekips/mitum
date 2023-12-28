@@ -35,11 +35,11 @@ func (t *testError) TestIs() {
 
 	t.Equal("showme", e0.Error())
 
-	t.True(errors.Is(e0, e0))
+	t.ErrorIs(e0, e0)
 	t.False(errors.Is(e0, nil))
 	t.False(errors.Is(e0, NewIDError("showme").WithStack()))
 	t.False(errors.Is(e0, NewIDError("findme").WithStack()))
-	t.True(errors.Is(e0, e0.Errorf("showme")))
+	t.ErrorIs(e0, e0.Errorf("showme"))
 }
 
 func (t *testError) TestAs() {
@@ -47,10 +47,10 @@ func (t *testError) TestAs() {
 	e0 := e.WithStack()
 
 	var e1 *IDError
-	t.True(errors.As(e0, &e1))
+	t.ErrorAs(e0, &e1)
 
-	t.True(errors.Is(e0, e1))
-	t.True(errors.Is(e1, e0))
+	t.ErrorIs(e0, e1)
+	t.ErrorIs(e1, e0)
 	t.Equal(e0.Error(), e1.Error())
 }
 
@@ -67,21 +67,21 @@ func (t *testError) TestWrap() {
 		e1 := e0.Wrap(pe)
 
 		t.False(errors.Is(e1, NewIDError("showme").WithStack()))
-		t.True(errors.Is(e1, errors.WithMessage(e1, "showme")))
-		t.True(errors.Is(e1, pe))
+		t.ErrorIs(e1, errors.WithMessage(e1, "showme"))
+		t.ErrorIs(e1, pe)
 
 		var npe *os.PathError
-		t.True(errors.As(e1, &npe))
+		t.ErrorAs(e1, &npe)
 
-		t.True(errors.Is(pe, npe))
+		t.ErrorIs(pe, npe)
 		t.Equal(pe.Error(), npe.Error())
 
 		var e2 *IDError
-		t.True(errors.As(e0, &e2))
-		t.True(errors.As(e1, &e2))
+		t.ErrorAs(e0, &e2)
+		t.ErrorAs(e1, &e2)
 
-		t.True(errors.Is(e0, e2))
-		t.True(errors.Is(e1, e2))
+		t.ErrorIs(e0, e2)
+		t.ErrorIs(e1, e2)
 	})
 }
 
@@ -92,8 +92,8 @@ func (t *testError) TestWrapAgain() {
 
 	e1 := e0.Wrap(eb.WithStack())
 
-	t.True(errors.Is(e0, e1))
-	t.True(errors.Is(e1, e0))
+	t.ErrorIs(e0, e1)
+	t.ErrorIs(e1, e0)
 }
 
 func (t *testError) TestWrapf() {
@@ -108,22 +108,22 @@ func (t *testError) TestWrapf() {
 		pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
 		e1 := e0.WithMessage(pe, "find me: %d", 3)
 
-		t.True(errors.Is(e0, e1))
+		t.ErrorIs(e0, e1)
 		t.False(errors.Is(e1, NewIDError("showme").WithStack()))
-		t.True(errors.Is(e1, errors.WithMessage(e1, "showme")))
-		t.True(errors.Is(e1, pe))
+		t.ErrorIs(e1, errors.WithMessage(e1, "showme"))
+		t.ErrorIs(e1, pe)
 
 		var e2 *IDError
-		t.True(errors.As(e0, &e2))
-		t.True(errors.As(e1, &e2))
+		t.ErrorAs(e0, &e2)
+		t.ErrorAs(e1, &e2)
 
-		t.True(errors.Is(e0, e2))
-		t.True(errors.Is(e1, e2))
+		t.ErrorIs(e0, e2)
+		t.ErrorIs(e1, e2)
 
 		var npe *os.PathError
-		t.True(errors.As(e1, &npe))
+		t.ErrorAs(e1, &npe)
 
-		t.True(errors.Is(pe, npe))
+		t.ErrorIs(pe, npe)
 		t.Equal(pe.Error(), npe.Error())
 	})
 }
@@ -135,11 +135,11 @@ func (t *testError) TestErrorf() {
 	e1 := e0.Errorf("error: %d", 33)
 
 	var e2 *IDError
-	t.True(errors.As(e0, &e2))
-	t.True(errors.As(e1, &e2))
+	t.ErrorAs(e0, &e2)
+	t.ErrorAs(e1, &e2)
 
-	t.True(errors.Is(e0, e1))
-	t.True(errors.Is(e1, e1))
+	t.ErrorIs(e0, e1)
+	t.ErrorIs(e1, e1)
 }
 
 func (t *testError) printStack(err error) (string, bool) {

@@ -215,7 +215,7 @@ func (t *testStates) TestExit() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to exit from booting"))
+		t.Fail("failed to exit from booting")
 	case <-exitch:
 	}
 }
@@ -243,7 +243,7 @@ func (t *testStates) TestBootingAtStarting() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter booting"))
+		t.Fail("failed to enter booting")
 	case <-enterch:
 		t.Equal(StateBooting, st.current().state())
 	}
@@ -279,13 +279,13 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter booting"))
+		t.Fail("failed to enter booting")
 	case <-bootingenterch:
 	}
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter broken"))
+		t.Fail("failed to enter broken")
 	case <-brokenenterch:
 		t.Equal(StateBroken, st.current().state())
 	}
@@ -325,7 +325,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter booting"))
+		t.Fail("failed to enter booting")
 	case <-enterch:
 		t.Equal(StateBooting, st.current().state())
 	}
@@ -365,19 +365,19 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter booting"))
+		t.Fail("failed to enter booting")
 	case <-bootingenterch:
 	}
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("failed to enter broken"))
+		t.Fail("failed to enter broken")
 	case <-brokenenterch:
 	}
 
 	select {
 	case <-time.After(time.Second):
-		t.NoError(errors.Errorf("states was not stopped"))
+		t.Fail("states was not stopped")
 	case err := <-stopch:
 		t.Equal(StateStopped, st.current().state())
 
@@ -411,7 +411,7 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	select {
 	case <-time.After(time.Second):
 	case <-enterch:
-		t.NoError(errors.Errorf("stopped should not be entered"))
+		t.Fail("stopped should not be entered")
 	}
 }
 
@@ -450,7 +450,7 @@ func (t *testStates) TestNewState() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to enter joining"))
+		t.Fail("failed to enter joining")
 	case <-enterch:
 		t.Equal(StateJoining, st.current().state())
 	}
@@ -482,7 +482,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to enter joining"))
+		t.Fail("failed to enter joining")
 	case <-enterch:
 		t.Equal(StateJoining, st.current().state())
 	}
@@ -491,7 +491,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to exit from joining"))
+		t.Fail("failed to exit from joining")
 	case <-exitch:
 		t.NotNil(st.current())
 		t.Equal(StateStopped, st.current().state())
@@ -551,7 +551,7 @@ func (t *testStates) TestSameCurrentWithNext() {
 	select {
 	case <-time.After(time.Second * 2):
 	case <-reenterch:
-		t.NoError(errors.Errorf("failed to prevent to enter again to booting"))
+		t.Fail("failed to prevent to enter again to booting")
 	}
 }
 
@@ -575,7 +575,7 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	select {
 	case <-time.After(time.Second * 2):
 	case <-reenterch:
-		t.NoError(errors.Errorf("failed to prevent to enter again to booting"))
+		t.Fail("failed to prevent to enter again to booting")
 	}
 }
 
@@ -600,7 +600,7 @@ func (t *testStates) TestNewVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to newVoteproof"))
+		t.Fail("failed to newVoteproof")
 	case rvp := <-voteproofch:
 		t.Equal(vp.ID(), rvp.ID())
 	}
@@ -639,14 +639,14 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to newVoteproof"))
+		t.Fail("failed to newVoteproof")
 	case rvp := <-voteproofch:
 		t.Equal(vp.ID(), rvp.ID())
 	}
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("failed to enter joining"))
+		t.Fail("failed to enter joining")
 	case rvp := <-joiningch:
 		t.Equal(vp.ID(), rvp.ID())
 		t.Equal(StateJoining, st.current().state())
@@ -684,14 +684,14 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to call exiting from booting"))
+		t.Fail("failed to call exiting from booting")
 	case <-exitch:
 	}
 
 	select {
 	case <-time.After(time.Second * 3):
 	case <-enterch:
-		t.NoError(errors.Errorf("failed to prevent to enter to joining"))
+		t.Fail("failed to prevent to enter to joining")
 	}
 
 	t.NotNil(st.current())
@@ -721,7 +721,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	select {
 	case <-time.After(time.Second * 3):
-		t.NoError(errors.Errorf("failed to call exiting from booting"))
+		t.Fail("failed to call exiting from booting")
 	case <-exitch:
 	}
 
@@ -817,7 +817,7 @@ func (t *testStates) TestMimicBallot() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+			t.Fail("wait broadcasted ballot, but failed")
 		case err := <-errch:
 			t.NoError(err)
 		case newbl := <-blch:
@@ -853,7 +853,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -881,7 +881,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -924,7 +924,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -952,7 +952,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -984,7 +984,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -1012,7 +1012,7 @@ func (t *testStates) TestMimicBallot() {
 		case err := <-errch:
 			t.NoError(err)
 		case <-blch:
-			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+			t.Fail("should be no broadcasted ballot, but broadcasted")
 		}
 	})
 
@@ -1048,7 +1048,7 @@ func (t *testStates) TestMimicBallot() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+			t.Fail("wait broadcasted ballot, but failed")
 		case err := <-errch:
 			t.NoError(err)
 		case newbl := <-blch:
@@ -1092,7 +1092,7 @@ func (t *testStates) TestMimicBallot() {
 
 		select {
 		case <-time.After(time.Second * 2):
-			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+			t.Fail("wait broadcasted ballot, but failed")
 		case err := <-errch:
 			t.NoError(err)
 		case newbl := <-blch:
@@ -1148,9 +1148,9 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-consensusenterch:
-			t.NoError(errors.Errorf("consensus handler entered"))
+			t.Fail("consensus handler entered")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -1167,9 +1167,9 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		select {
 		case <-time.After(time.Second * 3):
 		case <-consensusenterch:
-			t.NoError(errors.Errorf("consensus handler entered"))
+			t.Fail("consensus handler entered")
 		case <-syncingenterch:
-			t.NoError(errors.Errorf("syncing handler entered"))
+			t.Fail("syncing handler entered")
 		}
 
 		t.Equal(StateSyncing, st.current().state())
@@ -1187,7 +1187,7 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-consensusenterch:
 			t.Equal(StateConsensus, st.current().state())
 		}
@@ -1202,14 +1202,14 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case allow := <-consensusallowconsensusch:
 			t.False(allow)
 		}
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -1263,9 +1263,9 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-joiningenterch:
-			t.NoError(errors.Errorf("joining handler entered"))
+			t.Fail("joining handler entered")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
@@ -1284,9 +1284,9 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 		select {
 		case <-time.After(time.Second * 3):
 		case <-joiningenterch:
-			t.NoError(errors.Errorf("joining handler entered"))
+			t.Fail("joining handler entered")
 		case <-syncingenterch:
-			t.NoError(errors.Errorf("syncing handler entered"))
+			t.Fail("syncing handler entered")
 		}
 
 		t.T().Log("current", st.current().state())
@@ -1304,7 +1304,7 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-joiningenterch:
 			t.Equal(StateJoining, st.current().state())
 		}
@@ -1319,14 +1319,14 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case allow := <-joiningallowconsensusch:
 			t.False(allow)
 		}
 
 		select {
 		case <-time.After(time.Second * 3):
-			t.NoError(errors.Errorf("failed to wait"))
+			t.Fail("failed to wait")
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}

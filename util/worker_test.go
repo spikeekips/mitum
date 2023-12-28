@@ -348,7 +348,7 @@ func (t *testDistributeWorker) TestWithErrchanCancel() {
 	}()
 
 	err := wk.Wait()
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 
 	close(errch)
 
@@ -387,7 +387,7 @@ func (t *testDistributeWorker) TestCancel() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 
 	t.True(atomic.LoadUint64(&called) < l)
 }
@@ -421,7 +421,7 @@ func (t *testDistributeWorker) TestCancelBeforeRun() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 
 	t.True(atomic.LoadUint64(&called) < l)
 }
@@ -461,7 +461,7 @@ func (t *testDistributeWorker) TestLazyCancel() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.True(errors.Is(err, ErrWorkerContextCanceled))
+	t.ErrorIs(err, ErrWorkerContextCanceled)
 
 	t.True(atomic.LoadUint64(&canceled) < l)
 
@@ -658,7 +658,7 @@ func (t *testErrgroupWorker) TestCancel() {
 
 	err := wk.Wait()
 	t.Error(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 }
 
 func (t *testErrgroupWorker) TestCancelBeforeRun() {
@@ -693,7 +693,7 @@ func (t *testErrgroupWorker) TestCancelBeforeRun() {
 
 	err := wk.Wait()
 	t.Error(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 
 	c := atomic.LoadUint64(&called)
 	t.True(c < l, "called=%d, total=%d", c, l)
@@ -734,7 +734,7 @@ func (t *testErrgroupWorker) TestLazyClose() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.True(errors.Is(err, context.Canceled))
+	t.ErrorIs(err, context.Canceled)
 
 	t.True(atomic.LoadUint64(&canceled) < l)
 

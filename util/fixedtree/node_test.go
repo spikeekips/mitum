@@ -3,7 +3,6 @@ package fixedtree
 import (
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -63,7 +62,7 @@ func (t *testNode) TestInvalid() {
 		n.h = valuehash.RandomSHA256()
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty key")
 	})
 
@@ -71,7 +70,7 @@ func (t *testNode) TestInvalid() {
 		n := NewBaseNode(util.UUID().String())
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "empty hash")
 	})
 
@@ -80,7 +79,7 @@ func (t *testNode) TestInvalid() {
 		n.h = valuehash.NewBytes(make([]byte, 300))
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 	})
 }
 

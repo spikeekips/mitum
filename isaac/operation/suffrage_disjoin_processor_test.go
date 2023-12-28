@@ -2,9 +2,9 @@ package isaacoperation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -100,7 +100,7 @@ func (t *testSuffrageDisjoinProcessor) TestNew() {
 			case isaac.SuffrageStateKey:
 				st = suffragest
 			default:
-				t.NoError(errors.Errorf("unknown state found, %q", v.Key()))
+				t.Fail(fmt.Sprintf("unknown state found, %q", v.Key()))
 			}
 
 			merger = v.Merger(height, st)
@@ -120,7 +120,7 @@ func (t *testSuffrageDisjoinProcessor) TestNew() {
 		case isaac.SuffrageStateKey:
 			st = suffragest
 		default:
-			t.NoError(errors.Errorf("unknown state found, %q", merger.Key()))
+			t.Fail(fmt.Sprintf("unknown state found, %q", merger.Key()))
 		}
 
 		nst, err := merger.CloseValue()

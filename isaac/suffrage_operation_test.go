@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -31,7 +30,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid BaseFact")
 	})
 
@@ -41,7 +40,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid token")
 	})
 
@@ -49,7 +48,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 		fact := NewSuffrageExpelFact(nil, base.Height(33), base.Height(44), util.UUID().String())
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageExpel")
 	})
 
@@ -58,7 +57,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 		fact := NewSuffrageExpelFact(addr, base.Height(33), base.Height(44), util.UUID().String())
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageExpel")
 	})
 
@@ -66,7 +65,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 		fact := NewSuffrageExpelFact(base.RandomAddress(""), base.NilHeight, base.Height(44), util.UUID().String())
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageExpel")
 	})
 
@@ -74,7 +73,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 		fact := NewSuffrageExpelFact(base.RandomAddress(""), base.Height(33), base.NilHeight, util.UUID().String())
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageExpel")
 	})
 
@@ -82,7 +81,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 		fact := NewSuffrageExpelFact(base.RandomAddress(""), base.Height(33), base.Height(22), util.UUID().String())
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "invalid SuffrageExpel")
 	})
 
@@ -97,7 +96,7 @@ func (t *testSuffrageExpelFact) TestIsValid() {
 
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})
 }
@@ -186,7 +185,7 @@ func (t *testSuffrageExpelOperation) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "valid node signs not found")
 
 		signs := op.NodeSigns()
@@ -200,7 +199,7 @@ func (t *testSuffrageExpelOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, base.ErrSignatureVerification))
+		t.ErrorIs(err, base.ErrSignatureVerification)
 	})
 }
 

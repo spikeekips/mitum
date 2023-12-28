@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/stretchr/testify/suite"
@@ -30,7 +29,7 @@ func (t *testHeight) TestInvalid() {
 
 	hu1 := NilHeight
 	err := hu1.IsValid(nil)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 }
 
 func (t *testHeight) TestString() {
@@ -192,7 +191,7 @@ func (t *testPoint) TestZeroHeightJSON() {
 
 	err = u.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorIs(err, util.ErrInvalid)
 	t.ErrorContains(err, "height must be greater than 0")
 }
 
