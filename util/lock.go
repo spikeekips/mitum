@@ -836,6 +836,270 @@ func (l *ShardedMap[K, V]) next(last *int) LockedMap[K, V] {
 	}
 }
 
+type LimitedLockedMap[K cmp.Ordered, V any] struct {
+	LockedMap[K, V]
+	allowKeyf func(K) bool
+	isclosed  bool
+	sync.RWMutex
+}
+
+func NewLimitedLockedMap[K cmp.Ordered, V any](m LockedMap[K, V], allowKey func(K) bool) *LimitedLockedMap[K, V] {
+	return &LimitedLockedMap[K, V]{
+		LockedMap: m,
+		allowKeyf: allowKey,
+	}
+}
+
+func (l *LimitedLockedMap[K, V]) Exists(k K) (found bool) {
+	if ok, _ := l.allowKey(k); !ok {
+		return false
+	}
+
+	return l.LockedMap.Exists(k)
+}
+
+func (l *LimitedLockedMap[K, V]) Value(k K) (v V, _ bool) {
+	if ok, _ := l.allowKey(k); !ok {
+		return v, false
+	}
+
+	return l.LockedMap.Value(k)
+}
+
+func (l *LimitedLockedMap[K, V]) SetValue(k K, v V) bool {
+	if ok, _ := l.allowKey(k); !ok {
+		return false
+	}
+
+	return l.LockedMap.SetValue(k, v)
+}
+
+func (l *LimitedLockedMap[K, V]) RemoveValue(k K) bool {
+	if ok, _ := l.allowKey(k); !ok {
+		return false
+	}
+
+	return l.LockedMap.RemoveValue(k)
+}
+
+func (l *LimitedLockedMap[K, V]) Get(k K, f func(V, bool) error) error {
+	switch ok, err := l.allowKey(k); {
+	case err != nil:
+		return err
+	case !ok:
+		var v V
+
+		return f(v, false)
+	default:
+		return l.LockedMap.Get(k, f)
+	}
+}
+
+// GetOrCreate does not allow to set new key out of allowed keys.
+func (l *LimitedLockedMap[K, V]) GetOrCreate(k K, f func(V, bool) error, create func() (V, error)) error {
+	switch ok, err := l.allowKey(k); {
+	case err != nil, !ok:
+		return err
+	default:
+		return l.LockedMap.GetOrCreate(k, f, create)
+	}
+}
+
+func (l *LimitedLockedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ bool, _ error) {
+	switch ok, err := l.allowKey(k); {
+	case err != nil, !ok:
+		return v, false, err
+	default:
+		return l.LockedMap.Set(k, f)
+	}
+}
+
+func (l *LimitedLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
+	switch ok, err := l.allowKey(k); {
+	case err != nil, !ok:
+		return false, err
+	default:
+		return l.LockedMap.Remove(k, f)
+	}
+}
+
+func (l *LimitedLockedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (v V, _, _ bool, _ error) {
+	switch ok, err := l.allowKey(k); {
+	case err != nil, !ok:
+		return v, false, false, err
+	default:
+		return l.LockedMap.SetOrRemove(k, f)
+	}
+}
+
+func (l *LimitedLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
+	return l.LockedMap.Traverse(func(k K, v V) bool {
+		if ok, err := l.allowKey(k); err != nil || !ok {
+			return true
+		}
+
+		return f(k, v)
+	})
+}
+
+func (l *LimitedLockedMap[K, V]) Len() (count int) {
+	l.LockedMap.Traverse(func(k K, v V) bool {
+		switch ok, err := l.allowKey(k); {
+		case errors.Is(err, ErrLockedMapClosed):
+			count = 0
+
+			return false
+		case err != nil:
+			return false
+		case ok:
+			count++
+		}
+
+		return true
+	})
+
+	return count
+}
+
+func (l *LimitedLockedMap[K, V]) Map() map[K]V {
+	m := map[K]V{}
+
+	l.LockedMap.Traverse(func(k K, v V) bool {
+		switch ok, err := l.allowKey(k); {
+		case errors.Is(err, ErrLockedMapClosed):
+			m = nil
+
+			return false
+		case err != nil:
+			return false
+		case ok:
+			m[k] = v
+		}
+
+		return true
+	})
+
+	return m
+}
+
+func (*LimitedLockedMap[K, V]) Empty() {}
+func (l *LimitedLockedMap[K, V]) Close() {
+	l.Lock()
+	defer l.Unlock()
+
+	l.isclosed = true
+}
+
+func (l *LimitedLockedMap[K, V]) allowKey(k K) (bool, error) {
+	if func() bool {
+		l.RLock()
+		defer l.RUnlock()
+
+		return l.isclosed
+	}() {
+		return false, ErrLockedMapClosed
+	}
+
+	return l.allowKeyf(k), nil
+}
+
+type MultiKeysLockedMap[K cmp.Ordered, V any] struct {
+	m       LockedMap[K, V]
+	lockchs map[K]<-chan struct{}
+	l       sync.Mutex
+}
+
+func NewMultiKeysLockedMap[K cmp.Ordered, V any](m LockedMap[K, V]) *MultiKeysLockedMap[K, V] {
+	return &MultiKeysLockedMap[K, V]{
+		m:       m,
+		lockchs: map[K](<-chan struct{}){},
+	}
+}
+
+func (l *MultiKeysLockedMap[K, V]) Map() LockedMap[K, V] {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.m
+}
+
+func (l *MultiKeysLockedMap[K, V]) Lock(keys []K) (_ LockedMap[K, V], unlock func()) {
+	nkeys := RemoveDuplicatedOrderedSlice(keys)
+	if len(nkeys) < 1 {
+		return nil, nil
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.lock(nkeys)
+}
+
+func (l *MultiKeysLockedMap[K, V]) LockFunc(keys []K, f func(LockedMap[K, V]) error) error {
+	nkeys := RemoveDuplicatedOrderedSlice(keys)
+	if len(nkeys) < 1 {
+		return nil
+	}
+
+	l.l.Lock()
+	lm, unlock := l.lock(nkeys)
+	l.l.Unlock()
+
+	defer unlock()
+
+	return f(lm)
+}
+
+func (l *MultiKeysLockedMap[K, V]) Len() int {
+	return l.m.Len()
+}
+
+func (l *MultiKeysLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
+	return l.m.Traverse(f)
+}
+
+func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock func()) {
+	km := map[K]struct{}{}
+	chs := make([]chan<- struct{}, len(keys))
+
+	for i := range keys {
+		k := keys[i]
+		km[k] = struct{}{}
+
+		if c, found := l.lockchs[k]; found {
+			<-c
+		}
+
+		ch := make(chan struct{})
+		l.lockchs[k] = ch
+		chs[i] = ch
+	}
+
+	lm := NewLimitedLockedMap(l.m, func(k K) bool {
+		_, found := km[k]
+
+		return found
+	})
+
+	return lm, func() {
+		lm.Close()
+
+		for i := range chs {
+			close(chs[i])
+		}
+
+		clear(km)
+	}
+}
+
+func (l *MultiKeysLockedMap[K, V]) Close() {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	l.m.Close()
+	clear(l.lockchs)
+}
+
 func defaultindex(seed uint32, k interface{}) uint64 {
 	var i uint64
 

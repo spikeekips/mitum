@@ -2,9 +2,12 @@ package util
 
 import (
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -1341,4 +1344,704 @@ func TestLockedMap(tt *testing.T) {
 
 		_ = l.(*ShardedMap[string, string])
 	})
+}
+
+type testLimitedLockedMap struct {
+	suite.Suite
+}
+
+func (t *testLimitedLockedMap) TestNew() {
+	m := NewSingleLockedMap[string, int]()
+
+	l := NewLimitedLockedMap(m, func(k string) bool {
+		switch k {
+		case "0":
+			return true
+		default:
+			return false
+		}
+	})
+
+	t.True(m.SetValue("0", 10))
+	t.True(m.SetValue("1", 11))
+
+	t.Run("Exists", func() {
+		t.True(m.Exists("0"))
+		t.True(m.Exists("1"))
+		t.False(m.Exists("2"))
+
+		t.True(l.Exists("0"))
+		t.False(l.Exists("1"))
+		t.False(l.Exists("2"))
+	})
+
+	t.Run("Value", func() {
+		i, found := l.Value("0")
+		t.Equal(10, i)
+		t.True(found)
+		i, found = l.Value("1")
+		t.Equal(0, i)
+		t.False(found)
+		i, found = l.Value("2")
+		t.Equal(0, i)
+		t.False(found)
+	})
+
+	t.Run("SetValue", func() {
+		added := l.SetValue("0", 20)
+		t.False(added)
+		i, found := m.Value("0")
+		t.True(found)
+		t.Equal(20, i)
+
+		added = l.SetValue("1", 21)
+		t.False(added)
+		i, found = m.Value("1")
+		t.True(found)
+		t.Equal(11, i)
+	})
+
+	t.Run("RemoveValue", func() {
+		defer func() {
+			m.SetValue("0", 10)
+			m.SetValue("1", 11)
+		}()
+
+		removed := l.RemoveValue("0")
+		t.True(removed)
+
+		_, found := m.Value("0")
+		t.False(found)
+
+		removed = l.RemoveValue("1")
+		t.False(removed)
+	})
+
+	t.Run("Get", func() {
+		t.NoError(l.Get("0", func(v int, found bool) error {
+			t.Equal(10, v)
+			t.True(found)
+
+			return nil
+		}))
+
+		t.NoError(l.Get("1", func(v int, found bool) error {
+			t.Equal(0, v)
+			t.False(found)
+
+			return nil
+		}))
+
+		err := l.Get("1", func(v int, found bool) error {
+			t.Equal(0, v)
+			t.False(found)
+
+			return errors.Errorf("hohoho")
+		})
+		t.ErrorContains(err, "hohoho")
+
+		l.Close()
+		defer func() {
+			l.isclosed = false
+		}()
+
+		err = l.Get("1", func(v int, found bool) error {
+			t.Equal(0, v)
+			t.False(found)
+
+			return errors.Errorf("hohoho")
+		})
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+
+	t.Run("GetOrCreate", func() {
+		t.NoError(l.GetOrCreate("0", func(v int, created bool) error {
+			t.Equal(10, v)
+			t.False(created)
+
+			return nil
+		}, func() (int, error) {
+			return 0, nil
+		}))
+
+		var called bool
+
+		t.NoError(l.GetOrCreate("1", func(v int, created bool) error {
+			called = true
+
+			return nil
+		}, func() (int, error) {
+			return 0, nil
+		}))
+		t.False(called)
+
+		t.NoError(l.GetOrCreate("2", func(v int, created bool) error {
+			called = true
+
+			return nil
+		}, func() (int, error) {
+			return 0, nil
+		}))
+		t.False(called)
+
+		l.Close()
+		defer func() {
+			l.isclosed = false
+		}()
+
+		err := l.GetOrCreate("2", func(v int, created bool) error {
+			called = true
+
+			return nil
+		}, func() (int, error) {
+			return 0, nil
+		})
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+
+	t.Run("GetOrCreate; new key", func() {
+		t.False(m.Exists("2"))
+
+		l := NewLimitedLockedMap(m, func(k string) bool {
+			switch k {
+			case "0", "2":
+				return true
+			default:
+				return false
+			}
+		})
+
+		t.NoError(l.GetOrCreate("2", func(v int, created bool) error {
+			t.Equal(20, v)
+			t.True(created)
+
+			return nil
+		}, func() (int, error) {
+			return 20, nil
+		}))
+
+		t.True(l.Exists("2"))
+	})
+
+	t.Run("Set", func() {
+		defer func() {
+			m.SetValue("0", 10)
+			m.SetValue("1", 11)
+		}()
+
+		v, created, err := l.Set("0", func(v int, found bool) (int, error) {
+			t.Equal(10, v)
+			t.True(found)
+
+			return 20, nil
+		})
+		t.Equal(20, v)
+		t.False(created)
+		t.NoError(err)
+
+		var called bool
+
+		v, created, err = l.Set("1", func(v int, found bool) (int, error) {
+			called = true
+
+			return 20, nil
+		})
+		t.Equal(0, v)
+		t.False(created)
+		t.NoError(err)
+		t.False(called)
+
+		l.Close()
+		defer func() {
+			l.isclosed = false
+		}()
+
+		_, _, err = l.Set("1", func(v int, found bool) (int, error) {
+			called = true
+
+			return 20, nil
+		})
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+
+	t.Run("Remove", func() {
+		defer func() {
+			m.SetValue("0", 10)
+			m.SetValue("1", 11)
+		}()
+
+		removed, err := l.Remove("0", func(v int, found bool) error {
+			t.Equal(10, v)
+			t.True(found)
+
+			return nil
+		})
+		t.NoError(err)
+		t.True(removed)
+
+		var called bool
+
+		removed, err = l.Remove("1", func(v int, found bool) error {
+			called = true
+
+			return nil
+		})
+		t.NoError(err)
+		t.False(removed)
+		t.False(called)
+
+		l.Close()
+		defer func() {
+			l.isclosed = false
+		}()
+
+		_, err = l.Remove("1", func(v int, found bool) error {
+			called = true
+
+			return nil
+		})
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+
+	t.Run("SetOrRemove; set", func() {
+		defer func() {
+			m.SetValue("0", 10)
+			m.SetValue("1", 11)
+		}()
+
+		v, created, removed, err := l.SetOrRemove("0", func(v int, found bool) (int, bool, error) {
+			t.Equal(10, v)
+			t.True(found)
+
+			return 20, false, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.False(removed)
+		t.Equal(20, v)
+
+		var called bool
+
+		v, created, removed, err = l.SetOrRemove("1", func(v int, found bool) (int, bool, error) {
+			called = true
+
+			return 21, false, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.False(removed)
+		t.False(called)
+		t.Equal(0, v)
+
+		l.Close()
+		defer func() {
+			l.isclosed = false
+		}()
+
+		_, _, _, err = l.SetOrRemove("1", func(v int, found bool) (int, bool, error) {
+			called = true
+
+			return 21, false, nil
+		})
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+
+	t.Run("SetOrRemove; remove", func() {
+		defer func() {
+			m.SetValue("0", 10)
+			m.SetValue("1", 11)
+		}()
+
+		v, created, removed, err := l.SetOrRemove("0", func(v int, found bool) (int, bool, error) {
+			t.Equal(10, v)
+			t.True(found)
+
+			return 20, true, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.True(removed)
+		t.Equal(0, v)
+		t.False(l.Exists("0"))
+
+		var called bool
+
+		v, created, removed, err = l.SetOrRemove("1", func(v int, found bool) (int, bool, error) {
+			called = true
+
+			return 0, true, nil
+		})
+		t.NoError(err)
+		t.False(created)
+		t.False(removed)
+		t.Equal(0, v)
+		t.False(called)
+	})
+
+	t.Run("Traverse", func() {
+		t.True(l.Traverse(func(k string, v int) bool {
+			t.Equal("0", k)
+			t.Equal(10, v)
+
+			return true
+		}))
+	})
+
+	t.Run("Len", func() {
+		t.Equal(1, l.Len())
+	})
+
+	t.Run("Map", func() {
+		m := l.Map()
+
+		t.Equal(1, len(m))
+		v, found := m["0"]
+		t.True(found)
+		t.Equal(10, v)
+	})
+
+	t.Run("Len: Empty, Close", func() {
+		l.Empty()
+		t.Equal(1, l.Len())
+
+		l.Close()
+		t.Equal(0, l.Len())
+	})
+}
+
+func TestLimitedLockedMap(t *testing.T) {
+	suite.Run(t, new(testLimitedLockedMap))
+}
+
+type testMultiKeysLockedMap struct {
+	logging.BaseTestSuite
+}
+
+func (t *testMultiKeysLockedMap) TestClose() {
+	m := NewSingleLockedMap[string, int]()
+	m.SetValue("0", 10)
+	m.SetValue("1", 11)
+
+	mk := NewMultiKeysLockedMap(m)
+
+	t.True(m.Exists("0"))
+	t.True(m.Exists("1"))
+
+	mk.Close()
+
+	t.False(m.Exists("0"))
+	t.False(m.Exists("1"))
+}
+
+func (t *testMultiKeysLockedMap) TestLock() {
+	m := NewSingleLockedMap[string, int]()
+	m.SetValue("0", 10)
+	m.SetValue("1", 11)
+	m.SetValue("2", 12)
+	m.SetValue("3", 13)
+
+	mk := NewMultiKeysLockedMap(m)
+	defer mk.Close()
+
+	t.Run("empty keys", func() {
+		l, unlock := mk.Lock([]string{})
+		t.Nil(l)
+		t.Nil(unlock)
+	})
+
+	t.Run("duplicated keys", func() {
+		l, unlock := mk.Lock([]string{"0", "1", "1", "0"})
+		defer unlock()
+
+		t.True(l.Exists("0"))
+		t.True(l.Exists("1"))
+		t.False(l.Exists("2"))
+		t.False(l.Exists("3"))
+
+		t.Equal(2, len(mk.lockchs))
+	})
+
+	t.Run("0, 1", func() {
+		l, unlock := mk.Lock([]string{"0", "1"})
+		t.True(l.Exists("0"))
+		t.True(l.Exists("1"))
+		t.False(l.Exists("2"))
+		t.False(l.Exists("3"))
+
+		unlockedch := make(chan bool)
+		go func() {
+			_, unlock := mk.Lock([]string{"1", "2"})
+			defer unlock()
+
+			close(unlockedch)
+		}()
+
+		t.T().Log("not yet unlock()")
+
+		select {
+		case <-time.After(time.Second):
+		case <-unlockedch:
+			t.Fail("before unlock(), unlocked")
+			return
+		}
+
+		t.T().Log("unlock()")
+		unlock()
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("after unlock(), not unlocked")
+		case <-unlockedch:
+		}
+	})
+
+	t.Run("0, 1 with unknown key", func() {
+		l, unlock := mk.Lock([]string{"0", "1", "9"})
+		t.True(l.Exists("0"))
+		t.True(l.Exists("1"))
+		t.False(l.Exists("2"))
+		t.False(l.Exists("3"))
+		t.False(l.Exists("9"))
+
+		unlockedch := make(chan bool)
+		go func() {
+			l2, unlock := mk.Lock([]string{"9"})
+			defer unlock()
+
+			t.True(l2.SetValue("9", 9))
+
+			close(unlockedch)
+		}()
+
+		t.T().Log("not yet unlock()")
+
+		select {
+		case <-time.After(time.Second):
+		case <-unlockedch:
+			t.Fail("before unlock(), unlocked")
+			return
+		}
+
+		t.T().Log("unlock()")
+		unlock()
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("after unlock(), not unlocked")
+		case <-unlockedch:
+		}
+	})
+
+	t.Run("unlock; LimitedLockedMap closed", func() {
+		l, unlock := mk.Lock([]string{"0", "1", "1", "0"})
+		t.True(l.Exists("0"))
+
+		unlock()
+
+		err := l.Get("0", func(int, bool) error { return nil })
+		t.ErrorIs(err, ErrLockedMapClosed)
+	})
+}
+
+func (t *testMultiKeysLockedMap) TestLockFunc() {
+	m := NewSingleLockedMap[string, int]()
+	m.SetValue("0", 10)
+	m.SetValue("1", 11)
+	m.SetValue("2", 12)
+	m.SetValue("3", 13)
+
+	mk := NewMultiKeysLockedMap(m)
+	defer mk.Close()
+
+	t.Run("empty keys", func() {
+		var called bool
+
+		t.NoError(mk.LockFunc([]string{},
+			func(l LockedMap[string, int]) error {
+				called = true
+
+				return nil
+			},
+		))
+		t.False(called)
+	})
+
+	t.Run("duplicated keys", func() {
+		t.NoError(mk.LockFunc(
+			[]string{"0", "1", "1", "0"},
+			func(l LockedMap[string, int]) error {
+				t.Equal(2, len(mk.lockchs))
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("0, 1", func() {
+		called01ch := make(chan bool)
+		unlock01ch := make(chan bool)
+		locked12ch := make(chan bool)
+		locked13ch := make(chan bool)
+
+		go func() {
+			t.LockedLog("trying to lock 0, 1")
+
+			err := mk.LockFunc(
+				[]string{"0", "1"},
+				func(l LockedMap[string, int]) error {
+					close(called01ch)
+
+					t.LockedLog("locked 0, 1")
+
+					<-unlock01ch
+					t.LockedLog("unlocked 0, 1")
+
+					return nil
+				},
+			)
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		go func() {
+			<-called01ch
+
+			t.LockedLog("trying to lock 1, 2")
+
+			err := mk.LockFunc(
+				[]string{"1", "2"},
+				func(l LockedMap[string, int]) error {
+					t.LockedLog("locked 1, 2")
+
+					close(locked12ch)
+
+					return nil
+				},
+			)
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		go func() {
+			<-called01ch
+
+			t.LockedLog("trying to lock 1, 3")
+
+			err := mk.LockFunc(
+				[]string{"1", "3"},
+				func(l LockedMap[string, int]) error {
+					t.LockedLog("locked 1, 3")
+
+					close(locked13ch)
+
+					return nil
+				},
+			)
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		select {
+		case <-time.After(time.Second):
+		case <-locked12ch:
+			t.Fail("before unlock(), 1, 2 unlocked")
+			return
+		case <-locked13ch:
+			t.Fail("before unlock(), 1, 3 unlocked")
+			return
+		}
+
+		t.T().Log("unlock() 0, 1")
+		close(unlock01ch)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("after unlock(), not unlocked")
+		case <-locked12ch:
+		case <-locked13ch:
+		}
+	})
+}
+
+func (t *testMultiKeysLockedMap) TestAsyncLockFunc() {
+	m := NewSingleLockedMap[int, int]()
+
+	allkeys := make([]int, 99)
+
+	for i := range allkeys {
+		m.SetValue(i, i)
+		m.SetValue(i, i)
+		m.SetValue(i, i)
+		m.SetValue(i, i)
+
+		allkeys[i] = i
+	}
+
+	mk := NewMultiKeysLockedMap(m)
+	defer mk.Close()
+
+	worksize := 33
+
+	run := func(i int, keys []int) error {
+		if i%10 == 0 {
+			keys = append(keys, 0)
+		}
+
+		t.LockedLog("> %d: locked: %v", i, keys)
+		defer t.LockedLog("< %d: unlocked: %v", i, keys)
+
+		return mk.LockFunc(keys, func(m LockedMap[int, int]) error {
+			for k := range keys {
+				m.Set(keys[k], func(v int, _ bool) (int, error) {
+					return v * 3, nil
+				})
+			}
+
+			<-time.After(time.Millisecond * 333)
+
+			return nil
+		})
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(worksize)
+
+	for i := range make([]int, worksize) {
+		i := i
+
+		go func() {
+			defer wg.Done()
+
+			keys, err := RandomChoiceSlice(allkeys, 3)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := run(i, keys); err != nil {
+				panic(err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	t.T().Log("0 called at last")
+	t.NoError(mk.LockFunc([]int{0}, func(m LockedMap[int, int]) error {
+		t.T().Logf("> locked: 0")
+		defer t.T().Logf("< unlocked: 0")
+
+		m.SetValue(0, -1)
+
+		return nil
+	}))
+
+	i0, found := m.Value(0)
+	t.True(found)
+	t.Equal(-1, i0)
+}
+
+func TestMultiKeysLockedMap(t *testing.T) {
+	suite.Run(t, new(testMultiKeysLockedMap))
 }

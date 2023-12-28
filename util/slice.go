@@ -106,6 +106,34 @@ func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error)
 	return done(), nil
 }
 
+func RemoveDuplicatedOrderedSlice[T cmp.Ordered](keys []T) []T {
+	if len(keys) < 1 {
+		return nil
+	}
+
+	ns := make([]T, len(keys))
+	var index int
+
+	m := map[T]struct{}{}
+	defer clear(m)
+
+	for i := range keys {
+		k := keys[i]
+
+		_, found := m[k]
+		if found {
+			continue
+		}
+
+		m[k] = struct{}{}
+
+		ns[index] = k
+		index++
+	}
+
+	return ns[:index]
+}
+
 func CountFilteredSlice[T any](s []T, f func(T) bool) (n int) {
 	if len(s) < 1 {
 		return 0
