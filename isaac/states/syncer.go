@@ -424,6 +424,11 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 				return s.args.TempSyncPool.BlockMap(height)
 			},
 		); err != nil {
+			s.Log().Error().Err(err).
+				Interface("from", from).
+				Interface("to", to).
+				Msg("failed to import blocks; retry")
+
 			return true, err
 		}
 

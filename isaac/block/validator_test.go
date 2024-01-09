@@ -58,7 +58,7 @@ func (t *baseTestValidateBlock) buildBlocks(name string, top base.Height) (
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
 			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
-	)
+		nil)
 	t.NoError(err)
 
 	var prev util.Hash
@@ -123,7 +123,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		readers := t.readers(a)
 
 		st := leveldbstorage.NewMemStorage()
-		db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(), nil)
+		db, err := isaacdatabase.NewCenter(st, t.Encs, t.Enc, t.NewLeveldbPermanentDatabase(), nil, nil)
 		t.NoError(err)
 
 		err = IsValidLastBlocks(readers, nil, db, t.LocalParams.NetworkID())

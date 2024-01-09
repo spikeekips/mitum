@@ -74,7 +74,7 @@ func ImportBlocks(
 			}
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
-			bwdb, err := db.NewBlockWriteDatabase(m.Manifest().Height())
+			bwdb, err := db.NewBlockWriteDatabaseForSync(m.Manifest().Height())
 			if err != nil {
 				return nil, err
 			}

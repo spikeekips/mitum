@@ -735,7 +735,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				blockMapf,
 				syncerBlockItemFunc(client, conninfocache, params.Network.TimeoutRequest, remotesItem),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
-					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+					bwdb, err := db.NewBlockWriteDatabaseForSync(blockmap.Manifest().Height())
 					if err != nil {
 						return nil, err
 					}

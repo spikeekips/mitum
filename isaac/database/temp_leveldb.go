@@ -211,6 +211,10 @@ func (db *TempLeveldb) clean() {
 	if db.stcache != nil {
 		db.stcache.Purge()
 	}
+
+	if db.instateoperationcache != nil {
+		db.instateoperationcache.Close()
+	}
 }
 
 func (db *TempLeveldb) Height() base.Height {

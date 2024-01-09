@@ -39,7 +39,7 @@ func (t *testImportBlocks) prepare(from, to base.Height) *isaacdatabase.Center {
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
 			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
-	)
+		nil)
 	t.NoError(err)
 
 	prev := valuehash.RandomSHA256()
@@ -187,7 +187,7 @@ func (t *testImportBlocks) TestImport() {
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
 			return isaacdatabase.NewLeveldbBlockWrite(height, st, t.Encs, t.Enc, 0), nil
 		},
-	)
+		nil)
 	t.NoError(err)
 
 	lvps := isaac.NewLastVoteproofsHandler()

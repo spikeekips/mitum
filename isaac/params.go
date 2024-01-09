@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"math"
 	"reflect"
 	"time"
 
@@ -19,8 +18,8 @@ var (
 	DefaultWaitStuckInterval          = time.Second * 33
 	DefaultTimeoutRequest             = time.Second * 3
 	DefaultMinWaitNextBlockINITBallot = time.Second * 2
-	DefaultStateCacheSize             = math.MaxUint16
-	DefaultOperationPoolCacheSize     = math.MaxUint16
+	DefaultStateCacheSize             = 1 << 12
+	DefaultOperationPoolCacheSize     = 1 << 12
 )
 
 type Params struct {

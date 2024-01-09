@@ -32,6 +32,7 @@ type Database interface { //nolint:interfacebloat //..
 	// NOTE ExistsKnownOperation has the known operation hashes
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
+	NewBlockWriteDatabaseForSync(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
 	MergeAllPermanent() error
 	RemoveBlocks(base.Height) (bool, error)

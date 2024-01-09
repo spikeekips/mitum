@@ -818,6 +818,9 @@ func LoadDatabase(
 		func(height base.Height) (isaac.BlockWriteDatabase, error) {
 			return isaacdatabase.NewLeveldbBlockWrite(height, st, encs, enc, stcachesize), nil
 		},
+		func(height base.Height) (isaac.BlockWriteDatabase, error) {
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, encs, enc, 0), nil
+		},
 	)
 	if err != nil {
 		return nil, nil, nil, nil, e.Wrap(err)
