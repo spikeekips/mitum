@@ -61,13 +61,15 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 
 	_ = pps.POK(launch.PNameStorage).
 		PreAddOK(launch.PNameCheckLocalFS, cmd.pCheckLocalFS).
+		PreAddOK(launch.PNameLoadDatabase, launch.PLoadDatabase).
+		PostAddOK(launch.PNameCheckLeveldbStorage, launch.PCheckLeveldbStorage).
 		PostAddOK(launch.PNamePatchBlockItemReaders, launch.PPatchBlockItemReaders).
 		PostAddOK(PNameStorageStatus, cmd.pStorageStatus)
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:      cmd.DesignFlag,
-		launch.DevFlagsContextKey:        cmd.DevFlags,
-		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
+		launch.DesignFlagContextKey: cmd.DesignFlag,
+		launch.DevFlagsContextKey:   cmd.DevFlags,
+		launch.PrivatekeyContextKey: string(cmd.PrivatekeyFlags.Flag.Body()),
 	})
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")

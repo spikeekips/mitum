@@ -61,11 +61,11 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	}
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:      cmd.DesignFlag,
-		launch.DevFlagsContextKey:        cmd.DevFlags,
-		launch.DiscoveryFlagContextKey:   cmd.Discovery,
-		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
-		launch.ACLFlagsContextKey:        cmd.ACLFlags,
+		launch.DesignFlagContextKey:    cmd.DesignFlag,
+		launch.DevFlagsContextKey:      cmd.DevFlags,
+		launch.DiscoveryFlagContextKey: cmd.Discovery,
+		launch.PrivatekeyContextKey:    string(cmd.PrivatekeyFlags.Flag.Body()),
+		launch.ACLFlagsContextKey:      cmd.ACLFlags,
 	})
 
 	pps := launch.DefaultRunPS()

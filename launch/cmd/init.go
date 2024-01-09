@@ -25,7 +25,7 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		launch.DesignFlagContextKey:        cmd.DesignFlag,
 		launch.DevFlagsContextKey:          cmd.DevFlags,
 		launch.GenesisDesignFileContextKey: cmd.GenesisDesign,
-		launch.PrivatekeyFlagsContextKey:   cmd.PrivatekeyFlags,
+		launch.PrivatekeyContextKey:        string(cmd.PrivatekeyFlags.Flag.Body()),
 	})
 
 	pps := launch.DefaultINITPS()

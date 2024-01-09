@@ -74,9 +74,9 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		Msg("flags")
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:      cmd.DesignFlag,
-		launch.DevFlagsContextKey:        cmd.DevFlags,
-		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
+		launch.DesignFlagContextKey: cmd.DesignFlag,
+		launch.DevFlagsContextKey:   cmd.DevFlags,
+		launch.PrivatekeyContextKey: string(cmd.PrivatekeyFlags.Flag.Body()),
 	})
 
 	pps := launch.DefaultImportPS()

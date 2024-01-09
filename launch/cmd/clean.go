@@ -50,9 +50,9 @@ func (cmd *CleanCommand) Run(pctx context.Context) error {
 		PreAddOK(launch.PNameCleanStorage, launch.PCleanStorage)
 
 	nctx := util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
-		launch.DesignFlagContextKey:      cmd.DesignFlag,
-		launch.DevFlagsContextKey:        cmd.DevFlags,
-		launch.PrivatekeyFlagsContextKey: cmd.PrivatekeyFlags,
+		launch.DesignFlagContextKey: cmd.DesignFlag,
+		launch.DevFlagsContextKey:   cmd.DevFlags,
+		launch.PrivatekeyContextKey: cmd.PrivatekeyFlags,
 	})
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
