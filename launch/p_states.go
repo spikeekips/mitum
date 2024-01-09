@@ -713,7 +713,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(client, isaacparams, syncSourcePool)
 		args.LastBlockMapTimeout = params.Network.TimeoutRequest()
-		args.BlockMapFunc = syncerBlockMapFunc(client, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
+		args.BlockMapFunc = syncerBlockMapFunc(log, client, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
 		args.TempSyncPool = tempsyncpool
 		args.WhenStoppedFunc = func() error {
 			conninfocache.Close()
@@ -838,6 +838,7 @@ func syncerLastBlockMapFunc(
 }
 
 func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
+	log *logging.Logging,
 	client *isaacnetwork.BaseClient,
 	params *LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
@@ -881,6 +882,10 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 						switch a, b, err := f(ctx, height, ci); {
 						case err != nil:
+							log.Log().Error().Err(err).
+								Interface("height", height).
+								Msg("failed to import blockmap; retry")
+
 							return err
 						case !b:
 							return errors.Errorf("not found")
