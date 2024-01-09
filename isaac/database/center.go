@@ -20,9 +20,10 @@ import (
 )
 
 type Center struct {
-	enc                   encoder.Encoder
-	perm                  isaac.PermanentDatabase
-	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error)
+	enc                          encoder.Encoder
+	perm                         isaac.PermanentDatabase
+	newBlockWriteDatabase        func(base.Height) (isaac.BlockWriteDatabase, error)
+	newBlockWriteDatabaseForSync func(base.Height) (isaac.BlockWriteDatabase, error)
 	*logging.Logging
 	*util.ContextDaemon
 	encs          *encoder.Encoders
@@ -38,16 +39,22 @@ func NewCenter(
 	enc encoder.Encoder,
 	perm isaac.PermanentDatabase,
 	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error),
+	newBlockWriteDatabaseForSync func(base.Height) (isaac.BlockWriteDatabase, error),
 ) (*Center, error) {
+	if newBlockWriteDatabaseForSync == nil {
+		newBlockWriteDatabaseForSync = newBlockWriteDatabase //revive:disable-line:modifies-parameter
+	}
+
 	db := &Center{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "center-database")
 		}),
-		encs:                  encs,
-		enc:                   enc,
-		perm:                  perm,
-		newBlockWriteDatabase: newBlockWriteDatabase,
-		mergeInterval:         time.Second * 2,
+		encs:                         encs,
+		enc:                          enc,
+		perm:                         perm,
+		newBlockWriteDatabase:        newBlockWriteDatabase,
+		newBlockWriteDatabaseForSync: newBlockWriteDatabaseForSync,
+		mergeInterval:                time.Second * 2,
 	}
 
 	if err := db.load(st); err != nil {
@@ -484,6 +491,10 @@ func (db *Center) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDat
 	return db.newBlockWriteDatabase(height)
 }
 
+func (db *Center) NewBlockWriteDatabaseForSync(height base.Height) (isaac.BlockWriteDatabase, error) {
+	return db.newBlockWriteDatabaseForSync(height)
+}
+
 func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
@@ -763,17 +774,23 @@ func (db *Center) cleanRemoved(limit int) error {
 		return nil
 	}
 
-	temp := db.removed[0]
+	remove := db.removed[:len(db.removed)-limit]
+	db.removed = db.removed[len(db.removed)-limit:]
 
-	db.removed = db.removed[1:]
+	db.Log().Debug().Func(func(e *zerolog.Event) {
+		heights := make([]int64, len(remove))
+		for i := range remove {
+			heights[i] = remove[i].Height().Int64()
+		}
 
-	height := temp.Height()
+		e.Interface("temps", heights)
+	}).Msg("temp database removed")
 
-	if err := temp.Remove(); err != nil {
-		return errors.Wrap(err, "clean removed")
+	for i := range remove {
+		if err := remove[i].Remove(); err != nil {
+			return errors.Wrap(err, "clean removed")
+		}
 	}
-
-	db.Log().Debug().Interface("height", height).Msg("temp database removed")
 
 	return nil
 }
