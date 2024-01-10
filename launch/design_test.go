@@ -1485,7 +1485,26 @@ func (t *testNetworkParams) TestDecode() {
 }
 
 func (t *testNetworkParams) TestInvalidRateLimitHandler() {
-	y := `
+	t.Run("no default", func() {
+		y := `
+suffrage:
+  default: 333/s
+  state: 444/h
+`
+
+		a := NewNetworkRateLimitParams()
+		t.NoError(yaml.Unmarshal([]byte(y), &a))
+
+		t.NoError(a.IsValid(nil))
+
+		dm := NewNetworkRateLimitParams().DefaultRuleMap()
+		rm := a.DefaultRuleMap()
+		t.Equal(dm.d, rm.d)
+		t.Equal(dm.m, rm.m)
+	})
+
+	t.Run("unknown network handler", func() {
+		y := `
 default:
   default: 33/s
   proposal: 44/m
@@ -1502,12 +1521,13 @@ node:
     operatio: 44444/ns
 `
 
-	var a *NetworkRateLimitParams
-	t.NoError(yaml.Unmarshal([]byte(y), &a))
+		var a *NetworkRateLimitParams
+		t.NoError(yaml.Unmarshal([]byte(y), &a))
 
-	err := a.IsValid(nil)
-	t.Error(err)
-	t.ErrorContains(err, "unknown network handler")
+		err := a.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "unknown network handler")
+	})
 }
 
 func TestNetworkParams(t *testing.T) {

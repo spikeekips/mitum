@@ -62,7 +62,11 @@ func (p *LocalParams) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
 
 	e := util.StringError("decode LocalParams")
 
-	u := LocalParamsYAMLUnmarshaler{Memberlist: p.Memberlist}
+	u := LocalParamsYAMLUnmarshaler{
+		Memberlist: p.Memberlist,
+		MISC:       p.MISC,
+		Network:    p.Network,
+	}
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
 		return e.Wrap(err)
@@ -412,7 +416,9 @@ func (p *NetworkParams) UnmarshalYAML(y *yaml.Node) error {
 
 	e := util.StringError("decode NetworkParams")
 
-	var u networkParamsYAMLUnmarshaler
+	u := networkParamsYAMLUnmarshaler{
+		RateLimit: p.rateLimit,
+	}
 
 	if err := y.Decode(&u); err != nil {
 		return e.Wrap(err)
@@ -501,7 +507,9 @@ type NetworkRateLimitParamsUnmarshaler struct {
 }
 
 func (p *NetworkRateLimitParams) unmarshal(u NetworkRateLimitParamsUnmarshaler) error {
-	p.RateLimiterRules = &RateLimiterRules{}
+	if p.RateLimiterRules == nil {
+		p.RateLimiterRules = &RateLimiterRules{}
+	}
 
 	if u.Suffrage != nil {
 		if err := p.SetSuffrageRuleSet(u.Suffrage); err != nil {
