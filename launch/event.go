@@ -35,10 +35,11 @@ var (
 	AllEventLogger     EventLoggerName = "all"
 )
 
+var EventLoggingHeaderHint = hint.MustNewHint("event-header-v0.0.1")
+
 var (
-	HandlerPrefixEventLoggingString = "event"
-	HandlerPrefixEventLogging       = quicstream.HashPrefix(HandlerPrefixEventLoggingString)
-	EventLoggingHeaderHint          = hint.MustNewHint("event-header-v0.0.1")
+	HandlerNameEventLogging   quicstream.HandlerName = "event"
+	handlerPrefixEventLogging                        = quicstream.HashPrefix(HandlerNameEventLogging)
 )
 
 var AllEventLoggerNames = []EventLoggerName{
@@ -442,7 +443,7 @@ func NewEventLoggingHeader(
 ) EventLoggingHeader {
 	return EventLoggingHeader{
 		BaseHeader: isaacnetwork.BaseHeader{
-			BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(EventLoggingHeaderHint, HandlerPrefixEventLogging),
+			BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(EventLoggingHeaderHint, handlerPrefixEventLogging),
 		},
 		name:    name,
 		offsets: offsets,
@@ -594,11 +595,7 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 
 	var gerror error
 
-	EnsureHandlerAdd(pctx, &gerror,
-		HandlerPrefixEventLoggingString,
-		handler,
-		nil,
-	)
+	EnsureHandlerAdd(pctx, &gerror, HandlerNameEventLogging, handler, nil)
 
 	return pctx, gerror
 }

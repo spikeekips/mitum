@@ -362,7 +362,7 @@ func attachStartHandoverHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixStartHandoverString,
+		isaacnetwork.HandlerNameStartHandover,
 		isaacnetwork.QuicstreamHandlerStartHandover(
 			ACLNetworkHandler[isaacnetwork.StartHandoverHeader](
 				aclallow,
@@ -430,7 +430,7 @@ func attachCancelHandoverHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixCancelHandoverString,
+		isaacnetwork.HandlerNameCancelHandover,
 		isaacnetwork.QuicstreamHandlerCancelHandover(
 			ACLNetworkHandler[isaacnetwork.CancelHandoverHeader](
 				aclallow,
@@ -491,7 +491,7 @@ func attachCheckHandoverHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixCheckHandoverString,
+		isaacnetwork.HandlerNameCheckHandover,
 		isaacnetwork.QuicstreamHandlerCheckHandover(
 			ACLNetworkHandler[isaacnetwork.CheckHandoverHeader](
 				aclallow,
@@ -539,7 +539,7 @@ func attachAskHandoverHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixAskHandoverString,
+		isaacnetwork.HandlerNameAskHandover,
 		isaacnetwork.QuicstreamHandlerAskHandover(
 			local,
 			isaacparams.NetworkID(),
@@ -588,7 +588,7 @@ func attachHandoverMessageHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixHandoverMessageString,
+		isaacnetwork.HandlerNameHandoverMessage,
 		isaacnetwork.QuicstreamHandlerHandoverMessage(
 			isaacparams.NetworkID(),
 			func(msg isaacstates.HandoverMessage) error {
@@ -641,7 +641,7 @@ func attachCheckHandoverXHandler(
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixCheckHandoverXString,
+		isaacnetwork.HandlerNameCheckHandoverX,
 		isaacnetwork.QuicstreamHandlerCheckHandoverX(
 			local,
 			isaacparams.NetworkID(),

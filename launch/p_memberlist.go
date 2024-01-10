@@ -35,6 +35,8 @@ var (
 	FilterMemberlistNotifyMsgFuncContextKey = util.ContextKey("filter-memberlist-notify-msg-func")
 )
 
+var HandlerNameMemberlist quicstream.HandlerName = "memberlist"
+
 func PMemberlist(pctx context.Context) (context.Context, error) {
 	e := util.StringError("prepare memberlist")
 
@@ -75,12 +77,12 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	args := quicmemberlist.NewMemberlistArgs(encs.JSON(), config)
 	args.ExtraSameMemberLimit = params.Memberlist.ExtraSameMemberLimit
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
-		HandlerPrefixMemberlistCallbackBroadcastMessage,
+		handlerPrefixMemberlistCallbackBroadcastMessage,
 		headerdial,
 	)
 
 	args.PongEnsureBroadcastMessageFunc = quicmemberlist.PongEnsureBroadcastMessageFunc(
-		HandlerPrefixMemberlistEnsureBroadcastMessage,
+		handlerPrefixMemberlistEnsureBroadcastMessage,
 		local.Address(),
 		local.Privatekey(),
 		params.ISAAC.NetworkID(),
@@ -475,7 +477,7 @@ func memberlistTransport(
 
 	transport := quicmemberlist.NewTransportWithQuicstream(
 		design.Network.Publish(),
-		isaacnetwork.HandlerPrefixMemberlist,
+		HandlerNameMemberlist,
 		dialf,
 		nil,
 		params.Network.TimeoutRequest,
@@ -484,7 +486,7 @@ func memberlistTransport(
 
 	var timeoutf func() time.Duration
 
-	switch f, err := params.Network.HandlerTimeoutFunc(isaacnetwork.HandlerPrefixMemberlistString); {
+	switch f, err := params.Network.HandlerTimeoutFunc(HandlerNameMemberlist); {
 	case err != nil:
 		return nil, err
 	default:
@@ -493,14 +495,14 @@ func memberlistTransport(
 
 	handler := rateLimitHandlerFunc(
 		rateLimitHandler,
-		func(prefix [32]byte) (string, bool) {
+		func(prefix quicstream.HandlerPrefix) (string, bool) {
 			s, found := NetworkHandlerPrefixMapRev[prefix]
 
-			return s, found
+			return s.String(), found
 		},
 	)(quicstream.TimeoutHandler(transport.QuicstreamHandler, timeoutf))
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, handler)
+	_ = handlers.Add(HandlerNameMemberlist, handler)
 
 	return transport, nil
 }

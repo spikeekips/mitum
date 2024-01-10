@@ -31,7 +31,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameStartHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -58,7 +58,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameStartHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -87,7 +87,7 @@ func (t *testQuicstreamHandlers) TestStartHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixStartHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameStartHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -121,7 +121,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			func() error { return nil },
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCancelHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -146,7 +146,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCancelHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -173,7 +173,7 @@ func (t *testQuicstreamHandlers) TestCancelHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCancelHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCancelHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -206,7 +206,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			func(context.Context, base.Address, quicstream.ConnInfo) error { return nil },
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -233,7 +233,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -262,7 +262,7 @@ func (t *testQuicstreamHandlers) TestCheckHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -294,7 +294,7 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameAskHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -323,7 +323,7 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameAskHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -354,7 +354,7 @@ func (t *testQuicstreamHandlers) TestAskHandover() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixAskHandover, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameAskHandover, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -388,7 +388,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixHandoverMessage, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameHandoverMessage, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -414,7 +414,7 @@ func (t *testQuicstreamHandlers) TestHandoverMessage() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixHandoverMessage, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameHandoverMessage, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -449,7 +449,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			func(context.Context) error { return nil },
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandoverX, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -476,7 +476,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandoverX, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 
@@ -505,7 +505,7 @@ func (t *testQuicstreamHandlers) TestCheckHandoverX() {
 			},
 		)
 
-		_, dialf := TestingDialFunc(t.Encs, HandlerPrefixCheckHandoverX, handler)
+		_, dialf := TestingDialFunc(t.Encs, HandlerNameCheckHandoverX, handler)
 
 		c := NewBaseClient(t.Encs, t.Enc, dialf, func() error { return nil })
 

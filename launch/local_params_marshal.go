@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -322,21 +323,21 @@ func (p *MISCParams) unmarshal(u miscParamsYAMLUnmarshaler) error {
 
 type networkParamsYAMLMarshaler struct {
 	//revive:disable:line-length-limit
-	RateLimit             *NetworkRateLimitParams          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
-	HandlerTimeout        map[string]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
-	TimeoutRequest        util.ReadableDuration            `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
-	HandshakeIdleTimeout  util.ReadableDuration            `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
-	MaxIdleTimeout        util.ReadableDuration            `json:"max_idle_timeout,omitempty" yaml:"max_idle_timeout,omitempty"`
-	KeepAlivePeriod       util.ReadableDuration            `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
-	DefaultHandlerTimeout util.ReadableDuration            `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
-	ConnectionPoolSize    uint64                           `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
-	MaxIncomingStreams    uint64                           `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
-	MaxStreamTimeout      util.ReadableDuration            `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
+	RateLimit             *NetworkRateLimitParams                          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
+	HandlerTimeout        map[quicstream.HandlerName]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
+	TimeoutRequest        util.ReadableDuration                            `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
+	HandshakeIdleTimeout  util.ReadableDuration                            `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
+	MaxIdleTimeout        util.ReadableDuration                            `json:"max_idle_timeout,omitempty" yaml:"max_idle_timeout,omitempty"`
+	KeepAlivePeriod       util.ReadableDuration                            `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
+	DefaultHandlerTimeout util.ReadableDuration                            `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
+	ConnectionPoolSize    uint64                                           `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
+	MaxIncomingStreams    uint64                                           `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
+	MaxStreamTimeout      util.ReadableDuration                            `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
 	//revive:enable:line-length-limit
 }
 
 func (p *NetworkParams) marshaler() networkParamsYAMLMarshaler {
-	handlerTimeouts := map[string]util.ReadableDuration{}
+	handlerTimeouts := map[quicstream.HandlerName]util.ReadableDuration{}
 
 	for i := range p.handlerTimeouts {
 		v := p.handlerTimeouts[i]
@@ -377,16 +378,16 @@ func (p *NetworkParams) MarshalYAML() (interface{}, error) {
 
 type networkParamsYAMLUnmarshaler struct {
 	//revive:disable:line-length-limit
-	TimeoutRequest        *util.ReadableDuration           `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
-	HandshakeIdleTimeout  *util.ReadableDuration           `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
-	MaxIdleTimeout        *util.ReadableDuration           `json:"max_idle_timeout,omitempty" yaml:"max_idle_timeout,omitempty"`
-	KeepAlivePeriod       *util.ReadableDuration           `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
-	DefaultHandlerTimeout *util.ReadableDuration           `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
-	HandlerTimeout        map[string]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
-	ConnectionPoolSize    *uint64                          `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
-	MaxIncomingStreams    *uint64                          `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
-	MaxStreamTimeout      *util.ReadableDuration           `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
-	RateLimit             *NetworkRateLimitParams          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
+	TimeoutRequest        *util.ReadableDuration                           `json:"timeout_request,omitempty" yaml:"timeout_request,omitempty"`
+	HandshakeIdleTimeout  *util.ReadableDuration                           `json:"handshake_idle_timeout,omitempty" yaml:"handshake_idle_timeout,omitempty"`
+	MaxIdleTimeout        *util.ReadableDuration                           `json:"max_idle_timeout,omitempty" yaml:"max_idle_timeout,omitempty"`
+	KeepAlivePeriod       *util.ReadableDuration                           `json:"keep_alive_period,omitempty" yaml:"keep_alive_period,omitempty"`
+	DefaultHandlerTimeout *util.ReadableDuration                           `json:"default_handler_timeout,omitempty" yaml:"default_handler_timeout,omitempty"`
+	HandlerTimeout        map[quicstream.HandlerName]util.ReadableDuration `json:"handler_timeout,omitempty" yaml:"handler_timeout,omitempty"`
+	ConnectionPoolSize    *uint64                                          `json:"connection_pool_size,omitempty" yaml:"connection_pool_size,omitempty"`
+	MaxIncomingStreams    *uint64                                          `json:"max_incoming_streams,omitempty" yaml:"max_incoming_streams,omitempty"`
+	MaxStreamTimeout      *util.ReadableDuration                           `json:"max_stream_timeout,omitempty" yaml:"max_stream_timeout,omitempty"`
+	RateLimit             *NetworkRateLimitParams                          `json:"ratelimit,omitempty" yaml:"ratelimit,omitempty"` //nolint:tagliatelle //...
 	//revive:enable:line-length-limit
 }
 

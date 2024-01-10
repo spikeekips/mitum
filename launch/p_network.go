@@ -76,6 +76,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	}
 
 	handlers := quicstream.NewPrefixHandler(nil)
+	_ = handlers.SetLogging(log)
 
 	quicconfig := ServerQuicConfig(params.Network)
 

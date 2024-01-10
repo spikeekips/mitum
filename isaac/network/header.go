@@ -42,59 +42,57 @@ var (
 )
 
 var (
-	HandlerPrefixRequestProposalString        = "request_proposal"
-	HandlerPrefixProposalString               = "proposal"
-	HandlerPrefixLastSuffrageProofString      = "last_suffrage_proof"
-	HandlerPrefixSuffrageProofString          = "suffrage_proof"
-	HandlerPrefixLastBlockMapString           = "last_blockmap"
-	HandlerPrefixBlockMapString               = "blockmap"
-	HandlerPrefixBlockItemString              = "block_item"
-	HandlerPrefixBlockItemFilesString         = "block_item_files"
-	HandlerPrefixMemberlistString             = "memberlist"
-	HandlerPrefixNodeChallengeString          = "node_challenge"
-	HandlerPrefixSuffrageNodeConnInfoString   = "suffrage_node_conninfo"
-	HandlerPrefixSyncSourceConnInfoString     = "sync_source_conninfo"
-	HandlerPrefixOperationString              = "operation"
-	HandlerPrefixSendOperationString          = "send_operation"
-	HandlerPrefixStateString                  = "state"
-	HandlerPrefixExistsInStateOperationString = "exists_instate_operation"
-	HandlerPrefixNodeInfoString               = "node_info"
-	HandlerPrefixSendBallotsString            = "send_ballots"
-	HandlerPrefixSetAllowConsensusString      = "set_allow_consensus"
-	HandlerPrefixStreamOperationsString       = "stream_operations"
-	HandlerPrefixStartHandoverString          = "start_handover"
-	HandlerPrefixCheckHandoverString          = "check_handover"
-	HandlerPrefixAskHandoverString            = "ask_handover"
-	HandlerPrefixCancelHandoverString         = "cancel_handover"
-	HandlerPrefixHandoverMessageString        = "handover_message"
-	HandlerPrefixCheckHandoverXString         = "check_handover_x"
+	HandlerNameRequestProposal        quicstream.HandlerName = "request_proposal"
+	HandlerNameProposal               quicstream.HandlerName = "proposal"
+	HandlerNameLastSuffrageProof      quicstream.HandlerName = "last_suffrage_proof"
+	HandlerNameSuffrageProof          quicstream.HandlerName = "suffrage_proof"
+	HandlerNameLastBlockMap           quicstream.HandlerName = "last_blockmap"
+	HandlerNameBlockMap               quicstream.HandlerName = "blockmap"
+	HandlerNameBlockItem              quicstream.HandlerName = "block_item"
+	HandlerNameBlockItemFiles         quicstream.HandlerName = "block_item_files"
+	HandlerNameNodeChallenge          quicstream.HandlerName = "node_challenge"
+	HandlerNameSuffrageNodeConnInfo   quicstream.HandlerName = "suffrage_node_conninfo"
+	HandlerNameSyncSourceConnInfo     quicstream.HandlerName = "sync_source_conninfo"
+	HandlerNameOperation              quicstream.HandlerName = "operation"
+	HandlerNameSendOperation          quicstream.HandlerName = "send_operation"
+	HandlerNameState                  quicstream.HandlerName = "state"
+	HandlerNameExistsInStateOperation quicstream.HandlerName = "exists_instate_operation"
+	HandlerNameNodeInfo               quicstream.HandlerName = "node_info"
+	HandlerNameSendBallots            quicstream.HandlerName = "send_ballots"
+	HandlerNameSetAllowConsensus      quicstream.HandlerName = "set_allow_consensus"
+	HandlerNameStreamOperations       quicstream.HandlerName = "stream_operations"
+	HandlerNameStartHandover          quicstream.HandlerName = "start_handover"
+	HandlerNameCheckHandover          quicstream.HandlerName = "check_handover"
+	HandlerNameAskHandover            quicstream.HandlerName = "ask_handover"
+	HandlerNameCancelHandover         quicstream.HandlerName = "cancel_handover"
+	HandlerNameHandoverMessage        quicstream.HandlerName = "handover_message"
+	HandlerNameCheckHandoverX         quicstream.HandlerName = "check_handover_x"
 
-	HandlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
-	HandlerPrefixProposal               = quicstream.HashPrefix(HandlerPrefixProposalString)
-	HandlerPrefixLastSuffrageProof      = quicstream.HashPrefix(HandlerPrefixLastSuffrageProofString)
-	HandlerPrefixSuffrageProof          = quicstream.HashPrefix(HandlerPrefixSuffrageProofString)
-	HandlerPrefixLastBlockMap           = quicstream.HashPrefix(HandlerPrefixLastBlockMapString)
-	HandlerPrefixBlockMap               = quicstream.HashPrefix(HandlerPrefixBlockMapString)
-	HandlerPrefixBlockItem              = quicstream.HashPrefix(HandlerPrefixBlockItemString)
-	HandlerPrefixBlockItemFiles         = quicstream.HashPrefix(HandlerPrefixBlockItemFilesString)
-	HandlerPrefixMemberlist             = quicstream.HashPrefix(HandlerPrefixMemberlistString)
-	HandlerPrefixNodeChallenge          = quicstream.HashPrefix(HandlerPrefixNodeChallengeString)
-	HandlerPrefixSuffrageNodeConnInfo   = quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfoString)
-	HandlerPrefixSyncSourceConnInfo     = quicstream.HashPrefix(HandlerPrefixSyncSourceConnInfoString)
-	HandlerPrefixOperation              = quicstream.HashPrefix(HandlerPrefixOperationString)
-	HandlerPrefixSendOperation          = quicstream.HashPrefix(HandlerPrefixSendOperationString)
-	HandlerPrefixState                  = quicstream.HashPrefix(HandlerPrefixStateString)
-	HandlerPrefixExistsInStateOperation = quicstream.HashPrefix(HandlerPrefixExistsInStateOperationString)
-	HandlerPrefixNodeInfo               = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
-	HandlerPrefixSendBallots            = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
-	HandlerPrefixSetAllowConsensus      = quicstream.HashPrefix(HandlerPrefixSetAllowConsensusString)
-	HandlerPrefixStreamOperations       = quicstream.HashPrefix(HandlerPrefixStreamOperationsString)
-	HandlerPrefixStartHandover          = quicstream.HashPrefix(HandlerPrefixStartHandoverString)
-	HandlerPrefixCheckHandover          = quicstream.HashPrefix(HandlerPrefixCheckHandoverString)
-	HandlerPrefixAskHandover            = quicstream.HashPrefix(HandlerPrefixAskHandoverString)
-	HandlerPrefixCancelHandover         = quicstream.HashPrefix(HandlerPrefixCancelHandoverString)
-	HandlerPrefixHandoverMessage        = quicstream.HashPrefix(HandlerPrefixHandoverMessageString)
-	HandlerPrefixCheckHandoverX         = quicstream.HashPrefix(HandlerPrefixCheckHandoverXString)
+	handlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerNameRequestProposal)
+	handlerPrefixProposal               = quicstream.HashPrefix(HandlerNameProposal)
+	handlerPrefixLastSuffrageProof      = quicstream.HashPrefix(HandlerNameLastSuffrageProof)
+	handlerPrefixSuffrageProof          = quicstream.HashPrefix(HandlerNameSuffrageProof)
+	handlerPrefixLastBlockMap           = quicstream.HashPrefix(HandlerNameLastBlockMap)
+	handlerPrefixBlockMap               = quicstream.HashPrefix(HandlerNameBlockMap)
+	handlerPrefixBlockItem              = quicstream.HashPrefix(HandlerNameBlockItem)
+	handlerPrefixBlockItemFiles         = quicstream.HashPrefix(HandlerNameBlockItemFiles)
+	handlerPrefixNodeChallenge          = quicstream.HashPrefix(HandlerNameNodeChallenge)
+	handlerPrefixSuffrageNodeConnInfo   = quicstream.HashPrefix(HandlerNameSuffrageNodeConnInfo)
+	handlerPrefixSyncSourceConnInfo     = quicstream.HashPrefix(HandlerNameSyncSourceConnInfo)
+	handlerPrefixOperation              = quicstream.HashPrefix(HandlerNameOperation)
+	handlerPrefixSendOperation          = quicstream.HashPrefix(HandlerNameSendOperation)
+	handlerPrefixState                  = quicstream.HashPrefix(HandlerNameState)
+	handlerPrefixExistsInStateOperation = quicstream.HashPrefix(HandlerNameExistsInStateOperation)
+	handlerPrefixNodeInfo               = quicstream.HashPrefix(HandlerNameNodeInfo)
+	handlerPrefixSendBallots            = quicstream.HashPrefix(HandlerNameSendBallots)
+	handlerPrefixSetAllowConsensus      = quicstream.HashPrefix(HandlerNameSetAllowConsensus)
+	handlerPrefixStreamOperations       = quicstream.HashPrefix(HandlerNameStreamOperations)
+	handlerPrefixStartHandover          = quicstream.HashPrefix(HandlerNameStartHandover)
+	handlerPrefixCheckHandover          = quicstream.HashPrefix(HandlerNameCheckHandover)
+	handlerPrefixAskHandover            = quicstream.HashPrefix(HandlerNameAskHandover)
+	handlerPrefixCancelHandover         = quicstream.HashPrefix(HandlerNameCancelHandover)
+	handlerPrefixHandoverMessage        = quicstream.HashPrefix(HandlerNameHandoverMessage)
+	handlerPrefixCheckHandoverX         = quicstream.HashPrefix(HandlerNameCheckHandoverX)
 )
 
 type BaseHeader struct {
@@ -936,60 +934,60 @@ func (h BlockItemResponseHeader) CompressFormat() string {
 }
 
 //revive:disable:cyclomatic
-func headerPrefixByHint(ht hint.Hint) [32]byte {
+func headerPrefixByHint(ht hint.Hint) quicstream.HandlerPrefix {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
-		return HandlerPrefixRequestProposal
+		return handlerPrefixRequestProposal
 	case ProposalRequestHeaderHint.Type():
-		return HandlerPrefixProposal
+		return handlerPrefixProposal
 	case LastSuffrageProofRequestHeaderHint.Type():
-		return HandlerPrefixLastSuffrageProof
+		return handlerPrefixLastSuffrageProof
 	case SuffrageProofRequestHeaderHint.Type():
-		return HandlerPrefixSuffrageProof
+		return handlerPrefixSuffrageProof
 	case LastBlockMapRequestHeaderHint.Type():
-		return HandlerPrefixLastBlockMap
+		return handlerPrefixLastBlockMap
 	case BlockMapRequestHeaderHint.Type():
-		return HandlerPrefixBlockMap
+		return handlerPrefixBlockMap
 	case BlockItemRequestHeaderHint.Type():
-		return HandlerPrefixBlockItem
+		return handlerPrefixBlockItem
 	case BlockItemFilesRequestHeaderHint.Type():
-		return HandlerPrefixBlockItemFiles
+		return handlerPrefixBlockItemFiles
 	case NodeChallengeRequestHeaderHint.Type():
-		return HandlerPrefixNodeChallenge
+		return handlerPrefixNodeChallenge
 	case SuffrageNodeConnInfoRequestHeaderHint.Type():
-		return HandlerPrefixSuffrageNodeConnInfo
+		return handlerPrefixSuffrageNodeConnInfo
 	case SyncSourceConnInfoRequestHeaderHint.Type():
-		return HandlerPrefixSyncSourceConnInfo
+		return handlerPrefixSyncSourceConnInfo
 	case OperationRequestHeaderHint.Type():
-		return HandlerPrefixOperation
+		return handlerPrefixOperation
 	case SendOperationRequestHeaderHint.Type():
-		return HandlerPrefixSendOperation
+		return handlerPrefixSendOperation
 	case StateRequestHeaderHint.Type():
-		return HandlerPrefixState
+		return handlerPrefixState
 	case ExistsInStateOperationRequestHeaderHint.Type():
-		return HandlerPrefixExistsInStateOperation
+		return handlerPrefixExistsInStateOperation
 	case NodeInfoRequestHeaderHint.Type():
-		return HandlerPrefixNodeInfo
+		return handlerPrefixNodeInfo
 	case SendBallotsHeaderHint.Type():
-		return HandlerPrefixSendBallots
+		return handlerPrefixSendBallots
 	case SetAllowConsensusHeaderHint.Type():
-		return HandlerPrefixSetAllowConsensus
+		return handlerPrefixSetAllowConsensus
 	case StreamOperationsHeaderHint.Type():
-		return HandlerPrefixStreamOperations
+		return handlerPrefixStreamOperations
 	case StartHandoverHeaderHint.Type():
-		return HandlerPrefixStartHandover
+		return handlerPrefixStartHandover
 	case CheckHandoverHeaderHint.Type():
-		return HandlerPrefixCheckHandover
+		return handlerPrefixCheckHandover
 	case AskHandoverHeaderHint.Type():
-		return HandlerPrefixAskHandover
+		return handlerPrefixAskHandover
 	case CancelHandoverHeaderHint.Type():
-		return HandlerPrefixCancelHandover
+		return handlerPrefixCancelHandover
 	case HandoverMessageHeaderHint.Type():
-		return HandlerPrefixHandoverMessage
+		return handlerPrefixHandoverMessage
 	case CheckHandoverXHeaderHint.Type():
-		return HandlerPrefixCheckHandoverX
+		return handlerPrefixCheckHandoverX
 	default:
-		return [32]byte{}
+		return quicstream.ZeroPrefix
 	}
 	//revive:enable:cyclomatic
 }

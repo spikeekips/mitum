@@ -45,7 +45,7 @@ func (d DummyStreamer) OpenStream(context.Context) (io.Reader, io.WriteCloser, f
 	return d.r, d.w, d.closef, nil
 }
 
-func TestingDialFunc[T quicstreamheader.RequestHeader](encs *encoder.Encoders, prefix [32]byte, handler quicstreamheader.Handler[T]) (
+func TestingDialFunc[T quicstreamheader.RequestHeader](encs *encoder.Encoders, prefix quicstream.HandlerName, handler quicstreamheader.Handler[T]) (
 	net.Addr,
 	quicstream.ConnInfoDialFunc,
 ) {

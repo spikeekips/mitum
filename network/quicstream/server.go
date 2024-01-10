@@ -82,14 +82,18 @@ func (srv *Server) accept(ctx context.Context, listener *quic.EarlyListener) {
 
 		nctx := context.WithValue(ctx, ConnectionIDContextKey, util.UUID().String())
 		l := ConnectionLoggerFromContext(nctx, srv.Log())
-		l.Trace().Msg("new connection")
+		l.Trace().
+			Stringer("remote", conn.RemoteAddr()).
+			Msg("new connection")
 
 		go func() {
+			elapsed := logging.TimeElapsed()
+
 			select {
 			case <-nctx.Done():
-				l.Trace().Err(nctx.Err()).Msg("connection done")
+				elapsed(l.Trace().Err(nctx.Err()), "connection done")
 			case <-conn.Context().Done():
-				l.Trace().Err(conn.Context().Err()).Msg("connection done")
+				elapsed(l.Trace().Err(conn.Context().Err()), "connection done")
 			}
 		}()
 
@@ -101,6 +105,8 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
+			l := ConnectionLoggerFromContext(ctx, srv.Log())
+
 			var nerr net.Error
 			var aerr *quic.ApplicationError
 			var errcode quic.ApplicationErrorCode
@@ -109,20 +115,20 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 			case errors.Is(err, context.Canceled):
 				errcode = 0x401
 
-				srv.Log().Trace().Err(err).Msg("failed to accept stream; canceled")
+				l.Trace().Err(err).Msg("failed to accept stream; canceled")
 			case errors.As(err, &aerr):
 				errcode = aerr.ErrorCode
 				if errcode != quic.ApplicationErrorCode(0) {
-					srv.Log().Trace().Err(err).Msg("failed to accept stream; application error")
+					l.Trace().Err(err).Msg("failed to accept stream; application error")
 				}
 			case errors.As(err, &nerr) && nerr.Timeout():
 				errcode = 0x402
 
-				srv.Log().Trace().Err(err).Msg("failed to accept stream; timeout")
+				l.Trace().Err(err).Msg("failed to accept stream; timeout")
 			default:
 				errcode = 0x403
 
-				srv.Log().Trace().Err(err).Msg("failed to accept stream")
+				l.Trace().Err(err).Msg("failed to accept stream")
 			}
 
 			_ = conn.CloseWithError(errcode, err.Error())
@@ -135,11 +141,13 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 		l.Trace().Msg("new stream")
 
 		go func() {
+			elapsed := logging.TimeElapsed()
+
 			select {
 			case <-ctx.Done():
-				l.Trace().Err(nctx.Err()).Msg("stream done")
+				elapsed(l.Trace().Err(nctx.Err()), "stream done")
 			case <-stream.Context().Done():
-				l.Trace().Err(conn.Context().Err()).Msg("stream done")
+				elapsed(l.Trace().Err(conn.Context().Err()), "stream done")
 			}
 		}()
 

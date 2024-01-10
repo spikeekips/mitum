@@ -35,12 +35,15 @@ import (
 var PNameNetworkHandlersReadWriteNode = ps.Name("node-network-handler")
 
 var (
-	ReadNodeHeaderHint           = hint.MustNewHint("read-node-header-v0.0.1")
-	WriteNodeHeaderHint          = hint.MustNewHint("write-node-header-v0.0.1")
-	HandlerPrefixNodeReadString  = "node_read"
-	HandlerPrefixNodeWriteString = "node_write"
-	HandlerPrefixNodeRead        = quicstream.HashPrefix(HandlerPrefixNodeReadString)
-	HandlerPrefixNodeWrite       = quicstream.HashPrefix(HandlerPrefixNodeWriteString)
+	ReadNodeHeaderHint  = hint.MustNewHint("read-node-header-v0.0.1")
+	WriteNodeHeaderHint = hint.MustNewHint("write-node-header-v0.0.1")
+)
+
+var (
+	HandlerNameNodeRead    quicstream.HandlerName = "node_read"
+	HandlerNameNodeWrite   quicstream.HandlerName = "node_write"
+	handlerPrefixNodeRead                         = quicstream.HashPrefix(HandlerNameNodeRead)
+	handlerPrefixNodeWrite                        = quicstream.HashPrefix(HandlerNameNodeWrite)
 )
 
 var AllNodeReadKeys = []string{
@@ -129,11 +132,11 @@ func PNetworkHandlersReadWriteNode(pctx context.Context) (context.Context, error
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		HandlerPrefixNodeReadString,
+		HandlerNameNodeRead,
 		networkHandlerNodeRead(params.ISAAC.NetworkID(), rf, rl), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		HandlerPrefixNodeWriteString,
+		HandlerNameNodeWrite,
 		networkHandlerNodeWrite(params.ISAAC.NetworkID(), wf, wl), nil)
 
 	return pctx, gerror
@@ -1687,7 +1690,7 @@ type rwNodeHeader struct {
 
 func newRWNodeHeader(
 	ht hint.Hint,
-	prefix [32]byte,
+	prefix quicstream.HandlerPrefix,
 	key string,
 	acluser base.Publickey,
 ) rwNodeHeader {
@@ -1775,7 +1778,7 @@ type WriteNodeHeader struct {
 
 func NewWriteNodeHeader(key string, acluser base.Publickey) WriteNodeHeader {
 	return WriteNodeHeader{
-		rwNodeHeader: newRWNodeHeader(WriteNodeHeaderHint, HandlerPrefixNodeWrite, key, acluser),
+		rwNodeHeader: newRWNodeHeader(WriteNodeHeaderHint, handlerPrefixNodeWrite, key, acluser),
 	}
 }
 
@@ -1795,7 +1798,7 @@ type ReadNodeHeader struct {
 
 func NewReadNodeHeader(key string, acluser base.Publickey) ReadNodeHeader {
 	return ReadNodeHeader{
-		rwNodeHeader: newRWNodeHeader(ReadNodeHeaderHint, HandlerPrefixNodeRead, key, acluser),
+		rwNodeHeader: newRWNodeHeader(ReadNodeHeaderHint, handlerPrefixNodeRead, key, acluser),
 	}
 }
 

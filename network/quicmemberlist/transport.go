@@ -75,7 +75,7 @@ func NewTransport(
 
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
-	handlerPrefix [32]byte,
+	handler quicstream.HandlerName,
 	dialf quicstream.ConnInfoDialFunc,
 	notallowf func(string) bool,
 	requestTimeoutf func() time.Duration,
@@ -96,10 +96,12 @@ func NewTransportWithQuicstream(
 		})
 	}
 
-	if handlerPrefix != quicstream.ZeroPrefix {
+	if len(handler) > 0 {
+		prefix := quicstream.HashPrefix(handler)
+
 		writeBody = func(ctx context.Context, w io.Writer, b []byte) error {
 			return util.AwareContext(ctx, func(context.Context) error {
-				if err := quicstream.WritePrefix(ctx, w, handlerPrefix); err != nil {
+				if err := quicstream.WritePrefix(ctx, w, prefix); err != nil {
 					return err
 				}
 

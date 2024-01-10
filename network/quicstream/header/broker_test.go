@@ -64,7 +64,7 @@ func (t *testBrokers) dialBroker(ctx context.Context, ci quicstream.ConnInfo, tl
 	)(ctx, ci)
 }
 
-func (t *testBrokers) server(prefix [32]byte) (
+func (t *testBrokers) server(name quicstream.HandlerName) (
 	*quicstream.TestServer,
 	*quicstream.PrefixHandler,
 	chan error,
@@ -78,7 +78,7 @@ func (t *testBrokers) server(prefix [32]byte) (
 		return ctx, nil
 	})
 
-	ph.Add(quicstream.HashPrefix(util.UUID().String()), func(ctx context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser) (context.Context, error) {
+	ph.Add(name, func(ctx context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser) (context.Context, error) {
 		return ctx, errors.Errorf("unknown request")
 	})
 
@@ -97,11 +97,11 @@ func (t *testBrokers) server(prefix [32]byte) (
 
 func (t *testBrokers) TestRequestHeader() {
 	t.Run("handler timeout; before receiving header", func() {
-		prefix := quicstream.HashPrefix(util.UUID().String())
-		srv, ph, _, _ := t.server(prefix)
+		name := quicstream.HandlerName(util.UUID().String())
+		srv, ph, _, _ := t.server(name)
 		defer srv.StopWait()
 
-		ph.Add(prefix, quicstream.TimeoutHandler(NewHandler(t.encs,
+		ph.Add(name, quicstream.TimeoutHandler(NewHandler(t.encs,
 			func(ctx context.Context, _ net.Addr, broker *HandlerBroker, header RequestHeader) (context.Context, error) {
 				select {
 				case <-ctx.Done():
@@ -129,7 +129,7 @@ func (t *testBrokers) TestRequestHeader() {
 		defer closef()
 
 		f(ctx, func(ctx context.Context, broker *ClientBroker) error {
-			reqh := newDummyRequestHeader(prefix, util.UUID().String())
+			reqh := newDummyRequestHeader(name, util.UUID().String())
 
 			t.T().Log("write request head")
 			t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -143,12 +143,12 @@ func (t *testBrokers) TestRequestHeader() {
 	})
 
 	t.Run("handler timeout; after receiving header", func() {
-		prefix := quicstream.HashPrefix(util.UUID().String())
-		srv, ph, _, _ := t.server(prefix)
+		name := quicstream.HandlerName(util.UUID().String())
+		srv, ph, _, _ := t.server(name)
 		defer srv.StopWait()
 
 		errch := make(chan error, 1)
-		ph.Add(prefix, quicstream.TimeoutHandler(NewHandler(t.encs,
+		ph.Add(name, quicstream.TimeoutHandler(NewHandler(t.encs,
 			func(ctx context.Context, _ net.Addr, broker *HandlerBroker, header RequestHeader) (context.Context, error) {
 				select {
 				case <-ctx.Done():
@@ -177,7 +177,7 @@ func (t *testBrokers) TestRequestHeader() {
 		t.NoError(err)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		f(ctx, func(ctx context.Context, broker *ClientBroker) error {
 			t.T().Log("write request head")
@@ -197,15 +197,15 @@ func (t *testBrokers) TestRequestHeader() {
 		})
 	})
 
-	prefix := quicstream.HashPrefix(util.UUID().String())
-	srv, ph, errch, _ := t.server(prefix)
+	name := quicstream.HandlerName(util.UUID().String())
+	srv, ph, errch, _ := t.server(name)
 	defer srv.StopWait()
 
 	t.Run("request, response", func() {
 		var denc encoder.Encoder
 		var dreqh RequestHeader
 
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, header RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, header RequestHeader) (context.Context, error) {
 			denc = broker.Encoder
 			dreqh = header
 
@@ -223,7 +223,7 @@ func (t *testBrokers) TestRequestHeader() {
 		t.NoError(err)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		f(ctx, func(ctx context.Context, broker *ClientBroker) error {
 			t.T().Log("write request head")
@@ -256,7 +256,7 @@ func (t *testBrokers) TestRequestHeader() {
 	})
 
 	t.Run("failed to write", func() {
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			return ctx, nil
 		}, nil))
 
@@ -268,7 +268,7 @@ func (t *testBrokers) TestRequestHeader() {
 		t.NoError(err)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		f(ctx, func(ctx context.Context, broker *ClientBroker) error {
 			broker.Close()
@@ -285,14 +285,14 @@ func (t *testBrokers) TestRequestHeader() {
 }
 
 func (t *testBrokers) TestRequestHeaderButHandlerError() {
-	prefix := quicstream.HashPrefix(util.UUID().String())
-	srv, ph, errch, brokerf := t.server(prefix)
+	name := quicstream.HandlerName(util.UUID().String())
+	srv, ph, errch, brokerf := t.server(name)
 	defer srv.StopWait()
 
 	t.Run("error handler", func() {
 		errhandlerch := make(chan error, 1)
 
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			return ctx, errors.Errorf("hehehe")
 		}, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, err error) (context.Context, error) {
 			errhandlerch <- err
@@ -306,7 +306,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		t.T().Log("write request head")
 		t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -337,7 +337,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 	t.Run("error handler response", func() {
 		errhandlerch := make(chan error, 1)
 
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			return ctx, errors.Errorf("hehehe")
 		}, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, err error) (context.Context, error) {
 			errhandlerch <- err
@@ -349,7 +349,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		t.T().Log("write request head")
 		t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -380,8 +380,8 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 	})
 
 	t.Run("unexpected response", func() {
-		prefix := quicstream.HashPrefix(util.UUID().String())
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		name := quicstream.HandlerName(util.UUID().String())
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			resh := NewDefaultResponseHeader(false, errors.Errorf("hehehe"))
 
 			defer func() {
@@ -397,7 +397,7 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		t.T().Log("write request head")
 		t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -425,14 +425,14 @@ func (t *testBrokers) TestRequestHeaderButHandlerError() {
 }
 
 func (t *testBrokers) TestServerStopped() {
-	prefix := quicstream.HashPrefix(util.UUID().String())
+	name := quicstream.HandlerName(util.UUID().String())
 
 	t.Run("write request head", func() {
-		srv, ph, _, brokerf := t.server(prefix)
+		srv, ph, _, brokerf := t.server(name)
 		defer srv.StopWait()
 
-		prefix := quicstream.HashPrefix(util.UUID().String())
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		nname := quicstream.HandlerName(util.UUID().String())
+		ph.Add(nname, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			return ctx, nil
 		}, nil))
 
@@ -445,7 +445,7 @@ func (t *testBrokers) TestServerStopped() {
 		t.T().Log("serve gone")
 		t.NoError(srv.StopWait())
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(nname, util.UUID().String())
 
 		t.T().Log("write request head")
 		err := broker.WriteRequestHead(ctx, reqh)
@@ -454,11 +454,11 @@ func (t *testBrokers) TestServerStopped() {
 	})
 
 	t.Run("write body", func() {
-		srv, ph, _, brokerf := t.server(prefix)
+		srv, ph, _, brokerf := t.server(name)
 		defer srv.StopWait()
 
-		prefix := quicstream.HashPrefix(util.UUID().String())
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		nname := quicstream.HandlerName(util.UUID().String())
+		ph.Add(nname, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, _ *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			return ctx, nil
 		}, nil))
 
@@ -468,7 +468,7 @@ func (t *testBrokers) TestServerStopped() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(nname, util.UUID().String())
 
 		t.T().Log("write request head")
 		err := broker.WriteRequestHead(ctx, reqh)
@@ -486,12 +486,12 @@ func (t *testBrokers) TestServerStopped() {
 }
 
 func (t *testBrokers) TestReadBody() {
-	prefix := quicstream.HashPrefix(util.UUID().String())
-	srv, ph, errch, brokerf := t.server(prefix)
+	name := quicstream.HandlerName(util.UUID().String())
+	srv, ph, errch, brokerf := t.server(name)
 	defer srv.StopWait()
 
 	t.Run("read empty body; eof error", func() {
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			errch <- nil
 
 			return ctx, broker.WriteBody(ctx, EmptyBodyType, 0, nil)
@@ -503,7 +503,7 @@ func (t *testBrokers) TestReadBody() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		t.T().Log("write request head")
 		t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -529,7 +529,7 @@ func (t *testBrokers) TestReadBody() {
 	t.Run("stream body", func() {
 		bodybytes := util.UUID().Bytes()
 
-		ph.Add(prefix, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
+		ph.Add(name, NewHandler(t.encs, func(ctx context.Context, _ net.Addr, broker *HandlerBroker, _ RequestHeader) (context.Context, error) {
 			errch <- nil
 
 			return ctx, broker.WriteBody(ctx, StreamBodyType, 33, bytes.NewBuffer(bodybytes)) // NOTE intended body length
@@ -541,7 +541,7 @@ func (t *testBrokers) TestReadBody() {
 		broker, closef := brokerf(ctx)
 		defer closef()
 
-		reqh := newDummyRequestHeader(prefix, util.UUID().String())
+		reqh := newDummyRequestHeader(name, util.UUID().String())
 
 		t.T().Log("write request head")
 		t.NoError(broker.WriteRequestHead(ctx, reqh))
@@ -589,9 +589,9 @@ type dummyRequestHeader struct {
 	ID string
 }
 
-func newDummyRequestHeader(prefix [32]byte, id string) dummyRequestHeader {
+func newDummyRequestHeader(name quicstream.HandlerName, id string) dummyRequestHeader {
 	return dummyRequestHeader{
-		BaseRequestHeader: NewBaseRequestHeader(dummyRequestHeaderHint, prefix),
+		BaseRequestHeader: NewBaseRequestHeader(dummyRequestHeaderHint, quicstream.HashPrefix(name)),
 		ID:                id,
 	}
 }

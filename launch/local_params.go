@@ -13,21 +13,21 @@ import (
 )
 
 var (
-	defaultHandlerTimeouts     map[string]time.Duration
-	networkHandlerPrefixMap    = map[string]struct{}{}
-	NetworkHandlerPrefixMapRev = map[[32]byte]string{}
+	defaultHandlerTimeouts     map[quicstream.HandlerName]time.Duration
+	networkHandlerPrefixMap    = map[quicstream.HandlerName]struct{}{}
+	NetworkHandlerPrefixMapRev = map[quicstream.HandlerPrefix]quicstream.HandlerName{}
 )
 
 func init() {
-	defaultHandlerTimeouts = map[string]time.Duration{
-		isaacnetwork.HandlerPrefixAskHandoverString:    0,
-		isaacnetwork.HandlerPrefixCheckHandoverString:  0,
-		isaacnetwork.HandlerPrefixCheckHandoverXString: 0,
-		isaacnetwork.HandlerPrefixStartHandoverString:  0,
+	defaultHandlerTimeouts = map[quicstream.HandlerName]time.Duration{
+		isaacnetwork.HandlerNameAskHandover:    0,
+		isaacnetwork.HandlerNameCheckHandover:  0,
+		isaacnetwork.HandlerNameCheckHandoverX: 0,
+		isaacnetwork.HandlerNameStartHandover:  0,
 	}
 
-	for i := range networkHandlerPrefixes {
-		s := networkHandlerPrefixes[i]
+	for i := range networkHandlerNames {
+		s := networkHandlerNames[i]
 		networkHandlerPrefixMap[s] = struct{}{}
 		NetworkHandlerPrefixMapRev[quicstream.HashPrefix(s)] = s
 	}
@@ -454,7 +454,7 @@ func (p *MISCParams) SetObjectCacheSize(d uint64) error {
 type NetworkParams struct {
 	*util.BaseParams
 	rateLimit             *NetworkRateLimitParams
-	handlerTimeouts       map[string]time.Duration
+	handlerTimeouts       map[quicstream.HandlerName]time.Duration
 	timeoutRequest        time.Duration
 	handshakeIdleTimeout  time.Duration
 	maxIdleTimeout        time.Duration
@@ -466,7 +466,7 @@ type NetworkParams struct {
 }
 
 func defaultNetworkParams() *NetworkParams {
-	handlerTimeouts := map[string]time.Duration{}
+	handlerTimeouts := map[quicstream.HandlerName]time.Duration{}
 	for i := range defaultHandlerTimeouts {
 		handlerTimeouts[i] = defaultHandlerTimeouts[i]
 	}
@@ -648,7 +648,7 @@ func (p *NetworkParams) SetDefaultHandlerTimeout(d time.Duration) error {
 
 // HandlerTimeout is the map of timeouts for each handler. If not set in
 // HandlerTimeout, DefaultHandlerTimeout will be used.
-func (p *NetworkParams) HandlerTimeout(i string) (time.Duration, error) {
+func (p *NetworkParams) HandlerTimeout(i quicstream.HandlerName) (time.Duration, error) {
 	if _, found := networkHandlerPrefixMap[i]; !found {
 		return 0, util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
 	}
@@ -656,7 +656,7 @@ func (p *NetworkParams) HandlerTimeout(i string) (time.Duration, error) {
 	return p.handlerTimeout(i), nil
 }
 
-func (p *NetworkParams) SetHandlerTimeout(i string, d time.Duration) error {
+func (p *NetworkParams) SetHandlerTimeout(i quicstream.HandlerName, d time.Duration) error {
 	if _, found := networkHandlerPrefixMap[i]; !found {
 		return util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
 	}
@@ -677,7 +677,7 @@ func (p *NetworkParams) SetHandlerTimeout(i string, d time.Duration) error {
 	})
 }
 
-func (p *NetworkParams) HandlerTimeoutFunc(i string) (func() time.Duration, error) {
+func (p *NetworkParams) HandlerTimeoutFunc(i quicstream.HandlerName) (func() time.Duration, error) {
 	if _, found := networkHandlerPrefixMap[i]; !found {
 		return nil, util.ErrNotFound.Errorf("unknown handler timeout, %q", i)
 	}
@@ -687,7 +687,7 @@ func (p *NetworkParams) HandlerTimeoutFunc(i string) (func() time.Duration, erro
 	}, nil
 }
 
-func (p *NetworkParams) handlerTimeout(i string) time.Duration {
+func (p *NetworkParams) handlerTimeout(i quicstream.HandlerName) time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -795,7 +795,7 @@ func (p *NetworkRateLimitParams) IsValid([]byte) error {
 	// NOTE check handler string is valid
 	checkRateLimitHandler := func(r RateLimiterRuleMap) error {
 		for i := range r.m {
-			if _, found := networkHandlerPrefixMap[i]; !found {
+			if _, found := networkHandlerPrefixMap[quicstream.HandlerName(i)]; !found {
 				return errors.Errorf("unknown network handler prefix, %q", i)
 			}
 		}
@@ -832,36 +832,36 @@ func (p *NetworkRateLimitParams) IsValid([]byte) error {
 	return nil
 }
 
-var networkHandlerPrefixes = []string{
-	isaacnetwork.HandlerPrefixAskHandoverString,
-	isaacnetwork.HandlerPrefixBlockMapString,
-	isaacnetwork.HandlerPrefixBlockItemString,
-	isaacnetwork.HandlerPrefixBlockItemFilesString,
-	isaacnetwork.HandlerPrefixCancelHandoverString,
-	isaacnetwork.HandlerPrefixCheckHandoverString,
-	isaacnetwork.HandlerPrefixCheckHandoverXString,
-	isaacnetwork.HandlerPrefixExistsInStateOperationString,
-	isaacnetwork.HandlerPrefixHandoverMessageString,
-	isaacnetwork.HandlerPrefixLastBlockMapString,
-	isaacnetwork.HandlerPrefixLastSuffrageProofString,
-	isaacnetwork.HandlerPrefixMemberlistString,
-	isaacnetwork.HandlerPrefixNodeChallengeString,
-	isaacnetwork.HandlerPrefixNodeInfoString,
-	isaacnetwork.HandlerPrefixOperationString,
-	isaacnetwork.HandlerPrefixProposalString,
-	isaacnetwork.HandlerPrefixRequestProposalString,
-	isaacnetwork.HandlerPrefixSendBallotsString,
-	isaacnetwork.HandlerPrefixSendOperationString,
-	isaacnetwork.HandlerPrefixSetAllowConsensusString,
-	isaacnetwork.HandlerPrefixStartHandoverString,
-	isaacnetwork.HandlerPrefixStateString,
-	isaacnetwork.HandlerPrefixStreamOperationsString,
-	isaacnetwork.HandlerPrefixSuffrageNodeConnInfoString,
-	isaacnetwork.HandlerPrefixSuffrageProofString,
-	isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
-	HandlerPrefixMemberlistCallbackBroadcastMessageString,
-	HandlerPrefixMemberlistEnsureBroadcastMessageString,
-	HandlerPrefixNodeReadString,
-	HandlerPrefixNodeWriteString,
-	HandlerPrefixEventLoggingString,
+var networkHandlerNames = []quicstream.HandlerName{
+	isaacnetwork.HandlerNameAskHandover,
+	isaacnetwork.HandlerNameBlockMap,
+	isaacnetwork.HandlerNameBlockItem,
+	isaacnetwork.HandlerNameBlockItemFiles,
+	isaacnetwork.HandlerNameCancelHandover,
+	isaacnetwork.HandlerNameCheckHandover,
+	isaacnetwork.HandlerNameCheckHandoverX,
+	isaacnetwork.HandlerNameExistsInStateOperation,
+	isaacnetwork.HandlerNameHandoverMessage,
+	isaacnetwork.HandlerNameLastBlockMap,
+	isaacnetwork.HandlerNameLastSuffrageProof,
+	isaacnetwork.HandlerNameNodeChallenge,
+	isaacnetwork.HandlerNameNodeInfo,
+	isaacnetwork.HandlerNameOperation,
+	isaacnetwork.HandlerNameProposal,
+	isaacnetwork.HandlerNameRequestProposal,
+	isaacnetwork.HandlerNameSendBallots,
+	isaacnetwork.HandlerNameSendOperation,
+	isaacnetwork.HandlerNameSetAllowConsensus,
+	isaacnetwork.HandlerNameStartHandover,
+	isaacnetwork.HandlerNameState,
+	isaacnetwork.HandlerNameStreamOperations,
+	isaacnetwork.HandlerNameSuffrageNodeConnInfo,
+	isaacnetwork.HandlerNameSuffrageProof,
+	isaacnetwork.HandlerNameSyncSourceConnInfo,
+	HandlerNameMemberlist,
+	HandlerNameMemberlistCallbackBroadcastMessage,
+	HandlerNameMemberlistEnsureBroadcastMessage,
+	HandlerNameNodeRead,
+	HandlerNameNodeWrite,
+	HandlerNameEventLogging,
 }

@@ -14,6 +14,7 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -1410,13 +1411,13 @@ func (t *testNetworkParams) TestGetHandlerTimeout() {
 	params := defaultNetworkParams()
 
 	t.Run("get; unknown", func() {
-		_, err := params.HandlerTimeout(util.UUID().String())
+		_, err := params.HandlerTimeout(quicstream.HandlerName(util.UUID().String()))
 		t.Error(err)
 		t.ErrorIs(err, util.ErrNotFound)
 	})
 
 	t.Run("set; unknown", func() {
-		err := params.SetHandlerTimeout(util.UUID().String(), time.Second)
+		err := params.SetHandlerTimeout(quicstream.HandlerName(util.UUID().String()), time.Second)
 		t.Error(err)
 		t.ErrorIs(err, util.ErrNotFound)
 	})

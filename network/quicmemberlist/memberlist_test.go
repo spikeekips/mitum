@@ -90,7 +90,7 @@ func (t *testMemberlist) newServersForJoining(
 	func() error,
 	func(),
 ) {
-	transportprefix := quicstream.HashPrefix("tp")
+	transportprefix := quicstream.HandlerName("transport")
 	tlsconfig := t.NewTLSConfig(t.Proto)
 
 	cp, err := quicstream.NewConnectionPool(1<<9, quicstream.NewConnInfoDialFunc(
@@ -1136,9 +1136,10 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 		nil,
 	)
 
-	callbackhandlerprefix := quicstream.HashPrefix("cb")
+	callbackhandler := quicstream.HandlerName("callback")
+	callbackhandlerprefix := quicstream.HashPrefix(callbackhandler)
 
-	lph.Add(callbackhandlerprefix, quicstreamheader.NewHandler(t.encs, lsrv.CallbackBroadcastHandler(), nil))
+	lph.Add(callbackhandler, quicstreamheader.NewHandler(t.encs, lsrv.CallbackBroadcastHandler(), nil))
 
 	cp, err := quicstream.NewConnectionPool(1<<9, quicstream.NewConnInfoDialFunc(
 		func() *quic.Config { return nil },
@@ -1217,7 +1218,8 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	lnode := base.RandomLocalNode()
 	t.T().Log("local conninfo:", lci)
 
-	handlerprefix := quicstream.HashPrefix("eb")
+	handlername := quicstream.HandlerName("eb")
+	handlerprefix := quicstream.HashPrefix(handlername)
 	networkID := base.NetworkID(util.UUID().Bytes())
 
 	rcis := make([]quicstream.ConnInfo, 3)
@@ -1366,7 +1368,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		}
 	}
 
-	lph.Add(handlerprefix, quicstreamheader.NewHandler(t.encs, lsrv.EnsureBroadcastHandler(
+	lph.Add(handlername, quicstreamheader.NewHandler(t.encs, lsrv.EnsureBroadcastHandler(
 		networkID,
 		func(node base.Address) (base.Publickey, bool, error) {
 			for i := range rnodes {

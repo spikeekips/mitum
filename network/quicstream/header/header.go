@@ -57,7 +57,7 @@ type Header interface {
 
 type RequestHeader interface {
 	Header
-	Handler() [32]byte // NOTE prefix of prefix handler
+	Handler() quicstream.HandlerPrefix
 }
 
 type ResponseHeader interface {
@@ -90,17 +90,17 @@ func (BaseHeader) QUICStreamHeader() {}
 
 type BaseRequestHeader struct {
 	BaseHeader
-	prefix [32]byte
+	prefix quicstream.HandlerPrefix
 }
 
-func NewBaseRequestHeader(ht hint.Hint, prefix [32]byte) BaseRequestHeader {
+func NewBaseRequestHeader(ht hint.Hint, prefix quicstream.HandlerPrefix) BaseRequestHeader {
 	return BaseRequestHeader{
 		BaseHeader: NewBaseHeader(ht),
 		prefix:     prefix,
 	}
 }
 
-func (h BaseRequestHeader) Handler() [32]byte {
+func (h BaseRequestHeader) Handler() quicstream.HandlerPrefix {
 	return h.prefix
 }
 

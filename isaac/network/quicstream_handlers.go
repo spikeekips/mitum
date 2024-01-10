@@ -39,7 +39,7 @@ func QuicstreamHandlerOperation(
 
 	return boolBytesQUICstreamHandler(
 		func(header OperationRequestHeader) string {
-			return HandlerPrefixOperationString + header.Operation().String()
+			return HandlerNameOperation.String() + header.Operation().String()
 		},
 		func(ctx context.Context, header OperationRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			switch enchint, _, body, found, err := oppool.OperationBytes(context.Background(), header.Operation()); {
@@ -179,7 +179,7 @@ func QuicstreamHandlerRequestProposal(
 
 	return boolEncodeQUICstreamHandler(
 		func(header RequestProposalRequestHeader) string {
-			return HandlerPrefixRequestProposalString + header.Point().String() + header.Proposer().String()
+			return HandlerNameRequestProposal.String() + header.Point().String() + header.Proposer().String()
 		},
 		func(ctx context.Context, header RequestProposalRequestHeader, _ encoder.Encoder) (interface{}, bool, error) {
 			pr, err := getOrCreateProposal(ctx, header)
@@ -195,7 +195,7 @@ func QuicstreamHandlerProposal(
 ) quicstreamheader.Handler[ProposalRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header ProposalRequestHeader) string {
-			return HandlerPrefixProposalString + header.Proposal().String()
+			return HandlerNameProposal.String() + header.Proposal().String()
 		},
 		func(ctx context.Context, header ProposalRequestHeader, _ encoder.Encoder) (
 			string, []byte, bool, error,
@@ -222,7 +222,7 @@ func QuicstreamHandlerLastSuffrageProof(
 ) quicstreamheader.Handler[LastSuffrageProofRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header LastSuffrageProofRequestHeader) string {
-			sgkey := HandlerPrefixLastSuffrageProofString
+			sgkey := HandlerNameLastSuffrageProof.String()
 			if header.State() != nil {
 				sgkey += header.State().String()
 			}
@@ -244,7 +244,7 @@ func QuicstreamHandlerSuffrageProof(
 ) quicstreamheader.Handler[SuffrageProofRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header SuffrageProofRequestHeader) string {
-			return HandlerPrefixSuffrageProofString + header.Height().String()
+			return HandlerNameSuffrageProof.String() + header.Height().String()
 		},
 		func(_ context.Context, header SuffrageProofRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := suffrageProoff(header.Height())
@@ -261,7 +261,7 @@ func QuicstreamHandlerLastBlockMap(
 ) quicstreamheader.Handler[LastBlockMapRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header LastBlockMapRequestHeader) string {
-			sgkey := HandlerPrefixLastBlockMapString
+			sgkey := HandlerNameLastBlockMap.String()
 
 			if header.Manifest() != nil {
 				sgkey += header.Manifest().String()
@@ -282,7 +282,7 @@ func QuicstreamHandlerBlockMap(
 ) quicstreamheader.Handler[BlockMapRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header BlockMapRequestHeader) string {
-			return HandlerPrefixBlockMapString + header.Height().String()
+			return HandlerNameBlockMap.String() + header.Height().String()
 		},
 		func(_ context.Context, header BlockMapRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, _, body, found, err := blockMapf(header.Height())
@@ -359,7 +359,7 @@ func QuicstreamHandlerState(
 ) quicstreamheader.Handler[StateRequestHeader] {
 	return boolBytesQUICstreamHandler(
 		func(header StateRequestHeader) string {
-			return HandlerPrefixStateString + header.Key()
+			return HandlerNameState.String() + header.Key()
 		},
 		func(_ context.Context, header StateRequestHeader, _ encoder.Encoder) (string, []byte, bool, error) {
 			enchint, meta, body, found, err := statef(header.Key())
@@ -389,7 +389,7 @@ func QuicstreamHandlerExistsInStateOperation(
 		e := util.StringError("handle exists instate operation")
 
 		found, err, _ := util.SingleflightDo[bool](&sg,
-			HandlerPrefixExistsInStateOperationString+header.FactHash().String(),
+			HandlerNameExistsInStateOperation.String()+header.FactHash().String(),
 			func() (bool, error) {
 				return existsInStateOperationf(header.FactHash())
 			},
@@ -545,7 +545,7 @@ func QuicstreamHandlerNodeInfo(
 	) (context.Context, error) {
 		e := util.StringError("handle node info")
 
-		b, err, _ := util.SingleflightDo[[]byte](&sg, HandlerPrefixNodeInfoString, func() ([]byte, error) {
+		b, err, _ := util.SingleflightDo[[]byte](&sg, HandlerNameNodeInfo.String(), func() ([]byte, error) {
 			return getNodeInfo()
 		})
 

@@ -17,7 +17,7 @@ func TestBaseRequestHeader(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		prefix := [32]byte(quicstream.HashPrefix(util.UUID().String()))
+		prefix := quicstream.HashPrefix(quicstream.HandlerName(util.UUID().String()))
 
 		h := NewBaseRequestHeader(ht, prefix)
 

@@ -33,11 +33,11 @@ var (
 
 var (
 	//revive:disable:line-length-limit
-	HandlerPrefixMemberlistCallbackBroadcastMessageString = "memberlist_callback_broadcast_message"
-	HandlerPrefixMemberlistEnsureBroadcastMessageString   = "memberlist_ensure_broadcast_message"
+	HandlerNameMemberlistCallbackBroadcastMessage quicstream.HandlerName = "memberlist_callback_broadcast_message"
+	HandlerNameMemberlistEnsureBroadcastMessage   quicstream.HandlerName = "memberlist_ensure_broadcast_message"
 
-	HandlerPrefixMemberlistCallbackBroadcastMessage = quicstream.HashPrefix(HandlerPrefixMemberlistCallbackBroadcastMessageString)
-	HandlerPrefixMemberlistEnsureBroadcastMessage   = quicstream.HashPrefix(HandlerPrefixMemberlistEnsureBroadcastMessageString)
+	handlerPrefixMemberlistCallbackBroadcastMessage = quicstream.HashPrefix(HandlerNameMemberlistCallbackBroadcastMessage)
+	handlerPrefixMemberlistEnsureBroadcastMessage   = quicstream.HashPrefix(HandlerNameMemberlistEnsureBroadcastMessage)
 	//revive:enable:line-length-limit
 )
 
@@ -90,7 +90,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixLastSuffrageProofString,
+		isaacnetwork.HandlerNameLastSuffrageProof,
 		isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 			func(last util.Hash) (string, []byte, []byte, bool, error) {
 				enchint, metab, body, found, lastheight, err := db.LastSuffrageProofBytes()
@@ -116,27 +116,27 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixSuffrageProofString,
+		isaacnetwork.HandlerNameSuffrageProof,
 		isaacnetwork.QuicstreamHandlerSuffrageProof(db.SuffrageProofBytes), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixLastBlockMapString,
+		isaacnetwork.HandlerNameLastBlockMap,
 		isaacnetwork.QuicstreamHandlerLastBlockMap(lastBlockMapf), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixBlockMapString,
+		isaacnetwork.HandlerNameBlockMap,
 		isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixNodeChallengeString,
+		isaacnetwork.HandlerNameNodeChallenge,
 		isaacnetwork.QuicstreamHandlerNodeChallenge(isaacparams.NetworkID(), local), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixSuffrageNodeConnInfoString,
+		isaacnetwork.HandlerNameSuffrageNodeConnInfo,
 		isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixSyncSourceConnInfoString,
+		isaacnetwork.HandlerNameSyncSourceConnInfo,
 		isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
 				members := make([]isaac.NodeConnInfo, syncSourcePool.Len()*2)
@@ -154,11 +154,11 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixStateString,
+		isaacnetwork.HandlerNameState,
 		isaacnetwork.QuicstreamHandlerState(db.StateBytes), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixExistsInStateOperationString,
+		isaacnetwork.HandlerNameExistsInStateOperation,
 		isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation), nil)
 
 	if vp := lvps.Last().Cap(); vp != nil {
@@ -166,11 +166,11 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	}
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixNodeInfoString,
+		isaacnetwork.HandlerNameNodeInfo,
 		isaacnetwork.QuicstreamHandlerNodeInfo(QuicstreamHandlerGetNodeInfoFunc(encs.Default(), nodeinfo)), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixSendBallotsString,
+		isaacnetwork.HandlerNameSendBallots,
 		isaacnetwork.QuicstreamHandlerSendBallots(isaacparams.NetworkID(),
 			func(bl base.BallotSignFact) error {
 				switch passed, err := filternotifymsg(bl); {
@@ -497,11 +497,11 @@ func AttachMemberlistNetworkHandlers(pctx context.Context) error {
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		HandlerPrefixMemberlistCallbackBroadcastMessageString,
+		HandlerNameMemberlistCallbackBroadcastMessage,
 		m.CallbackBroadcastHandler(), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		HandlerPrefixMemberlistEnsureBroadcastMessageString,
+		HandlerNameMemberlistEnsureBroadcastMessage,
 		m.EnsureBroadcastHandler(
 			params.ISAAC.NetworkID(),
 			func(node base.Address) (base.Publickey, bool, error) {
@@ -556,7 +556,7 @@ func AttachBlockItemsNetworkHandlers(pctx context.Context) error {
 	var gerror error
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixBlockItemString,
+		isaacnetwork.HandlerNameBlockItem,
 		isaacnetwork.QuicstreamHandlerBlockItem(
 			func(height base.Height, item base.BlockItemType, f func(io.Reader, bool, url.URL, string) error) error {
 				switch bfile, found, err := readers.Item(height, item, func(ir isaac.BlockItemReader) error {
@@ -576,7 +576,7 @@ func AttachBlockItemsNetworkHandlers(pctx context.Context) error {
 		), nil)
 
 	EnsureHandlerAdd(pctx, &gerror,
-		isaacnetwork.HandlerPrefixBlockItemFilesString,
+		isaacnetwork.HandlerNameBlockItemFiles,
 		ACLNetworkHandler[isaacnetwork.BlockItemFilesRequestHeader](
 			aclallow,
 			BlockItemFilesACLScope,
@@ -606,7 +606,7 @@ func AttachBlockItemsNetworkHandlers(pctx context.Context) error {
 func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 	pctx context.Context,
 	gerr *error,
-	prefix string,
+	name quicstream.HandlerName,
 	handler quicstreamheader.Handler[T],
 	errhandler quicstreamheader.ErrorHandler,
 ) {
@@ -632,7 +632,7 @@ func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 
 	var timeoutf func() time.Duration
 
-	switch f, err := params.Network.HandlerTimeoutFunc(prefix); {
+	switch f, err := params.Network.HandlerTimeoutFunc(name); {
 	case err != nil:
 		*gerr = err
 
@@ -643,7 +643,7 @@ func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 
 	rhandler := rateLimitHeaderHandlerFunc[T](
 		rateLimitHandler,
-		func([32]byte) (string, bool) { return prefix, true },
+		func(quicstream.HandlerPrefix) (string, bool) { return string(name), true },
 		handler,
 	)
 
@@ -651,7 +651,7 @@ func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 	newhandler = quicstream.TimeoutHandler(newhandler, timeoutf)
 
 	_ = handlers.Add(
-		quicstream.HashPrefix(prefix),
+		name,
 		newhandler,
 	)
 }

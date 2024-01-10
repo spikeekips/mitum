@@ -129,7 +129,7 @@ type CallbackBroadcastMessageHeader struct {
 	quicstreamheader.BaseRequestHeader
 }
 
-func NewCallbackBroadcastMessageHeader(id string, prefix [32]byte) CallbackBroadcastMessageHeader {
+func NewCallbackBroadcastMessageHeader(id string, prefix quicstream.HandlerPrefix) CallbackBroadcastMessageHeader {
 	return CallbackBroadcastMessageHeader{
 		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(CallbackBroadcastMessageHeaderHint, prefix),
 		id:                id,
@@ -198,7 +198,7 @@ type EnsureBroadcastMessageHeader struct {
 
 func NewEnsureBroadcastMessageHeader(
 	id string,
-	prefix [32]byte,
+	prefix quicstream.HandlerPrefix,
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,

@@ -30,7 +30,7 @@ var (
 )
 
 var (
-	RateLimiterLimiterPrefixContextKey = util.ContextKey("ratelimit-limiter-prefix")
+	RateLimiterLimiterNameContextKey   = util.ContextKey("ratelimit-limiter-name")
 	RateLimiterClientIDContextKey      = util.ContextKey("ratelimit-limiter-clientid")
 	RateLimiterResultContextKey        = util.ContextKey("ratelimit-limiter-result")
 	RateLimiterResultAllowedContextKey = util.ContextKey("ratelimit-limiter-result-allowed")
@@ -230,13 +230,13 @@ func (r *RateLimitHandler) Func(
 	addr net.Addr,
 	f func(context.Context) (context.Context, error),
 ) (context.Context, error) {
-	var prefix string
+	var name string
 
-	switch i, ok := ctx.Value(RateLimiterLimiterPrefixContextKey).(string); {
+	switch i, ok := ctx.Value(RateLimiterLimiterNameContextKey).(string); {
 	case !ok:
 		return f(ctx)
 	default:
-		prefix = i
+		name = i
 	}
 
 	var hint RateLimitRuleHint
@@ -244,7 +244,7 @@ func (r *RateLimitHandler) Func(
 		hint.ClientID = i
 	}
 
-	l, allowed := r.allow(addr, prefix, hint)
+	l, allowed := r.allow(addr, name, hint)
 
 	ictx := util.ContextWithValues(ctx, map[util.ContextKey]interface{}{
 		RateLimiterResultContextKey: func() RateLimiterResult {
@@ -255,7 +255,7 @@ func (r *RateLimitHandler) Func(
 				RulesetType: l.Type(),
 				RulesetDesc: l.Desc(),
 				Hint:        hint,
-				Prefix:      prefix,
+				Prefix:      name,
 				Addr:        addr,
 			}
 		},
@@ -263,7 +263,7 @@ func (r *RateLimitHandler) Func(
 	})
 
 	if !allowed {
-		return ictx, ErrRateLimited.Errorf("prefix=%q tokens=%0.7f", prefix, l.Tokens())
+		return ictx, ErrRateLimited.Errorf("prefix=%q tokens=%0.7f", name, l.Tokens())
 	}
 
 	jctx, err := f(ictx)
@@ -1122,23 +1122,23 @@ func humanizeRateLimiter(limit rate.Limit, burst int) string {
 
 func rateLimitHandlerFunc(
 	ratelimiter *RateLimitHandler,
-	findPrefix func([32]byte) (string, bool),
+	findPrefix func(quicstream.HandlerPrefix) (string, bool),
 ) func(quicstream.Handler) quicstream.Handler {
 	return func(handler quicstream.Handler) quicstream.Handler {
 		return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
-			var prefix string
+			var name string
 
-			if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
+			if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).(quicstream.HandlerPrefix); ok {
 				switch i, found := findPrefix(b); {
 				case found:
-					prefix = i
+					name = i
 				default:
 					return handler(ctx, addr, r, w)
 				}
 			}
 
 			return ratelimiter.Func(
-				context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix),
+				context.WithValue(ctx, RateLimiterLimiterNameContextKey, name),
 				addr,
 				func(ctx context.Context) (context.Context, error) {
 					return handler(ctx, addr, r, w)
@@ -1150,24 +1150,24 @@ func rateLimitHandlerFunc(
 
 func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 	ratelimiter *RateLimitHandler,
-	findPrefix func([32]byte) (string, bool),
+	findPrefix func(quicstream.HandlerPrefix) (string, bool),
 	handler quicstreamheader.Handler[T],
 ) quicstreamheader.Handler[T] {
 	return func(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header T) (
 		context.Context, error,
 	) {
-		var prefix string
+		var name string
 
-		if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).([32]byte); ok {
+		if b, ok := ctx.Value(quicstream.PrefixHandlerPrefixContextKey).(quicstream.HandlerPrefix); ok {
 			switch i, found := findPrefix(b); {
 			case found:
-				prefix = i
+				name = i
 			default:
 				return handler(ctx, addr, broker, header)
 			}
 		}
 
-		nctx := context.WithValue(ctx, RateLimiterLimiterPrefixContextKey, prefix)
+		nctx := context.WithValue(ctx, RateLimiterLimiterNameContextKey, name)
 
 		if i, ok := (interface{})(header).(interface{ ClientID() string }); ok {
 			nctx = context.WithValue(nctx, RateLimiterClientIDContextKey, i.ClientID())

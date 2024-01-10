@@ -1250,7 +1250,7 @@ func RandomAliveMembers(
 }
 
 func FetchCallbackBroadcastMessageFunc(
-	handlerPrefix [32]byte,
+	handlerPrefix quicstream.HandlerPrefix,
 	dialf quicstreamheader.DialFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
@@ -1312,7 +1312,7 @@ func FetchCallbackBroadcastMessageFunc(
 }
 
 func PongEnsureBroadcastMessageFunc(
-	handlerPrefix [32]byte,
+	handlerPrefix quicstream.HandlerPrefix,
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
