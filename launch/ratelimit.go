@@ -20,8 +20,9 @@ import (
 
 var (
 	ErrRateLimited                   = util.NewIDError("over ratelimit")
-	defaultRateLimiter               = NewRateLimiterRule(time.Second*3, 33) //nolint:gomnd //...
-	defaultSuffrageRateLimiter       = NewRateLimiterRule(time.Second*3, 66) //nolint:gomnd //...
+	defaultRateLimiter               = NewRateLimiterRule(time.Second*3, 33)    //nolint:gomnd //...
+	defaultSuffrageRateLimiter       = NewRateLimiterRule(time.Second*3, 900)   //nolint:gomnd //...
+	defaultSuffrageSyncRateLimiter   = NewRateLimiterRule(time.Second*3, 90000) //nolint:gomnd //...
 	defaultRateLimitHandlerPoolSizes = []uint64{1 << 7, 1 << 7, 1 << 7}
 )
 
@@ -382,7 +383,13 @@ func NewRateLimiterRules() *RateLimiterRules {
 		},
 	}
 
-	_ = r.SetSuffrageRuleSet(NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(&defaultSuffrageRateLimiter, nil)))
+	_ = r.SetSuffrageRuleSet(NewSuffrageRateLimiterRuleSet(NewRateLimiterRuleMap(
+		&defaultSuffrageRateLimiter,
+		map[string]RateLimiterRule{
+			isaacnetwork.HandlerNameBlockMap.String():  defaultSuffrageSyncRateLimiter,
+			isaacnetwork.HandlerNameBlockItem.String(): defaultSuffrageSyncRateLimiter,
+		},
+	)))
 
 	return r
 }
