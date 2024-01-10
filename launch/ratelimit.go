@@ -19,13 +19,9 @@ import (
 )
 
 var (
-	ErrRateLimited     = util.NewIDError("over ratelimit")
-	defaultRateLimiter = RateLimiterRule{
-		Limit: makeLimit(time.Second*3, 33), Burst: 33, //nolint:gomnd //...
-	}
-	defaultSuffrageRateLimiter = RateLimiterRule{
-		Limit: makeLimit(time.Second*3, 66), Burst: 66, //nolint:gomnd //...
-	}
+	ErrRateLimited                   = util.NewIDError("over ratelimit")
+	defaultRateLimiter               = NewRateLimiterRule(time.Second*3, 33) //nolint:gomnd //...
+	defaultSuffrageRateLimiter       = NewRateLimiterRule(time.Second*3, 66) //nolint:gomnd //...
 	defaultRateLimitHandlerPoolSizes = []uint64{1 << 7, 1 << 7, 1 << 7}
 )
 
@@ -344,6 +340,22 @@ func NewRateLimiterRule(d time.Duration, burst int) RateLimiterRule {
 	}
 
 	return RateLimiterRule{Limit: limit, Burst: burst, s: fmt.Sprintf("%d/%s", burst, d)}
+}
+
+func NoLimitRateLimiterRule() RateLimiterRule {
+	return RateLimiterRule{
+		Limit: rate.Inf,
+		Burst: 0,
+		s:     "nolimit",
+	}
+}
+
+func LimitRateLimiterRule() RateLimiterRule {
+	return RateLimiterRule{
+		Limit: 0,
+		Burst: 0,
+		s:     "0",
+	}
 }
 
 type RateLimiterRules struct {

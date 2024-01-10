@@ -23,15 +23,15 @@ func TestRateLimiterRuleEncode(tt *testing.T) {
 		result RateLimiterRule
 		err    string
 	}{
-		{name: "example", a: "33/3s", result: RateLimiterRule{Limit: makeLimit(time.Second*3, 33), Burst: 33}},
-		{name: "nolimit", a: "nolimit", result: RateLimiterRule{Limit: rate.Inf, Burst: 0}},
-		{name: "limit all", a: "0", result: RateLimiterRule{Limit: 0, Burst: 0}},
+		{name: "example", a: "33/3s", result: NewRateLimiterRule(time.Second*3, 33)},
+		{name: "nolimit", a: "nolimit", result: NoLimitRateLimiterRule()},
+		{name: "limit all", a: "0", result: LimitRateLimiterRule()},
 		{name: "empty", a: "  ", err: "empty"},
 		{name: "missing burst", a: "/3s", err: "burst"},
 		{name: "missing duration", a: "3/", err: "duration"},
 		{name: "missing sep", a: "33s", err: "invalid format"},
-		{name: "invalid second unit", a: "33/s", result: RateLimiterRule{Limit: makeLimit(time.Second, 33), Burst: 33}},
-		{name: "invalid millisecond unit", a: "33/ms", result: RateLimiterRule{Limit: makeLimit(time.Millisecond, 33), Burst: 33}},
+		{name: "invalid second unit", a: "33/s", result: NewRateLimiterRule(time.Second, 33)},
+		{name: "invalid millisecond unit", a: "33/ms", result: NewRateLimiterRule(time.Millisecond, 33)},
 	}
 
 	for i, c := range cases {
@@ -76,18 +76,18 @@ func TestNetRateLimiterRuleSetEncode(tt *testing.T) {
 				NewRateLimiterRuleMap(
 					&RateLimiterRule{Limit: rate.Every(time.Second * 22), Burst: 11},
 					map[string]RateLimiterRule{
-						"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
-						"b": {Limit: rate.Inf, Burst: 0},
-						"c": {Limit: 0, Burst: 0},
+						"a": NewRateLimiterRule(time.Second*33, 44),
+						"b": NoLimitRateLimiterRule(),
+						"c": LimitRateLimiterRule(),
 					},
 				),
 			).
 			Add(
 				newipnet(),
 				NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-					"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
-					"e": {Limit: rate.Inf, Burst: 0},
-					"f": {Limit: 0, Burst: 0},
+					"d": NewRateLimiterRule(time.Second*55, 66),
+					"e": NoLimitRateLimiterRule(),
+					"f": LimitRateLimiterRule(),
 				}),
 			)
 
@@ -146,14 +146,14 @@ func TestNodeRateLimiterRuleSetEncode(tt *testing.T) {
 		rs := NewNodeRateLimiterRuleSet(
 			map[string]RateLimiterRuleMap{
 				base.RandomAddress("").String(): NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-					"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
-					"b": {Limit: rate.Inf, Burst: 0},
-					"c": {Limit: 0, Burst: 0},
+					"a": NewRateLimiterRule(time.Second*33, 44),
+					"b": NoLimitRateLimiterRule(),
+					"c": LimitRateLimiterRule(),
 				}),
 				base.RandomAddress("").String(): NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-					"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
-					"e": {Limit: rate.Inf, Burst: 0},
-					"f": {Limit: 0, Burst: 0},
+					"d": NewRateLimiterRule(time.Second*55, 66),
+					"e": NoLimitRateLimiterRule(),
+					"f": LimitRateLimiterRule(),
 				}),
 			},
 		)
@@ -204,12 +204,12 @@ func TestSuffrageRateLimiterRuleSetEncode(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		rs := NewSuffrageRateLimiterRuleSet(
 			NewRateLimiterRuleMap(nil, map[string]RateLimiterRule{
-				"a": {Limit: rate.Every(time.Second * 33), Burst: 44},
-				"b": {Limit: rate.Inf, Burst: 0},
-				"c": {Limit: 0, Burst: 0},
-				"d": {Limit: rate.Every(time.Second * 55), Burst: 66},
-				"e": {Limit: rate.Inf, Burst: 0},
-				"f": {Limit: 0, Burst: 0},
+				"a": NewRateLimiterRule(time.Second*33, 44),
+				"b": NoLimitRateLimiterRule(),
+				"c": NoLimitRateLimiterRule(),
+				"d": NewRateLimiterRule(time.Second*55, 66),
+				"e": NoLimitRateLimiterRule(),
+				"f": LimitRateLimiterRule(),
 			}),
 		)
 
