@@ -269,7 +269,7 @@ func IsValidBlockFromLocalFS(
 	case err != nil:
 		return e.Wrap(err)
 	case !found:
-		return e.Wrap(util.ErrNotFound.Errorf("blockmap"))
+		return e.Wrap(util.ErrNotFound.Errorf("blockmap, %v", height))
 	default:
 		if err := i.IsValid(networkID); err != nil {
 			return err
