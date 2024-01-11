@@ -16,10 +16,10 @@ var (
 	regVersion       = regexp.MustCompile(`\-v\d+`)
 )
 
-var hintcache *util.GCacheObjectPool
+var hintcache util.GCache[string, any]
 
 func init() {
-	hintcache = util.NewGCacheObjectPool(1 << 13) //nolint:gomnd //...
+	hintcache = util.NewLRUGCache[string, any](1 << 13) //nolint:gomnd //...
 }
 
 type Hinter interface {
@@ -63,12 +63,12 @@ func ParseHint(s string) (Hint, error) {
 
 	ht, err := parseHint(s)
 	if err != nil {
-		hintcache.Set(s, err, nil)
+		hintcache.Set(s, err, 0)
 
 		return Hint{}, err
 	}
 
-	hintcache.Set(s, &ht, nil)
+	hintcache.Set(s, &ht, 0)
 
 	return ht, nil
 }

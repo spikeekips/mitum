@@ -4,7 +4,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/bluele/gcache"
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -88,7 +87,7 @@ type AliveDelegate struct {
 	allowf          DelegateNodeFunc // NOTE allowf controls which node can be entered or not
 	storeconninfof  DelegateStoreConnInfo
 	challengef      DelegateNodeFunc
-	challengecache  gcache.Cache
+	challengecache  util.GCache[string, time.Time]
 	challengeexpire time.Duration
 }
 
@@ -117,7 +116,7 @@ func NewAliveDelegate(
 		challengef:      nchallengef,
 		allowf:          nallowf,
 		storeconninfof:  func(quicstream.ConnInfo) {},
-		challengecache:  gcache.New(1 << 9).LRU().Build(), //nolint:gomnd //...
+		challengecache:  util.NewLRUGCache[string, time.Time](1 << 9), //nolint:gomnd //...
 		challengeexpire: defaultNodeChallengeExpire,
 	}
 }
@@ -138,12 +137,12 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	memberkey := member.Addr().String()
 
-	switch i, err := d.challengecache.Get(memberkey); {
-	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
+	switch i, found := d.challengecache.Get(memberkey); {
+	case !found:
 		// NOTE challenge with member publickey
 		willchallenge = true
 	default:
-		willchallenge = time.Now().After(i.(time.Time).Add(d.challengeexpire)) //nolint:forcetypeassert //...
+		willchallenge = time.Now().After(i.Add(d.challengeexpire)) //nolint:forcetypeassert //...
 	}
 
 	if willchallenge {
@@ -151,7 +150,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 			return err
 		}
 
-		_ = d.challengecache.SetWithExpire(memberkey, time.Now(), d.challengeexpire)
+		d.challengecache.Set(memberkey, time.Now(), d.challengeexpire)
 	}
 
 	l := d.Log().With().Interface("member", member).Logger()

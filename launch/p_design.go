@@ -172,7 +172,7 @@ func PINITObjectCache(pctx context.Context) (context.Context, error) {
 
 	cachesize := design.LocalParams.MISC.ObjectCacheSize()
 
-	base.SetObjCache(util.NewGCacheObjectPool(int(cachesize)))
+	base.SetObjCache(util.NewLRUGCache[string, any](int(cachesize)))
 
 	log.Log().Debug().Uint64("cache_size", cachesize).Msg("set object cache size")
 

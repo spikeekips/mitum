@@ -2,12 +2,12 @@ package base
 
 import "github.com/spikeekips/mitum/util"
 
-var objcache *util.GCacheObjectPool
+var objcache util.GCache[string, any]
 
 func init() {
-	objcache = util.NewGCacheObjectPool(1 << 13) //nolint:gomnd //...
+	objcache = util.NewLRUGCache[string, any](1 << 13) //nolint:gomnd //...
 }
 
-func SetObjCache(c *util.GCacheObjectPool) {
+func SetObjCache(c util.GCache[string, any]) {
 	objcache = c
 }

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -31,7 +30,7 @@ type Syncer interface {
 }
 
 type SyncSourcePool struct {
-	problems gcache.Cache
+	problems util.GCache[string, any]
 	nonfixed map[string]NodeConnInfo
 	fixed    []NodeConnInfo
 	fixedids []string
@@ -42,8 +41,8 @@ type SyncSourcePool struct {
 func NewSyncSourcePool(fixed []NodeConnInfo) *SyncSourcePool {
 	p := &SyncSourcePool{
 		nonfixed:     map[string]NodeConnInfo{},
-		problems:     gcache.New(1 << 14).LRU().Build(), //nolint:gomnd // big enough for suffrage size
-		renewTimeout: time.Second * 3,                   //nolint:gomnd //...
+		problems:     util.NewLRUGCache[string, any](1 << 14), //nolint:gomnd // big enough for suffrage size
+		renewTimeout: time.Second * 3,                         //nolint:gomnd //...
 	}
 
 	_ = p.UpdateFixed(fixed)
@@ -306,7 +305,7 @@ func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
 	defer p.RUnlock()
 
 	for i := range p.fixedids {
-		if p.problems.Has(p.fixedids[i]) {
+		if p.problems.Exists(p.fixedids[i]) {
 			continue
 		}
 
@@ -316,7 +315,7 @@ func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
 	}
 
 	for id := range p.nonfixed {
-		if p.problems.Has(id) {
+		if p.problems.Exists(id) {
 			continue
 		}
 
@@ -343,7 +342,7 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 			continue
 		case !foundid:
 			continue
-		case p.problems.Has(id):
+		case p.problems.Exists(id):
 			continue
 		default:
 			return id, p.fixed[i], func(err error) { p.reportProblem(id, err) }, nil
@@ -352,7 +351,7 @@ func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report f
 
 	for id := range p.nonfixed {
 		switch {
-		case skipid == id, p.problems.Has(id):
+		case skipid == id, p.problems.Exists(id):
 			continue
 		default:
 			return id, p.nonfixed[id], func(err error) { p.reportProblem(id, err) }, nil
@@ -376,7 +375,7 @@ func (p *SyncSourcePool) reportProblem(id string, err error) {
 		}
 	}
 
-	_ = p.problems.SetWithExpire(id, struct{}{}, p.renewTimeout)
+	p.problems.Set(id, nil, p.renewTimeout)
 }
 
 func (p *SyncSourcePool) NodeConnInfo(node base.Address) []NodeConnInfo {

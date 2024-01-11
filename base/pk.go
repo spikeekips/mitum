@@ -128,12 +128,12 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 
 	pub, err := decodePublickeyFromString(s, enc)
 	if err != nil {
-		objcache.Set(s, err, nil)
+		objcache.Set(s, err, 0)
 
 		return nil, e.Wrap(err)
 	}
 
-	objcache.Set(s, pub, nil)
+	objcache.Set(s, pub, 0)
 
 	return pub, nil
 }

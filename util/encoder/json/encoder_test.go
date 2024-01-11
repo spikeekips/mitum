@@ -230,7 +230,7 @@ func (t *testJSONEncoder) TestDecodeWithFixedHintType() {
 }
 
 func (t *testJSONEncoder) TestDecodeWithFixedHintTypePool() {
-	pool := util.NewGCacheObjectPool(10)
+	pool := util.NewLRUGCache[string, any](10)
 	_ = t.enc.SetPool(pool)
 
 	ht := hint.MustNewHint("findme-v1.2.3")
@@ -258,7 +258,7 @@ func (t *testJSONEncoder) TestDecodeWithFixedHintTypePool() {
 }
 
 func (t *testJSONEncoder) TestDecodeWithFixedHintTypePoolError() {
-	pool := util.NewGCacheObjectPool(10)
+	pool := util.NewLRUGCache[string, any](10)
 	_ = t.enc.SetPool(pool)
 
 	ht := hint.MustNewHint("findme-v1.2.3")

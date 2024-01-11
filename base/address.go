@@ -53,12 +53,12 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	ad, err := decodeAddress(s, enc)
 	if err != nil {
 		err = errors.WithMessage(err, "address")
-		objcache.Set(s, err, nil)
+		objcache.Set(s, err, 0)
 
 		return nil, err
 	}
 
-	objcache.Set(s, ad, nil)
+	objcache.Set(s, ad, 0)
 
 	return ad, nil
 }

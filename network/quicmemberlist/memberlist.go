@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluele/gcache"
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -587,10 +586,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 		return errors.Errorf("alive delegate missing")
 	}
 
-	notallowedcache := gcache.New(1 << 9).LRU().Build() //nolint:gomnd //...
-	setnotallowedcache := func(addr string) {
-		_ = notallowedcache.SetWithExpire(addr, nil, srv.args.NotAllowedMemberExpire)
-	}
+	notallowedcache := util.NewLRUGCache[string, any](1 << 9) //nolint:gomnd //...
 
 	switch i, ok := config.Transport.(*Transport); {
 	case !ok:
@@ -606,7 +602,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 		}
 
 		i.args.NotAllowFunc = func(addr string) bool {
-			return notallowedcache.Has(addr)
+			return notallowedcache.Exists(addr)
 		}
 	}
 
@@ -638,7 +634,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 			if err != nil {
 				srv.Log().Trace().Err(err).Interface("member", member).Msg("set not allowed")
 
-				setnotallowedcache(member.Addr().String())
+				notallowedcache.Set(member.Addr().String(), nil, srv.args.NotAllowedMemberExpire)
 			}
 
 			return err
