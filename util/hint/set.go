@@ -10,11 +10,11 @@ type CompatibleSet[T any] struct {
 	hints         map[Type]map[uint64]Hint
 	typeheads     map[Type]T
 	typeheadhints map[Type]Hint
-	cache         *util.GCache[string, any]
+	cache         util.GCache[string, any]
 }
 
 func NewCompatibleSet[T any](size int) *CompatibleSet[T] {
-	var cache *util.GCache[string, any]
+	var cache util.GCache[string, any]
 	if size > 0 {
 		cache = util.NewLRUGCache[string, any](1)
 	}

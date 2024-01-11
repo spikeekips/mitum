@@ -11,13 +11,13 @@ type basePermanent struct {
 	mp                    *util.Locked[[3]interface{}]     // NOTE last blockmap
 	policy                *util.Locked[base.NetworkPolicy] // NOTE last NetworkPolicy
 	proof                 *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
-	stcache               *util.GCache[string, base.State]
-	instateoperationcache *util.GCache[string, bool]
+	stcache               util.GCache[string, base.State]
+	instateoperationcache util.GCache[string, bool]
 }
 
 func newBasePermanent(cachesize int) *basePermanent {
-	var stcache *util.GCache[string, base.State]
-	var instateoperationcache *util.GCache[string, bool]
+	var stcache util.GCache[string, base.State]
+	var instateoperationcache util.GCache[string, bool]
 
 	if cachesize > 0 {
 		stcache = util.NewLFUGCache[string, base.State](cachesize)
@@ -154,7 +154,7 @@ func (db *basePermanent) updateLast(
 }
 
 func (db *basePermanent) mergeTempCaches(
-	stcache *util.GCache[string, [2]interface{}],
+	stcache util.GCache[string, [2]interface{}],
 	instateoperationcache util.LockedMap[string, bool],
 ) {
 	if stcache != nil {

@@ -13,7 +13,7 @@ import (
 type SuffragePool struct {
 	byHeightFunc func(base.Height) (base.Suffrage, bool, error)
 	lastf        func() (base.Height, base.Suffrage, bool, error)
-	cache        *util.GCache[string, base.Suffrage]
+	cache        util.GCache[string, base.Suffrage]
 	sg           *singleflight.Group
 	expire       time.Duration
 	sync.RWMutex

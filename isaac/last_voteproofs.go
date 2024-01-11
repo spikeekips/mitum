@@ -97,7 +97,7 @@ func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {
 }
 
 type LastVoteproofsHandler struct {
-	cache *util.GCache[string, LastVoteproofs]
+	cache util.GCache[string, LastVoteproofs]
 	last  LastVoteproofs
 	sync.RWMutex
 }

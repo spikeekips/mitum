@@ -88,8 +88,8 @@ type Memberlist struct {
 	m                  *memberlist.Memberlist
 	delegate           *Delegate
 	members            *membersPool
-	cicache            *util.GCache[string, quicstream.ConnInfo]
-	cbcache            *util.GCache[string, []byte]
+	cicache            util.GCache[string, quicstream.ConnInfo]
+	cbcache            util.GCache[string, []byte]
 	ebtimers           *util.SimpleTimers
 	usermsgs           *list.List
 	handleUserMsgsFunc func([]byte, encoder.Encoder)

@@ -22,7 +22,7 @@ type TempPool struct {
 	*util.ContextDaemon
 	whenNewOperationsremoved          func(int, error)
 	lastvoteproofs                    *util.Locked[[2]base.Voteproof]
-	opcache                           *util.GCache[string, base.Operation]
+	opcache                           util.GCache[string, base.Operation]
 	cleanRemovedNewOperationsInterval time.Duration
 	cleanRemovedNewOperationsDeep     int
 	cleanRemovedProposalDeep          int
@@ -46,7 +46,7 @@ func newTempPool(
 ) (*TempPool, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPool[:])
 
-	var opcache *util.GCache[string, base.Operation]
+	var opcache util.GCache[string, base.Operation]
 	if opcachesize > 0 {
 		opcache = util.NewLRUGCache[string, base.Operation](opcachesize)
 	}

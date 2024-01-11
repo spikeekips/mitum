@@ -60,7 +60,7 @@ type Syncer struct {
 	finishedch   chan base.Height
 	prevvalue    *util.Locked[base.BlockMap]
 	isdonevalue  *atomic.Value
-	checkedprevs *util.GCache[base.Height, string]
+	checkedprevs util.GCache[base.Height, string]
 	startsyncch  chan base.Height
 	donech       chan struct{}
 	doneerr      *util.Locked[error]

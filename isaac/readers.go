@@ -268,7 +268,7 @@ type BlockItemReaders struct {
 	*util.ContextDaemon
 	*logging.Logging
 	encs             *encoder.Encoders
-	bfilescache      *util.GCache[base.Height, base.BlockItemFiles]
+	bfilescache      util.GCache[base.Height, base.BlockItemFiles]
 	emptyHeightsLock util.LockedMap[base.Height, time.Time]
 	bfilessg         singleflight.Group
 	root             string
