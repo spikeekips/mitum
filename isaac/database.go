@@ -32,7 +32,6 @@ type Database interface { //nolint:interfacebloat //..
 	// NOTE ExistsKnownOperation has the known operation hashes
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
-	NewBlockWriteDatabaseForSync(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
 	MergeAllPermanent() error
 	RemoveBlocks(base.Height) (bool, error)
@@ -143,4 +142,8 @@ type SuffrageExpelPool interface {
 type BallotPool interface {
 	Ballot(_ base.Point, _ base.Stage, isSuffrageConfirm bool) (base.Ballot, bool, error)
 	SetBallot(base.Ballot) (bool, error)
+}
+
+type StateCacheSetter interface {
+	SetStateCache(util.GCache[string, [2]interface{}])
 }

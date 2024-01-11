@@ -84,7 +84,7 @@ func (t *testTempLeveldb) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempLeveldbFromPrefix(wst.pst.RawStorage(), wst.pst.Prefix(), t.Encs, t.Enc, 0)
+	rst, err := NewTempLeveldbFromPrefix(wst.pst.RawStorage(), wst.pst.Prefix(), t.Encs, t.Enc)
 	t.NoError(err)
 	defer rst.Remove()
 

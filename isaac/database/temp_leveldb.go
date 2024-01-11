@@ -20,7 +20,7 @@ type TempLeveldb struct {
 	sufst                 base.State    // NOTE last suffrage state
 	policy                base.NetworkPolicy
 	proof                 base.SuffrageProof
-	stcache               *util.GCache[string, [2]interface{}]
+	stcache               util.GCache[string, [2]interface{}]
 	instateoperationcache util.LockedMap[string, bool]
 	proofmeta             []byte
 	proofbody             []byte
@@ -34,18 +34,11 @@ func NewTempLeveldbFromPrefix(
 	prefix []byte,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	stcachesize int,
 ) (*TempLeveldb, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, prefix)
 
-	var stcache *util.GCache[string, [2]interface{}]
-	if stcachesize > 0 {
-		stcache = util.NewLFUGCache[string, [2]interface{}](stcachesize)
-	}
-
 	db := &TempLeveldb{
 		baseLeveldb:           newBaseLeveldb(pst, encs, enc),
-		stcache:               stcache,
 		instateoperationcache: util.NewSingleLockedMap[string, bool](),
 	}
 

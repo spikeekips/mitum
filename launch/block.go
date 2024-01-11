@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/url"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -22,6 +23,8 @@ func ImportBlocks(
 	db isaac.Database,
 	params *isaac.Params,
 ) error {
+	stcachef := purgeStateCacheFunc(params.StateCacheSize())
+
 	if err := isaacblock.ImportBlocks(
 		context.Background(),
 		fromHeight, toHeight,
@@ -74,9 +77,17 @@ func ImportBlocks(
 			}
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
-			bwdb, err := db.NewBlockWriteDatabaseForSync(m.Manifest().Height())
+			bwdb, err := db.NewBlockWriteDatabase(m.Manifest().Height())
 			if err != nil {
 				return nil, err
+			}
+
+			if i, ok := bwdb.(isaac.StateCacheSetter); ok {
+				if stcache := stcachef(func() bool {
+					return m.Manifest().Height() == toHeight
+				}); stcache != nil {
+					i.SetStateCache(stcache)
+				}
 			}
 
 			return isaacblock.NewBlockImporter(
@@ -108,6 +119,7 @@ func NewBlockWriterFunc(
 	jsonenc, enc encoder.Encoder,
 	db isaac.Database,
 	workersize int64,
+	stcachesize int,
 ) isaac.NewBlockWriterFunc {
 	return func(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
 		e := util.StringError("create BlockWriter")
@@ -115,6 +127,12 @@ func NewBlockWriterFunc(
 		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 		if err != nil {
 			return nil, e.Wrap(err)
+		}
+
+		if stcachesize > 0 {
+			if i, ok := dbw.(isaac.StateCacheSetter); ok {
+				i.SetStateCache(util.NewLFUGCache[string, [2]interface{}](stcachesize))
+			}
 		}
 
 		fswriter, err := isaacblock.NewLocalFSWriter(
@@ -136,5 +154,22 @@ func NewBlockWriterFunc(
 			fswriter,
 			workersize,
 		), nil
+	}
+}
+
+func purgeStateCacheFunc(size int) func(func() bool) util.GCache[string, [2]interface{}] {
+	if size < 1 {
+		return func(func() bool) util.GCache[string, [2]interface{}] { return nil }
+	}
+
+	var stcache util.GCache[string, [2]interface{}]
+	var stcacheonce sync.Once
+
+	return func(cmp func() bool) util.GCache[string, [2]interface{}] {
+		stcacheonce.Do(func() {
+			stcache = util.NewLFUGCache[string, [2]interface{}](size)
+		})
+
+		return util.NewPurgeFuncGCache(stcache, cmp)
 	}
 }

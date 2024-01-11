@@ -721,6 +721,9 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 			return nil
 		}
 		args.RemovePrevBlockFunc = removePrevBlockf
+
+		stcachef := purgeStateCacheFunc(isaacparams.StateCacheSize())
+
 		args.NewImportBlocksFunc = func(
 			ctx context.Context,
 			from, to base.Height,
@@ -734,23 +737,11 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				readers,
 				blockMapf,
 				syncerBlockItemFunc(client, conninfocache, params.Network.TimeoutRequest, remotesItem),
-				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
-					bwdb, err := db.NewBlockWriteDatabaseForSync(blockmap.Manifest().Height())
-					if err != nil {
-						return nil, err
-					}
-
-					return isaacblock.NewBlockImporter(
-						LocalFSDataDirectory(design.Storage.Base),
-						encs,
-						blockmap,
-						bwdb,
-						func(context.Context) error {
-							return db.MergeBlockWriteDatabase(bwdb)
-						},
-						isaacparams.NetworkID(),
-					)
-				},
+				newBlockImpoterFunc(
+					LocalFSDataDirectory(design.Storage.Base), db, isaacparams, encs,
+					to,
+					stcachef,
+				),
 				setLastVoteproofsfFromBlockReaderf,
 				func(context.Context) error {
 					defaultWhenNewBlockSavedInSyncingStatef(to)
@@ -769,6 +760,41 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 		return args, nil
 	}, nil
+}
+
+func newBlockImpoterFunc(
+	root string,
+	db isaac.Database,
+	params *isaac.Params,
+	encs *encoder.Encoders,
+	to base.Height,
+	stcachef func(func() bool) util.GCache[string, [2]interface{}],
+) func(base.BlockMap) (isaac.BlockImporter, error) {
+	return func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
+		bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+		if err != nil {
+			return nil, err
+		}
+
+		if i, ok := bwdb.(isaac.StateCacheSetter); ok {
+			if stcache := stcachef(func() bool {
+				return blockmap.Manifest().Height() == to
+			}); stcache != nil {
+				i.SetStateCache(stcache)
+			}
+		}
+
+		return isaacblock.NewBlockImporter(
+			root,
+			encs,
+			blockmap,
+			bwdb,
+			func(context.Context) error {
+				return db.MergeBlockWriteDatabase(bwdb)
+			},
+			params.NetworkID(),
+		)
+	}
 }
 
 func syncerLastBlockMapFunc(

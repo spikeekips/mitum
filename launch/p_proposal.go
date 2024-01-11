@@ -106,6 +106,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 			encs.Default(),
 			db,
 			args.MaxWorkerSize,
+			isaacparams.StateCacheSize(),
 		)
 		args.GetStateFunc = db.State
 		args.GetOperationFunc = getProposalOperationFuncf(proposal)

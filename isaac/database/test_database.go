@@ -208,7 +208,7 @@ func (t *BaseTestDatabase) NewLeveldbPermanentDatabase() *LeveldbPermanent {
 
 func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
 	mst := leveldbstorage.NewMemStorage()
-	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc, 0)
+	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc)
 }
 
 func (t *BaseTestDatabase) NewPool() *TempPool {

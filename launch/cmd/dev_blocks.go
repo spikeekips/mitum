@@ -221,7 +221,7 @@ func (*GenerateBlocksCommand) newWriter(
 		return nil, err
 	}
 
-	dbw, err := db.NewBlockWriteDatabaseForSync(proposal.Point().Height())
+	dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 	if err != nil {
 		return nil, err
 	}

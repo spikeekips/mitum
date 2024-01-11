@@ -20,10 +20,9 @@ import (
 )
 
 type Center struct {
-	enc                          encoder.Encoder
-	perm                         isaac.PermanentDatabase
-	newBlockWriteDatabase        func(base.Height) (isaac.BlockWriteDatabase, error)
-	newBlockWriteDatabaseForSync func(base.Height) (isaac.BlockWriteDatabase, error)
+	enc                   encoder.Encoder
+	perm                  isaac.PermanentDatabase
+	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error)
 	*logging.Logging
 	*util.ContextDaemon
 	encs          *encoder.Encoders
@@ -39,22 +38,16 @@ func NewCenter(
 	enc encoder.Encoder,
 	perm isaac.PermanentDatabase,
 	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error),
-	newBlockWriteDatabaseForSync func(base.Height) (isaac.BlockWriteDatabase, error),
 ) (*Center, error) {
-	if newBlockWriteDatabaseForSync == nil {
-		newBlockWriteDatabaseForSync = newBlockWriteDatabase //revive:disable-line:modifies-parameter
-	}
-
 	db := &Center{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "center-database")
 		}),
-		encs:                         encs,
-		enc:                          enc,
-		perm:                         perm,
-		newBlockWriteDatabase:        newBlockWriteDatabase,
-		newBlockWriteDatabaseForSync: newBlockWriteDatabaseForSync,
-		mergeInterval:                time.Second * 2,
+		encs:                  encs,
+		enc:                   enc,
+		perm:                  perm,
+		newBlockWriteDatabase: newBlockWriteDatabase,
+		mergeInterval:         time.Second * 2,
 	}
 
 	if err := db.load(st); err != nil {
@@ -491,10 +484,6 @@ func (db *Center) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDat
 	return db.newBlockWriteDatabase(height)
 }
 
-func (db *Center) NewBlockWriteDatabaseForSync(height base.Height) (isaac.BlockWriteDatabase, error) {
-	return db.newBlockWriteDatabaseForSync(height)
-}
-
 func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
@@ -726,23 +715,17 @@ func (db *Center) start(ctx context.Context) error {
 	ticker := time.NewTicker(db.mergeInterval)
 	defer ticker.Stop()
 
-end:
 	for {
 		select {
 		case <-ctx.Done():
 			return errors.WithStack(ctx.Err())
 		case <-ticker.C:
-			switch merged, err := db.mergePermanent(ctx); {
-			case err != nil:
+			if _, err := db.mergePermanent(ctx); err != nil {
 				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; will retry")
+			}
 
-				continue end
-			case merged:
-				if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
-					db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
-
-					continue end
-				}
+			if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
+				db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
 			}
 		}
 	}
@@ -849,7 +832,7 @@ func loadTemp(
 			continue
 		}
 
-		temp, err := NewTempLeveldbFromPrefix(st, prefix, encs, enc, 0) // NOTE without state cache
+		temp, err := NewTempLeveldbFromPrefix(st, prefix, encs, enc)
 		if err != nil {
 			useless = append(useless, prefix)
 
