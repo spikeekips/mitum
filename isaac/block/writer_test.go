@@ -203,15 +203,12 @@ func (t *testWriter) TestSetStatesAndClose() {
 		return nil
 	}
 
-	var sufnodefound bool
-	fswriter.setStatesTreef = func(_ context.Context, tr fixedtree.Tree) error {
-		return tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
-			if n.Key() == sufststored.Hash().String() {
-				sufnodefound = true
-			}
+	var ststree fixedtree.Tree
 
-			return true, nil
-		})
+	fswriter.setStatesTreef = func(_ context.Context, tr fixedtree.Tree) error {
+		ststree = tr
+
+		return nil
 	}
 
 	ophs := make([][2]util.Hash, 33)
@@ -274,8 +271,22 @@ func (t *testWriter) TestSetStatesAndClose() {
 	t.NoError(err)
 	t.NotNil(manifest)
 
+	t.NoError(writer.waitSaveWorker(context.Background()))
+
 	t.NotNil(sufststored)
 	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
+
+	var sufnodefound bool
+
+	ststree.Traverse(func(_ uint64, n fixedtree.Node) (bool, error) {
+		if n.Key() == sufststored.Hash().String() {
+			sufnodefound = true
+
+			return false, nil
+		}
+
+		return true, nil
+	})
 
 	t.True(sufnodefound)
 }

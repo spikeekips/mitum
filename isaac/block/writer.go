@@ -30,10 +30,11 @@ type Writer struct {
 	*logging.Logging
 	manifest      base.Manifest
 	proposal      base.ProposalSignFact
-	opstreeroot   util.Hash
+	opstree       fixedtree.Tree
 	db            isaac.BlockWriteDatabase
 	fswriter      FSWriter
 	mergeDatabase func(isaac.BlockWriteDatabase) error
+	saveWorker    func(bool) *util.ErrgroupWorker
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
 	statesMerger  StatesMerger
@@ -67,6 +68,22 @@ func NewWriter(
 		fswriter:      fswriter,
 		workersize:    workersize,
 		statesMerger:  statesMerger,
+		saveWorker: func() func(bool) *util.ErrgroupWorker {
+			var ew *util.ErrgroupWorker
+			var saveWorkerOnce sync.Once
+
+			return func(create bool) *util.ErrgroupWorker {
+				if !create {
+					return ew
+				}
+
+				saveWorkerOnce.Do(func() {
+					ew, _ = util.NewErrgroupWorker(context.Background(), workersize)
+				})
+
+				return ew
+			}
+		}(),
 	}
 }
 
@@ -92,7 +109,9 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	e := util.StringError("set operation")
 
 	if op != nil {
-		if err := w.db.SetOperations([]util.Hash{op}); err != nil {
+		if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+			return w.db.SetOperations([]util.Hash{op})
+		}); err != nil {
 			return e.Wrap(err)
 		}
 	}
@@ -129,14 +148,19 @@ func (w *Writer) SetStates(
 		return e.Wrap(err)
 	}
 
-	if err := w.fswriter.SetOperation(ctx, uint64(w.opstreeg.Len()), index, operation); err != nil {
+	if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+		return w.fswriter.SetOperation(ctx, uint64(w.opstreeg.Len()), index, operation)
+	}); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-func (w *Writer) closeStateValues(ctx context.Context) error {
+func (w *Writer) closeStateValues(
+	ctx context.Context,
+	catchState func(base.State),
+) error {
 	defer logging.TimeElapsed()(w.Log().Debug(), "close state values")
 
 	if w.statesMerger.Len() < 1 {
@@ -147,27 +171,27 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	var tg *fixedtree.Writer
 
-	switch i, err := w.statesMergerClose(ctx); {
+	switch i, err := w.statesMergerClose(ctx, catchState); {
 	case err != nil:
 		return e.Wrap(err)
 	default:
 		tg = i
 	}
 
-	if err := w.saveStatesTree(ctx, tg); err != nil {
+	switch tr, err := tg.Tree(); {
+	case err != nil:
 		return e.Wrap(err)
+	default:
+		w.ststree = tr
+
+		return nil
 	}
-
-	defer logging.TimeElapsed()(w.Log().Debug(), "db write")
-
-	if err := w.db.Write(); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
 }
 
-func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _ error) {
+func (w *Writer) statesMergerClose(
+	ctx context.Context,
+	catchState func(base.State),
+) (tg *fixedtree.Writer, _ error) {
 	defer logging.TimeElapsed()(w.Log().Debug(), "close states merger")
 
 	if err := w.statesMerger.CloseStates(
@@ -176,8 +200,6 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 			if keyscount < 1 {
 				return nil
 			}
-
-			defer logging.TimeElapsed()(w.Log().Debug(), "new state tree")
 
 			switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, keyscount); {
 			case err != nil:
@@ -189,6 +211,8 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 			}
 		},
 		func(st base.State, total, index uint64) error {
+			catchState(st)
+
 			if _, ok := st.(base.StateValueMerger); ok {
 				return errors.Errorf("expect pure State, not StateValueMerger, %T", st)
 			}
@@ -197,36 +221,19 @@ func (w *Writer) statesMergerClose(ctx context.Context) (tg *fixedtree.Writer, _
 				return err
 			}
 
-			if err := w.fswriter.SetState(ctx, total, index, st); err != nil {
-				return err
-			}
+			return w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+				if err := w.fswriter.SetState(ctx, total, index, st); err != nil {
+					return err
+				}
 
-			return w.db.SetStates([]base.State{st})
+				return w.db.SetStates([]base.State{st})
+			})
 		},
 	); err != nil {
 		return nil, err
 	}
 
 	return tg, nil
-}
-
-func (w *Writer) saveStatesTree(
-	ctx context.Context, tg *fixedtree.Writer,
-) error {
-	defer logging.TimeElapsed()(w.Log().Debug(), "save state tree")
-
-	switch tr, err := tg.Tree(); {
-	case err != nil:
-		return err
-	default:
-		if err := w.fswriter.SetStatesTree(ctx, tr); err != nil {
-			return err
-		}
-
-		w.ststree = tr
-
-		return nil
-	}
 }
 
 func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Manifest, error) {
@@ -239,35 +246,34 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 		return nil, e.Errorf("not yet written")
 	}
 
-	if err := w.setProposal(ctx); err != nil {
-		return nil, e.Wrap(err)
-	}
+	var opstreeroot util.Hash
 
 	if w.opstreeg != nil {
 		switch tr, err := w.opstreeg.Tree(); {
 		case err != nil:
 			return nil, e.Wrap(err)
 		default:
-			if err := w.fswriter.SetOperationsTree(ctx, tr); err != nil {
-				return nil, e.Wrap(err)
-			}
+			w.opstree = tr
 
-			w.opstreeroot = tr.Root()
+			if w.opstree.Len() > 0 {
+				opstreeroot = tr.Root()
+			}
 		}
 	}
 
-	if err := w.closeStateValues(ctx); err != nil {
-		return nil, e.Wrap(err)
-	}
-
 	var suffrage, previousHash util.Hash
+
 	if w.proposal.Point().Height() > base.GenesisHeight {
 		suffrage = previous.Suffrage()
 		previousHash = previous.Hash()
 	}
 
-	if st := w.db.SuffrageState(); st != nil {
-		suffrage = st.Hash()
+	if err := w.closeStateValues(ctx, func(st base.State) {
+		if st.Key() == isaac.SuffrageStateKey {
+			suffrage = st.Hash()
+		}
+	}); err != nil {
+		return nil, e.Wrap(err)
 	}
 
 	var ststreeroot util.Hash
@@ -280,13 +286,15 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			w.proposal.Point().Height(),
 			previousHash,
 			w.proposal.Fact().Hash(),
-			w.opstreeroot,
+			opstreeroot,
 			ststreeroot,
 			suffrage,
 			w.proposal.ProposalFact().ProposedAt(),
 		)
 
-		if err := w.fswriter.SetManifest(ctx, w.manifest); err != nil {
+		if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+			return w.fswriter.SetManifest(ctx, w.manifest)
+		}); err != nil {
 			return nil, e.Wrap(err)
 		}
 	}
@@ -294,16 +302,20 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 	return w.manifest, nil
 }
 
-func (w *Writer) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
-	if err := w.fswriter.SetINITVoteproof(ctx, vp); err != nil {
+func (w *Writer) SetINITVoteproof(_ context.Context, vp base.INITVoteproof) error {
+	if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+		return w.fswriter.SetINITVoteproof(ctx, vp)
+	}); err != nil {
 		return errors.Wrap(err, "set init voteproof")
 	}
 
 	return nil
 }
 
-func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
-	if err := w.fswriter.SetACCEPTVoteproof(ctx, vp); err != nil {
+func (w *Writer) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) error {
+	if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+		return w.fswriter.SetACCEPTVoteproof(ctx, vp)
+	}); err != nil {
 		return errors.Wrap(err, "set accept voteproof")
 	}
 
@@ -315,6 +327,10 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	defer w.Unlock()
 
 	e := util.StringError("save")
+
+	if err := w.waitSaveWorker(ctx); err != nil {
+		return nil, e.Wrap(err)
+	}
 
 	var m base.BlockMap
 
@@ -359,6 +375,11 @@ func (w *Writer) Cancel() error {
 	defer w.Unlock()
 
 	e := util.StringError("cancel Writer")
+
+	if ew := w.saveWorker(false); ew != nil {
+		ew.Close()
+	}
+
 	if err := w.fswriter.Cancel(); err != nil {
 		return e.Wrap(err)
 	}
@@ -373,7 +394,6 @@ func (w *Writer) Cancel() error {
 func (w *Writer) close() error {
 	w.manifest = nil
 	w.proposal = nil
-	w.opstreeroot = nil
 	w.db = nil
 	w.fswriter = nil
 	w.mergeDatabase = nil
@@ -385,9 +405,40 @@ func (w *Writer) close() error {
 	return nil
 }
 
-func (w *Writer) setProposal(ctx context.Context) error {
-	if err := w.fswriter.SetProposal(ctx, w.proposal); err != nil {
+func (w *Writer) waitSaveWorker(ctx context.Context) error {
+	saveWorker := w.saveWorker(false)
+	if saveWorker == nil {
+		return nil
+	}
+
+	defer saveWorker.Close()
+
+	if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+		return w.fswriter.SetProposal(ctx, w.proposal)
+	}); err != nil {
 		return errors.Wrap(err, "set proposal")
+	}
+
+	saveWorker.Done()
+
+	if err := saveWorker.Wait(); err != nil {
+		return err
+	}
+
+	if err := w.db.Write(); err != nil {
+		return err
+	}
+
+	if w.opstree.Len() > 0 {
+		if err := w.fswriter.SetOperationsTree(ctx, w.opstree); err != nil {
+			return err
+		}
+	}
+
+	if w.ststree.Len() > 0 {
+		if err := w.fswriter.SetStatesTree(ctx, w.ststree); err != nil {
+			return err
+		}
 	}
 
 	return nil

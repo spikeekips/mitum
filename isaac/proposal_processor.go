@@ -162,6 +162,8 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 }
 
 func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+	defer logging.TimeElapsed()(p.Log().Debug(), "saved")
+
 	p.processlock.Lock()
 	defer p.processlock.Unlock()
 
