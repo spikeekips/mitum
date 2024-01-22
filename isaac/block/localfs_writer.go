@@ -135,11 +135,11 @@ func (w *LocalFSWriter) SetOperation(_ context.Context, total, _ uint64, op base
 	return nil
 }
 
-func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Writer) error {
-	if _, err := w.setTree(
+func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr fixedtree.Tree) error {
+	if err := w.setTree(
 		ctx,
 		base.BlockItemOperationsTree,
-		tw,
+		tr,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.opsf.Close()
 
@@ -173,11 +173,11 @@ func (w *LocalFSWriter) SetState(_ context.Context, total, _ uint64, st base.Sta
 	return nil
 }
 
-func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, err error) {
-	tr, err = w.setTree(
+func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr fixedtree.Tree) error {
+	return w.setTree(
 		ctx,
 		base.BlockItemStatesTree,
-		tw,
+		tr,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.stsf.Close()
 
@@ -191,11 +191,6 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 			return nil
 		},
 	)
-	if err != nil {
-		return tr, errors.Wrap(err, "set states tree")
-	}
-
-	return tr, nil
 }
 
 func (w *LocalFSWriter) SetManifest(_ context.Context, m base.Manifest) error {
@@ -411,39 +406,39 @@ func (w *LocalFSWriter) close() error {
 func (w *LocalFSWriter) setTree(
 	ctx context.Context,
 	treetype base.BlockItemType,
-	tw *fixedtree.Writer,
+	tr fixedtree.Tree,
 	newjob util.ContextWorkerCallback,
-) (tr fixedtree.Tree, _ error) {
+) error {
 	e := util.StringError("set tree, %q", treetype)
 
 	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	if err != nil {
-		return tr, e.Wrap(err)
+		return e.Wrap(err)
 	}
 
 	defer worker.Close()
 
 	tf, err := w.newChecksumWriter(treetype)
 	if err != nil {
-		return tr, e.WithMessage(err, "create tree file, %q", treetype)
+		return e.WithMessage(err, "create tree file, %q", treetype)
 	}
 
 	defer func() {
 		_ = tf.Close()
 	}()
 
-	if err := writeTreeHeader(tf, LocalFSWriterHint, w.enc.Hint(), uint64(tw.Len()), tw.Hint()); err != nil {
-		return tr, e.Wrap(err)
+	if err := writeTreeHeader(tf, LocalFSWriterHint, w.enc.Hint(), uint64(tr.Len()), tr.Hint()); err != nil {
+		return e.Wrap(err)
 	}
 
 	if newjob != nil {
 		if err := worker.NewJob(newjob); err != nil {
-			return tr, e.Wrap(err)
+			return e.Wrap(err)
 		}
 	}
 
-	if err := tw.Write(func(index uint64, n fixedtree.Node) error {
-		return worker.NewJob(func(ctx context.Context, _ uint64) error {
+	if err := tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+		return true, worker.NewJob(func(ctx context.Context, _ uint64) error {
 			b, err := marshalIndexedTreeNode(w.enc, index, n)
 			if err != nil {
 				return err
@@ -452,33 +447,26 @@ func (w *LocalFSWriter) setTree(
 			return w.writefile(tf, append(b, '\n'))
 		})
 	}); err != nil {
-		return tr, e.Wrap(err)
+		return e.Wrap(err)
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return tr, e.Wrap(err)
+		return e.Wrap(err)
 	}
 
 	_ = tf.Close()
 
-	switch i, err := tw.Tree(); {
-	case err != nil:
-		return tr, e.Wrap(err)
-	default:
-		tr = i
-	}
-
 	if err := w.m.SetItem(NewBlockMapItem(treetype, tf.Checksum())); err != nil {
-		return tr, e.Wrap(err)
+		return e.Wrap(err)
 	}
 
 	if _, err := w.bfiles.SetItem(treetype, isaac.NewLocalFSBlockItemFile(tf.Name(), "")); err != nil {
-		return tr, e.Wrap(err)
+		return e.Wrap(err)
 	}
 
-	return tr, nil
+	return nil
 }
 
 func (w *LocalFSWriter) saveMap() error {

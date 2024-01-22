@@ -65,11 +65,11 @@ func (t *testWriter) TestSetOperations() {
 	writer.SetOperationsSize(uint64(len(facts)))
 
 	unodes := make([]fixedtree.Node, len(facts))
-	fswriter.setOperationsTreef = func(_ context.Context, w *fixedtree.Writer) error {
-		return w.Write(func(index uint64, n fixedtree.Node) error {
+	fswriter.setOperationsTreef = func(_ context.Context, tr fixedtree.Tree) error {
+		return tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 			unodes[index] = n
 
-			return nil
+			return true, nil
 		})
 	}
 
@@ -94,7 +94,9 @@ func (t *testWriter) TestSetOperations() {
 
 	_ = sem.Acquire(ctx, int64(len(facts)))
 
-	t.NoError(fswriter.SetOperationsTree(context.Background(), writer.opstreeg))
+	opstree, err := writer.opstreeg.Tree()
+	t.NoError(err)
+	t.NoError(fswriter.SetOperationsTree(context.Background(), opstree))
 
 	t.Equal(len(facts), writer.opstreeg.Len())
 
@@ -202,13 +204,13 @@ func (t *testWriter) TestSetStatesAndClose() {
 	}
 
 	var sufnodefound bool
-	fswriter.setStatesTreef = func(_ context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, _ error) {
-		return tr, tw.Write(func(index uint64, n fixedtree.Node) error {
+	fswriter.setStatesTreef = func(_ context.Context, tr fixedtree.Tree) error {
+		return tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 			if n.Key() == sufststored.Hash().String() {
 				sufnodefound = true
 			}
 
-			return nil
+			return true, nil
 		})
 	}
 
