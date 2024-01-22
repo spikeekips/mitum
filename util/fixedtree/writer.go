@@ -70,8 +70,10 @@ func (g *Writer) Write(w NodeWrite) (err error) {
 	g.RLock()
 	defer g.RUnlock()
 
-	if _, err := generateNodesHash(g.nodes, w); err != nil {
-		return errors.WithMessage(err, "write Tree")
+	if len(g.nodes) > 0 && g.nodes[0].Hash() == nil {
+		if _, err := generateNodesHash(g.nodes, w); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -82,6 +84,12 @@ func (g *Writer) Tree() (Tree, error) {
 
 	g.RLock()
 	defer g.RUnlock()
+
+	if len(g.nodes) > 0 && g.nodes[0].Hash() == nil {
+		if _, err := generateNodesHash(g.nodes, func(uint64, Node) error { return nil }); err != nil {
+			return Tree{}, err
+		}
+	}
 
 	return NewTree(g.ht, g.nodes)
 }

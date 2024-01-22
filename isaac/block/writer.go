@@ -16,9 +16,9 @@ import (
 type FSWriter interface {
 	SetProposal(context.Context, base.ProposalSignFact) error
 	SetOperation(_ context.Context, total, index uint64, _ base.Operation) error
-	SetOperationsTree(context.Context, *fixedtree.Writer) error
+	SetOperationsTree(context.Context, fixedtree.Tree) error
 	SetState(_ context.Context, total, index uint64, _ base.State) error
-	SetStatesTree(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
+	SetStatesTree(context.Context, fixedtree.Tree) error
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
@@ -215,14 +215,18 @@ func (w *Writer) saveStatesTree(
 ) error {
 	defer logging.TimeElapsed()(w.Log().Debug(), "save state tree")
 
-	i, err := w.fswriter.SetStatesTree(ctx, tg)
-	if err != nil {
+	switch tr, err := tg.Tree(); {
+	case err != nil:
 		return err
+	default:
+		if err := w.fswriter.SetStatesTree(ctx, tr); err != nil {
+			return err
+		}
+
+		w.ststree = tr
+
+		return nil
 	}
-
-	w.ststree = i
-
-	return nil
 }
 
 func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Manifest, error) {
@@ -240,11 +244,16 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 	}
 
 	if w.opstreeg != nil {
-		if err := w.fswriter.SetOperationsTree(ctx, w.opstreeg); err != nil {
+		switch tr, err := w.opstreeg.Tree(); {
+		case err != nil:
 			return nil, e.Wrap(err)
-		}
+		default:
+			if err := w.fswriter.SetOperationsTree(ctx, tr); err != nil {
+				return nil, e.Wrap(err)
+			}
 
-		w.opstreeroot = w.opstreeg.Root()
+			w.opstreeroot = tr.Root()
+		}
 	}
 
 	if err := w.closeStateValues(ctx); err != nil {

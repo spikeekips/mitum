@@ -254,10 +254,10 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 		t.NoError(opstreeg.Add(uint64(i), node))
 	}
 
-	t.NoError(fs.SetOperationsTree(context.Background(), opstreeg))
-
 	opstree, err := opstreeg.Tree()
 	t.NoError(err)
+
+	t.NoError(fs.SetOperationsTree(context.Background(), opstree))
 
 	// NOTE set proposal
 	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), prev, ophs))
@@ -283,11 +283,10 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 		t.NoError(fs.SetState(context.Background(), uint64(len(stts)), uint64(i), stts[i]))
 	}
 
-	_, err = fs.SetStatesTree(context.Background(), sttstreeg)
-	t.NoError(err)
-
 	sttstree, err := sttstreeg.Tree()
 	t.NoError(err)
+
+	t.NoError(fs.SetStatesTree(context.Background(), sttstree))
 
 	ifact := t.NewINITBallotFact(point, prev, pr.Fact().Hash())
 	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})

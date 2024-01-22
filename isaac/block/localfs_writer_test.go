@@ -25,9 +25,9 @@ import (
 type DummyBlockFSWriter struct {
 	setProposalf        func(context.Context, base.ProposalSignFact) error
 	setOperationf       func(context.Context, uint64, uint64, base.Operation) error
-	setOperationsTreef  func(context.Context, *fixedtree.Writer) error
+	setOperationsTreef  func(context.Context, fixedtree.Tree) error
 	setStatef           func(context.Context, uint64, uint64, base.State) error
-	setStatesTreef      func(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
+	setStatesTreef      func(context.Context, fixedtree.Tree) error
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
 	setACCEPTVoteprooff func(context.Context, base.ACCEPTVoteproof) error
@@ -49,9 +49,9 @@ func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, total, index uint
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Writer) error {
+func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tr fixedtree.Tree) error {
 	if w.setOperationsTreef != nil {
-		return w.setOperationsTreef(ctx, tw)
+		return w.setOperationsTreef(ctx, tr)
 	}
 	return nil
 }
@@ -63,11 +63,11 @@ func (w *DummyBlockFSWriter) SetState(ctx context.Context, total, index uint64, 
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, _ error) {
+func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tr fixedtree.Tree) error {
 	if w.setStatesTreef != nil {
-		return w.setStatesTreef(ctx, tw)
+		return w.setStatesTreef(ctx, tr)
 	}
-	return tr, nil
+	return nil
 }
 
 func (w *DummyBlockFSWriter) SetManifest(ctx context.Context, m base.Manifest) error {
@@ -465,7 +465,10 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		panic(err)
 	}
 
-	t.NoError(fs.SetOperationsTree(ctx, opstreeg))
+	opstree, err := opstreeg.Tree()
+	t.NoError(err)
+
+	t.NoError(fs.SetOperationsTree(ctx, opstree))
 
 	t.Run("operations file", func() {
 		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemOperations, true)
@@ -551,8 +554,9 @@ func (t *testLocalFSWriter) TestSetStates() {
 		panic(err)
 	}
 
-	_, err = fs.SetStatesTree(ctx, sttstreeg)
+	sttstree, err := sttstreeg.Tree()
 	t.NoError(err)
+	t.NoError(fs.SetStatesTree(ctx, sttstree))
 
 	t.Run("states file", func() {
 		fpath, f, err := t.findTempFile(fs.temp, base.BlockItemStates, true)

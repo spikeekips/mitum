@@ -145,6 +145,51 @@ func (t *testGenerator) TestWriter() {
 	}
 }
 
+func (t *testGenerator) TestTreeBeforeWrite() {
+	nodes := t.nodesWithoutHash(33)
+
+	var writenodes, treenodes []Node
+
+	t.Run("write", func() {
+		g, err := NewWriter(t.ht, uint64(len(nodes)))
+		t.NoError(err)
+
+		for i := range nodes {
+			n := NewBaseNode(nodes[i].Key())
+			t.NoError(g.Add(uint64(i), n))
+		}
+
+		t.NoError(g.Write(func(index uint64, n Node) error { return nil }))
+
+		writenodes = g.nodes
+	})
+
+	t.Run("tree", func() {
+		g, err := NewWriter(t.ht, uint64(len(nodes)))
+		t.NoError(err)
+
+		for i := range nodes {
+			n := NewBaseNode(nodes[i].Key())
+			t.NoError(g.Add(uint64(i), n))
+		}
+
+		tr, err := g.Tree()
+		t.NoError(err)
+
+		treenodes = tr.nodes
+	})
+
+	t.Equal(len(writenodes), len(treenodes))
+
+	for i := range writenodes {
+		a := writenodes[i]
+		b := treenodes[i]
+
+		t.True(a.Key() == b.Key())
+		t.True(a.Hash().Equal(b.Hash()))
+	}
+}
+
 func (t *testGenerator) TestShrinkEmptyNode() {
 	nodes := t.nodesWithoutHash(33)
 
