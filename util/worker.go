@@ -28,7 +28,6 @@ var baseSemWorkerPoolPut = func(wk *BaseSemWorker) {
 	wk.Sem = nil
 	wk.Ctx = nil
 	// wk.Cancel = nil
-	wk.JobCount = 0
 	wk.NewJobFunc = nil
 	wk.donech = nil
 
@@ -180,9 +179,9 @@ type BaseSemWorker struct {
 	Sem        *semaphore.Weighted
 	Cancel     func()
 	NewJobFunc func(context.Context, uint64, ContextWorkerCallback)
+	countJobs  func() uint64
 	donech     chan time.Duration
 	N          int64
-	JobCount   uint64
 	runonce    sync.Once
 	closeonece sync.Once
 }
@@ -195,9 +194,21 @@ func NewBaseSemWorker(ctx context.Context, semsize int64) *BaseSemWorker {
 	wk.Sem = semaphore.NewWeighted(semsize)
 	wk.Ctx = closectx
 	wk.Cancel = cancel
-	wk.JobCount = 0
 	wk.runonce = sync.Once{}
 	wk.donech = make(chan time.Duration, 2)
+
+	var countLock sync.Mutex
+	var jobcount uint64
+
+	wk.countJobs = func() uint64 {
+		countLock.Lock()
+		defer countLock.Unlock()
+
+		prev := jobcount
+		jobcount++
+
+		return prev
+	}
 
 	return wk
 }
@@ -209,7 +220,7 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 
 	sem := wk.Sem
 	newjob := wk.NewJobFunc
-	jobs := wk.JobCount
+	jobcount := wk.countJobs()
 
 	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
 		wk.Cancel()
@@ -223,15 +234,10 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 		defer sem.Release(1)
 		defer cancel()
 
-		newjob(ctx, jobs, callback)
+		newjob(ctx, jobcount, callback)
 	}()
-	wk.JobCount++
 
 	return nil
-}
-
-func (wk *BaseSemWorker) Jobs() uint64 {
-	return wk.JobCount
 }
 
 func (wk *BaseSemWorker) Wait() error {
