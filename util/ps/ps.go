@@ -2,7 +2,6 @@ package ps
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"sync"
 
@@ -455,21 +454,18 @@ func (ps *PS) Verbose() []Name {
 }
 
 func (ps *PS) CloseVerbose() []Name {
-	names := make([]Name, len(ps.runs))
+	addNames, doneNames := util.CompactAppendSlice[Name](len(ps.runs))
 
-	var i int
-
-	for j := range ps.runs {
-		name := ps.runs[len(ps.runs)-j-1]
+	for i := range ps.runs {
+		name := ps.runs[len(ps.runs)-i-1]
 		if ps.m[name].closef == nil {
 			continue
 		}
 
-		names[i] = name
-		i++
+		addNames(name)
 	}
 
-	return names[:i]
+	return doneNames()
 }
 
 func (ps *PS) POK(name Name) *P {
@@ -618,20 +614,15 @@ func (ps *PS) RemoveOK(name Name) *PS {
 }
 
 func (ps *PS) names() []Name {
-	names := make([]Name, len(ps.m))
-
-	var i int
-
-	for k := range ps.m {
-		names[i] = k
-		i++
-	}
-
-	sort.Slice(names, func(i, j int) bool {
-		return strings.Compare(string(names[i]), string(names[j])) < 0
+	addNames, doneNames := util.SortCompactAppendSlice[Name](len(ps.m), func(i, j Name) bool {
+		return strings.Compare(string(i), string(j)) < 0
 	})
 
-	return names
+	for i := range ps.m {
+		addNames(i)
+	}
+
+	return doneNames()
 }
 
 func (ps *PS) run(pctx context.Context, name Name, p *P) (ctx context.Context, err error) {

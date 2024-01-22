@@ -620,19 +620,17 @@ func (db *Center) removeTemp(temp isaac.TempDatabase) error {
 		return util.ErrNotFound.Errorf("TempDatabase not found, height=%d", temp.Height())
 	}
 
-	newtemps := make([]isaac.TempDatabase, len(db.temps)-1)
-	var j int
+	addNewTemps, doneNewTemps := util.CompactAppendSlice[isaac.TempDatabase](len(db.temps))
 
 	for i := range db.temps {
 		if int64(i) == found {
 			continue
 		}
 
-		newtemps[j] = db.temps[i]
-		j++
+		_ = addNewTemps(db.temps[i])
 	}
 
-	db.temps = newtemps
+	db.temps = doneNewTemps()
 	db.removed = append(db.removed, temp)
 
 	return nil

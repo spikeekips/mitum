@@ -1,8 +1,10 @@
 package util
 
 import (
+	"cmp"
 	"crypto/rand"
 	"math/big"
+	"sort"
 
 	"github.com/pkg/errors"
 )
@@ -42,19 +44,17 @@ func FilterMap[T any, Y comparable](s map[Y]T, f func(Y, T) bool) []T {
 		return nil
 	}
 
-	ns := make([]T, len(s))
-	var index int
+	add, done := CompactAppendSlice[T](len(s))
 
 	for i := range s {
 		if !f(i, s[i]) {
 			continue
 		}
 
-		ns[index] = s[i]
-		index++
+		add(s[i])
 	}
 
-	return ns[:index]
+	return done()
 }
 
 func FilterSlice[T any](s []T, f func(T) bool) []T {
@@ -62,19 +62,17 @@ func FilterSlice[T any](s []T, f func(T) bool) []T {
 		return nil
 	}
 
-	ns := make([]T, len(s))
-	var index int
+	add, done := CompactAppendSlice[T](len(s))
 
 	for i := range s {
 		if !f(s[i]) {
 			continue
 		}
 
-		ns[index] = s[i]
-		index++
+		add(s[i])
 	}
 
-	return ns[:index]
+	return done()
 }
 
 func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error) {
@@ -82,8 +80,7 @@ func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error)
 		return nil, nil
 	}
 
-	ns := make([]T, len(s))
-	var index int
+	add, done := CompactAppendSlice[T](len(s))
 
 	m := map[string]struct{}{}
 	defer clear(m)
@@ -103,11 +100,10 @@ func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error)
 			m[k] = struct{}{}
 		}
 
-		ns[index] = s[i]
-		index++
+		add(s[i])
 	}
 
-	return ns[:index], nil
+	return done(), nil
 }
 
 func CountFilteredSlice[T any](s []T, f func(T) bool) (n int) {
@@ -135,9 +131,7 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 		return a
 	}
 
-	nb := make([]T, len(a))
-
-	var n int
+	add, done := CompactAppendSlice[T](len(a))
 
 	for i := range a {
 		var found bool
@@ -151,12 +145,11 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 		}
 
 		if !found {
-			nb[n] = a[i]
-			n++
+			add(a[i])
 		}
 	}
 
-	return nb[:n]
+	return done()
 }
 
 func TraverseSlice[T any](s []T, f func(int, T) error) error {
@@ -234,4 +227,68 @@ func RandomChoiceSlice[T any](a []T, size int64) ([]T, error) {
 	}
 
 	return n, nil
+}
+
+func CompactAppendSlice[T any](size int) (
+	add func(T) bool,
+	done func() []T,
+) {
+	s := make([]T, size)
+
+	var i int
+
+	return func(t T) bool {
+			s[i] = t
+
+			i++
+
+			return i == size
+		}, func() []T {
+			return s[:i]
+		}
+}
+
+func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
+	add func(T) bool,
+	done func() []T,
+) {
+	addf, donef := CompactAppendSlice[T](size)
+
+	return addf, func() []T {
+		d := donef()
+		if len(d) < 1 {
+			return d
+		}
+
+		sort.Slice(d, func(i, j int) bool {
+			return less(d[i], d[j])
+		})
+
+		return d
+	}
+}
+
+func UniqCompactAppendSlice[T cmp.Ordered](size int) (
+	add func(T),
+	done func() []T,
+) {
+	s := make([]T, size)
+
+	var i int
+
+	m := map[T]struct{}{}
+	defer clear(m)
+
+	return func(t T) {
+			if _, found := m[t]; found {
+				return
+			}
+
+			s[i] = t
+			m[t] = struct{}{}
+
+			i++
+		}, func() []T {
+			return s[:i]
+		}
 }

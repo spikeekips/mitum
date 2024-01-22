@@ -962,9 +962,8 @@ func (srv *Memberlist) handleUserMsgs(ctx context.Context, sem *semaphore.Weight
 		srv.usermsgsLock.Lock()
 		defer srv.usermsgsLock.Unlock()
 
-		bs := make([][]byte, maxHandleUserMsg)
+		addBS, doneBS := util.CompactAppendSlice[[]byte](int(maxHandleUserMsg))
 
-		var i int64
 		var elem *list.Element
 
 	end:
@@ -977,7 +976,7 @@ func (srv *Memberlist) handleUserMsgs(ctx context.Context, sem *semaphore.Weight
 			}
 
 			if elem == nil {
-				break end
+				return doneBS()
 			}
 
 			srv.usermsgs.Remove(elem)
@@ -985,18 +984,10 @@ func (srv *Memberlist) handleUserMsgs(ctx context.Context, sem *semaphore.Weight
 			switch b, ok := elem.Value.([]byte); {
 			case !ok, len(b) < 1:
 				continue end
-			default:
-				bs[i] = b
-			}
-
-			i++
-
-			if i == maxHandleUserMsg {
-				break end
+			case addBS(b):
+				return doneBS()
 			}
 		}
-
-		return bs[:i]
 	}()
 
 	if len(bs) < 1 {
@@ -1222,19 +1213,17 @@ func AliveMembers(
 		return nil
 	}
 
-	members := make([]Member, l*2)
+	addMembers, doneMembers := util.CompactAppendSlice[Member](l * 2)
 
-	var i int
 	m.Members(func(member Member) bool {
 		if !exclude(member) {
-			members[i] = member
-			i++
+			addMembers(member)
 		}
 
 		return true
 	})
 
-	return members[:i]
+	return doneMembers()
 }
 
 func RandomAliveMembers(

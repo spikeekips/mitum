@@ -139,17 +139,15 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		isaacnetwork.HandlerNameSyncSourceConnInfo,
 		isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
-				members := make([]isaac.NodeConnInfo, syncSourcePool.Len()*2)
+				addMembers, doneMembers := util.CompactAppendSlice[isaac.NodeConnInfo](syncSourcePool.Len() * 2)
 
-				var i int
 				syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
-					members[i] = nci
-					i++
+					addMembers(nci)
 
 					return true
 				})
 
-				return members[:i], nil
+				return doneMembers(), nil
 			},
 		), nil)
 
@@ -400,21 +398,19 @@ func QuicstreamHandlerSuffrageNodeConnInfoFunc(
 			suf = i
 		}
 
-		members := make([]isaac.NodeConnInfo, memberlist.MembersLen()*2)
+		addMembers, doneMembers := util.CompactAppendSlice[isaac.NodeConnInfo](memberlist.MembersLen() * 2)
 
-		var i int
 		memberlist.Remotes(func(node quicmemberlist.Member) bool {
 			if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
 				return true
 			}
 
-			members[i] = isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
-			i++
+			addMembers(isaacnetwork.NewNodeConnInfoFromMemberlistNode(node))
 
 			return true
 		})
 
-		return members[:i], nil
+		return doneMembers(), nil
 	}
 }
 

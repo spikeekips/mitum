@@ -67,25 +67,22 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 		return nil, nil, errors.Errorf("zero")
 	}
 
-	ncis := make([]NodeConnInfo, n)
-	reports := make([]func(error), n)
+	addNcis, doneNcis := util.CompactAppendSlice[NodeConnInfo](n)
+	addReports, doneReports := util.CompactAppendSlice[func(error)](n)
 
 	var last string
 
 	switch i, nci, report, err := p.pick(""); {
 	case err != nil:
 		return nil, nil, err
+	case n == 1:
+		return []NodeConnInfo{nci}, []func(error){report}, nil
 	default:
 		last = i
-		ncis[0] = nci
-		reports[0] = report
-	}
 
-	if n == 1 {
-		return ncis, reports, nil
+		_ = addNcis(nci)
+		_ = addReports(report)
 	}
-
-	i := 1
 
 	for {
 		id, nci, report, err := p.pick(last)
@@ -93,23 +90,22 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 			break
 		}
 
-		ncis[i] = nci
-		reports[i] = report
+		_ = addNcis(nci)
 
-		i++
-
-		if i == n {
+		if addReports(report) {
 			break
 		}
 
 		last = id
 	}
 
-	if len(ncis[:i]) < 1 {
+	ncis := doneNcis()
+
+	if len(ncis) < 1 {
 		return nil, nil, ErrEmptySyncSources.WithStack()
 	}
 
-	return ncis[:i], reports[:i], nil
+	return ncis, doneReports(), nil
 }
 
 func (p *SyncSourcePool) IsInFixed(node base.Address) bool {

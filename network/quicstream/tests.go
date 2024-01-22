@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
@@ -275,21 +276,18 @@ func RandomConnInfo() ConnInfo {
 func RandomConnInfos(n int) []ConnInfo {
 	m := map[string]struct{}{}
 
-	us := make([]ConnInfo, n)
+	addUS, doneUS := util.CompactAppendSlice[ConnInfo](n)
 
-	var i int
 	for {
 		ci := randomConnInfo()
 		if _, found := m[ci.String()]; found {
 			continue
 		}
 
-		us[i] = ci
 		m[ci.String()] = struct{}{}
-		i++
 
-		if i == n {
-			return us
+		if addUS(ci) {
+			return doneUS()
 		}
 	}
 }

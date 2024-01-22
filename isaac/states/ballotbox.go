@@ -233,9 +233,9 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint) ([]base.Address, bool,
 	default:
 		voted := vr.copyVotedLocked(suf)
 
-		filtered := make([]base.Address, suf.Len())
+		addFiltered, doneFiltered := util.CompactAppendSlice[base.Address](suf.Len())
 		sufnodes := suf.Nodes()
-		var n int
+
 		_ = util.FilterSlice(sufnodes, func(i base.Node) bool {
 			if i.Address().Equal(box.local) {
 				return false
@@ -244,14 +244,13 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint) ([]base.Address, bool,
 			_, found := voted[i.Address().String()]
 
 			if !found {
-				filtered[n] = i.Address()
-				n++
+				_ = addFiltered(i.Address())
 			}
 
 			return !found
 		})
 
-		return filtered[:n], true, nil
+		return doneFiltered(), true, nil
 	}
 }
 
@@ -496,6 +495,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 	}
 
 	var filtered []base.Voteproof
+
 	_ = box.lsp.Get(func(last isaac.LastPoint, isempty bool) error {
 		if isempty {
 			filtered = vps
@@ -503,19 +503,17 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 			return nil
 		}
 
-		nvps := make([]base.Voteproof, len(vps))
+		addFiltered, doneFiltered := util.CompactAppendSlice[base.Voteproof](3) //nolint:gomnd //...
 
-		var n int
 		for i := range vps {
 			if !isNewVoteproofWithSuffrageConfirmFunc(vr.isSuffrageConfirm())(last, vps[i]) {
 				continue
 			}
 
-			nvps[n] = vps[i]
-			n++
+			_ = addFiltered(vps[i])
 		}
 
-		filtered = nvps[:n]
+		filtered = doneFiltered()
 
 		return nil
 	})
@@ -982,15 +980,13 @@ func (*voterecords) sfs(voted map[string]base.BallotSignFact) (
 		return sfs, set, m
 	}
 
-	sfs = make([]base.BallotSignFact, len(voted))
-
-	var i int
+	addSFS, doneSFS := util.CompactAppendSlice[base.BallotSignFact](len(voted))
 
 	for k := range voted {
-		sfs[i] = voted[k]
-		i++
+		_ = addSFS(voted[k])
 	}
 
+	sfs = doneSFS()
 	set, m = base.CountBallotSignFacts(sfs)
 
 	return sfs, set, m
@@ -1322,17 +1318,13 @@ func sortBallotSignFactsByExpels(
 	signfacts map[string]base.BallotSignFact,
 	expels map[string][]base.SuffrageExpelOperation,
 ) [][3]interface{} {
-	sfs := make([]base.BallotSignFact, len(signfacts))
+	addSFS, doneSFS := util.CompactAppendSlice[base.BallotSignFact](len(signfacts))
 
-	{
-		var n int
-
-		for i := range signfacts {
-			sfs[n] = signfacts[i]
-
-			n++
-		}
+	for i := range signfacts {
+		_ = addSFS(signfacts[i])
 	}
+
+	sfs := doneSFS()
 
 	mw := map[string][3]interface{}{}
 	defer clear(mw)
@@ -1361,22 +1353,19 @@ func sortBallotSignFactsByExpels(
 		return nil
 	}
 
-	ms := make([][3]interface{}, len(mw))
-
-	var n int
+	addMS, doneMS := util.SortCompactAppendSlice[[3]interface{}](
+		len(mw),
+		func(i, j [3]interface{}) bool {
+			return len(i[0].([]base.SuffrageExpelFact)) > //nolint:forcetypeassert //...
+				len(j[0].([]base.SuffrageExpelFact)) //nolint:forcetypeassert //...
+		},
+	)
 
 	for i := range mw {
-		ms[n] = mw[i]
-
-		n++
+		_ = addMS(mw[i])
 	}
 
-	sort.Slice(ms, func(i, j int) bool {
-		return len(ms[i][0].([]base.SuffrageExpelFact)) > //nolint:forcetypeassert //...
-			len(ms[j][0].([]base.SuffrageExpelFact)) //nolint:forcetypeassert //...
-	})
-
-	return ms
+	return doneMS()
 }
 
 func extractExpelsFromBallot(
