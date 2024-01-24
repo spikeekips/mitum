@@ -190,6 +190,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	})
 
 	t.Run("in bwdb", func() {
+		t.NoError(bwdb.Write())
 		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 

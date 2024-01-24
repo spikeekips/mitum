@@ -26,6 +26,9 @@ type LeveldbBlockWrite struct {
 	laststates            *util.ShardedMap[string, base.Height]
 	stcache               util.GCache[string, [2]interface{}]
 	instateoperationcache util.LockedMap[string, bool]
+	batchAddf             func(func(leveldbstorage.LeveldbBatch), func(func() error) error) error
+	batchDonef            func(func(func() error) error) error
+	batchCancelf          func()
 	height                base.Height
 	sync.Mutex
 }
@@ -40,6 +43,8 @@ func NewLeveldbBlockWrite(
 
 	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8, nil)
 
+	batchAdd, batchDone, batchCancel := pst.BatchFunc(context.Background(), 1<<7, nil) // TODO configurable
+
 	return &LeveldbBlockWrite{
 		baseLeveldb:           newBaseLeveldb(pst, encs, enc),
 		height:                height,
@@ -49,6 +54,9 @@ func NewLeveldbBlockWrite(
 		proof:                 util.EmptyLocked[[3]interface{}](),
 		laststates:            laststates,
 		instateoperationcache: util.NewSingleLockedMap[string, bool](),
+		batchAddf:             batchAdd,
+		batchDonef:            batchDone,
+		batchCancelf:          batchCancel,
 	}
 }
 
@@ -71,7 +79,7 @@ func (db *LeveldbBlockWrite) Write() error {
 
 	db.laststates.Close()
 
-	return nil
+	return db.batchDone()
 }
 
 func (db *LeveldbBlockWrite) clean() {
@@ -87,6 +95,8 @@ func (db *LeveldbBlockWrite) clean() {
 	if db.laststates != nil {
 		db.laststates.Close()
 	}
+
+	db.batchCancelf()
 }
 
 func (db *LeveldbBlockWrite) Cancel() error {
@@ -113,16 +123,14 @@ func (db *LeveldbBlockWrite) SetStateCache(c util.GCache[string, [2]interface{}]
 }
 
 func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
-	if len(sts) < 1 {
+	switch i := len(sts); {
+	case i < 1:
 		return nil
+	case i == 1:
+		return db.setState(sts[0])
 	}
 
 	e := util.StringError("set states in TempLeveldbDatabase")
-
-	pst, err := db.st()
-	if err != nil {
-		return e.Wrap(err)
-	}
 
 	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
 	if err != nil {
@@ -135,23 +143,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 		st := sts[i]
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
-			if err := db.setState(st); err != nil {
-				return err
-			}
-
-			ops := st.Operations()
-
-			for j := range ops {
-				op := ops[j]
-
-				if err := pst.Put(leveldbInStateOperationKey(op), []byte(op.String()), nil); err != nil {
-					return err
-				}
-
-				db.instateoperationcache.SetValue(op.String(), true)
-			}
-
-			return nil
+			return db.setState(st)
 		}); err != nil {
 			return e.Wrap(err)
 		}
@@ -171,18 +163,6 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
-	pst, err := db.st()
-	if err != nil {
-		return err
-	}
-
-	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
-	if err != nil {
-		return err
-	}
-
-	defer worker.Close()
-
 	e := util.StringError("set operation")
 
 	for i := range ops {
@@ -191,21 +171,9 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 			return e.Errorf("empty operation hash")
 		}
 
-		if err := worker.NewJob(func(context.Context, uint64) error {
-			if err := pst.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
-				return e.Wrap(err)
-			}
-
-			return nil
-		}); err != nil {
+		if err := db.batchAdd(leveldbKnownOperationKey(op), op.Bytes()); err != nil {
 			return e.Wrap(err)
 		}
-	}
-
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
-		return e.Wrap(err)
 	}
 
 	return nil
@@ -281,11 +249,6 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
-	pst, err := db.st()
-	if err != nil {
-		return err
-	}
-
 	if _, err := db.proof.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		switch {
 		case isempty:
@@ -302,14 +265,12 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 		case err != nil:
 			return v, err
 		default:
-			if err := pst.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
+			if err := db.batchAdd(leveldbSuffrageProofKey(proof.SuffrageHeight()), b); err != nil {
 				return v, err
 			}
 
-			if err := pst.Put(
-				leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()),
-				b, nil,
-			); err != nil {
+			if err := db.batchAdd(
+				leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b); err != nil {
 				return v, err
 			}
 
@@ -376,11 +337,6 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return nil
 	}
 
-	pst, err := db.st()
-	if err != nil {
-		return e.Wrap(err)
-	}
-
 	b, err := EncodeFrameState(db.enc, st)
 	if err != nil {
 		return err
@@ -393,7 +349,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		db.updateLockedStates(st, db.policy)
 	}
 
-	if err := pst.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
+	if err := db.batchAdd(leveldbStateKey(st.Key()), b); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -401,7 +357,15 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		db.stcache.Set(st.Key(), [2]interface{}{st, true}, 0)
 	}
 
-	return nil
+	return util.TraverseSlice(st.Operations(), func(_ int, op util.Hash) error {
+		if err := db.batchAdd(leveldbInStateOperationKey(op), []byte(op.String())); err != nil {
+			return err
+		}
+
+		_ = db.instateoperationcache.SetValue(op.String(), true)
+
+		return nil
+	})
 }
 
 func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
@@ -426,6 +390,23 @@ func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked[
 		}
 
 		return st, nil
+	})
+}
+
+func (db *LeveldbBlockWrite) batchAdd(key, b []byte) error {
+	return db.batchAddf(
+		func(batch leveldbstorage.LeveldbBatch) {
+			batch.Put(key, b)
+		},
+		func(f func() error) error {
+			return f()
+		},
+	)
+}
+
+func (db *LeveldbBlockWrite) batchDone() error {
+	return db.batchDonef(func(f func() error) error {
+		return f()
 	})
 }
 

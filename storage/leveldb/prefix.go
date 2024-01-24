@@ -1,6 +1,7 @@
 package leveldbstorage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -158,6 +159,20 @@ func (st *PrefixStorage) Batch(batch *PrefixStorageBatch, opt *leveldbOpt.WriteO
 	return st.Storage.Batch(batch.Batch, opt)
 }
 
+func (st *PrefixStorage) BatchFunc(
+	ctx context.Context,
+	batchsize uint64,
+	wo *leveldbOpt.WriteOptions,
+) (
+	func(func(LeveldbBatch), func(func() error) error) error,
+	func(func(func() error) error) error,
+	func(),
+) {
+	return st.Storage.BatchFuncWithNewBatch(ctx, batchsize, wo, func() LeveldbBatch {
+		return st.NewBatch()
+	})
+}
+
 func (st *PrefixStorage) key(b []byte) []byte {
 	st.RLock()
 	defer st.RUnlock()
@@ -206,8 +221,12 @@ func (b *PrefixStorageBatch) Delete(key []byte) {
 	b.Batch.Delete(util.ConcatBytesSlice(b.prefix, key))
 }
 
+func (b *PrefixStorageBatch) LBatch() *leveldb.Batch {
+	return b.Batch
+}
+
 func RemoveByPrefix(st *Storage, prefix []byte) error {
-	batch := &leveldb.Batch{}
+	var batch leveldb.Batch
 
 	if err := st.Iter(
 		leveldbutil.BytesPrefix(prefix),
@@ -221,5 +240,5 @@ func RemoveByPrefix(st *Storage, prefix []byte) error {
 		return errors.Errorf("remove prefix storage")
 	}
 
-	return st.Batch(batch, nil)
+	return st.Batch(&batch, nil)
 }

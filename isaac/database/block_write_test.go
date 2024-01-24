@@ -103,6 +103,7 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 	mp := base.NewDummyBlockMap(manifest)
 	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
+	t.NoError(wst.Write())
 
 	rst, err := wst.TempDatabase()
 	t.NoError(err)
@@ -172,6 +173,7 @@ func (t *testLeveldbBlockWrite) TestSetOperations() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
 	t.NoError(wst.SetBlockMap(mp))
+	t.NoError(wst.Write())
 
 	rst, err := wst.TempDatabase()
 	t.NoError(err)

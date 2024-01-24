@@ -2,6 +2,7 @@ package leveldbstorage
 
 import (
 	"bytes"
+	"context"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -195,6 +196,120 @@ func (st *Storage) Clean() error {
 	return nil
 }
 
+func (st *Storage) BatchFunc(
+	ctx context.Context,
+	batchsize uint64,
+	wo *leveldbOpt.WriteOptions,
+) (
+	func(func(LeveldbBatch), func(func() error) error) error,
+	func(func(func() error) error) error,
+	func(),
+) {
+	return st.BatchFuncWithNewBatch(ctx, batchsize, wo, func() LeveldbBatch {
+		return NewDefaultLeveldbBatch(&leveldb.Batch{})
+	})
+}
+
+func (st *Storage) BatchFuncWithNewBatch(
+	ctx context.Context,
+	batchsize uint64,
+	wo *leveldbOpt.WriteOptions,
+	newBatch func() LeveldbBatch,
+) (
+	add func(func(LeveldbBatch), func(func() error) error) error,
+	done func(func(func() error) error) error,
+	cancel func(),
+) {
+	wctx, wctxcancel := context.WithCancel(ctx)
+
+	batchlocked := util.NewLocked(newBatch())
+	cancel = func() {
+		wctxcancel()
+
+		_ = batchlocked.Empty(func(batch LeveldbBatch, isempty bool) error {
+			if !isempty {
+				batch.Reset()
+			}
+
+			return nil
+		})
+	}
+	savef := func(batch LeveldbBatch) func() error {
+		return func() error {
+			return st.Batch(batch.LBatch(), wo)
+		}
+	}
+	putf := st.batchAddFunc(batchsize, batchlocked, savef, newBatch)
+	donef := st.batchDoneFunc(batchlocked, savef, newBatch)
+
+	return func(put func(LeveldbBatch), doBatch func(func() error) error) error {
+			if err := wctx.Err(); err != nil {
+				return err
+			}
+
+			if err := putf(put, doBatch); err != nil {
+				cancel()
+
+				return err
+			}
+
+			return nil
+		},
+		func(doBatch func(func() error) error) error {
+			if err := wctx.Err(); err != nil {
+				return err
+			}
+
+			defer cancel()
+
+			return donef(doBatch)
+		}, cancel
+}
+
+func (st *Storage) batchAddFunc(
+	batchsize uint64,
+	batchlocked *util.Locked[LeveldbBatch],
+	savef func(LeveldbBatch) func() error,
+	newBatch func() LeveldbBatch,
+) func(func(LeveldbBatch), func(func() error) error) error {
+	return func(put func(LeveldbBatch), doBatch func(func() error) error) error {
+		_, err := batchlocked.Set(func(batch LeveldbBatch, isempty bool) (newbatch LeveldbBatch, _ error) {
+			if isempty {
+				return nil, errors.Errorf("empty batch")
+			}
+
+			put(batch)
+
+			if uint64(batch.Len()) < batchsize {
+				return nil, util.ErrLockedSetIgnore
+			}
+
+			return newBatch(), doBatch(savef(batch))
+		})
+
+		return err
+	}
+}
+
+func (st *Storage) batchDoneFunc(
+	batchlocked *util.Locked[LeveldbBatch],
+	savef func(LeveldbBatch) func() error,
+	newBatch func() LeveldbBatch,
+) func(func(func() error) error) error {
+	return func(doBatch func(func() error) error) error {
+		_, err := batchlocked.Set(func(batch LeveldbBatch, isempty bool) (LeveldbBatch, error) {
+			switch {
+			case isempty, batch.Len() < 1:
+				return nil, util.ErrLockedSetIgnore
+			default:
+				return newBatch(), doBatch(savef(batch))
+			}
+		})
+
+		return err
+	}
+}
+
 func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 	if _, err := st.db(); err != nil {
 		return 0, err
@@ -202,7 +317,7 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 
 	var removed int
 
-	batch := &leveldb.Batch{}
+	var batch leveldb.Batch
 	defer batch.Reset()
 
 	if r == nil {
@@ -236,7 +351,7 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 			break
 		}
 
-		if err := st.Batch(batch, nil); err != nil {
+		if err := st.Batch(&batch, nil); err != nil {
 			return removed, err
 		}
 
@@ -246,4 +361,26 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 	}
 
 	return removed, nil
+}
+
+type LeveldbBatch interface {
+	Put([]byte, []byte)
+	Delete([]byte)
+	Len() int
+	Reset()
+	LBatch() *leveldb.Batch
+}
+
+type DefaultLeveldbBatch struct {
+	*leveldb.Batch
+}
+
+func NewDefaultLeveldbBatch(b *leveldb.Batch) *DefaultLeveldbBatch {
+	return &DefaultLeveldbBatch{
+		Batch: b,
+	}
+}
+
+func (b *DefaultLeveldbBatch) LBatch() *leveldb.Batch {
+	return b.Batch
 }
