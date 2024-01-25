@@ -250,6 +250,11 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
 	if _, err := db.proof.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		switch {
 		case isempty:
@@ -266,12 +271,12 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 		case err != nil:
 			return v, err
 		default:
-			if err := db.batchAdd(leveldbSuffrageProofKey(proof.SuffrageHeight()), b); err != nil {
+			if err := pst.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
 				return v, err
 			}
 
-			if err := db.batchAdd(
-				leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b); err != nil {
+			if err := pst.Put(
+				leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
 				return v, err
 			}
 
