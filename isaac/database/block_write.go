@@ -43,7 +43,8 @@ func NewLeveldbBlockWrite(
 
 	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8, nil)
 
-	batchAdd, batchDone, batchCancel := pst.BatchFunc(context.Background(), 1<<7, nil) // TODO configurable
+	batchAdd, batchDone, batchCancel := pst.BatchFunc(
+		context.Background(), 1<<7, nil) //nolint:gomnd // TODO configurable
 
 	return &LeveldbBlockWrite{
 		baseLeveldb:           newBaseLeveldb(pst, encs, enc),

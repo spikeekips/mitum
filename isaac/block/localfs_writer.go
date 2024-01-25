@@ -548,7 +548,7 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
 
-	var f io.WriteCloser
+	var f io.Writer
 
 	switch i, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
 	case err != nil:
@@ -565,6 +565,8 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWr
 			f = i
 		}
 	}
+
+	f = util.NewBufferedWriter(f, 1<<13) //nolint:gomnd // TODO: configurable
 
 	return util.NewHashChecksumWriterWithWriter(fname, f, sha256.New()), nil
 }

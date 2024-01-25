@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"os"
@@ -92,4 +93,36 @@ func (s *BufferedResetReader) Read(p []byte) (int, error) {
 	}
 
 	return s.Reader.Read(p) //nolint:wrapcheck //...
+}
+
+type BufferedWriter struct {
+	w io.Writer
+	*bufio.Writer
+}
+
+func NewBufferedWriter(w io.Writer, size int) *BufferedWriter {
+	return &BufferedWriter{
+		w:      w,
+		Writer: bufio.NewWriterSize(w, size),
+	}
+}
+
+func (w *BufferedWriter) Close() error {
+	if err := w.Writer.Flush(); err != nil {
+		return errors.WithStack(err)
+	}
+
+	if i, ok := w.w.(interface{ Flush() error }); ok {
+		if err := i.Flush(); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	if i, ok := w.w.(io.Closer); ok {
+		if err := i.Close(); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
 }

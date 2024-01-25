@@ -1,6 +1,8 @@
 package util
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"io"
 	"strings"
@@ -65,4 +67,30 @@ func (t *testChecksumReader) TestChecksumBeforeReadAll() {
 
 func TestChecksumReader(t *testing.T) {
 	suite.Run(t, new(testChecksumReader))
+}
+
+type testChecksumWriter struct {
+	suite.Suite
+}
+
+func (t *testChecksumWriter) TestFlush() {
+	s := UUID().Bytes()
+
+	checksum := SHA256Checksum(s)
+
+	ow := bytes.NewBuffer(nil)
+	bw := bufio.NewWriterSize(ow, len(s))
+
+	cw := NewHashChecksumWriterWithWriter("showme", bw, sha256.New())
+	_, err := cw.Write(s)
+	t.NoError(err)
+	cw.Close()
+
+	t.Equal(checksum, cw.Checksum())
+
+	t.Equal(s, ow.Bytes())
+}
+
+func TestChecksumWriter(t *testing.T) {
+	suite.Run(t, new(testChecksumWriter))
 }

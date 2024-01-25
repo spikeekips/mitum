@@ -50,6 +50,12 @@ func NewHashChecksumWriter(h hash.Hash) *HashChecksumWriter {
 }
 
 func (w *HashChecksumWriter) Close() error {
+	if i, ok := w.w.(interface{ Flush() error }); ok {
+		if err := i.Flush(); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
 	if i, ok := w.w.(io.Closer); ok {
 		if err := i.Close(); err != nil {
 			return errors.WithStack(err)
