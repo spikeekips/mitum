@@ -1,8 +1,8 @@
 module github.com/spikeekips/mitum
 
-go 1.22
+go 1.22.0
 
-toolchain go1.22.1
+toolchain go1.23.2
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -34,6 +34,7 @@ require (
 	golang.org/x/mod v0.21.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0
+	gonum.org/v1/gonum v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

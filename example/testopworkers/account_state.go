@@ -1,0 +1,313 @@
+package testopsworkers
+
+import (
+	"slices"
+	"sync"
+
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
+)
+
+var AccountStateValueHint = hint.MustNewHint("test-account-state-value-v0.0.1")
+
+type AccountStateValue struct {
+	Address base.Publickey `json:"address"`
+	hint.BaseHinter
+	Balance int64 `json:"balance"`
+}
+
+func NewAccountStateValue(address base.Publickey, balance int64) AccountStateValue {
+	return AccountStateValue{
+		BaseHinter: hint.NewBaseHinter(AccountStateValueHint),
+		Address:    address,
+		Balance:    balance,
+	}
+}
+
+func (s AccountStateValue) HashBytes() []byte {
+	return util.ConcatBytesSlice(
+		s.Address.Bytes(),
+		util.Int64ToBytes(s.Balance),
+	)
+}
+
+func (s AccountStateValue) IsValid([]byte) error {
+	if err := s.BaseHinter.IsValid(AccountStateValueHint.Type().Bytes()); err != nil {
+		return err
+	}
+
+	return util.CheckIsValiders(nil, false, s.Address)
+}
+
+type accountStateValueJSONUnmarshaler struct {
+	Address string `json:"address"`
+	Balance int64  `json:"balance"`
+}
+
+func (s *AccountStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u accountStateValueJSONUnmarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	switch i, err := base.DecodePublickeyFromString(u.Address, enc); {
+	case err != nil:
+		return err
+	default:
+		s.Address = i
+	}
+
+	s.Balance = u.Balance
+
+	return nil
+}
+
+func AccountStateKey(address base.Publickey) string {
+	if address == nil {
+		return ""
+	}
+
+	return "ta-" + address.String()
+}
+
+type AccountStateMergeValue struct {
+	key string
+	AccountStateValue
+}
+
+func NewAccountStateMergeValue(address base.Publickey, balance int64) (v AccountStateMergeValue, _ error) {
+	switch {
+	case address == nil:
+		return v, errors.Errorf("empty address")
+	case balance == 0:
+		return v, errors.Errorf("zero balance")
+	default:
+		return AccountStateMergeValue{
+			key:               AccountStateKey(address),
+			AccountStateValue: NewAccountStateValue(address, balance),
+		}, nil
+	}
+}
+
+func (v AccountStateMergeValue) Key() string {
+	return v.key
+}
+
+func (v AccountStateMergeValue) Value() base.StateValue {
+	return v.AccountStateValue
+}
+
+func (v AccountStateMergeValue) Merger(prev base.StateValue) (StateMerger, error) {
+	var av AccountStateValue
+
+	if prev != nil {
+		switch i, err := util.AssertInterfaceValue[AccountStateValue](prev); {
+		case err != nil:
+			return nil, err
+		default:
+			av = i
+		}
+	}
+
+	return NewAccountStateMerger(v.key, av), nil
+}
+
+type AccountStateMerger struct {
+	address base.Publickey
+	prev    AccountStateValue
+	sync.Mutex
+	prepops []uint64
+	key     string
+	sum     int64
+	lastop  *uint64
+}
+
+func NewAccountStateMerger(key string, prev AccountStateValue) *AccountStateMerger {
+	var address base.Publickey
+
+	if prev.Address != nil {
+		address = prev.Address
+	}
+
+	return &AccountStateMerger{
+		key:     key,
+		address: address,
+		prev:    prev,
+	}
+}
+
+func (m *AccountStateMerger) Key() string {
+	return m.key
+}
+
+func (m *AccountStateMerger) Clone() StateMerger {
+	return &AccountStateMerger{
+		address: m.address,
+		prev:    m.prev,
+		prepops: slices.Clone(m.prepops),
+		key:     m.key,
+		sum:     m.sum,
+		lastop:  m.lastop,
+	}
+}
+
+func (m *AccountStateMerger) Close() (base.StateValue, error) {
+	defer func() {
+		m.lastop = nil
+
+		clear(m.prepops)
+	}()
+
+	merged := m.prev
+
+	if merged.Address == nil {
+		merged.Address = m.address
+	}
+
+	merged.Balance += m.sum
+
+	return merged, nil
+}
+
+func (m *AccountStateMerger) Merge(op uint64, value base.StateValue) (
+	commit func() error,
+	unmergeOp uint64,
+	_ error,
+) {
+	m.Lock()
+	defer m.Unlock()
+
+	unmergeOp = op
+
+	var ac AccountStateValue
+
+	switch i, err := m.assertValue(value); {
+	case err != nil:
+		return nil, unmergeOp, err
+	default:
+		ac = i
+	}
+
+	if ac.Balance < 0 {
+		if m.prev.Balance+ac.Balance < 0 {
+			return nil, unmergeOp, nil
+		}
+
+		if m.lastop != nil {
+			lastMerged := *m.lastop
+
+			switch {
+			case op == lastMerged:
+				return nil, unmergeOp, nil
+			case op > lastMerged:
+				m.addPrepOps(op)
+
+				return nil, unmergeOp, nil
+			default:
+				m.addPrepOps(lastMerged)
+
+				unmergeOp = lastMerged
+			}
+		}
+	}
+
+	return func() error {
+		m.Lock()
+		defer m.Unlock()
+
+		if m.address == nil {
+			m.address = ac.Address
+		}
+
+		if ac.Balance < 0 {
+			m.lastop = &op
+		}
+
+		m.sum += ac.Balance
+
+		return nil
+	}, unmergeOp, nil
+}
+
+func (m *AccountStateMerger) Unmerge(op uint64, value base.StateValue) (
+	commit func() error,
+	mergeOp uint64,
+	_ error,
+) {
+	m.Lock()
+	defer m.Unlock()
+
+	mergeOp = op
+
+	var ac AccountStateValue
+
+	switch i, err := m.assertValue(value); {
+	case err != nil:
+		return nil, mergeOp, err
+	default:
+		ac = i
+	}
+
+	if ac.Balance < 0 {
+		if m.prev.Balance+ac.Balance < 0 {
+			return nil, mergeOp, nil
+		}
+
+		_ = util.TraverseSlice(m.prepops, func(_ int, s uint64) error {
+			if s > op {
+				mergeOp = s
+
+				return util.ErrFound
+			}
+
+			return nil
+		})
+	}
+
+	return func() error {
+		m.Lock()
+		defer m.Unlock()
+
+		if ac.Balance < 0 {
+			if m.lastop != nil && *m.lastop == op {
+				m.lastop = nil
+			}
+
+			if slices.Index(m.prepops, op) < 0 {
+				m.prepops = append(m.prepops, op)
+
+				slices.Sort(m.prepops)
+			}
+		}
+
+		m.sum -= ac.Balance
+
+		return nil
+	}, mergeOp, nil
+}
+
+func (m *AccountStateMerger) assertValue(value base.StateValue) (ac AccountStateValue, _ error) {
+	switch i, err := util.AssertInterfaceValue[AccountStateValue](value); {
+	case err != nil:
+		return ac, err
+	case i.Balance == 0:
+		return ac, errors.Errorf("zero balance")
+	case m.address != nil && !m.address.Equal(i.Address):
+		return ac, errors.Errorf("address not matched")
+	default:
+		return i, nil
+	}
+}
+
+func (m *AccountStateMerger) addPrepOps(op uint64) {
+	if slices.Index(m.prepops, op) >= 0 {
+		return
+	}
+
+	m.prepops = append(m.prepops, op)
+
+	slices.Sort(m.prepops)
+}
