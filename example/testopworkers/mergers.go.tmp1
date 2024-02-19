@@ -1,0 +1,587 @@
+package testopsworkers
+
+import (
+	"context"
+	"slices"
+
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
+)
+
+var ErrPhaseStatesMergerAlreadyDone0 = util.NewIDError("phase states merger already done")
+
+type DistributedStatesMerger0 struct {
+	*logging.Logging
+	others               []string
+	fail                 uint64
+	newDistributedWorker func(context.Context) (distributedWorker, error)
+	getStateValue        func(key string) (base.StateValue, bool, error)
+	broadcastPhaseDone   func(phase int, mergedOps, unmergedOps []uint64) error
+	mapsize              uint64
+	mergers              util.LockedMap[string /* state key */, StateMerger]
+	valuespool           util.LockedMap[uint64 /* opindex */, []StateMergeValue]
+	statesMergedOps      util.LockedMap[string /* state key */, []uint64 /* ops */]
+	isDonePhases         util.LockedMap[int /* phase */, bool /* done */]
+	otherDonePhases      map[int] /* phase */ map[string] /* other */ [2][]uint64
+	otherHasNewPhases    map[int] /* phase */ map[string] /* other */ bool /* has new merge/unmerge ops */
+	mergedOps            map[uint64] /* opindex */ struct{}
+	phases               [] /* phase */ *phaseStatesMerger
+	gctx                 func() context.Context
+	gcancel              func(error)
+	lastDonePhase        int
+	isFinished           bool
+}
+
+func newDistributedStatesMerger0(
+	ctx context.Context,
+	others []string,
+	fail uint64,
+	newDistributedWorker func(context.Context) (distributedWorker, error),
+	getStateValue func(key string) (base.StateValue, bool, error),
+	mapsize uint64,
+) (*DistributedStatesMerger0, error) {
+	gctx, gcancel := context.WithCancelCause(ctx)
+
+	sm := &DistributedStatesMerger0{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "states-merger")
+		}),
+		others:               others,
+		fail:                 fail,
+		newDistributedWorker: newDistributedWorker,
+		getStateValue:        getStateValue,
+		mapsize:              mapsize,
+		gctx:                 func() context.Context { return gctx },
+		gcancel:              gcancel,
+		otherDonePhases:      map[int]map[string][2][]uint64{},
+		otherHasNewPhases:    map[int]map[string]bool{},
+		lastDonePhase:        -1,
+	}
+
+	switch i, err := util.NewShardedMap[string, StateMerger](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.mergers = i
+	}
+
+	switch i, err := util.NewShardedMap[uint64, []StateMergeValue](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.valuespool = i
+	}
+
+	switch i, err := util.NewShardedMap[string, []uint64](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.statesMergedOps = i
+	}
+
+	sm.isDonePhases = util.NewSingleLockedMap[int, bool]()
+	sm.mergedOps = map[uint64]struct{}{}
+
+	return sm, nil
+}
+
+func (sm *DistributedStatesMerger0) Done() error {
+	<-sm.gctx().Done()
+
+	return sm.gctx().Err()
+}
+
+func (sm *DistributedStatesMerger0) Cancel() {
+	sm.gcancel(nil)
+	sm.cancelPhases()
+	sm.clean()
+}
+
+func (sm *DistributedStatesMerger0) Merge(opindex uint64, values []StateMergeValue) error {
+	if _, created, _ := sm.valuespool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
+		if found {
+			return nil, util.ErrLockedSetIgnore
+		}
+
+		return values, nil
+	}); !created {
+		return errors.Errorf("already initial merged, %d", opindex)
+	}
+
+	return sm.merge(0, opindex, values)
+}
+
+func (sm *DistributedStatesMerger0) DoneFromOther(other string, phase int, mergedOps, unmergedOps []uint64) error {
+	if err := sm.validateDoneFromOther(other, phase, mergedOps, unmergedOps); err != nil {
+		return err
+	}
+
+	_ = sm.isDonePhases.Get(phase, func(isdone, found bool) error {
+		if sm.isFinished { // NOTE if finished, ignore
+			return nil
+		}
+
+		if phase < sm.lastDonePhase-1 {
+			return errors.Errorf("old phase")
+		}
+
+		if !found || !isdone {
+			var m map[string][2][]uint64
+
+			switch i, phasefound := sm.otherDonePhases[phase]; {
+			case !phasefound:
+				m = map[string][2][]uint64{}
+			default:
+				if _, otherfound := m[other]; otherfound {
+					return nil
+				}
+
+				m = i
+			}
+
+			m[other] = [2][]uint64{mergedOps, unmergedOps}
+
+			sm.otherDonePhases[phase] = m
+
+			return nil
+		}
+
+		// NOTE ok, local is done and check whether can finish with others
+		var others map[string][2][]uint64
+
+		switch m, phasefound := sm.otherDonePhases[phase]; {
+		case !phasefound:
+			others = map[string][2][]uint64{}
+		default:
+			others = m
+		}
+
+		if _, otherfound := others[other]; !otherfound {
+			others[other] = [2][]uint64{mergedOps, unmergedOps}
+		}
+
+		sm.otherDonePhases[phase] = others
+
+		addNewMergedOps, doneNewMergedOps := util.UniqCompactAppendSlice[uint64](sm.valuespool.Len())
+		addNewUnmergedOps, doneNewUnmergedOps := util.UniqCompactAppendSlice[uint64](sm.valuespool.Len())
+
+		var hasNew map[string]bool
+
+		switch i, found := sm.otherHasNewPhases[phase]; {
+		case !found:
+			hasNew = map[string]bool{}
+		default:
+			hasNew = i
+		}
+
+		for o := range others {
+			if _, found := hasNew[o]; found {
+				continue
+			}
+
+			m, u := sm.findNewXMerges(others[o][0], others[o][1])
+
+			switch {
+			case len(m) < 1 && len(u) < 1:
+				hasNew[o] = false
+			default:
+				hasNew[o] = true
+
+				for i := range m {
+					addNewMergedOps(m[i])
+				}
+
+				for i := range u {
+					addNewUnmergedOps(u[i])
+				}
+			}
+		}
+
+		sm.otherHasNewPhases[phase] = hasNew
+
+		return sm.doneWithOthers(phase, doneNewMergedOps(), doneNewUnmergedOps())
+	})
+
+	return nil
+}
+
+func (sm *DistributedStatesMerger0) merge(phase int, opindex uint64, values []StateMergeValue) error {
+	switch psm, err := sm.phaseMerger(phase); {
+	case err != nil:
+		return err
+	default:
+		return psm.Merge(opindex, values)
+	}
+}
+
+func (sm *DistributedStatesMerger0) unmerge(phase int, opindex uint64, values []StateMergeValue) error {
+	switch psm, err := sm.phaseMerger(phase); {
+	case err != nil:
+		return err
+	default:
+		return psm.Unmerge(opindex, values)
+	}
+}
+
+func (sm *DistributedStatesMerger0) phaseDone(
+	phase int,
+	mergedOps, unmergedOps []uint64,
+	updated func(phaseStatesMergerUpdatedFunc) error,
+) error {
+	if _, _, err := sm.isDonePhases.Set(phase, func(isdone, found bool) (bool, error) {
+		switch {
+		case sm.isFinished:
+			return true, nil
+		case isdone:
+			return false, ErrPhaseStatesMergerAlreadyDone0.WithStack()
+		}
+
+		if err := updated(sm.phaseDoneUpdate(phase, mergedOps, unmergedOps)); err != nil {
+			return false, err
+		}
+
+		if err := sm.doneWithOthers(phase, nil, nil); err != nil {
+			return false, err
+		}
+
+		if _, err := sm.checkFinished(phase); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}); err != nil {
+		return err
+	}
+
+	return sm.broadcastPhaseDone(phase, mergedOps, unmergedOps)
+}
+
+func (sm *DistributedStatesMerger0) clean() {
+	clear(sm.phases)
+	clear(sm.others)
+	clear(sm.otherDonePhases)
+
+	sm.isDonePhases.Close()
+	sm.mergers.Close()
+	sm.valuespool.Close()
+	sm.statesMergedOps.Close()
+}
+
+func (sm *DistributedStatesMerger0) doneWithOthers(
+	phase int,
+	mergedOps, unmergedOps []uint64,
+) error {
+	l := sm.Log().With().Int("phase", phase).Logger()
+
+	l.Debug().
+		Uints64("merged_ops", mergedOps).
+		Uints64("unmerged_ops", unmergedOps).
+		Msg("done with others")
+
+	if len(mergedOps) > 0 || len(unmergedOps) > 0 {
+		l.Debug().Msg("found new merge/unmered ops; next phase")
+
+		if err := sm.xMergeFromOther(phase+1, mergedOps, unmergedOps); err != nil {
+			return err
+		}
+	}
+
+	if !sm.isEnough(phase) {
+		l.Debug().Msg("not enough with others")
+
+		return nil
+	}
+
+	l.Debug().Msg("enough with others")
+
+	return sm.merge(phase+1, 0, nil)
+}
+
+func (sm *DistributedStatesMerger0) checkFinished(phase int) (bool, error) {
+	l := sm.Log().With().Int("phase", phase).Logger()
+
+	switch {
+	case !sm.isEnough(phase):
+		l.Debug().Msg("not enough with others")
+
+		return false, nil
+	case !sm.canFinish(phase):
+		l.Debug().Msg("not enough finished with others")
+
+		return false, nil
+	}
+
+	l.Debug().Msg("finished")
+
+	go sm.notifyManager()
+
+	sm.isFinished = true
+
+	return true, nil
+}
+
+func (sm *DistributedStatesMerger0) xMergeFromOther(phase int, mergedOps, unmergedOps []uint64) error {
+	var ew distributedWorker
+
+	switch i, err := sm.newDistributedWorker(sm.gctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
+
+	for i := range mergedOps {
+		opindex := mergedOps[i]
+
+		switch values, found := sm.valuespool.Value(opindex); {
+		case !found:
+			return util.ErrNotFound.Errorf("unknown merged op, %d", opindex)
+		default:
+			if err := ew.NewJob(func(context.Context, uint64) error {
+				return sm.merge(phase, opindex, values)
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	for i := range unmergedOps {
+		opindex := unmergedOps[i]
+
+		switch values, found := sm.valuespool.Value(opindex); {
+		case !found:
+			return util.ErrNotFound.Errorf("unknown unmerged op, %d", opindex)
+		default:
+			if err := ew.NewJob(func(context.Context, uint64) error {
+				return sm.unmerge(phase, opindex, values)
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	ew.Done()
+
+	return ew.Wait()
+}
+
+func (sm *DistributedStatesMerger0) findNewXMerges(mergedOps, unmergedOps []uint64) ([]uint64, []uint64) {
+	okmerge := func(op uint64) bool {
+		_, found := sm.mergedOps[op]
+
+		return !found
+	}
+	okunmerge := func(op uint64) bool {
+		_, found := sm.mergedOps[op]
+
+		return found
+	}
+
+	addMerge, doneMerge := util.UniqCompactAppendSlice[uint64](len(mergedOps) + len(unmergedOps))
+	addUnmerge, doneUnmerge := util.UniqCompactAppendSlice[uint64](len(mergedOps) + len(unmergedOps))
+
+	for i := range mergedOps {
+		if op := mergedOps[i]; okmerge(op) {
+			addMerge(op)
+		}
+	}
+
+	for i := range unmergedOps {
+		if op := unmergedOps[i]; okunmerge(op) {
+			addUnmerge(op)
+		}
+	}
+
+	return doneMerge(), doneUnmerge()
+}
+
+func (sm *DistributedStatesMerger0) validateDoneFromOther(other string, phase int, mergedOps, unmergedOps []uint64) error {
+	switch {
+	case phase < 0:
+		return util.ErrInvalid.Errorf("under zero phase")
+	case slices.Index(sm.others, other) < 0:
+		return errors.Errorf("unknown other, %q", other)
+	}
+
+	for i := range mergedOps {
+		op := mergedOps[i]
+
+		if slices.Index(unmergedOps, op) >= 0 {
+			return errors.Errorf("duplicated opindex found in unmerged ops")
+		}
+
+		if _, found := sm.valuespool.Value(op); !found {
+			return util.ErrNotFound.Errorf("unknown merged op, %d", op)
+		}
+	}
+
+	for i := range unmergedOps {
+		op := unmergedOps[i]
+
+		if _, found := sm.valuespool.Value(op); !found {
+			return util.ErrNotFound.Errorf("unknown unmerged op, %d", op)
+		}
+	}
+
+	return nil
+}
+
+func (sm *DistributedStatesMerger0) phaseMerger(phase int) (psm *phaseStatesMerger, _ error) {
+	err := sm.isDonePhases.Get(phase, func(isdone, found bool) error {
+		if isdone {
+			return ErrPhaseStatesMergerAlreadyDone0.WithStack()
+		}
+
+		l := len(sm.phases)
+
+		switch {
+		case l <= phase:
+		case l == phase+1:
+			psm = sm.phases[phase]
+
+			return nil
+		default:
+			return ErrPhaseStatesMergerAlreadyDone0.WithStack()
+		}
+
+		switch i, err := sm.newPhaseStatesMerger(phase); {
+		case err != nil:
+			return err
+		default:
+			psm = i
+
+			phases := make([]*phaseStatesMerger, phase+1)
+			if l > 0 {
+				copy(phases, sm.phases)
+			}
+
+			phases[phase] = psm
+			sm.phases = phases
+
+			return nil
+		}
+	})
+
+	return psm, err
+}
+
+func (sm *DistributedStatesMerger0) newPhaseStatesMerger(phase int) (*phaseStatesMerger, error) {
+	var psm *phaseStatesMerger
+
+	switch i, err := newPhaseStatesMerger(
+		sm.gctx(),
+		sm.mergers.Value,
+		sm.valuespool.Value,
+		sm.newDistributedWorker,
+		sm.getStateValue,
+		sm.statesMergedOps.Value,
+		sm.mapsize,
+	); {
+	case err != nil:
+		return nil, err
+	default:
+		psm = i
+	}
+
+	go func() {
+		mergedOps, unmergedOps, updated, err := psm.Done()
+		if err != nil {
+			sm.gcancel(err)
+
+			return
+		}
+
+		if err := sm.phaseDone(phase, mergedOps, unmergedOps, updated); err != nil {
+			sm.gcancel(err)
+		}
+	}()
+
+	return psm, nil
+}
+
+func (sm *DistributedStatesMerger0) phaseDoneUpdate(
+	phase int,
+	mergedOps, unmergedOps []uint64,
+) phaseStatesMergerUpdatedFunc {
+	return func(key string, merger StateMerger, mergedOps []uint64) error {
+		_ = sm.mergers.SetValue(key, merger)
+
+		_, _, _, _ = sm.statesMergedOps.SetOrRemove(key, func(ops []uint64, found bool) ([]uint64, bool, error) {
+			if len(ops) > 0 {
+				for i := range ops {
+					if op := ops[i]; slices.Index(mergedOps, op) < 0 {
+						delete(sm.mergedOps, op)
+					}
+				}
+			}
+
+			if len(mergedOps) < 1 {
+				return nil, true, nil // NOTE remove existing ops
+			}
+
+			// NOTE store all the merged ops
+			for i := range mergedOps {
+				op := mergedOps[i]
+
+				if _, found := sm.mergedOps[op]; !found {
+					sm.mergedOps[op] = struct{}{}
+				}
+			}
+
+			return mergedOps, false, nil
+		})
+
+		// FIXME send to manager
+
+		return nil
+	}
+}
+
+func (sm *DistributedStatesMerger0) cancelPhases() {
+	_ = sm.isDonePhases.Traverse(func(phase int, isdone bool) bool {
+		if !isdone {
+			sm.phases[phase].Cancel()
+		}
+
+		return true
+	})
+}
+
+func (sm *DistributedStatesMerger0) notifyManager() {
+	sm.gcancel(nil)
+}
+
+func (sm *DistributedStatesMerger0) isEnough(phase int) bool {
+	h := sm.otherHasNewPhases[phase]
+
+	return uint64(len(h))+1 < uint64(len(sm.others))-sm.fail+1
+}
+
+func (sm *DistributedStatesMerger0) canFinish(phase int) bool {
+	if len(sm.others) < 1 {
+		return true
+	}
+
+	var hasNew map[string]bool
+
+	switch i, found := sm.otherHasNewPhases[phase]; {
+	case !found:
+		return false
+		hasNew = i
+	}
+
+	var c uint64
+
+	for o := range hasNew {
+		if hasNew[o] {
+			c++
+		}
+	}
+
+	return uint64(c)+1 >= uint64(len(sm.others))-sm.fail+1
+}

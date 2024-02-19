@@ -3,6 +3,7 @@ package testopsworkers
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -61,75 +62,53 @@ type (
 		values []StateMergeValue,
 		smNext serialWorkerAddNextJobFunc,
 	) error
-	phaseStatesMergerUpdatedFunc func(key string, _ StateMerger, operations []uint64) error
+	phaseStatesMergerUpdatedFunc func(key string, _ StateMerger, operations []uint64, maxMergersLength int) error
+	phaseStatesMergerDoneFunc    func() (
+		newlymerged, newlyunmerged []uint64,
+		newlyUpdated func(phaseStatesMergerUpdatedFunc) error,
+		_ error,
+	)
+)
+
+type xMergeFlag uint8
+
+const (
+	mergeFlag   xMergeFlag = 1
+	unmergeFlag xMergeFlag = 2
 )
 
 type phaseStatesMerger struct {
 	*logging.Logging
-	sourceMerger  func(key string) (StateMerger, bool)
-	valuespool    util.LockedMap[uint64 /* opindex */, []StateMergeValue]
-	mergedOps     util.LockedMap[string /* state key */, map[uint64] /* opindex */ uint64 /*swphase */]
-	newWorker     func(context.Context) (distributedWorker, error)
-	getStateValue func(string) (base.StateValue, bool, error)
-	eventf        func(name string, swphase, opindex uint64, format string, a ...any)
-	mapsize       uint64
-	mergers       *util.MultiKeysLockedMap[string /* state key */, StateMerger]
-	mergedStatus  util.LockedMap[uint64 /* opindex */, [3]uint64 /* initial, swphase, next; 1: merged 2: unmerged*/]
-	jobm          util.LockedMap[string, struct{}]
+	sourceMerger                          func(key string) (StateMerger, bool)
+	opValues                              func(opindex uint64) ([]StateMergeValue, bool)
+	mergedOps                             util.LockedMap[string /* state key */, map[uint64] /* opindex */ uint64 /*swphase */]
+	newWorker                             func(context.Context) (distributedWorker, error)
+	getStateValue                         func(string) (base.StateValue, bool, error)
+	prevMergedOps                         func(key string) ([]uint64, bool)
+	mapsize                               uint64
+	eventf                                func(name string, swphase, opindex uint64, format string, a ...any)
+	mergers                               *util.MultiKeysLockedMap[string /* state key */, StateMerger]
+	mergedStatus                          util.LockedMap[uint64 /* opindex */, [3]uint64 /* initial, swphase, next; 1: merged 2: unmerged*/]
+	jobm                                  util.LockedMap[string, struct{}]
+	Merge                                 statesMergerXMergeFunc
+	Unmerge                               statesMergerXMergeFunc
+	Done                                  phaseStatesMergerDoneFunc
+	Cancel                                func()
+	isPreviouslyMergedAtZeroSWPhaseFunc   func(uint64, uint64, []string) bool
+	isPreviouslyUnmergedAtZeroSWPhaseFunc func(uint64, uint64, []string) bool
 }
 
 func newPhaseStatesMerger(
 	ctx context.Context,
 	sourceMerger func(key string) (StateMerger, bool),
-	valuespool util.LockedMap[uint64, []StateMergeValue],
+	opValues func(opindex uint64) ([]StateMergeValue, bool),
 	newWorker func(context.Context) (distributedWorker, error),
 	getStateValue func(key string) (base.StateValue, bool, error),
+	prevMergedOps func(key string) ([]uint64, bool),
 	mapsize uint64,
-) (
-	_ *phaseStatesMerger,
-	merge, unmerge statesMergerXMergeFunc,
-	done func() (
-		newlymerged, newlyunmerged []uint64,
-		newlyUpdated func(phaseStatesMergerUpdatedFunc) error,
-		_ error,
-	),
-	cancel func(),
-	_ error,
-) {
-	var mergedStatus util.LockedMap[uint64, [3]uint64]
-
-	switch i, err := util.NewShardedMap[uint64, [3]uint64](mapsize, nil); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		mergedStatus = i
-	}
-
-	var mergedOps util.LockedMap[string, map[uint64]uint64]
-
-	switch i, err := util.NewShardedMap[string, map[uint64]uint64](mapsize, nil); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		mergedOps = i
-	}
-
-	var mergers util.LockedMap[string, StateMerger]
-
-	switch i, err := util.NewShardedMap[string, StateMerger](mapsize, nil); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		mergers = i
-	}
-
-	var jobm util.LockedMap[string, struct{}]
-
-	switch i, err := util.NewShardedMap[string, struct{}](mapsize, nil); {
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		jobm = i
+) (*phaseStatesMerger, error) {
+	if prevMergedOps == nil {
+		prevMergedOps = func(key string) ([]uint64, bool) { return nil, false }
 	}
 
 	sm := &phaseStatesMerger{
@@ -137,15 +116,40 @@ func newPhaseStatesMerger(
 			return zctx.Str("module", "phase-states-merger")
 		}),
 		sourceMerger:  sourceMerger,
-		mergers:       util.NewMultiKeysLockedMap[string, StateMerger](mergers),
-		valuespool:    valuespool,
-		mergedOps:     mergedOps,
+		opValues:      opValues,
 		newWorker:     newWorker,
 		getStateValue: getStateValue,
+		prevMergedOps: prevMergedOps,
 		mapsize:       mapsize,
 		eventf:        func(string, uint64, uint64, string, ...any) {},
-		mergedStatus:  mergedStatus,
-		jobm:          jobm,
+	}
+
+	switch i, err := util.NewShardedMap[uint64, [3]uint64](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.mergedStatus = i
+	}
+
+	switch i, err := util.NewShardedMap[string, map[uint64]uint64](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.mergedOps = i
+	}
+
+	switch i, err := util.NewShardedMap[string, StateMerger](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.mergers = util.NewMultiKeysLockedMap[string, StateMerger](i)
+	}
+
+	switch i, err := util.NewShardedMap[string, struct{}](mapsize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		sm.jobm = i
 	}
 
 	var swNewJob func(serialWorkerNewNextJobFunc) error
@@ -154,29 +158,30 @@ func newPhaseStatesMerger(
 
 	switch i, err := NewSerialWorkers(sm.newWorker); {
 	case err != nil:
-		return nil, nil, nil, nil, nil, err
+		return nil, err
 	default:
 		swNewJob, swDone, swCancel = i.New(ctx)
 	}
 
-	merge = sm.xMergeFunc("> merge", swNewJob, sm.smMergeValues, func(known bool) bool { return known })
-	unmerge = sm.xMergeFunc("< unmerge", swNewJob, sm.smUnmergeValues, func(known bool) bool { return !known })
+	sm.isPreviouslyMergedAtZeroSWPhaseFunc = sm.isPreviouslyXMergedAtZeroSWPhaseFunc(mergeFlag)
+	sm.isPreviouslyUnmergedAtZeroSWPhaseFunc = sm.isPreviouslyXMergedAtZeroSWPhaseFunc(unmergeFlag)
 
-	done = func() ([]uint64, []uint64, func(phaseStatesMergerUpdatedFunc) error, error) {
+	sm.Merge = sm.xMergeFunc(mergeFlag, swNewJob)
+	sm.Unmerge = sm.xMergeFunc(unmergeFlag, swNewJob)
+	sm.Done = func() ([]uint64, []uint64, func(phaseStatesMergerUpdatedFunc) error, error) {
 		if err := swDone(); err != nil {
 			return nil, nil, nil, err
 		}
 
 		return sm.doneMergers()
 	}
-
-	cancel = func() {
+	sm.Cancel = func() {
 		swCancel()
 
 		sm.clean()
 	}
 
-	return sm, merge, unmerge, done, cancel, nil
+	return sm, nil
 }
 
 func (sm *phaseStatesMerger) clean() {
@@ -184,12 +189,22 @@ func (sm *phaseStatesMerger) clean() {
 	sm.mergers.Close()
 }
 
-func (sm *phaseStatesMerger) xMergeFunc(
-	name string,
-	swNewJob serialWorkerAddNextJobFunc,
-	xsmMergef phaseStatesMergerXMergeStatesFunc,
-	ignoref func(known bool) bool,
-) statesMergerXMergeFunc {
+func (sm *phaseStatesMerger) xMergeFunc(xmf xMergeFlag, swNewJob serialWorkerAddNextJobFunc) statesMergerXMergeFunc {
+	var name string
+	var xsmMergef phaseStatesMergerXMergeStatesFunc
+	var ignoref func(known bool) bool
+
+	switch xmf {
+	case mergeFlag:
+		name = "> merge"
+		xsmMergef = sm.smXMergeValuesFunc(mergeFlag)
+		ignoref = func(known bool) bool { return known }
+	case unmergeFlag:
+		name = "< unmerge"
+		xsmMergef = sm.smXMergeValuesFunc(unmergeFlag)
+		ignoref = func(known bool) bool { return !known }
+	}
+
 	return func(opindex uint64, values []StateMergeValue) error {
 		if len(values) < 1 {
 			return swNewJob(nil)
@@ -203,86 +218,88 @@ func (sm *phaseStatesMerger) xMergeFunc(
 			opindex,
 			func(ctx context.Context, _, swphase uint64, smNext serialWorkerAddNextJobFunc) error {
 				sm.Log().Debug().Uint64("op", opindex).Interface("values", values).Msg(name)
+
 				return xsmMergef(ctx, swphase, opindex, values, smNext)
 			},
 		))
 	}
 }
 
-func (sm *phaseStatesMerger) smMergeValues(
-	ctx context.Context,
-	swphase, opindex uint64,
-	values []StateMergeValue,
-	smNext serialWorkerAddNextJobFunc,
-) error {
-	return sm.smXMergeValues(ctx, "merge", swphase, opindex, values, smNext, sm.smUnmergeValues, sm.mergeValues)
-}
+func (sm *phaseStatesMerger) smXMergeValuesFunc(xmf xMergeFlag) phaseStatesMergerXMergeStatesFunc {
+	var name string
+	var mergef func(_ context.Context, swphase, opindex uint64, values []StateMergeValue,
+		_ util.LockedMap[string, StateMerger]) (nextops []uint64, _ error)
+	var isAlreadyMerged func(uint64, uint64, []string) bool
 
-func (sm *phaseStatesMerger) smUnmergeValues(
-	ctx context.Context,
-	swphase, opindex uint64,
-	values []StateMergeValue,
-	smNext serialWorkerAddNextJobFunc,
-) error {
-	return sm.smXMergeValues(ctx, "unmerge", swphase, opindex, values, smNext, sm.smMergeValues, sm.unmergeValues)
-}
-
-func (sm *phaseStatesMerger) smXMergeValues(
-	ctx context.Context,
-	name string,
-	swphase, opindex uint64,
-	values []StateMergeValue,
-	smNext serialWorkerAddNextJobFunc,
-	smNextMergef phaseStatesMergerXMergeStatesFunc,
-	mergef func(_ context.Context, swphase, opindex uint64, values []StateMergeValue,
-		_ util.LockedMap[string, StateMerger]) (nextops []uint64, _ error),
-) error {
-	keys, filtered := filterValues(values)
-	if len(keys) < 1 {
-		return nil
+	switch xmf {
+	case mergeFlag:
+		name = "merge"
+		mergef = sm.mergeValues
+		isAlreadyMerged = sm.isPreviouslyMergedAtZeroSWPhaseFunc
+	case unmergeFlag:
+		name = "unmerge"
+		mergef = sm.unmergeValues
+		isAlreadyMerged = sm.isPreviouslyUnmergedAtZeroSWPhaseFunc
 	}
 
-	_, _, _ = sm.valuespool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
-		if found {
-			return nil, util.ErrLockedSetIgnore
+	return func(
+		ctx context.Context,
+		swphase, opindex uint64,
+		values []StateMergeValue,
+		smNext serialWorkerAddNextJobFunc,
+	) error {
+		var smNextMergef phaseStatesMergerXMergeStatesFunc
+
+		switch xmf {
+		case mergeFlag:
+			smNextMergef = sm.smXMergeValuesFunc(unmergeFlag)
+		case unmergeFlag:
+			smNextMergef = sm.smXMergeValuesFunc(mergeFlag)
 		}
 
-		return values, nil
-	})
-
-	var nextops []uint64
-
-	if err := sm.mergers.LockFunc(keys, func(m util.LockedMap[string, StateMerger]) error {
-		sm.eventf(name, swphase, opindex, "keys=%v", keys)
-
-		switch i, err := mergef(ctx, swphase, opindex, filtered, m); {
-		case err != nil:
-			return err
-		default:
-			nextops = i
-
+		keys, filtered := filterValues(values)
+		if len(keys) < 1 {
 			return nil
 		}
-	}); err != nil {
-		return err
-	}
 
-	for i := range nextops {
-		uop := nextops[i]
+		if isAlreadyMerged(swphase, opindex, keys) {
+			return nil
+		}
 
-		if uvalues, found := sm.valuespool.Value(uop); found {
-			if err := smNext(sm.newJob(
-				uop,
-				func(ctx context.Context, _, swphase uint64, smNext serialWorkerAddNextJobFunc) error {
-					return smNextMergef(ctx, swphase, uop, uvalues, smNext)
-				},
-			)); err != nil {
+		var nextops []uint64
+
+		if err := sm.mergers.LockFunc(keys, func(m util.LockedMap[string, StateMerger]) error {
+			sm.eventf(name, swphase, opindex, "keys=%v", keys)
+
+			switch i, err := mergef(ctx, swphase, opindex, filtered, m); {
+			case err != nil:
 				return err
+			default:
+				nextops = i
+
+				return nil
+			}
+		}); err != nil {
+			return err
+		}
+
+		for i := range nextops {
+			uop := nextops[i]
+
+			if uvalues, found := sm.opValues(uop); found {
+				if err := smNext(sm.newJob(
+					uop,
+					func(ctx context.Context, _, swphase uint64, smNext serialWorkerAddNextJobFunc) error {
+						return smNextMergef(ctx, swphase, uop, uvalues, smNext)
+					},
+				)); err != nil {
+					return err
+				}
 			}
 		}
-	}
 
-	return nil
+		return nil
+	}
 }
 
 func (sm *phaseStatesMerger) mergeValues(
@@ -291,25 +308,21 @@ func (sm *phaseStatesMerger) mergeValues(
 	values []StateMergeValue,
 	m util.LockedMap[string, StateMerger],
 ) ([]uint64, error) {
-	ignored, keys, nextops, err := sm.xMergeValues(
-		ctx, swphase, opindex, values,
-		sm.findMergerFunc(m, func(value StateMergeValue) (StateMerger, error) {
-			switch i, found, err := sm.getStateValue(value.Key()); {
-			case err != nil:
-				return nil, err
-			case !found:
-				return value.Merger(nil)
-			default:
-				return value.Merger(i)
-			}
-		}),
-		func(merger StateMerger) StateMergeXMergeFunc { return merger.Merge },
-	)
+	ignored, keys, nextops, err := sm.xMergeValuesFunc(mergeFlag, m)(ctx, swphase, opindex, values)
 	if err != nil {
 		return nil, err
 	}
 
-	sm.updateMergedOps(swphase, opindex, keys, true)
+	var xmf xMergeFlag
+
+	switch ignored {
+	case true:
+		xmf = unmergeFlag
+	default:
+		xmf = mergeFlag
+	}
+
+	sm.updateMergedOps(swphase, opindex, keys, xmf)
 
 	if swphase == 0 {
 		sm.setInitialMerged(opindex, 1)
@@ -317,9 +330,9 @@ func (sm *phaseStatesMerger) mergeValues(
 
 	switch {
 	case ignored:
-		sm.setUnmerged(swphase, opindex)
+		sm.setXMerged(swphase, opindex, unmergeFlag)
 	case swphase > 0:
-		sm.setMerged(swphase, opindex)
+		sm.setXMerged(swphase, opindex, mergeFlag)
 	}
 
 	return nextops, nil
@@ -331,75 +344,144 @@ func (sm *phaseStatesMerger) unmergeValues(
 	values []StateMergeValue,
 	m util.LockedMap[string, StateMerger],
 ) ([]uint64, error) {
-	ignored, keys, nextops, err := sm.xMergeValues(
-		ctx, swphase, opindex, values,
-		sm.findMergerFunc(m, func(StateMergeValue) (StateMerger, error) {
-			return nil, nil
-		}),
-		func(merger StateMerger) StateMergeXMergeFunc { return merger.Unmerge },
-	)
+	ignored, keys, nextops, err := sm.xMergeValuesFunc(unmergeFlag, m)(ctx, swphase, opindex, values)
 	if err != nil {
 		return nil, err
 	}
 
-	sm.updateMergedOps(swphase, opindex, keys, false)
+	if !ignored {
+		sm.updateMergedOps(swphase, opindex, keys, unmergeFlag)
+	}
 
 	if swphase == 0 {
 		sm.setInitialMerged(opindex, 2)
 	}
 
 	if swphase > 0 && !ignored {
-		sm.setUnmerged(swphase, opindex)
+		sm.setXMerged(swphase, opindex, unmergeFlag)
 	}
 
 	return nextops, nil
 }
 
-func (sm *phaseStatesMerger) xMergeValues(
-	ctx context.Context,
-	swphase, opindex uint64,
-	values []StateMergeValue,
-	newMergerf func(StateMergeValue) (StateMerger, error),
-	mergef func(StateMerger) StateMergeXMergeFunc,
-) (ignored bool, keys []string, nextops []uint64, _ error) {
-	addCommit, doneCommit := util.CompactAppendSlice[func() error](len(values))
-	addKeys, doneKeys := util.UniqCompactAppendSlice[string](len(values))
-	addNextOps, doneNextOps := util.UniqCompactAppendSlice[uint64](len(values))
+func (sm *phaseStatesMerger) xMergeValuesFunc(xmf xMergeFlag, m util.LockedMap[string, StateMerger]) func(
+	context.Context, uint64, uint64, []StateMergeValue) (bool, []string, []uint64, error) {
+	var newMergerf func(StateMergeValue) (StateMerger, error)
 
-	for i := range values {
-		value := values[i]
+	switch xmf {
+	case mergeFlag:
+		newMergerf = sm.findMergerFunc(m, func(value StateMergeValue) (StateMerger, error) {
+			switch i, found, err := sm.getStateValue(value.Key()); {
+			case err != nil:
+				return nil, err
+			case !found:
+				return value.Merger(nil)
+			default:
+				return value.Merger(i)
+			}
+		})
+	case unmergeFlag:
+		newMergerf = sm.findMergerFunc(m, func(StateMergeValue) (StateMerger, error) {
+			return nil, nil
+		})
+	}
 
-		switch merged, commit, nextop, err := sm.mergeValue(
-			swphase, opindex,
-			value,
-			newMergerf,
-			mergef,
-		); {
-		case err != nil:
-			return false, nil, nil, err
-		case !merged:
-			return true, nil, nil, nil
-		default:
-			addCommit(commit)
-			addKeys(value.Key())
+	xMergeValue := sm.xMergeValueFunc(xmf)
 
-			if nextop != opindex {
-				addNextOps(nextop)
+	return func(
+		ctx context.Context,
+		swphase, opindex uint64,
+		values []StateMergeValue,
+	) (ignored bool, keys []string, nextops []uint64, _ error) {
+		addCommit, doneCommit := util.CompactAppendSlice[func() error](len(values))
+		addKeys, doneKeys := util.UniqCompactAppendSlice[string](len(values))
+		addNextOps, doneNextOps := util.UniqCompactAppendSlice[uint64](len(values))
+
+		for i := range values {
+			value := values[i]
+
+			switch merged, commit, nextop, err := xMergeValue(
+				swphase, opindex,
+				value,
+				newMergerf,
+			); {
+			case err != nil:
+				return false, nil, nil, err
+			case !merged:
+				return true, nil, nil, nil
+			default:
+				addCommit(commit)
+				addKeys(value.Key())
+
+				if nextop != opindex {
+					addNextOps(nextop)
+				}
 			}
 		}
+
+		if err := sm.runCommits(ctx, doneCommit()); err != nil {
+			return false, nil, nil, err
+		}
+
+		nextops = doneNextOps()
+
+		if len(nextops) > 0 {
+			sm.eventf("nextops", swphase, opindex, "ops=%v", nextops)
+		}
+
+		return false, doneKeys(), nextops, nil
+	}
+}
+
+func (sm *phaseStatesMerger) xMergeValueFunc(xmf xMergeFlag) func(
+	uint64,
+	uint64,
+	StateMergeValue,
+	func(value StateMergeValue) (StateMerger, error),
+) (
+	bool, func() error, uint64, error,
+) {
+	var mergef func(StateMerger) StateMergeXMergeFunc
+
+	switch xmf {
+	case mergeFlag:
+		mergef = func(merger StateMerger) StateMergeXMergeFunc { return merger.Merge }
+	case unmergeFlag:
+		mergef = func(merger StateMerger) StateMergeXMergeFunc { return merger.Unmerge }
 	}
 
-	if err := sm.runCommits(ctx, doneCommit()); err != nil {
-		return false, nil, nil, err
+	return func(
+		swphase, opindex uint64,
+		value StateMergeValue,
+		newMergerf func(value StateMergeValue) (StateMerger, error),
+	) (
+		merged bool,
+		commit func() error,
+		nextop uint64,
+		_ error,
+	) {
+		var merger StateMerger
+
+		switch i, err := newMergerf(value); {
+		case err != nil:
+			return false, commit, nextop, err
+		case i == nil:
+			return false, commit, nextop, nil
+		default:
+			merger = i
+		}
+
+		switch f, nextop, err := mergef(merger)(opindex, value.Value()); {
+		case err != nil:
+			return false, commit, nextop, err
+		case f == nil:
+			sm.eventf("ignored", swphase, opindex, "key=%s", value.Key())
+
+			return false, commit, nextop, nil
+		default:
+			return true, f, nextop, nil
+		}
 	}
-
-	nextops = doneNextOps()
-
-	if len(nextops) > 0 {
-		sm.eventf("nextops", swphase, opindex, "ops=%v", nextops)
-	}
-
-	return false, doneKeys(), nextops, nil
 }
 
 func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) error {
@@ -434,56 +516,36 @@ func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) 
 	return ew.Wait()
 }
 
-func (sm *phaseStatesMerger) mergeValue(
-	swphase, opindex uint64,
-	value StateMergeValue,
-	newMergerf func(value StateMergeValue) (StateMerger, error),
-	mergef func(StateMerger) StateMergeXMergeFunc,
-) (
-	merged bool,
-	commit func() error,
-	nextop uint64,
-	_ error,
-) {
-	var merger StateMerger
-
-	switch i, err := newMergerf(value); {
-	case err != nil:
-		return false, commit, nextop, err
-	case i == nil:
-		return false, commit, nextop, nil
-	default:
-		merger = i
-	}
-
-	switch f, nextop, err := mergef(merger)(opindex, value.Value()); {
-	case err != nil:
-		return false, commit, nextop, err
-	case f == nil:
-		sm.eventf("ignored", swphase, opindex, "key=%s", value.Key())
-
-		return false, commit, nextop, nil
-	default:
-		return true, f, nextop, nil
-	}
-}
-
 func (sm *phaseStatesMerger) updateMergedOps(
 	swphase, opindex uint64,
 	keys []string,
-	isMerged bool,
+	xmf xMergeFlag,
 ) {
 	_ = util.TraverseSlice(keys, func(_ int, k string) error {
 		_, _, _, _ = sm.mergedOps.SetOrRemove(k, func(m map[uint64]uint64, found bool) (map[uint64]uint64, bool, error) {
 			if !found {
-				if !isMerged {
-					return nil, false, util.ErrLockedSetIgnore
+				nm := map[uint64]uint64{}
+
+				if xmf == mergeFlag {
+					nm[opindex] = swphase
 				}
 
-				return map[uint64]uint64{opindex: swphase}, false, nil
+				switch preops, found := sm.prevMergedOps(k); {
+				case !found:
+				default:
+					_ = util.TraverseSlice(preops, func(_ int, op uint64) error {
+						if op != opindex {
+							nm[op] = 0 // NOTE zero phase
+						}
+
+						return nil
+					})
+				}
+
+				return nm, false, nil
 			}
 
-			if isMerged {
+			if xmf == mergeFlag {
 				switch prevswphase, itemfound := m[opindex]; {
 				case itemfound && swphase <= prevswphase:
 					return nil, false, util.ErrLockedSetIgnore
@@ -528,15 +590,9 @@ func (sm *phaseStatesMerger) setInitialMerged(opindex uint64, v uint64) {
 	})
 }
 
-func (sm *phaseStatesMerger) setMerged(swphase, opindex uint64) {
-	sm.setXMerged(swphase, opindex, 1, func(prev uint64) bool { return prev == 1 })
-}
+func (sm *phaseStatesMerger) setXMerged(swphase, opindex uint64, xmf xMergeFlag) {
+	v := uint64(xmf)
 
-func (sm *phaseStatesMerger) setUnmerged(swphase, opindex uint64) {
-	sm.setXMerged(swphase, opindex, 2, func(prev uint64) bool { return prev == 2 })
-}
-
-func (sm *phaseStatesMerger) setXMerged(swphase, opindex uint64, v uint64, issame func(uint64) bool) {
 	_, _, _ = sm.mergedStatus.Set(opindex, func(i [3]uint64, _ bool) ([3]uint64, error) {
 		prevswphase, prevstatus := i[1], i[2]
 
@@ -545,7 +601,7 @@ func (sm *phaseStatesMerger) setXMerged(swphase, opindex uint64, v uint64, issam
 			return [3]uint64{i[0], swphase, v}, nil
 		case swphase < prevswphase:
 			return [3]uint64{}, util.ErrLockedSetIgnore
-		case issame(prevstatus):
+		case prevstatus == v:
 		case swphase == prevswphase:
 			return [3]uint64{}, util.ErrLockedSetIgnore
 		}
@@ -594,13 +650,10 @@ func (sm *phaseStatesMerger) doneMergers() (
 
 		var gerr error
 
-		_ = sm.mergers.Traverse(func(key string, v StateMerger) bool {
-			ops := countMergedOps(key, sm.mergedOps)
-			if len(ops) < 1 {
-				return true
-			}
+		maxMergersLength := sm.mergers.Len()
 
-			gerr = f(key, v, ops)
+		_ = sm.mergers.Traverse(func(key string, v StateMerger) bool {
+			gerr = f(key, v, countMergedOps(key, sm.mergedOps), maxMergersLength) // NOTE if empty merged ops, means no changed state value
 
 			return gerr == nil
 		})
@@ -654,6 +707,31 @@ func (sm *phaseStatesMerger) newJob(opindex uint64, f serialWorkerNextJobFunc) s
 		}
 
 		return f, true
+	}
+}
+
+func (sm *phaseStatesMerger) isPreviouslyXMergedAtZeroSWPhaseFunc(xmf xMergeFlag) func(uint64, uint64, []string) bool {
+	return func(swphase, opindex uint64, keys []string) bool {
+		if swphase > 0 {
+			return false
+		}
+
+		for i := range keys {
+			prev, found := sm.prevMergedOps(keys[i])
+			if !found {
+				continue
+			}
+
+			if xmf == mergeFlag && slices.Index(prev, opindex) >= 0 { // NOTE zero swphase and previously merged
+				return true
+			}
+
+			if xmf == unmergeFlag && slices.Index(prev, opindex) < 0 { // NOTE zero swphase and previously unmerged
+				return true
+			}
+		}
+
+		return false
 	}
 }
 

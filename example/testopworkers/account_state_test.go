@@ -15,11 +15,42 @@ type baseTestAccountStateMerger struct {
 	logging.BaseTestSuite
 }
 
+func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, AccountStateMergeValue) {
+	pub := base.NewMPrivatekey().Publickey()
+
+	return pub, t.newAccountStateMergeValue(pub, balance)
+}
+
 func (t *baseTestAccountStateMerger) newAccountStateMergeValue(address base.Publickey, balance int64) AccountStateMergeValue {
 	v, err := NewAccountStateMergeValue(address, balance)
 	t.NoError(err)
 
 	return v
+}
+
+func (t *baseTestAccountStateMerger) newMergeValues(
+	a ...interface{},
+) (vs []StateMergeValue) {
+	switch {
+	case len(a)%2 != 0:
+		panic("invalid number of arguments")
+	default:
+		vs = make([]StateMergeValue, len(a)/2)
+	}
+
+	for i := range vs {
+		address, ok := a[i*2].(base.Publickey)
+		t.True(ok)
+		balance, ok := a[(i*2)+1].(int)
+		t.True(ok)
+
+		mv, err := NewAccountStateMergeValue(address, int64(balance))
+		t.NoError(err)
+
+		vs[i] = mv
+	}
+
+	return vs
 }
 
 type testAccountStateMerger struct {

@@ -266,12 +266,20 @@ func CompactAppendSlice[T any](size int) (
 	var i int
 
 	return func(t T) bool {
+			if size < 1 {
+				return true
+			}
+
 			s[i] = t
 
 			i++
 
 			return i == size
 		}, func() []T {
+			if size < 1 {
+				return nil
+			}
+
 			if i < 1 {
 				clear(s)
 
@@ -289,6 +297,10 @@ func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
 	addf, donef := CompactAppendSlice[T](size)
 
 	return addf, func() []T {
+		if size < 1 {
+			return nil
+		}
+
 		d := donef()
 		if len(d) < 1 {
 			clear(d)
@@ -316,6 +328,10 @@ func UniqCompactAppendSlice[T cmp.Ordered](size int) (
 	defer clear(m)
 
 	return func(t T) {
+			if size < 1 {
+				return
+			}
+
 			if _, found := m[t]; found {
 				return
 			}
@@ -325,6 +341,10 @@ func UniqCompactAppendSlice[T cmp.Ordered](size int) (
 
 			i++
 		}, func() []T {
+			if size < 1 {
+				return nil
+			}
+
 			if i < 1 {
 				clear(s)
 

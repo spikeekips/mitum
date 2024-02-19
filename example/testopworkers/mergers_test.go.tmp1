@@ -1,0 +1,18 @@
+package testopsworkers
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
+)
+
+type testDistributedStatesMerger struct {
+	baseTestAccountStateMerger
+}
+
+func TestDistributedStatesMerger(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testDistributedStatesMerger))
+}

@@ -2,10 +2,6 @@ package testopsworkers
 
 import (
 	"context"
-	"crypto/rand"
-	"math"
-	"math/big"
-	mathrand "math/rand"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -271,50 +267,4 @@ func (sw *SerialWorkers) doneFunc(
 			return i()
 		}
 	}
-}
-
-func newDjb2Seed() uint64 {
-	max := big.NewInt(0).SetUint64(uint64(math.MaxUint64))
-
-	switch rnd, err := rand.Int(rand.Reader, max); {
-	case err != nil:
-		return mathrand.Uint64()
-	default:
-		return rnd.Uint64()
-	}
-}
-
-// stringdjb2 derived from
-// https://github.com/patrickmn/go-cache/blob/master/sharded.go .
-func stringdjb2(seed uint64, k string) uint64 {
-	var (
-		l = uint64(len(k))
-		d = 5381 + seed + l
-		i = uint64(0)
-	)
-
-	if l >= 4 { //nolint:gomnd //...
-		for i < l-4 {
-			d = (d * 33) ^ uint64(k[i])   //nolint:gomnd //...
-			d = (d * 33) ^ uint64(k[i+1]) //nolint:gomnd //...
-			d = (d * 33) ^ uint64(k[i+2]) //nolint:gomnd //...
-			d = (d * 33) ^ uint64(k[i+3]) //nolint:gomnd //...
-			i += 4
-		}
-	}
-
-	switch l - i {
-	case 1:
-	case 2:
-		d = (d * 33) ^ uint64(k[i]) //nolint:gomnd //...
-	case 3: //nolint:gomnd //...
-		d = (d * 33) ^ uint64(k[i])   //nolint:gomnd //...
-		d = (d * 33) ^ uint64(k[i+1]) //nolint:gomnd //...
-	case 4: //nolint:gomnd //...
-		d = (d * 33) ^ uint64(k[i])   //nolint:gomnd //...
-		d = (d * 33) ^ uint64(k[i+1]) //nolint:gomnd //...
-		d = (d * 33) ^ uint64(k[i+2]) //nolint:gomnd //...
-	}
-
-	return d ^ (d >> 16) //nolint:gomnd //...
 }
