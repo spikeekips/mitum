@@ -1017,9 +1017,6 @@ func NewMultiKeysLockedMap[K cmp.Ordered, V any](m LockedMap[K, V]) *MultiKeysLo
 }
 
 func (l *MultiKeysLockedMap[K, V]) Map() LockedMap[K, V] {
-	l.l.Lock()
-	defer l.l.Unlock()
-
 	return l.m
 }
 
