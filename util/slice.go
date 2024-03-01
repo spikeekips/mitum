@@ -180,7 +180,7 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 	return done()
 }
 
-func TraverseSlice[T any](s []T, f func(int, T) error) error {
+func TraverseSlice[T any](s []T, f func(int, T) error) error { // FIXME use TraverseSliceV1
 	if len(s) < 1 {
 		return nil
 	}
@@ -194,8 +194,25 @@ func TraverseSlice[T any](s []T, f func(int, T) error) error {
 	return nil
 }
 
-func randInt64(maxv int64) (int64, error) {
-	if maxv <= 0 {
+func TraverseSliceV1[T any](s []T, f func(int, T) (bool, error)) error {
+	if len(s) < 1 {
+		return nil
+	}
+
+	for i := range s {
+		switch keep, err := f(i, s[i]); {
+		case err != nil:
+			return err
+		case !keep:
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func randInt64(max int64) (int64, error) {
+	if max <= 0 {
 		return 0, errors.Errorf("invalid max")
 	}
 
