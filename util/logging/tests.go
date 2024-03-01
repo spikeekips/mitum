@@ -21,7 +21,6 @@ var (
 func init() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	TestLogging = Setup(os.Stderr, zerolog.TraceLevel, "", false)
 	TestNilLogging = NewLogging(nil).SetLogger(zerolog.Nop())
