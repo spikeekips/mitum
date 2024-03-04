@@ -1,12 +1,14 @@
 package testopsworkers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
@@ -779,6 +781,290 @@ func (t *testDistributedStatesMergerWorker) TestAllUnmergeXWorkers() {
 
 			t.T().Logf("< workers=%d keys=%d elapsed=%s", i, j, time.Since(started))
 		}
+	}
+}
+
+func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
+	nworkers := 3
+	nops := 9
+
+	workers := make([]string, nworkers)
+	for i := range workers {
+		workers[i] = fmt.Sprintf("w%02d", i)
+	}
+
+	valueOwners := map[string]string{}
+	allOps := make([][]StateMergeValue, nops)
+	pubs := make([]base.Publickey, nops)
+	stvs := map[string]base.StateValue{}
+
+	for i := range pubs {
+		pub := base.NewMPrivatekey().Publickey()
+		pubs[i] = pub
+
+		key := AccountStateKey(pubs[i])
+
+		stvs[key] = NewAccountStateValue(pub, 1)
+
+		owner := workers[i%len(workers)]
+		valueOwners[key] = owner
+
+		t.T().Logf("op=%d owner=%q key=%q", i, owner, key)
+	}
+
+	for i := range allOps {
+		pub := pubs[i]
+		pub0 := pubs[(i+1)%len(pubs)]
+		pub1 := pubs[(i+2)%len(pubs)]
+
+		allOps[i] = []StateMergeValue{
+			t.newAccountStateMergeValue(pub, 1),
+			t.newAccountStateMergeValue(pub0, -1),
+			t.newAccountStateMergeValue(pub1, -1),
+		}
+
+		t.T().Logf("opindex=%d key=%q balance=%d", i, AccountStateKey(pub), 1)
+		t.T().Logf("opindex=%d key=%q balance=%d", i, AccountStateKey(pub0), -1)
+	}
+
+	getStateValue := func(key string) (base.StateValue, bool, error) {
+		v, found := stvs[key]
+
+		return v, found, nil
+	}
+
+	isWorkerValue := func(worker string, key string) bool {
+		i, found := valueOwners[key]
+		if !found {
+			panic("unknown value")
+		}
+
+		return i == worker
+	}
+
+	filterWorkerValues := func(worker string, values []StateMergeValue) []StateMergeValue {
+		return util.FilterSlice(values, func(value StateMergeValue) bool {
+			return isWorkerValue(worker, value.Key())
+		})
+	}
+
+	filterWorkerOps := func(worker string, ops []uint64) []uint64 {
+		return util.FilterSlice(ops, func(op uint64) bool {
+			var found bool
+
+			_ = util.TraverseSliceV1(allOps[op], func(_ int, v StateMergeValue) (bool, error) {
+				if isWorkerValue(worker, v.Key()) {
+					found = true
+				}
+
+				return !found, nil
+			})
+
+			return found
+		})
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	tNoError := t.NoError
+	tTrue := t.True
+
+	{
+		psm, err := newPhaseStatesMerger(
+			ctx,
+			func(string) (StateMerger, bool) { return nil, false },
+			func(opindex uint64) ([]StateMergeValue, bool) {
+				return allOps[opindex], true
+			},
+			getStateValue,
+			func(ctx context.Context) (distributedWorker, error) {
+				return util.NewErrgroupWorker(ctx, 1<<6)
+			},
+			1<<9,
+		)
+		t.NoError(err)
+
+		for i := range allOps {
+			t.NoError(psm.Merge(uint64(i)))
+		}
+
+		t.NoError(psm.MergeDone())
+
+		newlyMerged, newlyUnmerged, updatef, err := psm.Done()
+		t.NoError(err)
+		t.Empty(newlyMerged)
+		t.NotEmpty(newlyUnmerged)
+
+		t.T().Logf("newly_merged=%v newly_unmerged=%v", newlyMerged, newlyUnmerged)
+
+		var addUpdated func(string) bool
+		var doneUpdated func() []string
+
+		updatef(
+			func(stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+				if addUpdated == nil {
+					addUpdated, doneUpdated = util.SortCompactAppendSlice[string](1<<8, cmp.Less[string])
+				}
+
+				st, err := merger.Close()
+				tNoError(err)
+
+				av, ok := st.(AccountStateValue)
+				tTrue(ok)
+
+				for i := range mergedOps {
+					addUpdated(fmt.Sprintf("updated: merged_op=%d key=%q balance=%d merged_ops=%v unmerged_ops=%v", mergedOps[i], stateKey, av.Balance, mergedOps, unmergedOps))
+				}
+
+				return nil
+			},
+			func(opindex uint64, reason string) error {
+				addUpdated(fmt.Sprintf("reason: opindex=%d reason=%q", opindex, reason))
+
+				return nil
+			},
+		)
+
+		util.TraverseSliceV1(doneUpdated(), func(_ int, i string) (bool, error) {
+			t.T().Log(i)
+
+			return true, nil
+		})
+	}
+
+	dws := map[string]*DistributedStatesMergerWorker{}
+
+	for i := 0; i < nworkers; i++ {
+		worker := workers[i]
+
+		dw := t.newWorker(ctx)
+		dws[worker] = dw
+
+		dw.workerName = worker
+		defer dw.Cancel()
+
+		// dw.SetLogger(logging.TestLogging.Log().With().Str("name", worker).Logger())
+
+		dw.args.IsEnoughWorkers = func(n uint64) bool { return n >= uint64(nworkers) }
+		dw.args.GetStateValue = getStateValue
+	}
+
+	workerPhaseDone := func(local string, phase int, unmergedOps []uint64) error {
+		for worker := range dws {
+			worker := worker
+
+			if worker == local {
+				continue
+			}
+
+			i := filterWorkerOps(worker, unmergedOps)
+			t.T().Logf("phase done, %d: %q -> %q: unmerged_ops=%v filtered=%d\n", phase, local, worker, unmergedOps, i)
+
+			go func() {
+				if err := dws[worker].WorkerPhaseDone0(phase, i, len(unmergedOps) > 0, local); err != nil {
+					cancel(err)
+				}
+			}()
+		}
+
+		return nil
+	}
+
+	for worker := range dws {
+		worker := worker
+		dw := dws[worker]
+
+		dw.args.BroadcastPhaseDoneFunc = func(phase int, unmergedOps []uint64) error {
+			return workerPhaseDone(worker, phase, unmergedOps)
+		}
+	}
+
+	lockedLog := t.LockedLog
+
+	for worker := range dws {
+		worker := worker
+
+		dws[worker].args.UpdatedValuesFunc = func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+			sv, err := merger.Close()
+			tNoError(err)
+
+			av, ok := sv.(AccountStateValue)
+			tTrue(ok)
+
+			lockedLog(
+				"updated: worker=%q phase=%d key=%s balance=%d merged_ops=%v unmerged_ops=%v",
+				worker, phase, stateKey, av.Balance, mergedOps, unmergedOps,
+			)
+
+			return nil
+		}
+	}
+
+	for i := range allOps {
+		for j := range workers {
+			worker := workers[j]
+
+			values := filterWorkerValues(worker, allOps[i])
+			if len(values) < 1 {
+				continue
+			}
+
+			addKeys, doneKeys := util.CompactAppendSlice[string](len(values))
+			util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
+				addKeys(v.Key())
+				return true, nil
+			})
+
+			t.T().Logf("insert: opindex=%d worker=%q keys=%v values=%d", i, worker, doneKeys(), len(values))
+
+			t.NoError(dws[worker].InsertOp(uint64(i), values))
+		}
+	}
+
+	for i := range dws {
+		dw := dws[i]
+		t.NoError(dw.InsertDone())
+	}
+
+	for i := range dws {
+		dw := dws[i]
+
+		for j := range dws {
+			if i == j {
+				continue
+			}
+
+			t.NoError(dw.WorkerInsertDone(j))
+		}
+	}
+
+	errch := make(chan error, 1)
+
+	go func() {
+		for i := range dws {
+			if err := dws[i].Done(); err != nil {
+				errch <- err
+
+				break
+			}
+		}
+
+		cancel(nil)
+	}()
+
+	select {
+	case err := <-errch:
+		t.NoError(err)
+
+		return
+	case <-ctx.Done():
+	}
+
+	switch err := context.Cause(ctx); {
+	case errors.Is(err, context.Canceled):
+	default:
+		t.NoError(err)
 	}
 }
 

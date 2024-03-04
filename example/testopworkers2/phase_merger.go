@@ -13,14 +13,14 @@ import (
 )
 
 type (
-	phaseStatesMergerInitialXMergeFunc func(opindex uint64) error
-	phaseStatesMergerDoneUpdateFunc    func(
+	phaseStatesMergerInitialXMergeFunc      func(opindex uint64) error
+	phaseStatesMergerDoneUpdatedValuesFunc  func(stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error
+	phaseStatesMergerDoneUpdatedReasonsFunc func(opindex uint64, reason string) error
+	phaseStatesMergerDoneUpdateFunc         func(
 		phaseStatesMergerDoneUpdatedValuesFunc,
 		phaseStatesMergerDoneUpdatedReasonsFunc,
 	) error
-	phaseStatesMergerDoneUpdatedValuesFunc  func(stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error
-	phaseStatesMergerDoneUpdatedReasonsFunc func(opindex uint64, reason string) error
-	phaseStatesMergerDoneFunc               func() (
+	phaseStatesMergerDoneFunc func() (
 		newlyMerged, newlyUnmerged []uint64,
 		update phaseStatesMergerDoneUpdateFunc,
 		_ error,
@@ -542,7 +542,7 @@ func (sm *phaseStatesMerger) mergeValue(
 
 	if err := m.GetOrCreate(
 		value.Key(),
-		func(v StateMerger, _ bool) error {
+		func(v StateMerger, created bool) error {
 			merger = v
 
 			return nil

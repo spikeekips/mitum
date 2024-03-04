@@ -166,7 +166,7 @@ func (dw *DistributedStatesMergerWorker) WorkerInsertDone(worker string) error {
 func (dw *DistributedStatesMergerWorker) WorkerPhaseDone(phase int, unmergedOps []uint64, worker string) error {
 	if err := util.TraverseSliceV1(unmergedOps, func(_ int, opindex uint64) (bool, error) {
 		if !dw.valuespool.Exists(opindex) {
-			return false, util.ErrNotFound.Errorf("unknown operation")
+			return false, util.ErrNotFound.Errorf("unknown operation, %d", opindex)
 		}
 
 		return true, nil
@@ -174,7 +174,21 @@ func (dw *DistributedStatesMergerWorker) WorkerPhaseDone(phase int, unmergedOps 
 		return err
 	}
 
-	return dw.otherWorkerPhaseDone(phase, unmergedOps, worker)
+	return dw.otherWorkerPhaseDone(phase, unmergedOps, len(unmergedOps) > 0, worker) // FIXME remove
+}
+
+func (dw *DistributedStatesMergerWorker) WorkerPhaseDone0(phase int, unmergedOps []uint64, hasUnmergedOps bool, worker string) error {
+	if err := util.TraverseSliceV1(unmergedOps, func(_ int, opindex uint64) (bool, error) {
+		if !dw.valuespool.Exists(opindex) {
+			return false, util.ErrNotFound.Errorf("unknown operation, %d", opindex)
+		}
+
+		return true, nil
+	}); err != nil {
+		return err
+	}
+
+	return dw.otherWorkerPhaseDone(phase, unmergedOps, hasUnmergedOps, worker)
 }
 
 func (dw *DistributedStatesMergerWorker) Cancel() {
@@ -237,14 +251,19 @@ func (dw *DistributedStatesMergerWorker) workerInsertDone(worker string) error {
 }
 
 func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) error {
-	var unmergedOps []uint64
+	l := dw.Log().With().Int("phase", phase).Logger()
 
+	defer l.Debug().Msg("local done")
+
+	var unmergedOps []uint64
 	var updatef phaseStatesMergerDoneUpdateFunc
 
 	if psm != nil {
 		var err error
 
-		if _, unmergedOps, updatef, err = psm.Done(); err != nil {
+		var mergedOps []uint64
+
+		if mergedOps, unmergedOps, updatef, err = psm.Done(); err != nil {
 			return err
 		}
 
@@ -260,7 +279,7 @@ func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseSta
 
 	var isEmptyEnough bool
 
-	if _, _, err := dw.phaseStatuses.Set(phase, func(status uint8, _ bool) (uint8, error) {
+	if _, _, err := dw.phaseStatuses.Set(phase, func(status uint8, found bool) (uint8, error) {
 		if status > 1 {
 			return 0, util.ErrLockedSetIgnore
 		}
@@ -270,7 +289,7 @@ func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseSta
 			return 0, err
 		}
 
-		switch isClosed, id, err := dw.workerPhaseDone(phase, localStatesMergerWorker, nil); {
+		switch isClosed, id, err := dw.workerPhaseDone(phase, localStatesMergerWorker, len(unmergedOps) > 0); {
 		case err != nil:
 			return 0, err
 		case id:
@@ -291,7 +310,7 @@ func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseSta
 	}
 
 	if isEmptyEnough {
-		dw.Log().Debug().Int("phase", phase).Msg("done")
+		l.Debug().Msg("done; empty")
 
 		dw.ctxcancel(distributedStatesMergerWorkerDone)
 	}
@@ -299,7 +318,7 @@ func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseSta
 	return nil
 }
 
-func (dw *DistributedStatesMergerWorker) otherWorkerPhaseDone(phase int, unmergedOps []uint64, worker string) error {
+func (dw *DistributedStatesMergerWorker) otherWorkerPhaseDone(phase int, unmergedOps []uint64, hasUnmergedOps bool, worker string) error {
 	var isEmptyEnough bool
 
 	if _, _, err := dw.phaseStatuses.Set(phase, func(status uint8, _ bool) (uint8, error) {
@@ -314,7 +333,7 @@ func (dw *DistributedStatesMergerWorker) otherWorkerPhaseDone(phase int, unmerge
 			}
 		}
 
-		switch ic, id, err := dw.workerPhaseDone(phase, worker, unmergedOps); {
+		switch ic, id, err := dw.workerPhaseDone(phase, worker, hasUnmergedOps); {
 		case err != nil:
 			return 0, err
 		case id:
@@ -347,16 +366,16 @@ func (dw *DistributedStatesMergerWorker) otherWorkerPhaseDone(phase int, unmerge
 	return nil
 }
 
-func (dw *DistributedStatesMergerWorker) workerPhaseDone(phase int, worker string, unmergedOps []uint64) (isClosed, isEmptyEnough bool, _ error) {
+func (dw *DistributedStatesMergerWorker) workerPhaseDone(phase int, worker string, hasUnmergedOps bool) (isClosed, isEmptyEnough bool, _ error) {
 	l := dw.Log().With().
 		Int("phase", phase).
 		Str("worker", worker).
-		Int("unmerged_ops", len(unmergedOps)).
+		Bool("has_unmerged_ops", hasUnmergedOps).
 		Logger()
 
 	var added, isMergeDoneEnough bool
 
-	if added, isEmptyEnough, isMergeDoneEnough = dw.setPhaseDoneRecord(phase, worker, len(unmergedOps) > 0); !added {
+	if added, isEmptyEnough, isMergeDoneEnough = dw.setPhaseDoneRecord(phase, worker, hasUnmergedOps); !added {
 		return false, false, errors.Errorf("worker, %q already phase done", worker)
 	}
 
@@ -491,11 +510,25 @@ func (dw *DistributedStatesMergerWorker) setPhaseDoneRecord(phase int, worker st
 		isMergeDoneEnough = dw.args.IsEnoughWorkers(ne)
 	}
 
+	l := dw.Log().With().
+		Int("phase", phase).
+		Uint64("enough", ne).
+		Uint64("empty", nee).
+		Bool("is_local_found", isLocalFound).
+		Bool("is_local_empty_found", isLocalEmptyDone).
+		Logger()
+
 	if !isLocalEmptyDone {
+		l.Debug().Msg("local has unmerged ops")
+
 		return added, false, isMergeDoneEnough
 	}
 
-	return added, dw.args.IsEnoughWorkers(nee), isMergeDoneEnough
+	isEmptyEnough = dw.args.IsEnoughWorkers(nee)
+
+	l.Debug().Bool("is_empty_enough", isEmptyEnough).Msg("local has not unmerged ops")
+
+	return added, isEmptyEnough, isMergeDoneEnough
 }
 
 func (dw *DistributedStatesMergerWorker) setTempWorkerPhaseDone(phase int, worker string, unmergedOps []uint64) (added bool) {
