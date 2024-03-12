@@ -58,10 +58,12 @@ func (t *testDistributedStatesMergerWorker) printDW(dw *DistributedStatesMergerW
 		return true
 	})
 
-	t.T().Logf("* psms: %d", len(dw.psms))
-	for i := range dw.psms {
-		t.T().Logf("  > phase=%d is_not_nil=%v", i, dw.psms[i] != nil)
-	}
+	t.T().Logf("* psms: %d", dw.psms.Len())
+	dw.psms.Traverse(func(phase int, psm *phaseStatesMerger) bool {
+		t.T().Logf("  > phase=%d is_not_nil=%v", phase, psm != nil)
+
+		return true
+	})
 
 	addMergedOps, doneMergedOps := util.CompactAppendSlice[uint64](len(dw.phaseDoneOps))
 	addUnmergedOps, doneUnmergedOps := util.CompactAppendSlice[uint64](len(dw.phaseDoneOps))
@@ -382,7 +384,7 @@ func (t *testDistributedStatesMergerWorker) TestInsertOp() {
 		vs := t.randomMergeValues(1)
 		t.NoError(dw.InsertOp(1, vs))
 
-		t.Equal(1, len(dw.psms))
+		t.Equal(1, dw.psms.Len())
 	})
 
 	t.Run("insert same opindex", func() {
@@ -395,7 +397,7 @@ func (t *testDistributedStatesMergerWorker) TestInsertOp() {
 		err := dw.InsertOp(1, nil)
 		t.ErrorIs(err, util.ErrFound)
 
-		t.Equal(1, len(dw.psms))
+		t.Equal(1, dw.psms.Len())
 	})
 
 	t.Run("insert after empty done", func() {
@@ -528,15 +530,15 @@ func (t *testDistributedStatesMergerWorker) TestDumpPhaseDoneRecords() {
 	t.False(isMergeDoneEnough)
 	t.False(isEmptyEnough)
 
-	t.Empty(dw.psms)
+	t.Equal(0, dw.psms.Len())
 
 	isMergeDoneEnough, isEmptyEnough, err = dw.isEnoughWorkerPhaseDone(localStatesMergerWorker, 0, 0, []uint64{1, 2, 3}, []uint64{4, 5, 6}, false)
 	t.NoError(err)
 	t.False(isMergeDoneEnough)
 	t.False(isEmptyEnough)
 
-	t.NotEmpty(dw.psms)
-	_, found := dw.psms[1]
+	t.True(dw.psms.Len() > 0)
+	_, found := dw.psms.Value(1)
 	t.True(found)
 
 	isMergeDoneEnough, isEmptyEnough, err = dw.isEnoughWorkerPhaseDone("w1", 0, 0, []uint64{1, 2, 3}, []uint64{4, 5, 6}, false)
@@ -1236,55 +1238,106 @@ func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("insert ops")
 
-	for worker := range dws {
-		allMergedOps[worker] = map[uint64]struct{}{}
-	}
+	insertew, err := util.NewErrgroupWorker(ctx, 1<<9)
+	t.NoError(err)
+	defer insertew.Close()
 
-	for opindex := range allOps {
-		values := allOps[opindex]
+	go func() {
+		defer insertew.Done()
 
 		for worker := range dws {
-			addKeys, doneKeys := util.SortCompactAppendSlice[string](len(values), cmp.Less[string])
+			allMergedOps[worker] = map[uint64]struct{}{}
+		}
 
-			filtered := util.FilterSlice(values, func(value StateMergeValue) bool {
-				if slices.Index(stateOwners[value.Key()], worker) >= 0 {
-					addKeys(value.Key())
+		for opindex := range allOps {
+			opindex := opindex
+			values := allOps[opindex]
 
-					return true
+			for worker := range dws {
+				worker := worker
+				allMergedOps[worker][opindex] = struct{}{}
+
+				addKeys, doneKeys := util.SortCompactAppendSlice[string](len(values), cmp.Less[string])
+
+				filtered := util.FilterSlice(values, func(value StateMergeValue) bool {
+					if slices.Index(stateOwners[value.Key()], worker) >= 0 {
+						addKeys(value.Key())
+
+						return true
+					}
+
+					return false
+				})
+				if len(filtered) < 1 {
+					continue
 				}
 
-				return false
-			})
-			if len(filtered) < 1 {
-				continue
-			}
+				t.NoError(insertew.NewJob(func(context.Context, uint64) error {
+					t.T().Logf("\tinsert op: worker=%q opindex=%d values=%v", worker, opindex, doneKeys())
 
-			t.T().Logf("\tinsert op: worker=%q opindex=%d values=%v", worker, opindex, doneKeys())
-			allMergedOps[worker][opindex] = struct{}{}
-			t.NoError(dws[worker].InsertOp(opindex, filtered))
+					return dws[worker].InsertOp(opindex, filtered)
+				}))
+			}
 		}
-	}
+	}()
 
 	t.T().Log("insert done")
-	for worker := range dws {
-		t.NoError(dws[worker].InsertDone())
-		t.T().Logf("\tworker=%q", worker)
-	}
+	go func() {
+		t.NoError(insertew.Wait())
 
-	for local := range dws {
+		insertdoneew, err := util.NewErrgroupWorker(ctx, 1<<9)
+		t.NoError(err)
+		defer insertdoneew.Close()
+
 		for worker := range dws {
-			if worker == local {
-				continue
-			}
+			worker := worker
 
-			t.NoError(dws[local].WorkerInsertDone(worker))
+			t.NoError(insertdoneew.NewJob(func(context.Context, uint64) error {
+				t.T().Logf("\tworker=%q", worker)
+
+				return dws[worker].InsertDone()
+			}))
 		}
-	}
+
+		for local := range dws {
+			local := local
+
+			for worker := range dws {
+				worker := worker
+
+				if worker == local {
+					continue
+				}
+
+				t.NoError(insertdoneew.NewJob(func(context.Context, uint64) error {
+					return dws[local].WorkerInsertDone(worker)
+				}))
+			}
+		}
+
+		insertdoneew.Done()
+		t.NoError(insertdoneew.Wait())
+	}()
 
 	t.T().Log("wait done")
-	for worker := range dws {
-		t.NoError(dws[worker].Done())
-	}
+
+	doneew, err := util.NewErrgroupWorker(ctx, 1<<9)
+	t.NoError(err)
+	defer doneew.Close()
+
+	go func() {
+		defer doneew.Done()
+
+		for worker := range dws {
+			worker := worker
+
+			t.NoError(doneew.NewJob(func(context.Context, uint64) error {
+				return dws[worker].Done()
+			}))
+		}
+	}()
+
+	t.NoError(doneew.Wait())
 
 	for worker := range dws {
 		add, done := util.SortCompactAppendSlice[uint64](len(allMergedOps[worker]), cmp.Less[uint64])

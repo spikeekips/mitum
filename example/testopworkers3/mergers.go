@@ -66,9 +66,9 @@ type DistributedStatesMergerWorker struct {
 	workerName       string // NOTE for testing
 	phaseStatus      util.LockedMap[int /* phase */, uint8 /* 1: local done, 2: merge done enough */]
 	phaseDoneRecords util.LockedMap[int /* phase */, map[string][3]interface{} /* {mergedOps, unmergedOps []uint8, is empty bool} */] // FIXME use map
-	psms             map[ /* phase */ int]*phaseStatesMerger
-	phaseDoneOps     map[ /* opindex */ uint64][2]interface{}                  /* {phase, xMergeFlag} */
-	phaseOps         map[ /* phase */ int]map[ /* opindex */ uint64]xMergeFlag /* {phase, xMergeFlag} */
+	phaseOps         util.LockedMap[string /* phase + opindex */, xMergeFlag /* {phase, xMergeFlag} */]
+	psms             util.LockedMap[int /* phase */, *phaseStatesMerger]
+	phaseDoneOps     map[ /* opindex */ uint64][2]interface{} /* {phase, xMergeFlag} */
 }
 
 func NewDistributedStatesMergerWorker(
@@ -84,9 +84,7 @@ func NewDistributedStatesMergerWorker(
 		args:         args,
 		ctx:          func() context.Context { return gctx },
 		ctxcancel:    gctxcancel,
-		psms:         map[int]*phaseStatesMerger{},
 		phaseDoneOps: map[uint64][2]interface{}{},
-		phaseOps:     map[int]map[uint64]xMergeFlag{},
 	}
 
 	switch i, err := util.NewShardedMap[string, StateMerger](args.MapSize, nil); {
@@ -115,6 +113,20 @@ func NewDistributedStatesMergerWorker(
 		return nil, err
 	default:
 		dw.phaseDoneRecords = i
+	}
+
+	switch i, err := util.NewShardedMap[int, *phaseStatesMerger](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		dw.psms = i
+	}
+
+	switch i, err := util.NewShardedMap[string, xMergeFlag](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		dw.phaseOps = i
 	}
 
 	var cleanOnce sync.Once
@@ -189,7 +201,7 @@ func (dw *DistributedStatesMergerWorker) Cancel() {
 			return true
 		}
 
-		if psm, found := dw.psms[phase]; found && status < 1 {
+		if psm, found := dw.psms.Value(phase); found && status < 1 {
 			psm.Cancel()
 		}
 
@@ -219,10 +231,10 @@ func (dw *DistributedStatesMergerWorker) cleanf() {
 	dw.valuespool.Close()
 	dw.phaseStatus.Close()
 	dw.phaseDoneRecords.Close()
+	dw.phaseOps.Close()
+	dw.psms.Close()
 
-	clear(dw.psms)
 	clear(dw.phaseDoneOps)
-	clear(dw.phaseOps)
 }
 
 func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) error {
@@ -289,37 +301,45 @@ func (dw *DistributedStatesMergerWorker) emptyLocalPhaseDone(phase int) error {
 	return dw.workerPhaseDone(localStatesMergerWorker, phase, nil, nil, true)
 }
 
-func (dw *DistributedStatesMergerWorker) psm(phase int) (*phaseStatesMerger, error) {
-	if psm, found := dw.psms[phase]; found {
-		return psm, nil
-	}
+func (dw *DistributedStatesMergerWorker) psm(phase int) (psm *phaseStatesMerger, _ error) {
+	if err := dw.psms.GetOrCreate(
+		phase,
+		func(i *phaseStatesMerger, _ bool) error {
+			psm = i
 
-	var psm *phaseStatesMerger
+			return nil
+		},
+		func() (*phaseStatesMerger, error) {
+			var p *phaseStatesMerger
 
-	switch i, err := newPhaseStatesMerger(
-		dw.ctx(),
-		dw.mergers.Value,
-		dw.valuespool.Value,
-		dw.args.GetStateValue,
-		dw.args.NewDistributedWorker,
-		dw.args.MapSize,
-	); {
-	case err != nil:
+			switch i, err := newPhaseStatesMerger(
+				dw.ctx(),
+				dw.mergers.Value,
+				dw.valuespool.Value,
+				dw.args.GetStateValue,
+				dw.args.NewDistributedWorker,
+				dw.args.MapSize,
+			); {
+			case err != nil:
+				return nil, err
+			default:
+				p = i
+			}
+
+			_ = p.SetLogging(dw.Logging)
+			p.SetWorkerName(fmt.Sprintf("%s/%d", dw.workerName, phase))
+
+			go func() {
+				if err := dw.localPhaseDone(phase, p); err != nil {
+					dw.ctxcancel(err)
+				}
+			}()
+
+			return p, nil
+		},
+	); err != nil {
 		return nil, err
-	default:
-		psm = i
 	}
-
-	_ = psm.SetLogging(dw.Logging)
-	psm.SetWorkerName(fmt.Sprintf("%s/%d", dw.workerName, phase))
-
-	dw.psms[phase] = psm
-
-	go func() {
-		if err := dw.localPhaseDone(phase, psm); err != nil {
-			dw.ctxcancel(err)
-		}
-	}()
 
 	return psm, nil
 }
@@ -549,25 +569,21 @@ func (dw *DistributedStatesMergerWorker) mergeOps(worker string, phase int, merg
 		return nil
 	}
 
-	var phaseOps map[uint64]xMergeFlag
-
-	switch i, found := dw.phaseOps[phase]; {
-	case !found:
-		phaseOps = map[uint64]xMergeFlag{}
-	default:
-		phaseOps = i
-	}
-
 	filterOpsFunc := func(xmf xMergeFlag) func(uint64) bool {
 		return func(opindex uint64) bool {
-			switch _, found := phaseOps[opindex]; {
-			case found:
-				return false
-			default:
-				phaseOps[opindex] = xmf
+			var found bool
 
-				return true
-			}
+			dw.phaseOps.Set(fmt.Sprintf("%d-%d", phase, opindex), func(prev xMergeFlag, opfound bool) (xMergeFlag, error) {
+				if opfound {
+					found = true
+
+					return 0, util.ErrLockedSetIgnore
+				}
+
+				return xmf, nil
+			})
+
+			return !found
 		}
 	}
 
@@ -587,8 +603,6 @@ func (dw *DistributedStatesMergerWorker) mergeOps(worker string, phase int, merg
 		doneUnmergedOps = i
 	}
 
-	dw.phaseOps[phase] = phaseOps
-
 	l.Debug().
 		Uints64("merged_ops", doneMergedOps).
 		Uints64("unmerged_ops", doneUnmergedOps).
@@ -600,7 +614,7 @@ func (dw *DistributedStatesMergerWorker) mergeOps(worker string, phase int, merg
 func (dw *DistributedStatesMergerWorker) mergeDone(phase int) error {
 	l := dw.Log().With().Int("phase", phase).Logger()
 
-	psm, found := dw.psms[phase]
+	psm, found := dw.psms.Value(phase)
 	if !found {
 		l.Debug().Msg("merge done, but psm not found; will local phase done")
 
