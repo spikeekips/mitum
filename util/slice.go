@@ -275,7 +275,7 @@ func RandomChoiceSlice[T any](a []T, size int64) ([]T, error) {
 }
 
 func CompactAppendSlice[T any](size int) (
-	add func(T) bool,
+	add func(T) (isFull bool),
 	done func() []T,
 ) {
 	s := make([]T, size)
@@ -283,7 +283,10 @@ func CompactAppendSlice[T any](size int) (
 	var i int
 
 	return func(t T) bool {
-			if size < 1 {
+			switch {
+			case size < 1:
+				return true
+			case i == size:
 				return true
 			}
 
@@ -334,40 +337,51 @@ func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
 }
 
 func UniqCompactAppendSlice[T cmp.Ordered](size int) (
-	add func(T),
+	add func(T) bool,
 	done func() []T,
 ) {
-	s := make([]T, size)
-
-	var i int
+	addf, done := CompactAppendSlice[T](size)
 
 	m := map[T]struct{}{}
 	defer clear(m)
 
-	return func(t T) {
-			if size < 1 {
-				return
-			}
-
-			if _, found := m[t]; found {
-				return
-			}
-
-			s[i] = t
-			m[t] = struct{}{}
-
-			i++
-		}, func() []T {
-			if size < 1 {
-				return nil
-			}
-
-			if i < 1 {
-				clear(s)
-
-				return nil
-			}
-
-			return s[:i]
+	return func(t T) bool {
+		if _, found := m[t]; found {
+			return false
 		}
+
+		if addf(t) {
+			return true
+		}
+
+		m[t] = struct{}{}
+
+		return false
+	}, done
+}
+
+func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
+	add func(T) bool,
+	done func() []T,
+) {
+	addf, donef := UniqCompactAppendSlice[T](size)
+
+	return addf, func() []T {
+		if size < 1 {
+			return nil
+		}
+
+		d := donef()
+		if len(d) < 1 {
+			clear(d)
+
+			return nil
+		}
+
+		sort.Slice(d, func(i, j int) bool {
+			return less(d[i], d[j])
+		})
+
+		return d
+	}
 }
