@@ -205,7 +205,7 @@ func (sm *phaseStatesMerger) newInitialMergeFunc(
 		case err != nil:
 			return err
 		case !created:
-			return util.ErrFound.Errorf("opindex already merged initiallay")
+			return util.ErrFound.Errorf("opindex already merged initially")
 		}
 
 		return swNewJob(sm.newJob(
@@ -253,7 +253,7 @@ func (sm *phaseStatesMerger) newInitialUnmergeFunc(
 		case err != nil:
 			return err
 		case !created:
-			return util.ErrFound.Errorf("opindex already unmerged initiallay")
+			return util.ErrFound.Errorf("opindex already unmerged initially")
 		}
 
 		return swNewJob(sm.newJob(

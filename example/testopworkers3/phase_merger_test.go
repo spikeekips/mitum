@@ -881,31 +881,30 @@ func (t *testPhaseStatesMerger) TestMerges3Accounts() {
 	)
 }
 
-func (t *testPhaseStatesMerger) TestMutualSubStates() {
-	workers := make([]string, 3)
-	for i := range workers {
-		workers[i] = fmt.Sprintf("p%d", i)
-	}
+func (t *testPhaseStatesMerger) TestValuesUpdatedDuringMerging() {
+	pub0 := base.NewDummyPublickey("0")
+	pub1 := base.NewDummyPublickey("1")
+	pub2 := base.NewDummyPublickey("2")
 
-	pub0, _ := base.ParseMPublickey("03d79ff7a295b52607d7b8c8eb6b6769d1bddc5406021e06ef9f1f0412ac2751fampu")
-	pub1, _ := base.ParseMPublickey("03e34507a38ce4f18a3b4f500e0b49f00329e3c83247c9eb0a7700bb44051a5e14mpu")
-	pub2, _ := base.ParseMPublickey("02143a5ee64d8cb207ec44fc862d29e307ebb20a39fecaac3352c9acf039a791c2mpu")
-
-	t.T().Log("state 0:", AccountStateKey(pub0))
-	t.T().Log("state 1:", AccountStateKey(pub1))
-	t.T().Log("state 2:", AccountStateKey(pub2))
+	key0 := AccountStateKey(pub0)
+	key1 := AccountStateKey(pub1)
+	key2 := AccountStateKey(pub2)
 
 	stv0 := NewAccountStateValue(pub0, 2)
 	stv1 := NewAccountStateValue(pub1, 2)
 	stv2 := NewAccountStateValue(pub2, 2)
 
+	t.T().Log("state 0:", key0)
+	t.T().Log("state 1:", key1)
+	t.T().Log("state 2:", key2)
+
 	getStateValue := func(key string) (base.StateValue, bool, error) {
 		switch key {
-		case AccountStateKey(pub0):
+		case key0:
 			return stv0, true, nil
-		case AccountStateKey(pub1):
+		case key1:
 			return stv1, true, nil
-		case AccountStateKey(pub2):
+		case key2:
 			return stv2, true, nil
 		default:
 			return nil, false, nil
@@ -915,77 +914,183 @@ func (t *testPhaseStatesMerger) TestMutualSubStates() {
 	ops := [][]StateMergeValue{
 		{
 			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newAccountStateMergeValue(pub1, -2), // updated
+			t.newAccountStateMergeValue(pub2, 1),
 		},
-		{ // ignored: mutual sub; worker0, worker1 should merge
+		{ // 1 ignored: multiple sub
 			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newAccountStateMergeValue(pub1, -2), // updated
+			t.newAccountStateMergeValue(pub2, 1),
 		},
 		{
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, 2),
+			t.newAccountStateMergeValue(pub2, 1),
 		},
-		{ // ignored: mutual sub; worker0, worker1 should merge
+		{ // 3 ignored: multiple sub
 			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newAccountStateMergeValue(pub1, -2), // updated
+			t.newAccountStateMergeValue(pub2, 1),
 		},
 		{
 			t.newAccountStateMergeValue(pub0, 1),
 			t.newAccountStateMergeValue(pub1, 2),
+			t.newAccountStateMergeValue(pub2, 1),
 		},
 		{
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub2, -1),
-		},
-		{ // ignored
-			t.newAccountStateMergeValue(pub1, -1),
-			t.newAccountStateMergeValue(pub2, 2),
-		},
-		{ // ignored
-			t.newAccountStateMergeValue(pub1, 1),
-			t.newAccountStateMergeValue(pub2, -1),
+			t.newAccountStateMergeValue(pub2, 1),
 		},
 	}
-
-	stateOwners := map[string][]string{
-		AccountStateKey(pub0): {workers[0], workers[1]},
-		AccountStateKey(pub1): {workers[0], workers[1]},
-		AccountStateKey(pub2): {workers[2]},
-	}
-	filterValues := func(worker string, opindex uint64) []StateMergeValue {
-		return util.FilterSlice(ops[opindex], func(value StateMergeValue) bool {
-			return slices.Index(stateOwners[value.Key()], worker) >= 0
-		})
-	}
-
-	expectedMergedOps := []uint64{0, 2, 4, 5}
-	var expectedUnmergedOps []uint64
-	for i := range ops {
-		opindex := uint64(i)
-		if slices.Index(expectedMergedOps, opindex) < 0 {
-			expectedUnmergedOps = append(expectedUnmergedOps, opindex)
-		}
-	}
-
-	t.T().Logf("expected: merged_ops=%v unmerged_ops=%v", expectedMergedOps, expectedUnmergedOps)
-
-	mergers := make([]util.LockedMap[string, StateMerger], len(workers))
-	vps := make([]util.LockedMap[uint64, []StateMergeValue], len(workers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for i := range workers {
-		mergers[i], _ = util.NewShardedMap[string, StateMerger](1<<9, nil)
-		vps[i], _ = util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
+	mergers, _ := util.NewShardedMap[string, StateMerger](1<<9, nil)
+	vp, _ := util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
+
+	newWorker := func() *phaseStatesMerger {
+		psm, err := newPhaseStatesMerger(
+			ctx,
+			mergers.Value,
+			vp.Value,
+			getStateValue,
+			func(ctx context.Context) (distributedWorker, error) {
+				return util.NewErrgroupWorker(ctx, 1)
+			},
+			1<<9,
+		)
+		t.NoError(err)
+		// psm.SetLogging(logging.TestLogging)
+
+		return psm
 	}
 
-	for i := range ops {
-		opindex := uint64(i)
+	allMergedOps := map[ /* opindex */ uint64]struct{}{
+		0: {}, 1: {}, 2: {}, 3: {}, 4: {},
+	}
 
-		for j := range vps {
-			worker := workers[j]
-			vs := filterValues(worker, opindex)
+	stateOps := map[string][]uint64{}
+
+	updateWorkerMergedOps := func(stateKey string, merged, unmerged []uint64) []uint64 {
+		prev := stateOps[stateKey]
+
+		addS, doneS := util.SortUniqCompactAppendSlice[uint64](len(prev)+len(merged), cmp.Less[uint64])
+
+		util.TraverseSliceV1(merged, func(_ int, opindex uint64) (bool, error) {
+			if _, found := allMergedOps[opindex]; !found {
+				allMergedOps[opindex] = struct{}{}
+			}
+
+			addS(opindex)
+
+			return true, nil
+		})
+
+		util.TraverseSliceV1(prev, func(_ int, opindex uint64) (bool, error) {
+			if slices.Index(unmerged, opindex) < 0 {
+				addS(opindex)
+			}
+
+			return true, nil
+		})
+
+		stateOps[stateKey] = doneS()
+
+		util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
+			if _, found := allMergedOps[opindex]; found {
+				delete(allMergedOps, opindex)
+			}
+
+			return true, nil
+		})
+
+		add, done := util.SortCompactAppendSlice[uint64](len(allMergedOps)+len(merged), cmp.Less[uint64])
+		for opindex := range allMergedOps {
+			add(opindex)
+		}
+
+		return done()
+	}
+
+	runPSM := func(mergeOps, unmergeOps []uint64) (
+		mergedOps, unmergedOps []uint64,
+		updated bool,
+	) {
+		psm := newWorker()
+
+		t.NoError(util.TraverseSliceV1(mergeOps, func(_ int, opindex uint64) (bool, error) {
+			return true, psm.Merge(opindex)
+		}))
+
+		t.NoError(util.TraverseSliceV1(unmergeOps, func(_ int, opindex uint64) (bool, error) {
+			return true, psm.Unmerge(opindex)
+		}))
+
+		t.NoError(psm.MergeDone())
+
+		switch i, j, updatef, err := psm.Done(); {
+		case err != nil:
+			t.NoError(err)
+			return
+		default:
+			mergedOps = i
+			unmergedOps = j
+
+			t.T().Logf("done: merged_ops=%v unmerged_ops=%v", mergedOps, unmergedOps)
+
+			t.NoError(updatef(
+				func(stateKey string, merger StateMerger, merged, unmerged []uint64, maxUpdatedValues uint64) error {
+					updated = true
+
+					var balance int64 = -1
+					{
+						nm := merger.Clone()
+						switch i, err := nm.Close(); {
+						case err != nil:
+							return err
+						default:
+							balance = i.(AccountStateValue).Balance
+						}
+					}
+
+					if merger != nil {
+						mergers.SetValue(stateKey, merger)
+					}
+
+					updatedOps := updateWorkerMergedOps(stateKey, merged, unmerged)
+
+					t.T().Logf(
+						"\tvalue: state_key=%q balance=%v merged_ops=%v unmerged_ops=%v max=%d updated=%v",
+						stateKey, balance, merged, unmerged, maxUpdatedValues, updatedOps,
+					)
+
+					return nil
+				},
+				func(opindex uint64, reason string) error {
+					t.T().Logf("\treason: opindex=%d reason=%q", opindex, reason)
+
+					return nil
+				},
+			))
+
+			return mergedOps, unmergedOps, updated
+		}
+	}
+
+	{
+		t.T().Log("initial merge")
+
+		addMergeOps, doneMergeOps := util.CompactAppendSlice[uint64](len(ops))
+		for i := range ops {
+			opindex := uint64(i)
+			vs := util.FilterSlice(ops[i], func(v StateMergeValue) bool { // initially only pub0 and pub2
+				switch v.Key() {
+				case key0, key2:
+					return true
+				default:
+					return false
+				}
+			})
 			if len(vs) < 1 {
 				continue
 			}
@@ -995,295 +1100,140 @@ func (t *testPhaseStatesMerger) TestMutualSubStates() {
 				keys[k] = vs[k].Key()
 			}
 
-			t.T().Logf("values: opindex=%d worker=%q keys=%v", opindex, worker, keys)
+			t.T().Logf("\tvalues: opindex=%d keys=%v", opindex, keys)
 
-			vps[j].SetValue(opindex, vs)
+			vp.SetValue(opindex, vs)
+			addMergeOps(opindex)
 		}
+
+		mergedOps, unmergedOps, updated := runPSM(doneMergeOps(), nil)
+
+		t.Empty(mergedOps)
+		t.Equal([]uint64{2, 3}, unmergedOps)
+		t.True(updated)
 	}
 
-	newWorker := func(
-		ms util.LockedMap[string, StateMerger],
-		vp util.LockedMap[uint64, []StateMergeValue],
-	) *phaseStatesMerger {
-		psm, err := newPhaseStatesMerger(
-			ctx,
-			ms.Value,
-			vp.Value,
-			getStateValue,
-			func(ctx context.Context) (distributedWorker, error) {
-				return util.NewErrgroupWorker(ctx, 1<<9)
-			},
-			1<<9,
-		)
+	{
+		t.T().Log("remove mergers of pub0, pub2")
+		mergers.RemoveValue(key0)
+		mergers.RemoveValue(key1)
+
+		t.T().Log("remove the related ops with pub0, pub2")
+		addRelatedOps, doneRelatedOps := util.CompactAppendSlice[uint64](len(ops))
+
+		for i := range ops {
+			opindex := uint64(i)
+			vs := ops[opindex]
+
+			var found bool
+			filtered := util.FilterSlice(vs, func(v StateMergeValue) bool {
+				switch v.Key() {
+				case key0, key1:
+					found = true
+
+					return false
+				default:
+					return true
+				}
+			})
+			if found {
+				if _, mergedFound := allMergedOps[opindex]; mergedFound {
+					addRelatedOps(opindex)
+				}
+
+				if len(filtered) > 0 {
+					vp.SetValue(opindex, filtered)
+				} else {
+					vp.RemoveValue(opindex)
+				}
+			}
+		}
+
+		relatedOps := doneRelatedOps()
+
+		t.T().Logf("unmerge related, %v", relatedOps)
+
+		mergedOps, unmergedOps, updated := runPSM(nil, relatedOps)
+
+		t.Empty(mergedOps)
+		t.Empty(unmergedOps)
+		t.True(updated)
+	}
+
+	{
+		t.T().Log("update values of pub0, pub1")
+
+		addMergeOps, doneMergeOps := util.CompactAppendSlice[uint64](len(ops))
+		for i := range ops {
+			opindex := uint64(i)
+
+			var found bool
+			filtered := util.FilterSlice(ops[opindex], func(v StateMergeValue) bool {
+				switch k := v.Key(); k {
+				case key0, key1:
+					found = true
+
+					if k == key1 && v.(AccountStateMergeValue).Balance > 0 { // only sub value of pub1
+						return false
+					}
+				}
+
+				return true
+			})
+			if !found {
+				continue
+			}
+
+			vp.SetValue(opindex, filtered)
+			addMergeOps(opindex)
+		}
+
+		mergeOps := doneMergeOps()
+		t.T().Logf("merge %v", mergeOps)
+
+		mergedOps, unmergedOps, updated := runPSM(mergeOps, nil)
+
+		t.Empty(mergedOps)
+		t.Equal([]uint64{1, 3}, unmergedOps)
+		t.True(updated)
+	}
+
+	mergers.Traverse(func(stateKey string, v StateMerger) bool {
+		stv, err := v.Close()
 		t.NoError(err)
 
-		psm.SetLogging(logging.TestNilLogging)
+		balance := stv.(AccountStateValue).Balance
 
-		return psm
-	}
-
-	psms := map[ /* phase */ int][]*phaseStatesMerger{}
-	newPhase := func(phase int) {
-		psms[phase] = make([]*phaseStatesMerger, len(workers))
-
-		for i := range workers {
-			psm := newWorker(mergers[i], vps[i])
-			psm.SetWorkerName(workers[i])
-
-			psms[phase][i] = psm
-		}
-	}
-
-	workerMergedOps := map[ /* phase */ int]map[ /* worker */ string][]uint64{} /* opindex */
-	psmMergeOps := func(worker string, phase int, mergeOps, unmergeOps []uint64) error {
-		psm := psms[phase][slices.Index(workers, worker)]
-
-		if err := util.TraverseSliceV1(mergeOps, func(_ int, opindex uint64) (bool, error) {
-			if len(filterValues(worker, opindex)) < 1 {
-				return true, nil
-			}
-
-			prev, found := workerMergedOps[phase-1][worker]
-			switch {
-			case !found:
-			case slices.Index(prev, opindex) >= 0:
-				return true, nil
-			}
-
-			t.T().Logf("\tmerge: worker=%q prev=%v merge_ops=%v op=%d", worker, prev, mergeOps, opindex)
-
-			return true, psm.Merge(opindex)
-		}); err != nil {
-			return err
+		switch stateKey {
+		case key0:
+			t.Equal(int64(3), balance)
+		case key1:
+			t.Equal(int64(0), balance)
+		case key0:
+			t.Equal(int64(6), balance)
 		}
 
-		if err := util.TraverseSliceV1(unmergeOps, func(_ int, opindex uint64) (bool, error) {
-			prev, found := workerMergedOps[phase-1][worker]
+		t.T().Logf("state value: key=%q balance=%d", stateKey, balance)
 
-			switch {
-			case !found:
-			case slices.Index(prev, opindex) < 0:
-				return true, nil
-			}
+		return true
+	})
 
-			t.T().Logf("\tunmerge: worker=%q prev=%v merge_ops=%v op=%d", worker, prev, mergeOps, opindex)
-			return true, psm.Unmerge(opindex)
-		}); err != nil {
-			return err
+	t.Equal([]uint64{0, 2, 4}, stateOps[key0])
+	t.Equal([]uint64{0}, stateOps[key1])
+	t.Equal([]uint64{0, 2, 4, 5}, stateOps[key2])
+
+	{
+		add, done := util.SortCompactAppendSlice[uint64](len(allMergedOps), cmp.Less[uint64])
+		for i := range allMergedOps {
+			add(i)
 		}
 
-		return nil
-	}
-	psmMergeDone := func(worker string, phase int) error {
-		psm := psms[phase][slices.Index(workers, worker)]
+		expected := []uint64{0, 2, 4, 5}
+		merged := done()
 
-		return psm.MergeDone()
-	}
+		t.T().Logf("expected=%v merged_ops=%v", expected, merged)
 
-	updateWorkerMergedOps := func(phase int, worker string, merged, unmerged []uint64) []uint64 {
-		if _, found := workerMergedOps[phase]; !found {
-			workerMergedOps[phase] = map[string][]uint64{}
-		}
-
-		var prev []uint64
-		switch i, found := workerMergedOps[phase][worker]; {
-		case !found:
-			prev = workerMergedOps[phase-1][worker]
-		default:
-			prev = i
-		}
-
-		add, done := util.UniqCompactAppendSlice[uint64](len(prev) + len(merged))
-		util.TraverseSliceV1(merged, func(_ int, opindex uint64) (bool, error) {
-			if slices.Index(prev, opindex) < 0 {
-				add(opindex)
-			}
-
-			return true, nil
-		})
-
-		prev = slices.DeleteFunc(prev, func(i uint64) bool {
-			return slices.Index(unmerged, i) >= 0
-		})
-
-		for i := range prev {
-			add(prev[i])
-		}
-
-		d := done()
-		slices.Sort(d)
-		workerMergedOps[phase][worker] = d
-
-		return workerMergedOps[phase][worker]
-	}
-
-	mergedOps := map[ /* phase */ int]map[ /* worker */ string][]uint64{}   /* ops */
-	unmergedOps := map[ /* phase */ int]map[ /* worker */ string][]uint64{} /* ops */
-
-	runPhase := func(phase int, worker string) bool {
-		workerindex := slices.Index(workers, worker)
-
-		others := make([]string, len(workers)-1)
-		for i := 0; i < len(workers)-1; i++ {
-			others[i] = workers[(workerindex+i+1)%len(workers)]
-		}
-
-		t.T().Logf("> phase %d: worker=%q", phase, worker)
-		newPhase(phase)
-
-		psm := psms[phase][workerindex]
-		//if phase == 1 && worker == "p1" {
-		//	psm.SetLogging(logging.TestLogging)
-		//}
-
-		addPrevMerged, donePrevMerged := util.UniqCompactAppendSlice[uint64](len(ops))
-		addPrevUnmerged, donePrevUnmerged := util.UniqCompactAppendSlice[uint64](len(ops))
-
-		switch {
-		case phase == 0:
-			util.TraverseSliceV1(mergedOps[phase-1][worker], func(_ int, opindex uint64) (bool, error) {
-				addPrevMerged(opindex)
-
-				return true, nil
-			})
-		default:
-			for i := range others {
-				util.TraverseSliceV1(mergedOps[phase-1][others[i]], func(_ int, opindex uint64) (bool, error) {
-					addPrevMerged(opindex)
-
-					return true, nil
-				})
-
-				util.TraverseSliceV1(unmergedOps[phase-1][others[i]], func(_ int, opindex uint64) (bool, error) {
-					addPrevUnmerged(opindex)
-
-					return true, nil
-				})
-			}
-		}
-
-		prevMerged := donePrevMerged()
-		prevUnmerged := donePrevUnmerged()
-		slices.Sort(prevMerged)
-		slices.Sort(prevUnmerged)
-
-		t.T().Logf("> merge: %v -> %q merge_ops=%v unmerge_ops=%v", others, worker, prevMerged, prevUnmerged)
-
-		t.NoError(psmMergeOps(worker, phase, nil, prevUnmerged))
-		t.NoError(psmMergeOps(worker, phase, prevMerged, nil))
-		t.NoError(psmMergeDone(worker, phase))
-
-		merged, unmerged, updatef, err := psm.Done()
-		t.NoError(err, worker)
-
-		if phase == 0 {
-			addRealMerged, doneRealMerged := util.CompactAppendSlice[uint64](len(ops))
-			for i := range ops {
-				opindex := uint64(i)
-				if slices.Index(unmerged, opindex) < 0 {
-					addRealMerged(opindex)
-				}
-			}
-
-			merged = doneRealMerged()
-		}
-
-		if _, found := mergedOps[phase]; !found {
-			mergedOps[phase] = map[string][]uint64{}
-		}
-		if _, found := unmergedOps[phase]; !found {
-			unmergedOps[phase] = map[string][]uint64{}
-		}
-
-		mergedOps[phase][worker] = merged
-		unmergedOps[phase][worker] = unmerged
-
-		t.T().Logf("done: worker=%q merged_ops=%v unmerged_ops=%v", worker, merged, unmerged)
-
-		var updated bool
-		var updatedOps []uint64
-
-		t.NoError(updatef(
-			func(stateKey string, merger StateMerger, merged, unmerged []uint64, maxUpdatedValues uint64) error {
-				updated = true
-
-				t.T().Logf(
-					"\tvalue: worker=%q state_key=%q merged_ops=%v unmerged_ops=%v max=%d",
-					worker, stateKey, merged, unmerged, maxUpdatedValues,
-				)
-
-				if merger != nil {
-					mergers[workerindex].SetValue(stateKey, merger)
-				}
-
-				updatedOps = updateWorkerMergedOps(phase, worker, merged, unmerged)
-
-				return nil
-			},
-			func(opindex uint64, reason string) error {
-				t.T().Logf("\treason: worker=%q opindex=%d reason=%q", worker, opindex, reason)
-
-				return nil
-			},
-		))
-
-		if !updated {
-			updatedOps = updateWorkerMergedOps(phase, worker, nil, nil)
-		}
-
-		t.T().Logf("< done: worker=%q ops=%v updated=%v", worker, updatedOps, updated)
-
-		return updated
-	}
-
-	mergedOps[-1] = map[string][]uint64{}
-	unmergedOps[-1] = map[string][]uint64{}
-
-	for i := range workers {
-		worker := workers[i]
-		addOps, doneOps := util.CompactAppendSlice[uint64](len(ops))
-
-		for j := range ops {
-			opindex := uint64(j)
-
-			if len(filterValues(worker, opindex)) > 0 {
-				addOps(opindex)
-			}
-		}
-
-		mergedOps[-1][worker] = doneOps()
-		unmergedOps[-1][worker] = nil
-	}
-
-	var phase int
-	for {
-		var updated int
-		for i := range workers {
-			if runPhase(phase, workers[i]) {
-				updated++
-			}
-		}
-
-		if updated < 1 {
-			break
-		}
-
-		phase++
-	}
-
-	for i := range workers {
-		worker := workers[i]
-		addExpected, doneExpected := util.SortCompactAppendSlice[uint64](len(expectedMergedOps), cmp.Less[uint64])
-
-		util.TraverseSliceV1(expectedMergedOps, func(_ int, opindex uint64) (bool, error) {
-			if len(filterValues(worker, opindex)) > 0 {
-				addExpected(opindex)
-			}
-
-			return true, nil
-		})
-
-		t.Equal(doneExpected(), workerMergedOps[phase][worker], worker)
+		t.Equal(expected, merged)
 	}
 }
 
