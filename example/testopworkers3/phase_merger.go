@@ -32,7 +32,7 @@ type phaseStatesMerger struct {
 	prevMerger           func(stateKey string) (StateMerger, bool)
 	opValues             func(opindex uint64) ([]StateMergeValue, bool)
 	stateValue           func(string) (base.StateValue, bool, error)
-	newDistributedWorker func(context.Context) (distributedWorker, error)
+	newJobWorker         func(context.Context) (jobWorker, error)
 	mergers              *util.MultiKeysLockedMap[string /* state key */, StateMerger]
 	opStatus             util.LockedMap[uint64 /* opindex */, [3]interface{} /* {initial xMergeFlag, swphase, xMergeFlag} */]
 	mergedOps            util.LockedMap[string /* state key */, map[ /* opindex */ uint64] /* {swphase, xMergeFlag} */ [2]interface{}]
@@ -52,7 +52,7 @@ func newPhaseStatesMerger(
 	prevMerger func(stateKey string) (StateMerger, bool),
 	opValues func(opindex uint64) ([]StateMergeValue, bool),
 	stateValue func(string) (base.StateValue, bool, error),
-	newDistributedWorker func(context.Context) (distributedWorker, error),
+	newJobWorker func(context.Context) (jobWorker, error),
 	mapsize uint64,
 ) (*phaseStatesMerger, error) {
 	pctx, pctxCancel := context.WithCancel(ctx)
@@ -61,11 +61,11 @@ func newPhaseStatesMerger(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "phase-states-merger")
 		}),
-		prevMerger:           prevMerger,
-		opValues:             opValues,
-		stateValue:           stateValue,
-		newDistributedWorker: newDistributedWorker,
-		ctx:                  func() context.Context { return pctx },
+		prevMerger:   prevMerger,
+		opValues:     opValues,
+		stateValue:   stateValue,
+		newJobWorker: newJobWorker,
+		ctx:          func() context.Context { return pctx },
 	}
 
 	switch i, err := util.NewShardedMap[string, StateMerger](mapsize, nil); {
@@ -107,7 +107,7 @@ func newPhaseStatesMerger(
 	var swDone func() error
 	var swCancel func()
 
-	switch i, err := NewSerialWorkers(newDistributedWorker); {
+	switch i, err := NewSerialWorkers(newJobWorker); {
 	case err != nil:
 		return nil, err
 	default:
@@ -655,9 +655,9 @@ func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) 
 		return fs[0]()
 	}
 
-	var ew distributedWorker
+	var ew jobWorker
 
-	switch i, err := sm.newDistributedWorker(ctx); {
+	switch i, err := sm.newJobWorker(ctx); {
 	case err != nil:
 		return err
 	default:

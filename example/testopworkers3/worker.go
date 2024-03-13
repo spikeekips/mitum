@@ -16,7 +16,7 @@ type (
 	serialWorkerNewJobFunc     func(serialWorkerNewNextJobFunc) error
 )
 
-type distributedWorker interface {
+type jobWorker interface {
 	NewJob(util.ContextWorkerCallback) error
 	Done()
 	Wait() error
@@ -26,11 +26,11 @@ type distributedWorker interface {
 
 type SerialWorkers struct {
 	*logging.Logging
-	newWorker func(context.Context) (distributedWorker, error)
+	newWorker func(context.Context) (jobWorker, error)
 }
 
 func NewSerialWorkers(
-	newWorker func(context.Context) (distributedWorker, error),
+	newWorker func(context.Context) (jobWorker, error),
 ) (*SerialWorkers, error) {
 	switch i, err := newWorker(context.Background()); {
 	case err != nil:
@@ -64,7 +64,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 
 	gctx, cancel := context.WithCancel(ctx)
 
-	var ew distributedWorker
+	var ew jobWorker
 
 	jobdonech := make(chan struct{}, 1)
 
@@ -83,7 +83,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 	var nextcancel func()
 
 	newJob = sw.newJobFunc(gctx, phase,
-		func(ctx context.Context) (distributedWorker, error) {
+		func(ctx context.Context) (jobWorker, error) {
 			i, err := sw.newWorker(ctx)
 			if err != nil {
 				return nil, err
@@ -115,7 +115,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 		defer cancel()
 
 		return sw.doneFunc(gctx, phase,
-			func() distributedWorker {
+			func() jobWorker {
 				return ew
 			},
 			jobdonech,
@@ -146,14 +146,14 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 func (sw *SerialWorkers) newJobFunc(
 	ctx context.Context,
 	phase int,
-	newWorker func(context.Context) (distributedWorker, error),
+	newWorker func(context.Context) (jobWorker, error),
 	newJob func(util.ContextWorkerCallback) error,
 	ewDone func(),
 	nextWorker func(context.Context) func(serialWorkerNewNextJobFunc) error,
 ) func(serialWorkerNewNextJobFunc) error {
 	l := sw.Log().With().Int("phase", phase).Logger()
 
-	var ew distributedWorker
+	var ew jobWorker
 	var nextNewJob func(serialWorkerNewNextJobFunc) error
 	var ewonce, nextewonce sync.Once
 
@@ -209,7 +209,7 @@ func (sw *SerialWorkers) newJobFunc(
 func (sw *SerialWorkers) doneFunc(
 	ctx context.Context,
 	phase int,
-	ewf func() distributedWorker,
+	ewf func() jobWorker,
 	jobdonech <-chan struct{},
 	nextcancelf func() func(),
 	nextNewJobf func() func(serialWorkerNewNextJobFunc) error,

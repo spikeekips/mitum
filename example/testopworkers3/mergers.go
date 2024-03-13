@@ -16,35 +16,35 @@ import (
 var localStatesMergerWorker = "local"
 
 var (
-	errDistributedStatesMergerWorkerDone             = util.NewIDError("states merger worker done")
-	errDistributedStatesMergerWorkerAlreadyPhaseDone = util.NewIDError("worker already phase done")
+	errStatesMergerWorkerDone             = util.NewIDError("states merger worker done")
+	errStatesMergerWorkerAlreadyPhaseDone = util.NewIDError("worker already phase done")
 )
 
 type (
-	distributedStatesMergerDoneUpdatedValuesFunc func(
+	statesMergerDoneUpdatedValuesFunc func(
 		phase int,
 		stateKey string,
 		merger StateMerger,
 		mergedOps, unmergedOps []uint64,
 		maxUpdatedValues uint64,
 	) error
-	distributedStatesMergerDoneUpdatedReasonsFunc func(phase int, opindex uint64, reason string) error
+	statesMergerDoneUpdatedReasonsFunc func(phase int, opindex uint64, reason string) error
 )
 
-type DistributedStatesMergerWorkerArgs struct {
+type StatesMergerWorkerArgs struct {
 	GetStateValue          func(key string) (base.StateValue, bool, error)
-	NewDistributedWorker   func(context.Context) (distributedWorker, error)
+	NewJobWorker           func(context.Context) (jobWorker, error)
 	IsEnoughWorkers        func(workers uint64) bool // NOTE include local worker
 	BroadcastPhaseDoneFunc func(phase int, mergedOps, unmergedOps []uint64) error
-	UpdatedValuesFunc      distributedStatesMergerDoneUpdatedValuesFunc
-	UpdateReasonsFunc      distributedStatesMergerDoneUpdatedReasonsFunc
+	UpdatedValuesFunc      statesMergerDoneUpdatedValuesFunc
+	UpdateReasonsFunc      statesMergerDoneUpdatedReasonsFunc
 	MapSize                uint64
 }
 
-func NewDistributedStatesMergerWorkerArgs() *DistributedStatesMergerWorkerArgs {
-	return &DistributedStatesMergerWorkerArgs{
+func NewStatesMergerWorkerArgs() *StatesMergerWorkerArgs {
+	return &StatesMergerWorkerArgs{
 		GetStateValue: func(string) (base.StateValue, bool, error) { return nil, false, nil },
-		NewDistributedWorker: func(ctx context.Context) (distributedWorker, error) {
+		NewJobWorker: func(ctx context.Context) (jobWorker, error) {
 			return util.NewErrgroupWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
@@ -55,9 +55,9 @@ func NewDistributedStatesMergerWorkerArgs() *DistributedStatesMergerWorkerArgs {
 	}
 }
 
-type DistributedStatesMergerWorker struct {
+type StatesMergerWorker struct {
 	*logging.Logging
-	args             *DistributedStatesMergerWorkerArgs
+	args             *StatesMergerWorkerArgs
 	ctx              func() context.Context
 	ctxcancel        func(error)
 	mergers          util.LockedMap[string /* state key */, StateMerger]
@@ -71,15 +71,15 @@ type DistributedStatesMergerWorker struct {
 	phaseDoneOps     map[ /* opindex */ uint64][2]interface{} /* {phase, xMergeFlag} */
 }
 
-func NewDistributedStatesMergerWorker(
+func NewStatesMergerWorker(
 	ctx context.Context,
-	args *DistributedStatesMergerWorkerArgs,
-) (*DistributedStatesMergerWorker, error) {
+	args *StatesMergerWorkerArgs,
+) (*StatesMergerWorker, error) {
 	gctx, gctxcancel := context.WithCancelCause(ctx)
 
-	dw := &DistributedStatesMergerWorker{
+	dw := &StatesMergerWorker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "distributed-states-merger")
+			return zctx.Str("module", "states-merger")
 		}),
 		args:         args,
 		ctx:          func() context.Context { return gctx },
@@ -140,7 +140,7 @@ func NewDistributedStatesMergerWorker(
 	return dw, nil
 }
 
-func (dw *DistributedStatesMergerWorker) InsertOp(opindex uint64, values []StateMergeValue) error {
+func (dw *StatesMergerWorker) InsertOp(opindex uint64, values []StateMergeValue) error {
 	switch _, created, err := dw.valuespool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
 		if found {
 			return nil, util.ErrLockedSetIgnore
@@ -156,7 +156,7 @@ func (dw *DistributedStatesMergerWorker) InsertOp(opindex uint64, values []State
 
 	return dw.phaseStatus.Get(-1, func(status uint8, found bool) error {
 		if status > 1 {
-			return errDistributedStatesMergerWorkerAlreadyPhaseDone.Errorf("insert")
+			return errStatesMergerWorkerAlreadyPhaseDone.Errorf("insert")
 		}
 
 		if err := dw.mergeOps(localStatesMergerWorker, 0, []uint64{opindex}, nil); err != nil {
@@ -169,29 +169,29 @@ func (dw *DistributedStatesMergerWorker) InsertOp(opindex uint64, values []State
 	})
 }
 
-func (dw *DistributedStatesMergerWorker) InsertDone() error {
+func (dw *StatesMergerWorker) InsertDone() error {
 	return dw.workerInsertDone(localStatesMergerWorker, -1, nil, nil, true)
 }
 
-func (dw *DistributedStatesMergerWorker) WorkerInsertDone(worker string) error {
+func (dw *StatesMergerWorker) WorkerInsertDone(worker string) error {
 	switch err := dw.workerInsertDone(worker, -1, nil, nil, true); {
-	case errors.Is(err, errDistributedStatesMergerWorkerAlreadyPhaseDone):
+	case errors.Is(err, errStatesMergerWorkerAlreadyPhaseDone):
 		return nil
 	default:
 		return err
 	}
 }
 
-func (dw *DistributedStatesMergerWorker) WorkerPhaseDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
+func (dw *StatesMergerWorker) WorkerPhaseDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
 	switch err := dw.workerPhaseDone(worker, phase, mergedOps, unmergedOps, isEmpty); {
-	case errors.Is(err, errDistributedStatesMergerWorkerAlreadyPhaseDone):
+	case errors.Is(err, errStatesMergerWorkerAlreadyPhaseDone):
 		return nil
 	default:
 		return err
 	}
 }
 
-func (dw *DistributedStatesMergerWorker) Cancel() {
+func (dw *StatesMergerWorker) Cancel() {
 	dw.Log().Debug().Msg("cancel")
 
 	dw.ctxcancel(nil)
@@ -211,13 +211,13 @@ func (dw *DistributedStatesMergerWorker) Cancel() {
 	dw.clean()
 }
 
-func (dw *DistributedStatesMergerWorker) Done() error {
+func (dw *StatesMergerWorker) Done() error {
 	defer dw.clean()
 
 	<-dw.ctx().Done()
 
 	switch err := context.Cause(dw.ctx()); {
-	case errors.Is(err, errDistributedStatesMergerWorkerDone):
+	case errors.Is(err, errStatesMergerWorkerDone):
 		dw.Log().Debug().Msg("done")
 
 		return nil
@@ -226,7 +226,7 @@ func (dw *DistributedStatesMergerWorker) Done() error {
 	}
 }
 
-func (dw *DistributedStatesMergerWorker) cleanf() {
+func (dw *StatesMergerWorker) cleanf() {
 	dw.mergers.Close()
 	dw.valuespool.Close()
 	dw.phaseStatus.Close()
@@ -237,7 +237,7 @@ func (dw *DistributedStatesMergerWorker) cleanf() {
 	clear(dw.phaseDoneOps)
 }
 
-func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) error {
+func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) error {
 	var mergedOps, unmergedOps []uint64
 
 	if psm != nil {
@@ -293,7 +293,7 @@ func (dw *DistributedStatesMergerWorker) localPhaseDone(phase int, psm *phaseSta
 	)
 }
 
-func (dw *DistributedStatesMergerWorker) emptyLocalPhaseDone(phase int) error {
+func (dw *StatesMergerWorker) emptyLocalPhaseDone(phase int) error {
 	if err := dw.args.BroadcastPhaseDoneFunc(phase, nil, nil); err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (dw *DistributedStatesMergerWorker) emptyLocalPhaseDone(phase int) error {
 	return dw.workerPhaseDone(localStatesMergerWorker, phase, nil, nil, true)
 }
 
-func (dw *DistributedStatesMergerWorker) psm(phase int) (psm *phaseStatesMerger, _ error) {
+func (dw *StatesMergerWorker) psm(phase int) (psm *phaseStatesMerger, _ error) {
 	if err := dw.psms.GetOrCreate(
 		phase,
 		func(i *phaseStatesMerger, _ bool) error {
@@ -317,7 +317,7 @@ func (dw *DistributedStatesMergerWorker) psm(phase int) (psm *phaseStatesMerger,
 				dw.mergers.Value,
 				dw.valuespool.Value,
 				dw.args.GetStateValue,
-				dw.args.NewDistributedWorker,
+				dw.args.NewJobWorker,
 				dw.args.MapSize,
 			); {
 			case err != nil:
@@ -344,7 +344,7 @@ func (dw *DistributedStatesMergerWorker) psm(phase int) (psm *phaseStatesMerger,
 	return psm, nil
 }
 
-func (dw *DistributedStatesMergerWorker) setPhaseDoneRecord(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) (
+func (dw *StatesMergerWorker) setPhaseDoneRecord(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) (
 	isMergeDoneEnough, isEmptyEnough bool,
 	_ error,
 ) {
@@ -413,7 +413,7 @@ func (dw *DistributedStatesMergerWorker) setPhaseDoneRecord(worker string, phase
 	return isMergeDoneEnough, isEmptyEnough, nil
 }
 
-func (dw *DistributedStatesMergerWorker) dumpPhaseDoneRecords(phase int) (mergedOps, unmergedOps []uint64) {
+func (dw *StatesMergerWorker) dumpPhaseDoneRecords(phase int) (mergedOps, unmergedOps []uint64) {
 	addMergedOps, doneMergedOps := util.UniqCompactAppendSlice[uint64](dw.valuespool.Len())
 	addUnmergedOps, doneUnmergedOps := util.UniqCompactAppendSlice[uint64](dw.valuespool.Len())
 
@@ -448,10 +448,10 @@ func (dw *DistributedStatesMergerWorker) dumpPhaseDoneRecords(phase int) (merged
 	return doneMergedOps(), doneUnmergedOps()
 }
 
-func (dw *DistributedStatesMergerWorker) workerInsertDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
+func (dw *StatesMergerWorker) workerInsertDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
 	_, _, err := dw.phaseStatus.Set(phase, func(status uint8, found bool) (uint8, error) {
 		if status > 1 {
-			return 0, errDistributedStatesMergerWorkerAlreadyPhaseDone.Errorf(worker)
+			return 0, errStatesMergerWorkerAlreadyPhaseDone.Errorf(worker)
 		}
 
 		switch isMergeDoneEnough, isEmptyEnough, err := dw.isEnoughWorkerPhaseDone(worker, status, -1, nil, nil, true); {
@@ -475,7 +475,7 @@ func (dw *DistributedStatesMergerWorker) workerInsertDone(worker string, phase i
 	return err
 }
 
-func (dw *DistributedStatesMergerWorker) workerPhaseDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
+func (dw *StatesMergerWorker) workerPhaseDone(worker string, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) error {
 	dw.Log().Debug().
 		Str("worker", worker).
 		Int("phase", phase).
@@ -483,7 +483,7 @@ func (dw *DistributedStatesMergerWorker) workerPhaseDone(worker string, phase in
 
 	_, _, err := dw.phaseStatus.Set(phase, func(status uint8, found bool) (uint8, error) {
 		if status > 1 {
-			return 0, errDistributedStatesMergerWorkerAlreadyPhaseDone.Errorf(worker)
+			return 0, errStatesMergerWorkerAlreadyPhaseDone.Errorf(worker)
 		}
 
 		switch isMergeDoneEnough, isEmptyEnough, err := dw.isEnoughWorkerPhaseDone(worker, status, phase, mergedOps, unmergedOps, isEmpty); {
@@ -492,7 +492,7 @@ func (dw *DistributedStatesMergerWorker) workerPhaseDone(worker string, phase in
 
 			return 0, err
 		case isEmptyEnough:
-			dw.ctxcancel(errDistributedStatesMergerWorkerDone)
+			dw.ctxcancel(errStatesMergerWorkerDone)
 
 			return 2, nil
 		case status < 2 && isMergeDoneEnough:
@@ -511,7 +511,7 @@ func (dw *DistributedStatesMergerWorker) workerPhaseDone(worker string, phase in
 	return err
 }
 
-func (dw *DistributedStatesMergerWorker) isEnoughWorkerPhaseDone(worker string, status uint8, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) (
+func (dw *StatesMergerWorker) isEnoughWorkerPhaseDone(worker string, status uint8, phase int, mergedOps, unmergedOps []uint64, isEmpty bool) (
 	isMergeDoneEnough, isEmptyEnough bool,
 	_ error,
 ) {
@@ -554,7 +554,7 @@ func (dw *DistributedStatesMergerWorker) isEnoughWorkerPhaseDone(worker string, 
 	return isMergeDoneEnough, isEmptyEnough, nil
 }
 
-func (dw *DistributedStatesMergerWorker) mergeOps(worker string, phase int, mergedOps, unmergedOps []uint64) error {
+func (dw *StatesMergerWorker) mergeOps(worker string, phase int, mergedOps, unmergedOps []uint64) error {
 	l := dw.Log().With().
 		Str("worker", worker).
 		Int("phase", phase).
@@ -611,7 +611,7 @@ func (dw *DistributedStatesMergerWorker) mergeOps(worker string, phase int, merg
 	return nil
 }
 
-func (dw *DistributedStatesMergerWorker) mergeDone(phase int) error {
+func (dw *StatesMergerWorker) mergeDone(phase int) error {
 	l := dw.Log().With().Int("phase", phase).Logger()
 
 	psm, found := dw.psms.Value(phase)
@@ -632,7 +632,7 @@ func (dw *DistributedStatesMergerWorker) mergeDone(phase int) error {
 	return psm.MergeDone()
 }
 
-func (dw *DistributedStatesMergerWorker) xMergeOps(
+func (dw *StatesMergerWorker) xMergeOps(
 	phase int,
 	ops []uint64,
 	xmf xMergeFlag,
@@ -687,14 +687,14 @@ func (dw *DistributedStatesMergerWorker) xMergeOps(
 	return doneOps(), nil
 }
 
-func (dw *DistributedStatesMergerWorker) updateDone(phase int, f phaseStatesMergerDoneUpdateFunc) error {
+func (dw *StatesMergerWorker) updateDone(phase int, f phaseStatesMergerDoneUpdateFunc) error {
 	return f(
 		dw.updateValues(phase),
 		dw.updateReason(phase),
 	)
 }
 
-func (dw *DistributedStatesMergerWorker) updateValues(phase int) phaseStatesMergerDoneUpdatedValuesFunc {
+func (dw *StatesMergerWorker) updateValues(phase int) phaseStatesMergerDoneUpdatedValuesFunc {
 	return func(stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 		_ = dw.mergers.SetValue(stateKey, merger)
 
@@ -702,7 +702,7 @@ func (dw *DistributedStatesMergerWorker) updateValues(phase int) phaseStatesMerg
 	}
 }
 
-func (dw *DistributedStatesMergerWorker) updateReason(phase int) phaseStatesMergerDoneUpdatedReasonsFunc {
+func (dw *StatesMergerWorker) updateReason(phase int) phaseStatesMergerDoneUpdatedReasonsFunc {
 	return func(opindex uint64, reason string) error {
 		return dw.args.UpdateReasonsFunc(phase, opindex, reason)
 	}

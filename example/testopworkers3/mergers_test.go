@@ -17,20 +17,20 @@ import (
 	"go.uber.org/goleak"
 )
 
-func (dw *DistributedStatesMergerWorker) SetWorkerName(s string) {
+func (dw *StatesMergerWorker) SetWorkerName(s string) {
 	dw.workerName = s
 
 	dw.SetLogger(dw.Log().With().Str("worker_name", s).Logger())
 }
 
-type testDistributedStatesMergerWorker struct {
+type testStatesMergerWorker struct {
 	baseTestAccountStateMerger
 }
 
-func (t *testDistributedStatesMergerWorker) newWorker(ctx context.Context) *DistributedStatesMergerWorker {
-	args := NewDistributedStatesMergerWorkerArgs()
+func (t *testStatesMergerWorker) newWorker(ctx context.Context) *StatesMergerWorker {
+	args := NewStatesMergerWorkerArgs()
 
-	dw, err := NewDistributedStatesMergerWorker(ctx, args)
+	dw, err := NewStatesMergerWorker(ctx, args)
 	t.NoError(err)
 
 	dw.SetLogging(logging.TestNilLogging)
@@ -38,7 +38,7 @@ func (t *testDistributedStatesMergerWorker) newWorker(ctx context.Context) *Dist
 	return dw
 }
 
-func (t *testDistributedStatesMergerWorker) printDW(dw *DistributedStatesMergerWorker) {
+func (t *testStatesMergerWorker) printDW(dw *StatesMergerWorker) {
 	t.T().Logf("* phaseStatuse: %d", dw.phaseStatus.Len())
 
 	dw.phaseStatus.Traverse(func(phase int, status uint8) bool {
@@ -84,7 +84,7 @@ func (t *testDistributedStatesMergerWorker) printDW(dw *DistributedStatesMergerW
 	t.T().Logf("  > unmerged_ops=%v", unmergedOps)
 }
 
-func (t *testDistributedStatesMergerWorker) TestCancel() {
+func (t *testStatesMergerWorker) TestCancel() {
 	t.Run("cancel; wait Done()", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -235,7 +235,7 @@ func (t *testDistributedStatesMergerWorker) TestCancel() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestPhaseDoneRecord() {
+func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 	t.Run("local only; empty", func() {
 		dw := t.newWorker(context.Background())
 		defer dw.Cancel()
@@ -361,7 +361,7 @@ func (t *testDistributedStatesMergerWorker) TestPhaseDoneRecord() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestValuesPool() {
+func (t *testStatesMergerWorker) TestValuesPool() {
 	dw := t.newWorker(context.Background())
 	defer dw.Cancel()
 
@@ -376,7 +376,7 @@ func (t *testDistributedStatesMergerWorker) TestValuesPool() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestInsertOp() {
+func (t *testStatesMergerWorker) TestInsertOp() {
 	t.Run("ok", func() {
 		dw := t.newWorker(context.Background())
 		defer dw.Cancel()
@@ -412,7 +412,7 @@ func (t *testDistributedStatesMergerWorker) TestInsertOp() {
 
 		vs := t.randomMergeValues(1)
 		err := dw.InsertOp(2, vs)
-		t.ErrorIs(err, errDistributedStatesMergerWorkerAlreadyPhaseDone)
+		t.ErrorIs(err, errStatesMergerWorkerAlreadyPhaseDone)
 	})
 
 	t.Run("insert after done", func() {
@@ -429,11 +429,11 @@ func (t *testDistributedStatesMergerWorker) TestInsertOp() {
 
 		vs = t.randomMergeValues(1)
 		err := dw.InsertOp(2, vs)
-		t.ErrorIs(err, errDistributedStatesMergerWorkerAlreadyPhaseDone)
+		t.ErrorIs(err, errStatesMergerWorkerAlreadyPhaseDone)
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestInsertDone() {
+func (t *testStatesMergerWorker) TestInsertDone() {
 	dw := t.newWorker(context.Background())
 	defer dw.Cancel()
 
@@ -505,7 +505,7 @@ func (t *testDistributedStatesMergerWorker) TestInsertDone() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestDumpPhaseDoneRecords() {
+func (t *testStatesMergerWorker) TestDumpPhaseDoneRecords() {
 	dw := t.newWorker(context.Background())
 	defer dw.Cancel()
 
@@ -547,7 +547,7 @@ func (t *testDistributedStatesMergerWorker) TestDumpPhaseDoneRecords() {
 	t.False(isEmptyEnough)
 }
 
-func (t *testDistributedStatesMergerWorker) TestDone() {
+func (t *testStatesMergerWorker) TestDone() {
 	t.Run("empty insert; only local", func() {
 		dw := t.newWorker(context.Background())
 		defer dw.Cancel()
@@ -566,7 +566,7 @@ func (t *testDistributedStatesMergerWorker) TestDone() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) TestPhaseDone() {
+func (t *testStatesMergerWorker) TestPhaseDone() {
 	tNoError := t.NoError
 	tTrue := t.True
 	tEqual := t.Equal
@@ -780,7 +780,7 @@ func (t *testDistributedStatesMergerWorker) TestPhaseDone() {
 	})
 }
 
-func (t *testDistributedStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
+func (t *testStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
 	stateKeys := map[string]uint64{}
 	vss := make([]StateMergeValue, keys)
 	allUnmergedOps := make([]uint64, len(vss))
@@ -795,7 +795,7 @@ func (t *testDistributedStatesMergerWorker) testAllUnmergeNWorkers(workers, keys
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(nil)
 
-	dws := map[string]*DistributedStatesMergerWorker{}
+	dws := map[string]*StatesMergerWorker{}
 
 	for i := 0; i < workers; i++ {
 		worker := fmt.Sprintf("dw%02d", i)
@@ -924,7 +924,7 @@ func (t *testDistributedStatesMergerWorker) testAllUnmergeNWorkers(workers, keys
 	}
 }
 
-func (t *testDistributedStatesMergerWorker) TestAllUnmergeXWorkers() {
+func (t *testStatesMergerWorker) TestAllUnmergeXWorkers() {
 	for i := 1; i <= 30; i += 5 {
 		for j := 0; j <= 30; j += 5 {
 			started := time.Now()
@@ -936,7 +936,7 @@ func (t *testDistributedStatesMergerWorker) TestAllUnmergeXWorkers() {
 	}
 }
 
-func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
+func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 	nworkers := 3
 	nops := 9
 
@@ -1051,7 +1051,7 @@ func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
 			mergers.Value,
 			vp.Value,
 			getStateValue,
-			func(ctx context.Context) (distributedWorker, error) {
+			func(ctx context.Context) (jobWorker, error) {
 				return util.NewErrgroupWorker(ctx, 1)
 			},
 			1<<9,
@@ -1149,7 +1149,7 @@ func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
 		})
 	}
 
-	dws := map[string]*DistributedStatesMergerWorker{}
+	dws := map[string]*StatesMergerWorker{}
 
 	broadcastPhaseDoneFunc := func(local string) func(int, []uint64, []uint64) error {
 		return func(phase int, mergedOps, unmergedOps []uint64) error {
@@ -1379,8 +1379,8 @@ func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
 	}
 }
 
-func TestDistributedStatesMergerWorker(t *testing.T) {
+func TestStatesMergerWorker(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testDistributedStatesMergerWorker))
+	suite.Run(t, new(testStatesMergerWorker))
 }
