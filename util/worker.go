@@ -3,455 +3,208 @@ package util
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-type distributedWorker interface {
+type ContextWorkerCallback func(ctx context.Context, jobid uint64) error
+
+type JobWorker interface {
 	NewJob(ContextWorkerCallback) error
 	Done()
 	Wait() error
 	Close()
 }
 
-var baseSemWorkerPool = sync.Pool{
-	New: func() interface{} {
-		return new(BaseSemWorker)
-	},
+var ErrJobWorkerDone = NewIDError("job worker: no more new job")
+
+type BaseJobWorker struct {
+	ctx        func() context.Context
+	ctxCancel  func(error)
+	newJobCtx  func() context.Context
+	NewJobFunc func(jobCount uint64, _ ContextWorkerCallback) error
+	newJob     func(ContextWorkerCallback) error
+	done       func()
+	waitFunc   func() error
 }
 
-var baseSemWorkerPoolPut = func(wk *BaseSemWorker) {
-	wk.N = 0
-	wk.Sem = nil
-	wk.Ctx = nil
-	// wk.Cancel = nil
-	wk.NewJobFunc = nil
-	wk.donech = nil
-
-	baseSemWorkerPool.Put(wk)
-}
-
-var distributeWorkerPool = sync.Pool{
-	New: func() interface{} {
-		return new(DistributeWorker)
-	},
-}
-
-var distributeWorkerPoolPut = func(wk *DistributeWorker) {
-	wk.BaseSemWorker = nil
-	wk.errch = nil
-
-	distributeWorkerPool.Put(wk)
-}
-
-var errgroupWorkerPool = sync.Pool{
-	New: func() interface{} {
-		return new(ErrgroupWorker)
-	},
-}
-
-var errgroupWorkerPoolPut = func(wk *ErrgroupWorker) {
-	wk.BaseSemWorker = nil
-	wk.eg = nil
-
-	errgroupWorkerPool.Put(wk)
-}
-
-type (
-	WorkerCallback        func(jobid uint, arg interface{}) error
-	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
-)
-
-var ErrWorkerContextCanceled = NewIDError("context canceled in worker")
-
-type ParallelWorker struct {
-	jobChan     chan interface{}
-	errChan     chan error
-	callbacks   []WorkerCallback
-	jobFinished int
-	bufsize     uint
-	jobCalled   uint
-	lastCalled  int
-	sync.RWMutex
-}
-
-func NewParallelWorker(bufsize uint) *ParallelWorker {
-	wk := &ParallelWorker{
-		bufsize:    bufsize,
-		jobChan:    make(chan interface{}, int(bufsize)),
-		errChan:    make(chan error),
-		lastCalled: -1,
+func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error) {
+	if semSize < 1 {
+		return nil, errors.Errorf("semSize under 1")
 	}
 
-	go wk.roundrobin()
+	ectx, eCtxCancel := context.WithCancelCause(ctx)
+	newJobCtx, newJobCtxCancel := context.WithCancelCause(ectx)
 
-	return wk
-}
-
-func (wk *ParallelWorker) roundrobin() {
-	var jobID uint
-
-	for job := range wk.jobChan {
-		callback := wk.nextCallback()
-
-		go func(jobID uint, job interface{}) {
-			err := callback(jobID, job)
-
-			wk.Lock()
-			wk.jobFinished++
-			wk.Unlock()
-
-			wk.errChan <- err
-		}(jobID, job)
-		jobID++
-	}
-}
-
-func (wk *ParallelWorker) Run(callback WorkerCallback) *ParallelWorker {
-	wk.Lock()
-	defer wk.Unlock()
-
-	wk.callbacks = append(wk.callbacks, callback)
-
-	return wk
-}
-
-func (wk *ParallelWorker) nextCallback() WorkerCallback {
-	wk.Lock()
-	defer wk.Unlock()
-
-	index := wk.lastCalled + 1
-
-	if index >= len(wk.callbacks) {
-		index = 0
+	wk := &BaseJobWorker{
+		ctx:       func() context.Context { return ectx },
+		ctxCancel: eCtxCancel,
+		newJobCtx: func() context.Context { return newJobCtx },
+		done:      func() { newJobCtxCancel(ErrJobWorkerDone) },
+		NewJobFunc: func(jobCount uint64, c ContextWorkerCallback) error {
+			return c(ectx, jobCount)
+		},
 	}
 
-	wk.lastCalled = index
+	var jobCount uint64
+	var countJobLock sync.Mutex
 
-	return wk.callbacks[index]
-}
+	countJob := func() uint64 {
+		countJobLock.Lock()
+		defer countJobLock.Unlock()
 
-func (wk *ParallelWorker) NewJob(j interface{}) {
-	wk.Lock()
-	wk.jobCalled++
-	wk.Unlock()
+		i := jobCount
+		jobCount++
 
-	wk.jobChan <- j
-}
-
-func (wk *ParallelWorker) Errors() <-chan error {
-	return wk.errChan
-}
-
-func (wk *ParallelWorker) Jobs() uint {
-	wk.RLock()
-	defer wk.RUnlock()
-
-	return wk.jobCalled
-}
-
-func (wk *ParallelWorker) FinishedJobs() int {
-	wk.RLock()
-	defer wk.RUnlock()
-
-	return wk.jobFinished
-}
-
-func (wk *ParallelWorker) Done() {
-	if wk.jobChan != nil {
-		close(wk.jobChan)
-	}
-	// NOTE don't close errChan :)
-}
-
-func (wk *ParallelWorker) IsFinished() bool {
-	wk.RLock()
-	defer wk.RUnlock()
-
-	return uint(wk.jobFinished) == wk.jobCalled
-}
-
-type BaseSemWorker struct {
-	Ctx        context.Context //nolint:containedctx //...
-	Sem        *semaphore.Weighted
-	Cancel     func()
-	NewJobFunc func(context.Context, uint64, ContextWorkerCallback)
-	countJobs  func() uint64
-	donech     chan time.Duration
-	N          int64
-	runonce    sync.Once
-	closeonece sync.Once
-}
-
-func NewBaseSemWorker(ctx context.Context, semsize int64) *BaseSemWorker {
-	wk := baseSemWorkerPool.Get().(*BaseSemWorker) //nolint:forcetypeassert //...
-	closectx, cancel := context.WithCancel(ctx)
-
-	wk.N = semsize
-	wk.Sem = semaphore.NewWeighted(semsize)
-	wk.Ctx = closectx
-	wk.Cancel = cancel
-	wk.runonce = sync.Once{}
-	wk.donech = make(chan time.Duration, 2)
-
-	var countLock sync.Mutex
-	var jobcount uint64
-
-	wk.countJobs = func() uint64 {
-		countLock.Lock()
-		defer countLock.Unlock()
-
-		prev := jobcount
-		jobcount++
-
-		return prev
+		return i
 	}
 
-	return wk
-}
+	sem := semaphore.NewWeighted(semSize)
 
-func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
-	if err := wk.Ctx.Err(); err != nil {
-		return err
-	}
+	wk.newJob = func(c ContextWorkerCallback) error {
+		if err := context.Cause(wk.newJobCtx()); err != nil {
+			return errors.WithStack(err)
+		}
 
-	sem := wk.Sem
-	newjob := wk.NewJobFunc
-	jobcount := wk.countJobs()
+		if err := sem.Acquire(wk.newJobCtx(), 1); err != nil {
+			return errors.WithStack(err)
+		}
 
-	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
-		wk.Cancel()
+		jobCount := countJob()
 
-		return ErrWorkerContextCanceled.Wrap(err)
-	}
-
-	ctx, cancel := context.WithCancel(wk.Ctx)
-
-	go func() {
-		defer sem.Release(1)
-		defer cancel()
-
-		newjob(ctx, jobcount, callback)
-	}()
-
-	return nil
-}
-
-func (wk *BaseSemWorker) Wait() error {
-	return wk.wait()
-}
-
-func (wk *BaseSemWorker) wait() error {
-	n := wk.N
-	sem := wk.Sem
-	ctx := wk.Ctx
-	cancel := wk.Cancel
-
-	var werr error
-
-	wk.runonce.Do(func() {
-		timeout := <-wk.donech
-
-		donech := make(chan error, 1)
 		go func() {
-			switch err := sem.Acquire(context.Background(), n); { //nolint:contextcheck //...
-			case err != nil:
-				donech <- err
-			default:
-				donech <- ctx.Err()
+			defer sem.Release(1)
+
+			if err := wk.NewJobFunc(jobCount, c); err != nil {
+				wk.ctxCancel(err)
 			}
 		}()
 
-		if timeout < 1 {
-			werr = <-donech
+		return nil
+	}
 
-			return
+	wk.waitFunc = func() error {
+		if err := sem.Acquire(wk.ctx(), semSize); err != nil {
+			if cerr := context.Cause(wk.ctx()); cerr != nil {
+				return errors.WithStack(cerr)
+			}
+
+			return errors.WithStack(err)
 		}
 
-		select {
-		case <-time.After(timeout):
-			cancel()
+		return nil
+	}
 
-			werr = ErrWorkerContextCanceled.WithStack()
-		case werr = <-donech:
-		}
-	})
-
-	return werr
+	return wk, nil
 }
 
-func (wk *BaseSemWorker) WaitChan() chan error {
-	ch := make(chan error)
+func (wk *BaseJobWorker) Cancel() {
+	wk.ctxCancel(nil)
+}
+
+func (wk *BaseJobWorker) Close() {
+	wk.Cancel()
+}
+
+func (wk *BaseJobWorker) Done() {
+	wk.done()
+}
+
+func (wk *BaseJobWorker) NewJob(c ContextWorkerCallback) error {
+	return wk.newJob(c)
+}
+
+// Wait waits until all job finished.
+func (wk *BaseJobWorker) Wait() error {
+	defer wk.Cancel()
+
+	<-wk.newJobCtx().Done()
+
+	if err := wk.waitFunc(); err != nil {
+		return err
+	}
+
+	return errors.WithStack(context.Cause(wk.ctx()))
+}
+
+// LazyWait don't wait until all job finished.
+func (wk *BaseJobWorker) LazyWait() error {
+	defer wk.Cancel()
+
+	<-wk.newJobCtx().Done()
+
+	waitch := make(chan error, 1)
 
 	go func() {
-		ch <- wk.Wait()
+		waitch <- wk.waitFunc()
 	}()
 
-	return ch
+	select {
+	case <-wk.ctx().Done():
+		return errors.WithStack(context.Cause(wk.ctx()))
+	case err := <-waitch:
+		return err
+	}
 }
 
-func (wk *BaseSemWorker) Done() {
-	wk.donech <- 0
+// NewErrCallbackJobWorker ignores job error.
+func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error)) (wk *BaseJobWorker, _ error) {
+	switch i, err := NewBaseJobWorker(ctx, semSize); {
+	case err != nil:
+		return nil, err
+	default:
+		wk = i
+	}
+
+	wk.NewJobFunc = func(jobCount uint64, c ContextWorkerCallback) error {
+		if err := c(wk.ctx(), jobCount); err != nil {
+			errf(err)
+		}
+
+		return nil
+	}
+
+	return wk, nil
 }
 
-func (wk *BaseSemWorker) Close() {
-	wk.closeonece.Do(func() {
-		defer baseSemWorkerPoolPut(wk)
-
-		wk.donech <- 0
-
-		wk.Cancel()
-	})
+type ErrgroupWorker struct {
+	*BaseJobWorker
 }
 
-func (wk *BaseSemWorker) LazyCancel(timeout time.Duration) {
-	wk.donech <- timeout
+func NewErrgroupWorker(ctx context.Context, semSize int64) (*ErrgroupWorker, error) {
+	wk, err := NewBaseJobWorker(ctx, semSize)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ErrgroupWorker{
+		BaseJobWorker: wk,
+	}, nil
 }
 
 type DistributeWorker struct {
-	*BaseSemWorker
-	errch chan error
+	*BaseJobWorker
 }
 
-func NewDistributeWorker(ctx context.Context, semsize int64, errch chan error) (*DistributeWorker, error) {
-	if semsize < 1 {
-		return nil, errors.Errorf("semsize under 1")
-	}
-
-	wk := distributeWorkerPool.Get().(*DistributeWorker) //nolint:forcetypeassert //...
-
-	base := NewBaseSemWorker(ctx, semsize)
-
+func NewDistributeWorker(ctx context.Context, semSize int64, errch chan error) (*DistributeWorker, error) {
 	var errf func(error)
 	if errch == nil {
 		errf = func(error) {}
 	} else {
 		errf = func(err error) {
-			if cerr := base.Ctx.Err(); cerr == nil {
-				errch <- err
-			}
+			errch <- err
 		}
 	}
 
-	base.NewJobFunc = func(ctx context.Context, jobs uint64, callback ContextWorkerCallback) {
-		errf(callback(ctx, jobs))
+	wk, err := NewErrCallbackJobWorker(ctx, semSize, errf)
+	if err != nil {
+		return nil, err
 	}
 
-	wk.BaseSemWorker = base
-	wk.errch = errch
-
-	return wk, nil
-}
-
-func (wk *DistributeWorker) Close() {
-	defer distributeWorkerPoolPut(wk)
-
-	wk.BaseSemWorker.Close()
-}
-
-type ErrgroupWorker struct {
-	*BaseSemWorker
-	eg         *errgroup.Group
-	doneonce   sync.Once
-	closeonece sync.Once
-}
-
-func NewErrgroupWorker(ctx context.Context, semsize int64) (*ErrgroupWorker, error) {
-	if semsize < 1 {
-		return nil, errors.Errorf("semsize under 1")
-	}
-
-	wk := errgroupWorkerPool.Get().(*ErrgroupWorker) //nolint:forcetypeassert //...
-
-	base := NewBaseSemWorker(ctx, semsize)
-
-	eg, egctx := errgroup.WithContext(base.Ctx)
-	base.Ctx = egctx
-
-	base.NewJobFunc = func(ctx context.Context, jobs uint64, callback ContextWorkerCallback) {
-		donech := make(chan struct{}, 1)
-
-		eg.Go(func() error {
-			defer func() {
-				donech <- struct{}{}
-			}()
-
-			errch := make(chan error, 1)
-			go func() {
-				errch <- callback(ctx, jobs)
-			}()
-
-			var err error
-			select {
-			case <-ctx.Done():
-				err = ctx.Err()
-			case err = <-errch:
-			}
-
-			return err
-		})
-
-		<-donech
-	}
-
-	wk.BaseSemWorker = base
-	wk.eg = eg
-	wk.doneonce = sync.Once{}
-
-	return wk, nil
-}
-
-func (wk *ErrgroupWorker) Wait() error {
-	var berr error
-
-	if err := wk.BaseSemWorker.wait(); err != nil {
-		switch {
-		case errors.Is(err, context.Canceled):
-			berr = err
-		case errors.Is(err, ErrWorkerContextCanceled):
-			berr = context.Canceled
-		default:
-			berr = err
-		}
-	}
-
-	var werr error
-
-	wk.doneonce.Do(func() {
-		werr = wk.eg.Wait()
-	})
-
-	if werr != nil || berr != nil {
-		wk.Cancel()
-	}
-
-	switch {
-	case werr != nil:
-		return errors.WithStack(werr)
-	default:
-		return berr
-	}
-}
-
-func (wk *ErrgroupWorker) Close() {
-	wk.closeonece.Do(func() {
-		defer errgroupWorkerPoolPut(wk)
-
-		wk.BaseSemWorker.Close()
-	})
-}
-
-func (wk *ErrgroupWorker) RunChan() chan error {
-	ch := make(chan error)
-
-	go func() {
-		ch <- wk.Wait()
-	}()
-
-	return ch
+	return &DistributeWorker{
+		BaseJobWorker: wk,
+	}, nil
 }
 
 // BatchWork runs f by limit size in worker. For example,
@@ -514,7 +267,7 @@ func RunDistributeWorker(
 	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
 	return runWorker(ctx, size, f,
-		func(ctx context.Context) (distributedWorker, error) {
+		func(ctx context.Context) (JobWorker, error) {
 			return NewDistributeWorker(ctx, workersize, errch)
 		},
 	)
@@ -526,7 +279,7 @@ func RunErrgroupWorker(
 	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
 	return runWorker(ctx, size, f,
-		func(ctx context.Context) (distributedWorker, error) {
+		func(ctx context.Context) (JobWorker, error) {
 			return NewErrgroupWorker(ctx, workersize)
 		},
 	)
@@ -536,7 +289,7 @@ func runWorker(
 	ctx context.Context,
 	size int64,
 	f func(ctx context.Context, i, jobid uint64) error,
-	workerf func(context.Context) (distributedWorker, error),
+	workerf func(context.Context) (JobWorker, error),
 ) error {
 	worker, err := workerf(ctx)
 	if err != nil {
