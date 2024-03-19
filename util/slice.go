@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"math/big"
 	"sort"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -280,33 +281,58 @@ func CompactAppendSlice[T any](size int) (
 ) {
 	s := make([]T, size)
 
+	var lock sync.RWMutex
+
 	var i int
 
+	index := func() int {
+		lock.RLock()
+		defer lock.RUnlock()
+
+		return i
+	}
+
+	count := func() (bool, int) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		if i >= size {
+			return true, i
+		}
+
+		j := i
+		i++
+
+		return false, j
+	}
+
 	return func(t T) bool {
-			switch {
-			case size < 1:
-				return true
-			case i == size:
+			if size < 1 {
 				return true
 			}
 
-			s[i] = t
+			switch isOver, i := count(); {
+			case isOver:
+				return true
+			default:
+				s[i] = t
 
-			i++
-
-			return i == size
+				// FIXME test
+				return i == size-1
+			}
 		}, func() []T {
 			if size < 1 {
 				return nil
 			}
 
-			if i < 1 {
+			switch i := index(); {
+			case i < 1:
 				clear(s)
 
 				return nil
+			default:
+				return s[:i]
 			}
-
-			return s[:i]
 		}
 }
 
