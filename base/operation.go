@@ -139,7 +139,7 @@ var ErrNotChangedOperationProcessReason = NewBaseOperationProcessReason( //nolin
 
 type OperationProcessReasonError interface {
 	error
-	Msg() string
+	OperationProcessFailedReason() string
 }
 
 type BaseOperationProcessReasonError struct {
@@ -174,7 +174,7 @@ func (e BaseOperationProcessReasonError) Is(err error) bool {
 	return eerr == nil && e.id == b.id
 }
 
-func (e BaseOperationProcessReasonError) Msg() string {
+func (e BaseOperationProcessReasonError) OperationProcessFailedReason() string {
 	return e.msg
 }
 
