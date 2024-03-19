@@ -372,7 +372,7 @@ func ConcurrentRequestProposal(
 	cis []quicstream.ConnInfo,
 	networkID base.NetworkID,
 ) (base.ProposalSignFact, bool, error) {
-	worker, err := util.NewErrgroupWorker(ctx, int64(len(cis)))
+	worker, err := util.NewBaseJobWorker(ctx, int64(len(cis)))
 	if err != nil {
 		return nil, false, err
 	}

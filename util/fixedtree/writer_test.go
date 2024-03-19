@@ -27,7 +27,7 @@ func (t *testGenerator) TestNew() {
 		g, err := NewWriter(t.ht, size)
 		t.NoError(err)
 
-		worker, _ := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
+		worker, _ := util.NewBaseJobWorker(context.Background(), math.MaxInt32)
 		defer worker.Close()
 
 		for i := range nodes {
@@ -89,7 +89,7 @@ func (t *testGenerator) TestEmptyKey() {
 
 	nodes := t.nodesWithoutHash(size)
 
-	worker, _ := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
+	worker, _ := util.NewBaseJobWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
 
 	for i := range nodes {

@@ -143,7 +143,7 @@ func (t *testStateValueMerger) TestNew() {
 }
 
 func (t *testStateValueMerger) TestAsyncMerge() {
-	worker, _ := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
+	worker, _ := util.NewBaseJobWorker(context.Background(), math.MaxInt16)
 	defer worker.Close()
 
 	sv := newDummySimpleStateValue(55)
@@ -179,7 +179,7 @@ func (t *testStateValueMerger) TestAsyncMerge() {
 }
 
 func (t *testStateValueMerger) TestMergedSameHash() {
-	worker, _ := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
+	worker, _ := util.NewBaseJobWorker(context.Background(), math.MaxInt16)
 	defer worker.Close()
 
 	sv := newDummySimpleStateValue(55)

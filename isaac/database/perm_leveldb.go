@@ -354,7 +354,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e.Wrap(err)
 	}
 
-	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	worker, err := util.NewBaseJobWorker(ctx, math.MaxInt8)
 	if err != nil {
 		return err
 	}

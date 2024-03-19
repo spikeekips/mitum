@@ -411,7 +411,7 @@ func (w *LocalFSWriter) setTree(
 ) error {
 	e := util.StringError("set tree, %q", treetype)
 
-	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	worker, err := util.NewBaseJobWorker(ctx, math.MaxInt8)
 	if err != nil {
 		return e.Wrap(err)
 	}

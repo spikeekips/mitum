@@ -337,7 +337,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return e.Wrap(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"))
 	}
 
-	if err := util.RunErrgroupWorkerByJobs(
+	if err := util.RunJobWorkerByJobs(
 		ctx,
 		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {

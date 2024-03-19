@@ -159,9 +159,9 @@ func getProposalFunc(pctx context.Context) (
 		}
 
 		// NOTE if not found, request to remote node
-		var worker *util.ErrgroupWorker
+		var worker *util.BaseJobWorker
 
-		switch i, err := util.NewErrgroupWorker(ctx, semsize); {
+		switch i, err := util.NewBaseJobWorker(ctx, semsize); {
 		case err != nil:
 			return nil, err
 		default:
@@ -365,7 +365,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 		proposer := proposal.ProposalFact().Proposer()
 		result := util.EmptyLocked[base.Operation]()
 
-		worker, err := util.NewErrgroupWorker(ctx, int64(syncSourcePool.Len()))
+		worker, err := util.NewBaseJobWorker(ctx, int64(syncSourcePool.Len()))
 		if err != nil {
 			return nil, false, err
 		}

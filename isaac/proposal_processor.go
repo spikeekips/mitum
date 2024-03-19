@@ -295,7 +295,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (cops,
 		workersize = p.args.MaxWorkerSize
 	}
 
-	if err := util.RunErrgroupWorker(cctx, workersize, int64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
+	if err := util.RunJobWorker(cctx, workersize, int64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
 		oph := ophs[i][0]
 		fact := ophs[i][1]
 
@@ -342,7 +342,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops, 
 
 	p.writer.SetOperationsSize(uint64(nops))
 
-	var worker *util.ErrgroupWorker
+	var worker *util.BaseJobWorker
 
 	{
 		workersize := int64(nops)
@@ -350,7 +350,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops, 
 			workersize = p.args.MaxWorkerSize
 		}
 
-		switch i, err := util.NewErrgroupWorker(ctx, workersize); {
+		switch i, err := util.NewBaseJobWorker(ctx, workersize); {
 		case err != nil:
 			return e.Wrap(err)
 		default:
@@ -406,7 +406,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops, 
 
 func (p *DefaultProposalProcessor) processOperation(
 	ctx context.Context,
-	worker *util.ErrgroupWorker,
+	worker *util.BaseJobWorker,
 	op base.Operation,
 	opsindex int,
 ) (_ context.Context, hasresult bool, _ error) {

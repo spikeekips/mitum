@@ -919,7 +919,7 @@ func BlockItemDecodeLineItemsWithWorker(
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
 ) (count uint64, _ error) {
-	worker, err := util.NewErrgroupWorker(context.Background(), int64(num))
+	worker, err := util.NewBaseJobWorker(context.Background(), int64(num))
 	if err != nil {
 		return 0, err
 	}

@@ -822,7 +822,7 @@ func syncerLastBlockMapFunc(
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
-		if err := isaac.DistributeWorkerWithSyncSourcePool(
+		if err := isaac.ErrCallbackWorkerWithSyncSourcePool(
 			context.Background(),
 			syncSourcePool,
 			numnodes,
@@ -898,7 +898,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 				numnodes := 3 // NOTE choose top 3 sync nodes
 				result := util.EmptyLocked[[2]interface{}]()
 
-				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+				_ = isaac.JobWorkerWithSyncSourcePool(
 					ctx,
 					syncSourcePool,
 					numnodes,
@@ -1301,7 +1301,7 @@ func stateHandlerIsEmptyProposalFunc(
 			return true, nil
 		}
 
-		worker, _ := util.NewErrgroupWorker(ctx, 1<<10) //nolint:gomnd // big enough
+		worker, _ := util.NewBaseJobWorker(ctx, 1<<10) //nolint:gomnd // big enough
 		defer worker.Close()
 
 		go func() {

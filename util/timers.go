@@ -269,7 +269,7 @@ func (ts *SimpleTimers) iterate(ctx context.Context) error {
 		semsize = maxTimerSemsize
 	}
 
-	wk, err := NewDistributeWorker(ctx, semsize, nil)
+	wk, err := NewErrCallbackJobWorker(ctx, semsize, nil)
 	if err != nil {
 		return err
 	}

@@ -400,7 +400,7 @@ func (t *testStorage) TestPutBatchFunc() {
 
 		bs := make([][]byte, 3333)
 
-		ew, _ := util.NewErrgroupWorker(context.Background(), int64(len(bs)))
+		ew, _ := util.NewBaseJobWorker(context.Background(), int64(len(bs)))
 
 		go func() {
 			for i := range bs {
@@ -439,7 +439,7 @@ func (t *testStorage) TestPutBatchFunc() {
 
 		bs := make([][]byte, 10)
 
-		ew, _ := util.NewErrgroupWorker(context.Background(), 333)
+		ew, _ := util.NewBaseJobWorker(context.Background(), 333)
 
 		go func() {
 			for i := range bs {
@@ -536,7 +536,7 @@ func (t *testStorage) TestPutBatchFunc() {
 
 		bs := make([][]byte, 3333)
 
-		ew, _ := util.NewErrgroupWorker(context.Background(), int64(len(bs)))
+		ew, _ := util.NewBaseJobWorker(context.Background(), int64(len(bs)))
 
 		go func() {
 			for i := range bs {
@@ -701,7 +701,7 @@ func (b *benchmarkPut) benchmarkBatchFunc(size int) {
 }
 
 func (b *benchmarkPut) benchmarkBatchFuncAsync(size int) {
-	ew, _ := util.NewErrgroupWorker(context.Background(), int64(b.batchsize(size)))
+	ew, _ := util.NewBaseJobWorker(context.Background(), int64(b.batchsize(size)))
 
 	add, done, cancel := b.st.BatchFunc(context.Background(), b.batchsize(size), nil)
 	defer cancel()

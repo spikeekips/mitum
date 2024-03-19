@@ -615,7 +615,7 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 		return err
 	}
 
-	worker, err := util.NewErrgroupWorker(ctx, math.MaxInt8)
+	worker, err := util.NewBaseJobWorker(ctx, math.MaxInt8)
 	if err != nil {
 		return err
 	}

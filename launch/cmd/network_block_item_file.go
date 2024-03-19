@@ -195,7 +195,7 @@ func (cmd *NetworkClientBlockItemFilesCommand) downloadBlockItems(
 
 	m := bfiles.Items()
 
-	worker, err := util.NewErrgroupWorker(pctx, int64(len(m)))
+	worker, err := util.NewBaseJobWorker(pctx, int64(len(m)))
 	if err != nil {
 		return err
 	}

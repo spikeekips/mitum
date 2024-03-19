@@ -34,7 +34,7 @@ type Writer struct {
 	db            isaac.BlockWriteDatabase
 	fswriter      FSWriter
 	mergeDatabase func(isaac.BlockWriteDatabase) error
-	saveWorker    func(bool) *util.ErrgroupWorker
+	saveWorker    func(bool) *util.BaseJobWorker
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
 	statesMerger  StatesMerger
@@ -68,17 +68,17 @@ func NewWriter(
 		fswriter:      fswriter,
 		workersize:    workersize,
 		statesMerger:  statesMerger,
-		saveWorker: func() func(bool) *util.ErrgroupWorker {
-			var ew *util.ErrgroupWorker
+		saveWorker: func() func(bool) *util.BaseJobWorker {
+			var ew *util.BaseJobWorker
 			var saveWorkerOnce sync.Once
 
-			return func(create bool) *util.ErrgroupWorker {
+			return func(create bool) *util.BaseJobWorker {
 				if !create {
 					return ew
 				}
 
 				saveWorkerOnce.Do(func() {
-					ew, _ = util.NewErrgroupWorker(context.Background(), workersize)
+					ew, _ = util.NewBaseJobWorker(context.Background(), workersize)
 				})
 
 				return ew

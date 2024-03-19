@@ -1258,7 +1258,7 @@ func (t *testBallotbox) TestCopyVotedDATARACE() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	wkb, _ := util.NewDistributeWorker(ctx, int64(len(nodes))*2, nil)
+	wkb, _ := util.NewErrCallbackJobWorker(ctx, int64(len(nodes))*2, nil)
 	defer wkb.Close()
 
 	bls := make([]base.Ballot, len(nodes))
@@ -1291,7 +1291,7 @@ func (t *testBallotbox) TestCopyVotedDATARACE() {
 	wkb.Done()
 	t.NoError(wkb.Wait())
 
-	wk, _ := util.NewDistributeWorker(ctx, int64(len(nodes))*2, nil)
+	wk, _ := util.NewErrCallbackJobWorker(ctx, int64(len(nodes))*2, nil)
 	defer wk.Close()
 
 	for i := range bls {

@@ -74,7 +74,7 @@ func (sm *DefaultStatesMerger) CloseStates(
 		return err
 	}
 
-	worker, err := util.NewErrgroupWorker(ctx, sm.workersize)
+	worker, err := util.NewBaseJobWorker(ctx, sm.workersize)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (sm *DefaultStatesMerger) Close() error {
 		return nil
 	}
 
-	worker, err := util.NewErrgroupWorker(context.Background(), sm.workersize)
+	worker, err := util.NewBaseJobWorker(context.Background(), sm.workersize)
 	if err != nil {
 		return err
 	}

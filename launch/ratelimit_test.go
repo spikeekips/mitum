@@ -455,7 +455,7 @@ func (t *testRateLimitHandler) TestConcurrent() {
 	}
 
 	t.Run("check allow and shrink", func() {
-		worker, err := util.NewErrgroupWorker(ctx, int64(1<<10))
+		worker, err := util.NewBaseJobWorker(ctx, int64(1<<10))
 		t.NoError(err)
 		defer worker.Close()
 

@@ -194,7 +194,7 @@ func (c *SyncSourceChecker) check(ctx context.Context) error {
 func (c *SyncSourceChecker) checkSources(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
 	e := util.StringError("fetch NodeConnInfo")
 
-	worker, err := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
+	worker, err := util.NewErrCallbackJobWorker(ctx, int64(len(sources)), nil)
 	if err != nil {
 		return nil, e.Wrap(err)
 	}
@@ -294,7 +294,7 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 		return ncis, nil
 	}
 
-	worker, err := util.NewErrgroupWorker(ctx, int64(len(ncis)))
+	worker, err := util.NewBaseJobWorker(ctx, int64(len(ncis)))
 	if err != nil {
 		return nil, e.Wrap(err)
 	}

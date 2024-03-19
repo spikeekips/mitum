@@ -101,7 +101,7 @@ func (t *testConnectionPool) TestDial() {
 			t.T().Logf(a, aa...)
 		}
 
-		worker, _ := util.NewErrgroupWorker(context.Background(), 999)
+		worker, _ := util.NewBaseJobWorker(context.Background(), 999)
 		go func() {
 			for i := range make([]byte, conns) {
 				i := i

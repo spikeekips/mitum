@@ -133,7 +133,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 	e := util.StringError("set states in TempLeveldbDatabase")
 
-	worker, err := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
+	worker, err := util.NewBaseJobWorker(context.Background(), int64(len(sts)))
 	if err != nil {
 		return e.Wrap(err)
 	}

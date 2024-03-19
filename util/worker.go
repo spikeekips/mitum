@@ -150,6 +150,10 @@ func (wk *BaseJobWorker) LazyWait() error {
 
 // NewErrCallbackJobWorker ignores job error.
 func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error)) (wk *BaseJobWorker, _ error) {
+	if errf == nil {
+		errf = func(error) {} //revive:disable-line:modifies-parameter
+	}
+
 	switch i, err := NewBaseJobWorker(ctx, semSize); {
 	case err != nil:
 		return nil, err
@@ -166,45 +170,6 @@ func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error
 	}
 
 	return wk, nil
-}
-
-type ErrgroupWorker struct {
-	*BaseJobWorker
-}
-
-func NewErrgroupWorker(ctx context.Context, semSize int64) (*ErrgroupWorker, error) {
-	wk, err := NewBaseJobWorker(ctx, semSize)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ErrgroupWorker{
-		BaseJobWorker: wk,
-	}, nil
-}
-
-type DistributeWorker struct {
-	*BaseJobWorker
-}
-
-func NewDistributeWorker(ctx context.Context, semSize int64, errch chan error) (*DistributeWorker, error) {
-	var errf func(error)
-	if errch == nil {
-		errf = func(error) {}
-	} else {
-		errf = func(err error) {
-			errch <- err
-		}
-	}
-
-	wk, err := NewErrCallbackJobWorker(ctx, semSize, errf)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DistributeWorker{
-		BaseJobWorker: wk,
-	}, nil
 }
 
 // BatchWork runs f by limit size in worker. For example,
@@ -227,7 +192,7 @@ func BatchWork(
 			return err
 		}
 
-		return RunErrgroupWorker(ctx, size, size, func(ctx context.Context, i, _ uint64) error {
+		return RunJobWorker(ctx, size, size, func(ctx context.Context, i, _ uint64) error {
 			return f(ctx, i, uint64(size-1))
 		})
 	}
@@ -244,7 +209,7 @@ func BatchWork(
 			return err
 		}
 
-		if err := RunErrgroupWorker(ctx, limit, int64(end-i), func(ctx context.Context, n, _ uint64) error {
+		if err := RunJobWorker(ctx, limit, int64(end-i), func(ctx context.Context, n, _ uint64) error {
 			return f(ctx, i+n, end-1)
 		}); err != nil {
 			return err
@@ -260,27 +225,27 @@ func BatchWork(
 	return nil
 }
 
-func RunDistributeWorker(
+func RunErrCallbackJobWorker(
 	ctx context.Context,
 	workersize, size int64,
-	errch chan error,
+	errf func(error),
 	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
 	return runWorker(ctx, size, f,
 		func(ctx context.Context) (JobWorker, error) {
-			return NewDistributeWorker(ctx, workersize, errch)
+			return NewErrCallbackJobWorker(ctx, workersize, errf)
 		},
 	)
 }
 
-func RunErrgroupWorker(
+func RunJobWorker(
 	ctx context.Context,
 	workersize, size int64,
 	f func(ctx context.Context, i, jobid uint64) error,
 ) error {
 	return runWorker(ctx, size, f,
 		func(ctx context.Context) (JobWorker, error) {
-			return NewErrgroupWorker(ctx, workersize)
+			return NewBaseJobWorker(ctx, workersize)
 		},
 	)
 }
@@ -313,8 +278,8 @@ func runWorker(
 	return worker.Wait()
 }
 
-func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
-	worker, err := NewErrgroupWorker(ctx, int64(len(jobs)))
+func RunJobWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
+	worker, err := NewBaseJobWorker(ctx, int64(len(jobs)))
 	if err != nil {
 		return err
 	}

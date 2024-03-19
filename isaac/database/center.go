@@ -660,7 +660,7 @@ func (db *Center) dig(f func(isaac.TempDatabase) (bool, error)) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	worker, err := util.NewErrgroupWorker(ctx, int64(len(temps)))
+	worker, err := util.NewBaseJobWorker(ctx, int64(len(temps)))
 	if err != nil {
 		return err
 	}

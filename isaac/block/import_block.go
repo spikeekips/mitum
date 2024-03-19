@@ -111,7 +111,7 @@ func importBlock(
 		return nil
 	}
 
-	worker, err := util.NewErrgroupWorker(ctx, num)
+	worker, err := util.NewBaseJobWorker(ctx, num)
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func saveImporters(
 
 		n := int64(len(ims))
 
-		if err := util.RunErrgroupWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
+		if err := util.RunJobWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
 			deferred, err := ims[i].Save(ctx)
 			if err != nil {
 				return err
@@ -223,7 +223,7 @@ func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 
 	n := int64(len(ims))
 
-	if err := util.RunErrgroupWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
+	if err := util.RunJobWorker(ctx, n, n, func(ctx context.Context, i, _ uint64) error {
 		return ims[i].CancelImport(ctx)
 	}); err != nil {
 		return e.Wrap(err)

@@ -513,7 +513,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
-		if err := isaac.DistributeWorkerWithSyncSourcePool(
+		if err := isaac.ErrCallbackWorkerWithSyncSourcePool(
 			ctx,
 			syncSourcePool,
 			numnodes,
@@ -583,7 +583,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 				numnodes := 3 // NOTE choose top 3 sync nodes
 				result := util.EmptyLocked[[2]interface{}]()
 
-				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+				_ = isaac.JobWorkerWithSyncSourcePool(
 					ctx,
 					syncSourcePool,
 					numnodes,
@@ -674,7 +674,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
-		if err := isaac.DistributeWorkerWithSyncSourcePool(
+		if err := isaac.ErrCallbackWorkerWithSyncSourcePool(
 			ctx,
 			syncSourcePool,
 			numnodes,

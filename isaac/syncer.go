@@ -416,29 +416,29 @@ func isSyncSourceProblem(err error) bool {
 	}
 }
 
-func DistributeWorkerWithSyncSourcePool(
+func ErrCallbackWorkerWithSyncSourcePool(
 	ctx context.Context,
 	pool *SyncSourcePool,
 	picksize int,
 	semsize int64,
-	errch chan error,
+	errf func(error),
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
 	return workerWithSyncSourcePool(ctx, pool, picksize, semsize, f,
 		func(ctx context.Context, nsemsize, n int64, f func(context.Context, uint64, uint64) error) error {
-			return util.RunDistributeWorker(ctx, nsemsize, n, errch, f)
+			return util.RunErrCallbackJobWorker(ctx, nsemsize, n, errf, f)
 		},
 	)
 }
 
-func ErrGroupWorkerWithSyncSourcePool(
+func JobWorkerWithSyncSourcePool(
 	ctx context.Context,
 	pool *SyncSourcePool,
 	picksize int,
 	semsize int64,
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
-	return workerWithSyncSourcePool(ctx, pool, picksize, semsize, f, util.RunErrgroupWorker)
+	return workerWithSyncSourcePool(ctx, pool, picksize, semsize, f, util.RunJobWorker)
 }
 
 func workerWithSyncSourcePool(
