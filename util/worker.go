@@ -15,6 +15,7 @@ type JobWorker interface {
 	Done()
 	Wait() error
 	Close()
+	Cancel()
 }
 
 var ErrJobWorkerDone = NewIDError("job worker: no more new job")
