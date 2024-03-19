@@ -16,21 +16,13 @@ type (
 	serialWorkerNewJobFunc     func(serialWorkerNewNextJobFunc) error
 )
 
-type jobWorker interface {
-	NewJob(util.ContextWorkerCallback) error
-	Done()
-	Wait() error
-	Close()
-	Cancel()
-}
-
 type SerialWorkers struct {
 	*logging.Logging
-	newWorker func(context.Context) (jobWorker, error)
+	newWorker func(context.Context) (util.JobWorker, error)
 }
 
 func NewSerialWorkers(
-	newWorker func(context.Context) (jobWorker, error),
+	newWorker func(context.Context) (util.JobWorker, error),
 ) (*SerialWorkers, error) {
 	switch i, err := newWorker(context.Background()); {
 	case err != nil:
@@ -64,7 +56,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 
 	gctx, cancel := context.WithCancel(ctx)
 
-	var ew jobWorker
+	var ew util.JobWorker
 
 	jobdonech := make(chan struct{}, 1)
 
@@ -83,7 +75,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 	var nextcancel func()
 
 	newJob = sw.newJobFunc(gctx, phase,
-		func(ctx context.Context) (jobWorker, error) {
+		func(ctx context.Context) (util.JobWorker, error) {
 			i, err := sw.newWorker(ctx)
 			if err != nil {
 				return nil, err
@@ -115,7 +107,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 		defer cancel()
 
 		return sw.doneFunc(gctx, phase,
-			func() jobWorker {
+			func() util.JobWorker {
 				return ew
 			},
 			jobdonech,
@@ -146,14 +138,14 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 func (sw *SerialWorkers) newJobFunc(
 	ctx context.Context,
 	phase int,
-	newWorker func(context.Context) (jobWorker, error),
+	newWorker func(context.Context) (util.JobWorker, error),
 	newJob func(util.ContextWorkerCallback) error,
 	ewDone func(),
 	nextWorker func(context.Context) func(serialWorkerNewNextJobFunc) error,
 ) func(serialWorkerNewNextJobFunc) error {
 	l := sw.Log().With().Int("phase", phase).Logger()
 
-	var ew jobWorker
+	var ew util.JobWorker
 	var nextNewJob func(serialWorkerNewNextJobFunc) error
 	var ewonce, nextewonce sync.Once
 
@@ -209,7 +201,7 @@ func (sw *SerialWorkers) newJobFunc(
 func (sw *SerialWorkers) doneFunc(
 	ctx context.Context,
 	phase int,
-	ewf func() jobWorker,
+	ewf func() util.JobWorker,
 	jobdonech <-chan struct{},
 	nextcancelf func() func(),
 	nextNewJobf func() func(serialWorkerNewNextJobFunc) error,

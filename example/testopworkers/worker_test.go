@@ -25,7 +25,7 @@ func (t *testRunSerialWorkers) run(ctx context.Context, workersize int64) (
 ) {
 	sw, err := NewSerialWorkers(
 		func(ctx context.Context) (distributedWorker, error) {
-			return util.NewErrgroupWorker(ctx, workersize)
+			return util.NewBaseJobWorker(ctx, workersize)
 		},
 	)
 	t.NoError(err)

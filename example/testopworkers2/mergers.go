@@ -35,7 +35,7 @@ func NewDistributedStatesMergerWorkerArgs() *DistributedStatesMergerWorkerArgs {
 	return &DistributedStatesMergerWorkerArgs{
 		GetStateValue: func(string) (base.StateValue, bool, error) { return nil, false, nil },
 		NewDistributedWorker: func(ctx context.Context) (distributedWorker, error) {
-			return util.NewErrgroupWorker(ctx, 1<<6)
+			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
 		BroadcastPhaseDoneFunc: func(int, []uint64) error { return nil },

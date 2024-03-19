@@ -879,7 +879,7 @@ func (t *testDistributedStatesMergerWorker) TestUnmerge3Workers() {
 			},
 			getStateValue,
 			func(ctx context.Context) (distributedWorker, error) {
-				return util.NewErrgroupWorker(ctx, 1<<6)
+				return util.NewBaseJobWorker(ctx, 1<<6)
 			},
 			1<<9,
 		)

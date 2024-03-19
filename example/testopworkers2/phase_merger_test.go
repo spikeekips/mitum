@@ -39,7 +39,7 @@ func (t *testPhaseStatesMerger) newMerger(
 		vp.Value,
 		getStateValue,
 		func(ctx context.Context) (distributedWorker, error) {
-			return util.NewErrgroupWorker(ctx, workersize)
+			return util.NewBaseJobWorker(ctx, workersize)
 		},
 		1<<9,
 	)

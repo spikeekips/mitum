@@ -41,7 +41,7 @@ func NewDistributedStatesMergerWorkerArgs() *DistributedStatesMergerWorkerArgs {
 		BroadcastPhaseDoneFunc:    func(int, []uint64) error { return nil },
 		SyncMergedStateValuesFunc: func(context.Context, int, []string, []base.StateValue) error { return nil },
 		NewDistributedWorker: func(ctx context.Context) (distributedWorker, error) {
-			return util.NewErrgroupWorker(ctx, 1<<6)
+			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
 		WhenDoneFunc:       func(int) error { return nil },
 		SaveState:          func(context.Context, string, base.StateValue, []uint64) error { return nil },

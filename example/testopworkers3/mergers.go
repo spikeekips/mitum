@@ -13,7 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var localStatesMergerWorker = "local"
+var localWorker = "local"
 
 var (
 	errStatesMergerWorkerDone             = util.NewIDError("states merger worker done")
@@ -33,7 +33,7 @@ type (
 
 type StatesMergerWorkerArgs struct {
 	GetStateValue          func(key string) (base.StateValue, bool, error)
-	NewJobWorker           func(context.Context) (jobWorker, error)
+	NewJobWorker           func(context.Context) (util.JobWorker, error)
 	IsEnoughWorkers        func(workers uint64) bool // NOTE include local worker
 	BroadcastPhaseDoneFunc func(phase int, mergedOps, unmergedOps []uint64) error
 	UpdatedValuesFunc      statesMergerDoneUpdatedValuesFunc
@@ -44,8 +44,8 @@ type StatesMergerWorkerArgs struct {
 func NewStatesMergerWorkerArgs() *StatesMergerWorkerArgs {
 	return &StatesMergerWorkerArgs{
 		GetStateValue: func(string) (base.StateValue, bool, error) { return nil, false, nil },
-		NewJobWorker: func(ctx context.Context) (jobWorker, error) {
-			return util.NewErrgroupWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
+			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
 		BroadcastPhaseDoneFunc: func(int, []uint64, []uint64) error { return nil },
@@ -159,7 +159,7 @@ func (dw *StatesMergerWorker) InsertOp(opindex uint64, values []StateMergeValue)
 			return errStatesMergerWorkerAlreadyPhaseDone.Errorf("insert")
 		}
 
-		if err := dw.mergeOps(localStatesMergerWorker, 0, []uint64{opindex}, nil); err != nil {
+		if err := dw.mergeOps(localWorker, 0, []uint64{opindex}, nil); err != nil {
 			dw.ctxcancel(err)
 
 			return err
@@ -170,7 +170,7 @@ func (dw *StatesMergerWorker) InsertOp(opindex uint64, values []StateMergeValue)
 }
 
 func (dw *StatesMergerWorker) InsertDone() error {
-	return dw.workerInsertDone(localStatesMergerWorker, -1, nil, nil, true)
+	return dw.workerInsertDone(localWorker, -1, nil, nil, true)
 }
 
 func (dw *StatesMergerWorker) WorkerInsertDone(worker string) error {
@@ -285,7 +285,7 @@ func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) 
 	}
 
 	return dw.workerPhaseDone(
-		localStatesMergerWorker,
+		localWorker,
 		phase,
 		mergedOps,
 		unmergedOps,
@@ -298,7 +298,7 @@ func (dw *StatesMergerWorker) emptyLocalPhaseDone(phase int) error {
 		return err
 	}
 
-	return dw.workerPhaseDone(localStatesMergerWorker, phase, nil, nil, true)
+	return dw.workerPhaseDone(localWorker, phase, nil, nil, true)
 }
 
 func (dw *StatesMergerWorker) psm(phase int) (psm *phaseStatesMerger, _ error) {
@@ -352,8 +352,8 @@ func (dw *StatesMergerWorker) setPhaseDoneRecord(worker string, phase int, merge
 		isEmpty = false
 	}
 
-	localMergeDone := worker == localStatesMergerWorker
-	localDoneEmpty := worker == localStatesMergerWorker && isEmpty
+	localMergeDone := worker == localWorker
+	localDoneEmpty := worker == localWorker && isEmpty
 
 	var nm, ne uint64
 
@@ -375,14 +375,14 @@ func (dw *StatesMergerWorker) setPhaseDoneRecord(worker string, phase int, merge
 		}
 
 		for worker := range m {
-			if !localMergeDone && worker == localStatesMergerWorker {
+			if !localMergeDone && worker == localWorker {
 				localMergeDone = true
 			}
 
 			nm++
 
 			if i := m[worker][2]; i != nil && i.(bool) {
-				if !localDoneEmpty && worker == localStatesMergerWorker {
+				if !localDoneEmpty && worker == localWorker {
 					localDoneEmpty = true
 				}
 
@@ -465,7 +465,7 @@ func (dw *StatesMergerWorker) workerInsertDone(worker string, phase int, mergedO
 			}
 
 			return 2, nil
-		case worker == localStatesMergerWorker:
+		case worker == localWorker:
 			return 1, nil
 		default:
 			return 0, util.ErrLockedSetIgnore
@@ -501,7 +501,7 @@ func (dw *StatesMergerWorker) workerPhaseDone(worker string, phase int, mergedOp
 			}
 
 			return 1, nil
-		case worker == localStatesMergerWorker:
+		case worker == localWorker:
 			return 1, nil
 		default:
 			return 0, util.ErrLockedSetIgnore
@@ -524,7 +524,7 @@ func (dw *StatesMergerWorker) isEnoughWorkerPhaseDone(worker string, status uint
 		Int("unmerged_ops", len(unmergedOps)).
 		Logger()
 
-	if status < 1 && worker == localStatesMergerWorker {
+	if status < 1 && worker == localWorker {
 		l.Debug().Msg("local worker done; dump stored records")
 
 		dmergedOps, dunmergedOps := dw.dumpPhaseDoneRecords(phase)

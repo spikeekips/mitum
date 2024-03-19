@@ -26,7 +26,7 @@ func (t *testDistributedStatesMerger) newMergers(
 ) *DistributedStatesMergerWorker {
 	args := NewDistributedStatesMergerWorkerArgs()
 	args.NewDistributedWorker = func(ctx context.Context) (distributedWorker, error) {
-		return util.NewErrgroupWorker(ctx, workersize)
+		return util.NewBaseJobWorker(ctx, workersize)
 	}
 
 	dm, err := newDistributedStatesMergerWorker(ctx, local, args)
@@ -148,7 +148,7 @@ func (t *testDistributedStatesMerger) testWorkersPhaseDone(
 				}
 			}
 
-			ew, err := util.NewErrgroupWorker(ctx, workersize)
+			ew, err := util.NewBaseJobWorker(ctx, workersize)
 			if err != nil {
 				return err
 			}

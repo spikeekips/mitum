@@ -144,7 +144,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 		}
 
 		cancelch := make(chan struct{}, 1)
-		ew, _ := util.NewErrgroupWorker(context.Background(), 1<<9)
+		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
 
 		randomMergeValues := func() []StateMergeValue {
 			pub := base.NewMPrivatekey().Publickey()
@@ -199,7 +199,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 		}
 
 		cancelch := make(chan struct{}, 1)
-		ew, _ := util.NewErrgroupWorker(context.Background(), 1<<9)
+		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
 
 		go func() {
 			defer ew.Done()
@@ -244,7 +244,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 			return n > 0
 		}
 
-		isMergeDoneEnough, isEmptyEnough, err := dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, true)
+		isMergeDoneEnough, isEmptyEnough, err := dw.setPhaseDoneRecord(localWorker, 1, nil, nil, true)
 		t.NoError(err)
 		t.False(isMergeDoneEnough)
 		t.True(isEmptyEnough)
@@ -258,7 +258,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 			return n > 0
 		}
 
-		isMergeDoneEnough, isEmptyEnough, err := dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, false)
+		isMergeDoneEnough, isEmptyEnough, err := dw.setPhaseDoneRecord(localWorker, 1, nil, nil, false)
 		t.NoError(err)
 		t.True(isMergeDoneEnough)
 		t.False(isEmptyEnough)
@@ -282,7 +282,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 		t.False(isMergeDoneEnough)
 		t.False(isEmptyEnough)
 
-		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, true)
+		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localWorker, 1, nil, nil, true)
 		t.NoError(err)
 		t.False(isMergeDoneEnough)
 		t.True(isEmptyEnough)
@@ -306,7 +306,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 		t.False(isMergeDoneEnough)
 		t.False(isEmptyEnough)
 
-		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, false)
+		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localWorker, 1, nil, nil, false)
 		t.NoError(err)
 		t.True(isMergeDoneEnough)
 		t.False(isEmptyEnough)
@@ -330,7 +330,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 		t.False(isMergeDoneEnough)
 		t.False(isEmptyEnough)
 
-		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, true)
+		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localWorker, 1, nil, nil, true)
 		t.NoError(err)
 		t.False(isMergeDoneEnough)
 		t.True(isEmptyEnough)
@@ -354,7 +354,7 @@ func (t *testStatesMergerWorker) TestPhaseDoneRecord() {
 		t.False(isMergeDoneEnough)
 		t.False(isEmptyEnough)
 
-		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localStatesMergerWorker, 1, nil, nil, false)
+		isMergeDoneEnough, isEmptyEnough, err = dw.setPhaseDoneRecord(localWorker, 1, nil, nil, false)
 		t.NoError(err)
 		t.True(isMergeDoneEnough)
 		t.False(isEmptyEnough)
@@ -532,7 +532,7 @@ func (t *testStatesMergerWorker) TestDumpPhaseDoneRecords() {
 
 	t.Equal(0, dw.psms.Len())
 
-	isMergeDoneEnough, isEmptyEnough, err = dw.isEnoughWorkerPhaseDone(localStatesMergerWorker, 0, 0, []uint64{1, 2, 3}, []uint64{4, 5, 6}, false)
+	isMergeDoneEnough, isEmptyEnough, err = dw.isEnoughWorkerPhaseDone(localWorker, 0, 0, []uint64{1, 2, 3}, []uint64{4, 5, 6}, false)
 	t.NoError(err)
 	t.False(isMergeDoneEnough)
 	t.False(isEmptyEnough)
@@ -1051,8 +1051,8 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 			mergers.Value,
 			vp.Value,
 			getStateValue,
-			func(ctx context.Context) (jobWorker, error) {
-				return util.NewErrgroupWorker(ctx, 1)
+			func(ctx context.Context) (util.JobWorker, error) {
+				return util.NewBaseJobWorker(ctx, 1)
 			},
 			1<<9,
 		)
@@ -1238,7 +1238,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("insert ops")
 
-	insertew, err := util.NewErrgroupWorker(ctx, 1<<9)
+	insertew, err := util.NewBaseJobWorker(ctx, 1<<9)
 	t.NoError(err)
 	defer insertew.Close()
 
@@ -1285,7 +1285,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 	go func() {
 		t.NoError(insertew.Wait())
 
-		insertdoneew, err := util.NewErrgroupWorker(ctx, 1<<9)
+		insertdoneew, err := util.NewBaseJobWorker(ctx, 1<<9)
 		t.NoError(err)
 		defer insertdoneew.Close()
 
@@ -1321,7 +1321,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("wait done")
 
-	doneew, err := util.NewErrgroupWorker(ctx, 1<<9)
+	doneew, err := util.NewBaseJobWorker(ctx, 1<<9)
 	t.NoError(err)
 	defer doneew.Close()
 

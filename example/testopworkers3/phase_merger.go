@@ -32,7 +32,7 @@ type phaseStatesMerger struct {
 	prevMerger           func(stateKey string) (StateMerger, bool)
 	opValues             func(opindex uint64) ([]StateMergeValue, bool)
 	stateValue           func(string) (base.StateValue, bool, error)
-	newJobWorker         func(context.Context) (jobWorker, error)
+	newJobWorker         func(context.Context) (util.JobWorker, error)
 	mergers              *util.MultiKeysLockedMap[string /* state key */, StateMerger]
 	opStatus             util.LockedMap[uint64 /* opindex */, [3]interface{} /* {initial xMergeFlag, swphase, xMergeFlag} */]
 	mergedOps            util.LockedMap[string /* state key */, map[ /* opindex */ uint64] /* {swphase, xMergeFlag} */ [2]interface{}]
@@ -52,7 +52,7 @@ func newPhaseStatesMerger(
 	prevMerger func(stateKey string) (StateMerger, bool),
 	opValues func(opindex uint64) ([]StateMergeValue, bool),
 	stateValue func(string) (base.StateValue, bool, error),
-	newJobWorker func(context.Context) (jobWorker, error),
+	newJobWorker func(context.Context) (util.JobWorker, error),
 	mapsize uint64,
 ) (*phaseStatesMerger, error) {
 	pctx, pctxCancel := context.WithCancel(ctx)
@@ -655,7 +655,7 @@ func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) 
 		return fs[0]()
 	}
 
-	var ew jobWorker
+	var ew util.JobWorker
 
 	switch i, err := sm.newJobWorker(ctx); {
 	case err != nil:
