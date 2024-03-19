@@ -222,7 +222,7 @@ func (u *LastConsensusNodesWatcher) update(
 	lastcandidates base.State,
 	lastheightUpdated, nodesUpdated bool,
 ) {
-	_, _ = u.lastheight.Set(func(old base.Height, isempty bool) (base.Height, error) {
+	_, _ = u.lastheight.Set(func(old base.Height, _ bool) (base.Height, error) {
 		defer func() {
 			lastproofs, _ = u.last.Value()
 			lastcandidates = u.lastcandidates

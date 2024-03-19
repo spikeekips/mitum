@@ -432,7 +432,7 @@ func (srv *Memberlist) EnsureBroadcast(
 	}
 
 	if maxRetry == 0 {
-		checkretry = func(i uint64) bool {
+		checkretry = func(uint64) bool {
 			return false
 		}
 	}

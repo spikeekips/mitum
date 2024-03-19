@@ -615,7 +615,7 @@ func QuicstreamHandlerEventLogging(
 	}
 
 	return aclhandler.Handler(func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header EventLoggingHeader,
+		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, header EventLoggingHeader,
 	) (context.Context, error) {
 		m := maxItem
 

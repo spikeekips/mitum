@@ -264,7 +264,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 				return nil
 			}
 		},
-		func(ctx context.Context, x base.Address, xci quicstream.ConnInfo) (string, bool, error) {
+		func(ctx context.Context, _ base.Address, xci quicstream.ConnInfo) (string, bool, error) {
 			return client.AskHandover(ctx, xci, local.Privatekey(), isaacparams.NetworkID(), local.Address(), localci)
 		},
 	)
@@ -377,7 +377,7 @@ func attachStartHandoverHandler(
 				func() bool {
 					return states.HandoverXBroker() != nil || states.HandoverYBroker() != nil
 				},
-				func(ctx context.Context, x base.Address, xci quicstream.ConnInfo) error {
+				func(ctx context.Context, _ base.Address, xci quicstream.ConnInfo) error {
 					switch ok, err := client.CheckHandover(
 						ctx, xci, local.Privatekey(), isaacparams.NetworkID(), local.Address(), localci); {
 					case err != nil:

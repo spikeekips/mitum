@@ -140,7 +140,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr fixedtree.Tree
 		ctx,
 		base.BlockItemOperationsTree,
 		tr,
-		func(ctx context.Context, _ uint64) error {
+		func(context.Context, uint64) error {
 			_ = w.opsf.Close()
 
 			if l := atomic.LoadUint64(&w.lenops); l > 0 {
@@ -178,7 +178,7 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr fixedtree.Tree) er
 		ctx,
 		base.BlockItemStatesTree,
 		tr,
-		func(ctx context.Context, _ uint64) error {
+		func(context.Context, uint64) error {
 			_ = w.stsf.Close()
 
 			if eerr := w.m.SetItem(NewBlockMapItem(
@@ -438,7 +438,7 @@ func (w *LocalFSWriter) setTree(
 	}
 
 	if err := tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
-		return true, worker.NewJob(func(ctx context.Context, _ uint64) error {
+		return true, worker.NewJob(func(context.Context, uint64) error {
 			b, err := marshalIndexedTreeNode(w.enc, index, n)
 			if err != nil {
 				return err

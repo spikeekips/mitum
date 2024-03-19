@@ -54,7 +54,7 @@ type PrefixHandler struct {
 func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	if errorHandler == nil {
 		errorHandler = func( //revive:disable-line:modifies-parameter
-			ctx context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser, err error,
+			ctx context.Context, _ net.Addr, _ io.Reader, _ io.WriteCloser, _ error,
 		) (context.Context, error) {
 			return ctx, nil
 		}

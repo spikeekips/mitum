@@ -582,7 +582,7 @@ func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 func (st *States) mimicBallotFunc() func(base.Ballot) {
 	mimicBallotf := st.mimicBallot()
 
-	votef := func(bl base.Ballot) error {
+	votef := func(base.Ballot) error {
 		return nil
 	}
 
@@ -758,7 +758,7 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 func (st *States) setAllowConsensus(allow bool) bool { // revive:disable-line:flag-parameter
 	var isset bool
 
-	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
+	_, _ = st.allowedConsensus.Set(func(prev bool, _ bool) (bool, error) {
 		if prev == allow {
 			return false, util.ErrLockedSetIgnore
 		}

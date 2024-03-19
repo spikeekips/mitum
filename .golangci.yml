@@ -1480,7 +1480,6 @@ linters:
   enable:
     - asciicheck
     - bidichk
-    - deadcode
     - dogsled
     - dupl
     - durationcheck
@@ -1508,7 +1507,6 @@ linters:
     - gosec
     - gosimple
     - govet
-    - ifshort
     - ineffassign
     - makezero
     - misspell
@@ -1531,7 +1529,6 @@ linters:
     - typecheck
     - unconvert
     - unused
-    - varcheck
     - varnamelen
     - whitespace
     - wrapcheck

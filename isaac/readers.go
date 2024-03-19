@@ -154,7 +154,7 @@ func blockItemReadersDecodeFunc[T any](
 	f func(ir BlockItemReader) error,
 ) func(BlockItemReader) (T, error) {
 	if f == nil {
-		f = func(ir BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+		f = func(BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
 	}
 
 	return func(ir BlockItemReader) (target T, _ error) {
@@ -188,7 +188,7 @@ func blockItemReadersDecodeItemsFuncs[T any](
 	}
 
 	if f == nil {
-		f = func(ir BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
+		f = func(BlockItemReader) error { return nil } //revive:disable-line:modifies-parameter
 	}
 
 	var l []T
@@ -257,7 +257,7 @@ func NewBlockItemReadersArgs() *BlockItemReadersArgs {
 		CancelAddedEmptyHeightFunc:      func(base.Height) error { return nil },
 		RemoveEmptyAfter:                func() time.Duration { return DefaultBlockItemReadersRemoveEmptyAfter },
 		RemoveEmptyInterval:             func() time.Duration { return DefaultBlockItemReadersRemoveEmptyInterval },
-		WhenBlockItemFilesUpdated:       func(prev base.BlockItemFiles, updated base.BlockItemFiles) {},
+		WhenBlockItemFilesUpdated:       func(base.BlockItemFiles, base.BlockItemFiles) {},
 		WhenEmptyHeightDirectoryRemoved: func(base.Height) {},
 	}
 }
@@ -927,7 +927,7 @@ func BlockItemDecodeLineItemsWithWorker(
 	defer worker.Close()
 
 	switch i, err := BlockItemDecodeLineItems(f, decode, func(index uint64, v interface{}) error {
-		return worker.NewJob(func(ctx context.Context, _ uint64) error {
+		return worker.NewJob(func(context.Context, uint64) error {
 			return callback(index, v)
 		})
 	}); {

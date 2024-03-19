@@ -239,7 +239,7 @@ func (*GenerateBlocksCommand) newWriter(
 
 	return isaacblock.NewWriter(
 		proposal,
-		func(key string) (base.State, bool, error) { return nil, false, nil },
+		func(string) (base.State, bool, error) { return nil, false, nil },
 		dbw,
 		db.MergeBlockWriteDatabase,
 		fswriter,

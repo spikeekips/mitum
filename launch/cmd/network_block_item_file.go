@@ -244,7 +244,7 @@ func (cmd *NetworkClientBlockItemFilesCommand) downloadBlockItem(
 		cmd.Remote.ConnInfo(),
 		cmd.Height.Height(),
 		t,
-		func(r io.Reader, uri url.URL, compressFormat string) error {
+		func(r io.Reader, _ url.URL, _ string) error {
 			if r == nil {
 				return util.ErrNotFound.Errorf("block item file, %q", t.String())
 			}

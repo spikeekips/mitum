@@ -166,7 +166,7 @@ func (cmd *StorageStatusCommand) database(root string) error {
 func (cmd *StorageStatusCommand) countFiles(root, name string) error {
 	var countFiles, countDirs, diskusage uint64
 
-	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

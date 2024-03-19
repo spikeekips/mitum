@@ -296,7 +296,7 @@ func loadACLFromYAML(
 	}
 
 	if !isnew {
-		_ = acl.m.Traverse(func(key string, v map[ACLScope]ACLPerm) bool {
+		_ = acl.m.Traverse(func(key string, _ map[ACLScope]ACLPerm) bool {
 			if _, found := nom.Get(key); !found {
 				isnew = true
 

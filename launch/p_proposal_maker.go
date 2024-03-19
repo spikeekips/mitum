@@ -133,6 +133,7 @@ func proposalMakderGetOperationsFunc(pctx context.Context) (
 				}
 
 				var expire time.Duration
+
 				switch ht := meta.Hint(); {
 				case ht.Type() == isaacoperation.SuffrageCandidateFactHint.Type(),
 					ht.Type() == isaacoperation.SuffrageJoinFactHint.Type():

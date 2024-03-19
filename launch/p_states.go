@@ -828,7 +828,7 @@ func syncerLastBlockMapFunc(
 			numnodes,
 			int64(numnodes),
 			nil,
-			func(_ context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+			func(_ context.Context, _, _ uint64, nci isaac.NodeConnInfo) error {
 				m, updated, err := f(ctx, manifest, nci.ConnInfo())
 				switch {
 				case err != nil:
@@ -903,7 +903,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					syncSourcePool,
 					numnodes,
 					int64(numnodes),
-					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+					func(ctx context.Context, _, _ uint64, nci isaac.NodeConnInfo) error {
 						ci := nci.ConnInfo()
 
 						switch a, b, err := f(ctx, height, ci); {
@@ -916,7 +916,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 						case !b:
 							return errors.Errorf("not found")
 						default:
-							_, _ = result.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
+							_, _ = result.Set(func(_ [2]interface{}, isempty bool) ([2]interface{}, error) {
 								if !isempty {
 									return [2]interface{}{}, errors.Errorf("already set")
 								}
@@ -1060,7 +1060,7 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(ctx context.Context, _ base.Suffrage) error {
+	return func(context.Context, base.Suffrage) error {
 		_ = long.Join()
 
 		return nil

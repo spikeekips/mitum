@@ -317,7 +317,7 @@ func RequestMissingBallots(
 	localci quicstream.ConnInfo,
 	broadcastf func([]byte, string, chan struct{}) error,
 ) func(context.Context, base.StagePoint, []base.Address) error {
-	return func(ctx context.Context, point base.StagePoint, nodes []base.Address) error {
+	return func(_ context.Context, point base.StagePoint, nodes []base.Address) error {
 		m := NewMissingBallotsRequestsMessage(point, nodes, localci)
 
 		switch b, err := util.MarshalJSON(m); {

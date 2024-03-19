@@ -109,7 +109,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	e := util.StringError("set operation")
 
 	if op != nil {
-		if err := w.saveWorker(true).NewJob(func(ctx context.Context, _ uint64) error {
+		if err := w.saveWorker(true).NewJob(func(context.Context, uint64) error {
 			return w.db.SetOperations([]util.Hash{op})
 		}); err != nil {
 			return e.Wrap(err)

@@ -368,7 +368,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		if batch.Len() == db.batchlimit {
 			b := batch
 
-			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			if err := worker.NewJob(func(context.Context, uint64) error {
 				return pst.Batch(b, nil)
 			}); err != nil {
 				return false, err
@@ -385,7 +385,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	}
 
 	if batch.Len() > 0 {
-		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+		if err := worker.NewJob(func(context.Context, uint64) error {
 			return pst.Batch(batch, nil)
 		}); err != nil {
 			return e.Wrap(err)

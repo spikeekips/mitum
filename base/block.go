@@ -115,7 +115,7 @@ func BatchIsValidMaps(
 		ctx,
 		(to - prevheight).Int64(),
 		batchlimit,
-		func(ctx context.Context, last uint64) error {
+		func(_ context.Context, last uint64) error {
 			lastprev = newprev
 
 			switch r := (last + 1) % uint64(batchlimit); {

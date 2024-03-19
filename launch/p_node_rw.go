@@ -351,7 +351,7 @@ func writeLocalParamISAACThreshold(
 	params *isaac.Params,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		var s string
 		if err := yaml.Unmarshal([]byte(value), &s); err != nil {
@@ -380,7 +380,7 @@ func writeLocalParamISAACIntervalBroadcastBallot(
 	params *isaac.Params,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -404,7 +404,7 @@ func writeLocalParamISAACWaitPreparingINITBallot(
 	params *isaac.Params,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -428,7 +428,7 @@ func writeLocalParamISAACMinWaitNextBlockINITBallot(
 	params *isaac.Params,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -452,7 +452,7 @@ func writeLocalParamISAACMaxTryHandoverYBrokerSyncData(
 	params *isaac.Params,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
@@ -476,7 +476,7 @@ func writeLocalParamMISCSyncSourceCheckerInterval(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -500,7 +500,7 @@ func writeLocalParamMISCValidProposalOperationExpire(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -524,7 +524,7 @@ func writeLocalParamMISCValidProposalSuffrageOperationsExpire(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -548,7 +548,7 @@ func writeLocalParamMISCBlockItemReadersRemoveEmptyAfter(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -572,7 +572,7 @@ func writeLocalParamMISCBlockItemReadersRemoveEmptyInterval(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -596,7 +596,7 @@ func writeLocalParamMISCMaxMessageSize(
 	params *MISCParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		i, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
@@ -620,7 +620,7 @@ func writeLocalParamExtraSameMemberLimit(
 	params *MemberlistParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(
-		func(_ context.Context, _, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+		func(_ context.Context, _, _, value, _ string) (prev, next interface{}, updated bool, _ error) {
 			i, err := strconv.ParseUint(value, 10, 64)
 			if err != nil {
 				return nil, nil, false, errors.WithStack(err)
@@ -643,7 +643,7 @@ func writeLocalParamNetworkTimeoutRequest(
 	params *NetworkParams,
 ) writeNodeValueFunc {
 	return writeNodeKey(func(
-		_ context.Context, _, _, value, acluser string,
+		_ context.Context, _, _, value, _ string,
 	) (prev, next interface{}, updated bool, _ error) {
 		d, err := parseNodeValueDuration(value)
 		if err != nil {
@@ -668,7 +668,7 @@ func writeSyncSources(
 	design NodeDesign,
 	syncSourceChecker *isaacnetwork.SyncSourceChecker,
 ) writeNodeValueFunc {
-	return func(_ context.Context, _, value, acluser string) (prev, next interface{}, updated bool, _ error) {
+	return func(_ context.Context, _, value, _ string) (prev, next interface{}, updated bool, _ error) {
 		e := util.StringError("update sync source")
 
 		var sources *SyncSourcesDesign
@@ -770,7 +770,7 @@ func writeLocalParamNetworkRateLimit(
 		panic(fmt.Sprintf("unknown key, %q for network ratelimit", param))
 	}
 
-	return func(_ context.Context, _, value, acluser string) (prev, next interface{}, updated bool, err error) {
+	return func(_ context.Context, _, value, _ string) (prev, next interface{}, updated bool, err error) {
 		switch param {
 		case "node":
 			prev = params.NodeRuleSet()
@@ -835,6 +835,7 @@ func writeAllowConsensus(pctx context.Context) (writeNodeValueFunc, error) {
 		}
 
 		var allow bool
+
 		if err := yaml.Unmarshal([]byte(value), &allow); err != nil {
 			return nil, nil, false, errors.WithStack(err)
 		}
@@ -934,6 +935,7 @@ func writeBlockItemFiles(pctx context.Context) (writeNodeValueFunc, error) {
 		}
 
 		var height base.Height
+
 		switch i, err := base.ParseHeightString(key); {
 		case err != nil:
 			return nil, nil, false, err
@@ -1574,6 +1576,7 @@ func readBlockItemFiles(pctx context.Context) (readNodeValueFunc, error) {
 		}
 
 		var height base.Height
+
 		switch i, err := base.ParseHeightString(key); {
 		case err != nil:
 			return nil, err

@@ -339,35 +339,35 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 
 	if err := util.RunErrgroupWorkerByJobs(
 		ctx,
-		func(ctx context.Context, jobid uint64) error {
+		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "merge operations")
 			}
 
 			return nil
 		},
-		func(ctx context.Context, jobid uint64) error {
+		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "merge states")
 			}
 
 			return nil
 		},
-		func(ctx context.Context, jobid uint64) error {
+		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeSuffrageProofsTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "merge SuffrageProof")
 			}
 
 			return nil
 		},
-		func(ctx context.Context, jobid uint64) error {
+		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "merge SuffrageProof by block height")
 			}
 
 			return nil
 		},
-		func(ctx context.Context, jobid uint64) error {
+		func(ctx context.Context, _ uint64) error {
 			if err := db.mergeBlockMapTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "merge blockmap")
 			}

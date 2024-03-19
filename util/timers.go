@@ -95,6 +95,7 @@ func (t *SimpleTimer) run() (bool, error) {
 
 	defer func() {
 		t.expiredLocked.SetValue(time.Now().Add(next))
+
 		t.called++
 	}()
 
@@ -170,7 +171,7 @@ func (ts *SimpleTimers) New(
 func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
 	var added bool
 
-	if _, _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
+	if _, _, err := ts.timers.Set(timer.id, func(*SimpleTimer, bool) (*SimpleTimer, error) {
 		if len(ts.ids) > 0 {
 			if slices.Index(ts.ids, timer.id) < 0 {
 				return nil, errors.Errorf("unknown timer id, %q", timer.id)
@@ -248,7 +249,7 @@ func (ts *SimpleTimers) start(ctx context.Context) error {
 func (ts *SimpleTimers) iterate(ctx context.Context) error {
 	var timers []*SimpleTimer
 
-	ts.timers.Traverse(func(id TimerID, timer *SimpleTimer) bool {
+	ts.timers.Traverse(func(_ TimerID, timer *SimpleTimer) bool {
 		switch {
 		case !timer.isExpired(),
 			!timer.prepare():

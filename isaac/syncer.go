@@ -257,15 +257,14 @@ func (p *SyncSourcePool) Retry(
 				return true, nil
 			}
 
-			keep, err := f(nci)
-
-			if isSyncSourceProblem(err) {
+			switch keep, err := f(nci); {
+			case isSyncSourceProblem(err):
 				report(err)
 
 				return true, nil
+			default:
+				return keep, err
 			}
-
-			return keep, err
 		},
 		limit,
 		interval,

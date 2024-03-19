@@ -109,12 +109,15 @@ func (c *BaseClient) StreamOperations(
 	return streamer(ctx, func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		return c.streamOperationsBytes(ctx, broker, priv, networkID, offset,
 			func(enchint string, body, roffset []byte) error {
-				_, enc, found, err := c.Encoders.FindByString(enchint)
-				switch {
+				var enc encoder.Encoder
+
+				switch _, e, found, err := c.Encoders.FindByString(enchint); {
 				case err != nil:
 					return errors.Errorf("unknown encoder, %q", enchint)
 				case !found:
 					return errors.Errorf("unknown encoder, %q", enchint)
+				default:
+					enc = e
 				}
 
 				var op base.Operation
@@ -1244,7 +1247,7 @@ func brokerPipeEncode(
 		func(ctx context.Context, pr io.Reader) error {
 			return broker.WriteBody(ctx, quicstreamheader.StreamBodyType, 0, pr)
 		},
-		func(ctx context.Context, pw io.Writer) error {
+		func(_ context.Context, pw io.Writer) error {
 			return broker.Encoder.StreamEncoder(pw).Encode(i)
 		},
 	)

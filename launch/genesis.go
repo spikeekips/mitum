@@ -330,7 +330,7 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	args := isaac.NewDefaultProposalProcessorArgs()
 	args.NewWriterFunc = NewBlockWriterFunc(
 		g.local, g.networkID, g.dataroot, g.encs.JSON(), g.encs.Default(), g.db, math.MaxInt16, 0)
-	args.GetStateFunc = func(key string) (base.State, bool, error) {
+	args.GetStateFunc = func(string) (base.State, bool, error) {
 		return nil, false, nil
 	}
 	args.GetOperationFunc = func(_ context.Context, operationhash, _ util.Hash) (base.Operation, error) {

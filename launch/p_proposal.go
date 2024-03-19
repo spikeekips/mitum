@@ -377,7 +377,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 				return true
 			}
 
-			if werr := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			if werr := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 				defer cancel()
 

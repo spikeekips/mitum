@@ -35,17 +35,18 @@ var (
 )
 
 func init() {
-	{
-		a, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-		a, err = filepath.Abs(a)
+	switch i, err := filepath.Abs(func() string {
+		i, err := os.Getwd()
 		if err != nil {
 			panic(err)
 		}
 
-		DefaultStorageBase = filepath.Join(a, "tmp", "mitum")
+		return i
+	}()); {
+	case err != nil:
+		panic(err)
+	default:
+		DefaultStorageBase = filepath.Join(i, "tmp", "mitum")
 	}
 }
 

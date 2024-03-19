@@ -382,7 +382,7 @@ func memberlistConfig(
 		return nil, err
 	}
 
-	delegate := quicmemberlist.NewDelegate(localnode, nil, func(b []byte) {
+	delegate := quicmemberlist.NewDelegate(localnode, nil, func([]byte) {
 		panic("set notifyMsgFunc")
 	})
 

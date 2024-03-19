@@ -313,7 +313,7 @@ func (r *RateLimitHandler) rateLimiterFunc(
 	addr net.Addr,
 	handler string,
 ) func(_ *RateLimiter, found, created bool, hint RateLimitRuleHint) (*RateLimiter, error) {
-	return func(l *RateLimiter, found, created bool, hint RateLimitRuleHint) (*RateLimiter, error) {
+	return func(l *RateLimiter, _, _ bool, hint RateLimitRuleHint) (*RateLimiter, error) {
 		switch i, isnew := r.rules.Rule(addr, handler, hint, l); {
 		case isnew:
 			return i, nil

@@ -136,7 +136,7 @@ func (st *States) CancelHandoverYBroker() error {
 }
 
 func (st *States) cleanHandovers() {
-	_ = st.handoverXBroker.Empty(func(i *HandoverXBroker, isempty bool) error {
+	_ = st.handoverXBroker.Empty(func(_ *HandoverXBroker, isempty bool) error {
 		if !isempty {
 			st.Log().Debug().Msg("handover x broker cleaned")
 		}
@@ -144,7 +144,7 @@ func (st *States) cleanHandovers() {
 		return nil
 	})
 
-	_ = st.handoverYBroker.Empty(func(i *HandoverYBroker, isempty bool) error {
+	_ = st.handoverYBroker.Empty(func(_ *HandoverYBroker, isempty bool) error {
 		if !isempty {
 			st.Log().Debug().Msg("handover y broker cleaned")
 		}
@@ -200,7 +200,7 @@ func NewCheckHandoverFunc(
 	isJoinedMemberlist func() (bool, error),
 	currentState func() StateType,
 ) CheckHandoverFunc {
-	return func(ctx context.Context, node base.Address, yci quicstream.ConnInfo) error {
+	return func(_ context.Context, node base.Address, yci quicstream.ConnInfo) error {
 		e := util.StringError("check handover x")
 
 		switch {
@@ -242,7 +242,7 @@ func NewAskHandoverReceivedFunc(
 	setNotAllowConsensus func(),
 	startHandoverX func(quicstream.ConnInfo) (handoverid string, _ error),
 ) AskHandoverReceivedFunc {
-	return func(ctx context.Context, node base.Address, yci quicstream.ConnInfo) (string, bool, error) {
+	return func(_ context.Context, node base.Address, yci quicstream.ConnInfo) (string, bool, error) {
 		e := util.StringError("ask handover")
 
 		switch {
@@ -283,7 +283,7 @@ func NewCheckHandoverXFunc(
 	isJoinedMemberlist func() (bool, error),
 	currentState func() StateType,
 ) CheckHandoverXFunc {
-	return func(ctx context.Context) error {
+	return func(context.Context) error {
 		e := util.StringError("check only handover x")
 
 		switch {

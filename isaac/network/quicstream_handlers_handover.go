@@ -17,7 +17,7 @@ func QuicstreamHandlerStartHandover(
 	f isaacstates.StartHandoverYFunc,
 ) quicstreamheader.Handler[StartHandoverHeader] {
 	return aclhandler.Handler(func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
+		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
 	) (context.Context, error) {
 		err := f(ctx, header.Address(), header.ConnInfo())
 
@@ -30,7 +30,7 @@ func QuicstreamHandlerCancelHandover(
 	f func() error,
 ) quicstreamheader.Handler[CancelHandoverHeader] {
 	return aclhandler.Handler(func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CancelHandoverHeader,
+		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, _ CancelHandoverHeader,
 	) (context.Context, error) {
 		err := f()
 
@@ -43,7 +43,7 @@ func QuicstreamHandlerCheckHandover(
 	f isaacstates.CheckHandoverFunc,
 ) quicstreamheader.Handler[CheckHandoverHeader] {
 	return aclhandler.Handler(func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
+		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
 	) (context.Context, error) {
 		err := f(ctx, header.Address(), header.ConnInfo())
 
@@ -77,7 +77,7 @@ func QuicstreamHandlerHandoverMessage(
 	f func(isaacstates.HandoverMessage) error,
 ) quicstreamheader.Handler[HandoverMessageHeader] {
 	return func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header HandoverMessageHeader,
+		ctx context.Context, _ net.Addr, broker *quicstreamheader.HandlerBroker, _ HandoverMessageHeader,
 	) (context.Context, error) {
 		e := util.StringError("handover message")
 
@@ -119,7 +119,7 @@ func QuicstreamHandlerCheckHandoverX(
 	f isaacstates.CheckHandoverXFunc,
 ) quicstreamheader.Handler[CheckHandoverXHeader] {
 	return func(
-		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverXHeader,
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, _ CheckHandoverXHeader,
 	) (context.Context, error) {
 		err := QuicstreamHandlerVerifyNode(
 			ctx, addr, broker,

@@ -89,7 +89,7 @@ func (sm *DefaultStatesMerger) CloseStates(
 
 			index := uint64(i)
 
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			if err := worker.NewJob(func(context.Context, uint64) error {
 				switch newst, err := stvm.CloseValue(); {
 				case newst == nil, errors.Is(err, base.ErrIgnoreStateValue):
 					return nil
@@ -127,7 +127,7 @@ func (sm *DefaultStatesMerger) Close() error {
 		defer worker.Done()
 
 		sm.stvmmap.Traverse(func(_ string, merger base.StateValueMerger) bool {
-			return worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return worker.NewJob(func(context.Context, uint64) error {
 				_ = merger.Close()
 
 				return nil

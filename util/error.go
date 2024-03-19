@@ -155,6 +155,7 @@ func (er *baseError) Format(st fmt.State, verb rune) {
 					if len(er.msg) > 0 {
 						d = "; "
 					}
+
 					_, _ = fmt.Fprintf(st, "%s\n%+v", d, er.wrapped)
 				}
 			}

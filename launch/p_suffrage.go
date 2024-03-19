@@ -519,7 +519,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 			numnodes,
 			int64(numnodes),
 			nil,
-			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+			func(ctx context.Context, _, _ uint64, nci isaac.NodeConnInfo) error {
 				h, proof, updated, err := f(ctx, nci.ConnInfo())
 				if err != nil {
 					return err
@@ -588,7 +588,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 					syncSourcePool,
 					numnodes,
 					int64(numnodes),
-					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+					func(ctx context.Context, _, _ uint64, nci isaac.NodeConnInfo) error {
 						cctx, cancel := context.WithTimeout(ctx, params.Network.TimeoutRequest())
 						defer cancel()
 
@@ -680,7 +680,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 			numnodes,
 			int64(numnodes),
 			nil,
-			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+			func(ctx context.Context, _, _ uint64, nci isaac.NodeConnInfo) error {
 				st, found, err := f(ctx, nci.ConnInfo())
 				switch {
 				case err != nil, !found, st == nil:
@@ -781,9 +781,7 @@ func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		switch {
 		case existings >= policy.MaxSuffrageSize():
-			return func(
-				_ context.Context, op base.Operation, _ base.GetStateFunc,
-			) (base.OperationProcessReasonError, error) {
+			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
 				return base.NewBaseOperationProcessReasonError("reached limit, %d", policy.MaxSuffrageSize()), nil
 			}, nil
 		case limit > policy.MaxSuffrageSize()-uint64(suf.Len()):
@@ -791,18 +789,14 @@ func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 		}
 
 		if limit < 1 {
-			return func(
-				_ context.Context, op base.Operation, _ base.GetStateFunc,
-			) (base.OperationProcessReasonError, error) {
+			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
 				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
 			}, nil
 		}
 
 		var counted uint64
 
-		return func(
-			_ context.Context, op base.Operation, _ base.GetStateFunc,
-		) (base.OperationProcessReasonError, error) {
+		return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
 			if counted >= limit {
 				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
 			}

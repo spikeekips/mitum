@@ -312,7 +312,7 @@ func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
 
 	var vrs []*voterecords
 
-	_ = box.removed.Get(func(removed []*voterecords, isempty bool) error {
+	_ = box.removed.Get(func(removed []*voterecords, _ bool) error {
 		removedm := map[string]struct{}{}
 		defer clear(removedm)
 
@@ -431,7 +431,7 @@ func (box *Ballotbox) SetLastPointFromVoteproof(vp base.Voteproof) bool {
 }
 
 func (box *Ballotbox) SetLastPoint(point isaac.LastPoint) bool {
-	_, err := box.lsp.Set(func(last isaac.LastPoint, isempty bool) (v isaac.LastPoint, _ error) {
+	_, err := box.lsp.Set(func(last isaac.LastPoint, _ bool) (v isaac.LastPoint, _ error) {
 		if !last.Before(point.StagePoint, point.IsSuffrageConfirm()) {
 			return v, errors.Errorf("old")
 		}
@@ -1119,7 +1119,7 @@ func (vr *voterecords) ballotSignFacts(nodes []base.Address) []base.BallotSignFa
 	vr.RLock()
 	defer vr.RUnlock()
 
-	return util.FilterMap(vr.voted, func(node string, sf base.BallotSignFact) bool {
+	return util.FilterMap(vr.voted, func(node string, _ base.BallotSignFact) bool {
 		return slices.IndexFunc(nodes, func(i base.Address) bool {
 			return node == i.String()
 		}) >= 0

@@ -336,7 +336,7 @@ func (cmd *DatabaseExtractCommand) countLabel(
 	pst := leveldbstorage.NewPrefixStorage(st, label[:])
 	if err := pst.Iter(
 		nil,
-		func(key, raw []byte) (bool, error) {
+		func(key, _ []byte) (bool, error) {
 			count++
 
 			switch i := keyf(key); {

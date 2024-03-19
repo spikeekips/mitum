@@ -507,7 +507,7 @@ func (db *TempPool) TraverseSuffrageExpelOperations(
 	heighti := height.Int64()
 
 	if err := pst.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(key, b []byte) (bool, error) {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation[:]), func(_, b []byte) (bool, error) {
 			var op base.SuffrageExpelOperation
 
 			switch enchint, r, opb, err := ReadFrameHeaderSuffrageExpelOperation(b); {
@@ -924,6 +924,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 
 				batch.Delete(key)
 				batch.Delete(leveldbNewOperationKey(valuehash.NewBytes(b)))
+
 				removed++
 
 				return false, nil

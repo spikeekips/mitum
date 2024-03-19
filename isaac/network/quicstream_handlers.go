@@ -462,7 +462,7 @@ func quicstreamHandlerNodeChallenge(
 	local base.LocalNode,
 	signf func([]byte) (base.Signature, error),
 ) quicstreamheader.Handler[NodeChallengeRequestHeader] {
-	return func(ctx context.Context, addr net.Addr,
+	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader,
 	) (context.Context, error) {
 		e := util.StringError("handle NodeChallenge")

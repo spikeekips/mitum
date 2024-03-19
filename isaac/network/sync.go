@@ -210,7 +210,7 @@ func (c *SyncSourceChecker) checkSources(ctx context.Context, sources []SyncSour
 			i := i
 			ci := sources[i]
 
-			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				ncis, err := c.fetch(ctx, ci)
 				if err != nil {
 					return err

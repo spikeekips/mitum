@@ -221,7 +221,7 @@ func (r *ItemReader) decodeTree(item func(uint64, uint64, interface{}) error) (t
 		func(b []byte) (interface{}, error) {
 			return unmarshalIndexedTreeNode(r.enc, b, u.Tree)
 		},
-		func(index uint64, v interface{}) error {
+		func(_ uint64, v interface{}) error {
 			switch in, err := util.AssertInterfaceValue[indexedTreeNode](v); {
 			case err != nil:
 				return err
