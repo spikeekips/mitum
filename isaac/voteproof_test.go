@@ -285,6 +285,50 @@ func (t *testVoteproof) TestNewACCEPT() {
 	t.NoError(avp.IsValid(t.networkID))
 }
 
+func (t *testVoteproof) TestEmptyProposalINITBallotFact() {
+	fact := NewEmptyProposalINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+
+	node := base.RandomAddress("")
+	signfact := NewINITBallotSignFact(fact)
+
+	t.NoError(signfact.NodeSign(t.local.Privatekey(), t.networkID, node))
+
+	ivp := NewINITVoteproof(fact.Point().Point)
+	ivp.
+		SetMajority(fact).
+		SetSignFacts([]base.BallotSignFact{signfact}).
+		SetThreshold(base.Threshold(100)).
+		Finish()
+
+	t.NoError(ivp.IsValid(t.networkID))
+
+	t.Nil(ivp.Majority())
+	t.Nil(ivp.BallotMajority())
+	t.Equal(base.VoteResultDraw, ivp.Result())
+}
+
+func (t *testVoteproof) TestEmptyOpertionsACCEPTBallotFact() {
+	fact := NewEmptyOperationsACCEPTBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256())
+
+	node := base.RandomAddress("")
+	signfact := NewACCEPTBallotSignFact(fact)
+
+	t.NoError(signfact.NodeSign(t.local.Privatekey(), t.networkID, node))
+
+	avp := NewACCEPTVoteproof(fact.Point().Point)
+	avp.
+		SetMajority(fact).
+		SetSignFacts([]base.BallotSignFact{signfact}).
+		SetThreshold(base.Threshold(100)).
+		Finish()
+
+	t.NoError(avp.IsValid(t.networkID))
+
+	t.Nil(avp.Majority())
+	t.Nil(avp.BallotMajority())
+	t.Equal(base.VoteResultDraw, avp.Result())
+}
+
 func (t *testVoteproof) expels(
 	height base.Height,
 	expelnodes []base.Node,
