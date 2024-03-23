@@ -276,7 +276,7 @@ func RandomChoiceSlice[T any](a []T, size int64) ([]T, error) {
 }
 
 func CompactAppendSlice[T any](size int) (
-	add func(T) (isFull bool),
+	add func(...T) (isFull bool),
 	done func() []T,
 ) {
 	s := make([]T, size)
@@ -306,20 +306,30 @@ func CompactAppendSlice[T any](size int) (
 		return false, j
 	}
 
-	return func(t T) bool {
-			if size < 1 {
-				return true
+	addOne := func(t T) bool {
+		if size < 1 {
+			return true
+		}
+
+		switch isOver, i := count(); {
+		case isOver:
+			return true
+		default:
+			s[i] = t
+
+			// FIXME test
+			return i == size-1
+		}
+	}
+
+	return func(ts ...T) bool {
+			for i := range ts {
+				if addOne(ts[i]) {
+					return true
+				}
 			}
 
-			switch isOver, i := count(); {
-			case isOver:
-				return true
-			default:
-				s[i] = t
-
-				// FIXME test
-				return i == size-1
-			}
+			return false
 		}, func() []T {
 			if size < 1 {
 				return nil
@@ -337,7 +347,7 @@ func CompactAppendSlice[T any](size int) (
 }
 
 func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
-	add func(T) bool,
+	add func(...T) bool,
 	done func() []T,
 ) {
 	addf, donef := CompactAppendSlice[T](size)
@@ -363,7 +373,7 @@ func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
 }
 
 func UniqCompactAppendSlice[T cmp.Ordered](size int) (
-	add func(T) bool,
+	add func(...T) bool,
 	done func() []T,
 ) {
 	addf, done := CompactAppendSlice[T](size)
@@ -371,23 +381,30 @@ func UniqCompactAppendSlice[T cmp.Ordered](size int) (
 	m := map[T]struct{}{}
 	defer clear(m)
 
-	return func(t T) bool {
-		if _, found := m[t]; found {
+	return func(ts ...T) bool {
+		n := FilterSlice(ts, func(i T) bool {
+			_, found := m[i]
+
+			return !found
+		})
+		if len(n) < 1 {
 			return false
 		}
 
-		if addf(t) {
+		if addf(n...) {
 			return true
 		}
 
-		m[t] = struct{}{}
+		for i := range n {
+			m[n[i]] = struct{}{}
+		}
 
 		return false
 	}, done
 }
 
 func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
-	add func(T) bool,
+	add func(...T) bool,
 	done func() []T,
 ) {
 	addf, donef := UniqCompactAppendSlice[T](size)
