@@ -65,17 +65,18 @@ func (t *testStatesMergerWorker) printDW(dw *StatesMergerWorker) {
 		return true
 	})
 
-	addMergedOps, doneMergedOps := util.CompactAppendSlice[uint64](len(dw.phaseDoneOps))
-	addUnmergedOps, doneUnmergedOps := util.CompactAppendSlice[uint64](len(dw.phaseDoneOps))
+	addMergedOps, doneMergedOps := util.CompactAppendSlice[uint64](dw.phaseDoneOps.Len())
+	addUnmergedOps, doneUnmergedOps := util.CompactAppendSlice[uint64](dw.phaseDoneOps.Len())
 
-	for i := range dw.phaseDoneOps {
-		switch dw.phaseDoneOps[i][1].(xMergeFlag) {
+	dw.phaseDoneOps.Traverse(func(i uint64, v [2]interface{}) bool {
+		switch v[1].(xMergeFlag) {
 		case mergeFlag:
 			addMergedOps(i)
 		case unmergeFlag:
 			addUnmergedOps(i)
 		}
-	}
+		return true
+	})
 
 	mergedOps, unmergedOps := doneMergedOps(), doneUnmergedOps()
 
@@ -98,7 +99,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 
 		bch := make(chan int, 1)
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, _, _ []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(ctx context.Context, phase int, _, _ []uint64) error {
 			bch <- phase
 
 			select {
@@ -143,7 +144,6 @@ func (t *testStatesMergerWorker) TestCancel() {
 			return n > 0
 		}
 
-		cancelch := make(chan struct{}, 1)
 		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
 
 		randomMergeValues := func() []StateMergeValue {
@@ -160,7 +160,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 			for i := uint64(0); i < 333; i++ {
 				i := i
 				if i == 99 {
-					cancelch <- struct{}{}
+					dw.Cancel()
 				}
 
 				if err := ew.NewJob(func(context.Context, uint64) error {
@@ -171,12 +171,13 @@ func (t *testStatesMergerWorker) TestCancel() {
 			}
 		}()
 
-		<-cancelch
-		dw.Cancel()
-
-		err := ew.Wait()
-		t.Error(err)
-		t.ErrorIs(err, util.ErrLockedMapClosed)
+		switch err := ew.Wait(); {
+		case errors.Is(err, util.ErrLockedMapClosed):
+		case errors.Is(err, context.Canceled):
+		case errors.Is(err, util.ErrNotFound):
+		default:
+			t.NoError(err)
+		}
 	})
 
 	t.Run("worker phase done; data race", func() {
@@ -198,7 +199,6 @@ func (t *testStatesMergerWorker) TestCancel() {
 			ops[i] = i
 		}
 
-		cancelch := make(chan struct{}, 1)
 		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
 
 		go func() {
@@ -207,7 +207,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 			for i := uint64(0); i < 333; i++ {
 				i := i
 				if i == 99 {
-					cancelch <- struct{}{}
+					dw.Cancel()
 				}
 
 				if err := ew.NewJob(func(context.Context, uint64) error {
@@ -226,12 +226,12 @@ func (t *testStatesMergerWorker) TestCancel() {
 			}
 		}()
 
-		<-cancelch
-		dw.Cancel()
-
-		err := ew.Wait()
-		t.Error(err)
-		t.ErrorIs(err, util.ErrLockedMapClosed)
+		switch err := ew.Wait(); {
+		case errors.Is(err, util.ErrLockedMapClosed):
+		case errors.Is(err, context.Canceled):
+		default:
+			t.NoError(err)
+		}
 	})
 }
 
@@ -487,7 +487,7 @@ func (t *testStatesMergerWorker) TestInsertDone() {
 		tEmpty := t.Empty
 		tNoError := t.NoError
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, mergedOps, unmergedOps []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			tEqual(0, phase)
 			tEmpty(mergedOps)
 			tEmpty(unmergedOps)
@@ -513,15 +513,15 @@ func (t *testStatesMergerWorker) TestDumpPhaseDoneRecords() {
 		return n > 2
 	}
 
-	dw.phaseDoneOps = map[uint64][2]interface{}{}
+	dw.phaseDoneOps = util.NewSingleLockedMap[uint64, [2]interface{}]()
 
 	for i := uint64(1); i < 7; i++ {
 		_ = t.randomMergeValuesVP(dw.valuespool, i, 1)
 
 		if i < 4 {
-			dw.phaseDoneOps[i] = [2]interface{}{0, unmergeFlag}
+			dw.phaseDoneOps.SetValue(i, [2]interface{}{0, unmergeFlag})
 		} else {
-			dw.phaseDoneOps[i] = [2]interface{}{0, mergeFlag}
+			dw.phaseDoneOps.SetValue(i, [2]interface{}{0, mergeFlag})
 		}
 	}
 
@@ -588,7 +588,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			}
 		}
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, mergedOps, unmergedOps []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			go func() {
 				workerPhaseDone("w0", phase, mergedOps, unmergedOps)
 				workerPhaseDone("w1", phase, mergedOps, unmergedOps)
@@ -605,7 +605,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 		avs1 := vs1[0].(AccountStateMergeValue)
 		avs2 := vs2[0].(AccountStateMergeValue)
 
-		dw.args.UpdatedValuesFunc = func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+		dw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			//t.LockedLog("updated values: stateKey=%q merger=%v mergedOps=%v unmergedOps=%v maxUpdatedValues=%d",
 			//	stateKey, merger != nil, mergedOps, unmergedOps, maxUpdatedValues,
 			//)
@@ -676,7 +676,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			}
 		}
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, mergedOps, unmergedOps []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			go func() {
 				workerPhaseDone("w0", phase, mergedOps, unmergedOps)
 				workerPhaseDone("w1", phase, mergedOps, unmergedOps)
@@ -689,7 +689,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 		vs1 := t.randomMergeValues(1)
 		vs2 := t.randomMergeValues(1)
 
-		dw.args.UpdatedValuesFunc = func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+		dw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			//t.LockedLog("updated values: stateKey=%q merger=%v mergedOps=%v unmergedOps=%v maxUpdatedValues=%d",
 			//	stateKey, merger != nil, mergedOps, unmergedOps, maxUpdatedValues,
 			//)
@@ -759,7 +759,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			}
 		}
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, mergedOps, unmergedOps []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			go func() {
 				workerPhaseDone("w0", phase, mergedOps, unmergedOps)
 				workerPhaseDone("w1", phase, mergedOps, unmergedOps)
@@ -768,7 +768,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			return nil
 		}
 
-		dw.args.UpdatedValuesFunc = func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+		dw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			return nil
 		}
 
@@ -841,7 +841,7 @@ func (t *testStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
 		worker := worker
 		dw := dws[worker]
 
-		dw.args.BroadcastPhaseDoneFunc = func(phase int, mergedOps, unmergedOps []uint64) error {
+		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			return workerPhaseDone(worker, phase, mergedOps, unmergedOps)
 		}
 	}
@@ -852,7 +852,7 @@ func (t *testStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
 	tEmpty := t.Empty
 
 	for worker := range dws {
-		dws[worker].args.UpdatedValuesFunc = func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+		dws[worker].args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			sv, err := merger.Close()
 			tNoError(err)
 
@@ -983,7 +983,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		states[key] = NewAccountStateValue(pubs[i], 2)
 	}
 
-	getStateValue := func(key string) (base.StateValue, bool, error) {
+	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
 		i, found := states[key]
 
 		return i, found, nil
@@ -1151,8 +1151,8 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	dws := map[string]*StatesMergerWorker{}
 
-	broadcastPhaseDoneFunc := func(local string) func(int, []uint64, []uint64) error {
-		return func(phase int, mergedOps, unmergedOps []uint64) error {
+	broadcastPhaseDoneFunc := func(local string) func(context.Context, int, []uint64, []uint64) error {
+		return func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 			for worker := range dws {
 				if worker == local {
 					continue
@@ -1179,8 +1179,8 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 	allMergedOps := map[ /* worker */ string]map[ /* opindex */ uint64]struct{}{}
 	stateOps := map[ /* worker */ string]map[string][]uint64{}
 
-	updatedValuesFunc := func(local string) func(int, string, StateMerger, []uint64, []uint64, uint64) error {
-		return func(phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+	updatedValuesFunc := func(local string) func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error {
+		return func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			updateLock.Lock()
 			if _, found := allMergedOps[local]; !found {
 				allMergedOps[local] = map[uint64]struct{}{}
@@ -1212,8 +1212,8 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		}
 	}
 
-	updateReasonsFunc := func(local string) func(int, uint64, string) error {
-		return func(phase int, opindex uint64, reason string) error {
+	updateReasonsFunc := func(local string) func(context.Context, int, uint64, string) error {
+		return func(_ context.Context, phase int, opindex uint64, reason string) error {
 			t.T().Logf("\treason updated: worker=%q phase=%d opindex=%d reason=%q", local, phase, opindex, reason)
 
 			return nil

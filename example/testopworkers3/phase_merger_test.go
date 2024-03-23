@@ -22,11 +22,11 @@ type testPhaseStatesMerger struct {
 
 func (t *testPhaseStatesMerger) newMerger(
 	ctx context.Context,
-	getStateValue func(string) (base.StateValue, bool, error),
+	getStateValue func(context.Context, string) (base.StateValue, bool, error),
 	workersize int64,
 ) (*phaseStatesMerger, util.LockedMap[uint64, []StateMergeValue]) {
 	if getStateValue == nil {
-		getStateValue = func(string) (base.StateValue, bool, error) { return nil, false, nil }
+		getStateValue = func(context.Context, string) (base.StateValue, bool, error) { return nil, false, nil }
 	}
 
 	mergers, err := util.NewShardedMap[string, StateMerger](1<<9, nil)
@@ -136,7 +136,7 @@ func (t *testPhaseStatesMerger) TestInitialMerge() {
 
 		err := psm.Merge(1)
 		t.ErrorIs(err, util.ErrFound)
-		t.ErrorContains(err, "opindex already merged initiallay")
+		t.ErrorContains(err, "opindex already merged initially")
 	})
 }
 
@@ -178,7 +178,7 @@ func (t *testPhaseStatesMerger) TestInitialUnmerge() {
 
 		err := psm.Unmerge(1)
 		t.ErrorIs(err, util.ErrFound)
-		t.ErrorContains(err, "opindex already unmerged initiallay")
+		t.ErrorContains(err, "opindex already unmerged initially")
 	})
 }
 
@@ -513,7 +513,7 @@ func (t *testPhaseStatesMerger) TestMergedOPs() {
 		},
 	}
 
-	getStateValue := func(key string) (base.StateValue, bool, error) {
+	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
 		switch key {
 		case AccountStateKey(pub0):
 			return prev0, true, nil
@@ -631,7 +631,7 @@ func (t *testPhaseStatesMerger) TestMergedOPs() {
 func (t *testPhaseStatesMerger) testMergesAccounts(
 	maxworkersize uint64,
 	ops [][]StateMergeValue,
-	getStateValue func(string) (base.StateValue, bool, error),
+	getStateValue func(context.Context, string) (base.StateValue, bool, error),
 	expectedMerged, expectedUnmerged []uint64,
 	updatef phaseStatesMergerDoneUpdatedValuesFunc,
 	reasonf phaseStatesMergerDoneUpdatedReasonsFunc,
@@ -685,7 +685,7 @@ func (t *testPhaseStatesMerger) testMergesAccounts(
 				psm, vp := t.newMerger(context.Background(), getStateValue, workersize)
 				defer psm.Cancel()
 
-				psm.SetLogging(logging.TestLogging)
+				// psm.SetLogging(logging.TestNilLogging)
 
 				for i := range ops {
 					vp.SetValue(uint64(i), ops[i])
@@ -749,7 +749,7 @@ func (t *testPhaseStatesMerger) TestMerges2Accounts() {
 		},
 	}
 
-	getStateValue := func(key string) (base.StateValue, bool, error) {
+	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
 		switch key {
 		case AccountStateKey(pub0):
 			return prev0, true, nil
@@ -833,7 +833,7 @@ func (t *testPhaseStatesMerger) TestMerges3Accounts() {
 		},
 	}
 
-	getStateValue := func(key string) (base.StateValue, bool, error) {
+	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
 		switch key {
 		case AccountStateKey(pub0):
 			return prev0, true, nil
@@ -898,7 +898,7 @@ func (t *testPhaseStatesMerger) TestValuesUpdatedDuringMerging() {
 	t.T().Log("state 1:", key1)
 	t.T().Log("state 2:", key2)
 
-	getStateValue := func(key string) (base.StateValue, bool, error) {
+	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
 		switch key {
 		case key0:
 			return stv0, true, nil

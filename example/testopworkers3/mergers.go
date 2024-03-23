@@ -22,20 +22,26 @@ var (
 
 type (
 	statesMergerDoneUpdatedValuesFunc func(
+		_ context.Context,
 		phase int,
 		stateKey string,
 		merger StateMerger,
 		mergedOps, unmergedOps []uint64,
 		maxUpdatedValues uint64,
 	) error
-	statesMergerDoneUpdatedReasonsFunc func(phase int, opindex uint64, reason string) error
+	statesMergerDoneUpdatedReasonsFunc func(
+		_ context.Context,
+		phase int,
+		opindex uint64,
+		reason string,
+	) error
 )
 
 type StatesMergerWorkerArgs struct {
-	GetStateValue          func(key string) (base.StateValue, bool, error)
+	GetStateValue          func(_ context.Context, key string) (base.StateValue, bool, error)
 	NewJobWorker           func(context.Context) (util.JobWorker, error)
 	IsEnoughWorkers        func(workers uint64) bool // NOTE include local worker
-	BroadcastPhaseDoneFunc func(phase int, mergedOps, unmergedOps []uint64) error
+	BroadcastPhaseDoneFunc func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	UpdatedValuesFunc      statesMergerDoneUpdatedValuesFunc
 	UpdateReasonsFunc      statesMergerDoneUpdatedReasonsFunc
 	MapSize                uint64
@@ -43,14 +49,14 @@ type StatesMergerWorkerArgs struct {
 
 func NewStatesMergerWorkerArgs() *StatesMergerWorkerArgs {
 	return &StatesMergerWorkerArgs{
-		GetStateValue: func(string) (base.StateValue, bool, error) { return nil, false, nil },
+		GetStateValue: func(context.Context, string) (base.StateValue, bool, error) { return nil, false, nil },
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
-		BroadcastPhaseDoneFunc: func(int, []uint64, []uint64) error { return nil },
-		UpdatedValuesFunc:      func(int, string, StateMerger, []uint64, []uint64, uint64) error { return nil },
-		UpdateReasonsFunc:      func(int, uint64, string) error { return nil },
+		BroadcastPhaseDoneFunc: func(context.Context, int, []uint64, []uint64) error { return nil },
+		UpdatedValuesFunc:      func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error { return nil },
+		UpdateReasonsFunc:      func(context.Context, int, uint64, string) error { return nil },
 		MapSize:                1 << 9,
 	}
 }
@@ -68,7 +74,7 @@ type StatesMergerWorker struct {
 	phaseDoneRecords util.LockedMap[int /* phase */, map[string][3]interface{} /* {mergedOps, unmergedOps []uint8, is empty bool} */] // FIXME use map
 	phaseOps         util.LockedMap[string /* phase + opindex */, xMergeFlag /* {phase, xMergeFlag} */]
 	psms             util.LockedMap[int /* phase */, *phaseStatesMerger]
-	phaseDoneOps     map[ /* opindex */ uint64][2]interface{} /* {phase, xMergeFlag} */
+	phaseDoneOps     util.LockedMap[uint64 /* opindex */ /* {phase, xMergeFlag} */, [2]interface{}]
 }
 
 func NewStatesMergerWorker(
@@ -81,10 +87,9 @@ func NewStatesMergerWorker(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "states-merger")
 		}),
-		args:         args,
-		ctx:          func() context.Context { return gctx },
-		ctxcancel:    gctxcancel,
-		phaseDoneOps: map[uint64][2]interface{}{},
+		args:      args,
+		ctx:       func() context.Context { return gctx },
+		ctxcancel: gctxcancel,
 	}
 
 	switch i, err := util.NewShardedMap[string, StateMerger](args.MapSize, nil); {
@@ -127,6 +132,13 @@ func NewStatesMergerWorker(
 		return nil, err
 	default:
 		dw.phaseOps = i
+	}
+
+	switch i, err := util.NewShardedMap[uint64, [2]interface{}](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		dw.phaseDoneOps = i
 	}
 
 	var cleanOnce sync.Once
@@ -233,8 +245,7 @@ func (dw *StatesMergerWorker) cleanf() {
 	dw.phaseDoneRecords.Close()
 	dw.phaseOps.Close()
 	dw.psms.Close()
-
-	clear(dw.phaseDoneOps)
+	dw.phaseDoneOps.Close()
 }
 
 func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) error {
@@ -263,13 +274,13 @@ func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) 
 
 		_ = dw.phaseStatus.Get(phase, func(uint8, bool) error {
 			util.TraverseSliceV1(mergedOps, func(_ int, opindex uint64) (bool, error) {
-				dw.phaseDoneOps[opindex] = [2]interface{}{phase, mergeFlag}
+				dw.phaseDoneOps.SetValue(opindex, [2]interface{}{phase, mergeFlag})
 
 				return true, nil
 			})
 
 			util.TraverseSliceV1(unmergedOps, func(_ int, opindex uint64) (bool, error) {
-				dw.phaseDoneOps[opindex] = [2]interface{}{phase, unmergeFlag}
+				dw.phaseDoneOps.SetValue(opindex, [2]interface{}{phase, unmergeFlag})
 
 				return true, nil
 			})
@@ -280,7 +291,7 @@ func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) 
 		dw.updateDone(phase, updatef)
 	}
 
-	if err := dw.args.BroadcastPhaseDoneFunc(phase, mergedOps, unmergedOps); err != nil {
+	if err := dw.args.BroadcastPhaseDoneFunc(dw.ctx(), phase, mergedOps, unmergedOps); err != nil {
 		return err
 	}
 
@@ -294,7 +305,7 @@ func (dw *StatesMergerWorker) localPhaseDone(phase int, psm *phaseStatesMerger) 
 }
 
 func (dw *StatesMergerWorker) emptyLocalPhaseDone(phase int) error {
-	if err := dw.args.BroadcastPhaseDoneFunc(phase, nil, nil); err != nil {
+	if err := dw.args.BroadcastPhaseDoneFunc(dw.ctx(), phase, nil, nil); err != nil {
 		return err
 	}
 
@@ -662,7 +673,7 @@ func (dw *StatesMergerWorker) xMergeOps(
 	addOps, doneOps := util.CompactAppendSlice[uint64](len(ops))
 
 	if err := util.TraverseSliceV1(ops, func(_ int, opindex uint64) (bool, error) {
-		if i, found := dw.phaseDoneOps[opindex]; found && i[1].(xMergeFlag) == xmf {
+		if i, found := dw.phaseDoneOps.Value(opindex); found && i[1].(xMergeFlag) == xmf {
 			return true, nil
 		}
 
@@ -698,12 +709,12 @@ func (dw *StatesMergerWorker) updateValues(phase int) phaseStatesMergerDoneUpdat
 	return func(stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 		_ = dw.mergers.SetValue(stateKey, merger)
 
-		return dw.args.UpdatedValuesFunc(phase, stateKey, merger, mergedOps, unmergedOps, maxUpdatedValues)
+		return dw.args.UpdatedValuesFunc(dw.ctx(), phase, stateKey, merger, mergedOps, unmergedOps, maxUpdatedValues)
 	}
 }
 
 func (dw *StatesMergerWorker) updateReason(phase int) phaseStatesMergerDoneUpdatedReasonsFunc {
 	return func(opindex uint64, reason string) error {
-		return dw.args.UpdateReasonsFunc(phase, opindex, reason)
+		return dw.args.UpdateReasonsFunc(dw.ctx(), phase, opindex, reason)
 	}
 }
