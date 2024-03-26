@@ -1,7 +1,6 @@
 package testopsworkers
 
 import (
-	"cmp"
 	"context"
 	"sync"
 
@@ -13,13 +12,6 @@ import (
 )
 
 var errProcessWorkerMergeDone = util.NewIDError("ProcessWorker merge done")
-
-type collectPhaseMergedOpsFunc func(
-	phase int,
-	stateKey string,
-	mergedOps, unmergedOps []uint64,
-	maxUpdatedValues uint64,
-) error
 
 type Operation interface {
 	base.Operation
@@ -779,117 +771,4 @@ func (pw *ProcessWorker) filterOps(ops []uint64) ([]uint64, error) {
 	}
 
 	return done(), nil
-}
-
-func newCollectPhaseMergedOpsFunc(mapSize uint64) (
-	_ collectPhaseMergedOpsFunc,
-	updateReason func(phase int, opindex uint64, reason string) error,
-	result func() (
-		inState map[ /* state key */ string][]uint64,
-		unmergedOps map[ /* opindex */ uint64] /* reason */ string,
-	),
-	_ error,
-) {
-	m, err := util.NewShardedMap[string, [2]interface{}](mapSize, nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	um, err := util.NewShardedMap[uint64, [2]interface{}](mapSize, nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return func(
-			phase int,
-			stateKey string,
-			mergedOps, unmergedOps []uint64,
-			maxUpdatedValues uint64,
-		) error {
-			_, _, err := m.Set(stateKey, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-				for i := range unmergedOps {
-					opindex := unmergedOps[i]
-					_, _, _ = um.Set(opindex, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-						if found {
-							return v, util.ErrLockedSetIgnore
-						}
-
-						return [2]interface{}{phase, ""}, nil
-					})
-				}
-
-				if !found {
-					return [2]interface{}{phase, mergedOps}, nil
-				}
-
-				prevPhase, prevMerged := prev[0].(int), prev[1].([]uint64)
-				if phase <= prevPhase {
-					return v, util.ErrLockedSetIgnore
-				}
-
-				for i := range mergedOps {
-					_ = um.RemoveValue(mergedOps[i])
-				}
-
-				updated := util.Filter2Slices(prevMerged, unmergedOps, func(a, b uint64) bool {
-					return a == b
-				})
-
-				add, done := util.SortUniqCompactAppendSlice(len(updated)+len(mergedOps), cmp.Less[uint64])
-				add(updated...)
-				add(mergedOps...)
-
-				return [2]interface{}{phase, done()}, nil
-			})
-
-			return err
-		},
-		func(phase int, opindex uint64, reason string) error {
-			_, _, _ = um.Set(opindex, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-				if !found {
-					return [2]interface{}{phase, reason}, nil
-				}
-
-				switch prevReason := prev[1].(string); {
-				case len(reason) < 1 || len(prevReason) > 0:
-					return v, util.ErrLockedSetIgnore
-				case len(prevReason) > 0 && phase <= prev[0].(int):
-					return v, util.ErrLockedSetIgnore
-				}
-
-				return [2]interface{}{phase, reason}, nil
-			})
-
-			return nil
-		},
-		func() (map[string][]uint64, map[uint64]string) {
-			defer m.Close()
-			defer um.Close()
-
-			var reasons map[uint64]string
-
-			if um.Len() > 0 {
-				reasons = map[uint64]string{}
-				_ = um.Traverse(func(opindex uint64, v [2]interface{}) bool {
-					reasons[opindex] = v[1].(string)
-
-					return true
-				})
-			}
-
-			if m.Len() < 1 {
-				return nil, reasons
-			}
-
-			s := map[string][]uint64{}
-
-			_ = m.Traverse(func(key string, i [2]interface{}) bool {
-				s[key] = i[1].([]uint64)
-
-				return true
-			})
-
-			return s, reasons
-		},
-		nil
 }

@@ -563,8 +563,9 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		pw.args.GetStateValue = getStateValue
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
-		collect, updateReason, collectResult, err := newCollectPhaseMergedOpsFunc(pw.args.MapSize)
+		collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
 		t.NoError(err)
+		defer cc()
 
 		pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			// t.T().Logf("value udpated: phase=%d state_key=%q merged_ops=%v unmerged_ops=%v max_updated_values=%d",
@@ -740,8 +741,9 @@ func (t *testProcessWorker) Test3Workers() {
 		pw.args.GetStateValue = getStateValue
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
-		collect, updateReason, collectResult, err := newCollectPhaseMergedOpsFunc(pw.args.MapSize)
+		collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
 		t.NoError(err)
+		defer cc()
 
 		pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 			return collect(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
@@ -874,8 +876,9 @@ func (t *testProcessWorker) Test3Workers() {
 			pw.args.GetStateValue = getStateValue
 			pw.args.IsEnoughWorkers = func(n uint64) bool { return n >= uint64(nworkers) }
 
-			collect, updateReason, collectResult, err := newCollectPhaseMergedOpsFunc(pw.args.MapSize)
+			collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
 			t.NoError(err)
+			defer cc()
 
 			pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
 				return collect(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
