@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -69,7 +70,7 @@ type ProcessManager struct {
 	storeDoneCtx          func() context.Context
 	storeDoneCtxCancel    func(error)
 	ops                   [][2]util.Hash /* {operation hash, fact hash} */
-	workersMergeDone      *util.Locked[map[ /* worker */ string] /* phase */ int]
+	workersMergeDone      *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
 	workersStoreDone      *util.Locked[map[ /* worker */ string]struct{}]
 	mergeJobWorker        util.JobWorker
 	storeJobWorker        util.JobWorker
@@ -119,6 +120,9 @@ func NewProcessManager(
 	storeDoneCtx, storeDoneCtxCancel := context.WithCancelCause(pmctx)
 
 	pm := &ProcessManager{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "process-manager")
+		}),
 		args:               args,
 		workers:            workers,
 		ctx:                func() context.Context { return pmctx },
@@ -142,11 +146,18 @@ func NewProcessManager(
 		}
 	}
 
-	pm.workersMergeDone = util.NewLocked[map[string]int](map[string]int{})
+	pm.workersMergeDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
 	pm.workersStoreDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
 
 	pm.mergeJobWorker, _ = args.NewJobWorker(pmctx)
 	pm.storeJobWorker, _ = args.NewJobWorker(pmctx)
+
+	switch i, err := util.NewShardedMap[string, [2]interface{}](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		pm.statesValues = i
+	}
 
 	var collectClose func()
 
@@ -230,8 +241,8 @@ func (pm *ProcessManager) Process() error {
 	return nil
 }
 
-func (pm *ProcessManager) WorkerMergeDone(worker string, phase int) error {
-	if err := pm.workerMergeDone(worker, phase); err != nil {
+func (pm *ProcessManager) WorkerMergeDone(worker string) error {
+	if err := pm.workerMergeDone(worker); err != nil {
 		pm.cancel(err)
 
 		return err
@@ -288,6 +299,10 @@ func (pm *ProcessManager) UpdatedStateValue(
 					return v, true, nil // nil value, remove
 				}
 
+				if !found {
+					return [2]interface{}{phase, value}, false, nil
+				}
+
 				if phase <= prev[0].(int) {
 					return v, false, util.ErrLockedSetIgnore
 				}
@@ -308,7 +323,7 @@ func (pm *ProcessManager) UpdatedStateValue(
 	return nil
 }
 
-func (pm *ProcessManager) UpdateProcessReason(
+func (pm *ProcessManager) UpdatedProcessReason(
 	_ context.Context,
 	worker string,
 	phase int,
@@ -413,12 +428,12 @@ func (pm *ProcessManager) storeDone() error {
 	return nil
 }
 
-func (pm *ProcessManager) workerMergeDone(worker string, phase int) error {
-	l := pm.Log().With().Str("worker", worker).Int("phase", phase).Logger()
+func (pm *ProcessManager) workerMergeDone(worker string) error {
+	l := pm.Log().With().Str("worker", worker).Logger()
 
 	var count uint64
 
-	if _, err := pm.workersMergeDone.Set(func(m map[string]int, _ bool) (map[string]int, error) {
+	if _, err := pm.workersMergeDone.Set(func(m map[string]struct{}, _ bool) (map[string]struct{}, error) {
 		if m == nil {
 			return nil, util.ErrLockedSetIgnore // NOTE already done
 		}
@@ -427,7 +442,7 @@ func (pm *ProcessManager) workerMergeDone(worker string, phase int) error {
 			return nil, errors.Errorf("worker, %q already merge done", worker)
 		}
 
-		m[worker] = phase
+		m[worker] = struct{}{}
 		count = uint64(len(m))
 
 		return m, nil
@@ -802,20 +817,24 @@ func serialStateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, erro
 		n = w
 	}
 
-	var last uint64
+	last := util.NewLocked(uint64(0))
 
-	return func(stateKey string) ([]string, error) {
-		add, done := util.CompactAppendSlice[string](int(n))
+	return func(stateKey string) (owners []string, _ error) {
+		_, _ = last.Set(func(l uint64, _ bool) (uint64, error) {
+			add, done := util.CompactAppendSlice[string](int(n))
 
-		var i uint64
+			var i uint64
 
-		for i = 0; i < n; i++ {
-			add(workers[(last+i)%w])
-		}
+			for i = 0; i < n; i++ {
+				add(workers[(l+i)%w])
+			}
 
-		last += i
+			owners = done()
 
-		return done(), nil
+			return l + i, nil
+		})
+
+		return owners, nil
 	}, nil
 }
 

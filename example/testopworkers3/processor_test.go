@@ -372,10 +372,10 @@ type testProcessWorker struct {
 	baseTestOperationProcessor
 }
 
-func (t *testProcessWorker) newWorker(ctx context.Context) *ProcessWorker {
+func (t *testProcessWorker) newWorker(ctx context.Context, local string) *ProcessWorker {
 	args := NewProcessWorkerArgs(t.networkID)
 
-	pw, err := NewProcessWorker(ctx, args)
+	pw, err := NewProcessWorker(ctx, args, local)
 	t.NoError(err)
 
 	return pw
@@ -383,7 +383,7 @@ func (t *testProcessWorker) newWorker(ctx context.Context) *ProcessWorker {
 
 func (t *testProcessWorker) TestMergeWaitCancel() {
 	t.Run("before NewOperations", func() {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 
 		waitch := make(chan error, 1)
 
@@ -406,7 +406,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 	})
 
 	t.Run("during NewOperations", func() {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 
 		processch := make(chan error, 1)
 		pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
@@ -463,7 +463,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 
 func (t *testProcessWorker) TestWaitCancel() {
 	t.Run("MergeWait and then Wait", func() {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
@@ -481,7 +481,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 	})
 
 	t.Run("Wait, Cancel without MergeWait", func() {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
@@ -553,7 +553,7 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 	}
 
 	run := func(seq []int) {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
 		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
@@ -627,7 +627,7 @@ func (t *testProcessWorker) TestStoreOperation() {
 		ophs[op.Hash().String()] = opindex
 	}
 
-	pw := t.newWorker(context.Background())
+	pw := t.newWorker(context.Background(), "w0")
 	defer pw.Cancel()
 
 	pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
@@ -728,11 +728,11 @@ func (t *testProcessWorker) Test3Workers() {
 	var expectedUnmergedOps map[uint64]string
 
 	t.Run("one worker", func() {
-		pw := t.newWorker(context.Background())
+		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
 		pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
-			return []string{localWorker}, nil
+			return []string{"w0"}, nil
 		}
 		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
@@ -846,11 +846,10 @@ func (t *testProcessWorker) Test3Workers() {
 		for i := range workers {
 			local := workers[i]
 
-			pw := t.newWorker(context.Background())
+			pw := t.newWorker(context.Background(), local)
 			defer pw.Cancel()
 
 			pw.SetLogging(logging.TestLogging)
-			pw.SetWorkerName(local)
 
 			pws[local] = pw
 
@@ -860,14 +859,7 @@ func (t *testProcessWorker) Test3Workers() {
 					panic(fmt.Sprintf("state, %q owner not found", stateKey))
 				}
 
-				owners = slices.Clone(owners)
-
-				switch i := slices.Index(owners, local); {
-				case i < 0:
-					return owners, nil
-				default:
-					return slices.Replace(owners[:], i, i+1, localWorker), nil
-				}
+				return owners, nil
 			}
 			pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9) // <- only one process at a time

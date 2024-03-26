@@ -180,13 +180,12 @@ func (opsr *OperationProcessor) SetName(s string) {
 }
 
 type ProcessWorkerArgs struct {
-	NetworkID              base.NetworkID
-	GetOperationFunc       func(_ context.Context, operation util.Hash) (Operation, bool, error)
-	IsInStateOperationFunc func(_ context.Context, fact util.Hash) (bool, error)
-	GetStateValue          func(_ context.Context, key string) (base.StateValue, bool, error)
-	NewJobWorker           func(context.Context) (util.JobWorker, error)
-	IsEnoughWorkers        func(n uint64) bool
-	// NOTE replace worker name to localWorker for local worker
+	NetworkID                     base.NetworkID
+	GetOperationFunc              func(_ context.Context, operation util.Hash) (Operation, bool, error)
+	IsInStateOperationFunc        func(_ context.Context, fact util.Hash) (bool, error)
+	GetStateValue                 func(_ context.Context, key string) (base.StateValue, bool, error)
+	NewJobWorker                  func(context.Context) (util.JobWorker, error)
+	IsEnoughWorkers               func(n uint64) bool
 	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
 	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, _ []StateMergeValue) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
@@ -206,8 +205,10 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
-		IsEnoughWorkers:               func(uint64) bool { return false },
-		StateOwners:                   func(context.Context, string) ([]string, error) { return []string{localWorker}, nil },
+		IsEnoughWorkers: func(uint64) bool { return false },
+		StateOwners: func(context.Context, string) ([]string, error) {
+			return nil, util.ErrNotImplemented.Errorf("StateOwners")
+		},
 		BroadcastInsertOpFunc:         func(context.Context, string, uint64, []StateMergeValue) error { return nil },
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
 		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
@@ -220,7 +221,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 
 type ProcessWorker struct {
 	*logging.Logging
-	workerName       string
+	local            string
 	args             *ProcessWorkerArgs
 	ctx              func() context.Context
 	ctxCancel        func(error)
@@ -234,20 +235,23 @@ type ProcessWorker struct {
 	stateOwners      util.LockedMap[ /* state key */ string /* worker */, []string]
 }
 
-func NewProcessWorker(ctx context.Context, args *ProcessWorkerArgs) (*ProcessWorker, error) {
+func NewProcessWorker(ctx context.Context, args *ProcessWorkerArgs, local string) (*ProcessWorker, error) {
 	pctx, cancel := context.WithCancelCause(ctx)
 	mergeCtx, mergeCtxCancel := context.WithCancelCause(pctx)
 
 	pw := &ProcessWorker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "processor-worker")
+			return zctx.Str("module", "processor-worker").Str("local", local)
 		}),
 		args:           args,
+		local:          local,
 		ctx:            func() context.Context { return pctx },
 		ctxCancel:      cancel,
 		mergeCtx:       func() context.Context { return mergeCtx },
 		mergeCtxCancel: mergeCtxCancel,
 	}
+
+	pw.args.StateOwners = func(context.Context, string) ([]string, error) { return []string{local}, nil }
 
 	var opsr *OperationProcessor
 	var opsrOnce sync.Once
@@ -484,17 +488,11 @@ func (pw *ProcessWorker) Wait() error {
 	return nil
 }
 
-func (pw *ProcessWorker) SetWorkerName(s string) {
-	pw.workerName = s
-
-	_ = pw.SetLogger(pw.Log().With().Str("worker_name", s).Logger())
-}
-
 func (pw *ProcessWorker) workerInsertValuesDone(worker string) error {
 	switch merger, err := pw.merger(); {
 	case err != nil:
 		return err
-	case worker == localWorker:
+	case worker == pw.local:
 		if err := merger.InsertDone(); err != nil {
 			return err
 		}
@@ -562,7 +560,7 @@ func (pw *ProcessWorker) newOperationProcessor() (
 			return err
 		}
 
-		if err := pw.workerInsertValuesDone(localWorker); err != nil {
+		if err := pw.workerInsertValuesDone(pw.local); err != nil {
 			return err
 		}
 
@@ -624,7 +622,7 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, values []StateMerg
 		filtered := owners[owner]
 
 		switch {
-		case owner == localWorker:
+		case owner == pw.local:
 			if err := merger.InsertOp(opindex, filtered); err != nil {
 				return err
 			}
@@ -760,7 +758,7 @@ func (pw *ProcessWorker) filterOps(ops []uint64) ([]uint64, error) {
 		case !found:
 			return true, nil
 		default:
-			if _, found := m[localWorker]; found {
+			if _, found := m[pw.local]; found {
 				add(opindex)
 			}
 
