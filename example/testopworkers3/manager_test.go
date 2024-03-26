@@ -722,6 +722,13 @@ func (t *testProcessManager) TestProcessOneWorker() {
 	pw.args.UpdateReasonsFunc = func(ctx context.Context, phase int, opindex uint64, reason string) error {
 		return pm.UpdatedProcessReason(ctx, "w0", phase, opindex, reason)
 	}
+	reportedch := make(chan error, 1)
+	pw.args.ReportMergeDoneFunc = func(context.Context) error {
+		err := pm.WorkerMergeDone("w0")
+		reportedch <- err
+
+		return err
+	}
 
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
@@ -743,24 +750,14 @@ func (t *testProcessManager) TestProcessOneWorker() {
 
 	pwmergedoneerrch := make(chan error, 1)
 	go func() {
-		err := pw.MergeWait()
-
-		if err == nil {
-			if err := pm.WorkerMergeDone("w0"); err != nil {
-				pwmergedoneerrch <- err
-
-				return
-			}
-		}
-
-		pwmergedoneerrch <- err
+		pwmergedoneerrch <- pw.MergeWait()
 	}()
 
 	err = pm.Process()
 	t.NoError(err)
 
-	err = <-pwmergedoneerrch
-	t.NoError(err)
+	t.NoError(<-pwmergedoneerrch)
+	t.NoError(<-reportedch)
 
 	_, err = pm.ManifestDone()
 	t.NoError(err)

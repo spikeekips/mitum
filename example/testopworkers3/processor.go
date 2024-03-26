@@ -193,6 +193,8 @@ type ProcessWorkerArgs struct {
 	StoreOperationFunc            func(opindex uint64, op Operation) error
 	UpdatedValuesFunc             statesMergerDoneUpdatedValuesFunc
 	UpdateReasonsFunc             statesMergerDoneUpdatedReasonsFunc
+	ReportMergeDoneFunc           func(context.Context) error
+	ReportStoreDoneFunc           func(context.Context) error
 	MapSize                       uint64
 }
 
@@ -215,6 +217,8 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		StoreOperationFunc:            func(uint64, Operation) error { return nil },
 		UpdatedValuesFunc:             func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error { return nil },
 		UpdateReasonsFunc:             func(context.Context, int, uint64, string) error { return nil },
+		ReportMergeDoneFunc:           func(context.Context) error { return nil },
+		ReportStoreDoneFunc:           func(context.Context) error { return nil },
 		MapSize:                       1 << 9,
 	}
 }
@@ -460,7 +464,7 @@ func (pw *ProcessWorker) MergeWait() error {
 
 		pw.mergeCtxCancel(errProcessWorkerMergeDone)
 
-		return nil
+		return pw.args.ReportMergeDoneFunc(pw.ctx())
 	}
 }
 
@@ -485,7 +489,7 @@ func (pw *ProcessWorker) Wait() error {
 		return err
 	}
 
-	return nil
+	return pw.args.ReportStoreDoneFunc(pw.ctx())
 }
 
 func (pw *ProcessWorker) workerInsertValuesDone(worker string) error {
