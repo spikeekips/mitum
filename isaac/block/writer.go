@@ -118,7 +118,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 
 	var msg string
 	if errorreason != nil {
-		msg = errorreason.Msg()
+		msg = errorreason.OperationProcessFailedReason()
 	}
 
 	var node base.OperationFixedtreeNode

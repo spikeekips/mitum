@@ -50,7 +50,7 @@ func (w *DummyBlockWriter) SetOperationsSize(n uint64) {
 func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index uint64, _, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
 	if errorreason != nil {
-		msg = errorreason.Msg()
+		msg = errorreason.OperationProcessFailedReason()
 	}
 
 	var node base.OperationFixedtreeNode
@@ -917,7 +917,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationButWithOperationReaso
 		case index == 1:
 			t.False(node.InState())
 			t.NotNil(node.Reason())
-			t.Contains(node.Reason().Msg(), "showme")
+			t.Contains(node.Reason().OperationProcessFailedReason(), "showme")
 		default:
 			t.True(node.InState())
 			t.Nil(node.Reason())
@@ -978,7 +978,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 		case index == 1 || index == 3:
 			t.False(node.InState())
 			t.NotNil(node.Reason())
-			t.Contains(node.Reason().Msg(), "showme")
+			t.Contains(node.Reason().OperationProcessFailedReason(), "showme")
 		default:
 			t.True(node.InState())
 			t.Nil(node.Reason())
@@ -1221,7 +1221,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		case index == 1, index == 3:
 			t.True(node.InState())
 		default:
-			t.Contains(base.ErrNotChangedOperationProcessReason.Msg(), node.Reason().Msg())
+			t.Contains(base.ErrNotChangedOperationProcessReason.OperationProcessFailedReason(), node.Reason().OperationProcessFailedReason())
 		}
 
 		return true, nil
