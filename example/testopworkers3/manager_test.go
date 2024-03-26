@@ -506,7 +506,7 @@ func (t *testProcessManager) TestCancel() {
 	})
 }
 
-func (t *testProcessManager) TestSerialOpOwners() {
+func (t *testProcessManager) TestWorkrNewOperations() {
 	workers := []string{"w0", "w1", "w3"}
 	ops := make([][2]util.Hash, 33)
 	for i := range ops {
@@ -516,7 +516,9 @@ func (t *testProcessManager) TestSerialOpOwners() {
 	args := NewProcessManagerArgs()
 	args.NOpShare = 1
 
-	collectedOps := util.NewSingleLockedMap[string, []uint64]()
+	collectedWorkers := util.NewSingleLockedMap[string, []uint64]()
+	collectedOps := util.NewSingleLockedMap[uint64, util.Hash]()
+	collectedFacts := util.NewSingleLockedMap[uint64, util.Hash]()
 
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
@@ -524,15 +526,31 @@ func (t *testProcessManager) TestSerialOpOwners() {
 		func(),
 		error,
 	) {
-		return func(opindex uint64, _, _ util.Hash) error {
-				_, _, err := collectedOps.Set(worker, func(i []uint64, _ bool) ([]uint64, error) {
+		return func(opindex uint64, op, fact util.Hash) error {
+				_, _, err := collectedWorkers.Set(worker, func(i []uint64, _ bool) ([]uint64, error) {
 					if slices.Index(i, opindex) >= 0 {
-						return nil, util.ErrFound.Errorf("opindex=%d", opindex)
+						return nil, util.ErrFound.Errorf("workers: opindex=%d", opindex)
 					}
 
 					i = append(i, opindex)
 
 					return i, nil
+				})
+
+				_, _, err := collectedOps.Set(opindex, func(_ util.Hash, found bool) (util.Hash, error) {
+					if found {
+						return nil, util.ErrFound.Errorf("ops: opindex=%d", opindex)
+					}
+
+					return op, nil
+				})
+
+				_, _, err := collectedFacts.Set(opindex, func(_ util.Hash, found bool) (util.Hash, error) {
+					if found {
+						return nil, util.ErrFound.Errorf("facts: opindex=%d", opindex)
+					}
+
+					return fact, nil
 				})
 
 				return err
@@ -555,10 +573,7 @@ func (t *testProcessManager) TestSerialOpOwners() {
 		"w3": {2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32},
 	}
 
-	t.Equal(expected, collectedOps.Map())
-}
-
-func (t *testProcessManager) TestWorkrNewOperations() {
+	t.Equal(expected, collectedWorkers.Map())
 }
 
 func TestProcessManager(t *testing.T) {
