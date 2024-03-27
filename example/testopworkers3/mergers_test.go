@@ -38,53 +38,6 @@ func (t *testStatesMergerWorker) newWorker(ctx context.Context) *StatesMergerWor
 	return dw
 }
 
-func (t *testStatesMergerWorker) printDW(dw *StatesMergerWorker) {
-	t.T().Logf("* phaseStatuse: %d", dw.phaseStatus.Len())
-
-	dw.phaseStatus.Traverse(func(phase int, status uint8) bool {
-		t.T().Logf("  > phase=%d status=%d", phase, status)
-
-		return true
-	})
-
-	t.T().Logf("* phaseDoneRecords: %d", dw.phaseDoneRecords.Len())
-	dw.phaseDoneRecords.Traverse(func(phase int, m map[string][3]interface{}) bool {
-		t.T().Logf("  > phase=%d", phase)
-
-		for i := range m {
-			t.T().Logf("    worker=%q merged_ops=%v unmerged_ops=%v is_empty=%v", i, m[i][0], m[i][1], m[i][2])
-		}
-
-		return true
-	})
-
-	t.T().Logf("* psms: %d", dw.psms.Len())
-	dw.psms.Traverse(func(phase int, psm *phaseStatesMerger) bool {
-		t.T().Logf("  > phase=%d is_not_nil=%v", phase, psm != nil)
-
-		return true
-	})
-
-	addMergedOps, doneMergedOps := util.CompactAppendSlice[uint64](dw.phaseDoneOps.Len())
-	addUnmergedOps, doneUnmergedOps := util.CompactAppendSlice[uint64](dw.phaseDoneOps.Len())
-
-	dw.phaseDoneOps.Traverse(func(i uint64, v [2]interface{}) bool {
-		switch v[1].(xMergeFlag) {
-		case mergeFlag:
-			addMergedOps(i)
-		case unmergeFlag:
-			addUnmergedOps(i)
-		}
-		return true
-	})
-
-	mergedOps, unmergedOps := doneMergedOps(), doneUnmergedOps()
-
-	t.T().Logf("* phaseOps: %d", len(mergedOps)+len(unmergedOps))
-	t.T().Logf("  > merged_ops=%v", mergedOps)
-	t.T().Logf("  > unmerged_ops=%v", unmergedOps)
-}
-
 func (t *testStatesMergerWorker) TestCancel() {
 	t.Run("cancel; wait Done()", func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -483,17 +436,20 @@ func (t *testStatesMergerWorker) TestInsertDone() {
 			return n > 1
 		}
 
-		tEqual := t.Equal
-		tEmpty := t.Empty
-		tNoError := t.NoError
-
+		errch := make(chan error, 1)
 		dw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
-			tEqual(0, phase)
-			tEmpty(mergedOps)
-			tEmpty(unmergedOps)
+			if phase != 0 {
+				return errors.Errorf("phase not 0")
+			}
+			if len(mergedOps) > 0 {
+				return errors.Errorf("not empty mergedOps")
+			}
+			if len(unmergedOps) > 0 {
+				return errors.Errorf("not empty munergedOps")
+			}
 
 			go func() {
-				tNoError(dw.WorkerPhaseDone("w0", phase, nil, nil, true))
+				errch <- dw.WorkerPhaseDone("w0", phase, nil, nil, true)
 			}()
 
 			return nil
@@ -502,6 +458,7 @@ func (t *testStatesMergerWorker) TestInsertDone() {
 		t.NoError(dw.InsertDone())
 		t.NoError(dw.WorkerInsertDone("w0"))
 		t.NoError(dw.Done())
+		t.NoError(<-errch)
 	})
 }
 
@@ -768,7 +725,7 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			return nil
 		}
 
-		dw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
+		dw.args.UpdatedValuesFunc = func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error {
 			return nil
 		}
 
@@ -909,7 +866,9 @@ func (t *testStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
 
 	go func() {
 		for i := range dws {
-			tNoError(dws[i].Done())
+			if err := dws[i].Done(); err != nil {
+				panic(err)
+			}
 		}
 
 		cancel(nil)
@@ -1020,9 +979,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		stateOps[stateKey] = doneS()
 
 		util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
-			if _, found := allMergedOps[opindex]; found {
-				delete(allMergedOps, opindex)
-			}
+			delete(allMergedOps, opindex)
 
 			return true, nil
 		})
@@ -1272,11 +1229,13 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 					continue
 				}
 
-				t.NoError(insertew.NewJob(func(context.Context, uint64) error {
+				if err := insertew.NewJob(func(context.Context, uint64) error {
 					t.T().Logf("\tinsert op: worker=%q opindex=%d values=%v", worker, opindex, doneKeys())
 
 					return dws[worker].InsertOp(opindex, filtered)
-				}))
+				}); err != nil {
+					panic(err)
+				}
 			}
 		}
 	}()
@@ -1331,9 +1290,11 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		for worker := range dws {
 			worker := worker
 
-			t.NoError(doneew.NewJob(func(context.Context, uint64) error {
+			if err := doneew.NewJob(func(context.Context, uint64) error {
 				return dws[worker].Done()
-			}))
+			}); err != nil {
+				panic(err)
+			}
 		}
 	}()
 

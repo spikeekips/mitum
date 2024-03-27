@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -58,10 +57,6 @@ func (t *baseTestOperationProcessor) randomOp(balance int64) Op {
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
-}
-
-func (t *baseTestOperationProcessor) newStateValue(pub base.Publickey, balance int64) (string, base.StateValue) {
-	return AccountStateKey(pub), NewAccountStateValue(pub, balance)
 }
 
 type testOperationProcessor struct {
@@ -289,7 +284,7 @@ func (t *testOperationProcessor) testProcess(nops uint64) {
 		return i, found, nil
 	}
 
-	opsr.args.MergeStateMergeValueFunc = func(opindex uint64, vs []StateMergeValue) error {
+	opsr.args.MergeStateMergeValueFunc = func(opindex uint64, fact util.Hash, vs []StateMergeValue) error {
 		addProcessedOps(opindex)
 
 		// check values
@@ -375,7 +370,7 @@ type testProcessWorker struct {
 func (t *testProcessWorker) newWorker(ctx context.Context, local string) *ProcessWorker {
 	args := NewProcessWorkerArgs(t.networkID)
 
-	pw, err := NewProcessWorker(ctx, args, local)
+	pw, err := NewProcessWorker(ctx, args, local, 33)
 	t.NoError(err)
 
 	return pw
@@ -387,8 +382,9 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 
 		waitch := make(chan error, 1)
 
+		t.T().Log("MergeWait")
+
 		go func() {
-			t.T().Log("MergeWait")
 			waitch <- pw.MergeWait()
 		}()
 
@@ -434,8 +430,8 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 
 		waitch := make(chan error, 1)
 
+		t.T().Log("MergeWait")
 		go func() {
-			t.T().Log("MergeWait")
 			waitch <- pw.MergeWait()
 		}()
 
@@ -467,6 +463,17 @@ func (t *testProcessWorker) TestWaitCancel() {
 		defer pw.Cancel()
 
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
+		pw.args.UpdateMergeDoneFunc = func(context.Context) (
+			updateState func(base.State) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			return func(base.State) error { return nil },
+				func(uint64, string) error { return nil },
+				func() error { return nil },
+				nil
+		}
 
 		_, done, _, err := pw.NewOperations()
 		t.NoError(err)
@@ -506,10 +513,20 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 	key1 := AccountStateKey(pub1)
 	key2 := AccountStateKey(pub2)
 
-	stvs := map[string]base.StateValue{
-		key0: NewAccountStateValue(pub0, 1),
-		key1: NewAccountStateValue(pub1, 1),
-		key2: NewAccountStateValue(pub2, 1),
+	newState := func(stateKey string, pub base.Publickey) base.State {
+		return base.NewBaseState(
+			33,
+			stateKey,
+			NewAccountStateValue(pub, 1),
+			nil,
+			[]util.Hash{valuehash.RandomSHA256()},
+		)
+	}
+
+	sts := map[string]base.State{
+		key0: newState(key0, pub0),
+		key1: newState(key1, pub1),
+		key2: newState(key2, pub2),
 	}
 
 	ops := []Op{
@@ -522,8 +539,10 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 	}
 
 	ophs := map[string]uint64{}
+	opfhs := map[string]uint64{}
 	for i := range ops {
 		ophs[ops[i].Hash().String()] = uint64(i)
+		opfhs[ops[i].Fact().Hash().String()] = uint64(i)
 	}
 
 	expectedMergedOps := map[ /* state key */ string][]uint64{
@@ -546,8 +565,8 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		}
 	}
 
-	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
-		i, found := stvs[key]
+	getState := func(_ context.Context, key string) (base.State, bool, error) {
+		i, found := sts[key]
 
 		return i, found, nil
 	}
@@ -560,23 +579,44 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
 		pw.args.GetOperationFunc = getOperationFunc
-		pw.args.GetStateValue = getStateValue
+		pw.args.GetStateFunc = getState
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
-		collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
-		t.NoError(err)
-		defer cc()
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
 
-		pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
-			// t.T().Logf("value udpated: phase=%d state_key=%q merged_ops=%v unmerged_ops=%v max_updated_values=%d",
-			//	phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
+		pw.args.UpdateMergeDoneFunc = func(context.Context) (
+			updateState func(base.State) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			return func(st base.State) error {
+					add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+					if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+						j, found := opfhs[i.String()]
+						if !found {
+							return false, util.ErrNotFound.Errorf("op")
+						}
 
-			return collect(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
-		}
-		pw.args.UpdateReasonsFunc = func(_ context.Context, phase int, opindex uint64, reason string) error {
-			// t.T().Logf("reason: phase=%d opindex=%d reason=%q", phase, opindex, reason)
+						add(j)
 
-			return updateReason(phase, opindex, reason)
+						return true, nil
+					}); err != nil {
+						return err
+					}
+
+					resultMergedOps.SetValue(st.Key(), done())
+
+					return nil
+				},
+				func(opindex uint64, reason string) error {
+					resultUnmergedOps.SetValue(opindex, reason)
+
+					return nil
+				},
+				func() error { return nil },
+				nil
 		}
 
 		process, done, _, err := pw.NewOperations()
@@ -593,9 +633,8 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 
 		t.NoError(pw.MergeWait())
 
-		rMergedOps, rUnmergedOps := collectResult()
-		t.Equal(expectedMergedOps, rMergedOps)
-		t.Equal(expectedUnmergedOps, rUnmergedOps)
+		t.Equal(expectedMergedOps, resultMergedOps.Map())
+		t.Equal(expectedUnmergedOps, resultUnmergedOps.Map())
 	}
 
 	gen := combin.NewPermutationGenerator(len(ops), len(ops))
@@ -629,6 +668,19 @@ func (t *testProcessWorker) TestStoreOperation() {
 
 	pw := t.newWorker(context.Background(), "w0")
 	defer pw.Cancel()
+
+	pw.args.UpdateMergeDoneFunc = func(context.Context) (
+		updateState func(base.State) error,
+		updateReason func(opindex uint64, reason string) error,
+		done func() error,
+		_ error,
+	) {
+		return func(base.State) error { return nil },
+			func(uint64, string) error { return nil },
+			func() error { return nil },
+			nil
+	}
+	pw.args.UpdateStoreDoneFunc = func(context.Context) error { return nil }
 
 	pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
 		switch opindex, found := ophs[operation.String()]; {
@@ -675,7 +727,7 @@ func (t *testProcessWorker) Test3Workers() {
 
 	privs := make([]base.Privatekey, npriv)
 	pubs := make([]base.Publickey, len(privs))
-	stvs := map[string]base.StateValue{}
+	sts := map[string]base.State{}
 	stateKeys := make([]string, len(privs))
 	for i := range privs {
 		priv := base.NewDummyPrivatekey(fmt.Sprintf("%03d", i))
@@ -684,11 +736,19 @@ func (t *testProcessWorker) Test3Workers() {
 
 		stateKey := AccountStateKey(priv.Publickey())
 		stateKeys[i] = stateKey
-		stvs[stateKey] = NewAccountStateValue(priv.Publickey(), 1)
+		sts[stateKey] = base.NewBaseState(
+			33,
+			stateKey,
+			NewAccountStateValue(priv.Publickey(), 1),
+			nil,
+			[]util.Hash{valuehash.RandomSHA256()},
+		)
+
 	}
 
 	ops := make([]Operation, npriv*3)
 	ophs := map[string]uint64{}
+	opfhs := map[string]uint64{}
 	for i := range privs {
 		issuer := privs[i]
 		other0 := privs[(i+1)%len(privs)].Publickey()
@@ -698,16 +758,19 @@ func (t *testProcessWorker) Test3Workers() {
 		opindex := uint64(i * 3)
 		ops[opindex] = op
 		ophs[op.Hash().String()] = opindex
+		opfhs[op.Fact().Hash().String()] = opindex
 
 		op = t.newOp(issuer, other0, 1)
 		opindex = uint64((i * 3) + 1)
 		ops[opindex] = op
 		ophs[op.Hash().String()] = opindex
+		opfhs[op.Fact().Hash().String()] = opindex
 
 		opindex = uint64((i * 3) + 2)
 		op = t.newOp(issuer, other1, 1)
 		ops[opindex] = op
 		ophs[op.Hash().String()] = opindex
+		opfhs[op.Fact().Hash().String()] = opindex
 	}
 
 	getOperationFunc := func(ctx context.Context, op util.Hash) (Operation, bool, error) {
@@ -718,8 +781,8 @@ func (t *testProcessWorker) Test3Workers() {
 			return ops[opindex], true, nil
 		}
 	}
-	getStateValue := func(_ context.Context, key string) (base.StateValue, bool, error) {
-		i, found := stvs[key]
+	getState := func(_ context.Context, key string) (base.State, bool, error) {
+		i, found := sts[key]
 
 		return i, found, nil
 	}
@@ -738,18 +801,44 @@ func (t *testProcessWorker) Test3Workers() {
 			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
 		pw.args.GetOperationFunc = getOperationFunc
-		pw.args.GetStateValue = getStateValue
+		pw.args.GetStateFunc = getState
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
-		collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
-		t.NoError(err)
-		defer cc()
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
 
-		pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
-			return collect(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
-		}
-		pw.args.UpdateReasonsFunc = func(_ context.Context, phase int, opindex uint64, reason string) error {
-			return updateReason(phase, opindex, reason)
+		pw.args.UpdateMergeDoneFunc = func(context.Context) (
+			updateState func(base.State) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			return func(st base.State) error {
+					add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+					if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+						j, found := opfhs[i.String()]
+						if !found {
+							return false, util.ErrNotFound.Errorf("op")
+						}
+
+						add(j)
+
+						return true, nil
+					}); err != nil {
+						return err
+					}
+
+					resultMergedOps.SetValue(st.Key(), done())
+
+					return nil
+				},
+				func(opindex uint64, reason string) error {
+					resultUnmergedOps.SetValue(opindex, reason)
+
+					return nil
+				},
+				func() error { return nil },
+				nil
 		}
 
 		process, done, _, err := pw.NewOperations()
@@ -767,8 +856,8 @@ func (t *testProcessWorker) Test3Workers() {
 		t.NoError(pw.MergeWait())
 
 		t.T().Log("merge result")
-
-		expectedMergedOps, expectedUnmergedOps = collectResult()
+		expectedMergedOps = resultMergedOps.Map()
+		expectedUnmergedOps = resultUnmergedOps.Map()
 
 		addk, donek := util.SortCompactAppendSlice[string](len(expectedMergedOps), cmp.Less[string])
 		for i := range expectedMergedOps {
@@ -841,7 +930,8 @@ func (t *testProcessWorker) Test3Workers() {
 		})
 
 		pws := map[string]*ProcessWorker{}
-		collectResults := map[string]func() (map[string][]uint64, map[uint64]string){}
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
 
 		for i := range workers {
 			local := workers[i]
@@ -849,7 +939,7 @@ func (t *testProcessWorker) Test3Workers() {
 			pw := t.newWorker(context.Background(), local)
 			defer pw.Cancel()
 
-			pw.SetLogging(logging.TestLogging)
+			pw.SetLogging(logging.TestNilLogging)
 
 			pws[local] = pw
 
@@ -865,19 +955,45 @@ func (t *testProcessWorker) Test3Workers() {
 				return util.NewBaseJobWorker(ctx, 1<<9) // <- only one process at a time
 			}
 			pw.args.GetOperationFunc = getOperationFunc
-			pw.args.GetStateValue = getStateValue
+			pw.args.GetStateFunc = getState
 			pw.args.IsEnoughWorkers = func(n uint64) bool { return n >= uint64(nworkers) }
 
-			collect, updateReason, collectResult, cc, err := newCollectPhaseMergedFunc(pw.args.MapSize)
-			t.NoError(err)
-			defer cc()
+			pw.args.UpdateMergeDoneFunc = func(context.Context) (
+				updateState func(base.State) error,
+				updateReason func(opindex uint64, reason string) error,
+				done func() error,
+				_ error,
+			) {
+				return func(st base.State) error {
+						add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+						if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+							j, found := opfhs[i.String()]
+							if !found {
+								return false, util.ErrNotFound.Errorf("op")
+							}
 
-			pw.args.UpdatedValuesFunc = func(_ context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
-				return collect(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
+							add(j)
+
+							return true, nil
+						}); err != nil {
+							return err
+						}
+
+						resultMergedOps.SetValue(st.Key(), done())
+
+						return nil
+					},
+					func(opindex uint64, reason string) error {
+						if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
+							resultUnmergedOps.SetValue(opindex, reason)
+						}
+
+						return nil
+					},
+					func() error { return nil },
+					nil
 			}
-			pw.args.UpdateReasonsFunc = func(_ context.Context, phase int, opindex uint64, reason string) error {
-				return updateReason(phase, opindex, reason)
-			}
+
 			pw.args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
 				for i := range workers {
 					worker := workers[i]
@@ -895,7 +1011,7 @@ func (t *testProcessWorker) Test3Workers() {
 
 				return nil
 			}
-			pw.args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, values []StateMergeValue) error {
+			pw.args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
 				addK, doneK := util.SortCompactAppendSlice[string](len(values), cmp.Less[string])
 				util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
 					addK(v.Key())
@@ -905,7 +1021,7 @@ func (t *testProcessWorker) Test3Workers() {
 
 				t.LockedLog("insert values: local=%q worker=%q opindex=%d state_keys=%v", local, worker, opindex, doneK())
 
-				return pws[worker].InsertValues(local, opindex, values)
+				return pws[worker].InsertValues(local, opindex, fact, values)
 			}
 
 			pw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
@@ -927,11 +1043,7 @@ func (t *testProcessWorker) Test3Workers() {
 					}
 				}
 
-				return err
-			}
-
-			collectResults[local] = func() (map[string][]uint64, map[uint64]string) {
-				return collectResult()
+				return nil
 			}
 		}
 
@@ -982,59 +1094,8 @@ func (t *testProcessWorker) Test3Workers() {
 			t.NoError(pws[worker].MergeWait())
 		}
 
-		addM, doneM := util.SortUniqCompactAppendSlice[uint64](len(ops), cmp.Less[uint64])
-		addU, doneU := util.SortUniqCompactAppendSlice[uint64](len(ops), cmp.Less[uint64])
-
-		rMergedOps := map[string][]uint64{}
-		rUnmergedOps := map[uint64]string{}
-
-		for worker := range collectResults {
-			t.T().Logf("result: worker=%q", worker)
-			rm, ru := collectResults[worker]()
-
-			for i := range rm {
-				a := rMergedOps[i]
-				a = append(a, rm[i]...)
-				slices.Sort(a)
-				rMergedOps[i] = slices.Compact(a)
-			}
-
-			for i := range ru {
-				if len(rUnmergedOps[i]) > 0 {
-					continue
-				}
-
-				rUnmergedOps[i] = ru[i]
-			}
-
-			addk, donek := util.SortCompactAppendSlice[string](len(rm), cmp.Less[string])
-			for i := range rm {
-				addk(i)
-			}
-			util.TraverseSliceV1(donek(), func(_ int, i string) (bool, error) {
-				t.T().Logf("\tstate_key=%q merged_ops=%v", i, rm[i])
-				addM(rm[i]...)
-
-				return true, nil
-			})
-
-			addu, doneu := util.SortCompactAppendSlice[uint64](len(ru), cmp.Less[uint64])
-			for i := range ru {
-				addu(i)
-				addU(i)
-			}
-			util.TraverseSliceV1(doneu(), func(_ int, i uint64) (bool, error) {
-				t.T().Logf("\tunmerge_op=%d reason=%q", i, ru[i])
-
-				return true, nil
-			})
-		}
-
-		t.T().Logf("  merged ops=%v", doneM())
-		t.T().Logf("unmerged ops=%v", doneU())
-
-		t.Equal(expectedMergedOps, rMergedOps)
-		t.Equal(expectedUnmergedOps, rUnmergedOps)
+		t.Equal(expectedMergedOps, resultMergedOps.Map())
+		t.Equal(expectedUnmergedOps, resultUnmergedOps.Map())
 	})
 }
 

@@ -225,18 +225,6 @@ type testProcessManager struct {
 	baseTestOperationProcessor
 }
 
-func (t *testProcessManager) newManager(
-	ctx context.Context,
-	workers []string,
-	ops [][2]util.Hash,
-) *ProcessManager {
-	args := NewProcessManagerArgs()
-	pm, err := NewProcessManager(ctx, args, workers, ops)
-	t.NoError(err)
-
-	return pm
-}
-
 func (t *testProcessManager) TestNew() {
 	t.Run("empty workers", func() {
 		args := NewProcessManagerArgs()
@@ -657,23 +645,31 @@ func (t *testProcessManager) TestProcessOneWorker() {
 	defer cancel()
 
 	pwargs := NewProcessWorkerArgs(t.networkID)
-	pw, err := NewProcessWorker(ctx, pwargs, "w0")
+	pw, err := NewProcessWorker(ctx, pwargs, "w0", 33)
 	t.NoError(err)
 
 	ops := make([]Operation, 11)
 	opi := make([][2]util.Hash, len(ops))
 	ophs := map[string]uint64{}
-	states := map[string]base.StateValue{}
+	opfhs := map[string]uint64{}
+	states := map[string]base.State{}
 	for i := range ops {
 		opindex := uint64(i)
 		op := t.randomOp(1)
 		ops[i] = op
 		opi[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 		ophs[op.Hash().String()] = opindex
+		opfhs[op.Fact().Hash().String()] = opindex
 
 		issuer := op.Fact().(OpFact).Issuer
 		stateKey := AccountStateKey(issuer)
-		states[stateKey] = NewAccountStateValue(issuer, 1)
+		states[stateKey] = base.NewBaseState(
+			33,
+			stateKey,
+			NewAccountStateValue(issuer, 1),
+			nil,
+			[]util.Hash{valuehash.RandomSHA256()},
+		)
 	}
 
 	args := NewProcessManagerArgs()
@@ -689,45 +685,53 @@ func (t *testProcessManager) TestProcessOneWorker() {
 			return ops[opindex], true, nil
 		}
 	}
-	pw.args.GetStateValue = func(_ context.Context, key string) (base.StateValue, bool, error) {
+	pw.args.GetStateFunc = func(_ context.Context, key string) (base.State, bool, error) {
 		i, found := states[key]
 
 		return i, found, nil
 	}
 
 	pw.args.IsEnoughWorkers = pm.args.IsEnoughWorkers
-	pw.args.UpdatedValuesFunc = func(ctx context.Context, phase int, stateKey string, merger StateMerger, mergedOps, unmergedOps []uint64, maxUpdatedValues uint64) error {
-		var value base.StateValue
 
-		if merger != nil {
-			switch i, err := merger.Close(); {
-			case err != nil:
-				return err
-			default:
-				value = i
-			}
-		}
+	resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+	resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
 
-		return pm.UpdatedStateValue(
-			ctx,
-			"w0",
-			phase,
-			stateKey,
-			value,
-			mergedOps,
-			unmergedOps,
-			maxUpdatedValues,
-		)
-	}
-	pw.args.UpdateReasonsFunc = func(ctx context.Context, phase int, opindex uint64, reason string) error {
-		return pm.UpdatedProcessReason(ctx, "w0", phase, opindex, reason)
-	}
-	reportedch := make(chan error, 1)
-	pw.args.ReportMergeDoneFunc = func(context.Context) error {
-		err := pm.WorkerMergeDone("w0")
-		reportedch <- err
+	pw.args.UpdateMergeDoneFunc = func(context.Context) (
+		updateState func(base.State) error,
+		updateReason func(opindex uint64, reason string) error,
+		done func() error,
+		_ error,
+	) {
+		return func(st base.State) error {
+				add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+				if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+					j, found := opfhs[i.String()]
+					if !found {
+						return false, util.ErrNotFound.Errorf("op")
+					}
 
-		return err
+					add(j)
+
+					return true, nil
+				}); err != nil {
+					return err
+				}
+
+				resultMergedOps.SetValue(st.Key(), done())
+
+				return nil
+			},
+			func(opindex uint64, reason string) error {
+				if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
+					resultUnmergedOps.SetValue(opindex, reason)
+				}
+
+				return nil
+			},
+			func() error {
+				return pm.WorkerMergeDone(pw.local)
+			},
+			nil
 	}
 
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
@@ -757,10 +761,12 @@ func (t *testProcessManager) TestProcessOneWorker() {
 	t.NoError(err)
 
 	t.NoError(<-pwmergedoneerrch)
-	t.NoError(<-reportedch)
 
 	_, err = pm.ManifestDone()
 	t.NoError(err)
+
+	t.Equal(len(ops)*2, len(resultMergedOps.Map()))
+	t.Empty(resultUnmergedOps.Map())
 
 	// FIXME check manifest
 }

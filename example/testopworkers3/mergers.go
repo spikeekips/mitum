@@ -55,9 +55,11 @@ func NewStatesMergerWorkerArgs() *StatesMergerWorkerArgs {
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
 		BroadcastPhaseDoneFunc: func(context.Context, int, []uint64, []uint64) error { return nil },
-		UpdatedValuesFunc:      func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error { return nil },
-		UpdateReasonsFunc:      func(context.Context, int, uint64, string) error { return nil },
-		MapSize:                1 << 9,
+		UpdatedValuesFunc: func(context.Context, int, string, StateMerger, []uint64, []uint64, uint64) error {
+			return nil
+		},
+		UpdateReasonsFunc: func(context.Context, int, uint64, string) error { return nil },
+		MapSize:           1 << 9,
 	}
 }
 

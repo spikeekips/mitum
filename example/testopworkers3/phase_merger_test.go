@@ -997,9 +997,7 @@ func (t *testPhaseStatesMerger) TestValuesUpdatedDuringMerging() {
 		stateOps[stateKey] = doneS()
 
 		util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
-			if _, found := allMergedOps[opindex]; found {
-				delete(allMergedOps, opindex)
-			}
+			delete(allMergedOps, opindex)
 
 			return true, nil
 		})
