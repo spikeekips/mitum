@@ -60,27 +60,25 @@ func NewProcessManagerArgs() *ProcessManagerArgs {
 
 type ProcessManager struct {
 	*logging.Logging
-	args                  *ProcessManagerArgs
-	workers               []string
-	ctx                   func() context.Context
-	ctxCancel             func(error)
-	mergeDoneCtx          func() context.Context
-	mergeDoneCtxCancel    func(error)
-	storeDoneCtx          func() context.Context
-	storeDoneCtxCancel    func(error)
-	ops                   [][2]util.Hash /* {operation hash, fact hash} */
-	workersMergeDone      *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
-	workersStoreDone      *util.Locked[map[ /* worker */ string]struct{}]
-	mergeJobWorker        util.JobWorker
-	storeJobWorker        util.JobWorker
-	statesValues          util.LockedMap[ /* state key */ string, [2]interface{} /* {phase, base.StateValue} */]
-	collectPhaseMergedOps collectPhaseMergedOpsFunc
-	collectPhaseReason    collectPhaseReasonFunc
-	collectPhaseResult    collectPhaseResultFunc
-	newOpOwnersFunc       opOwnersFunc
-	stateOwners           util.LockedMap[ /* state key */ string /* workers */, []string]
-	newStateOwnersFunc    func(string) ([]string, error)
-	cleanf                func()
+	args               *ProcessManagerArgs
+	workers            []string
+	ctx                func() context.Context
+	ctxCancel          func(error)
+	mergeDoneCtx       func() context.Context
+	mergeDoneCtxCancel func(error)
+	storeDoneCtx       func() context.Context
+	storeDoneCtxCancel func(error)
+	ops                [][2]util.Hash /* {operation hash, fact hash} */
+	workersMergeDone   *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
+	workersStoreDone   *util.Locked[map[ /* worker */ string]struct{}]
+	mergeJobWorker     util.JobWorker
+	storeJobWorker     util.JobWorker
+	newOpOwnersFunc    opOwnersFunc
+	stateOwners        util.LockedMap[ /* state key */ string /* workers */, []string]
+	newStateOwnersFunc func(string) ([]string, error)
+	cleanf             func()
+	states             util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
+	reasons            util.LockedMap[ /* opindex */ uint64 /* reason */, string]
 }
 
 func NewProcessManager(
@@ -151,30 +149,25 @@ func NewProcessManager(
 	pm.mergeJobWorker, _ = args.NewJobWorker(pmctx)
 	pm.storeJobWorker, _ = args.NewJobWorker(pmctx)
 
-	switch i, err := util.NewShardedMap[string, [2]interface{}](args.MapSize, nil); {
-	case err != nil:
-		return nil, err
-	default:
-		pm.statesValues = i
-	}
-
-	var collectClose func()
-
-	switch i, j, k, m, err := newCollectPhaseMergedFunc(args.MapSize); {
-	case err != nil:
-		return nil, err
-	default:
-		pm.collectPhaseMergedOps = i
-		pm.collectPhaseReason = j
-		pm.collectPhaseResult = k
-		collectClose = m
-	}
-
 	switch i, err := util.NewShardedMap[string, []string](args.MapSize, nil); {
 	case err != nil:
 		return nil, err
 	default:
 		pm.stateOwners = i
+	}
+
+	switch i, err := util.NewShardedMap[string, util.Hash](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		pm.states = i
+	}
+
+	switch i, err := util.NewShardedMap[uint64, string](args.MapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		pm.reasons = i
 	}
 
 	switch i, err := args.NewStateOwnersFunc(pm.workers, args.NStateShare); {
@@ -198,10 +191,9 @@ func NewProcessManager(
 		pm.storeJobWorker.Close()
 
 		pm.stateOwners.Close()
+		pm.states.Close()
 		pm.workersMergeDone.EmptyValue()
 		pm.workersStoreDone.EmptyValue()
-
-		collectClose()
 	}
 
 	return pm, nil
@@ -232,16 +224,6 @@ func (pm *ProcessManager) StateOwners(stateKey string) (owners []string, _ error
 
 func (pm *ProcessManager) Process() error {
 	if err := pm.process(); err != nil {
-		pm.cancel(err)
-
-		return err
-	}
-
-	return nil
-}
-
-func (pm *ProcessManager) WorkerMergeDone(worker string) error {
-	if err := pm.workerMergeDone(worker); err != nil {
 		pm.cancel(err)
 
 		return err
@@ -281,38 +263,36 @@ func (pm *ProcessManager) StoreDone() error {
 	return nil
 }
 
-func (pm *ProcessManager) UpdatedStateValue(
-	_ context.Context,
-	worker string,
-	phase int,
-	stateKey string,
-	value base.StateValue,
-	mergedOps, unmergedOps []uint64,
-	maxUpdatedValues uint64,
-) error {
+func (pm *ProcessManager) UpdateMerged(worker string) (
+	updateState func(stateKey string, stateHash util.Hash) error,
+	updateReason func(opindex uint64, reason string) error,
+	done func() error,
+	_ error,
+) {
+	return pm.updateState,
+		pm.updatedReason,
+		func() error {
+			return pm.workerMergeDone(worker)
+		},
+		nil
+}
+
+func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) error {
 	if err := pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
-		if _, _, _, err := pm.statesValues.SetOrRemove(
+		if _, _, _, err := pm.states.SetOrRemove(
 			stateKey,
-			func(prev [2]interface{}, found bool) (v [2]interface{}, _ bool, _ error) {
-				if value == nil {
-					return v, true, nil // nil value, remove
+			func(util.Hash, bool) (util.Hash, bool, error) {
+				if stateHash == nil { // NOTE nil hash, remove
+					return nil, true, nil
 				}
 
-				if !found {
-					return [2]interface{}{phase, value}, false, nil
-				}
-
-				if phase <= prev[0].(int) {
-					return v, false, util.ErrLockedSetIgnore
-				}
-
-				return [2]interface{}{phase, value}, false, nil
+				return stateHash, false, nil
 			},
 		); err != nil {
 			return err
 		}
 
-		return pm.collectPhaseMergedOps(phase, stateKey, mergedOps, unmergedOps, maxUpdatedValues)
+		return nil
 	}); err != nil {
 		pm.cancel(err)
 
@@ -322,15 +302,24 @@ func (pm *ProcessManager) UpdatedStateValue(
 	return nil
 }
 
-func (pm *ProcessManager) UpdatedProcessReason(
-	_ context.Context,
-	worker string,
-	phase int,
+func (pm *ProcessManager) updatedReason(
 	opindex uint64,
 	reason string,
 ) error {
 	return pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
-		return pm.collectPhaseReason(phase, opindex, reason)
+		_, _, err := pm.reasons.Set(opindex, func(_ string, found bool) (string, error) {
+			if !found {
+				return reason, nil
+			}
+
+			if len(reason) < 1 {
+				return "", util.ErrLockedSetIgnore
+			}
+
+			return reason, nil
+		})
+
+		return err
 	})
 }
 
@@ -373,6 +362,12 @@ func (pm *ProcessManager) process() error {
 }
 
 func (pm *ProcessManager) manifestDone() (base.Manifest, error) {
+	if err := pm.mergeJobWorker.Wait(); err != nil {
+		return nil, err
+	}
+
+	pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
+
 	<-pm.mergeDoneCtx().Done()
 
 	switch err := context.Cause(pm.mergeDoneCtx()); {
@@ -381,20 +376,7 @@ func (pm *ProcessManager) manifestDone() (base.Manifest, error) {
 		return nil, err
 	}
 
-	pm.mergeJobWorker.Done()
-
-	if err := pm.mergeJobWorker.Wait(); err != nil {
-		return nil, err
-	}
-
 	pm.Log().Debug().Msg("merge done")
-
-	mergedOps, unmergedOps := pm.collectPhaseResult()
-
-	pm.Log().Debug().
-		Interface("merged_ops", mergedOps).
-		Interface("unmerged_ops", unmergedOps).
-		Msg("merge result")
 
 	// FIXME start to save block files
 
@@ -458,7 +440,7 @@ func (pm *ProcessManager) workerMergeDone(worker string) error {
 	if pm.args.IsEnoughWorkers(count) {
 		l.Debug().Msg("enough workers merge done")
 
-		pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
+		pm.mergeJobWorker.Done()
 
 		// FIXME make states tree
 		// FIXME create manifest

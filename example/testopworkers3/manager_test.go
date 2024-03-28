@@ -702,6 +702,11 @@ func (t *testProcessManager) TestProcessOneWorker() {
 		done func() error,
 		_ error,
 	) {
+		pmUpdateState, pmUpdateReason, pmDone, err := pm.UpdateMerged(pw.local)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
 		return func(st base.State) error {
 				add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
 				if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
@@ -719,17 +724,17 @@ func (t *testProcessManager) TestProcessOneWorker() {
 
 				resultMergedOps.SetValue(st.Key(), done())
 
-				return nil
+				return pmUpdateState(st.Key(), st.Hash())
 			},
 			func(opindex uint64, reason string) error {
 				if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
 					resultUnmergedOps.SetValue(opindex, reason)
 				}
 
-				return nil
+				return pmUpdateReason(opindex, reason)
 			},
 			func() error {
-				return pm.WorkerMergeDone(pw.local)
+				return pmDone()
 			},
 			nil
 	}

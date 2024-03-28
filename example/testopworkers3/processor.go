@@ -190,8 +190,9 @@ type ProcessWorkerArgs struct {
 	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
 	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
-	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
+	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error // FIXME remove
 	StoreOperationFunc            func(opindex uint64, op Operation) error
+	StoreStateFunc                func(base.State) error
 	UpdateMergeDoneFunc           func(context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
@@ -219,6 +220,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
 		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
 		StoreOperationFunc:            func(uint64, Operation) error { return nil },
+		StoreStateFunc:                func(base.State) error { return nil },
 		UpdateMergeDoneFunc: func(context.Context) (
 			updateState func(base.State) error,
 			updateReason func(opindex uint64, reason string) error,
@@ -944,6 +946,12 @@ func (pw *ProcessWorker) mergeResult() error {
 			case err != nil:
 				return err
 			default:
+				if err := pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+					return pw.args.StoreStateFunc(i)
+				}); err != nil {
+					return err
+				}
+
 				return updateState(i)
 			}
 		}); err != nil {
@@ -963,6 +971,7 @@ func (pw *ProcessWorker) mergeResult() error {
 	}
 
 	ew.Done()
+
 	if err := ew.Wait(); err != nil {
 		return err
 	}
