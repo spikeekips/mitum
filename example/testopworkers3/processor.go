@@ -12,7 +12,10 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var errProcessWorkerMergeDone = util.NewIDError("ProcessWorker merge done")
+var (
+	errProcessWorkerMergeDone = util.NewIDError("ProcessWorker merge done")
+	errProcessWorkerDone      = util.NewIDError("ProcessWorker done")
+)
 
 type Operation interface {
 	base.Operation
@@ -190,7 +193,7 @@ type ProcessWorkerArgs struct {
 	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
 	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
-	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error // FIXME remove
+	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	StoreOperationFunc            func(opindex uint64, op Operation) error
 	StoreStateFunc                func(base.State) error
 	UpdateMergeDoneFunc           func(context.Context) (
@@ -436,6 +439,10 @@ func (pw *ProcessWorker) NewOperations() (
 					if err := opsrDone(); err != nil {
 						pw.ctxCancel(err)
 					}
+
+					if err := pw.wait(); err != nil {
+						pw.ctxCancel(err)
+					}
 				}()
 			},
 			c, nil
@@ -443,28 +450,21 @@ func (pw *ProcessWorker) NewOperations() (
 }
 
 func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
-	switch merger, err := pw.merger(); {
-	case err != nil:
+	_ = pw.ophs.SetValue(opindex, fact)
+
+	if err := pw.setStateMergeValuesOwners(opindex, values, nil); err != nil {
 		pw.ctxCancel(err)
 
 		return err
-	default:
-		_ = pw.ophs.SetValue(opindex, fact)
-
-		if err := pw.setStateMergeValuesOwners(opindex, values, nil); err != nil {
-			pw.ctxCancel(err)
-
-			return err
-		}
-
-		if err := merger.InsertOp(opindex, values); err != nil {
-			pw.ctxCancel(err)
-
-			return err
-		}
-
-		return nil
 	}
+
+	if err := pw.mergerInsertOp(opindex, values); err != nil {
+		pw.ctxCancel(err)
+
+		return err
+	}
+
+	return nil
 }
 
 func (pw *ProcessWorker) WorkerInsertValuesDone(worker string) error {
@@ -518,58 +518,64 @@ func (pw *ProcessWorker) WorkerPhaseDone(worker string, phase int, mergedOps, un
 }
 
 func (pw *ProcessWorker) MergeWait() error {
-	// FIXME collect state keys and hashes
+	<-pw.mergeCtx().Done()
 
+	switch err := context.Cause(pw.mergeCtx()); {
+	case errors.Is(err, errProcessWorkerMergeDone):
+		return nil
+	default:
+		return err
+	}
+}
+
+func (pw *ProcessWorker) Wait() error {
+	<-pw.ctx().Done()
+
+	switch err := context.Cause(pw.ctx()); {
+	case errors.Is(err, errProcessWorkerDone):
+		return nil
+	default:
+		return err
+	}
+}
+
+func (pw *ProcessWorker) wait() error {
 	if err := context.Cause(pw.mergeCtx()); err != nil {
 		return err
 	}
 
 	switch merger, err := pw.merger(); {
 	case err != nil:
-		pw.ctxCancel(err)
-
 		return err
 	default:
 		if err := merger.Done(); err != nil {
-			pw.ctxCancel(err)
-
 			return err
 		}
-
-		if err := pw.mergeResult(); err != nil {
-			pw.ctxCancel(err)
-
-			return err
-		}
-
-		pw.mergeCtxCancel(errProcessWorkerMergeDone)
-
-		return nil
 	}
-}
 
-func (pw *ProcessWorker) Wait() error {
-	// FIXME wait until
-	// - merger done
-	// - store block files
-
-	<-pw.mergeCtx().Done()
-
-	switch err := context.Cause(pw.mergeCtx()); {
-	case errors.Is(err, errProcessWorkerMergeDone):
-	case err != nil:
+	if err := pw.mergeResult(); err != nil {
 		return err
 	}
+
+	pw.mergeCtxCancel(errProcessWorkerMergeDone)
 
 	pw.delayedWorker.Done()
 
 	if err := pw.delayedWorker.Wait(); err != nil {
-		pw.ctxCancel(err)
-
 		return err
 	}
 
-	return pw.args.UpdateStoreDoneFunc(pw.ctx())
+	// FIXME wait until
+	// - merger done
+	// - store block files
+
+	if err := pw.args.UpdateStoreDoneFunc(pw.ctx()); err != nil {
+		return err
+	}
+
+	pw.ctxCancel(errProcessWorkerDone)
+
+	return nil
 }
 
 func (pw *ProcessWorker) workerInsertValuesDone(worker string) error {
@@ -607,6 +613,15 @@ func (pw *ProcessWorker) newMerger() (*StatesMergerWorker, error) {
 		_ = i.SetLogging(pw.Logging)
 
 		return i, nil
+	}
+}
+
+func (pw *ProcessWorker) mergerInsertOp(opindex uint64, values []StateMergeValue) error {
+	switch merger, err := pw.merger(); {
+	case err != nil:
+		return err
+	default:
+		return merger.InsertOp(opindex, values)
 	}
 }
 
@@ -692,15 +707,6 @@ func (pw *ProcessWorker) updateReasons(ctx context.Context, phase int, opindex u
 }
 
 func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-	var merger *StatesMergerWorker
-
-	switch i, err := pw.merger(); {
-	case err != nil:
-		return err
-	default:
-		merger = i
-	}
-
 	var owners map[string][]StateMergeValue
 
 	switch i, err := pw.filterStateMergeValuesOwners(opindex, values); {
@@ -710,28 +716,43 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 		owners = i
 	}
 
-	// FIXME util.JobWorker
+	var ew util.JobWorker
+
+	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
 
 	for owner := range owners {
+		owner := owner
 		filtered := owners[owner]
+		if len(filtered) < 1 {
+			continue
+		}
 
-		switch {
-		case owner == pw.local:
-			if !pw.ophs.Exists(opindex) {
-				_ = pw.ophs.SetValue(opindex, fact)
-			}
+		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+			switch {
+			case owner == pw.local:
+				if !pw.ophs.Exists(opindex) {
+					_ = pw.ophs.SetValue(opindex, fact)
+				}
 
-			if err := merger.InsertOp(opindex, filtered); err != nil {
-				return err
+				return pw.mergerInsertOp(opindex, filtered)
+			default:
+				return pw.args.BroadcastInsertOpFunc(pw.ctx(), owner, opindex, fact, filtered)
 			}
-		default:
-			if err := pw.args.BroadcastInsertOpFunc(pw.ctx(), owner, opindex, fact, filtered); err != nil {
-				return err
-			}
+		}); err != nil {
+			return err
 		}
 	}
 
-	return nil
+	ew.Done()
+
+	return ew.Wait()
 }
 
 func (pw *ProcessWorker) broadcastPhaseDone(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
@@ -900,8 +921,6 @@ func (pw *ProcessWorker) mergeResult() error {
 	pw.mergeDelayedWorker.Done()
 
 	if err := pw.mergeDelayedWorker.Wait(); err != nil {
-		pw.ctxCancel(err)
-
 		return err
 	}
 

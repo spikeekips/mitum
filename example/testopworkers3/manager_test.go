@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -225,46 +226,68 @@ type testProcessManager struct {
 	baseTestOperationProcessor
 }
 
+func (t *testProcessManager) newProposal(height base.Height, ops [][2]util.Hash) base.ProposalSignFact {
+	priv := base.NewDummyPrivatekey("proposer")
+
+	sf := isaac.NewProposalSignFact(
+		isaac.NewProposalFact(
+			base.NewPoint(height, 0),
+			base.SimpleAddress("proposer"),
+			valuehash.RandomSHA256(),
+			ops,
+		),
+	)
+
+	t.NoError(sf.Sign(priv, t.networkID))
+
+	return sf
+}
+
 func (t *testProcessManager) TestNew() {
 	t.Run("empty workers", func() {
-		args := NewProcessManagerArgs()
-		_, err := NewProcessManager(context.Background(), args, nil, nil)
+		args := NewProcessManagerArgs(nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.Error(err)
 		t.ErrorContains(err, "empty workers")
 	})
 
 	t.Run("zero op share", func() {
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs([]string{"w0"})
 		args.NOpShare = 0
 
-		_, err := NewProcessManager(context.Background(), args, []string{"w0"}, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.Error(err)
 		t.ErrorContains(err, "zero operation share")
 	})
 
 	t.Run("zero state share", func() {
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs([]string{"w0"})
 		args.NStateShare = 0
 
-		_, err := NewProcessManager(context.Background(), args, []string{"w0"}, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.Error(err)
 		t.ErrorContains(err, "zero state share")
 	})
 
 	t.Run("NewJobWorker error", func() {
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs([]string{"w0"})
 		args.NewJobWorker = func(context.Context) (util.JobWorker, error) { return nil, errors.Errorf("showme") }
 
-		_, err := NewProcessManager(context.Background(), args, []string{"w0"}, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.Error(err)
 		t.ErrorContains(err, "showme")
 	})
 
 	t.Run("zero MapSize", func() {
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs([]string{"w0"})
 		args.MapSize = 0
 
-		_, err := NewProcessManager(context.Background(), args, []string{"w0"}, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.Error(err)
 		t.ErrorContains(err, "empty size")
 	})
@@ -273,40 +296,44 @@ func (t *testProcessManager) TestNew() {
 func (t *testProcessManager) TestArgs() {
 	t.Run("op share > workers", func() {
 		workers := []string{"w0"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NOpShare = 2
 
-		_, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		t.Equal(uint8(len(workers)), args.NOpShare)
 	})
 
 	t.Run("state share > workers", func() {
 		workers := []string{"w0"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = 2
 
-		_, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		t.Equal(uint8(len(workers)), args.NStateShare)
 	})
 
 	t.Run("empty ops", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = 1
 
-		pm, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
-		t.Equal(workers[:args.NStateShare], pm.workers)
+		t.Equal(workers[:args.NStateShare], pm.args.Workers)
 	})
 
 	t.Run("IsEnoughWorkers: state share = 1", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = 1
 
-		pm, err := NewProcessManager(context.Background(), args, workers, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
+		pr := t.newProposal(33, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 
 		t.True(pm.args.IsEnoughWorkers(uint64(len(workers))))
@@ -315,10 +342,11 @@ func (t *testProcessManager) TestArgs() {
 
 	t.Run("IsEnoughWorkers: state share = len(workers)", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = uint8(len(workers))
 
-		pm, err := NewProcessManager(context.Background(), args, workers, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
+		pr := t.newProposal(33, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 
 		t.True(pm.args.IsEnoughWorkers(uint64(len(workers))))
@@ -327,26 +355,28 @@ func (t *testProcessManager) TestArgs() {
 
 	t.Run("IsEnoughWorkers: empty ops, state share = 1", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = 1
 
-		pm, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 
-		t.Equal([]string{"w0"}, pm.workers)
+		t.Equal([]string{"w0"}, pm.args.Workers)
 		t.True(pm.args.IsEnoughWorkers(2))
 		t.True(pm.args.IsEnoughWorkers(1))
 	})
 
 	t.Run("IsEnoughWorkers: empty ops, state share = len(workers)", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 		args.NStateShare = uint8(len(workers))
 
-		pm, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 
-		t.Equal(workers, pm.workers)
+		t.Equal(workers, pm.args.Workers)
 		t.True(pm.args.IsEnoughWorkers(2))
 		t.True(pm.args.IsEnoughWorkers(1))
 	})
@@ -355,9 +385,10 @@ func (t *testProcessManager) TestArgs() {
 func (t *testProcessManager) TestCancel() {
 	t.Run("before process, and then process", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 
-		pm, err := NewProcessManager(context.Background(), args, workers, nil)
+		pr := t.newProposal(33, nil)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 
 		pm.Cancel()
@@ -368,7 +399,7 @@ func (t *testProcessManager) TestCancel() {
 
 	t.Run("cancel during process", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 
 		startprocessch := make(chan uint64)
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
@@ -393,8 +424,9 @@ func (t *testProcessManager) TestCancel() {
 		}
 
 		ops := [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}
+		pr := t.newProposal(33, ops)
 
-		pm, err := NewProcessManager(context.Background(), args, workers, ops)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
 
@@ -412,7 +444,7 @@ func (t *testProcessManager) TestCancel() {
 
 	t.Run("ManifestDone; cancel", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
@@ -427,8 +459,9 @@ func (t *testProcessManager) TestCancel() {
 		}
 
 		ops := [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}
+		pr := t.newProposal(33, ops)
 
-		pm, err := NewProcessManager(context.Background(), args, workers, ops)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
 
@@ -455,7 +488,7 @@ func (t *testProcessManager) TestCancel() {
 
 	t.Run("StoreDone; cancel", func() {
 		workers := []string{"w0", "w1"}
-		args := NewProcessManagerArgs()
+		args := NewProcessManagerArgs(workers)
 
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
@@ -470,8 +503,9 @@ func (t *testProcessManager) TestCancel() {
 		}
 
 		ops := [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}
+		pr := t.newProposal(33, ops)
 
-		pm, err := NewProcessManager(context.Background(), args, workers, ops)
+		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
 
@@ -502,7 +536,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 		ops[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
 	}
 
-	args := NewProcessManagerArgs()
+	args := NewProcessManagerArgs(workers)
 	args.NOpShare = 1
 
 	collectedWorkers := util.NewSingleLockedMap[string, []uint64]()
@@ -564,7 +598,8 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 			nil
 	}
 
-	pm, err := NewProcessManager(context.Background(), args, workers, ops)
+	pr := t.newProposal(33, ops)
+	pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 	t.NoError(err)
 	defer pm.Cancel()
 
@@ -599,7 +634,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	workers := []string{"w0", "w1", "w3"}
 
-	args := NewProcessManagerArgs()
+	args := NewProcessManagerArgs(workers)
 	args.NOpShare = 1
 	args.NStateShare = uint8(len(workers)) // prevent to shrink workers
 
@@ -626,7 +661,8 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 			nil
 	}
 
-	pm, err := NewProcessManager(context.Background(), args, workers, nil)
+	pr := t.newProposal(33, nil)
+	pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 	t.NoError(err)
 	defer pm.Cancel()
 
@@ -638,15 +674,126 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	}
 }
 
-func (t *testProcessManager) TestProcessOneWorker() {
-	workers := []string{"w0"}
+func (t *testProcessManager) workers(
+	ctx context.Context,
+	workers []string,
+	height base.Height,
+	getOperationFunc func(context.Context, util.Hash) (Operation, bool, error),
+	getFactFunc func(util.Hash) (uint64, bool),
+	getStateFunc func(context.Context, string) (base.State, bool, error),
+	isEnoughWorkers func(uint64) bool,
+	stateOwners func(string) ([]string, error),
+	resultMergedOps util.LockedMap[string, []uint64],
+	resultUnmergedOps util.LockedMap[uint64, string],
+	updateMerged func(string) (
+		updateState func(string, util.Hash) error,
+		updateReason func(uint64, string) error,
+		done func() error,
+		_ error,
+	),
+) (map[string]*ProcessWorker, error) {
+	pws := map[string]*ProcessWorker{}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	for i := range workers {
+		local := workers[i]
 
-	pwargs := NewProcessWorkerArgs(t.networkID)
-	pw, err := NewProcessWorker(ctx, pwargs, "w0", 33)
-	t.NoError(err)
+		pwargs := NewProcessWorkerArgs(t.networkID)
+		pw, err := NewProcessWorker(ctx, pwargs, local, height)
+		if err != nil {
+			return nil, err
+		}
+
+		pws[local] = pw
+
+		pw.args.GetOperationFunc = getOperationFunc
+		pw.args.GetStateFunc = getStateFunc
+		pw.args.IsEnoughWorkers = isEnoughWorkers
+		pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
+			return stateOwners(stateKey)
+		}
+		pw.args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
+			for i := range workers {
+				worker := workers[i]
+				if worker == local {
+					continue
+				}
+
+				if err := pws[worker].WorkerInsertValuesDone(local); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+		pw.args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			return pws[worker].InsertValues(local, opindex, fact, values)
+		}
+
+		pw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
+			for i := range workers {
+				worker := workers[i]
+				if worker == local {
+					continue
+				}
+
+				if err := pws[worker].WorkerPhaseDone(local, phase, mergedOps, unmergedOps); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
+		pw.args.UpdateMergeDoneFunc = func(_ context.Context) (
+			updateState func(base.State) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			pmUpdateState, pmUpdateReason, pmDone, err := updateMerged(local)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+
+			return func(st base.State) error {
+					add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+					if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+						j, found := getFactFunc(i)
+						if !found {
+							return false, util.ErrNotFound.Errorf("op")
+						}
+
+						add(j)
+
+						return true, nil
+					}); err != nil {
+						return err
+					}
+
+					resultMergedOps.SetValue(st.Key(), done())
+
+					return pmUpdateState(st.Key(), st.Hash())
+				},
+				func(opindex uint64, reason string) error {
+					if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
+						resultUnmergedOps.SetValue(opindex, reason)
+					}
+
+					return pmUpdateReason(opindex, reason)
+				},
+				func() error {
+					return pmDone()
+				},
+				nil
+		}
+	}
+
+	return pws, nil
+}
+
+func (t *testProcessManager) TestWorkers() {
+	previousManifest := valuehash.RandomSHA256()
+	previousSuffrage := valuehash.RandomSHA256()
 
 	ops := make([]Operation, 11)
 	opi := make([][2]util.Hash, len(ops))
@@ -672,12 +819,9 @@ func (t *testProcessManager) TestProcessOneWorker() {
 		)
 	}
 
-	args := NewProcessManagerArgs()
-	pm, err := NewProcessManager(ctx, args, workers, opi)
-	t.NoError(err)
-	defer pm.Cancel()
+	pr := t.newProposal(33, opi)
 
-	pw.args.GetOperationFunc = func(ctx context.Context, op util.Hash) (Operation, bool, error) {
+	getOperationFunc := func(ctx context.Context, op util.Hash) (Operation, bool, error) {
 		switch opindex, found := ophs[op.String()]; {
 		case !found:
 			return nil, false, nil
@@ -685,95 +829,299 @@ func (t *testProcessManager) TestProcessOneWorker() {
 			return ops[opindex], true, nil
 		}
 	}
-	pw.args.GetStateFunc = func(_ context.Context, key string) (base.State, bool, error) {
+	getStateFunc := func(_ context.Context, key string) (base.State, bool, error) {
 		i, found := states[key]
 
 		return i, found, nil
 	}
 
-	pw.args.IsEnoughWorkers = pm.args.IsEnoughWorkers
+	var manifest base.Manifest
+	var expectedMergedOps map[string][]uint64
+	var expectedUnmergedOps map[uint64]string
 
-	resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
-	resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
+	t.Run("one worker", func() {
+		workers := []string{"w0"}
 
-	pw.args.UpdateMergeDoneFunc = func(context.Context) (
-		updateState func(base.State) error,
-		updateReason func(opindex uint64, reason string) error,
-		done func() error,
-		_ error,
-	) {
-		pmUpdateState, pmUpdateReason, pmDone, err := pm.UpdateMerged(pw.local)
-		if err != nil {
-			return nil, nil, nil, err
-		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		return func(st base.State) error {
-				add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
-				if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
-					j, found := opfhs[i.String()]
-					if !found {
-						return false, util.ErrNotFound.Errorf("op")
+		pwargs := NewProcessWorkerArgs(t.networkID)
+		pw, err := NewProcessWorker(ctx, pwargs, "w0", 33)
+		t.NoError(err)
+
+		args := NewProcessManagerArgs(workers)
+		pm, err := NewProcessManager(ctx, args, previousManifest, previousSuffrage, pr)
+		t.NoError(err)
+		defer pm.Cancel()
+
+		pw.args.GetOperationFunc = getOperationFunc
+		pw.args.GetStateFunc = getStateFunc
+		pw.args.IsEnoughWorkers = pm.args.IsEnoughWorkers
+
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
+
+		pw.args.UpdateMergeDoneFunc = func(_ context.Context) (
+			updateState func(base.State) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			pmUpdateState, pmUpdateReason, pmDone, err := pm.UpdateMerged(pw.local)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+
+			return func(st base.State) error {
+					add, done := util.CompactAppendSlice[uint64](len(st.Operations()))
+					if err := util.TraverseSliceV1(st.Operations(), func(_ int, i util.Hash) (bool, error) {
+						j, found := opfhs[i.String()]
+						if !found {
+							return false, util.ErrNotFound.Errorf("op")
+						}
+
+						add(j)
+
+						return true, nil
+					}); err != nil {
+						return err
 					}
 
-					add(j)
+					resultMergedOps.SetValue(st.Key(), done())
 
-					return true, nil
-				}); err != nil {
-					return err
-				}
+					return pmUpdateState(st.Key(), st.Hash())
+				},
+				func(opindex uint64, reason string) error {
+					if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
+						resultUnmergedOps.SetValue(opindex, reason)
+					}
 
-				resultMergedOps.SetValue(st.Key(), done())
-
-				return pmUpdateState(st.Key(), st.Hash())
-			},
-			func(opindex uint64, reason string) error {
-				if !resultUnmergedOps.Exists(opindex) && len(reason) > 0 {
-					resultUnmergedOps.SetValue(opindex, reason)
-				}
-
-				return pmUpdateReason(opindex, reason)
-			},
-			func() error {
-				return pmDone()
-			},
-			nil
-	}
-
-	args.WorkerNewOperations = func(ctx context.Context, worker string) (
-		workerNewOperationsFunc,
-		func() error,
-		func(),
-		error,
-	) {
-		process, done, cancel, err := pw.NewOperations()
-		if err != nil {
-			return nil, nil, nil, err
+					return pmUpdateReason(opindex, reason)
+				},
+				func() error {
+					return pmDone()
+				},
+				nil
 		}
-		return process, func() error {
-				done()
-				return nil
-			}, func() {
-				cancel(nil)
-			}, nil
-	}
 
-	pwmergedoneerrch := make(chan error, 1)
-	go func() {
-		pwmergedoneerrch <- pw.MergeWait()
-	}()
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
+			workerNewOperationsFunc,
+			func() error,
+			func(),
+			error,
+		) {
+			process, done, cancel, err := pw.NewOperations()
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return process, func() error {
+					done()
+					return nil
+				}, func() {
+					cancel(nil)
+				}, nil
+		}
 
-	err = pm.Process()
-	t.NoError(err)
+		pwmergedoneerrch := make(chan error, 1)
+		go func() {
+			pwmergedoneerrch <- pw.MergeWait()
+		}()
 
-	t.NoError(<-pwmergedoneerrch)
+		err = pm.Process()
+		t.NoError(err)
 
-	_, err = pm.ManifestDone()
-	t.NoError(err)
+		t.NoError(<-pwmergedoneerrch)
 
-	t.Equal(len(ops)*2, len(resultMergedOps.Map()))
-	t.Empty(resultUnmergedOps.Map())
+		rmanifest, err := pm.ManifestDone()
+		t.NoError(err)
+		manifest = rmanifest
 
-	// FIXME check manifest
+		expectedMergedOps = resultMergedOps.Map()
+		expectedUnmergedOps = resultUnmergedOps.Map()
+
+		t.Equal(len(ops)*2, len(expectedMergedOps))
+		t.Empty(expectedUnmergedOps)
+
+		t.T().Log("check manifest")
+		t.NotNil(rmanifest)
+		t.NoError(rmanifest.IsValid(nil))
+		t.Equal(pr.Point().Height(), rmanifest.Height())
+		t.True(previousManifest.Equal(rmanifest.Previous()))
+		t.True(previousSuffrage.Equal(rmanifest.Suffrage()))
+		t.Equal(pm.proposal.ProposalFact().ProposedAt(), rmanifest.ProposedAt())
+		t.NotNil(rmanifest.OperationsTree())
+		t.NotNil(rmanifest.StatesTree())
+	})
+
+	t.Run("one worker", func() {
+		workers := []string{"w0"}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		args := NewProcessManagerArgs(workers)
+		pm, err := NewProcessManager(ctx, args, previousManifest, previousSuffrage, pr)
+		t.NoError(err)
+		defer pm.Cancel()
+
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
+
+		pws, err := t.workers(
+			ctx,
+			workers,
+			pr.Point().Height(),
+			getOperationFunc,
+			func(fact util.Hash) (uint64, bool) {
+				i, found := opfhs[fact.String()]
+				return i, found
+			},
+			getStateFunc,
+			pm.args.IsEnoughWorkers,
+			pm.StateOwners,
+			resultMergedOps,
+			resultUnmergedOps,
+			pm.UpdateMerged,
+		)
+		t.NoError(err)
+
+		defer func() {
+			for i := range pws {
+				pws[i].Cancel()
+			}
+		}()
+
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
+			workerNewOperationsFunc,
+			func() error,
+			func(),
+			error,
+		) {
+			process, done, cancel, err := pws[worker].NewOperations()
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return process, func() error {
+					done()
+					return nil
+				}, func() {
+					cancel(nil)
+				}, nil
+		}
+
+		pwmergedoneerrch := make(chan error, len(pws))
+		go func() {
+			for i := range workers {
+				pwmergedoneerrch <- pws[workers[i]].MergeWait()
+			}
+		}()
+
+		err = pm.Process()
+		t.NoError(err)
+
+		for range workers {
+			t.NoError(<-pwmergedoneerrch)
+		}
+
+		rmanifest, err := pm.ManifestDone()
+		t.NoError(err)
+		manifest = rmanifest
+
+		expectedMergedOps = resultMergedOps.Map()
+		expectedUnmergedOps = resultUnmergedOps.Map()
+
+		t.Equal(len(ops)*2, len(expectedMergedOps))
+		t.Empty(expectedUnmergedOps)
+
+		t.T().Log("check manifest")
+		t.NotNil(rmanifest)
+		t.NoError(rmanifest.IsValid(nil))
+		t.Equal(pr.Point().Height(), rmanifest.Height())
+		t.True(previousManifest.Equal(rmanifest.Previous()))
+		t.True(previousSuffrage.Equal(rmanifest.Suffrage()))
+		t.Equal(pm.proposal.ProposalFact().ProposedAt(), rmanifest.ProposedAt())
+		t.NotNil(rmanifest.OperationsTree())
+		t.NotNil(rmanifest.StatesTree())
+	})
+
+	t.Run("3 worker", func() {
+		workers := []string{"w0", "w1", "w2"}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		args := NewProcessManagerArgs(workers)
+		pm, err := NewProcessManager(ctx, args, previousManifest, previousSuffrage, pr)
+		t.NoError(err)
+		defer pm.Cancel()
+
+		resultMergedOps := util.NewSingleLockedMap[string, []uint64]()
+		resultUnmergedOps := util.NewSingleLockedMap[uint64, string]()
+
+		pws, err := t.workers(
+			ctx,
+			workers,
+			pr.Point().Height(),
+			getOperationFunc,
+			func(fact util.Hash) (uint64, bool) {
+				i, found := opfhs[fact.String()]
+				return i, found
+			},
+			getStateFunc,
+			pm.args.IsEnoughWorkers,
+			pm.StateOwners,
+			resultMergedOps,
+			resultUnmergedOps,
+			pm.UpdateMerged,
+		)
+		t.NoError(err)
+
+		defer func() {
+			for i := range pws {
+				pws[i].Cancel()
+			}
+		}()
+
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
+			workerNewOperationsFunc,
+			func() error,
+			func(),
+			error,
+		) {
+			process, done, cancel, err := pws[worker].NewOperations()
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return process, func() error {
+					done()
+					return nil
+				}, func() {
+					cancel(nil)
+				}, nil
+		}
+
+		pwmergedoneerrch := make(chan error, len(pws))
+		go func() {
+			for i := range workers {
+				pwmergedoneerrch <- pws[workers[i]].MergeWait()
+			}
+		}()
+
+		err = pm.Process()
+		t.NoError(err)
+
+		for range workers {
+			t.NoError(<-pwmergedoneerrch)
+		}
+
+		rmanifest, err := pm.ManifestDone()
+		t.NoError(err)
+
+		t.Equal(expectedMergedOps, resultMergedOps.Map())
+		t.Equal(expectedUnmergedOps, resultUnmergedOps.Map())
+
+		base.EqualManifest(t.Assert(), rmanifest, manifest)
+	})
 }
 
 func TestProcessManager(t *testing.T) {

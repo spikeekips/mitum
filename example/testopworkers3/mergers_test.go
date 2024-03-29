@@ -1242,17 +1242,22 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("insert done")
 	go func() {
-		t.NoError(insertew.Wait())
+		if err := insertew.Wait(); err != nil {
+			panic(err)
+		}
 
 		insertdoneew, err := util.NewBaseJobWorker(ctx, 1<<9)
-		t.NoError(err)
+		if err != nil {
+			panic(err)
+		}
+
 		defer insertdoneew.Close()
 
 		for worker := range dws {
 			worker := worker
 
 			t.NoError(insertdoneew.NewJob(func(context.Context, uint64) error {
-				t.T().Logf("\tworker=%q", worker)
+				t.LockedLog("\tworker=%q", worker)
 
 				return dws[worker].InsertDone()
 			}))
@@ -1268,14 +1273,19 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 					continue
 				}
 
-				t.NoError(insertdoneew.NewJob(func(context.Context, uint64) error {
+				if err := insertdoneew.NewJob(func(context.Context, uint64) error {
 					return dws[local].WorkerInsertDone(worker)
-				}))
+				}); err != nil {
+					panic(err)
+				}
 			}
 		}
 
 		insertdoneew.Done()
-		t.NoError(insertdoneew.Wait())
+
+		if err := insertdoneew.Wait(); err != nil {
+			panic(err)
+		}
 	}()
 
 	t.T().Log("wait done")

@@ -73,7 +73,7 @@ type StatesMergerWorker struct {
 	clean            func()
 	workerName       string // NOTE for testing
 	phaseStatus      util.LockedMap[int /* phase */, uint8 /* 1: local done, 2: merge done enough */]
-	phaseDoneRecords util.LockedMap[int /* phase */, map[string][3]interface{} /* {mergedOps, unmergedOps []uint8, is empty bool} */] // FIXME use map
+	phaseDoneRecords util.LockedMap[int /* phase */, map[string][3]interface{} /* {mergedOps, unmergedOps []uint8, is empty bool} */]
 	phaseOps         util.LockedMap[string /* phase + opindex */, xMergeFlag /* {phase, xMergeFlag} */]
 	psms             util.LockedMap[int /* phase */, *phaseStatesMerger]
 	phaseDoneOps     util.LockedMap[uint64 /* opindex */ /* {phase, xMergeFlag} */, [2]interface{}]

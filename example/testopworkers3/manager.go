@@ -1,12 +1,15 @@
 package testopsworkers
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
@@ -22,6 +25,7 @@ type (
 )
 
 type ProcessManagerArgs struct {
+	Workers             []string
 	NOpShare            uint8
 	NStateShare         uint8
 	NewJobWorker        func(context.Context) (util.JobWorker, error)
@@ -35,10 +39,12 @@ type ProcessManagerArgs struct {
 	NewOpOwnersFunc    func(workers []string, share uint8) (opOwnersFunc, error)
 	NewStateOwnersFunc func(workers []string, share uint8) (stateOwnersFunc, error)
 	MapSize            uint64
+	MaxStatesSize      uint64
 }
 
-func NewProcessManagerArgs() *ProcessManagerArgs {
+func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 	return &ProcessManagerArgs{
+		Workers:     workers,
 		NOpShare:    1,
 		NStateShare: 1,
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
@@ -55,13 +61,16 @@ func NewProcessManagerArgs() *ProcessManagerArgs {
 		NewOpOwnersFunc:    serialOpOwnersFunc,
 		NewStateOwnersFunc: serialStateOwnersFunc,
 		MapSize:            1 << 9,
+		MaxStatesSize:      1 << 18,
 	}
 }
 
 type ProcessManager struct {
 	*logging.Logging
 	args               *ProcessManagerArgs
-	workers            []string
+	previousManifest   util.Hash
+	previousSuffrage   util.Hash
+	proposal           base.ProposalSignFact
 	ctx                func() context.Context
 	ctxCancel          func(error)
 	mergeDoneCtx       func() context.Context
@@ -79,30 +88,20 @@ type ProcessManager struct {
 	cleanf             func()
 	states             util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
 	reasons            util.LockedMap[ /* opindex */ uint64 /* reason */, string]
+	addStateKeys       func(...string) bool
+	doneStateKeys      func() []string
 }
 
 func NewProcessManager(
 	ctx context.Context,
 	args *ProcessManagerArgs,
-	workers []string,
-	ops [][2]util.Hash,
+	previousManifest, previousSuffrage util.Hash,
+	proposal base.ProposalSignFact,
 ) (*ProcessManager, error) {
-	if len(workers) < 1 {
-		return nil, errors.Errorf("empty workers")
-	}
+	ops := proposal.ProposalFact().Operations()
 
-	switch {
-	case args.NOpShare < 1:
-		return nil, errors.Errorf("zero operation share")
-	case int(args.NOpShare) > len(workers):
-		args.NOpShare = uint8(len(workers))
-	}
-
-	switch {
-	case args.NStateShare < 1:
-		return nil, errors.Errorf("zero state share")
-	case int(args.NStateShare) > len(workers):
-		args.NStateShare = uint8(len(workers))
+	if err := validateProcessManagerArgs(args, len(ops) < 1); err != nil {
+		return nil, err
 	}
 
 	switch i, err := args.NewJobWorker(ctx); {
@@ -121,7 +120,9 @@ func NewProcessManager(
 			return zctx.Str("module", "process-manager")
 		}),
 		args:               args,
-		workers:            workers,
+		previousManifest:   previousManifest,
+		previousSuffrage:   previousSuffrage,
+		proposal:           proposal,
 		ctx:                func() context.Context { return pmctx },
 		ctxCancel:          ctxCancel,
 		mergeDoneCtx:       func() context.Context { return mergeDoneCtx },
@@ -129,18 +130,6 @@ func NewProcessManager(
 		storeDoneCtx:       func() context.Context { return storeDoneCtx },
 		storeDoneCtxCancel: storeDoneCtxCancel,
 		ops:                ops,
-	}
-
-	if len(ops) < 1 {
-		pm.workers = pm.workers[:args.NStateShare]
-	}
-
-	if pm.args.IsEnoughWorkers == nil {
-		i := uint64(len(pm.workers)) - uint64(pm.args.NStateShare)
-
-		pm.args.IsEnoughWorkers = func(n uint64) bool {
-			return n > i
-		}
 	}
 
 	pm.workersMergeDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
@@ -170,19 +159,25 @@ func NewProcessManager(
 		pm.reasons = i
 	}
 
-	switch i, err := args.NewStateOwnersFunc(pm.workers, args.NStateShare); {
+	switch i, err := args.NewStateOwnersFunc(pm.args.Workers, args.NStateShare); {
 	case err != nil:
 		return nil, err
 	default:
 		pm.newStateOwnersFunc = newStateOwnersFunc(i)
 	}
 
-	switch i, err := args.NewOpOwnersFunc(pm.workers, args.NOpShare); {
+	switch i, err := args.NewOpOwnersFunc(pm.args.Workers, args.NOpShare); {
 	case err != nil:
 		return nil, err
 	default:
 		pm.newOpOwnersFunc = newOpOwnersFunc(i)
 	}
+
+	// FIXME remove MaxStatesSize; use to grow CompactAppendSlice
+	pm.addStateKeys, pm.doneStateKeys = util.SortCompactAppendSlice[string](
+		int(pm.args.MaxStatesSize),
+		cmp.Less[string],
+	)
 
 	pm.cleanf = func() {
 		pm.ctxCancel(nil)
@@ -194,7 +189,10 @@ func NewProcessManager(
 		pm.states.Close()
 		pm.workersMergeDone.EmptyValue()
 		pm.workersStoreDone.EmptyValue()
+		_ = pm.doneStateKeys()
 	}
+
+	// FIXME prepare workers
 
 	return pm, nil
 }
@@ -279,14 +277,12 @@ func (pm *ProcessManager) UpdateMerged(worker string) (
 
 func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) error {
 	if err := pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
-		if _, _, _, err := pm.states.SetOrRemove(
+		if _, _, err := pm.states.Set(
 			stateKey,
-			func(util.Hash, bool) (util.Hash, bool, error) {
-				if stateHash == nil { // NOTE nil hash, remove
-					return nil, true, nil
-				}
+			func(util.Hash, bool) (util.Hash, error) {
+				pm.addStateKeys(stateKey)
 
-				return stateHash, false, nil
+				return stateHash, nil
 			},
 		); err != nil {
 			return err
@@ -380,7 +376,7 @@ func (pm *ProcessManager) manifestDone() (base.Manifest, error) {
 
 	// FIXME start to save block files
 
-	return nil, nil
+	return pm.newManifest()
 }
 
 func (pm *ProcessManager) storeDone() error {
@@ -441,9 +437,6 @@ func (pm *ProcessManager) workerMergeDone(worker string) error {
 		l.Debug().Msg("enough workers merge done")
 
 		pm.mergeJobWorker.Done()
-
-		// FIXME make states tree
-		// FIXME create manifest
 	}
 
 	return nil
@@ -571,7 +564,7 @@ func (pm *ProcessManager) newEmptyNewOperationFunc(
 	return pm.newOperationFunc(
 		newJob,
 		func(f func(string) (workerNewOperationsFunc, error)) error {
-			return util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
+			return util.TraverseSliceV1(pm.args.Workers, func(_ int, worker string) (bool, error) {
 				_, err := f(worker)
 
 				return true, err
@@ -605,6 +598,167 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc(
 			})
 		},
 	)
+}
+
+func (pm *ProcessManager) newManifest() (base.Manifest, error) {
+	var statesTree, opsTree util.Hash
+
+	switch i, err := pm.newStatesTree(); {
+	case err != nil:
+		return nil, err
+	default:
+		statesTree = i
+	}
+
+	switch i, err := pm.newOpsTree(); {
+	case err != nil:
+		return nil, err
+	default:
+		opsTree = i
+	}
+
+	var suffrage, prev util.Hash
+
+	if pm.proposal.Point().Height() > base.GenesisHeight {
+		suffrage = pm.previousSuffrage
+		prev = pm.previousManifest
+	}
+
+	manifest := isaac.NewManifest(
+		pm.proposal.Point().Height(),
+		prev,
+		pm.proposal.Fact().Hash(),
+		opsTree,
+		statesTree,
+		suffrage,
+		pm.proposal.ProposalFact().ProposedAt(),
+	)
+
+	pm.Log().Debug().
+		Interface("manifest", manifest).
+		Msg("manifest created")
+
+	return manifest, nil
+}
+
+func (pm *ProcessManager) newStatesTree() (util.Hash, error) {
+	keys := pm.doneStateKeys()
+	if len(keys) < 1 {
+		return nil, nil
+	}
+
+	var tg *fixedtree.Writer
+
+	switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(keys))); {
+	case err != nil:
+		return nil, err
+	default:
+		tg = i
+	}
+
+	// FIXME suffrage proof
+
+	if err := util.TraverseSliceV1(keys, func(i int, stateKey string) (bool, error) {
+		switch h, found := pm.states.Value(stateKey); {
+		case !found:
+			return false, util.ErrNotFound.Errorf("state hash, %q", stateKey)
+		default:
+			return true, tg.Add(uint64(i), fixedtree.NewBaseNode(h.String()))
+		}
+	}); err != nil {
+		return nil, err
+	}
+
+	switch tr, err := tg.Tree(); {
+	case err != nil:
+		return nil, err
+	case tr.Len() < 1:
+		return nil, nil
+	default:
+		// FIXME store tree
+
+		return tr.Root(), nil
+	}
+}
+
+func (pm *ProcessManager) newOpsTree() (util.Hash, error) {
+	if len(pm.ops) < 1 {
+		return nil, nil
+	}
+	var tg *fixedtree.Writer
+
+	switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(pm.ops))); {
+	case err != nil:
+		return nil, err
+	default:
+		tg = i
+	}
+
+	if err := util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
+		opindex := uint64(i)
+		_, fact := v[0], v[1]
+
+		var node base.OperationFixedtreeNode
+
+		switch reason, found := pm.reasons.Value(opindex); {
+		case found:
+			node = base.NewNotInStateOperationFixedtreeNode(fact, reason)
+		default:
+			node = base.NewInStateOperationFixedtreeNode(fact, "")
+		}
+
+		return true, tg.Add(opindex, node)
+	}); err != nil {
+		return nil, err
+	}
+
+	switch tr, err := tg.Tree(); {
+	case err != nil:
+		return nil, err
+	case tr.Len() < 1:
+		return nil, nil
+	default:
+		// FIXME store tree
+
+		return tr.Root(), nil
+	}
+}
+
+func validateProcessManagerArgs(
+	args *ProcessManagerArgs,
+	emptyOps bool,
+) error {
+	if len(args.Workers) < 1 {
+		return errors.Errorf("empty workers")
+	}
+
+	switch {
+	case args.NOpShare < 1:
+		return errors.Errorf("zero operation share")
+	case int(args.NOpShare) > len(args.Workers):
+		args.NOpShare = uint8(len(args.Workers))
+	}
+
+	switch {
+	case args.NStateShare < 1:
+		return errors.Errorf("zero state share")
+	case int(args.NStateShare) > len(args.Workers):
+		args.NStateShare = uint8(len(args.Workers))
+	}
+
+	if emptyOps {
+		args.Workers = args.Workers[:args.NStateShare]
+	}
+
+	if args.IsEnoughWorkers == nil {
+		i := uint64(len(args.Workers)) - uint64(args.NStateShare)
+
+		args.IsEnoughWorkers = func(n uint64) bool {
+			return n > i
+		}
+	}
+
+	return nil
 }
 
 func serialOpOwnersFunc(workers []string, share uint8) (opOwnersFunc, error) {

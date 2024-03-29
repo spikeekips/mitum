@@ -474,6 +474,14 @@ func (t *testProcessWorker) TestWaitCancel() {
 				func() error { return nil },
 				nil
 		}
+		pw.args.UpdateStoreDoneFunc = func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second * 2):
+				return nil
+			}
+		}
 
 		_, done, _, err := pw.NewOperations()
 		t.NoError(err)
@@ -1006,7 +1014,6 @@ func (t *testProcessWorker) Test3Workers() {
 					if err != nil {
 						return err
 					}
-
 				}
 
 				return nil
