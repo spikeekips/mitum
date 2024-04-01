@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	errProcessWorkerMergeDone = util.NewIDError("ProcessWorker merge done")
-	errProcessWorkerDone      = util.NewIDError("ProcessWorker done")
+	errProcessWorkerMergeDone         = util.NewIDError("ProcessWorker merge done")
+	errProcessWorkerDone              = util.NewIDError("ProcessWorker done")
+	errProcessWorkerCanceledByManager = util.NewIDError("ProcessWorker canceled by manager")
 )
 
 type Operation interface {
@@ -53,7 +54,7 @@ type OperationProcessor struct {
 	name      string
 	args      *OperationProcessorArgs
 	ctx       func() context.Context
-	ctxcancel func(error)
+	ctxCancel func(error)
 	ew        util.JobWorker
 }
 
@@ -69,7 +70,7 @@ func NewOperationProcessor(
 		}),
 		args:      args,
 		ctx:       func() context.Context { return pctx },
-		ctxcancel: pcancel,
+		ctxCancel: pcancel,
 	}
 
 	switch i, err := args.NewJobWorker(pctx); {
@@ -83,7 +84,7 @@ func NewOperationProcessor(
 }
 
 func (opsr *OperationProcessor) Cancel() {
-	opsr.ctxcancel(nil)
+	opsr.ctxCancel(nil)
 }
 
 func (opsr *OperationProcessor) Process() (
@@ -104,7 +105,7 @@ func (opsr *OperationProcessor) Process() (
 				case errors.As(err, &reason):
 					return opsr.args.UpdateReasonsFunc(opindex, reason)
 				case err != nil:
-					opsr.ctxcancel(err)
+					opsr.ctxCancel(err)
 
 					return err
 				default:
@@ -114,7 +115,7 @@ func (opsr *OperationProcessor) Process() (
 		},
 		opsr.ew.Done,
 		func(err error) {
-			opsr.ctxcancel(err)
+			opsr.ctxCancel(err)
 
 			opsr.ew.Cancel()
 		},
@@ -194,6 +195,7 @@ type ProcessWorkerArgs struct {
 	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
+	BroadcastCanceled             func() error
 	StoreOperationFunc            func(opindex uint64, op Operation) error
 	StoreStateFunc                func(base.State) error
 	UpdateMergeDoneFunc           func(context.Context) (
@@ -222,6 +224,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		BroadcastInsertOpFunc:         func(context.Context, string, uint64, util.Hash, []StateMergeValue) error { return nil },
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
 		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
+		BroadcastCanceled:             func() error { return nil },
 		StoreOperationFunc:            func(uint64, Operation) error { return nil },
 		StoreStateFunc:                func(base.State) error { return nil },
 		UpdateMergeDoneFunc: func(context.Context) (
@@ -398,6 +401,20 @@ func NewProcessWorker(
 		pw.ophs.Close()
 	}
 
+	go func() {
+		<-pctx.Done()
+
+		switch err := context.Cause(pctx); {
+		case errors.Is(err, errProcessWorkerMergeDone),
+			errors.Is(err, errProcessWorkerDone),
+			errors.Is(err, errProcessWorkerCanceledByManager):
+		default:
+			if err := pw.args.BroadcastCanceled(); err != nil {
+				pw.Log().Error().Err(err).Msg("failed to broadcast canceled")
+			}
+		}
+	}()
+
 	return pw, nil
 }
 
@@ -405,6 +422,10 @@ func (pw *ProcessWorker) Cancel() {
 	pw.ctxCancel(nil)
 
 	pw.cleanf()
+}
+
+func (pw *ProcessWorker) CancelByManager() {
+	pw.ctxCancel(errProcessWorkerCanceledByManager)
 }
 
 func (pw *ProcessWorker) NewOperations() (
@@ -528,7 +549,7 @@ func (pw *ProcessWorker) MergeWait() error {
 	}
 }
 
-func (pw *ProcessWorker) Wait() error {
+func (pw *ProcessWorker) Done() error {
 	<-pw.ctx().Done()
 
 	switch err := context.Cause(pw.ctx()); {

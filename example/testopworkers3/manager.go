@@ -3,7 +3,6 @@ package testopsworkers
 import (
 	"cmp"
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,8 +15,10 @@ import (
 )
 
 var (
-	errProcessManagerWorkersMergeDone = util.NewIDError("process manager workers merge done")
-	errProcessManagerWorkersStoreDone = util.NewIDError("process manager workers store done")
+	errProcessManagerWorkersMergeDone       = util.NewIDError("process manager workers merge done")
+	errProcessManagerWorkersStoreDone       = util.NewIDError("process manager workers store done")
+	errProcessManagerWorkersWorkersCanceled = util.NewIDError("process manager; workers canceled")
+	errProcessManagerWorkersDone            = util.NewIDError("process manager done")
 )
 
 type (
@@ -37,9 +38,9 @@ type ProcessManagerArgs struct {
 	NOpShare            uint8
 	NStateShare         uint8
 	NewJobWorker        func(context.Context) (util.JobWorker, error)
-	WorkerPrepare       func(_ context.Context, worker string, args processWorkerPrepareArgs) error
 	WorkerCancel        func(_ context.Context, worker string) error
-	WorkerNewOperations func(_ context.Context, worker string) (
+	WorkerDone          func(_ context.Context, worker string) error
+	WorkerNewOperations func(_ context.Context, worker string, _ processWorkerPrepareArgs) (
 		_ workerNewOperationsFunc,
 		done func() error,
 		cancel func(),
@@ -61,13 +62,10 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
-		WorkerPrepare: func(context.Context, string, processWorkerPrepareArgs) error {
-			return util.ErrNotImplemented.Errorf("WorkerPrepare")
-		},
 		WorkerCancel: func(context.Context, string) error {
 			panic(util.ErrNotImplemented.Errorf("WorkerCancel"))
 		},
-		WorkerNewOperations: func(context.Context, string) (
+		WorkerNewOperations: func(context.Context, string, processWorkerPrepareArgs) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -108,6 +106,9 @@ type ProcessManager struct {
 	reasons            util.LockedMap[ /* opindex */ uint64 /* reason */, string]
 	addStateKeys       func(...string) bool
 	doneStateKeys      func() []string
+	addFailedWorker    func(worker string) bool
+	isWorkersFailed    func() error
+	isFailedWorker     func(worker string) bool
 }
 
 func NewProcessManager(
@@ -197,12 +198,15 @@ func NewProcessManager(
 		cmp.Less[string],
 	)
 
+	clearFailedWorkers := pm.failedWorkers()
+
 	pm.cleanf = func() {
 		pm.ctxCancel(nil)
 
+		clearFailedWorkers()
+
 		pm.mergeJobWorker.Close()
 		pm.storeJobWorker.Close()
-
 		pm.stateOwners.Close()
 		pm.states.Close()
 		pm.workersMergeDone.EmptyValue()
@@ -237,12 +241,6 @@ func (pm *ProcessManager) StateOwners(stateKey string) (owners []string, _ error
 }
 
 func (pm *ProcessManager) Process() error {
-	if err := pm.prepareWorkers(); err != nil {
-		pm.cancel(err)
-
-		return err
-	}
-
 	if err := pm.process(); err != nil {
 		pm.cancel(err)
 
@@ -263,14 +261,13 @@ func (pm *ProcessManager) WorkerStoreDone(worker string) error {
 }
 
 func (pm *ProcessManager) ManifestDone() (base.Manifest, error) {
-	switch i, err := pm.manifestDone(); {
-	case err != nil:
+	if err := pm.mergeDone(); err != nil {
 		pm.cancel(err)
 
 		return nil, err
-	default:
-		return i, nil
 	}
+
+	return pm.newManifest()
 }
 
 func (pm *ProcessManager) StoreDone() error {
@@ -279,6 +276,33 @@ func (pm *ProcessManager) StoreDone() error {
 
 		return err
 	}
+
+	return nil
+}
+
+func (pm *ProcessManager) Done() error {
+	defer pm.Cancel()
+
+	if err := pm.mergeDone(); err != nil {
+		pm.ctxCancel(err)
+
+		return err
+	}
+
+	if err := pm.storeDone(); err != nil {
+		pm.ctxCancel(err)
+
+		return err
+	}
+
+	if err := pm.workersDone(); err != nil {
+		pm.ctxCancel(err)
+
+		return err
+	}
+
+	// FIXME
+	pm.ctxCancel(errProcessManagerWorkersDone)
 
 	return nil
 }
@@ -297,65 +321,12 @@ func (pm *ProcessManager) UpdateMerged(worker string) (
 		nil
 }
 
-func (pm *ProcessManager) prepareWorkers() error {
-	var ew util.JobWorker
-
-	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
-	case err != nil:
-		return err
-	default:
-		defer i.Close()
-
-		ew = i
-	}
-
-	go func() {
-		<-pm.ctx().Done()
-
-		pm.cancelWorkers()
-	}()
-
-	var failed uint64
-
-	for i := range pm.args.Workers {
-		worker := pm.args.Workers[i]
-
-		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
-			if err := pm.prepareWorker(ctx, worker); err != nil {
-				pm.Log().Error().Err(err).Str("worker", worker).Msg("worker failed to prepare")
-
-				atomic.AddUint64(&failed, 1)
-			}
-
-			return nil
-		}); err != nil {
-			return err
+func (pm *ProcessManager) WorkerCanceled(worker string) {
+	if pm.addFailedWorker(worker) {
+		if err := pm.isWorkersFailed(); err != nil {
+			pm.ctxCancel(errProcessManagerWorkersWorkersCanceled)
 		}
 	}
-
-	ew.Done()
-
-	if err := ew.Wait(); err != nil {
-		return err
-	}
-
-	if i := atomic.LoadUint64(&failed); i >= uint64(pm.args.NOpShare) || i >= uint64(pm.args.NStateShare) {
-		return errors.Errorf("failed to prepare; failed workers, %d", i)
-	}
-
-	// FIXME remove failed workers from pm.workers
-
-	return nil
-}
-
-func (pm *ProcessManager) prepareWorker(ctx context.Context, worker string) error {
-	args := processWorkerPrepareArgs{
-		Height:      pm.proposal.Point().Height(),
-		Workers:     pm.args.Workers,
-		NStateShare: pm.args.NStateShare,
-	}
-
-	return pm.args.WorkerPrepare(ctx, worker, args)
 }
 
 func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) error {
@@ -409,61 +380,63 @@ func (pm *ProcessManager) cancel(err error) {
 }
 
 func (pm *ProcessManager) process() error {
-	if len(pm.ops) < 1 {
+	go func() {
+		<-pm.ctx().Done()
+
+		switch err := context.Cause(pm.ctx()); {
+		case errors.Is(err, errProcessManagerWorkersDone),
+			errors.Is(err, errProcessManagerWorkersWorkersCanceled):
+		default:
+			pm.cancelWorkers()
+		}
+	}()
+
+	switch i := len(pm.ops); {
+	case i < 1:
 		pm.mergeJobWorker.Done()
-
-		return nil
-	}
-
-	var ew util.JobWorker
-
-	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
-	case err != nil:
-		return err
 	default:
-		defer i.Close()
+		if err := pm.newNonEmptyNewOperationFunc(); err != nil {
+			pm.ctxCancel(err)
 
-		ew = i
+			return err
+		}
 	}
 
-	if err := pm.newNonEmptyNewOperationFunc(ew.NewJob); err != nil {
+	if err := pm.mergeJobWorker.Wait(); err != nil {
 		return err
 	}
 
-	ew.Done()
+	pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
 
-	if err := ew.Wait(); err != nil {
+	pm.Log().Debug().Msg("merge done")
+
+	// FIXME start to save block files
+	if err := pm.storeJobWorker.Wait(); err != nil {
+		pm.cancel(err)
+
+		return err
+	}
+
+	pm.storeDoneCtxCancel(errProcessManagerWorkersStoreDone)
+
+	pm.Log().Debug().Msg("store done")
+
+	return nil
+}
+
+func (pm *ProcessManager) mergeDone() error {
+	<-pm.mergeDoneCtx().Done()
+
+	switch err := context.Cause(pm.mergeDoneCtx()); {
+	case errors.Is(err, errProcessManagerWorkersMergeDone):
+	case err != nil:
 		return err
 	}
 
 	return nil
 }
 
-func (pm *ProcessManager) manifestDone() (base.Manifest, error) {
-	if err := pm.mergeJobWorker.Wait(); err != nil {
-		return nil, err
-	}
-
-	pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
-
-	<-pm.mergeDoneCtx().Done()
-
-	switch err := context.Cause(pm.mergeDoneCtx()); {
-	case errors.Is(err, errProcessManagerWorkersMergeDone):
-	case err != nil:
-		return nil, err
-	}
-
-	pm.Log().Debug().Msg("merge done")
-
-	// FIXME start to save block files
-
-	return pm.newManifest()
-}
-
 func (pm *ProcessManager) storeDone() error {
-	defer pm.Cancel()
-
 	<-pm.storeDoneCtx().Done()
 
 	switch err := context.Cause(pm.storeDoneCtx()); {
@@ -473,16 +446,6 @@ func (pm *ProcessManager) storeDone() error {
 
 		return err
 	}
-
-	pm.storeJobWorker.Done()
-
-	if err := pm.storeJobWorker.Wait(); err != nil {
-		pm.cancel(err)
-
-		return err
-	}
-
-	pm.Log().Debug().Msg("store done")
 
 	return nil
 }
@@ -555,7 +518,7 @@ func (pm *ProcessManager) workerStoreDone(worker string) error {
 	if pm.args.IsEnoughWorkers(count) {
 		l.Debug().Msg("enough workers store done")
 
-		pm.mergeDoneCtxCancel(errProcessManagerWorkersStoreDone)
+		pm.storeJobWorker.Done()
 	}
 
 	return nil
@@ -563,8 +526,15 @@ func (pm *ProcessManager) workerStoreDone(worker string) error {
 
 func (pm *ProcessManager) newOperationFunc(
 	newJob func(util.ContextWorkerCallback) error,
+	errf func(worker string),
 	f func(func(string) (workerNewOperationsFunc, error)) error,
 ) error {
+	args := processWorkerPrepareArgs{
+		Height:      pm.proposal.Point().Height(),
+		Workers:     pm.args.Workers,
+		NStateShare: pm.args.NStateShare,
+	}
+
 	chs := map[string]chan [3]interface{}{}
 
 	defer func() {
@@ -574,8 +544,6 @@ func (pm *ProcessManager) newOperationFunc(
 
 		clear(chs)
 	}()
-
-	// FIXME send available workers to workers
 
 	newWorker := func(worker string) (workerNewOperationsFunc, error) {
 		gerr := util.EmptyLocked[error]()
@@ -591,9 +559,10 @@ func (pm *ProcessManager) newOperationFunc(
 				var done func() error
 				cancel := func() {}
 
-				switch i, j, k, err := pm.args.WorkerNewOperations(ctx, worker); {
+				switch i, j, k, err := pm.args.WorkerNewOperations(ctx, worker, args); {
 				case err != nil:
 					_ = gerr.SetValue(err)
+					errf(worker)
 				default:
 					newop = i
 					done = j
@@ -601,7 +570,7 @@ func (pm *ProcessManager) newOperationFunc(
 				}
 
 				for i := range ch {
-					if e, _ := gerr.Value(); e != nil {
+					if err, _ := gerr.Value(); err != nil {
 						cancel()
 
 						continue
@@ -613,14 +582,20 @@ func (pm *ProcessManager) newOperationFunc(
 
 					if err := newop(opindex, op, fact); err != nil {
 						_ = gerr.SetValue(err)
+						errf(worker)
 					}
 				}
 
 				if err, _ := gerr.Value(); err != nil {
-					return err
+					return nil
 				}
 
-				return done()
+				if err := done(); err != nil {
+					_ = gerr.SetValue(err)
+					errf(worker)
+				}
+
+				return nil
 			}); err != nil {
 				return nil, err
 			}
@@ -642,11 +617,23 @@ func (pm *ProcessManager) newOperationFunc(
 	return f(newWorker)
 }
 
-func (pm *ProcessManager) newNonEmptyNewOperationFunc(
-	newJob func(util.ContextWorkerCallback) error,
-) error {
-	return pm.newOperationFunc(
-		newJob,
+func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
+	var ew util.JobWorker
+
+	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
+
+	if err := pm.newOperationFunc(
+		ew.NewJob,
+		func(worker string) {
+			_ = pm.addFailedWorker(worker)
+		},
 		func(f func(string) (workerNewOperationsFunc, error)) error {
 			return util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
 				opindex, op, fact := uint64(i), v[0], v[1]
@@ -658,15 +645,37 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc(
 					return true, util.TraverseSliceV1(owners, func(_ int, owner string) (bool, error) {
 						switch i, err := f(owner); {
 						case err != nil:
-							return false, err
+							if pm.addFailedWorker(owner) {
+								return true, pm.isWorkersFailed()
+							}
+
+							return true, nil
 						default:
-							return true, i(opindex, op, fact)
+							if err := i(opindex, op, fact); err != nil {
+								if pm.addFailedWorker(owner) {
+									return true, pm.isWorkersFailed()
+								}
+
+								return true, nil
+							}
 						}
+
+						return true, nil
 					})
 				}
 			})
 		},
-	)
+	); err != nil {
+		return err
+	}
+
+	ew.Done()
+
+	if err := ew.Wait(); err != nil {
+		return err
+	}
+
+	return pm.isWorkersFailed()
 }
 
 func (pm *ProcessManager) newManifest() (base.Manifest, error) {
@@ -826,6 +835,98 @@ func (pm *ProcessManager) cancelWorkers() {
 	if err := ew.Wait(); err != nil {
 		pm.Log().Error().Err(err).Msg("failed to cancel workers")
 	}
+}
+
+func (pm *ProcessManager) failedWorkers() func() {
+	failedWorkers := util.NewLocked(map[string]struct{}{})
+
+	pm.addFailedWorker = func(worker string) (added bool) {
+		_, _ = failedWorkers.Set(func(m map[string]struct{}, _ bool) (map[string]struct{}, error) {
+			if m == nil { // NOTE ProcessManager cleaned
+				return nil, util.ErrLockedSetIgnore
+			}
+
+			if _, found := m[worker]; found {
+				return nil, util.ErrLockedSetIgnore
+			}
+
+			m[worker] = struct{}{}
+			added = true
+
+			return m, nil
+		})
+
+		return added
+	}
+
+	share := uint64(pm.args.NOpShare)
+
+	if i := uint64(pm.args.NStateShare); i < share {
+		share = i
+	}
+
+	pm.isWorkersFailed = func() error {
+		return failedWorkers.Get(func(m map[string]struct{}, _ bool) error {
+			if i := uint64(len(m)); i >= share {
+				return errors.Errorf("over share workers failed, %d", i)
+			}
+
+			return nil
+		})
+	}
+
+	pm.isFailedWorker = func(worker string) (found bool) {
+		_ = failedWorkers.Get(func(m map[string]struct{}, _ bool) error {
+			_, found = m[worker]
+
+			return nil
+		})
+
+		return found
+	}
+
+	return func() {
+		_ = failedWorkers.EmptyValue()
+	}
+}
+
+func (pm *ProcessManager) workersDone() error {
+	var ew util.JobWorker
+
+	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
+
+	if err := util.TraverseSliceV1(pm.args.Workers, func(_ int, worker string) (bool, error) {
+		if pm.isFailedWorker(worker) {
+			return true, nil
+		}
+
+		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+			if err := pm.args.WorkerDone(ctx, worker); err != nil {
+				if pm.addFailedWorker(worker) {
+					return pm.isWorkersFailed()
+				}
+			}
+
+			return nil
+		})
+	}); err != nil {
+		return err
+	}
+
+	ew.Done()
+
+	if err := ew.Wait(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func validateProcessManagerArgs(

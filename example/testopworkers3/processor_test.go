@@ -376,6 +376,101 @@ func (t *testProcessWorker) newWorker(ctx context.Context, local string) *Proces
 	return pw
 }
 
+func (t *testProcessWorker) TestBroadcastCanceled() {
+	t.Run("by Cancel()", func() {
+		pw := t.newWorker(context.Background(), "w0")
+
+		ch := make(chan struct{}, 1)
+		pw.args.BroadcastCanceled = func() error {
+			ch <- struct{}{}
+
+			return nil
+		}
+
+		go func() {
+			_ = pw.MergeWait()
+		}()
+
+		<-time.After(time.Second)
+		t.T().Log("Cancel")
+		pw.Cancel()
+
+		<-ch
+	})
+
+	t.Run("by errProcessWorkerMergeDone", func() {
+		pw := t.newWorker(context.Background(), "w0")
+
+		ch := make(chan struct{}, 1)
+		pw.args.BroadcastCanceled = func() error {
+			ch <- struct{}{}
+
+			return nil
+		}
+
+		go func() {
+			_ = pw.MergeWait()
+		}()
+
+		<-time.After(time.Second)
+		pw.ctxCancel(errProcessWorkerMergeDone)
+
+		select {
+		case <-time.After(time.Second):
+		case <-ch:
+			t.Fail("unexpected BroadcastCanceled")
+		}
+	})
+
+	t.Run("by errProcessWorkerDone", func() {
+		pw := t.newWorker(context.Background(), "w0")
+
+		ch := make(chan struct{}, 1)
+		pw.args.BroadcastCanceled = func() error {
+			ch <- struct{}{}
+
+			return nil
+		}
+
+		go func() {
+			_ = pw.MergeWait()
+		}()
+
+		<-time.After(time.Second)
+		pw.ctxCancel(errProcessWorkerDone)
+
+		select {
+		case <-time.After(time.Second):
+		case <-ch:
+			t.Fail("unexpected BroadcastCanceled")
+		}
+	})
+
+	t.Run("by CancelByManager()", func() {
+		pw := t.newWorker(context.Background(), "w0")
+
+		ch := make(chan struct{}, 1)
+		pw.args.BroadcastCanceled = func() error {
+			ch <- struct{}{}
+
+			return nil
+		}
+
+		go func() {
+			_ = pw.MergeWait()
+		}()
+
+		<-time.After(time.Second)
+		pw.CancelByManager()
+
+		select {
+		case <-time.After(time.Second):
+		case <-ch:
+			t.Fail("unexpected BroadcastCanceled")
+		}
+	})
+}
+
 func (t *testProcessWorker) TestMergeWaitCancel() {
 	t.Run("before NewOperations", func() {
 		pw := t.newWorker(context.Background(), "w0")
@@ -490,7 +585,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 		t.NoError(pw.MergeWait())
 		pw.Cancel()
 
-		err = pw.Wait()
+		err = pw.Done()
 		t.Error(err)
 		t.ErrorIs(err, context.Canceled)
 	})
@@ -503,7 +598,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 
 		pw.Cancel()
 
-		err := pw.Wait()
+		err := pw.Done()
 		t.Error(err)
 		t.ErrorIs(err, context.Canceled)
 	})
@@ -720,7 +815,7 @@ func (t *testProcessWorker) TestStoreOperation() {
 	done()
 
 	t.NoError(pw.MergeWait())
-	t.NoError(pw.Wait())
+	t.NoError(pw.Done())
 
 	t.Equal(nops, storedOps.Len())
 	storedOps.Traverse(func(opindex uint64, sop Operation) bool {
