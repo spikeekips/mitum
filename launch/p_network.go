@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"math/big"
-	"net"
 	"time"
 
 	"github.com/pkg/errors"
@@ -202,10 +201,6 @@ func ServerQuicConfig(params *NetworkParams) *quic.Config {
 	config.MaxIdleTimeout = params.MaxIdleTimeout()
 	config.KeepAlivePeriod = params.KeepAlivePeriod()
 	config.MaxIncomingStreams = int64(params.MaxIncomingStreams())
-
-	config.RequireAddressValidation = func(net.Addr) bool {
-		return true // TODO NOTE manage blacklist
-	}
 
 	return config
 }
