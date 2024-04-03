@@ -36,6 +36,13 @@ func (g *Writer) Hint() hint.Hint {
 	return g.ht
 }
 
+func (g *Writer) Close() {
+	g.Lock()
+	defer g.Unlock()
+
+	clear(g.nodes)
+}
+
 func (g *Writer) Len() int {
 	g.l.RLock()
 	defer g.l.RUnlock()
@@ -72,6 +79,19 @@ func (g *Writer) Write(w NodeWrite) (err error) {
 
 	if len(g.nodes) > 0 && g.nodes[0].Hash() == nil {
 		if _, err := generateNodesHash(g.nodes, w); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	for i := range g.nodes {
+		n := g.nodes[i]
+		if n == nil {
+			return errors.Errorf("empty node found at %d", i)
+		}
+
+		if err := w(uint64(i), n); err != nil {
 			return err
 		}
 	}
