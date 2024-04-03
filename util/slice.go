@@ -428,3 +428,102 @@ func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
 		return d
 	}
 }
+
+func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
+	add func(T, ...T) (added, left uint64),
+	done func(func([]T) error) error,
+	_ error,
+) {
+	var growN uint64
+
+	if len(grow) > 0 {
+		growN = grow[0]
+	}
+
+	if size < 1 {
+		if growN < 1 {
+			return nil, nil, errors.Errorf("size and grow under 1")
+		}
+
+		size = growN
+	}
+
+	s := make([]T, size)
+	lastSize := size
+
+	growf := func(uint64) bool { return false }
+
+	if growN > 0 {
+		growf = func(n uint64) bool {
+			if n < growN {
+				n = growN
+			}
+
+			i := make([]T, uint64(len(s))+n)
+			copy(i, s)
+
+			s = i
+			lastSize = uint64(len(s))
+
+			return true
+		}
+	}
+
+	var start uint64
+	var lock sync.RWMutex
+
+	count := func(n uint64) (_ uint64, prevStart uint64, afterStart uint64, afterLastSize uint64) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		if n+start > lastSize && !growf(n+start-lastSize) {
+			n = lastSize - start
+		}
+
+		if n < 1 {
+			return 0, 0, start, lastSize
+		}
+
+		prevStart = start
+		start += n
+
+		return n, prevStart, start, lastSize
+	}
+
+	insert := func(n, si uint64, t T, ts []T) {
+		lock.RLock()
+		defer lock.RUnlock()
+
+		s[si] = t
+
+		for i := range ts[:n-1] {
+			s[si+uint64(i+1)] = ts[i]
+		}
+	}
+
+	return func(t T, ts ...T) (uint64, uint64) {
+			n, si, st, l := count(uint64(len(ts) + 1))
+			if n < 1 {
+				return 0, l - st
+			}
+
+			insert(n, si, t, ts)
+
+			left := l - st
+			if left < 1 && growN > 0 {
+				left = growN
+			}
+
+			return n, left
+		},
+		func(f func([]T) error) error {
+			defer clear(s)
+
+			if start < 1 {
+				return f(nil)
+			}
+
+			return f(s[:start])
+		},
+		nil
+}
