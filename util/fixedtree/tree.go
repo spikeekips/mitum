@@ -69,6 +69,10 @@ func (t Tree) IsValid(b []byte) error {
 	return nil
 }
 
+func (t Tree) Close() {
+	clear(t.nodes)
+}
+
 func (t Tree) Len() int {
 	return len(t.nodes)
 }
@@ -86,6 +90,10 @@ func (t Tree) Node(index uint64) Node {
 }
 
 func (t Tree) Root() util.Hash {
+	if len(t.nodes) < 1 {
+		return nil
+	}
+
 	return t.nodes[0].Hash()
 }
 

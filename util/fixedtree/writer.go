@@ -22,13 +22,17 @@ type Writer struct {
 }
 
 func NewWriter(ht hint.Hint, size uint64) (*Writer, error) {
-	if size < 1 {
+	return NewWriterFromNodes(ht, make([]Node, size))
+}
+
+func NewWriterFromNodes(ht hint.Hint, nodes []Node) (*Writer, error) {
+	if len(nodes) < 1 {
 		return nil, errors.Errorf("zero size")
 	}
 
 	return &Writer{
 		ht:    ht,
-		nodes: make([]Node, size),
+		nodes: nodes,
 	}, nil
 }
 
