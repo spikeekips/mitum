@@ -429,9 +429,14 @@ func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
 	}
 }
 
+type (
+	CompactAppendSliceAddFunc[T any]  func(T, ...T) (added, left uint64)
+	CompactAppendSliceDoneFunc[T any] func(func([]T) error) error
+)
+
 func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
-	add func(T, ...T) (added, left uint64),
-	done func(func([]T) error) error,
+	add CompactAppendSliceAddFunc[T],
+	done CompactAppendSliceDoneFunc[T],
 	_ error,
 ) {
 	var growN uint64
@@ -517,7 +522,14 @@ func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
 			return n, left
 		},
 		func(f func([]T) error) error {
+			lock.Lock()
+			defer lock.Unlock()
+
 			defer clear(s)
+
+			if f == nil {
+				return nil
+			}
 
 			if start < 1 {
 				return f(nil)

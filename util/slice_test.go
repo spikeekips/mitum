@@ -398,6 +398,29 @@ func (t *testCompactAppendSliceV1) TestCompactAppendSliceV1() {
 		}))
 	})
 
+	t.Run("nil done", func() {
+		add, done, err := CompactAppendSliceV1[int](3)
+		t.NoError(err)
+
+		added, left := add(1)
+		t.EqualValues(1, added)
+		t.EqualValues(2, left)
+
+		added, left = add(2)
+		t.EqualValues(1, added)
+		t.EqualValues(1, left)
+
+		added, left = add(3)
+		t.EqualValues(1, added)
+		t.EqualValues(0, left)
+
+		added, left = add(4)
+		t.EqualValues(0, added)
+		t.EqualValues(0, left)
+
+		t.NoError(done(nil))
+	})
+
 	t.Run("variadic, less", func() {
 		add, done, err := CompactAppendSliceV1[int](3)
 		t.NoError(err)
