@@ -3,6 +3,8 @@ package testopsworkers
 import (
 	"cmp"
 	"context"
+	"fmt"
+	"slices"
 	"time"
 
 	"github.com/pkg/errors"
@@ -50,8 +52,9 @@ type ProcessManagerArgs struct {
 	NewOpOwnersFunc     func(workers []string, share uint8) (opOwnersFunc, error)
 	NewStateOwnersFunc  func(workers []string, share uint8) (stateOwnersFunc, error)
 	MapSize             uint64
-	MaxStatesSize       uint64
+	MinStatesSize       uint64
 	WorkerCancelTimeout time.Duration
+	NewManifestFunc     func(context.Context, base.Manifest) error
 }
 
 func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
@@ -76,8 +79,11 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		NewOpOwnersFunc:     serialOpOwnersFunc,
 		NewStateOwnersFunc:  serialStateOwnersFunc,
 		MapSize:             1 << 9,
-		MaxStatesSize:       1 << 18,
+		MinStatesSize:       1 << 18,
 		WorkerCancelTimeout: time.Second * 3,
+		NewManifestFunc: func(context.Context, base.Manifest) error {
+			return util.ErrNotImplemented.Errorf("NewManifestFunc")
+		},
 	}
 }
 
@@ -104,11 +110,14 @@ type ProcessManager struct {
 	cleanf             func()
 	states             util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
 	reasons            util.LockedMap[ /* opindex */ uint64 /* reason */, string]
-	addStateKeys       func(...string) bool
-	doneStateKeys      func() []string
+	addStateNodes      func(fixedtree.Node, ...fixedtree.Node) (uint64, uint64)
+	doneStateNodes     func(func([]fixedtree.Node) error) error
+	addReasonNodes     func(fixedtree.Node, ...fixedtree.Node) (uint64, uint64)
+	doneReasonNodes    func(func([]fixedtree.Node) error) error
 	addFailedWorker    func(worker string) bool
 	isWorkersFailed    func() error
 	isFailedWorker     func(worker string) bool
+	blockFiles         util.LockedMap[base.BlockItemType, []string]
 }
 
 func NewProcessManager(
@@ -157,7 +166,9 @@ func NewProcessManager(
 	pm.mergeJobWorker, _ = args.NewJobWorker(pmctx)
 	pm.storeJobWorker, _ = args.NewJobWorker(pmctx)
 
-	switch i, err := util.NewShardedMap[string, []string](args.MapSize, nil); {
+	workerMapSize := uint64(len(args.Workers))
+
+	switch i, err := util.NewLockedMap[string, []string](workerMapSize, nil); {
 	case err != nil:
 		return nil, err
 	default:
@@ -178,6 +189,13 @@ func NewProcessManager(
 		pm.reasons = i
 	}
 
+	switch i, err := util.NewLockedMap[base.BlockItemType, []string](workerMapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		pm.blockFiles = i
+	}
+
 	switch i, err := args.NewStateOwnersFunc(pm.args.Workers, args.NStateShare); {
 	case err != nil:
 		return nil, err
@@ -192,11 +210,21 @@ func NewProcessManager(
 		pm.newOpOwnersFunc = newOpOwnersFunc(i)
 	}
 
-	// FIXME remove MaxStatesSize; use to grow CompactAppendSlice
-	pm.addStateKeys, pm.doneStateKeys = util.SortCompactAppendSlice[string](
-		int(pm.args.MaxStatesSize),
-		cmp.Less[string],
-	)
+	if size := uint64(len(ops)); size > 0 {
+		switch i, j, err := util.CompactAppendSliceV1[fixedtree.Node](size, args.MinStatesSize); {
+		case err != nil:
+			return nil, err
+		default:
+			pm.addStateNodes, pm.doneStateNodes = i, j
+		}
+
+		switch i, j, err := util.CompactAppendSliceV1[fixedtree.Node](size); {
+		case err != nil:
+			return nil, err
+		default:
+			pm.addReasonNodes, pm.doneReasonNodes = i, j
+		}
+	}
 
 	clearFailedWorkers := pm.failedWorkers()
 
@@ -211,7 +239,11 @@ func NewProcessManager(
 		pm.states.Close()
 		pm.workersMergeDone.EmptyValue()
 		pm.workersStoreDone.EmptyValue()
-		_ = pm.doneStateKeys()
+
+		if pm.doneStateNodes != nil {
+			_ = pm.doneStateNodes(nil)
+			_ = pm.doneReasonNodes(nil)
+		}
 	}
 
 	return pm, nil
@@ -250,8 +282,8 @@ func (pm *ProcessManager) Process() error {
 	return nil
 }
 
-func (pm *ProcessManager) WorkerStoreDone(worker string) error {
-	if err := pm.workerStoreDone(worker); err != nil {
+func (pm *ProcessManager) WorkerStoreDone(worker string, chunks map[base.BlockItemType]string) error {
+	if err := pm.workerStoreDone(worker, chunks); err != nil {
 		pm.cancel(err)
 
 		return err
@@ -267,7 +299,14 @@ func (pm *ProcessManager) ManifestDone() (base.Manifest, error) {
 		return nil, err
 	}
 
-	return pm.newManifest()
+	switch i, err := pm.newManifest(); {
+	case err != nil:
+		pm.cancel(err)
+
+		return nil, err
+	default:
+		return i, nil
+	}
 }
 
 func (pm *ProcessManager) StoreDone() error {
@@ -280,31 +319,40 @@ func (pm *ProcessManager) StoreDone() error {
 	return nil
 }
 
-func (pm *ProcessManager) Done() error {
+func (pm *ProcessManager) Done() (bf map[base.BlockItemType][]string, _ error) {
 	defer pm.Cancel()
 
 	if err := pm.mergeDone(); err != nil {
 		pm.ctxCancel(err)
 
-		return err
+		return nil, err
 	}
 
 	if err := pm.storeDone(); err != nil {
 		pm.ctxCancel(err)
 
-		return err
+		return nil, err
 	}
 
 	if err := pm.workersDone(); err != nil {
 		pm.ctxCancel(err)
 
-		return err
+		return nil, err
 	}
 
-	// FIXME
+	switch i, err := pm.newBlockFiles(); {
+	case err != nil:
+		pm.ctxCancel(err)
+
+		return nil, err
+	default:
+		bf = i
+	}
+
+	// FIXME move block files to non-temp place
 	pm.ctxCancel(errProcessManagerWorkersDone)
 
-	return nil
+	return bf, nil
 }
 
 func (pm *ProcessManager) UpdateMerged(worker string) (
@@ -333,8 +381,12 @@ func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) erro
 	if err := pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
 		if _, _, err := pm.states.Set(
 			stateKey,
-			func(util.Hash, bool) (util.Hash, error) {
-				pm.addStateKeys(stateKey)
+			func(_ util.Hash, found bool) (util.Hash, error) {
+				if found {
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				_, _ = pm.addStateNodes(newOrderedTreeNode(stateKey, fixedtree.NewBaseNode(stateHash.String())))
 
 				return stateHash, nil
 			},
@@ -358,15 +410,17 @@ func (pm *ProcessManager) updatedReason(
 ) error {
 	return pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
 		_, _, err := pm.reasons.Set(opindex, func(_ string, found bool) (string, error) {
-			if !found {
+			switch {
+			case found, len(reason) < 1:
+				return "", util.ErrLockedSetIgnore
+			default:
+				_, _ = pm.addReasonNodes(newOrderedTreeNode(
+					opindex,
+					base.NewNotInStateOperationFixedtreeNode(pm.ops[opindex][1], reason),
+				))
+
 				return reason, nil
 			}
-
-			if len(reason) < 1 {
-				return "", util.ErrLockedSetIgnore
-			}
-
-			return reason, nil
 		})
 
 		return err
@@ -487,7 +541,7 @@ func (pm *ProcessManager) workerMergeDone(worker string) error {
 	return nil
 }
 
-func (pm *ProcessManager) workerStoreDone(worker string) error {
+func (pm *ProcessManager) workerStoreDone(worker string, chunks map[base.BlockItemType]string) error {
 	l := pm.Log().With().Str("worker", worker).Logger()
 
 	var count uint64
@@ -513,6 +567,22 @@ func (pm *ProcessManager) workerStoreDone(worker string) error {
 		l.Debug().Msg("already store done")
 
 		return nil
+	}
+
+	for t := range chunks {
+		_, _, _ = pm.blockFiles.Set(t, func(c []string, _ bool) ([]string, error) {
+			wc := fmt.Sprintf("%s-%s", worker, chunks[t])
+
+			if len(c) < 1 {
+				return []string{wc}, nil
+			}
+
+			n := make([]string, len(c)+1)
+			copy(n, c)
+			n[len(c)] = wc
+
+			return n, nil
+		})
 	}
 
 	if pm.args.IsEnoughWorkers(count) {
@@ -716,18 +786,42 @@ func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 		Interface("manifest", manifest).
 		Msg("manifest created")
 
+	if err := pm.args.NewManifestFunc(pm.ctx(), manifest); err != nil {
+		return nil, err
+	}
+
 	return manifest, nil
 }
 
 func (pm *ProcessManager) newStatesTree() (util.Hash, error) {
-	keys := pm.doneStateKeys()
-	if len(keys) < 1 {
+	if len(pm.ops) < 1 {
 		return nil, nil
 	}
 
+	var nodes []fixedtree.Node
+
+	if err := pm.doneStateNodes(func(s []fixedtree.Node) error {
+		nodes = slices.Clone(s)
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(nodes) < 1 {
+		return nil, nil
+	}
+
+	slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
+		return cmp.Compare(
+			a.(orderedTreeNode[string]).K,
+			b.(orderedTreeNode[string]).K,
+		)
+	})
+
 	var tg *fixedtree.Writer
 
-	switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(keys))); {
+	switch i, err := fixedtree.NewWriterFromNodes(base.StateFixedtreeHint, nodes); {
 	case err != nil:
 		return nil, err
 	default:
@@ -735,17 +829,6 @@ func (pm *ProcessManager) newStatesTree() (util.Hash, error) {
 	}
 
 	// FIXME suffrage proof
-
-	if err := util.TraverseSliceV1(keys, func(i int, stateKey string) (bool, error) {
-		switch h, found := pm.states.Value(stateKey); {
-		case !found:
-			return false, util.ErrNotFound.Errorf("state hash, %q", stateKey)
-		default:
-			return true, tg.Add(uint64(i), fixedtree.NewBaseNode(h.String()))
-		}
-	}); err != nil {
-		return nil, err
-	}
 
 	switch tr, err := tg.Tree(); {
 	case err != nil:
@@ -764,31 +847,47 @@ func (pm *ProcessManager) newOpsTree() (util.Hash, error) {
 		return nil, nil
 	}
 
-	var tg *fixedtree.Writer
-
-	switch i, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(len(pm.ops))); {
-	case err != nil:
-		return nil, err
-	default:
-		tg = i
-	}
-
 	if err := util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
 		opindex := uint64(i)
 		_, fact := v[0], v[1]
 
-		var node base.OperationFixedtreeNode
-
-		switch reason, found := pm.reasons.Value(opindex); {
-		case found:
-			node = base.NewNotInStateOperationFixedtreeNode(fact, reason)
-		default:
-			node = base.NewInStateOperationFixedtreeNode(fact, "")
+		if pm.reasons.Exists(opindex) {
+			return true, nil
 		}
 
-		return true, tg.Add(opindex, node)
+		_, _ = pm.addReasonNodes(newOrderedTreeNode(
+			opindex,
+			base.NewInStateOperationFixedtreeNode(fact, ""),
+		))
+
+		return true, nil
+	}); err != nil {
+	}
+
+	var nodes []fixedtree.Node
+
+	if err := pm.doneReasonNodes(func(s []fixedtree.Node) error {
+		nodes = slices.Clone(s)
+
+		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
+		return cmp.Compare(
+			a.(orderedTreeNode[uint64]).K,
+			b.(orderedTreeNode[uint64]).K,
+		)
+	})
+
+	var tg *fixedtree.Writer
+
+	switch i, err := fixedtree.NewWriterFromNodes(base.StateFixedtreeHint, nodes); {
+	case err != nil:
+		return nil, err
+	default:
+		tg = i
 	}
 
 	switch tr, err := tg.Tree(); {
@@ -801,6 +900,22 @@ func (pm *ProcessManager) newOpsTree() (util.Hash, error) {
 
 		return tr.Root(), nil
 	}
+}
+
+func (pm *ProcessManager) newBlockFiles() (map[base.BlockItemType][]string, error) {
+	if pm.blockFiles.Len() < 1 {
+		return nil, nil
+	}
+
+	bf := map[base.BlockItemType][]string{}
+
+	_ = pm.blockFiles.Traverse(func(t base.BlockItemType, chunks []string) bool {
+		bf[t] = chunks
+
+		return true
+	})
+
+	return bf, nil
 }
 
 func (pm *ProcessManager) cancelWorkers() {

@@ -517,6 +517,7 @@ func (t *testProcessManager) TestCancel() {
 				func() {},
 				nil
 		}
+		args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
 
 		ops := [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}
 		pr := t.newProposal(33, ops)
@@ -911,6 +912,12 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 			func() {},
 			nil
 	}
+	manifestch := make(chan base.Manifest, 1)
+	args.NewManifestFunc = func(_ context.Context, manifest base.Manifest) error {
+		manifestch <- manifest
+
+		return nil
+	}
 
 	pm, err := NewProcessManager(context.Background(), args, previousManifest, previousSuffrage, pr)
 	t.NoError(err)
@@ -932,6 +939,13 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	t.Equal(pr.ProposalFact().ProposedAt(), manifest.ProposedAt())
 	t.Nil(manifest.OperationsTree())
 	t.Nil(manifest.StatesTree())
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait NewManifestFunc")
+	case m := <-manifestch:
+		base.EqualManifest(t.Assert(), manifest, m)
+	}
 }
 
 func (t *testProcessManager) newProcessWorker(
@@ -1156,6 +1170,7 @@ func (t *testProcessManager) testNWorkers(
 				cancel(nil)
 			}, nil
 	}
+	args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
 
 	go func() {
 		_ = pm.Process()
