@@ -310,7 +310,7 @@ func (pm *ProcessManager) StoreDone() error {
 	return nil
 }
 
-func (pm *ProcessManager) Done() (bf map[base.BlockItemType][]string, _ error) {
+func (pm *ProcessManager) Done() (bf map[base.BlockItemType]BlockItemFile, _ error) {
 	defer pm.Cancel()
 
 	if err := pm.mergeDone(); err != nil {
@@ -891,15 +891,15 @@ func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
 	return root, nil
 }
 
-func (pm *ProcessManager) newBlockFiles() (map[base.BlockItemType][]string, error) {
+func (pm *ProcessManager) newBlockFiles() (map[base.BlockItemType]BlockItemFile, error) {
 	if pm.blockFiles.Len() < 1 {
 		return nil, nil
 	}
 
-	bf := map[base.BlockItemType][]string{}
+	bf := map[base.BlockItemType]BlockItemFile{}
 
 	_ = pm.blockFiles.Traverse(func(t base.BlockItemType, chunks []string) bool {
-		bf[t] = chunks
+		bf[t] = NewBlockItemFile(chunks)
 
 		return true
 	})
