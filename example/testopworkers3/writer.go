@@ -45,7 +45,7 @@ func (w *baseBlockItemWriter) Cancel() {
 
 type (
 	writerSaveTreeNodeFunc  func(uint64, fixedtree.Node) error
-	writerCloseSaveFunc     func(bool) error
+	writerCloseSaveFunc     func(bool) (string, error)
 	writerSaveTreeNodeFuncs func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error)
 )
 
@@ -53,7 +53,7 @@ type baseTreeWriter[K cmp.Ordered] struct {
 	*baseBlockItemWriter
 	add      func(k K, node fixedtree.Node) error
 	treeRoot func() (util.Hash, error)
-	saveDone func() error
+	saveDone func() (string, error)
 }
 
 func NewBaseTreeWriter[K cmp.Ordered](
@@ -125,14 +125,17 @@ func (w *baseTreeWriter[K]) Tree() (util.Hash, error) {
 	}
 }
 
-func (w *baseTreeWriter[K]) Save() error {
-	if err := w.saveDone(); err != nil {
+func (w *baseTreeWriter[K]) Save() (chunk string, _ error) {
+	switch i, err := w.saveDone(); {
+	case err != nil:
 		w.ctxCancel(err)
 
-		return err
+		return "", err
+	default:
+		chunk = i
 	}
 
-	return nil
+	return chunk, nil
 }
 
 func (w *baseTreeWriter[K]) buildTree(
@@ -279,10 +282,11 @@ func (w *baseTreeWriter[K]) newSaveFuncs(
 ) (
 	sew util.JobWorker,
 	saveNodeFunc func(uint64, fixedtree.Node) error,
-	saveDone func() error,
+	saveDone func() (string, error),
 	_ error,
 ) {
-	var closeSaveNodeFunc func(bool) error
+	var closeSaveNodeFunc func(bool) (string, error)
+	var chunk string
 
 	sctx, sDone, _ := NewContextDoneFunc(
 		w.ctx(),
@@ -298,12 +302,19 @@ func (w *baseTreeWriter[K]) newSaveFuncs(
 
 				return sew.Wait()
 			}(); err != nil {
-				_ = closeSaveNodeFunc(false)
+				_, _ = closeSaveNodeFunc(false)
 
 				return err
 			}
 
-			return closeSaveNodeFunc(true)
+			switch i, err := closeSaveNodeFunc(true); {
+			case err != nil:
+				return err
+			default:
+				chunk = i
+
+				return nil
+			}
 		},
 	)
 
@@ -324,7 +335,13 @@ func (w *baseTreeWriter[K]) newSaveFuncs(
 
 	return sew,
 		saveNodeFunc,
-		sDone,
+		func() (string, error) {
+			if err := sDone(); err != nil {
+				return "", err
+			}
+
+			return chunk, nil
+		},
 		nil
 }
 

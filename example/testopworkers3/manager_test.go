@@ -996,6 +996,14 @@ func (t *testProcessManager) newProcessWorker(
 		})
 	}
 
+	pw.args.SaveOperationFuncs = func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+		return func(uint64, Operation) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+	}
+
+	pw.args.SaveStateFuncs = func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error) {
+		return func(base.State) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+	}
+
 	pw.args.UpdateMergeDoneFunc = func(_ context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
@@ -1174,8 +1182,8 @@ func (t *testProcessManager) testNWorkers(
 	args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
 	args.SaveTreeNodeFuncs = func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 		return func(uint64, fixedtree.Node) error { return nil },
-			func(ok bool) error {
-				return nil
+			func(ok bool) (string, error) {
+				return "", nil
 			},
 			nil
 	}
@@ -1190,7 +1198,7 @@ func (t *testProcessManager) testNWorkers(
 	return resultMergedOps, resultUnmergedOps, manifest
 }
 
-func (t *testProcessManager) TestWorkers() {
+func (t *testProcessManager) TestWorkersManifestDone() {
 	previousManifest := valuehash.RandomSHA256()
 	previousSuffrage := valuehash.RandomSHA256()
 

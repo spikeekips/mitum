@@ -340,7 +340,6 @@ func (pm *ProcessManager) Done() (bf map[base.BlockItemType]BlockItemFile, _ err
 		bf = i
 	}
 
-	// FIXME move block files to non-temp place
 	pm.ctxCancel(errProcessManagerWorkersDone)
 
 	return bf, nil
@@ -583,19 +582,7 @@ func (pm *ProcessManager) workerStoreDone(worker string, chunks map[base.BlockIt
 	}
 
 	for t := range chunks {
-		_, _, _ = pm.blockFiles.Set(t, func(c []string, _ bool) ([]string, error) {
-			wc := fmt.Sprintf("%s-%s", worker, chunks[t])
-
-			if len(c) < 1 {
-				return []string{wc}, nil
-			}
-
-			n := make([]string, len(c)+1)
-			copy(n, c)
-			n[len(c)] = wc
-
-			return n, nil
-		})
+		pm.setWorkerBlockFiles(worker, t, chunks[t])
 	}
 
 	if pm.args.IsEnoughWorkers(count) {
@@ -831,7 +818,14 @@ func (pm *ProcessManager) newStatesTree() (root util.Hash, _ error) {
 
 	if root != nil {
 		if err := pm.storeJobWorker.NewJob(func(context.Context, uint64) error {
-			return writer.Save()
+			switch i, err := writer.Save(); {
+			case err != nil:
+				return err
+			default:
+				pm.setWorkerBlockFiles("", base.BlockItemStatesTree, i)
+
+				return nil
+			}
 		}); err != nil {
 			return nil, err
 		}
@@ -882,7 +876,14 @@ func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
 
 	if root != nil {
 		if err := pm.storeJobWorker.NewJob(func(context.Context, uint64) error {
-			return writer.Save()
+			switch i, err := writer.Save(); {
+			case err != nil:
+				return err
+			default:
+				pm.setWorkerBlockFiles("", base.BlockItemOperationsTree, i)
+
+				return nil
+			}
 		}); err != nil {
 			return nil, err
 		}
@@ -1087,6 +1088,29 @@ func (pm *ProcessManager) newOperationsTreeWriterFunc() {
 
 		return writer, nil
 	}
+}
+
+func (pm *ProcessManager) setWorkerBlockFiles(worker string, t base.BlockItemType, chunk string) {
+	_, _, _ = pm.blockFiles.Set(t, func(c []string, _ bool) ([]string, error) {
+		var wc string
+
+		switch {
+		case len(worker) < 1:
+			wc = chunk
+		default:
+			wc = fmt.Sprintf("%s-%s", worker, chunk)
+		}
+
+		if len(c) < 1 {
+			return []string{wc}, nil
+		}
+
+		n := make([]string, len(c)+1)
+		copy(n, c)
+		n[len(c)] = wc
+
+		return n, nil
+	})
 }
 
 func validateProcessManagerArgs(

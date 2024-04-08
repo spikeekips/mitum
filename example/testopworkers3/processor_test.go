@@ -31,6 +31,8 @@ func (t *baseTestOperationProcessor) SetupSuite() {
 
 func (t *baseTestOperationProcessor) newProcessor(ctx context.Context) *OperationProcessor {
 	args := NewOperationProcessorArgs(t.networkID)
+	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
+	args.SaveOperationFunc = func(uint64, Operation) error { return nil }
 
 	opsr, err := NewOperationProcessor(ctx, args)
 	t.NoError(err)
@@ -369,6 +371,12 @@ type testProcessWorker struct {
 
 func (t *testProcessWorker) newWorker(ctx context.Context, local string) *ProcessWorker {
 	args := NewProcessWorkerArgs(t.networkID)
+	args.SaveOperationFuncs = func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+		return func(uint64, Operation) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+	}
+	args.SaveStateFuncs = func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error) {
+		return func(base.State) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+	}
 
 	pw, err := NewProcessWorker(ctx, args, local, 33)
 	t.NoError(err)
@@ -569,7 +577,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 				func() error { return nil },
 				nil
 		}
-		pw.args.UpdateStoreDoneFunc = func(ctx context.Context) error {
+		pw.args.UpdateStoreDoneFunc = func(ctx context.Context, _ map[base.BlockItemType]string) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -757,7 +765,7 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 	}
 }
 
-func (t *testProcessWorker) TestStoreOperation() {
+func (t *testProcessWorker) TestSaveOperation() {
 	nops := 33
 	ops := make([]Op, nops)
 	ophs := map[string]uint64{}
@@ -783,7 +791,13 @@ func (t *testProcessWorker) TestStoreOperation() {
 			func() error { return nil },
 			nil
 	}
-	pw.args.UpdateStoreDoneFunc = func(context.Context) error { return nil }
+
+	updatestorech := make(chan map[base.BlockItemType]string, 1)
+	pw.args.UpdateStoreDoneFunc = func(_ context.Context, m map[base.BlockItemType]string) error {
+		updatestorech <- m
+
+		return nil
+	}
 
 	pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
 		switch opindex, found := ophs[operation.String()]; {
@@ -795,11 +809,20 @@ func (t *testProcessWorker) TestStoreOperation() {
 	}
 	pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
+	opsfilename := util.UUID().String()
+	storedch := make(chan bool, 1)
 	storedOps := util.NewSingleLockedMap[uint64, Operation]()
-	pw.args.StoreOperationFunc = func(opindex uint64, op Operation) error {
-		storedOps.SetValue(opindex, op)
+	pw.args.SaveOperationFuncs = func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+		return func(opindex uint64, op Operation) error {
+				storedOps.SetValue(opindex, op)
 
-		return nil
+				return nil
+			}, func(ok bool) (string, error) {
+				storedch <- ok
+
+				return opsfilename, nil
+			},
+			nil
 	}
 
 	process, done, _, err := pw.NewOperations()
@@ -823,6 +846,20 @@ func (t *testProcessWorker) TestStoreOperation() {
 
 		return true
 	})
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait to close save")
+	case ok := <-storedch:
+		t.True(ok)
+	}
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait to save block files")
+	case m := <-updatestorech:
+		t.Equal(map[base.BlockItemType]string{base.BlockItemOperations: opsfilename}, m)
+	}
 }
 
 func (t *testProcessWorker) Test3Workers() {

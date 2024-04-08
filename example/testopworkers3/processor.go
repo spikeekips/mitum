@@ -18,6 +18,11 @@ var (
 	errProcessWorkerCanceledByManager = util.NewIDError("ProcessWorker canceled by manager")
 )
 
+type (
+	processWorkerSaveOperationFunc func(opindex uint64, op Operation) error
+	processWorkerSaveStateFunc     func(base.State) error
+)
+
 type Operation interface {
 	base.Operation
 	ProcessNew(context.Context) (
@@ -30,7 +35,7 @@ type OperationProcessorArgs struct {
 	NewJobWorker             func(context.Context) (util.JobWorker, error)
 	GetOperationFunc         func(_ context.Context, operation util.Hash) (Operation, bool, error)
 	IsInStateOperationFunc   func(_ context.Context, fact util.Hash) (bool, error)
-	StoreOperationFunc       func(opindex uint64, op Operation) error
+	SaveOperationFunc        processWorkerSaveOperationFunc
 	UpdateReasonsFunc        func(opindex uint64, reason base.OperationProcessReasonError) error
 	MergeStateMergeValueFunc func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
 }
@@ -41,11 +46,19 @@ func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
-		GetOperationFunc:         func(context.Context, util.Hash) (Operation, bool, error) { return nil, false, nil },
-		IsInStateOperationFunc:   func(context.Context, util.Hash) (bool, error) { return false, nil },
-		StoreOperationFunc:       func(uint64, Operation) error { return nil },
-		UpdateReasonsFunc:        func(uint64, base.OperationProcessReasonError) error { return nil },
-		MergeStateMergeValueFunc: func(uint64, util.Hash, []StateMergeValue) error { return nil },
+		GetOperationFunc: func(context.Context, util.Hash) (Operation, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("GetOperationFunc")
+		},
+		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
+			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
+		},
+		SaveOperationFunc: func(uint64, Operation) error { return util.ErrNotImplemented.Errorf("SaveOperationFunc") },
+		UpdateReasonsFunc: func(uint64, base.OperationProcessReasonError) error {
+			return util.ErrNotImplemented.Errorf("UpdateReasonsFunc")
+		},
+		MergeStateMergeValueFunc: func(uint64, util.Hash, []StateMergeValue) error {
+			return util.ErrNotImplemented.Errorf("MergeStateMergeValueFunc")
+		},
 	}
 }
 
@@ -146,7 +159,7 @@ func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op,
 	default:
 		opb = i
 
-		if err := opsr.args.StoreOperationFunc(opindex, opb); err != nil {
+		if err := opsr.args.SaveOperationFunc(opindex, opb); err != nil {
 			return err
 		}
 	}
@@ -196,15 +209,15 @@ type ProcessWorkerArgs struct {
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	BroadcastCanceled             func() error
-	StoreOperationFunc            func(opindex uint64, op Operation) error
-	StoreStateFunc                func(base.State) error
+	SaveOperationFuncs            func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error)
+	SaveStateFuncs                func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error)
 	UpdateMergeDoneFunc           func(context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
 		done func() error,
 		_ error,
 	)
-	UpdateStoreDoneFunc func(context.Context) error
+	UpdateStoreDoneFunc func(context.Context, map[base.BlockItemType]string) error
 	MapSize             uint64
 }
 
@@ -225,8 +238,12 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
 		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
 		BroadcastCanceled:             func() error { return nil },
-		StoreOperationFunc:            func(uint64, Operation) error { return nil },
-		StoreStateFunc:                func(base.State) error { return nil },
+		SaveOperationFuncs: func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveOperationFuncs")
+		},
+		SaveStateFuncs: func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveStateFunc")
+		},
 		UpdateMergeDoneFunc: func(context.Context) (
 			updateState func(base.State) error,
 			updateReason func(opindex uint64, reason string) error,
@@ -235,7 +252,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("UpdateMergeDoneFunc")
 		},
-		UpdateStoreDoneFunc: func(context.Context) error {
+		UpdateStoreDoneFunc: func(context.Context, map[base.BlockItemType]string) error {
 			return util.ErrNotImplemented.Errorf("UpdateStoreDoneFunc")
 		},
 		MapSize: 1 << 9,
@@ -244,26 +261,30 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 
 type ProcessWorker struct {
 	*logging.Logging
-	args                  *ProcessWorkerArgs
-	local                 string
-	height                base.Height
-	ctx                   func() context.Context
-	ctxCancel             func(error)
-	mergeCtx              func() context.Context
-	mergeCtxCancel        func(error)
-	preNewOperations      func() (*OperationProcessor, func() error, error)
-	merger                func() (*StatesMergerWorker, error)
-	mergeDelayedWorker    util.JobWorker
-	delayedWorker         util.JobWorker
-	cleanf                func()
-	opOwners              util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
-	stateOwners           util.LockedMap[ /* state key */ string /* worker */, []string]
-	states                util.LockedMap[string, base.State]
-	mergedStateMergers    util.LockedMap[string, StateMerger]
-	collectPhaseMergedOps collectPhaseMergedOpsFunc
-	collectPhaseReason    collectPhaseReasonFunc
-	collectPhaseResult    collectPhaseResultFunc
-	ophs                  util.LockedMap[uint64, util.Hash]
+	args                   *ProcessWorkerArgs
+	local                  string
+	height                 base.Height
+	ctx                    func() context.Context
+	ctxCancel              func(error)
+	mergeCtx               func() context.Context
+	mergeCtxCancel         func(error)
+	preNewOperations       func() (*OperationProcessor, func() error, error)
+	merger                 func() (*StatesMergerWorker, error)
+	mergeDelayedWorker     util.JobWorker
+	delayedWorker          util.JobWorker
+	cleanf                 func()
+	opOwners               util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
+	stateOwners            util.LockedMap[ /* state key */ string /* worker */, []string]
+	states                 util.LockedMap[string, base.State]
+	mergedStateMergers     util.LockedMap[string, StateMerger]
+	collectPhaseMergedOps  collectPhaseMergedOpsFunc
+	collectPhaseReason     collectPhaseReasonFunc
+	collectPhaseResult     collectPhaseResultFunc
+	ophs                   util.LockedMap[uint64, util.Hash]
+	saveOperationFunc      processWorkerSaveOperationFunc
+	saveDoneOperationsFunc writerCloseSaveFunc
+	saveStateFunc          processWorkerSaveStateFunc
+	saveDoneStatesFunc     writerCloseSaveFunc
 }
 
 func NewProcessWorker(
@@ -381,6 +402,8 @@ func NewProcessWorker(
 		collectClose = m
 	}
 
+	pw.attachSaveFuncs()
+
 	pw.cleanf = func() {
 		if opsr != nil {
 			opsr.Cancel()
@@ -411,6 +434,18 @@ func NewProcessWorker(
 		default:
 			if err := pw.args.BroadcastCanceled(); err != nil {
 				pw.Log().Error().Err(err).Msg("failed to broadcast canceled")
+			}
+
+			if pw.saveDoneOperationsFunc != nil {
+				if _, err := pw.saveDoneOperationsFunc(false); err != nil {
+					pw.Log().Error().Err(err).Msg("failed to cancel to save operation")
+				}
+			}
+
+			if pw.saveDoneStatesFunc != nil {
+				if _, err := pw.saveDoneStatesFunc(false); err != nil {
+					pw.Log().Error().Err(err).Msg("failed to cancel to save states")
+				}
 			}
 		}
 	}()
@@ -586,11 +621,27 @@ func (pw *ProcessWorker) wait() error {
 		return err
 	}
 
-	// FIXME wait until
-	// - merger done
-	// - store block files
+	bf := map[base.BlockItemType]string{}
 
-	if err := pw.args.UpdateStoreDoneFunc(pw.ctx()); err != nil {
+	if pw.saveDoneOperationsFunc != nil {
+		switch i, err := pw.saveDoneOperationsFunc(true); {
+		case err != nil:
+			return err
+		default:
+			bf[base.BlockItemOperations] = i
+		}
+	}
+
+	if pw.saveDoneStatesFunc != nil {
+		switch i, err := pw.saveDoneStatesFunc(true); {
+		case err != nil:
+			return err
+		default:
+			bf[base.BlockItemStates] = i
+		}
+	}
+
+	if err := pw.args.UpdateStoreDoneFunc(pw.ctx(), bf); err != nil {
 		return err
 	}
 
@@ -660,7 +711,7 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	args.NewJobWorker = pw.args.NewJobWorker
 	args.GetOperationFunc = pw.args.GetOperationFunc
 	args.IsInStateOperationFunc = pw.args.IsInStateOperationFunc
-	args.StoreOperationFunc = pw.storeOperation
+	args.SaveOperationFunc = pw.saveOperation
 	args.UpdateReasonsFunc = pw.opsrUpdateReasons
 	args.MergeStateMergeValueFunc = pw.mergeStateMergeValue
 
@@ -692,9 +743,9 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	}, nil
 }
 
-func (pw *ProcessWorker) storeOperation(opindex uint64, op Operation) error {
-	return pw.delayedWorker.NewJob(func(ctx context.Context, _ uint64) error {
-		return pw.args.StoreOperationFunc(opindex, op)
+func (pw *ProcessWorker) saveOperation(opindex uint64, op Operation) error {
+	return pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+		return pw.saveOperationFunc(opindex, op)
 	})
 }
 
@@ -987,7 +1038,7 @@ func (pw *ProcessWorker) mergeResult() error {
 				return err
 			default:
 				if err := pw.delayedWorker.NewJob(func(context.Context, uint64) error {
-					return pw.args.StoreStateFunc(i)
+					return pw.saveStateFunc(i)
 				}); err != nil {
 					return err
 				}
@@ -1062,6 +1113,49 @@ func (pw *ProcessWorker) newState(
 	}
 
 	return base.NewBaseState(pw.height, stateKey, value, prev, doneFacts()), nil
+}
+
+func (pw *ProcessWorker) attachSaveFuncs() {
+	var of processWorkerSaveOperationFunc
+	var sf processWorkerSaveStateFunc
+	var oOnce, sOnce sync.Once
+	var oerr, serr error
+
+	pw.saveOperationFunc = func(opindex uint64, op Operation) error {
+		oOnce.Do(func() {
+			switch i, j, err := pw.args.SaveOperationFuncs(pw.ctx()); {
+			case err != nil:
+				oerr = err
+			default:
+				of = i
+				pw.saveDoneOperationsFunc = j
+			}
+		})
+
+		if oerr != nil {
+			return oerr
+		}
+
+		return of(opindex, op)
+	}
+
+	pw.saveStateFunc = func(st base.State) error {
+		sOnce.Do(func() {
+			switch i, j, err := pw.args.SaveStateFuncs(pw.ctx()); {
+			case err != nil:
+				serr = err
+			default:
+				sf = i
+				pw.saveDoneStatesFunc = j
+			}
+		})
+
+		if serr != nil {
+			return serr
+		}
+
+		return sf(st)
+	}
 }
 
 type (

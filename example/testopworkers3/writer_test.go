@@ -177,10 +177,10 @@ func (t *testTreeWriter) TestCancel() {
 							return saveNodeFunc(index, node)
 						}
 					},
-					func(ok bool) error {
+					func(ok bool) (string, error) {
 						closesavech <- ok
 
-						return closef()
+						return "", closef()
 					},
 					nil
 			},
@@ -198,7 +198,7 @@ func (t *testTreeWriter) TestCancel() {
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
 
-		err = w.Save()
+		_, err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
 
@@ -235,10 +235,10 @@ func (t *testTreeWriter) TestCancel() {
 							return saveNodeFunc(index, node)
 						}
 					},
-					func(ok bool) error {
+					func(ok bool) (string, error) {
 						closesavech <- ok
 
-						return closef()
+						return "", closef()
 					},
 					nil
 			},
@@ -256,7 +256,7 @@ func (t *testTreeWriter) TestCancel() {
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
 
-		err = w.Save()
+		_, err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
 
@@ -280,7 +280,7 @@ func (t *testTreeWriter) TestCancel() {
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(uint64, fixedtree.Node) error { return nil },
-					func(bool) error { return nil },
+					func(bool) (string, error) { return "", nil },
 					nil
 			},
 			1,
@@ -292,7 +292,7 @@ func (t *testTreeWriter) TestCancel() {
 		_, err = w.Tree()
 		t.ErrorIs(err, context.Canceled)
 
-		err = w.Save()
+		_, err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -310,10 +310,10 @@ func (t *testTreeWriter) TestCancel() {
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(uint64, fixedtree.Node) error { return nil },
-					func(ok bool) error {
+					func(ok bool) (string, error) {
 						closesavech <- ok
 
-						return nil
+						return "", nil
 					},
 					nil
 			},
@@ -328,7 +328,7 @@ func (t *testTreeWriter) TestCancel() {
 		_, err = w.Tree()
 		t.ErrorIs(err, context.Canceled)
 
-		err = w.Save()
+		_, err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 
 		select {
@@ -364,9 +364,9 @@ func (t *testTreeWriter) TestCancel() {
 							return errors.Errorf("showme")
 						}
 					},
-					func(ok bool) error {
+					func(ok bool) (string, error) {
 						closeokch <- ok
-						return nil
+						return "", nil
 					},
 					nil
 			},
@@ -382,7 +382,7 @@ func (t *testTreeWriter) TestCancel() {
 		t.NoError(err)
 		t.NotNil(h)
 
-		err = w.Save()
+		_, err = w.Save()
 		t.ErrorContains(err, "showme")
 
 		t.False(<-closeokch)
@@ -408,7 +408,7 @@ func (t *testTreeWriter) TestStatesTree() {
 				return func(index uint64, node fixedtree.Node) error {
 						return saveNodeFunc(index, node)
 					},
-					func(bool) error { return closef() },
+					func(bool) (string, error) { return "", closef() },
 					nil
 			},
 			3,
@@ -444,7 +444,8 @@ func (t *testTreeWriter) TestStatesTree() {
 		t.NoError(err)
 		t.NotNil(h)
 
-		t.NoError(w.Save())
+		_, err = w.Save()
+		t.NoError(err)
 
 		rtr, err := LoadTreeFromFile(t.Enc, base.StateFixedtreeHint, savedFile)
 		t.NoError(err)
@@ -482,10 +483,10 @@ func (t *testTreeWriter) TestStatesTree() {
 				return func(index uint64, node fixedtree.Node) error {
 						return saveNodeFunc(index, node)
 					},
-					func(ok bool) error {
+					func(ok bool) (string, error) {
 						closesavech <- ok
 
-						return closef()
+						return "", closef()
 					},
 					nil
 			},
@@ -497,7 +498,8 @@ func (t *testTreeWriter) TestStatesTree() {
 		t.NoError(err)
 		t.Nil(h)
 
-		t.NoError(w.Save())
+		_, err = w.Save()
+		t.NoError(err)
 
 		_, err = os.Stat(savedFile)
 		t.True(os.IsNotExist(err))
