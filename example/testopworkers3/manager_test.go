@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -1171,6 +1172,13 @@ func (t *testProcessManager) testNWorkers(
 			}, nil
 	}
 	args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
+	args.SaveTreeNodeFuncs = func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+		return func(uint64, fixedtree.Node) error { return nil },
+			func(ok bool) error {
+				return nil
+			},
+			nil
+	}
 
 	go func() {
 		_ = pm.Process()

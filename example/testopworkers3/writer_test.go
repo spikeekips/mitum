@@ -160,14 +160,15 @@ func (t *testTreeWriter) TestCancel() {
 		t.NoError(err)
 		defer closef()
 
+		closesavech := make(chan bool, 1)
+
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(ctx context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(index uint64, node fixedtree.Node) error {
 						select {
 						case <-ctx.Done():
@@ -176,7 +177,12 @@ func (t *testTreeWriter) TestCancel() {
 							return saveNodeFunc(index, node)
 						}
 					},
-					func(bool) error { return closef() }
+					func(ok bool) error {
+						closesavech <- ok
+
+						return closef()
+					},
+					nil
 			},
 			1,
 		)
@@ -195,6 +201,13 @@ func (t *testTreeWriter) TestCancel() {
 		err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait close save")
+		case ok := <-closesavech:
+			t.False(ok)
+		}
 	})
 
 	t.Run("Cancel()", func() {
@@ -205,14 +218,15 @@ func (t *testTreeWriter) TestCancel() {
 		t.NoError(err)
 		defer closef()
 
+		closesavech := make(chan bool, 1)
+
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(ctx context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(index uint64, node fixedtree.Node) error {
 						select {
 						case <-ctx.Done():
@@ -221,7 +235,12 @@ func (t *testTreeWriter) TestCancel() {
 							return saveNodeFunc(index, node)
 						}
 					},
-					func(bool) error { return closef() }
+					func(ok bool) error {
+						closesavech <- ok
+
+						return closef()
+					},
+					nil
 			},
 			1,
 		)
@@ -240,6 +259,13 @@ func (t *testTreeWriter) TestCancel() {
 		err = w.Save()
 		t.ErrorIs(err, context.Canceled)
 		t.Nil(h)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait close save")
+		case ok := <-closesavech:
+			t.False(ok)
+		}
 	})
 
 	t.Run("cancel before add", func() {
@@ -248,14 +274,14 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(uint64, fixedtree.Node) error { return nil },
-					func(bool) error { return nil }
+					func(bool) error { return nil },
+					nil
 			},
 			1,
 		)
@@ -274,16 +300,22 @@ func (t *testTreeWriter) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		closesavech := make(chan bool, 1)
+
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(uint64, fixedtree.Node) error { return nil },
-					func(bool) error { return nil }
+					func(ok bool) error {
+						closesavech <- ok
+
+						return nil
+					},
+					nil
 			},
 			1,
 		)
@@ -298,6 +330,13 @@ func (t *testTreeWriter) TestCancel() {
 
 		err = w.Save()
 		t.ErrorIs(err, context.Canceled)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait close save")
+		case ok := <-closesavech:
+			t.False(ok)
+		}
 	})
 
 	t.Run("save error", func() {
@@ -308,12 +347,11 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(ctx context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(index uint64, node fixedtree.Node) error {
 						if index < 1 {
 							return nil
@@ -329,7 +367,8 @@ func (t *testTreeWriter) TestCancel() {
 					func(ok bool) error {
 						closeokch <- ok
 						return nil
-					}
+					},
+					nil
 			},
 			1,
 		)
@@ -361,16 +400,16 @@ func (t *testTreeWriter) TestStatesTree() {
 
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(index uint64, node fixedtree.Node) error {
 						return saveNodeFunc(index, node)
 					},
-					func(bool) error { return closef() }
+					func(bool) error { return closef() },
+					nil
 			},
 			3,
 		)
@@ -431,18 +470,24 @@ func (t *testTreeWriter) TestStatesTree() {
 		t.NoError(err)
 		defer closef()
 
+		closesavech := make(chan bool, 1)
+
 		w, err := NewBaseTreeWriter[string](
 			ctx,
-			t.Enc,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
-			func(context.Context) (treeWriterSaveNodeFunc, treeWriterCloseSaveNodeFunc) {
+			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 				return func(index uint64, node fixedtree.Node) error {
 						return saveNodeFunc(index, node)
 					},
-					func(bool) error { return closef() }
+					func(ok bool) error {
+						closesavech <- ok
+
+						return closef()
+					},
+					nil
 			},
 			3,
 		)
@@ -456,6 +501,13 @@ func (t *testTreeWriter) TestStatesTree() {
 
 		_, err = os.Stat(savedFile)
 		t.True(os.IsNotExist(err))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait close save")
+		case ok := <-closesavech:
+			t.True(ok)
+		}
 	})
 }
 
