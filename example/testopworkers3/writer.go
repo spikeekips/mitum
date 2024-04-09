@@ -3,14 +3,18 @@ package testopsworkers
 import (
 	"bytes"
 	"cmp"
+	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -18,19 +22,19 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type baseBlockItemWriter struct {
+type BaseBlockItemWriter struct {
 	ctx          func() context.Context
 	ctxCancel    func(error)
 	newJobWorker func(context.Context) (util.JobWorker, error)
 }
 
-func newBaseBlockItemWriter(
+func NewBaseBlockItemWriter(
 	ctx context.Context,
 	newJobWorker func(context.Context) (util.JobWorker, error),
-) *baseBlockItemWriter {
+) *BaseBlockItemWriter {
 	wctx, wctxCancel := context.WithCancelCause(ctx)
 
-	return &baseBlockItemWriter{
+	return &BaseBlockItemWriter{
 		ctx: func() context.Context { return wctx },
 		ctxCancel: func(err error) {
 			wctxCancel(err)
@@ -39,8 +43,131 @@ func newBaseBlockItemWriter(
 	}
 }
 
-func (w *baseBlockItemWriter) Cancel() {
+func (w *BaseBlockItemWriter) Cancel() {
 	w.ctxCancel(nil)
+}
+
+type (
+	writerSaveBlockItemFunc  func(interface{}) error
+	writerSaveBlockItemFuncs func(context.Context, base.BlockItemType) (writerSaveBlockItemFunc, writerCloseSaveFunc, error)
+)
+
+func NewSingleBlockItemWriter(
+	ctx context.Context,
+	t base.BlockItemType,
+	i interface{},
+	savef writerSaveBlockItemFuncs,
+) (string, error) {
+	var save writerSaveBlockItemFunc
+	var saveDone writerCloseSaveFunc
+
+	switch i, j, err := savef(ctx, t); {
+	case err != nil:
+		return "", err
+	default:
+		save = i
+		saveDone = j
+	}
+
+	if err := save(i); err != nil {
+		_, _ = saveDone(false)
+
+		return "", err
+	}
+
+	return saveDone(true)
+}
+
+type VoteproofWriter struct {
+	*BaseBlockItemWriter
+	SetACCEPTVoteproof func(base.ACCEPTVoteproof) (string, error)
+}
+
+func NewVoteproofWriter(
+	ctx context.Context,
+	ivp base.INITVoteproof,
+	savef writerSaveBlockItemFuncs,
+) (*VoteproofWriter, error) {
+	w := &VoteproofWriter{
+		BaseBlockItemWriter: NewBaseBlockItemWriter(ctx, nil),
+	}
+
+	var save writerSaveBlockItemFunc
+	var saveDone writerCloseSaveFunc
+
+	switch i, j, err := savef(w.ctx(), base.BlockItemVoteproofs); {
+	case err != nil:
+		return nil, err
+	default:
+		save = i
+		saveDone = j
+	}
+
+	_, doneINIT, _ := NewContextDoneFunc(
+		w.ctx(),
+		func(context.Context) error {
+			if err := save(ivp); err != nil {
+				w.ctxCancel(err)
+
+				return err
+			}
+
+			return nil
+		},
+	)
+
+	avpch := make(chan base.ACCEPTVoteproof, 1)
+
+	var chunk string
+
+	saveACCEPT := func(ctx context.Context) error {
+		if err := doneINIT(); err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case vp := <-avpch:
+			if err := save(vp); err != nil {
+				return err
+			}
+
+			switch i, err := saveDone(true); {
+			case err != nil:
+				return err
+			default:
+				chunk = i
+
+				return nil
+			}
+		}
+	}
+
+	_, doneACCEPT, _ := NewContextDoneFunc(
+		w.ctx(),
+		func(ctx context.Context) error {
+			if err := saveACCEPT(ctx); err != nil {
+				_, _ = saveDone(false)
+
+				return err
+			}
+
+			return nil
+		},
+	)
+
+	w.SetACCEPTVoteproof = func(vp base.ACCEPTVoteproof) (string, error) {
+		avpch <- vp
+
+		if err := doneACCEPT(); err != nil {
+			return "", err
+		}
+
+		return chunk, nil
+	}
+
+	return w, nil
 }
 
 type (
@@ -50,7 +177,7 @@ type (
 )
 
 type baseTreeWriter[K cmp.Ordered] struct {
-	*baseBlockItemWriter
+	*BaseBlockItemWriter
 	add      func(k K, node fixedtree.Node) error
 	treeRoot func() (util.Hash, error)
 	saveDone func() (string, error)
@@ -64,7 +191,7 @@ func NewBaseTreeWriter[K cmp.Ordered](
 	minNodesSize uint64,
 ) (*baseTreeWriter[K], error) {
 	w := &baseTreeWriter[K]{
-		baseBlockItemWriter: newBaseBlockItemWriter(ctx, newJobWorker),
+		BaseBlockItemWriter: NewBaseBlockItemWriter(ctx, newJobWorker),
 	}
 
 	var sew util.JobWorker
@@ -397,6 +524,22 @@ func OpenCompressedFile(f string) (*util.CompressedReader, error) {
 	}
 }
 
+func NewCompressedFile(fpath string) (io.WriteCloser, error) {
+	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, err
+	}
+
+	g, err := util.NewGzipWriter(f, gzip.BestSpeed)
+	if err != nil {
+		_ = f.Close()
+
+		return nil, err
+	}
+
+	return g, nil
+}
+
 func LoadTree(
 	enc encoder.Encoder,
 	ht hint.Hint,
@@ -511,4 +654,215 @@ func NewContextDoneFunc(
 			}
 		},
 		cctxCancel
+}
+
+func NewWriterSaveBlockItemFuncs(
+	db isaac.BlockWriteDatabase,
+	root string,
+	enc encoder.Encoder,
+) writerSaveBlockItemFuncs {
+	return func(ctx context.Context, t base.BlockItemType) (writerSaveBlockItemFunc, writerCloseSaveFunc, error) {
+		switch t {
+		case base.BlockItemProposal:
+			return newWriterSaveBlockItemFileFuncs(root, enc.Marshal, "proposal.json.gz")(ctx, t)
+		case base.BlockItemVoteproofs:
+			return newWriterSaveBlockItemFileFuncs(root, enc.Marshal, "voteproofs.json.gz")(ctx, t)
+		case base.BlockItemStatesTree:
+			return newWriterSaveBlockItemFileFuncs(root, enc.Marshal, "states_tree.json.gz")(ctx, t)
+		case base.BlockItemMap:
+			switch i, j, err := newWriterSaveBlockItemFileFuncs(root, enc.Marshal, "map.json")(ctx, t); {
+			case err != nil:
+				return nil, nil, err
+			default:
+				return func(v interface{}) error {
+					if err := i(v); err != nil {
+						return err
+					}
+
+					return db.SetBlockMap(v.(base.BlockMap))
+				}, j, nil
+			}
+		default:
+			return nil, nil, util.ErrNotFound.Errorf("unknown item type, %q", t)
+		}
+	}
+}
+
+func newWriterSaveBlockItemFileFuncs(
+	root string,
+	encode func(interface{}) ([]byte, error),
+	fname string,
+) writerSaveBlockItemFuncs {
+	fpath := filepath.Join(filepath.Clean(root), fname)
+
+	return func(ctx context.Context, _ base.BlockItemType) (writerSaveBlockItemFunc, writerCloseSaveFunc, error) {
+		var fonce sync.Once
+
+		var f io.WriteCloser
+		var gerr error
+
+		return func(i interface{}) error {
+				fonce.Do(func() {
+					switch i, err := NewCompressedFile(fpath); {
+					case err != nil:
+						gerr = err
+						return
+					default:
+						f = i
+					}
+				})
+
+				if gerr != nil {
+					return gerr
+				}
+
+				switch b, err := encode(i); {
+				case err != nil:
+					return err
+				default:
+					if _, err := f.Write(b); err != nil {
+						return err
+					}
+
+					return nil
+				}
+			},
+			func(ok bool) (string, error) {
+				if f == nil {
+					return "", nil
+				}
+
+				if err := f.Close(); err != nil {
+					return "", err
+				}
+
+				if !ok {
+					if err := os.Remove(fpath); err != nil {
+						return "", err
+					}
+				}
+
+				return fpath, nil
+			},
+			nil
+	}
+}
+
+var blockItemMapTree base.BlockItemType = "tree"
+
+func newWriterSaveTreeFuncs(
+	root string,
+	enc encoder.Encoder,
+	fname string,
+) writerSaveTreeNodeFuncs {
+	return func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+		var fsave writerSaveBlockItemFunc
+		var fclose writerCloseSaveFunc
+
+		nodeEncode := func(i interface{}) ([]byte, error) {
+			j := i.([2]interface{})
+			index, node := j[0].(uint64), j[1].(fixedtree.Node)
+
+			switch b, err := enc.Marshal(node); {
+			case err != nil:
+				return nil, err
+			default:
+				return util.ConcatBytesSlice(
+					[]byte(fmt.Sprintf("%d,", index)),
+					b,
+					[]byte("\n"),
+				), nil
+			}
+		}
+
+		switch i, j, err := newWriterSaveBlockItemFileFuncs(root, nodeEncode, fname)(ctx, blockItemMapTree); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			fsave = i
+			fclose = j
+		}
+
+		return func(index uint64, node fixedtree.Node) error {
+				return fsave([2]interface{}{index, node})
+			},
+			fclose,
+			nil
+	}
+}
+
+func newWriterSaveStatesFuncs(
+	db isaac.BlockWriteDatabase,
+	root string,
+	enc encoder.Encoder,
+	fname string,
+) saveStateFuncs {
+	return func(ctx context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error) {
+		var fsave writerSaveBlockItemFunc
+		var fclose writerCloseSaveFunc
+
+		switch i, j, err := newWriterSaveBlockItemFileFuncs(root, enc.Marshal, fname)(ctx, base.BlockItemStates); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			fsave = i
+			fclose = j
+		}
+
+		return func(st base.State) error {
+				if err := fsave(st); err != nil {
+					return err
+				}
+
+				return db.SetStates([]base.State{st})
+			},
+			fclose,
+			nil
+	}
+}
+
+func newWriterSaveOperationsFuncs(
+	db isaac.BlockWriteDatabase,
+	root string,
+	enc encoder.Encoder,
+	fname string,
+) saveOperationFuncs {
+	return func(ctx context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+		nodeEncode := func(i interface{}) ([]byte, error) {
+			j := i.([2]interface{})
+			index, op := j[0].(uint64), j[1].(Operation)
+
+			switch b, err := enc.Marshal(op); {
+			case err != nil:
+				return nil, err
+			default:
+				return util.ConcatBytesSlice(
+					[]byte(fmt.Sprintf("%d,", index)),
+					b,
+					[]byte("\n"),
+				), nil
+			}
+		}
+
+		var fsave writerSaveBlockItemFunc
+		var fclose writerCloseSaveFunc
+
+		switch i, j, err := newWriterSaveBlockItemFileFuncs(root, nodeEncode, fname)(ctx, base.BlockItemOperations); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			fsave = i
+			fclose = j
+		}
+
+		return func(index uint64, op Operation) error {
+				if err := fsave([2]interface{}{index, op}); err != nil {
+					return err
+				}
+
+				return db.SetOperations([]util.Hash{op.Hash()})
+			},
+			fclose,
+			nil
+	}
 }

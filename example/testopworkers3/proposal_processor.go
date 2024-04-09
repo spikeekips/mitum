@@ -9,18 +9,136 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type ProposalProcessorArgs struct {
+	NewJobWorker       func(context.Context) (util.JobWorker, error)
+	SignBlockMapItem   func(isaacblock.BlockMap) error
+	SaveBlockItemFuncs writerSaveBlockItemFuncs
+	NewManager         func(context.Context) (*ProcessManager, error)
+}
+
+func NewProposalProcessorArgs() *ProposalProcessorArgs {
+	return &ProposalProcessorArgs{
+		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
+			return util.NewBaseJobWorker(ctx, 1<<6)
+		},
+		SignBlockMapItem: func(isaacblock.BlockMap) error {
+			return util.ErrNotImplemented.Errorf("SignBlockMapItem")
+		},
+		SaveBlockItemFuncs: func(context.Context, base.BlockItemType) (writerSaveBlockItemFunc, writerCloseSaveFunc, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveBlockItemFuncs")
+		},
+		NewManager: func(context.Context) (*ProcessManager, error) {
+			return nil, util.ErrNotImplemented.Errorf("NewManager")
+		},
+	}
+}
+
+var _ isaac.ProposalProcessor = &ProposalProcessor{}
+
 type ProposalProcessor struct {
-	pr               base.ProposalSignFact
-	manager          *ProcessManager
-	bm               isaacblock.BlockMap
-	signBlockMapItem func(isaacblock.BlockMap) error
+	args          *ProposalProcessorArgs
+	ctx           func() context.Context
+	ctxCancel     func(error)
+	pr            base.ProposalSignFact
+	manager       *ProcessManager
+	bm            isaacblock.BlockMap
+	saveJobWorker util.JobWorker
+	vpWriter      *VoteproofWriter
+	bf            map[base.BlockItemType]base.BlockItemFile
+}
+
+func NewProposalProcessor(
+	ctx context.Context,
+	args *ProposalProcessorArgs,
+	pr base.ProposalSignFact,
+) (*ProposalProcessor, error) {
+	pctx, pctxCancel := context.WithCancelCause(ctx)
+
+	pp := &ProposalProcessor{
+		args:      args,
+		ctx:       func() context.Context { return pctx },
+		ctxCancel: pctxCancel,
+		pr:        pr,
+	}
+
+	switch i, err := args.NewManager(pctx); {
+	case err != nil:
+		pctxCancel(err)
+
+		return nil, err
+	default:
+		pp.manager = i
+	}
+
+	if err := pp.manager.ReadyWorkers(); err != nil {
+		pctxCancel(err)
+
+		return nil, err
+	}
+
+	return pp, nil
 }
 
 func (pp *ProposalProcessor) Proposal() base.ProposalSignFact {
 	return pp.pr
 }
 
-func (pp *ProposalProcessor) Process(ctx context.Context, ivp base.INITVoteproof) (manifest base.Manifest, _ error) {
+func (pp *ProposalProcessor) Process(_ context.Context, ivp base.INITVoteproof) (manifest base.Manifest, _ error) {
+	switch i, err := pp.process(pp.ctx(), ivp); {
+	case err != nil:
+		pp.ctxCancel(err)
+
+		return nil, err
+	default:
+		return i, nil
+	}
+}
+
+func (pp *ProposalProcessor) Save(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+	switch i, err := pp.save(pp.ctx(), avp); {
+	case err != nil:
+		pp.ctxCancel(err)
+
+		return nil, err
+	default:
+		return i, nil
+	}
+}
+
+func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof) (manifest base.Manifest, _ error) {
+	switch i, err := pp.args.NewJobWorker(ctx); {
+	case err != nil:
+		return nil, err
+	default:
+		pp.saveJobWorker = i
+	}
+
+	pp.bf = map[base.BlockItemType]base.BlockItemFile{}
+
+	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
+		switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemProposal, pp.pr, pp.args.SaveBlockItemFuncs); {
+		case err != nil:
+			return err
+		default:
+			if err := pp.setBlockItem(base.BlockItemProposal, ""); err != nil {
+				return err
+			}
+
+			pp.bf[base.BlockItemProposal] = NewBlockItemFile([]string{i})
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	switch i, err := NewVoteproofWriter(ctx, ivp, pp.args.SaveBlockItemFuncs); {
+	case err != nil:
+		return nil, err
+	default:
+		pp.vpWriter = i
+	}
+
 	if err := pp.manager.Process(); err != nil {
 		return nil, err
 	}
@@ -32,39 +150,73 @@ func (pp *ProposalProcessor) Process(ctx context.Context, ivp base.INITVoteproof
 		manifest = i
 
 		pp.bm.SetManifest(manifest)
-
-		// FIXME save ivp
 	}
 
 	return manifest, nil
 }
 
-func (pp *ProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
-	bf := map[base.BlockItemType]base.BlockItemFile{}
+func (pp *ProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+	defer clear(pp.bf)
+
+	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
+		switch i, err := pp.vpWriter.SetACCEPTVoteproof(avp); {
+		case err != nil:
+			return err
+		default:
+			if err := pp.setBlockItem(base.BlockItemVoteproofs, ""); err != nil {
+				return err
+			}
+
+			pp.bf[base.BlockItemVoteproofs] = NewBlockItemFile([]string{i})
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 
 	switch i, err := pp.manager.Done(); {
 	case err != nil:
 		return nil, err
 	default:
 		for t := range i {
-			if err := pp.bm.SetItem(
-				isaacblock.NewBlockMapItem(t, util.UUID().String()), // FIXME use real checksum
-			); err != nil {
+			if err := pp.setBlockItem(t, util.UUID().String()); err != nil {
 				return nil, err
 			}
 
-			bf[t] = i[t]
+			pp.bf[t] = i[t]
 		}
 	}
 
-	// FIXME save avp
+	pp.saveJobWorker.Done()
 
-	bfs := isaac.NewBlockItemFiles(bf)
+	if err := pp.saveJobWorker.Wait(); err != nil {
+		return nil, err
+	}
+
+	bfs := isaac.NewBlockItemFiles(pp.bf)
 	if err := bfs.IsValid(nil); err != nil {
 		return nil, err
 	}
 
-	if err := pp.signBlockMapItem(pp.bm); err != nil {
+	if err := pp.args.SignBlockMapItem(pp.bm); err != nil {
+		return nil, err
+	}
+
+	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
+		switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemMap, pp.bm, pp.args.SaveBlockItemFuncs); {
+		case err != nil:
+			return err
+		default:
+			if err := pp.setBlockItem(base.BlockItemMap, ""); err != nil {
+				return err
+			}
+
+			pp.bf[base.BlockItemMap] = NewBlockItemFile([]string{i})
+		}
+
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
@@ -72,7 +224,18 @@ func (pp *ProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof)
 }
 
 func (pp *ProposalProcessor) Cancel() error {
+	pp.ctxCancel(nil)
+
 	pp.manager.Cancel()
+	if pp.vpWriter != nil {
+		pp.vpWriter.Cancel()
+	}
 
 	return nil
+}
+
+func (pp *ProposalProcessor) setBlockItem(t base.BlockItemType, _ string) error {
+	return pp.bm.SetItem(
+		isaacblock.NewBlockMapItem(t, util.UUID().String()), // FIXME use real checksum
+	)
 }

@@ -406,7 +406,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 		<-ch
 	})
 
-	t.Run("by errProcessWorkerMergeDone", func() {
+	t.Run("by errProcessWorkerDone", func() {
 		pw := t.newWorker(context.Background(), "w0")
 
 		ch := make(chan struct{}, 1)
@@ -421,7 +421,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 		}()
 
 		<-time.After(time.Second)
-		pw.ctxCancel(errProcessWorkerMergeDone)
+		pw.ctxCancel(errProcessWorkerDone)
 
 		select {
 		case <-time.After(time.Second):

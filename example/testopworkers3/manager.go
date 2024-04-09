@@ -39,9 +39,10 @@ type ProcessManagerArgs struct {
 	NOpShare            uint8
 	NStateShare         uint8
 	NewJobWorker        func(context.Context) (util.JobWorker, error)
+	WorkerReady         func(_ context.Context, worker string, _ processWorkerPrepareArgs) error
 	WorkerCancel        func(_ context.Context, worker string) error
 	WorkerDone          func(_ context.Context, worker string) error
-	WorkerNewOperations func(_ context.Context, worker string, _ processWorkerPrepareArgs) (
+	WorkerNewOperations func(_ context.Context, worker string) (
 		_ workerNewOperationsFunc,
 		done func() error,
 		cancel func(),
@@ -65,10 +66,13 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
+		WorkerReady: func(context.Context, string, processWorkerPrepareArgs) error {
+			return util.ErrNotImplemented.Errorf("WorkerReady")
+		},
 		WorkerCancel: func(context.Context, string) error {
 			panic(util.ErrNotImplemented.Errorf("WorkerCancel"))
 		},
-		WorkerNewOperations: func(context.Context, string, processWorkerPrepareArgs) (
+		WorkerNewOperations: func(context.Context, string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -98,6 +102,7 @@ type ProcessManager struct {
 	proposal             base.ProposalSignFact
 	ctx                  func() context.Context
 	ctxCancel            func(error)
+	workers              []string
 	mergeDoneCtx         func() context.Context
 	mergeDoneCtxCancel   func(error)
 	storeDoneCtx         func() context.Context
@@ -116,6 +121,7 @@ type ProcessManager struct {
 	addFailedWorker      func(worker string) bool
 	isWorkersFailed      func() error
 	isFailedWorker       func(worker string) bool
+	failedWorkers        func() []string
 	blockFiles           util.LockedMap[base.BlockItemType, []string]
 	statesTreeWriter     func(create bool) (*baseTreeWriter[string], error)
 	operationsTreeWriter func(create bool) (*baseTreeWriter[uint64], error)
@@ -154,6 +160,7 @@ func NewProcessManager(
 		proposal:           proposal,
 		ctx:                func() context.Context { return pmctx },
 		ctxCancel:          ctxCancel,
+		workers:            args.Workers,
 		mergeDoneCtx:       func() context.Context { return mergeDoneCtx },
 		mergeDoneCtxCancel: mergeDoneCtxCancel,
 		storeDoneCtx:       func() context.Context { return storeDoneCtx },
@@ -197,7 +204,7 @@ func NewProcessManager(
 		pm.blockFiles = i
 	}
 
-	switch i, err := args.NewStateOwnersFunc(pm.args.Workers, args.NStateShare); {
+	switch i, err := args.NewStateOwnersFunc(pm.workers, args.NStateShare); {
 	case err != nil:
 		return nil, err
 	default:
@@ -207,14 +214,14 @@ func NewProcessManager(
 	pm.newStatesTreeWriterFunc()
 	pm.newOperationsTreeWriterFunc()
 
-	switch i, err := args.NewOpOwnersFunc(pm.args.Workers, args.NOpShare); {
+	switch i, err := args.NewOpOwnersFunc(pm.workers, args.NOpShare); {
 	case err != nil:
 		return nil, err
 	default:
 		pm.newOpOwnersFunc = newOpOwnersFunc(i)
 	}
 
-	clearFailedWorkers := pm.failedWorkers()
+	clearFailedWorkers := pm.attachFailedWorkers()
 
 	pm.cleanf = func() {
 		pm.ctxCancel(nil)
@@ -243,6 +250,20 @@ func NewProcessManager(
 func (pm *ProcessManager) Cancel() {
 	pm.ctxCancel(nil)
 	pm.cleanf()
+}
+
+func (pm *ProcessManager) ReadyWorkers() error {
+	if len(pm.ops) < 1 {
+		return nil
+	}
+
+	if err := pm.readyWorkers(); err != nil {
+		pm.ctxCancel(err)
+
+		return err
+	}
+
+	return nil
 }
 
 func (pm *ProcessManager) StateOwners(stateKey string) (owners []string, _ error) {
@@ -476,7 +497,6 @@ func (pm *ProcessManager) process() error {
 
 	pm.Log().Debug().Msg("merge done")
 
-	// FIXME start to save block files
 	if err := pm.storeJobWorker.Wait(); err != nil {
 		pm.cancel(err)
 
@@ -486,6 +506,61 @@ func (pm *ProcessManager) process() error {
 	pm.storeDoneCtxCancel(errProcessManagerWorkersStoreDone)
 
 	pm.Log().Debug().Msg("store done")
+
+	return nil
+}
+
+func (pm *ProcessManager) readyWorkers() error {
+	var ew util.JobWorker
+
+	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
+
+	args := processWorkerPrepareArgs{
+		Height:      pm.proposal.Point().Height(),
+		Workers:     pm.workers,
+		NStateShare: pm.args.NStateShare,
+	}
+
+	if err := util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
+		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+			if err := pm.args.WorkerReady(ctx, worker, args); err != nil {
+				if errors.Is(err, util.ErrNotImplemented) {
+					return err
+				}
+
+				pm.Log().Error().Err(err).Str("worker", worker).Msg("worker failed ready")
+
+				pm.addFailedWorker(worker)
+			}
+
+			return nil
+		})
+	}); err != nil {
+		return err
+	}
+
+	ew.Done()
+
+	if err := ew.Wait(); err != nil {
+		return err
+	}
+
+	if err := pm.isWorkersFailed(); err != nil {
+		return err
+	}
+
+	switch faileds := pm.failedWorkers(); {
+	case len(faileds) < 1:
+	default:
+		pm.workers = util.Filter2Slices(pm.workers, faileds, func(a, b string) bool { return a == b })
+	}
 
 	return nil
 }
@@ -599,12 +674,6 @@ func (pm *ProcessManager) newOperationFunc(
 	errf func(worker string),
 	f func(func(string) (workerNewOperationsFunc, error)) error,
 ) error {
-	args := processWorkerPrepareArgs{
-		Height:      pm.proposal.Point().Height(),
-		Workers:     pm.args.Workers,
-		NStateShare: pm.args.NStateShare,
-	}
-
 	chs := map[string]chan [3]interface{}{}
 
 	defer func() {
@@ -624,21 +693,21 @@ func (pm *ProcessManager) newOperationFunc(
 			ch = make(chan [3]interface{}, pm.args.MapSize)
 			chs[worker] = ch
 
-			if err := newJob(func(ctx context.Context, _ uint64) error {
-				var newop workerNewOperationsFunc
-				var done func() error
-				cancel := func() {}
+			var newop workerNewOperationsFunc
+			var done func() error
+			cancel := func() {}
 
-				switch i, j, k, err := pm.args.WorkerNewOperations(ctx, worker, args); {
-				case err != nil:
-					_ = gerr.SetValue(err)
-					errf(worker)
-				default:
-					newop = i
-					done = j
-					cancel = k
-				}
+			switch i, j, k, err := pm.args.WorkerNewOperations(pm.ctx(), worker); {
+			case err != nil:
+				_ = gerr.SetValue(err)
+				errf(worker)
+			default:
+				newop = i
+				done = j
+				cancel = k
+			}
 
+			if err := newJob(func(context.Context, uint64) error {
 				for i := range ch {
 					if err, _ := gerr.Value(); err != nil {
 						cancel()
@@ -708,31 +777,43 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 			return util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
 				opindex, op, fact := uint64(i), v[0], v[1]
 
-				switch owners, err := pm.newOpOwnersFunc(opindex, op, fact); {
+				var owners []string
+
+				switch j, err := pm.newOpOwnersFunc(opindex, op, fact); {
 				case err != nil:
 					return false, err
 				default:
-					return true, util.TraverseSliceV1(owners, func(_ int, owner string) (bool, error) {
-						switch i, err := f(owner); {
-						case err != nil:
+					owners = j
+				}
+
+				owners = util.FilterSlice(owners, func(worker string) bool {
+					return !pm.isFailedWorker(worker)
+				})
+
+				if len(owners) < 1 {
+					return false, util.ErrNotFound.Errorf("empty owners; failed")
+				}
+
+				return true, util.TraverseSliceV1(owners, func(_ int, owner string) (bool, error) {
+					if pm.isFailedWorker(owner) {
+						return true, nil
+					}
+
+					switch newOp, err := f(owner); {
+					case err != nil:
+						if pm.addFailedWorker(owner) {
+							return true, pm.isWorkersFailed()
+						}
+					default:
+						if err := newOp(opindex, op, fact); err != nil {
 							if pm.addFailedWorker(owner) {
 								return true, pm.isWorkersFailed()
 							}
-
-							return true, nil
-						default:
-							if err := i(opindex, op, fact); err != nil {
-								if pm.addFailedWorker(owner) {
-									return true, pm.isWorkersFailed()
-								}
-
-								return true, nil
-							}
 						}
+					}
 
-						return true, nil
-					})
-				}
+					return true, nil
+				})
 			})
 		},
 	); err != nil {
@@ -920,7 +1001,7 @@ func (pm *ProcessManager) cancelWorkers() {
 		ew = i
 	}
 
-	_ = util.TraverseSliceV1(pm.args.Workers, func(_ int, worker string) (bool, error) {
+	_ = util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
 		_ = ew.NewJob(func(ctx context.Context, _ uint64) error {
 			wctx, cancel := context.WithTimeout(ctx, pm.args.WorkerCancelTimeout)
 			defer cancel()
@@ -942,11 +1023,11 @@ func (pm *ProcessManager) cancelWorkers() {
 	}
 }
 
-func (pm *ProcessManager) failedWorkers() func() {
-	failedWorkers := util.NewLocked(map[string]struct{}{})
+func (pm *ProcessManager) attachFailedWorkers() func() {
+	faileds := util.NewLocked(map[string]struct{}{})
 
 	pm.addFailedWorker = func(worker string) (added bool) {
-		_, _ = failedWorkers.Set(func(m map[string]struct{}, _ bool) (map[string]struct{}, error) {
+		_, _ = faileds.Set(func(m map[string]struct{}, _ bool) (map[string]struct{}, error) {
 			if m == nil { // NOTE ProcessManager cleaned
 				return nil, util.ErrLockedSetIgnore
 			}
@@ -971,7 +1052,7 @@ func (pm *ProcessManager) failedWorkers() func() {
 	}
 
 	pm.isWorkersFailed = func() error {
-		return failedWorkers.Get(func(m map[string]struct{}, _ bool) error {
+		return faileds.Get(func(m map[string]struct{}, _ bool) error {
 			if i := uint64(len(m)); i >= share {
 				return errors.Errorf("over share workers failed, %d", i)
 			}
@@ -981,7 +1062,7 @@ func (pm *ProcessManager) failedWorkers() func() {
 	}
 
 	pm.isFailedWorker = func(worker string) (found bool) {
-		_ = failedWorkers.Get(func(m map[string]struct{}, _ bool) error {
+		_ = faileds.Get(func(m map[string]struct{}, _ bool) error {
 			_, found = m[worker]
 
 			return nil
@@ -990,8 +1071,22 @@ func (pm *ProcessManager) failedWorkers() func() {
 		return found
 	}
 
+	pm.failedWorkers = func() (workers []string) {
+		add, done := util.CompactAppendSlice[string](len(pm.workers))
+
+		_ = faileds.Get(func(m map[string]struct{}, _ bool) error {
+			for i := range m {
+				add(i)
+			}
+
+			return nil
+		})
+
+		return done()
+	}
+
 	return func() {
-		_ = failedWorkers.EmptyValue()
+		_ = faileds.EmptyValue()
 	}
 }
 
@@ -1007,7 +1102,7 @@ func (pm *ProcessManager) workersDone() error {
 		ew = i
 	}
 
-	if err := util.TraverseSliceV1(pm.args.Workers, func(_ int, worker string) (bool, error) {
+	if err := util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
 		if pm.isFailedWorker(worker) {
 			return true, nil
 		}

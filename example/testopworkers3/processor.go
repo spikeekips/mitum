@@ -197,6 +197,11 @@ func (opsr *OperationProcessor) SetName(s string) {
 	_ = opsr.SetLogger(opsr.Log().With().Str("name", s).Logger())
 }
 
+type (
+	saveStateFuncs     func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error)
+	saveOperationFuncs func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error)
+)
+
 type ProcessWorkerArgs struct {
 	NetworkID                     base.NetworkID
 	GetOperationFunc              func(_ context.Context, operation util.Hash) (Operation, bool, error)
@@ -209,8 +214,8 @@ type ProcessWorkerArgs struct {
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	BroadcastCanceled             func() error
-	SaveOperationFuncs            func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error)
-	SaveStateFuncs                func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error)
+	SaveOperationFuncs            saveOperationFuncs
+	SaveStateFuncs                saveStateFuncs
 	UpdateMergeDoneFunc           func(context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
@@ -424,31 +429,14 @@ func NewProcessWorker(
 		pw.ophs.Close()
 	}
 
-	go func() {
-		<-pctx.Done()
-
-		switch err := context.Cause(pctx); {
-		case errors.Is(err, errProcessWorkerMergeDone),
-			errors.Is(err, errProcessWorkerDone),
-			errors.Is(err, errProcessWorkerCanceledByManager):
-		default:
+	go pw.canceled(
+		nil,
+		func() {
 			if err := pw.args.BroadcastCanceled(); err != nil {
 				pw.Log().Error().Err(err).Msg("failed to broadcast canceled")
 			}
-
-			if pw.saveDoneOperationsFunc != nil {
-				if _, err := pw.saveDoneOperationsFunc(false); err != nil {
-					pw.Log().Error().Err(err).Msg("failed to cancel to save operation")
-				}
-			}
-
-			if pw.saveDoneStatesFunc != nil {
-				if _, err := pw.saveDoneStatesFunc(false); err != nil {
-					pw.Log().Error().Err(err).Msg("failed to cancel to save states")
-				}
-			}
-		}
-	}()
+		},
+	)
 
 	return pw, nil
 }
@@ -1129,6 +1117,12 @@ func (pw *ProcessWorker) attachSaveFuncs() {
 			default:
 				of = i
 				pw.saveDoneOperationsFunc = j
+
+				go pw.canceled(nil, func() {
+					if _, err := pw.saveDoneOperationsFunc(false); err != nil {
+						pw.Log().Error().Err(err).Msg("failed to cancel to save operation")
+					}
+				})
 			}
 		})
 
@@ -1147,6 +1141,12 @@ func (pw *ProcessWorker) attachSaveFuncs() {
 			default:
 				sf = i
 				pw.saveDoneStatesFunc = j
+
+				go pw.canceled(nil, func() {
+					if _, err := pw.saveDoneStatesFunc(false); err != nil {
+						pw.Log().Error().Err(err).Msg("failed to cancel to save states")
+					}
+				})
 			}
 		})
 
@@ -1155,6 +1155,22 @@ func (pw *ProcessWorker) attachSaveFuncs() {
 		}
 
 		return sf(st)
+	}
+}
+
+func (pw *ProcessWorker) canceled(ok, notOk func()) {
+	<-pw.ctx().Done()
+
+	switch err := context.Cause(pw.ctx()); {
+	case errors.Is(err, errProcessWorkerDone),
+		errors.Is(err, errProcessWorkerCanceledByManager):
+		if ok != nil {
+			ok()
+		}
+	default:
+		if notOk != nil {
+			notOk()
+		}
 	}
 }
 

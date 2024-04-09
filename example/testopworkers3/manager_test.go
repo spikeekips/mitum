@@ -243,6 +243,7 @@ func (t *testProcessManager) newDummyManangerWithError(
 	workers []string,
 ) (*ProcessManager, error) {
 	args := NewProcessManagerArgs(workers)
+	args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 	args.WorkerCancel = func(context.Context, string) error { return nil }
 
 	pr := t.newProposal(33, nil)
@@ -461,20 +462,30 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 
-		startprocessch := make(chan uint64)
-		args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerReady = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) error { return nil }
+		startprocessch := make(chan string, 1)
+
+		ops := [][2]util.Hash{
+			{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+			{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
+		}
+
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
 			error,
 		) {
-			return func(opindex uint64, _, _ util.Hash) error {
-					startprocessch <- opindex
+			return func(opindex uint64, _ util.Hash, _ util.Hash) error {
+					if opindex == 0 {
+						startprocessch <- worker
+					}
 
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case <-time.After(time.Second * 33):
+					case <-time.After(time.Second * 3):
 						return nil
 					}
 				},
@@ -483,12 +494,13 @@ func (t *testProcessManager) TestCancel() {
 				nil
 		}
 
-		ops := [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}}
 		pr := t.newProposal(33, ops)
 
 		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
+
+		t.NoError(pm.readyWorkers())
 
 		processerrch := make(chan error, 1)
 		go func() {
@@ -507,7 +519,10 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+			return nil
+		}
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -526,6 +541,8 @@ func (t *testProcessManager) TestCancel() {
 		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
+
+		t.NoError(pm.ReadyWorkers())
 
 		processerrch := make(chan error, 1)
 		go func() {
@@ -554,7 +571,10 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+			return nil
+		}
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -572,6 +592,8 @@ func (t *testProcessManager) TestCancel() {
 		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
+
+		t.NoError(pm.ReadyWorkers())
 
 		processerrch := make(chan error, 1)
 		go func() {
@@ -597,13 +619,16 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 
 		workercancelch := make(chan string, len(workers))
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+			return nil
+		}
 		args.WorkerCancel = func(_ context.Context, worker string) error {
 			workercancelch <- worker
 
 			return nil
 		}
 
-		args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -628,6 +653,8 @@ func (t *testProcessManager) TestCancel() {
 		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
+
+		t.NoError(pm.ReadyWorkers())
 
 		processerrch := make(chan error, 1)
 		go func() {
@@ -656,13 +683,14 @@ func (t *testProcessManager) TestCancel() {
 		args.NStateShare = 1
 
 		workercancelch := make(chan string, len(workers))
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 		args.WorkerCancel = func(_ context.Context, worker string) error {
 			workercancelch <- worker
 
 			return nil
 		}
 
-		args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -687,6 +715,8 @@ func (t *testProcessManager) TestCancel() {
 		pm, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 		t.NoError(err)
 		defer pm.Cancel()
+
+		t.NoError(pm.ReadyWorkers())
 
 		processerrch := make(chan error, 1)
 		go func() {
@@ -724,8 +754,9 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		ops := newOps(len(workers))
 
 		args := NewProcessManagerArgs(workers)
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerNewOperations = func(_ context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -741,9 +772,11 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		t.NoError(err)
 		defer pm.Cancel()
 
+		t.NoError(pm.ReadyWorkers())
+
 		err = pm.Process()
-		t.ErrorContains(err, "over share worker")
-		t.ErrorContains(context.Cause(pm.ctx()), "over share worker")
+		t.ErrorContains(err, "empty owners; failed")
+		t.ErrorContains(context.Cause(pm.ctx()), "empty owners; failed")
 	})
 
 	t.Run("over share failed", func() {
@@ -752,8 +785,9 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		ops := newOps(len(workers))
 
 		args := NewProcessManagerArgs(workers)
+		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerNewOperations = func(_ context.Context, worker string, _ processWorkerPrepareArgs) (
+		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
 			func(),
@@ -776,9 +810,11 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		t.NoError(err)
 		defer pm.Cancel()
 
+		t.NoError(pm.ReadyWorkers())
+
 		err = pm.Process()
-		t.ErrorContains(err, "over share worker")
-		t.ErrorContains(context.Cause(pm.ctx()), "over share worker")
+		t.ErrorContains(err, "empty owners; failed")
+		t.ErrorContains(context.Cause(pm.ctx()), "empty owners; failed")
 	})
 }
 
@@ -802,7 +838,8 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 		donech[workers[i]] = make(chan struct{}, 1)
 	}
 
-	args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+	args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
 		func(),
@@ -857,6 +894,8 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	t.NoError(err)
 	defer pm.Cancel()
 
+	t.NoError(pm.ReadyWorkers())
+
 	go func() {
 		_ = pm.Process()
 	}()
@@ -898,7 +937,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	args.NStateShare = uint8(len(workers)) // prevent to shrink workers
 	args.WorkerCancel = func(context.Context, string) error { return nil }
 
-	args.WorkerNewOperations = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) (
+	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
 		func(),
@@ -923,6 +962,8 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	pm, err := NewProcessManager(context.Background(), args, previousManifest, previousSuffrage, pr)
 	t.NoError(err)
 	defer pm.Cancel()
+
+	t.NoError(pm.ReadyWorkers())
 
 	go func() {
 		_ = pm.Process()
@@ -1147,25 +1188,27 @@ func (t *testProcessManager) testNWorkers(
 		return nil
 	}
 
-	args.WorkerNewOperations = func(ctx context.Context, worker string, args processWorkerPrepareArgs) (
-		workerNewOperationsFunc,
-		func() error,
-		func(),
-		error,
-	) {
-		var pw *ProcessWorker
-		if err := pws.GetOrCreate(
+	args.WorkerReady = func(ctx context.Context, worker string, args processWorkerPrepareArgs) error {
+		return pws.GetOrCreate(
 			worker,
 			func(i *ProcessWorker, _ bool) error {
-				pw = i
-
 				return nil
 			},
 			func() (*ProcessWorker, error) {
 				return newWorker(worker, args)
 			},
-		); err != nil {
-			return nil, nil, nil, err
+		)
+	}
+
+	args.WorkerNewOperations = func(ctx context.Context, worker string) (
+		workerNewOperationsFunc,
+		func() error,
+		func(),
+		error,
+	) {
+		pw, found := pws.Value(worker)
+		if !found {
+			return nil, nil, nil, util.ErrNotFound.Errorf(worker)
 		}
 
 		process, done, cancel, err := pw.NewOperations()
@@ -1187,6 +1230,8 @@ func (t *testProcessManager) testNWorkers(
 			},
 			nil
 	}
+
+	t.NoError(pm.ReadyWorkers())
 
 	go func() {
 		_ = pm.Process()
@@ -1250,7 +1295,7 @@ func (t *testProcessManager) TestWorkersManifestDone() {
 	})
 
 	t.Run("3 worker", func() {
-		rm, ru, m := t.testNWorkers(1, pr, ops, states, previousManifest, previousSuffrage)
+		rm, ru, m := t.testNWorkers(3, pr, ops, states, previousManifest, previousSuffrage)
 
 		t.Equal(expectedMergedOps, rm.Map())
 		t.Equal(expectedUnmergedOps, ru.Map())
