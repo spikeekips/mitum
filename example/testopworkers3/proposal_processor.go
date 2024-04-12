@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"context"
@@ -114,6 +114,7 @@ func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof
 	}
 
 	pp.bf = map[base.BlockItemType]base.BlockItemFile{}
+	pp.bm = isaacblock.NewBlockMap()
 
 	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
 		switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemProposal, pp.pr, pp.args.SaveBlockItemFuncs); {
@@ -194,29 +195,15 @@ func (pp *ProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof)
 		return nil, err
 	}
 
+	switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemMap, pp.bm, pp.args.SaveBlockItemFuncs); {
+	case err != nil:
+		return nil, err
+	default:
+		pp.bf[base.BlockItemMap] = NewBlockItemFile([]string{i})
+	}
+
 	bfs := isaac.NewBlockItemFiles(pp.bf)
 	if err := bfs.IsValid(nil); err != nil {
-		return nil, err
-	}
-
-	if err := pp.args.SignBlockMapItem(pp.bm); err != nil {
-		return nil, err
-	}
-
-	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
-		switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemMap, pp.bm, pp.args.SaveBlockItemFuncs); {
-		case err != nil:
-			return err
-		default:
-			if err := pp.setBlockItem(base.BlockItemMap, ""); err != nil {
-				return err
-			}
-
-			pp.bf[base.BlockItemMap] = NewBlockItemFile([]string{i})
-		}
-
-		return nil
-	}); err != nil {
 		return nil, err
 	}
 

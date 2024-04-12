@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 var (
 	errProcessManagerWorkersMergeDone       = util.NewIDError("process manager workers merge done")
 	errProcessManagerWorkersStoreDone       = util.NewIDError("process manager workers store done")
+	errProcessManagerStoreDone              = util.NewIDError("process manager store done")
 	errProcessManagerWorkersWorkersCanceled = util.NewIDError("process manager; workers canceled")
 	errProcessManagerWorkersDone            = util.NewIDError("process manager done")
 )
@@ -30,8 +31,8 @@ type (
 
 type processWorkerPrepareArgs struct {
 	Height      base.Height
-	Workers     []string
-	NStateShare uint8
+	Workers     []string // FIXME remove
+	NStateShare uint8    // FIXME remove
 }
 
 type ProcessManagerArgs struct {
@@ -45,17 +46,18 @@ type ProcessManagerArgs struct {
 	WorkerNewOperations func(_ context.Context, worker string) (
 		_ workerNewOperationsFunc,
 		done func() error,
-		cancel func(),
+		cancel func(error),
 		_ error,
 	)
-	IsEnoughWorkers     func(workers uint64) bool // NOTE include local worker
-	NewOpOwnersFunc     func(workers []string, share uint8) (opOwnersFunc, error)
-	NewStateOwnersFunc  func(workers []string, share uint8) (stateOwnersFunc, error)
-	MapSize             uint64
-	MinStatesSize       uint64
-	WorkerCancelTimeout time.Duration
-	NewManifestFunc     func(context.Context, base.Manifest) error
-	SaveTreeNodeFuncs   writerSaveTreeNodeFuncs
+	IsEnoughWorkers             func(workers uint64) bool // NOTE include local worker
+	NewOpOwnersFunc             func(workers []string, share uint8) (opOwnersFunc, error)
+	NewStateOwnersFunc          func(workers []string, share uint8) (stateOwnersFunc, error)
+	MapSize                     uint64
+	MinStatesSize               uint64
+	WorkerCancelTimeout         time.Duration
+	NewManifestFunc             func(context.Context, base.Manifest) error
+	SaveStatesTreeNodeFuncs     writerSaveTreeNodeFuncs
+	SaveOperationsTreeNodeFuncs writerSaveTreeNodeFuncs
 }
 
 func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
@@ -72,10 +74,13 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		WorkerCancel: func(context.Context, string) error {
 			panic(util.ErrNotImplemented.Errorf("WorkerCancel"))
 		},
+		WorkerDone: func(context.Context, string) error {
+			return util.ErrNotImplemented.Errorf("WorkerDone")
+		},
 		WorkerNewOperations: func(context.Context, string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("WorkerNewOperations")
@@ -88,43 +93,49 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		NewManifestFunc: func(context.Context, base.Manifest) error {
 			return util.ErrNotImplemented.Errorf("NewManifestFunc")
 		},
-		SaveTreeNodeFuncs: func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
-			return nil, nil, util.ErrNotImplemented.Errorf("SaveTreeNodeFuncs")
+		SaveStatesTreeNodeFuncs: func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveStatesTreeNodeFuncs")
+		},
+		SaveOperationsTreeNodeFuncs: func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveOperationsTreeNodeFuncs")
 		},
 	}
 }
 
 type ProcessManager struct {
 	*logging.Logging
-	args                 *ProcessManagerArgs
-	previousManifest     util.Hash
-	previousSuffrage     util.Hash
-	proposal             base.ProposalSignFact
-	ctx                  func() context.Context
-	ctxCancel            func(error)
-	workers              []string
-	mergeDoneCtx         func() context.Context
-	mergeDoneCtxCancel   func(error)
-	storeDoneCtx         func() context.Context
-	storeDoneCtxCancel   func(error)
-	ops                  [][2]util.Hash /* {operation hash, fact hash} */
-	workersMergeDone     *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
-	workersStoreDone     *util.Locked[map[ /* worker */ string]struct{}]
-	mergeJobWorker       util.JobWorker
-	storeJobWorker       util.JobWorker
-	newOpOwnersFunc      opOwnersFunc
-	stateOwners          util.LockedMap[ /* state key */ string /* workers */, []string]
-	newStateOwnersFunc   func(string) ([]string, error)
-	cleanf               func()
-	states               util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
-	reasons              util.LockedMap[ /* opindex */ uint64 /* reason */, string]
-	addFailedWorker      func(worker string) bool
-	isWorkersFailed      func() error
-	isFailedWorker       func(worker string) bool
-	failedWorkers        func() []string
-	blockFiles           util.LockedMap[base.BlockItemType, []string]
-	statesTreeWriter     func(create bool) (*baseTreeWriter[string], error)
-	operationsTreeWriter func(create bool) (*baseTreeWriter[uint64], error)
+	args                      *ProcessManagerArgs
+	previousManifest          util.Hash
+	previousSuffrage          util.Hash
+	proposal                  base.ProposalSignFact
+	ctx                       func() context.Context
+	ctxCancel                 func(error)
+	workers                   []string
+	mergeDoneCtx              func() context.Context
+	mergeDoneCtxCancel        func(error)
+	workersStoreDoneCtx       func() context.Context
+	workersStoreDoneCtxCancel func(error)
+	storeDoneCtx              func() context.Context
+	storeDoneCtxCancel        func(error)
+	ops                       [][2]util.Hash /* {operation hash, fact hash} */
+	workersMergeDone          *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
+	workersStoreDone          *util.Locked[map[ /* worker */ string]struct{}]
+	mergeJobWorker            util.JobWorker
+	storeJobWorker            util.JobWorker
+	newOpOwnersFunc           opOwnersFunc
+	stateOwners               util.LockedMap[ /* state key */ string /* workers */, []string]
+	newStateOwnersFunc        func(string) ([]string, error)
+	cleanf                    func()
+	states                    util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
+	reasons                   util.LockedMap[ /* opindex */ uint64 /* reason */, string]
+	addFailedWorker           func(worker string) bool
+	isWorkersFailed           func() error
+	isFailedWorker            func(worker string) bool
+	failedWorkers             func() []string
+	blockFiles                util.LockedMap[base.BlockItemType, []string]
+	statesTreeWriter          func(create bool) (*baseTreeWriter[string], error)
+	operationsTreeWriter      func(create bool) (*baseTreeWriter[uint64], error)
+	manifest                  *util.Locked[base.Manifest]
 }
 
 func NewProcessManager(
@@ -148,28 +159,32 @@ func NewProcessManager(
 
 	pmctx, ctxCancel := context.WithCancelCause(ctx)
 	mergeDoneCtx, mergeDoneCtxCancel := context.WithCancelCause(pmctx)
+	workersStoreDoneCtx, workersStoreDoneCtxCancel := context.WithCancelCause(pmctx)
 	storeDoneCtx, storeDoneCtxCancel := context.WithCancelCause(pmctx)
 
 	pm := &ProcessManager{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "process-manager")
 		}),
-		args:               args,
-		previousManifest:   previousManifest,
-		previousSuffrage:   previousSuffrage,
-		proposal:           proposal,
-		ctx:                func() context.Context { return pmctx },
-		ctxCancel:          ctxCancel,
-		workers:            args.Workers,
-		mergeDoneCtx:       func() context.Context { return mergeDoneCtx },
-		mergeDoneCtxCancel: mergeDoneCtxCancel,
-		storeDoneCtx:       func() context.Context { return storeDoneCtx },
-		storeDoneCtxCancel: storeDoneCtxCancel,
-		ops:                ops,
+		args:                      args,
+		previousManifest:          previousManifest,
+		previousSuffrage:          previousSuffrage,
+		proposal:                  proposal,
+		ctx:                       func() context.Context { return pmctx },
+		ctxCancel:                 ctxCancel,
+		workers:                   args.Workers,
+		mergeDoneCtx:              func() context.Context { return mergeDoneCtx },
+		mergeDoneCtxCancel:        mergeDoneCtxCancel,
+		workersStoreDoneCtx:       func() context.Context { return workersStoreDoneCtx },
+		workersStoreDoneCtxCancel: workersStoreDoneCtxCancel,
+		storeDoneCtx:              func() context.Context { return storeDoneCtx },
+		storeDoneCtxCancel:        storeDoneCtxCancel,
+		ops:                       ops,
 	}
 
 	pm.workersMergeDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
 	pm.workersStoreDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
+	pm.manifest = util.EmptyLocked[base.Manifest]()
 
 	pm.mergeJobWorker, _ = args.NewJobWorker(pmctx)
 	pm.storeJobWorker, _ = args.NewJobWorker(pmctx)
@@ -311,17 +326,18 @@ func (pm *ProcessManager) ManifestDone() (base.Manifest, error) {
 		return nil, err
 	}
 
-	switch i, err := pm.newManifest(); {
-	case err != nil:
-		pm.cancel(err)
+	i, _ := pm.manifest.Value()
 
-		return nil, err
-	default:
-		return i, nil
-	}
+	return i, nil
 }
 
 func (pm *ProcessManager) StoreDone() error {
+	if err := pm.workersStoreCtxDone(); err != nil {
+		pm.ctxCancel(err)
+
+		return err
+	}
+
 	if err := pm.storeDone(); err != nil {
 		pm.cancel(err)
 
@@ -335,6 +351,12 @@ func (pm *ProcessManager) Done() (bf map[base.BlockItemType]BlockItemFile, _ err
 	defer pm.Cancel()
 
 	if err := pm.mergeDone(); err != nil {
+		pm.ctxCancel(err)
+
+		return nil, err
+	}
+
+	if err := pm.workersStoreCtxDone(); err != nil {
 		pm.ctxCancel(err)
 
 		return nil, err
@@ -481,6 +503,8 @@ func (pm *ProcessManager) process() error {
 	switch i := len(pm.ops); {
 	case i < 1:
 		pm.mergeJobWorker.Done()
+
+		pm.workersStoreDoneCtxCancel(errProcessManagerWorkersStoreDone)
 	default:
 		if err := pm.newNonEmptyNewOperationFunc(); err != nil {
 			pm.ctxCancel(err)
@@ -495,6 +519,25 @@ func (pm *ProcessManager) process() error {
 
 	pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
 
+	if _, err := pm.manifest.Set(func(_ base.Manifest, isempty bool) (base.Manifest, error) {
+		if !isempty {
+			return nil, util.ErrLockedSetIgnore
+		}
+
+		switch i, err := pm.newManifest(); {
+		case err != nil:
+			return nil, err
+		default:
+			pm.storeJobWorker.Done()
+
+			return i, nil
+		}
+	}); err != nil {
+		pm.cancel(err)
+
+		return err
+	}
+
 	pm.Log().Debug().Msg("merge done")
 
 	if err := pm.storeJobWorker.Wait(); err != nil {
@@ -503,7 +546,7 @@ func (pm *ProcessManager) process() error {
 		return err
 	}
 
-	pm.storeDoneCtxCancel(errProcessManagerWorkersStoreDone)
+	pm.storeDoneCtxCancel(errProcessManagerStoreDone)
 
 	pm.Log().Debug().Msg("store done")
 
@@ -577,11 +620,25 @@ func (pm *ProcessManager) mergeDone() error {
 	return nil
 }
 
+func (pm *ProcessManager) workersStoreCtxDone() error {
+	<-pm.workersStoreDoneCtx().Done()
+
+	switch err := context.Cause(pm.workersStoreDoneCtx()); {
+	case errors.Is(err, errProcessManagerWorkersStoreDone):
+	case err != nil:
+		pm.cancel(err)
+
+		return err
+	}
+
+	return nil
+}
+
 func (pm *ProcessManager) storeDone() error {
 	<-pm.storeDoneCtx().Done()
 
 	switch err := context.Cause(pm.storeDoneCtx()); {
-	case errors.Is(err, errProcessManagerWorkersStoreDone):
+	case errors.Is(err, errProcessManagerStoreDone):
 	case err != nil:
 		pm.cancel(err)
 
@@ -663,7 +720,7 @@ func (pm *ProcessManager) workerStoreDone(worker string, chunks map[base.BlockIt
 	if pm.args.IsEnoughWorkers(count) {
 		l.Debug().Msg("enough workers store done")
 
-		pm.storeJobWorker.Done()
+		pm.workersStoreDoneCtxCancel(errProcessManagerWorkersStoreDone)
 	}
 
 	return nil
@@ -695,7 +752,7 @@ func (pm *ProcessManager) newOperationFunc(
 
 			var newop workerNewOperationsFunc
 			var done func() error
-			cancel := func() {}
+			cancel := func(error) {}
 
 			switch i, j, k, err := pm.args.WorkerNewOperations(pm.ctx(), worker); {
 			case err != nil:
@@ -710,7 +767,7 @@ func (pm *ProcessManager) newOperationFunc(
 			if err := newJob(func(context.Context, uint64) error {
 				for i := range ch {
 					if err, _ := gerr.Value(); err != nil {
-						cancel()
+						cancel(err)
 
 						continue
 					}
@@ -1144,7 +1201,7 @@ func (pm *ProcessManager) newStatesTreeWriterFunc() {
 				pm.ctx(),
 				pm.args.NewJobWorker,
 				base.StateFixedtreeHint,
-				pm.args.SaveTreeNodeFuncs,
+				pm.args.SaveStatesTreeNodeFuncs,
 				pm.args.MinStatesSize,
 			)
 		})
@@ -1172,7 +1229,7 @@ func (pm *ProcessManager) newOperationsTreeWriterFunc() {
 				pm.ctx(),
 				pm.args.NewJobWorker,
 				base.StateFixedtreeHint,
-				pm.args.SaveTreeNodeFuncs,
+				pm.args.SaveOperationsTreeNodeFuncs,
 				pm.args.MinStatesSize,
 			)
 		})

@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"cmp"
@@ -474,7 +474,7 @@ func (t *testProcessManager) TestCancel() {
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return func(opindex uint64, _ util.Hash, _ util.Hash) error {
@@ -490,7 +490,7 @@ func (t *testProcessManager) TestCancel() {
 					}
 				},
 				func() error { return nil },
-				func() {},
+				func(error) {},
 				nil
 		}
 
@@ -525,12 +525,12 @@ func (t *testProcessManager) TestCancel() {
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return func(uint64, util.Hash, util.Hash) error { return nil },
 				func() error { return nil },
-				func() {},
+				func(error) {},
 				nil
 		}
 		args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
@@ -577,12 +577,12 @@ func (t *testProcessManager) TestCancel() {
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return func(uint64, util.Hash, util.Hash) error { return nil },
 				func() error { return nil },
-				func() {},
+				func(error) {},
 				nil
 		}
 
@@ -631,7 +631,7 @@ func (t *testProcessManager) TestCancel() {
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -643,7 +643,7 @@ func (t *testProcessManager) TestCancel() {
 						return nil
 					}
 				},
-				func() {},
+				func(error) {},
 				nil
 		}
 
@@ -693,7 +693,7 @@ func (t *testProcessManager) TestCancel() {
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -705,7 +705,7 @@ func (t *testProcessManager) TestCancel() {
 						return nil
 					}
 				},
-				func() {},
+				func(error) {},
 				nil
 		}
 
@@ -759,7 +759,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			return nil, nil, nil, errors.Errorf("findme")
@@ -790,7 +790,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
 			func() error,
-			func(),
+			func(error),
 			error,
 		) {
 			if worker == workers[0] {
@@ -799,7 +799,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 			return func(uint64, util.Hash, util.Hash) error { return nil },
 				func() error { return nil },
-				func() {},
+				func(error) {},
 				nil
 		}
 
@@ -842,7 +842,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
-		func(),
+		func(error),
 		error,
 	) {
 		return func(opindex uint64, op, fact util.Hash) error {
@@ -885,7 +885,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 
 				return nil
 			},
-			func() {},
+			func(error) {},
 			nil
 	}
 
@@ -940,7 +940,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
-		func(),
+		func(error),
 		error,
 	) {
 		return func(uint64, util.Hash, util.Hash) error {
@@ -949,7 +949,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 			func() error {
 				return nil
 			},
-			func() {},
+			func(error) {},
 			nil
 	}
 	manifestch := make(chan base.Manifest, 1)
@@ -1203,7 +1203,7 @@ func (t *testProcessManager) testNWorkers(
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
-		func(),
+		func(error),
 		error,
 	) {
 		pw, found := pws.Value(worker)
@@ -1218,12 +1218,20 @@ func (t *testProcessManager) testNWorkers(
 		return process, func() error {
 				done()
 				return nil
-			}, func() {
+			}, func(error) {
 				cancel(nil)
 			}, nil
 	}
 	args.NewManifestFunc = func(context.Context, base.Manifest) error { return nil }
-	args.SaveTreeNodeFuncs = func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+	args.SaveStatesTreeNodeFuncs = func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
+		return func(uint64, fixedtree.Node) error { return nil },
+			func(ok bool) (string, error) {
+				return "", nil
+			},
+			nil
+	}
+
+	args.SaveOperationsTreeNodeFuncs = func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 		return func(uint64, fixedtree.Node) error { return nil },
 			func(ok bool) (string, error) {
 				return "", nil

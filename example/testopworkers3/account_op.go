@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"context"

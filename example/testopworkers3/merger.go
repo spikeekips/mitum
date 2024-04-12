@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"github.com/spikeekips/mitum/base"

@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"bytes"
@@ -753,8 +753,19 @@ var blockItemMapTree base.BlockItemType = "tree"
 func newWriterSaveTreeFuncs(
 	root string,
 	enc encoder.Encoder,
-	fname string,
-) writerSaveTreeNodeFuncs {
+	t base.BlockItemType,
+) (writerSaveTreeNodeFuncs, error) {
+	var fname string
+
+	switch t {
+	case base.BlockItemStatesTree:
+		fname = "states_tree.json.gz"
+	case base.BlockItemOperationsTree:
+		fname = "operations_tree.json.gz"
+	default:
+		return nil, errors.Errorf("unknown tree type, %q", t)
+	}
+
 	return func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
 		var fsave writerSaveBlockItemFunc
 		var fclose writerCloseSaveFunc
@@ -788,7 +799,7 @@ func newWriterSaveTreeFuncs(
 			},
 			fclose,
 			nil
-	}
+	}, nil
 }
 
 func newWriterSaveStatesFuncs(

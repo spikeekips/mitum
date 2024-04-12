@@ -1,4 +1,4 @@
-package testopsworkers
+package main
 
 import (
 	"cmp"
@@ -452,8 +452,8 @@ func (pw *ProcessWorker) CancelByManager() {
 }
 
 func (pw *ProcessWorker) NewOperations() (
-	process func(opindex uint64, op, fact util.Hash) error,
-	done func(),
+	process workerNewOperationsFunc,
+	done func() error,
 	cancel func(error),
 	_ error,
 ) {
@@ -476,7 +476,7 @@ func (pw *ProcessWorker) NewOperations() (
 
 		return nil, nil, nil, err
 	default:
-		return p, func() {
+		return p, func() error {
 				d()
 
 				go func() {
@@ -488,6 +488,8 @@ func (pw *ProcessWorker) NewOperations() (
 						pw.ctxCancel(err)
 					}
 				}()
+
+				return nil
 			},
 			c, nil
 	}
