@@ -307,11 +307,11 @@ func (cli *CLI) createAccounts(pctx context.Context) (base.BlockMap, error) {
 	default:
 		defer done()
 
-		switch i, err := cli.process(pctx, pr, nil); {
+		switch i, j, err := cli.process(pctx, pr, nil); {
 		case err != nil:
 			return nil, errors.WithMessage(err, "process proposal")
 		default:
-			return i, nil
+			return i, j()
 		}
 	}
 }
@@ -527,14 +527,24 @@ func (cli *CLI) processor(
 		newManagerFunc = i
 	}
 
-	args.NewManager = func(ctx context.Context) (*ProcessManager, error) {
-		return newManagerFunc(ctx)
+	var manager *ProcessManager
+
+	switch i, err := newManagerFunc(context.Background()); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		manager = i
+	}
+
+	if err := manager.ReadyWorkers(); err != nil {
+		return nil, nil, err
 	}
 
 	switch pp, err := NewProposalProcessor(
 		context.Background(),
 		args,
 		proposal,
+		manager,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -661,17 +671,15 @@ func (cli *CLI) process(
 	pctx context.Context,
 	pr base.ProposalSignFact,
 	previous base.Manifest,
-) (base.BlockMap, error) {
+) (base.BlockMap, func() error, error) {
 	cli.Log().Debug().Msg("start processing")
-
-	defer logging.TimeElapsed()(cli.Log().Info(), "processing done")
 
 	var pps isaac.ProposalProcessor
 	var ppdone func() error
 
 	switch i, j, err := cli.processor(pctx, pr, previous); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		defer i.Cancel()
 
@@ -683,10 +691,12 @@ func (cli *CLI) process(
 
 	switch i, err := cli.newINITVoteproof(pr.Point(), pr); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		ivp = i
 	}
+
+	defer logging.TimeElapsed()(cli.Log().Info(), "processing done")
 
 	var m base.Manifest
 
@@ -694,7 +704,7 @@ func (cli *CLI) process(
 
 	switch i, err := pps.Process(context.Background(), ivp); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		m = i
 
@@ -707,7 +717,7 @@ func (cli *CLI) process(
 
 	switch i, err := cli.newACCEPTVoteproof(pr.Point(), pr.Fact().Hash(), m.Hash()); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		avp = i
 	}
@@ -716,14 +726,14 @@ func (cli *CLI) process(
 
 	switch i, err := pps.Save(context.Background(), avp); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		mp = i
 
 		saveElapsed(cli.Log().Info().Interface("blockmap", mp), "proposal saved")
 	}
 
-	return mp, ppdone()
+	return mp, ppdone, nil
 }
 
 func (cli *CLI) newINITVoteproof(point base.Point, proposal base.ProposalSignFact) (base.INITVoteproof, error) {
@@ -814,11 +824,12 @@ func (cli *CLI) transfer(pctx context.Context, m base.Manifest) error {
 	default:
 		defer done()
 
-		if _, err := cli.process(pctx, pr, m); err != nil {
+		switch _, j, err := cli.process(pctx, pr, m); {
+		case err != nil:
 			return errors.WithMessage(err, "process proposal")
+		default:
+			return j()
 		}
-
-		return nil
 	}
 }
 
@@ -978,7 +989,7 @@ func (cli *CLI) newWorkerReadyFunc(
 
 					err := w.WorkerInsertValuesDone(local)
 
-					cli.Log().Debug().
+					cli.Log().Trace().
 						Str("local", local).
 						Str("worker", worker).
 						Err(err).
@@ -998,7 +1009,7 @@ func (cli *CLI) newWorkerReadyFunc(
 
 					err := w.WorkerPhaseDone(local, phase, mergedOps, unmergedOps)
 
-					cli.Log().Debug().
+					cli.Log().Trace().
 						Str("local", local).
 						Str("worker", worker).
 						Err(err).

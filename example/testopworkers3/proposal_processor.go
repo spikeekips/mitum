@@ -13,7 +13,6 @@ type ProposalProcessorArgs struct {
 	NewJobWorker       func(context.Context) (util.JobWorker, error)
 	SignBlockMapItem   func(isaacblock.BlockMap) error
 	SaveBlockItemFuncs writerSaveBlockItemFuncs
-	NewManager         func(context.Context) (*ProcessManager, error)
 }
 
 func NewProposalProcessorArgs() *ProposalProcessorArgs {
@@ -27,9 +26,6 @@ func NewProposalProcessorArgs() *ProposalProcessorArgs {
 		SaveBlockItemFuncs: func(context.Context, base.BlockItemType) (writerSaveBlockItemFunc, writerCloseSaveFunc, error) {
 			return nil, nil, util.ErrNotImplemented.Errorf("SaveBlockItemFuncs")
 		},
-		NewManager: func(context.Context) (*ProcessManager, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewManager")
-		},
 	}
 }
 
@@ -37,10 +33,10 @@ var _ isaac.ProposalProcessor = &ProposalProcessor{}
 
 type ProposalProcessor struct {
 	args          *ProposalProcessorArgs
-	ctx           func() context.Context
-	ctxCancel     func(error)
 	pr            base.ProposalSignFact
 	manager       *ProcessManager
+	ctx           func() context.Context
+	ctxCancel     func(error)
 	bm            isaacblock.BlockMap
 	saveJobWorker util.JobWorker
 	vpWriter      *VoteproofWriter
@@ -51,29 +47,16 @@ func NewProposalProcessor(
 	ctx context.Context,
 	args *ProposalProcessorArgs,
 	pr base.ProposalSignFact,
+	manager *ProcessManager,
 ) (*ProposalProcessor, error) {
 	pctx, pctxCancel := context.WithCancelCause(ctx)
 
 	pp := &ProposalProcessor{
 		args:      args,
+		pr:        pr,
+		manager:   manager,
 		ctx:       func() context.Context { return pctx },
 		ctxCancel: pctxCancel,
-		pr:        pr,
-	}
-
-	switch i, err := args.NewManager(pctx); {
-	case err != nil:
-		pctxCancel(err)
-
-		return nil, err
-	default:
-		pp.manager = i
-	}
-
-	if err := pp.manager.ReadyWorkers(); err != nil {
-		pctxCancel(err)
-
-		return nil, err
 	}
 
 	return pp, nil

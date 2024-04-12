@@ -767,7 +767,7 @@ func (pm *ProcessManager) newOperationFunc(
 			}
 
 			if err := newJob(func(context.Context, uint64) error {
-				defer logging.TimeElapsed()(l.Info(), "worker new operations")
+				defer logging.TimeElapsed()(l.Trace(), "worker new operations")
 
 				for i := range ch {
 					if err, _ := gerr.Value(); err != nil {
