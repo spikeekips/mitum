@@ -742,6 +742,8 @@ func (pm *ProcessManager) newOperationFunc(
 	}()
 
 	newWorker := func(worker string) (workerNewOperationsFunc, error) {
+		l := pm.Log().With().Str("worker", worker).Logger()
+
 		gerr := util.EmptyLocked[error]()
 		var ch chan [3]interface{}
 
@@ -765,6 +767,8 @@ func (pm *ProcessManager) newOperationFunc(
 			}
 
 			if err := newJob(func(context.Context, uint64) error {
+				defer logging.TimeElapsed()(l.Info(), "worker new operations")
+
 				for i := range ch {
 					if err, _ := gerr.Value(); err != nil {
 						cancel(err)
@@ -814,6 +818,8 @@ func (pm *ProcessManager) newOperationFunc(
 }
 
 func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
+	defer logging.TimeElapsed()(pm.Log().Info(), "new operations")
+
 	var ew util.JobWorker
 
 	switch i, err := pm.args.NewJobWorker(pm.ctx()); {

@@ -457,7 +457,7 @@ func (cli *CLI) processor(
 	pctx context.Context,
 	proposal base.ProposalSignFact,
 	previous base.Manifest,
-) (isaac.ProposalProcessor, error) {
+) (isaac.ProposalProcessor, func() error, error) {
 	var encs *encoder.Encoders
 	var design launch.NodeDesign
 	var isaacparams *isaac.Params
@@ -473,7 +473,7 @@ func (cli *CLI) processor(
 		launch.PoolDatabaseContextKey, &pool,
 		launch.OperationProcessorsMapContextKey, &oprs,
 	); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fsroot := filepath.Join(
@@ -482,7 +482,7 @@ func (cli *CLI) processor(
 	)
 
 	if err := os.MkdirAll(fsroot, 0o700); err != nil {
-		return nil, errors.WithMessage(err, "create fs root directory")
+		return nil, nil, errors.WithMessage(err, "create fs root directory")
 	}
 
 	args := NewProposalProcessorArgs()
@@ -497,9 +497,13 @@ func (cli *CLI) processor(
 
 	switch i, err := db.NewBlockWriteDatabase(proposal.Point().Height()); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		bdb = i
+	}
+
+	if i, ok := bdb.(isaac.StateCacheSetter); ok {
+		i.SetStateCache(util.NewLFUGCache[string, [2]interface{}](isaacparams.StateCacheSize()))
 	}
 
 	writerSaveBlockItemFuncs := NewWriterSaveBlockItemFuncs(bdb, fsroot, encs.Default())
@@ -518,7 +522,7 @@ func (cli *CLI) processor(
 
 	switch i, err := cli.newManagerFunc(db, bdb, fsroot, encs, pool, previousManifest, previousSuffrage, proposal); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		newManagerFunc = i
 	}
@@ -527,11 +531,20 @@ func (cli *CLI) processor(
 		return newManagerFunc(ctx)
 	}
 
-	return NewProposalProcessor(
+	switch pp, err := NewProposalProcessor(
 		context.Background(),
 		args,
 		proposal,
-	)
+	); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		return pp,
+			func() error {
+				return db.MergeBlockWriteDatabase(bdb)
+			},
+			nil
+	}
 }
 
 func (cli *CLI) newManagerFunc(
@@ -654,12 +667,16 @@ func (cli *CLI) process(
 	defer logging.TimeElapsed()(cli.Log().Info(), "processing done")
 
 	var pps isaac.ProposalProcessor
+	var ppdone func() error
 
-	switch i, err := cli.processor(pctx, pr, previous); {
+	switch i, j, err := cli.processor(pctx, pr, previous); {
 	case err != nil:
 		return nil, err
 	default:
+		defer i.Cancel()
+
 		pps = i
+		ppdone = j
 	}
 
 	var ivp base.INITVoteproof
@@ -706,7 +723,7 @@ func (cli *CLI) process(
 		saveElapsed(cli.Log().Info().Interface("blockmap", mp), "proposal saved")
 	}
 
-	return mp, nil
+	return mp, ppdone()
 }
 
 func (cli *CLI) newINITVoteproof(point base.Point, proposal base.ProposalSignFact) (base.INITVoteproof, error) {
