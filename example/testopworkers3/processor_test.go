@@ -689,6 +689,10 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
+
+		pw.args.StateOwners = func(context.Context, string) ([]string, error) {
+			return []string{pw.local}, nil
+		}
 		pw.args.GetOperationFunc = getOperationFunc
 		pw.args.GetStateFunc = getState
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
@@ -799,6 +803,9 @@ func (t *testProcessWorker) TestSaveOperation() {
 		return nil
 	}
 
+	pw.args.StateOwners = func(context.Context, string) ([]string, error) {
+		return []string{pw.local}, nil
+	}
 	pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
 		switch opindex, found := ophs[operation.String()]; {
 		case !found:

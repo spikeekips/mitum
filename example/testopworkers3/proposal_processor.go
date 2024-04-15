@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type ProposalProcessorArgs struct {
@@ -32,6 +34,7 @@ func NewProposalProcessorArgs() *ProposalProcessorArgs {
 var _ isaac.ProposalProcessor = &ProposalProcessor{}
 
 type ProposalProcessor struct {
+	*logging.Logging
 	args          *ProposalProcessorArgs
 	pr            base.ProposalSignFact
 	manager       *ProcessManager
@@ -52,6 +55,9 @@ func NewProposalProcessor(
 	pctx, pctxCancel := context.WithCancelCause(ctx)
 
 	pp := &ProposalProcessor{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "proposal-processor")
+		}),
 		args:      args,
 		pr:        pr,
 		manager:   manager,
@@ -123,9 +129,11 @@ func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof
 		pp.vpWriter = i
 	}
 
-	if err := pp.manager.Process(); err != nil {
-		return nil, err
-	}
+	go func() {
+		if err := pp.manager.Process(); err != nil {
+			pp.Log().Error().Err(err).Msg("process failed")
+		}
+	}()
 
 	switch i, err := pp.manager.ManifestDone(); {
 	case err != nil:

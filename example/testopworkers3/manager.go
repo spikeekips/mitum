@@ -120,7 +120,6 @@ type ProcessManager struct {
 	ops                       [][2]util.Hash /* {operation hash, fact hash} */
 	workersMergeDone          *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
 	workersStoreDone          *util.Locked[map[ /* worker */ string]struct{}]
-	mergeJobWorker            util.JobWorker
 	storeJobWorker            util.JobWorker
 	newOpOwnersFunc           opOwnersFunc
 	stateOwners               util.LockedMap[ /* state key */ string /* workers */, []string]
@@ -133,8 +132,8 @@ type ProcessManager struct {
 	isFailedWorker            func(worker string) bool
 	failedWorkers             func() []string
 	blockFiles                util.LockedMap[base.BlockItemType, []string]
-	statesTreeWriter          func(create bool) (*baseTreeWriter[string], error)
-	operationsTreeWriter      func(create bool) (*baseTreeWriter[uint64], error)
+	statesTreeWriter          func(create bool) (*baseFixedTreeWriter[string], error)
+	operationsTreeWriter      func(create bool) (*baseFixedTreeWriter[uint64], error)
 	manifest                  *util.Locked[base.Manifest]
 }
 
@@ -186,7 +185,6 @@ func NewProcessManager(
 	pm.workersStoreDone = util.NewLocked[map[string]struct{}](map[string]struct{}{})
 	pm.manifest = util.EmptyLocked[base.Manifest]()
 
-	pm.mergeJobWorker, _ = args.NewJobWorker(pmctx)
 	pm.storeJobWorker, _ = args.NewJobWorker(pmctx)
 
 	workerMapSize := uint64(len(args.Workers))
@@ -243,7 +241,6 @@ func NewProcessManager(
 
 		clearFailedWorkers()
 
-		pm.mergeJobWorker.Close()
 		pm.storeJobWorker.Close()
 		pm.stateOwners.Close()
 		pm.states.Close()
@@ -326,9 +323,7 @@ func (pm *ProcessManager) ManifestDone() (base.Manifest, error) {
 		return nil, err
 	}
 
-	i, _ := pm.manifest.Value()
-
-	return i, nil
+	return pm.getOrCreateManifest()
 }
 
 func (pm *ProcessManager) StoreDone() error {
@@ -411,7 +406,7 @@ func (pm *ProcessManager) WorkerCanceled(worker string) {
 }
 
 func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) error {
-	var writer *baseTreeWriter[string]
+	var writer *baseFixedTreeWriter[string]
 
 	switch i, err := pm.statesTreeWriter(true); {
 	case err != nil:
@@ -420,26 +415,20 @@ func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) erro
 		writer = i
 	}
 
-	if err := pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
-		if _, _, err := pm.states.Set(
-			stateKey,
-			func(_ util.Hash, found bool) (util.Hash, error) {
-				if found {
-					return nil, util.ErrLockedSetIgnore
-				}
+	if _, _, err := pm.states.Set(
+		stateKey,
+		func(_ util.Hash, found bool) (util.Hash, error) {
+			if found {
+				return nil, util.ErrLockedSetIgnore
+			}
 
-				if err := writer.Add(stateKey, fixedtree.NewBaseNode(stateHash.String())); err != nil {
-					return nil, err
-				}
+			if err := writer.Add(stateKey, fixedtree.NewBaseNode(stateHash.String())); err != nil {
+				return nil, err
+			}
 
-				return stateHash, nil
-			},
-		); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
+			return stateHash, nil
+		},
+	); err != nil {
 		pm.cancel(err)
 
 		return err
@@ -452,7 +441,7 @@ func (pm *ProcessManager) updatedReason(
 	opindex uint64,
 	reason string,
 ) error {
-	var writer *baseTreeWriter[uint64]
+	var writer *baseFixedTreeWriter[uint64]
 
 	switch i, err := pm.operationsTreeWriter(true); {
 	case err != nil:
@@ -461,25 +450,27 @@ func (pm *ProcessManager) updatedReason(
 		writer = i
 	}
 
-	return pm.mergeJobWorker.NewJob(func(context.Context, uint64) error {
-		_, _, err := pm.reasons.Set(opindex, func(_ string, found bool) (string, error) {
-			switch {
-			case found, len(reason) < 1:
-				return "", util.ErrLockedSetIgnore
-			default:
-				if err := writer.Add(
-					opindex,
-					base.NewNotInStateOperationFixedtreeNode(pm.ops[opindex][1], reason),
-				); err != nil {
-					return "", err
-				}
-
-				return reason, nil
+	if _, _, err := pm.reasons.Set(opindex, func(_ string, found bool) (string, error) {
+		switch {
+		case found, len(reason) < 1:
+			return "", util.ErrLockedSetIgnore
+		default:
+			if err := writer.Add(
+				opindex,
+				base.NewNotInStateOperationFixedtreeNode(pm.ops[opindex][1], reason),
+			); err != nil {
+				return "", err
 			}
-		})
+
+			return reason, nil
+		}
+	}); err != nil {
+		pm.cancel(err)
 
 		return err
-	})
+	}
+
+	return nil
 }
 
 func (pm *ProcessManager) cancel(err error) {
@@ -489,6 +480,8 @@ func (pm *ProcessManager) cancel(err error) {
 }
 
 func (pm *ProcessManager) process() error {
+	defer logging.TimeElapsed()(pm.Log().Info(), "processed")
+
 	go func() {
 		<-pm.ctx().Done()
 
@@ -500,10 +493,11 @@ func (pm *ProcessManager) process() error {
 		}
 	}()
 
+	manifestElapsed := logging.TimeElapsed()
+
 	switch i := len(pm.ops); {
 	case i < 1:
-		pm.mergeJobWorker.Done()
-
+		pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
 		pm.workersStoreDoneCtxCancel(errProcessManagerWorkersStoreDone)
 	default:
 		if err := pm.newNonEmptyNewOperationFunc(); err != nil {
@@ -513,32 +507,17 @@ func (pm *ProcessManager) process() error {
 		}
 	}
 
-	if err := pm.mergeJobWorker.Wait(); err != nil {
+	if err := pm.mergeDone(); err != nil {
 		return err
 	}
 
-	pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
+	defer manifestElapsed(pm.Log().Info(), "manifest done")
 
-	if _, err := pm.manifest.Set(func(_ base.Manifest, isempty bool) (base.Manifest, error) {
-		if !isempty {
-			return nil, util.ErrLockedSetIgnore
-		}
-
-		switch i, err := pm.newManifest(); {
-		case err != nil:
-			return nil, err
-		default:
-			pm.storeJobWorker.Done()
-
-			return i, nil
-		}
-	}); err != nil {
+	if _, err := pm.getOrCreateManifest(); err != nil {
 		pm.cancel(err)
 
 		return err
 	}
-
-	pm.Log().Debug().Msg("merge done")
 
 	if err := pm.storeJobWorker.Wait(); err != nil {
 		pm.cancel(err)
@@ -679,7 +658,7 @@ func (pm *ProcessManager) workerMergeDone(worker string) error {
 	if pm.args.IsEnoughWorkers(count) {
 		l.Debug().Msg("enough workers merge done")
 
-		pm.mergeJobWorker.Done()
+		pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
 	}
 
 	return nil
@@ -892,21 +871,74 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 	return pm.isWorkersFailed()
 }
 
+func (pm *ProcessManager) getOrCreateManifest() (manifest base.Manifest, _ error) {
+	if err := pm.manifest.GetOrCreate(
+		func(i base.Manifest, _ bool) error {
+			manifest = i
+
+			return nil
+		},
+		func() (base.Manifest, error) {
+			switch i, err := pm.newManifest(); {
+			case err != nil:
+				return nil, err
+			default:
+				pm.storeJobWorker.Done()
+
+				return i, nil
+			}
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	return manifest, nil
+}
+
 func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 	var statesTree, opsTree util.Hash
 
-	switch i, err := pm.newStatesTree(); {
+	var treeew util.JobWorker
+
+	switch i, err := pm.args.NewJobWorker(context.Background()); {
 	case err != nil:
 		return nil, err
 	default:
-		statesTree = i
+		defer i.Close()
+
+		treeew = i
 	}
 
-	switch i, err := pm.newOpsTree(); {
-	case err != nil:
+	if err := treeew.NewJob(func(context.Context, uint64) error {
+		switch i, err := pm.newStatesTree(); {
+		case err != nil:
+			return err
+		default:
+			statesTree = i
+
+			return nil
+		}
+	}); err != nil {
 		return nil, err
-	default:
-		opsTree = i
+	}
+
+	if err := treeew.NewJob(func(context.Context, uint64) error {
+		switch i, err := pm.newOpsTree(); {
+		case err != nil:
+			return err
+		default:
+			opsTree = i
+
+			return nil
+		}
+	}); err != nil {
+		return nil, err
+	}
+
+	treeew.Done()
+
+	if err := treeew.Wait(); err != nil {
+		return nil, err
 	}
 
 	var suffrage, prev util.Hash
@@ -942,7 +974,7 @@ func (pm *ProcessManager) newStatesTree() (root util.Hash, _ error) {
 		return nil, nil
 	}
 
-	var writer *baseTreeWriter[string]
+	var writer *baseFixedTreeWriter[string]
 
 	switch i, err := pm.statesTreeWriter(false); {
 	case err != nil:
@@ -983,11 +1015,13 @@ func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
 		return nil, nil
 	}
 
-	var writer *baseTreeWriter[uint64]
+	var writer *baseFixedTreeWriter[uint64]
 
 	switch i, err := pm.operationsTreeWriter(true); {
 	case err != nil:
 		return nil, err
+	case i == nil:
+		return nil, nil
 	default:
 		writer = i
 	}
@@ -1193,23 +1227,27 @@ func (pm *ProcessManager) workersDone() error {
 }
 
 func (pm *ProcessManager) newStatesTreeWriterFunc() {
-	var writer *baseTreeWriter[string]
+	var writer *baseFixedTreeWriter[string]
 	var once sync.Once
 	var gerr error
 
-	pm.statesTreeWriter = func(create bool) (*baseTreeWriter[string], error) {
-		if !create {
-			return writer, nil
-		}
-
+	pm.statesTreeWriter = func(create bool) (*baseFixedTreeWriter[string], error) {
 		once.Do(func() {
-			writer, gerr = NewBaseTreeWriter[string](
+			if !create {
+				return
+			}
+
+			writer, gerr = NewBaseFixedTreeWriter[string](
 				pm.ctx(),
 				pm.args.NewJobWorker,
 				base.StateFixedtreeHint,
 				pm.args.SaveStatesTreeNodeFuncs,
 				pm.args.MinStatesSize,
 			)
+
+			if gerr == nil {
+				writer.SetLogging(pm.Logging)
+			}
 		})
 
 		if gerr != nil {
@@ -1221,23 +1259,27 @@ func (pm *ProcessManager) newStatesTreeWriterFunc() {
 }
 
 func (pm *ProcessManager) newOperationsTreeWriterFunc() {
-	var writer *baseTreeWriter[uint64]
+	var writer *baseFixedTreeWriter[uint64]
 	var once sync.Once
 	var gerr error
 
-	pm.operationsTreeWriter = func(create bool) (*baseTreeWriter[uint64], error) {
-		if !create {
-			return writer, nil
-		}
-
+	pm.operationsTreeWriter = func(create bool) (*baseFixedTreeWriter[uint64], error) {
 		once.Do(func() {
-			writer, gerr = NewBaseTreeWriter[uint64](
+			if !create {
+				return
+			}
+
+			writer, gerr = NewBaseFixedTreeWriter[uint64](
 				pm.ctx(),
 				pm.args.NewJobWorker,
-				base.StateFixedtreeHint,
+				base.OperationFixedtreeHint,
 				pm.args.SaveOperationsTreeNodeFuncs,
 				pm.args.MinStatesSize,
 			)
+
+			if gerr == nil {
+				writer.SetLogging(pm.Logging)
+			}
 		})
 
 		if gerr != nil {

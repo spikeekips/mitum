@@ -358,7 +358,8 @@ func (cli *CLI) createAccountKeys(pctx context.Context) error {
 }
 
 func (cli *CLI) createAccountOperations(pctx context.Context) ([]Op, error) {
-	started := time.Now()
+	cli.Log().Debug().Msg("create operations")
+	defer logging.TimeElapsed()(cli.Log().Info(), "create operations generated")
 
 	var pool isaac.NewOperationPool
 
@@ -399,11 +400,6 @@ func (cli *CLI) createAccountOperations(pctx context.Context) ([]Op, error) {
 	if err := wk.Wait(); err != nil {
 		return nil, err
 	}
-
-	cli.Log().Debug().
-		Stringer("elapsed", time.Since(started)).
-		Int("operations", len(ops)).
-		Msg("create account operations generated")
 
 	return ops, nil
 }
@@ -549,6 +545,8 @@ func (cli *CLI) processor(
 	case err != nil:
 		return nil, nil, err
 	default:
+		pp.SetLogging(cli.Logging)
+
 		return pp,
 			func() error {
 				return db.MergeBlockWriteDatabase(bdb)
@@ -672,7 +670,7 @@ func (cli *CLI) process(
 	pr base.ProposalSignFact,
 	previous base.Manifest,
 ) (base.BlockMap, func() error, error) {
-	cli.Log().Debug().Msg("start processing")
+	cli.Log().Debug().Msg("processing")
 
 	var pps isaac.ProposalProcessor
 	var ppdone func() error
@@ -834,7 +832,8 @@ func (cli *CLI) transfer(pctx context.Context, m base.Manifest) error {
 }
 
 func (cli *CLI) createTransferOperations(pctx context.Context) ([]Op, error) {
-	started := time.Now()
+	cli.Log().Debug().Msg("transfer operations")
+	defer logging.TimeElapsed()(cli.Log().Info(), "transfer operations generated")
 
 	var pool isaac.NewOperationPool
 
@@ -886,11 +885,6 @@ func (cli *CLI) createTransferOperations(pctx context.Context) ([]Op, error) {
 	if err := wk.Wait(); err != nil {
 		return nil, err
 	}
-
-	cli.Log().Debug().
-		Stringer("elapsed", time.Since(started)).
-		Int("operations", len(ops)).
-		Msg("transfer operations generated")
 
 	return ops, nil
 }

@@ -1308,6 +1308,9 @@ func (t *testProcessManager) TestWorkersManifestDone() {
 		t.Equal(expectedMergedOps, rm.Map())
 		t.Equal(expectedUnmergedOps, ru.Map())
 
+		t.T().Log("manifest expected:", util.MustMarshalJSONIndentString(manifest))
+		t.T().Log("manifest:", util.MustMarshalJSONIndentString(m))
+
 		base.EqualManifest(t.Assert(), manifest, m)
 	})
 }

@@ -146,7 +146,7 @@ func (opsr *OperationProcessor) Wait() error {
 func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op, fact util.Hash) error {
 	var opb Operation
 
-	switch found, err := opsr.args.IsInStateOperationFunc(ctx, fact); {
+	switch found, err := opsr.args.IsInStateOperationFunc(ctx, fact); { // FIXME move to manager?
 	case err != nil:
 		return err
 	case found:
@@ -183,10 +183,6 @@ func (opsr *OperationProcessor) getOperation(ctx context.Context, op util.Hash) 
 	case !found:
 		return nil, base.NewBaseOperationProcessReasonError("not found")
 	default:
-		if err := op.IsValid(opsr.args.NetworkID); err != nil {
-			return nil, base.NewBaseOperationProcessReasonError("%+v", err)
-		}
-
 		return op, nil
 	}
 }
@@ -198,8 +194,8 @@ func (opsr *OperationProcessor) SetName(s string) {
 }
 
 type (
-	saveStateFuncs     func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error)
 	saveOperationFuncs func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error)
+	saveStateFuncs     func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error)
 )
 
 type ProcessWorkerArgs struct {
@@ -290,6 +286,8 @@ type ProcessWorker struct {
 	saveDoneOperationsFunc writerCloseSaveFunc
 	saveStateFunc          processWorkerSaveStateFunc
 	saveDoneStatesFunc     writerCloseSaveFunc
+	savedOps               util.CompactAppendSliceDoneFunc[[2]interface{}]
+	savedStates            util.CompactAppendSliceDoneFunc[base.State]
 }
 
 func NewProcessWorker(
@@ -313,8 +311,6 @@ func NewProcessWorker(
 		mergeCtx:       func() context.Context { return mergeCtx },
 		mergeCtxCancel: mergeCtxCancel,
 	}
-
-	pw.args.StateOwners = func(context.Context, string) ([]string, error) { return []string{local}, nil }
 
 	var opsr *OperationProcessor
 	var opsrOnce sync.Once
@@ -605,30 +601,13 @@ func (pw *ProcessWorker) wait() error {
 
 	pw.mergeCtxCancel(errProcessWorkerMergeDone)
 
-	pw.delayedWorker.Done()
+	var bf map[base.BlockItemType]string
 
-	if err := pw.delayedWorker.Wait(); err != nil {
+	switch i, err := pw.save(); {
+	case err != nil:
 		return err
-	}
-
-	bf := map[base.BlockItemType]string{}
-
-	if pw.saveDoneOperationsFunc != nil {
-		switch i, err := pw.saveDoneOperationsFunc(true); {
-		case err != nil:
-			return err
-		default:
-			bf[base.BlockItemOperations] = i
-		}
-	}
-
-	if pw.saveDoneStatesFunc != nil {
-		switch i, err := pw.saveDoneStatesFunc(true); {
-		case err != nil:
-			return err
-		default:
-			bf[base.BlockItemStates] = i
-		}
+	default:
+		bf = i
 	}
 
 	if err := pw.args.UpdateStoreDoneFunc(pw.ctx(), bf); err != nil {
@@ -701,7 +680,7 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	args.NewJobWorker = pw.args.NewJobWorker
 	args.GetOperationFunc = pw.args.GetOperationFunc
 	args.IsInStateOperationFunc = pw.args.IsInStateOperationFunc
-	args.SaveOperationFunc = pw.saveOperation
+	args.SaveOperationFunc = pw.saveOperationFunc
 	args.UpdateReasonsFunc = pw.opsrUpdateReasons
 	args.MergeStateMergeValueFunc = pw.mergeStateMergeValue
 
@@ -733,9 +712,98 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	}, nil
 }
 
-func (pw *ProcessWorker) saveOperation(opindex uint64, op Operation) error {
-	return pw.delayedWorker.NewJob(func(context.Context, uint64) error {
-		return pw.saveOperationFunc(opindex, op)
+func (pw *ProcessWorker) save() (map[base.BlockItemType]string, error) {
+	if err := pw.saveOperations(); err != nil {
+		return nil, err
+	}
+
+	if err := pw.saveStates(); err != nil {
+		return nil, err
+	}
+
+	pw.delayedWorker.Done()
+
+	if err := pw.delayedWorker.Wait(); err != nil {
+		return nil, err
+	}
+
+	bf := map[base.BlockItemType]string{}
+
+	if pw.saveDoneOperationsFunc != nil {
+		switch i, err := pw.saveDoneOperationsFunc(true); {
+		case err != nil:
+			return nil, err
+		default:
+			bf[base.BlockItemOperations] = i
+		}
+	}
+
+	if pw.saveDoneStatesFunc != nil {
+		switch i, err := pw.saveDoneStatesFunc(true); {
+		case err != nil:
+			return nil, err
+		default:
+			bf[base.BlockItemStates] = i
+		}
+	}
+
+	return bf, nil
+}
+
+func (pw *ProcessWorker) saveOperations() error {
+	var save processWorkerSaveOperationFunc
+	var once sync.Once
+	var gerr error
+
+	return pw.savedOps(func(s [][2]interface{}) error {
+		once.Do(func() {
+			switch i, j, err := pw.args.SaveOperationFuncs(pw.ctx()); {
+			case err != nil:
+				gerr = err
+			default:
+				save = i
+				pw.saveDoneOperationsFunc = j
+			}
+		})
+		if gerr != nil {
+			return gerr
+		}
+
+		return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
+			return true, pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+				return save(
+					i[0].(uint64),
+					i[1].(Operation),
+				)
+			})
+		})
+	})
+}
+
+func (pw *ProcessWorker) saveStates() error {
+	var save processWorkerSaveStateFunc
+	var once sync.Once
+	var gerr error
+
+	return pw.savedStates(func(s []base.State) error {
+		once.Do(func() {
+			switch i, j, err := pw.args.SaveStateFuncs(pw.ctx()); {
+			case err != nil:
+				gerr = err
+			default:
+				save = i
+				pw.saveDoneStatesFunc = j
+			}
+		})
+		if gerr != nil {
+			return gerr
+		}
+
+		return util.TraverseSliceV1(s, func(_ int, i base.State) (bool, error) {
+			return true, pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+				return save(i)
+			})
+		})
 	})
 }
 
@@ -1027,9 +1095,7 @@ func (pw *ProcessWorker) mergeResult() error {
 			case err != nil:
 				return err
 			default:
-				if err := pw.delayedWorker.NewJob(func(context.Context, uint64) error {
-					return pw.saveStateFunc(i)
-				}); err != nil {
+				if err := pw.saveStateFunc(i); err != nil {
 					return err
 				}
 
@@ -1106,57 +1172,53 @@ func (pw *ProcessWorker) newState(
 }
 
 func (pw *ProcessWorker) attachSaveFuncs() {
-	var of processWorkerSaveOperationFunc
-	var sf processWorkerSaveStateFunc
-	var oOnce, sOnce sync.Once
-	var oerr, serr error
+	var aoerr, aserr error
+	var aoOnce, asOnce sync.Once
+	var addOp util.CompactAppendSliceAddFunc[[2]interface{}]
+	var addState util.CompactAppendSliceAddFunc[base.State]
+
+	pw.savedOps = func(func([][2]interface{}) error) error { return nil }
 
 	pw.saveOperationFunc = func(opindex uint64, op Operation) error {
-		oOnce.Do(func() {
-			switch i, j, err := pw.args.SaveOperationFuncs(pw.ctx()); {
+		aoOnce.Do(func() {
+			// FIXME manager sends number of ops to worker
+			switch i, j, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9); {
 			case err != nil:
-				oerr = err
+				aoerr = err
 			default:
-				of = i
-				pw.saveDoneOperationsFunc = j
-
-				go pw.canceled(nil, func() {
-					if _, err := pw.saveDoneOperationsFunc(false); err != nil {
-						pw.Log().Error().Err(err).Msg("failed to cancel to save operation")
-					}
-				})
+				addOp, pw.savedOps = i, j
 			}
 		})
 
-		if oerr != nil {
-			return oerr
+		if aoerr != nil {
+			return aoerr
 		}
 
-		return of(opindex, op)
+		_, _ = addOp([2]interface{}{opindex, op})
+
+		return nil
 	}
 
-	pw.saveStateFunc = func(st base.State) error {
-		sOnce.Do(func() {
-			switch i, j, err := pw.args.SaveStateFuncs(pw.ctx()); {
-			case err != nil:
-				serr = err
-			default:
-				sf = i
-				pw.saveDoneStatesFunc = j
+	pw.savedStates = func(func([]base.State) error) error { return nil }
 
-				go pw.canceled(nil, func() {
-					if _, err := pw.saveDoneStatesFunc(false); err != nil {
-						pw.Log().Error().Err(err).Msg("failed to cancel to save states")
-					}
-				})
+	pw.saveStateFunc = func(st base.State) error {
+		asOnce.Do(func() {
+			// FIXME manager sends number of ops to worker
+			switch i, j, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9); {
+			case err != nil:
+				aserr = err
+			default:
+				addState, pw.savedStates = i, j
 			}
 		})
 
-		if serr != nil {
-			return serr
+		if aserr != nil {
+			return aserr
 		}
 
-		return sf(st)
+		_, _ = addState(st)
+
+		return nil
 	}
 }
 

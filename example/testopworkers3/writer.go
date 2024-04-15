@@ -14,12 +14,14 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type BaseBlockItemWriter struct {
@@ -176,36 +178,35 @@ type (
 	writerSaveTreeNodeFuncs func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error)
 )
 
-type baseTreeWriter[K cmp.Ordered] struct {
+type baseFixedTreeWriter[K cmp.Ordered] struct {
 	*BaseBlockItemWriter
+	*logging.Logging
 	add      func(k K, node fixedtree.Node) error
 	treeRoot func() (util.Hash, error)
 	saveDone func() (string, error)
 }
 
-func NewBaseTreeWriter[K cmp.Ordered](
+func NewBaseFixedTreeWriter[K cmp.Ordered](
 	ctx context.Context,
 	newJobWorker func(context.Context) (util.JobWorker, error),
 	ht hint.Hint,
 	saveNodeFuncs writerSaveTreeNodeFuncs,
 	minNodesSize uint64,
-) (*baseTreeWriter[K], error) {
-	w := &baseTreeWriter[K]{
+) (*baseFixedTreeWriter[K], error) {
+	w := &baseFixedTreeWriter[K]{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "fixedtree-writer").Stringer("hint", ht)
+		}),
 		BaseBlockItemWriter: NewBaseBlockItemWriter(ctx, newJobWorker),
 	}
 
-	var sew util.JobWorker
 	var treeDone func() error
 	var saveNodeFunc func(uint64, fixedtree.Node) error
 
 	switch i, j, k, err := w.newTreeFuncs(
 		ht,
 		minNodesSize,
-		func(index uint64, node fixedtree.Node) error {
-			return sew.NewJob(func(context.Context, uint64) error {
-				return saveNodeFunc(index, node)
-			})
-		},
+		func() func(uint64, fixedtree.Node) error { return saveNodeFunc },
 	); {
 	case err != nil:
 		w.ctxCancel(err)
@@ -217,21 +218,20 @@ func NewBaseTreeWriter[K cmp.Ordered](
 		w.treeRoot = j
 	}
 
-	switch i, j, k, err := w.newSaveFuncs(saveNodeFuncs, treeDone); {
+	switch i, j, err := w.newSaveFuncs(saveNodeFuncs, treeDone); {
 	case err != nil:
 		w.ctxCancel(err)
 
 		return nil, err
 	default:
-		sew = i
-		saveNodeFunc = j
-		w.saveDone = k
+		saveNodeFunc = i
+		w.saveDone = j
 	}
 
 	return w, nil
 }
 
-func (w *baseTreeWriter[K]) Add(k K, node fixedtree.Node) error {
+func (w *baseFixedTreeWriter[K]) Add(k K, node fixedtree.Node) error {
 	if err := w.add(k, node); err != nil {
 		w.ctxCancel(err)
 
@@ -241,7 +241,7 @@ func (w *baseTreeWriter[K]) Add(k K, node fixedtree.Node) error {
 	return nil
 }
 
-func (w *baseTreeWriter[K]) Tree() (util.Hash, error) {
+func (w *baseFixedTreeWriter[K]) Tree() (util.Hash, error) {
 	switch i, err := w.treeRoot(); {
 	case err != nil:
 		w.ctxCancel(err)
@@ -252,7 +252,7 @@ func (w *baseTreeWriter[K]) Tree() (util.Hash, error) {
 	}
 }
 
-func (w *baseTreeWriter[K]) Save() (chunk string, _ error) {
+func (w *baseFixedTreeWriter[K]) Save() (chunk string, _ error) {
 	switch i, err := w.saveDone(); {
 	case err != nil:
 		w.ctxCancel(err)
@@ -265,7 +265,7 @@ func (w *baseTreeWriter[K]) Save() (chunk string, _ error) {
 	return chunk, nil
 }
 
-func (w *baseTreeWriter[K]) buildTree(
+func (w *baseFixedTreeWriter[K]) buildTree(
 	ht hint.Hint,
 	nodes []fixedtree.Node,
 	saveNodeFunc func(uint64, fixedtree.Node) error,
@@ -297,10 +297,10 @@ func (w *baseTreeWriter[K]) buildTree(
 	return tw.Tree()
 }
 
-func (w *baseTreeWriter[K]) newTreeFuncs(
+func (w *baseFixedTreeWriter[K]) newTreeFuncs(
 	ht hint.Hint,
 	minNodesSize uint64,
-	saveNodeFunc func(uint64, fixedtree.Node) error,
+	saveNodeFunc func() func(uint64, fixedtree.Node) error,
 ) (
 	add func(K, fixedtree.Node) error,
 	treeRoot func() (util.Hash, error),
@@ -308,6 +308,7 @@ func (w *baseTreeWriter[K]) newTreeFuncs(
 	_ error,
 ) {
 	var tew util.JobWorker
+	elapsed := func(*zerolog.Event, string) {}
 
 	var addNodes util.CompactAppendSliceAddFunc[fixedtree.Node]
 	var doneNodes util.CompactAppendSliceDoneFunc[fixedtree.Node]
@@ -322,6 +323,8 @@ func (w *baseTreeWriter[K]) newTreeFuncs(
 				if doneNodes != nil {
 					doneNodes(nil)
 				}
+
+				elapsed(w.Log().Info(), "generated")
 			}()
 
 			tew.Done()
@@ -347,7 +350,7 @@ func (w *baseTreeWriter[K]) newTreeFuncs(
 			switch tr, err := w.buildTree(
 				ht,
 				nodes,
-				saveNodeFunc,
+				saveNodeFunc(),
 			); {
 			case err != nil:
 				return err
@@ -373,6 +376,8 @@ func (w *baseTreeWriter[K]) newTreeFuncs(
 
 	return func(k K, node fixedtree.Node) error {
 			addNodesOnce.Do(func() {
+				elapsed = logging.TimeElapsed()
+
 				switch i, j, err := util.CompactAppendSliceV1[fixedtree.Node](minNodesSize, 1<<7); {
 				case err != nil:
 					gerr = err
@@ -403,11 +408,10 @@ func (w *baseTreeWriter[K]) newTreeFuncs(
 		nil
 }
 
-func (w *baseTreeWriter[K]) newSaveFuncs(
+func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 	saveNodeFuncs writerSaveTreeNodeFuncs,
 	treeDone func() error,
 ) (
-	sew util.JobWorker,
 	saveNodeFunc func(uint64, fixedtree.Node) error,
 	saveDone func() (string, error),
 	_ error,
@@ -415,13 +419,41 @@ func (w *baseTreeWriter[K]) newSaveFuncs(
 	var closeSaveNodeFunc func(bool) (string, error)
 	var chunk string
 
+	var add util.CompactAppendSliceAddFunc[[2]interface{}]
+	var done util.CompactAppendSliceDoneFunc[[2]interface{}]
+
+	switch i, j, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		add, done = i, j
+	}
+
+	var sew util.JobWorker
+	var save func(uint64, fixedtree.Node) error
+
 	sctx, sDone, _ := NewContextDoneFunc(
 		w.ctx(),
 		func(ctx context.Context) error {
+			defer logging.TimeElapsed()(w.Log().Info(), "saved")
+
 			if err := func() error {
 				defer sew.Close()
 
 				if err := treeDone(); err != nil {
+					return err
+				}
+
+				if err := done(func(s [][2]interface{}) error {
+					return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
+						return true, sew.NewJob(func(context.Context, uint64) error {
+							return save(
+								i[0].(uint64),
+								i[1].(fixedtree.Node),
+							)
+						})
+					})
+				}); err != nil {
 					return err
 				}
 
@@ -447,21 +479,24 @@ func (w *baseTreeWriter[K]) newSaveFuncs(
 
 	switch i, err := w.newJobWorker(sctx); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		sew = i
 	}
 
 	switch i, j, err := saveNodeFuncs(sctx); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
-		saveNodeFunc = i
+		save = i
 		closeSaveNodeFunc = j
 	}
 
-	return sew,
-		saveNodeFunc,
+	return func(index uint64, node fixedtree.Node) error {
+			add([2]interface{}{index, node})
+
+			return nil
+		},
 		func() (string, error) {
 			if err := sDone(); err != nil {
 				return "", err
@@ -720,7 +755,7 @@ func newWriterSaveBlockItemFileFuncs(
 				case err != nil:
 					return err
 				default:
-					if _, err := f.Write(b); err != nil {
+					if _, err := f.Write(append(b, []byte("\n")...)); err != nil {
 						return err
 					}
 
@@ -847,11 +882,7 @@ func newWriterSaveOperationsFuncs(
 			case err != nil:
 				return nil, err
 			default:
-				return util.ConcatBytesSlice(
-					[]byte(fmt.Sprintf("%d,", index)),
-					b,
-					[]byte("\n"),
-				), nil
+				return util.ConcatBytesSlice([]byte(fmt.Sprintf("%d,", index)), b), nil
 			}
 		}
 

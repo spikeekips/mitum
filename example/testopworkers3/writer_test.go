@@ -162,7 +162,7 @@ func (t *testTreeWriter) TestCancel() {
 
 		closesavech := make(chan bool, 1)
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -220,7 +220,7 @@ func (t *testTreeWriter) TestCancel() {
 
 		closesavech := make(chan bool, 1)
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -272,7 +272,7 @@ func (t *testTreeWriter) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -302,7 +302,7 @@ func (t *testTreeWriter) TestCancel() {
 
 		closesavech := make(chan bool, 1)
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -345,7 +345,7 @@ func (t *testTreeWriter) TestCancel() {
 
 		closeokch := make(chan bool, 1)
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -398,7 +398,7 @@ func (t *testTreeWriter) TestStatesTree() {
 		t.NoError(err)
 		defer closef()
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
@@ -473,7 +473,7 @@ func (t *testTreeWriter) TestStatesTree() {
 
 		closesavech := make(chan bool, 1)
 
-		w, err := NewBaseTreeWriter[string](
+		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
 			func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, 1<<9)
