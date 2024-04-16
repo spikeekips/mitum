@@ -505,6 +505,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 
 	t.Run("during NewOperations", func() {
 		pw := t.newWorker(context.Background(), "w0")
+		pw.args.NOps = 1 << 3
 
 		processch := make(chan error, 1)
 		pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
@@ -564,6 +565,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
+		pw.args.NOps = 1 << 3
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 		pw.args.UpdateMergeDoneFunc = func(context.Context) (
 			updateState func(base.State) error,
@@ -685,6 +687,7 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
+		pw.args.NOps = uint64(len(ops))
 		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
@@ -783,6 +786,7 @@ func (t *testProcessWorker) TestSaveOperation() {
 	pw := t.newWorker(context.Background(), "w0")
 	defer pw.Cancel()
 
+	pw.args.NOps = uint64(nops)
 	pw.args.UpdateMergeDoneFunc = func(context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
@@ -940,6 +944,7 @@ func (t *testProcessWorker) Test3Workers() {
 		pw := t.newWorker(context.Background(), "w0")
 		defer pw.Cancel()
 
+		pw.args.NOps = uint64(len(ops))
 		pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
 			return []string{"w0"}, nil
 		}
@@ -1089,6 +1094,7 @@ func (t *testProcessWorker) Test3Workers() {
 
 			pws[local] = pw
 
+			pw.args.NOps = uint64(len(ops))
 			pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
 				owners, found := stateOwners[stateKey]
 				if !found {

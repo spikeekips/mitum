@@ -189,12 +189,13 @@ type (
 
 type ProcessWorkerArgs struct {
 	NetworkID                     base.NetworkID
+	NOps                          uint64
 	GetOperationFunc              func(_ context.Context, operation util.Hash) (Operation, bool, error)
 	GetStateFunc                  func(_ context.Context, key string) (base.State, bool, error)
 	NewJobWorker                  func(context.Context) (util.JobWorker, error)
 	IsEnoughWorkers               func(n uint64) bool
 	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
-	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error // FIXME send owners too
+	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	BroadcastCanceled             func() error
@@ -440,6 +441,10 @@ func (pw *ProcessWorker) NewOperations() (
 	cancel func(error),
 	_ error,
 ) {
+	if pw.args.NOps < 1 {
+		return nil, nil, nil, errors.Errorf("empty operations")
+	}
+
 	var opsr *OperationProcessor
 	var opsrDone func() error
 
@@ -1167,8 +1172,7 @@ func (pw *ProcessWorker) attachSaveFuncs() {
 
 	pw.saveOperationFunc = func(opindex uint64, op Operation) error {
 		aoOnce.Do(func() {
-			// FIXME manager sends number of ops to worker
-			switch i, j, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9); {
+			switch i, j, err := util.CompactAppendSliceV1[[2]interface{}](pw.args.NOps, 1<<9); {
 			case err != nil:
 				aoerr = err
 			default:
@@ -1189,8 +1193,7 @@ func (pw *ProcessWorker) attachSaveFuncs() {
 
 	pw.saveStateFunc = func(st base.State) error {
 		asOnce.Do(func() {
-			// FIXME manager sends number of ops to worker
-			switch i, j, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9); {
+			switch i, j, err := util.CompactAppendSliceV1[base.State](pw.args.NOps, 1<<9); {
 			case err != nil:
 				aserr = err
 			default:

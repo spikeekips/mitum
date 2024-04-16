@@ -462,7 +462,6 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-
 		args.WorkerReady = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) error { return nil }
 		startprocessch := make(chan string, 1)
 
@@ -1003,7 +1002,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 func (t *testProcessManager) newProcessWorker(
 	ctx context.Context,
 	local string,
-	height base.Height,
+	args processWorkerPrepareArgs,
 	other func(string) *ProcessWorker,
 	others func() []*ProcessWorker,
 	getOperationFunc func(context.Context, util.Hash) (Operation, bool, error),
@@ -1021,11 +1020,12 @@ func (t *testProcessManager) newProcessWorker(
 	),
 ) (*ProcessWorker, error) {
 	pwargs := NewProcessWorkerArgs(t.networkID)
-	pw, err := NewProcessWorker(ctx, pwargs, local, height)
+	pw, err := NewProcessWorker(ctx, pwargs, local, args.Height)
 	if err != nil {
 		return nil, err
 	}
 
+	pw.args.NOps = args.NOps
 	pw.args.GetOperationFunc = getOperationFunc
 	pw.args.GetStateFunc = getStateFunc
 	pw.args.IsEnoughWorkers = isEnoughWorkers
@@ -1157,7 +1157,7 @@ func (t *testProcessManager) testNWorkers(
 		return t.newProcessWorker(
 			ctx,
 			worker,
-			args.Height,
+			args,
 			func(other string) *ProcessWorker {
 				pw, _ := pws.Value(other)
 

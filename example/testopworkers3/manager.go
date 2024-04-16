@@ -31,8 +31,9 @@ type (
 
 type processWorkerPrepareArgs struct {
 	Height      base.Height
-	Workers     []string // FIXME remove
-	NStateShare uint8    // FIXME remove
+	Workers     []string
+	NStateShare uint8
+	NOps        uint64
 }
 
 type ProcessManagerArgs struct {
@@ -552,6 +553,7 @@ func (pm *ProcessManager) readyWorkers() error {
 		Height:      pm.proposal.Point().Height(),
 		Workers:     pm.workers,
 		NStateShare: pm.args.NStateShare,
+		NOps:        uint64(len(pm.ops)),
 	}
 
 	if err := util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
