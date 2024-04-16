@@ -460,6 +460,7 @@ func (t *testProcessManager) TestCancel() {
 	t.Run("cancel during process", func() {
 		workers := []string{"w0", "w1"}
 		args := NewProcessManagerArgs(workers)
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 
 		args.WorkerReady = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) error { return nil }
@@ -518,6 +519,7 @@ func (t *testProcessManager) TestCancel() {
 		workers := []string{"w0", "w1"}
 		args := NewProcessManagerArgs(workers)
 
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
 			return nil
@@ -570,6 +572,7 @@ func (t *testProcessManager) TestCancel() {
 		workers := []string{"w0", "w1"}
 		args := NewProcessManagerArgs(workers)
 
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
 			return nil
@@ -617,6 +620,8 @@ func (t *testProcessManager) TestCancel() {
 	t.Run("cancel workers", func() {
 		workers := t.workers(2)
 		args := NewProcessManagerArgs(workers)
+
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 
 		workercancelch := make(chan string, len(workers))
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
@@ -681,6 +686,7 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 		args.NOpShare = 1
 		args.NStateShare = 1
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 
 		workercancelch := make(chan string, len(workers))
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
@@ -754,6 +760,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		ops := newOps(len(workers))
 
 		args := NewProcessManagerArgs(workers)
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
@@ -785,6 +792,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 		ops := newOps(len(workers))
 
 		args := NewProcessManagerArgs(workers)
+		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
@@ -826,6 +834,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	}
 
 	args := NewProcessManagerArgs(workers)
+	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 	args.WorkerCancel = func(context.Context, string) error { return nil }
 	args.NOpShare = 1
 
@@ -935,6 +944,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	args := NewProcessManagerArgs(workers)
 	args.NOpShare = 1
 	args.NStateShare = uint8(len(workers)) // prevent to shrink workers
+	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 	args.WorkerCancel = func(context.Context, string) error { return nil }
 
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
@@ -1179,6 +1189,7 @@ func (t *testProcessManager) testNWorkers(
 		)
 	}
 
+	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 	args.WorkerCancel = func(_ context.Context, worker string) error {
 		i, found := pws.Value(worker)
 		if found {

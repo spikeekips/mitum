@@ -34,7 +34,6 @@ type OperationProcessorArgs struct {
 	NetworkID                base.NetworkID
 	NewJobWorker             func(context.Context) (util.JobWorker, error)
 	GetOperationFunc         func(_ context.Context, operation util.Hash) (Operation, bool, error)
-	IsInStateOperationFunc   func(_ context.Context, fact util.Hash) (bool, error)
 	SaveOperationFunc        processWorkerSaveOperationFunc
 	UpdateReasonsFunc        func(opindex uint64, reason base.OperationProcessReasonError) error
 	MergeStateMergeValueFunc func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
@@ -48,9 +47,6 @@ func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs
 		},
 		GetOperationFunc: func(context.Context, util.Hash) (Operation, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetOperationFunc")
-		},
-		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
-			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
 		SaveOperationFunc: func(uint64, Operation) error { return util.ErrNotImplemented.Errorf("SaveOperationFunc") },
 		UpdateReasonsFunc: func(uint64, base.OperationProcessReasonError) error {
@@ -146,13 +142,6 @@ func (opsr *OperationProcessor) Wait() error {
 func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op, fact util.Hash) error {
 	var opb Operation
 
-	switch found, err := opsr.args.IsInStateOperationFunc(ctx, fact); { // FIXME move to manager?
-	case err != nil:
-		return err
-	case found:
-		return base.NewBaseOperationProcessReasonError("already in state")
-	}
-
 	switch i, err := opsr.getOperation(ctx, op); {
 	case err != nil:
 		return err
@@ -201,12 +190,11 @@ type (
 type ProcessWorkerArgs struct {
 	NetworkID                     base.NetworkID
 	GetOperationFunc              func(_ context.Context, operation util.Hash) (Operation, bool, error)
-	IsInStateOperationFunc        func(_ context.Context, fact util.Hash) (bool, error)
 	GetStateFunc                  func(_ context.Context, key string) (base.State, bool, error)
 	NewJobWorker                  func(context.Context) (util.JobWorker, error)
 	IsEnoughWorkers               func(n uint64) bool
 	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
-	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error // FIXME send owners too
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	BroadcastCanceled             func() error
@@ -224,10 +212,9 @@ type ProcessWorkerArgs struct {
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 	return &ProcessWorkerArgs{
-		NetworkID:              networkID,
-		GetOperationFunc:       func(context.Context, util.Hash) (Operation, bool, error) { return nil, false, nil },
-		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) { return false, nil },
-		GetStateFunc:           func(context.Context, string) (base.State, bool, error) { return nil, false, nil },
+		NetworkID:        networkID,
+		GetOperationFunc: func(context.Context, util.Hash) (Operation, bool, error) { return nil, false, nil },
+		GetStateFunc:     func(context.Context, string) (base.State, bool, error) { return nil, false, nil },
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
@@ -679,7 +666,6 @@ func (pw *ProcessWorker) newOperationProcessor() (
 
 	args.NewJobWorker = pw.args.NewJobWorker
 	args.GetOperationFunc = pw.args.GetOperationFunc
-	args.IsInStateOperationFunc = pw.args.IsInStateOperationFunc
 	args.SaveOperationFunc = pw.saveOperationFunc
 	args.UpdateReasonsFunc = pw.opsrUpdateReasons
 	args.MergeStateMergeValueFunc = pw.mergeStateMergeValue

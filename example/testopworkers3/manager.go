@@ -50,6 +50,7 @@ type ProcessManagerArgs struct {
 		_ error,
 	)
 	IsEnoughWorkers             func(workers uint64) bool // NOTE include local worker
+	IsInStateOperationFunc      func(_ context.Context, fact util.Hash) (bool, error)
 	NewOpOwnersFunc             func(workers []string, share uint8) (opOwnersFunc, error)
 	NewStateOwnersFunc          func(workers []string, share uint8) (stateOwnersFunc, error)
 	MapSize                     uint64
@@ -84,6 +85,9 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 			error,
 		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("WorkerNewOperations")
+		},
+		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
+			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
 		NewOpOwnersFunc:     serialOpOwnersFunc,
 		NewStateOwnersFunc:  serialStateOwnersFunc,
@@ -818,6 +822,13 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 		func(f func(string) (workerNewOperationsFunc, error)) error {
 			return util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
 				opindex, op, fact := uint64(i), v[0], v[1]
+
+				switch found, err := pm.args.IsInStateOperationFunc(pm.ctx(), fact); {
+				case err != nil:
+					return true, err
+				case found:
+					return true, pm.updatedReason(opindex, "already in state")
+				}
 
 				var owners []string
 

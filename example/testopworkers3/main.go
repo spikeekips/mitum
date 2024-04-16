@@ -597,6 +597,9 @@ func (cli *CLI) newManagerFunc(
 
 	return func(ctx context.Context) (*ProcessManager, error) {
 		args := NewProcessManagerArgs(cli.workers)
+		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
+			return db.ExistsInStateOperation(fact)
+		}
 		args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, cli.c)
 		}
@@ -956,9 +959,6 @@ func (cli *CLI) newWorkerReadyFunc(
 				default:
 					return i.(Operation), true, nil
 				}
-			}
-			args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
-				return db.ExistsInStateOperation(fact)
 			}
 			args.GetStateFunc = func(_ context.Context, key string) (base.State, bool, error) {
 				return db.State(key)

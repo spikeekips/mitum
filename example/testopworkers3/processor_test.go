@@ -31,7 +31,6 @@ func (t *baseTestOperationProcessor) SetupSuite() {
 
 func (t *baseTestOperationProcessor) newProcessor(ctx context.Context) *OperationProcessor {
 	args := NewOperationProcessorArgs(t.networkID)
-	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 	args.SaveOperationFunc = func(uint64, Operation) error { return nil }
 
 	opsr, err := NewOperationProcessor(ctx, args)
