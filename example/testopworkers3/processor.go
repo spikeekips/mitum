@@ -188,14 +188,21 @@ type (
 )
 
 type ProcessWorkerArgs struct {
-	NetworkID                     base.NetworkID
-	NOps                          uint64
-	GetOperationFunc              func(_ context.Context, operation util.Hash) (Operation, bool, error)
-	GetStateFunc                  func(_ context.Context, key string) (base.State, bool, error)
-	NewJobWorker                  func(context.Context) (util.JobWorker, error)
-	IsEnoughWorkers               func(n uint64) bool
-	StateOwners                   func(_ context.Context, stateKey string) (owners []string, _ error)
-	BroadcastInsertOpFunc         func(_ context.Context, worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	NetworkID             base.NetworkID
+	NOps                  uint64
+	GetOperationFunc      func(_ context.Context, operation util.Hash) (Operation, bool, error)
+	GetStateFunc          func(_ context.Context, key string) (base.State, bool, error)
+	NewJobWorker          func(context.Context) (util.JobWorker, error)
+	IsEnoughWorkers       func(n uint64) bool
+	StateOwners           func(_ context.Context, stateKey string) (owners []string, _ error)
+	BroadcastInsertOpFunc func(
+		_ context.Context,
+		worker string,
+		opindex uint64,
+		fact util.Hash,
+		_ []StateMergeValue,
+		owners map[ /* state key */ string] /* owners */ []string,
+	) error
 	BroadcastInsertValuesDoneFunc func(context.Context) error
 	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	BroadcastCanceled             func() error
@@ -223,7 +230,9 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		StateOwners: func(context.Context, string) ([]string, error) {
 			return nil, util.ErrNotImplemented.Errorf("StateOwners")
 		},
-		BroadcastInsertOpFunc:         func(context.Context, string, uint64, util.Hash, []StateMergeValue) error { return nil },
+		BroadcastInsertOpFunc: func(context.Context, string, uint64, util.Hash, []StateMergeValue, map[string][]string) error {
+			return nil
+		},
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
 		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
 		BroadcastCanceled:             func() error { return nil },
@@ -483,8 +492,18 @@ func (pw *ProcessWorker) NewOperations() (
 	}
 }
 
-func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 	_ = pw.ophs.SetValue(opindex, fact)
+
+	if len(owners) > 0 {
+		_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
+			if i, found := owners[v.Key()]; found {
+				_ = pw.setStateMergeValueOwners(v.Key(), i)
+			}
+
+			return true, nil
+		})
+	}
 
 	if err := pw.setStateMergeValuesOwners(opindex, values, nil); err != nil {
 		pw.ctxCancel(err)
@@ -864,7 +883,15 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 
 				return pw.mergerInsertOp(opindex, filtered)
 			default:
-				return pw.args.BroadcastInsertOpFunc(pw.ctx(), owner, opindex, fact, filtered)
+				opOwners := map[string][]string{}
+
+				util.TraverseSliceV1(filtered, func(_ int, v StateMergeValue) (bool, error) {
+					opOwners[v.Key()], _ = pw.stateOwners.Value(v.Key())
+
+					return true, nil
+				})
+
+				return pw.args.BroadcastInsertOpFunc(pw.ctx(), owner, opindex, fact, filtered, opOwners)
 			}
 		}); err != nil {
 			return err
@@ -988,6 +1015,21 @@ func (pw *ProcessWorker) stateMergeValueOwners(ctx context.Context, value StateM
 	}
 
 	return owners, nil
+}
+
+func (pw *ProcessWorker) setStateMergeValueOwners(stateKey string, owners []string) error {
+	_, _, _ = pw.stateOwners.Set(
+		stateKey,
+		func(i []string, found bool) ([]string, error) {
+			if found {
+				return nil, util.ErrLockedSetIgnore
+			}
+
+			return owners, nil
+		},
+	)
+
+	return nil
 }
 
 func (pw *ProcessWorker) filterOps(ops []uint64) ([]uint64, error) {

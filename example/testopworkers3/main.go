@@ -970,10 +970,10 @@ func (cli *CLI) newWorkerReadyFunc(
 			args.StateOwners = func(_ context.Context, key string) ([]string, error) {
 				return pm.StateOwners(key)
 			}
-			args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 				w, _ := workerpool.Value(worker)
 
-				return w.InsertValues(local, opindex, fact, values)
+				return w.InsertValues(local, opindex, fact, values, owners)
 			}
 			args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
 				workerpool.Traverse(func(worker string, w *ProcessWorker) bool {
