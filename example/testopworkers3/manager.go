@@ -30,6 +30,7 @@ type (
 )
 
 type processWorkerPrepareArgs struct {
+	Manager     string
 	Height      base.Height
 	Workers     []string
 	NStateShare uint8
@@ -37,6 +38,7 @@ type processWorkerPrepareArgs struct {
 }
 
 type ProcessManagerArgs struct {
+	Local               string
 	Workers             []string
 	NOpShare            uint8
 	NStateShare         uint8
@@ -132,7 +134,7 @@ type ProcessManager struct {
 	cleanf                    func()
 	states                    util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
 	reasons                   util.LockedMap[ /* opindex */ uint64 /* reason */, string]
-	addFailedWorker           func(worker string) bool
+	addFailedWorker           func(worker string, _ error) bool
 	isWorkersFailed           func() error
 	isFailedWorker            func(worker string) bool
 	failedWorkers             func() []string
@@ -403,7 +405,7 @@ func (pm *ProcessManager) UpdateMerged(worker string) (
 }
 
 func (pm *ProcessManager) WorkerCanceled(worker string) {
-	if pm.addFailedWorker(worker) {
+	if pm.addFailedWorker(worker, context.Canceled) {
 		if err := pm.isWorkersFailed(); err != nil {
 			pm.ctxCancel(errProcessManagerWorkersWorkersCanceled)
 		}
@@ -550,6 +552,7 @@ func (pm *ProcessManager) readyWorkers() error {
 	}
 
 	args := processWorkerPrepareArgs{
+		Manager:     pm.args.Local,
 		Height:      pm.proposal.Point().Height(),
 		Workers:     pm.workers,
 		NStateShare: pm.args.NStateShare,
@@ -565,7 +568,7 @@ func (pm *ProcessManager) readyWorkers() error {
 
 				pm.Log().Error().Err(err).Str("worker", worker).Msg("worker failed ready")
 
-				pm.addFailedWorker(worker)
+				pm.addFailedWorker(worker, err)
 			}
 
 			return nil
@@ -713,7 +716,7 @@ func (pm *ProcessManager) workerStoreDone(worker string, chunks map[base.BlockIt
 
 func (pm *ProcessManager) newOperationFunc(
 	newJob func(util.ContextWorkerCallback) error,
-	errf func(worker string),
+	errf func(worker string, _ error),
 	f func(func(string) (workerNewOperationsFunc, error)) error,
 ) error {
 	chs := map[string]chan [3]interface{}{}
@@ -744,7 +747,8 @@ func (pm *ProcessManager) newOperationFunc(
 			switch i, j, k, err := pm.args.WorkerNewOperations(pm.ctx(), worker); {
 			case err != nil:
 				_ = gerr.SetValue(err)
-				errf(worker)
+
+				errf(worker, err)
 			default:
 				newop = i
 				done = j
@@ -767,7 +771,7 @@ func (pm *ProcessManager) newOperationFunc(
 
 					if err := newop(opindex, op, fact); err != nil {
 						_ = gerr.SetValue(err)
-						errf(worker)
+						errf(worker, err)
 					}
 				}
 
@@ -777,7 +781,7 @@ func (pm *ProcessManager) newOperationFunc(
 
 				if err := done(); err != nil {
 					_ = gerr.SetValue(err)
-					errf(worker)
+					errf(worker, err)
 				}
 
 				return nil
@@ -818,8 +822,8 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 
 	if err := pm.newOperationFunc(
 		ew.NewJob,
-		func(worker string) {
-			_ = pm.addFailedWorker(worker)
+		func(worker string, err error) {
+			_ = pm.addFailedWorker(worker, err)
 		},
 		func(f func(string) (workerNewOperationsFunc, error)) error {
 			return util.TraverseSliceV1(pm.ops, func(i int, v [2]util.Hash) (bool, error) {
@@ -856,12 +860,12 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 
 					switch newOp, err := f(owner); {
 					case err != nil:
-						if pm.addFailedWorker(owner) {
+						if pm.addFailedWorker(owner, err) {
 							return true, pm.isWorkersFailed()
 						}
 					default:
 						if err := newOp(opindex, op, fact); err != nil {
-							if pm.addFailedWorker(owner) {
+							if pm.addFailedWorker(owner, err) {
 								return true, pm.isWorkersFailed()
 							}
 						}
@@ -1136,7 +1140,9 @@ func (pm *ProcessManager) cancelWorkers() {
 func (pm *ProcessManager) attachFailedWorkers() func() {
 	faileds := util.NewLocked(map[string]struct{}{})
 
-	pm.addFailedWorker = func(worker string) (added bool) {
+	pm.addFailedWorker = func(worker string, err error) (added bool) {
+		pm.Log().Error().Err(err).Str("worker", worker).Msg("worker failed")
+
 		_, _ = faileds.Set(func(m map[string]struct{}, _ bool) (map[string]struct{}, error) {
 			if m == nil { // NOTE ProcessManager cleaned
 				return nil, util.ErrLockedSetIgnore
@@ -1219,7 +1225,7 @@ func (pm *ProcessManager) workersDone() error {
 
 		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
 			if err := pm.args.WorkerDone(ctx, worker); err != nil {
-				if pm.addFailedWorker(worker) {
+				if pm.addFailedWorker(worker, err) {
 					return pm.isWorkersFailed()
 				}
 			}

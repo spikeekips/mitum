@@ -238,7 +238,7 @@ func (t *testProcessManager) workers(n uint8) (workers []string) {
 	return workers
 }
 
-func (t *testProcessManager) newDummyManangerWithError(
+func (t *testProcessManager) newDummyManagerWithError(
 	ctx context.Context,
 	workers []string,
 ) (*ProcessManager, error) {
@@ -251,11 +251,11 @@ func (t *testProcessManager) newDummyManangerWithError(
 	return NewProcessManager(ctx, args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)
 }
 
-func (t *testProcessManager) newDummyMananger(
+func (t *testProcessManager) newDummyManager(
 	ctx context.Context,
 	workers []string,
 ) *ProcessManager {
-	pm, err := t.newDummyManangerWithError(ctx, workers)
+	pm, err := t.newDummyManagerWithError(ctx, workers)
 	t.NoError(err)
 
 	return pm
@@ -439,7 +439,7 @@ func (t *testProcessManager) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		workers := []string{"w0", "w1"}
-		pm := t.newDummyMananger(ctx, workers)
+		pm := t.newDummyManager(ctx, workers)
 
 		cancel()
 
@@ -449,7 +449,7 @@ func (t *testProcessManager) TestCancel() {
 
 	t.Run("before process, and then process", func() {
 		workers := []string{"w0", "w1"}
-		pm := t.newDummyMananger(context.Background(), workers)
+		pm := t.newDummyManager(context.Background(), workers)
 
 		pm.Cancel()
 
