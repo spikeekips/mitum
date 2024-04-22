@@ -29,7 +29,7 @@ type (
 	workerNewOperationsFunc func(opindex uint64, op, fact util.Hash) error
 )
 
-type processWorkerPrepareArgs struct {
+type processWorkerReadyArgs struct {
 	Manager     string
 	Height      base.Height
 	Workers     []string
@@ -43,7 +43,7 @@ type ProcessManagerArgs struct {
 	NOpShare            uint8
 	NStateShare         uint8
 	NewJobWorker        func(context.Context) (util.JobWorker, error)
-	WorkerReady         func(_ context.Context, worker string, _ processWorkerPrepareArgs) error
+	WorkerReady         func(_ context.Context, worker string, _ processWorkerReadyArgs) error
 	WorkerCancel        func(_ context.Context, worker string) error
 	WorkerDone          func(_ context.Context, worker string) error
 	WorkerNewOperations func(_ context.Context, worker string) (
@@ -72,7 +72,7 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
-		WorkerReady: func(context.Context, string, processWorkerPrepareArgs) error {
+		WorkerReady: func(context.Context, string, processWorkerReadyArgs) error {
 			return util.ErrNotImplemented.Errorf("WorkerReady")
 		},
 		WorkerCancel: func(context.Context, string) error {
@@ -89,6 +89,7 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("WorkerNewOperations")
 		},
+
 		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
 			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
@@ -551,7 +552,7 @@ func (pm *ProcessManager) readyWorkers() error {
 		ew = i
 	}
 
-	args := processWorkerPrepareArgs{
+	args := processWorkerReadyArgs{
 		Manager:     pm.args.Local,
 		Height:      pm.proposal.Point().Height(),
 		Workers:     pm.workers,

@@ -243,7 +243,7 @@ func (t *testProcessManager) newDummyManagerWithError(
 	workers []string,
 ) (*ProcessManager, error) {
 	args := NewProcessManagerArgs(workers)
-	args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+	args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error { return nil }
 	args.WorkerCancel = func(context.Context, string) error { return nil }
 
 	pr := t.newProposal(33, nil)
@@ -462,7 +462,7 @@ func (t *testProcessManager) TestCancel() {
 		args := NewProcessManagerArgs(workers)
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerReady = func(ctx context.Context, worker string, _ processWorkerPrepareArgs) error { return nil }
+		args.WorkerReady = func(ctx context.Context, worker string, _ processWorkerReadyArgs) error { return nil }
 		startprocessch := make(chan string, 1)
 
 		ops := [][2]util.Hash{
@@ -520,7 +520,7 @@ func (t *testProcessManager) TestCancel() {
 
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error {
 			return nil
 		}
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
@@ -573,7 +573,7 @@ func (t *testProcessManager) TestCancel() {
 
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error {
 			return nil
 		}
 		args.WorkerNewOperations = func(ctx context.Context, worker string) (
@@ -623,7 +623,7 @@ func (t *testProcessManager) TestCancel() {
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 
 		workercancelch := make(chan string, len(workers))
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error {
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error {
 			return nil
 		}
 		args.WorkerCancel = func(_ context.Context, worker string) error {
@@ -688,7 +688,7 @@ func (t *testProcessManager) TestCancel() {
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
 
 		workercancelch := make(chan string, len(workers))
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error { return nil }
 		args.WorkerCancel = func(_ context.Context, worker string) error {
 			workercancelch <- worker
 
@@ -760,7 +760,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		args := NewProcessManagerArgs(workers)
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
@@ -792,7 +792,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		args := NewProcessManagerArgs(workers)
 		args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
-		args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+		args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error { return nil }
 		args.WorkerCancel = func(context.Context, string) error { return nil }
 		args.WorkerNewOperations = func(_ context.Context, worker string) (
 			workerNewOperationsFunc,
@@ -846,7 +846,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 		donech[workers[i]] = make(chan struct{}, 1)
 	}
 
-	args.WorkerReady = func(context.Context, string, processWorkerPrepareArgs) error { return nil }
+	args.WorkerReady = func(context.Context, string, processWorkerReadyArgs) error { return nil }
 	args.WorkerNewOperations = func(ctx context.Context, worker string) (
 		workerNewOperationsFunc,
 		func() error,
@@ -1002,7 +1002,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 func (t *testProcessManager) newProcessWorker(
 	ctx context.Context,
 	local string,
-	args processWorkerPrepareArgs,
+	args processWorkerReadyArgs,
 	other func(string) *ProcessWorker,
 	others func() []*ProcessWorker,
 	getOperationFunc func(context.Context, util.Hash) (Operation, bool, error),
@@ -1153,7 +1153,7 @@ func (t *testProcessManager) testNWorkers(
 
 	pws := util.NewSingleLockedMap[string, *ProcessWorker]()
 
-	newWorker := func(worker string, args processWorkerPrepareArgs) (*ProcessWorker, error) {
+	newWorker := func(worker string, args processWorkerReadyArgs) (*ProcessWorker, error) {
 		return t.newProcessWorker(
 			ctx,
 			worker,
@@ -1199,7 +1199,7 @@ func (t *testProcessManager) testNWorkers(
 		return nil
 	}
 
-	args.WorkerReady = func(ctx context.Context, worker string, args processWorkerPrepareArgs) error {
+	args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
 		return pws.GetOrCreate(
 			worker,
 			func(i *ProcessWorker, _ bool) error {

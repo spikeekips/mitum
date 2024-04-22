@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -23,7 +24,9 @@ func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64)
 
 func (t *baseTestAccountStateMerger) newAccountStateMergeValue(address base.Publickey, balance int64) AccountStateMergeValue {
 	v, err := NewAccountStateMergeValue(address, balance)
-	t.NoError(err)
+	if err != nil {
+		panic(err)
+	}
 
 	return v
 }
@@ -40,7 +43,9 @@ func (t *baseTestAccountStateMerger) randomMergeValues(
 
 	for i := range vs {
 		balance, ok := a[i].(int)
-		t.True(ok)
+		if !ok {
+			panic(errors.Errorf("expected int, not %T", a[i]))
+		}
 
 		_, v := t.randomAccountStateMergeValue(int64(balance))
 		vs[i] = v

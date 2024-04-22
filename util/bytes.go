@@ -143,6 +143,10 @@ func EnsureRead(ctx context.Context, r io.Reader, b []byte) (n uint64, _ error) 
 			case n == uint64(len(b)):
 				return n, errors.WithStack(err)
 			case iseof:
+				if n < 1 {
+					return n, err
+				}
+
 				return n, errors.Errorf("insufficient read")
 			default:
 				go read()
@@ -269,6 +273,29 @@ func WriteLengthedSlice(w io.Writer, m [][]byte) error {
 	for i := range m {
 		if err := WriteLengthed(w, m[i]); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func WriteLengthedSliceFunc(
+	w io.Writer,
+	size uint64,
+	f func(index uint64) ([]byte, error),
+) error {
+	if _, err := w.Write(Uint64ToBytes(size)); err != nil {
+		return errors.WithStack(err)
+	}
+
+	for i := uint64(0); i < size; i++ {
+		switch b, err := f(i); {
+		case err != nil:
+			return err
+		default:
+			if err := WriteLengthed(w, b); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -438,6 +465,17 @@ func NewBufferBytesFrameReader(b []byte) (*BytesFrameReader, *bytes.Buffer, erro
 	return f, r, nil
 }
 
+func NewBytesNoHeadersFrameReader(r io.Reader) (*BytesFrameReader, error) {
+	fr, err := NewBytesFrameReader(r)
+	if err != nil {
+		return nil, err
+	}
+
+	fr.headerRead = true
+
+	return fr, nil
+}
+
 func NewBufferBytesNoHeadersFrameReader(b []byte) (*BytesFrameReader, *bytes.Buffer, error) {
 	fr, buf, err := NewBufferBytesFrameReader(b)
 	if err != nil {
@@ -500,7 +538,7 @@ func (f *BytesFrameReader) Lengthed(read func([]byte) error) error {
 	switch n, i, err := ReadLengthed(f.r); {
 	case err == nil, errors.Is(err, io.EOF):
 		if n < 1 && errors.Is(err, io.EOF) {
-			return nil
+			return err
 		}
 
 		if read != nil {
@@ -509,7 +547,7 @@ func (f *BytesFrameReader) Lengthed(read func([]byte) error) error {
 			}
 		}
 
-		return nil
+		return err
 	default:
 		return err
 	}

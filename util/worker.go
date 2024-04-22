@@ -296,33 +296,33 @@ func RunJobWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) erro
 	return worker.Wait()
 }
 
-type FuncChain struct {
-	fs []func() (bool, error)
-}
+func NewFuncChain() (
+	func(size, grow uint64) error,
+	CompactAppendSliceAddFunc[func() error],
+	func() error,
+) {
+	var add CompactAppendSliceAddFunc[func() error]
+	var done CompactAppendSliceDoneFunc[func() error]
 
-func NewFuncChain() *FuncChain {
-	return &FuncChain{}
-}
+	return func(size, grow uint64) error {
+			i, j, err := CompactAppendSliceV1[func() error](size, grow)
+			if err != nil {
+				return err
+			}
 
-func (c *FuncChain) Add(f func() (bool, error)) *FuncChain {
-	c.fs = append(c.fs, f)
+			add = i
+			done = j
 
-	return c
-}
-
-func (c *FuncChain) Run() error {
-	defer func() {
-		c.fs = nil
-	}()
-
-	for i := range c.fs {
-		switch keep, err := c.fs[i](); {
-		case err != nil:
-			return err
-		case !keep:
 			return nil
+		},
+		func(f func() error, fs ...func() error) (added, left uint64) {
+			return add(f, fs...)
+		},
+		func() error {
+			return done(func(fs []func() error) error {
+				return TraverseSliceV1(fs, func(_ int, f func() error) (bool, error) {
+					return true, f()
+				})
+			})
 		}
-	}
-
-	return nil
 }

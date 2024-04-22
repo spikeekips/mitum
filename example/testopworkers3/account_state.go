@@ -11,7 +11,10 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var AccountStateValueHint = hint.MustNewHint("test-account-state-value-v0.0.1")
+var (
+	AccountStateValueHint      = hint.MustNewHint("test-account-state-value-v0.0.1")
+	AccountStateMergeValueHint = hint.MustNewHint("test-account-state-merge-value-v0.0.1")
+)
 
 type AccountStateValue struct {
 	Address base.Publickey `json:"address"`
@@ -74,6 +77,7 @@ func AccountStateKey(address base.Publickey) string {
 }
 
 type AccountStateMergeValue struct {
+	hint.BaseHinter
 	key string
 	AccountStateValue
 }
@@ -86,6 +90,7 @@ func NewAccountStateMergeValue(address base.Publickey, balance int64) (v Account
 		return v, errors.Errorf("zero balance")
 	default:
 		return AccountStateMergeValue{
+			BaseHinter:        hint.NewBaseHinter(AccountStateMergeValueHint),
 			key:               AccountStateKey(address),
 			AccountStateValue: NewAccountStateValue(address, balance),
 		}, nil
@@ -113,6 +118,37 @@ func (v AccountStateMergeValue) Merger(prev base.StateValue) (StateMerger, error
 	}
 
 	return NewAccountStateMerger(v.key, av), nil
+}
+
+type accountStateMergeValueJSONMarshaler struct {
+	Key string
+}
+
+func (v AccountStateMergeValue) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		hint.BaseHinter
+		accountStateMergeValueJSONMarshaler
+		AccountStateValue
+	}{
+		BaseHinter:                          v.BaseHinter,
+		accountStateMergeValueJSONMarshaler: accountStateMergeValueJSONMarshaler{Key: v.key},
+		AccountStateValue:                   v.AccountStateValue,
+	})
+}
+
+func (s *AccountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u accountStateMergeValueJSONMarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	if err := s.AccountStateValue.DecodeJSON(b, enc); err != nil {
+		return err
+	}
+
+	s.key = u.Key
+
+	return nil
 }
 
 type AccountStateMerger struct {

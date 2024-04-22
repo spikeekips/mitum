@@ -21,6 +21,13 @@ var (
 type (
 	processWorkerSaveOperationFunc func(opindex uint64, op Operation) error
 	processWorkerSaveStateFunc     func(base.State) error
+	processWorkerNewOperationsFunc func() (
+		process workerNewOperationsFunc,
+		done func() error,
+		cancel func(error),
+		_ error,
+	)
+	processWorkerInsertValues func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
 )
 
 type Operation interface {
@@ -98,7 +105,7 @@ func (opsr *OperationProcessor) Cancel() {
 
 func (opsr *OperationProcessor) Process() (
 	process func(opindex uint64, operation, fact util.Hash) error,
-	done func(),
+	done func() error,
 	cancel func(error),
 	_ error,
 ) {
@@ -122,7 +129,11 @@ func (opsr *OperationProcessor) Process() (
 				}
 			})
 		},
-		opsr.ew.Done,
+		func() error {
+			opsr.ew.Done()
+
+			return nil
+		},
 		func(err error) {
 			opsr.ctxCancel(err)
 
@@ -474,7 +485,9 @@ func (pw *ProcessWorker) NewOperations() (
 		return nil, nil, nil, err
 	default:
 		return p, func() error {
-				d()
+				if err := d(); err != nil {
+					return err
+				}
 
 				go func() {
 					if err := opsrDone(); err != nil {
