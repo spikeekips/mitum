@@ -9,13 +9,17 @@ import (
 )
 
 var (
-	WorkerCancelHeaderHint           = hint.MustNewHint("worker-cancel-header-v0.0.1")
-	WorkerDoneHeaderHint             = hint.MustNewHint("worker-done-header-v0.0.1")
-	WorkerReadyHeaderHint            = hint.MustNewHint("worker-ready-header-v0.0.1")
-	WorkerNewOperationsHeaderHint    = hint.MustNewHint("worker-new-operations-header-v0.0.1")
-	WorkerInsertOpHeaderHint         = hint.MustNewHint("worker-insert-op-header-v0.0.1")
-	WorkerInsertValuesDoneHeaderHint = hint.MustNewHint("worker-insert-values-done-header-v0.0.1")
-	WorkerPhaseDoneHeaderHint        = hint.MustNewHint("worker-phase-done-header-v0.0.1")
+	WorkerCancelHeaderHint              = hint.MustNewHint("worker-cancel-header-v0.0.1")
+	WorkerDoneHeaderHint                = hint.MustNewHint("worker-done-header-v0.0.1")
+	WorkerReadyHeaderHint               = hint.MustNewHint("worker-ready-header-v0.0.1")
+	WorkerNewOperationsHeaderHint       = hint.MustNewHint("worker-new-operations-header-v0.0.1")
+	WorkerInsertOpHeaderHint            = hint.MustNewHint("worker-insert-op-header-v0.0.1")
+	WorkerInsertValuesDoneHeaderHint    = hint.MustNewHint("worker-insert-values-done-header-v0.0.1")
+	WorkerPhaseDoneHeaderHint           = hint.MustNewHint("worker-phase-done-header-v0.0.1")
+	ManagerStateOwnersHeaderHint        = hint.MustNewHint("manager-state-owners-header-v0.0.1")
+	ManagerWorkerCanceledHeaderHint     = hint.MustNewHint("manager-worker-canceled-header-v0.0.1")
+	ManagerWorkerUpdateMergedHeaderHint = hint.MustNewHint("manager-worker-update-merge-done-header-v0.0.1")
+	ManagerWorkerStoreDoneHeaderHint    = hint.MustNewHint("manager-worker-store-done-header-v0.0.1")
 )
 
 func handlerNameByHint(ht hint.Hint) quicstream.HandlerName {
@@ -52,7 +56,7 @@ type BaseWorkerHeader struct {
 	Height base.Height
 }
 
-func NewBaseWorkerHeader(ht hint.Hint, worker string, height base.Height) BaseWorkerHeader {
+func NewBaseWorkerHeader(ht hint.Hint, height base.Height, worker string) BaseWorkerHeader {
 	return BaseWorkerHeader{
 		BaseHeader: NewBaseHeader(ht),
 		Worker:     worker,
@@ -107,7 +111,7 @@ type WorkerCancelHeader struct{ BaseWorkerHeader }
 
 func NewWorkerCancelHeader(height base.Height) WorkerCancelHeader {
 	return WorkerCancelHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerCancelHeaderHint, "manager", height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerCancelHeaderHint, height, "manager"),
 	}
 }
 
@@ -115,7 +119,7 @@ type WorkerDoneHeader struct{ BaseWorkerHeader }
 
 func NewWorkerDoneHeader(height base.Height) WorkerDoneHeader {
 	return WorkerDoneHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerDoneHeaderHint, "manager", height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerDoneHeaderHint, height, "manager"),
 	}
 }
 
@@ -126,7 +130,7 @@ type WorkerReadyHeader struct {
 
 func NewWorkerReadyHeader(args processWorkerReadyArgs) WorkerReadyHeader {
 	return WorkerReadyHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerReadyHeaderHint, "manager", args.Height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerReadyHeaderHint, args.Height, "manager"),
 		Args:             args,
 	}
 }
@@ -161,23 +165,23 @@ type WorkerNewOperationsHeader struct{ BaseWorkerHeader }
 
 func NewWorkerNewOperationsHeader(height base.Height) WorkerNewOperationsHeader {
 	return WorkerNewOperationsHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerNewOperationsHeaderHint, "manager", height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerNewOperationsHeaderHint, height, "manager"),
 	}
 }
 
 type WorkerInsertOpHeader struct{ BaseWorkerHeader }
 
-func NewWorkerInsertOpHeader(worker string, height base.Height) WorkerInsertOpHeader {
+func NewWorkerInsertOpHeader(height base.Height, worker string) WorkerInsertOpHeader {
 	return WorkerInsertOpHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertOpHeaderHint, worker, height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertOpHeaderHint, height, worker),
 	}
 }
 
 type WorkerInsertValuesDoneHeader struct{ BaseWorkerHeader }
 
-func NewWorkerInsertValuesDoneHeader(worker string, height base.Height) WorkerInsertValuesDoneHeader {
+func NewWorkerInsertValuesDoneHeader(height base.Height, worker string) WorkerInsertValuesDoneHeader {
 	return WorkerInsertValuesDoneHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertValuesDoneHeaderHint, worker, height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertValuesDoneHeaderHint, height, worker),
 	}
 }
 
@@ -186,9 +190,9 @@ type WorkerPhaseDoneHeader struct {
 	Phase int
 }
 
-func NewWorkerPhaseDoneHeader(worker string, height base.Height, phase int) WorkerPhaseDoneHeader {
+func NewWorkerPhaseDoneHeader(height base.Height, worker string, phase int) WorkerPhaseDoneHeader {
 	return WorkerPhaseDoneHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerPhaseDoneHeaderHint, worker, height),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerPhaseDoneHeaderHint, height, worker),
 		Phase:            phase,
 	}
 }
@@ -220,4 +224,36 @@ func (h *WorkerPhaseDoneHeader) UnmarshalJSON(b []byte) error {
 	h.Phase = u.Phase
 
 	return util.UnmarshalJSON(b, &h.BaseWorkerHeader)
+}
+
+type ManagerStateOwnersHeader struct{ BaseWorkerHeader }
+
+func NewManagerStateOwnersHeader(height base.Height, worker string) ManagerStateOwnersHeader {
+	return ManagerStateOwnersHeader{
+		BaseWorkerHeader: NewBaseWorkerHeader(ManagerStateOwnersHeaderHint, height, worker),
+	}
+}
+
+type ManagerWorkerCanceledHeader struct{ BaseWorkerHeader }
+
+func NewManagerWorkerCanceledHeader(height base.Height, worker string) ManagerWorkerCanceledHeader {
+	return ManagerWorkerCanceledHeader{
+		BaseWorkerHeader: NewBaseWorkerHeader(ManagerWorkerCanceledHeaderHint, height, worker),
+	}
+}
+
+type ManagerWorkerUpdateMergedHeader struct{ BaseWorkerHeader }
+
+func NewManagerWorkerUpdateMergedHeader(height base.Height, worker string) ManagerWorkerUpdateMergedHeader {
+	return ManagerWorkerUpdateMergedHeader{
+		BaseWorkerHeader: NewBaseWorkerHeader(ManagerWorkerUpdateMergedHeaderHint, height, worker),
+	}
+}
+
+type ManagerWorkerStoreDoneHeader struct{ BaseWorkerHeader }
+
+func NewManagerWorkerStoreDoneHeader(height base.Height, worker string) ManagerWorkerStoreDoneHeader {
+	return ManagerWorkerStoreDoneHeader{
+		BaseWorkerHeader: NewBaseWorkerHeader(ManagerWorkerStoreDoneHeaderHint, height, worker),
+	}
 }

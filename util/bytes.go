@@ -336,11 +336,11 @@ func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
 	switch n, i, err := ReadLength(r); {
 	case err == nil, errors.Is(err, io.EOF):
 		if i > 0 && errors.Is(err, io.EOF) {
-			return n, nil, errors.Wrap(err, "insufficient read")
+			return n, nil, errors.Errorf("insufficient read")
 		}
 
 		if i < 1 {
-			return n, nil, nil
+			return n, nil, err
 		}
 
 		if i > maxLengthBytes {
@@ -353,6 +353,8 @@ func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
 		return n, nil, errors.Wrap(err, "bytes length")
 	}
 
+	var gerr error
+
 	for i := range hs {
 		switch n, b, err := ReadLengthed(r); {
 		case i < len(hs)-1 && errors.Is(err, io.EOF):
@@ -360,12 +362,14 @@ func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
 		case err == nil, errors.Is(err, io.EOF):
 			hs[i] = b
 			read += n
+
+			gerr = err
 		default:
 			return read, nil, errors.Wrap(err, "read bytes")
 		}
 	}
 
-	return read, hs, nil
+	return read, hs, gerr
 }
 
 var bytesFrameVersion = [2]byte{0x00, 0x00}

@@ -15,6 +15,9 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+// FIXME SetStates
+// FIXME SetOperations
+
 func newSimpleBrokerFunc(header quicstreamheader.RequestHeader) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
@@ -194,7 +197,7 @@ func newWorkerBrokerInsertOpFunc(
 	owners map[string][]string,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		header := NewWorkerInsertOpHeader(worker, height)
+		header := NewWorkerInsertOpHeader(height, worker)
 
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
@@ -244,7 +247,7 @@ func newWorkerHandlerInsertOpFunc(
 }
 
 func newWorkerBrokerInsertValuesDoneFunc(worker string, height base.Height) quicstreamheader.BrokerFunc {
-	return newSimpleBrokerFunc(NewWorkerInsertValuesDoneHeader(worker, height))
+	return newSimpleBrokerFunc(NewWorkerInsertValuesDoneHeader(height, worker))
 }
 
 func newWorkerHandlerInsertValuesDoneFunc(
@@ -295,7 +298,7 @@ func newWorkerBrokerPhaseDoneFunc(
 			)
 		})
 
-		header := NewWorkerPhaseDoneHeader(worker, height, phase)
+		header := NewWorkerPhaseDoneHeader(height, worker, phase)
 
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err

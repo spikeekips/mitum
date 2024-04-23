@@ -67,6 +67,10 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertOpHeaderHint, Instance: WorkerInsertOpHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerUpdateMergedHeaderHint, Instance: ManagerWorkerUpdateMergedHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}}))
 
 	t.ci = quicstream.UnsafeConnInfo(nil, true)
 }
@@ -457,7 +461,7 @@ func (t *testHandlers) TestWorkerInsertOp() {
 	})
 }
 
-func (t *testHandlers) TestInsertValuesDone() {
+func (t *testHandlers) TestWorkerInsertValuesDone() {
 	t.Run("ok", func() {
 		ctx, done := context.WithCancel(context.Background())
 		defer done()
