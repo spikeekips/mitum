@@ -225,7 +225,10 @@ func ReadLength(r io.Reader) (read, length uint64, _ error) {
 
 	switch n, err := EnsureRead(context.Background(), r, p); {
 	case err == nil, errors.Is(err, io.EOF):
-		i, err := ReadLengthBytes(p) //nolint:govet //...
+		i, gerr := ReadLengthBytes(p) //nolint:govet //...
+		if gerr != nil {
+			return n, i, gerr
+		}
 
 		return n, i, err
 	default:
@@ -240,7 +243,7 @@ func ReadLengthed(r io.Reader) (read uint64, _ []byte, _ error) {
 	}
 
 	if i < 1 {
-		return n, nil, nil
+		return n, nil, err
 	}
 
 	if i > maxLengthedBytes {

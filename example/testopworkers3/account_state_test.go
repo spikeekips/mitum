@@ -7,6 +7,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
@@ -98,6 +99,16 @@ func (t *baseTestAccountStateMerger) newMergeValuesVP(
 	t.True(vp.SetValue(opindex, vs))
 
 	return vs
+}
+
+func (t *baseTestAccountStateMerger) randomState() base.State {
+	return base.NewBaseState(
+		33,
+		util.UUID().String(),
+		NewAccountStateValue(base.NewDummyPublickey(util.UUID().String()), 1),
+		nil,
+		[]util.Hash{valuehash.RandomSHA256()},
+	)
 }
 
 type testAccountStateMerger struct {

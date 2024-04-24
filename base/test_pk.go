@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	DummyPrivatekeyHint = hint.MustNewHint("dummy-privatekey-v0.0.1")
-	DummyPublickeyHint  = hint.MustNewHint("dummy-publickey-v0.0.1")
+	DummyPrivatekeyHint = hint.MustNewHint("dpk-v0.0.1")
+	DummyPublickeyHint  = hint.MustNewHint("dpu-v0.0.1")
 )
 
 type dummyKey struct {
@@ -61,7 +61,7 @@ func NewDummyPrivatekey(s string) DummyPrivatekey {
 }
 
 func (key DummyPrivatekey) String() string {
-	return key.s + "prv"
+	return key.s + key.ht.Type().String()
 }
 
 func (key DummyPrivatekey) Equal(b PKKey) bool {
@@ -106,7 +106,7 @@ func NewDummyPublickey(s string) DummyPublickey {
 }
 
 func (key DummyPublickey) String() string {
-	return key.s + "pub"
+	return key.s + key.ht.Type().String()
 }
 
 func (key DummyPublickey) Equal(b PKKey) bool {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -56,8 +58,11 @@ func (t *testHandlers) SetupTest() {
 func (t *testHandlers) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: AccountStateValue{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: AccountStateMergeValueHint, Instance: AccountStateMergeValue{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerCancelHeaderHint, Instance: WorkerCancelHeader{}}))
@@ -71,6 +76,8 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerUpdateMergedHeaderHint, Instance: ManagerWorkerUpdateMergedHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSyncStatesHeaderHint, Instance: WorkerSyncStatesHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSyncOperationsHeaderHint, Instance: WorkerSyncOperationsHeader{}}))
 
 	t.ci = quicstream.UnsafeConnInfo(nil, true)
 }
@@ -141,8 +148,8 @@ func (t *testHandlers) TestWorkerCancel() {
 
 func (t *testHandlers) TestWorkerDone() {
 	t.Run("ok", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		donech := make(chan struct{}, 1)
 		handler, err := newWorkerHandlerWorkerDoneFunc(func(base.Height) (func() error, error) {
@@ -167,8 +174,8 @@ func (t *testHandlers) TestWorkerDone() {
 	})
 
 	t.Run("error", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		donech := make(chan error, 1)
 		handler, err := newWorkerHandlerWorkerDoneFunc(func(base.Height) (func() error, error) {
@@ -463,8 +470,8 @@ func (t *testHandlers) TestWorkerInsertOp() {
 
 func (t *testHandlers) TestWorkerInsertValuesDone() {
 	t.Run("ok", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		donech := make(chan string, 1)
 		handler, err := newWorkerHandlerInsertValuesDoneFunc(func(base.Height) (func(string) error, error) {
@@ -478,7 +485,7 @@ func (t *testHandlers) TestWorkerInsertValuesDone() {
 
 		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerInsertValuesDoneFunc("w3", 33),
+			newWorkerBrokerInsertValuesDoneFunc(33, "w3"),
 		))
 
 		select {
@@ -490,8 +497,8 @@ func (t *testHandlers) TestWorkerInsertValuesDone() {
 	})
 
 	t.Run("error", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		donech := make(chan error, 1)
 		handler, err := newWorkerHandlerInsertValuesDoneFunc(func(base.Height) (func(string) error, error) {
@@ -504,7 +511,7 @@ func (t *testHandlers) TestWorkerInsertValuesDone() {
 
 		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerInsertValuesDoneFunc("w3", 33),
+			newWorkerBrokerInsertValuesDoneFunc(33, "w3"),
 		)
 		t.ErrorContains(err, "findme")
 
@@ -521,8 +528,8 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 	mergedOps, unmergedOps := []uint64{1, 2, 3}, []uint64{4, 5, 6, 7}
 
 	t.Run("ok", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		var rphase int
 		var rmergedOps, runmergedOps []uint64
@@ -562,8 +569,8 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 	})
 
 	t.Run("empty mergedOps", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		var rphase int
 		var rmergedOps, runmergedOps []uint64
@@ -603,8 +610,8 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 	})
 
 	t.Run("empty unmergedOps", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		var rphase int
 		var rmergedOps, runmergedOps []uint64
@@ -644,8 +651,8 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 	})
 
 	t.Run("error", func() {
-		ctx, done := context.WithCancel(context.Background())
-		defer done()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		donech := make(chan error, 1)
 		handler, err := newWorkerHandlerPhaseDoneFunc(func(base.Height) (
@@ -673,6 +680,172 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 		case err = <-donech:
 			t.ErrorContains(err, "findme")
 		}
+	})
+}
+
+func (t *testHandlers) TestWorkerSyncStates() {
+	t.Run("ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		sts := make([]base.State, 33)
+
+		for i := range sts {
+			sts[i] = t.randomState()
+		}
+		sort.Slice(sts, func(i, j int) bool {
+			return cmp.Less[string](sts[i].Key(), sts[j].Key())
+		})
+
+		add, done, err := util.CompactAppendSliceV1[base.State](uint64(len(sts)), 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSyncStatesFunc(func(st base.State) error {
+			add(st)
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncStatesFunc(func(f func(base.State) error) error {
+				for i := range sts {
+					if err := f(sts[i]); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+		))
+
+		done(func(s []base.State) error {
+			t.Equal(len(sts), len(s))
+
+			sort.Slice(s, func(i, j int) bool {
+				return cmp.Less[string](s[i].Key(), s[j].Key())
+			})
+
+			for i := range sts {
+				t.True(base.IsEqualState(sts[i], s[i]))
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("empty", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		add, done, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSyncStatesFunc(func(st base.State) error {
+			add(st)
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncStatesFunc(func(f func(base.State) error) error {
+				return nil
+			}),
+		))
+
+		done(func(s []base.State) error {
+			t.Empty(s)
+
+			return nil
+		})
+	})
+}
+
+func (t *testHandlers) TestWorkerSyncOperations() {
+	t.Run("ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		priv := base.NewDummyPrivatekey("showme")
+		networkID := base.NetworkID(util.UUID().Bytes())
+
+		ops := make([]base.Operation, 33)
+
+		for i := range ops {
+			fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+			ops[i], _ = isaac.NewDummyOperation(fact, priv, networkID)
+		}
+		sort.Slice(ops, func(i, j int) bool {
+			return cmp.Less[string](ops[i].Hash().String(), ops[j].Hash().String())
+		})
+
+		add, done, err := util.CompactAppendSliceV1[base.Operation](uint64(len(ops)), 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSyncOperationsFunc(func(st base.Operation) error {
+			add(st)
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncOperationsHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncOperationsFunc(func(f func(base.Operation) error) error {
+				for i := range ops {
+					if err := f(ops[i]); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+		))
+
+		done(func(s []base.Operation) error {
+			t.Equal(len(ops), len(s))
+
+			sort.Slice(s, func(i, j int) bool {
+				return cmp.Less[string](s[i].Hash().String(), s[j].Hash().String())
+			})
+
+			for i := range ops {
+				base.EqualOperation(t.Assert(), ops[i], s[i])
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("empty", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		add, done, err := util.CompactAppendSliceV1[base.Operation](1<<9, 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSyncOperationsFunc(func(op base.Operation) error {
+			add(op)
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncOperationsHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncOperationsFunc(func(f func(base.Operation) error) error {
+				return nil
+			}),
+		))
+
+		done(func(s []base.Operation) error {
+			t.Empty(s)
+
+			return nil
+		})
 	})
 }
 

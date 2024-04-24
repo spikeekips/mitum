@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -14,9 +15,6 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
-
-// FIXME SetStates
-// FIXME SetOperations
 
 func newWorkerBrokerCancelFunc(height base.Height) quicstreamheader.BrokerFunc {
 	return newSimpleBrokerFunc(NewWorkerCancelHeader(height))
@@ -379,6 +377,128 @@ func newWorkerHandlerPhaseDoneFunc(
 		}
 
 		err := f(header.Worker, header.Phase, mergedOps, unmergedOps)
+
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}, nil
+}
+
+func newWorkerBrokerSyncStatesFunc(
+	f func(func(base.State) error) error,
+) quicstreamheader.BrokerFunc {
+	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		header := NewWorkerSyncStatesHeader()
+
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		if err := writeStream(
+			broker.Writer,
+			func(fb func([]byte) error) error {
+				return f(func(st base.State) error {
+					switch b, err := broker.Encoder.Marshal(st); {
+					case err != nil:
+						return err
+					default:
+						return fb(b)
+					}
+				})
+			},
+		); err != nil {
+			fmt.Println("k0", err)
+			return err
+		}
+
+		if err := broker.Close(); err != nil {
+			return err
+		}
+
+		switch _, res, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		default:
+			return res.Err()
+		}
+	}
+}
+
+func newWorkerHandlerSyncStatesFunc(
+	f func(base.State) error,
+) (quicstreamheader.Handler[WorkerSyncStatesHeader], error) {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, _ WorkerSyncStatesHeader,
+	) (context.Context, error) {
+		err := readStream(broker.Reader, func(b []byte) error {
+			var st base.State
+
+			switch err := encoder.Decode(broker.Encoder, b, &st); {
+			case err != nil:
+				return err
+			default:
+				return f(st)
+			}
+		})
+
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}, nil
+}
+
+func newWorkerBrokerSyncOperationsFunc(
+	f func(func(base.Operation) error) error,
+) quicstreamheader.BrokerFunc {
+	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		header := NewWorkerSyncOperationsHeader()
+
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		if err := writeStream(
+			broker.Writer,
+			func(fb func([]byte) error) error {
+				return f(func(st base.Operation) error {
+					switch b, err := broker.Encoder.Marshal(st); {
+					case err != nil:
+						return err
+					default:
+						return fb(b)
+					}
+				})
+			},
+		); err != nil {
+			fmt.Println("k0", err)
+			return err
+		}
+
+		if err := broker.Close(); err != nil {
+			return err
+		}
+
+		switch _, res, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		default:
+			return res.Err()
+		}
+	}
+}
+
+func newWorkerHandlerSyncOperationsFunc(
+	f func(base.Operation) error,
+) (quicstreamheader.Handler[WorkerSyncOperationsHeader], error) {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, _ WorkerSyncOperationsHeader,
+	) (context.Context, error) {
+		err := readStream(broker.Reader, func(b []byte) error {
+			var st base.Operation
+
+			switch err := encoder.Decode(broker.Encoder, b, &st); {
+			case err != nil:
+				return err
+			default:
+				return f(st)
+			}
+		})
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}, nil

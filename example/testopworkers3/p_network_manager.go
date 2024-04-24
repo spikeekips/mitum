@@ -203,6 +203,10 @@ func newManagerHandlerWorkerUpdateMergedFunc(
 				bs = i
 			}
 
+			if iseof && len(bs) < 1 {
+				break endr
+			}
+
 			switch opindex, err := util.BytesToUint64(bs[0]); {
 			case err != nil:
 				return ctx, err
