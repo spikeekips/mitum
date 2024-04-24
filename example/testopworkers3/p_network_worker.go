@@ -18,21 +18,6 @@ import (
 // FIXME SetStates
 // FIXME SetOperations
 
-func newSimpleBrokerFunc(header quicstreamheader.RequestHeader) quicstreamheader.BrokerFunc {
-	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		if err := broker.WriteRequestHead(ctx, header); err != nil {
-			return err
-		}
-
-		switch _, res, err := broker.ReadResponseHead(ctx); {
-		case err != nil:
-			return err
-		default:
-			return res.Err()
-		}
-	}
-}
-
 func newWorkerBrokerCancelFunc(height base.Height) quicstreamheader.BrokerFunc {
 	return newSimpleBrokerFunc(NewWorkerCancelHeader(height))
 }
@@ -246,7 +231,7 @@ func newWorkerHandlerInsertOpFunc(
 	}, nil
 }
 
-func newWorkerBrokerInsertValuesDoneFunc(worker string, height base.Height) quicstreamheader.BrokerFunc {
+func newWorkerBrokerInsertValuesDoneFunc(height base.Height, worker string) quicstreamheader.BrokerFunc {
 	return newSimpleBrokerFunc(NewWorkerInsertValuesDoneHeader(height, worker))
 }
 

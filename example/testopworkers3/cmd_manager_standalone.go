@@ -692,6 +692,7 @@ type baseCommand struct {
 	local            base.LocalNode
 	networkID        base.NetworkID
 	c                int64
+	encs             *encoder.Encoders
 }
 
 func (cmd *baseCommand) prepare(pctx context.Context) error {
@@ -737,6 +738,7 @@ func (cmd *baseCommand) loadDesign(pctx context.Context) error {
 	var isaacparams *isaac.Params
 
 	if err := util.LoadFromContextOK(pctx,
+		launch.EncodersContextKey, &cmd.encs,
 		launch.LocalContextKey, &cmd.local,
 		launch.ISAACParamsContextKey, &isaacparams,
 	); err != nil {

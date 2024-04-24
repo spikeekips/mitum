@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -33,16 +34,15 @@ network:
 
 type CommandWorker struct { //nolint:govet //...
 	baseCommand
-	Port      int `arg:"" name:"network port"`
-	workers   util.LockedMap[base.Height, *ProcessWorker]
-	workerCIs util.LockedMap[string, quicstream.ConnInfo]
+	Port           int `arg:"" name:"network port"`
+	managerCI      quicstream.ConnInfo
+	pws            util.LockedMap[base.Height, *ProcessWorker]
+	localCI        quicstream.ConnInfo
+	workerCIs      util.LockedMap[string, quicstream.ConnInfo]
+	connectionPool *quicstream.ConnectionPool
 }
 
 func (cmd *CommandWorker) Run(pctx context.Context) error {
-	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &cmd.Logging); err != nil {
-		return err
-	}
-
 	switch i, pps, err := cmd.prepare(pctx); {
 	case err != nil:
 		return err
@@ -79,7 +79,7 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 		priv = i
 	}
 
-	address := base.NewStringAddress(fmt.Sprintf("worker-%04d", cmd.Port))
+	address := base.NewStringAddress(fmt.Sprintf("w%02d", cmd.Port))
 
 	designString := fmt.Sprintf(
 		pWorkerDesignString,
@@ -110,6 +110,12 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 		return nil, nil, err
 	}
 
+	if err := util.LoadFromContextOK(pctx,
+		launch.ConnectionPoolContextKey, &cmd.connectionPool,
+	); err != nil {
+		return nil, nil, err
+	}
+
 	cmd.Log().Debug().Interface("main_process", pps.Verbose()).Msg("processed")
 
 	return pctx, pps, nil
@@ -124,16 +130,17 @@ func (cmd *CommandWorker) run(pctx context.Context) error {
 		return err
 	}
 
-	cmd.workers = util.NewSingleLockedMap[base.Height, *ProcessWorker]()
+	cmd.pws = util.NewSingleLockedMap[base.Height, *ProcessWorker]()
 
 	switch i, err := util.NewShardedMap[string, quicstream.ConnInfo](1<<9, nil); {
 	case err != nil:
 		return err
 	default:
+		cmd.localCI = design.Network.PublishConnInfo()
 		cmd.workerCIs = i
 
-		_ = cmd.workerCIs.SetValue("local", design.Network.PublishConnInfo())
-		_ = cmd.workerCIs.SetValue(design.Network.PublishConnInfo().String(), design.Network.PublishConnInfo())
+		_ = cmd.workerCIs.SetValue("local", cmd.localCI)
+		_ = cmd.workerCIs.SetValue(cmd.localCI.String(), cmd.localCI)
 	}
 
 	return nil
@@ -163,7 +170,7 @@ func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Contex
 func (cmd *CommandWorker) handlerCancelFunc(pctx context.Context) (quicstreamheader.Handler[WorkerCancelHeader], error) {
 	return newWorkerHandlerCancelFunc(
 		func(height base.Height) (func(), error) {
-			i, _ := cmd.workers.Value(height)
+			i, _ := cmd.pws.Value(height)
 			if i == nil {
 				return nil, util.ErrNotFound.Errorf("ProcessWorker")
 			}
@@ -176,7 +183,7 @@ func (cmd *CommandWorker) handlerCancelFunc(pctx context.Context) (quicstreamhea
 func (cmd *CommandWorker) handlerDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerDoneHeader], error) {
 	return newWorkerHandlerWorkerDoneFunc(
 		func(height base.Height) (func() error, error) {
-			i, _ := cmd.workers.Value(height)
+			i, _ := cmd.pws.Value(height)
 			if i == nil {
 				return nil, util.ErrNotFound.Errorf("ProcessWorker")
 			}
@@ -187,14 +194,12 @@ func (cmd *CommandWorker) handlerDoneFunc(pctx context.Context) (quicstreamheade
 }
 
 func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamheader.Handler[WorkerReadyHeader], error) {
-	var encs *encoder.Encoders
 	var design launch.NodeDesign
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var client isaac.NetworkClient
 
 	if err := util.LoadFromContextOK(pctx,
-		launch.EncodersContextKey, &encs,
 		launch.DesignContextKey, &design,
 		launch.CenterDatabaseContextKey, &db,
 		launch.PoolDatabaseContextKey, &pool,
@@ -205,7 +210,16 @@ func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamhead
 
 	return newWorkerHandlerReadyFunc(
 		func(args processWorkerReadyArgs) error {
-			_, _, err := cmd.workers.Set(args.Height, func(_ *ProcessWorker, found bool) (*ProcessWorker, error) {
+			if cmd.managerCI.Addr() == nil {
+				switch ci, err := quicstream.NewConnInfoFromFullString(args.Manager); {
+				case err != nil:
+					return err
+				default:
+					cmd.managerCI = ci
+				}
+			}
+
+			_, _, err := cmd.pws.Set(args.Height, func(_ *ProcessWorker, found bool) (*ProcessWorker, error) {
 				if found {
 					return nil, util.ErrFound.Errorf("already worker ready, %d", args.Height)
 				}
@@ -215,7 +229,7 @@ func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamhead
 					args,
 					db,
 					launch.LocalFSDataDirectory(design.Storage.Base),
-					encs.Default(),
+					cmd.encs.Default(),
 					pool,
 					client,
 				)
@@ -236,7 +250,7 @@ func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicst
 			func(error),
 			error,
 		) {
-			switch w, found := cmd.workers.Value(height); {
+			switch w, found := cmd.pws.Value(height); {
 			case !found:
 				return nil, nil, nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
 			default:
@@ -259,7 +273,7 @@ func (cmd *CommandWorker) handlerInsertOpFunc(pctx context.Context) (quicstreamh
 			processWorkerInsertValues,
 			error,
 		) {
-			switch w, found := cmd.workers.Value(height); {
+			switch w, found := cmd.pws.Value(height); {
 			case !found:
 				return nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
 			default:
@@ -279,7 +293,7 @@ func (cmd *CommandWorker) handlerInsertValuesDoneFunc(pctx context.Context) (qui
 		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesDoneHeader,
 	) (context.Context, error) {
 		handler, err := newWorkerHandlerInsertValuesDoneFunc(func(height base.Height) (f func(worker string) error, _ error) {
-			switch w, found := cmd.workers.Value(height); {
+			switch w, found := cmd.pws.Value(height); {
 			case !found:
 				return nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
 			default:
@@ -299,7 +313,7 @@ func (cmd *CommandWorker) handlerPhaseDoneFunc(pctx context.Context) (quicstream
 		broker *quicstreamheader.HandlerBroker, header WorkerPhaseDoneHeader,
 	) (context.Context, error) {
 		handler, err := newWorkerHandlerPhaseDoneFunc(func(height base.Height) (f func(worker string, phase int, mergedOps, unmergedOps []uint64) error, _ error) {
-			switch w, found := cmd.workers.Value(height); {
+			switch w, found := cmd.pws.Value(height); {
 			case !found:
 				return nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
 			default:
@@ -373,8 +387,6 @@ func (cmd *CommandWorker) newWorker(
 		"states.json.gz",
 	)
 
-	requestRemotes := cmd.remotesFunc(client)
-
 	args := NewProcessWorkerArgs(design.NetworkID)
 	args.NOps = margs.NOps
 	args.GetOperationFunc = func(ctx context.Context, operationhash util.Hash) (Operation, bool, error) {
@@ -401,54 +413,151 @@ func (cmd *CommandWorker) newWorker(
 	args.IsEnoughWorkers = func(n uint64) bool {
 		return n > nworkers-nshared
 	}
-	args.StateOwners = func(ctx context.Context, key string) (owners []string, _ error) {
-		// FIXME request manager StateOwners
-		if err := requestRemotes(ctx, func(ctx context.Context, client isaac.NetworkClient, ci quicstream.ConnInfo) error {
-			// switch i, err := client.DOPStateOwners(ctx, ci, key); {
-			// case err != nil:
-			//	return err
-			// default:
-			//	owners = i
+	args.StateOwners = func(ctx context.Context, stateKey string) (owners []string, _ error) {
+		if err := cmd.requestWorkers(ctx, newManagerBrokerStateOwnersFunc(
+			margs.Height,
+			cmd.localCI.String(),
+			stateKey,
+			func(s []string) error {
+				owners = s
 
-			return nil
-			//}
-		}); err != nil {
+				return nil
+			},
+		)); err != nil {
 			return nil, err
 		}
 
 		return owners, nil
 	}
 	args.BroadcastInsertOpFunc = func(ctx context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-		// FIXME request workers except local
-		return nil
+		return cmd.requestWorker(
+			ctx,
+			worker,
+			newWorkerBrokerInsertOpFunc(
+				margs.Height,
+				cmd.localCI.String(),
+				cmd.encs.Default(),
+				opindex,
+				fact,
+				values,
+				owners,
+			),
+		)
 	}
-	args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
-		// FIXME request workers except local
-		return nil
+	args.BroadcastInsertValuesDoneFunc = func(ctx context.Context) error {
+		return cmd.requestWorkers(
+			ctx,
+			newWorkerBrokerInsertValuesDoneFunc(
+				margs.Height,
+				cmd.localCI.String(),
+			),
+		)
 	}
-	args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
-		return nil
+	args.BroadcastPhaseDoneFunc = func(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
+		return cmd.requestWorkers(
+			ctx,
+			newWorkerBrokerPhaseDoneFunc(
+				margs.Height,
+				cmd.localCI.String(),
+				phase,
+				mergedOps,
+				unmergedOps,
+			),
+		)
 	}
 
 	args.BroadcastCanceled = func() error {
-		// FIXME request manager
-		return nil
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		defer cancel()
+
+		return cmd.requestManager(
+			ctx,
+			newManagerBrokerWorkerCanceledFunc(
+				margs.Height,
+				cmd.localCI.String(),
+			),
+		)
 	}
 	args.SaveOperationFuncs = saveOperationFuncs
 	args.SaveStateFuncs = saveStatesFuncs
-	args.UpdateMergeDoneFunc = func(context.Context) (
+	args.UpdateMergeDoneFunc = func(ctx context.Context) (
 		func(base.State) error,
 		func(uint64, string) error,
 		func() error,
 		error,
 	) {
-		// FIXME request to manager UpdateMerged
-		return nil, nil, nil, nil
-	}
-	args.UpdateStoreDoneFunc = func(_ context.Context, chunks map[base.BlockItemType]string) error {
-		// FIXME	request manager WorkerStoreDone
+		statech := make(chan base.State)
+		reasonch := make(chan [2]interface{})
 
-		return nil
+		_, done, cancel := NewContextDoneFunc(
+			ctx,
+			func(ctx context.Context) error {
+				updateState := func(f func(stateKey string, stateHash util.Hash) error) error {
+					for {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case st := <-statech:
+							if err := f(st.Key(), st.Hash()); err != nil {
+								return err
+							}
+						}
+					}
+				}
+				updateReason := func(f func(opindex uint64, reason string) error) error {
+					for {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case i := <-reasonch:
+							if err := f(i[0].(uint64), i[1].(string)); err != nil {
+								return err
+							}
+						}
+					}
+				}
+
+				return cmd.requestManager(
+					ctx,
+					newManagerBrokerWorkerUpdateMergedFunc(
+						margs.Height,
+						cmd.localCI.String(),
+						updateState,
+						updateReason,
+					),
+				)
+			},
+		)
+
+		defer cancel(nil)
+
+		updateState := func(st base.State) error {
+			statech <- st
+
+			return nil
+		}
+		updateReason := func(opindex uint64, reason string) error {
+			reasonch <- [2]interface{}{opindex, reason}
+
+			return nil
+		}
+
+		return updateState, updateReason, func() error {
+			close(statech)
+			close(reasonch)
+
+			return done()
+		}, nil
+	}
+	args.UpdateStoreDoneFunc = func(ctx context.Context, chunks map[base.BlockItemType]string) error {
+		return cmd.requestManager(
+			ctx,
+			newManagerBrokerWorkerStoreDoneFunc(
+				margs.Height,
+				cmd.localCI.String(),
+				chunks,
+			),
+		)
 	}
 
 	return NewProcessWorker(
@@ -459,44 +568,63 @@ func (cmd *CommandWorker) newWorker(
 	)
 }
 
-func (cmd *CommandWorker) remotesFunc(
-	client isaac.NetworkClient,
-) func(context.Context, func(_ context.Context, client isaac.NetworkClient, ci quicstream.ConnInfo) error) error {
-	var local string
-	if i, _ := cmd.workerCIs.Value("local"); true {
-		local = i.String()
-	}
+func (cmd *CommandWorker) requestWorkers(
+	ctx context.Context,
+	brokerf quicstreamheader.BrokerFunc,
+) error {
+	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
 
-	return func(ctx context.Context, f func(context.Context, isaac.NetworkClient, quicstream.ConnInfo) error) error {
-		var ew util.JobWorker
-
-		switch i, err := util.NewBaseJobWorker(ctx, int64(cmd.workerCIs.Len())); {
-		case err != nil:
-			return err
-		default:
-			ew = i
+	_ = cmd.workerCIs.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
+		switch {
+		case worker == "local",
+			worker == cmd.localCI.String():
+			return true
 		}
 
-		_ = cmd.workerCIs.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
-			if worker == local {
-				return true
-			}
+		if err := requestHandlerFunc(ctx, openStream, brokerf, ci); err != nil {
+			cmd.Log().Error().Err(err).Str("worker", worker).Interface("conn_info", ci).Msg("request failed")
+		}
 
-			if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
-				if err := f(ctx, client, ci); err != nil {
-					cmd.Log().Error().Err(err).Stringer("remote", ci).Msg("failed to request to remote")
-				}
+		return true
+	})
 
-				return nil
-			}); err != nil {
-				return false
-			}
+	return nil
+}
 
-			return true
-		})
-
-		ew.Done()
-
-		return ew.Wait()
+func (cmd *CommandWorker) requestWorker(
+	ctx context.Context,
+	worker string,
+	brokerf quicstreamheader.BrokerFunc,
+) error {
+	if worker == "local" {
+		return errors.Errorf("local is not remote worker")
 	}
+
+	var ci quicstream.ConnInfo
+
+	switch i, found := cmd.workerCIs.Value(worker); {
+	case !found:
+		return util.ErrNotFound.Errorf("unknown worker ci, %q", worker)
+	case cmd.localCI.String() == i.String():
+		return errors.Errorf("local is not remote worker")
+	default:
+		ci = i
+	}
+
+	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
+
+	return requestHandlerFunc(ctx, openStream, brokerf, ci)
+}
+
+func (cmd *CommandWorker) requestManager(
+	ctx context.Context,
+	brokerf quicstreamheader.BrokerFunc,
+) error {
+	if cmd.managerCI.Addr() == nil {
+		return errors.Errorf("manager ci not yet known")
+	}
+
+	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
+
+	return requestHandlerFunc(ctx, openStream, brokerf, cmd.managerCI)
 }

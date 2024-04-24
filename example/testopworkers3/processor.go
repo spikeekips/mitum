@@ -1152,21 +1152,19 @@ func (pw *ProcessWorker) mergeResult() error {
 		}
 	}
 
-	for opindex := range ru {
-		opindex := opindex
-		reason := ru[opindex]
-
-		if err := ew.NewJob(func(context.Context, uint64) error {
-			return updateReason(opindex, reason)
-		}); err != nil {
-			return err
-		}
-	}
-
 	ew.Done()
 
 	if err := ew.Wait(); err != nil {
 		return err
+	}
+
+	for opindex := range ru {
+		opindex := opindex
+		reason := ru[opindex]
+
+		if err := updateReason(opindex, reason); err != nil {
+			return err
+		}
 	}
 
 	return done()

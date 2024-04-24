@@ -12,6 +12,21 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
+func newSimpleBrokerFunc(header quicstreamheader.RequestHeader) quicstreamheader.BrokerFunc {
+	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		switch _, res, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		default:
+			return res.Err()
+		}
+	}
+}
+
 func openStreamFunc(
 	encs *encoder.Encoders,
 	dialf quicstream.ConnInfoDialFunc,
@@ -27,7 +42,7 @@ func openStreamFunc(
 func requestHandlerFunc(
 	ctx context.Context,
 	openStream func(ctx context.Context, ci quicstream.ConnInfo) (quicstreamheader.StreamFunc, error),
-	f func(context.Context, *quicstreamheader.ClientBroker) error,
+	f quicstreamheader.BrokerFunc,
 	ci quicstream.ConnInfo,
 ) error {
 	var stream quicstreamheader.StreamFunc
