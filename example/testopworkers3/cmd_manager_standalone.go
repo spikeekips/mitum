@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -23,42 +26,26 @@ import (
 
 var maxConcurrency int64 = 1 << 14
 
-var pManagerDesignString = `
+var pStandaloneManagerDesignString = `
 address: managersas
 privatekey: 09e151a12a283cd46ac02a425559460e88746c49697e41c4edb9b3122f83b399mpr
 network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 storage:
     base: ./data/manager
-network:
-  bind: 0.0.0.0:%d
-  publish: localhost:%d
-  tls_insecure: true
 `
 
-type PManager struct { //nolint:govet //...
-	*logging.Logging `kong:"-"`
-	Operations       uint64 `name:"ops" help:"number of operations" default:"333"`
-	Concurrency      int64  `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
-	Port             int    `arg:"" name:"network port"`
-	Workers          uint64 `name:"workers" help:"number of workers" default:"3"`
-	PProf            bool   `name:"pprof"`
-	local            base.LocalNode
-	networkID        base.NetworkID
-	keys             []base.Privatekey
-	c                int64
-	workers          []string
+type CommandManagerStandalone struct { //nolint:govet //...
+	baseCommandManager
+	Workers uint64 `name:"workers" help:"number of workers" default:"3"`
+	workers []string
 }
 
-func (cmd *PManager) Run(pctx context.Context) error {
-	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &cmd.Logging); err != nil {
+func (cmd *CommandManagerStandalone) Run(pctx context.Context) error {
+	if err := cmd.baseCommandManager.prepare(pctx); err != nil {
 		return err
 	}
 
 	cmd.Log().Debug().
-		Int("port", cmd.Port).
-		Uint64("operations", cmd.Operations).
-		Int64("concurrency", cmd.Concurrency).
-		Bool("pprof", cmd.PProf).
 		Uint64("workers", cmd.Workers).
 		Msg("flags")
 
@@ -76,19 +63,13 @@ func (cmd *PManager) Run(pctx context.Context) error {
 	return cmd.run(pctx)
 }
 
-func (cmd *PManager) prepare(pctx context.Context) (context.Context, *ps.PS, error) {
-	if cmd.Port <= 1024 {
-		return nil, nil, errors.Errorf("invalid port, %d", cmd.Port)
-	}
-
+func (cmd *CommandManagerStandalone) prepare(pctx context.Context) (context.Context, *ps.PS, error) {
 	if cmd.Workers < 1 {
 		return nil, nil, errors.Errorf("--workers should be at least 1")
 	}
 
 	designString := fmt.Sprintf(
-		pManagerDesignString,
-		cmd.Port,
-		cmd.Port,
+		pStandaloneManagerDesignString,
 	)
 
 	cmd.Log().Info().Str("string", designString).Msg("design")
@@ -107,26 +88,8 @@ func (cmd *PManager) prepare(pctx context.Context) (context.Context, *ps.PS, err
 		pctx = i
 	}
 
-	var isaacparams *isaac.Params
-
-	if err := util.LoadFromContextOK(pctx,
-		launch.ISAACParamsContextKey, &isaacparams,
-	); err != nil {
+	if err := cmd.loadDesign(pctx); err != nil {
 		return nil, nil, err
-	}
-
-	cmd.Log().Debug().Interface("main_process", pps.Verbose()).Msg("processed")
-
-	cmd.networkID = isaacparams.NetworkID()
-
-	switch {
-	case cmd.Concurrency > 0:
-		cmd.c = cmd.Concurrency
-	default:
-		cmd.c = int64(cmd.Operations)
-		if cmd.c > maxConcurrency {
-			cmd.c = maxConcurrency
-		}
 	}
 
 	cmd.makeWorkerNames()
@@ -134,7 +97,7 @@ func (cmd *PManager) prepare(pctx context.Context) (context.Context, *ps.PS, err
 	return pctx, pps, nil
 }
 
-func (cmd *PManager) run(pctx context.Context) error {
+func (cmd *CommandManagerStandalone) run(pctx context.Context) error {
 	var mp base.BlockMap
 
 	switch i, err := cmd.createAccounts(pctx); {
@@ -151,7 +114,7 @@ func (cmd *PManager) run(pctx context.Context) error {
 	return nil
 }
 
-func (cmd *PManager) createAccounts(pctx context.Context) (base.BlockMap, error) {
+func (cmd *CommandManagerStandalone) createAccounts(pctx context.Context) (base.BlockMap, error) {
 	if err := cmd.createAccountKeys(pctx); err != nil {
 		return nil, errors.WithMessage(err, "keys")
 	}
@@ -174,7 +137,7 @@ func (cmd *PManager) createAccounts(pctx context.Context) (base.BlockMap, error)
 		pr = i
 	}
 
-	switch done, err := cmd.pprof("create-accounts"); {
+	switch done, err := cmd.cpuPProf("create-accounts"); {
 	case err != nil:
 		return nil, err
 	default:
@@ -189,140 +152,7 @@ func (cmd *PManager) createAccounts(pctx context.Context) (base.BlockMap, error)
 	}
 }
 
-func (cmd *PManager) createAccountKeys(pctx context.Context) error {
-	started := time.Now()
-
-	if err := util.LoadFromContextOK(pctx,
-		launch.LocalContextKey, &cmd.local,
-	); err != nil {
-		return err
-	}
-
-	cmd.keys = make([]base.Privatekey, (cmd.Operations))
-
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
-
-	go func() {
-		for i := range cmd.keys {
-			i := i
-
-			if err := wk.NewJob(func(context.Context, uint64) error {
-				cmd.keys[i] = base.NewMPrivatekey()
-
-				return nil
-			}); err != nil {
-				break
-			}
-		}
-
-		wk.Done()
-	}()
-
-	if err := wk.Wait(); err != nil {
-		return err
-	}
-
-	cmd.Log().Debug().
-		Stringer("elapsed", time.Since(started)).
-		Int("accounts", len(cmd.keys)).
-		Msg("account keys generated")
-
-	return nil
-}
-
-func (cmd *PManager) createAccountOperations(pctx context.Context) ([]Op, error) {
-	cmd.Log().Debug().Msg("create operations")
-	defer logging.TimeElapsed()(cmd.Log().Info(), "create operations generated")
-
-	var pool isaac.NewOperationPool
-
-	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
-		return nil, err
-	}
-
-	token := []byte("create-accounts")
-
-	ops := make([]Op, len(cmd.keys))
-
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
-
-	go func() {
-		for i := range ops {
-			i := i
-
-			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
-				fact := NewOpFact(token, 1, nil, cmd.keys[i].Publickey())
-				op := NewOp(fact)
-				if err := op.Sign(cmd.local.Privatekey(), cmd.networkID); err != nil {
-					return err
-				}
-
-				_, _ = pool.SetOperation(ctx, op)
-
-				ops[i] = op
-
-				return nil
-			}); err != nil {
-				break
-			}
-		}
-
-		wk.Done()
-	}()
-
-	if err := wk.Wait(); err != nil {
-		return nil, err
-	}
-
-	return ops, nil
-}
-
-func (cmd *PManager) newProposal(
-	pctx context.Context,
-	height base.Height,
-	previousBlock util.Hash,
-	ops []Op,
-) (base.ProposalSignFact, error) {
-	started := time.Now()
-
-	var pool isaac.ProposalPool
-
-	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
-		return nil, err
-	}
-
-	oppair := make([][2]util.Hash, len(ops))
-	for i := range ops {
-		oppair[i] = [2]util.Hash{ops[i].Hash(), ops[i].Fact().Hash()}
-	}
-
-	fact := isaac.NewProposalFact(
-		base.NewPoint(height, 0),
-		cmd.local.Address(),
-		previousBlock,
-		oppair,
-	)
-
-	sf := isaac.NewProposalSignFact(fact)
-	if err := sf.Sign(cmd.local.Privatekey(), cmd.networkID); err != nil {
-		return nil, err
-	}
-
-	switch isset, err := pool.SetProposal(sf); {
-	case err != nil:
-		return nil, err
-	case !isset:
-		return nil, errors.Errorf("not set")
-	}
-
-	cmd.Log().Debug().
-		Stringer("elapsed", time.Since(started)).
-		Msg("proposal generated")
-
-	return sf, nil
-}
-
-func (cmd *PManager) processor(
+func (cmd *CommandManagerStandalone) processor(
 	pctx context.Context,
 	proposal base.ProposalSignFact,
 	previous base.Manifest,
@@ -426,7 +256,7 @@ func (cmd *PManager) processor(
 	}
 }
 
-func (cmd *PManager) newManagerFunc(
+func (cmd *CommandManagerStandalone) newManagerFunc(
 	db isaac.Database,
 	bdb isaac.BlockWriteDatabase,
 	fsroot string,
@@ -525,7 +355,7 @@ func (cmd *PManager) newManagerFunc(
 	}, nil
 }
 
-func (cmd *PManager) makeWorkerNames() {
+func (cmd *CommandManagerStandalone) makeWorkerNames() {
 	l := len(strconv.FormatUint(cmd.Workers, 10))
 	if l < 2 {
 		l = 2
@@ -539,7 +369,7 @@ func (cmd *PManager) makeWorkerNames() {
 	}
 }
 
-func (cmd *PManager) process(
+func (cmd *CommandManagerStandalone) process(
 	pctx context.Context,
 	pr base.ProposalSignFact,
 	previous base.Manifest,
@@ -608,70 +438,7 @@ func (cmd *PManager) process(
 	return mp, ppdone, nil
 }
 
-func (cmd *PManager) newINITVoteproof(point base.Point, proposal base.ProposalSignFact) (base.INITVoteproof, error) {
-	fact := isaac.NewINITBallotFact(
-		point,
-		proposal.ProposalFact().PreviousBlock(),
-		proposal.ProposalFact().Hash(),
-		nil,
-	)
-	if err := fact.IsValid(nil); err != nil {
-		return nil, err
-	}
-
-	sf := isaac.NewINITBallotSignFact(fact)
-	if err := sf.NodeSign(cmd.local.Privatekey(), cmd.networkID, cmd.local.Address()); err != nil {
-		return nil, err
-	}
-
-	if err := sf.IsValid(cmd.networkID); err != nil {
-		return nil, err
-	}
-
-	vp := isaac.NewINITVoteproof(fact.Point().Point)
-	vp.
-		SetMajority(fact).
-		SetSignFacts([]base.BallotSignFact{sf}).
-		SetThreshold(base.MaxThreshold).
-		Finish()
-
-	if err := vp.IsValid(cmd.networkID); err != nil {
-		return nil, err
-	}
-
-	return vp, nil
-}
-
-func (cmd *PManager) newACCEPTVoteproof(point base.Point, proposal, newBlock util.Hash) (base.ACCEPTVoteproof, error) {
-	fact := isaac.NewACCEPTBallotFact(point, proposal, newBlock, nil)
-	if err := fact.IsValid(nil); err != nil {
-		return nil, err
-	}
-
-	sf := isaac.NewACCEPTBallotSignFact(fact)
-	if err := sf.NodeSign(cmd.local.Privatekey(), cmd.networkID, cmd.local.Address()); err != nil {
-		return nil, err
-	}
-
-	if err := sf.IsValid(cmd.networkID); err != nil {
-		return nil, err
-	}
-
-	vp := isaac.NewACCEPTVoteproof(fact.Point().Point)
-	vp.
-		SetMajority(fact).
-		SetSignFacts([]base.BallotSignFact{sf}).
-		SetThreshold(base.MaxThreshold).
-		Finish()
-
-	if err := vp.IsValid(cmd.networkID); err != nil {
-		return nil, err
-	}
-
-	return vp, nil
-}
-
-func (cmd *PManager) transfer(pctx context.Context, m base.Manifest) error {
+func (cmd *CommandManagerStandalone) transfer(pctx context.Context, m base.Manifest) error {
 	var ops []Op
 
 	switch i, err := cmd.createTransferOperations(pctx); {
@@ -690,7 +457,7 @@ func (cmd *PManager) transfer(pctx context.Context, m base.Manifest) error {
 		pr = i
 	}
 
-	switch done, err := cmd.pprof("transfer"); {
+	switch done, err := cmd.cpuPProf("transfer"); {
 	case err != nil:
 		return err
 	default:
@@ -705,7 +472,7 @@ func (cmd *PManager) transfer(pctx context.Context, m base.Manifest) error {
 	}
 }
 
-func (cmd *PManager) createTransferOperations(pctx context.Context) ([]Op, error) {
+func (cmd *CommandManagerStandalone) createTransferOperations(pctx context.Context) ([]Op, error) {
 	cmd.Log().Debug().Msg("transfer operations")
 	defer logging.TimeElapsed()(cmd.Log().Info(), "transfer operations generated")
 
@@ -763,28 +530,7 @@ func (cmd *PManager) createTransferOperations(pctx context.Context) ([]Op, error
 	return ops, nil
 }
 
-func (cmd *PManager) pprof(name string) (func(), error) {
-	if !cmd.PProf {
-		return func() {}, nil
-	}
-
-	f, err := os.Create("./cpu-" + name + "-" + util.RFC3339(time.Now()) + ".pprof")
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	if err := pprof.StartCPUProfile(f); err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return func() {
-		pprof.StopCPUProfile()
-
-		_ = f.Close()
-	}, nil
-}
-
-func (cmd *PManager) newWorkerReadyFunc(
+func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 	db isaac.Database,
 	bdb isaac.BlockWriteDatabase,
 	fsroot string,
@@ -936,4 +682,314 @@ func (cmd *PManager) newWorkerReadyFunc(
 				return nil
 			}
 		}
+}
+
+type baseCommand struct {
+	*logging.Logging `kong:"-"`
+	PProf            bool   `name:"pprof"`
+	Operations       uint64 `name:"ops" help:"number of operations" default:"333"`
+	Concurrency      int64  `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
+	local            base.LocalNode
+	networkID        base.NetworkID
+	c                int64
+}
+
+func (cmd *baseCommand) prepare(pctx context.Context) error {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &cmd.Logging); err != nil {
+		return err
+	}
+
+	switch {
+	case cmd.Concurrency > 0:
+		cmd.c = cmd.Concurrency
+	default:
+		cmd.c = int64(cmd.Operations)
+		if cmd.c > maxConcurrency {
+			cmd.c = maxConcurrency
+		}
+	}
+
+	cmd.Log().Debug().
+		Int64("concurrency", cmd.Concurrency).
+		Uint64("operations", cmd.Operations).
+		Bool("pprof", cmd.PProf).
+		Msg("flags")
+
+	if cmd.PProf {
+		switch port, err := availableTCPPort(); {
+		case err != nil:
+			return err
+		default:
+			go func() {
+				cmd.Log().Info().Str("port", port).Msg("http pprof")
+
+				if err := http.ListenAndServe("localhost:"+port, nil); err != nil {
+					cmd.Log().Error().Err(errors.WithStack(err)).Msg("failed http pprof")
+				}
+			}()
+		}
+	}
+
+	return nil
+}
+
+func (cmd *baseCommand) loadDesign(pctx context.Context) error {
+	var isaacparams *isaac.Params
+
+	if err := util.LoadFromContextOK(pctx,
+		launch.LocalContextKey, &cmd.local,
+		launch.ISAACParamsContextKey, &isaacparams,
+	); err != nil {
+		return err
+	}
+
+	cmd.networkID = isaacparams.NetworkID()
+
+	return nil
+}
+
+func (cmd *baseCommand) cpuPProf(name string) (func(), error) {
+	if !cmd.PProf {
+		return func() {}, nil
+	}
+
+	return cpuPProf(name)
+}
+
+type baseCommandManager struct {
+	baseCommand
+	keys []base.Privatekey
+}
+
+func (cmd *baseCommandManager) prepare(pctx context.Context) error {
+	if err := cmd.baseCommand.prepare(pctx); err != nil {
+		return err
+	}
+
+	cmd.keys = make([]base.Privatekey, (cmd.Operations))
+
+	return nil
+}
+
+func (cmd *baseCommandManager) createAccountKeys(pctx context.Context) error {
+	started := time.Now()
+
+	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+
+	go func() {
+		for i := range cmd.keys {
+			i := i
+
+			if err := wk.NewJob(func(context.Context, uint64) error {
+				cmd.keys[i] = base.NewMPrivatekey()
+
+				return nil
+			}); err != nil {
+				break
+			}
+		}
+
+		wk.Done()
+	}()
+
+	if err := wk.Wait(); err != nil {
+		return err
+	}
+
+	cmd.Log().Debug().
+		Stringer("elapsed", time.Since(started)).
+		Int("accounts", len(cmd.keys)).
+		Msg("account keys generated")
+
+	return nil
+}
+
+func (cmd *baseCommandManager) createAccountOperations(pctx context.Context) ([]Op, error) {
+	cmd.Log().Debug().Msg("create operations")
+	defer logging.TimeElapsed()(cmd.Log().Info(), "create operations generated")
+
+	var pool isaac.NewOperationPool
+
+	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
+		return nil, err
+	}
+
+	token := []byte("create-accounts")
+
+	ops := make([]Op, len(cmd.keys))
+
+	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+
+	go func() {
+		for i := range ops {
+			i := i
+
+			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
+				fact := NewOpFact(token, 1, nil, cmd.keys[i].Publickey())
+				op := NewOp(fact)
+				if err := op.Sign(cmd.local.Privatekey(), cmd.networkID); err != nil {
+					return err
+				}
+
+				_, _ = pool.SetOperation(ctx, op)
+
+				ops[i] = op
+
+				return nil
+			}); err != nil {
+				break
+			}
+		}
+
+		wk.Done()
+	}()
+
+	if err := wk.Wait(); err != nil {
+		return nil, err
+	}
+
+	return ops, nil
+}
+
+func (cmd *baseCommandManager) newProposal(
+	pctx context.Context,
+	height base.Height,
+	previousBlock util.Hash,
+	ops []Op,
+) (base.ProposalSignFact, error) {
+	started := time.Now()
+
+	var pool isaac.ProposalPool
+
+	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
+		return nil, err
+	}
+
+	oppair := make([][2]util.Hash, len(ops))
+	for i := range ops {
+		oppair[i] = [2]util.Hash{ops[i].Hash(), ops[i].Fact().Hash()}
+	}
+
+	fact := isaac.NewProposalFact(
+		base.NewPoint(height, 0),
+		cmd.local.Address(),
+		previousBlock,
+		oppair,
+	)
+
+	sf := isaac.NewProposalSignFact(fact)
+	if err := sf.Sign(cmd.local.Privatekey(), cmd.networkID); err != nil {
+		return nil, err
+	}
+
+	switch isset, err := pool.SetProposal(sf); {
+	case err != nil:
+		return nil, err
+	case !isset:
+		return nil, errors.Errorf("not set")
+	}
+
+	cmd.Log().Debug().
+		Stringer("elapsed", time.Since(started)).
+		Msg("proposal generated")
+
+	return sf, nil
+}
+
+func (cmd *baseCommandManager) newINITVoteproof(point base.Point, proposal base.ProposalSignFact) (base.INITVoteproof, error) {
+	fact := isaac.NewINITBallotFact(
+		point,
+		proposal.ProposalFact().PreviousBlock(),
+		proposal.ProposalFact().Hash(),
+		nil,
+	)
+	if err := fact.IsValid(nil); err != nil {
+		return nil, err
+	}
+
+	sf := isaac.NewINITBallotSignFact(fact)
+	if err := sf.NodeSign(cmd.local.Privatekey(), cmd.networkID, cmd.local.Address()); err != nil {
+		return nil, err
+	}
+
+	if err := sf.IsValid(cmd.networkID); err != nil {
+		return nil, err
+	}
+
+	vp := isaac.NewINITVoteproof(fact.Point().Point)
+	vp.
+		SetMajority(fact).
+		SetSignFacts([]base.BallotSignFact{sf}).
+		SetThreshold(base.MaxThreshold).
+		Finish()
+
+	if err := vp.IsValid(cmd.networkID); err != nil {
+		return nil, err
+	}
+
+	return vp, nil
+}
+
+func (cmd *baseCommandManager) newACCEPTVoteproof(point base.Point, proposal, newBlock util.Hash) (base.ACCEPTVoteproof, error) {
+	fact := isaac.NewACCEPTBallotFact(point, proposal, newBlock, nil)
+	if err := fact.IsValid(nil); err != nil {
+		return nil, err
+	}
+
+	sf := isaac.NewACCEPTBallotSignFact(fact)
+	if err := sf.NodeSign(cmd.local.Privatekey(), cmd.networkID, cmd.local.Address()); err != nil {
+		return nil, err
+	}
+
+	if err := sf.IsValid(cmd.networkID); err != nil {
+		return nil, err
+	}
+
+	vp := isaac.NewACCEPTVoteproof(fact.Point().Point)
+	vp.
+		SetMajority(fact).
+		SetSignFacts([]base.BallotSignFact{sf}).
+		SetThreshold(base.MaxThreshold).
+		Finish()
+
+	if err := vp.IsValid(cmd.networkID); err != nil {
+		return nil, err
+	}
+
+	return vp, nil
+}
+
+func cpuPProf(name string) (func(), error) {
+	f, err := os.Create("./cpu-" + name + "-" + util.RFC3339(time.Now()) + ".pprof")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return func() {
+		pprof.StopCPUProfile()
+
+		_ = f.Close()
+	}, nil
+}
+
+func availableTCPPort() (string, error) {
+	switch addr, err := net.ResolveTCPAddr("tcp", "localhost:0"); {
+	case err != nil:
+		return "", errors.WithStack(err)
+	default:
+		l, err := net.ListenTCP("tcp", addr)
+		if err != nil {
+			return "", errors.WithStack(err)
+		}
+
+		defer func() {
+			_ = l.Close()
+		}()
+
+		return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil //nolint:forcetypeassert //...
+	}
 }

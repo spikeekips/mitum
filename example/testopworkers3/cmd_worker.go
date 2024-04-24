@@ -17,7 +17,6 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
@@ -32,30 +31,17 @@ network:
   tls_insecure: true
 `
 
-type PWorker struct { //nolint:govet //...
-	*logging.Logging `kong:"-"`
-	Port             int    `arg:"" name:"network port"`
-	Operations       uint64 `name:"ops" help:"number of operations" default:"333"`
-	Concurrency      int64  `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
-	PProf            bool   `name:"pprof"`
-	local            base.LocalNode
-	networkID        base.NetworkID
-	c                int64
-	workers          util.LockedMap[base.Height, *ProcessWorker]
-	workerCIs        util.LockedMap[string, quicstream.ConnInfo]
+type CommandWorker struct { //nolint:govet //...
+	baseCommand
+	Port      int `arg:"" name:"network port"`
+	workers   util.LockedMap[base.Height, *ProcessWorker]
+	workerCIs util.LockedMap[string, quicstream.ConnInfo]
 }
 
-func (cmd *PWorker) Run(pctx context.Context) error {
+func (cmd *CommandWorker) Run(pctx context.Context) error {
 	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &cmd.Logging); err != nil {
 		return err
 	}
-
-	cmd.Log().Debug().
-		Int("port", cmd.Port).
-		Uint64("operations", cmd.Operations).
-		Int64("concurrency", cmd.Concurrency).
-		Bool("pprof", cmd.PProf).
-		Msg("flags")
 
 	switch i, pps, err := cmd.prepare(pctx); {
 	case err != nil:
@@ -71,7 +57,15 @@ func (cmd *PWorker) Run(pctx context.Context) error {
 	return cmd.run(pctx)
 }
 
-func (cmd *PWorker) prepare(pctx context.Context) (context.Context, *ps.PS, error) {
+func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS, error) {
+	if err := cmd.baseCommand.prepare(pctx); err != nil {
+		return nil, nil, err
+	}
+
+	cmd.Log().Debug().
+		Int("port", cmd.Port).
+		Msg("flags")
+
 	if cmd.Port <= 1024 {
 		return nil, nil, errors.Errorf("invalid port, %d", cmd.Port)
 	}
@@ -112,32 +106,16 @@ func (cmd *PWorker) prepare(pctx context.Context) (context.Context, *ps.PS, erro
 		pctx = i
 	}
 
-	var isaacparams *isaac.Params
-
-	if err := util.LoadFromContextOK(pctx,
-		launch.ISAACParamsContextKey, &isaacparams,
-	); err != nil {
+	if err := cmd.loadDesign(pctx); err != nil {
 		return nil, nil, err
 	}
 
 	cmd.Log().Debug().Interface("main_process", pps.Verbose()).Msg("processed")
 
-	cmd.networkID = isaacparams.NetworkID()
-
-	switch {
-	case cmd.Concurrency > 0:
-		cmd.c = cmd.Concurrency
-	default:
-		cmd.c = int64(cmd.Operations)
-		if cmd.c > maxConcurrency {
-			cmd.c = maxConcurrency
-		}
-	}
-
 	return pctx, pps, nil
 }
 
-func (cmd *PWorker) run(pctx context.Context) error {
+func (cmd *CommandWorker) run(pctx context.Context) error {
 	var design launch.NodeDesign
 
 	if err := util.LoadFromContextOK(pctx,
@@ -161,14 +139,14 @@ func (cmd *PWorker) run(pctx context.Context) error {
 	return nil
 }
 
-func (cmd *PWorker) pps(pps *ps.PS, pctx context.Context) error {
+func (cmd *CommandWorker) pps(pps *ps.PS, pctx context.Context) error {
 	_ = pps.POK(launch.PNameStates).
 		PostAddOK("worker-network-handlers", cmd.pNetworkHandlers)
 
 	return nil
 }
 
-func (cmd *PWorker) pNetworkHandlers(pctx context.Context) (context.Context, error) {
+func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var gerror error
 
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerCancelHeaderHint), cmd.handlerCancelFunc, nil)
@@ -182,7 +160,7 @@ func (cmd *PWorker) pNetworkHandlers(pctx context.Context) (context.Context, err
 	return pctx, gerror
 }
 
-func (cmd *PWorker) handlerCancelFunc(pctx context.Context) (quicstreamheader.Handler[WorkerCancelHeader], error) {
+func (cmd *CommandWorker) handlerCancelFunc(pctx context.Context) (quicstreamheader.Handler[WorkerCancelHeader], error) {
 	return newWorkerHandlerCancelFunc(
 		func(height base.Height) (func(), error) {
 			i, _ := cmd.workers.Value(height)
@@ -195,7 +173,7 @@ func (cmd *PWorker) handlerCancelFunc(pctx context.Context) (quicstreamheader.Ha
 	)
 }
 
-func (cmd *PWorker) handlerDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerDoneHeader], error) {
+func (cmd *CommandWorker) handlerDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerDoneHeader], error) {
 	return newWorkerHandlerWorkerDoneFunc(
 		func(height base.Height) (func() error, error) {
 			i, _ := cmd.workers.Value(height)
@@ -208,7 +186,7 @@ func (cmd *PWorker) handlerDoneFunc(pctx context.Context) (quicstreamheader.Hand
 	)
 }
 
-func (cmd *PWorker) handlerReadyFunc(pctx context.Context) (quicstreamheader.Handler[WorkerReadyHeader], error) {
+func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamheader.Handler[WorkerReadyHeader], error) {
 	var encs *encoder.Encoders
 	var design launch.NodeDesign
 	var db isaac.Database
@@ -248,7 +226,7 @@ func (cmd *PWorker) handlerReadyFunc(pctx context.Context) (quicstreamheader.Han
 	)
 }
 
-func (cmd *PWorker) handlerNewOperationsFunc(pctx context.Context) (quicstreamheader.Handler[WorkerNewOperationsHeader], error) {
+func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicstreamheader.Handler[WorkerNewOperationsHeader], error) {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerNewOperationsHeader,
 	) (context.Context, error) {
@@ -273,7 +251,7 @@ func (cmd *PWorker) handlerNewOperationsFunc(pctx context.Context) (quicstreamhe
 	}, nil
 }
 
-func (cmd *PWorker) handlerInsertOpFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertOpHeader], error) {
+func (cmd *CommandWorker) handlerInsertOpFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertOpHeader], error) {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerInsertOpHeader,
 	) (context.Context, error) {
@@ -296,7 +274,7 @@ func (cmd *PWorker) handlerInsertOpFunc(pctx context.Context) (quicstreamheader.
 	}, nil
 }
 
-func (cmd *PWorker) handlerInsertValuesDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertValuesDoneHeader], error) {
+func (cmd *CommandWorker) handlerInsertValuesDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertValuesDoneHeader], error) {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesDoneHeader,
 	) (context.Context, error) {
@@ -316,7 +294,7 @@ func (cmd *PWorker) handlerInsertValuesDoneFunc(pctx context.Context) (quicstrea
 	}, nil
 }
 
-func (cmd *PWorker) handlerPhaseDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerPhaseDoneHeader], error) {
+func (cmd *CommandWorker) handlerPhaseDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerPhaseDoneHeader], error) {
 	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerPhaseDoneHeader,
 	) (context.Context, error) {
@@ -336,7 +314,7 @@ func (cmd *PWorker) handlerPhaseDoneFunc(pctx context.Context) (quicstreamheader
 	}, nil
 }
 
-func (cmd *PWorker) newWorker(
+func (cmd *CommandWorker) newWorker(
 	design launch.NodeDesign,
 	margs processWorkerReadyArgs,
 	db isaac.Database,
@@ -481,7 +459,7 @@ func (cmd *PWorker) newWorker(
 	)
 }
 
-func (cmd *PWorker) remotesFunc(
+func (cmd *CommandWorker) remotesFunc(
 	client isaac.NetworkClient,
 ) func(context.Context, func(_ context.Context, client isaac.NetworkClient, ci quicstream.ConnInfo) error) error {
 	var local string

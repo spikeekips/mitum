@@ -31,9 +31,9 @@ var flagDefaults = kong.Vars{
 var CLI struct { //nolint:govet //...
 	//revive:disable:nested-structs
 	launch.BaseFlags
-	Manager PManager `cmd:"" help:"run manager"`
-	Worker  PWorker  `cmd:"" help:"run worker"`
-	Version struct{} `cmd:"" help:"version"`
+	Standalone CommandManagerStandalone `cmd:"" help:"run standalone manager"`
+	Worker     CommandWorker            `cmd:"" help:"run worker"`
+	Version    struct{}                 `cmd:"" help:"version"`
 	//revive:enable:nested-structs
 }
 
