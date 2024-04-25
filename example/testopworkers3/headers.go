@@ -17,7 +17,8 @@ var (
 	WorkerInsertValuesDoneHeaderHint    = hint.MustNewHint("worker-insert-values-done-header-v0.0.1")
 	WorkerPhaseDoneHeaderHint           = hint.MustNewHint("worker-phase-done-header-v0.0.1")
 	WorkerSyncStatesHeaderHint          = hint.MustNewHint("worker-sync-states-header-v0.0.1")
-	WorkerSyncOperationsHeaderHint      = hint.MustNewHint("worker-sync-operations-header-v0.0.1")
+	WorkerSetStatesHeaderHint           = hint.MustNewHint("worker-set-states-header-v0.0.1")
+	WorkerSetOperationsHeaderHint       = hint.MustNewHint("worker-set-operations-header-v0.0.1")
 	ManagerStateOwnersHeaderHint        = hint.MustNewHint("manager-state-owners-header-v0.0.1")
 	ManagerWorkerCanceledHeaderHint     = hint.MustNewHint("manager-worker-canceled-header-v0.0.1")
 	ManagerWorkerUpdateMergedHeaderHint = hint.MustNewHint("manager-worker-update-merge-done-header-v0.0.1")
@@ -260,22 +261,30 @@ func NewManagerWorkerStoreDoneHeader(height base.Height, worker string) ManagerW
 	}
 }
 
-type WorkerSyncStatesHeader struct {
-	BaseHeader
-}
+type WorkerSyncStatesHeader struct{ BaseWorkerHeader }
 
-func NewWorkerSyncStatesHeader() WorkerSyncStatesHeader {
+func NewWorkerSyncStatesHeader(height base.Height) WorkerSyncStatesHeader {
 	return WorkerSyncStatesHeader{
-		BaseHeader: NewBaseHeader(WorkerSyncStatesHeaderHint),
+		BaseWorkerHeader: NewBaseWorkerHeader(WorkerSyncStatesHeaderHint, height, "manager"),
 	}
 }
 
-type WorkerSyncOperationsHeader struct {
+type WorkerSetStatesHeader struct {
 	BaseHeader
 }
 
-func NewWorkerSyncOperationsHeader() WorkerSyncOperationsHeader {
-	return WorkerSyncOperationsHeader{
-		BaseHeader: NewBaseHeader(WorkerSyncOperationsHeaderHint),
+func NewWorkerSetStatesHeader() WorkerSetStatesHeader {
+	return WorkerSetStatesHeader{
+		BaseHeader: NewBaseHeader(WorkerSetStatesHeaderHint),
+	}
+}
+
+type WorkerSetOperationsHeader struct {
+	BaseHeader
+}
+
+func NewWorkerSetOperationsHeader() WorkerSetOperationsHeader {
+	return WorkerSetOperationsHeader{
+		BaseHeader: NewBaseHeader(WorkerSetOperationsHeaderHint),
 	}
 }

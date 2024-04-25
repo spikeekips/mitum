@@ -382,11 +382,27 @@ func newWorkerHandlerPhaseDoneFunc(
 	}, nil
 }
 
-func newWorkerBrokerSyncStatesFunc(
+func newWorkerBrokerSyncStatesFunc(height base.Height) quicstreamheader.BrokerFunc {
+	return newSimpleBrokerFunc(NewWorkerSyncStatesHeader(height))
+}
+
+func newWorkerHandlerSyncStatesFunc(
+	f func(base.Height) error,
+) (quicstreamheader.Handler[WorkerSyncStatesHeader], error) {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, header WorkerSyncStatesHeader,
+	) (context.Context, error) {
+		err := f(header.Height)
+
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}, nil
+}
+
+func newWorkerBrokerSetStatesFunc(
 	f func(func(base.State) error) error,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		header := NewWorkerSyncStatesHeader()
+		header := NewWorkerSetStatesHeader()
 
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
@@ -405,7 +421,6 @@ func newWorkerBrokerSyncStatesFunc(
 				})
 			},
 		); err != nil {
-			fmt.Println("k0", err)
 			return err
 		}
 
@@ -422,11 +437,11 @@ func newWorkerBrokerSyncStatesFunc(
 	}
 }
 
-func newWorkerHandlerSyncStatesFunc(
+func newWorkerHandlerSetStatesFunc(
 	f func(base.State) error,
-) (quicstreamheader.Handler[WorkerSyncStatesHeader], error) {
+) (quicstreamheader.Handler[WorkerSetStatesHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, _ WorkerSyncStatesHeader,
+		broker *quicstreamheader.HandlerBroker, _ WorkerSetStatesHeader,
 	) (context.Context, error) {
 		err := readStream(broker.Reader, func(b []byte) error {
 			var st base.State
@@ -443,11 +458,11 @@ func newWorkerHandlerSyncStatesFunc(
 	}, nil
 }
 
-func newWorkerBrokerSyncOperationsFunc(
+func newWorkerBrokerSetOperationsFunc(
 	f func(func(base.Operation) error) error,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		header := NewWorkerSyncOperationsHeader()
+		header := NewWorkerSetOperationsHeader()
 
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
@@ -483,11 +498,11 @@ func newWorkerBrokerSyncOperationsFunc(
 	}
 }
 
-func newWorkerHandlerSyncOperationsFunc(
+func newWorkerHandlerSetOperationsFunc(
 	f func(base.Operation) error,
-) (quicstreamheader.Handler[WorkerSyncOperationsHeader], error) {
+) (quicstreamheader.Handler[WorkerSetOperationsHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, _ WorkerSyncOperationsHeader,
+		broker *quicstreamheader.HandlerBroker, _ WorkerSetOperationsHeader,
 	) (context.Context, error) {
 		err := readStream(broker.Reader, func(b []byte) error {
 			var st base.Operation

@@ -76,8 +76,9 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerUpdateMergedHeaderHint, Instance: ManagerWorkerUpdateMergedHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSetStatesHeaderHint, Instance: WorkerSetStatesHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSetOperationsHeaderHint, Instance: WorkerSetOperationsHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSyncStatesHeaderHint, Instance: WorkerSyncStatesHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSyncOperationsHeaderHint, Instance: WorkerSyncOperationsHeader{}}))
 
 	t.ci = quicstream.UnsafeConnInfo(nil, true)
 }
@@ -118,22 +119,9 @@ func (t *testHandlers) TestWorkerCancel() {
 		})
 		t.NoError(err)
 
-		header := NewWorkerCancelHeader(33)
-
 		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerCancelHeaderHint), handler,
 			t.ci,
-			func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-				if err := broker.WriteRequestHead(ctx, header); err != nil {
-					return err
-				}
-
-				_, res, err := broker.ReadResponseHead(ctx)
-				if err != nil {
-					return err
-				}
-
-				return res.Err()
-			},
+			newWorkerBrokerCancelFunc(33),
 		)
 		t.ErrorContains(err, "findme")
 
@@ -186,22 +174,9 @@ func (t *testHandlers) TestWorkerDone() {
 		})
 		t.NoError(err)
 
-		header := NewWorkerDoneHeader(33)
-
 		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerDoneHeaderHint), handler,
 			t.ci,
-			func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-				if err := broker.WriteRequestHead(ctx, header); err != nil {
-					return err
-				}
-
-				_, res, err := broker.ReadResponseHead(ctx)
-				if err != nil {
-					return err
-				}
-
-				return res.Err()
-			},
+			newWorkerBrokerDoneFunc(33),
 		)
 		t.ErrorContains(err, "findme")
 
@@ -226,35 +201,24 @@ func (t *testHandlers) TestWorkerReady() {
 		})
 		t.NoError(err)
 
-		header := NewWorkerReadyHeader(processWorkerReadyArgs{
+		args := processWorkerReadyArgs{
 			Manager:     "findme",
 			Height:      33,
 			Workers:     []string{"a", "b", "c"},
 			NStateShare: 3,
 			NOps:        44,
-		})
+		}
 
 		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerReadyHeaderHint), handler,
 			t.ci,
-			func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-				if err := broker.WriteRequestHead(ctx, header); err != nil {
-					return err
-				}
-
-				_, res, err := broker.ReadResponseHead(ctx)
-				if err != nil {
-					return err
-				}
-
-				return res.Err()
-			},
+			newWorkerBrokerReadyFunc(args),
 		))
 
 		select {
 		case <-time.After(time.Millisecond):
 			t.Fail("not requested")
 		case args := <-requestedch:
-			t.Equal(header.Args, args)
+			t.Equal(args, args)
 		}
 	})
 
@@ -267,22 +231,11 @@ func (t *testHandlers) TestWorkerReady() {
 		})
 		t.NoError(err)
 
-		header := NewWorkerReadyHeader(processWorkerReadyArgs{})
+		args := processWorkerReadyArgs{}
 
 		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerReadyHeaderHint), handler,
 			t.ci,
-			func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-				if err := broker.WriteRequestHead(ctx, header); err != nil {
-					return err
-				}
-
-				_, res, err := broker.ReadResponseHead(ctx)
-				if err != nil {
-					return err
-				}
-
-				return res.Err()
-			},
+			newWorkerBrokerReadyFunc(args),
 		)
 
 		t.ErrorContains(err, "showme")
@@ -438,13 +391,19 @@ func (t *testHandlers) TestWorkerInsertOp() {
 			})
 		}
 
+		add, done, err := util.CompactAppendSliceV1[[5]interface{}](uint64(len(values)), 1<<9)
+		t.NoError(err)
+
 		handler, err := newWorkerHandlerInsertOpFunc(func(base.Height) (processWorkerInsertValues, error) {
-			return func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error {
-				// FIXME
+			return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+				add([5]interface{}{worker, opindex, fact, values, owners})
+
 				return nil
 			}, nil
 		})
 		t.NoError(err)
+
+		facts := make([]util.Hash, len(values))
 
 		for i := range values {
 			opindex := uint64(i)
@@ -456,7 +415,7 @@ func (t *testHandlers) TestWorkerInsertOp() {
 				t.ci,
 				newWorkerBrokerInsertOpFunc(
 					33,
-					"worker0",
+					"w3",
 					t.Encs.Default(),
 					opindex,
 					fact,
@@ -464,7 +423,45 @@ func (t *testHandlers) TestWorkerInsertOp() {
 					os,
 				),
 			))
+
+			facts[i] = fact
 		}
+
+		_ = done(func(s [][5]interface{}) error {
+			sort.Slice(s, func(i, j int) bool {
+				return cmp.Less[uint64](
+					s[i][1].(uint64),
+					s[j][1].(uint64),
+				)
+			})
+
+			t.Equal(len(values), len(s))
+
+			for i := range values {
+				b := s[i]
+
+				t.Equal("w3", b[0])
+				t.Equal(uint64(i), b[1])
+				t.True(facts[i].Equal(b[2].(util.Hash)))
+
+				avs := values[i]
+				bvs := b[3].([]StateMergeValue)
+
+				t.Equal(len(avs), len(bvs))
+
+				for j := range avs {
+					av := avs[j]
+					bv := bvs[j]
+
+					t.Equal(av.Key(), bv.Key())
+					t.True(base.IsEqualStateValue(av.Value(), bv.Value()))
+				}
+
+				t.Equal(owners[i], b[4].(map[string][]string))
+			}
+
+			return nil
+		})
 	})
 }
 
@@ -683,7 +680,7 @@ func (t *testHandlers) TestWorkerPhaseDone() {
 	})
 }
 
-func (t *testHandlers) TestWorkerSyncStates() {
+func (t *testHandlers) TestWorkerSetStates() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -700,16 +697,16 @@ func (t *testHandlers) TestWorkerSyncStates() {
 		add, done, err := util.CompactAppendSliceV1[base.State](uint64(len(sts)), 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerSyncStatesFunc(func(st base.State) error {
+		handler, err := newWorkerHandlerSetStatesFunc(func(st base.State) error {
 			add(st)
 
 			return nil
 		})
 		t.NoError(err)
 
-		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetStatesHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerSyncStatesFunc(func(f func(base.State) error) error {
+			newWorkerBrokerSetStatesFunc(func(f func(base.State) error) error {
 				for i := range sts {
 					if err := f(sts[i]); err != nil {
 						return err
@@ -742,16 +739,16 @@ func (t *testHandlers) TestWorkerSyncStates() {
 		add, done, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerSyncStatesFunc(func(st base.State) error {
+		handler, err := newWorkerHandlerSetStatesFunc(func(st base.State) error {
 			add(st)
 
 			return nil
 		})
 		t.NoError(err)
 
-		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetStatesHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerSyncStatesFunc(func(f func(base.State) error) error {
+			newWorkerBrokerSetStatesFunc(func(f func(base.State) error) error {
 				return nil
 			}),
 		))
@@ -764,7 +761,7 @@ func (t *testHandlers) TestWorkerSyncStates() {
 	})
 }
 
-func (t *testHandlers) TestWorkerSyncOperations() {
+func (t *testHandlers) TestWorkerSetOperations() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -785,16 +782,16 @@ func (t *testHandlers) TestWorkerSyncOperations() {
 		add, done, err := util.CompactAppendSliceV1[base.Operation](uint64(len(ops)), 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerSyncOperationsFunc(func(st base.Operation) error {
+		handler, err := newWorkerHandlerSetOperationsFunc(func(st base.Operation) error {
 			add(st)
 
 			return nil
 		})
 		t.NoError(err)
 
-		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncOperationsHeaderHint), handler,
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetOperationsHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerSyncOperationsFunc(func(f func(base.Operation) error) error {
+			newWorkerBrokerSetOperationsFunc(func(f func(base.Operation) error) error {
 				for i := range ops {
 					if err := f(ops[i]); err != nil {
 						return err
@@ -827,16 +824,16 @@ func (t *testHandlers) TestWorkerSyncOperations() {
 		add, done, err := util.CompactAppendSliceV1[base.Operation](1<<9, 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerSyncOperationsFunc(func(op base.Operation) error {
+		handler, err := newWorkerHandlerSetOperationsFunc(func(op base.Operation) error {
 			add(op)
 
 			return nil
 		})
 		t.NoError(err)
 
-		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncOperationsHeaderHint), handler,
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetOperationsHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerSyncOperationsFunc(func(f func(base.Operation) error) error {
+			newWorkerBrokerSetOperationsFunc(func(f func(base.Operation) error) error {
 				return nil
 			}),
 		))
@@ -846,6 +843,60 @@ func (t *testHandlers) TestWorkerSyncOperations() {
 
 			return nil
 		})
+	})
+}
+
+func (t *testHandlers) TestWorkerSyncStates() {
+	t.Run("ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		donech := make(chan base.Height, 1)
+		handler, err := newWorkerHandlerSyncStatesFunc(func(height base.Height) error {
+			donech <- height
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncStatesFunc(33),
+		))
+
+		select {
+		case <-time.After(time.Millisecond):
+			t.Fail("not requested")
+		case i := <-donech:
+			t.Equal(base.Height(33), i)
+		}
+	})
+
+	t.Run("error", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		donech := make(chan error, 1)
+		handler, err := newWorkerHandlerSyncStatesFunc(func(base.Height) error {
+			err := errors.Errorf("findme")
+			donech <- err
+
+			return err
+		})
+		t.NoError(err)
+
+		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSyncStatesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSyncStatesFunc(33),
+		)
+		t.ErrorContains(err, "findme")
+
+		select {
+		case <-time.After(time.Millisecond):
+			t.Fail("not requested")
+		case err = <-donech:
+			t.ErrorContains(err, "findme")
+		}
 	})
 }
 

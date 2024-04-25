@@ -32,6 +32,7 @@ var CLI struct { //nolint:govet //...
 	//revive:disable:nested-structs
 	launch.BaseFlags
 	Standalone CommandManagerStandalone `cmd:"" help:"run standalone manager"`
+	Manager    CommandManager           `cmd:"" help:"run manager"`
 	Worker     CommandWorker            `cmd:"" help:"run worker"`
 	Version    struct{}                 `cmd:"" help:"version"`
 	//revive:enable:nested-structs
