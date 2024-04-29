@@ -302,9 +302,8 @@ func (t *testHandlers) TestWorkerNewOperations() {
 
 		select {
 		case <-time.After(time.Second):
-			t.Fail("not canceled")
 		case err := <-canceledch:
-			t.Nil(err)
+			t.Fail("canceled", err)
 		}
 
 		t.Equal(len(ops), len(received))
@@ -852,7 +851,7 @@ func (t *testHandlers) TestWorkerSyncStates() {
 		defer cancel()
 
 		donech := make(chan base.Height, 1)
-		handler, err := newWorkerHandlerSyncStatesFunc(func(height base.Height) error {
+		handler, err := newWorkerHandlerSyncStatesFunc(func(_ context.Context, height base.Height) error {
 			donech <- height
 
 			return nil
@@ -877,7 +876,7 @@ func (t *testHandlers) TestWorkerSyncStates() {
 		defer cancel()
 
 		donech := make(chan error, 1)
-		handler, err := newWorkerHandlerSyncStatesFunc(func(base.Height) error {
+		handler, err := newWorkerHandlerSyncStatesFunc(func(context.Context, base.Height) error {
 			err := errors.Errorf("findme")
 			donech <- err
 

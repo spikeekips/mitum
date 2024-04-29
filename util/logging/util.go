@@ -99,3 +99,15 @@ func TimeElapsed() func(*zerolog.Event, string) {
 		e.CallerSkipFrame(1).Stringer("elapsed", time.Since(started)).Msg(msg)
 	}
 }
+
+func TimeElapsedMsg(f func() *zerolog.Event, a string, b ...interface{}) func() {
+	started := time.Now()
+
+	e := f()
+	e.CallerSkipFrame(1).Msgf("> "+a, b...)
+
+	return func() {
+		e := f()
+		e.CallerSkipFrame(1).Stringer("elapsed", time.Since(started)).Msgf("< "+a, b...)
+	}
+}

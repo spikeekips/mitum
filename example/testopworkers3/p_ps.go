@@ -14,6 +14,27 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
+var hinters = []encoder.DecodeDetail{
+	{Hint: OpFactHint, Instance: OpFact{}},
+	{Hint: OpHint, Instance: Op{}},
+	{Hint: AccountStateValueHint, Instance: AccountStateValue{}},
+	{Hint: AccountStateMergeValueHint, Instance: AccountStateMergeValue{}},
+	{Hint: WorkerCancelHeaderHint, Instance: WorkerCancelHeader{}},
+	{Hint: WorkerDoneHeaderHint, Instance: WorkerDoneHeader{}},
+	{Hint: WorkerReadyHeaderHint, Instance: WorkerReadyHeader{}},
+	{Hint: WorkerNewOperationsHeaderHint, Instance: WorkerNewOperationsHeader{}},
+	{Hint: WorkerInsertOpHeaderHint, Instance: WorkerInsertOpHeader{}},
+	{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}},
+	{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}},
+	{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}},
+	{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}},
+	{Hint: ManagerWorkerUpdateMergedHeaderHint, Instance: ManagerWorkerUpdateMergedHeader{}},
+	{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}},
+	{Hint: WorkerSetStatesHeaderHint, Instance: WorkerSetStatesHeader{}},
+	{Hint: WorkerSetOperationsHeaderHint, Instance: WorkerSetOperationsHeader{}},
+	{Hint: WorkerSyncStatesHeaderHint, Instance: WorkerSyncStatesHeader{}},
+}
+
 func preparePS(
 	pctx context.Context,
 	name string,
@@ -59,11 +80,9 @@ func preparePS(
 		AddOK(launch.PNameStorage, launch.PStorage, nil, launch.PNameLocal).
 		AddOK(launch.PNameProposalMaker, launch.PProposalMaker, nil, launch.PNameStorage).
 		AddOK(launch.PNameNetwork, launch.PNetwork, nil, launch.PNameStorage).
+		AddOK(launch.PNameStates, func(pctx context.Context) (context.Context, error) { return pctx, nil }, nil, launch.PNameNetwork).
 		AddOK(launch.PNameStartNetwork, launch.PStartNetwork, launch.PCloseNetwork, launch.PNameStates).
 		AddOK(launch.PNameStartStorage, launch.PStartStorage, launch.PCloseStorage, launch.PNameStartNetwork).
-		AddOK(launch.PNameStates, func(pctx context.Context) (context.Context, error) {
-			return pctx, nil
-		}, nil, launch.PNameNetwork).
 		AddOK(launch.PNameStatesReady, nil, launch.PCloseStates,
 			launch.PNameStartStorage,
 			launch.PNameStartNetwork,
@@ -73,12 +92,6 @@ func preparePS(
 	_ = pps.POK(launch.PNameEncoder).
 		PostAddOK(launch.PNameAddHinters, launch.PAddHinters).
 		PostAddOK(ps.Name("test-add-hinter"), func(pctx context.Context) (context.Context, error) {
-			hinters := []encoder.DecodeDetail{
-				{Hint: OpFactHint, Instance: OpFact{}},
-				{Hint: OpHint, Instance: Op{}},
-				{Hint: AccountStateValueHint, Instance: AccountStateValue{}},
-			}
-
 			var encs *encoder.Encoders
 			if err := util.LoadFromContextOK(pctx, launch.EncodersContextKey, &encs); err != nil {
 				return pctx, err
@@ -142,6 +155,21 @@ func preparePS(
 
 			ballotbox := isaacstates.NewBallotbox(local.Address(), isaacparams.Threshold, nil)
 
+			nolimit := launch.NoLimitRateLimiterRule()
+			ra := launch.NewRateLimitHandlerArgs()
+			ra.Rules = launch.NewRateLimiterRules()
+			if err := ra.Rules.SetDefaultRuleMap(launch.NewRateLimiterRuleMap(&nolimit, nil)); err != nil {
+				return pctx, err
+			}
+
+			var rh *launch.RateLimitHandler
+			switch i, err := launch.NewRateLimitHandler(ra); {
+			case err != nil:
+				return pctx, err
+			default:
+				rh = i
+			}
+
 			return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
 				launch.SyncSourcePoolContextKey: syncSourcePool,
 				launch.BallotboxContextKey:      ballotbox,
@@ -152,7 +180,7 @@ func preparePS(
 				launch.FilterMemberlistNotifyMsgFuncContextKey: quicmemberlist.FilterNotifyMsgFunc(
 					func(interface{}) (bool, error) { return true, nil },
 				),
-				launch.RateLimiterContextKey:  &launch.RateLimitHandler{},
+				launch.RateLimiterContextKey:  rh,
 				launch.ACLContextKey:          &launch.YAMLACL{},
 				launch.SuffragePoolContextKey: &launch.SuffragePool{},
 			}), nil

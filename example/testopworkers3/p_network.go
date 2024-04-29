@@ -64,6 +64,10 @@ func ensureHandlerAdd[T quicstreamheader.RequestHeader](
 	handlerf func(context.Context) (quicstreamheader.Handler[T], error),
 	errhandler quicstreamheader.ErrorHandler,
 ) {
+	if err := launch.AddNetworkHandler(name); err != nil {
+		panic(err)
+	}
+
 	var handler quicstreamheader.Handler[T]
 
 	switch i, err := handlerf(pctx); {
@@ -153,5 +157,14 @@ func ReadLengthedFunc(
 		default:
 			return f(i)
 		}
+	}
+}
+
+func ParseConnInfo(s string) (ci quicstream.ConnInfo, err error) {
+	switch ci, err = quicstream.NewConnInfoFromFullString(s); {
+	case err != nil:
+		return ci, err
+	default:
+		return quicstream.NewConnInfo(ci.UDPAddr(), true)
 	}
 }

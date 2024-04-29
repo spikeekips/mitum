@@ -12,6 +12,7 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -33,22 +34,15 @@ network:
 
 type CommandManager struct { //nolint:govet //...
 	baseCommandManager
-	Port           int                   `arg:"" name:"port"`
-	Workers        []quicstream.ConnInfo `arg:"" name:"worker"`
+	Port           int      `arg:"" name:"port"`
+	Workers        []string `arg:"" name:"worker"`
 	localCI        quicstream.ConnInfo
-	workerCIs      map[string]quicstream.ConnInfo
+	workers        []string
 	connectionPool *quicstream.ConnectionPool
+	mgs            util.LockedMap[base.Height, *ProcessManager]
 }
 
 func (cmd *CommandManager) Run(pctx context.Context) error {
-	if err := cmd.baseCommandManager.prepare(pctx); err != nil {
-		return err
-	}
-
-	cmd.Log().Debug().
-		Interface("workers", cmd.Workers).
-		Msg("flags")
-
 	switch i, pps, err := cmd.prepare(pctx); {
 	case err != nil:
 		return err
@@ -68,30 +62,37 @@ func (cmd *CommandManager) prepare(pctx context.Context) (context.Context, *ps.P
 		return nil, nil, errors.Errorf("--workers should be at least 1")
 	}
 
-	if util.IsDuplicatedSlice(cmd.Workers, func(i quicstream.ConnInfo) (bool, string) {
-		a := i.Addr()
-		if a == nil {
-			return true, ""
-		}
-
-		return true, a.String()
-	}) {
-		return nil, nil, errors.Errorf("duplicated workers found")
+	if err := cmd.baseCommandManager.prepare(pctx); err != nil {
+		return nil, nil, err
 	}
 
-	cmd.workerCIs = map[string]quicstream.ConnInfo{}
+	cmd.workers = make([]string, len(cmd.Workers))
 
-	if err := util.TraverseSliceV1(cmd.Workers, func(_ int, i quicstream.ConnInfo) (bool, error) {
-		if err := i.IsValid(nil); err != nil {
+	if err := util.TraverseSliceV1(cmd.Workers, func(i int, s string) (bool, error) {
+		switch ci, err := ParseConnInfo(s); {
+		case err != nil:
 			return false, err
+		default:
+			cmd.workers[i] = ci.String()
+			cmd.cis.SetValue(ci.String(), ci)
 		}
-
-		cmd.workerCIs[i.String()] = i
 
 		return true, nil
 	}); err != nil {
 		return nil, nil, err
 	}
+
+	if util.IsDuplicatedSlice(cmd.workers, func(i string) (bool, string) {
+		return true, i
+	}) {
+		return nil, nil, errors.Errorf("duplicated workers found")
+	}
+
+	cmd.Log().Debug().
+		Interface("workers", cmd.Workers).
+		Interface("worker_cis", cmd.cis).
+		Interface("workers", cmd.workers).
+		Msg("flags")
 
 	designString := fmt.Sprintf(
 		pManagerDesignString,
@@ -108,6 +109,10 @@ func (cmd *CommandManager) prepare(pctx context.Context) (context.Context, *ps.P
 		cmd.Operations,
 	)
 
+	if err := cmd.pps(pps, pctx); err != nil {
+		return nil, nil, err
+	}
+
 	switch i, err := pps.Run(pctx); {
 	case err != nil:
 		return pctx, nil, err
@@ -118,6 +123,8 @@ func (cmd *CommandManager) prepare(pctx context.Context) (context.Context, *ps.P
 	if err := cmd.loadDesign(pctx); err != nil {
 		return nil, nil, err
 	}
+
+	cmd.mgs = util.NewSingleLockedMap[base.Height, *ProcessManager]()
 
 	return pctx, pps, nil
 }
@@ -139,6 +146,24 @@ func (cmd *CommandManager) loadDesign(pctx context.Context) error {
 	cmd.localCI = design.Network.PublishConnInfo()
 
 	return nil
+}
+
+func (cmd *CommandManager) pps(pps *ps.PS, pctx context.Context) error {
+	_ = pps.POK(launch.PNameStates).
+		PostAddOK("manager-network-handlers", cmd.pNetworkHandlers)
+
+	return nil
+}
+
+func (cmd *CommandManager) pNetworkHandlers(pctx context.Context) (context.Context, error) {
+	var gerror error
+
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(ManagerStateOwnersHeaderHint), cmd.handlerStateOwners, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(ManagerWorkerUpdateMergedHeaderHint), cmd.handlerWorkerUpdateMerged, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(ManagerWorkerStoreDoneHeaderHint), cmd.handlerWorkerStoreDone, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(ManagerWorkerCanceledHeaderHint), cmd.handlerWorkerCanceled, nil)
+
+	return pctx, gerror
 }
 
 func (cmd *CommandManager) run(pctx context.Context) error {
@@ -284,14 +309,12 @@ func (cmd *CommandManager) processor(
 	var design launch.NodeDesign
 	var isaacparams *isaac.Params
 	var db isaac.Database
-	var pool isaac.NewOperationPool
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
 		launch.DesignContextKey, &design,
 		launch.ISAACParamsContextKey, &isaacparams,
 		launch.CenterDatabaseContextKey, &db,
-		launch.PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return nil, nil, err
 	}
@@ -328,15 +351,15 @@ func (cmd *CommandManager) processor(
 		return writerSaveBlockItemFuncs(ctx, t)
 	}
 
-	var newManagerFunc func(context.Context) (*ProcessManager, error)
-
 	var previousManifest, previousSuffrage util.Hash
 	if previous != nil {
 		previousManifest = previous.Hash()
 		previousSuffrage = previous.Suffrage()
 	}
 
-	switch i, err := cmd.newManagerFunc(db, bdb, fsroot, encs, pool, previousManifest, previousSuffrage, proposal); {
+	var newManagerFunc func(context.Context) (*ProcessManager, error)
+
+	switch i, err := cmd.newManagerFunc(db, bdb, fsroot, encs, previousManifest, previousSuffrage, proposal); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -350,6 +373,7 @@ func (cmd *CommandManager) processor(
 		return nil, nil, err
 	default:
 		manager = i
+		cmd.mgs.SetValue(proposal.Point().Height(), manager)
 	}
 
 	if err := manager.ReadyWorkers(); err != nil {
@@ -380,7 +404,6 @@ func (cmd *CommandManager) newManagerFunc(
 	bdb isaac.BlockWriteDatabase,
 	fsroot string,
 	encs *encoder.Encoders,
-	pool isaac.NewOperationPool,
 	previousManifest, previousSuffrage util.Hash,
 	proposal base.ProposalSignFact,
 ) (
@@ -416,12 +439,8 @@ func (cmd *CommandManager) newManagerFunc(
 	}
 
 	return func(ctx context.Context) (*ProcessManager, error) {
-		workers := make([]string, len(cmd.Workers))
-		for i := range cmd.Workers {
-			workers[i] = cmd.Workers[i].String()
-		}
-
-		args := NewProcessManagerArgs(workers)
+		args := NewProcessManagerArgs(cmd.workers)
+		args.Local = cmd.localCI.String()
 		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
 			return db.ExistsInStateOperation(fact)
 		}
@@ -431,6 +450,7 @@ func (cmd *CommandManager) newManagerFunc(
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
 			return cmd.requestWorker(
 				ctx,
+				"WorkerReady",
 				worker,
 				newWorkerBrokerReadyFunc(args),
 			)
@@ -438,6 +458,7 @@ func (cmd *CommandManager) newManagerFunc(
 		args.WorkerCancel = func(_ context.Context, worker string) error {
 			return cmd.requestWorker(
 				ctx,
+				"WorkerCancel",
 				worker,
 				newWorkerBrokerCancelFunc(height),
 			)
@@ -445,6 +466,7 @@ func (cmd *CommandManager) newManagerFunc(
 		args.WorkerDone = func(_ context.Context, worker string) error {
 			return cmd.requestWorker(
 				ctx,
+				"WorkerDone",
 				worker,
 				newWorkerBrokerDoneFunc(height),
 			)
@@ -458,7 +480,7 @@ func (cmd *CommandManager) newManagerFunc(
 			return cmd.workerNewOperation(ctx, height, worker)
 		}
 		args.IsEnoughWorkers = func(workers uint64) bool {
-			return workers == uint64(len(cmd.Workers))
+			return workers == uint64(len(cmd.workers))
 		}
 
 		args.NewManifestFunc = func(context.Context, base.Manifest) error {
@@ -494,7 +516,7 @@ func (cmd *CommandManager) workerNewOperation(
 	func(error),
 	error,
 ) {
-	ch := make(chan [3]interface{})
+	ch := make(chan [3]interface{}, 1<<9)
 
 	insert := func(opindex uint64, op, fact util.Hash) error {
 		if err := ctx.Err(); err != nil {
@@ -508,9 +530,10 @@ func (cmd *CommandManager) workerNewOperation(
 
 	_, done, cancel := NewContextDoneFunc(
 		ctx,
-		func(context.Context) error {
+		func(ctx context.Context) error {
 			return cmd.requestWorker(
 				ctx,
+				"NewOperations",
 				worker,
 				newWorkerBrokerNewOperationsFunc(
 					height,
@@ -519,7 +542,11 @@ func (cmd *CommandManager) workerNewOperation(
 							select {
 							case <-ctx.Done():
 								return ctx.Err()
-							case i := <-ch:
+							case i, notClosed := <-ch:
+								if !notClosed {
+									return nil
+								}
+
 								if err := f(i[0].(uint64), i[1].(util.Hash), i[2].(util.Hash)); err != nil {
 									return err
 								}
@@ -533,6 +560,10 @@ func (cmd *CommandManager) workerNewOperation(
 		},
 	)
 
+	go func() {
+		_ = done()
+	}()
+
 	return insert, func() error {
 		close(ch)
 
@@ -541,15 +572,21 @@ func (cmd *CommandManager) workerNewOperation(
 }
 
 func (cmd *CommandManager) syncStates(height base.Height) error {
+	defer logging.TimeElapsed()(cmd.Log().Info(), "sync states")
+
 	return cmd.requestWorkers(
 		context.Background(),
+		"syncStates",
 		newWorkerBrokerSyncStatesFunc(height),
 	)
 }
 
 func (cmd *CommandManager) syncOperations(ops []Op) error {
+	defer logging.TimeElapsed()(cmd.Log().Info(), "sync operations")
+
 	return cmd.requestWorkers(
 		context.Background(),
+		"syncOperations",
 		newWorkerBrokerSetOperationsFunc(
 			func(f func(base.Operation) error) error {
 				for i := range ops {
@@ -561,5 +598,62 @@ func (cmd *CommandManager) syncOperations(ops []Op) error {
 				return nil
 			},
 		),
+	)
+}
+
+func (cmd *CommandManager) handlerStateOwners(pctx context.Context) (quicstreamheader.Handler[ManagerStateOwnersHeader], error) {
+	return newManagerHandlerStateOwnersFunc(
+		func(height base.Height) (func(string) ([]string, error), error) {
+			i, _ := cmd.mgs.Value(height)
+			if i == nil {
+				return nil, util.ErrNotFound.Errorf("ProcessManager")
+			}
+
+			return i.StateOwners, nil
+		},
+	)
+}
+
+func (cmd *CommandManager) handlerWorkerUpdateMerged(pctx context.Context) (quicstreamheader.Handler[ManagerWorkerUpdateMergedHeader], error) {
+	return newManagerHandlerWorkerUpdateMergedFunc(
+		func(height base.Height, worker string) (
+			updateState func(stateKey string, stateHash util.Hash) error,
+			updateReason func(opindex uint64, reason string) error,
+			done func() error,
+			_ error,
+		) {
+			i, _ := cmd.mgs.Value(height)
+			if i == nil {
+				return nil, nil, nil, util.ErrNotFound.Errorf("UpdateMerged")
+			}
+
+			return i.UpdateMerged(worker)
+		},
+	)
+}
+
+func (cmd *CommandManager) handlerWorkerStoreDone(pctx context.Context) (quicstreamheader.Handler[ManagerWorkerStoreDoneHeader], error) {
+	return newManagerHandlerWorkerStoreDoneFunc(
+		func(height base.Height) (func(worker string, chunks map[base.BlockItemType]string) error, error) {
+			i, _ := cmd.mgs.Value(height)
+			if i == nil {
+				return nil, util.ErrNotFound.Errorf("ProcessManager")
+			}
+
+			return i.WorkerStoreDone, nil
+		},
+	)
+}
+
+func (cmd *CommandManager) handlerWorkerCanceled(pctx context.Context) (quicstreamheader.Handler[ManagerWorkerCanceledHeader], error) {
+	return newManagerHandlerWorkerCanceledFunc(
+		func(height base.Height) (func(worker string) error, error) {
+			i, _ := cmd.mgs.Value(height)
+			if i == nil {
+				return nil, util.ErrNotFound.Errorf("ProcessManager")
+			}
+
+			return i.WorkerCanceled, nil
+		},
 	)
 }

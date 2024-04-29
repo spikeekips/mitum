@@ -95,6 +95,8 @@ func (pp *ProposalProcessor) Save(_ context.Context, avp base.ACCEPTVoteproof) (
 }
 
 func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof) (manifest base.Manifest, _ error) {
+	defer logging.TimeElapsedMsg(pp.Log().Debug, "process")()
+
 	switch i, err := pp.args.NewJobWorker(ctx); {
 	case err != nil:
 		return nil, err

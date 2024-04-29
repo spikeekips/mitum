@@ -26,7 +26,7 @@ var (
 )
 
 func handlerNameByHint(ht hint.Hint) quicstream.HandlerName {
-	return quicstream.HandlerName("dop/" + ht.Type().String())
+	return quicstream.HandlerName(ht.Type().String())
 }
 
 func headerPrefixByHint(ht hint.Hint) quicstream.HandlerPrefix {

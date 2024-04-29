@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -129,8 +128,6 @@ func newWorkerHandlerNewOperationsFunc(
 			process = i
 			done = j
 			cancel = k
-
-			defer cancel(nil)
 		}
 
 		var ops uint64
@@ -387,12 +384,12 @@ func newWorkerBrokerSyncStatesFunc(height base.Height) quicstreamheader.BrokerFu
 }
 
 func newWorkerHandlerSyncStatesFunc(
-	f func(base.Height) error,
+	f func(context.Context, base.Height) error,
 ) (quicstreamheader.Handler[WorkerSyncStatesHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerSyncStatesHeader,
 	) (context.Context, error) {
-		err := f(header.Height)
+		err := f(ctx, header.Height)
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}, nil
@@ -481,7 +478,6 @@ func newWorkerBrokerSetOperationsFunc(
 				})
 			},
 		); err != nil {
-			fmt.Println("k0", err)
 			return err
 		}
 

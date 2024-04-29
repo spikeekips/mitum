@@ -80,13 +80,19 @@ func NewOperationProcessor(
 ) (*OperationProcessor, error) {
 	pctx, pcancel := context.WithCancelCause(ctx)
 
-	opsr := &OperationProcessor{
+	var opsr *OperationProcessor
+
+	opsr = &OperationProcessor{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "operation-processor")
 		}),
-		args:      args,
-		ctx:       func() context.Context { return pctx },
-		ctxCancel: pcancel,
+		args: args,
+		ctx:  func() context.Context { return pctx },
+		ctxCancel: func(err error) {
+			opsr.Log().Error().Err(err).Msg("pcancel")
+
+			pcancel(err)
+		},
 	}
 
 	switch i, err := args.NewJobWorker(pctx); {
@@ -121,6 +127,12 @@ func (opsr *OperationProcessor) Process() (
 				case errors.As(err, &reason):
 					return opsr.args.UpdateReasonsFunc(opindex, reason)
 				case err != nil:
+					opsr.Log().Error().Err(err).
+						Uint64("opindex", opindex).
+						Stringer("op", op).
+						Stringer("fact", fact).
+						Msg("failed to process")
+
 					opsr.ctxCancel(err)
 
 					return err
@@ -307,17 +319,31 @@ func NewProcessWorker(
 	pctx, cancel := context.WithCancelCause(ctx)
 	mergeCtx, mergeCtxCancel := context.WithCancelCause(pctx)
 
-	pw := &ProcessWorker{
+	var pw *ProcessWorker
+
+	pw = &ProcessWorker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "processor-worker").Str("local", local)
 		}),
-		args:           args,
-		local:          local,
-		height:         height,
-		ctx:            func() context.Context { return pctx },
-		ctxCancel:      cancel,
-		mergeCtx:       func() context.Context { return mergeCtx },
-		mergeCtxCancel: mergeCtxCancel,
+		args:   args,
+		local:  local,
+		height: height,
+		ctx:    func() context.Context { return pctx },
+		ctxCancel: func(err error) {
+			if !errors.Is(err, errProcessWorkerDone) {
+				pw.Log().Error().Err(err).Msg("ctxCancel")
+			}
+
+			cancel(err)
+		},
+		mergeCtx: func() context.Context { return mergeCtx },
+		mergeCtxCancel: func(err error) {
+			if !errors.Is(err, errProcessWorkerMergeDone) {
+				pw.Log().Error().Err(err).Msg("mergeCtxCancel")
+			}
+
+			mergeCtxCancel(err)
+		},
 	}
 
 	var opsr *OperationProcessor
@@ -342,9 +368,6 @@ func NewProcessWorker(
 
 		mergerOnce.Do(func() {
 			merger, err = pw.newMerger()
-			if err == nil {
-				_ = merger.SetLogging(pw.Logging)
-			}
 		})
 
 		return merger, err
@@ -491,17 +514,22 @@ func (pw *ProcessWorker) NewOperations() (
 
 				go func() {
 					if err := opsrDone(); err != nil {
+						pw.Log().Error().Err(err).Msg("opsrDone")
+
 						pw.ctxCancel(err)
 					}
 
 					if err := pw.wait(); err != nil {
+						pw.Log().Error().Err(err).Msg("pw.wait()")
+
 						pw.ctxCancel(err)
 					}
 				}()
 
 				return nil
 			},
-			c, nil
+			c,
+			nil
 	}
 }
 
@@ -675,7 +703,7 @@ func (pw *ProcessWorker) newMerger() (*StatesMergerWorker, error) {
 	case err != nil:
 		return nil, err
 	default:
-		_ = i.SetLogging(pw.Logging)
+		//_ = i.SetLogging(pw.Logging)
 
 		return i, nil
 	}
@@ -720,14 +748,20 @@ func (pw *ProcessWorker) newOperationProcessor() (
 
 	return opsr, func() error {
 		if err := opsr.Wait(); err != nil {
+			pw.Log().Error().Err(err).Msg("opsr.Wait()")
+
 			return err
 		}
 
 		if err := pw.workerInsertValuesDone(pw.local); err != nil {
+			pw.Log().Error().Err(err).Msg("pw.workerInsertValuesDone()")
+
 			return err
 		}
 
 		if err := pw.args.BroadcastInsertValuesDoneFunc(pw.ctx()); err != nil {
+			pw.Log().Error().Err(err).Msg("pw.args.BroadcastInsertValuesDoneFunc()")
+
 			return err
 		}
 
@@ -1274,6 +1308,8 @@ func (pw *ProcessWorker) canceled(ok, notOk func()) {
 			ok()
 		}
 	default:
+		pw.Log().Error().Err(err).Msg("canceled")
+
 		if notOk != nil {
 			notOk()
 		}

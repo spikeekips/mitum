@@ -405,12 +405,14 @@ func (pm *ProcessManager) UpdateMerged(worker string) (
 		nil
 }
 
-func (pm *ProcessManager) WorkerCanceled(worker string) {
+func (pm *ProcessManager) WorkerCanceled(worker string) error {
 	if pm.addFailedWorker(worker, context.Canceled) {
 		if err := pm.isWorkersFailed(); err != nil {
 			pm.ctxCancel(errProcessManagerWorkersWorkersCanceled)
 		}
 	}
+
+	return nil
 }
 
 func (pm *ProcessManager) updateState(stateKey string, stateHash util.Hash) error {
@@ -488,7 +490,7 @@ func (pm *ProcessManager) cancel(err error) {
 }
 
 func (pm *ProcessManager) process() error {
-	defer logging.TimeElapsed()(pm.Log().Info(), "processed")
+	defer logging.TimeElapsedMsg(pm.Log().Debug, "process")()
 
 	go func() {
 		<-pm.ctx().Done()
@@ -737,7 +739,9 @@ func (pm *ProcessManager) newOperationFunc(
 		var ch chan [3]interface{}
 
 		switch i, found := chs[worker]; {
-		case !found:
+		case found:
+			ch = i
+		default:
 			ch = make(chan [3]interface{}, pm.args.MapSize)
 			chs[worker] = ch
 
@@ -756,8 +760,8 @@ func (pm *ProcessManager) newOperationFunc(
 				cancel = k
 			}
 
-			if err := newJob(func(context.Context, uint64) error {
-				defer logging.TimeElapsed()(l.Trace(), "worker new operations")
+			if err := newJob(func(_ context.Context, i uint64) error {
+				defer logging.TimeElapsedMsg(l.Debug, "worker new operations")()
 
 				for i := range ch {
 					if err, _ := gerr.Value(); err != nil {
@@ -777,20 +781,22 @@ func (pm *ProcessManager) newOperationFunc(
 				}
 
 				if err, _ := gerr.Value(); err != nil {
+					errf(worker, err)
+					cancel(err)
+
 					return nil
 				}
 
 				if err := done(); err != nil {
 					_ = gerr.SetValue(err)
 					errf(worker, err)
+					cancel(err)
 				}
 
 				return nil
 			}); err != nil {
 				return nil, err
 			}
-		default:
-			ch = i
 		}
 
 		return func(opindex uint64, op, fact util.Hash) error {
@@ -808,7 +814,7 @@ func (pm *ProcessManager) newOperationFunc(
 }
 
 func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
-	defer logging.TimeElapsed()(pm.Log().Info(), "new operations")
+	defer logging.TimeElapsedMsg(pm.Log().Debug, "new operations")()
 
 	var ew util.JobWorker
 

@@ -897,3 +897,14 @@ var networkHandlerNames = []quicstream.HandlerName{
 	HandlerNameNodeWrite,
 	HandlerNameEventLogging,
 }
+
+func AddNetworkHandler(s quicstream.HandlerName) error {
+	if _, found := networkHandlerPrefixMap[s]; found {
+		return util.ErrFound.Errorf("known handler, %q", s)
+	}
+
+	networkHandlerPrefixMap[s] = struct{}{}
+	NetworkHandlerPrefixMapRev[quicstream.HashPrefix(s)] = s
+
+	return nil
+}

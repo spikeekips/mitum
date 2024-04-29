@@ -17,6 +17,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
@@ -691,6 +692,7 @@ type baseCommand struct {
 	localCI          quicstream.ConnInfo
 	cis              util.LockedMap[string, quicstream.ConnInfo]
 	statesPool       util.GCache[string, base.State]
+	opsPool          util.GCache[string, base.Operation]
 }
 
 func (cmd *baseCommand) prepare(pctx context.Context) error {
@@ -708,8 +710,15 @@ func (cmd *baseCommand) prepare(pctx context.Context) error {
 		}
 	}
 
+	switch i, err := util.NewShardedMap[string, quicstream.ConnInfo](1<<9, nil); {
+	case err != nil:
+		return err
+	default:
+		cmd.cis = i
+	}
+
 	cmd.Log().Debug().
-		Int64("concurrency", cmd.Concurrency).
+		Int64("concurrency", cmd.c).
 		Uint64("operations", cmd.Operations).
 		Bool("pprof", cmd.PProf).
 		Msg("flags")
@@ -747,16 +756,14 @@ func (cmd *baseCommand) loadDesign(pctx context.Context) error {
 	}
 
 	cmd.networkID = isaacparams.NetworkID()
-
-	switch i, err := util.NewShardedMap[string, quicstream.ConnInfo](1<<9, nil); {
-	case err != nil:
-		return err
-	default:
-		cmd.localCI = design.Network.PublishConnInfo()
-		cmd.cis = i
-	}
+	cmd.localCI = design.Network.PublishConnInfo()
 
 	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize())
+	cmd.opsPool = util.NewLFUGCache[string, base.Operation](int(cmd.Operations))
+
+	if err := design.LocalParams.Network.SetDefaultHandlerTimeout(time.Hour); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -769,10 +776,16 @@ func (cmd *baseCommand) cpuPProf(name string) (func(), error) {
 	return cpuPProf(name)
 }
 
-func (cmd *baseCommand) requestWorkers(
+func (cmd *baseCommand) requestWorkersErrCallback(
 	ctx context.Context,
+	name string,
 	brokerf quicstreamheader.BrokerFunc,
+	errf func(worker string, _ error),
 ) error {
+	if cmd.cis.Len() < 1 {
+		return nil
+	}
+
 	var ew util.JobWorker
 
 	switch i, err := util.NewErrCallbackJobWorker(
@@ -783,7 +796,46 @@ func (cmd *baseCommand) requestWorkers(
 	case err != nil:
 		return err
 	default:
-		i.Close()
+		defer i.Close()
+
+		ew = i
+	}
+
+	_ = cmd.cis.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
+		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+			return cmd.request(ctx, name, brokerf, ci)
+		}); err != nil {
+			errf(worker, err)
+		}
+
+		return true
+	})
+
+	ew.Done()
+
+	return ew.Wait()
+}
+
+func (cmd *baseCommand) requestWorkers(
+	ctx context.Context,
+	name string,
+	brokerf quicstreamheader.BrokerFunc,
+) error {
+	if cmd.cis.Len() < 1 {
+		return nil
+	}
+
+	var ew util.JobWorker
+
+	switch i, err := util.NewErrCallbackJobWorker(
+		ctx,
+		int64(cmd.cis.Len()),
+		func(error) {},
+	); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
 
 		ew = i
 	}
@@ -792,52 +844,58 @@ func (cmd *baseCommand) requestWorkers(
 
 	_ = cmd.cis.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
 		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
-			if err := cmd.request(ctx, brokerf, ci); err != nil {
-				cmd.Log().Error().Err(err).Str("worker", worker).Interface("conn_info", ci).Msg("request failed")
-			}
-
-			return nil
+			return cmd.request(ctx, name, brokerf, ci)
 		}); err != nil {
 			gerr = err
-
-			return false
 		}
 
-		return true
+		return gerr == nil
 	})
 
-	return gerr
+	if gerr != nil {
+		return gerr
+	}
+
+	ew.Done()
+
+	return ew.Wait()
 }
 
 func (cmd *baseCommand) requestWorker(
 	ctx context.Context,
+	name,
 	worker string,
 	brokerf quicstreamheader.BrokerFunc,
 ) error {
-	if worker == "local" {
-		return errors.Errorf("local is not remote worker")
-	}
-
-	var ci quicstream.ConnInfo
-
-	switch i, found := cmd.cis.Value(worker); {
+	switch ci, found := cmd.cis.Value(worker); {
 	case !found:
-		return util.ErrNotFound.Errorf("unknown worker ci, %q", worker)
-	case cmd.localCI.String() == i.String():
+		return util.ErrNotFound.Errorf("unknown worker ci, %q (%v)", worker, cmd.cis.Map())
+	case network.EqualConnInfo(ci, cmd.localCI):
 		return errors.Errorf("local is not remote worker")
 	default:
-		return cmd.request(ctx, brokerf, ci)
+		return cmd.request(ctx, name, brokerf, ci)
 	}
 }
 
 func (cmd *baseCommand) request(
 	ctx context.Context,
+	name string,
 	brokerf quicstreamheader.BrokerFunc,
 	ci quicstream.ConnInfo,
 ) error {
 	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
 
-	return requestHandlerFunc(ctx, openStream, brokerf, ci)
+	if err := requestHandlerFunc(ctx, openStream, brokerf, ci); err != nil {
+		cmd.Log().Error().
+			Err(err).
+			Str("request", name).
+			Interface("conn_info", ci).
+			Msg("request failed")
+
+		return err
+	}
+
+	return nil
 }
 
 type baseCommandManager struct {
