@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"slices"
 	"sync"
 
@@ -64,6 +65,7 @@ func (s *AccountStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	}
 
 	s.Balance = u.Balance
+	s.BaseHinter = hint.NewBaseHinter(AccountStateValueHint)
 
 	return nil
 }
@@ -121,28 +123,37 @@ func (v AccountStateMergeValue) Merger(prev base.StateValue) (StateMerger, error
 }
 
 type accountStateMergeValueJSONMarshaler struct {
-	Key string
+	Key   string
+	Value AccountStateValue
 }
 
 func (v AccountStateMergeValue) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
+	b, err := util.MarshalJSON(struct {
 		hint.BaseHinter
 		accountStateMergeValueJSONMarshaler
-		AccountStateValue
 	}{
-		BaseHinter:                          v.BaseHinter,
-		accountStateMergeValueJSONMarshaler: accountStateMergeValueJSONMarshaler{Key: v.key},
-		AccountStateValue:                   v.AccountStateValue,
+		BaseHinter: v.BaseHinter,
+		accountStateMergeValueJSONMarshaler: accountStateMergeValueJSONMarshaler{
+			Key:   v.key,
+			Value: v.AccountStateValue,
+		},
 	})
+
+	return b, err
+}
+
+type accountStateMergeValueJSONUnmarshaler struct {
+	Key   string
+	Value json.RawMessage
 }
 
 func (s *AccountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountStateMergeValueJSONMarshaler
+	var u accountStateMergeValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
 	}
 
-	if err := s.AccountStateValue.DecodeJSON(b, enc); err != nil {
+	if err := s.AccountStateValue.DecodeJSON(u.Value, enc); err != nil {
 		return err
 	}
 
@@ -198,6 +209,7 @@ func (m *AccountStateMerger) Close() (base.StateValue, error) {
 	}()
 
 	merged := m.prev
+	merged.BaseHinter = hint.NewBaseHinter(AccountStateValueHint)
 
 	if merged.Address == nil {
 		merged.Address = m.address

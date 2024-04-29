@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -606,4 +608,41 @@ func TestAccountStateMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testAccountStateMerger))
+}
+
+func TestEncodeAccountStateValue(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+	t.SetT(tt)
+
+	enc := jsonenc.NewEncoder()
+
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: AccountStateValue{}}))
+
+	t.Encode = func() (interface{}, []byte) {
+		v := NewAccountStateValue(base.NewDummyPublickey(util.UUID().String()), 1)
+
+		b, err := util.MarshalJSON(v)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return v, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		var u AccountStateValue
+		t.NoError(encoder.Decode(enc, b, &u))
+
+		return u
+	}
+	t.Compare = func(a interface{}, b interface{}) {
+		av := a.(AccountStateValue)
+		bv := b.(AccountStateValue)
+
+		t.True(av.Hint().Equal(bv.Hint()))
+		t.True(av.Address.Equal(bv.Address))
+		t.Equal(av.Balance, bv.Balance)
+	}
+
+	t.TestDecode()
 }

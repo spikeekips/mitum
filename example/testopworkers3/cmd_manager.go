@@ -182,9 +182,9 @@ func (cmd *CommandManager) run(pctx context.Context) error {
 		return err
 	}
 
-	//if err := cmd.transfer(pctx, mp.Manifest()); err != nil {
-	//	return errors.WithMessage(err, "transfer")
-	//}
+	if err := cmd.transfer(pctx, mp.Manifest()); err != nil {
+		return errors.WithMessage(err, "transfer")
+	}
 
 	return nil
 }
@@ -227,6 +227,43 @@ func (cmd *CommandManager) createAccounts(pctx context.Context) (base.BlockMap, 
 			return nil, errors.WithMessage(err, "process proposal")
 		default:
 			return i, j()
+		}
+	}
+}
+
+func (cmd *CommandManager) transfer(pctx context.Context, m base.Manifest) error {
+	var ops []Op
+
+	switch i, err := cmd.createTransferOperations(pctx); {
+	case err != nil:
+		return errors.WithMessage(err, "transfer operations")
+	default:
+		ops = i
+	}
+	if err := cmd.syncOperations(ops); err != nil {
+		return err
+	}
+
+	var pr base.ProposalSignFact
+
+	switch i, err := cmd.newProposal(pctx, m.Height()+1, m.Hash(), ops); {
+	case err != nil:
+		return errors.WithMessage(err, "transfer proposal")
+	default:
+		pr = i
+	}
+
+	switch done, err := cmd.cpuPProf("transfer"); {
+	case err != nil:
+		return err
+	default:
+		defer done()
+
+		switch _, j, err := cmd.process(pctx, pr, m); {
+		case err != nil:
+			return errors.WithMessage(err, "process proposal")
+		default:
+			return j()
 		}
 	}
 }

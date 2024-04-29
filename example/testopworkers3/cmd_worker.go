@@ -31,12 +31,15 @@ network:
   tls_insecure: true
 `
 
+var errCommandWorkerDone = util.NewIDError("command worker done")
+
 type CommandWorker struct { //nolint:govet //...
 	baseCommand
-	Port      int `arg:"" name:"port"`
+	Port      int `arg:"" name:"port"` // FIXME use full conn info
 	managerCI quicstream.ConnInfo
 	pws       util.LockedMap[base.Height, *ProcessWorker]
 	bdbs      map[base.Height]isaac.BlockWriteDatabase
+	ctxCancel func(error)
 }
 
 func (cmd *CommandWorker) Run(pctx context.Context) error {
@@ -116,11 +119,20 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 }
 
 func (cmd *CommandWorker) run(pctx context.Context) error {
+	var ctx context.Context
+
+	ctx, cmd.ctxCancel = context.WithCancelCause(pctx)
+
 	cmd.pws = util.NewSingleLockedMap[base.Height, *ProcessWorker]()
 
-	select {}
+	<-ctx.Done()
 
-	return nil
+	switch err := context.Cause(ctx); {
+	case !errors.Is(err, errCommandWorkerDone):
+		return err
+	default:
+		return nil
+	}
 }
 
 func (cmd *CommandWorker) pps(pps *ps.PS, pctx context.Context) error {
@@ -167,15 +179,25 @@ func (cmd *CommandWorker) handlerDoneFunc(
 		func(height base.Height) (func() error, error) {
 			i, _ := cmd.pws.Value(height)
 			if i == nil {
-				return nil, util.ErrNotFound.Errorf("ProcessWorker")
+				return nil, util.ErrNotFound.Errorf("handlerDone")
 			}
 
 			return func() error {
 				if err := i.Done(); err != nil {
+					cmd.ctxCancel(err)
+
 					return err
 				}
 
-				return cmd.bdbs[height].Write()
+				if height == 1 {
+					go func() {
+						<-time.After(time.Second)
+
+						cmd.ctxCancel(errCommandWorkerDone)
+					}()
+				}
+
+				return nil
 			}, nil
 		},
 	)
@@ -320,7 +342,8 @@ func (cmd *CommandWorker) newWorker(
 	db isaac.Database,
 	baseroot string,
 	enc encoder.Encoder,
-) (*ProcessWorker, error) {
+) (pm *ProcessWorker, _ error) {
+	height := margs.Height
 	local := cmd.localCI.String()
 
 	if err := util.TraverseSliceV1(margs.Workers, func(_ int, worker string) (bool, error) {
@@ -348,15 +371,15 @@ func (cmd *CommandWorker) newWorker(
 
 	var bdb isaac.BlockWriteDatabase
 
-	switch i, err := db.NewBlockWriteDatabase(margs.Height); {
+	switch i, err := db.NewBlockWriteDatabase(height); {
 	case err != nil:
 		return nil, err
 	default:
 		bdb = i
-		cmd.bdbs[margs.Height] = bdb
+		cmd.bdbs[height] = bdb
 	}
 
-	fsroot := filepath.Join(baseroot, margs.Height.String())
+	fsroot := filepath.Join(baseroot, height.String())
 	if err := os.MkdirAll(fsroot, 0o700); err != nil {
 		return nil, errors.WithMessage(err, "create fs root directory")
 	}
@@ -402,7 +425,7 @@ func (cmd *CommandWorker) newWorker(
 	}
 	args.StateOwners = func(ctx context.Context, stateKey string) (owners []string, _ error) {
 		if err := cmd.request(ctx, "StateOwners", newManagerBrokerStateOwnersFunc(
-			margs.Height,
+			height,
 			cmd.localCI.String(),
 			stateKey,
 			func(s []string) error {
@@ -423,7 +446,7 @@ func (cmd *CommandWorker) newWorker(
 			"BroadcastInsertOp",
 			worker,
 			newWorkerBrokerInsertOpFunc(
-				margs.Height,
+				height,
 				cmd.localCI.String(),
 				cmd.encs.Default(),
 				opindex,
@@ -438,7 +461,7 @@ func (cmd *CommandWorker) newWorker(
 			ctx,
 			"BroadcastInsertValuesDone",
 			newWorkerBrokerInsertValuesDoneFunc(
-				margs.Height,
+				height,
 				cmd.localCI.String(),
 			),
 			func(worker string, err error) {
@@ -451,7 +474,7 @@ func (cmd *CommandWorker) newWorker(
 			ctx,
 			"BroadcastPhaseDone",
 			newWorkerBrokerPhaseDoneFunc(
-				margs.Height,
+				height,
 				cmd.localCI.String(),
 				phase,
 				mergedOps,
@@ -471,7 +494,7 @@ func (cmd *CommandWorker) newWorker(
 			ctx,
 			"BroadcastCanceled",
 			newManagerBrokerWorkerCanceledFunc(
-				margs.Height,
+				height,
 				cmd.localCI.String(),
 			),
 			cmd.managerCI,
@@ -528,7 +551,7 @@ func (cmd *CommandWorker) newWorker(
 					ctx,
 					"UpdateMergeDone",
 					newManagerBrokerWorkerUpdateMergedFunc(
-						margs.Height,
+						height,
 						cmd.localCI.String(),
 						updateState,
 						updateReason,
@@ -539,6 +562,7 @@ func (cmd *CommandWorker) newWorker(
 		)
 
 		updateState := func(st base.State) error {
+			cmd.statesPool.Set(st.Key(), st, 0)
 			statech <- st
 
 			return nil
@@ -561,11 +585,15 @@ func (cmd *CommandWorker) newWorker(
 		}, nil
 	}
 	args.UpdateStoreDoneFunc = func(ctx context.Context, chunks map[base.BlockItemType]string) error {
+		if err := bdb.Write(); err != nil {
+			return err
+		}
+
 		return cmd.request(
 			ctx,
 			"UpdateStoreDone",
 			newManagerBrokerWorkerStoreDoneFunc(
-				margs.Height,
+				height,
 				cmd.localCI.String(),
 				chunks,
 			),
@@ -575,17 +603,18 @@ func (cmd *CommandWorker) newWorker(
 
 	cmd.Log().Debug().Interface("args", margs).Msg("new worker ready")
 
-	switch pm, err := NewProcessWorker(
+	switch i, err := NewProcessWorker(
 		context.Background(),
 		args,
 		local,
-		margs.Height,
+		height,
 	); {
 	case err != nil:
 		return nil, err
 	default:
+		pm = i
 		pm.SetLogging(cmd.Logging)
-
-		return pm, nil
 	}
+
+	return pm, nil
 }

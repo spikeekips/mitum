@@ -467,64 +467,6 @@ func (cmd *CommandManagerStandalone) transfer(pctx context.Context, m base.Manif
 	}
 }
 
-func (cmd *CommandManagerStandalone) createTransferOperations(pctx context.Context) ([]Op, error) {
-	cmd.Log().Debug().Msg("transfer operations")
-	defer logging.TimeElapsed()(cmd.Log().Info(), "transfer operations generated")
-
-	var pool isaac.NewOperationPool
-
-	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
-		return nil, err
-	}
-
-	token := []byte("transfer")
-
-	ops := make([]Op, cmd.Operations)
-
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
-
-	go func() {
-		for i := range ops {
-			i := i
-
-			issuer := cmd.keys[i]
-
-			var receiver base.Privatekey
-
-			switch {
-			case i == len(ops)-1:
-				receiver = cmd.keys[0]
-			default:
-				receiver = cmd.keys[i+1]
-			}
-
-			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
-				fact := NewOpFact(token, 1, issuer.Publickey(), receiver.Publickey())
-				op := NewOp(fact)
-				if err := op.Sign(issuer, cmd.networkID); err != nil {
-					return err
-				}
-
-				_, _ = pool.SetOperation(ctx, op)
-
-				ops[i] = op
-
-				return nil
-			}); err != nil {
-				break
-			}
-		}
-
-		wk.Done()
-	}()
-
-	if err := wk.Wait(); err != nil {
-		return nil, err
-	}
-
-	return ops, nil
-}
-
 func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 	db isaac.Database,
 	bdb isaac.BlockWriteDatabase,
@@ -564,17 +506,14 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 			args := NewProcessWorkerArgs(cmd.networkID)
 			args.NOps = margs.NOps
 			args.GetOperationFunc = func(ctx context.Context, operationhash util.Hash) (Operation, bool, error) {
-				switch i, found, err := pool.Operation(ctx, operationhash); {
-				case err != nil:
-					return nil, false, err
-				case !found:
-					return nil, false, nil
-				default:
-					return i.(Operation), true, nil
-				}
+				i, found := cmd.opsPool.Get(operationhash.String())
+
+				return i.(Operation), found, nil
 			}
 			args.GetStateFunc = func(_ context.Context, key string) (base.State, bool, error) {
-				return db.State(key)
+				i, found := cmd.statesPool.Get(key)
+
+				return i, found, nil
 			}
 			args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
 				return util.NewBaseJobWorker(ctx, cmd.c)
@@ -648,6 +587,8 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 				}
 
 				return func(st base.State) error {
+						cmd.statesPool.Set(st.Key(), st, 0)
+
 						return us(st.Key(), st.Hash())
 					},
 					ur,
@@ -758,8 +699,8 @@ func (cmd *baseCommand) loadDesign(pctx context.Context) error {
 	cmd.networkID = isaacparams.NetworkID()
 	cmd.localCI = design.Network.PublishConnInfo()
 
-	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize())
-	cmd.opsPool = util.NewLFUGCache[string, base.Operation](int(cmd.Operations))
+	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize() * 3)
+	cmd.opsPool = util.NewLFUGCache[string, base.Operation](int(cmd.Operations) * 2)
 
 	if err := design.LocalParams.Network.SetDefaultHandlerTimeout(time.Hour); err != nil {
 		return err
@@ -973,7 +914,7 @@ func (cmd *baseCommandManager) createAccountOperations(pctx context.Context) ([]
 					return err
 				}
 
-				_, _ = pool.SetOperation(ctx, op)
+				cmd.opsPool.Set(op.Hash().String(), op, 0)
 
 				ops[i] = op
 
@@ -1099,6 +1040,64 @@ func (cmd *baseCommandManager) newACCEPTVoteproof(point base.Point, proposal, ne
 	}
 
 	return vp, nil
+}
+
+func (cmd *baseCommandManager) createTransferOperations(pctx context.Context) ([]Op, error) {
+	cmd.Log().Debug().Msg("transfer operations")
+	defer logging.TimeElapsed()(cmd.Log().Info(), "transfer operations generated")
+
+	var pool isaac.NewOperationPool
+
+	if err := util.LoadFromContextOK(pctx, launch.PoolDatabaseContextKey, &pool); err != nil {
+		return nil, err
+	}
+
+	token := []byte("transfer")
+
+	ops := make([]Op, cmd.Operations)
+
+	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+
+	go func() {
+		for i := range ops {
+			i := i
+
+			issuer := cmd.keys[i]
+
+			var receiver base.Privatekey
+
+			switch {
+			case i == len(ops)-1:
+				receiver = cmd.keys[0]
+			default:
+				receiver = cmd.keys[i+1]
+			}
+
+			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
+				fact := NewOpFact(token, 1, issuer.Publickey(), receiver.Publickey())
+				op := NewOp(fact)
+				if err := op.Sign(issuer, cmd.networkID); err != nil {
+					return err
+				}
+
+				cmd.opsPool.Set(op.Hash().String(), op, 0)
+
+				ops[i] = op
+
+				return nil
+			}); err != nil {
+				break
+			}
+		}
+
+		wk.Done()
+	}()
+
+	if err := wk.Wait(); err != nil {
+		return nil, err
+	}
+
+	return ops, nil
 }
 
 func cpuPProf(name string) (func(), error) {
