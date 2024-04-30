@@ -339,7 +339,10 @@ func (dw *StatesMergerWorker) psm(phase int) (psm *phaseStatesMerger, _ error) {
 				p = i
 			}
 
-			_ = p.SetLogging(dw.Logging)
+			if dw.Log().GetLevel() == zerolog.TraceLevel {
+				_ = p.SetLogging(dw.Logging)
+			}
+
 			p.SetWorkerName(fmt.Sprintf("%s/%d", dw.workerName, phase))
 
 			go func() {
@@ -573,7 +576,7 @@ func (dw *StatesMergerWorker) mergeOps(worker string, phase int, mergedOps, unme
 		Int("phase", phase).
 		Logger()
 
-	l.Debug().
+	l.Trace().
 		Uints64("merged_ops", mergedOps).
 		Uints64("unmerged_ops", unmergedOps).
 		Msg("trying to merge/unmerge")
@@ -616,7 +619,7 @@ func (dw *StatesMergerWorker) mergeOps(worker string, phase int, mergedOps, unme
 		doneUnmergedOps = i
 	}
 
-	l.Debug().
+	l.Trace().
 		Uints64("merged_ops", doneMergedOps).
 		Uints64("unmerged_ops", doneUnmergedOps).
 		Msg("merged/unmerged")

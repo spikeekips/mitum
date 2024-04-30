@@ -816,7 +816,6 @@ func newWriterSaveTreeFuncs(
 				return util.ConcatBytesSlice(
 					[]byte(fmt.Sprintf("%d,", index)),
 					b,
-					[]byte("\n"),
 				), nil
 			}
 		}

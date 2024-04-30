@@ -237,8 +237,9 @@ type ProcessWorkerArgs struct {
 		done func() error,
 		_ error,
 	)
-	UpdateStoreDoneFunc func(context.Context, map[base.BlockItemType]string) error
-	MapSize             uint64
+	UpdateStoreDoneFunc   func(context.Context, map[base.BlockItemType]string) error
+	WhenNewOperationsFunc func()
+	MapSize               uint64
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
@@ -276,7 +277,8 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		UpdateStoreDoneFunc: func(context.Context, map[base.BlockItemType]string) error {
 			return util.ErrNotImplemented.Errorf("UpdateStoreDoneFunc")
 		},
-		MapSize: 1 << 9,
+		WhenNewOperationsFunc: func() {},
+		MapSize:               1 << 9,
 	}
 }
 
@@ -501,6 +503,8 @@ func (pw *ProcessWorker) NewOperations() (
 		opsrDone = j
 	}
 
+	pw.Log().Debug().Msg("start processing")
+
 	switch p, d, c, err := opsr.Process(); {
 	case err != nil:
 		pw.ctxCancel(err)
@@ -703,7 +707,7 @@ func (pw *ProcessWorker) newMerger() (*StatesMergerWorker, error) {
 	case err != nil:
 		return nil, err
 	default:
-		//_ = i.SetLogging(pw.Logging)
+		_ = i.SetLogging(pw.Logging)
 
 		return i, nil
 	}
@@ -723,6 +727,8 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	done func() error,
 	_ error,
 ) {
+	pw.args.WhenNewOperationsFunc()
+
 	if _, err := pw.merger(); err != nil {
 		return nil, nil, err
 	}

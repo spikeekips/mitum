@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/launch"
@@ -17,6 +18,7 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
@@ -502,12 +504,21 @@ func (cmd *CommandWorker) newWorker(
 	}
 	args.SaveOperationFuncs = saveOperationFuncs
 	args.SaveStateFuncs = saveStatesFuncs
+
+	processingDoneLog := func(*zerolog.Event, string) {}
+
+	args.WhenNewOperationsFunc = func() {
+		processingDoneLog = logging.TimeElapsed()
+	}
+
 	args.UpdateMergeDoneFunc = func(ctx context.Context) (
 		func(base.State) error,
 		func(uint64, string) error,
 		func() error,
 		error,
 	) {
+		processingDoneLog(cmd.Log().Info(), "processing done")
+
 		statech := make(chan base.State)
 		reasonch := make(chan [2]interface{})
 
