@@ -27,7 +27,10 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var maxConcurrency int64 = 1 << 14
+var (
+	maxConcurrency    int64 = 1 << 14
+	defaultOperations int64 = 2_0000
+)
 
 var pStandaloneManagerDesignString = `
 address: managersas
@@ -623,7 +626,7 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 type baseCommand struct {
 	*logging.Logging `kong:"-"`
 	PProf            bool   `name:"pprof"`
-	Operations       uint64 `name:"ops" help:"number of operations" default:"333"`
+	Operations       uint64 `name:"ops" help:"number of operations" default:"${default_operations}"`
 	Concurrency      int64  `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
 	local            base.LocalNode
 	networkID        base.NetworkID

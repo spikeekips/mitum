@@ -21,11 +21,12 @@ var (
 )
 
 var flagDefaults = kong.Vars{
-	"log_out":         "stderr",
-	"log_format":      "terminal",
-	"log_level":       "debug",
-	"log_force_color": "false",
-	"max_concurrency": strconv.FormatInt(maxConcurrency, 10),
+	"log_out":            "stderr",
+	"log_format":         "terminal",
+	"log_level":          "debug",
+	"log_force_color":    "false",
+	"max_concurrency":    strconv.FormatInt(maxConcurrency, 10),
+	"default_operations": strconv.FormatInt(defaultOperations, 10),
 }
 
 var CLI struct { //nolint:govet //...
