@@ -163,7 +163,8 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 
 	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
 
-	member := p.candidates[fact.Candidate().String()]
+	candidate := p.candidates[fact.Candidate().String()]
+	member := isaac.NewNode(candidate.Publickey(), candidate.Address())
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
