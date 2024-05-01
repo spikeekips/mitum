@@ -20,6 +20,11 @@ var (
 	GitCommit = "-"
 )
 
+var (
+	maxConcurrency    int64 = 1 << 14
+	defaultOperations int64 = 4_0000
+)
+
 var flagDefaults = kong.Vars{
 	"log_out":            "stderr",
 	"log_format":         "terminal",

@@ -425,23 +425,16 @@ func (cmd *CommandWorker) newWorker(
 	args.IsEnoughWorkers = func(n uint64) bool {
 		return n > nworkers-nshared
 	}
-	args.StateOwners = func(ctx context.Context, stateKey string) (owners []string, _ error) {
-		if err := cmd.request(ctx, "StateOwners", newManagerBrokerStateOwnersFunc(
-			height,
-			cmd.localCI.String(),
-			stateKey,
-			func(s []string) error {
-				owners = s
 
-				return nil
-			}),
-			cmd.managerCI,
-		); err != nil {
-			return nil, err
-		}
+	args.StateOwners = cmd.remoteStateOwnersFunc(height)
 
-		return owners, nil
+	switch stateOwnersf, err := cmd.djb2StateOwnersFunc(margs.Workers, margs.NStateShare); {
+	case err != nil:
+		return nil, err
+	default:
+		args.StateOwners = stateOwnersf
 	}
+
 	args.BroadcastInsertOpFunc = func(ctx context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 		return cmd.requestWorker(
 			ctx,
@@ -611,6 +604,7 @@ func (cmd *CommandWorker) newWorker(
 			cmd.managerCI,
 		)
 	}
+	args.NotBroadcastingInsertOp = margs.NotBroadcastingInsertOp
 
 	cmd.Log().Debug().Interface("args", margs).Msg("new worker ready")
 
@@ -628,4 +622,38 @@ func (cmd *CommandWorker) newWorker(
 	}
 
 	return pm, nil
+}
+
+func (cmd *CommandWorker) djb2StateOwnersFunc(workers []string, share uint8) (
+	func(context.Context, string) ([]string, error),
+	error,
+) {
+	f, err := djb2StateOwnersFunc(workers, share)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(_ context.Context, stateKey string) ([]string, error) {
+		return f(stateKey)
+	}, nil
+}
+
+func (cmd *CommandWorker) remoteStateOwnersFunc(height base.Height) func(context.Context, string) ([]string, error) {
+	return func(ctx context.Context, stateKey string) (owners []string, _ error) {
+		if err := cmd.request(ctx, "StateOwners", newManagerBrokerStateOwnersFunc(
+			height,
+			cmd.localCI.String(),
+			stateKey,
+			func(s []string) error {
+				owners = s
+
+				return nil
+			}),
+			cmd.managerCI,
+		); err != nil {
+			return nil, err
+		}
+
+		return owners, nil
+	}
 }

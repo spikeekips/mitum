@@ -237,9 +237,10 @@ type ProcessWorkerArgs struct {
 		done func() error,
 		_ error,
 	)
-	UpdateStoreDoneFunc   func(context.Context, map[base.BlockItemType]string) error
-	WhenNewOperationsFunc func()
-	MapSize               uint64
+	UpdateStoreDoneFunc     func(context.Context, map[base.BlockItemType]string) error
+	WhenNewOperationsFunc   func()
+	NotBroadcastingInsertOp bool
+	MapSize                 uint64
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
@@ -277,8 +278,9 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		UpdateStoreDoneFunc: func(context.Context, map[base.BlockItemType]string) error {
 			return util.ErrNotImplemented.Errorf("UpdateStoreDoneFunc")
 		},
-		WhenNewOperationsFunc: func() {},
-		MapSize:               1 << 9,
+		WhenNewOperationsFunc:   func() {},
+		NotBroadcastingInsertOp: false,
+		MapSize:                 1 << 9,
 	}
 }
 
@@ -921,6 +923,10 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 	}
 
 	for owner := range owners {
+		if pw.args.NotBroadcastingInsertOp && owner != pw.local {
+			continue
+		}
+
 		owner := owner
 		filtered := owners[owner]
 		if len(filtered) < 1 {

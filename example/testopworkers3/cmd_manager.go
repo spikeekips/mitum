@@ -36,6 +36,7 @@ type CommandManager struct { //nolint:govet //...
 	baseCommandManager
 	Port           int      `arg:"" name:"port"`
 	Workers        []string `arg:"" name:"worker"`
+	FullOpOwners   bool     `name:"full-ops" help:"send entire operaions to each workers"`
 	localCI        quicstream.ConnInfo
 	workers        []string
 	connectionPool *quicstream.ConnectionPool
@@ -485,6 +486,8 @@ func (cmd *CommandManager) newManagerFunc(
 			return util.NewBaseJobWorker(ctx, cmd.c)
 		}
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
+			args.NotBroadcastingInsertOp = cmd.FullOpOwners
+
 			return cmd.requestWorker(
 				ctx,
 				"WorkerReady",
@@ -525,6 +528,11 @@ func (cmd *CommandManager) newManagerFunc(
 		}
 		args.SaveStatesTreeNodeFuncs = saveStatesTreeFuncs
 		args.SaveOperationsTreeNodeFuncs = saveOperationsTreeNodeFuncs
+
+		args.NewOpOwnersFunc = serialOpOwnersFunc // fullOpOwnersFunc,
+		if cmd.FullOpOwners {
+			args.NewOpOwnersFunc = fullOpOwnersFunc
+		}
 
 		switch i, err := NewProcessManager(
 			ctx,

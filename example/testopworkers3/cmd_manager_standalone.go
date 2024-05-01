@@ -27,11 +27,6 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var (
-	maxConcurrency    int64 = 1 << 14
-	defaultOperations int64 = 2_0000
-)
-
 var pStandaloneManagerDesignString = `
 address: managersas
 privatekey: 09e151a12a283cd46ac02a425559460e88746c49697e41c4edb9b3122f83b399mpr

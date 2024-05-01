@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math"
+	"math/big"
+	mathrand "math/rand"
+	"slices"
 	"sync"
 	"time"
 
@@ -30,11 +35,12 @@ type (
 )
 
 type processWorkerReadyArgs struct {
-	Manager     string
-	Height      base.Height
-	Workers     []string
-	NStateShare uint8
-	NOps        uint64
+	Manager                 string
+	Height                  base.Height
+	Workers                 []string
+	NStateShare             uint8
+	NOps                    uint64
+	NotBroadcastingInsertOp bool
 }
 
 type ProcessManagerArgs struct {
@@ -93,8 +99,9 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
 			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
-		NewOpOwnersFunc:     serialOpOwnersFunc,
-		NewStateOwnersFunc:  serialStateOwnersFunc,
+		// NewOpOwnersFunc:     serialOpOwnersFunc,    // fullOpOwnersFunc,
+		NewOpOwnersFunc:     serialOpOwnersFunc,    // fullOpOwnersFunc,
+		NewStateOwnersFunc:  serialStateOwnersFunc, // djb2StateOwnersFunc
 		MapSize:             1 << 9,
 		MinStatesSize:       1 << 18,
 		WorkerCancelTimeout: time.Second * 3,
@@ -1372,6 +1379,12 @@ func validateProcessManagerArgs(
 	return nil
 }
 
+func fullOpOwnersFunc(workers []string, share uint8) (opOwnersFunc, error) {
+	return func(uint64, util.Hash, util.Hash) ([]string, error) {
+		return workers, nil
+	}, nil
+}
+
 func serialOpOwnersFunc(workers []string, share uint8) (opOwnersFunc, error) {
 	w := uint64(len(workers))
 	if w < 1 {
@@ -1434,6 +1447,44 @@ func serialStateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, erro
 	}, nil
 }
 
+func djb2StateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, error) {
+	w := uint64(len(workers))
+	if w < 1 {
+		return nil, errors.Errorf("empty workers")
+	}
+
+	n := uint64(share)
+	if n < 1 {
+		return nil, errors.Errorf("zero share")
+	}
+
+	if n > w {
+		n = w
+	}
+
+	seed := uint32(0)
+
+	return func(stateKey string) ([]string, error) {
+		index := stringdjb2(seed, stateKey) % w
+
+		add, done, _ := util.CompactAppendSliceV1[string](n)
+
+		for i := uint64(0); i < n; i++ {
+			add(workers[(index+i)%w])
+		}
+
+		var owners []string
+
+		_ = done(func(s []string) error {
+			owners = slices.Clone(s)
+
+			return nil
+		})
+
+		return owners, nil
+	}, nil
+}
+
 func newOpOwnersFunc(f opOwnersFunc) opOwnersFunc {
 	return func(opindex uint64, op, fact util.Hash) ([]string, error) {
 		switch owners, err := f(opindex, op, fact); {
@@ -1466,4 +1517,50 @@ func newIsEnoughWorkers(workers, nshare uint64) func(uint64) bool {
 	return func(n uint64) bool {
 		return n > i
 	}
+}
+
+func newDjb2Seed() uint32 {
+	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+
+	switch rnd, err := rand.Int(rand.Reader, max); {
+	case err != nil:
+		return mathrand.Uint32()
+	default:
+		return uint32(rnd.Uint64())
+	}
+}
+
+// stringdjb2 derived from
+// https://github.com/patrickmn/go-cache/blob/master/sharded.go .
+func stringdjb2(seed uint32, k string) uint64 {
+	var (
+		l = uint32(len(k))
+		d = 5381 + seed + l
+		i = uint32(0)
+	)
+
+	if l >= 4 { //nolint:gomnd //...
+		for i < l-4 {
+			d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+3]) //nolint:gomnd //...
+			i += 4
+		}
+	}
+
+	switch l - i {
+	case 1:
+	case 2:
+		d = (d * 33) ^ uint32(k[i]) //nolint:gomnd //...
+	case 3: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+	case 4: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+	}
+
+	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
 }
