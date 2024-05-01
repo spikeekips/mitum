@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -335,44 +336,68 @@ func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
 	return m, left, nil
 }
 
-func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
-	switch n, i, err := ReadLength(r); {
+func ReadLengthedSliceFunc(r io.Reader, f func(uint64, uint64, []byte) error) (read uint64, _ error) {
+	var size uint64
+
+	switch i, j, err := ReadLength(r); {
 	case err == nil, errors.Is(err, io.EOF):
-		if i > 0 && errors.Is(err, io.EOF) {
-			return n, nil, errors.Errorf("insufficient read")
+		if j > 0 && errors.Is(err, io.EOF) {
+			return i, errors.Errorf("insufficient read")
 		}
 
-		if i < 1 {
-			return n, nil, err
+		if j < 1 {
+			return i, err
 		}
 
-		if i > maxLengthBytes {
-			return n, nil, errors.Errorf("huge size, %v", i)
+		if j > maxLengthBytes {
+			return i, errors.Errorf("huge size, %v", j)
 		}
 
-		hs = make([][]byte, i)
-		read += n
+		size = j
+		read += i
 	default:
-		return n, nil, errors.Wrap(err, "bytes length")
+		return i, errors.Wrap(err, "bytes length")
 	}
 
 	var gerr error
 
-	for i := range hs {
-		switch n, b, err := ReadLengthed(r); {
-		case i < len(hs)-1 && errors.Is(err, io.EOF):
-			return read, nil, errors.Wrap(err, "insufficient read")
-		case err == nil, errors.Is(err, io.EOF):
-			hs[i] = b
-			read += n
+	for i := uint64(0); i < size; i++ {
+		n, b, err := ReadLengthed(r)
+
+		iseof := errors.Is(err, io.EOF)
+		read += n
+
+		switch {
+		case iseof && i < n-1:
+			return read, errors.Wrap(err, "insufficient read")
+		case err == nil || iseof:
+			if err := f(size, i, b); err != nil {
+				return read, err
+			}
 
 			gerr = err
 		default:
-			return read, nil, errors.Wrap(err, "read bytes")
+			return read, errors.Wrap(err, "read bytes")
 		}
 	}
 
-	return read, hs, gerr
+	return read, gerr
+}
+
+func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
+	var once sync.Once
+
+	i, err := ReadLengthedSliceFunc(r, func(size, index uint64, b []byte) error {
+		once.Do(func() {
+			hs = make([][]byte, size)
+		})
+
+		hs[index] = b
+
+		return nil
+	})
+
+	return i, hs, err
 }
 
 var bytesFrameVersion = [2]byte{0x00, 0x00}

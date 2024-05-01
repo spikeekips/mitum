@@ -127,6 +127,49 @@ type accountStateMergeValueJSONMarshaler struct {
 	Value AccountStateValue
 }
 
+func (v AccountStateMergeValue) Bytes() ([]byte, error) { // FIXME remove; not used
+	return util.NewLengthedBytesSlice(
+		[][]byte{
+			[]byte(v.key),
+			v.Address.Bytes(),
+			util.Int64ToBytes(v.Balance),
+		},
+	)
+}
+
+func AccountStateMergeValueFromReader(b []byte) (v AccountStateMergeValue, _ error) { // FIXME remove; not used
+	var m [][]byte
+
+	switch i, _, err := util.ReadLengthedBytesSlice(b); {
+	case err != nil:
+		return v, err
+	case len(i) != 3:
+		return v, errors.Errorf("wrong size, %d", len(m))
+	default:
+		m = i
+	}
+
+	v.key = string(m[0])
+
+	switch i, err := base.ParseMPublickey(string(m[1])); {
+	case err != nil:
+		return v, err
+	default:
+		v.Address = i
+	}
+
+	switch i, err := util.BytesToInt64(m[2]); {
+	case err != nil:
+		return v, err
+	default:
+		v.Balance = i
+	}
+
+	v.BaseHinter = hint.NewBaseHinter(AccountStateMergeValueHint)
+
+	return v, nil
+}
+
 func (v AccountStateMergeValue) MarshalJSON() ([]byte, error) {
 	b, err := util.MarshalJSON(struct {
 		hint.BaseHinter
