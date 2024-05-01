@@ -35,12 +35,12 @@ type (
 )
 
 type processWorkerReadyArgs struct {
-	Manager                 string
-	Height                  base.Height
-	Workers                 []string
-	NStateShare             uint8
-	NOps                    uint64
-	NotBroadcastingInsertOp bool
+	Manager     string
+	Height      base.Height
+	Workers     []string
+	NStateShare uint8
+	NOps        uint64
+	FullOps     bool
 }
 
 type ProcessManagerArgs struct {

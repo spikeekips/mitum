@@ -91,7 +91,7 @@ func (t *testOperationProcessor) TestCancel() {
 		defer ctxcancel()
 
 		opsr := t.newProcessor(ctx)
-		opsr.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
+		opsr.args.GetOperationFunc = func(ctx context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 			return nil, false, errors.Errorf("showme")
 		}
 
@@ -122,7 +122,7 @@ func (t *testOperationProcessor) TestCancel() {
 		defer ctxcancel()
 
 		opsr := t.newProcessor(ctx)
-		opsr.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
+		opsr.args.GetOperationFunc = func(ctx context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 			select {
 			case <-ctx.Done():
 				return nil, false, ctx.Err()
@@ -150,7 +150,7 @@ func (t *testOperationProcessor) TestCancel() {
 		defer ctxcancel()
 
 		opsr := t.newProcessor(ctx)
-		opsr.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
+		opsr.args.GetOperationFunc = func(ctx context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 			select {
 			case <-ctx.Done():
 				return nil, false, ctx.Err()
@@ -181,7 +181,7 @@ func (t *testOperationProcessor) TestCancel() {
 		defer ctxcancel()
 
 		opsr := t.newProcessor(ctx)
-		opsr.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
+		opsr.args.GetOperationFunc = func(ctx context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 			select {
 			case <-ctx.Done():
 				return nil, false, ctx.Err()
@@ -279,7 +279,7 @@ func (t *testOperationProcessor) testProcess(nops uint64) {
 		values[opindex] = vs
 	}
 
-	opsr.args.GetOperationFunc = func(_ context.Context, operation util.Hash) (Operation, bool, error) {
+	opsr.args.GetOperationFunc = func(_ context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 		i, found := ops[operation.String()]
 
 		return i, found, nil
@@ -508,7 +508,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 		pw.args.NOps = 1 << 3
 
 		processch := make(chan error, 1)
-		pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
+		pw.args.GetOperationFunc = func(ctx context.Context, _ uint64, operation util.Hash) (Operation, bool, error) {
 			select {
 			case <-ctx.Done():
 				t.LockedLog("process canceled: %+v", ctx.Err())
@@ -668,13 +668,8 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		5: "previous issuer found",
 	}
 
-	getOperationFunc := func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
-		switch opindex, found := ophs[operation.String()]; {
-		case !found:
-			return nil, false, nil
-		default:
-			return ops[opindex], true, nil
-		}
+	getOperationFunc := func(ctx context.Context, opindex uint64, operation util.Hash) (Operation, bool, error) {
+		return ops[opindex], true, nil
 	}
 
 	getState := func(_ context.Context, key string) (base.State, bool, error) {
@@ -809,13 +804,8 @@ func (t *testProcessWorker) TestSaveOperation() {
 	pw.args.StateOwners = func(context.Context, string) ([]string, error) {
 		return []string{pw.local}, nil
 	}
-	pw.args.GetOperationFunc = func(ctx context.Context, operation util.Hash) (Operation, bool, error) {
-		switch opindex, found := ophs[operation.String()]; {
-		case !found:
-			return nil, false, nil
-		default:
-			return ops[opindex], true, nil
-		}
+	pw.args.GetOperationFunc = func(ctx context.Context, opindex uint64, operation util.Hash) (Operation, bool, error) {
+		return ops[opindex], true, nil
 	}
 	pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
 
@@ -923,13 +913,8 @@ func (t *testProcessWorker) Test3Workers() {
 		opfhs[op.Fact().Hash().String()] = opindex
 	}
 
-	getOperationFunc := func(ctx context.Context, op util.Hash) (Operation, bool, error) {
-		switch opindex, found := ophs[op.String()]; {
-		case !found:
-			return nil, false, nil
-		default:
-			return ops[opindex], true, nil
-		}
+	getOperationFunc := func(ctx context.Context, opindex uint64, op util.Hash) (Operation, bool, error) {
+		return ops[opindex], true, nil
 	}
 	getState := func(_ context.Context, key string) (base.State, bool, error) {
 		i, found := sts[key]

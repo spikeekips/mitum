@@ -78,6 +78,7 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSetStatesHeaderHint, Instance: WorkerSetStatesHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSetOperationsHeaderHint, Instance: WorkerSetOperationsHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSetStateMergeValuesHeaderHint, Instance: WorkerSetStateMergeValuesHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerSyncStatesHeaderHint, Instance: WorkerSyncStatesHeader{}}))
 
 	t.ci = quicstream.UnsafeConnInfo(nil, true)
@@ -896,6 +897,108 @@ func (t *testHandlers) TestWorkerSyncStates() {
 		case err = <-donech:
 			t.ErrorContains(err, "findme")
 		}
+	})
+}
+
+func (t *testHandlers) TestWorkerSetStateMergeValues() {
+	t.Run("ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ops := make([]util.Hash, 33)
+		values := make([][]StateMergeValue, len(ops))
+
+		for i := range values {
+			ops[i] = valuehash.RandomSHA256()
+			values[i] = t.randomMergeValues(3)
+		}
+
+		sort.Slice(ops, func(i, j int) bool {
+			return cmp.Less[string](
+				ops[i].String(),
+				ops[j].String(),
+			)
+		})
+
+		add, done, err := util.CompactAppendSliceV1[[2]interface{}](uint64(len(values)), 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSetStateMergeValuesFunc(func(op util.Hash, vs []StateMergeValue) error {
+			add([2]interface{}{op, vs})
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetStateMergeValuesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSetStateMergeValuesFunc(func(f func(util.Hash, []StateMergeValue) error) error {
+				for i := range values {
+					if err := f(ops[i], values[i]); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+		))
+
+		done(func(s [][2]interface{}) error {
+			t.Equal(len(values), len(s))
+
+			sort.Slice(s, func(i, j int) bool {
+				return cmp.Less[string](
+					s[i][0].(util.Hash).String(),
+					s[j][0].(util.Hash).String(),
+				)
+			})
+
+			for i := range values {
+				ao := ops[i]
+				avs := values[i]
+
+				bo := s[i][0].(util.Hash)
+				bvs := s[i][1].([]StateMergeValue)
+
+				t.True(ao.Equal(bo))
+				t.Equal(len(avs), len(bvs))
+
+				for j := range avs {
+					t.Equal(avs[j].Key(), bvs[j].Key())
+					t.True(base.IsEqualStateValue(avs[j].Value(), bvs[j].Value()))
+				}
+			}
+
+			return nil
+		})
+	})
+
+	t.Run("empty", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		add, done, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9)
+		t.NoError(err)
+
+		handler, err := newWorkerHandlerSetStateMergeValuesFunc(func(op util.Hash, vs []StateMergeValue) error {
+			add([2]interface{}{op, vs})
+
+			return nil
+		})
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerSetStateMergeValuesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerSetStateMergeValuesFunc(func(f func(util.Hash, []StateMergeValue) error) error {
+				return nil
+			}),
+		))
+
+		done(func(s [][2]interface{}) error {
+			t.Empty(s)
+
+			return nil
+		})
 	})
 }
 

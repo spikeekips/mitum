@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -509,6 +510,94 @@ func newWorkerHandlerSetOperationsFunc(
 			default:
 				return f(st)
 			}
+		})
+
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
+	}, nil
+}
+
+func newWorkerBrokerSetStateMergeValuesFunc(
+	f func(func(util.Hash, []StateMergeValue) error) error,
+) quicstreamheader.BrokerFunc {
+	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
+		header := NewWorkerSetStateMergeValuesHeader()
+
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
+
+		if err := writeStream(
+			broker.Writer,
+			func(fb func([]byte) error) error {
+				return f(func(op util.Hash, vs []StateMergeValue) error {
+					buf := bytes.NewBuffer(nil)
+					defer buf.Reset()
+
+					_ = util.WriteLengthed(buf, op.Bytes())
+
+					if err := util.WriteLengthedSliceFunc(
+						buf,
+						uint64(len(vs)),
+						func(index uint64) ([]byte, error) {
+							return broker.Encoder.Marshal(vs[index])
+						},
+					); err != nil {
+						return err
+					}
+
+					return fb(buf.Bytes())
+				})
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := broker.Close(); err != nil {
+			return err
+		}
+
+		switch _, res, err := broker.ReadResponseHead(ctx); {
+		case err != nil:
+			return err
+		default:
+			return res.Err()
+		}
+	}
+}
+
+func newWorkerHandlerSetStateMergeValuesFunc(
+	f func(util.Hash, []StateMergeValue) error,
+) (quicstreamheader.Handler[WorkerSetStateMergeValuesHeader], error) {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, _ WorkerSetStateMergeValuesHeader,
+	) (context.Context, error) {
+		err := readStream(broker.Reader, func(b []byte) error {
+			var op util.Hash
+
+			left := bytes.NewBuffer(b)
+			defer left.Reset()
+
+			switch _, i, err := util.ReadLengthed(left); {
+			case err != nil:
+				return err
+			default:
+				op = valuehash.NewBytes(i)
+			}
+
+			var vs []StateMergeValue
+			var once sync.Once
+
+			if _, err := util.ReadLengthedSliceFunc(left, func(size, index uint64, b []byte) error {
+				once.Do(func() {
+					vs = make([]StateMergeValue, size)
+				})
+
+				return encoder.Decode(broker.Encoder, b, &vs[index])
+			}); err != nil {
+				return err
+			}
+
+			return f(op, vs)
 		})
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)

@@ -40,10 +40,11 @@ type Operation interface {
 type OperationProcessorArgs struct {
 	NetworkID                base.NetworkID
 	NewJobWorker             func(context.Context) (util.JobWorker, error)
-	GetOperationFunc         func(_ context.Context, operation util.Hash) (Operation, bool, error)
+	GetOperationFunc         func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
 	SaveOperationFunc        processWorkerSaveOperationFunc
 	UpdateReasonsFunc        func(opindex uint64, reason base.OperationProcessReasonError) error
 	MergeStateMergeValueFunc func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	GetStateMergeValuesFunc  func(opindex uint64, op, fact util.Hash) ([]StateMergeValue, bool, error)
 }
 
 func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs {
@@ -52,7 +53,7 @@ func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
 		},
-		GetOperationFunc: func(context.Context, util.Hash) (Operation, bool, error) {
+		GetOperationFunc: func(context.Context, uint64, util.Hash) (Operation, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetOperationFunc")
 		},
 		SaveOperationFunc: func(uint64, Operation) error { return util.ErrNotImplemented.Errorf("SaveOperationFunc") },
@@ -61,6 +62,9 @@ func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs
 		},
 		MergeStateMergeValueFunc: func(uint64, util.Hash, []StateMergeValue) error {
 			return util.ErrNotImplemented.Errorf("MergeStateMergeValueFunc")
+		},
+		GetStateMergeValuesFunc: func(uint64, util.Hash, util.Hash) ([]StateMergeValue, bool, error) {
+			return nil, false, nil
 		},
 	}
 }
@@ -165,7 +169,7 @@ func (opsr *OperationProcessor) Wait() error {
 func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op, fact util.Hash) error {
 	var opb Operation
 
-	switch i, err := opsr.getOperation(ctx, op); {
+	switch i, err := opsr.getOperation(ctx, opindex, op); {
 	case err != nil:
 		return err
 	default:
@@ -176,7 +180,7 @@ func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op,
 		}
 	}
 
-	switch vs, reason, err := opb.ProcessNew(ctx); {
+	switch vs, reason, err := opsr.processOp(ctx, opindex, opb); {
 	case err != nil:
 		return err
 	case reason != nil:
@@ -188,8 +192,8 @@ func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op,
 	}
 }
 
-func (opsr *OperationProcessor) getOperation(ctx context.Context, op util.Hash) (Operation, error) {
-	switch op, found, err := opsr.args.GetOperationFunc(ctx, op); {
+func (opsr *OperationProcessor) getOperation(ctx context.Context, opindex uint64, op util.Hash) (Operation, error) {
+	switch op, found, err := opsr.args.GetOperationFunc(ctx, opindex, op); {
 	case err != nil:
 		return nil, err
 	case !found:
@@ -197,6 +201,25 @@ func (opsr *OperationProcessor) getOperation(ctx context.Context, op util.Hash) 
 	default:
 		return op, nil
 	}
+}
+
+func (opsr *OperationProcessor) processOp(
+	ctx context.Context,
+	opindex uint64,
+	op Operation,
+) (
+	[]StateMergeValue,
+	base.OperationProcessReasonError,
+	error,
+) {
+	switch vs, found, err := opsr.args.GetStateMergeValuesFunc(opindex, op.Hash(), op.Fact().Hash()); {
+	case err != nil:
+		return nil, nil, err
+	case found:
+		return vs, nil, nil
+	}
+
+	return op.ProcessNew(ctx)
 }
 
 func (opsr *OperationProcessor) SetName(s string) {
@@ -213,7 +236,7 @@ type (
 type ProcessWorkerArgs struct {
 	NetworkID             base.NetworkID
 	NOps                  uint64
-	GetOperationFunc      func(_ context.Context, operation util.Hash) (Operation, bool, error)
+	GetOperationFunc      func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
 	GetStateFunc          func(_ context.Context, key string) (base.State, bool, error)
 	NewJobWorker          func(context.Context) (util.JobWorker, error)
 	IsEnoughWorkers       func(n uint64) bool
@@ -239,14 +262,15 @@ type ProcessWorkerArgs struct {
 	)
 	UpdateStoreDoneFunc     func(context.Context, map[base.BlockItemType]string) error
 	WhenNewOperationsFunc   func()
-	NotBroadcastingInsertOp bool
+	FullOps                 bool
+	GetStateMergeValuesFunc func(opindex uint64, op, fact util.Hash) ([]StateMergeValue, bool, error)
 	MapSize                 uint64
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 	return &ProcessWorkerArgs{
 		NetworkID:        networkID,
-		GetOperationFunc: func(context.Context, util.Hash) (Operation, bool, error) { return nil, false, nil },
+		GetOperationFunc: func(context.Context, uint64, util.Hash) (Operation, bool, error) { return nil, false, nil },
 		GetStateFunc:     func(context.Context, string) (base.State, bool, error) { return nil, false, nil },
 		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, 1<<6)
@@ -278,9 +302,12 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		UpdateStoreDoneFunc: func(context.Context, map[base.BlockItemType]string) error {
 			return util.ErrNotImplemented.Errorf("UpdateStoreDoneFunc")
 		},
-		WhenNewOperationsFunc:   func() {},
-		NotBroadcastingInsertOp: false,
-		MapSize:                 1 << 9,
+		WhenNewOperationsFunc: func() {},
+		FullOps:               false,
+		MapSize:               1 << 9,
+		GetStateMergeValuesFunc: func(uint64, util.Hash, util.Hash) ([]StateMergeValue, bool, error) {
+			return nil, false, nil
+		},
 	}
 }
 
@@ -742,6 +769,7 @@ func (pw *ProcessWorker) newOperationProcessor() (
 	args.SaveOperationFunc = pw.saveOperationFunc
 	args.UpdateReasonsFunc = pw.opsrUpdateReasons
 	args.MergeStateMergeValueFunc = pw.mergeStateMergeValue
+	args.GetStateMergeValuesFunc = pw.args.GetStateMergeValuesFunc
 
 	switch i, err := NewOperationProcessor(pw.ctx(), args); {
 	case err != nil:
@@ -923,7 +951,7 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 	}
 
 	for owner := range owners {
-		if pw.args.NotBroadcastingInsertOp && owner != pw.local {
+		if pw.args.FullOps && owner != pw.local {
 			continue
 		}
 

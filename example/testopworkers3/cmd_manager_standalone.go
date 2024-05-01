@@ -503,7 +503,7 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 
 			args := NewProcessWorkerArgs(cmd.networkID)
 			args.NOps = margs.NOps
-			args.GetOperationFunc = func(ctx context.Context, operationhash util.Hash) (Operation, bool, error) {
+			args.GetOperationFunc = func(ctx context.Context, _ uint64, operationhash util.Hash) (Operation, bool, error) {
 				i, found := cmd.opsPool.Get(operationhash.String())
 
 				return i.(Operation), found, nil
@@ -697,7 +697,7 @@ func (cmd *baseCommand) loadDesign(pctx context.Context) error {
 	cmd.networkID = isaacparams.NetworkID()
 	cmd.localCI = design.Network.PublishConnInfo()
 
-	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize() * 3)
+	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize() * 4)
 	cmd.opsPool = util.NewLFUGCache[string, base.Operation](int(cmd.Operations) * 2)
 
 	if err := design.LocalParams.Network.SetDefaultHandlerTimeout(time.Hour); err != nil {

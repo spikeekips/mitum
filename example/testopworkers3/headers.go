@@ -19,6 +19,7 @@ var (
 	WorkerSyncStatesHeaderHint          = hint.MustNewHint("worker-sync-states-header-v0.0.1")
 	WorkerSetStatesHeaderHint           = hint.MustNewHint("worker-set-states-header-v0.0.1")
 	WorkerSetOperationsHeaderHint       = hint.MustNewHint("worker-set-operations-header-v0.0.1")
+	WorkerSetStateMergeValuesHeaderHint = hint.MustNewHint("worker-set-state-merge-values-header-v0.0.1")
 	ManagerStateOwnersHeaderHint        = hint.MustNewHint("manager-state-owners-header-v0.0.1")
 	ManagerWorkerCanceledHeaderHint     = hint.MustNewHint("manager-worker-canceled-header-v0.0.1")
 	ManagerWorkerUpdateMergedHeaderHint = hint.MustNewHint("manager-worker-update-merge-done-header-v0.0.1")
@@ -286,5 +287,15 @@ type WorkerSetOperationsHeader struct {
 func NewWorkerSetOperationsHeader() WorkerSetOperationsHeader {
 	return WorkerSetOperationsHeader{
 		BaseHeader: NewBaseHeader(WorkerSetOperationsHeaderHint),
+	}
+}
+
+type WorkerSetStateMergeValuesHeader struct {
+	BaseHeader
+}
+
+func NewWorkerSetStateMergeValuesHeader() WorkerSetStateMergeValuesHeader {
+	return WorkerSetStateMergeValuesHeader{
+		BaseHeader: NewBaseHeader(WorkerSetStateMergeValuesHeaderHint),
 	}
 }

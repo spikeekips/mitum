@@ -42,6 +42,7 @@ type CommandWorker struct { //nolint:govet //...
 	pws       util.LockedMap[base.Height, *ProcessWorker]
 	bdbs      map[base.Height]isaac.BlockWriteDatabase
 	ctxCancel func(error)
+	stvsPool  util.GCache[string, []StateMergeValue]
 }
 
 func (cmd *CommandWorker) Run(pctx context.Context) error {
@@ -116,6 +117,7 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 	}
 
 	cmd.bdbs = map[base.Height]isaac.BlockWriteDatabase{}
+	cmd.stvsPool = util.NewLFUGCache[string, []StateMergeValue](int(cmd.Operations) * 4)
 
 	return pctx, pps, nil
 }
@@ -157,6 +159,7 @@ func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Contex
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSyncStatesHeaderHint), cmd.handlerSyncStates, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSetStatesHeaderHint), cmd.handlerSetStates, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSetOperationsHeaderHint), cmd.handlerSetOperations, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSetStateMergeValuesHeaderHint), cmd.handlerSetStateMergeValues, nil)
 
 	return pctx, gerror
 }
@@ -338,6 +341,14 @@ func (cmd *CommandWorker) handlerSetOperations(pctx context.Context) (quicstream
 	})
 }
 
+func (cmd *CommandWorker) handlerSetStateMergeValues(pctx context.Context) (quicstreamheader.Handler[WorkerSetStateMergeValuesHeader], error) {
+	return newWorkerHandlerSetStateMergeValuesFunc(func(op util.Hash, vs []StateMergeValue) error {
+		cmd.stvsPool.Set(op.String(), vs, 0)
+
+		return nil
+	})
+}
+
 func (cmd *CommandWorker) newWorker(
 	design launch.NodeDesign,
 	margs processWorkerReadyArgs,
@@ -402,7 +413,7 @@ func (cmd *CommandWorker) newWorker(
 
 	args := NewProcessWorkerArgs(design.NetworkID)
 	args.NOps = margs.NOps
-	args.GetOperationFunc = func(ctx context.Context, operationhash util.Hash) (Operation, bool, error) {
+	args.GetOperationFunc = func(ctx context.Context, opindex uint64, operationhash util.Hash) (Operation, bool, error) {
 		switch i, found := cmd.opsPool.Get(operationhash.String()); {
 		case !found:
 			return nil, false, nil
@@ -604,7 +615,12 @@ func (cmd *CommandWorker) newWorker(
 			cmd.managerCI,
 		)
 	}
-	args.NotBroadcastingInsertOp = margs.NotBroadcastingInsertOp
+	args.FullOps = margs.FullOps
+	args.GetStateMergeValuesFunc = func(_ uint64, op, _ util.Hash) ([]StateMergeValue, bool, error) {
+		i, found := cmd.stvsPool.Get(op.String())
+
+		return i, found, nil
+	}
 
 	cmd.Log().Debug().Interface("args", margs).Msg("new worker ready")
 

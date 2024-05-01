@@ -1005,7 +1005,7 @@ func (t *testProcessManager) newProcessWorker(
 	args processWorkerReadyArgs,
 	other func(string) *ProcessWorker,
 	others func() []*ProcessWorker,
-	getOperationFunc func(context.Context, util.Hash) (Operation, bool, error),
+	getOperationFunc func(context.Context, uint64, util.Hash) (Operation, bool, error),
 	getFactFunc func(util.Hash) (uint64, bool),
 	getStateFunc func(context.Context, string) (base.State, bool, error),
 	isEnoughWorkers func(uint64) bool,
@@ -1125,13 +1125,8 @@ func (t *testProcessManager) testNWorkers(
 		opfhs[op.Fact().Hash().String()] = opindex
 	}
 
-	getOperationFunc := func(ctx context.Context, op util.Hash) (Operation, bool, error) {
-		switch opindex, found := ophs[op.String()]; {
-		case !found:
-			return nil, false, nil
-		default:
-			return ops[opindex], true, nil
-		}
+	getOperationFunc := func(ctx context.Context, opindex uint64, op util.Hash) (Operation, bool, error) {
+		return ops[opindex], true, nil
 	}
 	getStateFunc := func(_ context.Context, key string) (base.State, bool, error) {
 		i, found := states[key]

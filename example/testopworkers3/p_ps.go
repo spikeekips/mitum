@@ -32,6 +32,7 @@ var hinters = []encoder.DecodeDetail{
 	{Hint: ManagerWorkerStoreDoneHeaderHint, Instance: ManagerWorkerStoreDoneHeader{}},
 	{Hint: WorkerSetStatesHeaderHint, Instance: WorkerSetStatesHeader{}},
 	{Hint: WorkerSetOperationsHeaderHint, Instance: WorkerSetOperationsHeader{}},
+	{Hint: WorkerSetStateMergeValuesHeaderHint, Instance: WorkerSetStateMergeValuesHeader{}},
 	{Hint: WorkerSyncStatesHeaderHint, Instance: WorkerSyncStatesHeader{}},
 }
 

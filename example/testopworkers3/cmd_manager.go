@@ -37,6 +37,7 @@ type CommandManager struct { //nolint:govet //...
 	Port           int      `arg:"" name:"port"`
 	Workers        []string `arg:"" name:"worker"`
 	FullOpOwners   bool     `name:"full-ops" help:"send entire operaions to each workers"`
+	PreProcess     bool     `name:"pre-process" help:"pre process operations"`
 	localCI        quicstream.ConnInfo
 	workers        []string
 	connectionPool *quicstream.ConnectionPool
@@ -208,6 +209,12 @@ func (cmd *CommandManager) createAccounts(pctx context.Context) (base.BlockMap, 
 		return nil, err
 	}
 
+	if cmd.PreProcess {
+		if err := cmd.preProcess(ops); err != nil {
+			return nil, err
+		}
+	}
+
 	var pr base.ProposalSignFact
 
 	switch i, err := cmd.newProposal(pctx, base.GenesisHeight, valuehash.RandomSHA256(), ops); {
@@ -243,6 +250,12 @@ func (cmd *CommandManager) transfer(pctx context.Context, m base.Manifest) error
 	}
 	if err := cmd.syncOperations(ops); err != nil {
 		return err
+	}
+
+	if cmd.PreProcess {
+		if err := cmd.preProcess(ops); err != nil {
+			return err
+		}
 	}
 
 	var pr base.ProposalSignFact
@@ -486,7 +499,7 @@ func (cmd *CommandManager) newManagerFunc(
 			return util.NewBaseJobWorker(ctx, cmd.c)
 		}
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
-			args.NotBroadcastingInsertOp = cmd.FullOpOwners
+			args.FullOps = cmd.FullOpOwners
 
 			return cmd.requestWorker(
 				ctx,
@@ -636,6 +649,94 @@ func (cmd *CommandManager) syncOperations(ops []Op) error {
 			func(f func(base.Operation) error) error {
 				for i := range ops {
 					if err := f(ops[i]); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			},
+		),
+	)
+}
+
+func (cmd *CommandManager) preProcess(ops []Op) error {
+	defer logging.TimeElapsed()(cmd.Log().Info(), "pre process")
+
+	args := NewOperationProcessorArgs(cmd.networkID)
+
+	args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
+		return util.NewBaseJobWorker(ctx, cmd.c)
+	}
+	args.GetOperationFunc = func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error) {
+		return ops[opindex], true, nil
+	}
+	args.SaveOperationFunc = func(uint64, Operation) error { return nil }
+	args.UpdateReasonsFunc = func(opindex uint64, reason base.OperationProcessReasonError) error {
+		panic(errors.Errorf("opindex=%v reason=%v", opindex, reason))
+
+		return nil
+	}
+
+	addValues, doneValues, _ := util.CompactAppendSliceV1[[2]interface{}](uint64(len(ops)), 1<<9)
+
+	args.MergeStateMergeValueFunc = func(opindex uint64, fact util.Hash, vs []StateMergeValue) error {
+		addValues([2]interface{}{ops[opindex].Hash(), vs})
+
+		return nil
+	}
+
+	var opsr *OperationProcessor
+
+	switch i, err := NewOperationProcessor(context.Background(), args); {
+	case err != nil:
+		return err
+	default:
+		_ = i.SetLogging(cmd.Logging)
+
+		opsr = i
+	}
+
+	switch process, done, _, err := opsr.Process(); {
+	case err != nil:
+		return err
+	default:
+		for i := range ops {
+			if err := process(uint64(i), ops[i].Hash(), ops[i].Fact().Hash()); err != nil {
+				return err
+			}
+		}
+
+		if err := done(); err != nil {
+			return err
+		}
+	}
+
+	if err := opsr.Wait(); err != nil {
+		return err
+	}
+
+	if err := doneValues(func(s [][2]interface{}) error {
+		return cmd.syncStateMergedValues(s)
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cmd *CommandManager) syncStateMergedValues(values [][2]interface{}) error {
+	defer logging.TimeElapsed()(cmd.Log().Info(), "sync state merge values")
+
+	return cmd.requestWorkers(
+		context.Background(),
+		"syncStateMergedValues",
+		newWorkerBrokerSetStateMergeValuesFunc(
+			func(f func(op util.Hash, vs []StateMergeValue) error) error {
+				for i := range values {
+					if err := f(
+						values[i][0].(util.Hash),
+						values[i][1].([]StateMergeValue),
+					); err != nil {
 						return err
 					}
 				}
