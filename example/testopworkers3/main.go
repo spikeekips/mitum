@@ -22,7 +22,7 @@ var (
 
 var (
 	maxConcurrency    int64 = 1 << 14
-	defaultOperations int64 = 5_0000
+	defaultOperations int64 = 10_0000
 )
 
 var flagDefaults = kong.Vars{

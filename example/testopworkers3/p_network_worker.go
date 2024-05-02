@@ -184,11 +184,7 @@ func newWorkerBrokerInsertOpFunc(
 			return err
 		}
 
-		if err := writeInsertOp(enc, opindex, fact, values, owners, func(buf *bytes.Buffer) error {
-			_, err := io.Copy(broker.Writer, buf)
-
-			return err
-		}); err != nil {
+		if err := writeInsertOp(enc, broker.Writer, opindex, fact, values, owners); err != nil {
 			return err
 		}
 
@@ -255,8 +251,11 @@ func newWorkerBrokerPhaseDoneFunc(
 	mergedOps, unmergedOps []uint64,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		buf := bytes.NewBuffer(nil)
-		defer buf.Reset()
+		header := NewWorkerPhaseDoneHeader(height, worker, phase)
+
+		if err := broker.WriteRequestHead(ctx, header); err != nil {
+			return err
+		}
 
 		init, add, done := util.NewFuncChain()
 		if err := init(2, 0); err != nil {
@@ -264,7 +263,7 @@ func newWorkerBrokerPhaseDoneFunc(
 		}
 
 		add(func() error {
-			return util.WriteLengthedSliceFunc(buf, uint64(len(mergedOps)),
+			return util.WriteLengthedSliceFunc(broker.Writer, uint64(len(mergedOps)),
 				func(i uint64) ([]byte, error) {
 					return util.Uint64ToBytes(mergedOps[i]), nil
 				},
@@ -272,24 +271,14 @@ func newWorkerBrokerPhaseDoneFunc(
 		})
 
 		add(func() error {
-			return util.WriteLengthedSliceFunc(buf, uint64(len(unmergedOps)),
+			return util.WriteLengthedSliceFunc(broker.Writer, uint64(len(unmergedOps)),
 				func(i uint64) ([]byte, error) {
 					return util.Uint64ToBytes(unmergedOps[i]), nil
 				},
 			)
 		})
 
-		header := NewWorkerPhaseDoneHeader(height, worker, phase)
-
-		if err := broker.WriteRequestHead(ctx, header); err != nil {
-			return err
-		}
-
 		if err := done(); err != nil {
-			return err
-		}
-
-		if _, err := io.Copy(broker.Writer, buf); err != nil {
 			return err
 		}
 
@@ -698,24 +687,21 @@ func readNewOperationsItems(
 
 func writeInsertOp(
 	enc encoder.Encoder,
+	w io.Writer,
 	opindex uint64,
 	fact util.Hash,
 	values []StateMergeValue,
 	owners map[string][]string,
-	f func(*bytes.Buffer) error,
 ) error {
-	buf := bytes.NewBuffer(nil)
-	defer buf.Reset()
-
 	init, add, done := util.NewFuncChain()
 	if err := init(4, 0); err != nil {
 		return err
 	}
 
-	add(func() error { return util.WriteLengthed(buf, util.Uint64ToBytes(opindex)) })
-	add(func() error { return util.WriteLengthed(buf, fact.Bytes()) })
+	add(func() error { return util.WriteLengthed(w, util.Uint64ToBytes(opindex)) })
+	add(func() error { return util.WriteLengthed(w, fact.Bytes()) })
 	add(func() error {
-		return util.WriteLengthedSliceFunc(buf, uint64(len(values)),
+		return util.WriteLengthedSliceFunc(w, uint64(len(values)),
 			func(index uint64) ([]byte, error) {
 				return enc.Marshal(values[index])
 			},
@@ -727,15 +713,11 @@ func writeInsertOp(
 		case err != nil:
 			return err
 		default:
-			return util.WriteLengthed(buf, i)
+			return util.WriteLengthed(w, i)
 		}
 	})
 
-	if err := done(); err != nil {
-		return err
-	}
-
-	return f(buf)
+	return done()
 }
 
 func readInsertOp(enc encoder.Encoder, r io.Reader) (
