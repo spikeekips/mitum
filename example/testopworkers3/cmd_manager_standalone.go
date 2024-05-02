@@ -620,9 +620,10 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 
 type baseCommand struct {
 	*logging.Logging `kong:"-"`
-	PProf            bool   `name:"pprof"`
-	Operations       uint64 `name:"ops" help:"number of operations" default:"${default_operations}"`
-	Concurrency      int64  `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
+	ConnInfo         quicstream.ConnInfo `arg:"" name:"conn info"`
+	PProf            bool                `name:"pprof"`
+	Operations       uint64              `name:"ops" help:"number of operations" default:"${default_operations}"`
+	Concurrency      int64               `name:"concurrency" help:"concurrency; default is number of operation <= ${max_concurrency}"`
 	local            base.LocalNode
 	networkID        base.NetworkID
 	c                int64
@@ -636,6 +637,10 @@ type baseCommand struct {
 
 func (cmd *baseCommand) prepare(pctx context.Context) error {
 	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &cmd.Logging); err != nil {
+		return err
+	}
+
+	if err := cmd.ConnInfo.IsValid(nil); err != nil {
 		return err
 	}
 
@@ -657,6 +662,7 @@ func (cmd *baseCommand) prepare(pctx context.Context) error {
 	}
 
 	cmd.Log().Debug().
+		Stringer("conn_info", cmd.ConnInfo).
 		Int64("concurrency", cmd.c).
 		Uint64("operations", cmd.Operations).
 		Bool("pprof", cmd.PProf).

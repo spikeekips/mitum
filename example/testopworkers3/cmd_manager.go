@@ -28,13 +28,12 @@ storage:
   base: ./data/manager
 network:
   bind: 0.0.0.0:%d
-  publish: localhost:%d
+  publish: %s
   tls_insecure: true
 `
 
 type CommandManager struct { //nolint:govet //...
 	baseCommandManager
-	Port           int      `arg:"" name:"port"`
 	Workers        []string `arg:"" name:"worker"`
 	FullOpOwners   bool     `name:"full-ops" help:"send entire operaions to each workers"`
 	PreProcess     bool     `name:"pre-process" help:"pre process operations"`
@@ -96,10 +95,12 @@ func (cmd *CommandManager) prepare(pctx context.Context) (context.Context, *ps.P
 		Interface("workers", cmd.workers).
 		Msg("flags")
 
+	port := cmd.ConnInfo.UDPAddr().Port
+
 	designString := fmt.Sprintf(
 		pManagerDesignString,
-		cmd.Port,
-		cmd.Port,
+		port,
+		cmd.ConnInfo,
 	)
 
 	cmd.Log().Info().Str("string", designString).Msg("design")

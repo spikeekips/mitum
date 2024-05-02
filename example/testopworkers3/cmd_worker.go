@@ -29,7 +29,7 @@ storage:
     base: ./data/worker/%s
 network:
   bind: 0.0.0.0:%d
-  publish: localhost:%d
+  publish: %s
   tls_insecure: true
 `
 
@@ -37,7 +37,6 @@ var errCommandWorkerDone = util.NewIDError("command worker done")
 
 type CommandWorker struct { //nolint:govet //...
 	baseCommand
-	Port      int `arg:"" name:"port"` // FIXME use full conn info
 	managerCI quicstream.ConnInfo
 	pws       util.LockedMap[base.Height, *ProcessWorker]
 	bdbs      map[base.Height]isaac.BlockWriteDatabase
@@ -65,32 +64,25 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 		return nil, nil, err
 	}
 
-	cmd.Log().Debug().
-		Int("port", cmd.Port).
-		Msg("flags")
-
-	if cmd.Port <= 1024 {
-		return nil, nil, errors.Errorf("invalid port, %d", cmd.Port)
-	}
-
 	var priv base.Privatekey
 
-	switch i, err := base.NewMPrivatekeyFromSeed(strings.Repeat(string(util.Int64ToBytes(int64(cmd.Port))), 33)); {
+	switch i, err := base.NewMPrivatekeyFromSeed(strings.Repeat(cmd.ConnInfo.String(), 33)); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		priv = i
 	}
 
-	address := base.NewStringAddress(fmt.Sprintf("w%02d", cmd.Port))
+	port := cmd.ConnInfo.UDPAddr().Port
+	address := base.NewStringAddress(fmt.Sprintf("%d", port))
 
 	designString := fmt.Sprintf(
 		pWorkerDesignString,
 		address,
 		priv,
 		address,
-		cmd.Port,
-		cmd.Port,
+		port,
+		cmd.ConnInfo,
 	)
 
 	cmd.Log().Info().Str("string", designString).Msg("design")
