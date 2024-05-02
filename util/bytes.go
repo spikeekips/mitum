@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxLengthBytes   = math.MaxInt16
+	maxLengthBytes   = math.MaxInt32 // FIXME set MaxInt16
 	maxLengthedBytes = math.MaxInt32
 )
 
@@ -315,7 +315,7 @@ func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
 	case err != nil:
 		return nil, nil, err
 	case i > maxLengthBytes:
-		return nil, nil, err
+		return nil, nil, errors.Errorf("huge size, %v", i)
 	default:
 		m = make([][]byte, i)
 

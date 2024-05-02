@@ -145,9 +145,9 @@ func (srv *Server) handleConnection(ctx context.Context, conn quic.EarlyConnecti
 
 			select {
 			case <-ctx.Done():
-				elapsed(l.Trace().Err(nctx.Err()), "stream done")
+				elapsed(l.Trace().Err(ctx.Err()), "stream done")
 			case <-stream.Context().Done():
-				elapsed(l.Trace().Err(conn.Context().Err()), "stream done")
+				elapsed(l.Trace().Err(stream.Context().Err()), "stream context done")
 			}
 		}()
 
