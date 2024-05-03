@@ -991,6 +991,10 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 }
 
 func (pw *ProcessWorker) broadcastPhaseDone(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
+	if pw.args.FullOps {
+		return pw.args.BroadcastPhaseDoneFunc(ctx, phase, nil, nil)
+	}
+
 	return pw.args.BroadcastPhaseDoneFunc(ctx, phase, mergedOps, unmergedOps)
 }
 
