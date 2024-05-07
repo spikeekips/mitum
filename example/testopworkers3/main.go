@@ -21,7 +21,7 @@ var (
 )
 
 var (
-	maxConcurrency    int64 = 1 << 14
+	maxConcurrency    int64 = 1 << 16
 	defaultOperations int64 = 10_0000
 )
 

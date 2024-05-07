@@ -242,7 +242,7 @@ func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamhead
 }
 
 func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicstreamheader.Handler[WorkerNewOperationsHeader], error) {
-	return newWorkerHandlerNewOperationsFunc(func(height base.Height) (
+	return newWorkerHandlerNewOperationsFunc(cmd.Log().Debug, func(height base.Height) (
 		workerNewOperationsFunc,
 		func() error,
 		func(error),

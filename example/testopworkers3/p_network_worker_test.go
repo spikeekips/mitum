@@ -16,6 +16,7 @@ import (
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -260,6 +261,7 @@ func (t *testHandlers) TestWorkerNewOperations() {
 		canceledch := make(chan error, 1)
 
 		handler, err := newWorkerHandlerNewOperationsFunc(
+			logging.TestNilLogging.Log().Debug,
 			func(height base.Height) (
 				workerNewOperationsFunc,
 				func() error,
@@ -325,6 +327,7 @@ func (t *testHandlers) TestWorkerNewOperations() {
 		canceledch := make(chan error, 2)
 
 		handler, err := newWorkerHandlerNewOperationsFunc(
+			logging.TestNilLogging.Log().Debug,
 			func(height base.Height) (
 				workerNewOperationsFunc,
 				func() error,

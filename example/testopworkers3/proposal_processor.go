@@ -132,7 +132,7 @@ func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof
 	}
 
 	go func() {
-		if err := pp.manager.Process(); err != nil {
+		if err := pp.manager.Process2(); err != nil {
 			pp.Log().Error().Err(err).Msg("process failed")
 		}
 	}()

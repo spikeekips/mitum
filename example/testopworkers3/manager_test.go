@@ -225,6 +225,178 @@ func TestSerialOpOwnersFunc(tt *testing.T) {
 	})
 }
 
+func TestRegionalOpOwnersFunc(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	t.Run("empty workers", func() {
+		_, err := newRegionalOpOwnersFunc(0, 2)
+		t.Error(err)
+		t.ErrorContains(err, "empty workers")
+	})
+
+	t.Run("zero share", func() {
+		_, err := newRegionalOpOwnersFunc(3, 0)
+		t.Error(err)
+		t.ErrorContains(err, "zero share")
+	})
+
+	t.Run("empty ops", func() {
+		f, err := newRegionalOpOwnersFunc(3, 1)
+		t.NoError(err)
+
+		_, err = f(nil)
+		t.Error(err)
+		t.ErrorContains(err, "empty ops")
+	})
+
+	newOps := func(n int) [][2]util.Hash {
+		ops := make([][2]util.Hash, n)
+
+		for i := 0; i < n; i++ {
+			h := valuehash.NewBytes([]byte(fmt.Sprintf("%d", i)))
+			ops[i] = [2]util.Hash{h, h}
+		}
+
+		return ops
+	}
+
+	t.Run("ops=4, workers=3, share=1", func() {
+		ops := newOps(4)
+
+		f, err := newRegionalOpOwnersFunc(3, 1)
+		t.NoError(err)
+
+		d, err := f(ops)
+		t.NoError(err)
+		t.Equal(3, len(d))
+
+		expected := make([][][3]interface{}, 3)
+		expected[0] = [][3]interface{}{
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+		}
+		expected[1] = [][3]interface{}{
+			{uint64(1), ops[1][0], ops[1][1]},
+		}
+		expected[2] = [][3]interface{}{
+			{uint64(2), ops[2][0], ops[2][1]},
+		}
+
+		t.Equal(expected, d)
+	})
+
+	t.Run("ops=7, workers=3, share=1", func() {
+		ops := newOps(7)
+
+		f, err := newRegionalOpOwnersFunc(3, 1)
+		t.NoError(err)
+		d, err := f(ops)
+		t.NoError(err)
+		t.Equal(3, len(d))
+
+		expected := make([][][3]interface{}, 3)
+		expected[0] = [][3]interface{}{
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(1), ops[1][0], ops[1][1]},
+			{uint64(6), ops[6][0], ops[6][1]},
+		}
+		expected[1] = [][3]interface{}{
+			{uint64(2), ops[2][0], ops[2][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+		}
+		expected[2] = [][3]interface{}{
+			{uint64(4), ops[4][0], ops[4][1]},
+			{uint64(5), ops[5][0], ops[5][1]},
+		}
+
+		t.Equal(expected, d)
+	})
+
+	t.Run("ops=4, workers=3, share=2", func() {
+		ops := newOps(4)
+
+		f, err := newRegionalOpOwnersFunc(3, 2)
+		t.NoError(err)
+
+		d, err := f(ops)
+		t.NoError(err)
+		t.Equal(3, len(d))
+
+		expected := make([][][3]interface{}, 3)
+		expected[0] = [][3]interface{}{
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+			{uint64(2), ops[2][0], ops[2][1]},
+		}
+		expected[1] = [][3]interface{}{
+			{uint64(1), ops[1][0], ops[1][1]},
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+		}
+		expected[2] = [][3]interface{}{
+			{uint64(2), ops[2][0], ops[2][1]},
+			{uint64(1), ops[1][0], ops[1][1]},
+		}
+
+		t.Equal(expected, d)
+	})
+
+	t.Run("ops=4, workers=3, share=3", func() {
+		ops := newOps(4)
+
+		f, err := newRegionalOpOwnersFunc(3, 3)
+		t.NoError(err)
+
+		d, err := f(ops)
+		t.NoError(err)
+		t.Equal(3, len(d))
+
+		expected := make([][][3]interface{}, 3)
+		expected[0] = [][3]interface{}{
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+			{uint64(1), ops[1][0], ops[1][1]},
+			{uint64(2), ops[2][0], ops[2][1]},
+		}
+		expected[1] = [][3]interface{}{
+			{uint64(1), ops[1][0], ops[1][1]},
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+			{uint64(2), ops[2][0], ops[2][1]},
+		}
+		expected[2] = [][3]interface{}{
+			{uint64(2), ops[2][0], ops[2][1]},
+			{uint64(0), ops[0][0], ops[0][1]},
+			{uint64(3), ops[3][0], ops[3][1]},
+			{uint64(1), ops[1][0], ops[1][1]},
+		}
+
+		t.Equal(expected, d)
+	})
+
+	t.Run("ops=2, workers=3, share=1", func() {
+		ops := newOps(2)
+
+		f, err := newRegionalOpOwnersFunc(3, 1)
+		t.NoError(err)
+
+		d, err := f(ops)
+		t.NoError(err)
+		t.Equal(2, len(d))
+
+		expected := make([][][3]interface{}, 2)
+		expected[0] = [][3]interface{}{
+			{uint64(0), ops[0][0], ops[0][1]},
+		}
+		expected[1] = [][3]interface{}{
+			{uint64(1), ops[1][0], ops[1][1]},
+		}
+
+		t.Equal(expected, d)
+	})
+}
+
 type testProcessManager struct {
 	baseTestOperationProcessor
 }
@@ -443,7 +615,7 @@ func (t *testProcessManager) TestCancel() {
 
 		cancel()
 
-		err := pm.Process()
+		err := pm.Process2()
 		t.ErrorIs(err, context.Canceled, "%+v", err)
 	})
 
@@ -453,7 +625,7 @@ func (t *testProcessManager) TestCancel() {
 
 		pm.Cancel()
 
-		err := pm.Process()
+		err := pm.Process2()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -504,7 +676,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process()
+			processerrch <- pm.Process2()
 		}()
 
 		<-startprocessch
@@ -547,7 +719,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process()
+			processerrch <- pm.Process2()
 		}()
 
 		doneerrch := make(chan error, 1)
@@ -599,7 +771,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process()
+			processerrch <- pm.Process2()
 		}()
 
 		doneerrch := make(chan error, 1)
@@ -662,7 +834,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process()
+			processerrch <- pm.Process2()
 		}()
 
 		<-time.After(time.Second)
@@ -725,7 +897,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process()
+			processerrch <- pm.Process2()
 		}()
 
 		<-time.After(time.Second)
@@ -780,9 +952,9 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		t.NoError(pm.ReadyWorkers())
 
-		err = pm.Process()
-		t.ErrorContains(err, "empty owners; failed")
-		t.ErrorContains(context.Cause(pm.ctx()), "empty owners; failed")
+		err = pm.Process2()
+		t.ErrorContains(err, "over share workers failed")
+		t.ErrorContains(context.Cause(pm.ctx()), "over share workers failed")
 	})
 
 	t.Run("over share failed", func() {
@@ -819,9 +991,9 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		t.NoError(pm.ReadyWorkers())
 
-		err = pm.Process()
-		t.ErrorContains(err, "empty owners; failed")
-		t.ErrorContains(context.Cause(pm.ctx()), "empty owners; failed")
+		err = pm.Process2()
+		t.ErrorContains(err, "over share workers failed")
+		t.ErrorContains(context.Cause(pm.ctx()), "over share workers failed")
 	})
 }
 
@@ -905,7 +1077,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	t.NoError(pm.ReadyWorkers())
 
 	go func() {
-		_ = pm.Process()
+		_ = pm.Process2()
 	}()
 
 	for i := range donech {
@@ -913,9 +1085,9 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	}
 
 	expected := map[string][]uint64{
-		"w0": {0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30},
-		"w1": {1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31},
-		"w3": {2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32},
+		"w0": {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		"w1": {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
+		"w3": {22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 	}
 
 	t.Equal(expected, collectedWorkers.Map())
@@ -975,7 +1147,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	t.NoError(pm.ReadyWorkers())
 
 	go func() {
-		_ = pm.Process()
+		_ = pm.Process2()
 	}()
 
 	manifest, err := pm.ManifestDone()
@@ -1248,7 +1420,7 @@ func (t *testProcessManager) testNWorkers(
 	t.NoError(pm.ReadyWorkers())
 
 	go func() {
-		_ = pm.Process()
+		_ = pm.Process2()
 	}()
 
 	manifest, err = pm.ManifestDone()

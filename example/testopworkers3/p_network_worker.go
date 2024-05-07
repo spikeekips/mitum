@@ -9,10 +9,12 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -106,6 +108,7 @@ func newWorkerBrokerNewOperationsFunc(
 }
 
 func newWorkerHandlerNewOperationsFunc(
+	logf func() *zerolog.Event,
 	getFuncs func(base.Height) (
 		workerNewOperationsFunc,
 		func() error,
@@ -130,6 +133,8 @@ func newWorkerHandlerNewOperationsFunc(
 			done = j
 			cancel = k
 		}
+
+		defer logging.TimeElapsedMsg(logf, "handler: new operations")()
 
 		var ops uint64
 

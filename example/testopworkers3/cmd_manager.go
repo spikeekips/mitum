@@ -543,11 +543,6 @@ func (cmd *CommandManager) newManagerFunc(
 		args.SaveStatesTreeNodeFuncs = saveStatesTreeFuncs
 		args.SaveOperationsTreeNodeFuncs = saveOperationsTreeNodeFuncs
 
-		args.NewOpOwnersFunc = serialOpOwnersFunc // fullOpOwnersFunc,
-		if cmd.FullOpOwners {
-			args.NewOpOwnersFunc = fullOpOwnersFunc
-		}
-
 		switch i, err := NewProcessManager(
 			ctx,
 			args,

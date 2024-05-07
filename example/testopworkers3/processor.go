@@ -534,6 +534,8 @@ func (pw *ProcessWorker) NewOperations() (
 
 	pw.Log().Debug().Msg("start processing")
 
+	elapsed := logging.TimeElapsedMsg(pw.Log().Debug, "process")
+
 	switch p, d, c, err := opsr.Process(); {
 	case err != nil:
 		pw.ctxCancel(err)
@@ -551,6 +553,8 @@ func (pw *ProcessWorker) NewOperations() (
 
 						pw.ctxCancel(err)
 					}
+
+					elapsed()
 
 					if err := pw.wait(); err != nil {
 						pw.Log().Error().Err(err).Msg("pw.wait()")
