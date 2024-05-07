@@ -991,9 +991,16 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 }
 
 func (pw *ProcessWorker) broadcastPhaseDone(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
-	if pw.args.FullOps {
-		return pw.args.BroadcastPhaseDoneFunc(ctx, phase, nil, nil)
-	}
+	//if pw.args.FullOps {
+	//	return pw.args.BroadcastPhaseDoneFunc(ctx, phase, nil, nil)
+	//}
+	defer logging.TimeElapsed()(
+		pw.Log().Info().
+			Int("phase", phase).
+			Int("merged_ops", len(mergedOps)).
+			Int("unmerged_ops", len(unmergedOps)),
+		"BroadcastPhaseDone",
+	)
 
 	return pw.args.BroadcastPhaseDoneFunc(ctx, phase, mergedOps, unmergedOps)
 }
@@ -1124,6 +1131,10 @@ func (pw *ProcessWorker) setStateMergeValueOwners(stateKey string, owners []stri
 }
 
 func (pw *ProcessWorker) filterOps(ops []uint64) ([]uint64, error) {
+	if len(ops) < 1 {
+		return nil, nil
+	}
+
 	add, done := util.CompactAppendSlice[uint64](len(ops))
 
 	if err := util.TraverseSliceV1(ops, func(_ int, opindex uint64) (bool, error) {
