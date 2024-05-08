@@ -828,6 +828,8 @@ func (cmd *baseCommand) request(
 	brokerf quicstreamheader.BrokerFunc,
 	ci quicstream.ConnInfo,
 ) error {
+	cmd.Log().Debug().Str("request", name).Msg("request")
+
 	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
 
 	if err := requestHandlerFunc(ctx, openStream, brokerf, ci); err != nil {

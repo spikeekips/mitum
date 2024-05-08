@@ -608,6 +608,7 @@ func (cmd *CommandWorker) newWorker(
 		)
 	}
 	args.FullOps = margs.FullOps
+	args.IsPreProcessed = margs.IsPreProcessed
 	args.GetStateMergeValuesFunc = func(_ uint64, op, _ util.Hash) ([]StateMergeValue, bool, error) {
 		i, found := cmd.stvsPool.Get(op.String())
 

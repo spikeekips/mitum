@@ -36,12 +36,13 @@ type (
 )
 
 type processWorkerReadyArgs struct {
-	Manager     string
-	Height      base.Height
-	Workers     []string
-	NStateShare uint8
-	NOps        uint64
-	FullOps     bool
+	Manager        string
+	Height         base.Height
+	Workers        []string
+	NStateShare    uint8
+	NOps           uint64
+	FullOps        bool
+	IsPreProcessed bool
 }
 
 type ProcessManagerArgs struct {
@@ -69,6 +70,7 @@ type ProcessManagerArgs struct {
 	NewManifestFunc             func(context.Context, base.Manifest) error
 	SaveStatesTreeNodeFuncs     writerSaveTreeNodeFuncs
 	SaveOperationsTreeNodeFuncs writerSaveTreeNodeFuncs
+	IsPreProcessed              bool
 }
 
 func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
@@ -562,11 +564,12 @@ func (pm *ProcessManager) readyWorkers() error {
 	}
 
 	args := processWorkerReadyArgs{
-		Manager:     pm.args.Local,
-		Height:      pm.proposal.Point().Height(),
-		Workers:     pm.workers,
-		NStateShare: pm.args.NStateShare,
-		NOps:        uint64(len(pm.ops)),
+		Manager:        pm.args.Local,
+		Height:         pm.proposal.Point().Height(),
+		Workers:        pm.workers,
+		NStateShare:    pm.args.NStateShare,
+		NOps:           uint64(len(pm.ops)),
+		IsPreProcessed: pm.args.IsPreProcessed,
 	}
 
 	if err := util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
