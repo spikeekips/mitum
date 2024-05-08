@@ -145,7 +145,7 @@ func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Contex
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerDoneHeaderHint), cmd.handlerDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerReadyHeaderHint), cmd.handlerReadyFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerNewOperationsHeaderHint), cmd.handlerNewOperationsFunc, nil)
-	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertOpHeaderHint), cmd.handlerInsertOpFunc, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertValuesHeaderHint), cmd.handlerInsertValuesFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), cmd.handlerInsertValuesDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerPhaseDoneHeaderHint), cmd.handlerPhaseDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSyncStatesHeaderHint), cmd.handlerSyncStates, nil)
@@ -257,8 +257,8 @@ func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicst
 	})
 }
 
-func (cmd *CommandWorker) handlerInsertOpFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertOpHeader], error) {
-	return newWorkerHandlerInsertOpFunc(func(height base.Height) (
+func (cmd *CommandWorker) handlerInsertValuesFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertValuesHeader], error) {
+	return newWorkerHandlerInsertValuesFunc(func(height base.Height) (
 		processWorkerInsertValues,
 		error,
 	) {
@@ -438,12 +438,12 @@ func (cmd *CommandWorker) newWorker(
 		args.StateOwners = stateOwnersf
 	}
 
-	args.BroadcastInsertOpFunc = func(ctx context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+	args.BroadcastInsertValuesFunc = func(ctx context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 		return cmd.requestWorker(
 			ctx,
-			"BroadcastInsertOp",
+			"BroadcastInsertValues",
 			worker,
-			newWorkerBrokerInsertOpFunc(
+			newWorkerBrokerInsertValuesFunc(
 				height,
 				cmd.localCI.String(),
 				cmd.encs.Default(),

@@ -1147,7 +1147,7 @@ func (t *testProcessWorker) Test3Workers() {
 
 				return nil
 			}
-			pw.args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+			pw.args.BroadcastInsertValuesFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 				addK, doneK := util.SortCompactAppendSlice[string](len(values), cmp.Less[string])
 				util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
 					addK(v.Key())

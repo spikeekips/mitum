@@ -234,14 +234,14 @@ type (
 )
 
 type ProcessWorkerArgs struct {
-	NetworkID             base.NetworkID
-	NOps                  uint64
-	GetOperationFunc      func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
-	GetStateFunc          func(_ context.Context, key string) (base.State, bool, error)
-	NewJobWorker          func(context.Context) (util.JobWorker, error)
-	IsEnoughWorkers       func(n uint64) bool
-	StateOwners           func(_ context.Context, stateKey string) (owners []string, _ error)
-	BroadcastInsertOpFunc func(
+	NetworkID                 base.NetworkID
+	NOps                      uint64
+	GetOperationFunc          func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
+	GetStateFunc              func(_ context.Context, key string) (base.State, bool, error)
+	NewJobWorker              func(context.Context) (util.JobWorker, error)
+	IsEnoughWorkers           func(n uint64) bool
+	StateOwners               func(_ context.Context, stateKey string) (owners []string, _ error)
+	BroadcastInsertValuesFunc func(
 		_ context.Context,
 		worker string,
 		opindex uint64,
@@ -280,7 +280,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		StateOwners: func(context.Context, string) ([]string, error) {
 			return nil, util.ErrNotImplemented.Errorf("StateOwners")
 		},
-		BroadcastInsertOpFunc: func(context.Context, string, uint64, util.Hash, []StateMergeValue, map[string][]string) error {
+		BroadcastInsertValuesFunc: func(context.Context, string, uint64, util.Hash, []StateMergeValue, map[string][]string) error {
 			return nil
 		},
 		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
@@ -590,7 +590,7 @@ func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.H
 		return err
 	}
 
-	if err := pw.mergerInsertOp(opindex, values); err != nil {
+	if err := pw.mergerInsertValues(opindex, values); err != nil {
 		pw.ctxCancel(err)
 
 		return err
@@ -747,12 +747,12 @@ func (pw *ProcessWorker) newMerger() (*StatesMergerWorker, error) {
 	}
 }
 
-func (pw *ProcessWorker) mergerInsertOp(opindex uint64, values []StateMergeValue) error {
+func (pw *ProcessWorker) mergerInsertValues(opindex uint64, values []StateMergeValue) error {
 	switch merger, err := pw.merger(); {
 	case err != nil:
 		return err
 	default:
-		return merger.InsertOp(opindex, values)
+		return merger.InsertValues(opindex, values)
 	}
 }
 
@@ -977,7 +977,7 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 					_ = pw.ophs.SetValue(opindex, fact)
 				}
 
-				return pw.mergerInsertOp(opindex, filtered)
+				return pw.mergerInsertValues(opindex, filtered)
 			default:
 				opOwners := map[string][]string{}
 
@@ -987,7 +987,7 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 					return true, nil
 				})
 
-				return pw.args.BroadcastInsertOpFunc(pw.ctx(), owner, opindex, fact, filtered, opOwners)
+				return pw.args.BroadcastInsertValuesFunc(pw.ctx(), owner, opindex, fact, filtered, opOwners)
 			}
 		}); err != nil {
 			return err

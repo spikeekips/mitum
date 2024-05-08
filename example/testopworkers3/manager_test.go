@@ -1209,7 +1209,7 @@ func (t *testProcessManager) newProcessWorker(
 			return true, pw.WorkerInsertValuesDone(local)
 		})
 	}
-	pw.args.BroadcastInsertOpFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+	pw.args.BroadcastInsertValuesFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 		return other(worker).InsertValues(local, opindex, fact, values, owners)
 	}
 

@@ -173,7 +173,7 @@ func newWorkerHandlerNewOperationsFunc(
 	}, nil
 }
 
-func newWorkerBrokerInsertOpFunc(
+func newWorkerBrokerInsertValuesFunc(
 	height base.Height,
 	worker string,
 	enc encoder.Encoder,
@@ -183,13 +183,13 @@ func newWorkerBrokerInsertOpFunc(
 	owners map[string][]string,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		header := NewWorkerInsertOpHeader(height, worker)
+		header := NewWorkerInsertValuesHeader(height, worker)
 
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
 		}
 
-		if err := writeInsertOp(enc, broker.Writer, opindex, fact, values, owners); err != nil {
+		if err := writeInsertValues(enc, broker.Writer, opindex, fact, values, owners); err != nil {
 			return err
 		}
 
@@ -202,11 +202,11 @@ func newWorkerBrokerInsertOpFunc(
 	}
 }
 
-func newWorkerHandlerInsertOpFunc(
+func newWorkerHandlerInsertValuesFunc(
 	f func(base.Height) (processWorkerInsertValues, error),
-) (quicstreamheader.Handler[WorkerInsertOpHeader], error) {
+) (quicstreamheader.Handler[WorkerInsertValuesHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, header WorkerInsertOpHeader,
+		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesHeader,
 	) (context.Context, error) {
 		var insert processWorkerInsertValues
 
@@ -217,7 +217,7 @@ func newWorkerHandlerInsertOpFunc(
 			insert = i
 		}
 
-		switch opindex, fact, values, owners, err := readInsertOp(broker.Encoder, broker.Reader); {
+		switch opindex, fact, values, owners, err := readInsertValues(broker.Encoder, broker.Reader); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -690,7 +690,7 @@ func readNewOperationsItems(
 	})
 }
 
-func writeInsertOp(
+func writeInsertValues(
 	enc encoder.Encoder,
 	w io.Writer,
 	opindex uint64,
@@ -725,7 +725,7 @@ func writeInsertOp(
 	return done()
 }
 
-func readInsertOp(enc encoder.Encoder, r io.Reader) (
+func readInsertValues(enc encoder.Encoder, r io.Reader) (
 	opindex uint64,
 	fact util.Hash,
 	values []StateMergeValue,

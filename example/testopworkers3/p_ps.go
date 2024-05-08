@@ -23,7 +23,7 @@ var hinters = []encoder.DecodeDetail{
 	{Hint: WorkerDoneHeaderHint, Instance: WorkerDoneHeader{}},
 	{Hint: WorkerReadyHeaderHint, Instance: WorkerReadyHeader{}},
 	{Hint: WorkerNewOperationsHeaderHint, Instance: WorkerNewOperationsHeader{}},
-	{Hint: WorkerInsertOpHeaderHint, Instance: WorkerInsertOpHeader{}},
+	{Hint: WorkerInsertValuesHeaderHint, Instance: WorkerInsertValuesHeader{}},
 	{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}},
 	{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}},
 	{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}},

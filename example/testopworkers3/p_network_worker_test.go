@@ -70,7 +70,7 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerDoneHeaderHint, Instance: WorkerDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerReadyHeaderHint, Instance: WorkerReadyHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerNewOperationsHeaderHint, Instance: WorkerNewOperationsHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertOpHeaderHint, Instance: WorkerInsertOpHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertValuesHeaderHint, Instance: WorkerInsertValuesHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}}))
@@ -397,7 +397,7 @@ func (t *testHandlers) TestWorkerInsertOp() {
 		add, done, err := util.CompactAppendSliceV1[[5]interface{}](uint64(len(values)), 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerInsertOpFunc(func(base.Height) (processWorkerInsertValues, error) {
+		handler, err := newWorkerHandlerInsertValuesFunc(func(base.Height) (processWorkerInsertValues, error) {
 			return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 				add([5]interface{}{worker, opindex, fact, values, owners})
 
@@ -414,9 +414,9 @@ func (t *testHandlers) TestWorkerInsertOp() {
 			vs := values[i]
 			os := owners[i]
 
-			t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertOpHeaderHint), handler,
+			t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesHeaderHint), handler,
 				t.ci,
-				newWorkerBrokerInsertOpFunc(
+				newWorkerBrokerInsertValuesFunc(
 					33,
 					"w3",
 					t.Encs.Default(),

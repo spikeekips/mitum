@@ -117,7 +117,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 				}
 
 				if err := ew.NewJob(func(context.Context, uint64) error {
-					return dw.InsertOp(i, randomMergeValues())
+					return dw.InsertValues(i, randomMergeValues())
 				}); err != nil {
 					break
 				}
@@ -321,9 +321,9 @@ func (t *testStatesMergerWorker) TestValuesPool() {
 	t.Run("InsertOp: known operation", func() {
 		vs := t.randomMergeValues(1)
 
-		t.NoError(dw.InsertOp(1, vs))
+		t.NoError(dw.InsertValues(1, vs))
 
-		err := dw.InsertOp(1, vs)
+		err := dw.InsertValues(1, vs)
 		t.Error(err)
 		t.ErrorIs(err, util.ErrFound)
 	})
@@ -335,7 +335,7 @@ func (t *testStatesMergerWorker) TestInsertOp() {
 		defer dw.Cancel()
 
 		vs := t.randomMergeValues(1)
-		t.NoError(dw.InsertOp(1, vs))
+		t.NoError(dw.InsertValues(1, vs))
 
 		t.Equal(1, dw.psms.Len())
 	})
@@ -345,9 +345,9 @@ func (t *testStatesMergerWorker) TestInsertOp() {
 		defer dw.Cancel()
 
 		vs := t.randomMergeValues(1)
-		t.NoError(dw.InsertOp(1, vs))
+		t.NoError(dw.InsertValues(1, vs))
 
-		err := dw.InsertOp(1, nil)
+		err := dw.InsertValues(1, nil)
 		t.ErrorIs(err, util.ErrFound)
 
 		t.Equal(1, dw.psms.Len())
@@ -364,7 +364,7 @@ func (t *testStatesMergerWorker) TestInsertOp() {
 		t.NoError(dw.InsertDone())
 
 		vs := t.randomMergeValues(1)
-		err := dw.InsertOp(2, vs)
+		err := dw.InsertValues(2, vs)
 		t.ErrorIs(err, errStatesMergerWorkerAlreadyPhaseDone)
 	})
 
@@ -377,11 +377,11 @@ func (t *testStatesMergerWorker) TestInsertOp() {
 		}
 
 		vs := t.randomMergeValues(1)
-		t.NoError(dw.InsertOp(1, vs))
+		t.NoError(dw.InsertValues(1, vs))
 		t.NoError(dw.InsertDone())
 
 		vs = t.randomMergeValues(1)
-		err := dw.InsertOp(2, vs)
+		err := dw.InsertValues(2, vs)
 		t.ErrorIs(err, errStatesMergerWorkerAlreadyPhaseDone)
 	})
 }
@@ -396,7 +396,7 @@ func (t *testStatesMergerWorker) TestInsertDone() {
 
 	t.Run("ok", func() {
 		vs := t.randomMergeValues(1)
-		t.NoError(dw.InsertOp(1, vs))
+		t.NoError(dw.InsertValues(1, vs))
 		t.NoError(dw.InsertDone())
 	})
 
@@ -596,13 +596,13 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			return nil
 		}
 
-		t.NoError(dw.InsertOp(1, vs0))
+		t.NoError(dw.InsertValues(1, vs0))
 		t.NoError(dw.InsertDone())
 
-		t.NoError(dw.InsertOp(2, vs1))
+		t.NoError(dw.InsertValues(2, vs1))
 		t.NoError(dw.WorkerInsertDone("w0"))
 
-		t.NoError(dw.InsertOp(3, vs2))
+		t.NoError(dw.InsertValues(3, vs2))
 		t.NoError(dw.WorkerInsertDone("w1"))
 
 		t.NoError(dw.Done())
@@ -687,13 +687,13 @@ func (t *testStatesMergerWorker) TestPhaseDone() {
 			return nil
 		}
 
-		t.NoError(dw.InsertOp(1, vs0))
+		t.NoError(dw.InsertValues(1, vs0))
 		t.NoError(dw.InsertDone())
 
-		t.NoError(dw.InsertOp(2, vs1))
+		t.NoError(dw.InsertValues(2, vs1))
 		t.NoError(dw.WorkerInsertDone("w0"))
 
-		t.NoError(dw.InsertOp(3, vs2))
+		t.NoError(dw.InsertValues(3, vs2))
 		t.NoError(dw.WorkerInsertDone("w1"))
 
 		t.NoError(dw.Done())
@@ -847,7 +847,7 @@ func (t *testStatesMergerWorker) testAllUnmergeNWorkers(workers, keys int) {
 
 	for i := range vss {
 		for worker := range dws {
-			t.NoError(dws[worker].InsertOp(uint64(i), []StateMergeValue{vss[i]}))
+			t.NoError(dws[worker].InsertValues(uint64(i), []StateMergeValue{vss[i]}))
 		}
 	}
 
@@ -1232,7 +1232,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 				if err := insertew.NewJob(func(context.Context, uint64) error {
 					t.T().Logf("\tinsert op: worker=%q opindex=%d values=%v", worker, opindex, doneKeys())
 
-					return dws[worker].InsertOp(opindex, filtered)
+					return dws[worker].InsertValues(opindex, filtered)
 				}); err != nil {
 					panic(err)
 				}

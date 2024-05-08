@@ -154,7 +154,7 @@ func NewStatesMergerWorker(
 	return dw, nil
 }
 
-func (dw *StatesMergerWorker) InsertOp(opindex uint64, values []StateMergeValue) error {
+func (dw *StatesMergerWorker) InsertValues(opindex uint64, values []StateMergeValue) error {
 	switch _, created, err := dw.valuespool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
 		if found {
 			return nil, util.ErrLockedSetIgnore
