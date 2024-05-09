@@ -542,7 +542,6 @@ func (cmd *CommandManager) newManagerFunc(
 		}
 		args.SaveStatesTreeNodeFuncs = saveStatesTreeFuncs
 		args.SaveOperationsTreeNodeFuncs = saveOperationsTreeNodeFuncs
-		args.IsPreProcessed = cmd.PreProcess
 
 		switch i, err := NewProcessManager(
 			ctx,

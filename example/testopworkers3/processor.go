@@ -265,7 +265,6 @@ type ProcessWorkerArgs struct {
 	FullOps                 bool
 	GetStateMergeValuesFunc func(opindex uint64, op, fact util.Hash) ([]StateMergeValue, bool, error)
 	MapSize                 uint64
-	IsPreProcessed          bool
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
@@ -963,10 +962,6 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 		owner := owner
 		filtered := owners[owner]
 		if len(filtered) < 1 {
-			continue
-		}
-
-		if owner != pw.local && pw.args.IsPreProcessed {
 			continue
 		}
 

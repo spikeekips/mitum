@@ -168,19 +168,13 @@ func (dw *StatesMergerWorker) InsertValues(opindex uint64, values []StateMergeVa
 		return util.ErrFound.Errorf("known opindex, %d", opindex)
 	}
 
-	return dw.phaseStatus.Get(-1, func(status uint8, found bool) error {
-		if status > 1 {
-			return errStatesMergerWorkerAlreadyPhaseDone.Errorf("insert")
-		}
+	switch err := dw.mergeOps(localWorker, 0, []uint64{opindex}, nil); {
+	case errors.Is(err, util.ErrJobWorkerDone): // NOTE ignore error
+	case err != nil:
+		return err
+	}
 
-		if err := dw.mergeOps(localWorker, 0, []uint64{opindex}, nil); err != nil {
-			dw.ctxcancel(err)
-
-			return err
-		}
-
-		return nil
-	})
+	return nil
 }
 
 func (dw *StatesMergerWorker) InsertDone() error {
