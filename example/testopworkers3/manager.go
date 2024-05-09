@@ -311,8 +311,8 @@ func (pm *ProcessManager) StateOwners(stateKey string) (owners []string, _ error
 	return owners, nil
 }
 
-func (pm *ProcessManager) Process2() error {
-	if err := pm.process2(); err != nil {
+func (pm *ProcessManager) Process() error {
+	if err := pm.process(); err != nil {
 		pm.cancel(err)
 
 		return err
@@ -496,7 +496,7 @@ func (pm *ProcessManager) cancel(err error) {
 	pm.Cancel()
 }
 
-func (pm *ProcessManager) process2() error {
+func (pm *ProcessManager) process() error {
 	defer logging.TimeElapsedMsg(pm.Log().Debug, "process")()
 
 	go func() {
@@ -517,7 +517,7 @@ func (pm *ProcessManager) process2() error {
 		pm.mergeDoneCtxCancel(errProcessManagerWorkersMergeDone)
 		pm.workersStoreDoneCtxCancel(errProcessManagerWorkersStoreDone)
 	default:
-		if err := pm.newNonEmptyNewOperationFunc2(); err != nil {
+		if err := pm.newNonEmptyNewOperationFunc(); err != nil {
 			pm.ctxCancel(err)
 
 			return err
@@ -725,102 +725,6 @@ func (pm *ProcessManager) workerStoreDone(worker string, chunks map[base.BlockIt
 }
 
 func (pm *ProcessManager) newOperationFunc(
-	newJob func(util.ContextWorkerCallback) error,
-	errf func(worker string, _ error),
-	f func(func(string) (workerNewOperationsFunc, error)) error,
-) error {
-	chs := map[string]chan [3]interface{}{}
-
-	defer func() {
-		for i := range chs {
-			close(chs[i])
-		}
-
-		clear(chs)
-	}()
-
-	newWorker := func(worker string) (workerNewOperationsFunc, error) {
-		l := pm.Log().With().Str("worker", worker).Logger()
-
-		gerr := util.EmptyLocked[error]()
-		var ch chan [3]interface{}
-
-		switch i, found := chs[worker]; {
-		case found:
-			ch = i
-		default:
-			ch = make(chan [3]interface{}, pm.args.MapSize)
-			chs[worker] = ch
-
-			var newop workerNewOperationsFunc
-			var done func() error
-			cancel := func(error) {}
-
-			switch i, j, k, err := pm.args.WorkerNewOperations(pm.ctx(), worker); {
-			case err != nil:
-				_ = gerr.SetValue(err)
-
-				errf(worker, err)
-			default:
-				newop = i
-				done = j
-				cancel = k
-			}
-
-			if err := newJob(func(_ context.Context, i uint64) error {
-				defer logging.TimeElapsedMsg(l.Debug, "worker new operations")()
-
-				for i := range ch {
-					if err, _ := gerr.Value(); err != nil {
-						cancel(err)
-
-						continue
-					}
-
-					opindex := i[0].(uint64)
-					op := i[1].(util.Hash)
-					fact := i[2].(util.Hash)
-
-					if err := newop(opindex, op, fact); err != nil {
-						_ = gerr.SetValue(err)
-						errf(worker, err)
-					}
-				}
-
-				if err, _ := gerr.Value(); err != nil {
-					errf(worker, err)
-					cancel(err)
-
-					return nil
-				}
-
-				if err := done(); err != nil {
-					_ = gerr.SetValue(err)
-					errf(worker, err)
-					cancel(err)
-				}
-
-				return nil
-			}); err != nil {
-				return nil, err
-			}
-		}
-
-		return func(opindex uint64, op, fact util.Hash) error {
-			if err, _ := gerr.Value(); err != nil {
-				return err
-			}
-
-			ch <- [3]interface{}{opindex, op, fact}
-
-			return nil
-		}, nil
-	}
-
-	return f(newWorker)
-}
-
-func (pm *ProcessManager) newOperationFunc2(
 	worker string,
 	ops [][3]interface{},
 ) error {
@@ -862,7 +766,7 @@ func (pm *ProcessManager) newOperationFunc2(
 	return nil
 }
 
-func (pm *ProcessManager) newNonEmptyNewOperationFunc2() error {
+func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 	defer logging.TimeElapsedMsg(pm.Log().Debug, "new operations")()
 
 	var ws [][][3]interface{}
@@ -890,7 +794,7 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc2() error {
 		wops := ws[i]
 
 		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
-			if err := pm.newOperationFunc2(owner, wops); err != nil {
+			if err := pm.newOperationFunc(owner, wops); err != nil {
 				if pm.addFailedWorker(owner, err) {
 					if ferr := pm.isWorkersFailed(); ferr != nil {
 						return ferr

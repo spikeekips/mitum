@@ -177,10 +177,7 @@ func newWorkerBrokerInsertValuesFunc(
 	height base.Height,
 	worker string,
 	enc encoder.Encoder,
-	opindex uint64,
-	fact util.Hash,
-	values []StateMergeValue,
-	owners map[string][]string,
+	f func(func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error) error,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
 		header := NewWorkerInsertValuesHeader(height, worker)
@@ -189,7 +186,25 @@ func newWorkerBrokerInsertValuesFunc(
 			return err
 		}
 
-		if err := writeInsertValues(enc, broker.Writer, opindex, fact, values, owners); err != nil {
+		if err := writeStream(
+			broker.Writer,
+			func(fb func([]byte) error) error {
+				return f(func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+					buf := bytes.NewBuffer(nil)
+					defer buf.Reset()
+
+					if err := writeInsertValues(enc, buf, opindex, fact, values, owners); err != nil {
+						return err
+					}
+
+					return fb(buf.Bytes())
+				})
+			},
+		); err != nil {
+			return err
+		}
+
+		if err := broker.Close(); err != nil {
 			return err
 		}
 
@@ -203,49 +218,40 @@ func newWorkerBrokerInsertValuesFunc(
 }
 
 func newWorkerHandlerInsertValuesFunc(
-	f func(base.Height) (processWorkerInsertValues, error),
+	enc encoder.Encoder,
+	f func(_ base.Height, worker string) (processWorkerInsertValues2, func() error, error),
 ) (quicstreamheader.Handler[WorkerInsertValuesHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesHeader,
 	) (context.Context, error) {
-		var insert processWorkerInsertValues
+		var insert processWorkerInsertValues2
+		var done func() error
 
-		switch i, err := f(header.Height); {
+		switch i, d, err := f(header.Height, header.Worker); {
 		case err != nil:
 			return ctx, err
 		default:
 			insert = i
+			done = d
 		}
 
-		switch opindex, fact, values, owners, err := readInsertValues(broker.Encoder, broker.Reader); {
-		case err != nil:
+		if err := readStream(broker.Reader, func(b []byte) error {
+			buf := bytes.NewBuffer(b)
+			defer buf.Reset()
+
+			switch opindex, fact, values, owners, err := readInsertValues(enc, buf); {
+			case err != nil:
+				return err
+			default:
+				return insert(opindex, fact, values, owners)
+			}
+		}); err != nil {
 			return ctx, err
-		default:
-			err = insert(header.Worker, opindex, fact, values, owners)
-
-			return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 		}
-	}, nil
-}
 
-func newWorkerBrokerInsertValuesDoneFunc(height base.Height, worker string) quicstreamheader.BrokerFunc {
-	return newSimpleBrokerFunc(NewWorkerInsertValuesDoneHeader(height, worker))
-}
+		err := done()
 
-func newWorkerHandlerInsertValuesDoneFunc(
-	f func(base.Height) (func(worker string) error, error),
-) (quicstreamheader.Handler[WorkerInsertValuesDoneHeader], error) {
-	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesDoneHeader,
-	) (context.Context, error) {
-		switch i, err := f(header.Height); {
-		case err != nil:
-			return ctx, err
-		default:
-			err = i(header.Worker)
-
-			return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
-		}
+		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}, nil
 }
 

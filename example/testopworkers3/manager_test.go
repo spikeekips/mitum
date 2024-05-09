@@ -615,7 +615,7 @@ func (t *testProcessManager) TestCancel() {
 
 		cancel()
 
-		err := pm.Process2()
+		err := pm.Process()
 		t.ErrorIs(err, context.Canceled, "%+v", err)
 	})
 
@@ -625,7 +625,7 @@ func (t *testProcessManager) TestCancel() {
 
 		pm.Cancel()
 
-		err := pm.Process2()
+		err := pm.Process()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -676,7 +676,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process2()
+			processerrch <- pm.Process()
 		}()
 
 		<-startprocessch
@@ -719,7 +719,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process2()
+			processerrch <- pm.Process()
 		}()
 
 		doneerrch := make(chan error, 1)
@@ -771,7 +771,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process2()
+			processerrch <- pm.Process()
 		}()
 
 		doneerrch := make(chan error, 1)
@@ -834,7 +834,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process2()
+			processerrch <- pm.Process()
 		}()
 
 		<-time.After(time.Second)
@@ -897,7 +897,7 @@ func (t *testProcessManager) TestCancel() {
 
 		processerrch := make(chan error, 1)
 		go func() {
-			processerrch <- pm.Process2()
+			processerrch <- pm.Process()
 		}()
 
 		<-time.After(time.Second)
@@ -952,7 +952,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		t.NoError(pm.ReadyWorkers())
 
-		err = pm.Process2()
+		err = pm.Process()
 		t.ErrorContains(err, "over share workers failed")
 		t.ErrorContains(context.Cause(pm.ctx()), "over share workers failed")
 	})
@@ -991,7 +991,7 @@ func (t *testProcessManager) TestWorkerNewOperationsFailed() {
 
 		t.NoError(pm.ReadyWorkers())
 
-		err = pm.Process2()
+		err = pm.Process()
 		t.ErrorContains(err, "over share workers failed")
 		t.ErrorContains(context.Cause(pm.ctx()), "over share workers failed")
 	})
@@ -1077,7 +1077,7 @@ func (t *testProcessManager) TestWorkerNewOperations() {
 	t.NoError(pm.ReadyWorkers())
 
 	go func() {
-		_ = pm.Process2()
+		_ = pm.Process()
 	}()
 
 	for i := range donech {
@@ -1147,7 +1147,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 	t.NoError(pm.ReadyWorkers())
 
 	go func() {
-		_ = pm.Process2()
+		_ = pm.Process()
 	}()
 
 	manifest, err := pm.ManifestDone()
@@ -1174,6 +1174,7 @@ func (t *testProcessManager) TestWorkerNewOperationsWithEmptyOps() {
 func (t *testProcessManager) newProcessWorker(
 	ctx context.Context,
 	local string,
+	workers []string,
 	args processWorkerReadyArgs,
 	other func(string) *ProcessWorker,
 	others func() []*ProcessWorker,
@@ -1192,10 +1193,8 @@ func (t *testProcessManager) newProcessWorker(
 	),
 ) (*ProcessWorker, error) {
 	pwargs := NewProcessWorkerArgs(t.networkID)
+	pwargs.Workers = workers
 	pw := NewProcessWorker(ctx, pwargs, local, args.Height)
-	if err := pw.Ready(); err != nil {
-		return nil, err
-	}
 
 	pw.args.NOps = args.NOps
 	pw.args.GetOperationFunc = getOperationFunc
@@ -1203,14 +1202,6 @@ func (t *testProcessManager) newProcessWorker(
 	pw.args.IsEnoughWorkers = isEnoughWorkers
 	pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
 		return stateOwners(stateKey)
-	}
-	pw.args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
-		return util.TraverseSliceV1(others(), func(_ int, pw *ProcessWorker) (bool, error) {
-			return true, pw.WorkerInsertValuesDone(local)
-		})
-	}
-	pw.args.BroadcastInsertValuesFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-		return other(worker).InsertValues(local, opindex, fact, values, owners)
 	}
 
 	pw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
@@ -1320,10 +1311,11 @@ func (t *testProcessManager) testNWorkers(
 
 	pws := util.NewSingleLockedMap[string, *ProcessWorker]()
 
-	newWorker := func(worker string, args processWorkerReadyArgs) (*ProcessWorker, error) {
-		return t.newProcessWorker(
+	newWorker := func(local string, args processWorkerReadyArgs) (*ProcessWorker, error) {
+		pw, err := t.newProcessWorker(
 			ctx,
-			worker,
+			local,
+			workers,
 			args,
 			func(other string) *ProcessWorker {
 				pw, _ := pws.Value(other)
@@ -1333,7 +1325,7 @@ func (t *testProcessManager) testNWorkers(
 			func() []*ProcessWorker {
 				add, done := util.CompactAppendSlice[*ProcessWorker](len(workers))
 				pws.Traverse(func(other string, pw *ProcessWorker) bool {
-					if other != worker {
+					if other != local {
 						add(pw)
 					}
 
@@ -1354,6 +1346,25 @@ func (t *testProcessManager) testNWorkers(
 			resultUnmergedOps,
 			pm.UpdateMerged,
 		)
+		if err != nil {
+			return nil, err
+		}
+
+		pw.args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
+			processWorkerInsertValues2,
+			func() error,
+			error,
+		) {
+			pww, _ := pws.Value(worker)
+
+			return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+					return pww.InsertValues(local, opindex, fact, values, owners)
+				}, func() error {
+					return pww.WorkerInsertValuesDone(local)
+				}, nil
+		}
+
+		return pw, nil
 	}
 
 	args.IsInStateOperationFunc = func(context.Context, util.Hash) (bool, error) { return false, nil }
@@ -1419,8 +1430,14 @@ func (t *testProcessManager) testNWorkers(
 
 	t.NoError(pm.ReadyWorkers())
 
+	pws.Traverse(func(worker string, pw *ProcessWorker) bool {
+		t.NoError(pw.Ready())
+
+		return true
+	})
+
 	go func() {
-		_ = pm.Process2()
+		_ = pm.Process()
 	}()
 
 	manifest, err = pm.ManifestDone()

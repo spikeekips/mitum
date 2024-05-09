@@ -14,7 +14,6 @@ var (
 	WorkerReadyHeaderHint               = hint.MustNewHint("worker-ready-header-v0.0.1")
 	WorkerNewOperationsHeaderHint       = hint.MustNewHint("worker-new-operations-header-v0.0.1")
 	WorkerInsertValuesHeaderHint        = hint.MustNewHint("worker-insert-values-header-v0.0.1")
-	WorkerInsertValuesDoneHeaderHint    = hint.MustNewHint("worker-insert-values-done-header-v0.0.1")
 	WorkerPhaseDoneHeaderHint           = hint.MustNewHint("worker-phase-done-header-v0.0.1")
 	WorkerSyncStatesHeaderHint          = hint.MustNewHint("worker-sync-states-header-v0.0.1")
 	WorkerSetStatesHeaderHint           = hint.MustNewHint("worker-set-states-header-v0.0.1")
@@ -178,14 +177,6 @@ type WorkerInsertValuesHeader struct{ BaseWorkerHeader }
 func NewWorkerInsertValuesHeader(height base.Height, worker string) WorkerInsertValuesHeader {
 	return WorkerInsertValuesHeader{
 		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertValuesHeaderHint, height, worker),
-	}
-}
-
-type WorkerInsertValuesDoneHeader struct{ BaseWorkerHeader }
-
-func NewWorkerInsertValuesDoneHeader(height base.Height, worker string) WorkerInsertValuesDoneHeader {
-	return WorkerInsertValuesDoneHeader{
-		BaseWorkerHeader: NewBaseWorkerHeader(WorkerInsertValuesDoneHeaderHint, height, worker),
 	}
 }
 

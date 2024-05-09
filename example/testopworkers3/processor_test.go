@@ -368,8 +368,9 @@ type testProcessWorker struct {
 	baseTestOperationProcessor
 }
 
-func (t *testProcessWorker) newWorker(ctx context.Context, local string) *ProcessWorker {
+func (t *testProcessWorker) newWorker(ctx context.Context, local string, workers []string) *ProcessWorker {
 	args := NewProcessWorkerArgs(t.networkID)
+	args.Workers = workers
 	args.SaveOperationFuncs = func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
 		return func(uint64, Operation) error { return nil }, func(bool) (string, error) { return "", nil }, nil
 	}
@@ -386,7 +387,7 @@ func (t *testProcessWorker) newWorker(ctx context.Context, local string) *Proces
 
 func (t *testProcessWorker) TestBroadcastCanceled() {
 	t.Run("by Cancel()", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 
 		ch := make(chan struct{}, 1)
 		pw.args.BroadcastCanceled = func() error {
@@ -407,7 +408,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 	})
 
 	t.Run("by errProcessWorkerDone", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 
 		ch := make(chan struct{}, 1)
 		pw.args.BroadcastCanceled = func() error {
@@ -431,7 +432,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 	})
 
 	t.Run("by errProcessWorkerDone", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 
 		ch := make(chan struct{}, 1)
 		pw.args.BroadcastCanceled = func() error {
@@ -455,7 +456,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 	})
 
 	t.Run("by CancelByManager()", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 
 		ch := make(chan struct{}, 1)
 		pw.args.BroadcastCanceled = func() error {
@@ -481,7 +482,7 @@ func (t *testProcessWorker) TestBroadcastCanceled() {
 
 func (t *testProcessWorker) TestMergeWaitCancel() {
 	t.Run("before NewOperations", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 
 		waitch := make(chan error, 1)
 
@@ -505,7 +506,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 	})
 
 	t.Run("during NewOperations", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 		pw.args.NOps = 1 << 3
 
 		processch := make(chan error, 1)
@@ -563,7 +564,7 @@ func (t *testProcessWorker) TestMergeWaitCancel() {
 
 func (t *testProcessWorker) TestWaitCancel() {
 	t.Run("MergeWait and then Wait", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 		defer pw.Cancel()
 
 		pw.args.NOps = 1 << 3
@@ -601,7 +602,7 @@ func (t *testProcessWorker) TestWaitCancel() {
 	})
 
 	t.Run("Wait, Cancel without MergeWait", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 		defer pw.Cancel()
 
 		pw.args.IsEnoughWorkers = func(n uint64) bool { return n > 0 }
@@ -680,7 +681,7 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 	}
 
 	run := func(seq []int) {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 		defer pw.Cancel()
 
 		pw.args.NOps = uint64(len(ops))
@@ -779,7 +780,7 @@ func (t *testProcessWorker) TestSaveOperation() {
 		ophs[op.Hash().String()] = opindex
 	}
 
-	pw := t.newWorker(context.Background(), "w0")
+	pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 	defer pw.Cancel()
 
 	pw.args.NOps = uint64(nops)
@@ -927,7 +928,7 @@ func (t *testProcessWorker) Test3Workers() {
 	var expectedUnmergedOps map[uint64]string
 
 	t.Run("one worker", func() {
-		pw := t.newWorker(context.Background(), "w0")
+		pw := t.newWorker(context.Background(), "w0", []string{"w0"})
 		defer pw.Cancel()
 
 		pw.args.NOps = uint64(len(ops))
@@ -1073,12 +1074,16 @@ func (t *testProcessWorker) Test3Workers() {
 		for i := range workers {
 			local := workers[i]
 
-			pw := t.newWorker(context.Background(), local)
-			defer pw.Cancel()
+			args := NewProcessWorkerArgs(t.networkID)
+			args.Workers = workers
+			args.SaveOperationFuncs = func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
+				return func(uint64, Operation) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+			}
+			args.SaveStateFuncs = func(context.Context) (processWorkerSaveStateFunc, writerCloseSaveFunc, error) {
+				return func(base.State) error { return nil }, func(bool) (string, error) { return "", nil }, nil
+			}
 
-			pw.SetLogging(logging.TestNilLogging)
-
-			pws[local] = pw
+			pw := NewProcessWorker(context.Background(), args, local, 33)
 
 			pw.args.NOps = uint64(len(ops))
 			pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
@@ -1132,35 +1137,6 @@ func (t *testProcessWorker) Test3Workers() {
 					nil
 			}
 
-			pw.args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
-				for i := range workers {
-					worker := workers[i]
-					if worker == local {
-						continue
-					}
-
-					err := pws[worker].WorkerInsertValuesDone(local)
-					t.LockedLog("broadcast insert values done: local=%q worker=%q error=%+v", local, worker, err)
-					if err != nil {
-						return err
-					}
-				}
-
-				return nil
-			}
-			pw.args.BroadcastInsertValuesFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-				addK, doneK := util.SortCompactAppendSlice[string](len(values), cmp.Less[string])
-				util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
-					addK(v.Key())
-
-					return true, nil
-				})
-
-				t.LockedLog("insert values: local=%q worker=%q opindex=%d state_keys=%v", local, worker, opindex, doneK())
-
-				return pws[worker].InsertValues(local, opindex, fact, values, owners)
-			}
-
 			pw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 				t.LockedLog("broadcast phase done: local=%q phase=%d merged_ops=%v unmerged_ops=%v",
 					local, phase, mergedOps, unmergedOps)
@@ -1182,6 +1158,31 @@ func (t *testProcessWorker) Test3Workers() {
 
 				return nil
 			}
+
+			pw.args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
+				processWorkerInsertValues2,
+				func() error,
+				error,
+			) {
+				pww := pws[worker]
+
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+						return pww.InsertValues(local, opindex, fact, values, owners)
+					}, func() error {
+						return pww.WorkerInsertValuesDone(local)
+					}, nil
+			}
+
+			pws[local] = pw
+		}
+
+		for worker := range pws {
+			pw := pws[worker]
+
+			t.NoError(pw.Ready())
+			defer pw.Cancel()
+
+			pw.SetLogging(logging.TestNilLogging)
 		}
 
 		t.T().Log("process operations")

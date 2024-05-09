@@ -226,10 +226,6 @@ func (cmd *CommandManagerStandalone) processor(
 		manager = i
 	}
 
-	if err := manager.ReadyWorkers(); err != nil {
-		return nil, nil, err
-	}
-
 	switch pp, err := NewProposalProcessor(
 		context.Background(),
 		args,
@@ -342,6 +338,18 @@ func (cmd *CommandManagerStandalone) newManagerFunc(
 		default:
 			pm = i
 			pm.SetLogging(cmd.Logging)
+
+			if err := pm.ReadyWorkers(); err != nil {
+				return nil, err
+			}
+
+			workerpool.Traverse(func(worker string, pw *ProcessWorker) bool {
+				if err := pw.Ready(); err != nil {
+					cmd.Log().Error().Err(err).Str("worker", worker).Msg("failed to ready ProcessWorker")
+				}
+
+				return true
+			})
 
 			return pm, nil
 		}
@@ -502,6 +510,7 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 			)
 
 			args := NewProcessWorkerArgs(cmd.networkID)
+			args.Workers = margs.Workers
 			args.NOps = margs.NOps
 			args.GetOperationFunc = func(ctx context.Context, _ uint64, operationhash util.Hash) (Operation, bool, error) {
 				i, found := cmd.opsPool.Get(operationhash.String())
@@ -520,29 +529,18 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 			args.StateOwners = func(_ context.Context, key string) ([]string, error) {
 				return pm.StateOwners(key)
 			}
-			args.BroadcastInsertValuesFunc = func(_ context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-				w, _ := workerpool.Value(worker)
+			args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
+				processWorkerInsertValues2,
+				func() error,
+				error,
+			) {
+				pw, _ := workerpool.Value(worker)
 
-				return w.InsertValues(local, opindex, fact, values, owners)
-			}
-			args.BroadcastInsertValuesDoneFunc = func(context.Context) error {
-				workerpool.Traverse(func(worker string, w *ProcessWorker) bool {
-					if worker == local {
-						return true
-					}
-
-					err := w.WorkerInsertValuesDone(local)
-
-					cmd.Log().Trace().
-						Str("local", local).
-						Str("worker", worker).
-						Err(err).
-						Msg("broadcast insert values done")
-
-					return true
-				})
-
-				return nil
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+						return pw.InsertValues(local, opindex, fact, values, owners)
+					}, func() error {
+						return pw.WorkerInsertValuesDone(local)
+					}, nil
 			}
 
 			args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {
@@ -604,9 +602,9 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 				margs.Height,
 			)
 
-			if err := pw.Ready(); err != nil {
-				return err
-			}
+			//if err := pw.Ready(); err != nil {
+			//	return err
+			//}
 
 			// pw.SetLogging(cmd.Logging)
 

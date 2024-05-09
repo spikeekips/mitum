@@ -27,7 +27,8 @@ type (
 		cancel func(error),
 		_ error,
 	)
-	processWorkerInsertValues func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
+	processWorkerInsertValues  func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
+	processWorkerInsertValues2 func(opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
 )
 
 type Operation interface {
@@ -234,27 +235,19 @@ type (
 )
 
 type ProcessWorkerArgs struct {
-	NetworkID                 base.NetworkID
-	NOps                      uint64
-	GetOperationFunc          func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
-	GetStateFunc              func(_ context.Context, key string) (base.State, bool, error)
-	NewJobWorker              func(context.Context) (util.JobWorker, error)
-	IsEnoughWorkers           func(n uint64) bool
-	StateOwners               func(_ context.Context, stateKey string) (owners []string, _ error)
-	BroadcastInsertValuesFunc func(
-		_ context.Context,
-		worker string,
-		opindex uint64,
-		fact util.Hash,
-		_ []StateMergeValue,
-		owners map[ /* state key */ string] /* owners */ []string,
-	) error
-	BroadcastInsertValuesDoneFunc func(context.Context) error
-	BroadcastPhaseDoneFunc        func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
-	BroadcastCanceled             func() error
-	SaveOperationFuncs            saveOperationFuncs
-	SaveStateFuncs                saveStateFuncs
-	UpdateMergeDoneFunc           func(context.Context) (
+	NetworkID              base.NetworkID
+	NOps                   uint64
+	Workers                []string
+	GetOperationFunc       func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
+	GetStateFunc           func(_ context.Context, key string) (base.State, bool, error)
+	NewJobWorker           func(context.Context) (util.JobWorker, error)
+	IsEnoughWorkers        func(n uint64) bool
+	StateOwners            func(_ context.Context, stateKey string) (owners []string, _ error)
+	BroadcastPhaseDoneFunc func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
+	BroadcastCanceled      func() error
+	SaveOperationFuncs     saveOperationFuncs
+	SaveStateFuncs         saveStateFuncs
+	UpdateMergeDoneFunc    func(context.Context) (
 		updateState func(base.State) error,
 		updateReason func(opindex uint64, reason string) error,
 		done func() error,
@@ -265,6 +258,11 @@ type ProcessWorkerArgs struct {
 	FullOps                 bool
 	GetStateMergeValuesFunc func(opindex uint64, op, fact util.Hash) ([]StateMergeValue, bool, error)
 	MapSize                 uint64
+	WorkerInsertValuesFuncs func(_ context.Context, worker string) (
+		insert processWorkerInsertValues2,
+		done func() error,
+		_ error,
+	)
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
@@ -279,12 +277,8 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		StateOwners: func(context.Context, string) ([]string, error) {
 			return nil, util.ErrNotImplemented.Errorf("StateOwners")
 		},
-		BroadcastInsertValuesFunc: func(context.Context, string, uint64, util.Hash, []StateMergeValue, map[string][]string) error {
-			return nil
-		},
-		BroadcastInsertValuesDoneFunc: func(context.Context) error { return nil },
-		BroadcastPhaseDoneFunc:        func(context.Context, int, []uint64, []uint64) error { return nil },
-		BroadcastCanceled:             func() error { return nil },
+		BroadcastPhaseDoneFunc: func(context.Context, int, []uint64, []uint64) error { return nil },
+		BroadcastCanceled:      func() error { return nil },
 		SaveOperationFuncs: func(context.Context) (processWorkerSaveOperationFunc, writerCloseSaveFunc, error) {
 			return nil, nil, util.ErrNotImplemented.Errorf("SaveOperationFuncs")
 		},
@@ -308,37 +302,46 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		GetStateMergeValuesFunc: func(uint64, util.Hash, util.Hash) ([]StateMergeValue, bool, error) {
 			return nil, false, nil
 		},
+		WorkerInsertValuesFuncs: func(context.Context, string) (
+			processWorkerInsertValues2,
+			func() error,
+			error,
+		) {
+			return nil, nil, util.ErrNotImplemented.Errorf("WorkerInsertValuesFuncs")
+		},
 	}
 }
 
 type ProcessWorker struct {
 	*logging.Logging
-	args                   *ProcessWorkerArgs
-	local                  string
-	height                 base.Height
-	ctx                    func() context.Context
-	ctxCancel              func(error)
-	mergeCtx               func() context.Context
-	mergeCtxCancel         func(error)
-	preNewOperations       func() (*OperationProcessor, func() error, error)
-	merger                 func() (*StatesMergerWorker, error)
-	mergeDelayedWorker     util.JobWorker
-	delayedWorker          util.JobWorker
-	cleanf                 func()
-	opOwners               util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
-	stateOwners            util.LockedMap[ /* state key */ string /* worker */, []string]
-	states                 util.LockedMap[string, base.State]
-	mergedStateMergers     util.LockedMap[string, StateMerger]
-	collectPhaseMergedOps  collectPhaseMergedOpsFunc
-	collectPhaseReason     collectPhaseReasonFunc
-	collectPhaseResult     collectPhaseResultFunc
-	ophs                   util.LockedMap[uint64, util.Hash]
-	saveOperationFunc      processWorkerSaveOperationFunc
-	saveDoneOperationsFunc writerCloseSaveFunc
-	saveStateFunc          processWorkerSaveStateFunc
-	saveDoneStatesFunc     writerCloseSaveFunc
-	savedOps               util.CompactAppendSliceDoneFunc[[2]interface{}]
-	savedStates            util.CompactAppendSliceDoneFunc[base.State]
+	args                        *ProcessWorkerArgs
+	local                       string
+	height                      base.Height
+	ctx                         func() context.Context
+	ctxCancel                   func(error)
+	mergeCtx                    func() context.Context
+	mergeCtxCancel              func(error)
+	preNewOperations            func() (*OperationProcessor, func() error, error)
+	merger                      func() (*StatesMergerWorker, error)
+	mergeDelayedWorker          util.JobWorker
+	delayedWorker               util.JobWorker
+	cleanf                      func()
+	opOwners                    util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
+	stateOwners                 util.LockedMap[ /* state key */ string /* worker */, []string]
+	states                      util.LockedMap[string, base.State]
+	mergedStateMergers          util.LockedMap[string, StateMerger]
+	collectPhaseMergedOps       collectPhaseMergedOpsFunc
+	collectPhaseReason          collectPhaseReasonFunc
+	collectPhaseResult          collectPhaseResultFunc
+	ophs                        util.LockedMap[uint64, util.Hash]
+	saveOperationFunc           processWorkerSaveOperationFunc
+	saveDoneOperationsFunc      writerCloseSaveFunc
+	saveStateFunc               processWorkerSaveStateFunc
+	saveDoneStatesFunc          writerCloseSaveFunc
+	savedOps                    util.CompactAppendSliceDoneFunc[[2]interface{}]
+	savedStates                 util.CompactAppendSliceDoneFunc[base.State]
+	workerInsertValuesFuncs     map[ /* worker */ string]processWorkerInsertValues2
+	workerInsertValuesDoneFuncs map[ /* worker */ string]func() error
 }
 
 func NewProcessWorker(
@@ -468,6 +471,27 @@ func (pw *ProcessWorker) Ready() error {
 	}
 
 	pw.attachSaveFuncs()
+
+	pw.workerInsertValuesFuncs = map[string]processWorkerInsertValues2{}
+	pw.workerInsertValuesDoneFuncs = map[string]func() error{}
+
+	if err := util.TraverseSliceV1(pw.args.Workers, func(_ int, worker string) (bool, error) {
+		if worker == pw.local {
+			return true, nil
+		}
+
+		switch i, d, err := pw.args.WorkerInsertValuesFuncs(pw.ctx(), worker); {
+		case err != nil:
+			return false, err
+		default:
+			pw.workerInsertValuesFuncs[worker] = i
+			pw.workerInsertValuesDoneFuncs[worker] = d
+
+			return true, nil
+		}
+	}); err != nil {
+		return err
+	}
 
 	pw.cleanf = func() {
 		if opsr != nil {
@@ -795,14 +819,8 @@ func (pw *ProcessWorker) newOperationProcessor() (
 			return err
 		}
 
-		if err := pw.workerInsertValuesDone(pw.local); err != nil {
-			pw.Log().Error().Err(err).Msg("pw.workerInsertValuesDone()")
-
-			return err
-		}
-
-		if err := pw.args.BroadcastInsertValuesDoneFunc(pw.ctx()); err != nil {
-			pw.Log().Error().Err(err).Msg("pw.args.BroadcastInsertValuesDoneFunc()")
+		if err := pw.workersInsertValuesDone(); err != nil {
+			pw.Log().Error().Err(err).Msg("pw.workersInsertValuesDone()")
 
 			return err
 		}
@@ -936,13 +954,13 @@ func (pw *ProcessWorker) updateReasons(ctx context.Context, phase int, opindex u
 }
 
 func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-	var owners map[string][]StateMergeValue
+	var valuesByOwners map[string][]StateMergeValue
 
 	switch i, err := pw.filterStateMergeValuesOwners(opindex, values); {
 	case err != nil:
 		return err
 	default:
-		owners = i
+		valuesByOwners = i
 	}
 
 	var ew util.JobWorker
@@ -956,44 +974,47 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 		ew = i
 	}
 
-	for owner := range owners {
-		if pw.args.FullOps && owner != pw.local {
-			continue
+	if err := TraverseMap(valuesByOwners, func(owner string, filtered []StateMergeValue) (bool, error) {
+		switch {
+		case len(filtered) < 1, pw.args.FullOps && owner != pw.local:
+			return true, nil
 		}
 
-		owner := owner
-		filtered := owners[owner]
-		if len(filtered) < 1 {
-			continue
-		}
-
-		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
 			switch {
 			case owner == pw.local:
-				if !pw.ophs.Exists(opindex) {
-					_ = pw.ophs.SetValue(opindex, fact)
-				}
-
-				return pw.mergerInsertValues(opindex, filtered)
+				return pw.localMergeStateMergeValue(opindex, fact, filtered)
 			default:
-				opOwners := map[string][]string{}
-
-				util.TraverseSliceV1(filtered, func(_ int, v StateMergeValue) (bool, error) {
-					opOwners[v.Key()], _ = pw.stateOwners.Value(v.Key())
-
-					return true, nil
-				})
-
-				return pw.args.BroadcastInsertValuesFunc(pw.ctx(), owner, opindex, fact, filtered, opOwners)
+				return pw.workerMergeStateMergeValue(ctx, opindex, fact, filtered, owner)
 			}
-		}); err != nil {
-			return err
-		}
+		})
+	}); err != nil {
+		return err
 	}
 
 	ew.Done()
 
 	return ew.Wait()
+}
+
+func (pw *ProcessWorker) localMergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+	if !pw.ophs.Exists(opindex) {
+		_ = pw.ophs.SetValue(opindex, fact)
+	}
+
+	return pw.mergerInsertValues(opindex, values)
+}
+
+func (pw *ProcessWorker) workerMergeStateMergeValue(_ context.Context, opindex uint64, fact util.Hash, values []StateMergeValue, worker string) error {
+	opOwners := map[string][]string{}
+
+	_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
+		opOwners[v.Key()], _ = pw.stateOwners.Value(v.Key())
+
+		return true, nil
+	})
+
+	return pw.workerInsertValuesFuncs[worker](opindex, fact, values, opOwners)
 }
 
 func (pw *ProcessWorker) broadcastPhaseDone(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
@@ -1372,6 +1393,39 @@ func (pw *ProcessWorker) canceled(ok, notOk func()) {
 			notOk()
 		}
 	}
+}
+
+func (pw *ProcessWorker) workersInsertValuesDone() error {
+	var ew util.JobWorker
+
+	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		ew = i
+	}
+
+	if err := ew.NewJob(func(context.Context, uint64) error {
+		return pw.workerInsertValuesDone(pw.local)
+	}); err != nil {
+		return err
+	}
+
+	_ = TraverseMap(pw.workerInsertValuesDoneFuncs, func(worker string, f func() error) (bool, error) {
+		return true, ew.NewJob(func(context.Context, uint64) error {
+			if err := f(); err != nil {
+				pw.Log().Error().Err(err).Str("worker", worker).Msg("workerInsertValuesDoneFuncs")
+			}
+
+			return nil
+		})
+	})
+
+	ew.Done()
+
+	return ew.Wait()
 }
 
 type (

@@ -71,7 +71,6 @@ func (t *testHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerReadyHeaderHint, Instance: WorkerReadyHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerNewOperationsHeaderHint, Instance: WorkerNewOperationsHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertValuesHeaderHint, Instance: WorkerInsertValuesHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}}))
@@ -373,7 +372,7 @@ func (t *testHandlers) TestWorkerNewOperations() {
 	t.Run("cancel", func() {})
 }
 
-func (t *testHandlers) TestWorkerInsertOp() {
+func (t *testHandlers) TestWorkerInsertValues() { // FIXME remove
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -397,37 +396,61 @@ func (t *testHandlers) TestWorkerInsertOp() {
 		add, done, err := util.CompactAppendSliceV1[[5]interface{}](uint64(len(values)), 1<<9)
 		t.NoError(err)
 
-		handler, err := newWorkerHandlerInsertValuesFunc(func(base.Height) (processWorkerInsertValues, error) {
-			return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-				add([5]interface{}{worker, opindex, fact, values, owners})
+		donech := make(chan string, 1)
 
-				return nil
-			}, nil
-		})
+		handler, err := newWorkerHandlerInsertValuesFunc(
+			t.Encs.Default(),
+			func(_ base.Height, worker string) (
+				processWorkerInsertValues2,
+				func() error,
+				error,
+			) {
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+						add([5]interface{}{worker, opindex, fact, values, owners})
+
+						return nil
+					},
+					func() error {
+						donech <- worker
+
+						return nil
+					},
+					nil
+			})
 		t.NoError(err)
 
 		facts := make([]util.Hash, len(values))
 
-		for i := range values {
-			opindex := uint64(i)
-			fact := valuehash.RandomSHA256()
-			vs := values[i]
-			os := owners[i]
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesHeaderHint), handler,
+			t.ci,
+			newWorkerBrokerInsertValuesFunc(
+				33,
+				"w3",
+				t.Encs.Default(),
+				func(f func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error) error {
+					for i := range values {
+						opindex := uint64(i)
+						fact := valuehash.RandomSHA256()
+						vs := values[i]
+						os := owners[i]
 
-			t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesHeaderHint), handler,
-				t.ci,
-				newWorkerBrokerInsertValuesFunc(
-					33,
-					"w3",
-					t.Encs.Default(),
-					opindex,
-					fact,
-					vs,
-					os,
-				),
-			))
+						if err := f(opindex, fact, vs, os); err != nil {
+							return err
+						}
 
-			facts[i] = fact
+						facts[i] = fact
+					}
+
+					return nil
+				},
+			),
+		))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait done")
+		case worker := <-donech:
+			t.Equal("w3", worker)
 		}
 
 		_ = done(func(s [][5]interface{}) error {
@@ -466,61 +489,62 @@ func (t *testHandlers) TestWorkerInsertOp() {
 			return nil
 		})
 	})
-}
 
-func (t *testHandlers) TestWorkerInsertValuesDone() {
-	t.Run("ok", func() {
+	t.Run("empty", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		donech := make(chan string, 1)
-		handler, err := newWorkerHandlerInsertValuesDoneFunc(func(base.Height) (func(string) error, error) {
-			return func(worker string) error {
-				donech <- worker
-
-				return nil
-			}, nil
-		})
+		add, done, err := util.CompactAppendSliceV1[[5]interface{}](1<<9, 1<<9)
 		t.NoError(err)
 
-		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), handler,
+		donech := make(chan string, 1)
+
+		handler, err := newWorkerHandlerInsertValuesFunc(
+			t.Encs.Default(),
+			func(_ base.Height, worker string) (
+				processWorkerInsertValues2,
+				func() error,
+				error,
+			) {
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+						add([5]interface{}{worker, opindex, fact, values, owners})
+
+						return nil
+					},
+					func() error {
+						donech <- worker
+
+						return nil
+					},
+					nil
+			},
+		)
+		t.NoError(err)
+
+		t.NoError(requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesHeaderHint), handler,
 			t.ci,
-			newWorkerBrokerInsertValuesDoneFunc(33, "w3"),
+			newWorkerBrokerInsertValuesFunc(
+				33,
+				"w3",
+				t.Encs.Default(),
+				func(func(uint64, util.Hash, []StateMergeValue, map[string][]string) error) error {
+					return nil
+				},
+			),
 		))
 
 		select {
-		case <-time.After(time.Millisecond):
-			t.Fail("not requested")
+		case <-time.After(time.Second):
+			t.Fail("wait done")
 		case worker := <-donech:
 			t.Equal("w3", worker)
 		}
-	})
 
-	t.Run("error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		_ = done(func(s [][5]interface{}) error {
+			t.Empty(s)
 
-		donech := make(chan error, 1)
-		handler, err := newWorkerHandlerInsertValuesDoneFunc(func(base.Height) (func(string) error, error) {
-			err := errors.Errorf("findme")
-			donech <- err
-
-			return func(string) error { return err }, nil
+			return nil
 		})
-		t.NoError(err)
-
-		err = requestFunc(ctx, t.Encs, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), handler,
-			t.ci,
-			newWorkerBrokerInsertValuesDoneFunc(33, "w3"),
-		)
-		t.ErrorContains(err, "findme")
-
-		select {
-		case <-time.After(time.Millisecond):
-			t.Fail("not requested")
-		case err = <-donech:
-			t.ErrorContains(err, "findme")
-		}
 	})
 }
 

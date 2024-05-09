@@ -146,7 +146,6 @@ func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Contex
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerReadyHeaderHint), cmd.handlerReadyFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerNewOperationsHeaderHint), cmd.handlerNewOperationsFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertValuesHeaderHint), cmd.handlerInsertValuesFunc, nil)
-	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertValuesDoneHeaderHint), cmd.handlerInsertValuesDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerPhaseDoneHeaderHint), cmd.handlerPhaseDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSyncStatesHeaderHint), cmd.handlerSyncStates, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSetStatesHeaderHint), cmd.handlerSetStates, nil)
@@ -258,28 +257,35 @@ func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicst
 }
 
 func (cmd *CommandWorker) handlerInsertValuesFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertValuesHeader], error) {
-	return newWorkerHandlerInsertValuesFunc(func(height base.Height) (
-		processWorkerInsertValues,
-		error,
-	) {
-		switch w, found := cmd.pws.Value(height); {
-		case !found:
-			return nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
-		default:
-			return w.InsertValues, nil
-		}
-	})
-}
+	var encs *encoder.Encoders
 
-func (cmd *CommandWorker) handlerInsertValuesDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerInsertValuesDoneHeader], error) {
-	return newWorkerHandlerInsertValuesDoneFunc(func(height base.Height) (f func(worker string) error, _ error) {
-		switch w, found := cmd.pws.Value(height); {
-		case !found:
-			return nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
-		default:
-			return w.WorkerInsertValuesDone, nil
-		}
-	})
+	if err := util.LoadFromContextOK(pctx,
+		launch.EncodersContextKey, &encs,
+	); err != nil {
+		return nil, err
+	}
+
+	return newWorkerHandlerInsertValuesFunc(
+		encs.Default(),
+		func(height base.Height, worker string) (
+			processWorkerInsertValues2,
+			func() error,
+			error,
+		) {
+			switch w, found := cmd.pws.Value(height); {
+			case !found:
+				return nil, nil, util.ErrNotFound.Errorf("ProcessWorker not found, %d", height)
+			default:
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+						return w.InsertValues(worker, opindex, fact, values, owners)
+					},
+					func() error {
+						return w.WorkerInsertValuesDone(worker)
+					},
+					nil
+			}
+		},
+	)
 }
 
 func (cmd *CommandWorker) handlerPhaseDoneFunc(pctx context.Context) (quicstreamheader.Handler[WorkerPhaseDoneHeader], error) {
@@ -404,6 +410,7 @@ func (cmd *CommandWorker) newWorker(
 	)
 
 	args := NewProcessWorkerArgs(design.NetworkID)
+	args.Workers = margs.Workers
 	args.NOps = margs.NOps
 	args.GetOperationFunc = func(ctx context.Context, opindex uint64, operationhash util.Hash) (Operation, bool, error) {
 		switch i, found := cmd.opsPool.Get(operationhash.String()); {
@@ -438,35 +445,60 @@ func (cmd *CommandWorker) newWorker(
 		args.StateOwners = stateOwnersf
 	}
 
-	args.BroadcastInsertValuesFunc = func(ctx context.Context, worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
-		return cmd.requestWorker(
+	args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
+		processWorkerInsertValues2,
+		func() error,
+		error,
+	) {
+		ch := make(chan [4]interface{}, 1<<9)
+
+		_, done, _ := NewContextDoneFunc(
 			ctx,
-			"BroadcastInsertValues",
-			worker,
-			newWorkerBrokerInsertValuesFunc(
-				height,
-				cmd.localCI.String(),
-				cmd.encs.Default(),
-				opindex,
-				fact,
-				values,
-				owners,
-			),
-		)
-	}
-	args.BroadcastInsertValuesDoneFunc = func(ctx context.Context) error {
-		return cmd.requestWorkersErrCallback(
-			ctx,
-			"BroadcastInsertValuesDone",
-			newWorkerBrokerInsertValuesDoneFunc(
-				height,
-				cmd.localCI.String(),
-			),
-			func(worker string, err error) {
-				cmd.Log().Error().Err(err).Str("worker", worker).Msg("BroadcastInsertValuesDone")
+			func(ctx context.Context) error {
+				return cmd.requestWorker(
+					ctx,
+					"BroadcastInsertValues",
+					worker,
+					newWorkerBrokerInsertValuesFunc(
+						height,
+						cmd.localCI.String(),
+						cmd.encs.Default(),
+						func(f func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error) error {
+							for i := range ch {
+								if err := f(
+									i[0].(uint64),
+									i[1].(util.Hash),
+									i[2].([]StateMergeValue),
+									i[3].(map[string][]string),
+								); err != nil {
+									return err
+								}
+							}
+
+							return nil
+						},
+					),
+				)
 			},
 		)
+
+		go func() {
+			_ = done()
+		}()
+
+		return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+				ch <- [4]interface{}{opindex, fact, values, owners}
+
+				return nil
+			},
+			func() error {
+				close(ch)
+
+				return done()
+			},
+			nil
 	}
+
 	args.BroadcastPhaseDoneFunc = func(ctx context.Context, phase int, mergedOps, unmergedOps []uint64) error {
 		return cmd.requestWorkersErrCallback(
 			ctx,

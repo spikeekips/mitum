@@ -24,7 +24,6 @@ var hinters = []encoder.DecodeDetail{
 	{Hint: WorkerReadyHeaderHint, Instance: WorkerReadyHeader{}},
 	{Hint: WorkerNewOperationsHeaderHint, Instance: WorkerNewOperationsHeader{}},
 	{Hint: WorkerInsertValuesHeaderHint, Instance: WorkerInsertValuesHeader{}},
-	{Hint: WorkerInsertValuesDoneHeaderHint, Instance: WorkerInsertValuesDoneHeader{}},
 	{Hint: WorkerPhaseDoneHeaderHint, Instance: WorkerPhaseDoneHeader{}},
 	{Hint: ManagerStateOwnersHeaderHint, Instance: ManagerStateOwnersHeader{}},
 	{Hint: ManagerWorkerCanceledHeaderHint, Instance: ManagerWorkerCanceledHeader{}},

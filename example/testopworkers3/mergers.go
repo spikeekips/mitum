@@ -169,7 +169,9 @@ func (dw *StatesMergerWorker) InsertValues(opindex uint64, values []StateMergeVa
 	}
 
 	switch err := dw.mergeOps(localWorker, 0, []uint64{opindex}, nil); {
-	case errors.Is(err, util.ErrJobWorkerDone): // NOTE ignore error
+	case errors.Is(err, util.ErrJobWorkerDone), // NOTE ignore error
+		errors.Is(err, errStatesMergerWorkerDone),
+		errors.Is(err, context.Canceled):
 	case err != nil:
 		return err
 	}
