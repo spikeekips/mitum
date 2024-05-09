@@ -1192,8 +1192,8 @@ func (t *testProcessManager) newProcessWorker(
 	),
 ) (*ProcessWorker, error) {
 	pwargs := NewProcessWorkerArgs(t.networkID)
-	pw, err := NewProcessWorker(ctx, pwargs, local, args.Height)
-	if err != nil {
+	pw := NewProcessWorker(ctx, pwargs, local, args.Height)
+	if err := pw.Ready(); err != nil {
 		return nil, err
 	}
 

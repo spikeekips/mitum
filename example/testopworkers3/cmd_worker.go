@@ -347,7 +347,7 @@ func (cmd *CommandWorker) newWorker(
 	db isaac.Database,
 	baseroot string,
 	enc encoder.Encoder,
-) (pm *ProcessWorker, _ error) {
+) (pw *ProcessWorker, _ error) {
 	height := margs.Height
 	local := cmd.localCI.String()
 
@@ -616,20 +616,19 @@ func (cmd *CommandWorker) newWorker(
 
 	cmd.Log().Debug().Interface("args", margs).Msg("new worker ready")
 
-	switch i, err := NewProcessWorker(
+	pw = NewProcessWorker(
 		context.Background(),
 		args,
 		local,
 		height,
-	); {
-	case err != nil:
+	)
+	if err := pw.Ready(); err != nil {
 		return nil, err
-	default:
-		pm = i
-		pm.SetLogging(cmd.Logging)
 	}
 
-	return pm, nil
+	pw.SetLogging(cmd.Logging)
+
+	return pw, nil
 }
 
 func (cmd *CommandWorker) djb2StateOwnersFunc(workers []string, share uint8) (

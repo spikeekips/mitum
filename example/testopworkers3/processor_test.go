@@ -377,8 +377,9 @@ func (t *testProcessWorker) newWorker(ctx context.Context, local string) *Proces
 		return func(base.State) error { return nil }, func(bool) (string, error) { return "", nil }, nil
 	}
 
-	pw, err := NewProcessWorker(ctx, args, local, 33)
-	t.NoError(err)
+	pw := NewProcessWorker(ctx, args, local, 33)
+
+	t.NoError(pw.Ready())
 
 	return pw
 }

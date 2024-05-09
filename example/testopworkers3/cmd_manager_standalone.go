@@ -597,24 +597,22 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 				return pm.WorkerStoreDone(local, chunks)
 			}
 
-			var pw *ProcessWorker
-
-			switch i, err := NewProcessWorker(
+			pw := NewProcessWorker(
 				context.Background(),
 				args,
 				local,
 				margs.Height,
-			); {
-			case err != nil:
+			)
+
+			if err := pw.Ready(); err != nil {
 				return err
-			default:
-				pw = i
-				// pw.SetLogging(cmd.Logging)
-
-				workerpool.SetValue(local, pw)
-
-				return nil
 			}
+
+			// pw.SetLogging(cmd.Logging)
+
+			workerpool.SetValue(local, pw)
+
+			return nil
 		}
 }
 

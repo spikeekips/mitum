@@ -346,11 +346,9 @@ func NewProcessWorker(
 	args *ProcessWorkerArgs,
 	local string,
 	height base.Height,
-) (*ProcessWorker, error) {
+) (pw *ProcessWorker) {
 	pctx, cancel := context.WithCancelCause(ctx)
 	mergeCtx, mergeCtxCancel := context.WithCancelCause(pctx)
-
-	var pw *ProcessWorker
 
 	pw = &ProcessWorker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -369,7 +367,7 @@ func NewProcessWorker(
 		},
 		mergeCtx: func() context.Context { return mergeCtx },
 		mergeCtxCancel: func(err error) {
-			if !errors.Is(err, errProcessWorkerMergeDone) {
+			if pw.Log() != nil && !errors.Is(err, errProcessWorkerMergeDone) {
 				pw.Log().Error().Err(err).Msg("mergeCtxCancel")
 			}
 
@@ -377,6 +375,10 @@ func NewProcessWorker(
 		},
 	}
 
+	return pw
+}
+
+func (pw *ProcessWorker) Ready() error {
 	var opsr *OperationProcessor
 	var opsrOnce sync.Once
 
@@ -404,60 +406,60 @@ func NewProcessWorker(
 		return merger, err
 	}
 
-	switch i, err := pw.args.NewJobWorker(mergeCtx); {
+	switch i, err := pw.args.NewJobWorker(pw.mergeCtx()); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.mergeDelayedWorker = i
 	}
 
-	switch i, err := pw.args.NewJobWorker(pctx); {
+	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.delayedWorker = i
 	}
 
-	switch i, err := util.NewShardedMap[uint64, map[string]struct{}](args.MapSize, nil); {
+	switch i, err := util.NewShardedMap[uint64, map[string]struct{}](pw.args.MapSize, nil); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.opOwners = i
 	}
 
-	switch i, err := util.NewShardedMap[string, []string](args.MapSize, nil); {
+	switch i, err := util.NewShardedMap[string, []string](pw.args.MapSize, nil); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.stateOwners = i
 	}
 
-	switch i, err := util.NewShardedMap[string, base.State](args.MapSize, nil); {
+	switch i, err := util.NewShardedMap[string, base.State](pw.args.MapSize, nil); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.states = i
 	}
 
-	switch i, err := util.NewShardedMap[string, StateMerger](args.MapSize, nil); {
+	switch i, err := util.NewShardedMap[string, StateMerger](pw.args.MapSize, nil); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.mergedStateMergers = i
 	}
 
-	switch i, err := util.NewShardedMap[uint64, util.Hash](args.MapSize, nil); {
+	switch i, err := util.NewShardedMap[uint64, util.Hash](pw.args.MapSize, nil); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.ophs = i
 	}
 
 	var collectClose func()
 
-	switch i, j, k, m, err := newCollectPhaseMergedFunc(args.MapSize); {
+	switch i, j, k, m, err := newCollectPhaseMergedFunc(pw.args.MapSize); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		pw.collectPhaseMergedOps = i
 		pw.collectPhaseReason = j
@@ -496,7 +498,7 @@ func NewProcessWorker(
 		},
 	)
 
-	return pw, nil
+	return nil
 }
 
 func (pw *ProcessWorker) Cancel() {
