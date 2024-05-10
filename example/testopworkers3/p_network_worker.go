@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"net"
@@ -87,10 +88,20 @@ func newWorkerBrokerNewOperationsFunc(
 			return err
 		}
 
-		if err := writeNewOperationsItems(
-			broker.Writer,
-			ops,
-		); err != nil {
+		var gw *util.GzipWriter
+
+		switch i, err := util.NewGzipWriter(broker.Writer, gzip.DefaultCompression); {
+		case err != nil:
+			return err
+		default:
+			gw = i
+		}
+
+		if err := writeNewOperationsItems(gw, ops); err != nil {
+			return err
+		}
+
+		if err := gw.Close(); err != nil {
 			return err
 		}
 
@@ -138,7 +149,20 @@ func newWorkerHandlerNewOperationsFunc(
 
 		var ops uint64
 
-		if err := readNewOperationsItems(broker.Reader, func(opindex uint64, op, fact util.Hash) error {
+		var gr *util.SafeGzipReadCloser
+
+		switch i, err := util.NewSafeGzipReadCloser(io.NopCloser(broker.Reader)); {
+		case err != nil:
+			return err
+		default:
+			defer func() {
+				_ = i.Close()
+			}()
+
+			gr = i
+		}
+
+		if err := readNewOperationsItems(gr, func(opindex uint64, op, fact util.Hash) error {
 			atomic.AddUint64(&ops, 1)
 
 			return process(opindex, op, fact)
