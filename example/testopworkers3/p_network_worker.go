@@ -243,12 +243,12 @@ func newWorkerBrokerInsertValuesFunc(
 
 func newWorkerHandlerInsertValuesFunc(
 	enc encoder.Encoder,
-	f func(_ base.Height, worker string) (processWorkerInsertValues2, func() error, error),
+	f func(_ base.Height, worker string) (processWorkerInsertValues, func() error, error),
 ) (quicstreamheader.Handler[WorkerInsertValuesHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header WorkerInsertValuesHeader,
 	) (context.Context, error) {
-		var insert processWorkerInsertValues2
+		var insert processWorkerInsertValues
 		var done func() error
 
 		switch i, d, err := f(header.Height, header.Worker); {

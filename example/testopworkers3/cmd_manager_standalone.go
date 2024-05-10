@@ -530,7 +530,7 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 				return pm.StateOwners(key)
 			}
 			args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
-				processWorkerInsertValues2,
+				processWorkerInsertValues,
 				func() error,
 				error,
 			) {

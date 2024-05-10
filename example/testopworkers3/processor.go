@@ -27,8 +27,7 @@ type (
 		cancel func(error),
 		_ error,
 	)
-	processWorkerInsertValues  func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
-	processWorkerInsertValues2 func(opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
+	processWorkerInsertValues func(opindex uint64, fact util.Hash, _ []StateMergeValue, owners map[string][]string) error
 )
 
 type Operation interface {
@@ -259,7 +258,7 @@ type ProcessWorkerArgs struct {
 	GetStateMergeValuesFunc func(opindex uint64, op, fact util.Hash) ([]StateMergeValue, bool, error)
 	MapSize                 uint64
 	WorkerInsertValuesFuncs func(_ context.Context, worker string) (
-		insert processWorkerInsertValues2,
+		insert processWorkerInsertValues,
 		done func() error,
 		_ error,
 	)
@@ -303,7 +302,7 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 			return nil, false, nil
 		},
 		WorkerInsertValuesFuncs: func(context.Context, string) (
-			processWorkerInsertValues2,
+			processWorkerInsertValues,
 			func() error,
 			error,
 		) {
@@ -340,7 +339,7 @@ type ProcessWorker struct {
 	saveDoneStatesFunc          writerCloseSaveFunc
 	savedOps                    util.CompactAppendSliceDoneFunc[[2]interface{}]
 	savedStates                 util.CompactAppendSliceDoneFunc[base.State]
-	workerInsertValuesFuncs     map[ /* worker */ string]processWorkerInsertValues2
+	workerInsertValuesFuncs     map[ /* worker */ string]processWorkerInsertValues
 	workerInsertValuesDoneFuncs map[ /* worker */ string]func() error
 }
 
@@ -485,7 +484,7 @@ func (pw *ProcessWorker) Ready() error {
 
 	pw.attachSaveFuncs()
 
-	pw.workerInsertValuesFuncs = map[string]processWorkerInsertValues2{}
+	pw.workerInsertValuesFuncs = map[string]processWorkerInsertValues{}
 	pw.workerInsertValuesDoneFuncs = map[string]func() error{}
 
 	if err := util.TraverseSliceV1(pw.args.Workers, func(_ int, worker string) (bool, error) {

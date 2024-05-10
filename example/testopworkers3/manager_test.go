@@ -1351,7 +1351,7 @@ func (t *testProcessManager) testNWorkers(
 		}
 
 		pw.args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
-			processWorkerInsertValues2,
+			processWorkerInsertValues,
 			func() error,
 			error,
 		) {

@@ -401,7 +401,7 @@ func (t *testHandlers) TestWorkerInsertValues() {
 		handler, err := newWorkerHandlerInsertValuesFunc(
 			t.Encs.Default(),
 			func(_ base.Height, worker string) (
-				processWorkerInsertValues2,
+				processWorkerInsertValues,
 				func() error,
 				error,
 			) {
@@ -502,7 +502,7 @@ func (t *testHandlers) TestWorkerInsertValues() {
 		handler, err := newWorkerHandlerInsertValuesFunc(
 			t.Encs.Default(),
 			func(_ base.Height, worker string) (
-				processWorkerInsertValues2,
+				processWorkerInsertValues,
 				func() error,
 				error,
 			) {

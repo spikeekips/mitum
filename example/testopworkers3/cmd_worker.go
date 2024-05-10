@@ -74,15 +74,14 @@ func (cmd *CommandWorker) prepare(pctx context.Context) (context.Context, *ps.PS
 		priv = i
 	}
 
-	port := cmd.ConnInfo.UDPAddr().Port
-	address := base.NewStringAddress(fmt.Sprintf("%d", port))
+	address := base.NewStringAddress(strings.Replace(cmd.ConnInfo.String(), ":", "-", -1))
 
 	designString := fmt.Sprintf(
 		pWorkerDesignString,
 		address,
 		priv,
 		address,
-		port,
+		cmd.ConnInfo.UDPAddr().Port,
 		cmd.ConnInfo,
 	)
 
@@ -269,7 +268,7 @@ func (cmd *CommandWorker) handlerInsertValuesFunc(pctx context.Context) (quicstr
 	return newWorkerHandlerInsertValuesFunc(
 		encs.Default(),
 		func(height base.Height, worker string) (
-			processWorkerInsertValues2,
+			processWorkerInsertValues,
 			func() error,
 			error,
 		) {
@@ -447,7 +446,7 @@ func (cmd *CommandWorker) newWorker(
 	}
 
 	args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
-		processWorkerInsertValues2,
+		processWorkerInsertValues,
 		func() error,
 		error,
 	) {

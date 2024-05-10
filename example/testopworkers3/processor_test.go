@@ -1160,7 +1160,7 @@ func (t *testProcessWorker) Test3Workers() {
 			}
 
 			pw.args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
-				processWorkerInsertValues2,
+				processWorkerInsertValues,
 				func() error,
 				error,
 			) {
