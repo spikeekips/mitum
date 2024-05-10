@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -547,43 +548,36 @@ func (cmd *CommandWorker) newWorker(
 	) {
 		processingDoneLog(cmd.Log().Info(), "processing done")
 
-		statech := make(chan base.State)
-		reasonch := make(chan [2]interface{})
+		statech := make(chan base.State, 1<<9)
+		reasonch := make(chan [2]interface{}, 1<<9)
+
+		var once sync.Once
+		closestatech := func() {
+			once.Do(func() {
+				close(statech)
+			})
+		}
 
 		_, done, _ := NewContextDoneFunc(
 			ctx,
 			func(ctx context.Context) error {
 				updateState := func(f func(stateKey string, stateHash util.Hash) error) error {
-					for {
-						select {
-						case <-ctx.Done():
-							return ctx.Err()
-						case st, notclosed := <-statech:
-							if !notclosed {
-								return nil
-							}
-
-							if err := f(st.Key(), st.Hash()); err != nil {
-								return err
-							}
+					for st := range statech {
+						if err := f(st.Key(), st.Hash()); err != nil {
+							return err
 						}
 					}
+
+					return nil
 				}
 				updateReason := func(f func(opindex uint64, reason string) error) error {
-					for {
-						select {
-						case <-ctx.Done():
-							return ctx.Err()
-						case i, notclosed := <-reasonch:
-							if !notclosed {
-								return nil
-							}
-
-							if err := f(i[0].(uint64), i[1].(string)); err != nil {
-								return err
-							}
+					for i := range reasonch {
+						if err := f(i[0].(uint64), i[1].(string)); err != nil {
+							return err
 						}
 					}
+
+					return nil
 				}
 
 				return cmd.request(
@@ -607,6 +601,8 @@ func (cmd *CommandWorker) newWorker(
 			return nil
 		}
 		updateReason := func(opindex uint64, reason string) error {
+			closestatech()
+
 			reasonch <- [2]interface{}{opindex, reason}
 
 			return nil
@@ -617,7 +613,7 @@ func (cmd *CommandWorker) newWorker(
 		}()
 
 		return updateState, updateReason, func() error {
-			close(statech)
+			closestatech()
 			close(reasonch)
 
 			return done()

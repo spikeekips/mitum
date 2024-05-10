@@ -372,7 +372,7 @@ func (t *testHandlers) TestWorkerNewOperations() {
 	t.Run("cancel", func() {})
 }
 
-func (t *testHandlers) TestWorkerInsertValues() { // FIXME remove
+func (t *testHandlers) TestWorkerInsertValues() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

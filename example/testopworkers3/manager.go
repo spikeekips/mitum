@@ -61,7 +61,7 @@ type ProcessManagerArgs struct {
 	)
 	IsEnoughWorkers             func(workers uint64) bool // NOTE include local worker
 	IsInStateOperationFunc      func(_ context.Context, fact util.Hash) (bool, error)
-	NewOpOwnersFunc2            func(workers uint64, share uint8) (opOwnersFunc2, error)
+	NewOpOwnersFunc             func(workers uint64, share uint8) (opOwnersFunc2, error)
 	NewStateOwnersFunc          func(workers []string, share uint8) (stateOwnersFunc, error)
 	MapSize                     uint64
 	MinStatesSize               uint64
@@ -100,7 +100,7 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		IsInStateOperationFunc: func(context.Context, util.Hash) (bool, error) {
 			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
-		NewOpOwnersFunc2:    newRegionalOpOwnersFunc,
+		NewOpOwnersFunc:     newRegionalOpOwnersFunc,
 		NewStateOwnersFunc:  serialStateOwnersFunc, // djb2StateOwnersFunc
 		MapSize:             1 << 9,
 		MinStatesSize:       1 << 18,
@@ -136,7 +136,7 @@ type ProcessManager struct {
 	workersMergeDone          *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
 	workersStoreDone          *util.Locked[map[ /* worker */ string]struct{}]
 	storeJobWorker            util.JobWorker
-	newOpOwnersFunc2          opOwnersFunc2
+	newOpOwnersFunc           opOwnersFunc2
 	stateOwners               util.LockedMap[ /* state key */ string /* workers */, []string]
 	newStateOwnersFunc        func(string) ([]string, error)
 	cleanf                    func()
@@ -242,11 +242,11 @@ func NewProcessManager(
 	pm.newStatesTreeWriterFunc()
 	pm.newOperationsTreeWriterFunc()
 
-	switch i, err := args.NewOpOwnersFunc2(uint64(len(pm.workers)), args.NOpShare); {
+	switch i, err := args.NewOpOwnersFunc(uint64(len(pm.workers)), args.NOpShare); {
 	case err != nil:
 		return nil, err
 	default:
-		pm.newOpOwnersFunc2 = i
+		pm.newOpOwnersFunc = i
 	}
 
 	clearFailedWorkers := pm.attachFailedWorkers()
@@ -771,7 +771,7 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 
 	var ws [][][3]interface{}
 
-	switch i, err := pm.newOpOwnersFunc2(pm.ops); {
+	switch i, err := pm.newOpOwnersFunc(pm.ops); {
 	case err != nil:
 		return err
 	default:
@@ -1302,6 +1302,44 @@ func fullOpOwnersFunc(workers []string, share uint8) (opOwnersFunc, error) {
 	}, nil
 }
 
+func newFullOpOwnersFunc(nworkers uint64, share uint8) (opOwnersFunc2, error) {
+	if nworkers < 1 {
+		return nil, errors.Errorf("empty workers")
+	}
+
+	nshare := uint64(share)
+	if nshare < 1 {
+		return nil, errors.Errorf("zero share")
+	}
+
+	return func(ops [][2]util.Hash) ([][][3]interface{}, error) {
+		nw := nworkers
+
+		switch nops := uint64(len(ops)); {
+		case nops < 1:
+			return nil, errors.Errorf("empty ops")
+		case nops < nw:
+			nw = nops
+		}
+
+		ws := make([][][3]interface{}, nw)
+
+		for i := uint64(0); i < nw; i++ {
+			n := make([][3]interface{}, len(ops))
+
+			_ = util.TraverseSliceV1(ops, func(j int, v [2]util.Hash) (bool, error) {
+				n[j] = [3]interface{}{uint64(j), v[0], v[1]}
+
+				return true, nil
+			})
+
+			ws[i] = n
+		}
+
+		return ws, nil
+	}, nil
+}
+
 func newRegionalOpOwnersFunc(nworkers uint64, share uint8) (opOwnersFunc2, error) {
 	if nworkers < 1 {
 		return nil, errors.Errorf("empty workers")
@@ -1313,20 +1351,22 @@ func newRegionalOpOwnersFunc(nworkers uint64, share uint8) (opOwnersFunc2, error
 	}
 
 	return func(ops [][2]util.Hash) ([][][3]interface{}, error) {
+		nw := nworkers
+
 		switch nops := uint64(len(ops)); {
 		case nops < 1:
 			return nil, errors.Errorf("empty ops")
-		case nops < nworkers:
-			nworkers = nops
+		case nops < nw:
+			nw = nops
 		}
 
 		ns := nshare
 
-		if ns > nworkers {
-			ns = nworkers
+		if ns > nw {
+			ns = nw
 		}
 
-		return regionalOpOwnersFunc(nworkers, ns, ops)
+		return regionalOpOwnersFunc(nw, ns, ops)
 	}, nil
 }
 

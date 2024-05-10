@@ -493,6 +493,11 @@ func (cmd *CommandManager) newManagerFunc(
 	return func(ctx context.Context) (*ProcessManager, error) {
 		args := NewProcessManagerArgs(cmd.workers)
 		args.Local = cmd.localCI.String()
+
+		if cmd.FullOpOwners {
+			args.NewOpOwnersFunc = newFullOpOwnersFunc
+		}
+
 		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
 			return db.ExistsInStateOperation(fact)
 		}

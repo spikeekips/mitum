@@ -699,8 +699,8 @@ func (cmd *baseCommand) loadDesign(pctx context.Context) error {
 	cmd.networkID = isaacparams.NetworkID()
 	cmd.localCI = design.Network.PublishConnInfo()
 
-	cmd.statesPool = util.NewLFUGCache[string, base.State](isaacparams.StateCacheSize() * 4)
-	cmd.opsPool = util.NewLFUGCache[string, base.Operation](int(cmd.Operations) * 2)
+	cmd.statesPool = util.NewLFUGCache[string, base.State](1 << 19)
+	cmd.opsPool = util.NewLFUGCache[string, base.Operation](1 << 19)
 
 	if err := design.LocalParams.Network.SetDefaultHandlerTimeout(time.Hour); err != nil {
 		return err
@@ -824,14 +824,15 @@ func (cmd *baseCommand) request(
 	brokerf quicstreamheader.BrokerFunc,
 	ci quicstream.ConnInfo,
 ) error {
-	cmd.Log().Debug().Str("request", name).Msg("request")
+	l := cmd.Log().With().Str("request", name).Logger()
+
+	defer logging.TimeElapsedMsg(l.Debug, "request")()
 
 	openStream := openStreamFunc(cmd.encs, cmd.connectionPool.Dial)
 
 	if err := requestHandlerFunc(ctx, openStream, brokerf, ci); err != nil {
-		cmd.Log().Error().
+		l.Error().
 			Err(err).
-			Str("request", name).
 			Interface("conn_info", ci).
 			Msg("request failed")
 

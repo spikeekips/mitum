@@ -198,7 +198,7 @@ func (opsr *OperationProcessor) getOperation(ctx context.Context, opindex uint64
 	case err != nil:
 		return nil, err
 	case !found:
-		return nil, base.NewBaseOperationProcessReasonError("not found")
+		return nil, base.NewBaseOperationProcessReasonError("not found operation")
 	default:
 		return op, nil
 	}
@@ -466,7 +466,20 @@ func (pw *ProcessWorker) Ready() error {
 	default:
 		pw.collectPhaseMergedOps = i
 		pw.collectPhaseReason = j
-		pw.collectPhaseResult = k
+		pw.collectPhaseResult = func() (
+			mergedOps map[ /* state key */ string][]uint64,
+			unmergedOps map[ /* opindex */ uint64] /* reason */ string,
+		) {
+			defer logging.TimeElapsed()(pw.Log().Debug(), "collectPhaseResult")
+
+			rm, ru := k()
+			pw.Log().Debug().
+				Int("merged_ops", len(rm)).
+				Int("unmerged_ops", len(ru)).
+				Msg("collect result")
+
+			return rm, ru
+		}
 		collectClose = m
 	}
 
