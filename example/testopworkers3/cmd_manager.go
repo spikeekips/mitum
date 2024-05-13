@@ -34,15 +34,16 @@ network:
 
 type CommandManager struct { //nolint:govet //...
 	baseCommandManager
-	Workers        []string `arg:"" name:"worker"`
-	NStateShare    uint8    `name:"number of state share" default:"1"`
-	FullOpOwners   bool     `name:"full-ops" help:"send entire operaions to each workers"`
-	PreProcess     bool     `name:"pre-process" help:"pre process operations"`
-	localCI        quicstream.ConnInfo
-	workers        []string
-	connectionPool *quicstream.ConnectionPool
-	mgs            util.LockedMap[base.Height, *ProcessManager]
-	additionalOps  map[base.Height]map[string][][3]interface{}
+	Workers           []string `arg:"" name:"worker"`
+	NStateShare       uint8    `name:"number of state share" default:"1"`
+	FullOpOwners      bool     `name:"full-ops" help:"send entire operaions to each workers"`
+	PreProcess        bool     `name:"pre-process" help:"pre process operations"`
+	TestNewOperations bool     `name:"test-new-operations"`
+	localCI           quicstream.ConnInfo
+	workers           []string
+	connectionPool    *quicstream.ConnectionPool
+	mgs               util.LockedMap[base.Height, *ProcessManager]
+	additionalOps     map[base.Height]map[string][][3]interface{}
 }
 
 func (cmd *CommandManager) Run(pctx context.Context) error {
@@ -173,6 +174,10 @@ func (cmd *CommandManager) pNetworkHandlers(pctx context.Context) (context.Conte
 }
 
 func (cmd *CommandManager) run(pctx context.Context) error {
+	if cmd.TestNewOperations {
+		return cmd.testNewOperations(pctx)
+	}
+
 	var mp base.BlockMap
 
 	switch i, err := cmd.createAccounts(pctx); {
@@ -956,4 +961,36 @@ func (cmd *CommandManager) handlerWorkerCanceled(pctx context.Context) (quicstre
 			return i.WorkerCanceled, nil
 		},
 	)
+}
+
+func (cmd *CommandManager) testNewOperations(pctx context.Context) error {
+	elapsedOps := logging.TimeElapsedMsg(cmd.Log().Info, "NewOperations")
+
+	ops := make([][2]util.Hash, cmd.Operations)
+	_ = util.TraverseSliceV1(ops, func(i int, _ [2]util.Hash) (bool, error) {
+		ops[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
+
+		return true, nil
+	})
+
+	elapsedOps()
+
+	defer logging.TimeElapsed()(cmd.Log().Info(), "NewOperations")
+
+	if err := cmd.requestWorkers(
+		context.Background(),
+		"NewOperations",
+		newBaseWorkerBrokerNewOperationsFunc(
+			NewWorkerTestNewOperationsHeader(),
+			func(f func(opindex uint64, op, fact util.Hash) error) error {
+				return util.TraverseSliceV1(ops, func(i int, v [2]util.Hash) (bool, error) {
+					return true, f(uint64(i), v[0], v[1])
+				})
+			},
+		),
+	); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -145,6 +145,7 @@ func (cmd *CommandWorker) pNetworkHandlers(pctx context.Context) (context.Contex
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerDoneHeaderHint), cmd.handlerDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerReadyHeaderHint), cmd.handlerReadyFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerNewOperationsHeaderHint), cmd.handlerNewOperationsFunc, nil)
+	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerTestNewOperationsHeaderHint), cmd.handlerTestNewOperationsFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerInsertValuesHeaderHint), cmd.handlerInsertValuesFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerPhaseDoneHeaderHint), cmd.handlerPhaseDoneFunc, nil)
 	ensureHandlerAdd(pctx, &gerror, handlerNameByHint(WorkerSyncStatesHeaderHint), cmd.handlerSyncStates, nil)
@@ -253,6 +254,42 @@ func (cmd *CommandWorker) handlerNewOperationsFunc(pctx context.Context) (quicst
 		default:
 			return w.NewOperations()
 		}
+	})
+}
+
+func (cmd *CommandWorker) handlerTestNewOperationsFunc(pctx context.Context) (quicstreamheader.Handler[WorkerTestNewOperationsHeader], error) {
+	return newWorkerHandlerTestNewOperationsFunc(cmd.Log().Debug, func() (
+		workerNewOperationsFunc,
+		func() error,
+		func(error),
+		error,
+	) {
+		elapsed := logging.TimeElapsedMsg(cmd.Log().Info, "NewOperations")
+
+		add, done, err := util.CompactAppendSliceV1[uint64](1<<18, 1<<9)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		return func(opindex uint64, _, _ util.Hash) error {
+				add(opindex)
+
+				return nil
+			},
+			func() error {
+				_ = done(func(s []uint64) error {
+					cmd.Log().Debug().Int("ops", len(s)).Msg("ops")
+
+					return nil
+				})
+
+				elapsed()
+
+				return nil
+			},
+			func(error) {
+			},
+			nil
 	})
 }
 

@@ -564,6 +564,7 @@ func (pw *ProcessWorker) NewOperations() (
 
 	pw.Log().Debug().Msg("start processing")
 
+	elapsedInsert := logging.TimeElapsedMsg(pw.Log().Debug, "insert")
 	elapsed := logging.TimeElapsedMsg(pw.Log().Debug, "process")
 
 	switch p, d, c, err := opsr.Process(); {
@@ -576,6 +577,8 @@ func (pw *ProcessWorker) NewOperations() (
 				if err := d(); err != nil {
 					return err
 				}
+
+				elapsedInsert()
 
 				go func() {
 					if err := opsrDone(); err != nil {

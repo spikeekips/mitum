@@ -77,13 +77,11 @@ func newWorkerHandlerReadyFunc(
 	}, nil
 }
 
-func newWorkerBrokerNewOperationsFunc(
-	height base.Height,
+func newBaseWorkerBrokerNewOperationsFunc(
+	header quicstreamheader.RequestHeader,
 	ops func(func(opindex uint64, op, fact util.Hash) error) error,
 ) quicstreamheader.BrokerFunc {
 	return func(ctx context.Context, broker *quicstreamheader.ClientBroker) error {
-		header := NewWorkerNewOperationsHeader(height)
-
 		if err := broker.WriteRequestHead(ctx, header); err != nil {
 			return err
 		}
@@ -118,25 +116,35 @@ func newWorkerBrokerNewOperationsFunc(
 	}
 }
 
-func newWorkerHandlerNewOperationsFunc(
+func newWorkerBrokerNewOperationsFunc(
+	height base.Height,
+	ops func(func(opindex uint64, op, fact util.Hash) error) error,
+) quicstreamheader.BrokerFunc {
+	return newBaseWorkerBrokerNewOperationsFunc(
+		NewWorkerNewOperationsHeader(height),
+		ops,
+	)
+}
+
+func newBaseWorkerHandlerNewOperationsFunc[H quicstreamheader.RequestHeader](
 	logf func() *zerolog.Event,
-	getFuncs func(base.Height) (
+	getFuncs func(H) (
 		workerNewOperationsFunc,
 		func() error,
 		func(error),
 		error,
 	),
-) (quicstreamheader.Handler[WorkerNewOperationsHeader], error) {
+) (quicstreamheader.Handler[H], error) {
 	h := func(
 		ctx context.Context,
 		broker *quicstreamheader.HandlerBroker,
-		height base.Height,
+		header H,
 	) error {
 		var process workerNewOperationsFunc
 		var done func() error
 		var cancel func(error)
 
-		switch i, j, k, err := getFuncs(height); {
+		switch i, j, k, err := getFuncs(header); {
 		case err != nil:
 			return err
 		default:
@@ -189,12 +197,56 @@ func newWorkerHandlerNewOperationsFunc(
 	}
 
 	return func(ctx context.Context, _ net.Addr,
-		broker *quicstreamheader.HandlerBroker, header WorkerNewOperationsHeader,
+		broker *quicstreamheader.HandlerBroker, header H,
 	) (context.Context, error) {
-		err := h(ctx, broker, header.Height)
+		err := h(ctx, broker, header)
 
 		return ctx, broker.WriteResponseHeadOK(ctx, err == nil, err)
 	}, nil
+}
+
+func newWorkerHandlerNewOperationsFunc(
+	logf func() *zerolog.Event,
+	getFuncs func(base.Height) (
+		workerNewOperationsFunc,
+		func() error,
+		func(error),
+		error,
+	),
+) (quicstreamheader.Handler[WorkerNewOperationsHeader], error) {
+	return newBaseWorkerHandlerNewOperationsFunc(
+		logf,
+		func(header WorkerNewOperationsHeader) (
+			workerNewOperationsFunc,
+			func() error,
+			func(error),
+			error,
+		) {
+			return getFuncs(header.Height)
+		},
+	)
+}
+
+func newWorkerHandlerTestNewOperationsFunc(
+	logf func() *zerolog.Event,
+	getFuncs func() (
+		workerNewOperationsFunc,
+		func() error,
+		func(error),
+		error,
+	),
+) (quicstreamheader.Handler[WorkerTestNewOperationsHeader], error) {
+	return newBaseWorkerHandlerNewOperationsFunc(
+		logf,
+		func(header WorkerTestNewOperationsHeader) (
+			workerNewOperationsFunc,
+			func() error,
+			func(error),
+			error,
+		) {
+			return getFuncs()
+		},
+	)
 }
 
 func newWorkerBrokerInsertValuesFunc(
