@@ -325,6 +325,7 @@ type ProcessWorker struct {
 	merger                      func() (*StatesMergerWorker, error)
 	mergeDelayedWorker          util.JobWorker
 	delayedWorker               util.JobWorker
+	mergeStateValueWorker       util.JobWorker
 	cleanf                      func()
 	opOwners                    util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
 	states                      util.LockedMap[string, base.State]
@@ -422,6 +423,13 @@ func (pw *ProcessWorker) Ready() error {
 		pw.delayedWorker = i
 	}
 
+	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
+	case err != nil:
+		return err
+	default:
+		pw.mergeStateValueWorker = i
+	}
+
 	switch i, err := util.NewShardedMap[uint64, map[string]struct{}](pw.args.MapSize, nil); {
 	case err != nil:
 		return err
@@ -511,6 +519,7 @@ func (pw *ProcessWorker) Ready() error {
 
 		pw.mergeDelayedWorker.Close()
 		pw.delayedWorker.Close()
+		pw.mergeStateValueWorker.Close()
 		pw.opOwners.Close()
 		pw.states.Close()
 		pw.mergedStateMergers.Close()
@@ -816,6 +825,13 @@ func (pw *ProcessWorker) newOperationProcessor() (
 			return err
 		}
 
+		pw.mergeStateValueWorker.Done()
+		if err := pw.mergeStateValueWorker.Wait(); err != nil {
+			pw.Log().Error().Err(err).Msg("mergeStateWorker")
+
+			return err
+		}
+
 		if err := pw.workersInsertValuesDone(); err != nil {
 			pw.Log().Error().Err(err).Msg("pw.workersInsertValuesDone()")
 
@@ -951,49 +967,29 @@ func (pw *ProcessWorker) updateReasons(ctx context.Context, phase int, opindex u
 }
 
 func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-	var valuesByOwners map[string][]StateMergeValue
+	return pw.mergeStateValueWorker.NewJob(func(ctx context.Context, _ uint64) error {
+		var valuesByOwners map[string][]StateMergeValue
 
-	switch i, err := pw.filterStateMergeValuesOwners(opindex, values); {
-	case err != nil:
-		return err
-	default:
-		valuesByOwners = i
-	}
-
-	var ew util.JobWorker
-
-	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
-	case err != nil:
-		return err
-	default:
-		defer i.Close()
-
-		ew = i
-	}
-
-	if err := TraverseMap(valuesByOwners, func(owner string, filtered []StateMergeValue) (bool, error) {
-		switch {
-		case len(filtered) < 1, pw.args.FullOps && owner != pw.local:
-			return true, nil
+		switch i, err := pw.filterStateMergeValuesOwners(opindex, values); {
+		case err != nil:
+			return err
+		default:
+			valuesByOwners = i
 		}
 
-		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+		return TraverseMap(valuesByOwners, func(owner string, filtered []StateMergeValue) (bool, error) {
 			switch {
+			case len(filtered) < 1, pw.args.FullOps && owner != pw.local:
+				return true, nil
 			case owner == pw.local:
-				return pw.localMergeStateMergeValue(opindex, fact, filtered)
+				return true, pw.localMergeStateMergeValue(opindex, fact, filtered)
 			case !pw.args.IsPreProcessed:
-				return pw.workerMergeStateMergeValue(ctx, opindex, fact, filtered, owner)
+				return true, pw.workerMergeStateMergeValue(ctx, opindex, fact, filtered, owner)
 			default:
-				return nil
+				return true, nil
 			}
 		})
-	}); err != nil {
-		return err
-	}
-
-	ew.Done()
-
-	return ew.Wait()
+	})
 }
 
 func (pw *ProcessWorker) localMergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
