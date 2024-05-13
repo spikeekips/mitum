@@ -235,6 +235,8 @@ func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamhead
 				)
 			})
 
+			// FIXME merge preprocessed values
+
 			return err
 		},
 	)
@@ -436,13 +438,18 @@ func (cmd *CommandWorker) newWorker(
 		return n > nworkers-nshared
 	}
 
-	args.StateOwners = cmd.remoteStateOwnersFunc(height)
+	// args.StateOwners = cmd.remoteStateOwnersFunc(height)
 
 	switch stateOwnersf, err := cmd.djb2StateOwnersFunc(margs.Workers, margs.NStateShare); {
 	case err != nil:
 		return nil, err
 	default:
-		args.StateOwners = stateOwnersf
+		i, err := newStateOwnersFunc(stateOwnersf, args.MapSize)
+		if err != nil {
+			return nil, err
+		}
+
+		args.StateOwners = i
 	}
 
 	args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
@@ -659,7 +666,7 @@ func (cmd *CommandWorker) newWorker(
 }
 
 func (cmd *CommandWorker) djb2StateOwnersFunc(workers []string, share uint8) (
-	func(context.Context, string) ([]string, error),
+	stateOwnersFunc,
 	error,
 ) {
 	f, err := djb2StateOwnersFunc(workers, share)
@@ -667,12 +674,12 @@ func (cmd *CommandWorker) djb2StateOwnersFunc(workers []string, share uint8) (
 		return nil, err
 	}
 
-	return func(_ context.Context, stateKey string) ([]string, error) {
-		return f(stateKey)
+	return func(ctx context.Context, stateKey string) ([]string, error) {
+		return f(ctx, stateKey)
 	}, nil
 }
 
-func (cmd *CommandWorker) remoteStateOwnersFunc(height base.Height) func(context.Context, string) ([]string, error) {
+func (cmd *CommandWorker) remoteStateOwnersFunc(height base.Height) stateOwnersFunc {
 	return func(ctx context.Context, stateKey string) (owners []string, _ error) {
 		if err := cmd.request(ctx, "StateOwners", newManagerBrokerStateOwnersFunc(
 			height,

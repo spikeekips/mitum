@@ -22,6 +22,8 @@ func TestSerialStateOwnersFunc(tt *testing.T) {
 	t := new(suite.Suite)
 	t.SetT(tt)
 
+	ctx := context.Background()
+
 	t.Run("empty workers", func() {
 		var workers []string
 		var share uint8 = 2
@@ -48,15 +50,15 @@ func TestSerialStateOwnersFunc(tt *testing.T) {
 		t.NoError(err)
 
 		key := util.UUID().String()
-		ws, err := f(key)
+		ws, err := f(ctx, key)
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1"}, ws, "0")
 
-		ws, err = f(key)
+		ws, err = f(ctx, key)
 		t.NoError(err)
 		t.Equal([]string{"w2", "w0"}, ws, "1")
 
-		ws, err = f(key)
+		ws, err = f(ctx, key)
 		t.NoError(err)
 		t.Equal([]string{"w1", "w2"}, ws, "2")
 	})
@@ -68,15 +70,15 @@ func TestSerialStateOwnersFunc(tt *testing.T) {
 		f, err := serialStateOwnersFunc(workers, share)
 		t.NoError(err)
 
-		ws, err := f(util.UUID().String())
+		ws, err := f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1"}, ws, "0")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w2", "w0"}, ws, "1")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w1", "w2"}, ws, "2")
 	})
@@ -88,15 +90,15 @@ func TestSerialStateOwnersFunc(tt *testing.T) {
 		f, err := serialStateOwnersFunc(workers, share)
 		t.NoError(err)
 
-		ws, err := f(util.UUID().String())
+		ws, err := f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "0")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "1")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "2")
 	})
@@ -108,15 +110,15 @@ func TestSerialStateOwnersFunc(tt *testing.T) {
 		f, err := serialStateOwnersFunc(workers, share)
 		t.NoError(err)
 
-		ws, err := f(util.UUID().String())
+		ws, err := f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "0")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "1")
 
-		ws, err = f(util.UUID().String())
+		ws, err = f(ctx, util.UUID().String())
 		t.NoError(err)
 		t.Equal([]string{"w0", "w1", "w2"}, ws, "2")
 	})
@@ -1182,7 +1184,7 @@ func (t *testProcessManager) newProcessWorker(
 	getFactFunc func(util.Hash) (uint64, bool),
 	getStateFunc func(context.Context, string) (base.State, bool, error),
 	isEnoughWorkers func(uint64) bool,
-	stateOwners func(string) ([]string, error),
+	stateOwners stateOwnersFunc,
 	resultMergedOps util.LockedMap[string, []uint64],
 	resultUnmergedOps util.LockedMap[uint64, string],
 	updateMerged func(string) (
@@ -1200,8 +1202,8 @@ func (t *testProcessManager) newProcessWorker(
 	pw.args.GetOperationFunc = getOperationFunc
 	pw.args.GetStateFunc = getStateFunc
 	pw.args.IsEnoughWorkers = isEnoughWorkers
-	pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
-		return stateOwners(stateKey)
+	pw.args.StateOwners = func(ctx context.Context, stateKey string) ([]string, error) {
+		return stateOwners(ctx, stateKey)
 	}
 
 	pw.args.BroadcastPhaseDoneFunc = func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error {

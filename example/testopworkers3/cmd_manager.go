@@ -750,7 +750,7 @@ func (cmd *CommandManager) syncStateMergedValues(values [][2]interface{}) error 
 
 func (cmd *CommandManager) handlerStateOwners(pctx context.Context) (quicstreamheader.Handler[ManagerStateOwnersHeader], error) {
 	return newManagerHandlerStateOwnersFunc(
-		func(height base.Height) (func(string) ([]string, error), error) {
+		func(height base.Height) (stateOwnersFunc, error) {
 			i, _ := cmd.mgs.Value(height)
 			if i == nil {
 				return nil, util.ErrNotFound.Errorf("ProcessManager")

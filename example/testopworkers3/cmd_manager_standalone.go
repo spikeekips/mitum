@@ -526,8 +526,8 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 				return util.NewBaseJobWorker(ctx, cmd.c)
 			}
 			args.IsEnoughWorkers = pm.args.IsEnoughWorkers
-			args.StateOwners = func(_ context.Context, key string) ([]string, error) {
-				return pm.StateOwners(key)
+			args.StateOwners = func(ctx context.Context, key string) ([]string, error) {
+				return pm.StateOwners(ctx, key)
 			}
 			args.WorkerInsertValuesFuncs = func(ctx context.Context, worker string) (
 				processWorkerInsertValues,
@@ -1136,4 +1136,40 @@ func availableTCPPort() (string, error) {
 
 		return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil //nolint:forcetypeassert //...
 	}
+}
+
+func newStateOwnersFunc(f stateOwnersFunc, mapSize uint64) (stateOwnersFunc, error) {
+	var l util.LockedMap[string, []string]
+
+	switch i, err := util.NewShardedMap[string, []string](mapSize, nil); {
+	case err != nil:
+		return nil, err
+	default:
+		l = i
+	}
+
+	return func(ctx context.Context, stateKey string) (owners []string, _ error) {
+		if err := l.GetOrCreate(
+			stateKey,
+			func(m []string, _ bool) error {
+				owners = m
+
+				return nil
+			},
+			func() ([]string, error) {
+				switch i, err := f(ctx, stateKey); {
+				case err != nil:
+					return nil, err
+				case len(i) < 1:
+					return nil, util.ErrNotFound.Errorf("state owners")
+				default:
+					return i, nil
+				}
+			},
+		); err != nil {
+			return nil, err
+		}
+
+		return owners, nil
+	}, nil
 }

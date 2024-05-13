@@ -326,7 +326,6 @@ type ProcessWorker struct {
 	delayedWorker               util.JobWorker
 	cleanf                      func()
 	opOwners                    util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
-	stateOwners                 util.LockedMap[ /* state key */ string /* worker */, []string]
 	states                      util.LockedMap[string, base.State]
 	mergedStateMergers          util.LockedMap[string, StateMerger]
 	collectPhaseMergedOps       collectPhaseMergedOpsFunc
@@ -429,13 +428,6 @@ func (pw *ProcessWorker) Ready() error {
 		pw.opOwners = i
 	}
 
-	switch i, err := util.NewShardedMap[string, []string](pw.args.MapSize, nil); {
-	case err != nil:
-		return err
-	default:
-		pw.stateOwners = i
-	}
-
 	switch i, err := util.NewShardedMap[string, base.State](pw.args.MapSize, nil); {
 	case err != nil:
 		return err
@@ -519,7 +511,6 @@ func (pw *ProcessWorker) Ready() error {
 		pw.mergeDelayedWorker.Close()
 		pw.delayedWorker.Close()
 		pw.opOwners.Close()
-		pw.stateOwners.Close()
 		pw.states.Close()
 		pw.mergedStateMergers.Close()
 		pw.ophs.Close()
@@ -610,16 +601,6 @@ func (pw *ProcessWorker) NewOperations() (
 
 func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
 	_ = pw.ophs.SetValue(opindex, fact)
-
-	if len(owners) > 0 {
-		_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
-			if i, found := owners[v.Key()]; found {
-				_ = pw.setStateMergeValueOwners(v.Key(), i)
-			}
-
-			return true, nil
-		})
-	}
 
 	if err := pw.setStateMergeValuesOwners(opindex, values, nil); err != nil {
 		pw.ctxCancel(err)
@@ -1017,13 +998,18 @@ func (pw *ProcessWorker) localMergeStateMergeValue(opindex uint64, fact util.Has
 	return pw.mergerInsertValues(opindex, values)
 }
 
-func (pw *ProcessWorker) workerMergeStateMergeValue(_ context.Context, opindex uint64, fact util.Hash, values []StateMergeValue, worker string) error {
+func (pw *ProcessWorker) workerMergeStateMergeValue(ctx context.Context, opindex uint64, fact util.Hash, values []StateMergeValue, worker string) error {
 	opOwners := map[string][]string{}
 
 	_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
-		opOwners[v.Key()], _ = pw.stateOwners.Value(v.Key())
+		switch i, err := pw.args.StateOwners(ctx, v.Key()); {
+		case err != nil:
+			return false, err
+		default:
+			opOwners[v.Key()] = i
 
-		return true, nil
+			return true, nil
+		}
 	})
 
 	return pw.workerInsertValuesFuncs[worker](opindex, fact, values, opOwners)
@@ -1067,7 +1053,7 @@ func (pw *ProcessWorker) setStateMergeValuesOwners(
 
 		if err := util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
 			return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
-				switch owners, err := pw.stateMergeValueOwners(ctx, v); {
+				switch owners, err := pw.args.StateOwners(ctx, v.Key()); {
 				case err != nil:
 					return err
 				default:
@@ -1131,39 +1117,6 @@ func (pw *ProcessWorker) filterStateMergeValuesOwners(opindex uint64, values []S
 	}
 
 	return filtered.Map(), nil
-}
-
-func (pw *ProcessWorker) stateMergeValueOwners(ctx context.Context, value StateMergeValue) (owners []string, _ error) {
-	if err := pw.stateOwners.GetOrCreate(
-		value.Key(),
-		func(m []string, _ bool) error {
-			owners = m
-
-			return nil
-		},
-		func() ([]string, error) {
-			return pw.args.StateOwners(ctx, value.Key())
-		},
-	); err != nil {
-		return nil, err
-	}
-
-	return owners, nil
-}
-
-func (pw *ProcessWorker) setStateMergeValueOwners(stateKey string, owners []string) error {
-	_, _, _ = pw.stateOwners.Set(
-		stateKey,
-		func(i []string, found bool) ([]string, error) {
-			if found {
-				return nil, util.ErrLockedSetIgnore
-			}
-
-			return owners, nil
-		},
-	)
-
-	return nil
 }
 
 func (pw *ProcessWorker) filterOps(ops []uint64) ([]uint64, error) {

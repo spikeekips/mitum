@@ -31,7 +31,7 @@ var (
 type (
 	opOwnersFunc            func(opindex uint64, op, fact util.Hash) ([]string, error)
 	opOwnersFunc2           func([][2]util.Hash) ([][][3]interface{} /* [][]{opindex uint8, op, fact util.Hash} */, error)
-	stateOwnersFunc         func(stateKey string) ([]string, error)
+	stateOwnersFunc         func(_ context.Context, stateKey string) ([]string, error)
 	workerNewOperationsFunc func(opindex uint64, op, fact util.Hash) error
 )
 
@@ -101,7 +101,7 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 			return false, util.ErrNotImplemented.Errorf("IsInStateOperationFunc")
 		},
 		NewOpOwnersFunc:     newRegionalOpOwnersFunc,
-		NewStateOwnersFunc:  serialStateOwnersFunc, // djb2StateOwnersFunc
+		NewStateOwnersFunc:  djb2StateOwnersFunc, // serialStateOwnersFunc
 		MapSize:             1 << 9,
 		MinStatesSize:       1 << 18,
 		WorkerCancelTimeout: time.Second * 3,
@@ -137,8 +137,7 @@ type ProcessManager struct {
 	workersStoreDone          *util.Locked[map[ /* worker */ string]struct{}]
 	storeJobWorker            util.JobWorker
 	newOpOwnersFunc           opOwnersFunc2
-	stateOwners               util.LockedMap[ /* state key */ string /* workers */, []string]
-	newStateOwnersFunc        func(string) ([]string, error)
+	newStateOwnersFunc        stateOwnersFunc
 	cleanf                    func()
 	states                    util.LockedMap[ /* state key */ string /* state hash */, util.Hash]
 	reasons                   util.LockedMap[ /* opindex */ uint64 /* reason */, string]
@@ -204,13 +203,6 @@ func NewProcessManager(
 
 	workerMapSize := uint64(len(args.Workers))
 
-	switch i, err := util.NewLockedMap[string, []string](workerMapSize, nil); {
-	case err != nil:
-		return nil, err
-	default:
-		pm.stateOwners = i
-	}
-
 	switch i, err := util.NewShardedMap[string, util.Hash](args.MapSize, nil); {
 	case err != nil:
 		return nil, err
@@ -236,7 +228,12 @@ func NewProcessManager(
 	case err != nil:
 		return nil, err
 	default:
-		pm.newStateOwnersFunc = newStateOwnersFunc(i)
+		j, err := newStateOwnersFunc(i, pm.args.MapSize)
+		if err != nil {
+			return nil, err
+		}
+
+		pm.newStateOwnersFunc = j
 	}
 
 	pm.newStatesTreeWriterFunc()
@@ -257,7 +254,6 @@ func NewProcessManager(
 		clearFailedWorkers()
 
 		pm.storeJobWorker.Close()
-		pm.stateOwners.Close()
 		pm.states.Close()
 		pm.workersMergeDone.EmptyValue()
 		pm.workersStoreDone.EmptyValue()
@@ -293,22 +289,8 @@ func (pm *ProcessManager) ReadyWorkers() error {
 	return nil
 }
 
-func (pm *ProcessManager) StateOwners(stateKey string) (owners []string, _ error) {
-	if err := pm.stateOwners.GetOrCreate(
-		stateKey,
-		func(i []string, _ bool) error {
-			owners = i
-
-			return nil
-		},
-		func() ([]string, error) {
-			return pm.newStateOwnersFunc(stateKey)
-		},
-	); err != nil {
-		return nil, err
-	}
-
-	return owners, nil
+func (pm *ProcessManager) StateOwners(ctx context.Context, stateKey string) (owners []string, _ error) {
+	return pm.newStateOwnersFunc(ctx, stateKey)
 }
 
 func (pm *ProcessManager) Process() error {
@@ -1471,7 +1453,7 @@ func serialStateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, erro
 
 	last := util.NewLocked(uint64(0))
 
-	return func(stateKey string) (owners []string, _ error) {
+	return func(_ context.Context, stateKey string) (owners []string, _ error) {
 		_, _ = last.Set(func(l uint64, _ bool) (uint64, error) {
 			add, done := util.CompactAppendSlice[string](int(n))
 
@@ -1507,7 +1489,7 @@ func djb2StateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, error)
 
 	seed := uint32(0)
 
-	return func(stateKey string) ([]string, error) {
+	return func(_ context.Context, stateKey string) ([]string, error) {
 		index := stringdjb2(seed, stateKey) % w
 
 		add, done, _ := util.CompactAppendSliceV1[string](n)
@@ -1526,19 +1508,6 @@ func djb2StateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, error)
 
 		return owners, nil
 	}, nil
-}
-
-func newStateOwnersFunc(f stateOwnersFunc) stateOwnersFunc {
-	return func(stateKey string) ([]string, error) {
-		switch owners, err := f(stateKey); {
-		case err != nil:
-			return nil, err
-		case len(owners) < 1:
-			return nil, util.ErrNotFound.Errorf("state owners")
-		default:
-			return owners, nil
-		}
-	}
 }
 
 func newIsEnoughWorkers(workers, nshare uint64) func(uint64) bool {

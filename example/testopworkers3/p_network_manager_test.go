@@ -24,8 +24,8 @@ func (t *testHandlers) TestManagerStateOwners() {
 			util.UUID().String(),
 		}
 
-		handler, err := newManagerHandlerStateOwnersFunc(func(base.Height) (func(string) ([]string, error), error) {
-			return func(k string) ([]string, error) {
+		handler, err := newManagerHandlerStateOwnersFunc(func(base.Height) (stateOwnersFunc, error) {
+			return func(_ context.Context, k string) ([]string, error) {
 				if k != stateKey {
 					return nil, util.ErrNotFound.Errorf("unknown state key")
 				}
@@ -49,8 +49,8 @@ func (t *testHandlers) TestManagerStateOwners() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		handler, err := newManagerHandlerStateOwnersFunc(func(base.Height) (func(string) ([]string, error), error) {
-			return func(k string) ([]string, error) {
+		handler, err := newManagerHandlerStateOwnersFunc(func(base.Height) (stateOwnersFunc, error) {
+			return func(context.Context, string) ([]string, error) {
 				return nil, nil
 			}, nil
 		})

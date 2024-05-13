@@ -59,12 +59,12 @@ func newManagerBrokerStateOwnersFunc(
 }
 
 func newManagerHandlerStateOwnersFunc(
-	f func(base.Height) (func(string) ([]string, error), error),
+	f func(base.Height) (stateOwnersFunc, error),
 ) (quicstreamheader.Handler[ManagerStateOwnersHeader], error) {
 	return func(ctx context.Context, _ net.Addr,
 		broker *quicstreamheader.HandlerBroker, header ManagerStateOwnersHeader,
 	) (context.Context, error) {
-		var sf func(string) ([]string, error)
+		var sf stateOwnersFunc
 
 		switch i, err := f(header.Height); {
 		case err != nil:
@@ -84,7 +84,7 @@ func newManagerHandlerStateOwnersFunc(
 			stateKey = string(i)
 		}
 
-		switch owners, err := sf(stateKey); {
+		switch owners, err := sf(ctx, stateKey); {
 		case err != nil:
 			return ctx, err
 		default:
