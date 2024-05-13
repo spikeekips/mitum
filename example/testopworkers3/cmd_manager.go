@@ -35,12 +35,14 @@ network:
 type CommandManager struct { //nolint:govet //...
 	baseCommandManager
 	Workers        []string `arg:"" name:"worker"`
+	NStateShare    uint8    `name:"number of state share" default:"1"`
 	FullOpOwners   bool     `name:"full-ops" help:"send entire operaions to each workers"`
 	PreProcess     bool     `name:"pre-process" help:"pre process operations"`
 	localCI        quicstream.ConnInfo
 	workers        []string
 	connectionPool *quicstream.ConnectionPool
 	mgs            util.LockedMap[base.Height, *ProcessManager]
+	additionalOps  map[base.Height]map[string][][3]interface{}
 }
 
 func (cmd *CommandManager) Run(pctx context.Context) error {
@@ -128,6 +130,7 @@ func (cmd *CommandManager) prepare(pctx context.Context) (context.Context, *ps.P
 	}
 
 	cmd.mgs = util.NewSingleLockedMap[base.Height, *ProcessManager]()
+	cmd.additionalOps = map[base.Height]map[string][][3]interface{}{}
 
 	return pctx, pps, nil
 }
@@ -211,7 +214,7 @@ func (cmd *CommandManager) createAccounts(pctx context.Context) (base.BlockMap, 
 	}
 
 	if cmd.PreProcess {
-		if err := cmd.preProcess(ops); err != nil {
+		if err := cmd.preProcess(0, ops); err != nil {
 			return nil, err
 		}
 	}
@@ -254,7 +257,7 @@ func (cmd *CommandManager) transfer(pctx context.Context, m base.Manifest) error
 	}
 
 	if cmd.PreProcess {
-		if err := cmd.preProcess(ops); err != nil {
+		if err := cmd.preProcess(1, ops); err != nil {
 			return err
 		}
 	}
@@ -493,9 +496,53 @@ func (cmd *CommandManager) newManagerFunc(
 	return func(ctx context.Context) (*ProcessManager, error) {
 		args := NewProcessManagerArgs(cmd.workers)
 		args.Local = cmd.localCI.String()
+		args.NStateShare = cmd.NStateShare
 
 		if cmd.FullOpOwners {
 			args.NewOpOwnersFunc = newFullOpOwnersFunc
+		}
+
+		if !cmd.FullOpOwners && cmd.PreProcess {
+			origf := args.NewOpOwnersFunc
+
+			args.NewOpOwnersFunc = func(workers uint64, share uint8) (opOwnersFunc2, error) {
+				var f opOwnersFunc2
+
+				switch i, err := origf(workers, share); {
+				case err != nil:
+					return nil, err
+				default:
+					f = i
+				}
+
+				return func(ops [][2]util.Hash) ([][][3]interface{}, error) {
+					i, err := f(ops)
+					if err != nil {
+						return nil, err
+					}
+
+					n := make([][][3]interface{}, len(i))
+
+					_ = util.TraverseSliceV1(i, func(j int, os [][3]interface{}) (bool, error) {
+						k, found := cmd.additionalOps[proposal.Point().Height()]
+						if !found {
+							return true, nil
+						}
+
+						worker := cmd.workers[j]
+						m, found := k[worker]
+						if !found {
+							return true, nil
+						}
+
+						n[j] = ConcatSlice(os, m)
+
+						return true, nil
+					})
+
+					return n, nil
+				}, nil
+			}
 		}
 
 		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
@@ -506,6 +553,7 @@ func (cmd *CommandManager) newManagerFunc(
 		}
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
 			args.FullOps = cmd.FullOpOwners
+			args.IsPreProcessed = cmd.PreProcess
 
 			return cmd.requestWorker(
 				ctx,
@@ -660,7 +708,7 @@ func (cmd *CommandManager) syncOperations(ops []Op) error {
 	)
 }
 
-func (cmd *CommandManager) preProcess(ops []Op) error {
+func (cmd *CommandManager) preProcess(height base.Height, ops []Op) error {
 	defer logging.TimeElapsed()(cmd.Log().Info(), "pre process")
 
 	args := NewOperationProcessorArgs(cmd.networkID)
@@ -678,10 +726,95 @@ func (cmd *CommandManager) preProcess(ops []Op) error {
 		return nil
 	}
 
+	var stateOwnersf stateOwnersFunc
+	var addOpOwners func(string, uint64)
+	var opOwners util.LockedMap[string /* worker */, []uint64]
+
+	if !cmd.FullOpOwners && cmd.PreProcess {
+		opOwnersf, err := newRegionalOpOwnersFunc(uint64(len(cmd.workers)), cmd.NStateShare)
+		if err != nil {
+			return err
+		}
+
+		ophs := make([][2]util.Hash, len(ops))
+		_ = util.TraverseSliceV1(ops, func(i int, o Op) (bool, error) {
+			ophs[i] = [2]util.Hash{o.Hash(), o.Fact().Hash()}
+
+			return true, nil
+		})
+
+		m := map[string]map[uint64]struct{}{}
+
+		switch i, err := opOwnersf(ophs); {
+		case err != nil:
+			return err
+		default:
+			_ = util.TraverseSliceV1(i, func(j int, c [][3]interface{}) (bool, error) {
+				cm := map[uint64]struct{}{}
+
+				for i := range c {
+					cm[c[i][0].(uint64)] = struct{}{}
+				}
+
+				m[cmd.workers[j]] = cm
+
+				return true, nil
+			})
+		}
+
+		switch i, err := cmd.djb2StateOwnersFunc(cmd.workers, cmd.NStateShare); {
+		case err != nil:
+			return err
+		default:
+			j, err := newStateOwnersFunc(i, 1<<9)
+			if err != nil {
+				return err
+			}
+
+			stateOwnersf = j
+		}
+
+		switch i, err := util.NewLockedMap[string, []uint64](1<<9, nil); {
+		case err != nil:
+			return err
+		default:
+			opOwners = i
+		}
+
+		addOpOwners = func(worker string, opindex uint64) {
+			if _, found := m[worker][opindex]; found {
+				return
+			}
+
+			_, _, _ = opOwners.Set(worker, func(s []uint64, _ bool) ([]uint64, error) {
+				s = append(s, opindex)
+
+				return s, nil
+			})
+		}
+	}
+
 	addValues, doneValues, _ := util.CompactAppendSliceV1[[2]interface{}](uint64(len(ops)), 1<<9)
 
 	args.MergeStateMergeValueFunc = func(opindex uint64, fact util.Hash, vs []StateMergeValue) error {
 		addValues([2]interface{}{ops[opindex].Hash(), vs})
+
+		if opOwners != nil {
+			return util.TraverseSliceV1(vs, func(_ int, v StateMergeValue) (bool, error) {
+				owners, err := stateOwnersf(context.Background(), v.Key())
+				if err != nil {
+					return false, err
+				}
+
+				_ = util.TraverseSliceV1(owners, func(_ int, o string) (bool, error) {
+					addOpOwners(o, opindex)
+
+					return true, nil
+				})
+
+				return true, nil
+			})
+		}
 
 		return nil
 	}
@@ -720,6 +853,26 @@ func (cmd *CommandManager) preProcess(ops []Op) error {
 		return cmd.syncStateMergedValues(s)
 	}); err != nil {
 		return err
+	}
+
+	if opOwners != nil {
+		m := map[string][][3]interface{}{}
+
+		_ = TraverseMap(opOwners.Map(), func(owner string, os []uint64) (bool, error) {
+			ophs := make([][3]interface{}, len(os))
+
+			_ = util.TraverseSliceV1(os, func(i int, opindex uint64) (bool, error) {
+				ophs[i] = [3]interface{}{opindex, ops[opindex].Hash(), ops[opindex].Fact().Hash()}
+
+				return true, nil
+			})
+
+			m[owner] = ophs
+
+			return true, nil
+		})
+
+		cmd.additionalOps[height] = m
 	}
 
 	return nil

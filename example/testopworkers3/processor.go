@@ -262,6 +262,7 @@ type ProcessWorkerArgs struct {
 		done func() error,
 		_ error,
 	)
+	IsPreProcessed bool
 }
 
 func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
@@ -599,7 +600,7 @@ func (pw *ProcessWorker) NewOperations() (
 	}
 }
 
-func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+func (pw *ProcessWorker) InsertValues(worker string, opindex uint64, fact util.Hash, values []StateMergeValue, _ map[string][]string) error {
 	_ = pw.ophs.SetValue(opindex, fact)
 
 	if err := pw.setStateMergeValuesOwners(opindex, values, nil); err != nil {
@@ -977,8 +978,10 @@ func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, va
 			switch {
 			case owner == pw.local:
 				return pw.localMergeStateMergeValue(opindex, fact, filtered)
-			default:
+			case !pw.args.IsPreProcessed:
 				return pw.workerMergeStateMergeValue(ctx, opindex, fact, filtered, owner)
+			default:
+				return nil
 			}
 		})
 	}); err != nil {

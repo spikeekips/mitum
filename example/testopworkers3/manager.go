@@ -36,12 +36,13 @@ type (
 )
 
 type processWorkerReadyArgs struct {
-	Manager     string
-	Height      base.Height
-	Workers     []string
-	NStateShare uint8
-	NOps        uint64
-	FullOps     bool
+	Manager        string
+	Height         base.Height
+	Workers        []string
+	NStateShare    uint8
+	NOps           uint64
+	FullOps        bool
+	IsPreProcessed bool
 }
 
 type ProcessManagerArgs struct {
@@ -1352,7 +1353,7 @@ func newRegionalOpOwnersFunc(nworkers uint64, share uint8) (opOwnersFunc2, error
 	}, nil
 }
 
-func regionalOpOwnersFunc(nworkers uint64, share uint64, ops [][2]util.Hash) ([][][3]interface{} /* [][]{opindex uint8, op, fact util.Hash} */, error) {
+func regionalOpOwnersFunc(nworkers uint64, share uint64, ops [][2]util.Hash) ([][][3]interface{} /* [][]{opindex uint64, op, fact util.Hash} */, error) {
 	nd := uint64(len(ops)) / nworkers
 
 	nl := nworkers

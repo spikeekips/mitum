@@ -842,6 +842,20 @@ func (cmd *baseCommand) request(
 	return nil
 }
 
+func (cmd *baseCommand) djb2StateOwnersFunc(workers []string, share uint8) (
+	stateOwnersFunc,
+	error,
+) {
+	f, err := djb2StateOwnersFunc(workers, share)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(ctx context.Context, stateKey string) ([]string, error) {
+		return f(ctx, stateKey)
+	}, nil
+}
+
 type baseCommandManager struct {
 	baseCommand
 	keys []base.Privatekey

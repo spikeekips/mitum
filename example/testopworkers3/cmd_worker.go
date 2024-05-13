@@ -235,8 +235,6 @@ func (cmd *CommandWorker) handlerReadyFunc(pctx context.Context) (quicstreamhead
 				)
 			})
 
-			// FIXME merge preprocessed values
-
 			return err
 		},
 	)
@@ -642,6 +640,7 @@ func (cmd *CommandWorker) newWorker(
 		)
 	}
 	args.FullOps = margs.FullOps
+	args.IsPreProcessed = margs.IsPreProcessed
 	args.GetStateMergeValuesFunc = func(_ uint64, op, _ util.Hash) ([]StateMergeValue, bool, error) {
 		i, found := cmd.stvsPool.Get(op.String())
 
@@ -663,20 +662,6 @@ func (cmd *CommandWorker) newWorker(
 	pw.SetLogging(cmd.Logging)
 
 	return pw, nil
-}
-
-func (cmd *CommandWorker) djb2StateOwnersFunc(workers []string, share uint8) (
-	stateOwnersFunc,
-	error,
-) {
-	f, err := djb2StateOwnersFunc(workers, share)
-	if err != nil {
-		return nil, err
-	}
-
-	return func(ctx context.Context, stateKey string) ([]string, error) {
-		return f(ctx, stateKey)
-	}, nil
 }
 
 func (cmd *CommandWorker) remoteStateOwnersFunc(height base.Height) stateOwnersFunc {
