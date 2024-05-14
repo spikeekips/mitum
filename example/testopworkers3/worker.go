@@ -16,14 +16,14 @@ type (
 	serialWorkerNewJobFunc     func(serialWorkerNewNextJobFunc) error
 )
 
-type SerialWorkers struct {
+type SerialWorker struct {
 	*logging.Logging
 	newWorker func(context.Context) (util.JobWorker, error)
 }
 
-func NewSerialWorkers(
+func NewSerialWorker(
 	newWorker func(context.Context) (util.JobWorker, error),
-) (*SerialWorkers, error) {
+) (*SerialWorker, error) {
 	switch i, err := newWorker(context.Background()); {
 	case err != nil:
 		return nil, err
@@ -31,15 +31,15 @@ func NewSerialWorkers(
 		i.Close()
 	}
 
-	return &SerialWorkers{
-		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "serial-workers")
+	return &SerialWorker{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "serial-workers")
 		}),
 		newWorker: newWorker,
 	}, nil
 }
 
-func (sw *SerialWorkers) New(ctx context.Context) (
+func (sw *SerialWorker) New(ctx context.Context) (
 	newJob func(serialWorkerNewNextJobFunc) error,
 	done func() error,
 	cancel func(),
@@ -47,7 +47,7 @@ func (sw *SerialWorkers) New(ctx context.Context) (
 	return sw.enterPhase(ctx, 0)
 }
 
-func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
+func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 	newJob func(serialWorkerNewNextJobFunc) error,
 	done func() error,
 	cancel func(),
@@ -135,7 +135,7 @@ func (sw *SerialWorkers) enterPhase(ctx context.Context, phase int) (
 	return newJob, done, cancel
 }
 
-func (sw *SerialWorkers) newJobFunc(
+func (sw *SerialWorker) newJobFunc(
 	ctx context.Context,
 	phase int,
 	newWorker func(context.Context) (util.JobWorker, error),
@@ -198,7 +198,7 @@ func (sw *SerialWorkers) newJobFunc(
 	}
 }
 
-func (sw *SerialWorkers) doneFunc(
+func (sw *SerialWorker) doneFunc(
 	ctx context.Context,
 	phase int,
 	ewf func() util.JobWorker,

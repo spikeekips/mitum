@@ -107,7 +107,7 @@ func newPhaseStatesMerger(
 	var swDone func() error
 	var swCancel func()
 
-	switch i, err := NewSerialWorkers(newJobWorker); {
+	switch i, err := NewSerialWorker(newJobWorker); {
 	case err != nil:
 		return nil, err
 	default:

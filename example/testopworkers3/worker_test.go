@@ -23,7 +23,7 @@ func (t *testRunSerialWorkers) run(ctx context.Context, workersize int64) (
 	done func() error,
 	cancel func(),
 ) {
-	sw, err := NewSerialWorkers(
+	sw, err := NewSerialWorker(
 		func(ctx context.Context) (util.JobWorker, error) {
 			return util.NewBaseJobWorker(ctx, workersize)
 		},
