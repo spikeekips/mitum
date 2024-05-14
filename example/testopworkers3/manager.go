@@ -50,7 +50,7 @@ type ProcessManagerArgs struct {
 	Workers             []string
 	NOpShare            uint8
 	NStateShare         uint8
-	NewJobWorker        func(context.Context) (util.JobWorker, error)
+	NewJobWorker        func(context.Context) (JobWorker, error)
 	WorkerReady         func(_ context.Context, worker string, _ processWorkerReadyArgs) error
 	WorkerCancel        func(_ context.Context, worker string) error
 	WorkerDone          func(_ context.Context, worker string) error
@@ -77,8 +77,8 @@ func NewProcessManagerArgs(workers []string) *ProcessManagerArgs {
 		Workers:     workers,
 		NOpShare:    1,
 		NStateShare: 1,
-		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		WorkerReady: func(context.Context, string, processWorkerReadyArgs) error {
 			return util.ErrNotImplemented.Errorf("WorkerReady")
@@ -136,7 +136,7 @@ type ProcessManager struct {
 	ops                       [][2]util.Hash /* {operation hash, fact hash} */
 	workersMergeDone          *util.Locked[map[ /* worker */ string] /* phase */ struct{}]
 	workersStoreDone          *util.Locked[map[ /* worker */ string]struct{}]
-	storeJobWorker            util.JobWorker
+	storeJobWorker            JobWorker
 	newOpOwnersFunc           opOwnersFunc2
 	newStateOwnersFunc        stateOwnersFunc
 	cleanf                    func()
@@ -533,7 +533,7 @@ func (pm *ProcessManager) process() error {
 }
 
 func (pm *ProcessManager) readyWorkers() error {
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
 	case err != nil:
@@ -553,7 +553,7 @@ func (pm *ProcessManager) readyWorkers() error {
 	}
 
 	if err := util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
-		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+		return true, ew.NewJob(func(ctx context.Context) error {
 			if err := pm.args.WorkerReady(ctx, worker, args); err != nil {
 				if errors.Is(err, util.ErrNotImplemented) {
 					return err
@@ -761,7 +761,7 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 		ws = i
 	}
 
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
 	case err != nil:
@@ -776,7 +776,7 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 		owner := pm.workers[i]
 		wops := ws[i]
 
-		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+		if err := ew.NewJob(func(ctx context.Context) error {
 			if err := pm.newOperationFunc(owner, wops); err != nil {
 				if pm.addFailedWorker(owner, err) {
 					if ferr := pm.isWorkersFailed(); ferr != nil {
@@ -829,7 +829,7 @@ func (pm *ProcessManager) getOrCreateManifest() (manifest base.Manifest, _ error
 func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 	var statesTree, opsTree util.Hash
 
-	var treeew util.JobWorker
+	var treeew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(context.Background()); {
 	case err != nil:
@@ -840,7 +840,7 @@ func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 		treeew = i
 	}
 
-	if err := treeew.NewJob(func(context.Context, uint64) error {
+	if err := treeew.NewJob(func(context.Context) error {
 		switch i, err := pm.newStatesTree(); {
 		case err != nil:
 			return err
@@ -853,7 +853,7 @@ func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 		return nil, err
 	}
 
-	if err := treeew.NewJob(func(context.Context, uint64) error {
+	if err := treeew.NewJob(func(context.Context) error {
 		switch i, err := pm.newOpsTree(); {
 		case err != nil:
 			return err
@@ -924,7 +924,7 @@ func (pm *ProcessManager) newStatesTree() (root util.Hash, _ error) {
 	}
 
 	if root != nil {
-		if err := pm.storeJobWorker.NewJob(func(context.Context, uint64) error {
+		if err := pm.storeJobWorker.NewJob(func(context.Context) error {
 			switch i, err := writer.Save(); {
 			case err != nil:
 				return err
@@ -984,7 +984,7 @@ func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
 	}
 
 	if root != nil {
-		if err := pm.storeJobWorker.NewJob(func(context.Context, uint64) error {
+		if err := pm.storeJobWorker.NewJob(func(context.Context) error {
 			switch i, err := writer.Save(); {
 			case err != nil:
 				return err
@@ -1018,7 +1018,7 @@ func (pm *ProcessManager) newBlockFiles() (map[base.BlockItemType]BlockItemFile,
 }
 
 func (pm *ProcessManager) cancelWorkers() {
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(context.Background()); {
 	case err != nil:
@@ -1030,7 +1030,7 @@ func (pm *ProcessManager) cancelWorkers() {
 	}
 
 	_ = util.TraverseSliceV1(pm.workers, func(_ int, worker string) (bool, error) {
-		_ = ew.NewJob(func(ctx context.Context, _ uint64) error {
+		_ = ew.NewJob(func(ctx context.Context) error {
 			wctx, cancel := context.WithTimeout(ctx, pm.args.WorkerCancelTimeout)
 			defer cancel()
 
@@ -1121,7 +1121,7 @@ func (pm *ProcessManager) attachFailedWorkers() func() {
 }
 
 func (pm *ProcessManager) workersDone() error {
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(pm.ctx()); {
 	case err != nil:
@@ -1137,7 +1137,7 @@ func (pm *ProcessManager) workersDone() error {
 			return true, nil
 		}
 
-		return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+		return true, ew.NewJob(func(ctx context.Context) error {
 			if err := pm.args.WorkerDone(ctx, worker); err != nil {
 				if pm.addFailedWorker(worker, err) {
 					return pm.isWorkersFailed()

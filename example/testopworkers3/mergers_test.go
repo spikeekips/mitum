@@ -97,7 +97,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 			return n > 0
 		}
 
-		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
+		ew, _ := NewBaseJobWorker(context.Background(), 1<<9)
 
 		randomMergeValues := func() []StateMergeValue {
 			pub := base.NewMPrivatekey().Publickey()
@@ -116,7 +116,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 					dw.Cancel()
 				}
 
-				if err := ew.NewJob(func(context.Context, uint64) error {
+				if err := ew.NewJob(func(context.Context) error {
 					return dw.InsertValues(i, randomMergeValues())
 				}); err != nil {
 					break
@@ -152,7 +152,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 			ops[i] = i
 		}
 
-		ew, _ := util.NewBaseJobWorker(context.Background(), 1<<9)
+		ew, _ := NewBaseJobWorker(context.Background(), 1<<9)
 
 		go func() {
 			defer ew.Done()
@@ -163,7 +163,7 @@ func (t *testStatesMergerWorker) TestCancel() {
 					dw.Cancel()
 				}
 
-				if err := ew.NewJob(func(context.Context, uint64) error {
+				if err := ew.NewJob(func(context.Context) error {
 					m, _ := util.RandomChoiceSlice(ops, 5)
 					um, _ := util.RandomChoiceSlice(ops, 5)
 
@@ -1010,8 +1010,8 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 			mergers.Value,
 			vp.Value,
 			getStateValue,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1)
 			},
 			1<<9,
 		)
@@ -1197,7 +1197,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("insert ops")
 
-	insertew, err := util.NewBaseJobWorker(ctx, 1<<9)
+	insertew, err := NewBaseJobWorker(ctx, 1<<9)
 	t.NoError(err)
 	defer insertew.Close()
 
@@ -1231,7 +1231,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 					continue
 				}
 
-				if err := insertew.NewJob(func(context.Context, uint64) error {
+				if err := insertew.NewJob(func(context.Context) error {
 					t.T().Logf("\tinsert op: worker=%q opindex=%d values=%v", worker, opindex, doneKeys())
 
 					return dws[worker].InsertValues(opindex, filtered)
@@ -1248,7 +1248,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 			panic(err)
 		}
 
-		insertdoneew, err := util.NewBaseJobWorker(ctx, 1<<9)
+		insertdoneew, err := NewBaseJobWorker(ctx, 1<<9)
 		if err != nil {
 			panic(err)
 		}
@@ -1258,7 +1258,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		for worker := range dws {
 			worker := worker
 
-			t.NoError(insertdoneew.NewJob(func(context.Context, uint64) error {
+			t.NoError(insertdoneew.NewJob(func(context.Context) error {
 				t.LockedLog("\tworker=%q", worker)
 
 				return dws[worker].InsertDone()
@@ -1275,7 +1275,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 					continue
 				}
 
-				if err := insertdoneew.NewJob(func(context.Context, uint64) error {
+				if err := insertdoneew.NewJob(func(context.Context) error {
 					return dws[local].WorkerInsertDone(worker)
 				}); err != nil {
 					panic(err)
@@ -1292,7 +1292,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 
 	t.T().Log("wait done")
 
-	doneew, err := util.NewBaseJobWorker(ctx, 1<<9)
+	doneew, err := NewBaseJobWorker(ctx, 1<<9)
 	t.NoError(err)
 	defer doneew.Close()
 
@@ -1302,7 +1302,7 @@ func (t *testStatesMergerWorker) TestUnmerge3Workers() {
 		for worker := range dws {
 			worker := worker
 
-			if err := doneew.NewJob(func(context.Context, uint64) error {
+			if err := doneew.NewJob(func(context.Context) error {
 				return dws[worker].Done()
 			}); err != nil {
 				panic(err)

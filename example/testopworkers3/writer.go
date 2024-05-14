@@ -27,12 +27,12 @@ import (
 type BaseBlockItemWriter struct {
 	ctx          func() context.Context
 	ctxCancel    func(error)
-	newJobWorker func(context.Context) (util.JobWorker, error)
+	newJobWorker func(context.Context) (JobWorker, error)
 }
 
 func NewBaseBlockItemWriter(
 	ctx context.Context,
-	newJobWorker func(context.Context) (util.JobWorker, error),
+	newJobWorker func(context.Context) (JobWorker, error),
 ) *BaseBlockItemWriter {
 	wctx, wctxCancel := context.WithCancelCause(ctx)
 
@@ -188,7 +188,7 @@ type baseFixedTreeWriter[K cmp.Ordered] struct {
 
 func NewBaseFixedTreeWriter[K cmp.Ordered](
 	ctx context.Context,
-	newJobWorker func(context.Context) (util.JobWorker, error),
+	newJobWorker func(context.Context) (JobWorker, error),
 	ht hint.Hint,
 	saveNodeFuncs writerSaveTreeNodeFuncs,
 	minNodesSize uint64,
@@ -307,7 +307,7 @@ func (w *baseFixedTreeWriter[K]) newTreeFuncs(
 	treeDone func() error,
 	_ error,
 ) {
-	var tew util.JobWorker
+	var tew JobWorker
 	elapsed := func(*zerolog.Event, string) {}
 
 	var addNodes util.CompactAppendSliceAddFunc[fixedtree.Node]
@@ -391,7 +391,7 @@ func (w *baseFixedTreeWriter[K]) newTreeFuncs(
 				return gerr
 			}
 
-			return tew.NewJob(func(context.Context, uint64) error {
+			return tew.NewJob(func(context.Context) error {
 				_, _ = addNodes(newOrderedTreeNode(k, node))
 
 				return nil
@@ -429,7 +429,7 @@ func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 		add, done = i, j
 	}
 
-	var sew util.JobWorker
+	var sew JobWorker
 	var save func(uint64, fixedtree.Node) error
 
 	sctx, sDone, _ := NewContextDoneFunc(
@@ -446,7 +446,7 @@ func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 
 				if err := done(func(s [][2]interface{}) error {
 					return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
-						return true, sew.NewJob(func(context.Context, uint64) error {
+						return true, sew.NewJob(func(context.Context) error {
 							return save(
 								i[0].(uint64),
 								i[1].(fixedtree.Node),

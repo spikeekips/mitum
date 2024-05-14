@@ -254,8 +254,8 @@ func (t *testOperationProcessor) TestWait() {
 func (t *testOperationProcessor) testProcess(nops uint64) {
 	opsr := t.newProcessor(context.Background())
 
-	opsr.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-		return util.NewBaseJobWorker(ctx, int64(nops))
+	opsr.args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, int64(nops))
 	}
 
 	addOps, doneOps := util.SortCompactAppendSlice[uint64](int(nops), cmp.Less[uint64])
@@ -685,8 +685,8 @@ func (t *testProcessWorker) TestProcessAndMerge() {
 		defer pw.Cancel()
 
 		pw.args.NOps = uint64(len(ops))
-		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
+		pw.args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
 
 		pw.args.StateOwners = func(context.Context, string) ([]string, error) {
@@ -935,8 +935,8 @@ func (t *testProcessWorker) Test3Workers() {
 		pw.args.StateOwners = func(_ context.Context, stateKey string) ([]string, error) {
 			return []string{"w0"}, nil
 		}
-		pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1) // <- only one process at a time
+		pw.args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1) // <- only one process at a time
 		}
 		pw.args.GetOperationFunc = getOperationFunc
 		pw.args.GetStateFunc = getState
@@ -1094,8 +1094,8 @@ func (t *testProcessWorker) Test3Workers() {
 
 				return owners, nil
 			}
-			pw.args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9) // <- only one process at a time
+			pw.args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9) // <- only one process at a time
 			}
 			pw.args.GetOperationFunc = getOperationFunc
 			pw.args.GetStateFunc = getState

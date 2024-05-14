@@ -12,15 +12,15 @@ import (
 )
 
 type ProposalProcessorArgs struct {
-	NewJobWorker       func(context.Context) (util.JobWorker, error)
+	NewJobWorker       func(context.Context) (JobWorker, error)
 	SignBlockMapItem   func(isaacblock.BlockMap) error
 	SaveBlockItemFuncs writerSaveBlockItemFuncs
 }
 
 func NewProposalProcessorArgs() *ProposalProcessorArgs {
 	return &ProposalProcessorArgs{
-		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		SignBlockMapItem: func(isaacblock.BlockMap) error {
 			return util.ErrNotImplemented.Errorf("SignBlockMapItem")
@@ -41,7 +41,7 @@ type ProposalProcessor struct {
 	ctx           func() context.Context
 	ctxCancel     func(error)
 	bm            isaacblock.BlockMap
-	saveJobWorker util.JobWorker
+	saveJobWorker JobWorker
 	vpWriter      *VoteproofWriter
 	bf            map[base.BlockItemType]base.BlockItemFile
 }
@@ -107,7 +107,7 @@ func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof
 	pp.bf = map[base.BlockItemType]base.BlockItemFile{}
 	pp.bm = isaacblock.NewBlockMap()
 
-	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
+	if err := pp.saveJobWorker.NewJob(func(ctx context.Context) error {
 		switch i, err := NewSingleBlockItemWriter(ctx, base.BlockItemProposal, pp.pr, pp.args.SaveBlockItemFuncs); {
 		case err != nil:
 			return err
@@ -152,7 +152,7 @@ func (pp *ProposalProcessor) process(ctx context.Context, ivp base.INITVoteproof
 func (pp *ProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	defer clear(pp.bf)
 
-	if err := pp.saveJobWorker.NewJob(func(ctx context.Context, _ uint64) error {
+	if err := pp.saveJobWorker.NewJob(func(ctx context.Context) error {
 		switch i, err := pp.vpWriter.SetACCEPTVoteproof(avp); {
 		case err != nil:
 			return err

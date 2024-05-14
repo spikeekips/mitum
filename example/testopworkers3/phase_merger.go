@@ -32,7 +32,7 @@ type phaseStatesMerger struct {
 	prevMerger           func(stateKey string) (StateMerger, bool)
 	opValues             func(opindex uint64) ([]StateMergeValue, bool)
 	stateValue           func(context.Context, string) (base.StateValue, bool, error)
-	newJobWorker         func(context.Context) (util.JobWorker, error)
+	newJobWorker         func(context.Context) (JobWorker, error)
 	mergers              *util.MultiKeysLockedMap[string /* state key */, StateMerger]
 	opStatus             util.LockedMap[uint64 /* opindex */, [3]interface{} /* {initial xMergeFlag, swphase, xMergeFlag} */]
 	mergedOps            util.LockedMap[string /* state key */, map[ /* opindex */ uint64] /* {swphase, xMergeFlag} */ [2]interface{}]
@@ -52,7 +52,7 @@ func newPhaseStatesMerger(
 	prevMerger func(stateKey string) (StateMerger, bool),
 	opValues func(opindex uint64) ([]StateMergeValue, bool),
 	stateValue func(context.Context, string) (base.StateValue, bool, error),
-	newJobWorker func(context.Context) (util.JobWorker, error),
+	newJobWorker func(context.Context) (JobWorker, error),
 	mapsize uint64,
 ) (*phaseStatesMerger, error) {
 	pctx, pctxCancel := context.WithCancel(ctx)
@@ -210,7 +210,7 @@ func (sm *phaseStatesMerger) newInitialMergeFunc(
 
 		return swNewJob(sm.newJob(
 			opindex,
-			func(ctx context.Context, _ uint64, swphase int, smNext serialWorkerNewJobFunc) error {
+			func(ctx context.Context, swphase int, smNext serialWorkerNewJobFunc) error {
 				return sm.smMerge(ctx, swphase, opindex, values, smNext)
 			},
 		))
@@ -258,7 +258,7 @@ func (sm *phaseStatesMerger) newInitialUnmergeFunc(
 
 		return swNewJob(sm.newJob(
 			opindex,
-			func(ctx context.Context, _ uint64, swphase int, smNext serialWorkerNewJobFunc) error {
+			func(ctx context.Context, swphase int, smNext serialWorkerNewJobFunc) error {
 				return sm.smUnmerge(ctx, swphase, opindex, values, smNext)
 			},
 		))
@@ -352,7 +352,7 @@ func (sm *phaseStatesMerger) smMerge(ctx context.Context, swphase int, opindex u
 		if nvalues, found := sm.opValues(nop); found {
 			if err := smNext(sm.newJob(
 				nop,
-				func(ctx context.Context, _ uint64, swphase int, smNext serialWorkerNewJobFunc) error {
+				func(ctx context.Context, swphase int, smNext serialWorkerNewJobFunc) error {
 					return sm.smUnmerge(ctx, swphase, nop, nvalues, smNext)
 				},
 			)); err != nil {
@@ -396,7 +396,7 @@ func (sm *phaseStatesMerger) smUnmerge(ctx context.Context, swphase int, opindex
 		if nvalues, found := sm.opValues(nop); found {
 			if err := smNext(sm.newJob(
 				nop,
-				func(ctx context.Context, _ uint64, swphase int, smNext serialWorkerNewJobFunc) error {
+				func(ctx context.Context, swphase int, smNext serialWorkerNewJobFunc) error {
 					return sm.smMerge(ctx, swphase, nop, nvalues, smNext)
 				},
 			)); err != nil {
@@ -655,7 +655,7 @@ func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) 
 		return fs[0]()
 	}
 
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := sm.newJobWorker(ctx); {
 	case err != nil:
@@ -667,7 +667,7 @@ func (sm *phaseStatesMerger) runCommits(ctx context.Context, fs []func() error) 
 	}
 
 	if err := util.TraverseSliceV1(fs, func(_ int, f func() error) (bool, error) {
-		return true, ew.NewJob(func(context.Context, uint64) error {
+		return true, ew.NewJob(func(context.Context) error {
 			return f()
 		})
 	}); err != nil {

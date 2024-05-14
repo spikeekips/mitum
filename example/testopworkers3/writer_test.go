@@ -164,8 +164,8 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -222,8 +222,8 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -274,8 +274,8 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -304,8 +304,8 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -347,8 +347,8 @@ func (t *testTreeWriter) TestCancel() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(ctx context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -400,8 +400,8 @@ func (t *testTreeWriter) TestStatesTree() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {
@@ -475,8 +475,8 @@ func (t *testTreeWriter) TestStatesTree() {
 
 		w, err := NewBaseFixedTreeWriter[string](
 			ctx,
-			func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, 1<<9)
+			func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, 1<<9)
 			},
 			base.StateFixedtreeHint,
 			func(context.Context) (writerSaveTreeNodeFunc, writerCloseSaveFunc, error) {

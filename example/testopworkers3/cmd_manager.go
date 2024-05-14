@@ -389,8 +389,8 @@ func (cmd *CommandManager) processor(
 	}
 
 	args := NewProposalProcessorArgs()
-	args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-		return util.NewBaseJobWorker(ctx, cmd.c)
+	args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, cmd.c)
 	}
 	args.SignBlockMapItem = func(bm isaacblock.BlockMap) error {
 		return bm.Sign(cmd.local.Address(), cmd.local.Privatekey(), cmd.networkID)
@@ -553,8 +553,8 @@ func (cmd *CommandManager) newManagerFunc(
 		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
 			return db.ExistsInStateOperation(fact)
 		}
-		args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, cmd.c)
+		args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, cmd.c)
 		}
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
 			args.FullOps = cmd.FullOpOwners
@@ -718,8 +718,8 @@ func (cmd *CommandManager) preProcess(height base.Height, ops []Op) error {
 
 	args := NewOperationProcessorArgs(cmd.networkID)
 
-	args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-		return util.NewBaseJobWorker(ctx, cmd.c)
+	args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, cmd.c)
 	}
 	args.GetOperationFunc = func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error) {
 		return ops[opindex], true, nil

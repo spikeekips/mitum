@@ -39,7 +39,7 @@ type Operation interface {
 
 type OperationProcessorArgs struct {
 	NetworkID                base.NetworkID
-	NewJobWorker             func(context.Context) (util.JobWorker, error)
+	NewJobWorker             func(context.Context) (JobWorker, error)
 	GetOperationFunc         func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
 	SaveOperationFunc        processWorkerSaveOperationFunc
 	UpdateReasonsFunc        func(opindex uint64, reason base.OperationProcessReasonError) error
@@ -50,8 +50,8 @@ type OperationProcessorArgs struct {
 func NewOperationProcessorArgs(networkID base.NetworkID) *OperationProcessorArgs {
 	return &OperationProcessorArgs{
 		NetworkID: networkID,
-		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		GetOperationFunc: func(context.Context, uint64, util.Hash) (Operation, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetOperationFunc")
@@ -75,7 +75,7 @@ type OperationProcessor struct {
 	args      *OperationProcessorArgs
 	ctx       func() context.Context
 	ctxCancel func(error)
-	ew        util.JobWorker
+	ew        JobWorker
 }
 
 func NewOperationProcessor(
@@ -124,7 +124,7 @@ func (opsr *OperationProcessor) Process() (
 	}
 
 	return func(opindex uint64, op, fact util.Hash) error {
-			return opsr.ew.NewJob(func(ctx context.Context, _ uint64) error {
+			return opsr.ew.NewJob(func(ctx context.Context) error {
 				var reason base.OperationProcessReasonError
 
 				switch err := opsr.process(ctx, opindex, op, fact); {
@@ -239,7 +239,7 @@ type ProcessWorkerArgs struct {
 	Workers                []string
 	GetOperationFunc       func(_ context.Context, opindex uint64, operation util.Hash) (Operation, bool, error)
 	GetStateFunc           func(_ context.Context, key string) (base.State, bool, error)
-	NewJobWorker           func(context.Context) (util.JobWorker, error)
+	NewJobWorker           func(context.Context) (JobWorker, error)
 	IsEnoughWorkers        func(n uint64) bool
 	StateOwners            func(_ context.Context, stateKey string) (owners []string, _ error)
 	BroadcastPhaseDoneFunc func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
@@ -270,8 +270,8 @@ func NewProcessWorkerArgs(networkID base.NetworkID) *ProcessWorkerArgs {
 		NetworkID:        networkID,
 		GetOperationFunc: func(context.Context, uint64, util.Hash) (Operation, bool, error) { return nil, false, nil },
 		GetStateFunc:     func(context.Context, string) (base.State, bool, error) { return nil, false, nil },
-		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers: func(uint64) bool { return false },
 		StateOwners: func(context.Context, string) ([]string, error) {
@@ -323,9 +323,9 @@ type ProcessWorker struct {
 	mergeCtxCancel              func(error)
 	preNewOperations            func() (*OperationProcessor, func() error, error)
 	merger                      func() (*StatesMergerWorker, error)
-	mergeDelayedWorker          util.JobWorker
-	delayedWorker               util.JobWorker
-	mergeStateValueWorker       util.JobWorker
+	mergeDelayedWorker          JobWorker
+	delayedWorker               JobWorker
+	mergeStateValueWorker       JobWorker
 	cleanf                      func()
 	opOwners                    util.LockedMap[ /* opindex */ uint64 /* worker */, map[string]struct{}]
 	states                      util.LockedMap[string, base.State]
@@ -900,7 +900,7 @@ func (pw *ProcessWorker) saveOperations() error {
 		}
 
 		return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
-			return true, pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+			return true, pw.delayedWorker.NewJob(func(context.Context) error {
 				return save(
 					i[0].(uint64),
 					i[1].(Operation),
@@ -930,7 +930,7 @@ func (pw *ProcessWorker) saveStates() error {
 		}
 
 		return util.TraverseSliceV1(s, func(_ int, i base.State) (bool, error) {
-			return true, pw.delayedWorker.NewJob(func(context.Context, uint64) error {
+			return true, pw.delayedWorker.NewJob(func(context.Context) error {
 				return save(i)
 			})
 		})
@@ -945,7 +945,7 @@ func (pw *ProcessWorker) updatedValues(
 	mergedOps, unmergedOps []uint64,
 	maxUpdatedValues uint64,
 ) error {
-	return pw.mergeDelayedWorker.NewJob(func(context.Context, uint64) error {
+	return pw.mergeDelayedWorker.NewJob(func(context.Context) error {
 		if merger != nil {
 			_ = pw.mergedStateMergers.SetValue(stateKey, merger)
 		}
@@ -955,19 +955,19 @@ func (pw *ProcessWorker) updatedValues(
 }
 
 func (pw *ProcessWorker) opsrUpdateReasons(opindex uint64, reason base.OperationProcessReasonError) error {
-	return pw.mergeDelayedWorker.NewJob(func(context.Context, uint64) error {
+	return pw.mergeDelayedWorker.NewJob(func(context.Context) error {
 		return pw.collectPhaseReason(-1, opindex, reason.OperationProcessFailedReason())
 	})
 }
 
 func (pw *ProcessWorker) updateReasons(ctx context.Context, phase int, opindex uint64, reason string) error {
-	return pw.mergeDelayedWorker.NewJob(func(context.Context, uint64) error {
+	return pw.mergeDelayedWorker.NewJob(func(context.Context) error {
 		return pw.collectPhaseReason(phase, opindex, reason)
 	})
 }
 
 func (pw *ProcessWorker) mergeStateMergeValue(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-	return pw.mergeStateValueWorker.NewJob(func(ctx context.Context, _ uint64) error {
+	return pw.mergeStateValueWorker.NewJob(func(ctx context.Context) error {
 		var valuesByOwners map[string][]StateMergeValue
 
 		switch i, err := pw.filterStateMergeValuesOwners(opindex, values); {
@@ -1039,7 +1039,7 @@ func (pw *ProcessWorker) setStateMergeValuesOwners(
 			return nil, util.ErrLockedSetIgnore
 		}
 
-		var ew util.JobWorker
+		var ew JobWorker
 
 		switch i, err := pw.args.NewJobWorker(pw.ctx()); {
 		case err != nil:
@@ -1054,7 +1054,7 @@ func (pw *ProcessWorker) setStateMergeValuesOwners(
 		defer lm.Close()
 
 		if err := util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
-			return true, ew.NewJob(func(ctx context.Context, _ uint64) error {
+			return true, ew.NewJob(func(ctx context.Context) error {
 				switch owners, err := pw.args.StateOwners(ctx, v.Key()); {
 				case err != nil:
 					return err
@@ -1201,7 +1201,7 @@ func (pw *ProcessWorker) mergeResult() error {
 		return done()
 	}
 
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pw.args.NewJobWorker(ctx); {
 	case err != nil:
@@ -1216,7 +1216,7 @@ func (pw *ProcessWorker) mergeResult() error {
 		stateKey := stateKey
 		mergedOps := rm[stateKey]
 
-		if err := ew.NewJob(func(context.Context, uint64) error {
+		if err := ew.NewJob(func(context.Context) error {
 			switch i, err := pw.newState(stateKey, mergedOps); {
 			case err != nil:
 				return err
@@ -1363,7 +1363,7 @@ func (pw *ProcessWorker) canceled(ok, notOk func()) {
 }
 
 func (pw *ProcessWorker) workersInsertValuesDone() error {
-	var ew util.JobWorker
+	var ew JobWorker
 
 	switch i, err := pw.args.NewJobWorker(pw.ctx()); {
 	case err != nil:
@@ -1374,14 +1374,14 @@ func (pw *ProcessWorker) workersInsertValuesDone() error {
 		ew = i
 	}
 
-	if err := ew.NewJob(func(context.Context, uint64) error {
+	if err := ew.NewJob(func(context.Context) error {
 		return pw.workerInsertValuesDone(pw.local)
 	}); err != nil {
 		return err
 	}
 
 	_ = TraverseMap(pw.workerInsertValuesDoneFuncs, func(worker string, f func() error) (bool, error) {
-		return true, ew.NewJob(func(context.Context, uint64) error {
+		return true, ew.NewJob(func(context.Context) error {
 			if err := f(); err != nil {
 				pw.Log().Error().Err(err).Str("worker", worker).Msg("workerInsertValuesDoneFuncs")
 			}

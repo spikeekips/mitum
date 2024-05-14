@@ -180,8 +180,8 @@ func (cmd *CommandManagerStandalone) processor(
 	}
 
 	args := NewProposalProcessorArgs()
-	args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-		return util.NewBaseJobWorker(ctx, cmd.c)
+	args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, cmd.c)
 	}
 	args.SignBlockMapItem = func(bm isaacblock.BlockMap) error {
 		return bm.Sign(cmd.local.Address(), cmd.local.Privatekey(), cmd.networkID)
@@ -290,8 +290,8 @@ func (cmd *CommandManagerStandalone) newManagerFunc(
 		args.IsInStateOperationFunc = func(_ context.Context, fact util.Hash) (bool, error) {
 			return db.ExistsInStateOperation(fact)
 		}
-		args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, cmd.c)
+		args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, cmd.c)
 		}
 		args.WorkerReady = func(ctx context.Context, worker string, args processWorkerReadyArgs) error {
 			return f(ctx, worker, args)
@@ -522,8 +522,8 @@ func (cmd *CommandManagerStandalone) newWorkerReadyFunc(
 
 				return i, found, nil
 			}
-			args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-				return util.NewBaseJobWorker(ctx, cmd.c)
+			args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+				return NewBaseJobWorker(ctx, cmd.c)
 			}
 			args.IsEnoughWorkers = pm.args.IsEnoughWorkers
 			args.StateOwners = func(ctx context.Context, key string) ([]string, error) {
@@ -727,9 +727,9 @@ func (cmd *baseCommand) requestWorkersErrCallback(
 		return nil
 	}
 
-	var ew util.JobWorker
+	var ew JobWorker
 
-	switch i, err := util.NewErrCallbackJobWorker(
+	switch i, err := NewErrCallbackJobWorker(
 		ctx,
 		int64(cmd.cis.Len()),
 		func(error) {},
@@ -743,7 +743,7 @@ func (cmd *baseCommand) requestWorkersErrCallback(
 	}
 
 	_ = cmd.cis.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
-		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+		if err := ew.NewJob(func(ctx context.Context) error {
 			return cmd.request(ctx, name, brokerf, ci)
 		}); err != nil {
 			errf(worker, err)
@@ -766,9 +766,9 @@ func (cmd *baseCommand) requestWorkers(
 		return nil
 	}
 
-	var ew util.JobWorker
+	var ew JobWorker
 
-	switch i, err := util.NewErrCallbackJobWorker(
+	switch i, err := NewErrCallbackJobWorker(
 		ctx,
 		int64(cmd.cis.Len()),
 		func(error) {},
@@ -784,7 +784,7 @@ func (cmd *baseCommand) requestWorkers(
 	var gerr error
 
 	_ = cmd.cis.Traverse(func(worker string, ci quicstream.ConnInfo) bool {
-		if err := ew.NewJob(func(ctx context.Context, _ uint64) error {
+		if err := ew.NewJob(func(ctx context.Context) error {
 			return cmd.request(ctx, name, brokerf, ci)
 		}); err != nil {
 			gerr = err
@@ -874,13 +874,13 @@ func (cmd *baseCommandManager) prepare(pctx context.Context) error {
 func (cmd *baseCommandManager) createAccountKeys(pctx context.Context) error {
 	started := time.Now()
 
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+	wk, _ := NewBaseJobWorker(context.Background(), cmd.c)
 
 	go func() {
 		for i := range cmd.keys {
 			i := i
 
-			if err := wk.NewJob(func(context.Context, uint64) error {
+			if err := wk.NewJob(func(context.Context) error {
 				cmd.keys[i] = base.NewMPrivatekey()
 
 				return nil
@@ -917,13 +917,13 @@ func (cmd *baseCommandManager) createAccountOperations(pctx context.Context) ([]
 
 	ops := make([]Op, len(cmd.keys))
 
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+	wk, _ := NewBaseJobWorker(context.Background(), cmd.c)
 
 	go func() {
 		for i := range ops {
 			i := i
 
-			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
+			if err := wk.NewJob(func(ctx context.Context) error {
 				fact := NewOpFact(token, 1, nil, cmd.keys[i].Publickey())
 				op := NewOp(fact)
 				if err := op.Sign(cmd.local.Privatekey(), cmd.networkID); err != nil {
@@ -1071,7 +1071,7 @@ func (cmd *baseCommandManager) createTransferOperations(pctx context.Context) ([
 
 	ops := make([]Op, cmd.Operations)
 
-	wk, _ := util.NewBaseJobWorker(context.Background(), cmd.c)
+	wk, _ := NewBaseJobWorker(context.Background(), cmd.c)
 
 	go func() {
 		for i := range ops {
@@ -1088,7 +1088,7 @@ func (cmd *baseCommandManager) createTransferOperations(pctx context.Context) ([
 				receiver = cmd.keys[i+1]
 			}
 
-			if err := wk.NewJob(func(ctx context.Context, _ uint64) error {
+			if err := wk.NewJob(func(ctx context.Context) error {
 				fact := NewOpFact(token, 1, issuer.Publickey(), receiver.Publickey())
 				op := NewOp(fact)
 				if err := op.Sign(issuer, cmd.networkID); err != nil {

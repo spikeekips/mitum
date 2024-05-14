@@ -483,7 +483,7 @@ func (t *testProcessManager) TestNew() {
 
 	t.Run("NewJobWorker error", func() {
 		args := NewProcessManagerArgs([]string{"w0"})
-		args.NewJobWorker = func(context.Context) (util.JobWorker, error) { return nil, errors.Errorf("showme") }
+		args.NewJobWorker = func(context.Context) (JobWorker, error) { return nil, errors.Errorf("showme") }
 
 		pr := t.newProposal(33, nil)
 		_, err := NewProcessManager(context.Background(), args, valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr)

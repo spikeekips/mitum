@@ -2,27 +2,29 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/sync/semaphore"
 )
 
 type (
-	serialWorkerNextJobFunc    func(_ context.Context, jobid uint64, phase int, _ serialWorkerNewJobFunc) error
+	serialWorkerNextJobFunc    func(_ context.Context, phase int, _ serialWorkerNewJobFunc) error
 	serialWorkerNewNextJobFunc func(phase int) (_ serialWorkerNextJobFunc, ok bool, _ error)
 	serialWorkerNewJobFunc     func(serialWorkerNewNextJobFunc) error
 )
 
 type SerialWorker struct {
 	*logging.Logging
-	newWorker func(context.Context) (util.JobWorker, error)
+	newWorker func(context.Context) (JobWorker, error)
 }
 
 func NewSerialWorker(
-	newWorker func(context.Context) (util.JobWorker, error),
+	newWorker func(context.Context) (JobWorker, error),
 ) (*SerialWorker, error) {
 	switch i, err := newWorker(context.Background()); {
 	case err != nil:
@@ -56,7 +58,7 @@ func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 
 	gctx, cancel := context.WithCancel(ctx)
 
-	var ew util.JobWorker
+	var ew JobWorker
 
 	jobdonech := make(chan struct{}, 1)
 
@@ -75,7 +77,7 @@ func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 	var nextcancel func()
 
 	newJob = sw.newJobFunc(gctx, phase,
-		func(ctx context.Context) (util.JobWorker, error) {
+		func(ctx context.Context) (JobWorker, error) {
 			i, err := sw.newWorker(ctx)
 			if err != nil {
 				return nil, err
@@ -85,7 +87,7 @@ func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 
 			return ew, nil
 		},
-		func(f util.ContextWorkerCallback) error {
+		func(f ContextWorkerCallback) error {
 			if ew == nil {
 				return errors.Errorf("failed ew")
 			}
@@ -107,7 +109,7 @@ func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 		defer cancel()
 
 		return sw.doneFunc(gctx, phase,
-			func() util.JobWorker {
+			func() JobWorker {
 				return ew
 			},
 			jobdonech,
@@ -138,14 +140,14 @@ func (sw *SerialWorker) enterPhase(ctx context.Context, phase int) (
 func (sw *SerialWorker) newJobFunc(
 	ctx context.Context,
 	phase int,
-	newWorker func(context.Context) (util.JobWorker, error),
-	newJob func(util.ContextWorkerCallback) error,
+	newWorker func(context.Context) (JobWorker, error),
+	newJob func(ContextWorkerCallback) error,
 	ewDone func(),
 	nextWorker func(context.Context) func(serialWorkerNewNextJobFunc) error,
 ) func(serialWorkerNewNextJobFunc) error {
 	l := sw.Log().With().Int("phase", phase).Logger()
 
-	var ew util.JobWorker
+	var ew JobWorker
 	var nextNewJob func(serialWorkerNewNextJobFunc) error
 	var ewonce, nextewonce sync.Once
 
@@ -184,8 +186,8 @@ func (sw *SerialWorker) newJobFunc(
 			return errors.Errorf("failed ew")
 		}
 
-		return newJob(func(ctx context.Context, jobid uint64) error {
-			return job(ctx, jobid, phase, func(nextjob serialWorkerNewNextJobFunc) error {
+		return newJob(func(ctx context.Context) error {
+			return job(ctx, phase, func(nextjob serialWorkerNewNextJobFunc) error {
 				nextewonce.Do(func() {
 					l.Debug().Msg("next phase created")
 
@@ -201,7 +203,7 @@ func (sw *SerialWorker) newJobFunc(
 func (sw *SerialWorker) doneFunc(
 	ctx context.Context,
 	phase int,
-	ewf func() util.JobWorker,
+	ewf func() JobWorker,
 	jobdonech <-chan struct{},
 	nextcancelf func() func(),
 	nextNewJobf func() func(serialWorkerNewNextJobFunc) error,
@@ -261,4 +263,176 @@ func (sw *SerialWorker) doneFunc(
 			return i()
 		}
 	}
+}
+
+type ContextWorkerCallback func(context.Context) error
+
+type JobWorker interface {
+	NewJob(ContextWorkerCallback) error
+	Done()
+	Wait() error
+	Close()
+	Cancel()
+}
+
+type BaseJobWorker struct {
+	ctx        func() context.Context
+	ctxCancel  func(error)
+	newJobCtx  func() context.Context
+	NewJobFunc func(ContextWorkerCallback) error
+	newJob     func(ContextWorkerCallback) error
+	done       func()
+	wait       func() error
+}
+
+func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error) {
+	if semSize < 1 {
+		return nil, errors.Errorf("semSize under 1")
+	}
+
+	errNewJobDone := errors.New(fmt.Sprintf("no more new job; %s", util.UUID().String()))
+
+	ectx, eCtxCancel := context.WithCancelCause(ctx)
+	newJobCtx, newJobCtxCancel := context.WithCancelCause(ectx)
+
+	wk := &BaseJobWorker{
+		ctx:       func() context.Context { return ectx },
+		ctxCancel: eCtxCancel,
+		newJobCtx: func() context.Context { return newJobCtx },
+		done: func() {
+			newJobCtxCancel(errNewJobDone)
+		},
+		NewJobFunc: func(c ContextWorkerCallback) error {
+			return c(ectx)
+		},
+	}
+
+	sem := semaphore.NewWeighted(semSize)
+
+	newJobf := func(c ContextWorkerCallback) error {
+		if err := context.Cause(wk.newJobCtx()); err != nil {
+			return errors.WithStack(err)
+		}
+
+		if err := sem.Acquire(wk.newJobCtx(), 1); err != nil {
+			return errors.WithStack(err)
+		}
+
+		go func() {
+			if err := wk.NewJobFunc(c); err != nil {
+				wk.ctxCancel(err)
+			}
+
+			sem.Release(1)
+		}()
+
+		return nil
+	}
+
+	waitf := func() error {
+		<-wk.newJobCtx().Done()
+
+		if err := context.Cause(wk.newJobCtx()); err != nil && !errors.Is(err, errNewJobDone) {
+			return errors.WithStack(err)
+		}
+
+		if err := sem.Acquire(wk.ctx(), semSize); err != nil {
+			if cerr := context.Cause(wk.ctx()); cerr != nil {
+				return errors.WithStack(cerr)
+			}
+
+			return errors.WithStack(err)
+		}
+
+		if err := context.Cause(wk.ctx()); err != nil {
+			return errors.WithStack(err)
+		}
+
+		return nil
+	}
+
+	wk.newJob = func(c ContextWorkerCallback) error {
+		switch err := newJobf(c); {
+		case errors.Is(err, errNewJobDone):
+			return util.ErrJobWorkerDone.Wrap(err)
+		default:
+			return err
+		}
+	}
+
+	wk.wait = func() error {
+		switch err := waitf(); {
+		case errors.Is(err, errNewJobDone):
+			return util.ErrJobWorkerDone.Wrap(err)
+		default:
+			return err
+		}
+	}
+
+	return wk, nil
+}
+
+func (wk *BaseJobWorker) Cancel() {
+	wk.ctxCancel(nil)
+}
+
+func (wk *BaseJobWorker) Close() {
+	wk.Cancel()
+}
+
+func (wk *BaseJobWorker) Done() {
+	wk.done()
+}
+
+func (wk *BaseJobWorker) NewJob(c ContextWorkerCallback) error {
+	return wk.newJob(c)
+}
+
+// Wait waits until all job finished.
+func (wk *BaseJobWorker) Wait() error {
+	defer wk.ctxCancel(nil)
+
+	return wk.wait()
+}
+
+// LazyWait don't wait until all job finished.
+func (wk *BaseJobWorker) LazyWait() error {
+	defer wk.ctxCancel(nil)
+
+	waitch := make(chan error, 1)
+
+	go func() {
+		waitch <- wk.wait()
+	}()
+
+	select {
+	case <-wk.ctx().Done():
+		return errors.WithStack(context.Cause(wk.ctx()))
+	case err := <-waitch:
+		return err
+	}
+}
+
+// NewErrCallbackJobWorker ignores job error.
+func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error)) (wk *BaseJobWorker, _ error) {
+	if errf == nil {
+		errf = func(error) {} //revive:disable-line:modifies-parameter
+	}
+
+	switch i, err := NewBaseJobWorker(ctx, semSize); {
+	case err != nil:
+		return nil, err
+	default:
+		wk = i
+	}
+
+	wk.NewJobFunc = func(c ContextWorkerCallback) error {
+		if err := c(wk.ctx()); err != nil {
+			errf(err)
+		}
+
+		return nil
+	}
+
+	return wk, nil
 }

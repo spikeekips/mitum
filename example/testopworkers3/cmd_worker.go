@@ -462,8 +462,8 @@ func (cmd *CommandWorker) newWorker(
 
 		return i, found, nil
 	}
-	args.NewJobWorker = func(ctx context.Context) (util.JobWorker, error) {
-		return util.NewBaseJobWorker(ctx, cmd.c)
+	args.NewJobWorker = func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, cmd.c)
 	}
 
 	nworkers := uint64(len(margs.Workers))

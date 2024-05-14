@@ -39,7 +39,7 @@ type (
 
 type StatesMergerWorkerArgs struct {
 	GetStateValue          func(_ context.Context, key string) (base.StateValue, bool, error)
-	NewJobWorker           func(context.Context) (util.JobWorker, error)
+	NewJobWorker           func(context.Context) (JobWorker, error)
 	IsEnoughWorkers        func(workers uint64) bool // NOTE include local worker
 	BroadcastPhaseDoneFunc func(_ context.Context, phase int, mergedOps, unmergedOps []uint64) error
 	UpdatedValuesFunc      statesMergerDoneUpdatedValuesFunc
@@ -50,8 +50,8 @@ type StatesMergerWorkerArgs struct {
 func NewStatesMergerWorkerArgs() *StatesMergerWorkerArgs {
 	return &StatesMergerWorkerArgs{
 		GetStateValue: func(context.Context, string) (base.StateValue, bool, error) { return nil, false, nil },
-		NewJobWorker: func(ctx context.Context) (util.JobWorker, error) {
-			return util.NewBaseJobWorker(ctx, 1<<6)
+		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsEnoughWorkers:        func(uint64) bool { return false },
 		BroadcastPhaseDoneFunc: func(context.Context, int, []uint64, []uint64) error { return nil },
