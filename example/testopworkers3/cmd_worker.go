@@ -529,6 +529,10 @@ func (cmd *CommandWorker) newWorker(
 		}()
 
 		return func(opindex uint64, fact util.Hash, values []StateMergeValue, owners map[string][]string) error {
+				if margs.IsPreProcessed {
+					panic("WorkerInsertValuesFuncs+IsPreProcessed")
+				}
+
 				ch <- [4]interface{}{opindex, fact, values, owners}
 
 				return nil

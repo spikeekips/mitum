@@ -905,8 +905,7 @@ func (cmd *baseCommandManager) createAccountKeys(pctx context.Context) error {
 }
 
 func (cmd *baseCommandManager) createAccountOperations(pctx context.Context) ([]Op, error) {
-	cmd.Log().Debug().Msg("create operations")
-	defer logging.TimeElapsed()(cmd.Log().Info(), "create operations generated")
+	defer logging.TimeElapsedMsg(cmd.Log().Info, "create operations")()
 
 	var pool isaac.NewOperationPool
 
@@ -1060,8 +1059,7 @@ func (cmd *baseCommandManager) newACCEPTVoteproof(point base.Point, proposal, ne
 }
 
 func (cmd *baseCommandManager) createTransferOperations(pctx context.Context) ([]Op, error) {
-	cmd.Log().Debug().Msg("transfer operations")
-	defer logging.TimeElapsed()(cmd.Log().Info(), "transfer operations generated")
+	defer logging.TimeElapsedMsg(cmd.Log().Info, "transfer operations")()
 
 	var pool isaac.NewOperationPool
 
