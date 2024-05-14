@@ -296,7 +296,7 @@ func (cmd *CommandManager) process(
 	pr base.ProposalSignFact,
 	previous base.Manifest,
 ) (base.BlockMap, func() error, error) {
-	cmd.Log().Debug().Msg("processing")
+	cmd.Log().Debug().Msg("prepare processing")
 
 	var pps isaac.ProposalProcessor
 	var ppdone func() error
@@ -320,7 +320,7 @@ func (cmd *CommandManager) process(
 		ivp = i
 	}
 
-	defer logging.TimeElapsed()(cmd.Log().Info(), "processing done")
+	defer logging.TimeElapsedMsg(cmd.Log().Info, "processing")()
 
 	var m base.Manifest
 

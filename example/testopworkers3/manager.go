@@ -321,7 +321,16 @@ func (pm *ProcessManager) ManifestDone() (base.Manifest, error) {
 		return nil, err
 	}
 
-	return pm.getOrCreateManifest()
+	manifest, save, err := pm.getOrCreateManifest()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := save(); err != nil {
+		return nil, err
+	}
+
+	return manifest, nil
 }
 
 func (pm *ProcessManager) StoreDone() error {
@@ -480,7 +489,8 @@ func (pm *ProcessManager) cancel(err error) {
 }
 
 func (pm *ProcessManager) process() error {
-	defer logging.TimeElapsedMsg(pm.Log().Debug, "process")()
+	defer logging.TimeElapsedMsg(pm.Log().Info, "process")()
+	elapsedManifest := logging.TimeElapsedMsg(pm.Log().Info, "process manifest")
 
 	go func() {
 		<-pm.ctx().Done()
@@ -492,8 +502,6 @@ func (pm *ProcessManager) process() error {
 			pm.cancelWorkers()
 		}
 	}()
-
-	manifestElapsed := logging.TimeElapsed()
 
 	switch i := len(pm.ops); {
 	case i < 1:
@@ -511,13 +519,22 @@ func (pm *ProcessManager) process() error {
 		return err
 	}
 
-	defer manifestElapsed(pm.Log().Info(), "manifest done")
-
-	if _, err := pm.getOrCreateManifest(); err != nil {
+	switch _, save, err := pm.getOrCreateManifest(); {
+	case err != nil:
 		pm.cancel(err)
 
 		return err
+	default:
+		elapsedManifest()
+
+		if err := save(); err != nil {
+			pm.cancel(err)
+
+			return err
+		}
 	}
+
+	pm.storeJobWorker.Done()
 
 	if err := pm.storeJobWorker.Wait(); err != nil {
 		pm.cancel(err)
@@ -802,7 +819,13 @@ func (pm *ProcessManager) newNonEmptyNewOperationFunc() error {
 	return pm.isWorkersFailed()
 }
 
-func (pm *ProcessManager) getOrCreateManifest() (manifest base.Manifest, _ error) {
+func (pm *ProcessManager) getOrCreateManifest() (
+	manifest base.Manifest,
+	save func() error,
+	_ error,
+) {
+	save = func() error { return nil }
+
 	if err := pm.manifest.GetOrCreate(
 		func(i base.Manifest, _ bool) error {
 			manifest = i
@@ -810,66 +833,77 @@ func (pm *ProcessManager) getOrCreateManifest() (manifest base.Manifest, _ error
 			return nil
 		},
 		func() (base.Manifest, error) {
-			switch i, err := pm.newManifest(); {
+			switch i, j, err := pm.newManifest(); {
 			case err != nil:
 				return nil, err
 			default:
-				pm.storeJobWorker.Done()
+				save = j
 
 				return i, nil
 			}
 		},
 	); err != nil {
-		return nil, err
+		return nil, save, err
 	}
 
-	return manifest, nil
+	return manifest, save, nil
 }
 
-func (pm *ProcessManager) newManifest() (base.Manifest, error) {
-	var statesTree, opsTree util.Hash
+func (pm *ProcessManager) newManifest() (
+	manifest base.Manifest,
+	save func() error,
+	_ error,
+) {
+	defer logging.TimeElapsedMsg(pm.Log().Info, "manifest")()
 
+	save = func() error { return nil }
+
+	var statesTree, opsTree util.Hash
 	var treeew JobWorker
 
 	switch i, err := pm.args.NewJobWorker(context.Background()); {
 	case err != nil:
-		return nil, err
+		return nil, save, err
 	default:
 		defer i.Close()
 
 		treeew = i
 	}
 
+	var statesTreeSave, opsTreeSave func() error
+
 	if err := treeew.NewJob(func(context.Context) error {
-		switch i, err := pm.newStatesTree(); {
+		switch i, j, err := pm.newStatesTree(); {
 		case err != nil:
 			return err
 		default:
 			statesTree = i
+			statesTreeSave = j
 
 			return nil
 		}
 	}); err != nil {
-		return nil, err
+		return nil, save, err
 	}
 
 	if err := treeew.NewJob(func(context.Context) error {
-		switch i, err := pm.newOpsTree(); {
+		switch i, j, err := pm.newOpsTree(); {
 		case err != nil:
 			return err
 		default:
 			opsTree = i
+			opsTreeSave = j
 
 			return nil
 		}
 	}); err != nil {
-		return nil, err
+		return nil, save, err
 	}
 
 	treeew.Done()
 
 	if err := treeew.Wait(); err != nil {
-		return nil, err
+		return nil, save, err
 	}
 
 	var suffrage, prev util.Hash
@@ -879,7 +913,7 @@ func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 		prev = pm.previousManifest
 	}
 
-	manifest := isaac.NewManifest(
+	manifest = isaac.NewManifest(
 		pm.proposal.Point().Height(),
 		prev,
 		pm.proposal.Fact().Hash(),
@@ -894,65 +928,91 @@ func (pm *ProcessManager) newManifest() (base.Manifest, error) {
 		Msg("manifest created")
 
 	if err := pm.args.NewManifestFunc(pm.ctx(), manifest); err != nil {
-		return nil, err
+		return nil, save, err
 	}
 
-	return manifest, nil
+	var saveOnce sync.Once
+
+	return manifest, func() error {
+		var gerr error
+
+		saveOnce.Do(func() {
+			if err := statesTreeSave(); err != nil {
+				gerr = err
+
+				return
+			}
+
+			if err := opsTreeSave(); err != nil {
+				gerr = err
+			}
+		})
+
+		return gerr
+	}, nil
 }
 
-func (pm *ProcessManager) newStatesTree() (root util.Hash, _ error) {
+func (pm *ProcessManager) newStatesTree() (
+	root util.Hash,
+	save func() error,
+	_ error,
+) {
+	save = func() error { return nil }
+
 	if len(pm.ops) < 1 {
-		return nil, nil
+		return nil, save, nil
 	}
 
 	var writer *baseFixedTreeWriter[string]
 
 	switch i, err := pm.statesTreeWriter(false); {
 	case err != nil:
-		return nil, err
+		return nil, save, err
 	case i == nil:
-		return nil, nil
+		return nil, save, nil
 	default:
 		writer = i
 	}
 
 	switch i, err := writer.Tree(); {
 	case err != nil:
-		return nil, err
+		return nil, save, err
+	case i == nil:
+		return nil, save, nil
 	default:
-		root = i
+		return i, func() error {
+			return pm.storeJobWorker.NewJob(func(context.Context) error {
+				switch i, err := writer.Save(); {
+				case err != nil:
+					return err
+				default:
+					pm.setWorkerBlockFiles("", base.BlockItemStatesTree, i)
+
+					return nil
+				}
+			})
+		}, nil
 	}
-
-	if root != nil {
-		if err := pm.storeJobWorker.NewJob(func(context.Context) error {
-			switch i, err := writer.Save(); {
-			case err != nil:
-				return err
-			default:
-				pm.setWorkerBlockFiles("", base.BlockItemStatesTree, i)
-
-				return nil
-			}
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	return root, nil
 }
 
-func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
+func (pm *ProcessManager) newOpsTree() (
+	root util.Hash,
+	save func() error,
+	_ error,
+) {
+	save = func() error { return nil }
+
 	if len(pm.ops) < 1 {
-		return nil, nil
+		return nil, save, nil
 	}
 
 	var writer *baseFixedTreeWriter[uint64]
 
 	switch i, err := pm.operationsTreeWriter(true); {
 	case err != nil:
-		return nil, err
+		return nil, save, err
 	case i == nil:
-		return nil, nil
+		return nil, save, nil
 	default:
 		writer = i
 	}
@@ -978,27 +1038,23 @@ func (pm *ProcessManager) newOpsTree() (root util.Hash, _ error) {
 
 	switch i, err := writer.Tree(); {
 	case err != nil:
-		return nil, err
+		return nil, save, err
+	case i == nil:
+		return nil, save, nil
 	default:
-		root = i
+		return i, func() error {
+			return pm.storeJobWorker.NewJob(func(context.Context) error {
+				switch i, err := writer.Save(); {
+				case err != nil:
+					return err
+				default:
+					pm.setWorkerBlockFiles("", base.BlockItemOperationsTree, i)
+
+					return nil
+				}
+			})
+		}, nil
 	}
-
-	if root != nil {
-		if err := pm.storeJobWorker.NewJob(func(context.Context) error {
-			switch i, err := writer.Save(); {
-			case err != nil:
-				return err
-			default:
-				pm.setWorkerBlockFiles("", base.BlockItemOperationsTree, i)
-
-				return nil
-			}
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	return root, nil
 }
 
 func (pm *ProcessManager) newBlockFiles() (map[base.BlockItemType]BlockItemFile, error) {

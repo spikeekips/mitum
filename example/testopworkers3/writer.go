@@ -417,7 +417,6 @@ func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 	_ error,
 ) {
 	var closeSaveNodeFunc func(bool) (string, error)
-	var chunk string
 
 	var add util.CompactAppendSliceAddFunc[[2]interface{}]
 	var done util.CompactAppendSliceDoneFunc[[2]interface{}]
@@ -429,67 +428,77 @@ func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 		add, done = i, j
 	}
 
-	var sew JobWorker
-	var save func(uint64, fixedtree.Node) error
+	saveDone = func() (string, error) {
+		var sew JobWorker
+		var save func(uint64, fixedtree.Node) error
 
-	sctx, sDone, _ := NewContextDoneFunc(
-		w.ctx(),
-		func(ctx context.Context) error {
-			defer logging.TimeElapsed()(w.Log().Info(), "saved")
+		var chunk string
 
-			if err := func() error {
-				defer sew.Close()
+		sctx, sDone, _ := NewContextDoneFunc(
+			w.ctx(),
+			func(ctx context.Context) error {
+				defer logging.TimeElapsedMsg(w.Log().Info, "saved")()
 
-				if err := treeDone(); err != nil {
-					return err
-				}
+				if err := func() error {
+					defer sew.Close()
 
-				if err := done(func(s [][2]interface{}) error {
-					return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
-						return true, sew.NewJob(func(context.Context) error {
-							return save(
-								i[0].(uint64),
-								i[1].(fixedtree.Node),
-							)
+					if err := treeDone(); err != nil {
+						return err
+					}
+
+					if err := done(func(s [][2]interface{}) error {
+						return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
+							return true, sew.NewJob(func(context.Context) error {
+								return save(
+									i[0].(uint64),
+									i[1].(fixedtree.Node),
+								)
+							})
 						})
-					})
-				}); err != nil {
+					}); err != nil {
+						return err
+					}
+
+					sew.Done()
+
+					return sew.Wait()
+				}(); err != nil {
+					_, _ = closeSaveNodeFunc(false)
+
 					return err
 				}
 
-				sew.Done()
+				switch i, err := closeSaveNodeFunc(true); {
+				case err != nil:
+					return err
+				default:
+					chunk = i
 
-				return sew.Wait()
-			}(); err != nil {
-				_, _ = closeSaveNodeFunc(false)
+					return nil
+				}
+			},
+		)
 
-				return err
-			}
+		switch i, err := w.newJobWorker(sctx); {
+		case err != nil:
+			return "", err
+		default:
+			sew = i
+		}
 
-			switch i, err := closeSaveNodeFunc(true); {
-			case err != nil:
-				return err
-			default:
-				chunk = i
+		switch i, j, err := saveNodeFuncs(sctx); {
+		case err != nil:
+			return "", err
+		default:
+			save = i
+			closeSaveNodeFunc = j
+		}
 
-				return nil
-			}
-		},
-	)
+		if err := sDone(); err != nil {
+			return "", err
+		}
 
-	switch i, err := w.newJobWorker(sctx); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		sew = i
-	}
-
-	switch i, j, err := saveNodeFuncs(sctx); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		save = i
-		closeSaveNodeFunc = j
+		return chunk, nil
 	}
 
 	return func(index uint64, node fixedtree.Node) error {
@@ -497,13 +506,7 @@ func (w *baseFixedTreeWriter[K]) newSaveFuncs(
 
 			return nil
 		},
-		func() (string, error) {
-			if err := sDone(); err != nil {
-				return "", err
-			}
-
-			return chunk, nil
-		},
+		saveDone,
 		nil
 }
 
