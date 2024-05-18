@@ -349,14 +349,14 @@ func (m *AccountStateMerger) Unmerge(op uint64, value base.StateValue) (
 			return nil, mergeOp, nil
 		}
 
-		_ = util.TraverseSlice(m.prepops, func(_ int, s uint64) error {
+		_ = util.TraverseSliceV1(m.prepops, func(_ int, s uint64) (bool, error) {
 			if s > op {
 				mergeOp = s
 
-				return util.ErrFound
+				return false, nil
 			}
 
-			return nil
+			return true, nil
 		})
 	}
 
