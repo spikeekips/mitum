@@ -8,9 +8,9 @@ import (
 )
 
 type (
-	PhaseJobWorkerNewJobFunc func(jobID uint64, _ PhaseJobWorkerCallback2) error
-	PhaseJobWorkerCallback2  func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error
-	NewPhaseJobWorkerFunc2   func(context.Context) (
+	PhaseJobWorkerNewJobFunc func(jobID uint64, _ PhaseJobWorkerCallback) error
+	PhaseJobWorkerCallback   func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error
+	NewPhaseJobWorkerFunc    func(context.Context) (
 		newJob PhaseJobWorkerNewJobFunc,
 		jobDone func(),
 		wait func() error,
@@ -18,13 +18,13 @@ type (
 	)
 )
 
-func newPhaseJobWorker2(
+func newPhaseJobWorker(
 	ctx context.Context,
 	newJobWorker func(context.Context) (JobWorker, error),
 	phase int,
 	jobIDLocked func(jobID uint64, phase int, f func() error) error,
 ) (
-	newJob func(jobID uint64, _ PhaseJobWorkerCallback2) error,
+	newJob func(jobID uint64, _ PhaseJobWorkerCallback) error,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -44,14 +44,14 @@ func newPhaseJobWorker2(
 	var nextDoneFunc func()
 	var nextWaitFunc func() error
 
-	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback2) error {
+	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
 		var gerr error
 
 		nextOnce.Do(func() {
 			nextLock.Lock()
 			defer nextLock.Unlock()
 
-			switch n, d, w, err := newPhaseJobWorker2(ctx, newJobWorker, phase+1, jobIDLocked); {
+			switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, phase+1, jobIDLocked); {
 			case err != nil:
 				gerr = err
 			default:
@@ -68,7 +68,7 @@ func newPhaseJobWorker2(
 		return nextNewJobFunc(jobID, c)
 	}
 
-	return func(jobID uint64, c PhaseJobWorkerCallback2) error {
+	return func(jobID uint64, c PhaseJobWorkerCallback) error {
 			return wk.NewJob(func(ctx context.Context) error {
 				return jobIDLocked(jobID, phase, func() error {
 					return c(ctx, phase, nextPhaseNewJob)
@@ -101,12 +101,12 @@ func newPhaseJobWorker2(
 		nil
 }
 
-func NewPhaseJobWorker2(
+func NewPhaseJobWorker(
 	ctx context.Context,
 	newJobWorker func(context.Context) (JobWorker, error),
 	mapSize uint64,
 ) (
-	newJob func(jobID uint64, _ PhaseJobWorkerCallback2) error,
+	newJob func(jobID uint64, _ PhaseJobWorkerCallback) error,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -128,11 +128,11 @@ func NewPhaseJobWorker2(
 
 	pctx, pctxCancel := context.WithCancelCause(ctx)
 
-	var newJobFunc func(uint64, PhaseJobWorkerCallback2) error
+	var newJobFunc func(uint64, PhaseJobWorkerCallback) error
 	var doneFunc func()
 	var waitFunc func() error
 
-	switch n, d, w, err := newPhaseJobWorker2(
+	switch n, d, w, err := newPhaseJobWorker(
 		pctx,
 		newJobWorker,
 		0,
@@ -174,7 +174,7 @@ func NewPhaseJobWorker2(
 		jobIDLocked.Close()
 	}()
 
-	return func(jobID uint64, c PhaseJobWorkerCallback2) error {
+	return func(jobID uint64, c PhaseJobWorkerCallback) error {
 			if err := newJobFunc(jobID, c); err != nil {
 				pctxCancel(err)
 

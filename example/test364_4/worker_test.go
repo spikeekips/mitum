@@ -548,12 +548,12 @@ func (t *testPhaseJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := NewPhaseJobWorker(ctx, nil, 1<<9)
+		newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx, nil, 1<<9)
 		t.NoError(err)
 
 		cancel()
 
-		err = newJob(0, func(ctx context.Context, _ int) (uint64, PhaseJobWorkerCallback, error) {
+		err = newJob(0, func(ctx context.Context, _ int) (uint64, PhaseJobWorkerCallback0, error) {
 			select {
 			case <-ctx.Done():
 				return 0, nil, ctx.Err()
@@ -572,14 +572,14 @@ func (t *testPhaseJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := NewPhaseJobWorker(ctx, nil, 1<<9)
+		newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx, nil, 1<<9)
 		t.NoError(err)
 
 		newjobch := make(chan struct{}, 1)
 		nextphasecanceledch := make(chan int, 1)
 
-		t.NoError(newJob(0, func(context.Context, int) (uint64, PhaseJobWorkerCallback, error) {
-			return 0, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+		t.NoError(newJob(0, func(context.Context, int) (uint64, PhaseJobWorkerCallback0, error) {
+			return 0, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				newjobch <- struct{}{}
 
 				select {
@@ -618,10 +618,10 @@ func (t *testPhaseJobWorker) TestNewJobError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := NewPhaseJobWorker(ctx, nil, 1<<9)
+		newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx, nil, 1<<9)
 		t.NoError(err)
 
-		t.NoError(newJob(0, func(ctx context.Context, _ int) (uint64, PhaseJobWorkerCallback, error) {
+		t.NoError(newJob(0, func(ctx context.Context, _ int) (uint64, PhaseJobWorkerCallback0, error) {
 			return 0, nil, errors.Errorf("showme")
 		}))
 
@@ -636,7 +636,7 @@ func (t *testPhaseJobWorker) TestJobID() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := NewPhaseJobWorker(ctx, nil, 1<<9)
+		newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx, nil, 1<<9)
 		t.NoError(err)
 
 		add, done, _ := util.CompactAppendSliceV1[[2]uint64](6)
@@ -644,12 +644,12 @@ func (t *testPhaseJobWorker) TestJobID() {
 		for i := uint64(0); i < 3; i++ {
 			jobID := i
 
-			t.NoError(newJob(jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+			t.NoError(newJob(jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				t.T().Logf("new job: jobID=%d phase=%d", jobID, phase)
 
 				add([2]uint64{uint64(phase), jobID})
 
-				return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+				return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 					t.T().Logf("new job: jobID=%d phase=%d", jobID, phase)
 
 					add([2]uint64{uint64(phase), jobID})
@@ -684,7 +684,7 @@ func (t *testPhaseJobWorker) TestJobID() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := NewPhaseJobWorker(ctx,
+		newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx,
 			func(ctx context.Context) (JobWorker, error) {
 				return NewBaseJobWorker(ctx, 1)
 			},
@@ -695,12 +695,12 @@ func (t *testPhaseJobWorker) TestJobID() {
 
 		job10Called := make(chan struct{}, 1)
 
-		t.NoError(newJob(0, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+		t.NoError(newJob(0, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 			t.T().Logf("new job: phase=%d jobID=%d", phase, 0)
 
 			add([2]uint64{uint64(phase), 0})
 
-			return 1, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+			return 1, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				t.T().Logf("new job: 1->0, phase=%d jobID=%d", phase, 1)
 
 				add([2]uint64{uint64(phase), 1})
@@ -716,18 +716,18 @@ func (t *testPhaseJobWorker) TestJobID() {
 		for i := uint64(1); i < 3; i++ {
 			jobID := i
 
-			t.NoError(newJob(jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+			t.NoError(newJob(jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				t.T().Logf("new job: phase=%d jobID=%d", phase, jobID)
 
 				add([2]uint64{uint64(phase), jobID})
 
 				switch jobID {
 				case 1:
-					return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+					return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 						return jobID, nil, errors.Errorf("showme")
 					}, nil
 				default:
-					return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+					return jobID, func(ctx context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 						t.T().Logf("new job: phase=%d jobID=%d", phase, jobID)
 
 						add([2]uint64{uint64(phase), jobID})
@@ -763,9 +763,9 @@ func (t *testPhaseJobWorker) TestJobID() {
 func (t *testPhaseJobWorker) runPhases(
 	ctx context.Context,
 	jobs uint64,
-	c func() (jobID uint64, _ PhaseJobWorkerCallback),
+	c func() (jobID uint64, _ PhaseJobWorkerCallback0),
 ) error {
-	newJob, jobDone, wait, err := NewPhaseJobWorker(ctx, nil, 1<<9)
+	newJob, jobDone, wait, err := NewPhaseJobWorker0(ctx, nil, 1<<9)
 	t.NoError(err)
 
 	for i := uint64(0); i < jobs; i++ {
@@ -787,10 +787,10 @@ func (t *testPhaseJobWorker) TestAdd() {
 
 		var jobID, sum uint64
 
-		t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback0) {
 			jobID++
 
-			return jobID, func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+			return jobID, func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				i := atomic.LoadUint64(&sum)
 				atomic.AddUint64(&sum, 1)
 
@@ -824,10 +824,10 @@ func (t *testPhaseJobWorker) TestAdd() {
 			return j
 		}
 
-		var f func() func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback, error)
+		var f func() func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error)
 
-		f = func() func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
-			return func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+		f = func() func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
+			return func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				j := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)
@@ -841,12 +841,12 @@ func (t *testPhaseJobWorker) TestAdd() {
 			}
 		}
 
-		t.NoError(t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.NoError(t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback0) {
 			j := newJobID()
 
 			atomic.AddUint64(&sum, j)
 
-			return j, func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback, error) {
+			return j, func(_ context.Context, phase int) (uint64, PhaseJobWorkerCallback0, error) {
 				j := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)
