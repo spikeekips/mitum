@@ -2,11 +2,23 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"slices"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
+
+func TraverseMap[K cmp.Ordered, V any](m map[K]V, f func(K, V) (bool, error)) error {
+	for k := range m {
+		if keep, err := f(k, m[k]); err != nil || !keep {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func ConcatSlice[S ~[]E, E any](s ...S) S {
 	size := 0
@@ -85,4 +97,43 @@ func UniqueCompactAppendSliceV1[T cmp.Ordered](size uint64, grow ...uint64) (
 
 			return done(f)
 		}, nil
+}
+
+func NewContextDoneFunc(
+	ctx context.Context,
+	f func(context.Context) error,
+) (
+	_ context.Context,
+	done func() error,
+	cancel func(error),
+) {
+	errDone := errors.New(util.UUID().String())
+	cctx, cctxCancel := context.WithCancelCause(ctx)
+
+	var once sync.Once
+
+	return cctx,
+		func() error {
+			once.Do(func() {
+				go func() {
+					if err := f(cctx); err != nil {
+						cctxCancel(err)
+
+						return
+					}
+
+					cctxCancel(errDone)
+				}()
+			})
+
+			<-cctx.Done()
+
+			switch err := context.Cause(cctx); {
+			case errors.Is(err, errDone):
+				return nil
+			default:
+				return err
+			}
+		},
+		cctxCancel
 }

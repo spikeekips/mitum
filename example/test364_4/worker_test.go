@@ -539,11 +539,11 @@ func TestErrCallbackJobWorker(t *testing.T) {
 	_ = sem.Acquire(context.Background(), 33)
 }
 
-type testPhaseJobWorker struct {
+type testPhaseJobWorker0 struct {
 	suite.Suite
 }
 
-func (t *testPhaseJobWorker) TestCancel() {
+func (t *testPhaseJobWorker0) TestCancel() {
 	t.Run("before new job", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -613,7 +613,7 @@ func (t *testPhaseJobWorker) TestCancel() {
 	})
 }
 
-func (t *testPhaseJobWorker) TestNewJobError() {
+func (t *testPhaseJobWorker0) TestNewJobError() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -631,7 +631,7 @@ func (t *testPhaseJobWorker) TestNewJobError() {
 	})
 }
 
-func (t *testPhaseJobWorker) TestJobID() {
+func (t *testPhaseJobWorker0) TestJobID() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -760,7 +760,7 @@ func (t *testPhaseJobWorker) TestJobID() {
 	})
 }
 
-func (t *testPhaseJobWorker) runPhases(
+func (t *testPhaseJobWorker0) runPhases(
 	ctx context.Context,
 	jobs uint64,
 	c func() (jobID uint64, _ PhaseJobWorkerCallback0),
@@ -780,7 +780,7 @@ func (t *testPhaseJobWorker) runPhases(
 	return wait()
 }
 
-func (t *testPhaseJobWorker) TestAdd() {
+func (t *testPhaseJobWorker0) TestAdd() {
 	t.Run("0 phase", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -860,8 +860,8 @@ func (t *testPhaseJobWorker) TestAdd() {
 	})
 }
 
-func TestPhaseJobWorker(t *testing.T) {
+func TestPhaseJobWorker0(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testPhaseJobWorker))
+	suite.Run(t, new(testPhaseJobWorker0))
 }

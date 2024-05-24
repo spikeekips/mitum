@@ -212,7 +212,8 @@ func mergeOp(
 	reason string,
 	_ error,
 ) {
-	return xMergeOpValues(
+	fmt.Println("m", opindex, nextUnmergeOps, reason)
+	nextUnmergeOps, reason, err := xMergeOpValues(
 		ctx,
 		"merge",
 		opindex,
@@ -222,6 +223,8 @@ func mergeOp(
 			return merger.Merge
 		},
 	)
+
+	return nextUnmergeOps, reason, err
 }
 
 func unmergeOp(
@@ -233,6 +236,7 @@ func unmergeOp(
 	nextMergeOps []uint64,
 	_ error,
 ) {
+	fmt.Println("u", opindex)
 	nextMergeOp, _, err := xMergeOpValues(
 		ctx,
 		"unmerge",
@@ -304,4 +308,34 @@ func extractStateValuesKeysFunc(cacheSize int) (
 		}, func() {
 			cache.Purge()
 		}
+}
+
+func getOrCreateMergerFunc(
+	m util.LockedMap[string, StateMerger],
+	getState func(stateKey string) (base.State, bool, error),
+) func(StateMergeValue) (StateMerger, error) {
+	return func(value StateMergeValue) (merger StateMerger, _ error) {
+		err := m.GetOrCreate(
+			value.Key(),
+			func(i StateMerger, _ bool) error {
+				merger = i
+
+				return nil
+			},
+			func() (StateMerger, error) {
+				var stv base.StateValue
+
+				switch i, found, err := getState(value.Key()); {
+				case err != nil:
+					return nil, err
+				case found:
+					stv = i.Value()
+				}
+
+				return value.Merger(stv)
+			},
+		)
+
+		return merger, err
+	}
 }

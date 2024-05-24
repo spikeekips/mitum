@@ -525,7 +525,10 @@ func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
 			lock.Lock()
 			defer lock.Unlock()
 
-			defer clear(s)
+			defer func() {
+				clear(s)
+				start = 0
+			}()
 
 			if f == nil {
 				return nil

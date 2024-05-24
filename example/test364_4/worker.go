@@ -188,7 +188,7 @@ func newPhaseJobWorker0(
 
 			if err := func() error {
 				nextLock.RLock()
-				defer nextLock.RLock()
+				defer nextLock.RUnlock()
 
 				if nextDoneFunc == nil {
 					return nil
@@ -271,10 +271,6 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 
 	waitf := func() error {
 		<-wk.newJobCtx().Done()
-
-		if err := context.Cause(wk.newJobCtx()); err != nil && !errors.Is(err, errNewJobDone) {
-			return errors.WithStack(err)
-		}
 
 		if err := sem.Acquire(wk.ctx(), semSize); err != nil {
 			if cerr := context.Cause(wk.ctx()); cerr != nil {

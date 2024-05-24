@@ -330,7 +330,7 @@ func (m *AccountStateMerger) Unmerge(op uint64, value base.StateValue) (
 
 	switch i, err := m.assertValue(value); {
 	case err != nil:
-		return nil, mergeOp, err
+		return nil, op, err
 	default:
 		ac = i
 	}
