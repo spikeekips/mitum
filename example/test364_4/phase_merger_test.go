@@ -10,8 +10,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
+	"gonum.org/v1/gonum/stat/combin"
 )
 
 type testPhaseMerger struct {
@@ -126,6 +128,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		merged := t.closeMergers(mergers)
 
+		fmt.Println(">", merged)
 		m, found := merged[vs[0].Key()]
 		t.True(found)
 		t.Equal(int64(3), m)
@@ -380,23 +383,23 @@ func (t *testPhaseMerger) baseTestMergeUnmerge() (
 	st1 := t.newState(pub1, 2)
 
 	ops = [][]StateMergeValue{
-		{
+		{ // 0
 			t.newAccountStateMergeValue(pub0, 1),
 			t.newAccountStateMergeValue(pub1, -2),
 		},
-		{ // ignored
+		{ // 1: ignored
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, -2),
 		},
-		{
+		{ // 2
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, 2),
 		},
-		{ // ignored
+		{ // 3: ignored
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, -2),
 		},
-		{
+		{ // 4
 			t.newAccountStateMergeValue(pub0, 1),
 			t.newAccountStateMergeValue(pub1, 2),
 		},
@@ -420,13 +423,14 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		func() error,
 		error,
 	) {
-		return NewPhaseJobWorker(
-			ctx,
-			func(ctx context.Context) (JobWorker, error) {
-				return NewBaseJobWorker(ctx, semSize)
-			},
-			1<<9,
-		)
+		args := newConcPhaseJobWorkerArgs()
+		args.NewJobWorker = func(context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, semSize)
+		}
+
+		args.SetLogging(logging.TestNilLogging)
+
+		return NewConcPhaseJobWorker(ctx, args)
 	}
 
 	for i := range sts {
@@ -558,12 +562,12 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 	seq := [][2]interface{}{
 		{"m", 3},
 		{"m", 2},
-		{"m", 1},
-		{"u", 2},
-		{"u", 3},
 		{"m", 4},
+		{"m", 1},
 		{"m", 0},
+		{"u", 2},
 		{"u", 1},
+		{"u", 3},
 		{"m", 3},
 		{"m", 2},
 	}
@@ -597,10 +601,22 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 }
 
 func (t *testPhaseMerger) TestMergeUnmerge() {
-	for i := 0; i < 9999; i++ {
-		t.Run(fmt.Sprintf("%04d", i), func() {
-			t.testMergeUnmerge(1<<9, nil)
-		})
+	for i := 0; i < 99; i++ {
+		gen := combin.NewPermutationGenerator(5, 5)
+		nextseq := func() bool {
+			return gen.Next()
+		}
+		getseq := func() []int {
+			return gen.Permutation(nil)
+		}
+
+		for nextseq() {
+			seq := getseq()
+
+			t.Run(fmt.Sprintf("%02d: %v", i, seq), func() {
+				t.testMergeUnmerge(1<<9, seq)
+			})
+		}
 	}
 }
 

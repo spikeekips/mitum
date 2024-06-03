@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/spikeekips/mitum/base"
@@ -34,7 +35,7 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 			func() error,
 			error,
 		) {
-			return NewPhaseJobWorker(
+			return NewOneStepPhaseJobWorker(
 				ctx,
 				func(ctx context.Context) (JobWorker, error) {
 					return NewBaseJobWorker(ctx, 1<<9)
@@ -95,6 +96,8 @@ func NewPhaseMerger(
 			return args.GetMergersFunc(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
+					fmt.Println(">p merge", opindex, phase)
+
 					switch nexts, reason, err := mergeOp(
 						ctx,
 						opindex,
@@ -104,6 +107,8 @@ func NewPhaseMerger(
 					case err != nil:
 						return err
 					default:
+						fmt.Println("<p merge", opindex, phase, nexts, reason)
+
 						if len(reason) > 0 {
 							if err := args.UpdateReasonFunc(opindex, reason); err != nil {
 								return err
@@ -137,6 +142,7 @@ func NewPhaseMerger(
 			return args.GetMergersFunc(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
+					fmt.Println(">p unmerge", opindex, phase)
 					switch nexts, err := unmergeOp(
 						ctx,
 						opindex,
@@ -146,6 +152,8 @@ func NewPhaseMerger(
 					case err != nil:
 						return err
 					default:
+						fmt.Println("<p unmerge", opindex, phase, nexts)
+
 						return util.TraverseSliceV1(nexts, func(_ int, next uint64) (bool, error) {
 							switch values, err := args.GetValuesFunc(next); {
 							case err != nil:

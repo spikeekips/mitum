@@ -478,9 +478,6 @@ func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
 	var lock sync.RWMutex
 
 	count := func(n uint64) (_ uint64, prevStart uint64, afterStart uint64, afterLastSize uint64) {
-		lock.Lock()
-		defer lock.Unlock()
-
 		if n+start > lastSize && !growf(n+start-lastSize) {
 			n = lastSize - start
 		}
@@ -495,24 +492,29 @@ func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
 		return n, prevStart, start, lastSize
 	}
 
-	insert := func(n, si uint64, t T, ts []T) {
-		lock.RLock()
-		defer lock.RUnlock()
+	insert := func(t T, ts []T) (_ uint64, afterStart uint64, afterLastSize uint64) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		n, si, st, l := count(uint64(len(ts) + 1))
+		if n < 1 {
+			return n, st, l
+		}
 
 		s[si] = t
 
 		for i := range ts[:n-1] {
 			s[si+uint64(i+1)] = ts[i]
 		}
+
+		return n, st, l
 	}
 
 	return func(t T, ts ...T) (uint64, uint64) {
-			n, si, st, l := count(uint64(len(ts) + 1))
+			n, st, l := insert(t, ts)
 			if n < 1 {
 				return 0, l - st
 			}
-
-			insert(n, si, t, ts)
 
 			left := l - st
 			if left < 1 && growN > 0 {
@@ -523,11 +525,14 @@ func CompactAppendSliceV1[T any](size uint64, grow ...uint64) (
 		},
 		func(f func([]T) error) error {
 			lock.Lock()
-			defer lock.Unlock()
 
 			defer func() {
 				clear(s)
+				s = nil
 				start = 0
+				lastSize = 0
+
+				lock.Unlock()
 			}()
 
 			if f == nil {

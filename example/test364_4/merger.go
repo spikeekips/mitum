@@ -76,6 +76,8 @@ func xMergeOpValues(
 		return nil, "", errors.Errorf("xmergeOp; empty values")
 	}
 
+	fmt.Println(">x", name, opindex)
+
 	var (
 		addNext    util.CompactAppendSliceAddFunc[uint64]
 		doneNext   util.CompactAppendSliceDoneFunc[uint64]
@@ -89,8 +91,6 @@ func xMergeOpValues(
 	case err != nil:
 		return nil, "", err
 	default:
-		_ = d(nil)
-
 		addNext = a
 		doneNext = d
 	}
@@ -99,7 +99,9 @@ func xMergeOpValues(
 	case err != nil:
 		return nil, "", err
 	default:
-		_ = d(nil)
+		defer func() {
+			_ = d(nil)
+		}()
 
 		addReason = a
 		doneReason = d
@@ -109,7 +111,9 @@ func xMergeOpValues(
 	case err != nil:
 		return nil, "", err
 	default:
-		_ = d(nil)
+		defer func() {
+			_ = d(nil)
+		}()
 
 		addCommit = a
 		doneCommit = d
@@ -168,6 +172,8 @@ func xMergeOpValues(
 	})
 
 	if notCommit {
+		fmt.Println("<x", name, opindex)
+
 		return nil, reason, nil
 	}
 
@@ -176,6 +182,8 @@ func xMergeOpValues(
 
 		return nil
 	})
+
+	fmt.Println("<x", name, opindex, nextOps, reason)
 
 	return nextOps, reason, doneCommit(func(s []func() error) error {
 		switch size := int64(len(s)); {
@@ -212,7 +220,6 @@ func mergeOp(
 	reason string,
 	_ error,
 ) {
-	fmt.Println("m", opindex, nextUnmergeOps, reason)
 	nextUnmergeOps, reason, err := xMergeOpValues(
 		ctx,
 		"merge",
@@ -236,7 +243,6 @@ func unmergeOp(
 	nextMergeOps []uint64,
 	_ error,
 ) {
-	fmt.Println("u", opindex)
 	nextMergeOp, _, err := xMergeOpValues(
 		ctx,
 		"unmerge",
