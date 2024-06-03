@@ -86,7 +86,7 @@ func newConcPhaseJobWorker(
 
 	var nextPhaseOnce sync.Once
 	var nextPhaseNewJobFunc PhaseJobWorkerNewJobFunc
-	var nextPhaseWait func() error
+	nextPhaseWait := func() error { return nil }
 
 	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
 		l.Debug().Uint64("job_id", jobID).Msg("next phase new job")
@@ -138,11 +138,7 @@ func newConcPhaseJobWorker(
 				return err
 			}
 
-			if nextPhaseWait != nil {
-				return nextPhaseWait()
-			}
-
-			return nil
+			return nextPhaseWait()
 		},
 		nil
 }

@@ -198,10 +198,8 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 	})
 
 	t.Run("depth 0; not close pre done ch", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-
-		pch := make(chan struct{}, 1)
 
 		newJob, jobDone, wait, err := newTwoStepPhaseJobWorker(
 			ctx,
@@ -210,7 +208,7 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 			func() error {
 				select {
 				case <-ctx.Done():
-				case <-pch:
+				case <-time.After(time.Minute):
 				}
 				return nil
 			},
@@ -219,8 +217,8 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 
 		callback, done := newCallbackFunc(nil)
 
-		t.NoError(newJob(0, callback(0, 0, nil)))
-		t.NoError(newJob(1, callback(1, 0, nil)))
+		t.NoError(newJob(0, callback(0, 2, nil)))
+		t.NoError(newJob(1, callback(1, 2, nil)))
 
 		jobDone()
 

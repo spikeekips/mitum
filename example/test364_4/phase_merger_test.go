@@ -16,6 +16,285 @@ import (
 	"gonum.org/v1/gonum/stat/combin"
 )
 
+type testXIsMergedOPsFuncs struct {
+	baseTestMergeOp
+}
+
+func (t *testXIsMergedOPsFuncs) TestAddOne() {
+	t.Run("add merged; no previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return ""
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, MergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Equal([]uint64{0}, mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+	})
+
+	t.Run("add merged; same with previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return MergedFlag
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, MergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+	})
+
+	t.Run("add merged; not same with previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return UnmergedFlag
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, MergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Equal([]uint64{0}, mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+	})
+
+	t.Run("add unmerged; no previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return ""
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Equal([]uint64{0}, unmergedOps)
+
+			return nil
+		}))
+	})
+
+	t.Run("add unmerged; same with previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return UnmergedFlag
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+	})
+
+	t.Run("add unmerged; not same with previous", func() {
+		prevous := func(opindex uint64) xMergedFlag {
+			return MergedFlag
+		}
+
+		add, done, err := addXMergedOpsFuncs(prevous, 2)
+		t.NoError(err)
+
+		add(0, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Equal([]uint64{0}, unmergedOps)
+
+			return nil
+		}))
+	})
+}
+
+func (t *testXIsMergedOPsFuncs) newBaseOps() util.LockedMap[uint64, xMergedFlag] {
+	i, err := util.NewShardedMap[uint64, xMergedFlag](1<<9, nil)
+	t.NoError(err)
+
+	return i
+}
+
+func (t *testXIsMergedOPsFuncs) TestAdd() {
+	t.Run("no add", func() {
+		baseOps := t.newBaseOps()
+
+		_, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+		t.Equal(0, baseOps.Len())
+	})
+
+	t.Run("add -1 phase", func() {
+		baseOps := t.newBaseOps()
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(-1, 1, MergedFlag)
+		add(-1, 2, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Empty(unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			1: MergedFlag,
+			2: UnmergedFlag,
+		}, baseOps.Map())
+	})
+
+	t.Run("add over 0 phase; empty 0 phase", func() {
+		baseOps := t.newBaseOps()
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(1, 1, MergedFlag)
+		add(1, 2, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Equal([]uint64{1}, mergedOps)
+			t.Equal([]uint64{2}, unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			1: MergedFlag,
+			2: UnmergedFlag,
+		}, baseOps.Map())
+	})
+
+	t.Run("add over 0 phase; not found in 0 phase", func() {
+		baseOps := t.newBaseOps()
+		baseOps.SetValue(0, MergedFlag)
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(1, 1, MergedFlag)
+		add(1, 2, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Equal([]uint64{1}, mergedOps)
+			t.Equal([]uint64{2}, unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			0: MergedFlag,
+			1: MergedFlag,
+			2: UnmergedFlag,
+		}, baseOps.Map())
+	})
+
+	t.Run("add over 0 phase; matched in 0 phase", func() {
+		baseOps := t.newBaseOps()
+		baseOps.SetValue(1, MergedFlag)
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(1, 1, MergedFlag)
+		add(1, 2, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Equal([]uint64{2}, unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			1: MergedFlag,
+			2: UnmergedFlag,
+		}, baseOps.Map())
+	})
+
+	t.Run("add over 0 phase; matched later in 0 phase", func() {
+		baseOps := t.newBaseOps()
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(1, 1, MergedFlag)
+		add(1, 2, UnmergedFlag)
+
+		baseOps.SetValue(1, MergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Empty(mergedOps)
+			t.Equal([]uint64{2}, unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			1: MergedFlag,
+			2: UnmergedFlag,
+		}, baseOps.Map())
+	})
+
+	t.Run("add from 0 phase", func() {
+		baseOps := t.newBaseOps()
+
+		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		t.NoError(err)
+
+		add(-1, 0, MergedFlag)
+		add(-1, 1, UnmergedFlag)
+		add(1, 2, MergedFlag)
+		add(1, 3, UnmergedFlag)
+
+		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
+			t.Equal([]uint64{2}, mergedOps)
+			t.Equal([]uint64{3}, unmergedOps)
+
+			return nil
+		}))
+		t.Equal(map[uint64]xMergedFlag{
+			0: MergedFlag,
+			1: UnmergedFlag,
+			2: MergedFlag,
+			3: UnmergedFlag,
+		}, baseOps.Map())
+	})
+}
+
+func TestXIsMergedOPsFuncs(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testXIsMergedOPsFuncs))
+}
+
 type testPhaseMerger struct {
 	baseTestMergeOp
 }
@@ -102,7 +381,7 @@ func (t *testPhaseMerger) TestCancel() {
 		cancel()
 
 		done()
-		err = wait()
+		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -124,7 +403,13 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(merge(opindex, vs))
 
 		done()
-		t.NoError(wait())
+
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			t.Empty(newlyMergedOps)
+			t.Empty(newlyUnmergedOps)
+
+			return nil
+		}))
 
 		merged := t.closeMergers(mergers)
 
@@ -153,7 +438,12 @@ func (t *testPhaseMerger) TestMerge() {
 		}))
 
 		done()
-		t.NoError(wait())
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			t.Empty(newlyMergedOps)
+			t.Empty(newlyUnmergedOps)
+
+			return nil
+		}))
 
 		merged := t.closeMergers(mergers)
 		t.Equal(33, len(merged))
@@ -207,7 +497,7 @@ func (t *testPhaseMerger) TestMerge() {
 		}
 
 		done()
-		err = wait()
+		err = wait(nil)
 		t.ErrorContains(err, "showme")
 	})
 
@@ -236,7 +526,12 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(merge(opindex1, vs))
 
 		done()
-		t.NoError(wait())
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			t.Empty(newlyMergedOps)
+			t.Equal([]uint64{1}, newlyUnmergedOps)
+
+			return nil
+		}))
 
 		select {
 		case <-time.After(time.Second):
@@ -275,7 +570,12 @@ func (t *testPhaseMerger) TestUnmerge() {
 		t.NoError(unmerge(opindex))
 
 		done()
-		t.NoError(wait())
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			t.Empty(newlyMergedOps)
+			t.Empty(newlyUnmergedOps)
+
+			return nil
+		}))
 
 		merged := t.closeMergers(mergers)
 
@@ -311,7 +611,12 @@ func (t *testPhaseMerger) TestUnmerge() {
 		}))
 
 		done()
-		t.NoError(wait())
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			t.Empty(newlyMergedOps)
+			t.Empty(newlyUnmergedOps)
+
+			return nil
+		}))
 
 		merged := t.closeMergers(mergers)
 		t.Equal(1, len(merged))
@@ -366,7 +671,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		}
 
 		done()
-		err = wait()
+		err = wait(nil)
 		t.ErrorContains(err, "showme")
 	})
 }
@@ -457,7 +762,15 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	}
 
 	done()
-	t.NoError(wait())
+
+	var newlyMergedOps, newlyUnmergedOps []uint64
+
+	t.NoError(wait(func(ms, us []uint64) error {
+		newlyMergedOps = slices.Clone(ms)
+		newlyUnmergedOps = slices.Clone(us)
+
+		return nil
+	}))
 
 	m := t.closeMergers(mergers)
 	TraverseMap(m, func(key string, v int64) (bool, error) {
@@ -472,6 +785,9 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 		return true, nil
 	})
+
+	t.Empty(newlyMergedOps)
+	t.Equal([]uint64{1, 3}, newlyUnmergedOps)
 }
 
 func (t *testPhaseMerger) TestMergeReplay() {
@@ -517,7 +833,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 			values = i
 		}
 
-		switch nexts, reason, err := mergeOp(
+		switch isMerged, nexts, reason, err := mergeOp(
 			ctx,
 			opindex,
 			values,
@@ -526,7 +842,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		case err != nil:
 			return err
 		default:
-			t.T().Logf("< merge: opindex=%d nexts=%v reason=%q", opindex, nexts, reason)
+			t.T().Logf("< merge: opindex=%d nexts=%v reason=%q is_merged=%v", opindex, nexts, reason, isMerged)
 
 			return nil
 		}
@@ -544,7 +860,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 			values = i
 		}
 
-		switch nexts, err := unmergeOp(
+		switch isUnmerged, nexts, err := unmergeOp(
 			ctx,
 			opindex,
 			values,
@@ -553,7 +869,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		case err != nil:
 			return err
 		default:
-			t.T().Logf("< unmerge: opindex=%d nexts=%v", opindex, nexts)
+			t.T().Logf("< unmerge: opindex=%d nexts=%v is_unmerged=%v", opindex, nexts, isUnmerged)
 
 			return nil
 		}

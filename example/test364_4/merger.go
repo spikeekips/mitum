@@ -68,12 +68,13 @@ func xMergeOpValues(
 	getMerger func(StateMergeValue) (StateMerger, error),
 	xmergeFunc func(StateMerger) xMergeOpFunc,
 ) (
+	committed bool,
 	nextOps []uint64,
 	reason string,
 	_ error,
 ) {
 	if len(values) < 1 {
-		return nil, "", errors.Errorf("xmergeOp; empty values")
+		return false, nil, "", errors.Errorf("xmergeOp; empty values")
 	}
 
 	fmt.Println(">x", name, opindex)
@@ -89,7 +90,7 @@ func xMergeOpValues(
 
 	switch a, d, err := UniqueCompactAppendSliceV1[uint64](uint64(len(values))); {
 	case err != nil:
-		return nil, "", err
+		return false, nil, "", err
 	default:
 		addNext = a
 		doneNext = d
@@ -97,7 +98,7 @@ func xMergeOpValues(
 
 	switch a, d, err := util.CompactAppendSliceV1[string](uint64(len(values))); { // FIXME unique string
 	case err != nil:
-		return nil, "", err
+		return false, nil, "", err
 	default:
 		defer func() {
 			_ = d(nil)
@@ -109,7 +110,7 @@ func xMergeOpValues(
 
 	switch a, d, err := util.CompactAppendSliceV1[func() error](uint64(len(values))); {
 	case err != nil:
-		return nil, "", err
+		return false, nil, "", err
 	default:
 		defer func() {
 			_ = d(nil)
@@ -119,7 +120,7 @@ func xMergeOpValues(
 		doneCommit = d
 	}
 
-	var notCommit bool
+	var notCommitted bool
 
 	if err := util.TraverseSliceV1(values, func(_ int, value StateMergeValue) (bool, error) {
 		var merger StateMerger
@@ -139,7 +140,7 @@ func xMergeOpValues(
 				addReason(r)
 			}
 
-			notCommit = true
+			notCommitted = true
 
 			return false, nil
 		default:
@@ -151,14 +152,12 @@ func xMergeOpValues(
 				addNext(nextOp)
 			}
 
-			if c != nil {
-				addCommit(c)
-			}
+			addCommit(c)
 
 			return true, nil
 		}
 	}); err != nil {
-		return nil, "", err
+		return false, nil, "", err
 	}
 
 	_ = doneReason(func(s []string) error {
@@ -171,10 +170,10 @@ func xMergeOpValues(
 		return nil
 	})
 
-	if notCommit {
+	if notCommitted {
 		fmt.Println("<x", name, opindex)
 
-		return nil, reason, nil
+		return false, nil, reason, nil
 	}
 
 	_ = doneNext(func(s []uint64) error {
@@ -185,11 +184,13 @@ func xMergeOpValues(
 
 	fmt.Println("<x", name, opindex, nextOps, reason)
 
-	return nextOps, reason, doneCommit(func(s []func() error) error {
+	if err := doneCommit(func(s []func() error) error {
 		switch size := int64(len(s)); {
 		case size < 1:
 			return nil
 		case size < 2:
+			committed = true
+
 			return s[0]()
 		}
 
@@ -206,8 +207,14 @@ func xMergeOpValues(
 
 		wk.JobDone()
 
+		committed = true
+
 		return wk.Wait()
-	})
+	}); err != nil {
+		return false, nil, "", err
+	}
+
+	return committed, nextOps, reason, nil
 }
 
 func mergeOp(
@@ -216,11 +223,12 @@ func mergeOp(
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
 ) (
+	committed bool,
 	nextUnmergeOps []uint64,
 	reason string,
 	_ error,
 ) {
-	nextUnmergeOps, reason, err := xMergeOpValues(
+	committed, nextUnmergeOps, reason, err := xMergeOpValues(
 		ctx,
 		"merge",
 		opindex,
@@ -231,7 +239,7 @@ func mergeOp(
 		},
 	)
 
-	return nextUnmergeOps, reason, err
+	return committed, nextUnmergeOps, reason, err
 }
 
 func unmergeOp(
@@ -240,10 +248,11 @@ func unmergeOp(
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
 ) (
+	committed bool,
 	nextMergeOps []uint64,
 	_ error,
 ) {
-	nextMergeOp, _, err := xMergeOpValues(
+	committed, nextMergeOp, _, err := xMergeOpValues(
 		ctx,
 		"unmerge",
 		opindex,
@@ -263,7 +272,7 @@ func unmergeOp(
 		},
 	)
 
-	return nextMergeOp, err
+	return committed, nextMergeOp, err
 }
 
 func extractStateValuesKeysFunc(cacheSize int) (
