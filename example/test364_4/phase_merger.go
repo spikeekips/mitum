@@ -13,12 +13,13 @@ import (
 )
 
 type (
-	phaseMergerMergeFunc   func(opindex uint64, values []StateMergeValue) error
-	phaseMergerUnmergeFunc func(opindex uint64) error
-	phaseMergerGetMergers  func(
+	phaseMergerXMergeFunc func(opindex uint64) error
+	phaseMergerGetMergers func(
 		[]string,
 		func(func(StateMergeValue) (StateMerger, error)) error,
 	) error
+	phaseMergerWaitCallbackFunc func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error
+	phaseMergerWaitFunc         func(phaseMergerWaitCallbackFunc) error
 )
 
 type PhaseMergerArgs struct {
@@ -74,10 +75,9 @@ func NewPhaseMerger(
 	ctx context.Context,
 	args *PhaseMergerArgs,
 ) (
-	merge phaseMergerMergeFunc,
-	unmerge phaseMergerUnmergeFunc,
+	merge, unmerge phaseMergerXMergeFunc,
 	done func(),
-	wait func(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error) error,
+	wait phaseMergerWaitFunc,
 	_ error,
 ) {
 	switch i, err := util.NewShardedMap[uint64, xMergedFlag](args.XMergedOpsMapSize, nil); {
@@ -113,10 +113,21 @@ func NewPhaseMerger(
 
 	addReason, doneReason := newUpdateReasonsFuncs(args.ReasonsMapSize)
 
-	var mergeCallback func(opindex uint64, values []StateMergeValue) PhaseJobWorkerCallback
+	var mergeCallback func(opindex uint64) PhaseJobWorkerCallback
 	var unmergeCallback func(opindex uint64) PhaseJobWorkerCallback
 
-	mergeCallback = func(opindex uint64, values []StateMergeValue) PhaseJobWorkerCallback {
+	mergeCallback = func(opindex uint64) PhaseJobWorkerCallback {
+		var values []StateMergeValue
+
+		switch i, err := args.GetValuesFunc(opindex); {
+		case err != nil:
+			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+				return err
+			}
+		default:
+			values = i
+		}
+
 		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
 
 		l := args.Log().With().
@@ -210,12 +221,7 @@ func NewPhaseMerger(
 						}
 
 						return util.TraverseSliceV1(nexts, func(_ int, next uint64) (bool, error) {
-							switch values, err := args.GetValuesFunc(next); {
-							case err != nil:
-								return false, err
-							default:
-								return true, j(next, mergeCallback(next, values))
-							}
+							return true, j(next, mergeCallback(next))
 						})
 					}
 				},
@@ -223,10 +229,10 @@ func NewPhaseMerger(
 		}
 	}
 
-	return func(opindex uint64, values []StateMergeValue) error {
+	return func(opindex uint64) error {
 			addXMergedOp(-1, opindex, MergedFlag)
 
-			return newJob(opindex, mergeCallback(opindex, values))
+			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
 			addXMergedOp(-1, opindex, UnmergedFlag)
@@ -234,7 +240,7 @@ func NewPhaseMerger(
 			return newJob(opindex, unmergeCallback(opindex))
 		},
 		jobDone,
-		func(f func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error) error {
+		func(f phaseMergerWaitCallbackFunc) error {
 			if err := jobWait(); err != nil {
 				return err
 			}

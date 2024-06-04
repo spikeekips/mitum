@@ -334,11 +334,11 @@ func (t *testPhaseMerger) TestCancel() {
 
 		var opindex uint64 = 1
 
-		vs := t.randomMergeValuesVP(vp, opindex, 1)
+		t.randomMergeValuesVP(vp, opindex, 1)
 
 		cancel()
 
-		err = merge(opindex, vs)
+		err = merge(opindex)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -372,9 +372,9 @@ func (t *testPhaseMerger) TestCancel() {
 
 		var opindex uint64 = 1
 
-		vs := t.randomMergeValuesVP(vp, opindex, 1)
+		t.randomMergeValuesVP(vp, opindex, 1)
 
-		t.NoError(merge(opindex, vs))
+		t.NoError(merge(opindex))
 
 		cancel()
 
@@ -398,7 +398,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 3)
 
-		t.NoError(merge(opindex, vs))
+		t.NoError(merge(opindex))
 
 		done()
 
@@ -432,7 +432,7 @@ func (t *testPhaseMerger) TestMerge() {
 		}
 
 		t.NoError(util.TraverseSliceV1(vss, func(i int, values []StateMergeValue) (bool, error) {
-			return true, merge(uint64(i), values)
+			return true, merge(uint64(i))
 		}))
 
 		done()
@@ -468,7 +468,7 @@ func (t *testPhaseMerger) TestMerge() {
 		var opindex0, opindex1 uint64 = 1, 2
 
 		vs0 := t.randomMergeValuesVP(vp, opindex0, 1)
-		vs1 := t.randomMergeValuesVP(vp, opindex1, 1)
+		t.randomMergeValuesVP(vp, opindex1, 1)
 
 		vs0keys := extractStateMergeValueKeys(vs0)
 
@@ -488,9 +488,9 @@ func (t *testPhaseMerger) TestMerge() {
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(merge(opindex0, vs0))
+		t.NoError(merge(opindex0))
 
-		err = merge(opindex1, vs1)
+		err = merge(opindex1)
 		if err != nil {
 			t.ErrorContains(err, "showme")
 		}
@@ -512,10 +512,10 @@ func (t *testPhaseMerger) TestMerge() {
 		var opindex0, opindex1 uint64 = 1, 2
 
 		vs := t.randomMergeValuesVP(vp, opindex0, -1)
-		t.NoError(merge(opindex0, vs))
+		t.NoError(merge(opindex0))
 
 		vs = t.randomMergeValuesVP(vp, opindex1, 1)
-		t.NoError(merge(opindex1, vs))
+		t.NoError(merge(opindex1))
 
 		done()
 
@@ -746,7 +746,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 		vp.SetValue(opindex, vs)
 
-		t.NoError(merge(opindex, vs))
+		t.NoError(merge(opindex))
 	}
 
 	done()
@@ -1004,7 +1004,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 
 		vp.SetValue(opindex, vs)
 
-		t.NoError(merge(opindex, vs))
+		t.NoError(merge(opindex))
 	}
 
 	done()
