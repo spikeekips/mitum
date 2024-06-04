@@ -222,15 +222,19 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		vs3 := t.newMergeValuesVP(vp, opindex3, pub, -1)
 		vs4 := t.newMergeValuesVP(vp, opindex4, pub, -1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex4, vs4, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, opindex4, vs4, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
-		t.Empty(reason)
+		t.Empty(reasons)
 		t.Empty(nexts)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex3, vs3, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(ctx, opindex3, vs3, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
+		t.NotEmpty(reasons)
+
+		reason, found := reasons[opindex4]
+		t.True(found)
 		t.Equal("previous issuer found", reason)
 		t.Equal([]uint64{opindex4}, nexts)
 
@@ -384,19 +388,21 @@ func (t *testMergeOp) TestMergeValues() {
 		t.True(vp.SetValue(opindex0, vs0))
 		t.True(vp.SetValue(opindex1, vs1))
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex1, vs1, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, opindex1, vs1, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
-		t.Empty(reason)
+		t.Empty(reasons)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex0, vs0, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(ctx, opindex0, vs0, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Equal([]uint64{opindex1}, nexts)
+
+		reason, found := reasons[opindex1]
+		t.True(found)
 		t.T().Logf("reason: %q", reason)
-		t.NotEmpty(reason)
-		t.Contains(reason, "; ")
+		t.Contains(reason, "previous issuer found")
 
 		merged := t.closeMergers(mergers)
 		t.Equal(len(vs0), len(merged))
@@ -496,10 +502,13 @@ func (t *testMergeOp) TestNotCommit() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1, 1, -1) // one value has -1
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)
+
+		reason, found := reasons[opindex]
+		t.True(found)
 		t.Contains(reason, "insufficient balance")
 
 		merged := t.closeMergers(mergers)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -316,7 +315,6 @@ func (t *testPhaseMerger) newArgs() (
 	args = NewPhaseMergerArgs()
 	args.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
 	args.GetValuesFunc = getValues
-	args.UpdateReasonFunc = func(uint64, string) error { return nil }
 
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
 	args.ExtractStateMergeValueKeysFunc = extractKeys
@@ -404,9 +402,10 @@ func (t *testPhaseMerger) TestMerge() {
 
 		done()
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
+			t.Empty(reasons)
 
 			return nil
 		}))
@@ -437,9 +436,10 @@ func (t *testPhaseMerger) TestMerge() {
 		}))
 
 		done()
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
+			t.Empty(reasons)
 
 			return nil
 		}))
@@ -506,13 +506,6 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vp, mergers, _, args := t.newArgs()
 
-		reasonch := make(chan [2]interface{}, 1)
-		args.UpdateReasonFunc = func(opindex uint64, reason string) error {
-			reasonch <- [2]interface{}{opindex, reason}
-
-			return nil
-		}
-
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
 
@@ -525,20 +518,14 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(merge(opindex1, vs))
 
 		done()
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Equal([]uint64{1}, newlyUnmergedOps)
+			t.Equal(map[uint64]string{1: "insufficient balance"}, reasons)
 
 			return nil
 		}))
-
-		select {
-		case <-time.After(time.Second):
-			t.Fail("wait reason")
-		case i := <-reasonch:
-			t.Equal(opindex0, i[0])
-			t.Equal("insufficient balance", i[1])
-		}
 
 		merged := t.closeMergers(mergers)
 
@@ -569,9 +556,10 @@ func (t *testPhaseMerger) TestUnmerge() {
 		t.NoError(unmerge(opindex))
 
 		done()
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
+			t.Empty(reasons)
 
 			return nil
 		}))
@@ -610,9 +598,10 @@ func (t *testPhaseMerger) TestUnmerge() {
 		}))
 
 		done()
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
+			t.Empty(reasons)
 
 			return nil
 		}))
@@ -763,10 +752,12 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	done()
 
 	var newlyMergedOps, newlyUnmergedOps []uint64
+	var reasons map[uint64]string
 
-	t.NoError(wait(func(ms, us []uint64) error {
+	t.NoError(wait(func(ms, us []uint64, rs map[uint64]string) error {
 		newlyMergedOps = slices.Clone(ms)
 		newlyUnmergedOps = slices.Clone(us)
+		reasons = rs
 
 		return nil
 	}))
@@ -787,6 +778,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	t.Empty(newlyMergedOps)
 	t.Equal([]uint64{1, 3}, newlyUnmergedOps)
+	t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 }
 
 func (t *testPhaseMerger) TestMergeReplay() {
@@ -1018,10 +1010,12 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	done()
 
 	var newlyMergedOps, newlyUnmergedOps []uint64
+	var reasons map[uint64]string
 
-	t.NoError(wait(func(ms, us []uint64) error {
+	t.NoError(wait(func(ms, us []uint64, rs map[uint64]string) error {
 		newlyMergedOps = slices.Clone(ms)
 		newlyUnmergedOps = slices.Clone(us)
+		reasons = rs
 
 		return nil
 	}))
@@ -1040,6 +1034,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 
 	t.Empty(newlyMergedOps)
 	t.Equal([]uint64{1, 3}, newlyUnmergedOps)
+	t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 }
 
 func (t *testPhaseMerger) TestMerge3Accounts() {

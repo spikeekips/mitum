@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -70,45 +70,31 @@ func xMergeOpValues(
 ) (
 	committed bool,
 	nextOps []uint64,
-	reason string,
+	reasons map[uint64]string,
 	_ error,
 ) {
 	if len(values) < 1 {
-		return false, nil, "", errors.Errorf("xmergeOp; empty values")
+		return false, nil, nil, errors.Errorf("xmergeOp; empty values")
 	}
 
 	var (
 		addNext    util.CompactAppendSliceAddFunc[uint64]
 		doneNext   util.CompactAppendSliceDoneFunc[uint64]
-		addReason  util.CompactAppendSliceAddFunc[string]
-		doneReason util.CompactAppendSliceDoneFunc[string]
 		addCommit  util.CompactAppendSliceAddFunc[func() error]
 		doneCommit util.CompactAppendSliceDoneFunc[func() error]
 	)
 
 	switch a, d, err := UniqueCompactAppendSliceV1[uint64](uint64(len(values))); {
 	case err != nil:
-		return false, nil, "", err
+		return false, nil, nil, err
 	default:
 		addNext = a
 		doneNext = d
 	}
 
-	switch a, d, err := util.CompactAppendSliceV1[string](uint64(len(values))); { // FIXME unique string
-	case err != nil:
-		return false, nil, "", err
-	default:
-		defer func() {
-			_ = d(nil)
-		}()
-
-		addReason = a
-		doneReason = d
-	}
-
 	switch a, d, err := util.CompactAppendSliceV1[func() error](uint64(len(values))); {
 	case err != nil:
-		return false, nil, "", err
+		return false, nil, nil, err
 	default:
 		defer func() {
 			_ = d(nil)
@@ -116,6 +102,20 @@ func xMergeOpValues(
 
 		addCommit = a
 		doneCommit = d
+	}
+
+	var reasonsOnce sync.Once
+
+	addReason := func(o uint64, r string) {
+		if len(r) < 1 {
+			return
+		}
+
+		reasonsOnce.Do(func() {
+			reasons = map[uint64]string{}
+		})
+
+		reasons[o] = r
 	}
 
 	var notCommitted bool
@@ -134,42 +134,30 @@ func xMergeOpValues(
 		case err != nil:
 			return false, err
 		case c == nil:
-			if len(r) > 0 {
-				addReason(r)
-			}
+			addReason(opindex, r)
 
 			notCommitted = true
 
 			return false, nil
 		default:
-			if len(r) > 0 {
-				addReason(r)
-			}
+			reasonOp := opindex
 
 			if nextOp != opindex {
 				addNext(nextOp)
+				reasonOp = nextOp
 			}
 
+			addReason(reasonOp, r)
 			addCommit(c)
 
 			return true, nil
 		}
 	}); err != nil {
-		return false, nil, "", err
+		return false, nil, nil, err
 	}
 
-	_ = doneReason(func(s []string) error {
-		if len(s) < 1 {
-			return nil
-		}
-
-		reason = strings.Join(s, "; ")
-
-		return nil
-	})
-
 	if notCommitted {
-		return false, nil, reason, nil
+		return false, nil, reasons, nil
 	}
 
 	_ = doneNext(func(s []uint64) error {
@@ -205,10 +193,10 @@ func xMergeOpValues(
 
 		return wk.Wait()
 	}); err != nil {
-		return false, nil, "", err
+		return false, nil, nil, err
 	}
 
-	return committed, nextOps, reason, nil
+	return committed, nextOps, reasons, nil
 }
 
 func mergeOp(
@@ -219,10 +207,10 @@ func mergeOp(
 ) (
 	committed bool,
 	nextUnmergeOps []uint64,
-	reason string,
+	reasons map[uint64]string,
 	_ error,
 ) {
-	committed, nextUnmergeOps, reason, err := xMergeOpValues(
+	committed, nextUnmergeOps, reasons, err := xMergeOpValues(
 		ctx,
 		"merge",
 		opindex,
@@ -233,7 +221,7 @@ func mergeOp(
 		},
 	)
 
-	return committed, nextUnmergeOps, reason, err
+	return committed, nextUnmergeOps, reasons, err
 }
 
 func unmergeOp(

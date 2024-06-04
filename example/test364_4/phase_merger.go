@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"slices"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -25,10 +26,10 @@ type PhaseMergerArgs struct {
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
 	GetMergersFunc                 phaseMergerGetMergers
 	GetValuesFunc                  func(opindex uint64) ([]StateMergeValue, error)
-	UpdateReasonFunc               func(opindex uint64, reason string) error
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
 	XBaseMergedOps                 util.LockedMap[uint64, xMergedFlag]
 	XMergedOpsMapSize              uint64
+	ReasonsMapSize                 uint64
 }
 
 func NewPhaseMergerArgs() *PhaseMergerArgs {
@@ -59,15 +60,13 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 		GetValuesFunc: func(uint64) ([]StateMergeValue, error) {
 			return nil, util.ErrNotImplemented.Errorf("GetValuesFunc")
 		},
-		UpdateReasonFunc: func(uint64, string) error {
-			return util.ErrNotImplemented.Errorf("UpdateReasonFunc")
-		},
 		ExtractStateMergeValueKeysFunc: func(opindex uint64, values []StateMergeValue) []string {
 			panic("ExtractStateMergeValueKeys")
 
 			return nil
 		},
 		XMergedOpsMapSize: 1 << 9,
+		ReasonsMapSize:    1 << 9,
 	}
 }
 
@@ -78,7 +77,7 @@ func NewPhaseMerger(
 	merge phaseMergerMergeFunc,
 	unmerge phaseMergerUnmergeFunc,
 	done func(),
-	wait func(func(newlyMergedOps, newlyUnmergedOps []uint64) error) error,
+	wait func(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error) error,
 	_ error,
 ) {
 	switch i, err := util.NewShardedMap[uint64, xMergedFlag](args.XMergedOpsMapSize, nil); {
@@ -112,6 +111,8 @@ func NewPhaseMerger(
 		jobWait = w
 	}
 
+	addReason, doneReason := newUpdateReasonsFuncs(args.ReasonsMapSize)
+
 	var mergeCallback func(opindex uint64, values []StateMergeValue) PhaseJobWorkerCallback
 	var unmergeCallback func(opindex uint64) PhaseJobWorkerCallback
 
@@ -130,7 +131,7 @@ func NewPhaseMerger(
 					ll := l.With().Int("phase", phase).Logger()
 					ll.Debug().Msg("> merge")
 
-					switch committed, nexts, reason, err := mergeOp(
+					switch committed, nexts, reasons, err := mergeOp(
 						ctx,
 						opindex,
 						values,
@@ -141,7 +142,7 @@ func NewPhaseMerger(
 					default:
 						ll.Debug().
 							Uints64("nexts", nexts).
-							Str("reason", reason).
+							Interface("reasons", reasons).
 							Bool("is_committed", committed).
 							Msg("< merge")
 
@@ -151,10 +152,8 @@ func NewPhaseMerger(
 							addXMergedOp(phase, opindex, UnmergedFlag)
 						}
 
-						if len(reason) > 0 {
-							if err := args.UpdateReasonFunc(opindex, reason); err != nil {
-								return err
-							}
+						if err := addReason(reasons); err != nil {
+							return err
 						}
 
 						return util.TraverseSliceV1(nexts, func(_ int, next uint64) (bool, error) {
@@ -235,12 +234,14 @@ func NewPhaseMerger(
 			return newJob(opindex, unmergeCallback(opindex))
 		},
 		jobDone,
-		func(f func(newlyMergedOps, newlyUnmergedOps []uint64) error) error {
+		func(f func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error) error {
 			if err := jobWait(); err != nil {
 				return err
 			}
 
-			return doneXMergedOps(f)
+			return doneXMergedOps(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+				return f(newlyMergedOps, newlyUnmergedOps, doneReason(newlyUnmergedOps))
+			})
 		},
 		nil
 }
@@ -481,4 +482,61 @@ func isXMergedOpsFuncs(
 			})
 		},
 		nil
+}
+
+func newUpdateReasonsFuncs(mapSize uint64) (
+	add func(reasons map[uint64]string) error,
+	done func(unmergedOps []uint64) map[uint64]string,
+) {
+	var m util.LockedMap[uint64, string]
+
+	var once sync.Once
+
+	return func(reasons map[uint64]string) error {
+			if len(reasons) < 1 {
+				return nil
+			}
+
+			var gerr error
+
+			once.Do(func() {
+				switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
+				case err != nil:
+					gerr = err
+				default:
+					m = i
+				}
+			})
+
+			if gerr != nil {
+				return gerr
+			}
+
+			for i := range reasons {
+				_ = m.SetValue(i, reasons[i])
+			}
+
+			return nil
+		},
+		func(unmergedOps []uint64) map[uint64]string {
+			if m == nil {
+				return nil
+			}
+
+			defer m.Close()
+
+			if len(unmergedOps) < 1 {
+				return nil
+			}
+
+			r := m.Map()
+
+			for i := range r {
+				if slices.Index(unmergedOps, i) < 0 {
+					delete(r, i)
+				}
+			}
+
+			return r
+		}
 }
