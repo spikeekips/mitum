@@ -77,8 +77,6 @@ func xMergeOpValues(
 		return false, nil, "", errors.Errorf("xmergeOp; empty values")
 	}
 
-	fmt.Println(">x", name, opindex)
-
 	var (
 		addNext    util.CompactAppendSliceAddFunc[uint64]
 		doneNext   util.CompactAppendSliceDoneFunc[uint64]
@@ -171,8 +169,6 @@ func xMergeOpValues(
 	})
 
 	if notCommitted {
-		fmt.Println("<x", name, opindex)
-
 		return false, nil, reason, nil
 	}
 
@@ -181,8 +177,6 @@ func xMergeOpValues(
 
 		return nil
 	})
-
-	fmt.Println("<x", name, opindex, nextOps, reason)
 
 	if err := doneCommit(func(s []func() error) error {
 		switch size := int64(len(s)); {

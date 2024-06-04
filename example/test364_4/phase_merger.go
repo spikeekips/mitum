@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -20,6 +21,7 @@ type (
 )
 
 type PhaseMergerArgs struct {
+	*logging.Logging
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
 	GetMergersFunc                 phaseMergerGetMergers
 	GetValuesFunc                  func(opindex uint64) ([]StateMergeValue, error)
@@ -31,6 +33,9 @@ type PhaseMergerArgs struct {
 
 func NewPhaseMergerArgs() *PhaseMergerArgs {
 	return &PhaseMergerArgs{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "phase-merger")
+		}),
 		NewPhaseJobWorkerFunc: func(ctx context.Context) (
 			PhaseJobWorkerNewJobFunc,
 			func(),
@@ -113,11 +118,17 @@ func NewPhaseMerger(
 	mergeCallback = func(opindex uint64, values []StateMergeValue) PhaseJobWorkerCallback {
 		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
 
+		l := args.Log().With().
+			Uint64("opindex", opindex).
+			Strs("state_keys", stateKeys).
+			Logger()
+
 		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
 			return args.GetMergersFunc(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
-					fmt.Println(">p merge", opindex, phase)
+					ll := l.With().Int("phase", phase).Logger()
+					ll.Debug().Msg("> merge")
 
 					switch committed, nexts, reason, err := mergeOp(
 						ctx,
@@ -128,7 +139,11 @@ func NewPhaseMerger(
 					case err != nil:
 						return err
 					default:
-						fmt.Println("<p merge", opindex, phase, nexts, reason, committed)
+						ll.Debug().
+							Uints64("nexts", nexts).
+							Str("reason", reason).
+							Bool("is_committed", committed).
+							Msg("< merge")
 
 						if committed {
 							addXMergedOp(phase, opindex, MergedFlag)
@@ -165,11 +180,18 @@ func NewPhaseMerger(
 
 		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
 
+		l := args.Log().With().
+			Uint64("opindex", opindex).
+			Strs("state_keys", stateKeys).
+			Logger()
+
 		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
 			return args.GetMergersFunc(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
-					fmt.Println(">p unmerge", opindex, phase)
+					ll := l.With().Int("phase", phase).Logger()
+					ll.Debug().Msg("> unmerge")
+
 					switch committed, nexts, err := unmergeOp(
 						ctx,
 						opindex,
@@ -179,7 +201,10 @@ func NewPhaseMerger(
 					case err != nil:
 						return err
 					default:
-						fmt.Println("<p unmerge", opindex, phase, nexts, committed)
+						ll.Debug().
+							Uints64("nexts", nexts).
+							Bool("is_committed", committed).
+							Msg("< unmerge")
 
 						if committed {
 							addXMergedOp(phase, opindex, UnmergedFlag)

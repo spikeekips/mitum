@@ -413,7 +413,6 @@ func (t *testPhaseMerger) TestMerge() {
 
 		merged := t.closeMergers(mergers)
 
-		fmt.Println(">", merged)
 		m, found := merged[vs[0].Key()]
 		t.True(found)
 		t.Equal(int64(3), m)
@@ -934,6 +933,143 @@ func (t *testPhaseMerger) TestMergeUnmerge() {
 			})
 		}
 	}
+}
+
+func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	pub0 := base.NewDummyPublickey(util.UUID().String())
+	pub1 := base.NewDummyPublickey(util.UUID().String())
+	pub2 := base.NewDummyPublickey(util.UUID().String())
+
+	sts := make([]base.State, 3)
+	sts[0] = t.newState(pub0, 1)
+	sts[1] = t.newState(pub1, 2)
+	sts[2] = t.newState(pub2, 3)
+
+	ops := [][]StateMergeValue{
+		{
+			t.newAccountStateMergeValue(pub0, 1),
+			t.newAccountStateMergeValue(pub1, -2),
+		},
+		{ // 1: ignored
+			t.newAccountStateMergeValue(pub1, -2),
+			t.newAccountStateMergeValue(pub2, -3),
+		},
+		{
+			t.newAccountStateMergeValue(pub0, -1),
+			t.newAccountStateMergeValue(pub1, 2),
+		},
+		{ // 3: ignored
+			t.newAccountStateMergeValue(pub0, -1),
+			t.newAccountStateMergeValue(pub1, -2),
+		},
+		{
+			t.newAccountStateMergeValue(pub0, 1),
+			t.newAccountStateMergeValue(pub2, -3),
+		},
+		{
+			t.newAccountStateMergeValue(pub0, 1),
+			t.newAccountStateMergeValue(pub2, 3),
+		},
+	}
+
+	vp, mergers, states, args := t.newArgs()
+	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
+		PhaseJobWorkerNewJobFunc,
+		func(),
+		func() error,
+		error,
+	) {
+		args := newConcPhaseJobWorkerArgs()
+		args.NewJobWorker = func(context.Context) (JobWorker, error) {
+			return NewBaseJobWorker(ctx, semSize)
+		}
+		args.SetLogging(logging.TestNilLogging)
+
+		return NewConcPhaseJobWorker(ctx, args)
+	}
+
+	for i := range sts {
+		states.SetValue(sts[i].Key(), sts[i])
+	}
+
+	merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+	t.NoError(err)
+
+	if seq == nil {
+		seq = make([]int, len(ops))
+		for i := range ops {
+			seq[i] = i
+		}
+	}
+
+	t.T().Log("seq:", seq)
+	for i := range seq {
+		opindex := uint64(seq[i])
+		vs := ops[opindex]
+
+		vp.SetValue(opindex, vs)
+
+		t.NoError(merge(opindex, vs))
+	}
+
+	done()
+
+	var newlyMergedOps, newlyUnmergedOps []uint64
+
+	t.NoError(wait(func(ms, us []uint64) error {
+		newlyMergedOps = slices.Clone(ms)
+		newlyUnmergedOps = slices.Clone(us)
+
+		return nil
+	}))
+
+	m := t.closeMergers(mergers)
+	TraverseMap(m, func(key string, v int64) (bool, error) {
+		switch key {
+		case sts[0].Key():
+			t.Equal(int64(3), v)
+		default:
+			t.Fail("unknown state key, %q", key)
+		}
+
+		return true, nil
+	})
+
+	t.Empty(newlyMergedOps)
+	t.Equal([]uint64{1, 3}, newlyUnmergedOps)
+}
+
+func (t *testPhaseMerger) TestMerge3Accounts() {
+	t.Run("sem size 1", func() {
+		t.testMerges3Accounts(1, nil)
+	})
+
+	t.Run("default sem size", func() {
+		t.testMerges3Accounts(1<<9, nil)
+	})
+
+	t.Run("permutation", func() {
+		for i := 0; i < 33; i++ {
+			gen := combin.NewPermutationGenerator(6, 6)
+			nextseq := func() bool {
+				return gen.Next()
+			}
+			getseq := func() []int {
+				return gen.Permutation(nil)
+			}
+
+			for nextseq() {
+				seq := getseq()
+
+				t.Run(fmt.Sprintf("%02d: %v", i, seq), func() {
+					t.testMerges3Accounts(1<<9, seq)
+				})
+			}
+		}
+	})
 }
 
 func TestPhaseMerger(t *testing.T) {
