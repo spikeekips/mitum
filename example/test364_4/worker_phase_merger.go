@@ -11,7 +11,10 @@ import (
 
 var localWorkerName = "local"
 
-type workerPhaseMergerInsertFunc func(worker string, mergeOps, unmergeOps []uint64) error
+type (
+	workerPhaseMergerInsertFunc func(worker string, mergeOps, unmergeOps []uint64) error
+	workerPhaseMergerWaitFunc   func(phaseMergerWaitCallbackFunc) (done bool, _ error)
+)
 
 type workerPhaseMergerArgs struct {
 	*logging.Logging
@@ -24,6 +27,7 @@ type workerPhaseMergerArgs struct {
 	)
 	GetValuesFunc func(opindex uint64) ([]StateMergeValue, error)
 	EnoughWorkers uint64 // NOTE include local worker
+	FilterOp      func(opindex uint64) bool
 }
 
 func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
@@ -43,6 +47,7 @@ func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
 		GetValuesFunc: func(uint64) ([]StateMergeValue, error) {
 			return nil, util.ErrNotImplemented.Errorf("GetValuesFunc")
 		},
+		FilterOp: func(uint64) bool { return false },
 	}
 }
 
@@ -51,7 +56,7 @@ func newWorkerPhaseMerger(
 	args *workerPhaseMergerArgs,
 ) (
 	insert workerPhaseMergerInsertFunc,
-	wait phaseMergerWaitFunc,
+	wait workerPhaseMergerWaitFunc,
 	_ error,
 ) {
 	if args.EnoughWorkers < 1 {
@@ -97,16 +102,23 @@ func newWorkerPhaseMerger(
 		return insertOps(mergeOps, unmergeOps)
 	}
 
-	var checkWorker func(string) (bool, bool)
+	var checkWorker func(string, bool) (bool, bool)
 	var checkWorkerDone func()
+	var checkIsDone func() bool
 
-	switch c, d, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
+	switch c, i, d, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		checkWorker = c
+		checkIsDone = i
 		checkWorkerDone = d
 	}
+
+	filterOps := newFilterOpsFunc(args.FilterOp)
+
+	var waitErr error
+	var waitOnce sync.Once
 
 	return func(worker string, mergeOps, unmergeOps []uint64) error {
 			if err := context.Cause(pctx); err != nil {
@@ -115,7 +127,7 @@ func newWorkerPhaseMerger(
 
 			l := args.Log().With().Str("worker", worker).Logger()
 
-			switch enough, ok := checkWorker(worker); {
+			switch enough, ok := checkWorker(worker, len(mergeOps) < 1 && len(unmergeOps) < 1); {
 			case !ok:
 				l.Debug().Msg("not ok")
 
@@ -137,7 +149,18 @@ func newWorkerPhaseMerger(
 				return nil
 			}
 
-			if err := insertf(worker, mergeOps, unmergeOps); err != nil {
+			fm, fu := filterOps(mergeOps), filterOps(unmergeOps)
+
+			l.Debug().
+				Uints64("merge_ops", fm).
+				Uints64("unmerge_ops", fu).
+				Msg("insert; filtered")
+
+			if len(fm) < 1 && len(fu) < 1 {
+				return nil
+			}
+
+			if err := insertf(worker, fm, fu); err != nil {
 				pctxCancel(err)
 
 				return err
@@ -145,24 +168,26 @@ func newWorkerPhaseMerger(
 
 			return nil
 		},
-		func(f phaseMergerWaitCallbackFunc) error {
-			defer checkWorkerDone()
+		func(f phaseMergerWaitCallbackFunc) (bool, error) {
+			waitOnce.Do(func() {
+				defer checkWorkerDone()
 
-			select {
-			case <-pctx.Done():
-				return context.Cause(pctx)
-			case <-mergeDoneCh:
-				defer pctxCancel(nil)
+				select {
+				case <-pctx.Done():
+					waitErr = context.Cause(pctx)
+				case <-mergeDoneCh:
+					defer pctxCancel(nil)
 
-				switch {
-				case mergeWait != nil:
-					return mergeWait(f)
-				case f != nil:
-					return f(nil, nil, nil)
-				default:
-					return nil
+					switch {
+					case mergeWait != nil:
+						waitErr = mergeWait(f)
+					case f != nil:
+						waitErr = f(nil, nil, nil)
+					}
 				}
-			}
+			})
+
+			return checkIsDone(), waitErr
 		},
 		nil
 }
@@ -170,17 +195,19 @@ func newWorkerPhaseMerger(
 func newIsEnoughkWokerPhaseMergerFuncs(
 	enoughWorkers uint64,
 ) (
-	check func(worker string) (enough, ok bool),
-	done func(),
+	check func(worker string, isEmpty bool) (enough, ok bool),
+	isDonef func() bool,
+	closef func(),
 	_ error,
 ) {
-	m := map[string]struct{}{}
+	m := map[string] /* isEmpty */ bool{}
 
-	var enough bool
-	var lock sync.Mutex
+	var enough, isDone bool
+	var doneCount uint64
+	var lock sync.RWMutex
 	var clearOnce sync.Once
 
-	return func(worker string) (bool, bool) {
+	return func(worker string, isEmpty bool) (bool, bool) {
 			lock.Lock()
 			defer lock.Unlock()
 
@@ -192,16 +219,30 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 				return enough, false
 			}
 
-			m[worker] = struct{}{}
+			m[worker] = isEmpty
+
+			if isEmpty {
+				doneCount++
+			}
 
 			// NOTE before local worker, pending merge done.
 			if _, found := m[localWorkerName]; found && uint64(len(m)) >= enoughWorkers {
 				enough = true
+				isDone = doneCount >= enoughWorkers
 			}
 
 			return enough, true
 		},
+		func() bool {
+			lock.RLock()
+			defer lock.RUnlock()
+
+			return isDone
+		},
 		func() {
+			lock.Lock()
+			defer lock.Unlock()
+
 			clearOnce.Do(func() {
 				clear(m)
 			})
@@ -222,5 +263,22 @@ func newWorkerPhaseMergerInsertFunc(
 		return util.TraverseSliceV1(unmergeOps, func(_ int, opindex uint64) (bool, error) {
 			return true, unmerge(opindex)
 		})
+	}
+}
+
+func newFilterOpsFunc(f func(uint64) bool) func([]uint64) []uint64 {
+	return func(ops []uint64) []uint64 {
+		switch l := len(ops); {
+		case l < 1:
+			return nil
+		case l == 1:
+			if f(ops[0]) {
+				return ops
+			}
+
+			return nil
+		}
+
+		return util.FilterSlice(ops, f)
 	}
 }

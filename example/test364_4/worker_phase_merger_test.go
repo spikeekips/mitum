@@ -52,6 +52,7 @@ func (t *testWorkerPhaseMerger) newArgs() (
 	}
 	args.GetValuesFunc = getValues
 	args.EnoughWorkers = 3
+	args.FilterOp = func(uint64) bool { return true }
 
 	args.SetLogging(logging.TestNilLogging)
 
@@ -63,7 +64,7 @@ func (t *testWorkerPhaseMerger) newWorker(
 	args *workerPhaseMergerArgs,
 ) (
 	func(worker string, mergeOps, unmergeOps []uint64) error,
-	phaseMergerWaitFunc,
+	workerPhaseMergerWaitFunc,
 	error,
 ) {
 	return newWorkerPhaseMerger(ctx, args)
@@ -85,7 +86,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		err = insert(localWorkerName, []uint64{opindex}, nil)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -103,7 +104,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		cancel()
 
-		err = wait(nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -121,7 +122,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		cancel()
 
-		err = wait(nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -138,7 +139,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
-		t.NoError(wait(nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.True(isDone)
 	})
 
 	t.Run("empty ops; wait before insert", func() {
@@ -154,7 +157,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		_, done, wcancel := NewContextDoneFunc(
 			ctx,
 			func(context.Context) error {
-				return wait(nil)
+				_, err := wait(nil)
+
+				return err
 			},
 		)
 		defer wcancel(nil)
@@ -179,7 +184,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
-		t.NoError(wait(nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.True(isDone)
 
 		err = insert("w0", nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -199,7 +206,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
-		t.NoError(wait(nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.False(isDone)
 	})
 
 	t.Run("wait before insert", func() {
@@ -237,7 +246,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		_, done, wcancel := NewContextDoneFunc(
 			ctx,
 			func(context.Context) error {
-				return wait(nil)
+				_, err := wait(nil)
+
+				return err
 			},
 		)
 		defer wcancel(nil)
@@ -274,7 +285,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
-		t.NoError(wait(nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.False(isDone)
 
 		opindex = 2
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
@@ -284,9 +297,63 @@ func (t *testWorkerPhaseMerger) TestWait() {
 	})
 }
 
+func (t *testWorkerPhaseMerger) TestFilterOps() {
+	t.Run("local", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, args, vp, mergers, _ := t.newArgs()
+		args.EnoughWorkers = 1
+
+		var opindex uint64 = 1
+		_ = t.randomMergeValuesVP(vp, opindex, 1)
+
+		args.FilterOp = func(op uint64) bool {
+			return op == opindex
+		}
+
+		insert, wait, err := newWorkerPhaseMerger(ctx, args)
+		t.NoError(err)
+
+		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.False(isDone)
+
+		merged := t.closeMergers(mergers)
+		t.Equal(1, len(merged))
+	})
+
+	t.Run("not local", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, args, vp, mergers, _ := t.newArgs()
+		args.EnoughWorkers = 1
+
+		var opindex uint64 = 1
+		_ = t.randomMergeValuesVP(vp, opindex, 1)
+
+		args.FilterOp = func(op uint64) bool {
+			return false
+		}
+
+		insert, wait, err := newWorkerPhaseMerger(ctx, args)
+		t.NoError(err)
+
+		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
+		isDone, err := wait(nil)
+		t.NoError(err)
+		t.False(isDone)
+
+		merged := t.closeMergers(mergers)
+		t.Equal(0, len(merged))
+	})
+}
+
 func (t *testWorkerPhaseMerger) newInsertWaitFuncs(
 	insert workerPhaseMergerInsertFunc,
-	wait phaseMergerWaitFunc,
+	wait workerPhaseMergerWaitFunc,
 ) func(worker string, mergeOps, unmergeOps []uint64, d time.Duration) (bool, error) {
 	waitch := make(chan struct{}, 1)
 
@@ -330,13 +397,15 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+		isDone, err := wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
 			t.Empty(reasons)
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.False(isDone)
 	})
 
 	t.Run("enough; local only, but insert empty ops", func() {
@@ -349,13 +418,25 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+		isDone, err := wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 			t.Empty(newlyMergedOps)
 			t.Empty(newlyUnmergedOps)
 			t.Empty(reasons)
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.True(isDone)
+
+		isDone, err = wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+			t.Empty(newlyMergedOps)
+			t.Empty(newlyUnmergedOps)
+			t.Empty(reasons)
+
+			return nil
+		})
+		t.NoError(err)
+		t.True(isDone)
 	})
 
 	t.Run("enough; 3 workers, but insert empty ops", func() {
@@ -542,13 +623,15 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 	t.NoError(insert("w1", seq[2:4], nil))
 	t.NoError(insert(localWorkerName, seq[4:], nil))
 
-	t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+	isDone, err := wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
 		t.Empty(newlyMergedOps)
 		t.Equal([]uint64{1, 3}, newlyUnmergedOps)
 		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 
 		return nil
-	}))
+	})
+	t.NoError(err)
+	t.False(isDone)
 
 	merged := t.closeMergers(mergers)
 	t.Equal(len(sts), len(merged))
