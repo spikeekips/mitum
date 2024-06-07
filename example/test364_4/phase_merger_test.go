@@ -997,7 +997,6 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		}
 	}
 
-	t.T().Log("seq:", seq)
 	for i := range seq {
 		opindex := uint64(seq[i])
 		vs := ops[opindex]

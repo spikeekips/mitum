@@ -246,6 +246,10 @@ func NewPhaseMerger(
 			}
 
 			return doneXMergedOps(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+				if f == nil {
+					return nil
+				}
+
 				return f(newlyMergedOps, newlyUnmergedOps, doneReason(newlyUnmergedOps))
 			})
 		},
