@@ -3,6 +3,10 @@ package main
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
+	"math"
+	"math/big"
+	mathrand "math/rand"
 	"slices"
 	"sync"
 
@@ -136,4 +140,50 @@ func NewContextDoneFunc(
 			}
 		},
 		cctxCancel
+}
+
+func newDjb2Seed() uint32 {
+	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+
+	switch rnd, err := rand.Int(rand.Reader, max); {
+	case err != nil:
+		return mathrand.Uint32()
+	default:
+		return uint32(rnd.Uint64())
+	}
+}
+
+// stringdjb2 derived from
+// https://github.com/patrickmn/go-cache/blob/master/sharded.go .
+func stringdjb2(seed uint32, k string) uint64 {
+	var (
+		l = uint32(len(k))
+		d = 5381 + seed + l
+		i = uint32(0)
+	)
+
+	if l >= 4 { //nolint:gomnd //...
+		for i < l-4 {
+			d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i+3]) //nolint:gomnd //...
+			i += 4
+		}
+	}
+
+	switch l - i {
+	case 1:
+	case 2:
+		d = (d * 33) ^ uint32(k[i]) //nolint:gomnd //...
+	case 3: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+	case 4: //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+	}
+
+	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
 }
