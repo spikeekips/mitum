@@ -71,10 +71,7 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 	}
 }
 
-func NewPhaseMerger(
-	ctx context.Context,
-	args *PhaseMergerArgs,
-) (
+func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	merge, unmerge phaseMergerXMergeFunc,
 	done func(),
 	wait phaseMergerWaitFunc,

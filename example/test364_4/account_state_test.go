@@ -17,6 +17,11 @@ import (
 
 type baseTestAccountStateMerger struct {
 	logging.BaseTestSuite
+	networkID base.NetworkID
+}
+
+func (t *baseTestAccountStateMerger) SetupSuite() {
+	t.networkID = util.UUID().Bytes()
 }
 
 func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, AccountStateMergeValue) {
@@ -117,6 +122,27 @@ func (t *baseTestAccountStateMerger) randomState() base.State {
 	pub := base.NewDummyPublickey(util.UUID().String())
 
 	return t.newState(pub, 1)
+}
+
+func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base.Publickey, balance int64) Op {
+	op := NewOp(NewOpFact(
+		util.UUID().Bytes(),
+		balance,
+		issuer.Publickey(),
+		receiver,
+	))
+
+	t.NoError(op.Sign(issuer, t.networkID))
+
+	return op
+}
+
+func (t *baseTestAccountStateMerger) randomOp(balance int64) Op {
+	return t.newOp(
+		base.NewDummyPrivatekey(util.UUID().String()),
+		base.NewDummyPublickey(util.UUID().String()),
+		balance,
+	)
 }
 
 type testAccountStateMerger struct {

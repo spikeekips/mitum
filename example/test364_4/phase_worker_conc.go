@@ -38,11 +38,7 @@ func newConcPhaseJobWorkerArgs() *concPhaseJobWorkerArgs {
 	}
 }
 
-func newConcPhaseJobWorker(
-	ctx context.Context,
-	args *concPhaseJobWorkerArgs,
-	phase int,
-) (
+func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, phase int) (
 	newJob PhaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -99,13 +100,20 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 		}
 	}
 
+	var waitOnce sync.Once
+	var werr error
+
 	wk.wait = func() error {
-		switch err := waitf(); {
-		case errors.Is(err, errNewJobDone):
-			return util.ErrJobWorkerDone.Wrap(err)
-		default:
-			return err
-		}
+		waitOnce.Do(func() {
+			switch err := waitf(); {
+			case errors.Is(err, errNewJobDone):
+				werr = util.ErrJobWorkerDone.Wrap(err)
+			default:
+				werr = err
+			}
+		})
+
+		return werr
 	}
 
 	return wk, nil

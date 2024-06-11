@@ -12,22 +12,28 @@ import (
 var localWorkerName = "local"
 
 type (
-	workerPhaseMergerInsertFunc func(worker string, mergeOps, unmergeOps []uint64) error
-	workerPhaseMergerWaitFunc   func(phaseMergerWaitCallbackFunc) (done bool, _ error)
-)
-
-type workerPhaseMergerArgs struct {
-	*logging.Logging
-	NewPhaseMegerFuncs func(context.Context, *workerPhaseMergerArgs) (
+	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
+	workerPhaseMergerWaitCallbackFunc func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error
+	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
+	newPhaseMergerFunc                func(context.Context, *PhaseMergerArgs) (
 		merge phaseMergerXMergeFunc,
 		unmerge phaseMergerXMergeFunc,
 		done func(),
 		wait phaseMergerWaitFunc,
 		_ error,
 	)
-	GetValuesFunc func(opindex uint64) ([]StateMergeValue, error)
-	EnoughWorkers uint64 // NOTE include local worker
-	FilterOp      func(opindex uint64) bool
+	newPhaseMergerFuncs func() (
+		*PhaseMergerArgs,
+		newPhaseMergerFunc,
+		error,
+	)
+)
+
+type workerPhaseMergerArgs struct {
+	*logging.Logging
+	NewPhaseMergerFuncs newPhaseMergerFuncs
+	EnoughWorkers       uint64 // NOTE include local worker
+	IsLocalOp           func(opindex uint64) bool
 }
 
 func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
@@ -35,26 +41,18 @@ func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "worker-phase-merger")
 		}),
-		NewPhaseMegerFuncs: func(ctx context.Context, args *workerPhaseMergerArgs) (
-			phaseMergerXMergeFunc,
-			phaseMergerXMergeFunc,
-			func(),
-			phaseMergerWaitFunc,
+		NewPhaseMergerFuncs: func() (
+			*PhaseMergerArgs,
+			newPhaseMergerFunc,
 			error,
 		) {
-			return nil, nil, nil, nil, util.ErrNotImplemented.Errorf("NewPhaseMegerFuncs")
+			return nil, nil, util.ErrNotImplemented.Errorf("NewPhaseMergerFuncs")
 		},
-		GetValuesFunc: func(uint64) ([]StateMergeValue, error) {
-			return nil, util.ErrNotImplemented.Errorf("GetValuesFunc")
-		},
-		FilterOp: func(uint64) bool { return false },
+		IsLocalOp: func(uint64) bool { return false },
 	}
 }
 
-func newWorkerPhaseMerger(
-	ctx context.Context,
-	args *workerPhaseMergerArgs,
-) (
+func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 	insert workerPhaseMergerInsertFunc,
 	wait workerPhaseMergerWaitFunc,
 	_ error,
@@ -79,7 +77,18 @@ func newWorkerPhaseMerger(
 		var gerr error
 
 		newPhaseMergerOnce.Do(func() {
-			switch m, u, d, w, err := args.NewPhaseMegerFuncs(pctx, args); {
+			var pargs *PhaseMergerArgs
+			var newf newPhaseMergerFunc
+
+			switch a, f, err := args.NewPhaseMergerFuncs(); {
+			case err != nil:
+				gerr = err
+			default:
+				pargs = a
+				newf = f
+			}
+
+			switch m, u, d, w, err := newf(pctx, pargs); {
 			case err != nil:
 				gerr = err
 			default:
@@ -115,7 +124,9 @@ func newWorkerPhaseMerger(
 		checkWorkerDone = d
 	}
 
-	filterOps := newFilterOpsFunc(args.FilterOp)
+	isLocalOp := func(s []uint64) []uint64 {
+		return util.FilterSlice(s, args.IsLocalOp)
+	}
 
 	var waitErr error
 	var waitOnce sync.Once
@@ -145,16 +156,22 @@ func newWorkerPhaseMerger(
 				Uints64("unmerge_ops", unmergeOps).
 				Msg("insert")
 
+			switch {
+			case worker == localWorkerName,
+				len(mergeOps) < 1 && len(unmergeOps) < 1:
+				return nil
+			}
+
 			if len(mergeOps) < 1 && len(unmergeOps) < 1 {
 				return nil
 			}
 
-			fm, fu := filterOps(mergeOps), filterOps(unmergeOps)
+			fm, fu := isLocalOp(mergeOps), isLocalOp(unmergeOps)
 
 			l.Debug().
 				Uints64("merge_ops", fm).
 				Uints64("unmerge_ops", fu).
-				Msg("insert; filtered")
+				Msg("insert; local")
 
 			if len(fm) < 1 && len(fu) < 1 {
 				return nil
@@ -168,7 +185,7 @@ func newWorkerPhaseMerger(
 
 			return nil
 		},
-		func(f phaseMergerWaitCallbackFunc) (bool, error) {
+		func(f workerPhaseMergerWaitCallbackFunc) error {
 			waitOnce.Do(func() {
 				defer checkWorkerDone()
 
@@ -180,14 +197,20 @@ func newWorkerPhaseMerger(
 
 					switch {
 					case mergeWait != nil:
-						waitErr = mergeWait(f)
+						waitErr = mergeWait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+							if f == nil {
+								return nil
+							}
+
+							return f(newlyMergedOps, newlyUnmergedOps, reasons, checkIsDone())
+						})
 					case f != nil:
-						waitErr = f(nil, nil, nil)
+						waitErr = f(nil, nil, nil, checkIsDone())
 					}
 				}
 			})
 
-			return checkIsDone(), waitErr
+			return waitErr
 		},
 		nil
 }
@@ -196,14 +219,14 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 	enoughWorkers uint64,
 ) (
 	check func(worker string, isEmpty bool) (enough, ok bool),
-	isDonef func() bool,
+	_ func() (enoughEmpty bool),
 	closef func(),
 	_ error,
 ) {
 	m := map[string] /* isEmpty */ bool{}
 
-	var enough, isDone bool
-	var doneCount uint64
+	var enough, enoughEmpty bool
+	var emptyCount uint64
 	var lock sync.RWMutex
 	var clearOnce sync.Once
 
@@ -222,13 +245,13 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 			m[worker] = isEmpty
 
 			if isEmpty {
-				doneCount++
+				emptyCount++
 			}
 
 			// NOTE before local worker, pending merge done.
 			if _, found := m[localWorkerName]; found && uint64(len(m)) >= enoughWorkers {
 				enough = true
-				isDone = doneCount >= enoughWorkers
+				enoughEmpty = emptyCount >= enoughWorkers
 			}
 
 			return enough, true
@@ -237,13 +260,15 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 			lock.RLock()
 			defer lock.RUnlock()
 
-			return isDone
+			return enoughEmpty
 		},
 		func() {
-			lock.Lock()
-			defer lock.Unlock()
-
 			clearOnce.Do(func() {
+				lock.Lock()
+				defer lock.Unlock()
+
+				enough = true
+
 				clear(m)
 			})
 		},

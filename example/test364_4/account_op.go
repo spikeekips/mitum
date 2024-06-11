@@ -16,6 +16,13 @@ var (
 	OpHint     = hint.MustNewHint("test-operation-v0.0.1")
 )
 
+type Operation interface {
+	base.Operation
+	ProcessNew(context.Context) (
+		[]StateMergeValue, base.OperationProcessReasonError, error,
+	)
+}
+
 type OpFact struct {
 	Issuer   base.Publickey
 	Receiver base.Publickey
