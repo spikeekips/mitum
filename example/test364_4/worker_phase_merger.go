@@ -88,6 +88,8 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 				newf = f
 			}
 
+			pargs.SetLogging(args.Logging)
+
 			switch m, u, d, w, err := newf(pctx, pargs); {
 			case err != nil:
 				gerr = err

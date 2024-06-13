@@ -106,7 +106,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		jobWait = w
 	}
 
-	addReason, doneReason := newUpdateReasonsFuncs(args.ReasonsMapSize)
+	addReason, doneReason := newAddReasonsFuncs(args.ReasonsMapSize)
 
 	var mergeCallback func(opindex uint64) PhaseJobWorkerCallback
 	var unmergeCallback func(opindex uint64) PhaseJobWorkerCallback
@@ -489,7 +489,7 @@ func isXMergedOpsFuncs(
 		nil
 }
 
-func newUpdateReasonsFuncs(mapSize uint64) (
+func newAddReasonsFuncs(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
 	done func(unmergedOps []uint64) map[uint64]string,
 ) {
@@ -518,7 +518,16 @@ func newUpdateReasonsFuncs(mapSize uint64) (
 			}
 
 			for i := range reasons {
-				_ = m.SetValue(i, reasons[i])
+				r := reasons[i]
+
+				_, _, _ = m.Set(i, func(prev string, _ bool) (string, error) {
+					switch {
+					case prev == r:
+						return "", util.ErrLockedSetIgnore
+					default:
+						return r, nil
+					}
+				})
 			}
 
 			return nil

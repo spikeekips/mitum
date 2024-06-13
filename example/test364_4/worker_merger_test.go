@@ -84,7 +84,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		err = insert(0, localWorkerName, nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		err = wait()
+		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -100,7 +100,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		err = wait()
+		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -154,9 +154,9 @@ func (t *testWorkerMerger) TestCancel() {
 			t.T().Log("canceled")
 		}
 
-		err = wait()
+		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
-		err = wait()
+		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -190,7 +190,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		}
 
 		t.NoError(insert(0, localWorkerName, ops, nil))
-		t.NoError(wait())
+		t.NoError(wait(nil))
 	})
 
 	t.Run("over 1 EnoughWorkers", func() {
@@ -202,7 +202,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		other := "w0"
 
 		var insert workerMergerPhaseDoneFunc
-		var wait func() error
+		var wait workerMergerWaitFunc
 
 		nextphasech := make(chan int, 1)
 		args.BroadcastPhaseDone = func(_ context.Context, phase int, _, _ []uint64) error {
@@ -236,7 +236,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 			t.Equal(1, phase)
 		}
 
-		t.NoError(wait())
+		t.NoError(wait(nil))
 	})
 }
 
@@ -248,7 +248,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 		_, _, args, vp, _, _ := t.newArgs(1)
 
 		var insert workerMergerPhaseDoneFunc
-		var wait func() error
+		var wait workerMergerWaitFunc
 
 		reasonsch := make(chan [2]interface{}, 1)
 		args.UpdateReasons = func(_ context.Context, phase int, reasons map[uint64]string) error {
@@ -281,7 +281,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 			t.Fail("unexpected reasons", "phase=%d reasons=%v", phase, reasons)
 		}
 
-		t.NoError(wait())
+		t.NoError(wait(nil))
 	})
 
 	t.Run("reasons", func() {
@@ -291,7 +291,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 		_, _, args, vp, _, _ := t.newArgs(1)
 
 		var insert workerMergerPhaseDoneFunc
-		var wait func() error
+		var wait workerMergerWaitFunc
 
 		reasonsch := make(chan [2]interface{}, 1)
 		args.UpdateReasons = func(_ context.Context, phase int, reasons map[uint64]string) error {
@@ -329,7 +329,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 			)
 		}
 
-		t.NoError(wait())
+		t.NoError(wait(nil))
 	})
 }
 
