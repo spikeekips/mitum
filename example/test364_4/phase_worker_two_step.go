@@ -81,7 +81,7 @@ func newTwoStepPhaseJobWorker(
 		wk = i
 	}
 
-	_, waitDone, _ := NewContextDoneFunc(pctx, func(context.Context) error {
+	waitDone := NewContextDoneFunc(pctx, func(context.Context) error {
 		return wk.Wait()
 	})
 
@@ -329,7 +329,7 @@ func newPhaseJobWorkerNewJobsPool(
 		}
 	}
 
-	_, prevDone, _ := NewContextDoneFunc(
+	prevDone := NewContextDoneFunc(
 		ctx,
 		func(context.Context) error {
 			if err := prevDonef(); err != nil {
@@ -344,7 +344,7 @@ func newPhaseJobWorkerNewJobsPool(
 		},
 	)
 
-	_, newJobsDone, _ := NewContextDoneFunc(
+	newJobsDone := NewContextDoneFunc(
 		ctx,
 		func(context.Context) error {
 			return newJobs(func(jobID uint64, c PhaseJobWorkerCallback) error {

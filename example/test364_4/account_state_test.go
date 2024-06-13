@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -143,6 +144,30 @@ func (t *baseTestAccountStateMerger) randomOp(balance int64) Op {
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
+}
+
+func (t *baseTestAccountStateMerger) randomOps(n int, amount int64) []Operation {
+	m := make([]Operation, n)
+
+	for i := 0; i < n; i++ {
+		m[i] = t.randomOp(amount)
+	}
+
+	return m
+}
+
+func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeValue {
+	values := make([][]StateMergeValue, len(ops))
+
+	for i := range ops {
+		vs, r, err := ops[i].ProcessNew(context.Background())
+		t.NoError(err)
+		t.Nil(r)
+
+		values[i] = vs
+	}
+
+	return values
 }
 
 type testAccountStateMerger struct {

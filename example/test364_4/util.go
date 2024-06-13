@@ -4,13 +4,16 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math"
 	"math/big"
 	mathrand "math/rand"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -107,39 +110,37 @@ func NewContextDoneFunc(
 	ctx context.Context,
 	f func(context.Context) error,
 ) (
-	_ context.Context,
 	done func() error,
-	cancel func(error),
 ) {
 	errDone := errors.New(util.UUID().String())
 	cctx, cctxCancel := context.WithCancelCause(ctx)
 
 	var once sync.Once
 
-	return cctx,
-		func() error {
-			once.Do(func() {
-				go func() {
-					if err := f(cctx); err != nil {
-						cctxCancel(err)
+	return func() error {
+		defer cctxCancel(nil)
 
-						return
-					}
+		once.Do(func() {
+			go func() {
+				if err := f(cctx); err != nil {
+					cctxCancel(err)
 
-					cctxCancel(errDone)
-				}()
-			})
+					return
+				}
 
-			<-cctx.Done()
+				cctxCancel(errDone)
+			}()
+		})
 
-			switch err := context.Cause(cctx); {
-			case errors.Is(err, errDone):
-				return nil
-			default:
-				return err
-			}
-		},
-		cctxCancel
+		<-cctx.Done()
+
+		switch err := context.Cause(cctx); {
+		case errors.Is(err, errDone):
+			return nil
+		default:
+			return err
+		}
+	}
 }
 
 func newDjb2Seed() uint32 {
@@ -186,4 +187,24 @@ func stringdjb2(seed uint32, k string) uint64 {
 	}
 
 	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
+}
+
+func FuncErrorLog(l *zerolog.Logger, msg string) func(error) error {
+	started := time.Now()
+
+	l.Debug().Msg(fmt.Sprintf("> %s", msg))
+
+	return func(err error) error {
+		ll := l.With().Dur("elapsed", time.Since(started)).Logger()
+
+		e := ll.Debug()
+
+		if err != nil {
+			e = ll.Error().Err(err)
+		}
+
+		e.Msg(fmt.Sprintf("< %s", msg))
+
+		return err
+	}
 }

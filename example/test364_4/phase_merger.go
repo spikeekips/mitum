@@ -26,9 +26,8 @@ type PhaseMergerArgs struct {
 	*logging.Logging
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
 	GetMergersFunc                 phaseMergerGetMergers
-	GetValuesFunc                  func(opindex uint64) ([]StateMergeValue, error)
+	GetValuesFunc                  getValuesFunc
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
-	XBaseMergedOps                 util.LockedMap[uint64, xMergedFlag]
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
 }
@@ -44,12 +43,9 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 			func() error,
 			error,
 		) {
-			return NewOneStepPhaseJobWorker(
+			return NewConcPhaseJobWorker(
 				ctx,
-				func(ctx context.Context) (JobWorker, error) {
-					return NewBaseJobWorker(ctx, 1<<9)
-				},
-				1<<9,
+				newConcPhaseJobWorkerArgs(),
 			)
 		},
 		GetMergersFunc: func(
@@ -77,17 +73,19 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
+	var baseMergedOps util.LockedMap[uint64, xMergedFlag]
+
 	switch i, err := util.NewShardedMap[uint64, xMergedFlag](args.XMergedOpsMapSize, nil); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		args.XBaseMergedOps = i
+		baseMergedOps = i
 	}
 
 	var addXMergedOp func(phase int, opindex uint64, _ xMergedFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := isXMergedOpsFuncs(args.XBaseMergedOps, args.XMergedOpsMapSize); {
+	switch a, d, err := isXMergedOpsFuncs(baseMergedOps, args.XMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

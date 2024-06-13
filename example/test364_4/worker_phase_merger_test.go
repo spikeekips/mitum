@@ -156,13 +156,12 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		_, done, wcancel := NewContextDoneFunc(
+		done := NewContextDoneFunc(
 			ctx,
 			func(context.Context) error {
 				return wait(nil)
 			},
 		)
-		defer wcancel(nil)
 
 		go done()
 
@@ -266,13 +265,12 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		_, done, wcancel := NewContextDoneFunc(
+		done := NewContextDoneFunc(
 			ctx,
 			func(context.Context) error {
 				return wait(nil)
 			},
 		)
-		defer wcancel(nil)
 
 		go done()
 

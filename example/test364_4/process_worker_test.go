@@ -18,7 +18,7 @@ type testProcessWorker struct {
 func (t *testProcessWorker) newArgs(
 	local string,
 	workers []string,
-	ops map[uint64]Operation,
+	ops []Operation,
 ) (
 	_ *PhaseMergerArgs,
 	_ *workerPhaseMergerArgs,
@@ -32,12 +32,38 @@ func (t *testProcessWorker) newArgs(
 		panic("empty workers")
 	}
 
-	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
+	mops := map[uint64]Operation{}
+
+	for i := range ops {
+		mops[uint64(i)] = ops[i]
+	}
+
+	vp, mergers, states, _, _ = t.baseTestMergeOp.getFuncs()
 
 	pargs := NewPhaseMergerArgs()
 	wpargs := newWorkerPhaseMergerArgs()
 	wmargs := newWorkerMergerArgs()
 	args := newProcessWorkerArgs()
+
+	wmargs.NewWorkerPhaseMergerFuncs = func(phase int) (
+		*workerPhaseMergerArgs,
+		newWorkerPhaseMergerFunc,
+		error,
+	) {
+		return newWorkerPhaseMergerArgs(), newWorkerPhaseMerger, nil
+	}
+
+	args.EnoughWorkers = uint64(len(workers))
+	args.BroadcastPhaseDone = func(context.Context, int, []uint64, []uint64) error {
+		return nil
+	}
+	args.NewPhaseMergerFuncs = func() (
+		*PhaseMergerArgs,
+		newPhaseMergerFunc,
+		error,
+	) {
+		return pargs, NewPhaseMerger, nil
+	}
 
 	args.NewStateValuesProcessorFuncs = func() (
 		*stateValuesProcessorArgs,
@@ -45,10 +71,9 @@ func (t *testProcessWorker) newArgs(
 		error,
 	) {
 		nargs := newStateValuesProcessorArgs()
-		nargs.SetLogging(args.Logging)
 
 		nargs.GetOperation = func(_ context.Context, opindex uint64) (Operation, bool, error) {
-			i, found := ops[opindex]
+			i, found := mops[opindex]
 
 			return i, found, nil
 		}
@@ -62,42 +87,6 @@ func (t *testProcessWorker) newArgs(
 		newWorkerMergerFunc,
 		error,
 	) {
-		getState := func(stateKey string) (base.State, bool, error) {
-			i, found := states.Value(stateKey)
-
-			return i, found, nil
-		}
-
-		pargs.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
-		pargs.GetValuesFunc = getValues
-		extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
-		pargs.ExtractStateMergeValueKeysFunc = extractKeys
-
-		wpargs.NewPhaseMergerFuncs = func() (
-			*PhaseMergerArgs,
-			newPhaseMergerFunc,
-			error,
-		) {
-			return pargs, NewPhaseMerger, nil
-		}
-		wpargs.EnoughWorkers = uint64(len(workers))
-		wpargs.IsLocalOp = func(uint64) bool { return true }
-
-		wmargs.NewWorkerPhaseMergerFuncs = func(ctx context.Context, _ int, args *workerMergerArgs) (
-			workerPhaseMergerInsertFunc,
-			workerPhaseMergerWaitFunc,
-			error,
-		) {
-			return newWorkerPhaseMerger(ctx, wpargs)
-		}
-
-		wmargs.BroadcastPhaseInsertDone = func(context.Context, int, []uint64, []uint64) error {
-			return nil
-		}
-		wmargs.UpdateReasons = func(context.Context, int, map[uint64]string) error {
-			return nil
-		}
-
 		pargs.SetLogging(args.Logging)
 		wpargs.SetLogging(args.Logging)
 		wmargs.SetLogging(args.Logging)
@@ -109,6 +98,9 @@ func (t *testProcessWorker) newArgs(
 	stateOwners, _ := newStateOwnersFunc(local, workers, stateOwnersf)
 	args.StateOwners = stateOwners
 
+	args.GetStateFunc = func(string) (base.State, bool, error) {
+		return nil, false, nil
+	}
 	args.DistributeStateMergeValues = func(context.Context, string, uint64, []StateMergeValue) error {
 		return nil
 	}
@@ -124,30 +116,21 @@ func (t *testProcessWorker) newArgs(
 	return pargs, wpargs, wmargs, args, vp, mergers, states
 }
 
-func (t *testProcessWorker) randomOps(n int, amount int64) map[uint64]Operation {
-	m := map[uint64]Operation{}
-
-	for i := 0; i < n; i++ {
-		m[uint64(i)] = t.randomOp(amount)
-	}
-
-	return m
-}
-
 func (t *testProcessWorker) TestCancel() {
 	t.Run("before insert ops", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
+		values := t.processOps(ops)
 
 		_, _, _, args, _, _, _ := t.newArgs("w0", []string{"w0"}, ops)
 
-		insertOps, _, wait, err := newProcessWorker(ctx, args)
+		insert, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
 		t.NoError(err)
 
 		cancel()
 
-		err = insertOps([]uint64{0})
+		err = insert("w0", 0, values[0])
 		t.ErrorIs(err, context.Canceled)
 
 		err = wait()
@@ -158,13 +141,15 @@ func (t *testProcessWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
+		values := t.processOps(ops)
 
 		_, _, _, args, _, _, _ := t.newArgs("w0", []string{"w0"}, ops)
+		args.SetLogging(logging.TestLogging)
 
-		insertOps, _, wait, err := newProcessWorker(ctx, args)
+		insert, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
 		t.NoError(err)
 
-		t.NoError(insertOps([]uint64{0}))
+		t.NoError(insert("w0", 0, values[0]))
 
 		cancel()
 
@@ -176,18 +161,21 @@ func (t *testProcessWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
+		values := t.processOps(ops)
 
 		_, _, _, args, _, _, _ := t.newArgs("w0", []string{"w0"}, ops)
 		args.SetLogging(logging.TestLogging)
 
-		insertOps, _, wait, err := newProcessWorker(ctx, args)
+		insert, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
 		t.NoError(err)
 
-		t.NoError(insertOps([]uint64{0}))
+		t.NoError(insert(localWorkerName, 0, values[0]))
 		t.NoError(wait())
 
 		cancel()
-		t.NoError(wait())
+
+		err = wait()
+		t.ErrorIs(err, context.Canceled)
 	})
 }
 

@@ -112,16 +112,16 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 	}
 
 	var checkWorker func(string, bool) (bool, bool)
-	var checkWorkerDone func()
 	var checkIsDone func() bool
+	var closeCheckWorker func()
 
-	switch c, i, d, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
+	switch c, i, cc, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		checkWorker = c
 		checkIsDone = i
-		checkWorkerDone = d
+		closeCheckWorker = cc
 	}
 
 	isLocalOp := func(s []uint64) []uint64 {
@@ -156,12 +156,6 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 				Uints64("unmerge_ops", unmergeOps).
 				Msg("insert")
 
-			switch {
-			case worker == localWorkerName,
-				len(mergeOps) < 1 && len(unmergeOps) < 1:
-				return nil
-			}
-
 			if len(mergeOps) < 1 && len(unmergeOps) < 1 {
 				return nil
 			}
@@ -187,7 +181,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 		},
 		func(f workerPhaseMergerWaitCallbackFunc) error {
 			waitOnce.Do(func() {
-				defer checkWorkerDone()
+				defer closeCheckWorker()
 
 				select {
 				case <-pctx.Done():

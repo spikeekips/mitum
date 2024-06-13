@@ -50,17 +50,16 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	wpargs.IsLocalOp = func(uint64) bool { return true }
 
 	args := newWorkerMergerArgs()
-	args.NewWorkerPhaseMergerFuncs = func(ctx context.Context, _ int, args *workerMergerArgs) (
-		workerPhaseMergerInsertFunc,
-		workerPhaseMergerWaitFunc,
+
+	args.NewWorkerPhaseMergerFuncs = func(phase int) (
+		*workerPhaseMergerArgs,
+		newWorkerPhaseMergerFunc,
 		error,
 	) {
-		wpargs.SetLogging(args.Logging)
-
-		return newWorkerPhaseMerger(ctx, wpargs)
+		return wpargs, newWorkerPhaseMerger, nil
 	}
 
-	args.BroadcastPhaseInsertDone = func(context.Context, int, []uint64, []uint64) error {
+	args.BroadcastPhaseDone = func(context.Context, int, []uint64, []uint64) error {
 		return nil
 	}
 	args.UpdateReasons = func(context.Context, int, map[uint64]string) error {
@@ -113,9 +112,9 @@ func (t *testWorkerMerger) TestCancel() {
 		nextPhaseCh := make(chan int, 1)
 
 		newWorkerPhaseMergerFuncs := args.NewWorkerPhaseMergerFuncs
-		args.NewWorkerPhaseMergerFuncs = func(ctx context.Context, phase int, args *workerMergerArgs) (
-			workerPhaseMergerInsertFunc,
-			workerPhaseMergerWaitFunc,
+		args.NewWorkerPhaseMergerFuncs = func(phase int) (
+			*workerPhaseMergerArgs,
+			newWorkerPhaseMergerFunc,
 			error,
 		) {
 			if phase == 1 {
@@ -126,7 +125,7 @@ func (t *testWorkerMerger) TestCancel() {
 				}()
 			}
 
-			return newWorkerPhaseMergerFuncs(ctx, phase, args)
+			return newWorkerPhaseMergerFuncs(phase)
 		}
 
 		args.SetLogging(logging.TestLogging)
@@ -202,11 +201,11 @@ func (t *testWorkerMerger) TestPhaseDone() {
 
 		other := "w0"
 
-		var insert workerMergerInsertFunc
+		var insert workerMergerPhaseDoneFunc
 		var wait func() error
 
 		nextphasech := make(chan int, 1)
-		args.BroadcastPhaseInsertDone = func(_ context.Context, phase int, _, _ []uint64) error {
+		args.BroadcastPhaseDone = func(_ context.Context, phase int, _, _ []uint64) error {
 			t.NoError(insert(phase, other, nil, nil))
 
 			nextphasech <- phase
@@ -247,9 +246,8 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 		defer cancel()
 
 		_, _, args, vp, _, _ := t.newArgs(1)
-		args.SetLogging(logging.TestLogging)
 
-		var insert workerMergerInsertFunc
+		var insert workerMergerPhaseDoneFunc
 		var wait func() error
 
 		reasonsch := make(chan [2]interface{}, 1)
@@ -292,7 +290,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 
 		_, _, args, vp, _, _ := t.newArgs(1)
 
-		var insert workerMergerInsertFunc
+		var insert workerMergerPhaseDoneFunc
 		var wait func() error
 
 		reasonsch := make(chan [2]interface{}, 1)
@@ -319,7 +317,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 
 		select {
 		case <-time.After(time.Second):
-			t.Fail("wait to enter next phase")
+			t.Fail("wait reasons")
 		case i := <-reasonsch:
 			phase := i[0].(int)
 			reasons := i[1].(map[uint64]string)

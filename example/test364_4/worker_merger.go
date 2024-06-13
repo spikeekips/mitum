@@ -10,20 +10,25 @@ import (
 )
 
 type (
-	newWorkerPhaseMergerFuncs func(_ context.Context, phase int, _ *workerMergerArgs) (
+	newWorkerPhaseMergerFunc func(ctx context.Context, args *workerPhaseMergerArgs) (
 		workerPhaseMergerInsertFunc,
 		workerPhaseMergerWaitFunc,
 		error,
 	)
-	workerMergerInsertFunc       func(phase int, worker string, mergeOps, unmergeOps []uint64) error
-	UpdateReasonsFunc            func(_ context.Context, phase int, reasons map[uint64]string) error
-	BroadcastPhaseInsertDoneFunc func(_ context.Context, phase int, newlyMergedOps, newlyUnmergedOps []uint64) error
+	newWorkerPhaseMergerFuncs func(phase int) (
+		*workerPhaseMergerArgs,
+		newWorkerPhaseMergerFunc,
+		error,
+	)
+	workerMergerPhaseDoneFunc func(phase int, worker string, mergeOps, unmergeOps []uint64) error
+	UpdateReasonsFunc         func(_ context.Context, phase int, reasons map[uint64]string) error
+	BroadcastPhaseDoneFunc    func(_ context.Context, phase int, newlyMergedOps, newlyUnmergedOps []uint64) error
 )
 
 type workerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
-	BroadcastPhaseInsertDone  BroadcastPhaseInsertDoneFunc
+	BroadcastPhaseDone        BroadcastPhaseDoneFunc
 	UpdateReasons             UpdateReasonsFunc
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
@@ -34,14 +39,14 @@ func newWorkerMergerArgs() *workerMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "worker-merger")
 		}),
-		NewWorkerPhaseMergerFuncs: func(context.Context, int, *workerMergerArgs) (
-			workerPhaseMergerInsertFunc,
-			workerPhaseMergerWaitFunc,
+		NewWorkerPhaseMergerFuncs: func(phase int) (
+			*workerPhaseMergerArgs,
+			newWorkerPhaseMergerFunc,
 			error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewWorkerPhaseMergerFuncs")
 		},
-		BroadcastPhaseInsertDone: func(context.Context, int, []uint64, []uint64) error {
+		BroadcastPhaseDone: func(context.Context, int, []uint64, []uint64) error {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
 		},
 		UpdateReasons: func(context.Context, int, map[uint64]string) error {
@@ -55,7 +60,7 @@ func newWorkerMergerArgs() *workerMergerArgs {
 }
 
 func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
-	insert workerMergerInsertFunc,
+	insert workerMergerPhaseDoneFunc,
 	wait func() error,
 	_ error,
 ) {
@@ -70,6 +75,8 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 	switch i, e, c, err := newWorkerMergerPhasePoolFuncs(args.PoolMapSize); {
 	case err != nil:
+		wctxCancel(nil)
+
 		return nil, nil, err
 	default:
 		insertPool = i
@@ -81,6 +88,9 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 	switch i, err := args.NewJobWorker(wctx); {
 	case err != nil:
+		defer closePool()
+		wctxCancel(nil)
+
 		return nil, nil, err
 	default:
 		delayedWorker = i
@@ -108,7 +118,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 		var phaseWait workerPhaseMergerWaitFunc
 
-		switch i, w, err := args.NewWorkerPhaseMergerFuncs(ctx, phase, args); {
+		switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, phase, args.NewWorkerPhaseMergerFuncs); {
 		case err != nil:
 			l.Error().Err(err).Msg("< new phase")
 
@@ -145,7 +155,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 					Msg("phase wait done")
 
 				if !isDone {
-					if err := args.BroadcastPhaseInsertDone(wctx, nextPhase, newlyMergedOps, newlyUnmergedOps); err != nil {
+					if err := args.BroadcastPhaseDone(wctx, nextPhase, newlyMergedOps, newlyUnmergedOps); err != nil {
 						return err
 					}
 
@@ -183,6 +193,8 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 	if err := newPhase(wctx, 0); err != nil {
 		wctxCancel(err)
+		closePool()
+		delayedWorker.Close()
 
 		return nil, nil, err
 	}
@@ -201,7 +213,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		return nil
 	}
 
-	_, phasesDone, _ := NewContextDoneFunc(
+	phasesDone := NewContextDoneFunc(
 		wctx,
 		func(ctx context.Context) error {
 			for {
@@ -233,9 +245,9 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 			return nil
 		},
 		func() error {
-			defer wctxCancel(nil)
 			defer closePool()
 			defer delayedWorker.Close()
+			defer wctxCancel(nil)
 
 			if err := phasesDone(); err != nil {
 				return err
@@ -251,7 +263,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 func newWorkerMergerPhasePoolFuncs(
 	mapSize uint64,
 ) (
-	insert func(phase int, worker string, mergeOps, unmergeOps []uint64) bool,
+	phaseDone func(phase int, worker string, mergeOps, unmergeOps []uint64) bool,
 	exhaust func(phase int, _ func(worker string, mergeOps, unmergeOps []uint64) error) error,
 	_ func(),
 	_ error,
@@ -303,4 +315,27 @@ func newWorkerMergerPhasePoolFuncs(
 			m.Close()
 		},
 		nil
+}
+
+func newWorkerPhaseMergerFuncsForWorkerMerger(
+	ctx context.Context,
+	phase int,
+	f newWorkerPhaseMergerFuncs,
+) (
+	workerPhaseMergerInsertFunc,
+	workerPhaseMergerWaitFunc,
+	error,
+) {
+	var args *workerPhaseMergerArgs
+	var newf newWorkerPhaseMergerFunc
+
+	switch a, n, err := f(phase); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		args = a
+		newf = n
+	}
+
+	return newf(ctx, args)
 }
