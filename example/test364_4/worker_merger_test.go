@@ -128,8 +128,6 @@ func (t *testWorkerMerger) TestCancel() {
 			return newWorkerPhaseMergerFuncs(phase)
 		}
 
-		args.SetLogging(logging.TestLogging)
-
 		insert, wait, err := newWorkerMerger(ctx, args)
 		t.NoError(err)
 

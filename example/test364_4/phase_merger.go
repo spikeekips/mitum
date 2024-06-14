@@ -20,6 +20,7 @@ type (
 	) error
 	phaseMergerWaitCallbackFunc func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error
 	phaseMergerWaitFunc         func(phaseMergerWaitCallbackFunc) error
+	phaseMergerSetStateOp       func(opindex uint64, stateKeys []string, _ xMergeFlag)
 )
 
 type PhaseMergerArgs struct {
@@ -30,6 +31,7 @@ type PhaseMergerArgs struct {
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
+	SetStateOp                     phaseMergerSetStateOp
 }
 
 func NewPhaseMergerArgs() *PhaseMergerArgs {
@@ -64,6 +66,7 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 		},
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
+		SetStateOp:        func(uint64, []string, xMergeFlag) {},
 	}
 }
 
@@ -74,6 +77,13 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	_ error,
 ) {
 	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
+
+	switch i, err := util.NewShardedMap[uint64, xMergeFlag](args.XMergedOpsMapSize, nil); {
+	case err != nil:
+		return nil, nil, nil, nil, err
+	default:
+		baseMergedOps = i
+	}
 
 	switch i, err := util.NewShardedMap[uint64, xMergeFlag](args.XMergedOpsMapSize, nil); {
 	case err != nil:
@@ -153,6 +163,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 							Msg("< merge")
 
 						if committed {
+							args.SetStateOp(opindex, stateKeys, mergeFlag)
 							addXMergedOp(phase, opindex, mergeFlag)
 						} else {
 							addXMergedOp(phase, opindex, unmergeFlag)
@@ -212,6 +223,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 							Msg("< unmerge")
 
 						if committed {
+							args.SetStateOp(opindex, stateKeys, unmergeFlag)
 							addXMergedOp(phase, opindex, unmergeFlag)
 						}
 

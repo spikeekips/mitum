@@ -302,6 +302,7 @@ func (t *testPhaseMerger) newArgs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
+	stateOps util.LockedMap[string, map[uint64]uint64],
 	args *PhaseMergerArgs,
 ) {
 	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
@@ -319,7 +320,49 @@ func (t *testPhaseMerger) newArgs() (
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
 	args.ExtractStateMergeValueKeysFunc = extractKeys
 
-	return vp, mergers, states, args
+	stateOps = util.NewSingleLockedMap[string, map[uint64]uint64]()
+	args.SetStateOp = func(opindex uint64, stateKeys []string, x xMergeFlag) {
+		util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
+			stateOps.Set(stateKey, func(prev map[uint64]uint64, found bool) (map[uint64]uint64, error) {
+				if !found {
+					prev = map[uint64]uint64{}
+				}
+
+				switch {
+				case x == mergeFlag:
+					prev[opindex]++
+				case x == unmergeFlag:
+					prev[opindex]--
+				}
+
+				return prev, nil
+			})
+
+			return true, nil
+		})
+	}
+
+	return vp, mergers, states, stateOps, args
+}
+
+func (t *testPhaseMerger) filterStateOps(stateOps util.LockedMap[string, map[uint64]uint64]) map[string][]uint64 {
+	filtered := map[string][]uint64{}
+
+	stateOps.Traverse(func(stateKey string, m map[uint64]uint64) bool {
+		TraverseMap(m, func(opindex, count uint64) (bool, error) {
+			if count > 0 {
+				filtered[stateKey] = append(filtered[stateKey], opindex)
+			}
+
+			return true, nil
+		})
+
+		slices.Sort(filtered[stateKey])
+
+		return true
+	})
+
+	return filtered
 }
 
 func (t *testPhaseMerger) TestCancel() {
@@ -327,7 +370,7 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, _, args := t.newArgs()
 
 		merge, _, _, _, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -346,7 +389,7 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, _, args := t.newArgs()
 
 		_, unmerge, _, _, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -365,7 +408,7 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, _, args := t.newArgs()
 
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -389,7 +432,7 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, stateOps, args := t.newArgs()
 
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -416,13 +459,19 @@ func (t *testPhaseMerger) TestMerge() {
 		m, found := merged[vs[0].Key()]
 		t.True(found)
 		t.Equal(int64(3), m)
+
+		sops := t.filterStateOps(stateOps)
+		t.Equal(1, len(sops))
+		sop, found := sops[vs[0].Key()]
+		t.True(found)
+		t.Equal([]uint64{opindex}, sop)
 	})
 
 	t.Run("ok, 33", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, stateOps, args := t.newArgs()
 
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -459,13 +508,23 @@ func (t *testPhaseMerger) TestMerge() {
 				return true, nil
 			})
 		})
+
+		sops := t.filterStateOps(stateOps)
+		t.Equal(len(vss), len(sops))
+
+		for i := range vss {
+			vs := vss[i]
+			sop, found := sops[vs[0].Key()]
+			t.True(found)
+			t.Equal([]uint64{uint64(i)}, sop)
+		}
 	})
 
 	t.Run("Merge() error", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, _, args := t.newArgs()
 
 		var opindex0, opindex1 uint64 = 1, 2
 
@@ -506,7 +565,7 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, stateOps, args := t.newArgs()
 
 		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -535,6 +594,12 @@ func (t *testPhaseMerger) TestMerge() {
 		m, found := merged[vs[0].Key()]
 		t.True(found)
 		t.Equal(int64(1), m)
+
+		sops := t.filterStateOps(stateOps)
+		t.Equal(1, len(sops))
+		sop, found := sops[vs[0].Key()]
+		t.True(found)
+		t.Equal([]uint64{opindex1}, sop)
 	})
 }
 
@@ -543,7 +608,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, states, args := t.newArgs()
+		vp, mergers, states, stateOps, args := t.newArgs()
 
 		pub := base.NewDummyPublickey(util.UUID().String())
 		prevst := t.newState(pub, 1)
@@ -573,13 +638,19 @@ func (t *testPhaseMerger) TestUnmerge() {
 		m, found := merged[vs[0].Key()]
 		t.True(found)
 		t.Equal(int64(0), m)
+
+		sops := t.filterStateOps(stateOps)
+		t.Equal(1, len(sops))
+		sop, found := sops[vs[0].Key()]
+		t.True(found)
+		t.Equal([]uint64{opindex}, sop)
 	})
 
 	t.Run("ok, 33", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, states, args := t.newArgs()
+		vp, mergers, states, stateOps, args := t.newArgs()
 
 		vss := make([][]StateMergeValue, 33)
 
@@ -588,11 +659,17 @@ func (t *testPhaseMerger) TestUnmerge() {
 		_, unmerge, done, wait, err := NewPhaseMerger(ctx, args)
 		t.NoError(err)
 
+		expectedStateOps := make([]uint64, len(vss))
+
 		var subed int64
 		for i := range vss {
-			vss[i] = t.newMergeValuesVP(vp, uint64(i), pub, i+1)
+			opindex := uint64(i)
+
+			vss[i] = t.newMergeValuesVP(vp, opindex, pub, i+1)
 
 			subed -= int64(i) + 1
+
+			expectedStateOps[i] = opindex
 		}
 
 		prevst := t.newState(pub, (subed)*-1)
@@ -618,13 +695,20 @@ func (t *testPhaseMerger) TestUnmerge() {
 		m, found := merged[vss[0][0].Key()]
 		t.True(found)
 		t.Equal(subed+prevst.Value().(AccountStateValue).Balance, m)
+
+		sops := t.filterStateOps(stateOps)
+		t.Equal(1, len(sops))
+
+		sop, found := sops[vss[0][0].Key()]
+		t.True(found)
+		t.Equal(expectedStateOps, sop)
 	})
 
 	t.Run("Merge() error", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, states, args := t.newArgs()
+		vp, _, states, _, args := t.newArgs()
 
 		pub0 := base.NewDummyPublickey(util.UUID().String())
 		prevst0 := t.newState(pub0, 1)
@@ -715,7 +799,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	_, sts, ops := t.baseTestMergeUnmerge()
 
-	vp, mergers, states, args := t.newArgs()
+	vp, mergers, states, stateOps, args := t.newArgs()
 	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
 		PhaseJobWorkerNewJobFunc,
 		func(),
@@ -768,14 +852,25 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		return nil
 	}))
 
+	sops := t.filterStateOps(stateOps)
+	t.Equal(2, len(sops))
+
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
 	TraverseMap(merged, func(key string, v int64) (bool, error) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(3), v)
+
+			sop, found := sops[key]
+			t.True(found)
+			t.Equal([]uint64{0, 2, 4}, sop)
 		case sts[1].Key():
 			t.Equal(int64(4), v)
+
+			sop, found := sops[key]
+			t.True(found)
+			t.Equal([]uint64{0, 2, 4}, sop)
 		default:
 			t.Fail("unknown state key, %q", key)
 		}
@@ -798,7 +893,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 	defer cancel()
 
 	_, sts, ops := t.baseTestMergeUnmerge()
-	vp, mergers, states, _ := t.newArgs()
+	vp, mergers, states, _, _ := t.newArgs()
 
 	for i := range sts {
 		states.SetValue(sts[i].Key(), sts[i])
@@ -949,7 +1044,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	sts[2] = t.newState(pub2, 3)
 
 	ops := [][]StateMergeValue{
-		{
+		{ // 0
 			t.newAccountStateMergeValue(pub0, 1),
 			t.newAccountStateMergeValue(pub1, -2),
 		},
@@ -957,7 +1052,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 			t.newAccountStateMergeValue(pub1, -2),
 			t.newAccountStateMergeValue(pub2, -3),
 		},
-		{
+		{ // 2
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, 2),
 		},
@@ -965,17 +1060,17 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 			t.newAccountStateMergeValue(pub0, -1),
 			t.newAccountStateMergeValue(pub1, -2),
 		},
-		{
+		{ // 4
 			t.newAccountStateMergeValue(pub0, 1),
 			t.newAccountStateMergeValue(pub2, -3),
 		},
-		{
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub2, 3),
+		{ // 5
+			t.newAccountStateMergeValue(pub1, 1),
+			t.newAccountStateMergeValue(pub2, 2),
 		},
 	}
 
-	vp, mergers, states, args := t.newArgs()
+	vp, mergers, states, stateOps, args := t.newArgs()
 	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
 		PhaseJobWorkerNewJobFunc,
 		func(),
@@ -1027,12 +1122,33 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		return nil
 	}))
 
+	sops := t.filterStateOps(stateOps)
+	t.Equal(3, len(sops))
+
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
+	t.Equal(3, len(merged))
+
 	TraverseMap(merged, func(key string, v int64) (bool, error) {
 		switch key {
 		case sts[0].Key():
+			t.Equal(int64(2), v)
+
+			sop, found := sops[key]
+			t.True(found)
+			t.Equal([]uint64{0, 2, 4}, sop)
+		case sts[1].Key():
 			t.Equal(int64(3), v)
+
+			sop, found := sops[key]
+			t.True(found)
+			t.Equal([]uint64{0, 2, 5}, sop)
+		case sts[2].Key():
+			t.Equal(int64(2), v)
+
+			sop, found := sops[key]
+			t.True(found)
+			t.Equal([]uint64{4, 5}, sop)
 		default:
 			t.Fail("unknown state key, %q", key)
 		}

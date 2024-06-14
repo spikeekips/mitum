@@ -112,17 +112,17 @@ func (t *testProcessWorker) newArgs(
 	}
 
 	args.ReportResult = func(context.Context) (
-		reportResultUnmergedFunc,
+		workerMergerUnmergedOpsFunc,
 		reportResultStatesFuncs,
 		error,
 	) {
 		return func([]uint64) error { return nil },
 			func() (
-				func(string, base.StateValue) error,
+				func(context.Context, string, base.StateValue) error,
 				func(),
 				error,
 			) {
-				return func(string, base.StateValue) error { return nil },
+				return func(context.Context, string, base.StateValue) error { return nil },
 					func() {},
 					nil
 			}, nil
@@ -261,7 +261,7 @@ func (t *testProcessWorker) TestLocalMerge() {
 	merged := util.NewSingleLockedMap[string, int64]()
 
 	args.ReportResult = func(context.Context) (
-		reportResultUnmergedFunc,
+		workerMergerUnmergedOpsFunc,
 		reportResultStatesFuncs,
 		error,
 	) {
@@ -270,11 +270,11 @@ func (t *testProcessWorker) TestLocalMerge() {
 				return nil
 			},
 			func() (
-				func(string, base.StateValue) error,
+				func(context.Context, string, base.StateValue) error,
 				func(),
 				error,
 			) {
-				return func(stateKey string, stv base.StateValue) error {
+				return func(_ context.Context, stateKey string, stv base.StateValue) error {
 						merged.SetValue(stateKey, stv.(AccountStateValue).Balance)
 
 						return nil

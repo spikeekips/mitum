@@ -47,9 +47,14 @@ type (
 	isLocalOpFunc            func(opindex uint64) bool
 	reportResultUnmergedFunc func(unmergedOps []uint64) error
 	reportResultStatesFuncs  func() (
-		func(stateKey string, _ base.StateValue) error,
+		func(_ context.Context, stateKey string, _ base.StateValue) error,
 		func(),
 		error,
+	)
+	initialOpFuncs func() (
+		insert func(opindex uint64, op, fact util.Hash) error,
+		insertDone func(),
+		_ error,
 	)
 )
 
@@ -64,7 +69,7 @@ type processWorkerArgs struct {
 	DistributeStateMergeValues   func(_ context.Context, worker string, opindex uint64, _ []StateMergeValue) error
 	UpdateReasons                UpdateReasonsFunc // FIXME filter sent opindex and reason
 	ReportResult                 func(context.Context) (
-		reportResultUnmergedFunc,
+		workerMergerUnmergedOpsFunc,
 		reportResultStatesFuncs,
 		error,
 	)
@@ -74,6 +79,7 @@ type processWorkerArgs struct {
 	BroadcastPhaseDone           BroadcastPhaseDoneFunc
 	StateOwnersCacheSize         int
 	isLocalOp                    isLocalOpFunc
+	StatesOpMapSize              uint64 // FIXME set by number of operations
 }
 
 func newProcessWorkerArgs() *processWorkerArgs {
@@ -118,7 +124,7 @@ func newProcessWorkerArgs() *processWorkerArgs {
 			return util.ErrNotImplemented.Errorf("UpdateReasons")
 		},
 		ReportResult: func(context.Context) (
-			reportResultUnmergedFunc,
+			workerMergerUnmergedOpsFunc,
 			reportResultStatesFuncs,
 			error,
 		) {
@@ -133,6 +139,7 @@ func newProcessWorkerArgs() *processWorkerArgs {
 		},
 		StateOwnersCacheSize: 1 << 9,
 		isLocalOp:            func(uint64) bool { return false },
+		StatesOpMapSize:      1 << 9, // FIXME set by number of operations
 	}
 }
 
@@ -175,11 +182,43 @@ func newProcessWorker(ctx context.Context, args *processWorkerArgs, ops []uint64
 	getMergers, closeGetMergers := newGetMergersFunc(mergersPool, args.GetStateFunc)
 	getValues := newGetValuesFunc(valuesPool)
 
+	collectOps, collectOpsDone := newCollectXMergedOps()
+
+	var setStateOp phaseMergerSetStateOp
+	var report func(unmergedOps []uint64, f workerMergerUnmergedOpsFunc) error
+
+	switch s, r, err := newReportResult(pctx, args, mergersPool); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		setStateOp = s
+		report = func(unmergedOps []uint64, f workerMergerUnmergedOpsFunc) error {
+			collectOps(nil, unmergedOps)
+
+			return collectOpsDone(func(unmergedOps []uint64) error {
+				if f != nil {
+					if err := f(unmergedOps); err != nil {
+						return err
+					}
+				}
+
+				return r(unmergedOps)
+			})
+		}
+	}
+
 	initialMergeWaitLog := FuncErrorLog(args.Log(), "initial merge")
 
 	var initialMergeWait phaseMergerWaitFunc
 
-	switch i, c, err := newInsertWorkerOpFuncs(pctx, args, valuesPool.SetValue, getMergers, getValues); {
+	switch i, c, err := newInsertWorkerOpFuncs(
+		pctx,
+		args,
+		valuesPool.SetValue,
+		getMergers,
+		getValues,
+		setStateOp,
+	); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -209,28 +248,13 @@ func newProcessWorker(ctx context.Context, args *processWorkerArgs, ops []uint64
 	var mergeReady func() error
 	var mergeWait workerMergerWaitFunc
 
-	switch r, i, w, err := newWorkerMergerFuncsForProcessWorker(pctx, args, getMergers, getValues); {
+	switch r, i, w, err := newWorkerMergerFuncsForProcessWorker(pctx, args, getMergers, getValues, setStateOp); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		mergeReady = r
 		mergeInsert = i
 		mergeWait = w
-	}
-
-	collectOps, collectOpsDone := newCollectXMergedOps()
-
-	var report func(unmergedOps []uint64) error
-
-	switch r, err := newReportResult(pctx, args, mergersPool); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		report = func(unmergedOps []uint64) error {
-			collectOps(nil, unmergedOps)
-
-			return collectOpsDone(r)
-		}
 	}
 
 	return insertWorkerOp,
@@ -271,7 +295,9 @@ func newProcessWorker(ctx context.Context, args *processWorkerArgs, ops []uint64
 				return err
 			}
 
-			if err := mergeWaitLog(mergeWait(report)); err != nil {
+			if err := mergeWaitLog(mergeWait(func(unmergedOps []uint64) error {
+				return report(unmergedOps, f)
+			})); err != nil {
 				return err
 			}
 
@@ -393,6 +419,7 @@ func newWorkerMergerFuncsForProcessWorker(
 	args *processWorkerArgs,
 	getMergers phaseMergerGetMergers,
 	getValues getValuesFunc,
+	setStateOp phaseMergerSetStateOp,
 ) (
 	prevDone func() error,
 	_ workerMergerPhaseDoneFunc,
@@ -434,6 +461,7 @@ func newWorkerMergerFuncsForProcessWorker(
 				args.NewPhaseMergerFuncs,
 				getMergers,
 				getValues,
+				setStateOp,
 			)
 			if err != nil {
 				return nil, nil, err
@@ -700,6 +728,7 @@ func newPhaseMergerFuncsForProcessWorkerFuncs(
 	newPhaseMerger newPhaseMergerFuncs,
 	getMergers phaseMergerGetMergers,
 	getValues getValuesFunc,
+	setStateOp phaseMergerSetStateOp,
 ) (
 	pargs *PhaseMergerArgs,
 	newf newPhaseMergerFunc,
@@ -715,6 +744,7 @@ func newPhaseMergerFuncsForProcessWorkerFuncs(
 
 	pargs.GetMergersFunc = getMergers
 	pargs.GetValuesFunc = getValues
+	pargs.SetStateOp = setStateOp
 
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(args.StateMergeValueKeysCacheSize)
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
@@ -729,6 +759,7 @@ func newPhaseMergerFuncsForProcessWorker(
 	args *processWorkerArgs,
 	getMergers phaseMergerGetMergers,
 	getValues getValuesFunc,
+	setStateOp phaseMergerSetStateOp,
 ) (
 	phaseMergerXMergeFunc,
 	phaseMergerXMergeFunc,
@@ -741,6 +772,7 @@ func newPhaseMergerFuncsForProcessWorker(
 		args.NewPhaseMergerFuncs,
 		getMergers,
 		getValues,
+		setStateOp,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, err
@@ -755,6 +787,7 @@ func newInsertWorkerOpFuncs(
 	addValuesPool func(opindex uint64, _ []StateMergeValue) bool,
 	getMergers phaseMergerGetMergers,
 	getValues getValuesFunc,
+	setStateOp phaseMergerSetStateOp,
 ) (
 	insertWorkerOpFunc,
 	phaseMergerWaitFunc,
@@ -769,6 +802,7 @@ func newInsertWorkerOpFuncs(
 		args,
 		getMergers,
 		getValues,
+		setStateOp,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -927,77 +961,195 @@ func newReportResult(
 	args *processWorkerArgs,
 	mergersPool util.LockedMap[string, StateMerger],
 ) (
-	func(unmergedOps []uint64) error,
+	phaseMergerSetStateOp,
+	workerMergerUnmergedOpsFunc,
 	error,
 ) {
+	var setStateOp phaseMergerSetStateOp
+	var setStateOpDone func(func(func(stateKey string) []uint64) error) error
+
+	switch s, d, err := newStateOpsFuncs(args); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		setStateOp = s
+		setStateOpDone = d
+	}
+
 	var reportUnmerged func([]uint64) error
-	var reportState func(string, base.StateValue) error
+	var reportState func(context.Context, string, base.StateValue) error
 	var reportStateDone func()
 
 	switch u, s, err := args.ReportResult(ctx); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		reportUnmerged = u
 
 		switch s, d, err := s(); {
 		case err != nil:
-			return nil, err
+			return nil, nil, err
 		default:
 			reportState = s
 			reportStateDone = d
 		}
 	}
 
-	return func(unmergedOps []uint64) error {
-		var jw JobWorker
+	return setStateOp,
+		func(unmergedOps []uint64) error {
+			var jw JobWorker
 
-		switch j, err := NewBaseJobWorker(ctx, 2); {
-		case err != nil:
-			return err
-		default:
-			jw = j
-		}
+			switch j, err := NewBaseJobWorker(ctx, 2); {
+			case err != nil:
+				return err
+			default:
+				jw = j
+			}
 
-		u := slices.Clone(unmergedOps)
+			u := slices.Clone(unmergedOps)
 
-		if err := jw.NewJob(func(context.Context) error {
-			return reportUnmerged(u)
-		}); err != nil {
-			return err
-		}
+			if err := jw.NewJob(func(context.Context) error {
+				return reportUnmerged(u)
+			}); err != nil {
+				return err
+			}
 
-		if err := jw.NewJob(func(context.Context) error {
-			defer reportStateDone()
+			if err := jw.NewJob(func(context.Context) error {
+				defer reportStateDone()
 
-			return newCloseMergers(mergersPool, reportState)
-		}); err != nil {
-			return err
-		}
+				return setStateOpDone(func(getStateOps func(stateKey string) []uint64) error {
+					return newCloseMergers(ctx, args, mergersPool, getStateOps, reportState)
+				})
+			}); err != nil {
+				return err
+			}
 
-		jw.JobDone()
+			jw.JobDone()
 
-		return jw.Wait()
-	}, nil
+			return jw.Wait()
+		}, nil
 }
 
 func newCloseMergers(
+	ctx context.Context,
+	args *processWorkerArgs,
 	mergersPool util.LockedMap[string, StateMerger],
-	f func(string, base.StateValue) error,
+	getStateOp func(stateKey string) []uint64,
+	f func(context.Context, string, base.StateValue) error,
 ) error {
 	var gerr error
 
+	var jw JobWorker
+
+	switch i, err := args.NewJobWorker(ctx); {
+	case err != nil:
+		return err
+	default:
+		defer i.Close()
+
+		jw = i
+	}
+
 	_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
-		switch i, err := merger.Close(); {
-		case err != nil:
-			gerr = err
-		case i == nil:
-		default:
-			gerr = f(stateKey, i)
-		}
+		gerr = jw.NewJob(func(ctx context.Context) error {
+			ops := getStateOp(stateKey)
+			if len(ops) < 1 {
+				return nil
+			}
+
+			var stv base.StateValue
+
+			switch i, err := merger.Close(); { // FIXME base.State, not StateValue
+			case err != nil:
+				return err
+			case i == nil:
+				return nil
+			default:
+				stv = i
+
+				return f(ctx, stateKey, stv)
+			}
+		})
 
 		return gerr == nil
 	})
 
-	return gerr
+	if gerr != nil {
+		return gerr
+	}
+
+	jw.JobDone()
+
+	return jw.Wait()
+}
+
+func newStateOpsFuncs(args *processWorkerArgs) (
+	phaseMergerSetStateOp,
+	func(func(func(stateKey string) []uint64) error) error,
+	error,
+) {
+	var m util.LockedMap[string, map[uint64]uint64]
+
+	switch i, err := util.NewShardedMap[string, map[uint64]uint64](args.StatesOpMapSize, nil); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		m = i
+	}
+
+	filter := func(stateKey string) (ops []uint64) {
+		switch i, found := m.Value(stateKey); {
+		case !found, len(i) < 1:
+			return nil
+		default:
+			add, done, _ := util.CompactAppendSliceV1[uint64](uint64(len(i)))
+
+			_ = TraverseMap(i, func(opindex, count uint64) (bool, error) {
+				if count > 0 {
+					add(opindex)
+				}
+
+				return true, nil
+			})
+
+			_ = done(func(s []uint64) error {
+				ops = slices.Clone(s)
+
+				return nil
+			})
+
+			return ops
+		}
+	}
+
+	return func(opindex uint64, stateKeys []string, x xMergeFlag) {
+			util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
+				_, _, _ = m.Set(stateKey, func(prev map[uint64]uint64, found bool) (map[uint64]uint64, error) {
+					if !found {
+						prev = map[uint64]uint64{}
+					}
+
+					switch {
+					case x == mergeFlag:
+						prev[opindex]++
+					case x == unmergeFlag:
+						prev[opindex]--
+					}
+
+					return prev, nil
+				})
+
+				return true, nil
+			})
+		},
+		func(f func(func(stateKey string) []uint64) error) error {
+			defer m.Close()
+
+			if f == nil {
+				return nil
+			}
+
+			return f(filter)
+		},
+		nil
 }
