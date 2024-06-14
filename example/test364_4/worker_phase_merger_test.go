@@ -350,7 +350,8 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 			return nil
 		}))
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 	})
 
@@ -382,7 +383,8 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 			return nil
 		}))
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
 }
@@ -665,7 +667,8 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 		return nil
 	}))
 
-	merged := t.closeMergers(mergers)
+	merged, err := t.closeMergers(mergers)
+	t.NoError(err)
 	t.Equal(len(sts), len(merged))
 
 	b, found := merged[AccountStateKey(pub0)]

@@ -73,16 +73,16 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
-	var baseMergedOps util.LockedMap[uint64, xMergedFlag]
+	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
 
-	switch i, err := util.NewShardedMap[uint64, xMergedFlag](args.XMergedOpsMapSize, nil); {
+	switch i, err := util.NewShardedMap[uint64, xMergeFlag](args.XMergedOpsMapSize, nil); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
 		baseMergedOps = i
 	}
 
-	var addXMergedOp func(phase int, opindex uint64, _ xMergedFlag)
+	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
 	switch a, d, err := isXMergedOpsFuncs(baseMergedOps, args.XMergedOpsMapSize); {
@@ -153,9 +153,9 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 							Msg("< merge")
 
 						if committed {
-							addXMergedOp(phase, opindex, MergedFlag)
+							addXMergedOp(phase, opindex, mergeFlag)
 						} else {
-							addXMergedOp(phase, opindex, UnmergedFlag)
+							addXMergedOp(phase, opindex, unmergeFlag)
 						}
 
 						if err := addReason(reasons); err != nil {
@@ -212,7 +212,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 							Msg("< unmerge")
 
 						if committed {
-							addXMergedOp(phase, opindex, UnmergedFlag)
+							addXMergedOp(phase, opindex, unmergeFlag)
 						}
 
 						return util.TraverseSliceV1(nexts, func(_ int, next uint64) (bool, error) {
@@ -225,12 +225,12 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	}
 
 	return func(opindex uint64) error {
-			addXMergedOp(-1, opindex, MergedFlag)
+			addXMergedOp(-1, opindex, mergeFlag)
 
 			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
-			addXMergedOp(-1, opindex, UnmergedFlag)
+			addXMergedOp(-1, opindex, unmergeFlag)
 
 			return newJob(opindex, unmergeCallback(opindex))
 		},
@@ -328,31 +328,31 @@ func newGetMergersFunc(
 		mmergers.Close
 }
 
-type xMergedFlag string
+type xMergeFlag string
 
 const (
-	MergedFlag   xMergedFlag = "merged"
-	UnmergedFlag xMergedFlag = "unmerged"
+	mergeFlag   xMergeFlag = "merged"
+	unmergeFlag xMergeFlag = "unmerged"
 )
 
 func addXMergedOpsFuncs(
-	previousOps func(opindex uint64) xMergedFlag,
+	previousOps func(opindex uint64) xMergeFlag,
 	mapSize uint64,
 ) (
-	func(opindex uint64, _ xMergedFlag),
+	func(opindex uint64, _ xMergeFlag),
 	func(func(mergedOps, unmergedOps []uint64) error) error,
 	error,
 ) {
-	var newlyXMergedOps util.LockedMap[uint64, xMergedFlag]
+	var newlyXMergedOps util.LockedMap[uint64, xMergeFlag]
 
-	switch i, err := util.NewShardedMap[uint64, xMergedFlag](mapSize, nil); {
+	switch i, err := util.NewShardedMap[uint64, xMergeFlag](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		newlyXMergedOps = i
 	}
 
-	return func(opindex uint64, x xMergedFlag) {
+	return func(opindex uint64, x xMergeFlag) {
 			_ = newlyXMergedOps.SetValue(opindex, x)
 		},
 		func(f func([]uint64, []uint64) error) error {
@@ -389,10 +389,10 @@ func addXMergedOpsFuncs(
 				doneU = d
 			}
 
-			_ = newlyXMergedOps.Traverse(func(opindex uint64, nx xMergedFlag) bool {
+			_ = newlyXMergedOps.Traverse(func(opindex uint64, nx xMergeFlag) bool {
 				switch ix := previousOps(opindex); {
 				case nx == ix:
-				case nx == MergedFlag:
+				case nx == mergeFlag:
 					addM(opindex)
 				default:
 					addU(opindex)
@@ -411,17 +411,17 @@ func addXMergedOpsFuncs(
 }
 
 func isXMergedOpsFuncs(
-	baseOps util.LockedMap[uint64, xMergedFlag],
+	baseOps util.LockedMap[uint64, xMergeFlag],
 	mapSize uint64,
 ) (
-	func(phase int, opindex uint64, _ xMergedFlag),
+	func(phase int, opindex uint64, _ xMergeFlag),
 	func(func(mergedOps, unmergedOps []uint64) error) error,
 	error,
 ) {
-	var add func(opindex uint64, _ xMergedFlag)
+	var add func(opindex uint64, _ xMergeFlag)
 	var done func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := addXMergedOpsFuncs(func(opindex uint64) xMergedFlag {
+	switch a, d, err := addXMergedOpsFuncs(func(opindex uint64) xMergeFlag {
 		x, _ := baseOps.Value(opindex)
 
 		return x
@@ -442,7 +442,7 @@ func isXMergedOpsFuncs(
 		ops = i
 	}
 
-	return func(phase int, opindex uint64, x xMergedFlag) {
+	return func(phase int, opindex uint64, x xMergeFlag) {
 			_, _, _ = ops.Set(opindex, func(prev int, found bool) (int, error) {
 				if found && phase <= prev {
 					return 0, util.ErrLockedSetIgnore
@@ -472,13 +472,13 @@ func isXMergedOpsFuncs(
 				}
 
 				_ = util.TraverseSliceV1(mergedOps, func(_ int, opindex uint64) (bool, error) {
-					_ = baseOps.SetValue(opindex, MergedFlag)
+					_ = baseOps.SetValue(opindex, mergeFlag)
 
 					return true, nil
 				})
 
 				_ = util.TraverseSliceV1(unmergedOps, func(_ int, opindex uint64) (bool, error) {
-					_ = baseOps.SetValue(opindex, UnmergedFlag)
+					_ = baseOps.SetValue(opindex, unmergeFlag)
 
 					return true, nil
 				})

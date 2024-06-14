@@ -15,12 +15,16 @@ type baseTestMergeOp struct {
 	baseTestAccountStateMerger
 }
 
-func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerger]) map[string]int64 {
+func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerger]) (map[string]int64, error) {
 	m := map[string]int64{}
+
+	var gerr error
 
 	mergers.Traverse(func(stateKey string, merger StateMerger) bool {
 		st, err := merger.Close()
-		t.NoError(err)
+		if err != nil {
+			gerr = err
+		}
 
 		if st != nil {
 			m[stateKey] = st.(AccountStateValue).Balance
@@ -29,7 +33,7 @@ func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerge
 		return true
 	})
 
-	return m
+	return m, gerr
 }
 
 func (t *baseTestMergeOp) getFuncs() (
@@ -102,7 +106,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(1), merged[vs[0].Key()])
 	})
@@ -129,7 +134,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(2), merged[vs[0].Key()])
 	})
@@ -159,7 +165,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(0), merged[vs[0].Key()])
 	})
@@ -183,7 +190,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(reason)
 		t.ErrorContains(err, "showme")
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
 
@@ -203,7 +211,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.NotEmpty(reason)
 		t.Empty(nexts)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
 
@@ -238,7 +247,8 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Equal("previous issuer found", reason)
 		t.Equal([]uint64{opindex4}, nexts)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.Error(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(-1), merged[vs3[0].Key()])
 	})
@@ -260,7 +270,8 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.Error(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(-1), merged[vs[0].Key()])
 	})
@@ -282,7 +293,8 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.False(isUnmerged)
 		t.ErrorContains(err, "showme")
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
 
@@ -311,7 +323,8 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.True(isUnmerged)
 		t.Equal([]uint64{opindex4}, nexts)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(3), merged[vs3[0].Key()])
 	})
@@ -334,7 +347,8 @@ func (t *testMergeOp) TestMergeValues() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(len(vs), len(merged))
 
 		util.TraverseSliceV1(vs, func(_ int, value StateMergeValue) (bool, error) {
@@ -404,7 +418,8 @@ func (t *testMergeOp) TestMergeValues() {
 		t.T().Logf("reason: %q", reason)
 		t.Contains(reason, "previous issuer found")
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.Error(err)
 		t.Equal(len(vs0), len(merged))
 	})
 }
@@ -425,7 +440,8 @@ func (t *testMergeOp) TestUnmergeValues() {
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.Error(err)
 		t.Equal(3, len(merged))
 
 		util.TraverseSliceV1(vs, func(_ int, value StateMergeValue) (bool, error) {
@@ -484,7 +500,8 @@ func (t *testMergeOp) TestNotCommit() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(1, len(merged))
 
 		mv, found := merged[v.Key()]
@@ -511,7 +528,8 @@ func (t *testMergeOp) TestNotCommit() {
 		t.True(found)
 		t.Contains(reason, "insufficient balance")
 
-		merged := t.closeMergers(mergers)
+		merged, err := t.closeMergers(mergers)
+		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
 }

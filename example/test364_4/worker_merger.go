@@ -132,10 +132,6 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 			phaseInsertFunc = func(worker string, mergeOps, unmergeOps []uint64) error {
 				collectOps(mergeOps, unmergeOps)
 
-				if phase == 0 && worker == localWorkerName {
-					return i(worker, nil, nil)
-				}
-
 				return i(worker, mergeOps, unmergeOps)
 			}
 			phaseWait = w
@@ -395,13 +391,15 @@ func newCollectXMergedOps() (
 			l.Lock()
 			defer l.Unlock()
 
-			_ = util.TraverseSliceV1(mergedOps, func(_ int, i uint64) (bool, error) {
-				if _, found := um[i]; found {
-					delete(um, i)
-				}
+			if len(um) > 0 {
+				_ = util.TraverseSliceV1(mergedOps, func(_ int, i uint64) (bool, error) {
+					if _, found := um[i]; found {
+						delete(um, i)
+					}
 
-				return true, nil
-			})
+					return true, nil
+				})
+			}
 
 			_ = util.TraverseSliceV1(unmergedOps, func(_ int, i uint64) (bool, error) {
 				if _, found := um[i]; !found {

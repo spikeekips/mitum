@@ -218,13 +218,19 @@ func newProcessWorker(ctx context.Context, args *processWorkerArgs, ops []uint64
 		mergeWait = w
 	}
 
+	collectOps, collectOpsDone := newCollectXMergedOps()
+
 	var report func(unmergedOps []uint64) error
 
 	switch r, err := newReportResult(pctx, args, mergersPool); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		report = r
+		report = func(unmergedOps []uint64) error {
+			collectOps(nil, unmergedOps)
+
+			return collectOpsDone(r)
+		}
 	}
 
 	return insertWorkerOp,
@@ -250,6 +256,8 @@ func newProcessWorker(ctx context.Context, args *processWorkerArgs, ops []uint64
 				if err := mergeReady(); err != nil {
 					return err
 				}
+
+				collectOps(newlyMergedOps, newlyUnmergedOps)
 
 				switch i, err := initialPhaseDoneFunc(pctx, args, mergeInsert, newlyMergedOps, newlyUnmergedOps, reasons); {
 				case err != nil:
@@ -833,7 +841,7 @@ func initialPhaseDoneFunc(
 	func() error,
 	error,
 ) {
-	if err := mergeInsert(0, localWorkerName, newlyMergedOps, newlyUnmergedOps); err != nil {
+	if err := mergeInsert(0, localWorkerName, nil, nil); err != nil {
 		return nil, err
 	}
 

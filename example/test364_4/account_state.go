@@ -263,7 +263,7 @@ func (m *AccountStateMerger) Close() (base.StateValue, error) {
 	merged.Balance += m.sum
 
 	if merged.Balance < 0 {
-		return nil, errors.Errorf("under zero balance")
+		return merged, errors.Errorf("under zero balance")
 	}
 
 	return merged, nil
