@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -21,7 +22,7 @@ func (t *testStateValuesProcessor) newArgs(ops []Operation) *stateValuesProcesso
 	args := newStateValuesProcessorArgs()
 	args.SetLogging(logging.TestNilLogging)
 
-	args.GetOperation = func(_ context.Context, opindex uint64) (Operation, bool, error) {
+	args.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, nil
 		}
@@ -47,7 +48,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 
 		cancel()
 
-		err = insert(0)
+		err = insert(0, ops[0].Hash())
 		t.ErrorIs(err, context.Canceled)
 
 		err = wait(nil)
@@ -63,7 +64,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 		insert, done, wait, err := newStateValuesProcessor(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(0))
+		t.NoError(insert(0, ops[0].Hash()))
 
 		cancel()
 
@@ -81,7 +82,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 		insert, done, wait, err := newStateValuesProcessor(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(0))
+		t.NoError(insert(0, ops[0].Hash()))
 
 		done()
 		t.NoError(wait(nil))
@@ -104,7 +105,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		insert, done, wait, err := newStateValuesProcessor(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(0))
+		t.NoError(insert(0, ops[0].Hash()))
 
 		done()
 		t.NoError(wait(nil))
@@ -120,7 +121,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		insert, done, wait, err := newStateValuesProcessor(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(1))
+		t.NoError(insert(1, valuehash.RandomSHA256()))
 
 		done()
 		t.NoError(wait(func(reasons map[uint64]string) error {
@@ -145,12 +146,12 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		args := t.newArgs(ops)
 
 		getOperation := args.GetOperation
-		args.GetOperation = func(ctx context.Context, opindex uint64) (Operation, bool, error) {
+		args.GetOperation = func(ctx context.Context, opindex uint64, oph util.Hash) (Operation, bool, error) {
 			if opindex == 1 {
 				return nil, false, errors.Errorf("showme")
 			}
 
-			return getOperation(ctx, opindex)
+			return getOperation(ctx, opindex, oph)
 		}
 		args.ProcessedOp = func(ctx context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error {
 			select {
@@ -165,7 +166,10 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		t.NoError(err)
 
 		for i := range ops {
-			t.NoError(insert(uint64(i)))
+			err := insert(uint64(i), ops[i].Hash())
+			if err != nil {
+				t.ErrorContains(err, "showme")
+			}
 		}
 
 		done()
@@ -205,7 +209,7 @@ func (t *testStateValuesProcessor) TestProcess() {
 			t.NoError(err)
 
 			for i := range ops {
-				t.NoError(insert(uint64(i)))
+				t.NoError(insert(uint64(i), ops[i].Hash()))
 			}
 
 			done()

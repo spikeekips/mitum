@@ -73,7 +73,7 @@ func (t *testProcessWorker) newArgs(
 	) {
 		nargs := newStateValuesProcessorArgs()
 
-		nargs.GetOperation = func(_ context.Context, opindex uint64) (Operation, bool, error) {
+		nargs.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
 			i, found := mops[opindex]
 
 			return i, found, nil
@@ -101,7 +101,7 @@ func (t *testProcessWorker) newArgs(
 
 		return i, found, nil
 	}
-	args.DistributeStateMergeValues = func(context.Context, string, uint64, []StateMergeValue) error {
+	args.DistributeStateMergeValues = func(context.Context, string, uint64, util.Hash, []StateMergeValue) error {
 		return nil
 	}
 	args.UpdateReasons = func(context.Context, int, map[uint64]string) error {
@@ -118,11 +118,11 @@ func (t *testProcessWorker) newArgs(
 	) {
 		return func([]uint64) error { return nil },
 			func() (
-				func(context.Context, string, base.StateValue) error,
+				func(context.Context, string, base.State) error,
 				func(),
 				error,
 			) {
-				return func(context.Context, string, base.StateValue) error { return nil },
+				return func(context.Context, string, base.State) error { return nil },
 					func() {},
 					nil
 			}, nil
@@ -138,18 +138,17 @@ func (t *testProcessWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
-		values := t.processOps(ops)
 
 		_, _, _, args, _, _ := t.newArgs("w0", []string{"w0"}, ops)
 
-		inserts, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
+		initials, _, _, wait, err := newProcessWorker(ctx, args, 3)
 		t.NoError(err)
 
 		cancel()
 
-		insert, _ := inserts(localWorkerName)
+		insert, _ := initials()
 
-		err = insert(0, values[0])
+		err = insert(0, ops[0].Hash())
 		t.ErrorIs(err, context.Canceled)
 
 		err = wait(nil)
@@ -160,19 +159,19 @@ func (t *testProcessWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
-		values := t.processOps(ops)
 
 		_, _, _, args, _, _ := t.newArgs("w0", []string{"w0"}, ops)
 
-		inserts, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
+		initials, _, _, wait, err := newProcessWorker(ctx, args, 3)
 		t.NoError(err)
 
-		insert, _ := inserts(localWorkerName)
+		insert, insertDone := initials()
 
-		t.NoError(insert(0, values[0]))
+		t.NoError(insert(0, ops[0].Hash()))
 
 		cancel()
 
+		insertDone()
 		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
@@ -181,16 +180,16 @@ func (t *testProcessWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := t.randomOps(1, 1)
-		values := t.processOps(ops)
 
 		_, _, _, args, _, _ := t.newArgs("w0", []string{"w0"}, ops)
 
-		inserts, _, wait, err := newProcessWorker(ctx, args, []uint64{0})
+		initials, _, _, wait, err := newProcessWorker(ctx, args, 3)
 		t.NoError(err)
 
-		insert, _ := inserts(localWorkerName)
+		insert, insertDone := initials()
 
-		t.NoError(insert(0, values[0]))
+		t.NoError(insert(0, ops[0].Hash()))
+		insertDone()
 		t.NoError(wait(nil))
 
 		cancel()
@@ -226,11 +225,6 @@ func (t *testProcessWorker) TestLocalMerge() {
 		p1 -> p0, 1 |  1 |  1 |    |
 		p2 -> p0, 1 |  2 |    |  0 |
 	*/
-
-	opsindices := make([]uint64, len(ops))
-	for i := range opsindices {
-		opsindices[i] = uint64(i)
-	}
 
 	expectedUnmergedOps := []uint64{1, 3, 5}
 	//expectedMergedOps := map[ /* state key */ string][]uint64{
@@ -270,12 +264,12 @@ func (t *testProcessWorker) TestLocalMerge() {
 				return nil
 			},
 			func() (
-				func(context.Context, string, base.StateValue) error,
+				func(context.Context, string, base.State) error,
 				func(),
 				error,
 			) {
-				return func(_ context.Context, stateKey string, stv base.StateValue) error {
-						merged.SetValue(stateKey, stv.(AccountStateValue).Balance)
+				return func(_ context.Context, stateKey string, st base.State) error {
+						merged.SetValue(stateKey, st.Value().(AccountStateValue).Balance)
 
 						return nil
 					},
@@ -290,8 +284,15 @@ func (t *testProcessWorker) TestLocalMerge() {
 		states.SetValue(st.Key(), st)
 	}
 
-	_, _, wait, err := newProcessWorker(ctx, args, opsindices)
+	initials, _, _, wait, err := newProcessWorker(ctx, args, 3)
 	t.NoError(err)
+
+	initial, initialDone := initials()
+
+	util.TraverseSliceV1(ops, func(i int, op Operation) (bool, error) {
+		return true, initial(uint64(i), op.Hash())
+	})
+	initialDone()
 
 	t.NoError(wait(func(unmergedOps []uint64) error {
 		slices.Sort(unmergedOps)
