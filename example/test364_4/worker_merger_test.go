@@ -62,7 +62,7 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	args.BroadcastPhaseDone = func(context.Context, int, []uint64, []uint64) error {
 		return nil
 	}
-	args.UpdateReasons = func(context.Context, int, map[uint64]string) error {
+	args.SetReasons = func(int, map[uint64]string) error {
 		return nil
 	}
 
@@ -238,7 +238,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 	})
 }
 
-func (t *testWorkerMerger) TestUpdateReasons() {
+func (t *testWorkerMerger) TestSetReasons() {
 	t.Run("no reasons", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -249,7 +249,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 		var wait workerMergerWaitFunc
 
 		reasonsch := make(chan [2]interface{}, 1)
-		args.UpdateReasons = func(_ context.Context, phase int, reasons map[uint64]string) error {
+		args.SetReasons = func(phase int, reasons map[uint64]string) error {
 			reasonsch <- [2]interface{}{phase, reasons}
 
 			return nil
@@ -292,7 +292,7 @@ func (t *testWorkerMerger) TestUpdateReasons() {
 		var wait workerMergerWaitFunc
 
 		reasonsch := make(chan [2]interface{}, 1)
-		args.UpdateReasons = func(_ context.Context, phase int, reasons map[uint64]string) error {
+		args.SetReasons = func(phase int, reasons map[uint64]string) error {
 			reasonsch <- [2]interface{}{phase, reasons}
 
 			return nil

@@ -29,7 +29,7 @@ func newOneStepPhaseJobWorker(
 	var addNext util.CompactAppendSliceAddFunc[[2]interface{}]
 	var doneNext util.CompactAppendSliceDoneFunc[[2]interface{}]
 
-	switch a, d, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9); { // FIXME size from argument
+	switch a, d, err := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9); { // TODO size from argument
 	case err != nil:
 		return nil, nil, nil, err
 	default:

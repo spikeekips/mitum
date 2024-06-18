@@ -21,7 +21,7 @@ type (
 		error,
 	)
 	workerMergerPhaseDoneFunc   func(phase int, worker string, mergeOps, unmergeOps []uint64) error
-	UpdateReasonsFunc           func(_ context.Context, phase int, reasons map[uint64]string) error
+	setReasonsFunc              func(phase int, reasons map[uint64]string) error
 	BroadcastPhaseDoneFunc      func(_ context.Context, phase int, newlyMergedOps, newlyUnmergedOps []uint64) error
 	workerMergerUnmergedOpsFunc func(unmergedOps []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
@@ -31,7 +31,7 @@ type workerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
 	BroadcastPhaseDone        BroadcastPhaseDoneFunc
-	UpdateReasons             UpdateReasonsFunc
+	SetReasons                setReasonsFunc
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 }
@@ -51,8 +51,8 @@ func newWorkerMergerArgs() *workerMergerArgs {
 		BroadcastPhaseDone: func(context.Context, int, []uint64, []uint64) error {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
 		},
-		UpdateReasons: func(context.Context, int, map[uint64]string) error {
-			return util.ErrNotImplemented.Errorf("UpdateReasons")
+		SetReasons: func(int, map[uint64]string) error {
+			return util.ErrNotImplemented.Errorf("SetReasons")
 		},
 		PoolMapSize: 1 << 3,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
@@ -174,8 +174,8 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 					}
 
 					if len(reasons) > 0 {
-						if err := delayedWorker.NewJob(func(ctx context.Context) error {
-							return args.UpdateReasons(ctx, phase, reasons)
+						if err := delayedWorker.NewJob(func(context.Context) error {
+							return args.SetReasons(phase, reasons)
 						}); err != nil {
 							return err
 						}

@@ -104,19 +104,6 @@ func (t *testProcessWorker) newArgs(
 	args.DistributeStateMergeValues = func(context.Context, string, uint64, util.Hash, []StateMergeValue) error {
 		return nil
 	}
-	args.SaveReasons = func() (saveReasonFunc, func(error) error, error) {
-		return func(uint64, string) error {
-				return nil
-			},
-			func(error) error { return nil },
-			nil
-	}
-	args.SaveOperation = func(uint64, Operation) error {
-		return nil
-	}
-	args.SaveState = func(base.State) error {
-		return nil
-	}
 
 	args.ReportFuncs = func(context.Context) (
 		workerMergerUnmergedOpsFunc,
@@ -133,6 +120,42 @@ func (t *testProcessWorker) newArgs(
 					func() {},
 					nil
 			}, nil
+	}
+
+	args.SaveFuncs = func() (
+		saveOperationFuncs,
+		saveStateFuncs,
+		saveReasonsFuncs,
+		error,
+	) {
+		return func() (
+				saveOperationFunc,
+				func(error) error,
+				error,
+			) {
+				return func(uint64, Operation) error { return nil },
+					func(error) error { return nil },
+					nil
+			},
+			func() (
+				saveStateFunc,
+				func(error) error,
+				error,
+			) {
+				return func(base.State) error { return nil },
+					func(error) error { return nil },
+					nil
+			},
+			func() (
+				saveReasonFunc,
+				func(error) error,
+				error,
+			) {
+				return func(uint64, string) error { return nil },
+					func(error) error { return nil },
+					nil
+			},
+			nil
 	}
 
 	args.SetLogging(logging.TestNilLogging)
@@ -252,40 +275,7 @@ func (t *testProcessWorker) TestLocalMerge() {
 	_, _, _, args, _, states := t.newArgs("w0", []string{"w0"}, ops)
 	args.SetLogging(logging.TestNilLogging)
 
-	reasons := util.NewSingleLockedMap[uint64, string]()
-	args.SaveReasons = func() (saveReasonFunc, func(error) error, error) {
-		return func(opindex uint64, reason string) error {
-				t.True(reasons.SetValue(opindex, reason))
-
-				return nil
-			},
-			func(err error) error {
-				t.NoError(err)
-
-				return nil
-			},
-			nil
-	}
-	savedOps := util.NewSingleLockedMap[uint64, Operation]()
-
-	args.SaveOperation = func(opindex uint64, op Operation) error {
-		if !savedOps.SetValue(opindex, op) {
-			return util.ErrFound.Errorf("save operation, %d", opindex)
-		}
-
-		return nil
-	}
-
-	savedStates := util.NewSingleLockedMap[string, base.State]()
 	reportedStates := util.NewSingleLockedMap[string, util.Hash]()
-
-	args.SaveState = func(st base.State) error {
-		if !savedStates.SetValue(st.Key(), st) {
-			return util.ErrFound.Errorf("save state, %q", st.Key())
-		}
-
-		return nil
-	}
 
 	unmergedch := make(chan []uint64, 1)
 
@@ -313,6 +303,64 @@ func (t *testProcessWorker) TestLocalMerge() {
 					func() {},
 					nil
 			}, nil
+	}
+
+	savedOps := util.NewSingleLockedMap[uint64, Operation]()
+	savedStates := util.NewSingleLockedMap[string, base.State]()
+	reasons := util.NewSingleLockedMap[uint64, string]()
+
+	args.SaveFuncs = func() (
+		saveOperationFuncs,
+		saveStateFuncs,
+		saveReasonsFuncs,
+		error,
+	) {
+		return func() (
+				saveOperationFunc,
+				func(error) error,
+				error,
+			) {
+				return func(opindex uint64, op Operation) error {
+						if !savedOps.SetValue(opindex, op) {
+							return util.ErrFound.Errorf("save operation, %d", opindex)
+						}
+
+						return nil
+					},
+
+					func(error) error { return nil },
+					nil
+			},
+			func() (
+				saveStateFunc,
+				func(error) error,
+				error,
+			) {
+				return func(st base.State) error {
+						if !savedStates.SetValue(st.Key(), st) {
+							return util.ErrFound.Errorf("save state, %q", st.Key())
+						}
+
+						return nil
+					},
+
+					func(error) error { return nil },
+					nil
+			},
+			func() (
+				saveReasonFunc,
+				func(error) error,
+				error,
+			) {
+				return func(opindex uint64, reason string) error {
+						t.True(reasons.SetValue(opindex, reason))
+
+						return nil
+					},
+					func(error) error { return nil },
+					nil
+			},
+			nil
 	}
 
 	for i := range sts {
