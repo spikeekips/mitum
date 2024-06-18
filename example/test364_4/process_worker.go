@@ -42,15 +42,16 @@ type (
 		func(),
 	)
 
-	addOpValuesFunc          func(opindex uint64, oph util.Hash, _ []StateMergeValue) bool
-	saveOperationFunc        func(opindex uint64, _ Operation) error
-	stateOwnersFunc          func(_ context.Context, stateKey string) (owners []string, _ error)
-	getValuesFunc            func(opindex uint64) ([]StateMergeValue, error)
-	getOpHashFunc            func(opindex uint64) (util.Hash, error)
-	isLocalOpFunc            func(opindex uint64) bool
-	reportResultUnmergedFunc func(unmergedOps []uint64) error
-	reportResultStatesFuncs  func() (
-		func(_ context.Context, stateKey string, _ base.State) error,
+	addOpValuesFunc    func(opindex uint64, oph util.Hash, _ []StateMergeValue) bool
+	saveOperationFunc  func(opindex uint64, _ Operation) error
+	saveStateFunc      func(base.State) error
+	stateOwnersFunc    func(_ context.Context, stateKey string) (owners []string, _ error)
+	getValuesFunc      func(opindex uint64) ([]StateMergeValue, error)
+	getOpHashFunc      func(opindex uint64) (util.Hash, error)
+	isLocalOpFunc      func(opindex uint64) bool
+	reportUnmergedFunc func(unmergedOps []uint64) error
+	reportStatesFuncs  func() (
+		func(_ context.Context, stateKey string, _ util.Hash) error,
 		func(),
 		error,
 	)
@@ -59,6 +60,9 @@ type (
 		insertDone func(),
 	)
 	distributeStateMergeValuesFunc func(_ context.Context, worker string, opindex uint64, oph util.Hash, _ []StateMergeValue) error
+	saveReasonFunc                 func(opindex uint64, reason string) error
+	saveReasonsFuncs               func() (saveReasonFunc, func(error) error, error)
+	saveReasonsDoneFunc            func(_ context.Context, unmergedOps []uint64, _ saveReasonFunc) error
 )
 
 type processWorkerArgs struct {
@@ -70,19 +74,20 @@ type processWorkerArgs struct {
 	NewWorkerMergerFuncs         newWorkerMergerFuncs
 	StateOwners                  stateOwnersFunc // NOTE local is `localWorkerName`
 	DistributeStateMergeValues   distributeStateMergeValuesFunc
-	UpdateReasons                UpdateReasonsFunc // FIXME filter sent opindex and reason
-	ReportResult                 func(context.Context) (
+	ReportFuncs                  func(context.Context) (
 		workerMergerUnmergedOpsFunc,
-		reportResultStatesFuncs,
+		reportStatesFuncs,
 		error,
 	)
-	SaveOperation                saveOperationFunc
 	StateMergeValueKeysCacheSize int
 	EnoughWorkers                uint64 // NOTE include local worker
 	BroadcastPhaseDone           BroadcastPhaseDoneFunc
 	StateOwnersCacheSize         int
 	isLocalOp                    isLocalOpFunc
 	StatesOpMapSize              uint64 // FIXME set by number of operations
+	SaveReasons                  saveReasonsFuncs
+	SaveOperation                saveOperationFunc
+	SaveState                    saveStateFunc
 }
 
 func newProcessWorkerArgs() *processWorkerArgs {
@@ -123,18 +128,15 @@ func newProcessWorkerArgs() *processWorkerArgs {
 		DistributeStateMergeValues: func(context.Context, string, uint64, util.Hash, []StateMergeValue) error {
 			return util.ErrNotImplemented.Errorf("BroadcastStateMergeValues")
 		},
-		UpdateReasons: func(context.Context, int, map[uint64]string) error {
-			return util.ErrNotImplemented.Errorf("UpdateReasons")
+		SaveReasons: func() (saveReasonFunc, func(error) error, error) {
+			return nil, nil, util.ErrNotImplemented.Errorf("SaveReasons")
 		},
-		ReportResult: func(context.Context) (
+		ReportFuncs: func(context.Context) (
 			workerMergerUnmergedOpsFunc,
-			reportResultStatesFuncs,
+			reportStatesFuncs,
 			error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("ReportResult")
-		},
-		SaveOperation: func(uint64, Operation) error {
-			return util.ErrNotImplemented.Errorf("SaveOperation")
 		},
 		StateMergeValueKeysCacheSize: 1 << 9,
 		BroadcastPhaseDone: func(context.Context, int, []uint64, []uint64) error {
@@ -143,6 +145,12 @@ func newProcessWorkerArgs() *processWorkerArgs {
 		StateOwnersCacheSize: 1 << 9,
 		isLocalOp:            func(uint64) bool { return false },
 		StatesOpMapSize:      1 << 9, // FIXME set by number of operations
+		SaveOperation: func(uint64, Operation) error {
+			return util.ErrNotImplemented.Errorf("SaveOperation")
+		},
+		SaveState: func(base.State) error {
+			return util.ErrNotImplemented.Errorf("SaveState")
+		},
 	}
 }
 
@@ -198,6 +206,7 @@ func newProcessWorker(
 	pctx, pctxCancel := context.WithCancelCause(ctx)
 
 	collectOps, collectOpsDone := newCollectXMergedOps()
+	saveReasons, saveReasonsDone := newSaveReasonsFuncs()
 
 	var setStateOp phaseMergerSetStateOp
 	var report func(unmergedOps []uint64, f workerMergerUnmergedOpsFunc) error
@@ -208,7 +217,16 @@ func newProcessWorker(
 		height,
 		mergersPoolTraverse,
 		valuesPoolGetOpHash,
-		args.GetStateFunc,
+		func(stateKey string) (util.Hash, bool, error) {
+			i, found, err := args.GetStateFunc(stateKey)
+			if err != nil || !found {
+				return nil, found, err
+			}
+
+			return i.Hash(), true, nil
+		},
+		args.SaveState,
+		saveReasonsDone,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, err
@@ -252,23 +270,20 @@ func newProcessWorker(
 
 	var initialOpFuncs processWorkerInitialOpFuncs
 	var processValuesWait waitWithReasonsFunc
-	var opsTraverse func(func(opindex uint64, _ Operation) bool)
 
-	switch i, w, o, err := newStateValuesProcessWorker(
+	switch i, w, err := newStateValuesProcessWorker(
 		pctx,
 		args.NewStateValuesProcessorFuncs,
 		args.StateOwners,
 		insertWorkerOp,
 		args.DistributeStateMergeValues,
+		args.SaveOperation,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
 		initialOpFuncs = i
 		processValuesWait = w
-		opsTraverse = o
-
-		_ = opsTraverse // FIXME save operations later
 	}
 
 	mergeWaitLog := FuncErrorLog(args.Log(), "merge")
@@ -276,7 +291,7 @@ func newProcessWorker(
 	var mergeReady func() error
 	var mergeWait workerMergerWaitFunc
 
-	switch r, i, w, err := newWorkerMergerFuncsForProcessWorker(pctx, args, mergersPoolGetMergers, valuesPoolGetValues, setStateOp); {
+	switch r, i, w, err := newWorkerMergerFuncsForProcessWorker(pctx, args, mergersPoolGetMergers, valuesPoolGetValues, setStateOp, saveReasons); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -299,7 +314,7 @@ func newProcessWorker(
 			defer pctxCancel(nil)
 
 			if err := processWaitLog(processValuesWait(func(reasons map[uint64]string) error {
-				return args.UpdateReasons(pctx, -1, reasons)
+				return saveReasons(pctx, -1, reasons)
 			})); err != nil {
 				return err
 			}
@@ -313,7 +328,15 @@ func newProcessWorker(
 
 				collectOps(newlyMergedOps, newlyUnmergedOps)
 
-				switch i, err := initialPhaseDoneFunc(pctx, args, mergeInsert, newlyMergedOps, newlyUnmergedOps, reasons); {
+				switch i, err := initialPhaseDoneFunc(
+					pctx,
+					args,
+					mergeInsert,
+					saveReasons,
+					newlyMergedOps,
+					newlyUnmergedOps,
+					reasons,
+				); {
 				case err != nil:
 					return err
 				default:
@@ -342,6 +365,7 @@ func newWorkerMergerFuncsForProcessWorker(
 	getMergers phaseMergerGetMergers,
 	getValues getValuesFunc,
 	setStateOp phaseMergerSetStateOp,
+	saveReasons UpdateReasonsFunc,
 ) (
 	prevDone func() error,
 	_ workerMergerPhaseDoneFunc,
@@ -359,7 +383,7 @@ func newWorkerMergerFuncsForProcessWorker(
 		newf = n
 	}
 
-	wargs.UpdateReasons = args.UpdateReasons
+	wargs.UpdateReasons = saveReasons
 	wargs.BroadcastPhaseDone = args.BroadcastPhaseDone
 
 	newWorkerPhaseMergerFuncs := wargs.NewWorkerPhaseMergerFuncs
@@ -729,6 +753,7 @@ func initialPhaseDoneFunc(
 	ctx context.Context,
 	args *processWorkerArgs,
 	mergeInsert workerMergerPhaseDoneFunc,
+	saveReasons UpdateReasonsFunc,
 	newlyMergedOps, newlyUnmergedOps []uint64,
 	reasons map[uint64]string,
 ) (
@@ -746,7 +771,7 @@ func initialPhaseDoneFunc(
 				return err
 			}
 
-			return args.UpdateReasons(ctx, -1, reasons)
+			return saveReasons(ctx, -1, reasons)
 		},
 	)
 
@@ -822,7 +847,9 @@ func newReportResult(
 	height base.Height,
 	mergersPoolTraverse func(func(stateKey string, merger StateMerger) bool),
 	getOpHash getOpHashFunc,
-	getState func(stateKey string) (base.State, bool, error),
+	getPrevState func(stateKey string) (util.Hash, bool, error),
+	saveState saveStateFunc,
+	saveReasons saveReasonsDoneFunc,
 ) (
 	phaseMergerSetStateOp,
 	workerMergerUnmergedOpsFunc,
@@ -840,10 +867,10 @@ func newReportResult(
 	}
 
 	var reportUnmerged func([]uint64) error
-	var reportState func(context.Context, string, base.State) error
+	var reportState func(context.Context, string, util.Hash) error
 	var reportStateDone func()
 
-	switch u, s, err := args.ReportResult(ctx); {
+	switch u, s, err := args.ReportFuncs(ctx); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -860,62 +887,86 @@ func newReportResult(
 
 	return setStateOp,
 		func(unmergedOps []uint64) error {
+			defer reportStateDone()
+
 			var jw JobWorker
 
-			switch j, err := NewBaseJobWorker(ctx, 2); {
+			switch j, err := args.NewJobWorker(ctx); {
 			case err != nil:
 				return err
 			default:
+				defer j.Close()
+
 				jw = j
 			}
 
-			u := slices.Clone(unmergedOps)
+			if err := jw.NewJob(func(ctx context.Context) error {
+				save, done, err := args.SaveReasons()
+				if err != nil {
+					return err
+				}
 
-			if err := jw.NewJob(func(context.Context) error {
-				return reportUnmerged(u)
+				err = saveReasons(ctx, unmergedOps, save)
+				if err == nil {
+					err = done(nil)
+				}
+
+				return done(err)
 			}); err != nil {
 				return err
 			}
 
 			if err := jw.NewJob(func(context.Context) error {
-				defer reportStateDone()
-
-				return setStateOpDone(func(getStateOps func(stateKey string) []uint64) error {
-					return newCloseMergers(ctx, args, height, mergersPoolTraverse, getStateOps, getOpHash, getState, reportState)
-				})
+				return reportUnmerged(slices.Clone(unmergedOps))
 			}); err != nil {
 				return err
 			}
 
-			jw.JobDone()
+			return setStateOpDone(func(getStateOps func(stateKey string) []uint64) error {
+				traverse := func(f func(stateKey string, merger StateMerger) error) error {
+					var gerr error
 
-			return jw.Wait()
+					mergersPoolTraverse(func(stateKey string, merger StateMerger) bool {
+						gerr = jw.NewJob(func(context.Context) error {
+							return f(stateKey, merger)
+						})
+
+						return gerr == nil
+					})
+
+					return gerr
+				}
+
+				if err := newCloseMergers(
+					ctx,
+					height,
+					traverse,
+					getStateOps,
+					getOpHash,
+					getPrevState,
+					saveState,
+					reportState,
+				); err != nil {
+					return err
+				}
+
+				jw.JobDone()
+
+				return jw.Wait()
+			})
 		}, nil
 }
 
 func newCloseMergers(
 	ctx context.Context,
-	args *processWorkerArgs,
 	height base.Height,
-	mergersPoolTraverse func(func(stateKey string, merger StateMerger) bool),
+	mergersPoolTraverse func(func(stateKey string, merger StateMerger) error) error,
 	getStateOp func(stateKey string) []uint64,
 	getOpHash getOpHashFunc,
-	getState func(stateKey string) (base.State, bool, error),
-	f func(context.Context, string, base.State) error,
+	getPrevState func(stateKey string) (util.Hash, bool, error),
+	saveState saveStateFunc,
+	f func(context.Context, string, util.Hash) error,
 ) error {
-	var gerr error
-
-	var jw JobWorker
-
-	switch i, err := args.NewJobWorker(ctx); {
-	case err != nil:
-		return err
-	default:
-		defer i.Close()
-
-		jw = i
-	}
-
 	getStateOps := func(stateKey string) (ophs []util.Hash, _ error) {
 		ops := getStateOp(stateKey)
 		if len(ops) < 1 {
@@ -953,63 +1004,42 @@ func newCloseMergers(
 		return ophs, nil
 	}
 
-	mergersPoolTraverse(func(stateKey string, merger StateMerger) bool {
-		gerr = jw.NewJob(func(ctx context.Context) error {
-			var ophs []util.Hash
+	return mergersPoolTraverse(func(stateKey string, merger StateMerger) error {
+		var ophs []util.Hash
 
-			switch i, err := getStateOps(stateKey); {
-			case err != nil:
+		switch i, err := getStateOps(stateKey); {
+		case err != nil:
+			return err
+		case len(i) < 1:
+			return nil
+		default:
+			ophs = i
+		}
+
+		var prevst util.Hash
+
+		switch i, found, err := getPrevState(stateKey); {
+		case err != nil:
+			return err
+		case !found:
+		default:
+			prevst = i
+		}
+
+		switch v, err := merger.Close(); {
+		case err != nil:
+			return err
+		case v == nil:
+			return nil
+		default:
+			st := base.NewBaseState(height, stateKey, v, prevst, ophs)
+			if err := saveState(st); err != nil {
 				return err
-			case len(i) < 1:
-				return nil
-			default:
-				ophs = i
 			}
 
-			var prevst util.Hash
-
-			switch i, found, err := getState(stateKey); {
-			case err != nil:
-				return err
-			case !found:
-			default:
-				prevst = i.Hash()
-			}
-
-			var stv base.StateValue
-
-			switch i, err := merger.Close(); { // FIXME base.State, not StateValue
-			case err != nil:
-				return err
-			case i == nil:
-				return nil
-			default:
-				stv = i
-			}
-
-			return f(
-				ctx,
-				stateKey,
-				base.NewBaseState(
-					height,
-					stateKey,
-					stv,
-					prevst,
-					ophs,
-				),
-			)
-		})
-
-		return gerr == nil
+			return f(ctx, stateKey, st.Hash())
+		}
 	})
-
-	if gerr != nil {
-		return gerr
-	}
-
-	jw.JobDone()
-
-	return jw.Wait()
 }
 
 func newStateOpsFuncs(args *processWorkerArgs) (
@@ -1150,4 +1180,73 @@ func newMergersPoolFuncs(
 			mergersPool.Close()
 		},
 		nil
+}
+
+func newSaveReasonsFuncs() (
+	func(_ context.Context, phase int, reasons map[uint64]string) error,
+	saveReasonsDoneFunc,
+) {
+	m := util.NewSingleLockedMap[uint64, [2]interface{}]()
+
+	return func(ctx context.Context, phase int, reasons map[uint64]string) error {
+			switch {
+			case m.Len() < 1:
+				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+					_ = m.SetValue(opindex, [2]interface{}{phase, reason})
+
+					return true, nil
+				})
+			default:
+				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+					_, _, _ = m.Set(opindex, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
+						if found && phase <= prev[0].(int) && reason == prev[1].(string) {
+							return v, util.ErrLockedSetIgnore
+						}
+
+						return [2]interface{}{phase, reason}, nil
+					})
+
+					return true, nil
+				})
+			}
+
+			return nil
+		},
+		func(ctx context.Context, unmergedOps []uint64, f saveReasonFunc) error {
+			defer m.Close()
+
+			if m.Len() < 1 || len(unmergedOps) < 1 {
+				return nil
+			}
+
+			var jw JobWorker
+
+			switch i, err := NewBaseJobWorker(ctx, int64(m.Len())); {
+			case err != nil:
+				return err
+			default:
+				jw = i
+			}
+
+			var gerr error
+
+			_ = m.Traverse(func(opindex uint64, v [2]interface{}) bool {
+				gerr = jw.NewJob(func(context.Context) error {
+					if slices.Index(unmergedOps, opindex) < 0 {
+						return nil
+					}
+
+					return f(opindex, v[1].(string))
+				})
+
+				return gerr == nil
+			})
+			if gerr != nil {
+				return gerr
+			}
+
+			jw.JobDone()
+
+			return jw.Wait()
+		}
 }

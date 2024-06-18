@@ -99,7 +99,6 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 	}
 
 	collectOps, collectOpsDone := newCollectXMergedOps()
-	updateReasons, updateReasonsDone := newUpdateReasonsFuncs(args.UpdateReasons)
 
 	var newPhase func(_ context.Context, phase int) error
 	var lastPhase int = -1
@@ -176,7 +175,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 					if len(reasons) > 0 {
 						if err := delayedWorker.NewJob(func(ctx context.Context) error {
-							return updateReasons(ctx, phase, reasons)
+							return args.UpdateReasons(ctx, phase, reasons)
 						}); err != nil {
 							return err
 						}
@@ -204,7 +203,6 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		wctxCancel(err)
 		closePool()
 		delayedWorker.Close()
-		updateReasonsDone()
 
 		return nil, nil, err
 	}
@@ -259,7 +257,6 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		},
 		func(f workerMergerUnmergedOpsFunc) error {
 			waitOnce.Do(func() {
-				defer updateReasonsDone()
 				defer collectOpsDone(nil)
 				defer closePool()
 				defer delayedWorker.Close()
@@ -442,41 +439,4 @@ func newCollectXMergedOps() (
 
 			return done(f)
 		}
-}
-
-func newUpdateReasonsFuncs(
-	f UpdateReasonsFunc,
-) (
-	func(_ context.Context, phase int, reasons map[uint64]string) error,
-	func(),
-) {
-	m := util.NewSingleLockedMap[uint64, [2]interface{}]()
-
-	return func(ctx context.Context, phase int, reasons map[uint64]string) error {
-			switch {
-			case m.Len() < 1:
-				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
-					_ = m.SetValue(opindex, [2]interface{}{phase, reason})
-
-					return true, nil
-				})
-			default:
-				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
-					_, _, _ = m.Set(opindex, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-						if found && phase <= prev[0].(int) && reason == prev[1].(string) {
-							delete(reasons, opindex)
-
-							return v, util.ErrLockedSetIgnore
-						}
-
-						return [2]interface{}{phase, reason}, nil
-					})
-
-					return true, nil
-				})
-			}
-
-			return f(ctx, phase, reasons)
-		},
-		m.Close
 }

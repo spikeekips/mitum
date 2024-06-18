@@ -152,10 +152,10 @@ func newStateValuesProcessWorker(
 	stateOwners stateOwnersFunc,
 	insertLocalFuncs insertWorkerOpFuncs,
 	broadcast distributeStateMergeValuesFunc,
+	saveOperation saveOperationFunc,
 ) (
 	initials processWorkerInitialOpFuncs,
 	_ waitWithReasonsFunc,
-	opsTraverse func(func(opindex uint64, _ Operation) bool),
 	_ error,
 ) {
 	var args *stateValuesProcessorArgs
@@ -163,7 +163,7 @@ func newStateValuesProcessWorker(
 
 	switch a, n, err := newfs(); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		args = a
 		newf = n
@@ -188,7 +188,7 @@ func newStateValuesProcessWorker(
 		},
 	); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		distributeInsert = i
 		distributeDone = d
@@ -199,7 +199,7 @@ func newStateValuesProcessWorker(
 
 	switch i, d, w, err := newf(ctx, args); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		initials = func() (stateValuesProcessorInsertFunc, func()) {
 			return i, d
@@ -207,11 +207,9 @@ func newStateValuesProcessWorker(
 		wait = w
 	}
 
-	opsPool := util.NewSingleLockedMap[uint64, Operation]()
-
 	args.ProcessedOp = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
-		if !opsPool.SetValue(opindex, op) {
-			return nil
+		if err := saveOperation(opindex, op); err != nil {
+			return err
 		}
 
 		return distributeInsert(opindex, op.Hash(), values)
@@ -232,11 +230,6 @@ func newStateValuesProcessWorker(
 			insertLocalDone()
 
 			return nil
-		},
-		func(f func(uint64, Operation) bool) {
-			defer opsPool.Close()
-
-			opsPool.Traverse(f)
 		},
 		nil
 }

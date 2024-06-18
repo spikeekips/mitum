@@ -104,25 +104,32 @@ func (t *testProcessWorker) newArgs(
 	args.DistributeStateMergeValues = func(context.Context, string, uint64, util.Hash, []StateMergeValue) error {
 		return nil
 	}
-	args.UpdateReasons = func(context.Context, int, map[uint64]string) error {
-		return nil
+	args.SaveReasons = func() (saveReasonFunc, func(error) error, error) {
+		return func(uint64, string) error {
+				return nil
+			},
+			func(error) error { return nil },
+			nil
 	}
 	args.SaveOperation = func(uint64, Operation) error {
 		return nil
 	}
+	args.SaveState = func(base.State) error {
+		return nil
+	}
 
-	args.ReportResult = func(context.Context) (
+	args.ReportFuncs = func(context.Context) (
 		workerMergerUnmergedOpsFunc,
-		reportResultStatesFuncs,
+		reportStatesFuncs,
 		error,
 	) {
 		return func([]uint64) error { return nil },
 			func() (
-				func(context.Context, string, base.State) error,
+				func(context.Context, string, util.Hash) error,
 				func(),
 				error,
 			) {
-				return func(context.Context, string, base.State) error { return nil },
+				return func(context.Context, string, util.Hash) error { return nil },
 					func() {},
 					nil
 			}, nil
@@ -226,6 +233,7 @@ func (t *testProcessWorker) TestLocalMerge() {
 		p2 -> p0, 1 |  2 |    |  0 |
 	*/
 
+	expectedBalances := map[string]int64{sts[0].Key(): 2, sts[2].Key(): 0}
 	expectedUnmergedOps := []uint64{1, 3, 5}
 	//expectedMergedOps := map[ /* state key */ string][]uint64{
 	//	key0: {0, 2, 4},
@@ -244,19 +252,46 @@ func (t *testProcessWorker) TestLocalMerge() {
 	_, _, _, args, _, states := t.newArgs("w0", []string{"w0"}, ops)
 	args.SetLogging(logging.TestNilLogging)
 
-	reasonch := make(chan [2]interface{}, 1)
-	args.UpdateReasons = func(_ context.Context, phase int, reasons map[uint64]string) error {
-		reasonch <- [2]interface{}{phase, reasons}
+	reasons := util.NewSingleLockedMap[uint64, string]()
+	args.SaveReasons = func() (saveReasonFunc, func(error) error, error) {
+		return func(opindex uint64, reason string) error {
+				t.True(reasons.SetValue(opindex, reason))
+
+				return nil
+			},
+			func(err error) error {
+				t.NoError(err)
+
+				return nil
+			},
+			nil
+	}
+	savedOps := util.NewSingleLockedMap[uint64, Operation]()
+
+	args.SaveOperation = func(opindex uint64, op Operation) error {
+		if !savedOps.SetValue(opindex, op) {
+			return util.ErrFound.Errorf("save operation, %d", opindex)
+		}
+
+		return nil
+	}
+
+	savedStates := util.NewSingleLockedMap[string, base.State]()
+	reportedStates := util.NewSingleLockedMap[string, util.Hash]()
+
+	args.SaveState = func(st base.State) error {
+		if !savedStates.SetValue(st.Key(), st) {
+			return util.ErrFound.Errorf("save state, %q", st.Key())
+		}
 
 		return nil
 	}
 
 	unmergedch := make(chan []uint64, 1)
-	merged := util.NewSingleLockedMap[string, int64]()
 
-	args.ReportResult = func(context.Context) (
+	args.ReportFuncs = func(context.Context) (
 		workerMergerUnmergedOpsFunc,
-		reportResultStatesFuncs,
+		reportStatesFuncs,
 		error,
 	) {
 		return func(unmergedOps []uint64) error {
@@ -264,12 +299,14 @@ func (t *testProcessWorker) TestLocalMerge() {
 				return nil
 			},
 			func() (
-				func(context.Context, string, base.State) error,
+				func(context.Context, string, util.Hash) error,
 				func(),
 				error,
 			) {
-				return func(_ context.Context, stateKey string, st base.State) error {
-						merged.SetValue(stateKey, st.Value().(AccountStateValue).Balance)
+				return func(_ context.Context, stateKey string, h util.Hash) error {
+						if !reportedStates.SetValue(stateKey, h) {
+							return util.ErrFound.Errorf("reported state, %q", stateKey)
+						}
 
 						return nil
 					},
@@ -301,16 +338,7 @@ func (t *testProcessWorker) TestLocalMerge() {
 		return nil
 	}))
 
-	select {
-	case <-time.After(time.Millisecond * 33):
-		t.Fail("wait updated reasons")
-	case i := <-reasonch:
-		phase := i[0].(int)
-		reasons := i[1].(map[uint64]string)
-
-		t.Equal(-1, phase)
-		t.Equal(expectedReasons, reasons)
-	}
+	t.Equal(expectedReasons, reasons.Map())
 
 	select {
 	case <-time.After(time.Millisecond * 33):
@@ -321,10 +349,27 @@ func (t *testProcessWorker) TestLocalMerge() {
 		t.Equal(expectedUnmergedOps, i)
 	}
 
-	t.Equal(
-		map[string]int64{sts[0].Key(): 2, sts[2].Key(): 0},
-		merged.Map(),
-	)
+	t.Equal(len(ops), savedOps.Len())
+
+	for i := range ops {
+		s, found := savedOps.Value(uint64(i))
+		t.True(found)
+		base.EqualOperation(t.Assert(), ops[i], s)
+	}
+
+	t.Equal(reportedStates.Len(), savedStates.Len())
+
+	savedStates.Traverse(func(stateKey string, st base.State) bool {
+		h, found := reportedStates.Value(stateKey)
+		t.True(found)
+		t.True(st.Hash().Equal(h))
+
+		b, found := expectedBalances[stateKey]
+		t.True(found)
+		t.Equal(b, st.Value().(AccountStateValue).Balance)
+
+		return true
+	})
 }
 
 func TestProcessWorker(t *testing.T) {
