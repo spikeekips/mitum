@@ -211,6 +211,12 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		lock.RLock()
 		defer lock.RUnlock()
 
+		if phase == 0 && worker == localWorkerName {
+			if err := args.BroadcastPhaseDone(wctx, 0, mergeOps, unmergeOps); err != nil {
+				return func(string, []uint64, []uint64) error { return err }
+			}
+		}
+
 		switch {
 		case phase == lastPhase:
 			return phaseInsertFunc

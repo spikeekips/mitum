@@ -358,10 +358,6 @@ func newProcessWorker(
 					return err
 				}
 
-				if err := args.BroadcastPhaseDone(pctx, 0, newlyMergedOps, newlyUnmergedOps); err != nil {
-					return err
-				}
-
 				collectOps(newlyMergedOps, newlyUnmergedOps)
 
 				return saveReasons(-1, reasons)
@@ -986,6 +982,10 @@ func newSaveOperationFuncs() (
 		},
 		func(f func(uint64, Operation) error) error {
 			defer ops.Close()
+
+			if f == nil {
+				return nil
+			}
 
 			var gerr error
 

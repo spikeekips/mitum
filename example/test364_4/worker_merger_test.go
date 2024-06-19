@@ -206,7 +206,9 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		args.BroadcastPhaseDone = func(_ context.Context, phase int, _, _ []uint64) error {
 			t.NoError(insert(phase, other, nil, nil))
 
-			nextphasech <- phase
+			if phase > 0 {
+				nextphasech <- phase
+			}
 
 			return nil
 		}
