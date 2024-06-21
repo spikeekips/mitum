@@ -339,6 +339,9 @@ func (st *voteproofHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 func (st *voteproofHandler) handleACCEPTVoteproofAfterProcessingProposal(
 	manifest base.Manifest, avp base.ACCEPTVoteproof,
 ) (saved bool, _ error) {
+	st.vplock.Lock()
+	defer st.vplock.Unlock()
+
 	l := st.Log().With().Str("accept_voteproof", avp.ID()).Logger()
 
 	switch { // NOTE check last accept voteproof is the execpted
@@ -586,9 +589,13 @@ func (st *voteproofHandler) newACCEPTVoteproofWithLastINITVoteproof(
 	switch {
 	case avp.Point().Point.Equal(livp.Point().Point): // NOTE expected accept voteproof
 		if avp.Result() == base.VoteResultMajority {
-			_, err := st.saveBlock(avp)
-
-			return err
+			switch saved, err := st.saveBlock(avp); {
+			case err != nil:
+				return err
+			case !saved:
+			default:
+				return nil
+			}
 		}
 
 		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))

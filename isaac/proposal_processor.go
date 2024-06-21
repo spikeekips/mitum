@@ -76,6 +76,7 @@ type DefaultProposalProcessor struct {
 	getctx      func() context.Context
 	cancel      func()
 	previous    base.Manifest
+	manifest    base.Manifest
 	args        *DefaultProposalProcessorArgs
 	writer      BlockWriter
 	ivp         base.INITVoteproof
@@ -156,6 +157,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 		return nil, e.Wrap(err)
 	default:
 		p.isprocessed = true
+		p.manifest = manifest
 
 		return manifest, nil
 	}
@@ -183,14 +185,14 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 
 	defer p.close()
 
+	p.issaved = true
+
 	switch bm, err := p.save(sctx, avp); {
 	case err != nil:
 		p.Log().Error().Err(err).Msg("save")
 
 		return nil, err
 	default:
-		p.issaved = true
-
 		return bm, nil
 	}
 }
@@ -598,6 +600,12 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 
 func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	e := util.StringError("save")
+
+	switch {
+	case p.manifest == nil,
+		!p.manifest.Hash().Equal(avp.BallotMajority().NewBlock()):
+		return nil, ErrNotProposalProcessorProcessed.Errorf("different manifest hash with majority")
+	}
 
 	if err := p.writer.SetINITVoteproof(ctx, p.ivp); err != nil {
 		return nil, e.WithMessage(err, "set init voteproof")

@@ -170,11 +170,11 @@ func (pps *ProposalProcessors) save(
 		return nil, ErrNotProposalProcessorProcessed
 	}
 
+	pps.previousSaved = avp.Point().Height()
+
 	switch bm, err := pps.p.Save(ctx, avp); {
 	case err == nil:
 		l.Debug().Msg("proposal processed and saved")
-
-		pps.previousSaved = avp.Point().Height()
 
 		return bm, nil
 	case errors.Is(err, context.Canceled):

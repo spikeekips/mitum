@@ -414,42 +414,130 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
-	point := base.RawPoint(33, 44)
-	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+	t.Run("no accept voteproof after processing", func() {
+		point := base.RawPoint(33, 44)
+		suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
-	defer closefunc()
+		st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+		defer closefunc()
 
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
-		return manifest, nil
-	}
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
-		if avp.Point().Point.Equal(point) {
-			return nil, errors.Errorf("hehehe")
+		fact := t.PRPool.GetFact(point)
+		nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+
+		processedch := make(chan struct{})
+		pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+			defer close(processedch)
+			return manifest, nil
 		}
 
-		return nil, nil
-	}
+		pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+			if avp.Point().Point.Equal(point) {
+				return nil, errors.Errorf("hehehe")
+			}
 
-	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+			return nil, nil
+		}
 
-	deferred, err := st.enter(StateJoining, sctx)
-	t.NoError(err)
-	deferred()
+		sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
-	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
+		deferred, err := st.enter(StateJoining, sctx)
+		t.NoError(err)
+		deferred()
 
-	err = st.newVoteproof(nextavp)
+		<-processedch
 
-	t.T().Log("wait new block saved, but it will be failed; wait to move syncing")
+		err = st.newVoteproof(nextavp)
 
-	var bsctx baseErrorSwitchContext
-	t.ErrorAs(err, &bsctx)
-	t.Equal(bsctx.next(), StateBroken)
-	t.ErrorContains(bsctx, "hehehe")
+		t.T().Log("wait new block saved, but it will be failed; wait to move broken")
+
+		var bsctx baseErrorSwitchContext
+		t.ErrorAs(err, &bsctx)
+		t.Equal(bsctx.next(), StateBroken)
+		t.ErrorContains(bsctx, "hehehe")
+	})
+
+	t.Run("accept voteproof after processing", func() {
+		point := base.RawPoint(33, 44)
+		suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+		st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+		defer closefunc()
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+		fact := t.PRPool.GetFact(point)
+		nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+
+		savedch := make(chan struct{})
+		pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+			return manifest, nil
+		}
+
+		pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+			defer close(savedch)
+			if avp.Point().Point.Equal(point) {
+				return nil, errors.Errorf("hehehe")
+			}
+
+			return nil, nil
+		}
+
+		sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+		t.True(st.setLastVoteproof(nextavp))
+
+		deferred, err := st.enter(StateJoining, sctx)
+		t.NoError(err)
+		deferred()
+
+		<-savedch
+
+		t.NoError(st.newVoteproof(nextavp))
+	})
+
+	t.Run("save after processing", func() {
+		point := base.RawPoint(33, 44)
+		suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+		st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+		defer closefunc()
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+		fact := t.PRPool.GetFact(point)
+		nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+
+		savedch := make(chan struct{})
+		pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+			return manifest, nil
+		}
+
+		pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+			defer close(savedch)
+
+			if avp.Point().Point.Equal(point) {
+				return nil, errors.Errorf("hehehe")
+			}
+
+			return nil, nil
+		}
+
+		sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+		t.True(st.setLastVoteproof(nextavp))
+
+		deferred, err := st.enter(StateJoining, sctx)
+		t.NoError(err)
+		deferred()
+
+		<-savedch
+
+		issaved, err := st.saveBlock(nextavp)
+		t.False(issaved)
+		t.NoError(err)
+	})
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {

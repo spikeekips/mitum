@@ -1526,64 +1526,95 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockWriter()
-	writer.manifest = manifest
-
-	savech := make(chan struct{}, 1)
-	writer.savef = func(_ context.Context) (base.BlockMap, error) {
-		savech <- struct{}{}
-
-		return nil, nil
-	}
-	writer.setstatesf = func(ctx context.Context, index uint64, states []base.StateMergeValue, op base.Operation) error {
-		if index == indexExtendedOp {
-			t.Run("check extended value in operation", func() {
-				b, err := util.MarshalJSON(op)
-				t.NoError(err)
-
-				t.T().Log("extended marshaled:", string(b))
-
-				var m map[string]interface{}
-				t.NoError(util.UnmarshalJSON(b, &m))
-
-				v, found := m["A"]
-				t.True(found)
-				t.Equal(extendedValue, v)
-			})
-		}
-
-		return writer.setStates(ctx, index, states, op)
-	}
-
-	args := t.newargs(newwriterf)
-	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
-		return ops[oph.String()], nil
-	}
-
-	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
 	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
 	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
-	m, err := opp.Process(context.Background(), ivp)
-	t.NoError(err)
-	t.NotNil(m)
+	t.Run("ok", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
 
-	t.Equal(len(ops), writer.sts.Len())
+		savech := make(chan struct{}, 1)
+		writer.savef = func(_ context.Context) (base.BlockMap, error) {
+			savech <- struct{}{}
 
-	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
-	t.NoError(err)
+			return nil, nil
+		}
+		writer.setstatesf = func(ctx context.Context, index uint64, states []base.StateMergeValue, op base.Operation) error {
+			if index == indexExtendedOp {
+				t.Run("check extended value in operation", func() {
+					b, err := util.MarshalJSON(op)
+					t.NoError(err)
 
-	_, err = opp.Save(context.Background(), avp)
-	t.NoError(err)
+					t.T().Log("extended marshaled:", string(b))
 
-	select {
-	case <-time.After(time.Second * 2):
-		t.Fail("failed to wait to save")
-	case <-savech:
-	}
+					var m map[string]interface{}
+					t.NoError(util.UnmarshalJSON(b, &m))
+
+					v, found := m["A"]
+					t.True(found)
+					t.Equal(extendedValue, v)
+				})
+			}
+
+			return writer.setStates(ctx, index, states, op)
+		}
+
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return ops[oph.String()], nil
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), ivp)
+		t.NoError(err)
+		t.NotNil(m)
+
+		t.Equal(len(ops), writer.sts.Len())
+
+		afact := t.NewACCEPTBallotFact(point.NextHeight(), pr.Fact().Hash(), m.Hash())
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		_, err = opp.Save(context.Background(), avp)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait to save")
+		case <-savech:
+		}
+	})
+
+	t.Run("different manifest hash with majority", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
+
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return ops[oph.String()], nil
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), ivp)
+		t.NoError(err)
+		t.NotNil(m)
+
+		// wrong avp
+		afact := t.NewACCEPTBallotFact(point.NextHeight(), pr.Fact().Hash(), valuehash.RandomSHA256())
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		_, err = opp.Save(context.Background(), avp)
+		t.ErrorIs(err, ErrNotProposalProcessorProcessed)
+		t.ErrorContains(err, "different manifest hash with majority")
+
+		_, err = opp.Save(context.Background(), avp)
+		t.ErrorIs(err, ErrProcessorAlreadySaved)
+	})
 }
 
 func (t *testDefaultProposalProcessor) TestSaveFailed() {
@@ -1615,7 +1646,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	t.Equal(4, writer.sts.Len())
 
-	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
+	afact := t.NewACCEPTBallotFact(point.NextHeight(), pr.Fact().Hash(), m.Hash())
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
@@ -1633,49 +1664,82 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockWriter()
-	writer.manifest = manifest
-
-	savech := make(chan struct{}, 1)
-	writer.savef = func(_ context.Context) (base.BlockMap, error) {
-		savech <- struct{}{}
-
-		return nil, nil
-	}
-
-	args := t.newargs(newwriterf)
-	args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
-		return ops[oph.String()], nil
-	}
-
-	opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
 	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
 	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
-	m, err := opp.Process(context.Background(), ivp)
-	t.NoError(err)
-	t.NotNil(m)
+	t.Run("no error", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
 
-	t.Equal(4, writer.sts.Len())
+		savech := make(chan struct{}, 1)
+		writer.savef = func(_ context.Context) (base.BlockMap, error) {
+			savech <- struct{}{}
 
-	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
-	t.NoError(err)
+			return nil, nil
+		}
 
-	_, err = opp.Save(context.Background(), avp)
-	t.NoError(err)
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return ops[oph.String()], nil
+		}
 
-	select {
-	case <-time.After(time.Second * 2):
-		t.Fail("failed to wait to save")
-	case <-savech:
-	}
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
 
-	_, err = opp.Save(context.Background(), avp)
-	t.Error(err)
-	t.ErrorIs(err, ErrProcessorAlreadySaved)
+		m, err := opp.Process(context.Background(), ivp)
+		t.NoError(err)
+		t.NotNil(m)
+
+		t.Equal(4, writer.sts.Len())
+
+		afact := t.NewACCEPTBallotFact(point.NextHeight(), pr.Fact().Hash(), m.Hash())
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		_, err = opp.Save(context.Background(), avp)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait to save")
+		case <-savech:
+		}
+
+		_, err = opp.Save(context.Background(), avp)
+		t.Error(err)
+		t.ErrorIs(err, ErrProcessorAlreadySaved)
+	})
+
+	t.Run("different manifest hash with majority", func() {
+		writer, newwriterf := t.newBlockWriter()
+		writer.manifest = manifest
+
+		args := t.newargs(newwriterf)
+		args.GetOperationFunc = func(_ context.Context, oph, fact util.Hash) (base.Operation, error) {
+			return ops[oph.String()], nil
+		}
+
+		opp, _ := NewDefaultProposalProcessor(pr, previous, args)
+
+		m, err := opp.Process(context.Background(), ivp)
+		t.NoError(err)
+		t.NotNil(m)
+
+		t.Equal(4, writer.sts.Len())
+
+		// wrong avp
+		afact := t.NewACCEPTBallotFact(point.NextHeight(), pr.Fact().Hash(), valuehash.RandomSHA256())
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
+		t.NoError(err)
+
+		_, err = opp.Save(context.Background(), avp)
+		t.ErrorIs(err, ErrNotProposalProcessorProcessed)
+		t.ErrorContains(err, "different manifest hash with majority")
+
+		_, err = opp.Save(context.Background(), avp)
+		t.ErrorIs(err, ErrProcessorAlreadySaved)
+	})
 }
 
 func (t *testDefaultProposalProcessor) TestEmptyCollectOperationsEmptyProposalNoBlock() {
