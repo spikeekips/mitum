@@ -89,7 +89,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := isXMergedOpsFuncs(baseMergedOps, args.XMergedOpsMapSize); {
+	switch a, d, err := isXMergedOpsFuncs(args.local, baseMergedOps, args.XMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -419,6 +419,7 @@ func addXMergedOpsFuncs(
 }
 
 func isXMergedOpsFuncs(
+	local string,
 	baseOps util.LockedMap[uint64, xMergeFlag],
 	mapSize uint64,
 ) (

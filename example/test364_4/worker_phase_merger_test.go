@@ -404,11 +404,13 @@ func (t *testWorkerPhaseMerger) newInsertWaitFuncs(
 
 		once.Do(func() {
 			go func() {
-				wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
+				if err := wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
 					close(waitch)
 
 					return nil
-				})
+				}); err != nil {
+					panic(err)
+				}
 			}()
 		})
 

@@ -153,14 +153,14 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 
 					fm, fu := args.FilterMergeOps(mergeOps, unmergeOps)
 
+					ll.Debug().
+						Uints64("filtered_merge_ops", fm).
+						Uints64("filtered_unmerge_ops", fu).
+						Msg("insert merge/unmerge ops")
+
 					if len(fm) < 1 && len(fu) < 1 {
 						return nil
 					}
-
-					ll.Debug().
-						Uints64("merge_ops", fm).
-						Uints64("unmerge_ops", fu).
-						Msg("insert merge/unmerge ops")
 
 					switch err := insertOps(fm, fu); {
 					case err == nil,

@@ -140,7 +140,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 	t.Run("no add", func() {
 		baseOps := t.newBaseOps()
 
-		_, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		_, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		t.NoError(done(func(mergedOps, unmergedOps []uint64) error {
@@ -155,7 +155,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 	t.Run("add -1 phase", func() {
 		baseOps := t.newBaseOps()
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -176,7 +176,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 	t.Run("add over 0 phase; empty 0 phase", func() {
 		baseOps := t.newBaseOps()
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(1, 1, mergeFlag)
@@ -198,7 +198,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 		baseOps := t.newBaseOps()
 		baseOps.SetValue(0, mergeFlag)
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(1, 1, mergeFlag)
@@ -221,7 +221,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 		baseOps := t.newBaseOps()
 		baseOps.SetValue(1, mergeFlag)
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(1, 1, mergeFlag)
@@ -242,7 +242,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 	t.Run("add over 0 phase; matched later in 0 phase", func() {
 		baseOps := t.newBaseOps()
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(1, 1, mergeFlag)
@@ -265,7 +265,7 @@ func (t *testXIsMergedOPsFuncs) TestAdd() {
 	t.Run("add from 0 phase", func() {
 		baseOps := t.newBaseOps()
 
-		add, done, err := isXMergedOpsFuncs(baseOps, 1<<9)
+		add, done, err := isXMergedOpsFuncs(localWorkerName, baseOps, 1<<9)
 		t.NoError(err)
 
 		add(-1, 0, mergeFlag)

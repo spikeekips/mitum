@@ -922,13 +922,14 @@ func (t *testProcessWorker) testMergeNWorkers(n uint64) func() {
 
 				t.T().Logf("wait: worker=%q", worker)
 
-				wait := waits[worker]
-				err := wait(func(unmergedOps []uint64) error {
+				err := waits[worker](func(unmergedOps []uint64) error {
 					t.T().Logf("wait callback: worker=%q unmerged ops=%v", worker, unmergedOps)
 
 					return nil
 				})
-				t.NoError(err, "worker=%q %+v", worker, err)
+				if err != nil {
+					panic(fmt.Errorf("worker=%q %+v", worker, err))
+				}
 			}()
 		}
 
