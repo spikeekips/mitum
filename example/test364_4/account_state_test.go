@@ -22,6 +22,7 @@ type baseTestAccountStateMerger struct {
 }
 
 func (t *baseTestAccountStateMerger) SetupSuite() {
+	t.BaseTestSuite.SetupSuite()
 	t.networkID = util.UUID().Bytes()
 }
 

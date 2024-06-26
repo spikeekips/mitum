@@ -48,7 +48,7 @@ func (t *testWorkerPhaseMerger) newArgs() (
 	}
 
 	args.EnoughWorkers = 3
-	args.IsLocalOp = func(uint64) bool { return true }
+	args.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) { return m, u }
 
 	args.SetLogging(logging.TestNilLogging)
 
@@ -327,19 +327,21 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		defer cancel()
 
 		_, args, vp, mergers, _ := t.newArgs()
-		args.EnoughWorkers = 1
+		args.EnoughWorkers = 2
 
 		var opindex uint64 = 1
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
-		args.IsLocalOp = func(op uint64) bool {
-			return op == opindex
+		args.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) {
+			return util.FilterSlice(m, func(op uint64) bool { return op == opindex }),
+				util.FilterSlice(u, func(op uint64) bool { return op == opindex })
 		}
 
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
+		t.NoError(insert(localWorkerName, nil, nil))
+		t.NoError(insert("w0", []uint64{opindex}, nil))
 
 		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
 			t.Empty(newlyMergedOps)
@@ -365,9 +367,7 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		var opindex uint64 = 1
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
-		args.IsLocalOp = func(op uint64) bool {
-			return false
-		}
+		args.FilterMergeOps = func([]uint64, []uint64) ([]uint64, []uint64) { return nil, nil }
 
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
@@ -464,14 +464,8 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 			return nil
 		}))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
-			t.Empty(reasons)
-			t.True(isDone)
-
-			return nil
-		}))
+		err = wait(func([]uint64, []uint64, map[uint64]string, bool) error { return nil })
+		t.ErrorIs(err, context.Canceled)
 	})
 
 	t.Run("enough; 3 workers, but insert empty ops", func() {
@@ -654,9 +648,9 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 	insert, wait, err := newWorkerPhaseMerger(ctx, args)
 	t.NoError(err)
 
-	t.NoError(insert("w0", seq[:2], nil))
-	t.NoError(insert("w1", seq[2:4], nil))
-	t.NoError(insert(localWorkerName, seq[4:], nil))
+	t.NoError(insert("w0", seq[:3], nil))
+	t.NoError(insert("w1", seq[3:], nil))
+	t.NoError(insert(localWorkerName, seq, nil))
 
 	t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
 		t.Empty(newlyMergedOps)

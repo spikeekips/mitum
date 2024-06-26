@@ -30,6 +30,7 @@ func newStateValuesProcessorArgs() *stateValuesProcessorArgs {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		GetOperation: func(context.Context, uint64, util.Hash) (Operation, bool, error) {
+			// FIXME check fact hash is correct
 			return nil, false, util.ErrNotImplemented.Errorf("GetOperation")
 		},
 		ProcessedOp: func(context.Context, uint64, Operation, []StateMergeValue) error {
@@ -151,7 +152,7 @@ func newStateValuesProcessWorker(
 	newfs newStateValuesProcessorFuncs,
 	stateOwners stateOwnersFunc,
 	insertLocalFuncs insertWorkerOpFuncs,
-	broadcast distributeStateMergeValuesFunc,
+	broadcastWorkers distributeStateMergeValuesFuncs,
 	saveOperation saveOperationFunc,
 ) (
 	initials processWorkerInitialOpFuncs,
@@ -179,13 +180,8 @@ func newStateValuesProcessWorker(
 		ctx,
 		stateOwners,
 		args.NewJobWorker,
-		func(ctx context.Context, worker string, opindex uint64, oph util.Hash, values []StateMergeValue) error {
-			if err := insertLocal(opindex, oph, values); err != nil {
-				return err
-			}
-
-			return broadcast(ctx, worker, opindex, oph, values)
-		},
+		broadcastWorkers,
+		insertLocal,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -238,7 +234,8 @@ func distributeStateValuesFuncs(
 	ctx context.Context,
 	stateOwners stateOwnersFunc,
 	newJobWorker func(context.Context) (JobWorker, error),
-	broadcast func(_ context.Context, worker string, opindex uint64, oph util.Hash, _ []StateMergeValue) error,
+	broadcastWorkers distributeStateMergeValuesFuncs,
+	insertLocal insertOpFunc,
 ) (
 	insert insertOpFunc,
 	done func(),
@@ -254,17 +251,38 @@ func distributeStateValuesFuncs(
 		jobWorker = i
 	}
 
-	distribute := stateValuesByOwnerFunc(stateOwners)
+	var broadcast distributeStateMergeValuesFunc
+	var broadcastDone func(context.Context) error
+
+	switch b, d, err := broadcastWorkers(); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		broadcast = b
+		broadcastDone = d
+	}
+
+	workerStateValues := stateValuesByOwnerFunc(stateOwners)
 
 	return func(opindex uint64, oph util.Hash, values []StateMergeValue) error {
 			return jobWorker.NewJob(func(ctx context.Context) error {
-				return distribute(ctx, values, func(worker string, filtered []StateMergeValue) error {
+				return workerStateValues(ctx, values, func(worker string, filtered []StateMergeValue) error {
+					if worker == localWorkerName {
+						return insertLocal(opindex, oph, filtered)
+					}
+
 					return broadcast(ctx, worker, opindex, oph, filtered)
 				})
 			})
 		},
 		jobWorker.JobDone,
-		jobWorker.Wait,
+		func() error {
+			if err := jobWorker.Wait(); err != nil {
+				return err
+			}
+
+			return broadcastDone(ctx)
+		},
 		nil
 }
 
@@ -275,10 +293,12 @@ func stateValuesByOwnerFunc(
 		m := map[string][]StateMergeValue{}
 		defer clear(m)
 
-		_ = util.TraverseSliceV1(values, func(_ int, value StateMergeValue) (bool, error) {
+		if err := util.TraverseSliceV1(values, func(_ int, value StateMergeValue) (bool, error) {
 			switch owners, err := stateOwners(ctx, value.Key()); {
 			case err != nil:
 				return false, err
+			case len(owners) < 1:
+				return false, util.ErrNotFound.Errorf("empty owners")
 			default:
 				_ = util.TraverseSliceV1(owners, func(_ int, owner string) (bool, error) {
 					m[owner] = append(m[owner], value)
@@ -288,7 +308,9 @@ func stateValuesByOwnerFunc(
 
 				return true, nil
 			}
-		})
+		}); err != nil {
+			return err
+		}
 
 		return TraverseMap(m, func(owner string, values []StateMergeValue) (bool, error) {
 			return true, f(owner, values)

@@ -32,6 +32,7 @@ type PhaseMergerArgs struct {
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
 	SetStateOp                     phaseMergerSetStateOp
+	local                          string
 }
 
 func NewPhaseMergerArgs() *PhaseMergerArgs {
@@ -77,13 +78,6 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	_ error,
 ) {
 	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
-
-	switch i, err := util.NewShardedMap[uint64, xMergeFlag](args.XMergedOpsMapSize, nil); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		baseMergedOps = i
-	}
 
 	switch i, err := util.NewShardedMap[uint64, xMergeFlag](args.XMergedOpsMapSize, nil); {
 	case err != nil:
@@ -248,6 +242,8 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		},
 		jobDone,
 		func(f phaseMergerWaitCallbackFunc) error {
+			defer baseMergedOps.Close()
+
 			if err := jobWait(); err != nil {
 				return err
 			}
@@ -479,10 +475,6 @@ func isXMergedOpsFuncs(
 			}
 
 			return done(func(mergedOps, unmergedOps []uint64) error {
-				if err := f(mergedOps, unmergedOps); err != nil {
-					return err
-				}
-
 				_ = util.TraverseSliceV1(mergedOps, func(_ int, opindex uint64) (bool, error) {
 					_ = baseOps.SetValue(opindex, mergeFlag)
 
@@ -495,7 +487,7 @@ func isXMergedOpsFuncs(
 					return true, nil
 				})
 
-				return nil
+				return f(mergedOps, unmergedOps)
 			})
 		},
 		nil

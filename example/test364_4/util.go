@@ -192,12 +192,12 @@ func stringdjb2(seed uint32, k string) uint64 {
 func FuncErrorLog(l *zerolog.Logger, msg string) func(error) error {
 	started := time.Now()
 
-	l.Debug().Msg(fmt.Sprintf("> %s", msg))
+	l.Debug().CallerSkipFrame(1).Msg(fmt.Sprintf("> %s", msg))
 
 	return func(err error) error {
 		ll := l.With().Dur("elapsed", time.Since(started)).Logger()
 
-		e := ll.Debug()
+		e := ll.Debug().CallerSkipFrame(1)
 
 		if err != nil {
 			e = ll.Error().Err(err)

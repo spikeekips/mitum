@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,10 +51,11 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 		return pargs, NewPhaseMerger, nil
 	}
 	wpargs.EnoughWorkers = workers
-	wpargs.IsLocalOp = func(uint64) bool { return true }
+	wpargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) { return m, u }
 
 	args := newWorkerMergerArgs()
 
+	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 	args.NewWorkerPhaseMergerFuncs = func(phase int) (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,
@@ -288,10 +293,9 @@ func (t *testWorkerMerger) TestSetReasons() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newArgs(1)
+		_, _, args, vp, _, _ := t.newArgs(2)
 
 		var insert workerMergerPhaseDoneFunc
-		var wait workerMergerWaitFunc
 
 		reasonsch := make(chan [2]interface{}, 1)
 		args.SetReasons = func(phase int, reasons map[uint64]string) error {
@@ -302,7 +306,7 @@ func (t *testWorkerMerger) TestSetReasons() {
 
 		var err error
 
-		insert, wait, err = newWorkerMerger(ctx, args)
+		insert, _, err = newWorkerMerger(ctx, args)
 		t.NoError(err)
 
 		ops := make([]uint64, 3)
@@ -314,6 +318,7 @@ func (t *testWorkerMerger) TestSetReasons() {
 		}
 
 		t.NoError(insert(0, localWorkerName, ops, nil))
+		t.NoError(insert(0, "w0", ops, nil))
 
 		select {
 		case <-time.After(time.Second):
@@ -328,9 +333,341 @@ func (t *testWorkerMerger) TestSetReasons() {
 				reasons,
 			)
 		}
-
-		t.NoError(wait(nil))
 	})
+}
+
+func (t *testWorkerMerger) testMergeNWorkers(
+	workerValues map[ /* worker */ string][] /* state key */ string,
+	enoughWorkers uint64,
+	sts []base.State,
+	allValues [][]StateMergeValue,
+	expectedUnmergedOps []uint64,
+) {
+	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
+
+	getValues := func(stateKey string) map[uint64][]StateMergeValue {
+		m := map[uint64][]StateMergeValue{}
+
+		for i := range allValues {
+			opindex := uint64(i)
+
+			for j := range allValues[i] {
+				v := allValues[i][j]
+
+				if v.Key() == stateKey {
+					m[opindex] = append(m[opindex], v)
+				}
+			}
+		}
+
+		return m
+	}
+
+	workerNames := make([]string, len(workerValues))
+	wvalues := map[string]map[uint64][]StateMergeValue{}
+
+	var i int
+	for worker := range workerValues {
+		workerNames[i] = worker
+		i++
+
+		m := map[uint64][]StateMergeValue{}
+
+		for j := range workerValues[worker] {
+			TraverseMap(getValues(workerValues[worker][j]), func(opindex uint64, vs []StateMergeValue) (bool, error) {
+				m[opindex] = append(m[opindex], vs...)
+
+				return true, nil
+			})
+		}
+
+		wvalues[worker] = m
+	}
+
+	inserts := map[string]workerMergerPhaseDoneFunc{}
+	waits := map[string]workerMergerWaitFunc{}
+	initials := map[string]func(map[uint64][]StateMergeValue) (mergedOps, unmergedOps []uint64, _ error){}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := range workerNames {
+		local := workerNames[i]
+
+		wctx, wcancel := context.WithCancel(ctx)
+		defer wcancel()
+
+		pargs, _, args, vp, _, states := t.newArgs(enoughWorkers)
+
+		pargs.local = local
+		args.local = local
+
+		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
+		args.BroadcastPhaseDone = func(_ context.Context, phase int, merged []uint64, unmerged []uint64) error {
+			return TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
+				if worker == local {
+					return true, nil
+				}
+
+				t.T().Logf("broadcast: local=%q worker=%q phase=%d merged=%v unmerged=%v", local, worker, phase, merged, unmerged)
+
+				return true, insert(phase, local, merged, unmerged)
+			})
+		}
+
+		args.SetReasons = func(int, map[uint64]string) error { return nil }
+
+		insert, wait, err := newWorkerMerger(wctx, args)
+		t.NoError(err)
+
+		inserts[local] = insert
+		waits[local] = wait
+
+		for i := range sts {
+			st := sts[i]
+
+			states.SetValue(st.Key(), st)
+		}
+
+		initials[local] = func(values map[uint64][]StateMergeValue) (mergedOps, unmergedOps []uint64, _ error) {
+			pmerge, _, pdone, pwait, err := NewPhaseMerger(wctx, pargs)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			for opindex := range values {
+				vp.SetValue(opindex, values[opindex])
+			}
+
+			for opindex := range values {
+				if err := pmerge(opindex); err != nil {
+					return nil, nil, err
+				}
+			}
+
+			pdone()
+
+			if err := pwait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+				mergedOps = slices.Clone(newlyMergedOps)
+				unmergedOps = slices.Clone(newlyUnmergedOps)
+
+				return nil
+			}); err != nil {
+				return nil, nil, err
+			}
+
+			return mergedOps, unmergedOps, nil
+		}
+	}
+
+	var initialWg sync.WaitGroup
+
+	for worker := range initials {
+		worker := worker
+
+		var ops []uint64
+
+		for opindex := range wvalues[worker] {
+			ops = append(ops, opindex)
+		}
+
+		slices.Sort(ops)
+
+		merged, unmerged, err := initials[worker](wvalues[worker])
+		t.NoError(err)
+		t.T().Logf("initial worker=%q ops=%v merged=%v unmerged=%v", worker, ops, merged, unmerged)
+
+		insert := inserts[worker]
+
+		initialWg.Add(1)
+
+		go func() {
+			defer initialWg.Done()
+
+			t.NoError(insert(0, localWorkerName, merged, unmerged), worker)
+		}()
+	}
+
+	initialWg.Wait()
+
+	gatheredUnmerged := util.EmptyLocked[[]uint64]()
+
+	var waitWg sync.WaitGroup
+	var ended uint64
+
+	for worker := range waits {
+		waitWg.Add(1)
+
+		worker := worker
+		wait := waits[worker]
+
+		go func() {
+			defer waitWg.Done()
+
+			err := wait(func(unmerged []uint64) error {
+				t.T().Logf("wait: worker=%q unmerged=%v", worker, unmerged)
+
+				gatheredUnmerged.Set(func(prev []uint64, _ bool) ([]uint64, error) {
+					util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
+						if slices.Index(prev, opindex) < 0 {
+							prev = append(prev, opindex)
+						}
+
+						return true, nil
+					})
+
+					return prev, nil
+				})
+
+				return nil
+			})
+			if err == nil {
+				atomic.AddUint64(&ended, 1)
+			}
+		}()
+	}
+
+	waitWg.Wait()
+
+	t.T().Log("unmerged ops:", func() []uint64 {
+		unmerged, _ := gatheredUnmerged.Value()
+		slices.Sort(unmerged)
+
+		t.Equal(expectedUnmergedOps, unmerged)
+
+		return unmerged
+	}())
+
+	t.True(ended >= enoughWorkers)
+}
+
+func (t *testWorkerMerger) TestMergeNWorkers3States() {
+	pub0, pub1, pub2 := base.NewDummyPublickey("0"), base.NewDummyPublickey("1"), base.NewDummyPublickey("2")
+
+	sts := []base.State{
+		t.newState(pub0, 1),
+		t.newState(pub1, 1),
+		t.newState(pub2, 1),
+	}
+
+	st0, st1, st2 := sts[0].Key(), sts[1].Key(), sts[2].Key()
+
+	allValues := [][]StateMergeValue{
+		t.newMergeValues(pub0, -1, pub1, 1),
+		t.newMergeValues(pub0, -1, pub2, 1), // 1: ignored
+		t.newMergeValues(pub1, -1, pub0, 1),
+		t.newMergeValues(pub1, -1, pub2, 1), // 3: ignored
+		t.newMergeValues(pub2, -1, pub0, 1),
+		t.newMergeValues(pub2, -1, pub1, 1), // 5: ignored
+	}
+
+	expectedUnmergedOps := []uint64{1, 3, 5}
+
+	/*
+		 state key | pub
+		-----------+------
+		     ta-0dpu | pub0
+		     ta-1dpu | pub1
+		     ta-2dpu | pub2
+		-----------+------
+	*/
+
+	t.Run("one worker", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0, st1, st2},
+		}, 1, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("3 worker", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("3 worker; 2 shared", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+		}, 3, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("3 worker; w0 2 shared", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("4 worker; one empty", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0},
+			"w1": {st1},
+			"w2": {st2},
+			"w3": nil,
+		}, 4, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("4 worker; 2 shared", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+		}, 3, sts, allValues, expectedUnmergedOps)
+	})
+
+	t.Run("6 worker; 2 shared", func() {
+		t.testMergeNWorkers(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+			"w4": {st1, st2},
+			"w5": {st2, st0},
+		}, 5, sts, allValues, expectedUnmergedOps)
+	})
+}
+
+func (t *testWorkerMerger) TestMergeNWorkersNStates() {
+	workers := make([]string, 3)
+	for i := range workers {
+		workers[i] = fmt.Sprintf("w%d", i)
+	}
+
+	pubs := make([]base.Publickey, 33)
+	for i := range pubs {
+		pubs[i] = base.NewDummyPublickey(fmt.Sprintf("%d", i))
+	}
+
+	workerValues := map[string][]string{}
+
+	sts := make([]base.State, len(pubs))
+	for i := range sts {
+		sts[i] = t.newState(pubs[i], 1)
+
+		worker := workers[i%len(workers)]
+		workerValues[worker] = append(workerValues[worker], sts[i].Key())
+	}
+
+	values := make([][]StateMergeValue, len(pubs)*2)
+	expectedUnmergedOps := make([]uint64, len(pubs))
+
+	for i := range pubs {
+		j0 := (i + 1) % len(pubs)
+		j1 := (i + 2) % len(pubs)
+
+		n := (i * 2) + 1
+
+		values[i*2] = t.newMergeValues(pubs[i], -1, pubs[j0], 1)
+		values[n] = t.newMergeValues(pubs[i], -1, pubs[j1], 1)
+		expectedUnmergedOps[i] = uint64(n)
+	}
+
+	t.testMergeNWorkers(workerValues, uint64(len(workers)), sts, values, expectedUnmergedOps)
 }
 
 func TestWorkerMerger(t *testing.T) {

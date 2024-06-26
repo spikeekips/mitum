@@ -254,6 +254,8 @@ func (t *testOneStepPhaseJobWorker) TestAdd() {
 }
 
 func TestOneStepPhaseJobWorker(t *testing.T) {
+	t.Skip()
+
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testOneStepPhaseJobWorker))

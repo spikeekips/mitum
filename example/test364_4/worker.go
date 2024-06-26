@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -34,7 +32,7 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 		return nil, errors.Errorf("semSize under 1")
 	}
 
-	errNewJobDone := errors.New(fmt.Sprintf("no more new job; %s", util.UUID().String()))
+	errNewJobDone := errors.New(util.UUID().String())
 
 	ectx, eCtxCancel := context.WithCancelCause(ctx)
 	newJobCtx, newJobCtxCancel := context.WithCancelCause(ectx)
@@ -100,21 +98,14 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 		}
 	}
 
-	var waitOnce sync.Once
-	var werr error
-
-	wk.wait = func() error {
-		waitOnce.Do(func() {
-			switch err := waitf(); {
-			case errors.Is(err, errNewJobDone):
-				werr = util.ErrJobWorkerDone.Wrap(err)
-			default:
-				werr = err
-			}
-		})
-
-		return werr
-	}
+	wk.wait = NewContextDoneFunc(ectx, func(context.Context) error {
+		switch err := waitf(); {
+		case errors.Is(err, errNewJobDone):
+			return util.ErrJobWorkerDone.Wrap(err)
+		default:
+			return err
+		}
+	})
 
 	return wk, nil
 }
@@ -149,10 +140,10 @@ func (wk *BaseJobWorker) LazyWait() error {
 	}()
 
 	select {
-	case <-wk.ctx().Done():
-		return errors.WithStack(context.Cause(wk.ctx()))
 	case err := <-waitch:
 		return err
+	case <-wk.ctx().Done():
+		return errors.WithStack(context.Cause(wk.ctx()))
 	}
 }
 

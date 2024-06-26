@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -34,6 +35,8 @@ type workerMergerArgs struct {
 	SetReasons                setReasonsFunc
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
+	IsLocalOp                 func(opindex uint64) bool
+	local                     string
 }
 
 func newWorkerMergerArgs() *workerMergerArgs {
@@ -58,6 +61,7 @@ func newWorkerMergerArgs() *workerMergerArgs {
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
+		IsLocalOp: func(opindex uint64) bool { return false },
 	}
 }
 
@@ -71,7 +75,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 	newPhaseCh := make(chan /* phase */ int)
 
 	var insertPool func(phase int, worker string, mergeOps, unmergeOps []uint64) bool
-	var insertFunc func(phase int, worker string, mergeOps, unmergeOps []uint64) workerPhaseMergerInsertFunc
+	var insertFunc func(phase int, worker string, mergeOps, unmergeOps []uint64) error
 	var exhaustPool func(phase int, _ func(worker string, mergeOps, unmergeOps []uint64) error) error
 	var closePool func()
 
@@ -98,11 +102,11 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		delayedWorker = i
 	}
 
-	collectOps, collectOpsDone := newCollectXMergedOps()
+	collectOps, filterMergeOps, collectOpsDone := newCollectXMergedOps()
 
 	var newPhase func(_ context.Context, phase int) error
 	var lastPhase int = -1
-	var phaseInsertFunc workerPhaseMergerInsertFunc
+	var phaseInsertFunc func(phase int, worker string, mergeOps, unmergeOps []uint64) error
 
 	var lock sync.RWMutex
 
@@ -122,13 +126,13 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 
 		var phaseWait workerPhaseMergerWaitFunc
 
-		switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, phase, args); {
+		switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, phase, args, filterMergeOps); {
 		case err != nil:
 			l.Error().Err(err).Msg("< new phase")
 
 			return err
 		default:
-			phaseInsertFunc = func(worker string, mergeOps, unmergeOps []uint64) error {
+			phaseInsertFunc = func(phase int, worker string, mergeOps, unmergeOps []uint64) error {
 				collectOps(mergeOps, unmergeOps)
 
 				return i(worker, mergeOps, unmergeOps)
@@ -144,7 +148,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 				Uints64("unmerge_ops", unmergeOps).
 				Msg("exhaust")
 
-			return phaseInsertFunc(worker, mergeOps, unmergeOps)
+			return phaseInsertFunc(phase, worker, mergeOps, unmergeOps)
 		}); err != nil {
 			l.Error().Err(err).Msg("< new phase")
 
@@ -167,10 +171,8 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 						return err
 					}
 
-					if f := insertFunc(nextPhase, localWorkerName, newlyMergedOps, newlyUnmergedOps); f != nil {
-						if err := f(localWorkerName, newlyMergedOps, newlyUnmergedOps); err != nil {
-							return err
-						}
+					if err := insertFunc(nextPhase, localWorkerName, newlyMergedOps, newlyUnmergedOps); err != nil {
+						return err
 					}
 
 					if len(reasons) > 0 {
@@ -207,19 +209,19 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		return nil, nil, err
 	}
 
-	insertFunc = func(phase int, worker string, mergeOps, unmergeOps []uint64) workerPhaseMergerInsertFunc {
+	insertFunc = func(phase int, worker string, mergeOps, unmergeOps []uint64) error {
 		lock.RLock()
 		defer lock.RUnlock()
 
 		if phase == 0 && worker == localWorkerName {
 			if err := args.BroadcastPhaseDone(wctx, 0, mergeOps, unmergeOps); err != nil {
-				return func(string, []uint64, []uint64) error { return err }
+				return err
 			}
 		}
 
 		switch {
 		case phase == lastPhase:
-			return phaseInsertFunc
+			return phaseInsertFunc(phase, worker, mergeOps, unmergeOps)
 		case phase > lastPhase:
 			_ = insertPool(phase, worker, mergeOps, unmergeOps)
 		}
@@ -252,52 +254,50 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 	}()
 
 	var waitOnce sync.Once
-	var werr error
 
-	return func(phase int, worker string, mergeOps, unmergeOps []uint64) error {
-			if f := insertFunc(phase, worker, mergeOps, unmergeOps); f != nil {
-				return f(worker, mergeOps, unmergeOps)
-			}
+	var waitDonef func() error
 
-			return nil
-		},
-		func(f workerMergerUnmergedOpsFunc) error {
-			waitOnce.Do(func() {
-				defer collectOpsDone(nil)
-				defer closePool()
-				defer delayedWorker.Close()
-				defer wctxCancel(nil)
+	waitDone := func(f workerMergerUnmergedOpsFunc) error {
+		waitOnce.Do(func() {
+			waitDonef = NewContextDoneFunc(
+				wctx,
+				func(context.Context) error {
+					defer collectOpsDone(nil)
+					defer closePool()
+					defer delayedWorker.Close()
 
-				if err := phasesDone(); err != nil {
-					werr = err
+					if err := phasesDone(); err != nil {
+						return err
+					}
 
-					return
-				}
+					if err := delayedWorker.NewJob(func(ctx context.Context) error {
+						return collectOpsDone(func(unmergedOps []uint64) error {
+							args.Log().Debug().Uints64("unmerged_ops", unmergedOps).Msg("unmerged ops collected")
 
-				if err := delayedWorker.NewJob(func(ctx context.Context) error {
-					return collectOpsDone(func(unmergedOps []uint64) error {
-						args.Log().Debug().Uints64("unmerged_ops", unmergedOps).Msg("unmerged ops collected")
+							if f == nil {
+								return nil
+							}
 
-						if f == nil {
-							return nil
-						}
+							return f(unmergedOps)
+						})
+					}); err != nil {
+						return err
+					}
 
-						return f(unmergedOps)
-					})
-				}); err != nil {
-					werr = err
+					delayedWorker.JobDone()
 
-					return
-				}
+					return delayedWorker.Wait()
+				},
+			)
+		})
 
-				delayedWorker.JobDone()
+		err := waitDonef()
+		wctxCancel(err)
 
-				werr = delayedWorker.Wait()
-			})
+		return err
+	}
 
-			return werr
-		},
-		nil
+	return insertFunc, waitDone, nil
 }
 
 func newWorkerMergerPhasePoolFuncs(
@@ -361,6 +361,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
 	phase int,
 	args *workerMergerArgs,
+	filterOps func([]uint64, []uint64) ([]uint64, []uint64),
 ) (
 	workerPhaseMergerInsertFunc,
 	workerPhaseMergerWaitFunc,
@@ -377,13 +378,22 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 		newf = n
 	}
 
+	wargs.local = args.local
 	wargs.SetLogging(args.Logging)
+
+	wargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) {
+		return filterOps(
+			util.FilterSlice(m, args.IsLocalOp),
+			util.FilterSlice(u, args.IsLocalOp),
+		)
+	}
 
 	return newf(ctx, wargs)
 }
 
 func newCollectXMergedOps() (
 	insert func(mergedOps, unmergedOps []uint64),
+	filter func(mergeOps, unmergeOps []uint64) ([]uint64, []uint64),
 	done func(func(unmergedOps []uint64) error) error,
 ) {
 	var l sync.RWMutex
@@ -412,9 +422,55 @@ func newCollectXMergedOps() (
 				return true, nil
 			})
 		},
-		func(f func([]uint64) error) error {
+		func(mergeOps, unmergeOps []uint64) (fm, fu []uint64) {
 			l.RLock()
 			defer l.RUnlock()
+
+			if len(um) < 1 {
+				return mergeOps, unmergeOps
+			}
+
+			if len(mergeOps) > 0 {
+				add, done, _ := util.CompactAppendSliceV1[uint64](uint64(len(mergeOps)))
+
+				_ = util.TraverseSliceV1(mergeOps, func(_ int, opindex uint64) (bool, error) {
+					if _, found := um[opindex]; found {
+						add(opindex)
+					}
+
+					return true, nil
+				})
+
+				_ = done(func(s []uint64) error {
+					fm = slices.Clone(s)
+
+					return nil
+				})
+			}
+
+			if len(unmergeOps) > 0 {
+				add, done, _ := util.CompactAppendSliceV1[uint64](uint64(len(unmergeOps)))
+
+				_ = util.TraverseSliceV1(unmergeOps, func(_ int, opindex uint64) (bool, error) {
+					if _, found := um[opindex]; !found {
+						add(opindex)
+					}
+
+					return true, nil
+				})
+
+				_ = done(func(s []uint64) error {
+					fu = slices.Clone(s)
+
+					return nil
+				})
+			}
+
+			return fm, fu
+		},
+		func(f func([]uint64) error) error {
+			l.Lock()
+			defer l.Unlock()
 
 			defer clear(um)
 
