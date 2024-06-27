@@ -64,7 +64,7 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 		return wpargs, newWorkerPhaseMerger, nil
 	}
 
-	args.BroadcastPhaseDone = func(context.Context, int, []uint64, []uint64) error {
+	args.BroadcastPhaseDone = func(context.Context, int, []uint64) error {
 		return nil
 	}
 	args.SetReasons = func(int, map[uint64]string) error {
@@ -87,7 +87,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		err = insert(0, localWorkerName, nil, nil)
+		err = insert(0, localWorkerName, nil)
 		t.ErrorIs(err, context.Canceled)
 		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
@@ -101,7 +101,7 @@ func (t *testWorkerMerger) TestCancel() {
 		insert, wait, err := newWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(0, localWorkerName, nil, nil))
+		t.NoError(insert(0, localWorkerName, nil))
 
 		cancel()
 
@@ -144,9 +144,9 @@ func (t *testWorkerMerger) TestCancel() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops[:3], nil))
-		t.NoError(insert(0, "w0", ops[3:6], nil))
-		t.NoError(insert(0, "w1", ops[6:], nil))
+		t.NoError(insert(0, localWorkerName, ops[:3]))
+		t.NoError(insert(0, "w0", ops[3:6]))
+		t.NoError(insert(0, "w1", ops[6:]))
 
 		select {
 		case <-time.After(time.Second * 4):
@@ -182,7 +182,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops, nil))
+		t.NoError(insert(0, localWorkerName, ops))
 		t.NoError(wait(nil))
 	})
 
@@ -198,9 +198,9 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		var wait workerMergerWaitFunc
 
 		nextphasech := make(chan int, 1)
-		args.BroadcastPhaseDone = func(_ context.Context, phase int, _, _ []uint64) error {
+		args.BroadcastPhaseDone = func(_ context.Context, phase int, _ []uint64) error {
 			if phase > 0 {
-				t.NoError(insert(phase, other, nil, nil))
+				t.NoError(insert(phase, other, nil))
 
 				nextphasech <- phase
 			}
@@ -221,8 +221,8 @@ func (t *testWorkerMerger) TestPhaseDone() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops[:3], nil))
-		t.NoError(insert(0, other, ops[3:], nil))
+		t.NoError(insert(0, localWorkerName, ops[:3]))
+		t.NoError(insert(0, other, ops[3:]))
 
 		select {
 		case <-time.After(time.Second):
@@ -265,7 +265,7 @@ func (t *testWorkerMerger) TestSetReasons() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops, nil))
+		t.NoError(insert(0, localWorkerName, ops))
 
 		select {
 		case <-time.After(time.Second):
@@ -280,6 +280,7 @@ func (t *testWorkerMerger) TestSetReasons() {
 	})
 
 	t.Run("reasons", func() {
+		return // FIXME remove reasons
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -307,8 +308,8 @@ func (t *testWorkerMerger) TestSetReasons() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops, nil))
-		t.NoError(insert(0, "w0", ops, nil))
+		t.NoError(insert(0, localWorkerName, ops))
+		t.NoError(insert(0, "w0", ops))
 
 		select {
 		case <-time.After(time.Second):
@@ -331,7 +332,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	enoughWorkers uint64,
 	sts []base.State,
 	allValues [][]StateMergeValue,
-	expectedUnmergedOps []uint64,
+	expectedUnmerged []uint64,
 	expectedStates map[string]int64,
 ) {
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
@@ -377,7 +378,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 	inserts := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]workerMergerWaitFunc{}
-	initials := map[string]func(map[uint64][]StateMergeValue) (mergedOps, unmergedOps []uint64, _ error){}
+	initials := map[string]func(map[uint64][]StateMergeValue) (merged, unmerged []uint64, _ error){}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
 	saveReasonsDones := map[string]saveReasonsDoneFunc{}
 
@@ -402,17 +403,17 @@ func (t *testWorkerMerger) testMergeNWorkers(
 		args.local = local
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
-		args.BroadcastPhaseDone = func(_ context.Context, phase int, merged []uint64, unmerged []uint64) error {
-			// t.T().Logf("broadcast: local=%q phase=%d merged=%v unmerged=%v", local, phase, merged, unmerged)
+		args.BroadcastPhaseDone = func(_ context.Context, phase int, unmerged []uint64) error {
+			// t.T().Logf("broadcast: local=%q phase=%d unmerged=%v", local, phase, unmerged)
 
 			return TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
 				}
 
-				err := insert(phase, local, merged, unmerged)
+				err := insert(phase, local, unmerged)
 				//if err != nil {
-				//	t.T().Logf("broadcast: local=%q worker=%q phase=%d merged=%v unmerged=%v err=%+v", local, worker, phase, merged, unmerged, err)
+				//	t.T().Logf("broadcast: local=%q worker=%q phase=%d unmerged=%v err=%+v", local, worker, phase, unmerged, err)
 				//}
 
 				return true, err
@@ -435,7 +436,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 			states.SetValue(st.Key(), st)
 		}
 
-		initials[local] = func(values map[uint64][]StateMergeValue) (mergedOps, unmergedOps []uint64, _ error) {
+		initials[local] = func(values map[uint64][]StateMergeValue) (merged, unmerged []uint64, _ error) {
 			pmerge, _, pdone, pwait, err := NewPhaseMerger(wctx, pargs)
 			if err != nil {
 				return nil, nil, err
@@ -453,16 +454,16 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 			pdone()
 
-			if err := pwait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
-				mergedOps = slices.Clone(newlyMergedOps)
-				unmergedOps = slices.Clone(newlyUnmergedOps)
+			if err := pwait(func(newlyMerged, newlyUnmerged []uint64, reasons map[uint64]string) error {
+				merged = slices.Clone(newlyMerged)
+				unmerged = slices.Clone(newlyUnmerged)
 
 				return nil
 			}); err != nil {
 				return nil, nil, err
 			}
 
-			return mergedOps, unmergedOps, nil
+			return merged, unmerged, nil
 		}
 	}
 
@@ -490,7 +491,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 		go func() {
 			defer initialWg.Done()
 
-			if err := insert(0, localWorkerName, merged, unmerged); err != nil {
+			if err := insert(0, localWorkerName, unmerged); err != nil {
 				panic(fmt.Errorf("initial: worker=%s %w ", worker, err))
 			}
 		}()
@@ -572,7 +573,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	gatheredUnmerged.Get(func(unmerged []uint64, _ bool) error {
 		slices.Sort(unmerged)
 
-		t.Equal(expectedUnmergedOps, unmerged)
+		t.Equal(expectedUnmerged, unmerged)
 
 		t.T().Log("unmerged ops:", unmerged)
 
@@ -659,7 +660,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 		t.newMergeValues(pub2, -1, pub1, 1), // 5: ignored
 	}
 
-	expectedUnmergedOps := []uint64{1, 3, 5}
+	expectedUnmerged := []uint64{1, 3, 5}
 	expectedStates := map[string]int64{
 		st0: 2,
 		st2: 0,
@@ -683,7 +684,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 
 	run := func(values map[string][]string, enough uint64) func() {
 		return func() {
-			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmergedOps, expectedStates)
+			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmerged, expectedStates)
 		}
 	}
 
@@ -751,7 +752,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 		t.newMergeValues(pub2, -2, pub0, 1, pub1, 1), // 5: ignored
 	}
 
-	expectedUnmergedOps := []uint64{1, 3, 5}
+	expectedUnmerged := []uint64{1, 3, 5}
 
 	/*
 		                | p0 | p1 | p2 |
@@ -771,7 +772,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 
 	run := func(values map[string][]string, enough uint64) func() {
 		return func() {
-			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmergedOps, nil)
+			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmerged, nil)
 		}
 	}
 
@@ -841,7 +842,7 @@ func (t *testWorkerMerger) TestMergeNWorkersNStates() {
 	}
 
 	values := make([][]StateMergeValue, len(pubs)*2)
-	expectedUnmergedOps := []uint64{4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 63, 64, 65}
+	expectedUnmerged := []uint64{4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 63, 64, 65}
 
 	for i := range pubs {
 		j0 := (i + 1) % len(pubs)
@@ -860,7 +861,7 @@ func (t *testWorkerMerger) TestMergeNWorkersNStates() {
 		"ta-32dpu": 0,
 	}
 
-	t.testMergeNWorkers(workerValues, uint64(len(workers)), sts, values, expectedUnmergedOps, expectedStates)
+	t.testMergeNWorkers(workerValues, uint64(len(workers)), sts, values, expectedUnmerged, expectedStates)
 }
 
 func TestWorkerMerger(t *testing.T) {

@@ -189,10 +189,11 @@ func stringdjb2(seed uint32, k string) uint64 {
 	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
 }
 
-func FuncErrorLog(l *zerolog.Logger, msg string) func(error) error {
+func FuncErrorLog(l *zerolog.Logger, format string, a ...any) func(error) error {
 	started := time.Now()
 
-	l.Debug().CallerSkipFrame(1).Msg(fmt.Sprintf("> %s", msg))
+	msg := fmt.Sprintf(format, a...)
+	l.Debug().CallerSkipFrame(1).Msg("> " + msg)
 
 	return func(err error) error {
 		ll := l.With().Dur("elapsed", time.Since(started)).Logger()
