@@ -205,6 +205,10 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		lock.RLock()
 		defer lock.RUnlock()
 
+		if phase > 1 { // FIXME remove
+			panic("showme")
+		}
+
 		if phase == 0 && worker == localWorkerName {
 			_ = args.BroadcastPhaseDone(wctx, 0, mergeOps, unmergeOps)
 		}

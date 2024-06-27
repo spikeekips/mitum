@@ -403,7 +403,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 		args.BroadcastPhaseDone = func(_ context.Context, phase int, merged []uint64, unmerged []uint64) error {
-			t.T().Logf("broadcast: local=%q phase=%d merged=%v unmerged=%v", local, phase, merged, unmerged)
+			// t.T().Logf("broadcast: local=%q phase=%d merged=%v unmerged=%v", local, phase, merged, unmerged)
 
 			return TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
@@ -411,9 +411,9 @@ func (t *testWorkerMerger) testMergeNWorkers(
 				}
 
 				err := insert(phase, local, merged, unmerged)
-				if err != nil {
-					t.T().Logf("broadcast: local=%q worker=%q phase=%d merged=%v unmerged=%v err=%+v", local, worker, phase, merged, unmerged, err)
-				}
+				//if err != nil {
+				//	t.T().Logf("broadcast: local=%q worker=%q phase=%d merged=%v unmerged=%v err=%+v", local, worker, phase, merged, unmerged, err)
+				//}
 
 				return true, err
 			})
@@ -579,7 +579,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 		return nil
 	})
 
-	gatheredMerged := map[string]int64{}
+	var gatheredMerged map[string]int64
 
 	for local := range mergers {
 		if !endedWorkers.Exists(local) {
@@ -595,6 +595,10 @@ func (t *testWorkerMerger) testMergeNWorkers(
 			case found:
 				t.Equal(i, merged[stateKey], stateKey)
 			default:
+				if gatheredMerged == nil {
+					gatheredMerged = map[string]int64{}
+				}
+
 				gatheredMerged[stateKey] = merged[stateKey]
 			}
 		}
@@ -767,7 +771,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 
 	run := func(values map[string][]string, enough uint64) func() {
 		return func() {
-			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmergedOps, map[string]int64{})
+			t.testMergeNWorkers(values, enough, sts, allValues, expectedUnmergedOps, nil)
 		}
 	}
 
