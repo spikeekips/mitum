@@ -149,6 +149,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 
 						if committed {
 							args.SetStateOp(opindex, stateKeys, mergeFlag)
+
 							addXMergedOp(phase, opindex, mergeFlag)
 						} else {
 							addXMergedOp(phase, opindex, unmergeFlag)
@@ -504,4 +505,95 @@ func newAddReasonsFuncs(mapSize uint64) (
 
 			return r
 		}
+}
+
+func newStateOpsFuncs(mapSize uint64) (
+	phaseMergerSetStateOp,
+	func() (func(stateKey string) (ops []uint64), func()),
+	error,
+) {
+	var m util.LockedMap[string, map[uint64]int]
+
+	switch i, err := util.NewShardedMap[string, map[uint64]int](mapSize, nil); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		m = i
+	}
+
+	mops := util.NewMultiKeysLockedMap[string, map[uint64]int](m)
+
+	return func(opindex uint64, stateKeys []string, x xMergeFlag) {
+			_ = mops.LockFunc(
+				stateKeys,
+				func(m util.LockedMap[string, map[uint64]int]) error {
+					return util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
+						_, _, _ = m.Set(stateKey, func(prev map[uint64]int, found bool) (map[uint64]int, error) {
+							c := 1
+							if x == unmergeFlag {
+								c = -1
+							}
+
+							if !found {
+								return map[uint64]int{opindex: c}, nil
+							}
+
+							prev[opindex] += c
+
+							return prev, nil
+						})
+
+						return true, nil
+					})
+				},
+			)
+		},
+		func() (func(string) []uint64, func()) {
+			return func(stateKey string) (ops []uint64) {
+					_ = m.Get(stateKey, func(v map[uint64]int, found bool) error {
+						switch {
+						case !found:
+							return nil
+						case len(v) < 1:
+							return nil
+						}
+
+						var add util.CompactAppendSliceAddFunc[uint64]
+						var done util.CompactAppendSliceDoneFunc[uint64]
+
+						switch a, d, err := util.CompactAppendSliceV1[uint64](uint64(len(v))); {
+						case err != nil:
+							return err
+						default:
+							defer d(nil)
+
+							add = a
+							done = d
+						}
+
+						_ = TraverseMap(v, func(opindex uint64, count int) (bool, error) {
+							if count > 0 {
+								add(opindex)
+							}
+
+							return true, nil
+						})
+
+						_ = done(func(s []uint64) error {
+							ops = slices.Clone(s)
+
+							return nil
+						})
+
+						return nil
+					})
+
+					return ops
+				},
+				func() {
+					mops.Close()
+					m.Close()
+				}
+		},
+		nil
 }

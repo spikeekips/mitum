@@ -404,20 +404,17 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 		args.BroadcastPhaseDone = func(_ context.Context, phase int, unmerged []uint64) error {
-			// t.T().Logf("broadcast: local=%q phase=%d unmerged=%v", local, phase, unmerged)
-
-			return TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
+			err := TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
 				}
 
-				err := insert(phase, local, unmerged)
-				//if err != nil {
-				//	t.T().Logf("broadcast: local=%q worker=%q phase=%d unmerged=%v err=%+v", local, worker, phase, unmerged, err)
-				//}
-
-				return true, err
+				return true, insert(phase, local, unmerged)
 			})
+
+			fmt.Sprintf("broadcast: local=%q phase=%d unmerged=%v err=%+v\n", local, phase, unmerged, err)
+
+			return err
 		}
 
 		setReasons, saveReasonDone := newSaveReasonsFuncs(wctx)
