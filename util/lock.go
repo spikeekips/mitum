@@ -1093,7 +1093,6 @@ func (l *MultiKeysLockedMap[K, V]) Close() {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	l.m.Close()
 	clear(l.lockchs)
 }
 

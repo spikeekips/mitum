@@ -1719,6 +1719,8 @@ type testMultiKeysLockedMap struct {
 
 func (t *testMultiKeysLockedMap) TestClose() {
 	m := NewSingleLockedMap[string, int]()
+	defer m.Close()
+
 	m.SetValue("0", 10)
 	m.SetValue("1", 11)
 
@@ -1729,12 +1731,14 @@ func (t *testMultiKeysLockedMap) TestClose() {
 
 	mk.Close()
 
-	t.False(m.Exists("0"))
-	t.False(m.Exists("1"))
+	t.True(m.Exists("0"))
+	t.True(m.Exists("1"))
 }
 
 func (t *testMultiKeysLockedMap) TestLock() {
 	m := NewSingleLockedMap[string, int]()
+	defer m.Close()
+
 	m.SetValue("0", 10)
 	m.SetValue("1", 11)
 	m.SetValue("2", 12)
@@ -1845,6 +1849,8 @@ func (t *testMultiKeysLockedMap) TestLock() {
 
 func (t *testMultiKeysLockedMap) TestLockFunc() {
 	m := NewSingleLockedMap[string, int]()
+	defer m.Close()
+
 	m.SetValue("0", 10)
 	m.SetValue("1", 11)
 	m.SetValue("2", 12)
@@ -1968,6 +1974,7 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 
 func (t *testMultiKeysLockedMap) TestAsyncLockFunc() {
 	m := NewSingleLockedMap[int, int]()
+	defer m.Close()
 
 	allkeys := make([]int, 99)
 
