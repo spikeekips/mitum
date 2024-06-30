@@ -31,7 +31,7 @@ type PhaseMergerArgs struct {
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
-	SetStateOp                     phaseMergerSetStateOp
+	SetStateOp                     phaseMergerSetStateOp // FIXME remove
 	local                          string
 }
 

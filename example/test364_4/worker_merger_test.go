@@ -108,60 +108,6 @@ func (t *testWorkerMerger) TestCancel() {
 		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
-
-	t.Run("after 0 phase", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		_, _, args, vp, _, _ := t.newArgs(3)
-
-		nextPhaseCh := make(chan int, 1)
-
-		newWorkerPhaseMergerFuncs := args.NewWorkerPhaseMergerFuncs
-		args.NewWorkerPhaseMergerFuncs = func(phase int) (
-			*workerPhaseMergerArgs,
-			newWorkerPhaseMergerFunc,
-			error,
-		) {
-			if phase == 1 {
-				go func() {
-					t.T().Log("new phase:", phase)
-
-					nextPhaseCh <- phase
-				}()
-			}
-
-			return newWorkerPhaseMergerFuncs(phase)
-		}
-
-		insert, wait, err := newWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		ops := make([]uint64, 9)
-		for i := range ops {
-			opindex := uint64(i)
-
-			_ = t.randomMergeValuesVP(vp, opindex, 1)
-			ops[i] = opindex
-		}
-
-		t.NoError(insert(0, localWorkerName, ops[:3]))
-		t.NoError(insert(0, "w0", ops[3:6]))
-		t.NoError(insert(0, "w1", ops[6:]))
-
-		select {
-		case <-time.After(time.Second * 4):
-			t.Fail("wait new next phase")
-		case <-nextPhaseCh:
-			cancel()
-
-			t.T().Log("canceled")
-		}
-
-		err = wait(nil)
-		t.ErrorIs(err, context.Canceled)
-		err = wait(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
 }
 
 func (t *testWorkerMerger) TestPhaseDone() {
@@ -197,16 +143,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		var insert workerMergerPhaseDoneFunc
 		var wait workerMergerWaitFunc
 
-		nextphasech := make(chan int, 1)
-		args.BroadcastPhaseDone = func(_ context.Context, phase int, _ []uint64) error {
-			if phase > 0 {
-				t.NoError(insert(phase, other, nil))
-
-				nextphasech <- phase
-			}
-
-			return nil
-		}
+		args.BroadcastPhaseDone = func(context.Context, int, []uint64) error { return nil }
 
 		var err error
 
@@ -223,13 +160,6 @@ func (t *testWorkerMerger) TestPhaseDone() {
 
 		t.NoError(insert(0, localWorkerName, ops[:3]))
 		t.NoError(insert(0, other, ops[3:]))
-
-		select {
-		case <-time.After(time.Second):
-			t.Fail("wait to enter next phase")
-		case phase := <-nextphasech:
-			t.Equal(1, phase)
-		}
 
 		t.NoError(wait(nil))
 	})
@@ -412,7 +342,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 				return true, insert(phase, local, unmerged)
 			})
 
-			fmt.Sprintf("broadcast: local=%q phase=%d unmerged=%v err=%+v\n", local, phase, unmerged, err)
+			fmt.Printf("broadcast: local=%q phase=%d unmerged=%v err=%+v\n", local, phase, unmerged, err)
 
 			return err
 		}
@@ -467,21 +397,21 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	var initialWg sync.WaitGroup
 
 	for local := range initials {
-		worker := local
+		local := local
 
 		var ops []uint64
 
-		for opindex := range wvalues[worker] {
+		for opindex := range wvalues[local] {
 			ops = append(ops, opindex)
 		}
 
 		slices.Sort(ops)
 
-		merged, unmerged, err := initials[worker](wvalues[worker])
+		merged, unmerged, err := initials[local](wvalues[local])
 		t.NoError(err)
-		t.T().Logf("initial worker=%q ops=%v merged=%v unmerged=%v", worker, ops, merged, unmerged)
+		t.T().Logf("initial worker=%q ops=%v merged=%v unmerged=%v", local, ops, merged, unmerged)
 
-		insert := inserts[worker]
+		insert := inserts[local]
 
 		initialWg.Add(1)
 
@@ -489,7 +419,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 			defer initialWg.Done()
 
 			if err := insert(0, localWorkerName, unmerged); err != nil {
-				panic(fmt.Errorf("initial: worker=%s %w ", worker, err))
+				panic(fmt.Errorf("initial: worker=%s %w ", local, err))
 			}
 		}()
 	}
@@ -752,12 +682,12 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 	expectedUnmerged := []uint64{1, 3, 5}
 
 	/*
-		                | p0 | p1 | p2 |
-		           base |  2 |  2 |  2 |
-		p0 -> p1, p2: 1 |  0 |  3 |  3 |
-		p1 -> p0, p2: 1 |  1 |  1 |  4 |
-		p2 -> p0, p1: 1 |  2 |  2 |  2 |
-		                |  - |  - |  - |
+		                   | p0 | p1 | p2 |
+					  base |  2 |  2 |  2 |
+		0: p0 -> p1, p2: 1 |  0 |  3 |  3 |
+		2: p1 -> p0, p2: 1 |  1 |  1 |  4 |
+		4: p2 -> p0, p1: 1 |  2 |  2 |  2 |
+		                   |  - |  - |  - |
 
 		 state key | pub
 		-----------+------
