@@ -22,7 +22,7 @@ type testWorkerMerger struct {
 func (t *testWorkerMerger) newArgs(workers uint64) (
 	_ *PhaseMergerArgs,
 	_ *workerPhaseMergerArgs,
-	_ *workerMergerArgs,
+	_ *baseWorkerMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
@@ -52,7 +52,7 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	wpargs.EnoughWorkers = workers
 	wpargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) { return m, u }
 
-	args := newWorkerMergerArgs()
+	args := newBaseWorkerMergerArgs()
 
 	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 	args.NewWorkerPhaseMergerFuncs = func() (
@@ -78,7 +78,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		_, _, args, _, _, _ := t.newArgs(1)
 
-		insert, wait, err := newWorkerMerger(ctx, args)
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
 
 		cancel()
@@ -94,7 +94,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		_, _, args, _, _, _ := t.newArgs(3)
 
-		insert, wait, err := newWorkerMerger(ctx, args)
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil))
@@ -113,7 +113,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 
 		_, _, args, vp, _, _ := t.newArgs(1)
 
-		insert, wait, err := newWorkerMerger(ctx, args)
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
 
 		ops := make([]uint64, 3)
@@ -143,7 +143,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 
 		var err error
 
-		insert, wait, err = newWorkerMerger(ctx, args)
+		insert, wait, err = newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
 
 		ops := make([]uint64, 6)
@@ -250,7 +250,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 			return err
 		}
 
-		insert, wait, err := newWorkerMerger(wctx, args)
+		insert, wait, err := newBaseWorkerMerger(wctx, args)
 		t.NoError(err)
 
 		inserts[local] = insert

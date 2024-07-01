@@ -27,7 +27,7 @@ type (
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 )
 
-type workerMergerArgs struct {
+type baseWorkerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
 	BroadcastPhaseDone        BroadcastPhaseDoneFunc
@@ -38,8 +38,8 @@ type workerMergerArgs struct {
 	local                     string
 }
 
-func newWorkerMergerArgs() *workerMergerArgs {
-	return &workerMergerArgs{
+func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
+	return &baseWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "worker-merger")
 		}),
@@ -62,7 +62,7 @@ func newWorkerMergerArgs() *workerMergerArgs {
 	}
 }
 
-func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
+func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	insert workerMergerPhaseDoneFunc,
 	_ workerMergerWaitFunc,
 	_ error,
@@ -230,7 +230,7 @@ func newWorkerMergerPhasePoolFuncs(
 
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
-	args *workerMergerArgs,
+	args *baseWorkerMergerArgs,
 ) (
 	workerPhaseMergerInsertFunc,
 	workerMergerWaitFunc,
