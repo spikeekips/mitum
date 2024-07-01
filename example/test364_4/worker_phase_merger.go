@@ -103,17 +103,15 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 		}
 	}
 
-	var checkWorker func(string, bool, func(bool, bool) error) error
-	var checkIsDone func() bool
-	var closeCheckWorker func()
+	var checkWorker func(string, bool, func(bool) error) error
+	var checkWorkerEnoughEmpty func() bool
 
-	switch c, i, cc, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
+	switch c, i, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		checkWorker = c
-		checkIsDone = i
-		closeCheckWorker = cc
+		checkWorkerEnoughEmpty = i
 	}
 
 	return func(worker string, mergeOps, unmergeOps []uint64) error {
@@ -126,17 +124,14 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 			return checkWorker(
 				worker,
 				len(mergeOps) < 1 && len(unmergeOps) < 1,
-				func(enough, ok bool) error {
+				func(enough bool) error {
 					ll := l.With().
-						Bool("ok", ok).
 						Bool("enough", enough).
 						Uints64("merge_ops", mergeOps).
 						Uints64("unmerge_ops", unmergeOps).
 						Logger()
 
 					switch {
-					case !ok:
-						return nil
 					case enough:
 						defer func() {
 							l.Debug().Msg("enough; merge done")
@@ -175,11 +170,13 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 			)
 		},
 		func(f workerPhaseMergerWaitCallbackFunc) error {
+			defer func() {
+				_ = checkWorkerEnoughEmpty()
+			}()
+
 			if err := context.Cause(pctx); err != nil {
 				return err
 			}
-
-			defer closeCheckWorker()
 
 			select {
 			case <-pctx.Done():
@@ -196,10 +193,10 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 							return nil
 						}
 
-						return f(newMerged, newUnmerged, reasons, checkIsDone())
+						return f(newMerged, newUnmerged, reasons, checkWorkerEnoughEmpty())
 					})
 				case f != nil:
-					err = f(nil, nil, nil, checkIsDone())
+					err = f(nil, nil, nil, checkWorkerEnoughEmpty())
 				}
 
 				pctxCancel(err)
@@ -213,9 +210,8 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 func newIsEnoughkWokerPhaseMergerFuncs(
 	enoughWorkers uint64,
 ) (
-	_ func(worker string, isEmpty bool, _ func(enough, ok bool) error) error, // FIXME remove ok
+	_ func(worker string, isEmpty bool, _ func(enough bool) error) error,
 	_ func() (enoughEmpty bool),
-	closef func(),
 	_ error,
 ) {
 	m := map[string] /* isEmpty */ bool{}
@@ -225,24 +221,13 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 	var emptyCount uint64
 	var lock sync.RWMutex
 
-	clearOnce := OnceFunc(func() error {
-		lock.Lock()
-		defer lock.Unlock()
-
-		done = true
-
-		clear(m)
-
-		return nil
-	})
-
-	check := func(worker string, isEmpty bool) (bool, bool, error) {
+	check := func(worker string, isEmpty bool) (bool, error) {
 		if enough || done {
-			return enough, false, nil
+			return enough, nil
 		}
 
 		if _, found := m[worker]; found {
-			return enough, false, util.ErrFound.Errorf(worker)
+			return enough, util.ErrFound.Errorf(worker)
 		}
 
 		m[worker] = isEmpty
@@ -255,12 +240,16 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 		if _, found := m[localWorkerName]; found && uint64(len(m)) >= enoughWorkers {
 			enough = true
 			enoughEmpty = emptyCount >= enoughWorkers
+
+			done = true
+
+			clear(m)
 		}
 
-		return enough, true, nil
+		return enough, nil
 	}
 
-	return func(worker string, isEmpty bool, f func(enough, ok bool) error) error {
+	return func(worker string, isEmpty bool, f func(enough bool) error) error {
 			if f == nil {
 				return nil
 			}
@@ -268,11 +257,11 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 			lock.Lock()
 			defer lock.Unlock()
 
-			switch enough, ok, err := check(worker, isEmpty); {
+			switch enough, err := check(worker, isEmpty); {
 			case err != nil:
 				return err
 			default:
-				return f(enough, ok)
+				return f(enough)
 			}
 		},
 		func() bool {
@@ -281,7 +270,6 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 
 			return enoughEmpty
 		},
-		func() { clearOnce() },
 		nil
 }
 
