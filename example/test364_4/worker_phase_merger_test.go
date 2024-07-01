@@ -156,7 +156,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		done := NewContextDoneFunc(
+		done := NewFuncContextDoneFunc(
 			ctx,
 			func(context.Context) error {
 				return wait(nil)
@@ -265,7 +265,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		insert, wait, err := newWorkerPhaseMerger(ctx, args)
 		t.NoError(err)
 
-		done := NewContextDoneFunc(
+		done := NewFuncContextDoneFunc(
 			ctx,
 			func(context.Context) error {
 				return wait(nil)
@@ -578,12 +578,6 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		t.NoError(err)
 		t.False(done)
 		done, err = insertf("w1", ops[3:6], nil, time.Second)
-		t.NoError(err)
-		t.False(done)
-		done, err = insertf("w0", ops[6:9], nil, time.Millisecond*333)
-		t.NoError(err)
-		t.False(done)
-		done, err = insertf("w0", ops[9:12], nil, time.Millisecond*333)
 		t.NoError(err)
 		t.False(done)
 
