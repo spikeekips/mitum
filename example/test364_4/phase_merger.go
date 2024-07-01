@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"slices"
-	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -149,7 +148,6 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 
 						if committed {
 							args.SetStateOp(opindex, stateKeys, mergeFlag)
-
 							addXMergedOp(phase, opindex, mergeFlag)
 						} else {
 							addXMergedOp(phase, opindex, unmergeFlag)
@@ -447,26 +445,24 @@ func newAddReasonsFuncs(mapSize uint64) (
 ) {
 	var m util.LockedMap[uint64, string]
 
-	var once sync.Once
+	newMap := OnceFunc(func() error {
+		switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
+		case err != nil:
+			return err
+		default:
+			m = i
+
+			return nil
+		}
+	})
 
 	return func(reasons map[uint64]string) error {
 			if len(reasons) < 1 {
 				return nil
 			}
 
-			var gerr error
-
-			once.Do(func() {
-				switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
-				case err != nil:
-					gerr = err
-				default:
-					m = i
-				}
-			})
-
-			if gerr != nil {
-				return gerr
+			if err := newMap(); err != nil {
+				return err
 			}
 
 			for i := range reasons {

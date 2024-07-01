@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -104,19 +103,23 @@ func xMergeOpValues(
 		doneCommit = d
 	}
 
-	var reasonsOnce sync.Once
-
-	addReason := func(o uint64, r string) {
-		if len(r) < 1 {
-			return
-		}
-
-		reasonsOnce.Do(func() {
+	addReason := func() func(uint64, string) {
+		c := OnceFunc(func() error {
 			reasons = map[uint64]string{}
+
+			return nil
 		})
 
-		reasons[o] = r
-	}
+		return func(o uint64, r string) {
+			if len(r) < 1 {
+				return
+			}
+
+			c()
+
+			reasons[o] = r
+		}
+	}()
 
 	var notCommitted bool
 

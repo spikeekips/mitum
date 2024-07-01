@@ -34,6 +34,7 @@ type workerMergerArgs struct {
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
+	MaxOpsSize                uint64
 	local                     string
 }
 
@@ -53,6 +54,7 @@ func newWorkerMergerArgs() *workerMergerArgs {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
 		},
 		PoolMapSize: 1 << 3,
+		MaxOpsSize:  1 << 9,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
@@ -144,26 +146,23 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		return nil
 	}
 
-	waitDone := func() func(f workerMergerUnmergedOpsFunc) error {
-		var waitDoneErr error
-		var waitOnce sync.Once
+	waitOnce := func() func(workerMergerUnmergedOpsFunc) error {
+		var w workerMergerUnmergedOpsFunc
+
+		once := OnceFunc(func() error {
+			defer exhaustPool(nil)
+
+			return phaseWait(w)
+		})
 
 		return func(f workerMergerUnmergedOpsFunc) error {
-			waitOnce.Do(func() {
-				waitDoneErr = func() error {
-					defer exhaustPool(nil)
+			w = f
 
-					return phaseWait(f)
-				}()
-
-				wctxCancel(waitDoneErr)
-			})
-
-			return waitDoneErr
+			return once()
 		}
 	}()
 
-	return insertFunc, waitDone, nil
+	return insertFunc, waitOnce, nil
 }
 
 func newWorkerMergerPhasePoolFuncs(

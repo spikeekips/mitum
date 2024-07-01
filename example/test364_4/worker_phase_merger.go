@@ -86,14 +86,16 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 			merge = m
 			unmerge = u
 
-			var mergeDoneOnce sync.Once
+			mergeDoneOnce := OnceFunc(func() error {
+				close(mergeDoneCh)
+
+				d()
+
+				return nil
+			})
 
 			mergeDone = func() {
-				mergeDoneOnce.Do(func() {
-					close(mergeDoneCh)
-
-					d()
-				})
+				_ = mergeDoneOnce()
 			}
 
 			mergeWait = w
@@ -211,7 +213,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 func newIsEnoughkWokerPhaseMergerFuncs(
 	enoughWorkers uint64,
 ) (
-	_ func(worker string, isEmpty bool, _ func(enough, ok bool) error) error,
+	_ func(worker string, isEmpty bool, _ func(enough, ok bool) error) error, // FIXME remove ok
 	_ func() (enoughEmpty bool),
 	closef func(),
 	_ error,
@@ -222,15 +224,25 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 	var enough, enoughEmpty bool
 	var emptyCount uint64
 	var lock sync.RWMutex
-	var clearOnce sync.Once
 
-	check := func(worker string, isEmpty bool) (bool, bool) {
+	clearOnce := OnceFunc(func() error {
+		lock.Lock()
+		defer lock.Unlock()
+
+		done = true
+
+		clear(m)
+
+		return nil
+	})
+
+	check := func(worker string, isEmpty bool) (bool, bool, error) {
 		if enough || done {
-			return enough, false
+			return enough, false, nil
 		}
 
 		if _, found := m[worker]; found {
-			return enough, false
+			return enough, false, util.ErrFound.Errorf(worker)
 		}
 
 		m[worker] = isEmpty
@@ -245,19 +257,23 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 			enoughEmpty = emptyCount >= enoughWorkers
 		}
 
-		return enough, true
+		return enough, true, nil
 	}
 
 	return func(worker string, isEmpty bool, f func(enough, ok bool) error) error {
-			lock.Lock()
-			defer lock.Unlock()
-
-			enough, ok := check(worker, isEmpty)
 			if f == nil {
 				return nil
 			}
 
-			return f(enough, ok)
+			lock.Lock()
+			defer lock.Unlock()
+
+			switch enough, ok, err := check(worker, isEmpty); {
+			case err != nil:
+				return err
+			default:
+				return f(enough, ok)
+			}
 		},
 		func() bool {
 			lock.RLock()
@@ -265,16 +281,7 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 
 			return enoughEmpty
 		},
-		func() {
-			clearOnce.Do(func() {
-				lock.Lock()
-				defer lock.Unlock()
-
-				done = true
-
-				clear(m)
-			})
-		},
+		func() { clearOnce() },
 		nil
 }
 

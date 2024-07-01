@@ -98,7 +98,7 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 		}
 	}
 
-	wk.wait = NewContextDoneFunc(ectx, func(context.Context) error {
+	wk.wait = NewFuncContextDoneFunc(ectx, func(context.Context) error {
 		switch err := waitf(); {
 		case errors.Is(err, errNewJobDone):
 			return util.ErrJobWorkerDone.Wrap(err)

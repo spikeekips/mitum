@@ -106,40 +106,53 @@ func UniqueCompactAppendSliceV1[T cmp.Ordered](size uint64, grow ...uint64) (
 		}, nil
 }
 
-func NewContextDoneFunc(
-	ctx context.Context,
-	f func(context.Context) error,
-) (
-	done func() error,
+func NewDoneContextFunc(ctx context.Context) (
+	context.Context,
+	func(error),
+	func() error,
 ) {
 	errDone := errors.New(util.UUID().String())
 	cctx, cctxCancel := context.WithCancelCause(ctx)
 
 	var once sync.Once
 
-	return func() error {
-		defer cctxCancel(nil)
-
-		once.Do(func() {
-			go func() {
-				if err := f(cctx); err != nil {
-					cctxCancel(err)
+	return cctx, func(err error) {
+			once.Do(func() {
+				if err == nil {
+					cctxCancel(errDone)
 
 					return
 				}
 
-				cctxCancel(errDone)
-			}()
+				cctxCancel(err)
+			})
+		},
+		func() error {
+			<-cctx.Done()
+
+			switch err := context.Cause(cctx); {
+			case errors.Is(err, errDone):
+				return nil
+			default:
+				return err
+			}
+		}
+}
+
+func NewFuncContextDoneFunc(
+	ctx context.Context,
+	f func(context.Context) error,
+) func() error {
+	cctx, done, wait := NewDoneContextFunc(ctx)
+
+	var once sync.Once
+
+	return func() error {
+		once.Do(func() {
+			done(f(cctx))
 		})
 
-		<-cctx.Done()
-
-		switch err := context.Cause(cctx); {
-		case errors.Is(err, errDone):
-			return nil
-		default:
-			return err
-		}
+		return wait()
 	}
 }
 
@@ -207,5 +220,19 @@ func FuncErrorLog(l *zerolog.Logger, format string, a ...any) func(error) error 
 		e.Msg(fmt.Sprintf("< %s", msg))
 
 		return err
+	}
+}
+
+func OnceFunc(f func() error) func() error {
+	var gerr error
+
+	var once sync.Once
+
+	return func() error {
+		once.Do(func() {
+			gerr = f()
+		})
+
+		return gerr
 	}
 }

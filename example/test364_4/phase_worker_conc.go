@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
@@ -80,33 +79,32 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		wk = i
 	}
 
-	var nextPhaseOnce sync.Once
 	var nextPhaseNewJobFunc PhaseJobWorkerNewJobFunc
 	nextPhaseWait := func() error { return nil }
+
+	newNextPhase := OnceFunc(func() error {
+		l.Debug().Int("phase", phase+1).Msg("new phase job worker")
+
+		switch n, d, w, err := newConcPhaseJobWorker(ctx, args, phase+1); {
+		case err != nil:
+			return err
+		default:
+			nextPhaseNewJobFunc = n
+			nextPhaseWait = func() error {
+				d()
+
+				return w()
+			}
+
+			return nil
+		}
+	})
 
 	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
 		l.Debug().Uint64("job_id", jobID).Msg("next phase new job")
 
-		var gerr error
-
-		nextPhaseOnce.Do(func() {
-			l.Debug().Int("phase", phase+1).Msg("new phase job worker")
-
-			switch n, d, w, err := newConcPhaseJobWorker(ctx, args, phase+1); {
-			case err != nil:
-				gerr = err
-			default:
-				nextPhaseNewJobFunc = n
-				nextPhaseWait = func() error {
-					d()
-
-					return w()
-				}
-			}
-		})
-
-		if gerr != nil {
-			return gerr
+		if err := newNextPhase(); err != nil {
+			return err
 		}
 
 		return nextPhaseNewJobFunc(jobID, c)
