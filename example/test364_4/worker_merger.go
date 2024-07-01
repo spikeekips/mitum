@@ -34,6 +34,7 @@ type baseWorkerMergerArgs struct {
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
 	MaxOpsSize                uint64
+	BroadcastPhaseDone        workerBroadcastPhaseDoneFunc
 	local                     string
 }
 
@@ -55,6 +56,9 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsLocalOp: func(opindex uint64) bool { return false },
+		BroadcastPhaseDone: func(_ context.Context, newUnmerged []uint64) error {
+			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
+		},
 	}
 }
 

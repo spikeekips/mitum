@@ -231,7 +231,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		args.local = local
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
-		broadcasts[local] = func(_ context.Context, unmerged []uint64) error {
+		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			err := TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
@@ -244,6 +244,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 
 			return err
 		}
+		broadcasts[local] = args.BroadcastPhaseDone
 
 		insert, wait, err := newBaseWorkerMerger(wctx, args)
 		t.NoError(err)
