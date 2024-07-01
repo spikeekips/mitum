@@ -21,16 +21,15 @@ type (
 		newWorkerPhaseMergerFunc,
 		error,
 	)
-	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
-	BroadcastPhaseDoneFunc      func(_ context.Context, newUnmerged []uint64) error
-	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
-	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
+	workerMergerPhaseDoneFunc    func(worker string, unmerge []uint64) error
+	workerMergerUnmergedOpsFunc  func(unmerged []uint64) error
+	workerMergerWaitFunc         func(workerMergerUnmergedOpsFunc) error
+	workerBroadcastPhaseDoneFunc func(_ context.Context, newUnmerged []uint64) error
 )
 
 type baseWorkerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
-	BroadcastPhaseDone        BroadcastPhaseDoneFunc
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
@@ -50,9 +49,6 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewWorkerPhaseMergerFuncs")
 		},
-		BroadcastPhaseDone: func(context.Context, []uint64) error {
-			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
-		},
 		PoolMapSize: 1 << 3,
 		MaxOpsSize:  1 << 9,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
@@ -67,16 +63,12 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	_ workerMergerWaitFunc,
 	_ error,
 ) {
-	wctx, wctxCancel := context.WithCancelCause(ctx)
-
 	var insertFunc func(worker string, unmerge []uint64) error
 	var insertPool func(worker string, unmerge []uint64) bool
 	var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
 	switch i, e, err := newWorkerMergerPhasePoolFuncs(args.local, args.PoolMapSize); {
 	case err != nil:
-		wctxCancel(nil)
-
 		return nil, nil, err
 	default:
 		insertPool = i
@@ -133,10 +125,6 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 			return nil
 		}); err != nil {
 			return err
-		}
-
-		if worker == localWorkerName {
-			_ = args.BroadcastPhaseDone(wctx, unmerge)
 		}
 
 		if ok {
