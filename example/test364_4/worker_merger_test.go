@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -65,9 +64,6 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	}
 
 	args.BroadcastPhaseDone = func(context.Context, []uint64) error {
-		return nil
-	}
-	args.SetReasons = func(int, map[uint64]string) error {
 		return nil
 	}
 
@@ -165,98 +161,6 @@ func (t *testWorkerMerger) TestPhaseDone() {
 	})
 }
 
-func (t *testWorkerMerger) TestSetReasons() {
-	t.Run("no reasons", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, args, vp, _, _ := t.newArgs(1)
-
-		var insert workerMergerPhaseDoneFunc
-		var wait workerMergerWaitFunc
-
-		reasonsch := make(chan [2]interface{}, 1)
-		args.SetReasons = func(phase int, reasons map[uint64]string) error {
-			reasonsch <- [2]interface{}{phase, reasons}
-
-			return nil
-		}
-
-		var err error
-
-		insert, wait, err = newWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		ops := make([]uint64, 3)
-		for i := range ops {
-			opindex := uint64(i)
-
-			_ = t.randomMergeValuesVP(vp, opindex, 1)
-			ops[i] = opindex
-		}
-
-		t.NoError(insert(localWorkerName, ops))
-
-		select {
-		case <-time.After(time.Second):
-		case i := <-reasonsch:
-			phase := i[0].(int)
-			reasons := i[1].(map[uint64]string)
-
-			t.Fail("unexpected reasons", "phase=%d reasons=%v", phase, reasons)
-		}
-
-		t.NoError(wait(nil))
-	})
-
-	t.Run("reasons", func() {
-		return // FIXME remove reasons
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, args, vp, _, _ := t.newArgs(2)
-
-		var insert workerMergerPhaseDoneFunc
-
-		reasonsch := make(chan [2]interface{}, 1)
-		args.SetReasons = func(phase int, reasons map[uint64]string) error {
-			reasonsch <- [2]interface{}{phase, reasons}
-
-			return nil
-		}
-
-		var err error
-
-		insert, _, err = newWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		ops := make([]uint64, 3)
-		for i := range ops {
-			opindex := uint64(i)
-
-			_ = t.randomMergeValuesVP(vp, opindex, -1)
-			ops[i] = opindex
-		}
-
-		t.NoError(insert(localWorkerName, ops))
-		t.NoError(insert("w0", ops))
-
-		select {
-		case <-time.After(time.Second):
-			t.Fail("wait reasons")
-		case i := <-reasonsch:
-			phase := i[0].(int)
-			reasons := i[1].(map[uint64]string)
-
-			t.Equal(0, phase)
-			t.Equal(
-				map[uint64]string{0: "insufficient balance", 1: "insufficient balance", 2: "insufficient balance"},
-				reasons,
-			)
-		}
-	})
-}
-
 func (t *testWorkerMerger) testMergeNWorkers(
 	workerValues map[ /* worker */ string][] /* state key */ string,
 	enoughWorkers uint64,
@@ -310,7 +214,6 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	waits := map[string]workerMergerWaitFunc{}
 	initials := map[string]func(map[uint64][]StateMergeValue) (merged, unmerged []uint64, _ error){}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
-	saveReasonsDones := map[string]saveReasonsDoneFunc{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -346,10 +249,6 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 			return err
 		}
-
-		setReasons, saveReasonDone := newSaveReasonsFuncs(wctx)
-		args.SetReasons = setReasons
-		saveReasonsDones[local] = saveReasonDone
 
 		insert, wait, err := newWorkerMerger(wctx, args)
 		t.NoError(err)
@@ -427,7 +326,6 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	initialWg.Wait()
 
 	gatheredUnmerged := util.EmptyLocked[[]uint64]()
-	workerReasons := util.NewSingleLockedMap[string, map[uint64]string]()
 
 	endch := make(chan struct{})
 	endedWorkers := util.NewSingleLockedMap[string, struct{}]()
@@ -457,19 +355,6 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 					return prev, nil
 				})
-
-				reasons := util.NewSingleLockedMap[uint64, string]()
-				defer reasons.Close()
-
-				if err := saveReasonsDones[local](unmerged, func(opindex uint64, reason string) error {
-					reasons.SetValue(opindex, reason)
-
-					return nil
-				}); err != nil {
-					return err
-				}
-
-				workerReasons.SetValue(local, reasons.Map())
 
 				return nil
 			})
@@ -533,12 +418,6 @@ func (t *testWorkerMerger) testMergeNWorkers(
 	}
 
 	t.Equal(expectedStates, gatheredMerged)
-
-	workerReasons.Traverse(func(worker string, reasons map[uint64]string) bool {
-		t.T().Logf("reasons: worker=%q reasons=%v", worker, reasons)
-
-		return true
-	})
 }
 
 func (t *testWorkerMerger) TestMergeNWorkersEmptyOps() {

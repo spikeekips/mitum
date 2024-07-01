@@ -22,19 +22,15 @@ type (
 		error,
 	)
 	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
-	setReasonsFunc              func(phase int, reasons map[uint64]string) error
 	BroadcastPhaseDoneFunc      func(_ context.Context, newUnmerged []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
-	saveReasonsDoneFunc         func(unmerged []uint64, _ saveReasonFunc) error
-	saveReasonsFuncs            func() (saveReasonFunc, func(error) error, error)
 )
 
 type workerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
 	BroadcastPhaseDone        BroadcastPhaseDoneFunc
-	SetReasons                setReasonsFunc
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
@@ -55,9 +51,6 @@ func newWorkerMergerArgs() *workerMergerArgs {
 		},
 		BroadcastPhaseDone: func(context.Context, []uint64) error {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
-		},
-		SetReasons: func(int, map[uint64]string) error { // FIXME remove
-			return util.ErrNotImplemented.Errorf("SetReasons")
 		},
 		PoolMapSize: 1 << 3,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
@@ -391,73 +384,4 @@ func collectUnmergedOps(um map[uint64]struct{}, unmerged []uint64) map[uint64]st
 	})
 
 	return um
-}
-
-func newSaveReasonsFuncs(ctx context.Context) (
-	setReasonsFunc,
-	saveReasonsDoneFunc,
-) {
-	m := util.NewSingleLockedMap[uint64, [2]interface{}]()
-
-	return func(phase int, reasons map[uint64]string) error {
-			switch {
-			case m.Len() < 1:
-				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
-					_ = m.SetValue(opindex, [2]interface{}{phase, reason})
-
-					return true, nil
-				})
-			default:
-				_ = TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
-					_, _, _ = m.Set(opindex, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-						if found && phase <= prev[0].(int) && reason == prev[1].(string) {
-							return v, util.ErrLockedSetIgnore
-						}
-
-						return [2]interface{}{phase, reason}, nil
-					})
-
-					return true, nil
-				})
-			}
-
-			return nil
-		},
-		func(unmerged []uint64, f saveReasonFunc) error {
-			defer m.Close()
-
-			if m.Len() < 1 || len(unmerged) < 1 {
-				return nil
-			}
-
-			var jw JobWorker
-
-			switch i, err := NewBaseJobWorker(ctx, int64(m.Len())); {
-			case err != nil:
-				return err
-			default:
-				jw = i
-			}
-
-			var gerr error
-
-			_ = m.Traverse(func(opindex uint64, v [2]interface{}) bool {
-				gerr = jw.NewJob(func(context.Context) error {
-					if slices.Index(unmerged, opindex) < 0 {
-						return nil
-					}
-
-					return f(opindex, v[1].(string))
-				})
-
-				return gerr == nil
-			})
-			if gerr != nil {
-				return gerr
-			}
-
-			jw.JobDone()
-
-			return jw.Wait()
-		}
 }
