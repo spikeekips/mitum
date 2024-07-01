@@ -16,14 +16,14 @@ type (
 		workerPhaseMergerWaitFunc,
 		error,
 	)
-	newWorkerPhaseMergerFuncs func(phase int) (
+	newWorkerPhaseMergerFuncs func() (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,
 		error,
 	)
-	workerMergerPhaseDoneFunc   func(phase int, worker string, unmerge []uint64) error
+	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
 	setReasonsFunc              func(phase int, reasons map[uint64]string) error
-	BroadcastPhaseDoneFunc      func(_ context.Context, phase int, newlyUnmerged []uint64) error // FIXME remove phase
+	BroadcastPhaseDoneFunc      func(_ context.Context, newlyUnmerged []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 	saveReasonsDoneFunc         func(unmerged []uint64, _ saveReasonFunc) error
@@ -46,14 +46,14 @@ func newWorkerMergerArgs() *workerMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "worker-merger")
 		}),
-		NewWorkerPhaseMergerFuncs: func(phase int) (
+		NewWorkerPhaseMergerFuncs: func() (
 			*workerPhaseMergerArgs,
 			newWorkerPhaseMergerFunc,
 			error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewWorkerPhaseMergerFuncs")
 		},
-		BroadcastPhaseDone: func(context.Context, int, []uint64) error {
+		BroadcastPhaseDone: func(context.Context, []uint64) error {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
 		},
 		SetReasons: func(int, map[uint64]string) error { // FIXME remove
@@ -74,7 +74,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 ) {
 	wctx, wctxCancel := context.WithCancelCause(ctx)
 
-	var insertFunc func(_ int, worker string, unmerge []uint64) error
+	var insertFunc func(worker string, unmerge []uint64) error
 	var insertPool func(worker string, unmerge []uint64) bool
 	var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
@@ -91,7 +91,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 	var phaseInsertFunc func(worker string, unmerge []uint64) error
 	var phaseWait workerMergerWaitFunc
 
-	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, 0, args); {
+	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, args); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -117,7 +117,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		}
 	}()
 
-	insertFunc = func(_ int, worker string, unmerge []uint64) error { // FIXME remove phase
+	insertFunc = func(worker string, unmerge []uint64) error {
 		var ok bool
 
 		if err := localIsReady(worker, func(isReady bool) error {
@@ -141,7 +141,7 @@ func newWorkerMerger(ctx context.Context, args *workerMergerArgs) (
 		}
 
 		if worker == localWorkerName {
-			_ = args.BroadcastPhaseDone(wctx, 0, unmerge)
+			_ = args.BroadcastPhaseDone(wctx, unmerge)
 		}
 
 		if ok {
@@ -238,7 +238,6 @@ func newWorkerMergerPhasePoolFuncs(
 
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
-	phase int,
 	args *workerMergerArgs,
 ) (
 	workerPhaseMergerInsertFunc,
@@ -248,7 +247,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	var wargs *workerPhaseMergerArgs
 	var newf newWorkerPhaseMergerFunc
 
-	switch a, n, err := args.NewWorkerPhaseMergerFuncs(phase); {
+	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
 	case err != nil:
 		return nil, nil, err
 	default:

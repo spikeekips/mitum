@@ -56,7 +56,7 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	args := newWorkerMergerArgs()
 
 	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
-	args.NewWorkerPhaseMergerFuncs = func(phase int) (
+	args.NewWorkerPhaseMergerFuncs = func() (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,
 		error,
@@ -64,7 +64,7 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 		return wpargs, newWorkerPhaseMerger, nil
 	}
 
-	args.BroadcastPhaseDone = func(context.Context, int, []uint64) error {
+	args.BroadcastPhaseDone = func(context.Context, []uint64) error {
 		return nil
 	}
 	args.SetReasons = func(int, map[uint64]string) error {
@@ -87,7 +87,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		err = insert(0, localWorkerName, nil)
+		err = insert(localWorkerName, nil)
 		t.ErrorIs(err, context.Canceled)
 		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
@@ -101,7 +101,7 @@ func (t *testWorkerMerger) TestCancel() {
 		insert, wait, err := newWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insert(0, localWorkerName, nil))
+		t.NoError(insert(localWorkerName, nil))
 
 		cancel()
 
@@ -128,7 +128,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops))
+		t.NoError(insert(localWorkerName, ops))
 		t.NoError(wait(nil))
 	})
 
@@ -143,7 +143,7 @@ func (t *testWorkerMerger) TestPhaseDone() {
 		var insert workerMergerPhaseDoneFunc
 		var wait workerMergerWaitFunc
 
-		args.BroadcastPhaseDone = func(context.Context, int, []uint64) error { return nil }
+		args.BroadcastPhaseDone = func(context.Context, []uint64) error { return nil }
 
 		var err error
 
@@ -158,8 +158,8 @@ func (t *testWorkerMerger) TestPhaseDone() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops[:3]))
-		t.NoError(insert(0, other, ops[3:]))
+		t.NoError(insert(localWorkerName, ops[:3]))
+		t.NoError(insert(other, ops[3:]))
 
 		t.NoError(wait(nil))
 	})
@@ -195,7 +195,7 @@ func (t *testWorkerMerger) TestSetReasons() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops))
+		t.NoError(insert(localWorkerName, ops))
 
 		select {
 		case <-time.After(time.Second):
@@ -238,8 +238,8 @@ func (t *testWorkerMerger) TestSetReasons() {
 			ops[i] = opindex
 		}
 
-		t.NoError(insert(0, localWorkerName, ops))
-		t.NoError(insert(0, "w0", ops))
+		t.NoError(insert(localWorkerName, ops))
+		t.NoError(insert("w0", ops))
 
 		select {
 		case <-time.After(time.Second):
@@ -333,16 +333,16 @@ func (t *testWorkerMerger) testMergeNWorkers(
 		args.local = local
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
-		args.BroadcastPhaseDone = func(_ context.Context, phase int, unmerged []uint64) error {
+		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			err := TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
 				}
 
-				return true, insert(phase, local, unmerged)
+				return true, insert(local, unmerged)
 			})
 
-			fmt.Printf("broadcast: local=%q phase=%d unmerged=%v err=%+v\n", local, phase, unmerged, err)
+			fmt.Printf("broadcast: local=%q unmerged=%v err=%+v\n", local, unmerged, err)
 
 			return err
 		}
@@ -418,7 +418,7 @@ func (t *testWorkerMerger) testMergeNWorkers(
 		go func() {
 			defer initialWg.Done()
 
-			if err := insert(0, localWorkerName, unmerged); err != nil {
+			if err := insert(localWorkerName, unmerged); err != nil {
 				panic(fmt.Errorf("initial: worker=%s %w ", local, err))
 			}
 		}()
