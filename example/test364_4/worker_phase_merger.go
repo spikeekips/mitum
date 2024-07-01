@@ -14,7 +14,7 @@ var localWorkerName = "local"
 
 type (
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
-	workerPhaseMergerWaitCallbackFunc func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error
+	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
 	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
 	newPhaseMergerFunc                func(context.Context, *PhaseMergerArgs) (
 		merge phaseMergerXMergeFunc,
@@ -189,12 +189,12 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 
 				switch {
 				case mergeWait != nil:
-					err = mergeWait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error {
+					err = mergeWait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
 						if f == nil {
 							return nil
 						}
 
-						return f(newlyMergedOps, newlyUnmergedOps, reasons, checkIsDone())
+						return f(newMerged, newUnmerged, reasons, checkIsDone())
 					})
 				case f != nil:
 					err = f(nil, nil, nil, checkIsDone())

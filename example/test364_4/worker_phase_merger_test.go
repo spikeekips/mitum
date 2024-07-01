@@ -136,9 +136,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		t.NoError(insert(localWorkerName, nil, nil))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.True(isDone)
 
@@ -184,9 +184,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		t.NoError(insert(localWorkerName, nil, nil))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.True(isDone)
 
@@ -212,9 +212,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.False(isDone)
 
@@ -304,9 +304,9 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.False(isDone)
 
@@ -343,9 +343,9 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		t.NoError(insert(localWorkerName, nil, nil))
 		t.NoError(insert("w0", []uint64{opindex}, nil))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.False(isDone)
 
@@ -374,9 +374,9 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
 
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.False(isDone)
 
@@ -404,7 +404,7 @@ func (t *testWorkerPhaseMerger) newInsertWaitFuncs(
 
 		once.Do(func() {
 			go func() {
-				if err := wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
+				if err := wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
 					close(waitch)
 
 					return nil
@@ -437,9 +437,9 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.False(isDone)
 
@@ -457,9 +457,9 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
-		t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-			t.Empty(newlyMergedOps)
-			t.Empty(newlyUnmergedOps)
+		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+			t.Empty(newMerged)
+			t.Empty(newUnmerged)
 			t.Empty(reasons)
 			t.True(isDone)
 
@@ -654,9 +654,9 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 	t.NoError(insert("w1", seq[3:], nil))
 	t.NoError(insert(localWorkerName, seq, nil))
 
-	t.NoError(wait(func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string, isDone bool) error {
-		t.Empty(newlyMergedOps)
-		t.Equal([]uint64{1, 3}, newlyUnmergedOps)
+	t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+		t.Empty(newMerged)
+		t.Equal([]uint64{1, 3}, newUnmerged)
 		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 		t.False(isDone)
 

@@ -23,7 +23,7 @@ type (
 	)
 	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
 	setReasonsFunc              func(phase int, reasons map[uint64]string) error
-	BroadcastPhaseDoneFunc      func(_ context.Context, newlyUnmerged []uint64) error
+	BroadcastPhaseDoneFunc      func(_ context.Context, newUnmerged []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 	saveReasonsDoneFunc         func(unmerged []uint64, _ saveReasonFunc) error

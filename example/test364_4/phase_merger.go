@@ -18,7 +18,7 @@ type (
 		[]string,
 		func(func(StateMergeValue) (StateMerger, error)) error,
 	) error
-	phaseMergerWaitCallbackFunc func(newlyMergedOps, newlyUnmergedOps []uint64, reasons map[uint64]string) error
+	phaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 	phaseMergerWaitFunc         func(phaseMergerWaitCallbackFunc) error
 	phaseMergerSetStateOp       func(opindex uint64, stateKeys []string, _ xMergeFlag)
 )
@@ -238,12 +238,12 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 				return err
 			}
 
-			return doneXMergedOps(func(newlyMergedOps, newlyUnmergedOps []uint64) error {
+			return doneXMergedOps(func(newMerged, newUnmerged []uint64) error {
 				if f == nil {
 					return nil
 				}
 
-				return f(newlyMergedOps, newlyUnmergedOps, doneReason(newlyUnmergedOps))
+				return f(newMerged, newUnmerged, doneReason(newUnmerged))
 			})
 		},
 		nil

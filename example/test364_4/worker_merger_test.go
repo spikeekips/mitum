@@ -381,9 +381,9 @@ func (t *testWorkerMerger) testMergeNWorkers(
 
 			pdone()
 
-			if err := pwait(func(newlyMerged, newlyUnmerged []uint64, reasons map[uint64]string) error {
-				merged = slices.Clone(newlyMerged)
-				unmerged = slices.Clone(newlyUnmerged)
+			if err := pwait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
+				merged = slices.Clone(newMerged)
+				unmerged = slices.Clone(newUnmerged)
 
 				return nil
 			}); err != nil {
