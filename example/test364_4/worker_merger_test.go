@@ -15,11 +15,11 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testWorkerMerger struct {
+type baseTestWorkerMerger struct {
 	baseTestMergeOp
 }
 
-func (t *testWorkerMerger) newArgs(workers uint64) (
+func (t *baseTestWorkerMerger) newArgs(workers uint64) (
 	_ *PhaseMergerArgs,
 	_ *workerPhaseMergerArgs,
 	_ *baseWorkerMergerArgs,
@@ -68,91 +68,26 @@ func (t *testWorkerMerger) newArgs(workers uint64) (
 	return pargs, wpargs, args, vp, mergers, states
 }
 
-func (t *testWorkerMerger) TestCancel() {
-	t.Run("before insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
+	*PhaseMergerArgs,
+	*workerPhaseMergerArgs,
+	*initialValuesWorkerMergerArgs,
+	util.LockedMap[uint64, []StateMergeValue],
+	util.LockedMap[string, StateMerger],
+	util.LockedMap[string, base.State],
+) {
+	pargs, wpargs, bargs, vp, mergers, states := t.newArgs(workers)
 
-		_, _, args, _, _, _ := t.newArgs(1)
+	args := newInitialValuesWorkerMergerArgs(bargs)
+	args.NewValuesPool = func() (util.LockedMap[uint64, []StateMergeValue], error) {
+		return vp, nil
+	}
 
-		insert, wait, err := newBaseWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		cancel()
-
-		err = insert(localWorkerName, nil)
-		t.ErrorIs(err, context.Canceled)
-		err = wait(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("after insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		_, _, args, _, _, _ := t.newArgs(3)
-
-		insert, wait, err := newBaseWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		t.NoError(insert(localWorkerName, nil))
-
-		cancel()
-
-		err = wait(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
+	return pargs, wpargs, args, vp, mergers, states
 }
 
-func (t *testWorkerMerger) TestPhaseDone() {
-	t.Run("1 EnoughWorkers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, args, vp, _, _ := t.newArgs(1)
-
-		insert, wait, err := newBaseWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		ops := make([]uint64, 3)
-		for i := range ops {
-			opindex := uint64(i)
-
-			_ = t.randomMergeValuesVP(vp, opindex, 1)
-			ops[i] = opindex
-		}
-
-		t.NoError(insert(localWorkerName, ops))
-		t.NoError(wait(nil))
-	})
-
-	t.Run("over 1 EnoughWorkers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		_, _, args, vp, _, _ := t.newArgs(2)
-
-		other := "w0"
-
-		var insert workerMergerPhaseDoneFunc
-		var wait workerMergerWaitFunc
-
-		var err error
-
-		insert, wait, err = newBaseWorkerMerger(ctx, args)
-		t.NoError(err)
-
-		ops := make([]uint64, 6)
-		for i := range ops {
-			opindex := uint64(i)
-
-			_ = t.randomMergeValuesVP(vp, opindex, 1)
-			ops[i] = opindex
-		}
-
-		t.NoError(insert(localWorkerName, ops[:3]))
-		t.NoError(insert(other, ops[3:]))
-
-		t.NoError(wait(nil))
-	})
+type testWorkerMerger struct {
+	baseTestWorkerMerger
 }
 
 func (t *testWorkerMerger) testBaseWorkerMerger(
@@ -421,7 +356,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 	t.Equal(expectedStates, gatheredMerged)
 }
 
-func (t *testWorkerMerger) TestMergeNWorkersEmptyOps() {
+func (t *testWorkerMerger) TestBaseMergeNWorkersEmptyOps() {
 	run := func(size, enough uint64) func() {
 		return func() {
 			t.Run(fmt.Sprintf("%d worker; %d enough; empty", size, enough), func() {
@@ -489,54 +424,107 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 		-----------+------
 	*/
 
-	run := func(values map[string][]string, enough uint64) func() {
-		return func() {
-			t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates)
+	t.Run("base", func() {
+		run := func(values map[string][]string, enough uint64) func() {
+			return func() {
+				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates)
+			}
 		}
-	}
 
-	t.Run("one worker", run(map[string][]string{
-		"w0": {st0, st1, st2},
-	}, 1))
+		t.Run("one worker", run(map[string][]string{
+			"w0": {st0, st1, st2},
+		}, 1))
 
-	t.Run("2 worker", run(map[string][]string{
-		"w0": {st0},
-		"w1": {st1, st2},
-	}, 2))
+		t.Run("2 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1, st2},
+		}, 2))
 
-	t.Run("3 worker", run(map[string][]string{
-		"w0": {st0},
-		"w1": {st1},
-		"w2": {st2},
-	}, 3))
+		t.Run("3 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
 
-	t.Run("3 worker; w0 2 shared", run(map[string][]string{
-		"w0": {st0, st1},
-		"w1": {st1},
-		"w2": {st2},
-	}, 3))
+		t.Run("3 worker; w0 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
 
-	t.Run("3 worker; 2 shared", run(map[string][]string{
-		"w0": {st0, st1},
-		"w1": {st1, st2},
-		"w2": {st2, st0},
-	}, 3))
+		t.Run("3 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+		}, 3))
 
-	t.Run("4 worker; 2 shared", run(map[string][]string{
-		"w0": {st0, st1},
-		"w1": {st1, st2},
-		"w2": {st2, st0},
-		"w3": {st0, st1},
-	}, 3))
+		t.Run("4 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+		}, 3))
 
-	t.Run("6 worker; 2 shared", run(map[string][]string{
-		"w0": {st0, st1},
-		"w1": {st1, st2},
-		"w2": {st2, st0},
-		"w3": {st0, st1},
-		"w4": {st1, st2},
-		"w5": {st2, st0},
-	}, 5))
+		t.Run("6 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+			"w4": {st1, st2},
+			"w5": {st2, st0},
+		}, 5))
+	})
+
+	t.Run("with initial values", func() {
+		run := func(values map[string][]string, enough uint64) func() {
+			return func() {
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates)
+			}
+		}
+
+		t.Run("one worker", run(map[string][]string{
+			"w0": {st0, st1, st2},
+		}, 1))
+
+		t.Run("2 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1, st2},
+		}, 2))
+
+		t.Run("3 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
+
+		t.Run("3 worker; w0 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
+
+		t.Run("3 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+		}, 3))
+
+		t.Run("4 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+		}, 3))
+
+		t.Run("6 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+			"w4": {st1, st2},
+			"w5": {st2, st0},
+		}, 5))
+	})
 }
 
 func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
@@ -628,20 +616,59 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 		}, 5))
 	})
 
-	t.Run("with initial", func() {
+	t.Run("with initial values", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, nil)
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, nil)
 			}
 		}
 
 		t.Run("one worker", run(map[string][]string{
 			"w0": {st0, st1, st2},
 		}, 1))
+
+		t.Run("2 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1, st2},
+		}, 2))
+
+		t.Run("3 worker", run(map[string][]string{
+			"w0": {st0},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
+
+		t.Run("3 worker; w0 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1},
+			"w2": {st2},
+		}, 3))
+
+		t.Run("3 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+		}, 3))
+
+		t.Run("4 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+		}, 3))
+
+		t.Run("6 worker; 2 shared", run(map[string][]string{
+			"w0": {st0, st1},
+			"w1": {st1, st2},
+			"w2": {st2, st0},
+			"w3": {st0, st1},
+			"w4": {st1, st2},
+			"w5": {st2, st0},
+		}, 5))
 	})
 }
 
-func (t *testWorkerMerger) TestMergeNWorkersNStates() {
+func (t *testWorkerMerger) TestMergeWorkerMergeNWorkersNStates() {
 	workers := make([]string, 3)
 	for i := range workers {
 		workers[i] = fmt.Sprintf("w%d", i)
@@ -685,8 +712,563 @@ func (t *testWorkerMerger) TestMergeNWorkersNStates() {
 	t.testBaseWorkerMerger(workerValues, uint64(len(workers)), sts, values, expectedUnmerged, expectedStates)
 }
 
+func (t *testWorkerMerger) TestMergeWorkerMergeNWorkersEmptyOps() {
+	run := func(size, enough uint64) func() {
+		return func() {
+			t.Run(fmt.Sprintf("%d worker; %d enough; empty", size, enough), func() {
+				workers := map[string][]string{}
+
+				for i := uint64(0); i < size; i++ {
+					workers[fmt.Sprintf("w%03d", i)] = nil
+				}
+
+				t.testBaseWorkerMerger(workers, enough, nil, nil, nil, nil)
+			})
+		}
+	}
+
+	for e := uint64(1); e < 9; e++ {
+		run(e, e)()
+	}
+
+	for e := uint64(2); e < 7; e++ {
+		run(6, e)()
+	}
+
+	t.Run("999 worker; empty", run(999, 999))
+}
+
+func (t *testWorkerMerger) testInitialValuesWorkerMerger(
+	workerValues map[ /* worker */ string][] /* state key */ string,
+	enoughWorkers uint64,
+	sts []base.State,
+	allValues [][]StateMergeValue,
+	expectedUnmerged []uint64,
+	expectedStates map[string]int64,
+) {
+	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
+
+	getValues := func(stateKey string) map[uint64][]StateMergeValue {
+		m := map[uint64][]StateMergeValue{}
+
+		for i := range allValues {
+			opindex := uint64(i)
+
+			for j := range allValues[i] {
+				v := allValues[i][j]
+
+				if v.Key() == stateKey {
+					m[opindex] = append(m[opindex], v)
+				}
+			}
+		}
+
+		return m
+	}
+
+	workerNames := make([]string, len(workerValues))
+	wvalues := map[string]map[uint64][]StateMergeValue{}
+
+	var i int
+	for local := range workerValues {
+		workerNames[i] = local
+		i++
+
+		m := map[uint64][]StateMergeValue{}
+
+		for j := range workerValues[local] {
+			TraverseMap(getValues(workerValues[local][j]), func(opindex uint64, vs []StateMergeValue) (bool, error) {
+				m[opindex] = append(m[opindex], vs...)
+
+				return true, nil
+			})
+		}
+
+		wvalues[local] = m
+	}
+
+	phaseDones := map[string]workerMergerPhaseDoneFunc{}
+	waits := map[string]workerInitialPhaseMergerWaitFunc{}
+	initials := map[string]workerInitialInsertValuesFuncs{}
+	mergers := map[string]util.LockedMap[string, StateMerger]{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := range workerNames {
+		local := workerNames[i]
+
+		wctx, wcancel := context.WithCancel(ctx)
+		defer wcancel()
+
+		pargs, _, args, _, workerMergers, states := t.newInitialValuesArgs(enoughWorkers)
+
+		mergers[local] = workerMergers
+
+		for i := range sts {
+			st := sts[i]
+
+			states.SetValue(st.Key(), st)
+		}
+
+		//if local == "w1" {
+		//	args.SetLogging(logging.TestLogging)
+		//}
+
+		pargs.local = local
+		args.local = local
+
+		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
+			err := TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
+				if worker == local {
+					return true, nil
+				}
+
+				return true, phaseDone(local, unmerged)
+			})
+
+			fmt.Printf("broadcast phase done: local=%q unmerged=%v err=%+v\n", local, unmerged, err)
+
+			return err
+		}
+
+		initial, phaseDone, wait, err := newInitialValuesWorkerMerger(wctx, args)
+		t.NoError(err)
+
+		initials[local] = initial
+		phaseDones[local] = phaseDone
+		waits[local] = wait
+	}
+
+	var initialWg sync.WaitGroup
+
+	for local := range initials {
+		local := local
+
+		var ops []uint64
+
+		for opindex := range wvalues[local] {
+			ops = append(ops, opindex)
+		}
+
+		slices.Sort(ops)
+
+		t.T().Logf("initial worker=%q ops=%v", local, ops)
+
+		initialWg.Add(1)
+
+		go func() {
+			defer initialWg.Done()
+
+			insert, done, err := initials[local](localWorkerName)
+			if err != nil {
+				panic(err)
+			}
+
+			for opindex := range wvalues[local] {
+				values := wvalues[local][opindex]
+
+				if err := insert(opindex, values); err != nil {
+					panic(fmt.Errorf("initial: worker=%s %w ", local, err))
+				}
+			}
+
+			if err := done(); err != nil {
+				panic(err)
+			}
+
+			if err := util.TraverseSliceV1(workerNames, func(_ int, worker string) (bool, error) {
+				if worker == local {
+					return true, nil
+				}
+
+				_, done, err := initials[local](worker)
+				if err != nil {
+					return false, err
+				}
+
+				if done != nil {
+					return true, done()
+				}
+
+				return true, nil
+			}); err != nil {
+				panic(err)
+			}
+		}()
+	}
+
+	initialWg.Wait()
+
+	gatheredUnmerged := util.EmptyLocked[[]uint64]()
+
+	endch := make(chan struct{})
+	endedWorkers := util.NewSingleLockedMap[string, struct{}]()
+
+	var endOnce sync.Once
+
+	endWait := func() {
+		endOnce.Do(func() {
+			close(endch)
+		})
+	}
+
+	for local := range waits {
+		local := local
+		wait := waits[local]
+
+		go func() {
+			err := wait(func(unmerged []uint64, reasons map[uint64]string) error {
+				fmt.Printf("wait done: worker=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
+
+				gatheredUnmerged.Set(func(prev []uint64, _ bool) ([]uint64, error) {
+					util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
+						if slices.Index(prev, opindex) < 0 {
+							prev = append(prev, opindex)
+						}
+
+						return true, nil
+					})
+
+					return prev, nil
+				})
+
+				return nil
+			})
+			if err != nil {
+				fmt.Sprintf("wait: local=%s err=%+v\n", local, err)
+			}
+
+			switch {
+			case err == nil:
+			case errors.Is(err, context.Canceled):
+				return
+			default:
+				panic(fmt.Errorf("wait: local=%s %w", local, err))
+			}
+
+			endedWorkers.SetValue(local, struct{}{})
+			if uint64(endedWorkers.Len()) >= enoughWorkers {
+				endWait()
+			}
+		}()
+	}
+
+	select {
+	case <-ctx.Done():
+	case <-endch:
+	}
+
+	gatheredUnmerged.Get(func(unmerged []uint64, _ bool) error {
+		slices.Sort(unmerged)
+
+		t.Equal(expectedUnmerged, unmerged)
+
+		t.T().Log("unmerged ops:", unmerged)
+
+		return nil
+	})
+
+	var gatheredMerged map[string]int64
+
+	for local := range mergers {
+		if !endedWorkers.Exists(local) {
+			continue
+		}
+
+		merged, err := t.closeMergers(mergers[local])
+		t.NoError(err)
+		t.T().Logf("merged: worker=%q expected=%v merged=%v", local, expectedStates, merged)
+
+		for stateKey := range merged {
+			switch i, found := gatheredMerged[stateKey]; {
+			case found:
+				t.Equal(i, merged[stateKey], stateKey)
+			default:
+				if gatheredMerged == nil {
+					gatheredMerged = map[string]int64{}
+				}
+
+				gatheredMerged[stateKey] = merged[stateKey]
+			}
+		}
+	}
+
+	t.Equal(expectedStates, gatheredMerged)
+}
+
 func TestWorkerMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testWorkerMerger))
+}
+
+type testBaseWorkerMerger struct {
+	baseTestWorkerMerger
+}
+
+func (t *testBaseWorkerMerger) TestCancel() {
+	t.Run("before insert", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		_, _, args, _, _, _ := t.newArgs(1)
+
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		cancel()
+
+		err = insert(localWorkerName, nil)
+		t.ErrorIs(err, context.Canceled)
+		err = wait(nil)
+		t.ErrorIs(err, context.Canceled)
+	})
+
+	t.Run("after insert", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		_, _, args, _, _, _ := t.newArgs(3)
+
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		t.NoError(insert(localWorkerName, nil))
+
+		cancel()
+
+		err = wait(nil)
+		t.ErrorIs(err, context.Canceled)
+	})
+}
+
+func (t *testBaseWorkerMerger) TestPhaseDone() {
+	t.Run("1 EnoughWorkers", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, vp, _, _ := t.newArgs(1)
+
+		insert, wait, err := newBaseWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		ops := make([]uint64, 3)
+		for i := range ops {
+			opindex := uint64(i)
+
+			_ = t.randomMergeValuesVP(vp, opindex, 1)
+			ops[i] = opindex
+		}
+
+		t.NoError(insert(localWorkerName, ops))
+		t.NoError(wait(nil))
+	})
+
+	t.Run("over 1 EnoughWorkers", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, vp, _, _ := t.newArgs(2)
+
+		other := "w0"
+
+		var insert workerMergerPhaseDoneFunc
+		var wait workerMergerWaitFunc
+
+		var err error
+
+		insert, wait, err = newBaseWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		ops := make([]uint64, 6)
+		for i := range ops {
+			opindex := uint64(i)
+
+			_ = t.randomMergeValuesVP(vp, opindex, 1)
+			ops[i] = opindex
+		}
+
+		t.NoError(insert(localWorkerName, ops[:3]))
+		t.NoError(insert(other, ops[3:]))
+
+		t.NoError(wait(nil))
+	})
+}
+
+func TestBaseWorkerMerger(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testBaseWorkerMerger))
+}
+
+type testInitialValuesWorkerMerger struct {
+	baseTestWorkerMerger
+}
+
+func (t *testInitialValuesWorkerMerger) TestInsertValues() {
+	t.Run("one worker; ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, vp, _, _ := t.newInitialValuesArgs(1)
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		defer wait(nil)
+
+		insert, done, err := initial(localWorkerName)
+		t.NoError(err)
+		defer done()
+
+		ops := [][]StateMergeValue{
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+		}
+
+		for i := range ops {
+			t.NoError(insert(uint64(i), ops[i]))
+		}
+
+		vp.Traverse(func(opindex uint64, b []StateMergeValue) bool {
+			a := ops[opindex]
+
+			t.Equal(len(a), len(b))
+			for i := range a {
+				t.Equal(a[i].Key(), b[i].Key())
+				t.True(base.IsEqualStateValue(a[i].Value(), b[i].Value()))
+			}
+
+			return true
+		})
+	})
+
+	t.Run("2 worker; ok", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, vp, _, _ := t.newInitialValuesArgs(2)
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		defer wait(nil)
+
+		insertLocal, doneLocal, err := initial(localWorkerName)
+		t.NoError(err)
+		defer doneLocal()
+
+		insertOther, doneOther, err := initial("w0")
+		t.NoError(err)
+		defer doneOther()
+
+		ops := [][]StateMergeValue{
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+		}
+
+		for i := 0; i < 2; i++ {
+			t.NoError(insertLocal(uint64(i), ops[i]))
+		}
+
+		for i := 2; i < len(ops); i++ {
+			t.NoError(insertOther(uint64(i), ops[i]))
+		}
+
+		vp.Traverse(func(opindex uint64, b []StateMergeValue) bool {
+			a := ops[opindex]
+
+			t.Equal(len(a), len(b))
+			for i := range a {
+				t.Equal(a[i].Key(), b[i].Key())
+				t.True(base.IsEqualStateValue(a[i].Value(), b[i].Value()))
+			}
+
+			return true
+		})
+	})
+
+	t.Run("after enough", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, _, _, _ := t.newInitialValuesArgs(1)
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		defer wait(nil)
+
+		insertLocal, doneLocal, err := initial(localWorkerName)
+		t.NoError(err)
+		defer doneLocal()
+
+		ops := [][]StateMergeValue{
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+		}
+
+		t.NoError(insertLocal(0, ops[0]))
+		t.NoError(doneLocal())
+
+		insertOther, doneOther, err := initial("w0")
+		t.NoError(err)
+
+		err = insertOther(1, ops[1])
+		t.ErrorIs(err, util.ErrJobWorkerDone)
+
+		t.NoError(doneOther())
+	})
+
+	t.Run("same op", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, args, vp, _, _ := t.newInitialValuesArgs(2)
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		t.NoError(err)
+
+		defer wait(nil)
+
+		insertLocal, doneLocal, err := initial(localWorkerName)
+		t.NoError(err)
+		defer doneLocal()
+
+		ops := [][]StateMergeValue{
+			t.randomMergeValues(1, 2, 3),
+			t.randomMergeValues(1, 2, 3),
+		}
+
+		t.NoError(insertLocal(0, ops[0]))
+		t.NoError(insertLocal(1, ops[1]))
+		t.NoError(doneLocal())
+
+		insertOther, doneOther, err := initial("w0")
+		t.NoError(err)
+
+		t.NoError(insertOther(0, ops[0]))
+		t.NoError(insertOther(1, ops[1]))
+		t.NoError(doneOther())
+
+		vp.Traverse(func(opindex uint64, b []StateMergeValue) bool {
+			a := ops[opindex]
+
+			t.Equal(len(a), len(b))
+			for i := range a {
+				t.Equal(a[i].Key(), b[i].Key())
+				t.True(base.IsEqualStateValue(a[i].Value(), b[i].Value()))
+			}
+
+			return true
+		})
+	})
+}
+
+func TestInitialValuesWorkerMerger(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testInitialValuesWorkerMerger))
 }
