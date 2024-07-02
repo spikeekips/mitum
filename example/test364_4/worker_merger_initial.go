@@ -119,10 +119,10 @@ func newInitialValuesWorkerMerger(
 
 			var reasons map[uint64]string
 
-			if err := initialWait(func(unmerged []uint64, reasons map[uint64]string) error {
+			if err := initialWait(func(unmerged []uint64, r map[uint64]string) error {
 				unmerged = slices.Clone(unmerged)
 
-				reasons = reasons
+				reasons = r
 
 				if err := workerPhaseDone(localWorkerName, unmerged); err != nil {
 					return err

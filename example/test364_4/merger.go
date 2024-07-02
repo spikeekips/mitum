@@ -173,28 +173,13 @@ func xMergeOpValues(
 		switch size := int64(len(s)); {
 		case size < 1:
 			return nil
-		case size < 2:
-			committed = true
-
-			return s[0]()
 		}
-
-		wk, _ := NewBaseJobWorker(ctx, int64(len(s)))
-		defer wk.Close()
-
-		if err := util.TraverseSliceV1(s, func(_ int, f func() error) (bool, error) {
-			return true, wk.NewJob(func(context.Context) error {
-				return f()
-			})
-		}); err != nil {
-			return err
-		}
-
-		wk.JobDone()
 
 		committed = true
 
-		return wk.Wait()
+		return util.TraverseSliceV1(s, func(_ int, f func() error) (bool, error) {
+			return true, f()
+		})
 	}); err != nil {
 		return false, nil, nil, err
 	}

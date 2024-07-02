@@ -15,8 +15,6 @@ import (
 	"go.uber.org/goleak"
 )
 
-// FIXME test reasons
-
 type baseTestWorkerMerger struct {
 	baseTestMergeOp
 }
@@ -99,6 +97,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 	allValues [][]StateMergeValue,
 	expectedUnmerged []uint64,
 	expectedStates map[string]int64,
+	expectedReasons map[uint64]string,
 ) {
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
@@ -149,6 +148,8 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	gatheredReasons := util.NewSingleLockedMap[uint64, string]()
 
 	for i := range workerNames {
 		local := workerNames[i]
@@ -216,6 +217,14 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 			if err := pwait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
 				merged = slices.Clone(newMerged)
 				unmerged = slices.Clone(newUnmerged)
+
+				fmt.Printf("worker=%q reasons=%v\n", local, reasons)
+
+				TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+					gatheredReasons.SetValue(opindex, reason)
+
+					return true, nil
+				})
 
 				return nil
 			}); err != nil {
@@ -330,6 +339,20 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		return nil
 	})
 
+	if expectedReasons != nil {
+		t.Equal(len(expectedReasons), gatheredReasons.Len(), "reasons not matched")
+
+		reasons := gatheredReasons.Map()
+
+		TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+			r, found := expectedReasons[opindex]
+			t.True(found)
+			t.Equal(r, reason)
+
+			return true, nil
+		})
+	}
+
 	var gatheredMerged map[string]int64
 
 	for local := range mergers {
@@ -368,7 +391,7 @@ func (t *testWorkerMerger) TestBaseMergeNWorkersEmptyOps() {
 					workers[fmt.Sprintf("w%03d", i)] = nil
 				}
 
-				t.testBaseWorkerMerger(workers, enough, nil, nil, nil, nil)
+				t.testBaseWorkerMerger(workers, enough, nil, nil, nil, nil, map[uint64]string{})
 			})
 		}
 	}
@@ -409,6 +432,11 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 		st0: 2,
 		st2: 0,
 	}
+	expectedReasons := map[uint64]string{
+		1: "previous issuer found",
+		3: "previous issuer found",
+		5: "previous issuer found",
+	}
 
 	/*
 		            | p0 | p1 | p2 |
@@ -429,7 +457,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 	t.Run("base", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates)
+				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
 			}
 		}
 
@@ -480,7 +508,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 	t.Run("with initial values", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates)
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
 			}
 		}
 
@@ -550,6 +578,12 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 	}
 
 	expectedUnmerged := []uint64{1, 3, 5}
+	var expectedStates map[string]int64
+	expectedReasons := map[uint64]string{
+		1: "previous issuer found",
+		3: "previous issuer found",
+		5: "previous issuer found",
+	}
 
 	/*
 		                   | p0 | p1 | p2 |
@@ -570,7 +604,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 	t.Run("base", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, nil)
+				t.testBaseWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
 			}
 		}
 
@@ -621,7 +655,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 	t.Run("with initial values", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, nil)
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
 			}
 		}
 
@@ -710,8 +744,43 @@ func (t *testWorkerMerger) TestMergeWorkerMergeNWorkersNStates() {
 		"ta-31dpu": 0,
 		"ta-32dpu": 0,
 	}
+	expectedReasons := map[uint64]string{
+		4:  "previous issuer found",
+		6:  "previous issuer found",
+		8:  "previous issuer found",
+		10: "previous issuer found",
+		12: "previous issuer found",
+		14: "previous issuer found",
+		16: "previous issuer found",
+		18: "previous issuer found",
+		20: "previous issuer found",
+		22: "previous issuer found",
+		24: "previous issuer found",
+		26: "previous issuer found",
+		28: "previous issuer found",
+		30: "previous issuer found",
+		32: "previous issuer found",
+		34: "previous issuer found",
+		36: "previous issuer found",
+		38: "previous issuer found",
+		40: "previous issuer found",
+		42: "previous issuer found",
+		44: "previous issuer found",
+		46: "previous issuer found",
+		48: "previous issuer found",
+		50: "previous issuer found",
+		52: "previous issuer found",
+		54: "previous issuer found",
+		56: "previous issuer found",
+		58: "previous issuer found",
+		60: "previous issuer found",
+		62: "previous issuer found",
+		63: "previous issuer found",
+		64: "previous issuer found",
+		65: "previous issuer found",
+	}
 
-	t.testBaseWorkerMerger(workerValues, uint64(len(workers)), sts, values, expectedUnmerged, expectedStates)
+	t.testBaseWorkerMerger(workerValues, uint64(len(workers)), sts, values, expectedUnmerged, expectedStates, expectedReasons)
 }
 
 func (t *testWorkerMerger) TestMergeWorkerMergeNWorkersEmptyOps() {
@@ -724,7 +793,7 @@ func (t *testWorkerMerger) TestMergeWorkerMergeNWorkersEmptyOps() {
 					workers[fmt.Sprintf("w%03d", i)] = nil
 				}
 
-				t.testBaseWorkerMerger(workers, enough, nil, nil, nil, nil)
+				t.testBaseWorkerMerger(workers, enough, nil, nil, nil, nil, nil)
 			})
 		}
 	}
@@ -747,6 +816,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	allValues [][]StateMergeValue,
 	expectedUnmerged []uint64,
 	expectedStates map[string]int64,
+	expectedReasons map[uint64]string,
 ) {
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
@@ -796,6 +866,8 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	gatheredReasons := util.NewSingleLockedMap[uint64, string]()
 
 	for i := range workerNames {
 		local := workerNames[i]
@@ -935,6 +1007,14 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 					return prev, nil
 				})
 
+				fmt.Printf("worker=%q reasons=%v\n", local, reasons)
+
+				TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+					gatheredReasons.SetValue(opindex, reason)
+
+					return true, nil
+				})
+
 				return nil
 			})
 			if err != nil {
@@ -970,6 +1050,20 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 
 		return nil
 	})
+
+	if expectedReasons != nil {
+		t.Equal(len(expectedReasons), gatheredReasons.Len(), "reasons not matched")
+
+		reasons := gatheredReasons.Map()
+
+		TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
+			r, found := expectedReasons[opindex]
+			t.True(found)
+			t.Equal(r, reason)
+
+			return true, nil
+		})
+	}
 
 	var gatheredMerged map[string]int64
 
