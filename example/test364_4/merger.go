@@ -312,7 +312,7 @@ func extractStateValuesKeysFunc(cacheSize int) (
 
 func getOrCreateMergerFunc(
 	m util.LockedMap[string, StateMerger],
-	getState func(stateKey string) (base.State, bool, error),
+	getState getStateFunc,
 ) func(StateMergeValue) (StateMerger, error) {
 	return func(value StateMergeValue) (merger StateMerger, _ error) {
 		err := m.GetOrCreate(

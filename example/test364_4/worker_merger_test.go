@@ -15,6 +15,8 @@ import (
 	"go.uber.org/goleak"
 )
 
+// FIXME test reasons
+
 type baseTestWorkerMerger struct {
 	baseTestMergeOp
 }
@@ -788,7 +790,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	}
 
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
-	waits := map[string]workerInitialPhaseMergerWaitFunc{}
+	waits := map[string]initialValuesWorkerMergerWaitFunc{}
 	initials := map[string]workerInitialInsertValuesFuncs{}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
 

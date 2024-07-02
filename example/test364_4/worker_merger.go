@@ -33,7 +33,6 @@ type baseWorkerMergerArgs struct {
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
-	MaxOpsSize                uint64
 	BroadcastPhaseDone        workerBroadcastPhaseDoneFunc
 	local                     string
 }
@@ -51,7 +50,6 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewWorkerPhaseMergerFuncs")
 		},
 		PoolMapSize: 1 << 3,
-		MaxOpsSize:  1 << 9,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},

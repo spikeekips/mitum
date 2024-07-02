@@ -19,8 +19,8 @@ type (
 		func() error,
 		error,
 	)
-	workerInitialPhaseMergerResultFunc func(unmerged []uint64, reasons map[uint64]string) error
-	workerInitialPhaseMergerWaitFunc   func(workerInitialPhaseMergerResultFunc) error
+	initialValuesWorkerMergerResultFunc func(unmerged []uint64, reasons map[uint64]string) error
+	initialValuesWorkerMergerWaitFunc   func(initialValuesWorkerMergerResultFunc) error
 )
 
 type initialValuesWorkerMergerArgs struct {
@@ -43,7 +43,7 @@ func newInitialValuesWorkerMerger(
 ) (
 	_ workerInitialInsertValuesFuncs,
 	workerPhaseDone workerMergerPhaseDoneFunc,
-	wait workerInitialPhaseMergerWaitFunc,
+	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
 ) {
 	var vp util.LockedMap[uint64, []StateMergeValue]
@@ -67,7 +67,7 @@ func newInitialValuesWorkerMerger(
 	}
 
 	var initialWorkerInsert workerInitialInsertOpFuncs
-	var initialWait workerInitialPhaseMergerWaitFunc
+	var initialWait initialValuesWorkerMergerWaitFunc
 
 	switch i, w, err := newInitialPhaseMerger(ctx, args, pargs, enoughWorkers); {
 	case err != nil:
@@ -114,7 +114,7 @@ func newInitialValuesWorkerMerger(
 			}
 		},
 		workerPhaseDone,
-		func(f workerInitialPhaseMergerResultFunc) error {
+		func(f initialValuesWorkerMergerResultFunc) error {
 			defer vp.Close()
 
 			var reasons map[uint64]string
@@ -151,7 +151,7 @@ func newInitialPhaseMerger(
 	enoughWorkers uint64,
 ) (
 	_ workerInitialInsertOpFuncs,
-	wait workerInitialPhaseMergerWaitFunc,
+	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
 ) {
 	var initialMerge phaseMergerXMergeFunc
@@ -178,7 +178,7 @@ func newInitialPhaseMerger(
 		closeCheckWorker = func() { d() }
 	}
 
-	wait = func(f workerInitialPhaseMergerResultFunc) error {
+	wait = func(f initialValuesWorkerMergerResultFunc) error {
 		defer closeCheckWorker()
 
 		return initialWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
