@@ -291,6 +291,10 @@ func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 
 	e := util.StringError("receive raw data")
 
+	if len(b) < 1 {
+		return nil
+	}
+
 	dt, raddr, rb, err := unmarshalMsg(b)
 	if err != nil {
 		return e.Wrap(err)
