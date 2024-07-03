@@ -21,10 +21,9 @@ type (
 		newWorkerPhaseMergerFunc,
 		error,
 	)
-	workerMergerPhaseDoneFunc    func(worker string, unmerge []uint64) error
-	workerMergerUnmergedOpsFunc  func(unmerged []uint64) error
-	workerMergerWaitFunc         func(workerMergerUnmergedOpsFunc) error
-	workerBroadcastPhaseDoneFunc func(_ context.Context, newUnmerged []uint64) error
+	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
+	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
+	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 )
 
 type baseWorkerMergerArgs struct {
@@ -33,7 +32,6 @@ type baseWorkerMergerArgs struct {
 	PoolMapSize               uint64
 	NewJobWorker              func(context.Context) (JobWorker, error)
 	IsLocalOp                 func(opindex uint64) bool
-	BroadcastPhaseDone        workerBroadcastPhaseDoneFunc
 	local                     string
 }
 
@@ -54,9 +52,6 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsLocalOp: func(opindex uint64) bool { return false },
-		BroadcastPhaseDone: func(_ context.Context, newUnmerged []uint64) error {
-			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
-		},
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -75,6 +76,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 	util.LockedMap[uint64, []StateMergeValue],
 	util.LockedMap[string, StateMerger],
 	util.LockedMap[string, base.State],
+	stateOpsFuncs,
 ) {
 	pargs, wpargs, bargs, vp, mergers, states := t.newArgs(workers)
 
@@ -83,7 +85,14 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 		return vp, nil
 	}
 
-	return pargs, wpargs, args, vp, mergers, states
+	setStateOp, getStateOp, err := newSetStateOpFuncs(1 << 9)
+	t.NoError(err)
+
+	args.SetStateOpFunc = func() (setStateOpFunc, error) {
+		return setStateOp, nil
+	}
+
+	return pargs, wpargs, args, vp, mergers, states, getStateOp
 }
 
 type testWorkerMerger struct {
@@ -169,20 +178,25 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		args.local = local
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
-		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
-			err := TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
+		broadcasts[local] = func(_ context.Context, unmerged []uint64) error {
+			gerrs := map[string]error{}
+
+			TraverseMap(inserts, func(worker string, insert workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
 				}
 
-				return true, insert(local, unmerged)
+				if err := insert(local, unmerged); err != nil {
+					gerrs[worker] = err
+				}
+
+				return true, nil
 			})
 
-			fmt.Printf("broadcast: local=%q unmerged=%v err=%+v\n", local, unmerged, err)
+			fmt.Printf("broadcast: local=%q unmerged=%v errs=%+v\n", local, unmerged, gerrs)
 
-			return err
+			return nil
 		}
-		broadcasts[local] = args.BroadcastPhaseDone
 
 		insert, wait, err := newBaseWorkerMerger(wctx, args)
 		t.NoError(err)
@@ -306,7 +320,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 				return nil
 			})
 			if err != nil {
-				fmt.Sprintf("wait: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait: local=%s err=%+v\n", local, err)
 			}
 
 			switch {
@@ -325,6 +339,8 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 	}
 
 	select {
+	case <-time.After(time.Second * 2):
+		t.Fail("wait")
 	case <-ctx.Done():
 	case <-endch:
 	}
@@ -506,9 +522,14 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 	})
 
 	t.Run("with initial values", func() {
+		expectedStateOps := map[string][]uint64{
+			"ta-0dpu": {0, 2, 4},
+			"ta-2dpu": {4},
+		}
+
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons, expectedStateOps)
 			}
 		}
 
@@ -655,7 +676,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 	t.Run("with initial values", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
-				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons)
+				t.testInitialValuesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedStates, expectedReasons, nil)
 			}
 		}
 
@@ -817,6 +838,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	expectedUnmerged []uint64,
 	expectedStates map[string]int64,
 	expectedReasons map[uint64]string,
+	expectedStateOps map[string][]uint64,
 ) {
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
@@ -863,6 +885,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	waits := map[string]initialValuesWorkerMergerWaitFunc{}
 	initials := map[string]workerInitialInsertValuesFuncs{}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
+	getStateOps := map[string]getStateOpsFunc{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -875,9 +898,10 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, _, args, _, workerMergers, states := t.newInitialValuesArgs(enoughWorkers)
+		pargs, _, args, _, workerMergers, states, getStateOpFuncs := t.newInitialValuesArgs(enoughWorkers)
 
 		mergers[local] = workerMergers
+		getStateOps[local], _ = getStateOpFuncs()
 
 		for i := range sts {
 			st := sts[i]
@@ -893,17 +917,23 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		args.local = local
 
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
-			err := TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
+			gerrs := map[string]error{}
+
+			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
 				if worker == local {
 					return true, nil
 				}
 
-				return true, phaseDone(local, unmerged)
+				if err := phaseDone(local, unmerged); err != nil {
+					gerrs[worker] = err
+				}
+
+				return true, nil
 			})
 
-			fmt.Printf("broadcast phase done: local=%q unmerged=%v err=%+v\n", local, unmerged, err)
+			fmt.Printf("broadcast phase done: local=%q unmerged=%v errs=%+v\n", local, unmerged, gerrs)
 
-			return err
+			return nil
 		}
 
 		initial, phaseDone, wait, err := newInitialValuesWorkerMerger(wctx, args)
@@ -1018,7 +1048,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 				return nil
 			})
 			if err != nil {
-				fmt.Sprintf("wait: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait: local=%s err=%+v\n", local, err)
 			}
 
 			switch {
@@ -1037,6 +1067,8 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	}
 
 	select {
+	case <-time.After(time.Second * 2):
+		t.Fail("wait")
 	case <-ctx.Done():
 	case <-endch:
 	}
@@ -1077,6 +1109,13 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		t.T().Logf("merged: worker=%q expected=%v merged=%v", local, expectedStates, merged)
 
 		for stateKey := range merged {
+			ops := getStateOps[local](stateKey)
+			slices.Sort(ops)
+			t.T().Logf("state ops: worker=%q state=%q ops=%v", local, stateKey, ops)
+
+			t.Equal(len(expectedStateOps[stateKey]), len(ops))
+			t.Equal(expectedStateOps[stateKey], ops)
+
 			switch i, found := gatheredMerged[stateKey]; {
 			case found:
 				t.Equal(i, merged[stateKey], stateKey)
@@ -1205,7 +1244,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newInitialValuesArgs(1)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(1)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -1243,7 +1282,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newInitialValuesArgs(2)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(2)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -1290,7 +1329,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, _, _, _ := t.newInitialValuesArgs(1)
+		_, _, args, _, _, _, _ := t.newInitialValuesArgs(1)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -1322,7 +1361,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newInitialValuesArgs(2)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(2)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
