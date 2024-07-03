@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -26,7 +25,6 @@ type (
 	setStateOpFunc                      func(opindex uint64, stateKeys []string, _ xMergeFlag)
 	getStateOpsFunc                     func(stateKey string) (ops []uint64)
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
-	newStateFunc                        func(stateKey string, _ base.StateValue, ops []uint64) (base.State, error)
 )
 
 type initialValuesWorkerMergerArgs struct {
@@ -36,7 +34,6 @@ type initialValuesWorkerMergerArgs struct {
 	SetStateOpFunc      func() (setStateOpFunc, error)
 	MaxOpsSize          uint64
 	MaxJobWorkerSemSize uint64
-	NewStateFunc        func() (newStateFunc, error)
 }
 
 func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValuesWorkerMergerArgs {
@@ -53,9 +50,6 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 		},
 		MaxOpsSize:          1 << 9,
 		MaxJobWorkerSemSize: 1 << 9,
-		NewStateFunc: func() (newStateFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewStateFunc")
-		},
 	}
 }
 
