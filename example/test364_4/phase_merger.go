@@ -18,13 +18,14 @@ type (
 	) error
 	phaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 	phaseMergerWaitFunc         func(phaseMergerWaitCallbackFunc) error
+	phaseMergerGetValuesFunc    func(opindex uint64) ([]StateMergeValue, error)
 )
 
 type PhaseMergerArgs struct {
 	*logging.Logging
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
 	GetMergersFunc                 phaseMergerGetMergers
-	GetValuesFunc                  getValuesFunc
+	GetValuesFunc                  phaseMergerGetValuesFunc
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64

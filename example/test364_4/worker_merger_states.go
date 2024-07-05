@@ -40,7 +40,7 @@ func newStatesWorkerMerger(
 	ctx context.Context,
 	args *statesWorkerMergerArgs,
 ) (
-	workerInitialInsertValuesFuncs,
+	workerInitialInsertOpsFuncs,
 	workerMergerPhaseDoneFunc,
 	statesWorkerMergerWaitFunc,
 	error,
@@ -66,7 +66,7 @@ func newStatesWorkerMerger(
 		closeMergers = c
 	}
 
-	var initialValuesInsert workerInitialInsertValuesFuncs
+	var initialValuesInsert workerInitialInsertOpsFuncs
 	var initialValuesPhaseDone workerMergerPhaseDoneFunc
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 

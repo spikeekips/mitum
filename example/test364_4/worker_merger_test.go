@@ -707,6 +707,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 		    a-2dpu | pub2
 		-----------+------
 	*/
+
 	t.Run("base", func() {
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
@@ -1019,7 +1020,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]initialValuesWorkerMergerWaitFunc{}
-	initials := map[string]workerInitialInsertValuesFuncs{}
+	initials := map[string]workerInitialInsertOpsFuncs{}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
 	getStateOps := map[string]getStateOpsFunc{}
 
@@ -1321,7 +1322,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]statesWorkerMergerWaitFunc{}
-	initials := map[string]workerInitialInsertValuesFuncs{}
+	initials := map[string]workerInitialInsertOpsFuncs{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

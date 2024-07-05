@@ -8,14 +8,14 @@ import (
 )
 
 type (
-	workerBroadcastPhaseDoneFunc   func(_ context.Context, newUnmerged []uint64) error
-	workerInitialInsertValuesFunc  func(opindex uint64, _ []StateMergeValue) error
-	workerInitialInsertValuesFuncs func(worker string) (
-		workerInitialInsertValuesFunc,
+	workerBroadcastPhaseDoneFunc func(_ context.Context, newUnmerged []uint64) error
+	workerInitialInsertOpFunc    func(opindex uint64, _ []StateMergeValue) error
+	workerInitialInsertOpsFuncs  func(worker string) (
+		workerInitialInsertOpFunc,
 		func() error,
 		error,
 	)
-	workerInitialInsertOpFuncs func(worker string) (
+	workerNewInitialXMergeFuncs func(worker string) (
 		phaseMergerXMergeFunc,
 		func() error,
 		error,
@@ -57,7 +57,7 @@ func newInitialValuesWorkerMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
 ) (
-	_ workerInitialInsertValuesFuncs,
+	_ workerInitialInsertOpsFuncs,
 	workerPhaseDone workerMergerPhaseDoneFunc,
 	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
@@ -84,7 +84,7 @@ func newInitialValuesWorkerMerger(
 		closeArgs = c
 	}
 
-	var initialWorkerInsert workerInitialInsertOpFuncs
+	var initialWorkerInsert workerNewInitialXMergeFuncs
 	var initialWait initialValuesWorkerMergerWaitFunc
 
 	switch i, w, err := newInitialPhaseMerger(ctx, args, pargs, enoughWorkers); {
@@ -139,17 +139,24 @@ func newInitialValuesWorkerMerger(
 	}
 
 	return func(worker string) (
-			workerInitialInsertValuesFunc,
+			workerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
+			var insert phaseMergerXMergeFunc
+			var done func() error
+
 			switch i, d, err := initialWorkerInsert(worker); {
 			case err != nil:
 				return nil, nil, err
 			case i == nil:
 				return nil, nil, nil
 			default:
-				return func(opindex uint64, values []StateMergeValue) error {
+				insert = i
+				done = d
+			}
+
+			return func(opindex uint64, values []StateMergeValue) error {
 					if _, created, _ := vp.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
 						if found {
 							return nil, util.ErrLockedSetIgnore
@@ -162,9 +169,10 @@ func newInitialValuesWorkerMerger(
 
 					setStateOp(opindex, values, mergeFlag)
 
-					return i(opindex)
-				}, d, nil
-			}
+					return insert(opindex)
+				},
+				done,
+				nil
 		},
 		workerPhaseDone,
 		func(f initialValuesWorkerMergerResultFunc) error {
@@ -220,7 +228,7 @@ func newInitialPhaseMerger(
 	pargs *PhaseMergerArgs,
 	enoughWorkers uint64,
 ) (
-	_ workerInitialInsertOpFuncs,
+	_ workerNewInitialXMergeFuncs,
 	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
 ) {

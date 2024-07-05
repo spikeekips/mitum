@@ -14,12 +14,12 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testStateValuesProcessor struct {
+type testStateMergeValueExtractor struct {
 	baseTestMergeOp
 }
 
-func (t *testStateValuesProcessor) newArgs(ops []Operation) *stateValuesProcessorArgs {
-	args := newStateValuesProcessorArgs()
+func (t *testStateMergeValueExtractor) newArgs(ops []Operation) *stateMergeValueExtractorArgs {
+	args := newStateMergeValueExtractorArgs()
 	args.SetLogging(logging.TestNilLogging)
 
 	args.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
@@ -29,21 +29,21 @@ func (t *testStateValuesProcessor) newArgs(ops []Operation) *stateValuesProcesso
 
 		return ops[opindex], ops[opindex] != nil, nil
 	}
-	args.ProcessedOp = func(context.Context, uint64, Operation, []StateMergeValue) error {
+	args.Done = func(context.Context, uint64, Operation, []StateMergeValue) error {
 		return nil
 	}
 
 	return args
 }
 
-func (t *testStateValuesProcessor) TestCancel() {
+func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := []Operation{t.randomOp(2)}
 		args := t.newArgs(ops)
 
-		insert, _, wait, err := newStateValuesProcessor(ctx, args)
+		insert, _, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		cancel()
@@ -61,7 +61,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 		ops := []Operation{t.randomOp(2)}
 		args := t.newArgs(ops)
 
-		insert, done, wait, err := newStateValuesProcessor(ctx, args)
+		insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -79,7 +79,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 		ops := []Operation{t.randomOp(2)}
 		args := t.newArgs(ops)
 
-		insert, done, wait, err := newStateValuesProcessor(ctx, args)
+		insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -94,7 +94,7 @@ func (t *testStateValuesProcessor) TestCancel() {
 	})
 }
 
-func (t *testStateValuesProcessor) TestGetOperation() {
+func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -102,7 +102,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		ops := []Operation{t.randomOp(2)}
 		args := t.newArgs(ops)
 
-		insert, done, wait, err := newStateValuesProcessor(ctx, args)
+		insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -118,7 +118,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 		ops := []Operation{t.randomOp(2)}
 		args := t.newArgs(ops)
 
-		insert, done, wait, err := newStateValuesProcessor(ctx, args)
+		insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		t.NoError(insert(1, valuehash.RandomSHA256()))
@@ -153,7 +153,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 
 			return getOperation(ctx, opindex, oph)
 		}
-		args.ProcessedOp = func(ctx context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error {
+		args.Done = func(ctx context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -162,7 +162,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 			}
 		}
 
-		insert, done, wait, err := newStateValuesProcessor(ctx, args)
+		insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 		t.NoError(err)
 
 		for i := range ops {
@@ -178,7 +178,7 @@ func (t *testStateValuesProcessor) TestGetOperation() {
 	})
 }
 
-func (t *testStateValuesProcessor) TestProcess() {
+func (t *testStateMergeValueExtractor) TestExtract() {
 	nOps := func(n int) func() {
 		return func() {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -190,22 +190,22 @@ func (t *testStateValuesProcessor) TestProcess() {
 			for i := range ops {
 				ops[i] = t.randomOp(int64(i + 1))
 
-				values, _, err := ops[i].ProcessNew(ctx)
+				values, _, err := ops[i].StateMergeValues(ctx)
 				t.NoError(err)
 				opsValues[i] = values
 			}
 
 			args := t.newArgs(ops)
 
-			processed := util.NewSingleLockedMap[uint64, [2]interface{}]()
+			extracted := util.NewSingleLockedMap[uint64, [2]interface{}]()
 
-			args.ProcessedOp = func(_ context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
-				processed.SetValue(opindex, [2]interface{}{op, values})
+			args.Done = func(_ context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
+				extracted.SetValue(opindex, [2]interface{}{op, values})
 
 				return nil
 			}
 
-			insert, done, wait, err := newStateValuesProcessor(ctx, args)
+			insert, done, wait, err := newStateMergeValueExtractor(ctx, args)
 			t.NoError(err)
 
 			for i := range ops {
@@ -227,9 +227,9 @@ func (t *testStateValuesProcessor) TestProcess() {
 				t.Fail("unexpected reasons", reasons)
 			}
 
-			t.Equal(len(ops), processed.Len())
+			t.Equal(len(ops), extracted.Len())
 			for i := range ops {
-				v, found := processed.Value(uint64(i))
+				v, found := extracted.Value(uint64(i))
 				t.True(found)
 				t.True(ops[i].Hash().Equal(v[0].(Operation).Hash()))
 
@@ -253,8 +253,8 @@ func (t *testStateValuesProcessor) TestProcess() {
 	t.Run("over 1 operation", nOps(33))
 }
 
-func TestStateValuesProcessor(t *testing.T) {
+func TestStateMergeValueExtractor(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testStateValuesProcessor))
+	suite.Run(t, new(testStateMergeValueExtractor))
 }

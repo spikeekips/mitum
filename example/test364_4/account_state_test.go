@@ -161,7 +161,7 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 	values := make([][]StateMergeValue, len(ops))
 
 	for i := range ops {
-		vs, r, err := ops[i].ProcessNew(context.Background())
+		vs, r, err := ops[i].StateMergeValues(context.Background())
 		t.NoError(err)
 		t.Nil(r)
 

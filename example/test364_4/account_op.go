@@ -18,7 +18,7 @@ var (
 
 type Operation interface {
 	base.Operation
-	ProcessNew(context.Context) (
+	StateMergeValues(context.Context) (
 		[]StateMergeValue, base.OperationProcessReasonError, error,
 	)
 }
@@ -157,7 +157,7 @@ func (op Op) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op Op) ProcessNew(context.Context) (
+func (op Op) StateMergeValues(context.Context) (
 	[]StateMergeValue, base.OperationProcessReasonError, error,
 ) {
 	var fact OpFact
