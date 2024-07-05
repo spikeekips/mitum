@@ -1020,14 +1020,11 @@ func (l *MultiKeysLockedMap[K, V]) Map() LockedMap[K, V] {
 	return l.m
 }
 
-func (l *MultiKeysLockedMap[K, V]) Lock(keys []K) (_ LockedMap[K, V], unlock func()) {
+func (l *MultiKeysLockedMap[K, V]) Lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) {
 	nkeys := RemoveDuplicatedOrderedSlice(keys)
 	if len(nkeys) < 1 {
-		return nil, nil
+		return nil, nil, nil
 	}
-
-	l.l.Lock()
-	defer l.l.Unlock()
 
 	return l.lock(nkeys)
 }
@@ -1038,13 +1035,14 @@ func (l *MultiKeysLockedMap[K, V]) LockFunc(keys []K, f func(LockedMap[K, V]) er
 		return nil
 	}
 
-	l.l.Lock()
-	lm, unlock := l.lock(nkeys)
-	l.l.Unlock()
+	switch lm, unlock, err := l.lock(nkeys); {
+	case err != nil:
+		return err
+	default:
+		defer unlock()
 
-	defer unlock()
-
-	return f(lm)
+		return f(lm)
+	}
 }
 
 func (l *MultiKeysLockedMap[K, V]) Len() int {
@@ -1055,7 +1053,14 @@ func (l *MultiKeysLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
 	return l.m.Traverse(f)
 }
 
-func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock func()) {
+func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock func(), _ error) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.lockchs == nil {
+		return nil, nil, ErrLockedMapClosed
+	}
+
 	km := map[K]struct{}{}
 	chs := make([]chan<- struct{}, len(keys))
 
@@ -1086,7 +1091,7 @@ func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock fun
 		}
 
 		clear(km)
-	}
+	}, nil
 }
 
 func (l *MultiKeysLockedMap[K, V]) Close() {
@@ -1094,6 +1099,7 @@ func (l *MultiKeysLockedMap[K, V]) Close() {
 	defer l.l.Unlock()
 
 	clear(l.lockchs)
+	l.lockchs = nil
 }
 
 func defaultindex(seed uint32, k interface{}) uint64 {

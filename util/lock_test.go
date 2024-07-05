@@ -1,6 +1,7 @@
 package util
 
 import (
+	"math"
 	"sort"
 	"sync"
 	"testing"
@@ -2047,6 +2048,66 @@ func (t *testMultiKeysLockedMap) TestAsyncLockFunc() {
 	i0, found := m.Value(0)
 	t.True(found)
 	t.Equal(-1, i0)
+}
+
+func (t *testMultiKeysLockedMap) TestDataRace() {
+	type ptr struct {
+		i int
+	}
+
+	m := NewSingleLockedMap[int, *ptr]()
+	defer m.Close()
+
+	allkeys := make([]int, 4)
+
+	for i := range allkeys {
+		m.SetValue(i, &ptr{i: 0})
+
+		allkeys[i] = i
+	}
+
+	mk := NewMultiKeysLockedMap(m)
+	defer mk.Close()
+
+	run := func(i int, keys []int) error {
+		t.LockedLog("locked: %d %v", i, keys)
+
+		return mk.LockFunc(keys, func(m LockedMap[int, *ptr]) error {
+			for k := range keys {
+				m.Set(keys[k], func(v *ptr, _ bool) (*ptr, error) {
+					v.i *= 2
+
+					return v, nil
+				})
+			}
+
+			return nil
+		})
+	}
+
+	worksize := math.MaxInt16
+
+	var wg sync.WaitGroup
+	wg.Add(worksize)
+
+	for i := range make([]int, worksize) {
+		i := i
+
+		go func() {
+			defer wg.Done()
+
+			keys, err := RandomChoiceSlice(allkeys, 3)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := run(i, keys); err != nil {
+				panic(err)
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestMultiKeysLockedMap(t *testing.T) {
