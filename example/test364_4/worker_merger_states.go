@@ -57,6 +57,8 @@ func newStatesWorkerMerger(
 	statesWorkerMergerWaitFunc,
 	error,
 ) {
+	wctx, wctxCancel := context.WithCancelCause(ctx)
+
 	var mergersPool util.LockedMap[string, StateMerger]
 
 	// NOTE maximum number of states approximately max ops * 2.
@@ -82,13 +84,38 @@ func newStatesWorkerMerger(
 	var initialValuesPhaseDone workerMergerPhaseDoneFunc
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newInitialValuesWorkerMerger(ctx, args.initialValuesWorkerMergerArgs); {
+	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		initialValuesInsert = i
-		initialValuesPhaseDone = p
-		initialValuesWait = w
+		initialValuesInsert = func(worker string) (
+			workerInitialInsertOpFunc,
+			func() error,
+			error,
+		) {
+			j, d, err := i(worker)
+			if err != nil {
+				wctxCancel(err)
+			}
+
+			return j, d, err
+		}
+		initialValuesPhaseDone = func(worker string, unmerge []uint64) error {
+			err := p(worker, unmerge)
+			if err != nil {
+				wctxCancel(err)
+			}
+
+			return err
+		}
+		initialValuesWait = func(f initialValuesWorkerMergerResultFunc) error {
+			err := w(f)
+			if err != nil {
+				wctxCancel(err)
+			}
+
+			return err
+		}
 	}
 
 	traverseStates := func(f func(st base.State) error) (gerr error) {
@@ -134,14 +161,25 @@ func newStatesWorkerMerger(
 		return gerr
 	}
 
+	waitf := func(f statesWorkerMergerResultFunc) error {
+		defer closeMergers()
+
+		return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
+			if f == nil {
+				return nil
+			}
+
+			return f(unmerged, reasons, traverseStates)
+		})
+	}
+
 	return initialValuesInsert,
 		initialValuesPhaseDone,
 		func(f statesWorkerMergerResultFunc) error {
-			defer closeMergers()
+			err := waitf(f)
+			wctxCancel(err)
 
-			return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
-				return f(unmerged, reasons, traverseStates)
-			})
+			return err
 		},
 		nil
 }

@@ -40,8 +40,8 @@ func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
 }
 
 func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtractorArgs) (
-	insert stateMergeValueExtractorInsertFunc,
-	insertDone func(),
+	_ stateMergeValueExtractorInsertFunc,
+	extractDone func(),
 	wait stateMergeValueExtractorWaitFunc,
 	_ error,
 ) {
@@ -58,33 +58,39 @@ func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtra
 
 	reasons := util.NewSingleLockedMap[uint64, string]()
 
-	extract := newExtractStateMergeValueFunc(args.GetOperation)
+	extractf := newExtractStateMergeValueFunc(args.GetOperation)
+	extract := func(ctx context.Context, opindex uint64, oph util.Hash) error {
+		l := args.Log().With().Uint64("opindex", opindex).Stringer("op", oph).Logger()
+
+		l.Debug().Msg("> extract")
+		defer l.Debug().Msg("< extracted")
+
+		switch op, values, reason, err := extractf(ctx, opindex, oph); {
+		case err != nil:
+			l.Error().Err(err).Msg("failed to extract")
+
+			return err
+		case len(reason) > 0:
+			l.Debug().Str("reason", reason).Msg("extracted, but reason")
+
+			_ = reasons.SetValue(opindex, reason)
+
+			return nil
+		default:
+			return args.Done(ctx, opindex, op, values)
+		}
+
+		return nil
+	}
 
 	return func(opindex uint64, oph util.Hash) error {
-			l := args.Log().With().Uint64("opindex", opindex).Stringer("op", oph).Logger()
-
-			l.Debug().Msg("> insert")
-
 			return jobWorker.NewJob(func(ctx context.Context) error {
-				l.Debug().Msg("> extract")
-				defer l.Debug().Msg("< extracted")
-
-				switch op, values, reason, err := extract(ctx, opindex, oph); {
-				case err != nil:
-					l.Error().Err(err).Msg("failed to extract")
-
-					return err
-				case len(reason) > 0:
-					l.Debug().Str("reason", reason).Msg("extracted, but reason")
-
-					_ = reasons.SetValue(opindex, reason)
-
-					return nil
-				default:
-					return args.Done(ctx, opindex, op, values)
+				err := extract(ctx, opindex, oph)
+				if err != nil {
+					pctxCancel(err)
 				}
 
-				return nil
+				return err
 			})
 		},
 		jobWorker.JobDone,

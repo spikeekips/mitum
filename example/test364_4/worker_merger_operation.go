@@ -62,17 +62,19 @@ func newOperationsWorkerMerger(
 	ctx context.Context,
 	args *operationsWorkerMergerArgs,
 ) (
-	_ operationsWorkerInsertOpsFuncs,
-	_ workerInitialInsertOpsFuncs,
-	workerPhaseDone workerMergerPhaseDoneFunc,
-	wait operationsWorkerMergerWaitFunc,
-	_ error,
+	operationsWorkerInsertOpsFuncs,
+	workerInitialInsertOpsFuncs,
+	workerMergerPhaseDoneFunc,
+	operationsWorkerMergerWaitFunc,
+	error,
 ) {
-	// FIXME use own context.Context
+	wctx, wctxCancel := context.WithCancelCause(ctx)
+
 	var initialInsert workerInitialInsertOpsFuncs
+	var workerPhaseDone workerMergerPhaseDoneFunc
 	var statesWait statesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newStatesWorkerMerger(ctx, args.statesWorkerMergerArgs); {
+	switch i, p, w, err := newStatesWorkerMerger(wctx, args.statesWorkerMergerArgs); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -98,7 +100,7 @@ func newOperationsWorkerMerger(
 	var extractInsertDone func()
 	var extractWait stateMergeValueExtractorWaitFunc
 
-	switch i, d, w, err := newStateMergeValueExtractor(ctx, args.e); {
+	switch i, d, w, err := newStateMergeValueExtractor(wctx, args.e); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -113,59 +115,83 @@ func newOperationsWorkerMerger(
 		}
 	}
 
+	waitf := func(f operationsWorkerMergerResultFunc) error {
+		defer closeOpsPool()
+
+		mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
+
+		if err := extractWait(func(reasons map[uint64]string) error {
+			_ = mergeReasons(reasons)
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		return statesWait(func(
+			unmerged []uint64,
+			reasons map[uint64]string,
+			traverseStates func(func(base.State) error) error,
+		) error {
+			if f == nil {
+				return nil
+			}
+
+			return f(
+				mergeReasonsToUnmerged(unmerged),
+				mergeReasons(reasons),
+				traverseStates,
+				func(f func(uint64, Operation) error) (gerr error) {
+					_ = traverseOpsPool(func(opindex uint64, op Operation) bool {
+						gerr = f(opindex, op)
+
+						return gerr == nil
+					})
+
+					return gerr
+				},
+			)
+		})
+	}
+
 	return func(fs operationsWorkerInsertOpsFunc) error {
 			defer extractInsertDone()
 
-			return fs(func(opindex uint64, oph, _ util.Hash) error {
+			err := fs(func(opindex uint64, oph, _ util.Hash) error {
 				return extractInsert(opindex, oph)
 			})
+			if err != nil {
+				wctxCancel(err)
+			}
+
+			return err
 		},
 		func(worker string) (workerInitialInsertOpFunc, func() error, error) {
 			if worker == localWorkerName {
 				return nil, nil, util.ErrFound.Errorf("%q", localWorkerName)
 			}
 
-			return initialInsert(worker)
-		},
-		workerPhaseDone,
-		func(f operationsWorkerMergerResultFunc) error {
-			defer closeOpsPool()
-
-			mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
-
-			if err := extractWait(func(reasons map[uint64]string) error {
-				_ = mergeReasons(reasons)
-
-				return nil
-			}); err != nil {
-				return err
+			i, d, err := initialInsert(worker)
+			if err != nil {
+				wctxCancel(err)
 			}
 
-			return statesWait(func(
-				unmerged []uint64,
-				reasons map[uint64]string,
-				traverseStates func(func(base.State) error) error,
-			) error {
-				if f == nil {
-					return nil
-				}
-
-				return f(
-					mergeReasonsToUnmerged(unmerged),
-					mergeReasons(reasons),
-					traverseStates,
-					func(f func(uint64, Operation) error) (gerr error) {
-						_ = traverseOpsPool(func(opindex uint64, op Operation) bool {
-							gerr = f(opindex, op)
-
-							return gerr == nil
-						})
-
-						return gerr
-					},
-				)
-			})
+			return i, d, err
 		},
+		func(worker string, unmerge []uint64) error {
+			err := workerPhaseDone(worker, unmerge)
+			if err != nil {
+				wctxCancel(err)
+			}
+
+			return err
+		},
+		OnceFuncCallback(func(f operationsWorkerMergerResultFunc) error {
+			err := waitf(f)
+			wctxCancel(err)
+
+			return err
+		}),
 		nil
 }
 

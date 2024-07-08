@@ -255,6 +255,28 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 
 	t.Run("1 operation", nOps(1))
 	t.Run("over 1 operation", nOps(33))
+
+	t.Run("extract error", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		op := t.randomOp(0)
+
+		args := t.newArgs([]Operation{op})
+
+		args.Done = func(context.Context, uint64, Operation, []StateMergeValue) error {
+			return errors.Errorf("findme")
+		}
+
+		extract, done, wait, err := newStateMergeValueExtractor(ctx, args)
+		t.NoError(err)
+
+		t.NoError(extract(0, op.Hash()))
+
+		done()
+		err = wait(nil)
+		t.ErrorContains(err, "findme")
+	})
 }
 
 func TestStateMergeValueExtractor(t *testing.T) {

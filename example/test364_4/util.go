@@ -236,3 +236,19 @@ func OnceFunc(f func() error) func() error {
 		return gerr
 	}
 }
+
+func OnceFuncCallback[T any](f func(T) error) func(T) error {
+	var w T
+
+	oncef := func() error {
+		return f(w)
+	}
+
+	once := OnceFunc(oncef)
+
+	return func(t T) error {
+		w = t
+
+		return once()
+	}
+}

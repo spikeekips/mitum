@@ -69,11 +69,13 @@ func newInitialValuesWorkerMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
 ) (
-	_ workerInitialInsertOpsFuncs,
-	workerPhaseDone workerMergerPhaseDoneFunc,
-	wait initialValuesWorkerMergerWaitFunc,
-	_ error,
+	workerInitialInsertOpsFuncs,
+	workerMergerPhaseDoneFunc,
+	initialValuesWorkerMergerWaitFunc,
+	error,
 ) {
+	wctx, wctxCancel := context.WithCancelCause(ctx)
+
 	var vp util.LockedMap[uint64, []StateMergeValue]
 
 	switch i, err := args.NewValuesPool(); {
@@ -99,7 +101,7 @@ func newInitialValuesWorkerMerger(
 	var initialWorkerInsert workerNewInitialXMergeFuncs
 	var initialWait initialValuesWorkerMergerWaitFunc
 
-	switch i, w, err := newInitialPhaseMerger(ctx, args, pargs, enoughWorkers); {
+	switch i, w, err := newInitialPhaseMerger(wctx, args, pargs, enoughWorkers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -107,9 +109,10 @@ func newInitialValuesWorkerMerger(
 		initialWait = w
 	}
 
+	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(ctx, args.baseWorkerMergerArgs); {
+	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -128,10 +131,10 @@ func newInitialValuesWorkerMerger(
 		}
 	}
 
-	_, initialStateOpsDone, initialStateOpsWait := NewDoneContextFunc(ctx)
+	_, initialStateOpsDone, initialStateOpsWait := NewDoneContextFunc(wctx)
 
 	setInitialUnmergedState := func(unmerged []uint64) error {
-		jw, _ := NewBaseJobWorker(ctx, int64(args.MaxJobWorkerSemSize))
+		jw, _ := NewBaseJobWorker(wctx, int64(args.MaxJobWorkerSemSize))
 
 		if err := util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {
@@ -150,87 +153,107 @@ func newInitialValuesWorkerMerger(
 		return jw.Wait()
 	}
 
+	initialInsertOps := func(worker string) (
+		workerInitialInsertOpFunc,
+		func() error,
+		error,
+	) {
+		var insert phaseMergerXMergeFunc
+		var done func() error
+
+		switch i, d, err := initialWorkerInsert(worker); {
+		case err != nil:
+			return nil, nil, err
+		case i == nil:
+			return nil, nil, nil
+		default:
+			insert = i
+			done = d
+		}
+
+		return func(opindex uint64, values []StateMergeValue) error {
+				if _, created, _ := vp.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
+					if found {
+						return nil, util.ErrLockedSetIgnore
+					}
+
+					return values, nil
+				}); !created {
+					return nil
+				}
+
+				setStateOp(opindex, values, mergeFlag)
+
+				return insert(opindex)
+			},
+			done,
+			nil
+	}
+
+	waitf := func(f initialValuesWorkerMergerResultFunc) error {
+		defer func() {
+			vp.Close()
+			closeArgs()
+		}()
+
+		var reasons map[uint64]string
+
+		if err := initialWait(func(unmerged []uint64, r map[uint64]string) error {
+			unmerged = slices.Clone(unmerged)
+
+			reasons = r
+
+			if err := workerPhaseDone(localWorkerName, unmerged); err != nil {
+				return err
+			}
+
+			if err := args.BroadcastPhaseDone(wctx, unmerged); err != nil {
+				return err
+			}
+
+			go initialStateOpsDone(setInitialUnmergedState(unmerged))
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		return workerMergerWait(func(unmerged []uint64) error {
+			if err := initialStateOpsWait(); err != nil {
+				return err
+			}
+
+			if f == nil {
+				return nil
+			}
+
+			if err := setInitialUnmergedState(unmerged); err != nil {
+				return err
+			}
+
+			return f(unmerged, reasons)
+		})
+	}
+
 	return func(worker string) (
 			workerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
-			var insert phaseMergerXMergeFunc
-			var done func() error
-
-			switch i, d, err := initialWorkerInsert(worker); {
-			case err != nil:
-				return nil, nil, err
-			case i == nil:
-				return nil, nil, nil
-			default:
-				insert = i
-				done = d
+			i, d, err := initialInsertOps(worker)
+			if err != nil {
+				wctxCancel(err)
 			}
 
-			return func(opindex uint64, values []StateMergeValue) error {
-					if _, created, _ := vp.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
-						if found {
-							return nil, util.ErrLockedSetIgnore
-						}
-
-						return values, nil
-					}); !created {
-						return nil
-					}
-
-					setStateOp(opindex, values, mergeFlag)
-
-					return insert(opindex)
-				},
-				done,
-				nil
+			return i, d, err
 		},
 		workerPhaseDone,
-		func(f initialValuesWorkerMergerResultFunc) error {
-			defer func() {
-				vp.Close()
-				closeArgs()
-			}()
+		OnceFuncCallback(func(f initialValuesWorkerMergerResultFunc) error {
+			err := waitf(f)
+			wctxCancel(err)
 
-			var reasons map[uint64]string
-
-			if err := initialWait(func(unmerged []uint64, r map[uint64]string) error {
-				unmerged = slices.Clone(unmerged)
-
-				reasons = r
-
-				if err := workerPhaseDone(localWorkerName, unmerged); err != nil {
-					return err
-				}
-
-				if err := args.BroadcastPhaseDone(ctx, unmerged); err != nil {
-					return err
-				}
-
-				go initialStateOpsDone(setInitialUnmergedState(unmerged))
-
-				return nil
-			}); err != nil {
-				return err
-			}
-
-			return workerMergerWait(func(unmerged []uint64) error {
-				if err := initialStateOpsWait(); err != nil {
-					return err
-				}
-
-				if f == nil {
-					return nil
-				}
-
-				if err := setInitialUnmergedState(unmerged); err != nil {
-					return err
-				}
-
-				return f(unmerged, reasons)
-			})
-		},
+			return err
+		}),
 		nil
 }
 

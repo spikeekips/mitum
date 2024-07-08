@@ -128,7 +128,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 			defer jobIDLocked.Close()
 			defer pctxCancel(nil)
 
-			if err := wk.Wait(); err != nil {
+			if err := wk.Wait(); err != nil { // FIXME LazyWait
 				return err
 			}
 

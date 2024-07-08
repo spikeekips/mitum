@@ -73,6 +73,8 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
+	pctx, pctxCancel := context.WithCancelCause(ctx)
+
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
@@ -88,17 +90,68 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := args.NewPhaseJobWorkerFunc(ctx); {
+	switch n, d, w, err := args.NewPhaseJobWorkerFunc(pctx); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		newJob = n
+		newJob = func(jobID uint64, c PhaseJobWorkerCallback) error {
+			err := n(jobID, c)
+			if err != nil {
+				pctxCancel(err)
+			}
+
+			return err
+		}
 		jobDone = d
 		jobWait = w
 	}
 
 	addReason, doneReason := newAddReasonsFuncs(args.ReasonsMapSize)
 
+	mergeCallback, unmergeCallback := newXMergeCallbackFuncs(args, addXMergedOp, addReason)
+
+	waitf := func(f phaseMergerWaitCallbackFunc) error {
+		if err := jobWait(); err != nil {
+			return err
+		}
+
+		return doneXMergedOps(func(newMerged, newUnmerged []uint64) error {
+			if f == nil {
+				return nil
+			}
+
+			return f(newMerged, newUnmerged, doneReason(newUnmerged))
+		})
+	}
+
+	return func(opindex uint64) error {
+			addXMergedOp(-1, opindex, mergeFlag)
+
+			return newJob(opindex, mergeCallback(opindex))
+		},
+		func(opindex uint64) error {
+			addXMergedOp(-1, opindex, unmergeFlag)
+
+			return newJob(opindex, unmergeCallback(opindex))
+		},
+		jobDone,
+		OnceFuncCallback(func(f phaseMergerWaitCallbackFunc) error {
+			err := waitf(f)
+			pctxCancel(err)
+
+			return err
+		}),
+		nil
+}
+
+func newXMergeCallbackFuncs(
+	args *PhaseMergerArgs,
+	addXMergedOp func(int, uint64, xMergeFlag),
+	addReason func(reasons map[uint64]string) error,
+) (
+	merge func(opindex uint64) PhaseJobWorkerCallback,
+	unmerge func(opindex uint64) PhaseJobWorkerCallback,
+) {
 	var mergeCallback func(opindex uint64) PhaseJobWorkerCallback
 	var unmergeCallback func(opindex uint64) PhaseJobWorkerCallback
 
@@ -215,31 +268,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		}
 	}
 
-	return func(opindex uint64) error {
-			addXMergedOp(-1, opindex, mergeFlag)
-
-			return newJob(opindex, mergeCallback(opindex))
-		},
-		func(opindex uint64) error {
-			addXMergedOp(-1, opindex, unmergeFlag)
-
-			return newJob(opindex, unmergeCallback(opindex))
-		},
-		jobDone,
-		func(f phaseMergerWaitCallbackFunc) error {
-			if err := jobWait(); err != nil {
-				return err
-			}
-
-			return doneXMergedOps(func(newMerged, newUnmerged []uint64) error {
-				if f == nil {
-					return nil
-				}
-
-				return f(newMerged, newUnmerged, doneReason(newUnmerged))
-			})
-		},
-		nil
+	return mergeCallback, unmergeCallback
 }
 
 func extractStateMergeValueKeys(values []StateMergeValue) (stateKeys []string) {

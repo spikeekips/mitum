@@ -56,11 +56,12 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 }
 
 func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
-	insert workerMergerPhaseDoneFunc,
-	_ workerMergerWaitFunc,
-	_ error,
+	workerMergerPhaseDoneFunc,
+	workerMergerWaitFunc,
+	error,
 ) {
-	var insertFunc func(worker string, unmerge []uint64) error
+	wctx, wctxCancel := context.WithCancelCause(ctx)
+
 	var insertPool func(worker string, unmerge []uint64) bool
 	var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
@@ -75,7 +76,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	var phaseInsertFunc func(worker string, unmerge []uint64) error
 	var phaseWait workerMergerWaitFunc
 
-	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(ctx, args); {
+	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(wctx, args); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -101,7 +102,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		}
 	}()
 
-	insertFunc = func(worker string, unmerge []uint64) error {
+	workerPhaseDone := func(worker string, unmerge []uint64) error {
 		var ok bool
 
 		if err := localIsReady(worker, func(isReady bool) error {
@@ -131,23 +132,25 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		return nil
 	}
 
-	waitOnce := func() func(workerMergerUnmergedOpsFunc) error {
-		var w workerMergerUnmergedOpsFunc
+	wait := func(f workerMergerUnmergedOpsFunc) error {
+		defer exhaustPool(nil)
 
-		once := OnceFunc(func() error {
-			defer exhaustPool(nil)
+		err := phaseWait(f)
+		wctxCancel(err)
 
-			return phaseWait(w)
-		})
+		return err
+	}
 
-		return func(f workerMergerUnmergedOpsFunc) error {
-			w = f
+	return func(worker string, unmerge []uint64) error {
+			err := workerPhaseDone(worker, unmerge)
+			if err != nil {
+				wctxCancel(err)
+			}
 
-			return once()
-		}
-	}()
-
-	return insertFunc, waitOnce, nil
+			return err
+		},
+		OnceFuncCallback(wait),
+		nil
 }
 
 func newWorkerMergerPhasePoolFuncs(
