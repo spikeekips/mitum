@@ -28,6 +28,8 @@ func (t *baseTestWorkerMerger) newArgs(workers uint64) (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
 ) {
+	t.T().Helper()
+
 	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
 
 	getState := func(stateKey string) (base.State, bool, error) {
@@ -78,6 +80,8 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 	util.LockedMap[string, base.State],
 	stateOpsFuncs,
 ) {
+	t.T().Helper()
+
 	pargs, wpargs, bargs, vp, mergers, states := t.newArgs(workers)
 
 	args := newInitialValuesWorkerMergerArgs(bargs)
@@ -103,6 +107,8 @@ func (t *baseTestWorkerMerger) newStatesArgs(workers uint64) (
 	util.LockedMap[string, StateMerger],
 	util.LockedMap[string, base.State],
 ) {
+	t.T().Helper()
+
 	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(workers)
 
 	args := newStatesWorkerMergerArgs(iargs)
@@ -133,6 +139,8 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 	expectedStates map[string]int64,
 	expectedReasons map[uint64]string,
 ) {
+	t.T().Helper()
+
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
 	getValues := func(stateKey string) map[uint64][]StateMergeValue {
@@ -977,6 +985,8 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	expectedReasons map[uint64]string,
 	expectedStateOps map[string][]uint64,
 ) {
+	t.T().Helper()
+
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
 	getValues := func(stateKey string) map[uint64][]StateMergeValue {
@@ -1279,6 +1289,8 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 	expectedStateOps map[string][]uint64,
 	expectedStates map[string][2]interface{},
 ) {
+	t.T().Helper()
+
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
 	getValues := func(stateKey string) map[uint64][]StateMergeValue {

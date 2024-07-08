@@ -24,6 +24,8 @@ func (t *testWorkerPhaseMerger) newArgs() (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
 ) {
+	t.T().Helper()
+
 	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
 
 	getState := func(stateKey string) (base.State, bool, error) {
@@ -63,6 +65,8 @@ func (t *testWorkerPhaseMerger) newWorker(
 	workerPhaseMergerWaitFunc,
 	error,
 ) {
+	t.T().Helper()
+
 	return newWorkerPhaseMerger(ctx, args)
 }
 
@@ -393,6 +397,8 @@ func (t *testWorkerPhaseMerger) newInsertWaitFuncs(
 	insert workerPhaseMergerInsertFunc,
 	wait workerPhaseMergerWaitFunc,
 ) func(worker string, mergeOps, unmergeOps []uint64, d time.Duration) (bool, error) {
+	t.T().Helper()
+
 	waitch := make(chan struct{}, 1)
 
 	var once sync.Once

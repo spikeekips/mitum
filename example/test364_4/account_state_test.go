@@ -158,6 +158,8 @@ func (t *baseTestAccountStateMerger) randomOps(n int, amount int64) []Operation 
 }
 
 func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeValue {
+	t.T().Helper()
+
 	values := make([][]StateMergeValue, len(ops))
 
 	for i := range ops {

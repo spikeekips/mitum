@@ -170,6 +170,8 @@ func (t *testPhaseMerger) newArgs() (
 	states util.LockedMap[string, base.State],
 	args *PhaseMergerArgs,
 ) {
+	t.T().Helper()
+
 	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
 
 	getState := func(stateKey string) (base.State, bool, error) {
@@ -578,6 +580,8 @@ func (t *testPhaseMerger) baseTestMergeUnmerge() (
 }
 
 func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
+	t.T().Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -804,6 +808,8 @@ func (t *testPhaseMerger) TestMergeUnmerge() {
 }
 
 func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
+	t.T().Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

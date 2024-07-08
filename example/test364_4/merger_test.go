@@ -16,6 +16,8 @@ type baseTestMergeOp struct {
 }
 
 func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerger]) (map[string]int64, error) {
+	t.T().Helper()
+
 	m := map[string]int64{}
 
 	var gerr error
@@ -43,6 +45,8 @@ func (t *baseTestMergeOp) getFuncs() (
 	getMerger func(StateMergeValue) (StateMerger, error),
 	getValues func(uint64) ([]StateMergeValue, error),
 ) {
+	t.T().Helper()
+
 	vp, err := util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
 	t.NoError(err)
 

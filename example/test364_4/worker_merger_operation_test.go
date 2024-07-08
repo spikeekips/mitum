@@ -29,6 +29,8 @@ func (t *testOperationsWorkerMerger) newArgs(enoughWorkers uint64, ops []Operati
 	util.LockedMap[string, StateMerger],
 	util.LockedMap[string, base.State],
 ) {
+	t.T().Helper()
+
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(enoughWorkers)
 
 	sargs.BroadcastPhaseDone = func(context.Context, []uint64) error {
@@ -191,6 +193,8 @@ func (t *testOperationsWorkerMerger) testMerger(
 	expectedStateOps map[string][]uint64,
 	expectedStates map[string][2]interface{},
 ) {
+	t.T().Helper()
+
 	t.T().Logf("condition: values=%v enough workers=%d", workerValues, enoughWorkers)
 
 	workerNames := make([]string, len(workerValues))

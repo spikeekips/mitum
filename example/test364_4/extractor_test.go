@@ -19,6 +19,8 @@ type testStateMergeValueExtractor struct {
 }
 
 func (t *testStateMergeValueExtractor) newArgs(ops []Operation) *stateMergeValueExtractorArgs {
+	t.T().Helper()
+
 	args := newStateMergeValueExtractorArgs()
 	args.SetLogging(logging.TestNilLogging)
 
@@ -180,6 +182,8 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 
 func (t *testStateMergeValueExtractor) TestExtract() {
 	nOps := func(n int) func() {
+		t.T().Helper()
+
 		return func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
