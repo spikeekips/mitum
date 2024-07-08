@@ -30,8 +30,11 @@ func newStateMergeValueExtractorGetOperationFunc(
 			return nil, true, err
 		}
 
-		if !op.Fact().Equal(fact) {
-			return nil, true, util.ErrInvalid.Errorf("fact not match")
+		switch {
+		case !op.Hash().Equal(oph):
+			return nil, true, util.ErrInvalid.Errorf("operation hash not match")
+		case !op.Fact().Hash().Equal(fact):
+			return nil, true, util.ErrInvalid.Errorf("fact hash not match")
 		}
 
 		return op, true, nil

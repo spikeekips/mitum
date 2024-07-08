@@ -123,14 +123,14 @@ func (wk *BaseJobWorker) NewJob(c ContextWorkerCallback) error {
 }
 
 // Wait waits until all job finished.
-func (wk *BaseJobWorker) Wait() error {
+func (wk *BaseJobWorker) EnsureWait() error {
 	defer wk.ctxCancel(nil)
 
 	return wk.wait()
 }
 
-// LazyWait don't wait until all job finished.
-func (wk *BaseJobWorker) LazyWait() error {
+// Wait don't wait until all job finished.
+func (wk *BaseJobWorker) Wait() error {
 	defer wk.ctxCancel(nil)
 
 	waitch := make(chan error, 1)

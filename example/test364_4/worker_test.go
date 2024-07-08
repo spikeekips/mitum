@@ -417,7 +417,7 @@ func (t *testJobWorker) TestLazyWait() {
 
 		wk.JobDone()
 
-		t.NoError(wk.LazyWait())
+		t.NoError(wk.Wait())
 
 		select {
 		case <-time.After(time.Second):
@@ -447,7 +447,7 @@ func (t *testJobWorker) TestLazyWait() {
 
 		waitch := make(chan error, 1)
 		go func() {
-			waitch <- wk.LazyWait()
+			waitch <- wk.Wait()
 		}()
 
 		<-time.After(time.Second * 2)

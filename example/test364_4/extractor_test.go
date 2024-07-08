@@ -88,11 +88,14 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 
 		done()
 		t.NoError(wait(nil))
-		t.NoError(wait(nil))
+
+		err = wait(nil)
+		t.ErrorIs(err, context.Canceled)
 
 		cancel()
 
-		t.NoError(wait(nil))
+		err = wait(nil)
+		t.ErrorIs(err, context.Canceled)
 	})
 }
 
