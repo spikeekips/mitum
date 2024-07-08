@@ -203,8 +203,6 @@ func patchStatesWorkerMergerArgs(
 		wpnewf = n
 	}
 
-	// FIXME set logging
-
 	var pargs *PhaseMergerArgs
 	var pnewf newPhaseMergerFunc
 

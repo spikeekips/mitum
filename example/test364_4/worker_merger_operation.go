@@ -227,6 +227,8 @@ func patchOperationsWorkerMergerArgs(
 		return nil
 	}
 
+	args.e.SetLogging(args.Logging)
+
 	return opsPool.Traverse, opsPool.Close
 }
 

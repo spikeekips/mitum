@@ -345,6 +345,8 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		wpnewf = n
 	}
 
+	wpargs.SetLogging(args.Logging)
+
 	var pnewf newPhaseMergerFunc
 
 	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
@@ -354,6 +356,8 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		pargs = a
 		pnewf = n
 	}
+
+	wpargs.SetLogging(args.Logging)
 
 	extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
