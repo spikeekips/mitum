@@ -126,7 +126,7 @@ type accountStateMergeValueJSONMarshaler struct {
 	Value AccountStateValue
 }
 
-func (v AccountStateMergeValue) Bytes() ([]byte, error) { // FIXME remove; not used
+func (v AccountStateMergeValue) Bytes() ([]byte, error) { // TODO remove; not used
 	return util.NewLengthedBytesSlice(
 		[][]byte{
 			[]byte(v.key),
@@ -136,7 +136,7 @@ func (v AccountStateMergeValue) Bytes() ([]byte, error) { // FIXME remove; not u
 	)
 }
 
-func AccountStateMergeValueFromReader(b []byte) (v AccountStateMergeValue, _ error) { // FIXME remove; not used
+func AccountStateMergeValueFromReader(b []byte) (v AccountStateMergeValue, _ error) { // TODO remove; not used
 	var m [][]byte
 
 	switch i, _, err := util.ReadLengthedBytesSlice(b); {

@@ -9,9 +9,10 @@ import (
 )
 
 type (
-	stateMergeValueExtractorInsertFunc  func(opindex uint64, oph util.Hash) error
-	stateMergeValueExtractorReasonsFunc func(reasons map[uint64]string) error
-	stateMergeValueExtractorWaitFunc    func(stateMergeValueExtractorReasonsFunc) error
+	stateMergeValueExtractorGetOperationFunc func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
+	stateMergeValueExtractorInsertFunc       func(opindex uint64, oph util.Hash) error
+	stateMergeValueExtractorReasonsFunc      func(reasons map[uint64]string) error
+	stateMergeValueExtractorWaitFunc         func(stateMergeValueExtractorReasonsFunc) error
 )
 
 type stateMergeValueExtractorArgs struct {
@@ -30,7 +31,6 @@ func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		GetOperation: func(context.Context, uint64, util.Hash) (Operation, bool, error) {
-			// FIXME check fact hash is correct
 			return nil, false, util.ErrNotImplemented.Errorf("GetOperation")
 		},
 		Done: func(context.Context, uint64, Operation, []StateMergeValue) error {
