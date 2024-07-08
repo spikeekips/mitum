@@ -38,7 +38,7 @@ type baseWorkerMergerArgs struct {
 func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 	return &baseWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "worker-merger")
+			return zctx.Str("module", "base-worker-merger")
 		}),
 		NewWorkerPhaseMergerFuncs: func() (
 			*workerPhaseMergerArgs,

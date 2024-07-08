@@ -4,7 +4,9 @@ import (
 	"context"
 	"slices"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -28,6 +30,7 @@ type (
 )
 
 type initialValuesWorkerMergerArgs struct {
+	*logging.Logging
 	*baseWorkerMergerArgs
 	BroadcastPhaseDone  workerBroadcastPhaseDoneFunc
 	NewValuesPool       func() (util.LockedMap[uint64, []StateMergeValue], error)
@@ -36,8 +39,17 @@ type initialValuesWorkerMergerArgs struct {
 	MaxJobWorkerSemSize uint64
 }
 
+func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
+	args.baseWorkerMergerArgs.SetLogging(l)
+
+	return args.Logging.SetLogging(l)
+}
+
 func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "initial-worker-merger")
+		}),
 		baseWorkerMergerArgs: args,
 		BroadcastPhaseDone: func(_ context.Context, newUnmerged []uint64) error {
 			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")

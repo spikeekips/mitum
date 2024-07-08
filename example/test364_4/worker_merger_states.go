@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -19,13 +21,23 @@ type (
 )
 
 type statesWorkerMergerArgs struct {
+	*logging.Logging
 	*initialValuesWorkerMergerArgs
 	GetState     getStateFunc
 	NewStateFunc func() (newStateFunc, error)
 }
 
+func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
+	args.initialValuesWorkerMergerArgs.SetLogging(l)
+
+	return args.Logging.SetLogging(l)
+}
+
 func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorkerMergerArgs {
 	return &statesWorkerMergerArgs{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "states-worker-merger")
+		}),
 		initialValuesWorkerMergerArgs: args,
 		GetState: func(string) (base.State, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetState")
@@ -45,20 +57,20 @@ func newStatesWorkerMerger(
 	statesWorkerMergerWaitFunc,
 	error,
 ) {
-	var statesPool util.LockedMap[string, StateMerger]
+	var mergersPool util.LockedMap[string, StateMerger]
 
 	// NOTE maximum number of states approximately max ops * 2.
 	switch i, err := util.NewShardedMap[string, StateMerger](args.MaxOpsSize*2, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		statesPool = i
+		mergersPool = i
 	}
 
 	var stateOps stateOpsFuncs
 	var closeMergers func()
 
-	switch s, c, err := patchStatesWorkerMergerArgs(args, statesPool); {
+	switch s, c, err := patchStatesWorkerMergerArgs(args, mergersPool); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -81,21 +93,19 @@ func newStatesWorkerMerger(
 
 	traverseStates := func(f func(st base.State) error) (gerr error) {
 		getStateOp, closeStateOps := stateOps()
+
 		defer func() {
 			closeStateOps()
-			statesPool.Close()
+			mergersPool.Close()
 		}()
 
 		var newState newStateFunc
 
-		switch n, err := args.NewStateFunc(); {
-		case err != nil:
-			return err
-		default:
-			newState = n
+		if newState, gerr = args.NewStateFunc(); gerr != nil {
+			return gerr
 		}
 
-		_ = statesPool.Traverse(func(stateKey string, merger StateMerger) bool {
+		_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
 			var v base.StateValue
 
 			if v, gerr = merger.Close(); gerr != nil || v == nil {
@@ -113,6 +123,7 @@ func newStatesWorkerMerger(
 
 			switch st, gerr = newState(stateKey, v, ops); {
 			case gerr != nil:
+			case f == nil:
 			default:
 				gerr = f(st)
 			}
@@ -137,7 +148,7 @@ func newStatesWorkerMerger(
 
 func patchStatesWorkerMergerArgs(
 	args *statesWorkerMergerArgs,
-	statesPool util.LockedMap[string, StateMerger],
+	mergersPool util.LockedMap[string, StateMerger],
 ) (
 	stateOps stateOpsFuncs,
 	closeMergers func(),
@@ -154,6 +165,8 @@ func patchStatesWorkerMergerArgs(
 		wpnewf = n
 	}
 
+	// FIXME set logging
+
 	var pargs *PhaseMergerArgs
 	var pnewf newPhaseMergerFunc
 
@@ -165,7 +178,7 @@ func patchStatesWorkerMergerArgs(
 		pnewf = n
 	}
 
-	pargs.GetMergersFunc, closeMergers = newGetMergersFunc(statesPool, args.GetState)
+	pargs.GetMergersFunc, closeMergers = newGetMergersFunc(mergersPool, args.GetState)
 
 	wpargs.NewPhaseMergerFuncs = func() (
 		*PhaseMergerArgs,
