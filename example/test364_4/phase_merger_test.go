@@ -180,7 +180,7 @@ func (t *testPhaseMerger) newArgs() (
 		return i, found, nil
 	}
 
-	args = NewPhaseMergerArgs()
+	args = NewPhaseMergerArgs("local")
 	args.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
 	args.GetValuesFunc = getValues
 
@@ -594,7 +594,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		func() error,
 		error,
 	) {
-		args := newConcPhaseJobWorkerArgs()
+		args := newConcPhaseJobWorkerArgs("local")
 		args.NewJobWorker = func(context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, semSize)
 		}
@@ -858,7 +858,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		func() error,
 		error,
 	) {
-		args := newConcPhaseJobWorkerArgs()
+		args := newConcPhaseJobWorkerArgs("local")
 		args.NewJobWorker = func(context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, semSize)
 		}

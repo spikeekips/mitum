@@ -51,7 +51,7 @@ func newOperationsWorkerMergerArgs(
 ) *operationsWorkerMergerArgs {
 	return &operationsWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "operations-worker-merger")
+			return zctx.Str("module", "operations-worker-merger").Str("local", args.local)
 		}),
 		statesWorkerMergerArgs: args,
 		e:                      eArgs,

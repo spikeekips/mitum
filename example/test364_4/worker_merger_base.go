@@ -37,10 +37,10 @@ type baseWorkerMergerArgs struct {
 	local                     string
 }
 
-func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
+func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
 	return &baseWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "base-worker-merger")
+			return zctx.Str("module", "base-worker-merger").Str("local", local)
 		}),
 		NewWorkerPhaseMergerFuncs: func() (
 			*workerPhaseMergerArgs,
@@ -54,6 +54,7 @@ func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
 		IsLocalOp: func(opindex uint64) bool { return false },
+		local:     local,
 	}
 }
 
@@ -147,8 +148,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 
 	return func(worker string, unmerge []uint64) error {
 			switch err := workerPhaseDone(worker, unmerge); {
-			case errors.Is(err, util.ErrJobWorkerDone),
-				errors.Is(err, context.Canceled):
+			case errors.Is(err, util.ErrJobWorkerDone):
 			case err != nil:
 				fmt.Printf("worker merger.phaseDone: local=%q worker=%q err=%+v\n", args.local, worker, err)
 
@@ -245,7 +245,6 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 		newf = n
 	}
 
-	wargs.local = args.local
 	wargs.SetLogging(args.Logging)
 
 	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps(args.local)

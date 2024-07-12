@@ -34,13 +34,13 @@ func (t *testWorkerPhaseMerger) newArgs() (
 		return i, found, nil
 	}
 
-	pargs := NewPhaseMergerArgs()
+	pargs := NewPhaseMergerArgs("local")
 	pargs.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
 	pargs.GetValuesFunc = getValues
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
-	args := newWorkerPhaseMergerArgs()
+	args := newWorkerPhaseMergerArgs("local")
 	args.NewPhaseMergerFuncs = func() (
 		*PhaseMergerArgs,
 		newPhaseMergerFunc,

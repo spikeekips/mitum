@@ -38,10 +38,10 @@ type workerPhaseMergerArgs struct {
 	local               string
 }
 
-func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
+func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 	return &workerPhaseMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "worker-phase-merger")
+			return zctx.Str("module", "worker-phase-merger").Str("local", local)
 		}),
 		NewPhaseMergerFuncs: func() (
 			*PhaseMergerArgs,
@@ -51,6 +51,7 @@ func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewPhaseMergerFuncs")
 		},
 		FilterMergeOps: func([]uint64, []uint64) ([]uint64, []uint64) { return nil, nil },
+		local:          local,
 	}
 }
 

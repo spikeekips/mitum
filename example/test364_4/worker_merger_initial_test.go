@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -19,7 +18,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(1)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 1)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -57,7 +56,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(2)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 2)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -104,7 +103,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, _, _, _, _ := t.newInitialValuesArgs(1)
+		_, _, args, _, _, _, _ := t.newInitialValuesArgs("local", 1)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -126,8 +125,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		insertOther, doneOther, err := initial("w0")
 		t.NoError(err)
 
-		err = insertOther(1, ops[1])
-		t.ErrorIs(err, util.ErrJobWorkerDone)
+		t.NoError(insertOther(1, ops[1])) // NOTE util.ErrJobWorkerDone
 
 		t.NoError(doneOther())
 	})
@@ -136,7 +134,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs(2)
+		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 2)
 
 		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
 		t.NoError(err)

@@ -20,7 +20,7 @@ type baseTestWorkerMerger struct {
 	baseTestMergeOp
 }
 
-func (t *baseTestWorkerMerger) newArgs(workers uint64) (
+func (t *baseTestWorkerMerger) newArgs(local string, workers uint64) (
 	_ *PhaseMergerArgs,
 	_ *workerPhaseMergerArgs,
 	_ *baseWorkerMergerArgs,
@@ -38,13 +38,13 @@ func (t *baseTestWorkerMerger) newArgs(workers uint64) (
 		return i, found, nil
 	}
 
-	pargs := NewPhaseMergerArgs()
+	pargs := NewPhaseMergerArgs(local)
 	pargs.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
 	pargs.GetValuesFunc = getValues
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
-	wpargs := newWorkerPhaseMergerArgs()
+	wpargs := newWorkerPhaseMergerArgs(local)
 	wpargs.NewPhaseMergerFuncs = func() (
 		*PhaseMergerArgs,
 		newPhaseMergerFunc,
@@ -55,7 +55,7 @@ func (t *baseTestWorkerMerger) newArgs(workers uint64) (
 	wpargs.EnoughWorkers = workers
 	wpargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) { return m, u }
 
-	args := newBaseWorkerMergerArgs()
+	args := newBaseWorkerMergerArgs(local)
 
 	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 	args.NewWorkerPhaseMergerFuncs = func() (
@@ -71,7 +71,7 @@ func (t *baseTestWorkerMerger) newArgs(workers uint64) (
 	return pargs, wpargs, args, vp, mergers, states
 }
 
-func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
+func (t *baseTestWorkerMerger) newInitialValuesArgs(local string, workers uint64) (
 	*PhaseMergerArgs,
 	*workerPhaseMergerArgs,
 	*initialValuesWorkerMergerArgs,
@@ -82,7 +82,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, bargs, vp, mergers, states := t.newArgs(workers)
+	pargs, wpargs, bargs, vp, mergers, states := t.newArgs(local, workers)
 
 	args := newInitialValuesWorkerMergerArgs(bargs)
 	args.NewValuesPool = func() (util.LockedMap[uint64, []StateMergeValue], error) {
@@ -99,7 +99,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 	return pargs, wpargs, args, vp, mergers, states, getStateOp
 }
 
-func (t *baseTestWorkerMerger) newStatesArgs(workers uint64) (
+func (t *baseTestWorkerMerger) newStatesArgs(local string, workers uint64) (
 	*PhaseMergerArgs,
 	*workerPhaseMergerArgs,
 	*statesWorkerMergerArgs,
@@ -109,7 +109,7 @@ func (t *baseTestWorkerMerger) newStatesArgs(workers uint64) (
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(workers)
+	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local, workers)
 
 	args := newStatesWorkerMergerArgs(iargs)
 	args.GetState = func(stateKey string) (base.State, bool, error) {
@@ -199,16 +199,13 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, _, args, vp, workerMergers, states := t.newArgs(enoughWorkers)
+		pargs, _, args, vp, workerMergers, states := t.newArgs(local, enoughWorkers)
 
 		mergers[local] = workerMergers
 
 		//if local == "w0" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
-
-		pargs.local = local
-		args.local = local
 
 		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 		broadcasts[local] = func(_ context.Context, unmerged []uint64) error {
@@ -871,7 +868,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, _, args, _, workerMergers, states, getStateOpFuncs := t.newInitialValuesArgs(enoughWorkers)
+		_, _, args, _, workerMergers, states, getStateOpFuncs := t.newInitialValuesArgs(local, enoughWorkers)
 
 		mergers[local] = workerMergers
 		getStateOps[local], _ = getStateOpFuncs()
@@ -885,9 +882,6 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		//if local == "w1" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
-
-		pargs.local = local
-		args.local = local
 
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
@@ -1174,7 +1168,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, _, args, _, _, states := t.newStatesArgs(enoughWorkers)
+		_, _, args, _, _, states := t.newStatesArgs(local, enoughWorkers)
 
 		for i := range sts {
 			st := sts[i]
@@ -1185,9 +1179,6 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		//if local == "w1" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
-
-		pargs.local = local
-		args.local = local
 
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}

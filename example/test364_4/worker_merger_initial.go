@@ -50,7 +50,7 @@ func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *loggi
 func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "initial-worker-merger")
+			return zctx.Str("module", "initial-worker-merger").Str("local", args.local)
 		}),
 		baseWorkerMergerArgs: args,
 		BroadcastPhaseDone: func(_ context.Context, newUnmerged []uint64) error {
@@ -394,7 +394,6 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		pnewf = n
 	}
 
-	pargs.local = args.local
 	wpargs.SetLogging(args.Logging)
 
 	extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))

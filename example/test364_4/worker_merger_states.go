@@ -37,7 +37,7 @@ func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logg
 func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorkerMergerArgs {
 	return &statesWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "states-worker-merger")
+			return zctx.Str("module", "states-worker-merger").Str("local", args.local)
 		}),
 		initialValuesWorkerMergerArgs: args,
 		GetState: func(string) (base.State, bool, error) {
@@ -206,8 +206,6 @@ func patchStatesWorkerMergerArgs(
 		wpargs = a
 		wpnewf = n
 	}
-
-	wpargs.local = args.local
 
 	var pargs *PhaseMergerArgs
 	var pnewf newPhaseMergerFunc

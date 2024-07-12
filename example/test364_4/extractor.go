@@ -21,12 +21,13 @@ type stateMergeValueExtractorArgs struct {
 	NewJobWorker func(context.Context) (JobWorker, error)
 	GetOperation func(_ context.Context, opindex uint64, oph util.Hash) (Operation, bool, error)
 	Done         stateMergeValueExtractorExtractDone
+	local        string
 }
 
-func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
+func newStateMergeValueExtractorArgs(local string) *stateMergeValueExtractorArgs {
 	return &stateMergeValueExtractorArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "state-merge-value-extractor")
+			return zctx.Str("module", "state-merge-value-extractor").Str("local", local)
 		}),
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
@@ -37,6 +38,7 @@ func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
 		Done: func(context.Context, uint64, Operation, []StateMergeValue) error {
 			return util.ErrNotImplemented.Errorf("Done")
 		},
+		local: local,
 	}
 }
 

@@ -139,8 +139,6 @@ func xMergeOpValues(
 		case c == nil:
 			addReason(opindex, r)
 
-			fmt.Printf("%s: opindex=%d state key=%q; not committed\n", name, opindex, value.Key())
-
 			notCommitted = true
 
 			return false, nil
@@ -148,12 +146,8 @@ func xMergeOpValues(
 			reasonOp := opindex
 
 			if nextOp != opindex {
-				fmt.Printf("%s: opindex=%d state key=%q; next=%v\n", name, opindex, value.Key(), nextOp)
-
 				addNext(nextOp)
 				reasonOp = nextOp
-			} else {
-				fmt.Printf("%s: opindex=%d state key=%q\n", name, opindex, value.Key())
 			}
 
 			addReason(reasonOp, r)

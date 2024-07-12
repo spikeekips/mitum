@@ -34,10 +34,10 @@ type PhaseMergerArgs struct {
 	local                          string
 }
 
-func NewPhaseMergerArgs() *PhaseMergerArgs {
+func NewPhaseMergerArgs(local string) *PhaseMergerArgs {
 	args := &PhaseMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "phase-merger")
+			return zctx.Str("module", "phase-merger").Str("local", local)
 		}),
 		GetMergersFunc: func(
 			[]string,
@@ -55,6 +55,7 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 		},
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
+		local:             local,
 	}
 
 	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
@@ -63,8 +64,7 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 		func() error,
 		error,
 	) {
-		cargs := newConcPhaseJobWorkerArgs()
-		cargs.local = args.local
+		cargs := newConcPhaseJobWorkerArgs(args.local)
 
 		return NewConcPhaseJobWorker(ctx, cargs)
 	}
@@ -102,12 +102,8 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		newJob = func(jobID uint64, c PhaseJobWorkerCallback) error {
 			switch err := n(jobID, c); {
 			case errors.Is(err, util.ErrJobWorkerDone):
-				fmt.Printf("new job: local=%q job id=%d error: %+v\n", args.local, jobID, err)
-
 				return err
 			case err != nil:
-				fmt.Printf("phase merger.NewJob: local=%q err=%+v\n", args.local, err)
-
 				pctxCancel(err)
 
 				return err
@@ -140,26 +136,22 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	return func(opindex uint64) error {
 			addXMergedOp(-1, opindex, mergeFlag)
 
-			err := newJob(opindex, mergeCallback(opindex))
-			fmt.Printf("pm merge: local=%q opindex=%d err=%+v\n", args.local, opindex, err)
-
-			if errors.Is(err, util.ErrJobWorkerDone) {
+			switch err := newJob(opindex, mergeCallback(opindex)); {
+			case errors.Is(err, util.ErrJobWorkerDone):
 				return nil
+			default:
+				return err
 			}
-
-			return err
 		},
 		func(opindex uint64) error {
 			addXMergedOp(-1, opindex, unmergeFlag)
 
-			err := newJob(opindex, unmergeCallback(opindex))
-			fmt.Printf("pm unmerge: local=%q opindex=%d err=%+v\n", args.local, opindex, err)
-
-			if errors.Is(err, util.ErrJobWorkerDone) {
+			switch err := newJob(opindex, unmergeCallback(opindex)); {
+			case errors.Is(err, util.ErrJobWorkerDone):
 				return nil
+			default:
+				return err
 			}
-
-			return err
 		},
 		jobDone,
 		OnceFuncCallback(func(f phaseMergerWaitCallbackFunc) error {

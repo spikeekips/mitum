@@ -16,7 +16,7 @@ func (t *testBaseWorkerMerger) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		_, _, args, _, _, _ := t.newArgs(1)
+		_, _, args, _, _, _ := t.newArgs("local", 1)
 
 		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -32,7 +32,7 @@ func (t *testBaseWorkerMerger) TestCancel() {
 	t.Run("after insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		_, _, args, _, _, _ := t.newArgs(3)
+		_, _, args, _, _, _ := t.newArgs("local", 3)
 
 		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -51,7 +51,7 @@ func (t *testBaseWorkerMerger) TestPhaseDone() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newArgs(1)
+		_, _, args, vp, _, _ := t.newArgs("local", 1)
 
 		insert, wait, err := newBaseWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -72,7 +72,7 @@ func (t *testBaseWorkerMerger) TestPhaseDone() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _ := t.newArgs(2)
+		_, _, args, vp, _, _ := t.newArgs("local", 2)
 
 		other := "w0"
 
