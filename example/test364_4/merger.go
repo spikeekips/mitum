@@ -139,6 +139,8 @@ func xMergeOpValues(
 		case c == nil:
 			addReason(opindex, r)
 
+			fmt.Printf("%s: opindex=%d state key=%q; not committed\n", name, opindex, value.Key())
+
 			notCommitted = true
 
 			return false, nil
@@ -146,8 +148,12 @@ func xMergeOpValues(
 			reasonOp := opindex
 
 			if nextOp != opindex {
+				fmt.Printf("%s: opindex=%d state key=%q; next=%v\n", name, opindex, value.Key(), nextOp)
+
 				addNext(nextOp)
 				reasonOp = nextOp
+			} else {
+				fmt.Printf("%s: opindex=%d state key=%q\n", name, opindex, value.Key())
 			}
 
 			addReason(reasonOp, r)
@@ -189,6 +195,7 @@ func xMergeOpValues(
 
 func mergeOp(
 	ctx context.Context,
+	local string,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -200,7 +207,7 @@ func mergeOp(
 ) {
 	committed, nextUnmergeOps, reasons, err := xMergeOpValues(
 		ctx,
-		"merge",
+		fmt.Sprintf("merge: local=%q", local),
 		opindex,
 		values,
 		getMerger,
@@ -214,6 +221,7 @@ func mergeOp(
 
 func unmergeOp(
 	ctx context.Context,
+	local string,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -224,7 +232,7 @@ func unmergeOp(
 ) {
 	committed, nextMergeOp, _, err := xMergeOpValues(
 		ctx,
-		"unmerge",
+		fmt.Sprintf("unmerge: local=%q", local),
 		opindex,
 		values,
 		getMerger,
@@ -245,33 +253,33 @@ func unmergeOp(
 	return committed, nextMergeOp, err
 }
 
+func extractStateValuesKeys(values []StateMergeValue) (keys []string) {
+	if len(values) < 1 {
+		return nil
+	}
+
+	add, done, _ := util.CompactAppendSliceV1[string](uint64(len(values)))
+
+	_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
+		add(v.Key())
+
+		return true, nil
+	})
+
+	_ = done(func(s []string) error {
+		keys = slices.Clone(s)
+
+		return nil
+	})
+
+	return keys
+}
+
 func extractStateValuesKeysFunc(cacheSize int) (
 	func(opindex uint64, values []StateMergeValue) (keys []string),
 	func(),
 ) {
 	cache := util.NewLFUGCache[uint64, []string](cacheSize)
-
-	extract := func(values []StateMergeValue) (keys []string) {
-		if len(values) < 1 {
-			return nil
-		}
-
-		add, done, _ := util.CompactAppendSliceV1[string](uint64(len(values)))
-
-		_ = util.TraverseSliceV1(values, func(_ int, v StateMergeValue) (bool, error) {
-			add(v.Key())
-
-			return true, nil
-		})
-
-		_ = done(func(s []string) error {
-			keys = slices.Clone(s)
-
-			return nil
-		})
-
-		return keys
-	}
 
 	return func(opindex uint64, values []StateMergeValue) (keys []string) {
 			var sg singleflight.Group
@@ -283,7 +291,7 @@ func extractStateValuesKeysFunc(cacheSize int) (
 					return nil, nil
 				}
 
-				keys = extract(values)
+				keys = extractStateValuesKeys(values)
 				cache.Set(opindex, keys, 0)
 
 				return nil, nil

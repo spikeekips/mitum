@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -21,14 +22,20 @@ type (
 		traverseStates func(func(base.State) error) error,
 		traverseOperations func(func(opindex uint64, _ Operation) error) error,
 	) error
+	operationsWorkerMergerBroadcastStateMergeValueFuncs func(context.Context) (
+		workerInitialInsertOpFunc,
+		func() error,
+		error,
+	)
 	operationsWorkerMergerWaitFunc func(operationsWorkerMergerResultFunc) error
 )
 
 type operationsWorkerMergerArgs struct {
 	*logging.Logging
 	*statesWorkerMergerArgs
-	e                               *stateMergeValueExtractorArgs
-	DistributeStateMergeValuesFuncs workerInitialInsertOpsFuncs
+	e                              *stateMergeValueExtractorArgs
+	IsLocalStateValue              func(stateKey string) bool
+	BroadcastStateMergeValuesFuncs operationsWorkerMergerBroadcastStateMergeValueFuncs
 }
 
 func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -48,12 +55,13 @@ func newOperationsWorkerMergerArgs(
 		}),
 		statesWorkerMergerArgs: args,
 		e:                      eArgs,
-		DistributeStateMergeValuesFuncs: func(string) (
+		IsLocalStateValue:      func(string) bool { return false },
+		BroadcastStateMergeValuesFuncs: func(context.Context) (
 			workerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("DistributeStateMergeValuesFuncs")
+			return nil, nil, util.ErrNotImplemented.Errorf("BroadcastStateMergeValuesFuncs")
 		},
 	}
 }
@@ -94,7 +102,16 @@ func newOperationsWorkerMerger(
 		initialInsertLocalDone = d
 	}
 
-	traverseOpsPool, closeOpsPool := patchOperationsWorkerMergerArgs(args, initialInsertLocal)
+	var traverseOpsPool func(func(opindex uint64, _ Operation) bool) bool
+	var broadcastStateValuesDone func() error
+	var closeOpsPool func()
+
+	switch t, d, c, err := patchOperationsWorkerMergerArgs(wctx, args, initialInsertLocal); {
+	case err != nil:
+		return nil, nil, nil, nil, err
+	default:
+		traverseOpsPool, broadcastStateValuesDone, closeOpsPool = t, d, c
+	}
 
 	var extractInsert stateMergeValueExtractorInsertFunc
 	var extractInsertDone func()
@@ -125,6 +142,10 @@ func newOperationsWorkerMerger(
 
 			return nil
 		}); err != nil {
+			return err
+		}
+
+		if err := broadcastStateValuesDone(); err != nil {
 			return err
 		}
 
@@ -161,6 +182,7 @@ func newOperationsWorkerMerger(
 				return extractInsert(opindex, oph)
 			})
 			if err != nil {
+				fmt.Printf("operations worker merger.extractInsert: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -173,19 +195,13 @@ func newOperationsWorkerMerger(
 
 			i, d, err := initialInsert(worker)
 			if err != nil {
+				fmt.Printf("operations worker merger.initialInsert: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
 			return i, d, err
 		},
-		func(worker string, unmerge []uint64) error {
-			err := workerPhaseDone(worker, unmerge)
-			if err != nil {
-				wctxCancel(err)
-			}
-
-			return err
-		},
+		workerPhaseDone,
 		OnceFuncCallback(func(f operationsWorkerMergerResultFunc) error {
 			err := waitf(f)
 			wctxCancel(err)
@@ -196,12 +212,25 @@ func newOperationsWorkerMerger(
 }
 
 func patchOperationsWorkerMergerArgs(
+	ctx context.Context,
 	args *operationsWorkerMergerArgs,
 	initialInsertLocal workerInitialInsertOpFunc,
 ) (
 	traverseOpsPool func(func(opindex uint64, _ Operation) bool) bool,
-	closeOpsPool func(),
+	broadcastStateValuesDone func() error,
+	closef func(),
+	_ error,
 ) {
+	var broadcastStateValues workerInitialInsertOpFunc
+
+	switch d, o, err := args.BroadcastStateMergeValuesFuncs(ctx); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		broadcastStateValues = d
+		broadcastStateValuesDone = o
+	}
+
 	opsPool := util.NewSingleLockedMap[uint64, Operation]()
 
 	origDone := args.e.Done
@@ -211,70 +240,27 @@ func patchOperationsWorkerMergerArgs(
 		}
 	}
 
+	filterLocalStateValues := newFilterLocalStateValuesFunc(args.IsLocalStateValue)
+
 	args.e.Done = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
 		_ = opsPool.SetValue(opindex, op)
 
-		if err := initialInsertLocal(opindex, values); err != nil {
-			return err
+		if filtered := filterLocalStateValues(values); len(filtered) > 0 {
+			if err := initialInsertLocal(opindex, filtered); err != nil {
+				return err
+			}
 		}
 
 		if err := origDone(ctx, opindex, op, values); !errors.Is(err, util.ErrNotImplemented) {
 			return err
 		}
 
-		// FIXME distribute values to other workers
-
-		return nil
+		return broadcastStateValues(opindex, values)
 	}
 
 	args.e.SetLogging(args.Logging)
 
-	return opsPool.Traverse, opsPool.Close
-}
-
-func newDistributeStateMergeValues(
-	workers []string,
-	distributeStateMergeValuesFuncs workerInitialInsertOpsFuncs,
-) (
-	func(worker string, opindex uint64, _ []StateMergeValue) error,
-	func() error,
-) {
-	funcs := util.NewSingleLockedMap[string, [2]interface{}]()
-
-	// FIXME use JobWorker
-
-	return func(worker string, opindex uint64, values []StateMergeValue) error {
-			return funcs.GetOrCreate(
-				worker,
-				func(f [2]interface{}, _ bool) error {
-					return f[0].(workerInitialInsertOpFunc)(opindex, values)
-				},
-				func() ([2]interface{}, error) {
-					switch i, d, err := distributeStateMergeValuesFuncs(worker); {
-					case err != nil:
-						return [2]interface{}{}, err
-					default:
-						return [2]interface{}{i, d}, nil
-					}
-				},
-			)
-		},
-		func() error {
-			defer funcs.Close()
-
-			return util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-				if f, found := funcs.Value(worker); found {
-					return true, f[1].(func() error)()
-				}
-
-				switch _, d, err := distributeStateMergeValuesFuncs(worker); {
-				case err != nil:
-					return false, err
-				default:
-					return true, d()
-				}
-			})
-		}
+	return opsPool.Traverse, broadcastStateValuesDone, opsPool.Close, nil
 }
 
 func newUpdateReasonsFuncs() (
@@ -320,4 +306,14 @@ func newUpdateReasonsFuncs() (
 
 			return n[:i]
 		}
+}
+
+func newFilterLocalStateValuesFunc(
+	isLocal func(stateKey string) bool,
+) func([]StateMergeValue) []StateMergeValue {
+	return func(values []StateMergeValue) []StateMergeValue {
+		return util.FilterSlice(values, func(value StateMergeValue) bool {
+			return isLocal(value.Key())
+		})
+	}
 }

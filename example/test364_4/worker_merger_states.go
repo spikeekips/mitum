@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -95,6 +96,7 @@ func newStatesWorkerMerger(
 		) {
 			j, d, err := i(worker)
 			if err != nil {
+				fmt.Printf("states worker merger.initialValuesInsert: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -103,6 +105,7 @@ func newStatesWorkerMerger(
 		initialValuesPhaseDone = func(worker string, unmerge []uint64) error {
 			err := p(worker, unmerge)
 			if err != nil {
+				fmt.Printf("states worker merger.initialValuesPhaseDone: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -111,6 +114,7 @@ func newStatesWorkerMerger(
 		initialValuesWait = func(f initialValuesWorkerMergerResultFunc) error {
 			err := w(f)
 			if err != nil {
+				fmt.Printf("states worker merger.initialValuesWorkerMergerResultFunc: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -141,9 +145,9 @@ func newStatesWorkerMerger(
 
 			ops := getStateOp(stateKey)
 			if len(ops) < 1 {
-				gerr = util.ErrNotFound.Errorf("empty state ops, state key=%q", stateKey)
+				// FIXME gerr = util.ErrNotFound.Errorf("empty state ops, state key=%q", stateKey)
 
-				return false
+				return true
 			}
 
 			var st base.State
@@ -203,6 +207,8 @@ func patchStatesWorkerMergerArgs(
 		wpnewf = n
 	}
 
+	wpargs.local = args.local
+
 	var pargs *PhaseMergerArgs
 	var pnewf newPhaseMergerFunc
 
@@ -232,7 +238,7 @@ func patchStatesWorkerMergerArgs(
 		return wpargs, wpnewf, nil
 	}
 
-	switch s, o, err := newSetStateOpFuncs(args.MaxOpsSize); {
+	switch s, o, err := newSetStateOpFuncs(args.local, args.MaxOpsSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

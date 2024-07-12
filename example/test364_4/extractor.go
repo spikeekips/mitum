@@ -12,6 +12,7 @@ type (
 	stateMergeValueExtractorGetOperationFunc func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
 	stateMergeValueExtractorInsertFunc       func(opindex uint64, oph util.Hash) error
 	stateMergeValueExtractorReasonsFunc      func(reasons map[uint64]string) error
+	stateMergeValueExtractorExtractDone      func(_ context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error
 	stateMergeValueExtractorWaitFunc         func(stateMergeValueExtractorReasonsFunc) error
 )
 
@@ -19,7 +20,7 @@ type stateMergeValueExtractorArgs struct {
 	*logging.Logging
 	NewJobWorker func(context.Context) (JobWorker, error)
 	GetOperation func(_ context.Context, opindex uint64, oph util.Hash) (Operation, bool, error)
-	Done         func(_ context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error
+	Done         stateMergeValueExtractorExtractDone
 }
 
 func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {

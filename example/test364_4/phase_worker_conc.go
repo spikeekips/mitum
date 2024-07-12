@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
@@ -23,6 +24,7 @@ type concPhaseJobWorkerArgs struct {
 	NewJobWorker func(context.Context) (JobWorker, error)
 	JobIDMapSize uint64
 	*logging.Logging
+	local string
 }
 
 func newConcPhaseJobWorkerArgs() *concPhaseJobWorkerArgs {
@@ -56,6 +58,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 
 	filterJobID := func(jobID uint64, phase int) (ok bool) {
 		_, _, _ = jobIDLocked.Set(jobID, func(prev int, found bool) (int, error) {
+			fmt.Printf("new job: local=%q p=%p job id=%d prev=%d found=%v\n", args.local, jobIDLocked, jobID, prev, found)
 			if found && phase == prev {
 				return 0, util.ErrLockedSetIgnore
 			}
@@ -124,7 +127,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 			})
 		},
 		wk.JobDone,
-		func() error {
+		OnceFunc(func() error {
 			defer jobIDLocked.Close()
 			defer pctxCancel(nil)
 
@@ -133,7 +136,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 			}
 
 			return nextPhaseWait()
-		},
+		}),
 		nil
 }
 

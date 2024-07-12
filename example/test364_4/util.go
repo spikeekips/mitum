@@ -240,11 +240,9 @@ func OnceFunc(f func() error) func() error {
 func OnceFuncCallback[T any](f func(T) error) func(T) error {
 	var w T
 
-	oncef := func() error {
+	once := OnceFunc(func() error {
 		return f(w)
-	}
-
-	once := OnceFunc(oncef)
+	})
 
 	return func(t T) error {
 		w = t

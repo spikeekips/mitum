@@ -705,6 +705,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 		switch isMerged, nexts, reason, err := mergeOp(
 			ctx,
+			"",
 			opindex,
 			values,
 			getMerger,
@@ -732,6 +733,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 		switch isUnmerged, nexts, err := unmergeOp(
 			ctx,
+			"",
 			opindex,
 			values,
 			getMerger,

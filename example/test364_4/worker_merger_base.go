@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -81,6 +83,8 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		return nil, nil, err
 	default:
 		phaseInsertFunc = func(worker string, unmerge []uint64) error {
+			fmt.Printf("phase done: local=%q worker=%q unmerge=%v\n", args.local, worker, unmerge)
+
 			return i(worker, nil, unmerge)
 		}
 		phaseWait = w
@@ -132,7 +136,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		return nil
 	}
 
-	wait := func(f workerMergerUnmergedOpsFunc) error {
+	waitf := func(f workerMergerUnmergedOpsFunc) error {
 		defer exhaustPool(nil)
 
 		err := phaseWait(f)
@@ -142,18 +146,24 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	}
 
 	return func(worker string, unmerge []uint64) error {
-			err := workerPhaseDone(worker, unmerge)
-			if err != nil {
+			switch err := workerPhaseDone(worker, unmerge); {
+			case errors.Is(err, util.ErrJobWorkerDone),
+				errors.Is(err, context.Canceled):
+			case err != nil:
+				fmt.Printf("worker merger.phaseDone: local=%q worker=%q err=%+v\n", args.local, worker, err)
+
 				wctxCancel(err)
+
+				return err
 			}
 
-			return err
+			return nil
 		},
-		OnceFuncCallback(wait),
+		OnceFuncCallback(waitf),
 		nil
 }
 
-func newWorkerMergerPhasePoolFuncs(
+func newWorkerMergerPhasePoolFuncs( // FIXME remove
 	local string,
 	mapSize uint64,
 ) (

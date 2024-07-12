@@ -104,7 +104,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -126,13 +126,13 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err = mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -158,12 +158,12 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.newMergeValuesVP(vp, opindex, pub, -1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err = mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -187,7 +187,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 			return nil, errors.Errorf("showme")
 		}
 
-		isMerged, nexts, reason, err := mergeOp(ctx, 1, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", 1, vs, getMerger)
 		t.Error(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -209,7 +209,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, -1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.NotEmpty(reason)
@@ -235,13 +235,13 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		vs3 := t.newMergeValuesVP(vp, opindex3, pub, -1)
 		vs4 := t.newMergeValuesVP(vp, opindex4, pub, -1)
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex4, vs4, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, "", opindex4, vs4, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(reasons)
 		t.Empty(nexts)
 
-		isMerged, nexts, reasons, err = mergeOp(ctx, opindex3, vs3, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(ctx, "", opindex3, vs3, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.NotEmpty(reasons)
@@ -269,7 +269,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex, vs, getMerger)
+		isUnmerged, nexts, err := unmergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
@@ -292,7 +292,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 			return nil, errors.Errorf("showme")
 		}
 
-		isUnmerged, _, err := unmergeOp(ctx, 1, vs, getMerger)
+		isUnmerged, _, err := unmergeOp(ctx, "", 1, vs, getMerger)
 		t.Error(err)
 		t.False(isUnmerged)
 		t.ErrorContains(err, "showme")
@@ -317,12 +317,12 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		vs3 := t.newMergeValuesVP(vp, opindex3, pub, -1)
 		vs4 := t.newMergeValuesVP(vp, opindex4, pub, -1)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex4, vs4, getMerger)
+		isUnmerged, nexts, err := unmergeOp(ctx, "", opindex4, vs4, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		isUnmerged, nexts, err = unmergeOp(ctx, opindex3, vs3, getMerger)
+		isUnmerged, nexts, err = unmergeOp(ctx, "", opindex3, vs3, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Equal([]uint64{opindex4}, nexts)
@@ -345,7 +345,7 @@ func (t *testMergeOp) TestMergeValues() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1, 2, 3)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -406,13 +406,13 @@ func (t *testMergeOp) TestMergeValues() {
 		t.True(vp.SetValue(opindex0, vs0))
 		t.True(vp.SetValue(opindex1, vs1))
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex1, vs1, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, "", opindex1, vs1, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
 		t.Empty(reasons)
 
-		isMerged, nexts, reasons, err = mergeOp(ctx, opindex0, vs0, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(ctx, "", opindex0, vs0, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Equal([]uint64{opindex1}, nexts)
@@ -439,7 +439,7 @@ func (t *testMergeOp) TestUnmergeValues() {
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1, 2, 3)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex, vs, getMerger)
+		isUnmerged, nexts, err := unmergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
@@ -498,7 +498,7 @@ func (t *testMergeOp) TestNotCommit() {
 		vs := t.randomMergeValuesVP(vp, 1, 1, 1, 1)
 		vs = append(vs, v)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -523,7 +523,7 @@ func (t *testMergeOp) TestNotCommit() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1, 1, -1) // one value has -1
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(ctx, "", opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)

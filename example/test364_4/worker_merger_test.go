@@ -89,7 +89,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(workers uint64) (
 		return vp, nil
 	}
 
-	setStateOp, getStateOp, err := newSetStateOpFuncs(1 << 9)
+	setStateOp, getStateOp, err := newSetStateOpFuncs("", 1<<9)
 	t.NoError(err)
 
 	args.SetStateOpFunc = func() (setStateOpFunc, error) {
@@ -456,7 +456,77 @@ func (t *testWorkerMerger) TestBaseMergeNWorkersEmptyOps() {
 	t.Run("999 worker; empty", run(999, 999))
 }
 
-func (t *testWorkerMerger) TestMergeNWorkers3States() {
+func (t *testWorkerMerger) runMergeNWorkers3States(
+	st0, st1, st2 string,
+	run func(values map[string][]string, enough uint64) func(),
+) {
+	t.Run("one worker", run(map[string][]string{
+		"w0": {st0, st1, st2},
+	}, 1))
+
+	t.Run("2 worker", run(map[string][]string{
+		"w0": {st0},
+		"w1": {st1, st2},
+	}, 2))
+
+	t.Run("3 worker", run(map[string][]string{
+		"w0": {st0},
+		"w1": {st1},
+		"w2": {st2},
+	}, 3))
+
+	t.Run("3 worker; w0 2 shared", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1},
+		"w2": {st2},
+	}, 3))
+
+	t.Run("3 worker; 2 shared + 2 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+	}, 2))
+
+	t.Run("3 worker; 2 shared + 3 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+	}, 3))
+
+	t.Run("4 worker; 2 shared + 3 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+		"w3": {st0, st1},
+	}, 3))
+
+	t.Run("4 worker; 2 shared + 4 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+		"w3": {st0, st1},
+	}, 4))
+
+	t.Run("6 worker; 2 shared + 5 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+		"w3": {st0, st1},
+		"w4": {st1, st2},
+		"w5": {st2, st0},
+	}, 5))
+
+	t.Run("6 worker; 2 shared + 6 enough", run(map[string][]string{
+		"w0": {st0, st1},
+		"w1": {st1, st2},
+		"w2": {st2, st0},
+		"w3": {st0, st1},
+		"w4": {st1, st2},
+		"w5": {st2, st0},
+	}, 6))
+}
+
+func (t *testWorkerMerger) TestMergeNWorkers3StatesCase0() {
 	pub0, pub1, pub2 := base.NewDummyPublickey("0"), base.NewDummyPublickey("1"), base.NewDummyPublickey("2")
 
 	sts := []base.State{
@@ -490,9 +560,9 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 	/*
 		            | p0 | p1 | p2 |
 		       base |  1 |  1 |  1 |
-		p0 -> p1, 1 |  0 |  2 |    |
-		p1 -> p0, 1 |  1 |  1 |    |
-		p2 -> p0, 1 |  2 |    |  0 |
+		p0 -> p1, 1 |  0 |  2 |    | 0
+		p1 -> p0, 1 |  1 |  1 |    | 2
+		p2 -> p0, 1 |  2 |    |  0 | 4
 		            |  2 |  - |  0 |
 
 		 state key | pub
@@ -510,48 +580,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 
 	t.Run("initial values", func() {
@@ -566,48 +595,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 
 	t.Run("states", func() {
@@ -623,56 +611,17 @@ func (t *testWorkerMerger) TestMergeNWorkers3States() {
 
 		run := func(values map[string][]string, enough uint64) func() {
 			return func() {
+				t.T().Helper()
+
 				t.testStatesWorkerMerger(values, enough, sts, allValues, expectedUnmerged, expectedReasons, expectedStateOps, expectedStates)
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 }
 
-func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
+func (t *testWorkerMerger) TestMergeNWorkers3StatesCase2() {
 	pub0, pub1, pub2 := base.NewDummyPublickey("0"), base.NewDummyPublickey("1"), base.NewDummyPublickey("2")
 
 	sts := []base.State{
@@ -723,48 +672,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 
 	t.Run("initial values", func() {
@@ -774,48 +682,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 
 	t.Run("states", func() {
@@ -825,48 +692,7 @@ func (t *testWorkerMerger) TestMergeNWorkers3States3Values() {
 			}
 		}
 
-		t.Run("one worker", run(map[string][]string{
-			"w0": {st0, st1, st2},
-		}, 1))
-
-		t.Run("2 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1, st2},
-		}, 2))
-
-		t.Run("3 worker", run(map[string][]string{
-			"w0": {st0},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; w0 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1},
-			"w2": {st2},
-		}, 3))
-
-		t.Run("3 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-		}, 3))
-
-		t.Run("4 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-		}, 3))
-
-		t.Run("6 worker; 2 shared", run(map[string][]string{
-			"w0": {st0, st1},
-			"w1": {st1, st2},
-			"w2": {st2, st0},
-			"w3": {st0, st1},
-			"w4": {st1, st2},
-			"w5": {st2, st0},
-		}, 5))
+		t.runMergeNWorkers3States(st0, st1, st2, run)
 	})
 }
 
@@ -1386,10 +1212,14 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 			return func(stateKey string, value base.StateValue, ops []uint64) (base.State, error) {
 				slices.Sort(ops)
 
+				balance := value.(AccountStateValue).Balance
+
 				gatheredStates.SetValue(
 					stateKey,
-					[2]interface{}{int(value.(AccountStateValue).Balance), ops},
+					[2]interface{}{int(balance), ops},
 				)
+
+				fmt.Printf("new state: local=%q state key=%q balance=%v ops=%v\n", local, stateKey, balance, ops)
 
 				return nil, nil
 			}, nil
@@ -1547,7 +1377,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 	})
 
 	if expectedReasons != nil {
-		t.Equal(len(expectedReasons), gatheredReasons.Len(), "reasons not matched")
+		t.Equal(len(expectedReasons), gatheredReasons.Len(), "reasons not matched: expected=%v gathered=%v", expectedReasons, gatheredReasons.Map())
 
 		reasons := gatheredReasons.Map()
 
@@ -1560,7 +1390,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		})
 	}
 
-	t.Equal(len(expectedStates), gatheredStates.Len())
+	t.Equal(len(expectedStates), gatheredStates.Len(), "expected=%v gathered=%v", expectedStates, gatheredStates.Map())
 
 	for stateKey := range expectedStates {
 		a := expectedStates[stateKey]

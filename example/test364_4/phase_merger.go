@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -33,21 +35,10 @@ type PhaseMergerArgs struct {
 }
 
 func NewPhaseMergerArgs() *PhaseMergerArgs {
-	return &PhaseMergerArgs{
+	args := &PhaseMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "phase-merger")
 		}),
-		NewPhaseJobWorkerFunc: func(ctx context.Context) (
-			PhaseJobWorkerNewJobFunc,
-			func(),
-			func() error,
-			error,
-		) {
-			return NewConcPhaseJobWorker(
-				ctx,
-				newConcPhaseJobWorkerArgs(),
-			)
-		},
 		GetMergersFunc: func(
 			[]string,
 			func(func(StateMergeValue) (StateMerger, error)) error,
@@ -65,6 +56,20 @@ func NewPhaseMergerArgs() *PhaseMergerArgs {
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
 	}
+
+	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
+		PhaseJobWorkerNewJobFunc,
+		func(),
+		func() error,
+		error,
+	) {
+		cargs := newConcPhaseJobWorkerArgs()
+		cargs.local = args.local
+
+		return NewConcPhaseJobWorker(ctx, cargs)
+	}
+
+	return args
 }
 
 func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
@@ -95,12 +100,20 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		return nil, nil, nil, nil, err
 	default:
 		newJob = func(jobID uint64, c PhaseJobWorkerCallback) error {
-			err := n(jobID, c)
-			if err != nil {
-				pctxCancel(err)
-			}
+			switch err := n(jobID, c); {
+			case errors.Is(err, util.ErrJobWorkerDone):
+				fmt.Printf("new job: local=%q job id=%d error: %+v\n", args.local, jobID, err)
 
-			return err
+				return err
+			case err != nil:
+				fmt.Printf("phase merger.NewJob: local=%q err=%+v\n", args.local, err)
+
+				pctxCancel(err)
+
+				return err
+			default:
+				return nil
+			}
 		}
 		jobDone = d
 		jobWait = w
@@ -127,12 +140,26 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	return func(opindex uint64) error {
 			addXMergedOp(-1, opindex, mergeFlag)
 
-			return newJob(opindex, mergeCallback(opindex))
+			err := newJob(opindex, mergeCallback(opindex))
+			fmt.Printf("pm merge: local=%q opindex=%d err=%+v\n", args.local, opindex, err)
+
+			if errors.Is(err, util.ErrJobWorkerDone) {
+				return nil
+			}
+
+			return err
 		},
 		func(opindex uint64) error {
 			addXMergedOp(-1, opindex, unmergeFlag)
 
-			return newJob(opindex, unmergeCallback(opindex))
+			err := newJob(opindex, unmergeCallback(opindex))
+			fmt.Printf("pm unmerge: local=%q opindex=%d err=%+v\n", args.local, opindex, err)
+
+			if errors.Is(err, util.ErrJobWorkerDone) {
+				return nil
+			}
+
+			return err
 		},
 		jobDone,
 		OnceFuncCallback(func(f phaseMergerWaitCallbackFunc) error {
@@ -161,6 +188,8 @@ func newXMergeCallbackFuncs(
 		switch i, err := args.GetValuesFunc(opindex); {
 		case err != nil:
 			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+				panic(fmt.Errorf("worker=%q opindex=%d err=%w", args.local, opindex, err))
+
 				return err
 			}
 		default:
@@ -168,6 +197,9 @@ func newXMergeCallbackFuncs(
 		}
 
 		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
+		if len(stateKeys) < 1 {
+			panic(fmt.Errorf("xmerge: local=%q state keys=%v", args.local, extractStateValuesKeys(values)))
+		}
 
 		l := args.Log().With().
 			Uint64("opindex", opindex).
@@ -183,11 +215,13 @@ func newXMergeCallbackFuncs(
 
 					switch committed, nexts, reasons, err := mergeOp(
 						ctx,
+						args.local,
 						opindex,
 						values,
 						getMerger,
 					); {
 					case err != nil:
+						panic(fmt.Errorf("mergeop: local=%q err=%w", args.local, err))
 						return err
 					default:
 						ll.Debug().
@@ -243,6 +277,7 @@ func newXMergeCallbackFuncs(
 
 					switch committed, nexts, err := unmergeOp(
 						ctx,
+						args.local,
 						opindex,
 						values,
 						getMerger,
@@ -301,10 +336,11 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 
 	var sg singleflight.Group
 
-	return func(opindex uint64, values []StateMergeValue) (stateKeys []string) {
-			sg.Do(
+	return func(opindex uint64, values []StateMergeValue) []string {
+			stateKeys, _, _ := util.SingleflightDo[[]string](
+				&sg,
 				string(util.Uint64ToBytes(opindex)),
-				func() (interface{}, error) {
+				func() (stateKeys []string, _ error) {
 					switch i, found := cache.Get(opindex); {
 					case found:
 						stateKeys = i
@@ -314,15 +350,13 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 						cache.Set(opindex, stateKeys, 0)
 					}
 
-					return nil, nil
+					return stateKeys, nil
 				},
 			)
 
 			return stateKeys
 		},
-		func() {
-			cache.Close()
-		}
+		cache.Close
 }
 
 func newGetMergersFunc(
@@ -351,8 +385,8 @@ func newGetMergersFunc(
 type xMergeFlag string
 
 const (
-	mergeFlag   xMergeFlag = "merged"
-	unmergeFlag xMergeFlag = "unmerged"
+	mergeFlag   xMergeFlag = "merge"
+	unmergeFlag xMergeFlag = "unmerge"
 )
 
 func isXMergedOpsFuncs(
