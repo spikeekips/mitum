@@ -183,40 +183,23 @@ func newInitialValuesWorkerMerger(
 			done = d
 		}
 
-		fmt.Printf("initial funcs: local=%q worker=%q\n", args.local, worker)
-
 		return func(opindex uint64, values []StateMergeValue) error {
-				stateKeys := extractStateMergeValueKeys(values) // FIXME remove
-				fmt.Printf("initial: > local=%q worker=%q opindex=%d state keys=%v\n", args.local, worker, opindex, stateKeys)
-				// switch _, created, err := vp.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
-				//	if found {
-				//		return nil, util.ErrLockedSetIgnore
-				//	}
+				l := args.Log().With().
+					Str("worker", worker).
+					Uint64("opindex", opindex).
+					Strs("state_keys", extractStateMergeValueKeys(values)).
+					Logger()
 
-				//	return values, nil
-				//}); {
-				//case err != nil:
-				//	fmt.Printf("initial: < local=%q worker=%q opindex=%d state keys=%v err=%+v\n", args.local, worker, opindex, stateKeys, err)
-
-				//	return nil
-				// case created:
-				//	fmt.Printf("initial: < local=%q worker=%q opindex=%d state keys=%v\n", args.local, worker, opindex, stateKeys)
-
-				//	setStateOp(opindex, values, mergeFlag)
-				//default:
-				//	fmt.Printf("initial: < local=%q worker=%q opindex=%d state keys=%v not created\n", args.local, worker, opindex, stateKeys)
-				//}
+				l.Debug().Msg("initial insert ops")
 
 				switch added := vp.SetValue(opindex, values); {
 				case added:
-					setStateOp(0, opindex, values, mergeFlag)
-
-					fmt.Printf("initial: < local=%q worker=%q opindex=%d state keys=%v\n", args.local, worker, opindex, stateKeys)
+					l.Debug().Msg("initial insert ops done")
 				default:
-					setStateOp(0, opindex, values, mergeFlag) // FIXME review
-
-					fmt.Printf("initial: < local=%q worker=%q opindex=%d state keys=%v not created\n", args.local, worker, opindex, stateKeys)
+					l.Debug().Msg("initial insert ops done, but known values")
 				}
+
+				setStateOp(0, opindex, values, mergeFlag)
 
 				return insert(opindex)
 			},
@@ -275,7 +258,11 @@ func newInitialValuesWorkerMerger(
 			switch {
 			case errors.Is(err, util.ErrJobWorkerDone):
 			case err != nil:
-				fmt.Printf("initial phase merger.insert: local=%q err=%+v\n", args.local, err)
+				args.Log().Error().
+					Err(err).
+					Str("worker", worker).
+					Msg("initial phase merger error")
+
 				wctxCancel(err)
 			}
 
@@ -329,7 +316,11 @@ func newInitialPhaseMerger(
 		defer closeCheckWorker()
 
 		return initialWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
-			fmt.Printf("initial wait: local=%q\n", args.local)
+			args.Log().Debug().
+				Uints64("new_unmerged", newUnmerged).
+				Interface("reasons", reasons).
+				Msg("initial wait done")
+
 			if f == nil {
 				return nil
 			}
@@ -346,12 +337,16 @@ func newInitialPhaseMerger(
 			return initialMerge,
 				func() error {
 					return checkWorker(worker, false, func(enough, ok bool) error {
-						fmt.Printf("ipm: local=%q worker=%q enough=%v ok=%v\n", args.local, worker, enough, ok)
+						args.Log().Debug().
+							Str("worker", worker).
+							Bool("enough", enough).
+							Bool("ok", ok).
+							Msg("worker phase done received")
+
 						switch {
 						case !ok:
 						case enough:
 							initialDone()
-							fmt.Printf("ipm: local=%q worker=%q enough=%v ok=%v done\n", args.local, worker, enough, ok)
 						}
 
 						return nil
@@ -429,98 +424,4 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 	}
 
 	return pargs, wpargs, closeExtractKeys, nil
-}
-
-func newSetStateOpFuncs(local string, mapSize uint64) (
-	setStateOpFunc,
-	stateOpsFuncs,
-	error,
-) {
-	fmt.Printf("new set state op func: local=%q\n", local)
-	var m util.LockedMap[string, map[uint64] /* {phase, count} */ [2]int]
-
-	switch i, err := util.NewShardedMap[string, map[uint64][2]int](mapSize, nil); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		m = i
-	}
-
-	return func(phase int, opindex uint64, stateKeys []string, x xMergeFlag) {
-			fmt.Printf("set state keys op: local=%q phase=%d opindex=%d state keys=%v x=%v p=%p >\n", local, phase, opindex, stateKeys, x, m)
-			err := util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
-				_, _, err := m.Set(stateKey, func(prev map[uint64][2]int, found bool) (map[uint64][2]int, error) {
-					c := 1
-					if x == unmergeFlag {
-						c = -1
-					}
-
-					switch {
-					case !found:
-						prev = map[uint64][2]int{opindex: {phase, c}}
-					default:
-						switch v, opfound := prev[opindex]; {
-						case !opfound:
-							prev[opindex] = [2]int{phase, c}
-						case phase <= v[0]:
-							return nil, util.ErrLockedSetIgnore
-						default:
-							prev[opindex] = [2]int{phase, v[1] + c}
-						}
-					}
-
-					fmt.Printf("set state op: local=%q phase=%d opindex=%d state key=%q x=%v c=%d v=%v p=%p\n", local, phase, opindex, stateKey, x, c, prev, m)
-
-					return prev, nil
-				})
-
-				return true, err
-			})
-
-			fmt.Printf("set state keys op: local=%q phase=%d opindex=%d state keys=%v x=%v p=%p < err=%+v\n", local, phase, opindex, stateKeys, x, m, err)
-		},
-		func() (getStateOpsFunc, func()) {
-			return func(stateKey string) (ops []uint64) {
-					_ = m.Get(stateKey, func(mops map[uint64][2]int, found bool) error {
-						fmt.Printf("get state op: local=%q state key=%q ops=%v found=%v\n", local, stateKey, mops, found)
-
-						if !found || len(mops) < 1 {
-							return nil
-						}
-
-						var add util.CompactAppendSliceAddFunc[uint64]
-						var done util.CompactAppendSliceDoneFunc[uint64]
-
-						switch a, d, err := util.CompactAppendSliceV1[uint64](uint64(len(mops))); {
-						case err != nil:
-							return nil
-						default:
-							defer d(nil)
-
-							add = a
-							done = d
-						}
-
-						_ = TraverseMap(mops, func(opindex uint64, v [2]int) (bool, error) {
-							if v[1] > 0 {
-								add(opindex)
-							}
-
-							return true, nil
-						})
-
-						_ = done(func(s []uint64) error {
-							ops = slices.Clone(s)
-
-							return nil
-						})
-
-						return nil
-					})
-
-					return ops
-				},
-				m.Close
-		},
-		nil
 }

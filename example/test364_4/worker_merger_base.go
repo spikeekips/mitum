@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 
@@ -84,7 +83,10 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		return nil, nil, err
 	default:
 		phaseInsertFunc = func(worker string, unmerge []uint64) error {
-			fmt.Printf("phase done: local=%q worker=%q unmerge=%v\n", args.local, worker, unmerge)
+			args.Log().Debug().
+				Str("worker", worker).
+				Uints64("unmerge", unmerge).
+				Msg("phase done")
 
 			return i(worker, nil, unmerge)
 		}
@@ -150,7 +152,10 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 			switch err := workerPhaseDone(worker, unmerge); {
 			case errors.Is(err, util.ErrJobWorkerDone):
 			case err != nil:
-				fmt.Printf("worker merger.phaseDone: local=%q worker=%q err=%+v\n", args.local, worker, err)
+				args.Log().Error().
+					Err(err).
+					Str("worker", worker).
+					Msg("worker phase done")
 
 				wctxCancel(err)
 

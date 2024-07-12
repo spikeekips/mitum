@@ -89,7 +89,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(local string, workers uint64
 		return vp, nil
 	}
 
-	setStateOp, getStateOp, err := newSetStateOpFuncs("", 1<<9)
+	setStateOp, getStateOp, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
 	t.NoError(err)
 
 	args.SetStateOpFunc = func() (setStateOpFunc, error) {

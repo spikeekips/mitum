@@ -376,6 +376,10 @@ func newGetMergersFunc(
 
 type xMergeFlag string
 
+func (x xMergeFlag) String() string {
+	return string(x)
+}
+
 const (
 	mergeFlag   xMergeFlag = "merge"
 	unmergeFlag xMergeFlag = "unmerge"
