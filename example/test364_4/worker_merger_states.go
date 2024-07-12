@@ -148,8 +148,6 @@ func newStatesWorkerMerger(
 
 			ops := getStateOp(stateKey)
 			if len(ops) < 1 {
-				// FIXME gerr = util.ErrNotFound.Errorf("empty state ops, state key=%q", stateKey)
-
 				return true
 			}
 
