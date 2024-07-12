@@ -115,56 +115,64 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 		checkWorkerEnoughEmpty = i
 	}
 
-	insert := newWorkerPhaseMergerInsertPoolFuncs(
-		pctx,
-		checkWorker,
-		func(worker string, mergeOps, unmergeOps []uint64, enough bool) error {
-			l := args.Log().With().
-				Str("worker", worker).
-				Bool("enough", enough).
-				Uints64("merge_ops", mergeOps).
-				Uints64("unmerge_ops", unmergeOps).
-				Logger()
-
-			switch {
-			case enough:
-				defer func() {
-					l.Debug().Msg("enough; merge done")
-
-					mergeDone()
-				}()
-			default:
-				l.Debug().Msg("worker checked")
-			}
-
-			switch {
-			case worker == localWorkerName,
-				len(mergeOps) < 1 && len(unmergeOps) < 1:
-				return nil
-			}
-
-			fm, fu := args.FilterMergeOps(mergeOps, unmergeOps)
-
-			l.Debug().
-				Uints64("filtered_merge_ops", fm).
-				Uints64("filtered_unmerge_ops", fu).
-				Msg("insert merge/unmerge ops")
-
-			if len(fm) < 1 && len(fu) < 1 {
-				return nil
-			}
-
-			switch err := insertOps(fm, fu); {
-			case err == nil,
-				enough && errors.Is(err, util.ErrJobWorkerDone):
-				return nil
-			default:
+	return func(worker string, mergeOps, unmergeOps []uint64) error {
+			if err := context.Cause(pctx); err != nil {
 				return err
 			}
-		},
-	)
 
-	return insert,
+			l := args.Log().With().Str("worker", worker).Logger()
+
+			return checkWorker(
+				worker,
+				len(mergeOps) < 1 && len(unmergeOps) < 1,
+				func(enough, ok bool) error {
+					ll := l.With().
+						Bool("ok", ok).
+						Bool("enough", enough).
+						Uints64("merge_ops", mergeOps).
+						Uints64("unmerge_ops", unmergeOps).
+						Logger()
+
+					switch {
+					case !ok:
+						return nil
+					case enough:
+						defer func() {
+							l.Debug().Msg("enough; merge done")
+
+							mergeDone()
+						}()
+					default:
+						ll.Debug().Msg("worker checked")
+					}
+
+					switch {
+					case worker == localWorkerName,
+						len(mergeOps) < 1 && len(unmergeOps) < 1:
+						return nil
+					}
+
+					fm, fu := args.FilterMergeOps(mergeOps, unmergeOps)
+
+					ll.Debug().
+						Uints64("filtered_merge_ops", fm).
+						Uints64("filtered_unmerge_ops", fu).
+						Msg("insert merge/unmerge ops")
+
+					if len(fm) < 1 && len(fu) < 1 {
+						return nil
+					}
+
+					switch err := insertOps(fm, fu); {
+					case err == nil,
+						enough && errors.Is(err, util.ErrJobWorkerDone):
+						return nil
+					default:
+						return err
+					}
+				},
+			)
+		},
 		func(f workerPhaseMergerWaitCallbackFunc) error {
 			defer func() {
 				_ = checkWorkerEnoughEmpty()
@@ -280,45 +288,5 @@ func newWorkerPhaseMergerInsertFunc(
 		return util.TraverseSliceV1(unmergeOps, func(_ int, opindex uint64) (bool, error) {
 			return true, unmerge(opindex)
 		})
-	}
-}
-
-func newWorkerPhaseMergerInsertPoolFuncs( // FIXME remove
-	ctx context.Context,
-	checkWorker func(string, bool, func(_, _ bool) error) error,
-	f func(worker string, mergeOps, unmergeOps []uint64, enough bool) error,
-) workerPhaseMergerInsertFunc {
-	pool := map[string][2][]uint64{}
-
-	return func(worker string, mergeOps, unmergeOps []uint64) error {
-		if err := context.Cause(ctx); err != nil {
-			return err
-		}
-
-		return checkWorker(
-			worker,
-			len(mergeOps) < 1 && len(unmergeOps) < 1,
-			func(enough, ok bool) error {
-				switch {
-				case !ok:
-					return nil
-				case !enough:
-					pool[worker] = [2][]uint64{mergeOps, unmergeOps}
-
-					return nil
-				default:
-					if err := TraverseMap(pool, func(worker string, v [2][]uint64) (bool, error) {
-						return true, f(worker, v[0], v[1], false)
-					}); err != nil {
-						return err
-					}
-
-					clear(pool)
-					pool = nil
-
-					return f(worker, mergeOps, unmergeOps, enough)
-				}
-			},
-		)
 	}
 }

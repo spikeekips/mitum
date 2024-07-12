@@ -168,7 +168,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		nil
 }
 
-func newWorkerMergerPhasePoolFuncs( // FIXME remove
+func newWorkerMergerPhasePoolFuncs(
 	local string,
 	mapSize uint64,
 ) (
