@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -122,20 +121,21 @@ func newInitialValuesWorkerMerger(
 		workerMergerWait = w
 	}
 
-	var setStateOp func(int, uint64, []StateMergeValue, xMergeFlag)
+	var setStateOp func(int, uint64, []StateMergeValue, xMergeFlag) error
 
 	switch i, err := args.SetStateOpFunc(); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) {
-			stateKeys := pargs.ExtractStateMergeValueKeysFunc(opindex, values)
-			if len(stateKeys) < 1 { // FIXME remove
-				keys := extractStateMergeValueKeys(values)
-				panic(fmt.Errorf("empty state keys: local=%q opindex=%d state keys=%v", args.local, opindex, keys))
-			}
+		setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
+			switch stateKeys, err := pargs.ExtractStateMergeValueKeysFunc(opindex, values); {
+			case err != nil:
+				return err
+			default:
+				i(phase, opindex, stateKeys, x)
 
-			i(phase, opindex, stateKeys, x)
+				return nil
+			}
 		}
 	}
 
@@ -151,7 +151,7 @@ func newInitialValuesWorkerMerger(
 		if err := util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {
 				if values, found := vp.Value(opindex); found {
-					setStateOp(1, opindex, values, unmergeFlag)
+					return setStateOp(1, opindex, values, unmergeFlag)
 				}
 
 				return nil

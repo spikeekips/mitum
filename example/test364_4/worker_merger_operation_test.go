@@ -355,7 +355,6 @@ func (t *testOperationsWorkerMerger) testMerger(
 			func() error,
 			error,
 		) {
-			// FIXME use args.IsLocalStateValue
 			f, err := newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 				wctx,
 				local,

@@ -28,7 +28,7 @@ type PhaseMergerArgs struct {
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
 	GetMergersFunc                 phaseMergerGetMergers
 	GetValuesFunc                  phaseMergerGetValuesFunc
-	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) []string
+	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) ([]string, error)
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
 	local                          string
@@ -48,10 +48,8 @@ func NewPhaseMergerArgs(local string) *PhaseMergerArgs {
 		GetValuesFunc: func(uint64) ([]StateMergeValue, error) {
 			return nil, util.ErrNotImplemented.Errorf("GetValuesFunc")
 		},
-		ExtractStateMergeValueKeysFunc: func(opindex uint64, values []StateMergeValue) []string {
-			panic("ExtractStateMergeValueKeys")
-
-			return nil
+		ExtractStateMergeValueKeysFunc: func(opindex uint64, values []StateMergeValue) ([]string, error) {
+			return nil, util.ErrNotImplemented.Errorf("ExtractStateMergeValueKeysFunc")
 		},
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
@@ -180,17 +178,21 @@ func newXMergeCallbackFuncs(
 		switch i, err := args.GetValuesFunc(opindex); {
 		case err != nil:
 			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
-				panic(fmt.Errorf("worker=%q opindex=%d err=%w", args.local, opindex, err))
-
 				return err
 			}
 		default:
 			values = i
 		}
 
-		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
-		if len(stateKeys) < 1 {
-			panic(fmt.Errorf("xmerge: local=%q state keys=%v", args.local, extractStateValuesKeys(values)))
+		var stateKeys []string
+
+		switch i, err := args.ExtractStateMergeValueKeysFunc(opindex, values); {
+		case err != nil:
+			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+				return err
+			}
+		default:
+			stateKeys = i
 		}
 
 		l := args.Log().With().
@@ -253,7 +255,16 @@ func newXMergeCallbackFuncs(
 			values = i
 		}
 
-		stateKeys := args.ExtractStateMergeValueKeysFunc(opindex, values)
+		var stateKeys []string
+
+		switch i, err := args.ExtractStateMergeValueKeysFunc(opindex, values); {
+		case err != nil:
+			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+				return err
+			}
+		default:
+			stateKeys = i
+		}
 
 		l := args.Log().With().
 			Uint64("opindex", opindex).
@@ -321,14 +332,18 @@ func extractStateMergeValueKeys(values []StateMergeValue) (stateKeys []string) {
 }
 
 func newExtractStateMergeValueKeysFunc(cacheSize int) (
-	func(uint64, []StateMergeValue) []string,
+	func(uint64, []StateMergeValue) ([]string, error),
 	func(),
 ) {
 	cache := util.NewLFUGCache[uint64, []string](cacheSize)
 
 	var sg singleflight.Group
 
-	return func(opindex uint64, values []StateMergeValue) []string {
+	return func(opindex uint64, values []StateMergeValue) ([]string, error) {
+			if len(values) < 1 {
+				return nil, errors.Errorf("empty state values")
+			}
+
 			stateKeys, _, _ := util.SingleflightDo[[]string](
 				&sg,
 				string(util.Uint64ToBytes(opindex)),
@@ -346,7 +361,11 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 				},
 			)
 
-			return stateKeys
+			if len(stateKeys) < 1 {
+				return nil, errors.Errorf("empty extracted state keys from %v", extractStateMergeValueKeys(values))
+			}
+
+			return stateKeys, nil
 		},
 		cache.Close
 }
