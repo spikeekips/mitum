@@ -25,7 +25,7 @@ type statesWorkerMergerArgs struct {
 	*logging.Logging
 	*initialValuesWorkerMergerArgs
 	GetState     getStateFunc
-	NewStateFunc func() (newStateFunc, error)
+	NewStateFunc func() (newStateFunc, error) // FIXME move to saveWorkerMergerArgs
 }
 
 func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {

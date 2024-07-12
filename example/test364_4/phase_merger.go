@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -215,7 +214,6 @@ func newXMergeCallbackFuncs(
 						getMerger,
 					); {
 					case err != nil:
-						panic(fmt.Errorf("mergeop: local=%q err=%w", args.local, err))
 						return err
 					default:
 						ll.Debug().

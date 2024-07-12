@@ -103,7 +103,12 @@ func newBroadcastStateMergeValuesFuncs(
 			})
 		},
 		func() error {
-			defer funcs.Close()
+			defer func() {
+				broadcastJw.Close()
+				doneJw.Close()
+
+				funcs.Close()
+			}()
 
 			broadcastJw.JobDone()
 

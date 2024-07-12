@@ -108,7 +108,7 @@ func UniqueCompactAppendSliceV1[T cmp.Ordered](size uint64, grow ...uint64) (
 
 func NewDoneContextFunc(ctx context.Context) (
 	context.Context,
-	func(error),
+	func(error) error,
 	func() error,
 ) {
 	errDone := errors.New(util.UUID().String())
@@ -116,7 +116,7 @@ func NewDoneContextFunc(ctx context.Context) (
 
 	var once sync.Once
 
-	return cctx, func(err error) {
+	return cctx, func(err error) error {
 			once.Do(func() {
 				if err == nil {
 					cctxCancel(errDone)
@@ -126,6 +126,8 @@ func NewDoneContextFunc(ctx context.Context) (
 
 				cctxCancel(err)
 			})
+
+			return err
 		},
 		func() error {
 			<-cctx.Done()
@@ -149,7 +151,7 @@ func NewFuncContextDoneFunc(
 
 	return func() error {
 		once.Do(func() {
-			done(f(cctx))
+			_ = done(f(cctx))
 		})
 
 		return wait()

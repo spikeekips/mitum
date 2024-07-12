@@ -75,6 +75,10 @@ func newInitialValuesWorkerMerger(
 	initialValuesWorkerMergerWaitFunc,
 	error,
 ) {
+	if args.MaxOpsSize < 1 {
+		return nil, nil, nil, errors.Errorf("zero MaxOpsSize")
+	}
+
 	wctx, wctxCancel := context.WithCancelCause(ctx)
 
 	var vp util.LockedMap[uint64, []StateMergeValue]
@@ -147,6 +151,7 @@ func newInitialValuesWorkerMerger(
 		}
 
 		jw, _ := NewBaseJobWorker(wctx, int64(args.MaxJobWorkerSemSize))
+		defer jw.Close()
 
 		if err := util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {

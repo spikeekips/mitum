@@ -12,14 +12,15 @@ import (
 )
 
 type (
-	operationsWorkerInsertOpFunc     func(opindex uint64, oph, fact util.Hash) error
-	operationsWorkerInsertOpsFunc    func(operationsWorkerInsertOpFunc) error
-	operationsWorkerInsertOpsFuncs   func(operationsWorkerInsertOpsFunc) error
-	operationsWorkerMergerResultFunc func(
+	operationsWorkerLocalInsertOpFunc   func(opindex uint64, oph, fact util.Hash) error
+	operationsWorkerInsertOpsFunc       func(operationsWorkerLocalInsertOpFunc) error
+	operationsWorkerLocalInsertOpsFuncs func(operationsWorkerInsertOpsFunc) error
+	operationsWorkerSaveOperationFunc   func(opindex uint64, _ Operation) error
+	operationsWorkerMergerResultFunc    func(
 		unmerged []uint64,
 		reasons map[uint64]string,
 		traverseStates func(func(base.State) error) error,
-		traverseOperations func(func(opindex uint64, _ Operation) error) error,
+		traverseOperations func(operationsWorkerSaveOperationFunc) error,
 	) error
 	operationsWorkerMergerBroadcastStateMergeValueFuncs func(context.Context) (
 		workerInitialInsertOpFunc,
@@ -65,11 +66,8 @@ func newOperationsWorkerMergerArgs(
 	}
 }
 
-func newOperationsWorkerMerger(
-	ctx context.Context,
-	args *operationsWorkerMergerArgs,
-) (
-	operationsWorkerInsertOpsFuncs,
+func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMergerArgs) (
+	operationsWorkerLocalInsertOpsFuncs,
 	workerInitialInsertOpsFuncs,
 	workerMergerPhaseDoneFunc,
 	operationsWorkerMergerWaitFunc,
@@ -161,7 +159,7 @@ func newOperationsWorkerMerger(
 				mergeReasonsToUnmerged(unmerged),
 				mergeReasons(reasons),
 				traverseStates,
-				func(f func(uint64, Operation) error) (gerr error) {
+				func(f operationsWorkerSaveOperationFunc) (gerr error) {
 					_ = traverseOpsPool(func(opindex uint64, op Operation) bool {
 						gerr = f(opindex, op)
 

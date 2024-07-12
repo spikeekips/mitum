@@ -84,7 +84,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insertOps(func(operationsWorkerInsertOpFunc) error {
+		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error {
 			return nil
 		}))
 
@@ -94,7 +94,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseStates func(func(base.State) error) error,
-			traverseOperations func(func(uint64, Operation) error) error,
+			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
@@ -140,7 +140,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		t.NoError(insertOps(func(f operationsWorkerInsertOpFunc) error {
+		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
@@ -150,7 +150,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseStates func(func(base.State) error) error,
-			traverseOperations func(func(uint64, Operation) error) error,
+			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
@@ -201,7 +201,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		err = insertOps(func(operationsWorkerInsertOpFunc) error {
+		err = insertOps(func(operationsWorkerLocalInsertOpFunc) error {
 			return errors.Errorf("showme")
 		})
 		t.ErrorContains(err, "showme")
@@ -224,7 +224,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insertOps(func(f operationsWorkerInsertOpFunc) error {
+		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
@@ -246,7 +246,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insertOps(func(f operationsWorkerInsertOpFunc) error {
+		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
@@ -254,7 +254,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 			_ []uint64,
 			_ map[uint64]string,
 			traverseStates func(func(base.State) error) error,
-			_ func(func(uint64, Operation) error) error,
+			_ func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			return traverseStates(nil)
 		})
@@ -273,7 +273,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
-		t.NoError(insertOps(func(f operationsWorkerInsertOpFunc) error {
+		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
@@ -281,7 +281,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 			_ []uint64,
 			_ map[uint64]string,
 			_ func(func(base.State) error) error,
-			traverseOperations func(func(uint64, Operation) error) error,
+			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			return traverseOperations(func(uint64, Operation) error {
 				return errors.Errorf("showme")
@@ -315,7 +315,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		i++
 	}
 
-	insertOps := map[string]operationsWorkerInsertOpsFuncs{}
+	insertOps := map[string]operationsWorkerLocalInsertOpsFuncs{}
 	workerInitialInsertOps := map[string]workerInitialInsertOpsFuncs{}
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]operationsWorkerMergerWaitFunc{}
@@ -440,7 +440,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		go func() {
 			defer initialWg.Done()
 
-			insertOps[local](func(f operationsWorkerInsertOpFunc) error {
+			insertOps[local](func(f operationsWorkerLocalInsertOpFunc) error {
 				for _, opindex := range workerOps[local] {
 					if err := f(opindex, nil, nil); err != nil {
 						return err
@@ -476,7 +476,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseStates func(func(base.State) error) error,
-				traverseOperations func(func(uint64, Operation) error) error,
+				traverseOperations func(operationsWorkerSaveOperationFunc) error,
 			) error {
 				fmt.Printf("wait done: local=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
 
