@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -134,6 +135,7 @@ func newInitialValuesWorkerMerger(
 		setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
 			switch stateKeys, err := pargs.ExtractStateMergeValueKeysFunc(opindex, values); {
 			case err != nil:
+				fmt.Printf("set state op: local=%q phase=%d opindex=%d err=%+v\n", args.local, phase, opindex, err)
 				return err
 			default:
 				i(phase, opindex, stateKeys, x)
@@ -268,6 +270,7 @@ func newInitialValuesWorkerMerger(
 					Str("worker", worker).
 					Msg("initial phase merger error")
 
+				fmt.Printf("initial phase merger: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -276,6 +279,9 @@ func newInitialValuesWorkerMerger(
 		workerPhaseDone,
 		OnceFuncCallback(func(f initialValuesWorkerMergerResultFunc) error {
 			err := waitf(f)
+			if err != nil {
+				fmt.Printf("initial phase merger.done: local=%q err=%+v\n", args.local, err)
+			}
 			wctxCancel(err)
 
 			return err

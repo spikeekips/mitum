@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -181,6 +182,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 			if err != nil {
 				args.Log().Error().Err(err).Msg("extract insert error")
 
+				fmt.Printf("ops.fs: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -195,6 +197,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 			if err != nil {
 				args.Log().Error().Err(err).Msg("initial insert error")
 
+				fmt.Printf("ops.insert: local=%q err=%+v worker=%q\n", args.local, err, worker)
 				wctxCancel(err)
 			}
 
@@ -203,6 +206,10 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 		workerPhaseDone,
 		OnceFuncCallback(func(f operationsWorkerMergerResultFunc) error {
 			err := waitf(f)
+			if err != nil {
+				fmt.Printf("ops.wait: local=%q err=%+v\n", args.local, err)
+			}
+
 			wctxCancel(err)
 
 			return err

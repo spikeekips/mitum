@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -143,6 +144,10 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		defer exhaustPool(nil)
 
 		err := phaseWait(f)
+		if err != nil {
+			fmt.Printf("base: local=%q err=%+v\n", args.local, err)
+		}
+
 		wctxCancel(err)
 
 		return err
@@ -150,21 +155,22 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 
 	return func(worker string, unmerge []uint64) error {
 			switch err := workerPhaseDone(worker, unmerge); {
-			case errors.Is(err, util.ErrJobWorkerDone):
+			case errors.Is(err, util.ErrJobWorkerDone): // FIXME review context.Canceled; insert from worker
 			case err != nil:
 				args.Log().Error().
 					Err(err).
 					Str("worker", worker).
 					Msg("worker phase done")
 
-				wctxCancel(err)
+				fmt.Printf("base.phase done: local=%q err=%+v worker=%q\n", args.local, err, worker)
+				// FIXME wctxCancel(err)
 
 				return err
 			}
 
 			return nil
 		},
-		OnceFuncCallback(waitf),
+		OnceFuncCallback(waitf), // FIXME review all wait once
 		nil
 }
 

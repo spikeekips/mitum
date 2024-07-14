@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -99,14 +100,14 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		newJob = func(jobID uint64, c PhaseJobWorkerCallback) error {
 			switch err := n(jobID, c); {
 			case errors.Is(err, util.ErrJobWorkerDone):
-				return err
 			case err != nil:
-				pctxCancel(err)
+				fmt.Printf("phase merger.new job: local=%q err=%+v\n", args.local, err)
+				// FIXME pctxCancel(err)
 
 				return err
-			default:
-				return nil
 			}
+
+			return nil
 		}
 		jobDone = d
 		jobWait = w
@@ -153,6 +154,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 		jobDone,
 		OnceFuncCallback(func(f phaseMergerWaitCallbackFunc) error {
 			err := waitf(f)
+			fmt.Printf("phase merger.wait: local=%q err=%+v\n", args.local, err)
 			pctxCancel(err)
 
 			return err

@@ -501,7 +501,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 				return traverseStates(func(base.State) error { return nil })
 			})
 			if err != nil {
-				fmt.Printf("wait error: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait error: local=%q err=%+v\n", local, err)
 			}
 
 			switch {
@@ -839,7 +839,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 				fmt.Sprintf("broadcast error: local=%q worker=%q err=%+v", local, worker, err)
 			}
 
-			return err
+			return nil // NOTE ignore
 		},
 	)
 	if err != nil {
@@ -877,9 +877,16 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 				})
 			},
 			func() error {
-				fmt.Printf("broadcast done: local=%q\n", local)
+				err := broadcastDone()
+				fmt.Printf("broadcast done: local=%q err=%+v\n", local, err)
 
-				return broadcastDone()
+				switch {
+				case errors.Is(err, context.Canceled),
+					errors.Is(err, util.ErrJobWorkerDone):
+					return nil
+				default:
+					return err
+				}
 			},
 			nil
 	}, nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/rs/zerolog"
@@ -98,6 +99,7 @@ func newStatesWorkerMerger(
 			if err != nil {
 				args.Log().Error().Err(err).Msg("worker initial insert error")
 
+				fmt.Printf("state.insert: local=%q err=%+v worker=%q\n", args.local, err, worker)
 				wctxCancel(err)
 			}
 
@@ -108,7 +110,8 @@ func newStatesWorkerMerger(
 			if err != nil {
 				args.Log().Error().Err(err).Str("worker", worker).Msg("worker phase done error")
 
-				wctxCancel(err)
+				fmt.Printf("state.phase done: local=%q err=%+v worker=%q\n", args.local, err, worker)
+				// FIXME wctxCancel(err)
 			}
 
 			return err
@@ -118,6 +121,7 @@ func newStatesWorkerMerger(
 			if err != nil {
 				args.Log().Error().Err(err).Msg("initial values wait error")
 
+				fmt.Printf("state.initial wait: local=%q err=%+v\n", args.local, err)
 				wctxCancel(err)
 			}
 
@@ -182,6 +186,10 @@ func newStatesWorkerMerger(
 		initialValuesPhaseDone,
 		func(f statesWorkerMergerResultFunc) error {
 			err := waitf(f)
+			if err != nil {
+				fmt.Printf("state.wait: local=%q err=%+v\n", args.local, err)
+			}
+
 			wctxCancel(err)
 
 			return err

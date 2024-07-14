@@ -80,7 +80,7 @@ func newBroadcastStateMergeValuesFuncs(
 		return funcs.GetOrCreate(
 			worker,
 			func(f [2]interface{}, _ bool) error {
-				return f[0].(workerInitialInsertOpFunc)(opindex, values)
+				return checkWorkerError(worker, f[0].(workerInitialInsertOpFunc)(opindex, values))
 			},
 			func() ([2]interface{}, error) {
 				if slices.Index(workers, worker) < 0 {

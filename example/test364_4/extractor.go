@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
@@ -90,6 +91,7 @@ func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtra
 			return jobWorker.NewJob(func(ctx context.Context) error {
 				err := extract(ctx, opindex, oph)
 				if err != nil {
+					fmt.Printf("extract: local=%q err=%+v\n", args.local, err)
 					pctxCancel(err)
 				}
 

@@ -127,8 +127,10 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		},
 		wk.JobDone,
 		OnceFunc(func() error {
-			defer jobIDLocked.Close()
-			defer pctxCancel(nil)
+			defer func() {
+				pctxCancel(nil)
+				jobIDLocked.Close()
+			}()
 
 			if err := wk.Wait(); err != nil {
 				return err
