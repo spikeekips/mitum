@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -74,7 +73,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 	operationsWorkerMergerWaitFunc,
 	error,
 ) {
-	wctx, wctxCancel := context.WithCancelCause(ctx)
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 	var initialInsert workerInitialInsertOpsFuncs
 	var workerPhaseDone workerMergerPhaseDoneFunc
@@ -176,44 +175,27 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 	return func(fs operationsWorkerInsertOpsFunc) error {
 			defer extractInsertDone()
 
-			err := fs(func(opindex uint64, oph, _ util.Hash) error {
+			if err := fs(func(opindex uint64, oph, _ util.Hash) error {
 				return extractInsert(opindex, oph)
-			})
-			if err != nil {
+			}); err != nil {
 				args.Log().Error().Err(err).Msg("extract insert error")
 
-				fmt.Printf("ops.fs: local=%q err=%+v\n", args.local, err)
-				wctxCancel(err)
+				return wctxCancel(err)
 			}
 
-			return err
+			return nil
 		},
 		func(worker string) (workerInitialInsertOpFunc, func() error, error) {
 			if worker == localWorkerName {
 				return nil, nil, util.ErrFound.Errorf("%q", localWorkerName)
 			}
 
-			i, d, err := initialInsert(worker)
-			if err != nil {
-				args.Log().Error().Err(err).Msg("initial insert error")
-
-				fmt.Printf("ops.insert: local=%q err=%+v worker=%q\n", args.local, err, worker)
-				wctxCancel(err)
-			}
-
-			return i, d, err
+			return initialInsert(worker)
 		},
 		workerPhaseDone,
-		OnceFuncCallback(func(f operationsWorkerMergerResultFunc) error {
-			err := waitf(f)
-			if err != nil {
-				fmt.Printf("ops.wait: local=%q err=%+v\n", args.local, err)
-			}
-
-			wctxCancel(err)
-
-			return err
-		}),
+		func(f operationsWorkerMergerResultFunc) error {
+			return wctxCancel(waitf(f))
+		},
 		nil
 }
 

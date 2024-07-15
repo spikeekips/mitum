@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -76,7 +75,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
-	pctx, pctxCancel := context.WithCancelCause(ctx)
+	pctx, pctxCancel := ContextWithCancelCause(ctx)
 
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
@@ -97,18 +96,7 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		newJob = func(jobID uint64, c PhaseJobWorkerCallback) error {
-			switch err := n(jobID, c); {
-			case errors.Is(err, util.ErrJobWorkerDone):
-			case err != nil:
-				fmt.Printf("phase merger.new job: local=%q err=%+v\n", args.local, err)
-				// FIXME pctxCancel(err)
-
-				return err
-			}
-
-			return nil
-		}
+		newJob = n
 		jobDone = d
 		jobWait = w
 	}
@@ -134,31 +122,17 @@ func NewPhaseMerger(ctx context.Context, args *PhaseMergerArgs) (
 	return func(opindex uint64) error {
 			addXMergedOp(-1, opindex, mergeFlag)
 
-			switch err := newJob(opindex, mergeCallback(opindex)); {
-			case errors.Is(err, util.ErrJobWorkerDone):
-				return nil
-			default:
-				return err
-			}
+			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
 			addXMergedOp(-1, opindex, unmergeFlag)
 
-			switch err := newJob(opindex, unmergeCallback(opindex)); {
-			case errors.Is(err, util.ErrJobWorkerDone):
-				return nil
-			default:
-				return err
-			}
+			return newJob(opindex, unmergeCallback(opindex))
 		},
 		jobDone,
-		OnceFuncCallback(func(f phaseMergerWaitCallbackFunc) error {
-			err := waitf(f)
-			fmt.Printf("phase merger.wait: local=%q err=%+v\n", args.local, err)
-			pctxCancel(err)
-
-			return err
-		}),
+		func(f phaseMergerWaitCallbackFunc) error {
+			return pctxCancel(waitf(f))
+		},
 		nil
 }
 

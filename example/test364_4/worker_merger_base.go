@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -63,7 +61,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	workerMergerWaitFunc,
 	error,
 ) {
-	wctx, wctxCancel := context.WithCancelCause(ctx)
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 	var insertPool func(worker string, unmerge []uint64) bool
 	var exhaustPool func(func(worker string, unmerge []uint64) error) error
@@ -140,37 +138,25 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		return nil
 	}
 
-	waitf := func(f workerMergerUnmergedOpsFunc) error {
-		defer exhaustPool(nil)
-
-		err := phaseWait(f)
-		if err != nil {
-			fmt.Printf("base: local=%q err=%+v\n", args.local, err)
-		}
-
-		wctxCancel(err)
-
-		return err
-	}
-
 	return func(worker string, unmerge []uint64) error {
-			switch err := workerPhaseDone(worker, unmerge); {
-			case errors.Is(err, util.ErrJobWorkerDone): // FIXME review context.Canceled; insert from worker
-			case err != nil:
+			if err := workerPhaseDone(worker, unmerge); err != nil {
 				args.Log().Error().
 					Err(err).
 					Str("worker", worker).
 					Msg("worker phase done")
-
-				fmt.Printf("base.phase done: local=%q err=%+v worker=%q\n", args.local, err, worker)
-				// FIXME wctxCancel(err)
 
 				return err
 			}
 
 			return nil
 		},
-		OnceFuncCallback(waitf), // FIXME review all wait once
+		func(f workerMergerUnmergedOpsFunc) error {
+			return wctxCancel(func() error {
+				defer exhaustPool(nil)
+
+				return phaseWait(f)
+			}())
+		},
 		nil
 }
 

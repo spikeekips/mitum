@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -64,7 +63,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 		return nil, nil, util.ErrInvalid.Errorf("EnoughWorkers should be at least 1")
 	}
 
-	pctx, pctxCancel := context.WithCancelCause(ctx)
+	pctx, pctxCancel := ContextWithCancelCause(ctx)
 
 	var merge, unmerge phaseMergerXMergeFunc
 
@@ -163,13 +162,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 						return nil
 					}
 
-					switch err := insertOps(fm, fu); {
-					case err == nil,
-						enough && errors.Is(err, util.ErrJobWorkerDone):
-						return nil
-					default:
-						return err
-					}
+					return insertOps(fm, fu)
 				},
 			)
 		},
@@ -177,10 +170,6 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 			defer func() {
 				_ = checkWorkerEnoughEmpty()
 			}()
-
-			if err := context.Cause(pctx); err != nil {
-				return err
-			}
 
 			select {
 			case <-pctx.Done():
@@ -201,9 +190,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 					gerr = f(nil, nil, nil, checkWorkerEnoughEmpty())
 				}
 
-				pctxCancel(gerr)
-
-				return gerr
+				return pctxCancel(gerr)
 			}
 		},
 		nil

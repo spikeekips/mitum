@@ -475,7 +475,7 @@ package main
 // }
 //
 // func (t *testProcessWorker) testMergeNWorkers(n uint64) func() {
-// 	// FIXME
+// 	// FXME
 // 	/*
 // 	   process_worker_test.go:838:
 // 	               Error Trace:    /workspace/mitum/src/example/test364_4/process_worker_test.go:838
@@ -999,7 +999,7 @@ package main
 // 	t.Run("4", t.testMergeNWorkers(4))
 // }
 //
-// // FIXME test bigger size workers than ops
+// // FXME test bigger size workers than ops
 //
 // func TestProcessWorker(t *testing.T) {
 // 	t.Skip()

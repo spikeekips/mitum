@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
@@ -49,7 +48,7 @@ func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtra
 	wait stateMergeValueExtractorWaitFunc,
 	_ error,
 ) {
-	pctx, pctxCancel := context.WithCancelCause(ctx)
+	pctx, pctxCancel := ContextWithCancelCause(ctx)
 
 	var jobWorker JobWorker
 
@@ -89,31 +88,30 @@ func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtra
 
 	return func(opindex uint64, oph util.Hash) error {
 			return jobWorker.NewJob(func(ctx context.Context) error {
-				err := extract(ctx, opindex, oph)
-				if err != nil {
-					fmt.Printf("extract: local=%q err=%+v\n", args.local, err)
-					pctxCancel(err)
+				if err := extract(ctx, opindex, oph); err != nil {
+					return pctxCancel(err)
 				}
 
-				return err
+				return nil
 			})
 		},
 		jobWorker.JobDone,
 		func(f stateMergeValueExtractorReasonsFunc) error {
-			defer func() {
-				pctxCancel(nil)
-				reasons.Close()
-			}()
+			return pctxCancel(func() error {
+				defer func() {
+					reasons.Close()
+				}()
 
-			if err := jobWorker.Wait(); err != nil {
-				return err
-			}
+				if err := jobWorker.Wait(); err != nil {
+					return err
+				}
 
-			if f != nil && reasons.Len() > 0 {
-				return f(reasons.Map())
-			}
+				if f != nil && reasons.Len() > 0 {
+					return f(reasons.Map())
+				}
 
-			return nil
+				return nil
+			}())
 		},
 		nil
 }

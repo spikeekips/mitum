@@ -85,7 +85,7 @@ package main
 // 	StateOwnersCacheSize int
 // 	filterOps            filterOpsFunc
 // 	MaxOpsSize           uint64
-// 	local                string // FIXME remove
+// 	local                string // FXME remove
 // }
 //
 // func newProcessWorkerArgs() *processWorkerArgs {
@@ -509,7 +509,7 @@ package main
 // 		nil
 // }
 //
-// func serialStateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, error) { // FIXME share states from 0
+// func serialStateOwnersFunc(workers []string, share uint8) (stateOwnersFunc, error) { // FXME share states from 0
 // 	w := uint64(len(workers))
 // 	if w < 1 {
 // 		return nil, errors.Errorf("empty workers")

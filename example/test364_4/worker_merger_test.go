@@ -262,7 +262,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 				merged = slices.Clone(newMerged)
 				unmerged = slices.Clone(newUnmerged)
 
-				fmt.Printf("worker=%q reasons=%v\n", local, reasons)
+				fmt.Printf("wait done: worker=%q merged=%v unmerged=%v reasons=%v\n", local, merged, unmerged, reasons)
 
 				TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
 					gatheredReasons.SetValue(opindex, reason)
@@ -350,7 +350,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 				return nil
 			})
 			if err != nil {
-				fmt.Printf("wait: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait error: local=%s err=%+v\n", local, err)
 			}
 
 			switch {
@@ -1004,8 +1004,6 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 					return prev, nil
 				})
 
-				fmt.Printf("worker=%q reasons=%v\n", local, reasons)
-
 				TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
 					gatheredReasons.SetValue(opindex, reason)
 
@@ -1015,7 +1013,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 				return nil
 			})
 			if err != nil {
-				fmt.Printf("wait: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait error: local=%s err=%+v\n", local, err)
 			}
 
 			switch {
@@ -1321,8 +1319,6 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 					return prev, nil
 				})
 
-				fmt.Printf("worker=%q reasons=%v\n", local, reasons)
-
 				TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
 					gatheredReasons.SetValue(opindex, reason)
 
@@ -1332,7 +1328,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 				return traverseStates(func(base.State) error { return nil })
 			})
 			if err != nil {
-				fmt.Printf("wait: local=%s err=%+v\n", local, err)
+				fmt.Printf("wait error: local=%s err=%+v\n", local, err)
 			}
 
 			switch {

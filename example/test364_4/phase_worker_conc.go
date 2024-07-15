@@ -45,7 +45,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 	wait func() error,
 	_ error,
 ) {
-	pctx, pctxCancel := context.WithCancelCause(ctx)
+	pctx, pctxCancel := ContextWithCancelCause(ctx)
 
 	var jobIDLocked *util.ShardedMap[uint64, int]
 
@@ -126,18 +126,19 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 			})
 		},
 		wk.JobDone,
-		OnceFunc(func() error {
-			defer func() {
-				pctxCancel(nil)
-				jobIDLocked.Close()
-			}()
+		func() error {
+			return pctxCancel(func() error {
+				defer func() {
+					jobIDLocked.Close()
+				}()
 
-			if err := wk.Wait(); err != nil {
-				return err
-			}
+				if err := wk.Wait(); err != nil {
+					return err
+				}
 
-			return nextPhaseWait()
-		}),
+				return nextPhaseWait()
+			}())
+		},
 		nil
 }
 

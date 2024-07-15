@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -80,7 +79,7 @@ func newInitialValuesWorkerMerger(
 		return nil, nil, nil, errors.Errorf("zero MaxOpsSize")
 	}
 
-	wctx, wctxCancel := context.WithCancelCause(ctx)
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 	var vp util.LockedMap[uint64, []StateMergeValue]
 
@@ -135,7 +134,6 @@ func newInitialValuesWorkerMerger(
 		setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
 			switch stateKeys, err := pargs.ExtractStateMergeValueKeysFunc(opindex, values); {
 			case err != nil:
-				fmt.Printf("set state op: local=%q phase=%d opindex=%d err=%+v\n", args.local, phase, opindex, err)
 				return err
 			default:
 				i(phase, opindex, stateKeys, x)
@@ -261,31 +259,21 @@ func newInitialValuesWorkerMerger(
 			error,
 		) {
 			i, d, err := initialInsertOps(worker)
-
-			switch {
-			case errors.Is(err, util.ErrJobWorkerDone):
-			case err != nil:
+			if err != nil {
 				args.Log().Error().
 					Err(err).
 					Str("worker", worker).
 					Msg("initial phase merger error")
 
-				fmt.Printf("initial phase merger: local=%q err=%+v\n", args.local, err)
-				wctxCancel(err)
+				return nil, nil, wctxCancel(err)
 			}
 
 			return i, d, err
 		},
 		workerPhaseDone,
-		OnceFuncCallback(func(f initialValuesWorkerMergerResultFunc) error {
-			err := waitf(f)
-			if err != nil {
-				fmt.Printf("initial phase merger.done: local=%q err=%+v\n", args.local, err)
-			}
-			wctxCancel(err)
-
-			return err
-		}),
+		func(f initialValuesWorkerMergerResultFunc) error {
+			return wctxCancel(waitf(f))
+		},
 		nil
 }
 
@@ -299,11 +287,13 @@ func newInitialPhaseMerger(
 	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
 ) {
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
+
 	var initialMerge phaseMergerXMergeFunc
 	var initialDone func()
 	var initialWait phaseMergerWaitFunc
 
-	switch m, _, d, w, err := NewPhaseMerger(ctx, pargs); {
+	switch m, _, d, w, err := NewPhaseMerger(wctx, pargs); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -323,20 +313,21 @@ func newInitialPhaseMerger(
 		closeCheckWorker = func() { d() }
 	}
 
-	wait = func(f initialValuesWorkerMergerResultFunc) error {
-		defer closeCheckWorker()
-
-		return initialWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
+	initialMergeDone := func(worker string) error {
+		return checkWorker(worker, false, func(enough, ok bool) error {
 			args.Log().Debug().
-				Uints64("new_unmerged", newUnmerged).
-				Interface("reasons", reasons).
-				Msg("initial wait done")
+				Str("worker", worker).
+				Bool("enough", enough).
+				Bool("ok", ok).
+				Msg("worker phase done received")
 
-			if f == nil {
-				return nil
+			switch {
+			case !ok:
+			case enough:
+				initialDone()
 			}
 
-			return f(newUnmerged, reasons)
+			return nil
 		})
 	}
 
@@ -347,25 +338,32 @@ func newInitialPhaseMerger(
 		) {
 			return initialMerge,
 				func() error {
-					return checkWorker(worker, false, func(enough, ok bool) error {
-						args.Log().Debug().
-							Str("worker", worker).
-							Bool("enough", enough).
-							Bool("ok", ok).
-							Msg("worker phase done received")
+					if err := initialMergeDone(worker); err != nil {
+						return wctxCancel(err)
+					}
 
-						switch {
-						case !ok:
-						case enough:
-							initialDone()
-						}
-
-						return nil
-					})
+					return nil
 				},
 				nil
 		},
-		wait,
+		func(f initialValuesWorkerMergerResultFunc) error {
+			return wctxCancel(func() error {
+				defer closeCheckWorker()
+
+				return initialWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
+					args.Log().Debug().
+						Uints64("new_unmerged", newUnmerged).
+						Interface("reasons", reasons).
+						Msg("initial wait done")
+
+					if f == nil {
+						return nil
+					}
+
+					return f(newUnmerged, reasons)
+				})
+			}())
+		},
 		nil
 }
 

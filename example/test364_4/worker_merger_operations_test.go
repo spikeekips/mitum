@@ -871,16 +871,11 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 	) {
 		return func(opindex uint64, values []StateMergeValue) error {
 				return valuesOwners(values, func(worker string, values []StateMergeValue) error {
-					fmt.Printf("broadcast values: local=%q worker=%q opindex=%d\n", local, worker, opindex)
-
 					return broadcast(worker, opindex, values)
 				})
 			},
 			func() error {
-				err := broadcastDone()
-				fmt.Printf("broadcast done: local=%q err=%+v\n", local, err)
-
-				switch {
+				switch err := broadcastDone(); {
 				case errors.Is(err, context.Canceled),
 					errors.Is(err, util.ErrJobWorkerDone):
 					return nil

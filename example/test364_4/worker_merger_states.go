@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/rs/zerolog"
@@ -59,7 +58,7 @@ func newStatesWorkerMerger(
 	statesWorkerMergerWaitFunc,
 	error,
 ) {
-	wctx, wctxCancel := context.WithCancelCause(ctx)
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 	var mergersPool util.LockedMap[string, StateMerger]
 
@@ -95,38 +94,24 @@ func newStatesWorkerMerger(
 			func() error,
 			error,
 		) {
-			j, d, err := i(worker)
-			if err != nil {
+			switch j, d, err := i(worker); {
+			case err != nil:
 				args.Log().Error().Err(err).Msg("worker initial insert error")
 
-				fmt.Printf("state.insert: local=%q err=%+v worker=%q\n", args.local, err, worker)
-				wctxCancel(err)
+				return nil, nil, wctxCancel(err)
+			default:
+				return j, d, nil
 			}
-
-			return j, d, err
 		}
 		initialValuesPhaseDone = func(worker string, unmerge []uint64) error {
 			err := p(worker, unmerge)
 			if err != nil {
 				args.Log().Error().Err(err).Str("worker", worker).Msg("worker phase done error")
-
-				fmt.Printf("state.phase done: local=%q err=%+v worker=%q\n", args.local, err, worker)
-				// FIXME wctxCancel(err)
 			}
 
 			return err
 		}
-		initialValuesWait = func(f initialValuesWorkerMergerResultFunc) error {
-			err := w(f)
-			if err != nil {
-				args.Log().Error().Err(err).Msg("initial values wait error")
-
-				fmt.Printf("state.initial wait: local=%q err=%+v\n", args.local, err)
-				wctxCancel(err)
-			}
-
-			return err
-		}
+		initialValuesWait = w
 	}
 
 	traverseStates := func(f func(st base.State) error) (gerr error) {
@@ -170,29 +155,20 @@ func newStatesWorkerMerger(
 		return gerr
 	}
 
-	waitf := func(f statesWorkerMergerResultFunc) error {
-		defer closeMergers()
-
-		return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
-			if f == nil {
-				return nil
-			}
-
-			return f(unmerged, reasons, traverseStates)
-		})
-	}
-
 	return initialValuesInsert,
 		initialValuesPhaseDone,
 		func(f statesWorkerMergerResultFunc) error {
-			err := waitf(f)
-			if err != nil {
-				fmt.Printf("state.wait: local=%q err=%+v\n", args.local, err)
-			}
+			return wctxCancel(func() error {
+				defer closeMergers()
 
-			wctxCancel(err)
+				return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
+					if f == nil {
+						return nil
+					}
 
-			return err
+					return f(unmerged, reasons, traverseStates)
+				})
+			}())
 		},
 		nil
 }

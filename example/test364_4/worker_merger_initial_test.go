@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -125,7 +126,8 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		insertOther, doneOther, err := initial("w0")
 		t.NoError(err)
 
-		t.NoError(insertOther(1, ops[1])) // NOTE util.ErrJobWorkerDone
+		err = insertOther(1, ops[1]) // NOTE util.ErrJobWorkerDone
+		t.ErrorIs(err, util.ErrJobWorkerDone)
 
 		t.NoError(doneOther())
 	})

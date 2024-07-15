@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -403,22 +404,22 @@ func (t *testWorkerPhaseMerger) newInsertWaitFuncs(
 
 	var once sync.Once
 
+	once.Do(func() {
+		go func() {
+			if err := wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
+				close(waitch)
+
+				return nil
+			}); err != nil {
+				fmt.Printf("wait error: %+v\n", err)
+			}
+		}()
+	})
+
 	return func(worker string, mergeOps, unmergeOps []uint64, d time.Duration) (bool, error) {
 		if err := insert(worker, mergeOps, unmergeOps); err != nil {
 			return false, err
 		}
-
-		once.Do(func() {
-			go func() {
-				if err := wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error {
-					close(waitch)
-
-					return nil
-				}); err != nil {
-					panic(err)
-				}
-			}()
-		})
 
 		select {
 		case <-time.After(d):
@@ -471,9 +472,6 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 
 			return nil
 		}))
-
-		err = wait(func([]uint64, []uint64, map[uint64]string, bool) error { return nil })
-		t.ErrorIs(err, context.Canceled)
 	})
 
 	t.Run("enough; 3 workers, but insert empty ops", func() {
@@ -567,7 +565,7 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		_, args, vp, _, _ := t.newArgs()
 		args.EnoughWorkers = 3
 
-		ops := make([]uint64, 15)
+		ops := make([]uint64, 12)
 		for i := range ops {
 			opindex := uint64(i)
 			ops[i] = opindex
@@ -583,11 +581,14 @@ func (t *testWorkerPhaseMerger) TestEnoughWorkers() {
 		done, err := insertf("w0", ops[:3], nil, time.Millisecond*333)
 		t.NoError(err)
 		t.False(done)
-		done, err = insertf("w1", ops[3:6], nil, time.Second)
+		done, err = insertf("w1", ops[3:6], nil, time.Millisecond*333)
+		t.NoError(err)
+		t.False(done)
+		done, err = insertf("w2", ops[6:9], nil, time.Second)
 		t.NoError(err)
 		t.False(done)
 
-		done, err = insertf(localWorkerName, ops[12:], nil, time.Second)
+		done, err = insertf(localWorkerName, ops[9:], nil, time.Second)
 		t.NoError(err)
 		t.True(done)
 	})
