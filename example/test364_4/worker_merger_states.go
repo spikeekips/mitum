@@ -11,21 +11,21 @@ import (
 )
 
 type (
-	getStateFunc                 func(stateKey string) (base.State, bool, error)
-	statesWorkerMergerResultFunc func(
+	getStateFunc                                  func(stateKey string) (base.State, bool, error)
+	statesWorkerMergerTraverseMergersNewStateFunc func(stateKey string, _ base.StateValue, ops []uint64) error
+	statesWorkerMergerTraverseMergers             func(statesWorkerMergerTraverseMergersNewStateFunc) error
+	statesWorkerMergerResultFunc                  func(
 		unmerged []uint64,
 		reasons map[uint64]string,
-		_ func(func(base.State) error) error,
+		_ statesWorkerMergerTraverseMergers,
 	) error
 	statesWorkerMergerWaitFunc func(statesWorkerMergerResultFunc) error
-	newStateFunc               func(stateKey string, _ base.StateValue, ops []uint64) (base.State, error)
 )
 
 type statesWorkerMergerArgs struct {
 	*logging.Logging
 	*initialValuesWorkerMergerArgs
-	GetState     getStateFunc
-	NewStateFunc func() (newStateFunc, error) // FIXME move to saveWorkerMergerArgs
+	GetState getStateFunc
 }
 
 func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -42,9 +42,6 @@ func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorke
 		initialValuesWorkerMergerArgs: args,
 		GetState: func(string) (base.State, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetState")
-		},
-		NewStateFunc: func() (newStateFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewStateFunc")
 		},
 	}
 }
@@ -114,40 +111,25 @@ func newStatesWorkerMerger(
 		initialValuesWait = w
 	}
 
-	traverseStates := func(f func(st base.State) error) (gerr error) {
+	traverseMergers := func(f statesWorkerMergerTraverseMergersNewStateFunc) error {
 		getStateOp, closeStateOps := stateOps()
+		defer closeStateOps()
 
-		defer func() {
-			closeStateOps()
-			mergersPool.Close()
-		}()
-
-		var newState newStateFunc
-
-		if newState, gerr = args.NewStateFunc(); gerr != nil {
-			return gerr
-		}
+		var gerr error
 
 		_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
-			var v base.StateValue
-
-			if v, gerr = merger.Close(); gerr != nil || v == nil {
-				return true
-			}
-
 			ops := getStateOp(stateKey)
 			if len(ops) < 1 {
 				return true
 			}
 
-			var st base.State
+			var stv base.StateValue
 
-			switch st, gerr = newState(stateKey, v, ops); {
-			case gerr != nil:
-			case f == nil:
-			default:
-				gerr = f(st)
+			if stv, gerr = merger.Close(); gerr != nil || stv == nil {
+				return true
 			}
+
+			gerr = f(stateKey, stv, ops)
 
 			return gerr == nil
 		})
@@ -159,14 +141,17 @@ func newStatesWorkerMerger(
 		initialValuesPhaseDone,
 		func(f statesWorkerMergerResultFunc) error {
 			return wctxCancel(func() error {
-				defer closeMergers()
+				defer func() {
+					closeMergers()
+					mergersPool.Close()
+				}()
 
 				return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
 					if f == nil {
 						return nil
 					}
 
-					return f(unmerged, reasons, traverseStates)
+					return f(unmerged, reasons, traverseMergers)
 				})
 			}())
 		},

@@ -36,9 +36,6 @@ func (t *testOperationsWorkerMerger) newArgs(local string, enoughWorkers uint64,
 	sargs.BroadcastPhaseDone = func(context.Context, []uint64) error {
 		return nil
 	}
-	sargs.NewStateFunc = func() (newStateFunc, error) {
-		return func(string, base.StateValue, []uint64) (base.State, error) { return nil, nil }, nil
-	}
 
 	eargs := newStateMergeValueExtractorArgs(local)
 	eargs.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
@@ -58,6 +55,9 @@ func (t *testOperationsWorkerMerger) newArgs(local string, enoughWorkers uint64,
 		return func(uint64, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 	}
 	args.IsLocalStateValue = func(string) bool { return true }
+	args.NewStateFunc = func() (newStateFunc, error) {
+		return func(string, base.StateValue, []uint64) (base.State, error) { return nil, nil }, nil
+	}
 
 	args.SetLogging(logging.TestNilLogging)
 
@@ -155,7 +155,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			t.Empty(unmerged)
 			t.Empty(reasons)
 
-			t.NoError(traverseStates(nil))
+			t.NoError(traverseStates(func(base.State) error { return nil }))
 
 			t.NoError(traverseOperations(func(opindex uint64, op Operation) error {
 				gatheredOps.SetValue(opindex, op)

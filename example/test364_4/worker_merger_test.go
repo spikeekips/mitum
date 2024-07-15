@@ -117,11 +117,6 @@ func (t *baseTestWorkerMerger) newStatesArgs(local string, workers uint64) (
 
 		return i, found, nil
 	}
-	args.NewStateFunc = func() (newStateFunc, error) {
-		return func(string, base.StateValue, []uint64) (base.State, error) {
-			return nil, nil
-		}, nil
-	}
 
 	return pargs, wpargs, args, vp, mergers, states
 }
@@ -1197,22 +1192,6 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 
 			return nil
 		}
-		args.NewStateFunc = func() (newStateFunc, error) {
-			return func(stateKey string, value base.StateValue, ops []uint64) (base.State, error) {
-				slices.Sort(ops)
-
-				balance := value.(AccountStateValue).Balance
-
-				gatheredStates.SetValue(
-					stateKey,
-					[2]interface{}{int(balance), ops},
-				)
-
-				fmt.Printf("new state: local=%q state key=%q balance=%v ops=%v\n", local, stateKey, balance, ops)
-
-				return nil, nil
-			}, nil
-		}
 
 		initial, phaseDone, wait, err := newStatesWorkerMerger(wctx, args)
 		t.NoError(err)
@@ -1303,7 +1282,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 			err := wait(func(
 				unmerged []uint64,
 				reasons map[uint64]string,
-				traverseStates func(func(base.State) error) error,
+				traverseMergers statesWorkerMergerTraverseMergers,
 			) error {
 				fmt.Printf("wait done: worker=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
 
@@ -1325,7 +1304,20 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 					return true, nil
 				})
 
-				return traverseStates(func(base.State) error { return nil })
+				return traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+					slices.Sort(ops)
+
+					balance := value.(AccountStateValue).Balance
+
+					gatheredStates.SetValue(
+						stateKey,
+						[2]interface{}{int(balance), ops},
+					)
+
+					fmt.Printf("new state: local=%q state key=%q balance=%v ops=%v\n", local, stateKey, balance, ops)
+
+					return nil
+				})
 			})
 			if err != nil {
 				fmt.Printf("wait error: local=%s err=%+v\n", local, err)
