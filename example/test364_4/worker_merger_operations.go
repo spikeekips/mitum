@@ -6,13 +6,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	newStateFunc                        func(stateKey string, _ base.StateValue, ops []uint64) (base.State, error)
 	operationsWorkerLocalInsertOpFunc   func(opindex uint64, oph, fact util.Hash) error
 	operationsWorkerInsertOpsFunc       func(operationsWorkerLocalInsertOpFunc) error
 	operationsWorkerLocalInsertOpsFuncs func(operationsWorkerInsertOpsFunc) error
@@ -20,7 +18,7 @@ type (
 	operationsWorkerMergerResultFunc    func(
 		unmerged []uint64,
 		reasons map[uint64]string,
-		traverseStates func(func(base.State) error) error,
+		traverseMergers statesWorkerMergerTraverseMergers,
 		traverseOperations func(operationsWorkerSaveOperationFunc) error,
 	) error
 	operationsWorkerMergerBroadcastStateMergeValueFuncs func(context.Context) (
@@ -37,7 +35,6 @@ type operationsWorkerMergerArgs struct {
 	e                              *stateMergeValueExtractorArgs
 	IsLocalStateValue              func(stateKey string) bool
 	BroadcastStateMergeValuesFuncs operationsWorkerMergerBroadcastStateMergeValueFuncs
-	NewStateFunc                   func() (newStateFunc, error)
 }
 
 func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -64,9 +61,6 @@ func newOperationsWorkerMergerArgs(
 			error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("BroadcastStateMergeValuesFuncs")
-		},
-		NewStateFunc: func() (newStateFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewStateFunc")
 		},
 	}
 }
@@ -134,38 +128,6 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 		}
 	}
 
-	traverseStatesFunc := func(
-		traverseMergers statesWorkerMergerTraverseMergers,
-	) func(func(base.State) error) error {
-		return func(f func(base.State) error) error {
-			var newState newStateFunc
-
-			switch n, err := args.NewStateFunc(); {
-			case err != nil:
-				return err
-			default:
-				newState = n
-			}
-
-			return traverseMergers(func(stateKey string, stv base.StateValue, ops []uint64) error {
-				if f == nil {
-					return nil
-				}
-
-				if len(ops) < 1 {
-					return util.ErrNotFound.Errorf("empty state ops")
-				}
-
-				switch st, err := newState(stateKey, stv, ops); {
-				case err != nil:
-					return err
-				default:
-					return f(st)
-				}
-			})
-		}
-	}
-
 	waitf := func(f operationsWorkerMergerResultFunc) error {
 		defer closeOpsPool()
 
@@ -195,7 +157,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 			return f(
 				mergeReasonsToUnmerged(unmerged),
 				mergeReasons(reasons),
-				traverseStatesFunc(traverseMergers),
+				traverseMergers,
 				func(f operationsWorkerSaveOperationFunc) (gerr error) {
 					_ = traverseOpsPool(func(opindex uint64, op Operation) bool {
 						gerr = f(opindex, op)

@@ -55,9 +55,6 @@ func (t *testOperationsWorkerMerger) newArgs(local string, enoughWorkers uint64,
 		return func(uint64, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 	}
 	args.IsLocalStateValue = func(string) bool { return true }
-	args.NewStateFunc = func() (newStateFunc, error) {
-		return func(string, base.StateValue, []uint64) (base.State, error) { return nil, nil }, nil
-	}
 
 	args.SetLogging(logging.TestNilLogging)
 
@@ -73,14 +70,6 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		args.NewStateFunc = func() (newStateFunc, error) {
-			return func(stateKey string, value base.StateValue, ops []uint64) (base.State, error) {
-				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
-
-				return nil, nil
-			}, nil
-		}
-
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
@@ -93,13 +82,17 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		t.NoError(wait(func(
 			unmerged []uint64,
 			reasons map[uint64]string,
-			traverseStates func(func(base.State) error) error,
+			traverseMergers statesWorkerMergerTraverseMergers,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
 
-			t.NoError(traverseStates(nil))
+			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
+
+				return nil
+			}))
 
 			t.NoError(traverseOperations(func(opindex uint64, op Operation) error {
 				gatheredOps.SetValue(opindex, op)
@@ -126,14 +119,6 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		args.NewStateFunc = func() (newStateFunc, error) {
-			return func(stateKey string, value base.StateValue, ops []uint64) (base.State, error) {
-				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
-
-				return nil, nil
-			}, nil
-		}
-
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
 
@@ -149,13 +134,17 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		t.NoError(wait(func(
 			unmerged []uint64,
 			reasons map[uint64]string,
-			traverseStates func(func(base.State) error) error,
+			traverseMergers statesWorkerMergerTraverseMergers,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
 
-			t.NoError(traverseStates(func(base.State) error { return nil }))
+			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
+
+				return nil
+			}))
 
 			t.NoError(traverseOperations(func(opindex uint64, op Operation) error {
 				gatheredOps.SetValue(opindex, op)
@@ -232,16 +221,17 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		t.ErrorContains(err, "showme")
 	})
 
-	t.Run("wait error: NewStateFunc", func() {
+	t.Run("wait error: traverse mergers", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		op := t.randomOp(1)
+		issuerState := t.newState(op.Fact().(OpFact).Issuer, 1)
+		receiverState := t.newState(op.Fact().(OpFact).Receiver, 1)
 
-		_, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
-		args.NewStateFunc = func() (newStateFunc, error) {
-			return nil, errors.Errorf("showme")
-		}
+		_, _, _, args, _, _, statesPool := t.newArgs("local", 1, []Operation{op})
+		statesPool.SetValue(issuerState.Key(), issuerState)
+		statesPool.SetValue(receiverState.Key(), receiverState)
 
 		insertOps, _, _, wait, err := newOperationsWorkerMerger(ctx, args)
 		t.NoError(err)
@@ -253,10 +243,12 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		err = wait(func(
 			_ []uint64,
 			_ map[uint64]string,
-			traverseStates func(func(base.State) error) error,
+			traverseMergers statesWorkerMergerTraverseMergers,
 			_ func(operationsWorkerSaveOperationFunc) error,
 		) error {
-			return traverseStates(nil)
+			return traverseMergers(func(string, base.StateValue, []uint64) error {
+				return errors.Errorf("showme")
+			})
 		})
 
 		t.ErrorContains(err, "showme")
@@ -280,7 +272,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		err = wait(func(
 			_ []uint64,
 			_ map[uint64]string,
-			_ func(func(base.State) error) error,
+			_ statesWorkerMergerTraverseMergers,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			return traverseOperations(func(uint64, Operation) error {
@@ -387,26 +379,6 @@ func (t *testOperationsWorkerMerger) testMerger(
 
 			return nil
 		}
-		args.NewStateFunc = func() (newStateFunc, error) {
-			return func(stateKey string, value base.StateValue, ops []uint64) (base.State, error) {
-				if !args.IsLocalStateValue(stateKey) {
-					return nil, util.ErrFound.Errorf("unknown state key for local, %q", stateKey)
-				}
-
-				slices.Sort(ops)
-
-				balance := value.(AccountStateValue).Balance
-
-				fmt.Printf("new state: local=%q state key=%q balance=%d ops=%v\n", local, stateKey, balance, ops)
-
-				gatheredStates.SetValue(
-					stateKey,
-					[2]interface{}{int(balance), ops},
-				)
-
-				return nil, nil
-			}, nil
-		}
 		args.IsLocalStateValue = func(stateKey string) bool {
 			return slices.Index(workerValues[local], stateKey) >= 0
 		}
@@ -475,7 +447,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 			err := wait(func(
 				unmerged []uint64,
 				reasons map[uint64]string,
-				traverseStates func(func(base.State) error) error,
+				traverseMergers statesWorkerMergerTraverseMergers,
 				traverseOperations func(operationsWorkerSaveOperationFunc) error,
 			) error {
 				fmt.Printf("wait done: local=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
@@ -498,7 +470,24 @@ func (t *testOperationsWorkerMerger) testMerger(
 					return true, nil
 				})
 
-				return traverseStates(func(base.State) error { return nil })
+				return traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+					if slices.Index(workerValues[local], stateKey) < 0 {
+						return util.ErrFound.Errorf("unknown state key for local, %q", stateKey)
+					}
+
+					slices.Sort(ops)
+
+					balance := value.(AccountStateValue).Balance
+
+					fmt.Printf("new state: local=%q state key=%q balance=%d ops=%v\n", local, stateKey, balance, ops)
+
+					gatheredStates.SetValue(
+						stateKey,
+						[2]interface{}{int(balance), ops},
+					)
+
+					return nil
+				})
 			})
 			if err != nil {
 				fmt.Printf("wait error: local=%q err=%+v\n", local, err)
