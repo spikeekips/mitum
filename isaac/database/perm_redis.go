@@ -195,7 +195,7 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 }
 
 func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
-	switch i, j, err := db.basePermanent.state(key); {
+	switch i, j, err := db.basePermanent.stateFromCache(key); {
 	case err != nil:
 		return nil, false, err
 	case j:
@@ -210,7 +210,7 @@ func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error)
 			return nil, true, err
 		}
 
-		db.setState(st)
+		db.setStateToCache(st)
 
 		return st, true, nil
 	}
@@ -610,7 +610,7 @@ func (db *RedisPermanent) loadNetworkPolicy() error {
 
 		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
 
-		db.setState(st)
+		db.setStateToCache(st)
 
 		return nil
 	}

@@ -1,6 +1,8 @@
 package isaacdatabase
 
 import (
+	"sync"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -13,15 +15,22 @@ type basePermanent struct {
 	proof                 *util.Locked[[3]interface{}]     // NOTE last SuffrageProof
 	stcache               util.GCache[string, base.State]
 	instateoperationcache util.GCache[string, bool]
+	stateFromCacheFunc    func(string) (base.State, bool, error)
+	setStateToCacheFunc   func(base.State)
 }
 
 func newBasePermanent(cachesize int) *basePermanent {
+	statef := func(string) (base.State, bool, error) { return nil, false, nil }
+	setStatef := func(base.State) {}
+
 	var stcache util.GCache[string, base.State]
 	var instateoperationcache util.GCache[string, bool]
 
 	if cachesize > 0 {
 		stcache = util.NewLFUGCache[string, base.State](cachesize)
 		instateoperationcache = util.NewLFUGCache[string, bool](cachesize)
+
+		statef, setStatef = newStateCacheFuncs(stcache)
 	}
 
 	return &basePermanent{
@@ -31,6 +40,8 @@ func newBasePermanent(cachesize int) *basePermanent {
 		proof:                 util.EmptyLocked[[3]interface{}](),
 		stcache:               stcache,
 		instateoperationcache: instateoperationcache,
+		stateFromCacheFunc:    statef,
+		setStateToCacheFunc:   setStatef,
 	}
 }
 
@@ -104,22 +115,28 @@ func (db *basePermanent) Clean() error {
 	return nil
 }
 
-func (db *basePermanent) state(key string) (base.State, bool, error) {
+func (db *basePermanent) stateFromCache(key string) (base.State, bool, error) {
 	if db.stcache == nil {
 		return nil, false, nil
 	}
 
-	st, found := db.stcache.Get(key)
-
-	return st, found, nil
+	return db.stateFromCacheFunc(key)
 }
 
-func (db *basePermanent) setState(st base.State) {
+func (db *basePermanent) setStateToCache(st base.State) {
 	if db.stcache == nil {
 		return
 	}
 
-	db.stcache.Set(st.Key(), st, 0)
+	db.setStateToCacheFunc(st)
+}
+
+func (db *basePermanent) removeStateFromCache(stateKey string) {
+	if db.stcache == nil {
+		return
+	}
+
+	db.stcache.Remove(stateKey)
 }
 
 func (db *basePermanent) updateLast(
@@ -162,7 +179,7 @@ func (db *basePermanent) mergeTempCaches(
 			switch {
 			case !i[1].(bool): //nolint:forcetypeassert //...
 			default:
-				db.setState(i[0].(base.State)) //nolint:forcetypeassert //...
+				db.setStateToCache(i[0].(base.State)) //nolint:forcetypeassert //...
 			}
 
 			return true
@@ -180,4 +197,31 @@ func (db *basePermanent) mergeTempCaches(
 			return true
 		})
 	}
+}
+
+func newStateCacheFuncs(stcache util.GCache[string, base.State]) (
+	func(string) (base.State, bool, error),
+	func(base.State),
+) {
+	var lock sync.RWMutex
+
+	return func(stateKey string) (base.State, bool, error) {
+			lock.RLock()
+			defer lock.RUnlock()
+
+			st, found := stcache.Get(stateKey)
+
+			return st, found, nil
+		},
+		func(st base.State) {
+			lock.Lock()
+			defer lock.Unlock()
+
+			switch prev, found := stcache.Get(st.Key()); {
+			case found && prev.Height() >= st.Height():
+				return
+			default:
+				stcache.Set(st.Key(), st, 0)
+			}
+		}
 }

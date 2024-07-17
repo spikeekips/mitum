@@ -188,7 +188,7 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (
 }
 
 func (db *LeveldbPermanent) State(key string) (st base.State, found bool, _ error) {
-	switch i, j, err := db.basePermanent.state(key); {
+	switch i, j, err := db.basePermanent.stateFromCache(key); {
 	case err != nil:
 		return nil, false, err
 	case j:
@@ -208,7 +208,7 @@ func (db *LeveldbPermanent) State(key string) (st base.State, found bool, _ erro
 			return nil, true, err
 		}
 
-		db.setState(st)
+		db.setStateToCache(st)
 
 		return st, true, nil
 	}
@@ -407,6 +407,15 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	db.basePermanent.mergeTempCaches(temp.stcache, temp.instateoperationcache)
 
+	// NOTE purge old items from stcache
+	if err := temp.iterStateKeys(func(stateKey string) (bool, error) {
+		db.basePermanent.removeStateFromCache(stateKey)
+
+		return true, nil
+	}); err != nil {
+		return e.Wrap(err)
+	}
+
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
 	return nil
@@ -467,7 +476,7 @@ func (db *LeveldbPermanent) loadNetworkPolicy() error {
 	default:
 		_ = db.policy.SetValue(policy)
 
-		db.setState(st)
+		db.setStateToCache(st)
 
 		return nil
 	}

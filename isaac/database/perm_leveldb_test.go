@@ -18,14 +18,14 @@ func TestLeveldbPermanent(tt *testing.T) {
 	t := new(testLeveldbPermanent)
 	t.newDB = func() isaac.PermanentDatabase {
 		st := leveldbstorage.NewMemStorage()
-		db, err := NewLeveldbPermanent(st, t.Encs, t.Enc, 0)
+		db, err := NewLeveldbPermanent(st, t.Encs, t.Enc, 1)
 		t.NoError(err)
 
 		return db
 	}
 
 	t.newFromDB = func(db isaac.PermanentDatabase) (isaac.PermanentDatabase, error) {
-		return NewLeveldbPermanent(db.(*LeveldbPermanent).pst.RawStorage(), t.Encs, t.Enc, 0)
+		return NewLeveldbPermanent(db.(*LeveldbPermanent).pst.RawStorage(), t.Encs, t.Enc, 1)
 	}
 
 	t.setState = func(perm isaac.PermanentDatabase, st base.State) error {

@@ -480,3 +480,23 @@ func (db *TempLeveldb) setStateCache(key string, st base.State, found bool) {
 
 	db.stcache.Set(key, [2]interface{}{st, found}, 0)
 }
+
+func (db *TempLeveldb) iterStateKeys(f func(string) (bool, error)) error {
+	pst, err := db.st()
+	if err != nil {
+		return err
+	}
+
+	return pst.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixState[:]),
+		func(key, _ []byte) (bool, error) {
+			switch stateKey, err := stateKeyFromKey(key); {
+			case err != nil:
+				return false, err
+			default:
+				return f(stateKey)
+			}
+		},
+		true,
+	)
+}

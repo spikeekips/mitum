@@ -369,6 +369,16 @@ func offsetRangeLeveldbOperationOrderedKey(offset []byte) *leveldbutil.Range {
 	return r
 }
 
+func stateKeyFromKey(b []byte) (string, error) {
+	l := len(leveldbKeyPrefixState)
+
+	if len(b) < l+1 {
+		return "", errors.Errorf("too short")
+	}
+
+	return string(b[l:]), nil
+}
+
 func AllLabelKeys() map[leveldbstorage.KeyPrefix]string {
 	return map[leveldbstorage.KeyPrefix]string{
 		leveldbLabelBlockWrite: "block_write",

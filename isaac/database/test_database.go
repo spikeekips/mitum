@@ -198,7 +198,7 @@ func (t *BaseTestDatabase) TearDownTest() {
 }
 
 func (t *BaseTestDatabase) NewLeveldbPermanentDatabase() *LeveldbPermanent {
-	db, err := NewLeveldbPermanent(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, 0)
+	db, err := NewLeveldbPermanent(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, 1)
 	if err != nil {
 		panic(err)
 	}
