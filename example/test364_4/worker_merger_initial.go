@@ -33,11 +33,10 @@ type (
 type initialValuesWorkerMergerArgs struct {
 	*logging.Logging
 	*baseWorkerMergerArgs
-	BroadcastPhaseDone  workerBroadcastPhaseDoneFunc
-	NewValuesPool       func() (util.LockedMap[uint64, []StateMergeValue], error)
-	SetStateOpFunc      func() (setStateOpFunc, error)
-	MaxOpsSize          uint64
-	MaxJobWorkerSemSize uint64
+	BroadcastPhaseDone workerBroadcastPhaseDoneFunc
+	NewValuesPool      func() (util.LockedMap[uint64, []StateMergeValue], error)
+	SetStateOpFunc     func() (setStateOpFunc, error)
+	MaxOpsSize         uint64
 }
 
 func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -61,8 +60,7 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 		SetStateOpFunc: func() (setStateOpFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("SetStateOpFunc")
 		},
-		MaxOpsSize:          1 << 9,
-		MaxJobWorkerSemSize: 1 << 9,
+		MaxOpsSize: 1 << 9,
 	}
 }
 
@@ -150,8 +148,16 @@ func newInitialValuesWorkerMerger(
 			return nil
 		}
 
-		jw, _ := NewBaseJobWorker(wctx, int64(args.MaxJobWorkerSemSize))
-		defer jw.Close()
+		var jw JobWorker
+
+		switch i, err := args.NewJobWorker(wctx); {
+		case err != nil:
+			return err
+		default:
+			defer i.Close()
+
+			jw = i
+		}
 
 		if err := util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {

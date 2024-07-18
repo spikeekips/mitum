@@ -111,33 +111,6 @@ func newStatesWorkerMerger(
 		initialValuesWait = w
 	}
 
-	traverseMergers := func(f statesWorkerMergerTraverseMergersNewStateFunc) error {
-		getStateOp, closeStateOps := stateOps()
-		defer closeStateOps()
-
-		var gerr error
-
-		// FIXME JobWorker
-		_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
-			ops := getStateOp(stateKey)
-			if len(ops) < 1 {
-				return true
-			}
-
-			var stv base.StateValue
-
-			if stv, gerr = merger.Close(); gerr != nil || stv == nil {
-				return true
-			}
-
-			gerr = f(stateKey, stv, ops)
-
-			return gerr == nil
-		})
-
-		return gerr
-	}
-
 	return initialValuesInsert,
 		initialValuesPhaseDone,
 		func(f statesWorkerMergerResultFunc) error {
@@ -152,7 +125,7 @@ func newStatesWorkerMerger(
 						return nil
 					}
 
-					return f(unmerged, reasons, traverseMergers)
+					return f(unmerged, reasons, newTraverseMergersFunc(wctx, mergersPool, stateOps, args.NewJobWorker))
 				})
 			}())
 		},
@@ -331,4 +304,56 @@ func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Lo
 				m.Close
 		},
 		nil
+}
+
+func newTraverseMergersFunc(
+	ctx context.Context,
+	mergersPool util.LockedMap[string, StateMerger],
+	stateOps stateOpsFuncs,
+	newJobWorker func(context.Context) (JobWorker, error),
+) statesWorkerMergerTraverseMergers {
+	return func(f statesWorkerMergerTraverseMergersNewStateFunc) error {
+		var jw JobWorker
+
+		switch i, err := newJobWorker(ctx); {
+		case err != nil:
+			return err
+		default:
+			defer i.Close()
+
+			jw = i
+		}
+
+		getStateOp, closeStateOps := stateOps()
+		defer closeStateOps()
+
+		var gerr error
+
+		_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
+			gerr = jw.NewJob(func(context.Context) error {
+				ops := getStateOp(stateKey)
+				if len(ops) < 1 {
+					return nil
+				}
+
+				switch stv, err := merger.Close(); {
+				case err != nil:
+					return err
+				case stv == nil:
+					return nil
+				default:
+					return f(stateKey, stv, ops)
+				}
+			})
+
+			return gerr == nil
+		})
+		if gerr != nil {
+			return gerr
+		}
+
+		jw.JobDone()
+
+		return jw.Wait()
+	}
 }

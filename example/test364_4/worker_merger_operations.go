@@ -196,15 +196,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 						return f(stateKey, value, ophs)
 					})
 				},
-				func(f operationsWorkerSaveOperationFunc) (gerr error) {
-					_ = opsPool.Traverse(func(opindex uint64, op Operation) bool {
-						gerr = f(opindex, op)
-
-						return gerr == nil
-					})
-
-					return gerr
-				},
+				newTraverseOperationsFunc(wctx, opsPool.Traverse, args.NewJobWorker),
 			)
 		})
 	}
@@ -357,5 +349,41 @@ func newFilterLocalStateValuesFunc(
 		return util.FilterSlice(values, func(value StateMergeValue) bool {
 			return isLocal(value.Key())
 		})
+	}
+}
+
+func newTraverseOperationsFunc(
+	ctx context.Context,
+	traverse func(func(uint64, Operation) bool) bool,
+	newJobWorker func(context.Context) (JobWorker, error),
+) func(operationsWorkerSaveOperationFunc) error {
+	return func(f operationsWorkerSaveOperationFunc) error {
+		var jw JobWorker
+
+		switch i, err := newJobWorker(ctx); {
+		case err != nil:
+			return err
+		default:
+			defer i.Close()
+
+			jw = i
+		}
+
+		var gerr error
+
+		_ = traverse(func(opindex uint64, op Operation) bool {
+			gerr = jw.NewJob(func(context.Context) error {
+				return f(opindex, op)
+			})
+
+			return gerr == nil
+		})
+		if gerr != nil {
+			return gerr
+		}
+
+		jw.JobDone()
+
+		return jw.Wait()
 	}
 }
