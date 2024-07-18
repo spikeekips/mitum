@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -48,11 +49,11 @@ func (t *testOperationsWorkerMerger) newArgs(local string, enoughWorkers uint64,
 
 	args := newOperationsWorkerMergerArgs(sargs, eargs)
 	args.BroadcastStateMergeValuesFuncs = func(context.Context) (
-		workerInitialInsertOpFunc,
+		operationsworkerInitialInsertOpFunc,
 		func() error,
 		error,
 	) {
-		return func(uint64, []StateMergeValue) error { return nil }, func() error { return nil }, nil
+		return func(uint64, util.Hash, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 	}
 	args.IsLocalStateValue = func(string) bool { return true }
 
@@ -82,13 +83,13 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		t.NoError(wait(func(
 			unmerged []uint64,
 			reasons map[uint64]string,
-			traverseMergers statesWorkerMergerTraverseMergers,
+			traverseMergers operationsWorkerMergerTraverseMergersFunc,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
 
-			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []util.Hash) error {
 				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
 
 				return nil
@@ -134,13 +135,13 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		t.NoError(wait(func(
 			unmerged []uint64,
 			reasons map[uint64]string,
-			traverseMergers statesWorkerMergerTraverseMergers,
+			traverseMergers operationsWorkerMergerTraverseMergersFunc,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
 
-			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+			t.NoError(traverseMergers(func(stateKey string, value base.StateValue, ops []util.Hash) error {
 				gatheredState.SetValue(stateKey, [2]interface{}{value, ops})
 
 				return nil
@@ -160,17 +161,19 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			gsts, found := gatheredState.Value(issuerState.Key())
 			t.True(found)
 
-			gstv, gstops := gsts[0].(base.StateValue), gsts[1].([]uint64)
+			gstv, gstops := gsts[0].(base.StateValue), gsts[1].([]util.Hash)
 			t.Equal(issuerState.Value().(AccountStateValue).Balance-1, gstv.(AccountStateValue).Balance)
-			t.Equal([]uint64{0}, gstops)
+			t.Equal(1, len(gstops))
+			t.True(op.Hash().Equal(gstops[0]))
 		}
 		{
 			gsts, found := gatheredState.Value(receiverState.Key())
 			t.True(found)
 
-			gstv, gstops := gsts[0].(base.StateValue), gsts[1].([]uint64)
+			gstv, gstops := gsts[0].(base.StateValue), gsts[1].([]util.Hash)
 			t.Equal(receiverState.Value().(AccountStateValue).Balance+1, gstv.(AccountStateValue).Balance)
-			t.Equal([]uint64{0}, gstops)
+			t.Equal(1, len(gstops))
+			t.True(op.Hash().Equal(gstops[0]))
 		}
 
 		t.Equal(1, gatheredOps.Len())
@@ -243,10 +246,10 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		err = wait(func(
 			_ []uint64,
 			_ map[uint64]string,
-			traverseMergers statesWorkerMergerTraverseMergers,
+			traverseMergers operationsWorkerMergerTraverseMergersFunc,
 			_ func(operationsWorkerSaveOperationFunc) error,
 		) error {
-			return traverseMergers(func(string, base.StateValue, []uint64) error {
+			return traverseMergers(func(string, base.StateValue, []util.Hash) error {
 				return errors.Errorf("showme")
 			})
 		})
@@ -272,7 +275,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		err = wait(func(
 			_ []uint64,
 			_ map[uint64]string,
-			_ statesWorkerMergerTraverseMergers,
+			_ operationsWorkerMergerTraverseMergersFunc,
 			traverseOperations func(operationsWorkerSaveOperationFunc) error,
 		) error {
 			return traverseOperations(func(uint64, Operation) error {
@@ -308,7 +311,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 	}
 
 	insertOps := map[string]operationsWorkerLocalInsertOpsFuncs{}
-	workerInitialInsertOps := map[string]workerInitialInsertOpsFuncs{}
+	workerInitialInsertOps := map[string]operationsworkerInitialInsertOpsFuncs{}
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]operationsWorkerMergerWaitFunc{}
 
@@ -343,7 +346,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		args.local = local
 
 		args.BroadcastStateMergeValuesFuncs = func(ctx context.Context) (
-			workerInitialInsertOpFunc,
+			operationsworkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
@@ -447,7 +450,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 			err := wait(func(
 				unmerged []uint64,
 				reasons map[uint64]string,
-				traverseMergers statesWorkerMergerTraverseMergers,
+				traverseMergers operationsWorkerMergerTraverseMergersFunc,
 				traverseOperations func(operationsWorkerSaveOperationFunc) error,
 			) error {
 				fmt.Printf("wait done: local=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
@@ -470,12 +473,12 @@ func (t *testOperationsWorkerMerger) testMerger(
 					return true, nil
 				})
 
-				return traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+				return traverseMergers(func(stateKey string, value base.StateValue, ops []util.Hash) error {
 					if slices.Index(workerValues[local], stateKey) < 0 {
 						return util.ErrFound.Errorf("unknown state key for local, %q", stateKey)
 					}
 
-					slices.Sort(ops)
+					slices.SortFunc(ops, func(a, b util.Hash) int { return strings.Compare(a.String(), b.String()) })
 
 					balance := value.(AccountStateValue).Balance
 
@@ -556,10 +559,29 @@ func (t *testOperationsWorkerMerger) testMerger(
 	for stateKey := range expectedStates {
 		a := expectedStates[stateKey]
 
+		var aophs []util.Hash
+
+		util.TraverseSliceV1(a[1].([]uint64), func(i int, opindex uint64) (bool, error) {
+			aophs = append(aophs, ops[opindex].Hash())
+
+			return true, nil
+		})
+
 		b, found := actualStates[stateKey]
 		t.True(found)
 
-		t.Equal(a, b, stateKey)
+		t.Equal(a[0], b[0], stateKey)
+
+		bophs := b[1].([]util.Hash)
+
+		slices.SortFunc(aophs, func(a, b util.Hash) int { return strings.Compare(a.String(), b.String()) })
+		slices.SortFunc(bophs, func(a, b util.Hash) int { return strings.Compare(a.String(), b.String()) })
+
+		t.Equal(len(aophs), len(bophs), stateKey)
+
+		for i := range bophs {
+			t.True(aophs[i].Equal(bophs[i]), "a=%q b=%q", aophs[i], bophs[i])
+		}
 	}
 }
 
@@ -782,14 +804,14 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 	ctx context.Context,
 	local string,
 	stateOwners map[ /* worker */ string] /* state keys */ []string,
-	funcs map[string]workerInitialInsertOpsFuncs,
+	funcs map[string]operationsworkerInitialInsertOpsFuncs,
 ) (
 	operationsWorkerMergerBroadcastStateMergeValueFuncs,
 	error,
 ) {
 	var others []string
 
-	TraverseMap(funcs, func(worker string, _ workerInitialInsertOpsFuncs) (bool, error) {
+	TraverseMap(funcs, func(worker string, _ operationsworkerInitialInsertOpsFuncs) (bool, error) {
 		if worker != local {
 			others = append(others, worker)
 		}
@@ -799,11 +821,11 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 
 	if len(others) < 1 {
 		return func(ctx context.Context) (
-			workerInitialInsertOpFunc,
+			operationsworkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
-			return func(uint64, []StateMergeValue) error { return nil }, func() error { return nil }, nil
+			return func(uint64, util.Hash, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 		}, nil
 	}
 
@@ -812,7 +834,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 		local,
 		others,
 		func(ctx context.Context, worker string) (
-			workerInitialInsertOpFunc,
+			operationsworkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
@@ -854,13 +876,13 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 	)
 
 	return func(ctx context.Context) (
-		workerInitialInsertOpFunc,
+		operationsworkerInitialInsertOpFunc,
 		func() error,
 		error,
 	) {
-		return func(opindex uint64, values []StateMergeValue) error {
+		return func(opindex uint64, oph util.Hash, values []StateMergeValue) error {
 				return valuesOwners(values, func(worker string, values []StateMergeValue) error {
-					return broadcast(worker, opindex, values)
+					return broadcast(worker, opindex, oph, values)
 				})
 			},
 			func() error {

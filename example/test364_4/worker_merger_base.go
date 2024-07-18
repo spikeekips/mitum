@@ -109,6 +109,10 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	}()
 
 	workerPhaseDone := func(worker string, unmerge []uint64) error {
+		if err := context.Cause(wctx); err != nil {
+			return err
+		}
+
 		var ok bool
 
 		if err := localIsReady(worker, func(isReady bool) error {

@@ -284,7 +284,10 @@ func newXMergeCallbackFuncs(
 }
 
 func extractStateMergeValueKeys(values []StateMergeValue) (stateKeys []string) {
-	if len(values) < 2 {
+	switch i := len(values); {
+	case i < 1:
+		return nil
+	case i < 2:
 		return []string{values[0].Key()}
 	}
 
@@ -327,6 +330,9 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 						stateKeys = i
 					default:
 						stateKeys = extractStateMergeValueKeys(values)
+						if len(stateKeys) < 1 {
+							return nil, util.ErrNotFound.Errorf("empty state keys")
+						}
 
 						cache.Set(opindex, stateKeys, 0)
 					}

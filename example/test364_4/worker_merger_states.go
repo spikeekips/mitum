@@ -117,6 +117,7 @@ func newStatesWorkerMerger(
 
 		var gerr error
 
+		// FIXME JobWorker
 		_ = mergersPool.Traverse(func(stateKey string, merger StateMerger) bool {
 			ops := getStateOp(stateKey)
 			if len(ops) < 1 {

@@ -9,9 +9,9 @@ import (
 )
 
 type (
-	broadcastStateMergeValueInsertFunc func(worker string, opindex uint64, _ []StateMergeValue) error
+	broadcastStateMergeValueInsertFunc func(worker string, opindex uint64, oph util.Hash, _ []StateMergeValue) error
 	broadcastStateMergeValueFuncs      func(_ context.Context, worker string) (
-		workerInitialInsertOpFunc,
+		operationsworkerInitialInsertOpFunc,
 		func() error,
 		error,
 	)
@@ -76,11 +76,11 @@ func newBroadcastStateMergeValuesFuncs(
 
 	funcs := util.NewSingleLockedMap[string, [2]interface{}]()
 
-	broadcast := func(worker string, opindex uint64, values []StateMergeValue) error {
+	broadcast := func(worker string, opindex uint64, oph util.Hash, values []StateMergeValue) error {
 		return funcs.GetOrCreate(
 			worker,
 			func(f [2]interface{}, _ bool) error {
-				return checkWorkerError(worker, f[0].(workerInitialInsertOpFunc)(opindex, values))
+				return checkWorkerError(worker, f[0].(operationsworkerInitialInsertOpFunc)(opindex, oph, values))
 			},
 			func() ([2]interface{}, error) {
 				if slices.Index(workers, worker) < 0 {
@@ -97,9 +97,9 @@ func newBroadcastStateMergeValuesFuncs(
 		)
 	}
 
-	return func(worker string, opindex uint64, values []StateMergeValue) error {
+	return func(worker string, opindex uint64, oph util.Hash, values []StateMergeValue) error {
 			return broadcastJw.NewJob(func(context.Context) error {
-				return checkWorkerError(worker, broadcast(worker, opindex, values))
+				return checkWorkerError(worker, broadcast(worker, opindex, oph, values))
 			})
 		},
 		func() error {
