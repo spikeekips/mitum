@@ -16,11 +16,12 @@ type (
 	saveWorkerMergerStatesFuncs            func(saveWorkerMergerStatesFunc) error
 	saveWorkerMergerSendStatesFuncs        func(saveWorkerMergerStatesFuncs) error
 	saveWorkerMergerUnmergedFunc           func(unmerged []uint64) error
-	saveWorkerMergerMergeDoneFuncs         func(saveWorkerMergerSendStatesFuncs, saveWorkerMergerUnmergedFunc) error
-	saveWorkerMergerSendMergeDoneFuncs     func(context.Context, saveWorkerMergerMergeDoneFuncs) error
+	saveWorkerMergerMergeDoneFunc          func(saveWorkerMergerSendStatesFuncs, saveWorkerMergerUnmergedFunc) error
+	saveWorkerMergerSendMergeDoneFuncs     func(context.Context, saveWorkerMergerMergeDoneFunc) error
 	saveWorkerMergerSaveOperationsFunc     func(func(operationsWorkerSaveOperationsFunc) error) error
 	saveWorkerMergerSaveStateFunc          func(base.State) error
-	saveWorkerMergerSaveStatesFunc         func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error
+	saveWorkerMergerSaveStatesCallbackFunc func(func(saveWorkerMergerSaveStateFunc) error) error
+	saveWorkerMergerSaveStatesFunc         func(total uint64) saveWorkerMergerSaveStatesCallbackFunc
 	saveWorkerMergerSaveStatesFuncs        func(func(saveWorkerMergerSaveStatesFunc) error) error
 	saveWorkerMergerSaveReasonsFunc        func(reasons map[uint64]string) error
 	saveWorkerMergerSaveTraverseStatesFunc func(func(base.State) error) error
@@ -54,7 +55,7 @@ func newSaveWorkerMergerArgs(
 		NewStateFunc: func() (newStateFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewStateFunc")
 		},
-		MergeDone: func(context.Context, saveWorkerMergerMergeDoneFuncs) error {
+		MergeDone: func(context.Context, saveWorkerMergerMergeDoneFunc) error {
 			return util.ErrNotImplemented.Errorf("MergeDone")
 		},
 		SaveOperations: func(func(operationsWorkerSaveOperationsFunc) error) error {

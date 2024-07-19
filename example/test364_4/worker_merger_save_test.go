@@ -98,7 +98,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 		})
 	}
 	args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-		return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+		return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 			fmt.Printf("save states: local=%q total=%d\n", local, total)
 
 			return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
@@ -337,7 +337,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		gatheredStates := util.NewSingleLockedMap[string, base.State]()
 
 		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 				fmt.Printf("save states: total=%d\n", total)
 
 				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
@@ -579,7 +579,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
 		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 				return func(func(saveWorkerMergerSaveStateFunc) error) error {
 					return errors.Errorf("findme")
 				}
@@ -963,7 +963,7 @@ func (t *testSaveWorkerMerger) testMerger(
 			return nil
 		}
 		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 				fmt.Printf("save states: local=%q total=%d\n", local, total)
 
 				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
