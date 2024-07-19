@@ -12,12 +12,14 @@ import (
 )
 
 type (
-	operationsWorkerLocalInsertOpFunc     func(opindex uint64, oph, fact util.Hash) error
-	operationsWorkerInsertOpsFunc         func(operationsWorkerLocalInsertOpFunc) error
-	operationsWorkerLocalInsertOpsFuncs   func(operationsWorkerInsertOpsFunc) error
-	operationsWorkerSaveOperationFunc     func(opindex uint64, _ Operation) error
-	operationsworkerInitialInsertOpFunc   func(opindex uint64, oph util.Hash, _ []StateMergeValue) error
-	operationsworkerInitialInsertOpsFuncs func(worker string) (
+	operationsWorkerLocalInsertOpFunc          func(opindex uint64, oph, fact util.Hash) error
+	operationsWorkerInsertOpsFunc              func(operationsWorkerLocalInsertOpFunc) error
+	operationsWorkerLocalInsertOpsFuncs        func(operationsWorkerInsertOpsFunc) error
+	operationsWorkerSaveOperationFunc          func(opindex uint64, _ Operation) error
+	operationsWorkerSaveOperationsCallbackFunc func(func(operationsWorkerSaveOperationFunc) error) error
+	operationsWorkerSaveOperationsFunc         func(total uint64) operationsWorkerSaveOperationsCallbackFunc
+	operationsworkerInitialInsertOpFunc        func(opindex uint64, oph util.Hash, _ []StateMergeValue) error
+	operationsworkerInitialInsertOpsFuncs      func(worker string) (
 		operationsworkerInitialInsertOpFunc,
 		func() error,
 		error,
@@ -29,7 +31,7 @@ type (
 		unmerged []uint64,
 		reasons map[uint64]string,
 		traverseMergers operationsWorkerMergerTraverseMergersFunc,
-		traverseOperations func(operationsWorkerSaveOperationFunc) error,
+		traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 	) error
 	operationsWorkerMergerBroadcastStateMergeValueFuncs func(context.Context) (
 		operationsworkerInitialInsertOpFunc,
@@ -196,7 +198,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 						return f(stateKey, value, ophs)
 					})
 				},
-				newTraverseOperationsFunc(wctx, opsPool.Traverse, args.NewJobWorker),
+				newTraverseOperationsFunc(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
 			)
 		})
 	}
@@ -354,36 +356,39 @@ func newFilterLocalStateValuesFunc(
 
 func newTraverseOperationsFunc(
 	ctx context.Context,
+	total uint64,
 	traverse func(func(uint64, Operation) bool) bool,
 	newJobWorker func(context.Context) (JobWorker, error),
-) func(operationsWorkerSaveOperationFunc) error {
-	return func(f operationsWorkerSaveOperationFunc) error {
-		var jw JobWorker
+) func(operationsWorkerSaveOperationsFunc) error {
+	return func(f operationsWorkerSaveOperationsFunc) error {
+		return f(total)(func(sf operationsWorkerSaveOperationFunc) error {
+			var jw JobWorker
 
-		switch i, err := newJobWorker(ctx); {
-		case err != nil:
-			return err
-		default:
-			defer i.Close()
+			switch i, err := newJobWorker(ctx); {
+			case err != nil:
+				return err
+			default:
+				defer i.Close()
 
-			jw = i
-		}
+				jw = i
+			}
 
-		var gerr error
+			var gerr error
 
-		_ = traverse(func(opindex uint64, op Operation) bool {
-			gerr = jw.NewJob(func(context.Context) error {
-				return f(opindex, op)
+			_ = traverse(func(opindex uint64, op Operation) bool {
+				gerr = jw.NewJob(func(context.Context) error {
+					return sf(opindex, op)
+				})
+
+				return gerr == nil
 			})
+			if gerr != nil {
+				return gerr
+			}
 
-			return gerr == nil
+			jw.JobDone()
+
+			return jw.Wait()
 		})
-		if gerr != nil {
-			return gerr
-		}
-
-		jw.JobDone()
-
-		return jw.Wait()
 	}
 }

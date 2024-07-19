@@ -84,7 +84,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
-			traverseOperations func(operationsWorkerSaveOperationFunc) error,
+			traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
@@ -95,10 +95,16 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 				return nil
 			}))
 
-			t.NoError(traverseOperations(func(opindex uint64, op Operation) error {
-				gatheredOps.SetValue(opindex, op)
+			t.NoError(traverseOperations(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				fmt.Printf("traverse operations: total=%d\n", total)
 
-				return nil
+				return func(f func(operationsWorkerSaveOperationFunc) error) error {
+					return f(func(opindex uint64, op Operation) error {
+						gatheredOps.SetValue(opindex, op)
+
+						return nil
+					})
+				}
 			}))
 
 			return nil
@@ -136,7 +142,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
-			traverseOperations func(operationsWorkerSaveOperationFunc) error,
+			traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 		) error {
 			t.Empty(unmerged)
 			t.Empty(reasons)
@@ -147,10 +153,16 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 				return nil
 			}))
 
-			t.NoError(traverseOperations(func(opindex uint64, op Operation) error {
-				gatheredOps.SetValue(opindex, op)
+			t.NoError(traverseOperations(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				fmt.Printf("traverse operations: total=%d\n", total)
 
-				return nil
+				return func(f func(operationsWorkerSaveOperationFunc) error) error {
+					return f(func(opindex uint64, op Operation) error {
+						gatheredOps.SetValue(opindex, op)
+
+						return nil
+					})
+				}
 			}))
 
 			return nil
@@ -247,7 +259,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 			_ []uint64,
 			_ map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
-			_ func(operationsWorkerSaveOperationFunc) error,
+			_ func(operationsWorkerSaveOperationsFunc) error,
 		) error {
 			return traverseMergers(func(string, base.StateValue, []util.Hash) error {
 				return errors.Errorf("showme")
@@ -276,10 +288,12 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 			_ []uint64,
 			_ map[uint64]string,
 			_ operationsWorkerMergerTraverseMergersFunc,
-			traverseOperations func(operationsWorkerSaveOperationFunc) error,
+			traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 		) error {
-			return traverseOperations(func(uint64, Operation) error {
-				return errors.Errorf("showme")
+			return traverseOperations(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				return func(func(operationsWorkerSaveOperationFunc) error) error {
+					return errors.Errorf("showme")
+				}
 			})
 		})
 
@@ -451,7 +465,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseMergers operationsWorkerMergerTraverseMergersFunc,
-				traverseOperations func(operationsWorkerSaveOperationFunc) error,
+				traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 			) error {
 				fmt.Printf("wait done: local=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
 

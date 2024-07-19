@@ -18,9 +18,10 @@ type (
 	saveWorkerMergerUnmergedFunc           func(unmerged []uint64) error
 	saveWorkerMergerMergeDoneFuncs         func(saveWorkerMergerSendStatesFuncs, saveWorkerMergerUnmergedFunc) error
 	saveWorkerMergerSendMergeDoneFuncs     func(context.Context, saveWorkerMergerMergeDoneFuncs) error
-	saveWorkerMergerSaveOperationsFuncs    func(func(operationsWorkerSaveOperationFunc) error) error
+	saveWorkerMergerSaveOperationsFunc     func(func(operationsWorkerSaveOperationsFunc) error) error
 	saveWorkerMergerSaveStateFunc          func(base.State) error
-	saveWorkerMergerSaveStatesFuncs        func(func(saveWorkerMergerSaveStateFunc) error) error
+	saveWorkerMergerSaveStatesFunc         func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error
+	saveWorkerMergerSaveStatesFuncs        func(func(saveWorkerMergerSaveStatesFunc) error) error
 	saveWorkerMergerSaveReasonsFunc        func(reasons map[uint64]string) error
 	saveWorkerMergerSaveTraverseStatesFunc func(func(base.State) error) error
 )
@@ -30,7 +31,7 @@ type saveWorkerMergerArgs struct {
 	*operationsWorkerMergerArgs
 	NewStateFunc   func() (newStateFunc, error)
 	MergeDone      saveWorkerMergerSendMergeDoneFuncs
-	SaveOperations saveWorkerMergerSaveOperationsFuncs
+	SaveOperations saveWorkerMergerSaveOperationsFunc
 	SaveStates     saveWorkerMergerSaveStatesFuncs
 	SaveReasons    saveWorkerMergerSaveReasonsFunc
 	SaveDone       func() error
@@ -56,10 +57,10 @@ func newSaveWorkerMergerArgs(
 		MergeDone: func(context.Context, saveWorkerMergerMergeDoneFuncs) error {
 			return util.ErrNotImplemented.Errorf("MergeDone")
 		},
-		SaveOperations: func(func(operationsWorkerSaveOperationFunc) error) error {
+		SaveOperations: func(func(operationsWorkerSaveOperationsFunc) error) error {
 			return util.ErrNotImplemented.Errorf("SaveOperations")
 		},
-		SaveStates: func(func(saveWorkerMergerSaveStateFunc) error) error {
+		SaveStates: func(func(saveWorkerMergerSaveStatesFunc) error) error {
 			return util.ErrNotImplemented.Errorf("SaveStates")
 		},
 		SaveReasons: func(reasons map[uint64]string) error {
@@ -104,7 +105,7 @@ func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs) (
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
-			traverseOperations func(operationsWorkerSaveOperationFunc) error,
+			traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 		) error {
 			var doneState util.CompactAppendSliceDoneFunc[base.State]
 
@@ -205,7 +206,7 @@ func newSaveWorkerMergerSaveFunc(
 	args *saveWorkerMergerArgs,
 	reasons map[uint64]string,
 	doneState util.CompactAppendSliceDoneFunc[base.State],
-	traverseOperations func(operationsWorkerSaveOperationFunc) error,
+	traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 ) error {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 	defer wctxCancel(nil)
@@ -225,10 +226,8 @@ func newSaveWorkerMergerSaveFunc(
 	}
 
 	addJob(func() error {
-		return args.SaveOperations(func(f operationsWorkerSaveOperationFunc) error {
-			return traverseOperations(func(opindex uint64, op Operation) error {
-				return f(opindex, op)
-			})
+		return args.SaveOperations(func(f operationsWorkerSaveOperationsFunc) error {
+			return traverseOperations(f)
 		})
 	})
 	addJob(func() error {
@@ -249,8 +248,8 @@ func newSaveWorkerMergerSaveStatesFunc(
 	ctx context.Context,
 	traverse util.CompactAppendSliceDoneFunc[base.State],
 	newJobWorker func(context.Context) (JobWorker, error),
-) func(saveWorkerMergerSaveStateFunc) error {
-	return func(f saveWorkerMergerSaveStateFunc) error {
+) func(saveWorkerMergerSaveStatesFunc) error {
+	return func(f saveWorkerMergerSaveStatesFunc) error {
 		var jw JobWorker
 
 		switch i, err := newJobWorker(ctx); {
@@ -263,9 +262,11 @@ func newSaveWorkerMergerSaveStatesFunc(
 		}
 
 		if err := traverse(func(s []base.State) error {
-			return util.TraverseSliceV1(s, func(_ int, st base.State) (bool, error) {
-				return true, jw.NewJob(func(context.Context) error {
-					return f(st)
+			return f(uint64(len(s)))(func(sf saveWorkerMergerSaveStateFunc) error {
+				return util.TraverseSliceV1(s, func(_ int, st base.State) (bool, error) {
+					return true, jw.NewJob(func(context.Context) error {
+						return sf(st)
+					})
 				})
 			})
 		}); err != nil {

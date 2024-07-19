@@ -84,22 +84,30 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 			},
 		)
 	}
-	args.SaveOperations = func(f func(operationsWorkerSaveOperationFunc) error) error {
-		fmt.Printf("save operations: local=%q\n", local)
+	args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
+		return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+			fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
-		return f(func(opindex uint64, op Operation) error {
-			fmt.Printf("save operations.op: local=%q opindex=%d op=%v\n", local, opindex, op.Hash())
+			return func(tf func(operationsWorkerSaveOperationFunc) error) error {
+				return tf(func(opindex uint64, op Operation) error {
+					fmt.Printf("save operations.op: local=%q opindex=%d op=%v\n", local, opindex, op.Hash())
 
-			return nil
+					return nil
+				})
+			}
 		})
 	}
-	args.SaveStates = func(f func(saveWorkerMergerSaveStateFunc) error) error {
-		fmt.Printf("save states: local=%q\n", local)
+	args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
+		return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+			fmt.Printf("save states: local=%q total=%d\n", local, total)
 
-		return f(func(st base.State) error {
-			fmt.Printf("save states.state: local=%q state key=%q st=%v\n", local, st.Key(), st.Hash())
+			return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
+				return sf(func(st base.State) error {
+					fmt.Printf("save states.state: local=%q state key=%q st=%v\n", local, st.Key(), st.Hash())
 
-			return nil
+					return nil
+				})
+			}
 		})
 	}
 	args.SaveReasons = func(reasons map[uint64]string) error {
@@ -170,11 +178,17 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredOps := make([]Operation, len(ops))
 
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationFunc) error) error {
-			return f(func(opindex uint64, op Operation) error {
-				gatheredOps[opindex] = op
+		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
+			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				fmt.Printf("save operations: total=%d\n", total)
 
-				return nil
+				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
+					return tf(func(opindex uint64, op Operation) error {
+						gatheredOps[opindex] = op
+
+						return nil
+					})
+				}
 			})
 		}
 
@@ -299,11 +313,17 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredOps := make([]Operation, 1)
 
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationFunc) error) error {
-			return f(func(opindex uint64, op Operation) error {
-				gatheredOps[opindex] = op
+		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
+			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				fmt.Printf("save operations: total=%d\n", total)
 
-				return nil
+				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
+					return tf(func(opindex uint64, op Operation) error {
+						gatheredOps[opindex] = op
+
+						return nil
+					})
+				}
 			})
 		}
 
@@ -316,16 +336,18 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredStates := util.NewSingleLockedMap[string, base.State]()
 
-		args.SaveStates = func(f func(saveWorkerMergerSaveStateFunc) error) error {
-			if err := f(func(st base.State) error {
-				gatheredStates.SetValue(st.Key(), st)
+		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
+			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+				fmt.Printf("save states: total=%d\n", total)
 
-				return nil
-			}); err != nil {
-				return err
-			}
+				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
+					return sf(func(st base.State) error {
+						gatheredStates.SetValue(st.Key(), st)
 
-			return nil
+						return nil
+					})
+				}
+			})
 		}
 
 		saveDoneCh := make(chan bool, 1)
@@ -556,8 +578,12 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		args.SaveStates = func(func(saveWorkerMergerSaveStateFunc) error) error {
-			return errors.Errorf("findme")
+		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
+			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+				return func(func(saveWorkerMergerSaveStateFunc) error) error {
+					return errors.Errorf("findme")
+				}
+			})
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
@@ -914,11 +940,17 @@ func (t *testSaveWorkerMerger) testMerger(
 				},
 			)
 		}
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationFunc) error) error {
-			return f(func(opindex uint64, op Operation) error {
-				gatheredOps.SetValue(opindex, op)
+		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
+			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+				fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
-				return nil
+				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
+					return tf(func(opindex uint64, op Operation) error {
+						gatheredOps.SetValue(opindex, op)
+
+						return nil
+					})
+				}
 			})
 		}
 		args.SaveReasons = func(reasons map[uint64]string) error {
@@ -930,16 +962,18 @@ func (t *testSaveWorkerMerger) testMerger(
 
 			return nil
 		}
-		args.SaveStates = func(f func(saveWorkerMergerSaveStateFunc) error) error {
-			if err := f(func(st base.State) error {
-				gatheredStates.SetValue(st.Key(), st)
+		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
+			return f(func(total uint64) func(func(saveWorkerMergerSaveStateFunc) error) error {
+				fmt.Printf("save states: local=%q total=%d\n", local, total)
 
-				return nil
-			}); err != nil {
-				return err
-			}
+				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
+					return sf(func(st base.State) error {
+						gatheredStates.SetValue(st.Key(), st)
 
-			return nil
+						return nil
+					})
+				}
+			})
 		}
 
 		insert, initialInsertOps, phaseDone, mergeWait, saveWait, err := newSaveWorkerMerger(wctx, args)
