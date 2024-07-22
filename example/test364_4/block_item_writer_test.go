@@ -20,6 +20,12 @@ type baseTestBaseBlockItemWriterNewWriteFunc struct {
 
 func (t *baseTestBaseBlockItemWriterNewWriteFunc) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: AccountStateValue{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AccountStateMergeValueHint, Instance: AccountStateMergeValue{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpFactHint, Instance: OpFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpHint, Instance: Op{}}))
 }
 
 func (t *baseTestBaseBlockItemWriterNewWriteFunc) newCreateWriter() (

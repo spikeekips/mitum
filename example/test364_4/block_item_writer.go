@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"hash"
+	"io"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -131,17 +133,20 @@ func newChecksumWriteFuncs(write ioWriteFunc, h hash.Hash) (
 	ioWriteFunc,
 	func() string,
 ) {
-	return func(b []byte) (int, error) {
-			switch n, err := write(b); {
-			case err != nil:
-				return n, err
-			default:
-				_, err = h.Write(b)
+	var l sync.RWMutex
 
-				return n, err
-			}
+	w := io.MultiWriter(writeFunc(write), h)
+
+	return func(b []byte) (int, error) {
+			l.Lock()
+			defer l.Unlock()
+
+			return w.Write(b)
 		},
 		func() string {
+			l.RLock()
+			defer l.RUnlock()
+
 			switch s := h.Sum(nil); {
 			case len(s) < 1:
 				return ""
@@ -149,4 +154,15 @@ func newChecksumWriteFuncs(write ioWriteFunc, h hash.Hash) (
 				return hex.EncodeToString(s)
 			}
 		}
+}
+
+func safeStreamerEncode(enc util.StreamEncoder) func(interface{}) error {
+	var l sync.Mutex
+
+	return func(i interface{}) error {
+		l.Lock()
+		defer l.Unlock()
+
+		return enc.Encode(i)
+	}
 }

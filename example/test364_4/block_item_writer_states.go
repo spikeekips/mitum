@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
@@ -12,7 +12,7 @@ type (
 	blockItemWriterNewWriteStatesFunc         func(total uint64) blockItemWriterNewWriteStatesCallbackFunc
 )
 
-func newStatesBlockItemWriterNewWriteFunc(
+func newBlockItemStatesWriterNewWriteFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) func(string) (blockItemWriterNewWriteStatesFunc, error) {
@@ -36,11 +36,11 @@ func newStatesBlockItemWriterNewWriteFunc(
 
 				return func(f func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error) {
 					return c(header, func(write ioWriteFunc) error {
-						encw := enc.StreamEncoder(writeFunc(write)).Encode
+						encw := safeStreamerEncode(enc.StreamEncoder(writeFunc(write)))
 
 						return f(func(st base.State) error {
 							if total < 1 {
-								return errors.Errorf("zero total, but tried to write")
+								return util.ErrFound.Errorf("zero total, but tried to write")
 							}
 
 							return encw(st)
