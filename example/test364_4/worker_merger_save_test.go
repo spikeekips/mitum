@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -66,7 +67,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 	args.NewStateFunc = func() (newStateFunc, error) {
 		return func(string, base.StateValue, []util.Hash) (base.State, error) { return nil, nil }, nil
 	}
-	args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+	args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 		fmt.Printf("merge done: local=%q\n", local)
 
 		return f(
@@ -84,8 +85,8 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 			},
 		)
 	}
-	args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
-		return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+	args.SaveOperations = func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+		return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 			fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
 			return func(tf func(operationsWorkerSaveOperationFunc) error) error {
@@ -97,8 +98,8 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 			}
 		})
 	}
-	args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-		return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
+	args.SaveStates = func(_ context.Context, f func(saveWorkerMergerSaveStatesFunc) error) (base.BlockMapItem, error) {
+		return nil, f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 			fmt.Printf("save states: local=%q total=%d\n", local, total)
 
 			return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
@@ -115,10 +116,10 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 
 		return nil
 	}
-	args.SaveDone = func() error {
+	args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
 		fmt.Printf("save done: local=%q\n", local)
 
-		return nil
+		return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 	}
 
 	return pargs, wpargs, sargs, oargs, args, vp, mergersPool, statesPool
@@ -158,7 +159,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		foundMergedStates := util.NewLocked(false)
 		var unmerged []uint64
 
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(statef saveWorkerMergerStatesFuncs) error {
 					return statef(func(stateKey string, h util.Hash) error {
@@ -178,8 +179,8 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredOps := make([]Operation, len(ops))
 
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
-			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+		args.SaveOperations = func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+			return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 				fmt.Printf("save operations: total=%d\n", total)
 
 				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
@@ -200,10 +201,10 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		args.SaveDone = func() error {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
 			saveDoneCh <- true
 
-			return nil
+			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
@@ -289,7 +290,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		mergedStates := util.NewSingleLockedMap[string, util.Hash]()
 		var unmerged []uint64
 
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(statef saveWorkerMergerStatesFuncs) error {
 					if err := statef(func(stateKey string, h util.Hash) error {
@@ -313,8 +314,8 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredOps := make([]Operation, 1)
 
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
-			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+		args.SaveOperations = func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+			return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 				fmt.Printf("save operations: total=%d\n", total)
 
 				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
@@ -336,8 +337,8 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		gatheredStates := util.NewSingleLockedMap[string, base.State]()
 
-		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
+		args.SaveStates = func(_ context.Context, f func(saveWorkerMergerSaveStatesFunc) error) (base.BlockMapItem, error) {
+			return nil, f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 				fmt.Printf("save states: total=%d\n", total)
 
 				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
@@ -351,10 +352,10 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		args.SaveDone = func() error {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
 			saveDoneCh <- true
 
-			return nil
+			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
@@ -494,7 +495,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
 
-		args.MergeDone = func(context.Context, saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(context.Context, saveWorkerMergerMergeDoneFunc) error {
 			return errors.Errorf("findme")
 		}
 
@@ -515,7 +516,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
 
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(statef saveWorkerMergerStatesFuncs) error {
 					return errors.Errorf("findme")
@@ -543,7 +544,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
 
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(statef saveWorkerMergerStatesFuncs) error {
 					return nil
@@ -578,8 +579,8 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
+		args.SaveStates = func(_ context.Context, f func(saveWorkerMergerSaveStatesFunc) error) (base.BlockMapItem, error) {
+			return nil, f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
 				return func(func(saveWorkerMergerSaveStateFunc) error) error {
 					return errors.Errorf("findme")
 				}
@@ -630,8 +631,14 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
 
-		args.SaveDone = func() error {
-			return errors.Errorf("findme")
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+			return func(base.BlockMapItem) error { return nil }, func(err error) error {
+				if err != nil {
+					return err
+				}
+
+				return errors.Errorf("findme")
+			}, nil
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
@@ -697,7 +704,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
 
 		canceledch := make(chan bool, 1)
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(saveWorkerMergerStatesFuncs) error { return nil },
 				func([]uint64) error {
@@ -779,7 +786,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
 
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(saveWorkerMergerStatesFuncs) error {
 					cancel() // NOTE cancel
@@ -844,6 +851,7 @@ func (t *testSaveWorkerMerger) testMerger(
 	mergedStates := util.NewSingleLockedMap[string, util.Hash]()
 	gatheredUnmerged := util.EmptyLocked[[]uint64]()
 	gatheredOps := util.NewSingleLockedMap[uint64, Operation]()
+	gatheredBlockMapItems := util.NewSingleLockedMap[string, [2]base.BlockMapItem]()
 
 	for i := range workerNames {
 		local := workerNames[i]
@@ -910,7 +918,7 @@ func (t *testSaveWorkerMerger) testMerger(
 				return base.NewBaseState(33, stateKey, value, nil, ophs), nil
 			}, nil
 		}
-		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFuncs) error {
+		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
 				func(statef saveWorkerMergerStatesFuncs) error {
 					if err := statef(func(stateKey string, h util.Hash) error {
@@ -940,18 +948,19 @@ func (t *testSaveWorkerMerger) testMerger(
 				},
 			)
 		}
-		args.SaveOperations = func(f func(operationsWorkerSaveOperationsFunc) error) error {
-			return f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
-				fmt.Printf("save operations: local=%q total=%d\n", local, total)
+		args.SaveOperations = func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+			return isaacblock.NewBlockMapItem(base.BlockItemOperations, util.UUID().String()),
+				f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
+					fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
-				return func(tf func(operationsWorkerSaveOperationFunc) error) error {
-					return tf(func(opindex uint64, op Operation) error {
-						gatheredOps.SetValue(opindex, op)
+					return func(tf func(operationsWorkerSaveOperationFunc) error) error {
+						return tf(func(opindex uint64, op Operation) error {
+							gatheredOps.SetValue(opindex, op)
 
-						return nil
-					})
-				}
-			})
+							return nil
+						})
+					}
+				})
 		}
 		args.SaveReasons = func(reasons map[uint64]string) error {
 			TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
@@ -962,18 +971,45 @@ func (t *testSaveWorkerMerger) testMerger(
 
 			return nil
 		}
-		args.SaveStates = func(f func(saveWorkerMergerSaveStatesFunc) error) error {
-			return f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
-				fmt.Printf("save states: local=%q total=%d\n", local, total)
+		args.SaveStates = func(_ context.Context, f func(saveWorkerMergerSaveStatesFunc) error) (base.BlockMapItem, error) {
+			return isaacblock.NewBlockMapItem(base.BlockItemStates, util.UUID().String()),
+				f(func(total uint64) saveWorkerMergerSaveStatesCallbackFunc {
+					fmt.Printf("save states: local=%q total=%d\n", local, total)
 
-				return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
-					return sf(func(st base.State) error {
-						gatheredStates.SetValue(st.Key(), st)
+					return func(sf func(saveWorkerMergerSaveStateFunc) error) error {
+						return sf(func(st base.State) error {
+							gatheredStates.SetValue(st.Key(), st)
 
-						return nil
+							return nil
+						})
+					}
+				})
+		}
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+			return func(bi base.BlockMapItem) error {
+					_, _, err := gatheredBlockMapItems.Set(local, func(p [2]base.BlockMapItem, _ bool) ([2]base.BlockMapItem, error) {
+						switch bi.Type() {
+						case base.BlockItemOperations:
+							if p[0] != nil {
+								return [2]base.BlockMapItem{}, util.ErrFound.Errorf("operations already set")
+							}
+
+							p[0] = bi
+						case base.BlockItemStates:
+							if p[1] != nil {
+								return [2]base.BlockMapItem{}, util.ErrFound.Errorf("states already set")
+							}
+
+							p[1] = bi
+						}
+
+						return p, nil
 					})
-				}
-			})
+
+					return err
+				},
+				func(err error) error { return err },
+				nil
 		}
 
 		insert, initialInsertOps, phaseDone, mergeWait, saveWait, err := newSaveWorkerMerger(wctx, args)
@@ -1137,6 +1173,15 @@ func (t *testSaveWorkerMerger) testMerger(
 			t.True(aophs[i].Equal(bophs[i]))
 		}
 	}
+
+	endedWorkers.Traverse(func(local string, _ struct{}) bool {
+		p, found := gatheredBlockMapItems.Value(local)
+		t.True(found)
+		t.NotNil(p[0])
+		t.NotNil(p[1])
+
+		return true
+	})
 }
 
 func (t *testSaveWorkerMerger) TestMergeNWorkers3States() {
