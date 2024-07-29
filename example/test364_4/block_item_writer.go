@@ -16,7 +16,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364--v0.0.1")
+var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 
 type (
 	ioWriteFunc                     func([]byte) (int, error)
@@ -103,6 +103,20 @@ type totalItemsHeader struct {
 type treeItemsHeader struct {
 	Tree hint.Hint `json:"tree"`
 	totalItemsHeader
+}
+
+func newTotalItemsHeader(enc hint.Hint, total uint64) totalItemsHeader {
+	return totalItemsHeader{
+		BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: enc},
+		Total:                        total,
+	}
+}
+
+func newTreeItemsHeader(enc hint.Hint, total uint64, tree hint.Hint) treeItemsHeader {
+	return treeItemsHeader{
+		totalItemsHeader: newTotalItemsHeader(enc, total),
+		Tree:             tree,
+	}
 }
 
 func writeBlockItemFileHeader(write ioWriteFunc, hs interface{}) error {

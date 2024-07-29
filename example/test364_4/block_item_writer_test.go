@@ -14,11 +14,14 @@ import (
 )
 
 type baseTestBaseBlockItemWriterNewWriteFunc struct {
-	suite.Suite
+	baseTestWorkerMerger
 	enc encoder.Encoder
 }
 
 func (t *baseTestBaseBlockItemWriterNewWriteFunc) SetupSuite() {
+	t.baseTestWorkerMerger.Suite = t.Suite
+	t.baseTestWorkerMerger.SetupSuite()
+
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))

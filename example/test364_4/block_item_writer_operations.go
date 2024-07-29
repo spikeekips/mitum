@@ -1,12 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"strconv"
-
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -32,42 +27,22 @@ func newBlockItemOperationsWriterNewWriteFunc(
 			c = i
 		}
 
-		encode := func(w ioWriteFunc, opindex uint64, op Operation) error {
-			switch b, err := enc.Marshal(op); {
-			case err != nil:
-				return err
-			default:
-				buf := bytes.NewBuffer(nil)
-				defer buf.Reset()
-
-				_, _ = buf.Write([]byte("# opindex="))
-				_, _ = buf.Write([]byte(strconv.FormatUint(opindex, 10)))
-				_, _ = buf.Write([]byte("\n"))
-				_, _ = buf.Write(b)
-				_, _ = buf.Write([]byte("\n"))
-
-				if _, err := w(buf.Bytes()); err != nil {
-					return errors.WithStack(err)
-				}
-
-				return nil
-			}
-		}
-
 		return func(total uint64) blockItemWriterNewWriteOperationsCallbackFunc {
-				header := totalItemsHeader{
-					BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: enc.Hint()},
-					Total:                        total,
-				}
-
 				return func(f func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error) {
-					return c(header, func(write ioWriteFunc) error {
+					return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
 						return f(func(opindex uint64, op Operation) error {
 							if total < 1 {
 								return util.ErrFound.Errorf("zero total, but tried to write")
 							}
 
-							return encode(write, opindex, op)
+							switch b, err := encodeWithIndex(enc, opindex, "opindex", op); {
+							case err != nil:
+								return err
+							default:
+								_, err := write(b)
+
+								return err
+							}
 						})
 					})
 				}

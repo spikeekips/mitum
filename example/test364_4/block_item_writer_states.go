@@ -1,8 +1,9 @@
 package main
 
 import (
+	"bytes"
+
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -29,25 +30,43 @@ func newBlockItemStatesWriterNewWriteFunc(
 		}
 
 		return func(total uint64) blockItemWriterNewWriteStatesCallbackFunc {
-				header := totalItemsHeader{
-					BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: enc.Hint()},
-					Total:                        total,
-				}
-
 				return func(f func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error) {
-					return c(header, func(write ioWriteFunc) error {
-						encw := safeStreamerEncode(enc.StreamEncoder(writeFunc(write)))
-
+					return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
 						return f(func(st base.State) error {
 							if total < 1 {
 								return util.ErrFound.Errorf("zero total, but tried to write")
 							}
 
-							return encw(st)
+							switch b, err := encodeStateItem(enc, st); {
+							case err != nil:
+								return err
+							default:
+								_, err := write(b)
+
+								return err
+							}
 						})
 					})
 				}
 			},
 			nil
+	}
+}
+
+func encodeStateItem(enc encoder.Encoder, st base.State) ([]byte, error) {
+	switch b, err := enc.Marshal(st); {
+	case err != nil:
+		return nil, err
+	default:
+		buf := bytes.NewBuffer(nil)
+		defer buf.Reset()
+
+		_, _ = buf.Write([]byte("# state_key="))
+		_, _ = buf.Write([]byte(st.Key()))
+		_, _ = buf.Write([]byte("\n"))
+		_, _ = buf.Write(b)
+		_, _ = buf.Write([]byte("\n"))
+
+		return buf.Bytes(), nil
 	}
 }
