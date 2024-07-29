@@ -1749,13 +1749,15 @@ func (t *testMultiKeysLockedMap) TestLock() {
 	defer mk.Close()
 
 	t.Run("empty keys", func() {
-		l, unlock := mk.Lock([]string{})
+		l, unlock, err := mk.Lock([]string{})
+		t.NoError(err)
 		t.Nil(l)
 		t.Nil(unlock)
 	})
 
 	t.Run("duplicated keys", func() {
-		l, unlock := mk.Lock([]string{"0", "1", "1", "0"})
+		l, unlock, err := mk.Lock([]string{"0", "1", "1", "0"})
+		t.NoError(err)
 		defer unlock()
 
 		t.True(l.Exists("0"))
@@ -1767,7 +1769,8 @@ func (t *testMultiKeysLockedMap) TestLock() {
 	})
 
 	t.Run("0, 1", func() {
-		l, unlock := mk.Lock([]string{"0", "1"})
+		l, unlock, err := mk.Lock([]string{"0", "1"})
+		t.NoError(err)
 		t.True(l.Exists("0"))
 		t.True(l.Exists("1"))
 		t.False(l.Exists("2"))
@@ -1775,7 +1778,11 @@ func (t *testMultiKeysLockedMap) TestLock() {
 
 		unlockedch := make(chan bool)
 		go func() {
-			_, unlock := mk.Lock([]string{"1", "2"})
+			_, unlock, err := mk.Lock([]string{"1", "2"})
+			if err != nil {
+				panic(err)
+			}
+
 			defer unlock()
 
 			close(unlockedch)
@@ -1801,7 +1808,8 @@ func (t *testMultiKeysLockedMap) TestLock() {
 	})
 
 	t.Run("0, 1 with unknown key", func() {
-		l, unlock := mk.Lock([]string{"0", "1", "9"})
+		l, unlock, err := mk.Lock([]string{"0", "1", "9"})
+		t.NoError(err)
 		t.True(l.Exists("0"))
 		t.True(l.Exists("1"))
 		t.False(l.Exists("2"))
@@ -1810,7 +1818,10 @@ func (t *testMultiKeysLockedMap) TestLock() {
 
 		unlockedch := make(chan bool)
 		go func() {
-			l2, unlock := mk.Lock([]string{"9"})
+			l2, unlock, err := mk.Lock([]string{"9"})
+			if err != nil {
+				panic(err)
+			}
 			defer unlock()
 
 			t.True(l2.SetValue("9", 9))
@@ -1838,12 +1849,13 @@ func (t *testMultiKeysLockedMap) TestLock() {
 	})
 
 	t.Run("unlock; LimitedLockedMap closed", func() {
-		l, unlock := mk.Lock([]string{"0", "1", "1", "0"})
+		l, unlock, err := mk.Lock([]string{"0", "1", "1", "0"})
+		t.NoError(err)
 		t.True(l.Exists("0"))
 
 		unlock()
 
-		err := l.Get("0", func(int, bool) error { return nil })
+		err = l.Get("0", func(int, bool) error { return nil })
 		t.ErrorIs(err, ErrLockedMapClosed)
 	})
 }

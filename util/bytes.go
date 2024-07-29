@@ -144,11 +144,7 @@ func EnsureRead(ctx context.Context, r io.Reader, b []byte) (n uint64, _ error) 
 			case n == uint64(len(b)):
 				return n, errors.WithStack(err)
 			case iseof:
-				if n < 1 {
-					return n, err
-				}
-
-				return n, errors.Errorf("insufficient read")
+				return n, errors.Wrap(err, "insufficient read")
 			default:
 				go read()
 			}
