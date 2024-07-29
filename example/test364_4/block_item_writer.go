@@ -105,6 +105,10 @@ type treeItemsHeader struct {
 	totalItemsHeader
 }
 
+func newItemsHeader(enc hint.Hint) isaac.BlockItemFileBaseItemsHeader {
+	return isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: enc}
+}
+
 func newTotalItemsHeader(enc hint.Hint, total uint64) totalItemsHeader {
 	return totalItemsHeader{
 		BlockItemFileBaseItemsHeader: isaac.BlockItemFileBaseItemsHeader{Writer: LocalFSWriterHint, Encoder: enc},
