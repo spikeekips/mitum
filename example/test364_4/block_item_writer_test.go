@@ -49,12 +49,13 @@ func (t *baseTestBaseBlockItemWriterNewWriteFunc) newCreateWriter() (
 
 func (t *baseTestBaseBlockItemWriterNewWriteFunc) compareChecksum(input []byte, output string) bool {
 	write, done := newChecksumWriteFuncs(
-		func([]byte) (int, error) { return 0, nil },
+
+		func(b []byte) (int, error) { return len(b), nil },
 		sha256.New(),
 	)
 
 	_, err := write(input)
-	t.NoError(err)
+	t.NoError(err, "%+v", err)
 
 	return done() == output
 }

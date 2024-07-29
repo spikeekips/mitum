@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"hash"
@@ -138,6 +139,19 @@ func writeBlockItemFileHeader(write ioWriteFunc, hs interface{}) error {
 		}
 
 		return nil
+	}
+}
+
+func readBlockItemFileHeader(r io.Reader, v interface{}) (*bufio.Reader, error) {
+	switch bf, b, err := isaac.ReadBlockItemFileHeader(r); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := util.UnmarshalJSON(b, &v); err != nil {
+			return nil, err
+		}
+
+		return bf, nil
 	}
 }
 

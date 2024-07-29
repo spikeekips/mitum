@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -15,7 +16,7 @@ import (
 type (
 	blockItemWriterNewWriteStatesTreeAddFunc  func(stateKey string) error
 	blockItemWriterNewWriteStatesTreeDoneFunc func(error) (base.BlockMapItem, error)
-	blockItemWriterNewWriteStatesTreeFunc     func(_ context.Context, total uint64) (blockItemWriterNewWriteStatesTreeAddFunc, blockItemWriterNewWriteStatesTreeDoneFunc, error)
+	blockItemWriterNewWriteStatesTreeFunc     func(_ context.Context, size uint64, grow ...uint64) (blockItemWriterNewWriteStatesTreeAddFunc, blockItemWriterNewWriteStatesTreeDoneFunc, error)
 )
 
 func newBlockItemStatesTreeWriterNewWriteFunc(
@@ -39,41 +40,69 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 			c = i
 		}
 
-		return func(ctx context.Context, maxTotal uint64) (
+		var lock sync.Mutex
+		m := map[string]struct{}{}
+
+		checkUniq := func(n string) bool {
+			lock.Lock()
+			defer lock.Unlock()
+
+			_, found := m[n]
+			if !found {
+				m[n] = struct{}{}
+			}
+
+			return !found
+		}
+
+		return func(ctx context.Context, size uint64, grow ...uint64) (
 			blockItemWriterNewWriteStatesTreeAddFunc,
 			blockItemWriterNewWriteStatesTreeDoneFunc,
 			error,
 		) {
-			var add util.CompactAppendSliceAddFunc[fixedtree.Node]
+			var add func(fixedtree.Node) error
 			done := func(func([]fixedtree.Node) error) error { return nil }
 
-			if maxTotal > 0 {
-				switch a, d, err := util.CompactAppendSliceV1[fixedtree.Node](maxTotal); {
+			if size > 0 {
+				switch a, d, err := util.CompactAppendSliceV1[fixedtree.Node](size, grow...); {
 				case err != nil:
 					return nil, nil, err
 				default:
-					add = a
+					add = func(n fixedtree.Node) error {
+						if !checkUniq(n.Key()) {
+							return nil
+						}
+
+						_, _ = a(n)
+
+						return nil
+					}
+
 					done = d
 				}
 			}
 
 			wctx, wctxCancel := context.WithCancelCause(ctx)
 
+			cancel := func(err error) error {
+				wctxCancel(err)
+				clear(m)
+				m = nil
+
+				return err
+			}
+
 			return func(stateKey string) error {
 					if err := context.Cause(wctx); err != nil {
 						return errors.WithStack(err)
 					}
 
-					if maxTotal < 1 {
-						return util.ErrFound.Errorf("zero max total, but tried to write")
+					if size < 1 {
+						return cancel(errors.Errorf("zero size, but tried to write"))
 					}
 
-					if a, _ := add(fixedtree.NewBaseNode(stateKey)); a < 1 {
-						err := errors.Errorf("add state key; out of range")
-
-						wctxCancel(err)
-
-						return err
+					if err := add(fixedtree.NewBaseNode(stateKey)); err != nil {
+						return cancel(err)
 					}
 
 					return nil
@@ -81,7 +110,7 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 				func(err error) (bm base.BlockMapItem, _ error) {
 					defer func() {
 						done(nil)
-						wctxCancel(nil)
+						cancel(nil)
 					}()
 
 					if err := context.Cause(wctx); err != nil {
