@@ -373,34 +373,40 @@ func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
 }
 
 func UniqCompactAppendSlice[T cmp.Ordered](size int) (
-	add func(...T) bool,
-	done func() []T,
+	func(...T) bool,
+	func() []T,
 ) {
-	addf, done := CompactAppendSlice[T](size)
+	add, done := CompactAppendSlice[T](size)
 
 	m := map[T]struct{}{}
-	defer clear(m)
 
 	return func(ts ...T) bool {
-		n := FilterSlice(ts, func(i T) bool {
-			_, found := m[i]
+			n := FilterSlice(ts, func(i T) bool {
+				_, found := m[i]
 
-			return !found
-		})
-		if len(n) < 1 {
+				return !found
+			})
+			if len(n) < 1 {
+				return false
+			}
+
+			if add(n...) {
+				return true
+			}
+
+			for i := range n {
+				m[n[i]] = struct{}{}
+			}
+
 			return false
-		}
+		}, func() []T {
+			defer func() {
+				clear(m)
+				m = nil
+			}()
 
-		if addf(n...) {
-			return true
+			return done()
 		}
-
-		for i := range n {
-			m[n[i]] = struct{}{}
-		}
-
-		return false
-	}, done
 }
 
 func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
