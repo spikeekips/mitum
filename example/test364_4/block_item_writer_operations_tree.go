@@ -108,7 +108,7 @@ func newBlockItemTreeWriterNewWriteFunc(
 		})
 
 		return func(ctx context.Context, total uint64) (blockItemWriterNewWriteTreeAddFunc, blockItemWriterNewWriteTreeDoneFunc) {
-				wctx, wctxCancel := context.WithCancelCause(ctx)
+				wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 				return func(index uint64, f func() (fixedtree.Node, error)) error {
 						if total < 1 {
@@ -116,9 +116,7 @@ func newBlockItemTreeWriterNewWriteFunc(
 						}
 
 						if err := once(total); err != nil {
-							wctxCancel(err)
-
-							return err
+							return wctxCancel(err)
 						}
 
 						switch n, err := f(); {
@@ -126,9 +124,7 @@ func newBlockItemTreeWriterNewWriteFunc(
 							return err
 						default:
 							if err := tw.Add(index, n); err != nil {
-								wctxCancel(err)
-
-								return err
+								return wctxCancel(err)
 							}
 
 							return nil
@@ -146,12 +142,12 @@ func newBlockItemTreeWriterNewWriteFunc(
 						}
 
 						if err != nil || tw == nil || tw.Len() < 1 {
-							return nil, err
+							return nil, wctxCancel(err)
 						}
 
 						defer tw.Close()
 
-						return c(newTreeItemsHeader(enc.Hint(), uint64(tw.Len()), tw.Hint()), func(write ioWriteFunc) error {
+						switch bm, err := c(newTreeItemsHeader(enc.Hint(), uint64(tw.Len()), tw.Hint()), func(write ioWriteFunc) error {
 							var jw JobWorker
 
 							switch i, err := NewBaseJobWorker(wctx, int64(tw.Len())); {
@@ -181,7 +177,12 @@ func newBlockItemTreeWriterNewWriteFunc(
 							jw.JobDone()
 
 							return jw.Wait()
-						})
+						}); {
+						case err != nil:
+							return nil, wctxCancel(err)
+						default:
+							return bm, nil
+						}
 					}
 			},
 			nil

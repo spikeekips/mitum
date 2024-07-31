@@ -82,15 +82,7 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 				}
 			}
 
-			wctx, wctxCancel := context.WithCancelCause(ctx)
-
-			cancel := func(err error) error {
-				wctxCancel(err)
-				clear(m)
-				m = nil
-
-				return err
-			}
+			wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 			return func(stateKey string) error {
 					if err := context.Cause(wctx); err != nil {
@@ -98,11 +90,11 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 					}
 
 					if size < 1 {
-						return cancel(errors.Errorf("zero size, but tried to write"))
+						return wctxCancel(errors.Errorf("zero size, but tried to write"))
 					}
 
 					if err := add(fixedtree.NewBaseNode(stateKey)); err != nil {
-						return cancel(err)
+						return wctxCancel(err)
 					}
 
 					return nil
@@ -110,7 +102,10 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 				func(err error) (bm base.BlockMapItem, _ error) {
 					defer func() {
 						done(nil)
-						cancel(nil)
+						clear(m)
+						m = nil
+
+						wctxCancel(nil)
 					}()
 
 					if err := context.Cause(wctx); err != nil {
@@ -118,7 +113,7 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 					}
 
 					if err != nil {
-						return nil, err
+						return nil, wctxCancel(err)
 					}
 
 					if err := done(func(s []fixedtree.Node) error {
@@ -146,7 +141,7 @@ func newBlockItemStatesTreeWriterNewWriteFunc(
 							}
 						}
 					}); err != nil {
-						return nil, err
+						return nil, wctxCancel(err)
 					}
 
 					return bm, nil
