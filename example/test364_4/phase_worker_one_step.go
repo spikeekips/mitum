@@ -8,7 +8,7 @@ import (
 
 func newOneStepPhaseJobWorker(
 	ctx context.Context,
-	newJobWorker func(context.Context) (JobWorker, error),
+	newJobWorker newJobWorkerFunc,
 	phase int,
 	jobIDLocked func(jobID uint64, phase int) bool,
 ) (
@@ -95,7 +95,7 @@ func newOneStepPhaseJobWorker(
 
 func NewOneStepPhaseJobWorker(
 	ctx context.Context,
-	newJobWorker func(context.Context) (JobWorker, error),
+	newJobWorker newJobWorkerFunc,
 	mapSize uint64,
 ) (
 	newJob PhaseJobWorkerNewJobFunc,

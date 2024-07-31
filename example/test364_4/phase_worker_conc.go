@@ -20,7 +20,7 @@ type (
 )
 
 type concPhaseJobWorkerArgs struct {
-	NewJobWorker func(context.Context) (JobWorker, error)
+	NewJobWorker newJobWorkerFunc
 	JobIDMapSize uint64
 	*logging.Logging
 	local string

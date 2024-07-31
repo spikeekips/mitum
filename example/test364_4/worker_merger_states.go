@@ -310,7 +310,7 @@ func newTraverseMergersFunc(
 	ctx context.Context,
 	mergersPool util.LockedMap[string, StateMerger],
 	stateOps stateOpsFuncs,
-	newJobWorker func(context.Context) (JobWorker, error),
+	newJobWorker newJobWorkerFunc,
 ) statesWorkerMergerTraverseMergers {
 	return func(f statesWorkerMergerTraverseMergersNewStateFunc) error {
 		var jw JobWorker

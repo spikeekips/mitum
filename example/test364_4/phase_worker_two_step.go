@@ -11,7 +11,7 @@ import (
 )
 
 type TwoStepPhaseJobWorkerArgs struct {
-	NewJobWorker               func(context.Context) (JobWorker, error)
+	NewJobWorker               newJobWorkerFunc
 	NewJobPoolSize             uint64
 	NewJobPoolGrowSize         uint64
 	JobIDMapSize               uint64

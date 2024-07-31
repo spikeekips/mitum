@@ -30,7 +30,7 @@ type baseWorkerMergerArgs struct {
 	*logging.Logging
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
 	PoolMapSize               uint64
-	NewJobWorker              func(context.Context) (JobWorker, error)
+	NewJobWorker              newJobWorkerFunc
 	IsLocalOp                 func(opindex uint64) bool
 	local                     string
 }

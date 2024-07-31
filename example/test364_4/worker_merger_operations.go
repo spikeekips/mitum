@@ -358,7 +358,7 @@ func newTraverseOperationsFunc(
 	ctx context.Context,
 	total uint64,
 	traverse func(func(uint64, Operation) bool) bool,
-	newJobWorker func(context.Context) (JobWorker, error),
+	newJobWorker newJobWorkerFunc,
 ) func(operationsWorkerSaveOperationsFunc) error {
 	return func(f operationsWorkerSaveOperationsFunc) error {
 		return f(total)(func(sf operationsWorkerSaveOperationFunc) error {

@@ -8,7 +8,10 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type ContextWorkerCallback func(context.Context) error
+type (
+	ContextWorkerCallback func(context.Context) error
+	newJobWorkerFunc      func(context.Context) (JobWorker, error)
+)
 
 type JobWorker interface {
 	NewJob(ContextWorkerCallback) error

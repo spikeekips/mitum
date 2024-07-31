@@ -18,7 +18,7 @@ type (
 
 type stateMergeValueExtractorArgs struct {
 	*logging.Logging
-	NewJobWorker func(context.Context) (JobWorker, error)
+	NewJobWorker newJobWorkerFunc
 	GetOperation func(_ context.Context, opindex uint64, oph util.Hash) (Operation, bool, error)
 	Done         stateMergeValueExtractorExtractDone
 	local        string

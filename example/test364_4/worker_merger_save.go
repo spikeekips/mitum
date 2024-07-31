@@ -266,7 +266,7 @@ func newSaveWorkerMergerSaveFunc(
 func newSaveWorkerMergerSaveStatesFunc(
 	ctx context.Context,
 	traverse util.CompactAppendSliceDoneFunc[base.State],
-	newJobWorker func(context.Context) (JobWorker, error),
+	newJobWorker newJobWorkerFunc,
 ) func(saveWorkerMergerSaveStatesFunc) error {
 	return func(f saveWorkerMergerSaveStatesFunc) error {
 		var jw JobWorker
