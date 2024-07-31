@@ -17,7 +17,7 @@ func newBlockItemStatesWriterNewWriteFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) func(string) (blockItemWriterNewWriteStatesFunc, error) {
-	w := newBaseBlockItemWriterNewWriteFunc(base.BlockItemStates, createWriter)
+	w := newBaseBlockItemWriterFunc(base.BlockItemStates, createWriter)
 
 	return func(createID string) (blockItemWriterNewWriteStatesFunc, error) {
 		var c blockItemWriterBaseNewWriteFunc

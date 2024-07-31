@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemOperationsWriterNewWriteFunc struct {
-	baseTestBaseBlockItemWriterNewWriteFunc
+type testBlockItemOperationsWriterFunc struct {
+	baseTestBaseBlockItemWriterFunc
 }
 
-func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
+func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBlockItemOperationsWriterNewWriteFunc(
+		c := newBlockItemOperationsWriterFunc(
 			t.enc,
 			createWriter,
 		)
@@ -30,7 +30,7 @@ func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
 	t.Run("zero total", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemOperationsWriterNewWriteFunc(
+		c := newBlockItemOperationsWriterFunc(
 			t.enc,
 			createWriter,
 		)
@@ -52,7 +52,7 @@ func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
 	t.Run("zero total, but trying to write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemOperationsWriterNewWriteFunc(
+		c := newBlockItemOperationsWriterFunc(
 			t.enc,
 			createWriter,
 		)
@@ -74,7 +74,7 @@ func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
 	t.Run("single write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemOperationsWriterNewWriteFunc(
+		c := newBlockItemOperationsWriterFunc(
 			t.enc,
 			createWriter,
 		)
@@ -104,7 +104,7 @@ func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
 	t.Run("multiple write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemOperationsWriterNewWriteFunc(
+		c := newBlockItemOperationsWriterFunc(
 			t.enc,
 			createWriter,
 		)
@@ -148,6 +148,6 @@ func (t *testBlockItemOperationsWriterNewWriteFunc) TestWrite() {
 	})
 }
 
-func TestBlockItemOperationsWriterNewWriteFunc(t *testing.T) {
-	suite.Run(t, new(testBlockItemOperationsWriterNewWriteFunc))
+func TestBlockItemOperationsWriterFunc(t *testing.T) {
+	suite.Run(t, new(testBlockItemOperationsWriterFunc))
 }

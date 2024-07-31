@@ -7,14 +7,14 @@ import (
 
 type blockItemWriterNewWriteVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) (base.BlockMapItem, error)
 
-func newBlockItemVoteproofsWriterNewWriteFunc(
+func newBlockItemVoteproofsWriterFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) func(string) (
 	blockItemWriterNewWriteVoteproofsFunc,
 	error,
 ) {
-	w := newBaseBlockItemWriterNewWriteFunc(base.BlockItemVoteproofs, createWriter)
+	w := newBaseBlockItemWriterFunc(base.BlockItemVoteproofs, createWriter)
 
 	return func(createID string) (blockItemWriterNewWriteVoteproofsFunc, error) {
 		var c blockItemWriterBaseNewWriteFunc

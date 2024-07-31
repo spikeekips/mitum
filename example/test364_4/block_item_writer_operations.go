@@ -11,11 +11,11 @@ type (
 	blockItemWriterNewWriteOperationsFunc         func(total uint64) blockItemWriterNewWriteOperationsCallbackFunc
 )
 
-func newBlockItemOperationsWriterNewWriteFunc(
+func newBlockItemOperationsWriterFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) func(string) (blockItemWriterNewWriteOperationsFunc, error) {
-	w := newBaseBlockItemWriterNewWriteFunc(base.BlockItemOperations, createWriter)
+	w := newBaseBlockItemWriterFunc(base.BlockItemOperations, createWriter)
 
 	return func(createID string) (blockItemWriterNewWriteOperationsFunc, error) {
 		var c blockItemWriterBaseNewWriteFunc

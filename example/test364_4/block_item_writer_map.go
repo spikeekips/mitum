@@ -8,7 +8,7 @@ import (
 
 type blockItemWriterNewWriteMapFunc func(base.BlockMap) error
 
-func newBlockItemMapWriterNewWriteFunc(
+func newBlockItemMapWriterFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) func(string) (blockItemWriterNewWriteMapFunc, error) {

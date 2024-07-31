@@ -30,7 +30,7 @@ type (
 	blockItemWriterBaseNewWriteFuncs func(createID string) (blockItemWriterBaseNewWriteFunc, error)
 )
 
-func newBaseBlockItemWriterNewWriteFunc(
+func newBaseBlockItemWriterFunc(
 	it base.BlockItemType,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterBaseNewWriteFuncs {
