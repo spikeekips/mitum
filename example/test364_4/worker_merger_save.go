@@ -36,7 +36,7 @@ type saveWorkerMergerArgs struct {
 	SaveOperations saveWorkerMergerSaveOperationsFunc
 	SaveStates     saveWorkerMergerSaveStatesFuncs
 	SaveReasons    saveWorkerMergerSaveReasonsFunc
-	SaveDone       func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error)
+	SaveDone       func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error)
 }
 
 func (args *saveWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -68,7 +68,7 @@ func newSaveWorkerMergerArgs(
 		SaveReasons: func(reasons map[uint64]string) error {
 			return util.ErrNotImplemented.Errorf("SaveReasons")
 		},
-		SaveDone: func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+		SaveDone: func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			return nil, nil, util.ErrNotImplemented.Errorf("SaveDone")
 		},
 	}
@@ -214,7 +214,7 @@ func newSaveWorkerMergerSaveFunc(
 	defer wctxCancel(nil)
 
 	var saveDoneBlockMapItem saveWorkerMergerSaveBlockMapItemFunc
-	var saveDone func(error) error
+	var saveDone errorFunc
 
 	switch b, d, err := args.SaveDone(wctx); {
 	case err != nil:

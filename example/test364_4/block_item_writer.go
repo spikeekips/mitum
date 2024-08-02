@@ -23,7 +23,7 @@ type (
 	ioWriteFunc                     func([]byte) (int, error)
 	blockItemWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
 		ioWriteFunc,
-		func(error) error,
+		errorFunc,
 		error,
 	)
 	blockItemWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)

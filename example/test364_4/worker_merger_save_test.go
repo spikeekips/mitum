@@ -116,7 +116,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 
 		return nil
 	}
-	args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+	args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 		fmt.Printf("save done: local=%q\n", local)
 
 		return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
@@ -201,7 +201,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			saveDoneCh <- true
 
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
@@ -352,7 +352,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			saveDoneCh <- true
 
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
@@ -631,7 +631,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
 
-		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error {
 				if err != nil {
 					return err
@@ -985,7 +985,7 @@ func (t *testSaveWorkerMerger) testMerger(
 					}
 				})
 		}
-		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, func(error) error, error) {
+		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			return func(bi base.BlockMapItem) error {
 					_, _, err := gatheredBlockMapItems.Set(local, func(p [2]base.BlockMapItem, _ bool) ([2]base.BlockMapItem, error) {
 						switch bi.Type() {

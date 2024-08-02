@@ -37,7 +37,7 @@ func (t *baseTestBaseBlockItemWriterFunc) newCreateWriter() (
 ) {
 	w := bytes.NewBuffer(nil)
 
-	return func(base.BlockItemType, string) (ioWriteFunc, func(error) error, error) {
+	return func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
 			return w.Write, func(err error) error { return err }, nil
 		},
 		func() ([]byte, error) {
@@ -134,7 +134,7 @@ func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
 	t.Run("failed to write header", func() {
 		input := util.UUID().Bytes()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, func(error) error, error) {
+		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
 			return func([]byte) (int, error) {
 					return 0, errors.Errorf("findme")
 				},
@@ -305,7 +305,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, func(error) error, error) {
+		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
 			return w.Write,
 				func(err error) error {
 					if err != nil {
@@ -343,7 +343,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, func(error) error, error) {
+		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
 			return w.Write,
 				func(err error) error {
 					if err != nil {
@@ -378,7 +378,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, func(error) error, error) {
+		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
 			return w.Write,
 				func(err error) error {
 					if err != nil {

@@ -108,7 +108,7 @@ func UniqueCompactAppendSliceV1[T cmp.Ordered](size uint64, grow ...uint64) (
 
 func NewDoneContextFunc(ctx context.Context) (
 	context.Context,
-	func(error) error,
+	errorFunc,
 	func() error,
 ) {
 	errDone := errors.New(util.UUID().String())
@@ -204,7 +204,7 @@ func stringdjb2(seed uint32, k string) uint64 {
 	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
 }
 
-func FuncErrorLog(l *zerolog.Logger, format string, a ...any) func(error) error {
+func FuncErrorLogger(l *zerolog.Logger, format string, a ...any) errorFunc {
 	started := time.Now()
 
 	msg := fmt.Sprintf(format, a...)
@@ -217,6 +217,25 @@ func FuncErrorLog(l *zerolog.Logger, format string, a ...any) func(error) error 
 
 		if err != nil {
 			e = ll.Error().Err(err)
+		}
+
+		e.Msg(fmt.Sprintf("< %s", msg))
+
+		return err
+	}
+}
+
+func FuncErrorLog(e *zerolog.Event, format string, a ...any) errorFunc {
+	started := time.Now()
+
+	msg := fmt.Sprintf(format, a...)
+	e.CallerSkipFrame(1).Msg("> " + msg)
+
+	return func(err error) error {
+		e.CallerSkipFrame(1).Dur("elapsed", time.Since(started))
+
+		if err != nil {
+			e.Err(err)
 		}
 
 		e.Msg(fmt.Sprintf("< %s", msg))
@@ -256,7 +275,7 @@ func OnceFuncCallback[T any](f func(T) error) func(T) error {
 	}
 }
 
-func ContextWithCancelCause(ctx context.Context) (context.Context, func(error) error) {
+func ContextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
 	return cctx, OnceFuncCallback(func(err error) error {
@@ -270,3 +289,5 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, func(error) e
 		}
 	})
 }
+
+type errorFunc func(error) error
