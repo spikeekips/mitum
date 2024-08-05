@@ -286,6 +286,12 @@ func (db *TempPool) OperationHashes(
 	var opsindex uint64
 	var removeorderedsindex, removeopsindex uint64
 
+	facts := map[string]uint64{}
+	defer func() {
+		clear(facts)
+		facts = nil
+	}()
+
 	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered[:]),
 		func(k []byte, b []byte) (bool, error) {
@@ -307,7 +313,22 @@ func (db *TempPool) OperationHashes(
 				return true, nil
 			}
 
+			// NOTE filter duplicated fact; last one will be selected
+			if prev, found := facts[meta.Fact().String()]; found {
+				removeops[removeopsindex] = meta.Operation()
+				removeopsindex++
+
+				nops := make([][2]util.Hash, len(ops))
+				copy(nops, ops[:prev])
+				copy(nops[prev:], ops[prev+1:])
+
+				ops = nops
+
+				opsindex--
+			}
+
 			ops[opsindex] = [2]util.Hash{meta.Operation(), meta.Fact()}
+			facts[meta.Fact().String()] = opsindex
 			opsindex++
 
 			if opsindex == limit {

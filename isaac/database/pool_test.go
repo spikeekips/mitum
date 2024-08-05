@@ -391,6 +391,59 @@ func (t *testNewOperationPool) TestNewOperation() {
 		t.False(found)
 		t.Nil(op)
 	})
+
+	t.Run("duplicated", func() {
+		pst := t.NewPool()
+		defer pst.Close()
+
+		ops := make([]base.Operation, 3)
+		for i := range ops {
+			fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+			op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+			if i == 2 {
+				op = ops[0].(isaac.DummyOperation)
+			}
+
+			ops[i] = op
+
+			added, err := pst.SetOperation(context.Background(), op)
+			t.NoError(err)
+			if i == 2 {
+				t.False(added)
+			} else {
+				t.True(added)
+			}
+		}
+
+		var rops []base.Operation
+
+		t.NoError(pst.TraverseOperationsBytes(context.Background(), nil, func(enchint string, meta FrameHeaderPoolOperation, body, offset []byte) (bool, error) {
+			var rop base.Operation
+			t.NoError(encoder.Decode(t.Enc, body, &rop))
+
+			rops = append(rops, rop)
+
+			return true, nil
+		}))
+
+		t.Equal(2, len(rops))
+
+		for i := range ops {
+			op := ops[i]
+			if i == 2 {
+				op = ops[0].(isaac.DummyOperation)
+			}
+
+			rop, found, err := pst.Operation(context.Background(), op.Hash())
+			t.NoError(err)
+			t.True(found)
+			base.EqualOperation(t.Assert(), op, rop)
+		}
+
+		for i := range rops {
+			base.EqualOperation(t.Assert(), ops[i], rops[i])
+		}
+	})
 }
 
 func (t *testNewOperationPool) TestNewOperationHashes() {
@@ -497,6 +550,47 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			rop := rops[i][0]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+	})
+
+	t.Run("duplicated fact", func() {
+		pst := t.NewPool()
+		defer pst.Close()
+
+		ops := make([]base.Operation, 3)
+
+		for i := range ops {
+			fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+
+			if i == 2 {
+				// NOTE ops[0] will be excluded
+				fact = ops[0].Fact().(isaac.DummyOperationFact)
+			}
+
+			op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+			ops[i] = op
+
+			added, err := pst.SetOperation(context.Background(), op)
+			t.NoError(err)
+			t.True(added)
+		}
+
+		rops, err := pst.OperationHashes(context.Background(), base.Height(33), 3, nil)
+		t.NoError(err)
+		t.Equal(len(ops)-1, len(rops))
+
+		expectedOps := []base.Operation{
+			ops[1],
+			ops[2],
+		}
+
+		for i := range rops {
+			op := expectedOps[i].Hash()
+
+			rop := rops[i][0]
+
+			t.True(op.Equal(rop), "opindex=%d op=%q rop=%q", i, op, rop)
 		}
 	})
 }
