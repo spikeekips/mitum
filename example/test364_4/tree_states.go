@@ -74,18 +74,23 @@ func newStatesTreeWriterFunc() newStatesTreeFuncs {
 					return n > 0, nil
 				case errors.Is(err, util.ErrLockedMapClosed):
 					return false, context.Canceled
+				case err != nil:
+					return false, wctxCancel(err)
 				default:
-					return false, err
+					return false, nil
 				}
 			},
 			func(err error) (tr fixedtree.Tree, _ error) {
-				defer done(nil)
-
-				checkUniqDone()
+				defer func() {
+					wctxCancel(nil)
+					done(nil)
+				}()
 
 				if err := context.Cause(wctx); err != nil {
 					return tr, errors.WithStack(err)
 				}
+
+				checkUniqDone()
 
 				if err != nil {
 					return tr, wctxCancel(err)
@@ -117,7 +122,7 @@ func newStatesTreeWriterFunc() newStatesTreeFuncs {
 					return tr, wctxCancel(err)
 				}
 
-				return tr, wctxCancel(nil)
+				return tr, nil
 			},
 			nil
 	}
