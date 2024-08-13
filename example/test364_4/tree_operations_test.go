@@ -33,8 +33,10 @@ func (t *testNewOperationsTreeWriterFunc) randomOps(n uint64) [][2]util.Hash {
 
 func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 	t.Run("empty ops; nil error", func() {
-		_, d, err := t.newFunc()(context.Background(), nil)
+		_, j, d, err := t.newFunc()(context.Background(), nil)
 		t.NoError(err)
+
+		t.NoError(j(nil))
 
 		tr, err := d(nil)
 		t.NoError(err)
@@ -42,12 +44,14 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 	})
 
 	t.Run("empty ops; trying to 'not in state'", func() {
-		a, d, err := t.newFunc()(context.Background(), nil)
+		a, j, d, err := t.newFunc()(context.Background(), nil)
 		t.NoError(err)
 		defer d(nil)
 
 		err = a([]uint64{0})
 		t.ErrorContains(err, "empty ops")
+
+		t.NoError(j(nil))
 
 		_, err = d(nil)
 		t.ErrorContains(err, "empty ops")
@@ -58,20 +62,28 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 
 		cancel()
 
-		_, _, err := t.newFunc()(ctx, t.randomOps(1))
+		_, j, d, _ := t.newFunc()(ctx, t.randomOps(1))
+
+		err := j(nil)
+		t.ErrorIs(err, context.Canceled)
+
+		_, err = d(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
 	t.Run("canceled context; before not in state", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		a, d, err := t.newFunc()(ctx, t.randomOps(1))
+		a, j, d, err := t.newFunc()(ctx, t.randomOps(1))
 		t.NoError(err)
 		defer d(nil)
 
 		cancel()
 
 		err = a([]uint64{0})
+		t.ErrorIs(err, context.Canceled)
+
+		err = j(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		_, err = d(nil)
@@ -81,7 +93,7 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 	t.Run("canceled context; before done", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		a, d, err := t.newFunc()(ctx, t.randomOps(1))
+		a, j, d, err := t.newFunc()(ctx, t.randomOps(1))
 		t.NoError(err)
 		defer d(nil)
 
@@ -89,12 +101,15 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 
 		cancel()
 
+		err = j(nil)
+		t.ErrorIs(err, context.Canceled)
+
 		_, err = d(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
 	t.Run("add error", func() {
-		a, d, err := t.newFunc()(context.Background(), t.randomOps(1))
+		a, j, d, err := t.newFunc()(context.Background(), t.randomOps(1))
 		t.NoError(err)
 		defer d(nil)
 
@@ -102,16 +117,21 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		err = a([]uint64{2})
 		t.ErrorContains(err, "out of range")
 
+		err = j(nil)
+		t.ErrorContains(err, "out of range")
+
 		_, err = d(nil)
 		t.ErrorContains(err, "out of range")
 	})
 
 	t.Run("add ok, but done error", func() {
-		a, d, err := t.newFunc()(context.Background(), t.randomOps(1))
+		a, j, d, err := t.newFunc()(context.Background(), t.randomOps(1))
 		t.NoError(err)
 		defer d(nil)
 
 		t.NoError(a([]uint64{0}))
+
+		t.NoError(j(nil))
 
 		_, err = d(errors.Errorf("showme"))
 		t.ErrorContains(err, "showme")
@@ -121,9 +141,11 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		op := t.randomOps(1)[0]
 		fact := op[1]
 
-		a, d, err := t.newFunc()(context.Background(), [][2]util.Hash{op})
+		a, j, d, err := t.newFunc()(context.Background(), [][2]util.Hash{op})
 		t.NoError(err)
 		defer d(nil)
+
+		t.NoError(j(nil))
 
 		tr, err := d(nil)
 		t.NoError(err)
@@ -141,7 +163,7 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		ops := t.randomOps(2)
 		fact := ops[0][1]
 
-		a, d, err := t.newFunc()(context.Background(), ops)
+		a, j, d, err := t.newFunc()(context.Background(), ops)
 		t.NoError(err)
 		defer d(nil)
 
@@ -152,24 +174,36 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 			<-ch
 
 			tr, err := d(nil)
-			t.NoError(err)
-			t.Equal(2, tr.Len())
+			if err != nil {
+				panic(err)
+			}
+
+			if l := tr.Len(); l != 2 {
+				panic(errors.Errorf("tr.Len(); %d != 2", l))
+			}
 
 			n := tr.Nodes()[0].(base.OperationFixedtreeNode)
-			t.True(fact.Equal(n.Operation()))
-			t.True(n.InState())
+			if !fact.Equal(n.Operation()) {
+				panic(errors.Errorf("!fact.Equal(n.Operation())"))
+			}
+			if !n.InState() {
+				panic(errors.Errorf("!n.InState()"))
+			}
 
 			donech <- err
 		}()
 
 		for i := 0; i < 9999; i++ {
 			if i == 33 {
+				t.NoError(j(nil))
+
 				ch <- struct{}{}
 			}
 
 			switch err = a([]uint64{1}); {
-			case err == nil:
-			case errors.Is(err, context.Canceled):
+			case err == nil,
+				errors.Is(err, context.Canceled),
+				errors.Is(err, util.ErrJobWorkerDone):
 			default:
 				panic(err)
 			}
@@ -182,11 +216,13 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		op := t.randomOps(1)[0]
 		fact := op[1]
 
-		a, d, err := t.newFunc()(context.Background(), [][2]util.Hash{op})
+		a, j, d, err := t.newFunc()(context.Background(), [][2]util.Hash{op})
 		t.NoError(err)
 		defer d(nil)
 
 		t.NoError(a([]uint64{0}))
+
+		t.NoError(j(nil))
 
 		tr, err := d(nil)
 		t.NoError(err)
@@ -202,7 +238,7 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 
 		ops := t.randomOps(n)
 
-		a, d, err := t.newFunc()(context.Background(), ops)
+		a, j, d, err := t.newFunc()(context.Background(), ops)
 		t.NoError(err)
 		defer d(nil)
 
@@ -219,6 +255,8 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 
 		jw.JobDone()
 		t.NoError(jw.Wait())
+
+		t.NoError(j(nil))
 
 		tr, err := d(nil)
 		t.NoError(err)
