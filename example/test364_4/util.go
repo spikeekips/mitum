@@ -244,7 +244,7 @@ func FuncErrorLog(e *zerolog.Event, format string, a ...any) errorFunc {
 	}
 }
 
-func OnceFunc(f func() error) func() error { // FIXME review in funcs
+func OnceFunc(f func() error) func() error {
 	var gerr error
 
 	var once sync.Once

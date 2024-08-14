@@ -22,7 +22,7 @@ type JobWorker interface {
 
 type BaseJobWorker struct {
 	ctx        func() context.Context
-	ctxCancel  func(error)
+	ctxCancel  errorFunc
 	newJobCtx  func() context.Context
 	NewJobFunc func(ContextWorkerCallback) error
 	newJob     func(ContextWorkerCallback) error
@@ -37,8 +37,8 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 
 	errNewJobDone := errors.New(util.UUID().String())
 
-	ectx, eCtxCancel := context.WithCancelCause(ctx)
-	newJobCtx, newJobCtxCancel := context.WithCancelCause(ectx)
+	ectx, eCtxCancel := ContextWithCancelCause(ctx)
+	newJobCtx, newJobCtxCancel := ContextWithCancelCause(ectx)
 
 	wk := &BaseJobWorker{
 		ctx:       func() context.Context { return ectx },
@@ -134,8 +134,6 @@ func (wk *BaseJobWorker) EnsureWait() error {
 
 // Wait don't wait until all job finished.
 func (wk *BaseJobWorker) Wait() error {
-	defer wk.ctxCancel(nil)
-
 	waitch := make(chan error, 1)
 
 	go func() {
@@ -144,7 +142,7 @@ func (wk *BaseJobWorker) Wait() error {
 
 	select {
 	case err := <-waitch:
-		return err
+		return wk.ctxCancel(err)
 	case <-wk.ctx().Done():
 		return errors.WithStack(context.Cause(wk.ctx()))
 	}
