@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -116,7 +117,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs) (
 
 	return func(worker string, mergeOps, unmergeOps []uint64) error {
 			if err := context.Cause(pctx); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 
 			l := args.Log().With().Str("worker", worker).Logger()

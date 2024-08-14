@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -110,7 +111,7 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 
 	workerPhaseDone := func(worker string, unmerge []uint64) error {
 		if err := context.Cause(wctx); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		var ok bool
