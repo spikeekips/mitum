@@ -28,21 +28,13 @@ func newBlockItemMapWriterFunc(
 				write = w
 				done = d
 
-				return nil
+				return writeBlockItemFileHeader(write, newItemsHeader(enc.Hint()))
 			}
-		})
-
-		headerOnce := OnceFunc(func() error {
-			return writeBlockItemFileHeader(write, newItemsHeader(enc.Hint()))
 		})
 
 		return func(bm base.BlockMap) error {
 				if err := once(); err != nil {
 					return err
-				}
-
-				if err := headerOnce(); err != nil {
-					return done(err)
 				}
 
 				switch b, err := enc.Marshal(bm); {

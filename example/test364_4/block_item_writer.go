@@ -42,7 +42,8 @@ func newBaseBlockItemWriterFunc(
 		return func(header interface{}, f func(ioWriteFunc) error) (base.BlockMapItem, error) {
 				done := func(err error) error { return err }
 				checksum := func() string { return "" }
-				headerOnce := func() error { return nil }
+
+				defer checksum()
 
 				var write ioWriteFunc
 
@@ -52,15 +53,20 @@ func newBaseBlockItemWriterFunc(
 						return err
 					default:
 						h := sha256.New()
-						defer h.Reset()
 
-						write, checksum = newChecksumWriteFuncs(w, h)
+						w, chk := newChecksumWriteFuncs(w, h)
+						write = w
+						checksum = func() string {
+							defer h.Reset()
+
+							return chk()
+						}
 						done = d
 
 						if header != nil {
-							headerOnce = OnceFunc(func() error {
-								return writeBlockItemFileHeader(write, header)
-							})
+							if err := writeBlockItemFileHeader(write, header); err != nil {
+								return err
+							}
 						}
 
 						return nil
@@ -69,10 +75,6 @@ func newBaseBlockItemWriterFunc(
 
 				if err := f(func(b []byte) (int, error) {
 					if err := once(); err != nil {
-						return 0, err
-					}
-
-					if err := headerOnce(); err != nil {
 						return 0, err
 					}
 
