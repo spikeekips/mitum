@@ -16,10 +16,11 @@ type (
 	managerWorkerOperationFunc                 func(opindex uint64, oph, fact util.Hash) error
 	managerWorkerOperationsFunc                func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
 	managerWorkersOperationsWorkerUnmergedFunc func(worker string, unmerge []uint64) (bool, error)
+	managerWorkersTreeFunc                     func(func(fixedtree.Tree) error) error
 	managerWorkersOperationsFuncs              func(_ context.Context, workers []string, minEnough, maxFailed uint64, ophs [][2]util.Hash) (
 		func(managerWorkerOperationsFunc) error,
 		managerWorkersOperationsWorkerUnmergedFunc,
-		func(func(fixedtree.Tree) error) error,
+		managerWorkersTreeFunc,
 		error,
 	)
 	managerWorkersOperationsOpsFunc        func(func(managerWorkerOperationFunc) error) error
@@ -29,9 +30,9 @@ type (
 
 type managerWorkersOperationsArgs struct {
 	*logging.Logging
-	NewCheckWorkersFunc          checkEnoughFailedWorkersFuncs
-	NewWorkersOpsFunc            managerWorkersOperationsWorkersOpsFunc
-	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
+	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
+	NewWorkersOpsFunc   managerWorkersOperationsWorkersOpsFunc
+	NewTreeWriterFuncs  newOperationsTreeFuncs
 }
 
 func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
@@ -49,9 +50,7 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 		NewWorkersOpsFunc: func([]string, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
-		NewOperationsTreeWriterFuncs: func(context.Context, [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
-			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewOperationsTreeWriterFuncs")
-		},
+		NewTreeWriterFuncs: newOperationsTreeWriterFunc(),
 	}
 }
 
@@ -61,7 +60,7 @@ func newManagerWorkersOperationsFuncs(
 	return func(ctx context.Context, workers []string, minEnough, maxFailed uint64, ophs [][2]util.Hash) (
 		func(managerWorkerOperationsFunc) error,
 		managerWorkersOperationsWorkerUnmergedFunc,
-		func(func(fixedtree.Tree) error) error,
+		managerWorkersTreeFunc,
 		error,
 	) {
 		switch w := uint64(len(workers)); { // FIXME move to higher level
@@ -89,22 +88,22 @@ func newManagerWorkersOperationsFuncs(
 		}
 
 		var setNotInState newOperationsTreeNotInStateFunc
-		var opsTreeJobDone errorFunc
-		var opsTreeDone newOperationsTreeNewTreeFunc
+		var treeJobDone errorFunc
+		var treeDone newOperationsTreeNewTreeFunc
 
-		switch s, j, d, err := args.NewOperationsTreeWriterFuncs(wctx, ophs); {
+		switch s, j, d, err := args.NewTreeWriterFuncs(wctx, ophs); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
 			setNotInState = s
-			opsTreeJobDone = j
-			opsTreeDone = d
+			treeJobDone = j
+			treeDone = d
 		}
 
 		closef := func(err error) error {
 			wctxCancel(err)
 			checkWorkerDone()
-			opsTreeDone(err)
+			treeDone(err)
 
 			return err
 		}
@@ -131,11 +130,13 @@ func newManagerWorkersOperationsFuncs(
 					added = ok
 
 					if ok && len(unmerged) > 0 {
-						_ = setNotInState(unmerged)
+						if err := setNotInState(unmerged); err != nil {
+							return false, closef(err)
+						}
 					}
 
 					if enough {
-						if err := opsTreeJobDone(nil); err != nil {
+						if err := treeJobDone(nil); err != nil {
 							return false, closef(err)
 						}
 					}
@@ -144,7 +145,11 @@ func newManagerWorkersOperationsFuncs(
 				return added, nil
 			},
 			func(f func(fixedtree.Tree) error) error {
-				switch tr, err := opsTreeDone(nil); {
+				if err := context.Cause(wctx); err != nil {
+					return errors.WithStack(err)
+				}
+
+				switch tr, err := treeDone(nil); {
 				case err != nil:
 					return closef(err)
 				default:

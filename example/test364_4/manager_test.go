@@ -1,12 +1,27 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
+
+type bsaeTestManager struct {
+	suite.Suite
+}
+
+func (t *bsaeTestManager) workers(n int) []string {
+	w := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		w[i] = fmt.Sprintf("w%d", i)
+	}
+
+	return w
+}
 
 type testCheckEnoughFailedWorkersFunc struct {
 	suite.Suite

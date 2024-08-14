@@ -17,10 +17,10 @@ import (
 )
 
 type testNewManagerWorkersOperationsFuncs struct {
-	suite.Suite
+	bsaeTestManager
 }
 
-func (t *testNewManagerWorkersOperationsFuncs) newArgs(minEnough, maxFailed uint64) *managerWorkersOperationsArgs {
+func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperationsArgs {
 	args := newManagerWorkersOperationsArgs()
 	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
@@ -30,23 +30,10 @@ func (t *testNewManagerWorkersOperationsFuncs) newArgs(minEnough, maxFailed uint
 		return newCheckEnoughFailedWorkersFunc(minEnough, maxFailed)
 	}
 	args.NewWorkersOpsFunc = serialNoShareWorkerOps
-	args.NewOperationsTreeWriterFuncs = newOperationsTreeWriterFunc(func(ctx context.Context) (JobWorker, error) {
-		return NewBaseJobWorker(ctx, 1<<9)
-	})
 
 	_ = args.SetLogging(logging.TestNilLogging)
 
 	return args
-}
-
-func (t *testNewManagerWorkersOperationsFuncs) workers(n int) []string {
-	w := make([]string, n)
-
-	for i := 0; i < n; i++ {
-		w[i] = fmt.Sprintf("w%d", i)
-	}
-
-	return w
 }
 
 func (t *testNewManagerWorkersOperationsFuncs) ophs(n int) [][2]util.Hash {
@@ -64,7 +51,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 		workers := t.workers(0)
 
 		f := newManagerWorkersOperationsFuncs(args)
@@ -77,7 +64,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 		workers := t.workers(1)
 
 		f := newManagerWorkersOperationsFuncs(args)
@@ -90,7 +77,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 		workers := t.workers(1)
 
 		f := newManagerWorkersOperationsFuncs(args)
@@ -103,13 +90,52 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 		workers := t.workers(1)
 
 		f := newManagerWorkersOperationsFuncs(args)
 
 		_, _, _, err := f(ctx, workers, 1, 1, nil)
 		t.ErrorContains(err, "invalid max failed")
+	})
+
+	t.Run("tree done error", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		args := t.newArgs()
+		workers := t.workers(3)
+		ophs := t.ophs(3)
+
+		f := newManagerWorkersOperationsFuncs(args)
+
+		opf, u, tf, err := f(ctx, workers, uint64(len(workers)), 0, ophs)
+		t.NoError(err)
+
+		t.NoError(opf(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
+			return nil
+		}))
+
+		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+			return u(worker, nil)
+		})
+
+		err = tf(func(tr fixedtree.Tree) error {
+			t.Equal(len(ophs), tr.Len())
+
+			return errors.Errorf("findme")
+		})
+		t.ErrorContains(err, "findme")
+
+		var called bool
+
+		err = tf(func(tr fixedtree.Tree) error {
+			called = true
+
+			return nil
+		})
+		t.ErrorContains(err, "findme")
+		t.False(called)
 	})
 }
 
@@ -158,7 +184,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 		workers := t.workers(1)
 
 		f := newManagerWorkersOperationsFuncs(args)
@@ -188,7 +214,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		ophs := t.ophs(3)
 		workers := t.workers(1)
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 
 		f := newManagerWorkersOperationsFuncs(args)
 
@@ -238,6 +264,16 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 				return true, nil
 			})
 		}
+
+		var called bool
+
+		err = tf(func(tr fixedtree.Tree) error {
+			called = true
+
+			return nil
+		})
+		t.ErrorIs(err, context.Canceled)
+		t.False(called)
 	})
 
 	t.Run("over min enough", func() {
@@ -247,7 +283,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		ophs := t.ophs(3)
 		workers := t.workers(2)
 
-		args := t.newArgs(1, 0)
+		args := t.newArgs()
 
 		f := newManagerWorkersOperationsFuncs(args)
 
@@ -300,7 +336,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		workersOps := util.NewSingleLockedMap[string, [][3]interface{}]()
 
-		args := t.newArgs(3, 0)
+		args := t.newArgs()
 		args.NewWorkersOpsFunc = func(workers []string, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			c, err := serialNoShareWorkerOps(workers, ophs)
 			if err != nil {

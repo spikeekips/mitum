@@ -16,9 +16,7 @@ type testNewOperationsTreeWriterFunc struct {
 }
 
 func (t *testNewOperationsTreeWriterFunc) newFunc() newOperationsTreeFuncs {
-	return newOperationsTreeWriterFunc(func(ctx context.Context) (JobWorker, error) {
-		return NewBaseJobWorker(ctx, 1<<9)
-	})
+	return newOperationsTreeWriterFunc()
 }
 
 func (t *testNewOperationsTreeWriterFunc) randomOps(n uint64) [][2]util.Hash {
@@ -80,8 +78,7 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 
 		cancel()
 
-		err = a([]uint64{0})
-		t.ErrorIs(err, context.Canceled)
+		t.NoError(a([]uint64{0}))
 
 		err = j(nil)
 		t.ErrorIs(err, context.Canceled)
@@ -155,8 +152,7 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		t.True(fact.Equal(n.Operation()))
 		t.True(n.InState())
 
-		err = a([]uint64{0})
-		t.ErrorIs(err, context.Canceled)
+		t.NoError(a([]uint64{0}))
 	})
 
 	t.Run("add after done; async", func() {

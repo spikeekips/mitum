@@ -1,0 +1,141 @@
+package main
+
+import (
+	"context"
+
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/logging"
+)
+
+type (
+	managerWorkersWorkerStatesFunc func(worker string, _ func(func(stateKey string) error) error) error
+	managerWorkersStatesFuncs      func(_ context.Context, workers []string, minEnough, maxFailed uint64) (
+		managerWorkersWorkerStatesFunc,
+		managerWorkersTreeFunc,
+		error,
+	)
+)
+
+type managerWorkersStatesArgs struct {
+	*logging.Logging
+	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
+	NewTreeWriterFuncs  func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error)
+}
+
+func newManagerWorkersStatesArgs() *managerWorkersStatesArgs {
+	return &managerWorkersStatesArgs{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "manager-workers-states")
+		}),
+		NewCheckWorkersFunc: func(minEnough, maxFailed uint64) (
+			checkEnoughFailedWorkerFunc,
+			func(),
+			error,
+		) {
+			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
+		},
+		NewTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
+			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewTreeWriterFuncs")
+		},
+	}
+}
+
+func newManagerWorkersStatesFuncs(
+	args *managerWorkersStatesArgs,
+) managerWorkersStatesFuncs {
+	errClosed := errors.New(util.UUID().String())
+
+	return func(ctx context.Context, workers []string, minEnough, maxFailed uint64) (
+		managerWorkersWorkerStatesFunc,
+		managerWorkersTreeFunc,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
+
+		var checkWorker checkEnoughFailedWorkerFunc
+		var checkWorkerDone func()
+
+		switch c, d, err := args.NewCheckWorkersFunc(minEnough, maxFailed); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			checkWorker = c
+			checkWorkerDone = d
+		}
+
+		closef := func(err error) error {
+			wctxCancel(err)
+			checkWorkerDone()
+
+			return err
+		}
+
+		var treeAdd newStatesTreeAddNodeFunc
+		var treeJobDone errorFunc
+		var treeDone newStatesTreeNewTreeFunc
+
+		switch a, j, d, err := args.NewTreeWriterFuncs(wctx); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			treeAdd = a
+			treeJobDone = j
+			treeDone = d
+		}
+
+		return func(worker string, f func(func(stateKey string) error) error) error {
+				if err := context.Cause(wctx); err != nil {
+					return errors.WithStack(err)
+				}
+
+				var gerr error
+
+				switch err := f(func(stateKey string) error {
+					switch _, closed, err := treeAdd(stateKey); {
+					case err != nil:
+						return err
+					case closed:
+						return errClosed
+					default:
+						return nil
+					}
+				}); {
+				case errors.Is(err, errClosed):
+					return nil
+				default:
+					gerr = err
+				}
+
+				switch ok, enough, failed, err := checkWorker(worker, func() error {
+					return gerr
+				}); {
+				case failed:
+					return closef(err)
+				case ok, enough:
+					if enough {
+						if err := treeJobDone(nil); err != nil {
+							return closef(err)
+						}
+					}
+				}
+
+				return nil
+			},
+			func(f func(fixedtree.Tree) error) error {
+				if err := context.Cause(wctx); err != nil {
+					return errors.WithStack(err)
+				}
+
+				switch tr, err := treeDone(nil); {
+				case err != nil:
+					return closef(err)
+				default:
+					return closef(f(tr))
+				}
+			},
+			nil
+	}
+}

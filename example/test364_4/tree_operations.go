@@ -9,15 +9,15 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
+// FIXME operations tree only contains unmerged ops
+
 type (
 	newOperationsTreeNotInStateFunc func(notInStates []uint64) error
 	newOperationsTreeNewTreeFunc    func(error) (fixedtree.Tree, error)
 	newOperationsTreeFuncs          func(_ context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error)
 )
 
-func newOperationsTreeWriterFunc(
-	newJobWorker newJobWorkerFunc,
-) newOperationsTreeFuncs {
+func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
 	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
@@ -72,21 +72,10 @@ func newOperationsTreeWriterFunc(
 			treeAddDone = d
 		}
 
-		var jw JobWorker
-
-		switch i, err := newJobWorker(wctx); {
-		case err != nil:
-			return nil, nil, nil, wctxCancel(err)
-		default:
-			jw = i
-		}
-
 		_, initialTreeAdd, initialTreeAddDone := NewDoneContextFunc(wctx)
 		go func() {
 			err := util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
-				return true, jw.NewJob(func(context.Context) error {
-					return treeAdd(uint64(i), base.NewInStateOperationFixedtreeNode(hs[1], ""), false)
-				})
+				return true, treeAdd(uint64(i), base.NewInStateOperationFixedtreeNode(hs[1], ""), false)
 			})
 			if err != nil {
 				wctxCancel(err)
@@ -100,13 +89,10 @@ func newOperationsTreeWriterFunc(
 				return util.ErrNotFound.Errorf("out of range; opindex=%d", opindex)
 			}
 
-			return jw.NewJob(func(context.Context) error {
-				return treeAdd(opindex, base.NewNotInStateOperationFixedtreeNode(ops[opindex][1], ""), true)
-			})
+			return treeAdd(opindex, base.NewNotInStateOperationFixedtreeNode(ops[opindex][1], ""), true)
 		}
 
 		closef := func(err error) error {
-			jw.Close()
 			wctxCancel(err)
 			treeAddDone()
 
@@ -115,7 +101,7 @@ func newOperationsTreeWriterFunc(
 
 		return func(notInStates []uint64) error {
 				if err := context.Cause(wctx); err != nil {
-					return errors.WithStack(err)
+					return nil
 				}
 
 				switch err := util.TraverseSliceV1(notInStates, func(_ int, opindex uint64) (bool, error) {
@@ -124,9 +110,8 @@ func newOperationsTreeWriterFunc(
 				case err == nil:
 					return nil
 				case errors.Is(err, util.ErrLockedMapClosed),
-					errors.Is(err, util.ErrJobWorkerDone),
 					errors.Is(err, context.Canceled):
-					return context.Canceled
+					return nil
 				default:
 					return wctxCancel(err)
 				}
@@ -144,22 +129,16 @@ func newOperationsTreeWriterFunc(
 					return closef(err)
 				}
 
-				jw.JobDone()
-
 				return nil
 			},
 			func(err error) (tr fixedtree.Tree, _ error) {
 				defer closef(nil)
 
 				if err := context.Cause(wctx); err != nil {
-					return tr, err
+					return tr, errors.WithStack(err)
 				}
 
 				if err != nil {
-					return tr, closef(err)
-				}
-
-				if err := jw.Wait(); err != nil {
 					return tr, closef(err)
 				}
 
