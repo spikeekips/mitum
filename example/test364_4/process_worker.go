@@ -106,7 +106,6 @@ func newBroadcastStateMergeValuesFuncs(
 			defer func() {
 				broadcastJw.Close()
 				doneJw.Close()
-
 				funcs.Close()
 			}()
 

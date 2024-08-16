@@ -66,12 +66,12 @@ func newManagerWorkersStatesFuncs(
 			checkWorkerDone = d
 		}
 
-		closef := func(err error) error {
+		closef := OnceFuncCallback(func(err error) error {
 			wctxCancel(err)
 			checkWorkerDone()
 
 			return err
-		}
+		})
 
 		var treeAdd newStatesTreeAddNodeFunc
 		var treeJobDone errorFunc
@@ -87,54 +87,58 @@ func newManagerWorkersStatesFuncs(
 		}
 
 		return func(worker string, f func(func(stateKey string) error) error) error {
-				if err := context.Cause(wctx); err != nil {
-					return errors.WithStack(err)
-				}
+				return contextCauseError(
+					wctx,
+					onlyErrErrorFunc(closef),
+					func() error {
+						var gerr error
 
-				var gerr error
-
-				switch err := f(func(stateKey string) error {
-					switch _, closed, err := treeAdd(stateKey); {
-					case err != nil:
-						return err
-					case closed:
-						return errClosed
-					default:
-						return nil
-					}
-				}); {
-				case errors.Is(err, errClosed):
-					return nil
-				default:
-					gerr = err
-				}
-
-				switch ok, enough, failed, err := checkWorker(worker, func() error {
-					return gerr
-				}); {
-				case failed:
-					return closef(err)
-				case ok, enough:
-					if enough {
-						if err := treeJobDone(nil); err != nil {
-							return closef(err)
+						switch err := f(func(stateKey string) error {
+							switch _, closed, err := treeAdd(stateKey); {
+							case err != nil:
+								return err
+							case closed:
+								return errClosed
+							default:
+								return nil
+							}
+						}); {
+						case errors.Is(err, errClosed):
+							return nil
+						default:
+							gerr = err
 						}
-					}
-				}
 
-				return nil
+						switch ok, enough, failed, err := checkWorker(worker, func() error {
+							return gerr
+						}); {
+						case failed:
+							return err
+						case ok, enough:
+							if enough {
+								if err := treeJobDone(nil); err != nil {
+									return err
+								}
+							}
+						}
+
+						return nil
+					},
+				)
 			},
 			func(f func(fixedtree.Tree) error) error {
-				if err := context.Cause(wctx); err != nil {
-					return errors.WithStack(err)
-				}
-
-				switch tr, err := treeDone(nil); {
-				case err != nil:
-					return closef(err)
-				default:
-					return closef(f(tr))
-				}
+				return contextCauseError(
+					wctx,
+					closef,
+					func() error {
+						switch tr, err := treeDone(nil); {
+						case err != nil:
+							return err
+						default:
+							return f(tr)
+						}
+					},
+				)
 			},
 			nil
 	}

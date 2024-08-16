@@ -98,9 +98,7 @@ func newStateMergeValueExtractor(ctx context.Context, args *stateMergeValueExtra
 		jobWorker.JobDone,
 		func(f stateMergeValueExtractorReasonsFunc) error {
 			return pctxCancel(func() error {
-				defer func() {
-					reasons.Close()
-				}()
+				defer reasons.Close()
 
 				if err := jobWorker.Wait(); err != nil {
 					return err

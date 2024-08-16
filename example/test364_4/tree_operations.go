@@ -29,23 +29,15 @@ func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
 
 					return wctxCancel(util.ErrFound.Errorf("empty ops, but tried 'not in states'"))
 				},
-				func(err error) error {
+				dummyContextErrorFunc(wctx, func(err error) error {
 					if err != nil {
 						return wctxCancel(err)
 					}
 
 					return nil
-				},
+				}),
 				func(err error) (tr fixedtree.Tree, _ error) {
-					if err := context.Cause(wctx); err != nil {
-						return tr, errors.WithStack(err)
-					}
-
-					if err != nil {
-						return tr, wctxCancel(err)
-					}
-
-					return tr, wctxCancel(nil)
+					return tr, dummyContextErrorFunc(wctx, wctxCancel)(err)
 				},
 				nil
 		}
@@ -92,64 +84,70 @@ func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
 			return treeAdd(opindex, base.NewNotInStateOperationFixedtreeNode(ops[opindex][1], ""), true)
 		}
 
-		closef := func(err error) error {
+		closef := OnceFuncCallback(func(err error) error {
 			wctxCancel(err)
 			treeAddDone()
 
 			return err
-		}
+		})
 
 		return func(notInStates []uint64) error {
 				if err := context.Cause(wctx); err != nil {
-					return nil
+					return nil // NOTE ignore
 				}
 
-				switch err := util.TraverseSliceV1(notInStates, func(_ int, opindex uint64) (bool, error) {
-					return true, setNotInState(opindex)
-				}); {
-				case err == nil:
-					return nil
-				case errors.Is(err, util.ErrLockedMapClosed),
-					errors.Is(err, context.Canceled):
-					return nil
-				default:
-					return wctxCancel(err)
-				}
+				return contextCauseError(
+					wctx,
+					onlyErrErrorFunc(closef),
+					func() error {
+						switch err := util.TraverseSliceV1(notInStates, func(_ int, opindex uint64) (bool, error) {
+							return true, setNotInState(opindex)
+						}); {
+						case errors.Is(err, util.ErrLockedMapClosed),
+							errors.Is(err, context.Canceled):
+							return nil
+						default:
+							return err
+						}
+					},
+				)
 			},
 			func(err error) error {
-				if err := context.Cause(wctx); err != nil {
-					return closef(err)
-				}
+				return contextCauseError(
+					wctx,
+					onlyErrErrorFunc(closef),
+					func() error {
+						if err != nil {
+							return err
+						}
 
-				if err != nil {
-					return closef(err)
-				}
-
-				if err := initialTreeAddDone(); err != nil {
-					return closef(err)
-				}
-
-				return nil
+						return initialTreeAddDone()
+					},
+				)
 			},
 			func(err error) (tr fixedtree.Tree, _ error) {
-				defer closef(nil)
+				gerr := contextCauseError(
+					wctx,
+					closef,
+					func() error {
+						if err != nil {
+							return err
+						}
 
-				if err := context.Cause(wctx); err != nil {
-					return tr, errors.WithStack(err)
-				}
+						treeAddDone()
 
-				if err != nil {
-					return tr, closef(err)
-				}
+						switch t, err := tw.Tree(); {
+						case err != nil:
+							return err
+						default:
+							tr = t
 
-				treeAddDone()
+							return nil
+						}
+					},
+				)
 
-				switch t, err := tw.Tree(); {
-				case err != nil:
-					return tr, closef(err)
-				default:
-					return t, nil
-				}
+				return tr, gerr
 			},
 			nil
 	}

@@ -291,3 +291,37 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 }
 
 type errorFunc func(error) error
+
+func dummyErrorFunc() errorFunc {
+	return func(err error) error {
+		return err
+	}
+}
+
+func onlyErrErrorFunc(f errorFunc) errorFunc {
+	return func(err error) error {
+		if err != nil {
+			return f(err)
+		}
+
+		return err
+	}
+}
+
+func contextCauseError(ctx context.Context, ef errorFunc, f func() error) error {
+	if err := context.Cause(ctx); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return ef(f())
+}
+
+func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
+	return func(err error) error {
+		if err := context.Cause(ctx); err != nil {
+			return errors.WithStack(err)
+		}
+
+		return ef(err)
+	}
+}

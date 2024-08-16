@@ -100,61 +100,73 @@ func newManagerWorkersOperationsFuncs(
 			treeDone = d
 		}
 
-		closef := func(err error) error {
+		closef := OnceFuncCallback(func(err error) error {
 			wctxCancel(err)
 			checkWorkerDone()
 			treeDone(err)
 
 			return err
-		}
+		})
 
 		return func(f managerWorkerOperationsFunc) error {
-				if err := distributeOpsToWorkers(
+				return contextCauseError(
 					wctx,
-					args,
-					workers,
-					minEnough, maxFailed,
-					ophs,
-					f,
-				); err != nil {
-					return closef(err)
-				}
-
-				return nil
+					onlyErrErrorFunc(closef),
+					func() error {
+						return distributeOpsToWorkers(
+							wctx,
+							args,
+							workers,
+							minEnough, maxFailed,
+							ophs,
+							f,
+						)
+					},
+				)
 			},
 			func(worker string, unmerged []uint64) (added bool, _ error) {
-				switch ok, enough, _, err := checkWorker(worker, nil); {
-				case err != nil:
-					return false, closef(err)
-				case ok, enough:
-					added = ok
+				err := contextCauseError(
+					wctx,
+					onlyErrErrorFunc(closef),
+					func() error {
+						switch ok, enough, _, err := checkWorker(worker, nil); {
+						case err != nil:
+							return err
+						case ok, enough:
+							added = ok
 
-					if ok && len(unmerged) > 0 {
-						if err := setNotInState(unmerged); err != nil {
-							return false, closef(err)
+							if ok && len(unmerged) > 0 {
+								if err := setNotInState(unmerged); err != nil {
+									return err
+								}
+							}
+
+							if enough {
+								if err := treeJobDone(nil); err != nil {
+									return err
+								}
+							}
 						}
-					}
 
-					if enough {
-						if err := treeJobDone(nil); err != nil {
-							return false, closef(err)
-						}
-					}
-				}
+						return nil
+					},
+				)
 
-				return added, nil
+				return added, err
 			},
 			func(f func(fixedtree.Tree) error) error {
-				if err := context.Cause(wctx); err != nil {
-					return errors.WithStack(err)
-				}
-
-				switch tr, err := treeDone(nil); {
-				case err != nil:
-					return closef(err)
-				default:
-					return closef(f(tr))
-				}
+				return contextCauseError(
+					wctx,
+					closef,
+					func() error {
+						switch tr, err := treeDone(nil); {
+						case err != nil:
+							return err
+						default:
+							return f(tr)
+						}
+					},
+				)
 			},
 			nil
 	}

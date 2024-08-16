@@ -127,13 +127,15 @@ func (wk *BaseJobWorker) NewJob(c ContextWorkerCallback) error {
 
 // Wait waits until all job finished.
 func (wk *BaseJobWorker) EnsureWait() error {
-	defer wk.ctxCancel(nil)
-
-	return wk.wait()
+	return wk.ctxCancel(wk.wait())
 }
 
 // Wait don't wait until all job finished.
 func (wk *BaseJobWorker) Wait() error {
+	if err := context.Cause(wk.ctx()); err != nil {
+		return errors.WithStack(err)
+	}
+
 	waitch := make(chan error, 1)
 
 	go func() {

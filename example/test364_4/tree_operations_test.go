@@ -49,7 +49,8 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 		err = a([]uint64{0})
 		t.ErrorContains(err, "empty ops")
 
-		t.NoError(j(nil))
+		err = j(nil)
+		t.ErrorContains(err, "empty ops")
 
 		_, err = d(nil)
 		t.ErrorContains(err, "empty ops")
