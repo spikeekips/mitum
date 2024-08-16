@@ -129,8 +129,8 @@ func newManagerWorkersOperationsFuncs(
 					wctx,
 					onlyErrErrorFunc(closef),
 					func() error {
-						switch ok, enough, _, err := checkWorker(worker, nil); {
-						case err != nil:
+						switch ok, enough, failed, err := checkWorker(worker, nil); {
+						case failed:
 							return err
 						case ok, enough:
 							added = ok
