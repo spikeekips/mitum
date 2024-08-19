@@ -17,7 +17,7 @@ type (
 	managerWorkerOperationsFunc                func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
 	managerWorkersOperationsWorkerUnmergedFunc func(worker string, unmerge []uint64) (bool, error)
 	managerWorkersTreeFunc                     func(func(fixedtree.Tree) error) error
-	managerWorkersOperationsFuncs              func(_ context.Context, workers []string, minEnough, maxFailed uint64, ophs [][2]util.Hash) (
+	managerWorkersOperationsFuncs              func(_ context.Context, workers []string, maxFailed uint64, ophs [][2]util.Hash) (
 		func(managerWorkerOperationsFunc) error,
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersTreeFunc,
@@ -40,7 +40,7 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "manager-workers-operations")
 		}),
-		NewCheckWorkersFunc: func(minEnough, maxFailed uint64) (
+		NewCheckWorkersFunc: func(_, maxFailed uint64) (
 			checkEnoughFailedWorkerFunc,
 			func(),
 			error,
@@ -57,7 +57,7 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 func newManagerWorkersOperationsFuncs(
 	args *managerWorkersOperationsArgs,
 ) managerWorkersOperationsFuncs {
-	return func(ctx context.Context, workers []string, minEnough, maxFailed uint64, ophs [][2]util.Hash) (
+	return func(ctx context.Context, workers []string, maxFailed uint64, ophs [][2]util.Hash) (
 		func(managerWorkerOperationsFunc) error,
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersTreeFunc,
@@ -66,10 +66,6 @@ func newManagerWorkersOperationsFuncs(
 		switch w := uint64(len(workers)); { // FIXME move to higher level
 		case w < 1:
 			return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
-		case minEnough < 1:
-			return nil, nil, nil, util.ErrInvalid.Errorf("zero min enough")
-		case minEnough > w:
-			return nil, nil, nil, util.ErrInvalid.Errorf("invalid min enough; min enough=%d > workers=%d", minEnough, w)
 		case maxFailed >= w:
 			return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
 		}
@@ -79,7 +75,7 @@ func newManagerWorkersOperationsFuncs(
 		var checkWorker checkEnoughFailedWorkerFunc
 		var checkWorkerDone func()
 
-		switch c, d, err := args.NewCheckWorkersFunc(minEnough, maxFailed); {
+		switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -117,7 +113,7 @@ func newManagerWorkersOperationsFuncs(
 							wctx,
 							args,
 							workers,
-							minEnough, maxFailed,
+							maxFailed,
 							ophs,
 							f,
 						)
@@ -176,13 +172,13 @@ func distributeOpsToWorkers(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
 	workers []string,
-	minEnough, maxFailed uint64,
+	maxFailed uint64,
 	ophs [][2]util.Hash,
 	wf managerWorkerOperationsFunc,
 ) error {
 	var checkWorker checkEnoughFailedWorkerFunc
 
-	switch c, d, err := args.NewCheckWorkersFunc(minEnough, maxFailed); {
+	switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
 	case err != nil:
 		return err
 	default:
@@ -216,9 +212,14 @@ func distributeOpsToWorkers(
 			return workerOps(worker, func(ofs func(managerWorkerOperationFunc) error) error {
 				added, err := distributeOpsToWorker(ctx, worker, ofs, wf, checkWorker)
 
-				args.Log().Debug().Str("worker", worker).Bool("added", added).Msg("worker ops")
+				args.Log().Debug().Err(err).Str("worker", worker).Bool("added", added).Msg("worker ops")
 
-				return err
+				switch {
+				case errors.Is(err, errCheckWorkersFailed):
+					return err
+				default:
+					return nil
+				}
 			})
 		})
 	}); err != nil {
@@ -227,12 +228,7 @@ func distributeOpsToWorkers(
 
 	jw.JobDone()
 
-	switch err := jw.Wait(); {
-	case errors.Is(err, errCheckWorkersEnough):
-		return nil
-	default:
-		return err
-	}
+	return jw.Wait()
 }
 
 func distributeOpsToWorker(
@@ -242,15 +238,11 @@ func distributeOpsToWorker(
 	wf managerWorkerOperationsFunc,
 	checkWorker checkEnoughFailedWorkerFunc,
 ) (bool, error) {
-	switch ok, enough, failed, err := checkWorker(worker, func() error {
+	switch _, _, failed, err := checkWorker(worker, func() error {
 		return wf(ctx, worker, func(of managerWorkerOperationFunc) error {
 			return ofs(of)
 		})
 	}); {
-	case !ok:
-		return ok, err
-	case enough:
-		return true, errCheckWorkersEnough.Wrap(err)
 	case failed:
 		return true, errCheckWorkersFailed.Wrap(err)
 	default:

@@ -56,34 +56,8 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 
 		f := newManagerWorkersOperationsFuncs(args)
 
-		_, _, _, err := f(ctx, workers, 1, 0, nil)
+		_, _, _, err := f(ctx, workers, 0, nil)
 		t.ErrorContains(err, "empty workers")
-	})
-
-	t.Run("zero minEnough", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		args := t.newArgs()
-		workers := t.workers(1)
-
-		f := newManagerWorkersOperationsFuncs(args)
-
-		_, _, _, err := f(ctx, workers, 0, 0, nil)
-		t.ErrorContains(err, "zero min enough")
-	})
-
-	t.Run("minEnough > workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		args := t.newArgs()
-		workers := t.workers(1)
-
-		f := newManagerWorkersOperationsFuncs(args)
-
-		_, _, _, err := f(ctx, workers, 2, 0, nil)
-		t.ErrorContains(err, "invalid min enough")
 	})
 
 	t.Run("maxFailed >= workers", func() {
@@ -95,7 +69,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 
 		f := newManagerWorkersOperationsFuncs(args)
 
-		_, _, _, err := f(ctx, workers, 1, 1, nil)
+		_, _, _, err := f(ctx, workers, 1, nil)
 		t.ErrorContains(err, "invalid max failed")
 	})
 
@@ -109,7 +83,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 
 		f := newManagerWorkersOperationsFuncs(args)
 
-		opf, u, tf, err := f(ctx, workers, uint64(len(workers)), 0, ophs)
+		opf, u, tf, err := f(ctx, workers, 0, ophs)
 		t.NoError(err)
 
 		t.NoError(opf(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
@@ -189,7 +163,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		f := newManagerWorkersOperationsFuncs(args)
 
-		opf, u, tf, err := f(ctx, workers, 1, 0, nil)
+		opf, u, tf, err := f(ctx, workers, 0, nil)
 		t.NoError(err)
 
 		t.NoError(opf(func(ctx context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -220,7 +194,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := f(ctx, workers, uint64(len(workers)), 0, ophs)
+		opf, u, tf, err := f(ctx, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
@@ -276,7 +250,97 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		t.False(called)
 	})
 
-	t.Run("over min enough", func() {
+	t.Run("under failed", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ophs := t.ophs(3)
+		workers := t.workers(3)
+
+		args := t.newArgs()
+
+		f := newManagerWorkersOperationsFuncs(args)
+
+		opf, u, tf, err := f(ctx, workers, 1, ophs)
+		t.NoError(err)
+		err = opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
+			if worker == workers[0] {
+				return errors.Errorf("showme")
+			}
+
+			return f(nil)
+		})
+		t.ErrorContains(err, "showme")
+
+		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+			added, err := u(worker, []uint64{0})
+			t.ErrorContains(err, "showme")
+			t.False(added)
+
+			return true, nil
+		})
+
+		var called bool
+
+		err = tf(func(tr fixedtree.Tree) error {
+			called = true
+
+			return nil
+		})
+		t.ErrorContains(err, "showme")
+		t.False(called)
+	})
+
+	t.Run("under max failed; distribute", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ophs := t.ophs(3)
+		workers := t.workers(3)
+
+		args := t.newArgs()
+
+		f := newManagerWorkersOperationsFuncs(args)
+
+		opf, u, tf, err := f(ctx, workers, 2, ophs)
+		t.NoError(err)
+		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
+			if worker == workers[0] {
+				return errors.Errorf("showme")
+			}
+
+			return f(nil)
+		}))
+
+		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+			added, err := u(worker, []uint64{0})
+			t.NoError(err)
+			t.True(added)
+
+			return true, nil
+		})
+
+		t.NoError(tf(func(tr fixedtree.Tree) error {
+			t.Equal(3, tr.Len())
+
+			tr.Traverse(func(index uint64, node fixedtree.Node) (bool, error) {
+				n := node.(base.OperationFixedtreeNode)
+
+				switch index {
+				case 0:
+					t.False(n.InState())
+				default:
+					t.True(n.InState())
+				}
+
+				return true, nil
+			})
+
+			return nil
+		}))
+	})
+
+	t.Run("under max failed", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -287,7 +351,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		f := newManagerWorkersOperationsFuncs(args)
 
-		opf, u, tf, err := f(ctx, workers, 1, 0, ophs)
+		opf, u, tf, err := f(ctx, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			return f(nil)
@@ -296,13 +360,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			added, err := u(worker, []uint64{0})
 			t.NoError(err)
-
-			switch worker {
-			case workers[0]:
-				t.True(added)
-			default:
-				t.False(added)
-			}
+			t.True(added)
 
 			return true, nil
 		})
@@ -382,7 +440,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := f(ctx, workers, uint64(len(workers)), 0, ophs)
+		opf, u, tf, err := f(ctx, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
