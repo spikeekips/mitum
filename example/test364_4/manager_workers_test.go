@@ -24,7 +24,7 @@ func (t *testNewManagerStartWorkersFunc) newArgs() *managerStartWorkersArgs {
 	) {
 		return newCheckEnoughFailedWorkersFunc(minEnough, maxFailed)
 	}
-	args.StartWorker = func(context.Context, string, string) error { return nil }
+	args.StartWorker = func(context.Context, string) error { return nil }
 
 	return args
 }
@@ -33,7 +33,6 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workID := util.UUID().String()
 	workers := t.workers(3)
 
 	args := t.newArgs()
@@ -41,11 +40,7 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 	addWorker, doneWorker, err := util.CompactAppendSliceV1[string](3)
 	t.NoError(err)
 
-	args.StartWorker = func(_ context.Context, wid string, worker string) error {
-		if workID != wid {
-			return errors.Errorf("unknown work id, %q", wid)
-		}
-
+	args.StartWorker = func(_ context.Context, worker string) error {
 		if n, _ := addWorker(worker); n < 1 {
 			return errors.Errorf("add worker, %q", worker)
 		}
@@ -55,7 +50,7 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 
 	f := newManagerStartWorkersFunc(args)
 
-	t.NoError(f(ctx, workID, workers, 0))
+	t.NoError(f(ctx, workers, 0))
 
 	doneWorker(func(s []string) error {
 		slices.Sort(s)
@@ -71,7 +66,6 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		workID := util.UUID().String()
 		workers := t.workers(333)
 		failedWorkers := map[string]struct{}{
 			workers[9]:  {},
@@ -87,11 +81,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 		addWorker, doneWorker, err := util.CompactAppendSliceV1[string](uint64(len(workers)))
 		t.NoError(err)
 
-		args.StartWorker = func(_ context.Context, wid string, worker string) error {
-			if workID != wid {
-				return errors.Errorf("unknown work id, %q", wid)
-			}
-
+		args.StartWorker = func(_ context.Context, worker string) error {
 			if _, found := failedWorkers[worker]; found {
 				return errors.Errorf("showme")
 			}
@@ -105,7 +95,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 
 		f := newManagerStartWorkersFunc(args)
 
-		t.NoError(f(ctx, workID, workers, 3))
+		t.NoError(f(ctx, workers, 3))
 
 		doneWorker(func(s []string) error {
 			slices.Sort(s)
@@ -120,7 +110,6 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		workID := util.UUID().String()
 		workers := t.workers(333)
 		failedWorkers := map[string]struct{}{
 			workers[9]:  {},
@@ -130,11 +119,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 
 		args := t.newArgs()
 
-		args.StartWorker = func(_ context.Context, wid string, worker string) error {
-			if workID != wid {
-				return errors.Errorf("unknown work id, %q", wid)
-			}
-
+		args.StartWorker = func(_ context.Context, worker string) error {
 			if _, found := failedWorkers[worker]; found {
 				return errors.Errorf("showme")
 			}
@@ -144,7 +129,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 
 		f := newManagerStartWorkersFunc(args)
 
-		err := f(ctx, workID, workers, 3)
+		err := f(ctx, workers, 3)
 		t.ErrorContains(err, "showme")
 	})
 }

@@ -10,7 +10,6 @@ import (
 
 type managerStartWorkersFunc func(
 	_ context.Context,
-	workID string,
 	workers []string,
 	maxFailed uint64,
 ) error
@@ -19,7 +18,7 @@ type managerStartWorkersArgs struct {
 	*logging.Logging
 	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
 	NewJobWorker        newJobWorkerFunc
-	StartWorker         func(_ context.Context, workID, worker string) error
+	StartWorker         func(_ context.Context, worker string) error
 }
 
 func newManagerStartWorkersArgs() *managerStartWorkersArgs {
@@ -37,7 +36,7 @@ func newManagerStartWorkersArgs() *managerStartWorkersArgs {
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
-		StartWorker: func(context.Context, string, string) error {
+		StartWorker: func(context.Context, string) error {
 			return util.ErrNotImplemented.Errorf("StartWorker")
 		},
 	}
@@ -48,7 +47,6 @@ func newManagerStartWorkersFunc(
 ) managerStartWorkersFunc {
 	return func(
 		ctx context.Context,
-		workID string,
 		workers []string,
 		maxFailed uint64,
 	) error {
@@ -80,7 +78,7 @@ func newManagerStartWorkersFunc(
 		if err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, jw.NewJob(func(ctx context.Context) error {
 				switch _, _, failed, err := checkWorker(worker, func() error {
-					return args.StartWorker(ctx, workID, worker)
+					return args.StartWorker(ctx, worker)
 				}); {
 				case failed:
 					return err
