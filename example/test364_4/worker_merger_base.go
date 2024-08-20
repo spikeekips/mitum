@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -93,27 +92,9 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 		phaseWait = w
 	}
 
-	localIsReady := func() func(worker string, _ func(isReady bool) error) error {
-		var ready bool
-		var l sync.Mutex
-
-		return func(worker string, f func(isReady bool) error) error {
-			l.Lock()
-			defer l.Unlock()
-
-			if !ready && worker == localWorkerName {
-				ready = true
-			}
-
-			return f(ready)
-		}
-	}()
+	localIsReady := newLocalWorkerIsReadyFunc()
 
 	workerPhaseDone := func(worker string, unmerge []uint64) error {
-		if err := context.Cause(wctx); err != nil {
-			return errors.WithStack(err)
-		}
-
 		var ok bool
 
 		if err := localIsReady(worker, func(isReady bool) error {
@@ -144,23 +125,25 @@ func newBaseWorkerMerger(ctx context.Context, args *baseWorkerMergerArgs) (
 	}
 
 	return func(worker string, unmerge []uint64) error {
-			if err := workerPhaseDone(worker, unmerge); err != nil {
-				args.Log().Error().
-					Err(err).
-					Str("worker", worker).
-					Msg("worker phase done")
+			return contextCauseError(wctx, dummyErrorFunc(), func() error {
+				if err := workerPhaseDone(worker, unmerge); err != nil {
+					args.Log().Error().
+						Err(err).
+						Str("worker", worker).
+						Msg("worker phase done")
 
-				return err
-			}
+					return err
+				}
 
-			return nil
+				return nil
+			})
 		},
 		func(f workerMergerUnmergedOpsFunc) error {
-			return wctxCancel(func() error {
+			return contextCauseError(wctx, wctxCancel, func() error {
 				defer exhaustPool(nil)
 
 				return phaseWait(f)
-			}())
+			})
 		},
 		nil
 }
@@ -382,4 +365,20 @@ func collectUnmergedOps(um map[uint64]struct{}, unmerged []uint64) map[uint64]st
 	})
 
 	return um
+}
+
+func newLocalWorkerIsReadyFunc() func(worker string, _ func(isReady bool) error) error {
+	var ready bool
+	var l sync.Mutex
+
+	return func(worker string, f func(isReady bool) error) error {
+		l.Lock()
+		defer l.Unlock()
+
+		if !ready && worker == localWorkerName {
+			ready = true
+		}
+
+		return f(ready)
+	}
 }
