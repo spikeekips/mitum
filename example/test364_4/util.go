@@ -298,7 +298,7 @@ func dummyErrorFunc() errorFunc {
 	}
 }
 
-func onlyErrErrorFunc(f errorFunc) errorFunc {
+func ifErrErrorFunc(f errorFunc) errorFunc {
 	return func(err error) error {
 		if err != nil {
 			return f(err)

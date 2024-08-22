@@ -1,19 +1,30 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
-type bsaeTestManager struct {
+type baseTestManager struct {
 	suite.Suite
+	enc encoder.Encoder
 }
 
-func (t *bsaeTestManager) workers(n int) []string {
+func (t *baseTestManager) SetupSuite() {
+	t.enc = jsonenc.NewEncoder()
+}
+
+func (t *baseTestManager) workers(n int) []string {
 	w := make([]string, n)
 
 	for i := 0; i < n; i++ {
@@ -21,6 +32,42 @@ func (t *bsaeTestManager) workers(n int) []string {
 	}
 
 	return w
+}
+
+func (t *baseTestManager) ophs(n int) [][2]util.Hash {
+	ophs := make([][2]util.Hash, n)
+
+	for i := 0; i < n; i++ {
+		ophs[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
+	}
+
+	return ophs
+}
+
+func (t *baseTestManager) states(n int) []string {
+	sts := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		sts[i] = util.ULID().String()
+	}
+
+	return sts
+}
+
+func (t *baseTestManager) newCreateWriter() (
+	blockItemWriterCreateWriterFunc,
+	func() ([]byte, error),
+) {
+	w := bytes.NewBuffer(nil)
+
+	return func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
+			return w.Write, func(err error) error { return err }, nil
+		},
+		func() ([]byte, error) {
+			defer w.Reset()
+
+			return w.Bytes(), nil
+		}
 }
 
 type testCheckEnoughFailedWorkersFunc struct {

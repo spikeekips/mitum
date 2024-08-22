@@ -14,7 +14,7 @@ import (
 )
 
 type testNewManagerWorkersStatesFuncs struct {
-	bsaeTestManager
+	baseTestManager
 }
 
 func (t *testNewManagerWorkersStatesFuncs) newArgs() *managerWorkersStatesArgs {
@@ -33,24 +33,12 @@ func (t *testNewManagerWorkersStatesFuncs) newArgs() *managerWorkersStatesArgs {
 	return args
 }
 
-func (t *testNewManagerWorkersStatesFuncs) states(n int) []string {
-	sts := make([]string, n)
-
-	for i := 0; i < n; i++ {
-		sts[i] = util.ULID().String()
-	}
-
-	return sts
-}
-
-func (t *testNewManagerWorkersStatesFuncs) newFunc(args *managerWorkersStatesArgs) managerWorkersStatesFuncs {
-	return newManagerWorkersStatesFuncs(args)
-}
-
 func (t *testNewManagerWorkersStatesFuncs) TestError() {
 	t.Run("ok", func() {
+		ctx := context.Background()
+
 		workers := t.workers(1)
-		s, tf, err := t.newFunc(t.newArgs())(context.Background(), workers, 1, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 1, 0)
 		t.NoError(err)
 
 		sts := t.states(3)
@@ -68,7 +56,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		}()
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			return true, s(worker, func(f func(stateKey string) error) error {
+			return true, s(ctx, worker, func(f func(stateKey string) error) error {
 				for i := range sts {
 					if err := f(sts[i]); err != nil {
 						return err
@@ -108,7 +96,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 1, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 1, 0)
 		t.NoError(err)
 
 		cancel()
@@ -116,7 +104,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		_ = util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			sts := t.states(3)
 
-			err = s(worker, func(f func(stateKey string) error) error {
+			err = s(ctx, worker, func(f func(stateKey string) error) error {
 				for i := range sts {
 					if err := f(sts[i]); err != nil {
 						return err
@@ -146,13 +134,13 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 1, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 1, 0)
 		t.NoError(err)
 
 		sts := t.states(3)
 
 		_ = util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			return true, s(worker, func(f func(stateKey string) error) error {
+			return true, s(ctx, worker, func(f func(stateKey string) error) error {
 				for i := range sts {
 					if err := f(sts[i]); err != nil {
 						return err
@@ -181,7 +169,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 3, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 3, 0)
 		t.NoError(err)
 
 		sts := t.states(3)
@@ -191,7 +179,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {
-				_ = s(worker, func(f func(stateKey string) error) error {
+				_ = s(ctx, worker, func(f func(stateKey string) error) error {
 					if worker == workers[2] {
 						return errors.Errorf("showme")
 					}
@@ -228,7 +216,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 2, 2)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 2, 2)
 		t.NoError(err)
 
 		sts := t.states(3)
@@ -238,7 +226,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {
-				_ = s(worker, func(f func(stateKey string) error) error {
+				_ = s(ctx, worker, func(f func(stateKey string) error) error {
 					if worker == workers[0] {
 						return errors.Errorf("showme")
 					}
@@ -281,13 +269,13 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 3, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 3, 0)
 		t.NoError(err)
 
 		sts := t.states(3)
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			return true, s(worker, func(f func(stateKey string) error) error {
+			return true, s(ctx, worker, func(f func(stateKey string) error) error {
 				for i := range sts {
 					if err := f(sts[i]); err != nil {
 						return err
@@ -321,7 +309,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestAdd() {
 		defer cancel()
 
 		workers := t.workers(33)
-		s, tf, err := t.newFunc(t.newArgs())(ctx, workers, 33, 0)
+		s, tf, err := newManagerWorkersStatesFuncs(ctx, t.newArgs(), workers, 33, 0)
 		t.NoError(err)
 
 		sts := t.states(99)
@@ -344,7 +332,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestAdd() {
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, jw.NewJob(func(context.Context) error {
-				_ = s(worker, func(f func(stateKey string) error) error {
+				_ = s(ctx, worker, func(f func(stateKey string) error) error {
 					for i := range sts {
 						if err := f(sts[i]); err != nil {
 							return err

@@ -11,13 +11,12 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
 type testNewManagerWorkersOperationsFuncs struct {
-	bsaeTestManager
+	baseTestManager
 }
 
 func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperationsArgs {
@@ -36,16 +35,6 @@ func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperatio
 	return args
 }
 
-func (t *testNewManagerWorkersOperationsFuncs) ophs(n int) [][2]util.Hash {
-	ophs := make([][2]util.Hash, n)
-
-	for i := 0; i < n; i++ {
-		ophs[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
-	}
-
-	return ophs
-}
-
 func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 	t.Run("empty workers", func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -54,9 +43,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		args := t.newArgs()
 		workers := t.workers(0)
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		_, _, _, err := f(ctx, workers, 0, nil)
+		_, _, _, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, nil)
 		t.ErrorContains(err, "empty workers")
 	})
 
@@ -67,9 +54,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		args := t.newArgs()
 		workers := t.workers(1)
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		_, _, _, err := f(ctx, workers, 1, nil)
+		_, _, _, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 1, nil)
 		t.ErrorContains(err, "invalid max failed")
 	})
 
@@ -81,9 +66,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		opf, u, tf, err := f(ctx, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 
 		t.NoError(opf(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
@@ -161,9 +144,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		args := t.newArgs()
 		workers := t.workers(1)
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		opf, u, tf, err := f(ctx, workers, 0, nil)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, nil)
 		t.NoError(err)
 
 		t.NoError(opf(func(ctx context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -190,11 +171,9 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersOperationsFuncs(args)
-
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := f(ctx, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
@@ -259,9 +238,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		opf, u, tf, err := f(ctx, workers, 1, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 		err = opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if worker == workers[0] {
@@ -300,9 +277,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		opf, u, tf, err := f(ctx, workers, 2, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 2, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if worker == workers[0] {
@@ -349,9 +324,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersOperationsFuncs(args)
-
-		opf, u, tf, err := f(ctx, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			return f(nil)
@@ -436,11 +409,9 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 				nil
 		}
 
-		f := newManagerWorkersOperationsFuncs(args)
-
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := f(ctx, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {

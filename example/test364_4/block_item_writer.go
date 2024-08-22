@@ -40,11 +40,17 @@ func newBaseBlockItemWriterFunc(
 		}
 
 		return func(header interface{}, f func(ioWriteFunc) error) (base.BlockMapItem, error) {
-				done := func(err error) error { return err }
+				donef := util.EmptyLocked[errorFunc]()
+
+				done := func(err error) error {
+					if f, isempty := donef.Value(); !isempty {
+						return f(err)
+					}
+
+					return err
+				}
+
 				checksum := func() string { return "" }
-
-				defer checksum()
-
 				var write ioWriteFunc
 
 				once := OnceFunc(func() error {
@@ -52,25 +58,20 @@ func newBaseBlockItemWriterFunc(
 					case err != nil:
 						return err
 					default:
-						h := sha256.New()
+						w, chk := newChecksumWriteFuncs(w, sha256.New())
 
-						w, chk := newChecksumWriteFuncs(w, h)
 						write = w
-						checksum = func() string {
-							defer h.Reset()
-
-							return chk()
-						}
-						done = d
-
-						if header != nil {
-							if err := writeBlockItemFileHeader(write, header); err != nil {
-								return err
-							}
-						}
-
-						return nil
+						checksum = chk
+						donef.SetValue(d)
 					}
+
+					if header != nil {
+						if err := writeBlockItemFileHeader(write, header); err != nil {
+							return err
+						}
+					}
+
+					return nil
 				})
 
 				if err := f(func(b []byte) (int, error) {
@@ -178,8 +179,10 @@ func newChecksumWriteFuncs(write ioWriteFunc, h hash.Hash) (
 			return w.Write(b)
 		},
 		func() string {
-			l.RLock()
-			defer l.RUnlock()
+			l.Lock()
+			defer l.Unlock()
+
+			defer h.Reset()
 
 			switch s := h.Sum(nil); {
 			case len(s) < 1:

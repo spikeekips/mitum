@@ -12,7 +12,7 @@ import (
 )
 
 type testNewManagerStartWorkersFunc struct {
-	bsaeTestManager
+	baseTestManager
 }
 
 func (t *testNewManagerStartWorkersFunc) newArgs() *managerStartWorkersArgs {
@@ -48,9 +48,7 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 		return nil
 	}
 
-	f := newManagerStartWorkersFunc(args)
-
-	t.NoError(f(ctx, workers, 0))
+	t.NoError(newManagerStartWorkersFunc(ctx, args, workers, 0))
 
 	doneWorker(func(s []string) error {
 		slices.Sort(s)
@@ -93,9 +91,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 			return nil
 		}
 
-		f := newManagerStartWorkersFunc(args)
-
-		t.NoError(f(ctx, workers, 3))
+		t.NoError(newManagerStartWorkersFunc(ctx, args, workers, 3))
 
 		doneWorker(func(s []string) error {
 			slices.Sort(s)
@@ -127,9 +123,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 			return nil
 		}
 
-		f := newManagerStartWorkersFunc(args)
-
-		err := f(ctx, workers, 3)
+		err := newManagerStartWorkersFunc(ctx, args, workers, 3)
 		t.ErrorContains(err, "showme")
 	})
 }

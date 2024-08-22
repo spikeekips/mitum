@@ -62,7 +62,7 @@ func newStatesTreeWriterFunc(size uint64, grow ...uint64) newStatesTreeFuncs {
 		return func(stateKey string) (added, closed bool, _ error) {
 				err := contextCauseError(
 					wctx,
-					onlyErrErrorFunc(closef),
+					ifErrErrorFunc(closef),
 					func() error {
 						switch a, err := add(stateKey); {
 						case a:
@@ -90,7 +90,7 @@ func newStatesTreeWriterFunc(size uint64, grow ...uint64) newStatesTreeFuncs {
 			dummyContextErrorFunc(wctx, func(err error) error {
 				defer jobDone()
 
-				return onlyErrErrorFunc(closef)(err)
+				return ifErrErrorFunc(closef)(err)
 			}),
 			func(err error) (tr fixedtree.Tree, _ error) {
 				defer closef(nil)

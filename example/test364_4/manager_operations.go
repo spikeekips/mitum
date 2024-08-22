@@ -17,15 +17,9 @@ type (
 	managerWorkerOperationsFunc                func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
 	managerWorkersOperationsWorkerUnmergedFunc func(worker string, unmerge []uint64) (bool, error)
 	managerWorkersTreeFunc                     func(func(fixedtree.Tree) error) error
-	managerWorkersOperationsFuncs              func(_ context.Context, workers []string, maxFailed uint64, ophs [][2]util.Hash) (
-		func(managerWorkerOperationsFunc) error,
-		managerWorkersOperationsWorkerUnmergedFunc,
-		managerWorkersTreeFunc,
-		error,
-	)
-	managerWorkersOperationsOpsFunc        func(func(managerWorkerOperationFunc) error) error
-	managerWorkersOperationsWorkerOpsFunc  func(worker string, _ managerWorkersOperationsOpsFunc) error
-	managerWorkersOperationsWorkersOpsFunc func(workers []string, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error)
+	managerWorkersOperationsOpsFunc            func(func(managerWorkerOperationFunc) error) error
+	managerWorkersOperationsWorkerOpsFunc      func(worker string, _ managerWorkersOperationsOpsFunc) error
+	managerWorkersOperationsWorkersOpsFunc     func(workers []string, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error)
 )
 
 type managerWorkersOperationsArgs struct {
@@ -55,117 +49,126 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 }
 
 func newManagerWorkersOperationsFuncs(
+	ctx context.Context,
 	args *managerWorkersOperationsArgs,
-) managerWorkersOperationsFuncs {
-	return func(ctx context.Context, workers []string, maxFailed uint64, ophs [][2]util.Hash) (
-		func(managerWorkerOperationsFunc) error,
-		managerWorkersOperationsWorkerUnmergedFunc,
-		managerWorkersTreeFunc,
-		error,
-	) {
-		switch w := uint64(len(workers)); { // FIXME move to higher level
-		case w < 1:
-			return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
-		case maxFailed >= w:
-			return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
-		}
-
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
-
-		var checkWorker checkEnoughFailedWorkerFunc
-		var checkWorkerDone func()
-
-		switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			checkWorker = c
-			checkWorkerDone = d
-		}
-
-		var setNotInState newOperationsTreeNotInStateFunc
-		var treeJobDone errorFunc
-		var treeDone newOperationsTreeNewTreeFunc
-
-		switch s, j, d, err := args.NewTreeWriterFuncs(wctx, ophs); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			setNotInState = s
-			treeJobDone = j
-			treeDone = d
-		}
-
-		closef := OnceFuncCallback(func(err error) error {
-			wctxCancel(err)
-			checkWorkerDone()
-			treeDone(err)
-
-			return err
-		})
-
-		return func(f managerWorkerOperationsFunc) error {
-				return contextCauseError(
-					wctx,
-					onlyErrErrorFunc(closef),
-					func() error {
-						return distributeOpsToWorkers(
-							wctx,
-							args,
-							workers,
-							maxFailed,
-							ophs,
-							f,
-						)
-					},
-				)
-			},
-			func(worker string, unmerged []uint64) (added bool, _ error) {
-				err := contextCauseError(
-					wctx,
-					onlyErrErrorFunc(closef),
-					func() error {
-						switch ok, enough, failed, err := checkWorker(worker, nil); {
-						case failed:
-							return err
-						case ok, enough:
-							added = ok
-
-							if ok && len(unmerged) > 0 {
-								if err := setNotInState(unmerged); err != nil {
-									return err
-								}
-							}
-
-							if enough {
-								if err := treeJobDone(nil); err != nil {
-									return err
-								}
-							}
-						}
-
-						return nil
-					},
-				)
-
-				return added, err
-			},
-			func(f func(fixedtree.Tree) error) error {
-				return contextCauseError(
-					wctx,
-					closef,
-					func() error {
-						switch tr, err := treeDone(nil); {
-						case err != nil:
-							return err
-						default:
-							return f(tr)
-						}
-					},
-				)
-			},
-			nil
+	workers []string,
+	maxFailed uint64,
+	ophs [][2]util.Hash,
+) (
+	func(managerWorkerOperationsFunc) error,
+	managerWorkersOperationsWorkerUnmergedFunc,
+	managerWorkersTreeFunc,
+	error,
+) {
+	switch w := uint64(len(workers)); { // FIXME move to higher level
+	case w < 1:
+		return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
+	case maxFailed >= w:
+		return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
 	}
+
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
+
+	var checkWorker checkEnoughFailedWorkerFunc
+	var checkWorkerDone func()
+
+	switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		checkWorker = c
+		checkWorkerDone = d
+	}
+
+	var setNotInState newOperationsTreeNotInStateFunc
+	var treeJobDone errorFunc
+	var treeDone newOperationsTreeNewTreeFunc
+
+	switch s, j, d, err := args.NewTreeWriterFuncs(wctx, ophs); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		setNotInState = s
+		treeJobDone = j
+		treeDone = d
+	}
+
+	_, distributeDone, distributeWait := NewDoneContextFunc(wctx)
+
+	closef := OnceFuncCallback(func(err error) error {
+		wctxCancel(err)
+		checkWorkerDone()
+		treeDone(err)
+		distributeDone(err)
+
+		return err
+	})
+
+	return func(f managerWorkerOperationsFunc) error {
+			return contextCauseError(
+				wctx,
+				ifErrErrorFunc(closef),
+				func() error {
+					return distributeDone(distributeOpsToWorkers(
+						wctx,
+						args,
+						workers,
+						maxFailed,
+						ophs,
+						f,
+					))
+				},
+			)
+		},
+		func(worker string, unmerged []uint64) (added bool, _ error) {
+			err := contextCauseError(
+				wctx,
+				ifErrErrorFunc(closef),
+				func() error {
+					switch ok, enough, failed, err := checkWorker(worker, nil); {
+					case failed:
+						return err
+					case ok, enough:
+						added = ok
+
+						if ok && len(unmerged) > 0 {
+							if err := setNotInState(unmerged); err != nil {
+								return err
+							}
+						}
+
+						if enough {
+							if err := treeJobDone(nil); err != nil {
+								return err
+							}
+						}
+					}
+
+					return nil
+				},
+			)
+
+			return added, err
+		},
+		func(f func(fixedtree.Tree) error) error {
+			return contextCauseError(
+				wctx,
+				closef,
+				func() error {
+					if err := distributeWait(); err != nil {
+						return err
+					}
+
+					switch tr, err := treeDone(nil); {
+					case err != nil:
+						return err
+					default:
+						return f(tr)
+					}
+				},
+			)
+		},
+		nil
 }
 
 func distributeOpsToWorkers(

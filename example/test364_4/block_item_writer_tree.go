@@ -10,6 +10,8 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
+type blockItemWriterNewWriteTreeFunc func(_ context.Context, createID string, _ fixedtree.Tree) (base.BlockMapItem, error)
+
 func newBlockItemTreeWriterFunc(
 	it base.BlockItemType,
 	enc encoder.Encoder,
