@@ -169,6 +169,7 @@ func (t *testPhaseMerger) newArgs() (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
 	args *PhaseMergerArgs,
+	_ phaseMergerGetStateMergeValuesFunc,
 ) {
 	t.T().Helper()
 
@@ -182,12 +183,11 @@ func (t *testPhaseMerger) newArgs() (
 
 	args = NewPhaseMergerArgs("local")
 	args.GetMergersFunc, _ = newGetMergersFunc(mergers, getState)
-	args.GetValuesFunc = getValues
 
 	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
 	args.ExtractStateMergeValueKeysFunc = extractKeys
 
-	return vp, mergers, states, args
+	return vp, mergers, states, args, getValues
 }
 
 func (t *testPhaseMerger) TestCancel() {
@@ -195,9 +195,9 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, args, getValues := t.newArgs()
 
-		merge, _, _, _, err := NewPhaseMerger(ctx, args)
+		merge, _, _, _, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -214,9 +214,9 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, args, getValues := t.newArgs()
 
-		_, unmerge, _, _, err := NewPhaseMerger(ctx, args)
+		_, unmerge, _, _, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -233,9 +233,9 @@ func (t *testPhaseMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, args, getValues := t.newArgs()
 
-		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+		merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -257,9 +257,9 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, args, getValues := t.newArgs()
 
-		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+		merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -290,9 +290,9 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, args, getValues := t.newArgs()
 
-		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+		merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		vss := make([][]StateMergeValue, 33)
@@ -333,7 +333,7 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, _, args := t.newArgs()
+		vp, _, _, args, getValues := t.newArgs()
 
 		var opindex0, opindex1 uint64 = 1, 2
 
@@ -355,7 +355,7 @@ func (t *testPhaseMerger) TestMerge() {
 			return getMergersFunc(stateKeys, f)
 		}
 
-		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+		merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		t.NoError(merge(opindex0))
@@ -374,9 +374,9 @@ func (t *testPhaseMerger) TestMerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, _, args := t.newArgs()
+		vp, mergers, _, args, getValues := t.newArgs()
 
-		merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+		merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex0, opindex1 uint64 = 1, 2
@@ -411,13 +411,13 @@ func (t *testPhaseMerger) TestUnmerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, states, args := t.newArgs()
+		vp, mergers, states, args, getValues := t.newArgs()
 
 		pub := base.NewDummyPublickey(util.UUID().String())
 		prevst := t.newState(pub, 1)
 		states.SetValue(prevst.Key(), prevst)
 
-		_, unmerge, done, wait, err := NewPhaseMerger(ctx, args)
+		_, unmerge, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -447,13 +447,13 @@ func (t *testPhaseMerger) TestUnmerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, mergers, states, args := t.newArgs()
+		vp, mergers, states, args, getValues := t.newArgs()
 
 		vss := make([][]StateMergeValue, 33)
 
 		pub := base.NewDummyPublickey(util.UUID().String())
 
-		_, unmerge, done, wait, err := NewPhaseMerger(ctx, args)
+		_, unmerge, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		var subed int64
@@ -494,7 +494,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		vp, _, states, args := t.newArgs()
+		vp, _, states, args, getValues := t.newArgs()
 
 		pub0 := base.NewDummyPublickey(util.UUID().String())
 		prevst0 := t.newState(pub0, 1)
@@ -524,7 +524,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 			return getMergersFunc(stateKeys, f)
 		}
 
-		_, unmerge, done, wait, err := NewPhaseMerger(ctx, args)
+		_, unmerge, done, wait, err := newPhaseMerger(ctx, args, getValues)
 		t.NoError(err)
 
 		t.NoError(unmerge(opindex0))
@@ -587,7 +587,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	_, sts, ops := t.baseTestMergeUnmerge()
 
-	vp, mergers, states, args := t.newArgs()
+	vp, mergers, states, args, getValues := t.newArgs()
 	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
 		PhaseJobWorkerNewJobFunc,
 		func(),
@@ -608,7 +608,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		states.SetValue(sts[i].Key(), sts[i])
 	}
 
-	merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+	merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 	t.NoError(err)
 
 	if seq == nil {
@@ -670,7 +670,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 	defer cancel()
 
 	_, sts, ops := t.baseTestMergeUnmerge()
-	vp, mergers, states, _ := t.newArgs()
+	vp, mergers, states, _, _ := t.newArgs()
 
 	for i := range sts {
 		states.SetValue(sts[i].Key(), sts[i])
@@ -851,7 +851,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		},
 	}
 
-	vp, mergers, states, args := t.newArgs()
+	vp, mergers, states, args, getValues := t.newArgs()
 	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
 		PhaseJobWorkerNewJobFunc,
 		func(),
@@ -871,7 +871,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		states.SetValue(sts[i].Key(), sts[i])
 	}
 
-	merge, _, done, wait, err := NewPhaseMerger(ctx, args)
+	merge, _, done, wait, err := newPhaseMerger(ctx, args, getValues)
 	t.NoError(err)
 
 	if seq == nil {

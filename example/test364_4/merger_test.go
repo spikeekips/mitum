@@ -79,14 +79,7 @@ func (t *baseTestMergeOp) getFuncs() (
 
 			return merger, err
 		},
-		func(opindex uint64) ([]StateMergeValue, error) {
-			values, found := vp.Value(opindex)
-			if !found {
-				return nil, util.ErrNotFound.Errorf("state merge values, %d", opindex)
-			}
-
-			return values, nil
-		}
+		getStateMergeValuesFuncFromPool(vp)
 }
 
 type testMergeOp struct {

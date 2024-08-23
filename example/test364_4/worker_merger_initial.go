@@ -101,10 +101,18 @@ func newInitialValuesWorkerMerger(
 		closeArgs = c
 	}
 
+	getStateMergeValues := getStateMergeValuesFuncFromPool(vp) // rename to getStateMergeValues
+
 	var initialWorkerInsert workerNewInitialXMergeFuncs
 	var initialWait initialValuesWorkerMergerWaitFunc
 
-	switch i, w, err := newInitialPhaseMerger(wctx, args, pargs, enoughWorkers); {
+	switch i, w, err := newInitialPhaseMerger(
+		wctx,
+		args,
+		pargs,
+		enoughWorkers,
+		getStateMergeValues,
+	); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -115,7 +123,7 @@ func newInitialValuesWorkerMerger(
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs); {
+	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -288,6 +296,7 @@ func newInitialPhaseMerger(
 	args *initialValuesWorkerMergerArgs,
 	pargs *PhaseMergerArgs,
 	enoughWorkers uint64,
+	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 ) (
 	_ workerNewInitialXMergeFuncs,
 	wait initialValuesWorkerMergerWaitFunc,
@@ -299,7 +308,7 @@ func newInitialPhaseMerger(
 	var initialDone func()
 	var initialWait phaseMergerWaitFunc
 
-	switch m, _, d, w, err := NewPhaseMerger(wctx, pargs); {
+	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -409,15 +418,6 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 	extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
-	pargs.GetValuesFunc = func(opindex uint64) ([]StateMergeValue, error) {
-		switch i, found := vp.Value(opindex); {
-		case !found:
-			return nil, util.ErrNotFound.Errorf("state merge values, opindex=%d", opindex)
-		default:
-			return i, nil
-		}
-	}
-
 	wpargs.NewPhaseMergerFuncs = func() (
 		*PhaseMergerArgs,
 		newPhaseMergerFunc,
@@ -439,4 +439,15 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 	}
 
 	return pargs, wpargs, closeExtractKeys, nil
+}
+
+func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue]) phaseMergerGetStateMergeValuesFunc {
+	return func(opindex uint64) ([]StateMergeValue, error) {
+		switch i, found := vp.Value(opindex); {
+		case !found:
+			return nil, util.ErrNotFound.Errorf("state merge values, opindex=%d", opindex)
+		default:
+			return i, nil
+		}
+	}
 }
