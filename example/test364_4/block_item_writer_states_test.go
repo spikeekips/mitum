@@ -16,6 +16,8 @@ type testBlockItemStatesWriterFunc struct {
 }
 
 func (t *testBlockItemStatesWriterFunc) TestWrite() {
+	ctx := context.Background()
+
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
@@ -24,7 +26,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		_, err := c("")
+		_, err := c(ctx, "", 0, nil)
 		t.ErrorContains(err, "empty create id")
 	})
 
@@ -36,10 +38,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(0)(func(saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(saveWorkerMergerSaveStateFunc) error {
 			return nil
 		})
 		t.NoError(err)
@@ -58,10 +57,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(0)(func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(w saveWorkerMergerSaveStateFunc) error {
 			return w(t.randomState())
 		})
 		t.ErrorContains(err, "zero total")
@@ -89,10 +85,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 			[]util.Hash{valuehash.NewBytes([]byte("findme"))},
 		)
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(1)(func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 1, func(w saveWorkerMergerSaveStateFunc) error {
 			return w(st)
 		})
 		t.NoError(err)
@@ -121,13 +114,10 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 			sts[i] = t.newState(pub, int64(i+1))
 		}
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
 		jw, err := NewBaseJobWorker(context.Background(), int64(len(sts)))
 		t.NoError(err)
 
-		bm, err := f(uint64(len(sts)))(func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), uint64(len(sts)), func(w saveWorkerMergerSaveStateFunc) error {
 			for i := range sts {
 				st := sts[i]
 

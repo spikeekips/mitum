@@ -48,7 +48,10 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 		cancel()
 
 		workers := t.workers(3)
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, t.newArgs(), workers, 3, 0, util.UUID().String(), t.ophs(3))
+
+		f := newManagerWorkersTreesFuncs(t.newArgs())
+
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -82,7 +85,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return nil
 		}
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		<-ctx.Done()
@@ -123,7 +127,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return nil
 		}
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		<-ctx.Done()
@@ -156,7 +161,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -190,7 +196,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -219,7 +226,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -251,7 +259,9 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 		defer cancel()
 
 		workers := t.workers(3)
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, t.newArgs(), workers, 3, 0, util.UUID().String(), t.ophs(3))
+
+		f := newManagerWorkersTreesFuncs(t.newArgs())
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -287,7 +297,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return nil
 		}
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 2, 2, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 2, 2, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -323,7 +334,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return nil
 		}
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -362,7 +374,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), nil)
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), nil)
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -396,7 +409,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		statesKeys := t.states(3)
@@ -440,7 +454,8 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		u, s, tree, err := newManagerWorkersTreesFuncs(ctx, args, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		f := newManagerWorkersTreesFuncs(args)
+		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {

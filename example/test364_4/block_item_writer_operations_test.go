@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemOperationsWriterFunc struct {
+type testNewBlockItemOperationsWriterFunc struct {
 	baseTestBaseBlockItemWriterFunc
 }
 
-func (t *testBlockItemOperationsWriterFunc) TestWrite() {
+func (t *testNewBlockItemOperationsWriterFunc) TestWrite() {
+	ctx := context.Background()
+
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
@@ -23,7 +25,7 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		_, err := c("")
+		_, err := c(ctx, "", 1, nil)
 		t.ErrorContains(err, "empty create id")
 	})
 
@@ -35,10 +37,7 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(0)(func(operationsWorkerSaveOperationFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(operationsWorkerSaveOperationFunc) error {
 			return nil
 		})
 		t.NoError(err)
@@ -57,10 +56,7 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 			createWriter,
 		)
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(0)(func(w operationsWorkerSaveOperationFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(w operationsWorkerSaveOperationFunc) error {
 			return w(1, t.randomOp(3))
 		})
 		t.ErrorContains(err, "zero total")
@@ -84,10 +80,7 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 		var op Operation
 		t.NoError(encoder.Decode(t.enc, []byte(ops), &op))
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
-		bm, err := f(1)(func(w operationsWorkerSaveOperationFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 1, func(w operationsWorkerSaveOperationFunc) error {
 			return w(3, op)
 		})
 		t.NoError(err)
@@ -115,13 +108,10 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 			ops[i] = t.randomOp(int64(i + 1))
 		}
 
-		f, err := c(util.UUID().String())
-		t.NoError(err)
-
 		jw, err := NewBaseJobWorker(context.Background(), int64(len(ops)))
 		t.NoError(err)
 
-		bm, err := f(uint64(len(ops)))(func(w operationsWorkerSaveOperationFunc) error {
+		bm, err := c(ctx, util.UUID().String(), uint64(len(ops)), func(w operationsWorkerSaveOperationFunc) error {
 			for i := range ops {
 				opindex := uint64(i)
 
@@ -136,6 +126,7 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 
 			return jw.Wait()
 		})
+
 		t.NoError(err)
 		t.NotNil(bm)
 
@@ -148,6 +139,6 @@ func (t *testBlockItemOperationsWriterFunc) TestWrite() {
 	})
 }
 
-func TestBlockItemOperationsWriterFunc(t *testing.T) {
-	suite.Run(t, new(testBlockItemOperationsWriterFunc))
+func TestNewBlockItemOperationsWriterFunc(t *testing.T) {
+	suite.Run(t, new(testNewBlockItemOperationsWriterFunc))
 }

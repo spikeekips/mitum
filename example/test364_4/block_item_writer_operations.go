@@ -1,23 +1,22 @@
 package main
 
 import (
+	"context"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type (
-	blockItemWriterNewWriteOperationsCallbackFunc func(func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error)
-	blockItemWriterNewWriteOperationsFunc         func(total uint64) blockItemWriterNewWriteOperationsCallbackFunc
-)
+type blockItemWriterNewWriteOperationsFunc func(_ context.Context, createID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error)
 
 func newBlockItemOperationsWriterFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
-) func(string) (blockItemWriterNewWriteOperationsFunc, error) {
+) blockItemWriterNewWriteOperationsFunc {
 	w := newBaseBlockItemWriterFunc(base.BlockItemOperations, createWriter)
 
-	return func(createID string) (blockItemWriterNewWriteOperationsFunc, error) {
+	return func(ctx context.Context, createID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
@@ -27,26 +26,21 @@ func newBlockItemOperationsWriterFunc(
 			c = i
 		}
 
-		return func(total uint64) blockItemWriterNewWriteOperationsCallbackFunc {
-				return func(f func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error) {
-					return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
-						return f(func(opindex uint64, op Operation) error {
-							if total < 1 {
-								return util.ErrFound.Errorf("zero total, but tried to write")
-							}
-
-							switch b, err := encodeWithIndex(enc, opindex, "opindex", op); {
-							case err != nil:
-								return err
-							default:
-								_, err := write(b)
-
-								return err
-							}
-						})
-					})
+		return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
+			return f(func(opindex uint64, op Operation) error {
+				if total < 1 {
+					return util.ErrFound.Errorf("zero total, but tried to write")
 				}
-			},
-			nil
+
+				switch b, err := encodeWithIndex(enc, opindex, "opindex", op); {
+				case err != nil:
+					return err
+				default:
+					_, err := write(b)
+
+					return err
+				}
+			})
+		})
 	}
 }

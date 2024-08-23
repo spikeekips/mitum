@@ -1,53 +1,48 @@
 package main
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockItemWriterNewWriteMapFunc func(base.BlockMap) error
+type blockItemWriterNewWriteMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
 
 func newBlockItemMapWriterFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
-) func(string) (blockItemWriterNewWriteMapFunc, error) {
-	return func(createID string) (blockItemWriterNewWriteMapFunc, error) {
+) blockItemWriterNewWriteMapFunc {
+	return func(ctx context.Context, createID string, bm base.BlockMap) error {
 		if len(createID) < 1 {
-			return nil, errors.Errorf("empty create id")
+			return errors.Errorf("empty create id")
 		}
 
 		var write ioWriteFunc
-		done := func(err error) error { return err }
+		var done func(error) error
 
-		once := OnceFunc(func() error {
-			switch w, d, err := createWriter(base.BlockItemMap, createID); {
-			case err != nil:
-				return err
-			default:
-				write = w
-				done = d
+		switch w, d, err := createWriter(base.BlockItemMap, createID); {
+		case err != nil:
+			return err
+		default:
+			write = w
+			done = d
+		}
 
-				return writeBlockItemFileHeader(write, newItemsHeader(enc.Hint()))
+		if err := writeBlockItemFileHeader(write, newItemsHeader(enc.Hint())); err != nil {
+			return err
+		}
+
+		switch b, err := enc.Marshal(bm); {
+		case err != nil:
+			return done(err)
+		default:
+			if _, err := write(b); err != nil {
+				return done(err)
 			}
-		})
 
-		return func(bm base.BlockMap) error {
-				if err := once(); err != nil {
-					return err
-				}
-
-				switch b, err := enc.Marshal(bm); {
-				case err != nil:
-					return done(err)
-				default:
-					if _, err := write(b); err != nil {
-						return done(err)
-					}
-
-					return done(nil)
-				}
-			},
-			nil
+			return done(nil)
+		}
 	}
 }

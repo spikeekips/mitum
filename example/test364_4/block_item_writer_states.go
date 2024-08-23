@@ -2,24 +2,22 @@ package main
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type (
-	blockItemWriterNewWriteStatesCallbackFunc func(func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error)
-	blockItemWriterNewWriteStatesFunc         func(total uint64) blockItemWriterNewWriteStatesCallbackFunc
-)
+type blockItemWriterNewWriteStatesFunc func(_ context.Context, createID string, total uint64, _ func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error)
 
 func newBlockItemStatesWriterNewWriteFunc(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
-) func(string) (blockItemWriterNewWriteStatesFunc, error) {
+) blockItemWriterNewWriteStatesFunc {
 	w := newBaseBlockItemWriterFunc(base.BlockItemStates, createWriter)
 
-	return func(createID string) (blockItemWriterNewWriteStatesFunc, error) {
+	return func(ctx context.Context, createID string, total uint64, f func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
@@ -29,27 +27,22 @@ func newBlockItemStatesWriterNewWriteFunc(
 			c = i
 		}
 
-		return func(total uint64) blockItemWriterNewWriteStatesCallbackFunc {
-				return func(f func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error) {
-					return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
-						return f(func(st base.State) error {
-							if total < 1 {
-								return util.ErrFound.Errorf("zero total, but tried to write")
-							}
-
-							switch b, err := encodeStateItem(enc, st); {
-							case err != nil:
-								return err
-							default:
-								_, err := write(b)
-
-								return err
-							}
-						})
-					})
+		return c(newTotalItemsHeader(enc.Hint(), total), func(write ioWriteFunc) error {
+			return f(func(st base.State) error {
+				if total < 1 {
+					return util.ErrFound.Errorf("zero total, but tried to write")
 				}
-			},
-			nil
+
+				switch b, err := encodeStateItem(enc, st); {
+				case err != nil:
+					return err
+				default:
+					_, err := write(b)
+
+					return err
+				}
+			})
+		})
 	}
 }
 

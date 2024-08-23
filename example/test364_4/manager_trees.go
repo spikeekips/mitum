@@ -10,7 +10,16 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type managerWorkersTreeSaveFunc func() (ops base.BlockMapItem, states base.BlockMapItem, _ error)
+type (
+	managerWorkersTreeSaveFunc  func() (ops, states base.BlockMapItem, _ error)
+	managerWorkersTreeRootsFunc func() (opsTreeRoot, statesTreeRoot util.Hash, save managerWorkersTreeSaveFunc, _ error)
+	managerWorkersTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, ophs [][2]util.Hash) (
+		managerWorkersOperationsWorkerUnmergedFunc,
+		managerWorkersWorkerStatesFunc,
+		managerWorkersTreeRootsFunc,
+		error,
+	)
+)
 
 type managerWorkersTreesArgs struct {
 	*logging.Logging
@@ -56,133 +65,153 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 	}
 }
 
-func newManagerWorkersTreesFuncs(
-	ctx context.Context,
-	args *managerWorkersTreesArgs,
-	workers []string,
-	minEnough, maxFailed uint64,
-	workID string,
-	ophs [][2]util.Hash,
-) (
-	_ managerWorkersOperationsWorkerUnmergedFunc,
-	_ managerWorkersWorkerStatesFunc,
-	_ func() (opsTree, statesTree util.Hash, save managerWorkersTreeSaveFunc, _ error),
-	_ error,
-) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+func newManagerWorkersTreesFuncs(args *managerWorkersTreesArgs) managerWorkersTreesFuncs {
+	oargs := newManagerWorkersOperationsArgs()
+	oargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
+	oargs.NewWorkersOpsFunc = args.NewWorkersOpsFunc
+	oargs.NewTreeWriterFuncs = args.NewOperationsTreeWriterFuncs
 
-	oargs, sargs := newArgsForManagerWorkersTrees(args, workID)
+	sargs := newManagerWorkersStatesArgs()
+	sargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
+	sargs.NewTreeWriterFuncs = args.NewStatesTreeWriterFuncs
 
-	var opsDistribute func(managerWorkerOperationsFunc) error
-	var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
-	var opsTreef managerWorkersTreeFunc
+	oargs.SetLogging(args.Logging)
+	sargs.SetLogging(args.Logging)
 
-	switch d, u, t, err := newManagerWorkersOperationsFuncs(wctx, oargs, workers, maxFailed, ophs); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		opsDistribute = d
-		opsUnmerged = u
-		opsTreef = t
-	}
+	return func(
+		ctx context.Context,
+		workers []string,
+		minEnough, maxFailed uint64,
+		workID string,
+		ophs [][2]util.Hash,
+	) (
+		managerWorkersOperationsWorkerUnmergedFunc,
+		managerWorkersWorkerStatesFunc,
+		managerWorkersTreeRootsFunc,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-	var statesWorker managerWorkersWorkerStatesFunc
-	var statesTreef managerWorkersTreeFunc
+		var opsDistribute func(managerWorkerOperationsFunc) error
+		var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
+		var opsTreef managerWorkersTreeFunc
 
-	switch s, t, err := newManagerWorkersStatesFuncs(wctx, sargs, workers, minEnough, maxFailed); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		statesWorker = s
-		statesTreef = t
-	}
+		switch d, u, t, err := newManagerWorkersOperationsFuncs(wctx, oargs, workers, maxFailed, ophs); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			opsDistribute = d
+			opsUnmerged = u
+			opsTreef = t
+		}
 
-	go func() {
-		_ = contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
-			return opsDistribute(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
-				return args.DistributeWorkerOps(ctx, worker, f)
+		var statesWorker managerWorkersWorkerStatesFunc
+		var statesTreef managerWorkersTreeFunc
+
+		switch s, t, err := newManagerWorkersStatesFuncs(wctx, sargs, workers, minEnough, maxFailed); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			statesWorker = s
+			statesTreef = t
+		}
+
+		go func() {
+			_ = contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
+				return opsDistribute(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
+					return args.DistributeWorkerOps(ctx, worker, f)
+				})
 			})
-		})
-	}()
+		}()
 
-	return opsUnmerged, statesWorker,
-		func() (opsTreeRoot, statesTreeRoot util.Hash, _ managerWorkersTreeSaveFunc, _ error) {
-			var opsTree, statesTree fixedtree.Tree
+		return opsUnmerged, statesWorker,
+			func() (opsTreeRoot, statesTreeRoot util.Hash, _ managerWorkersTreeSaveFunc, _ error) {
+				var opsTree, statesTree fixedtree.Tree
 
-			if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
-				if err := opsTreef(func(tr fixedtree.Tree) error {
-					opsTree = tr
+				if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
+					if err := opsTreef(func(tr fixedtree.Tree) error {
+						opsTree = tr
 
-					return nil
-				}); err != nil {
-					return err
-				}
-
-				if err := statesTreef(func(tr fixedtree.Tree) error {
-					statesTree = tr
-
-					return nil
-				}); err != nil {
-					return err
-				}
-
-				return nil
-			}); err != nil {
-				return nil, nil, nil, err
-			}
-
-			opsTreeRoot = opsTree.Root()
-			statesTreeRoot = statesTree.Root()
-
-			return opsTreeRoot, statesTreeRoot, func() (base.BlockMapItem, base.BlockMapItem, error) {
-				var opsB, statesB base.BlockMapItem
-
-				if err := contextCauseError(wctx, wctxCancel, func() error {
-					if opsTreeRoot == nil && statesTreeRoot == nil {
 						return nil
-					}
-
-					var jw JobWorker
-
-					switch i, err := NewBaseJobWorker(wctx, 2); {
-					case err != nil:
-						return err
-					default:
-						defer i.Close()
-
-						jw = i
-					}
-
-					if err := jw.NewJob(func(ctx context.Context) error {
-						b, err := args.WriteBlockItemOperationsTree(ctx, workID, opsTree)
-
-						opsB = b
-
-						return err
 					}); err != nil {
 						return err
 					}
 
-					if err := jw.NewJob(func(ctx context.Context) error {
-						b, err := args.WriteBlockItemStatesTree(ctx, workID, statesTree)
-						statesB = b
+					if err := statesTreef(func(tr fixedtree.Tree) error {
+						statesTree = tr
 
-						return err
+						return nil
 					}); err != nil {
 						return err
 					}
 
-					jw.JobDone()
-
-					return jw.Wait()
+					return nil
 				}); err != nil {
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 
-				return opsB, statesB, nil
-			}, nil
-		},
-		nil
+				opsTreeRoot = opsTree.Root()
+				statesTreeRoot = statesTree.Root()
+
+				return opsTreeRoot, statesTreeRoot, func() (base.BlockMapItem, base.BlockMapItem, error) {
+					var opsB, statesB base.BlockMapItem
+
+					closef := func(err error) error {
+						wctxCancel(err)
+
+						opsTree.Close()
+						statesTree.Close()
+
+						return err
+					}
+
+					if err := contextCauseError(wctx, closef, func() error {
+						if opsTreeRoot == nil && statesTreeRoot == nil {
+							return nil
+						}
+
+						var jw JobWorker
+
+						switch i, err := NewBaseJobWorker(wctx, 2); {
+						case err != nil:
+							return err
+						default:
+							defer i.Close()
+
+							jw = i
+						}
+
+						if err := jw.NewJob(func(ctx context.Context) error {
+							b, err := args.WriteBlockItemOperationsTree(ctx, workID, opsTree)
+
+							opsB = b
+
+							return err
+						}); err != nil {
+							return err
+						}
+
+						if err := jw.NewJob(func(ctx context.Context) error {
+							b, err := args.WriteBlockItemStatesTree(ctx, workID, statesTree)
+							statesB = b
+
+							return err
+						}); err != nil {
+							return err
+						}
+
+						jw.JobDone()
+
+						return jw.Wait()
+					}); err != nil {
+						return nil, nil, err
+					}
+
+					return opsB, statesB, nil
+				}, nil
+			},
+			nil
+	}
 }
 
 func newArgsForManagerWorkersTrees(args *managerWorkersTreesArgs, workID string) (
