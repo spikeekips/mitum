@@ -67,6 +67,7 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 func newInitialValuesWorkerMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
+	minEnough uint64,
 	getMergers phaseMergerGetMergers,
 ) (
 	workerInitialInsertOpsFuncs,
@@ -90,14 +91,12 @@ func newInitialValuesWorkerMerger(
 	}
 
 	var pargs *phaseMergerArgs
-	var enoughWorkers uint64
 
-	switch p, w, err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); {
+	switch p, err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		pargs = p
-		enoughWorkers = w.EnoughWorkers
 	}
 
 	extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
@@ -111,7 +110,7 @@ func newInitialValuesWorkerMerger(
 		wctx,
 		args,
 		pargs,
-		enoughWorkers,
+		minEnough,
 		getStateMergeValues,
 		getMergers,
 		extractStateMergeValueKeys,
@@ -126,7 +125,7 @@ func newInitialValuesWorkerMerger(
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, minEnough, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -298,7 +297,7 @@ func newInitialPhaseMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
 	pargs *phaseMergerArgs,
-	enoughWorkers uint64,
+	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
@@ -325,7 +324,7 @@ func newInitialPhaseMerger(
 	var checkWorker func(string, bool, func(_, _ bool) error) error
 	var closeCheckWorker func()
 
-	switch c, d, err := newIsEnoughkWokerPhaseMergerFuncs(enoughWorkers); {
+	switch c, d, err := newIsEnoughkWokerPhaseMergerFuncs(minEnough); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -390,16 +389,13 @@ func newInitialPhaseMerger(
 func patchWorkerMergerArgsWithPhaseMergerArgs(
 	args *initialValuesWorkerMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
-) (
-	pargs *phaseMergerArgs,
-	wpargs *workerPhaseMergerArgs,
-	_ error,
-) {
+) (*phaseMergerArgs, error) {
+	var wpargs *workerPhaseMergerArgs
 	var wpnewf newWorkerPhaseMergerFunc
 
 	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		wpargs = a
 		wpnewf = n
@@ -407,11 +403,12 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 
 	wpargs.SetLogging(args.Logging)
 
+	var pargs *phaseMergerArgs
 	var pnewf newPhaseMergerFunc
 
 	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		pargs = a
 		pnewf = n
@@ -439,7 +436,7 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		return vp.Exists(opindex)
 	}
 
-	return pargs, wpargs, nil
+	return pargs, nil
 }
 
 func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue]) phaseMergerGetStateMergeValuesFunc {

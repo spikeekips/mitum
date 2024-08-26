@@ -38,7 +38,6 @@ type (
 type workerPhaseMergerArgs struct {
 	*logging.Logging
 	NewPhaseMergerFuncs newPhaseMergerFuncs
-	EnoughWorkers       uint64 // NOTE include local worker
 	FilterMergeOps      func(mergeOps, unmergeOps []uint64) (filteredMergeOps, filteredUnmergeOps []uint64)
 	local               string
 }
@@ -63,6 +62,7 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 func newWorkerPhaseMerger(
 	ctx context.Context,
 	args *workerPhaseMergerArgs,
+	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
@@ -71,8 +71,8 @@ func newWorkerPhaseMerger(
 	workerPhaseMergerWaitFunc,
 	error,
 ) {
-	if args.EnoughWorkers < 1 {
-		return nil, nil, util.ErrInvalid.Errorf("EnoughWorkers should be at least 1")
+	if minEnough < 1 {
+		return nil, nil, util.ErrInvalid.Errorf("min enough should be at least 1")
 	}
 
 	pctx, pctxCancel := ContextWithCancelCause(ctx)
@@ -118,7 +118,7 @@ func newWorkerPhaseMerger(
 	var checkWorker func(string, bool, func(_, _ bool) error) error
 	var checkWorkerEnoughEmpty func() bool
 
-	switch c, i, err := newIsEnoughkWokerPhaseMergerFuncs(args.EnoughWorkers); {
+	switch c, i, err := newIsEnoughkWokerPhaseMergerFuncs(minEnough); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -209,7 +209,7 @@ func newWorkerPhaseMerger(
 }
 
 func newIsEnoughkWokerPhaseMergerFuncs(
-	enoughWorkers uint64,
+	minEnough uint64,
 ) (
 	_ func(worker string, isEmpty bool, _ func(enough, ok bool) error) error,
 	_ func() (enoughEmpty bool),
@@ -238,9 +238,9 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 		}
 
 		// NOTE before local worker, pending merge done.
-		if _, found := m[localWorkerName]; found && uint64(len(m)) >= enoughWorkers {
+		if _, found := m[localWorkerName]; found && uint64(len(m)) >= minEnough {
 			enough = true
-			enoughEmpty = emptyCount >= enoughWorkers
+			enoughEmpty = emptyCount >= minEnough
 
 			done = true
 

@@ -49,6 +49,7 @@ func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorke
 func newStatesWorkerMerger(
 	ctx context.Context,
 	args *statesWorkerMergerArgs,
+	minEnough uint64,
 ) (
 	workerInitialInsertOpsFuncs,
 	workerMergerPhaseDoneFunc,
@@ -82,7 +83,7 @@ func newStatesWorkerMerger(
 	var initialValuesPhaseDone workerMergerPhaseDoneFunc
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs, getMergers); {
+	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs, minEnough, getMergers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

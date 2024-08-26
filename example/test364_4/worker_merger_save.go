@@ -74,7 +74,7 @@ func newSaveWorkerMergerArgs(
 	}
 }
 
-func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs) (
+func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs, minEnough uint64) (
 	operationsWorkerLocalInsertOpsFuncs,
 	operationsworkerInitialInsertOpsFuncs,
 	workerMergerPhaseDoneFunc,
@@ -89,7 +89,7 @@ func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs) (
 	var opWorkerPhaseDone workerMergerPhaseDoneFunc
 	var opWait operationsWorkerMergerWaitFunc
 
-	switch i, wi, p, w, err := newOperationsWorkerMerger(wctx, args.operationsWorkerMergerArgs); {
+	switch i, wi, p, w, err := newOperationsWorkerMerger(wctx, args.operationsWorkerMergerArgs, minEnough); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:

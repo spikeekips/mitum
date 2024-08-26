@@ -12,11 +12,12 @@ import (
 
 type (
 	newWorkerPhaseMergerFunc func(
-		context.Context,
-		*workerPhaseMergerArgs,
-		phaseMergerGetStateMergeValuesFunc,
-		phaseMergerGetMergers,
-		extractStateMergeValueKeysFunc,
+		_ context.Context,
+		_ *workerPhaseMergerArgs,
+		minEnough uint64,
+		_ phaseMergerGetStateMergeValuesFunc,
+		_ phaseMergerGetMergers,
+		_ extractStateMergeValueKeysFunc,
 	) (
 		workerPhaseMergerInsertFunc,
 		workerPhaseMergerWaitFunc,
@@ -65,6 +66,7 @@ func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
 func newBaseWorkerMerger(
 	ctx context.Context,
 	args *baseWorkerMergerArgs,
+	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
@@ -92,6 +94,7 @@ func newBaseWorkerMerger(
 	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(
 		wctx,
 		args,
+		minEnough,
 		getStateMergeValues,
 		getMergers,
 		extractStateMergeValueKeys,
@@ -232,6 +235,7 @@ func newWorkerMergerPhasePoolFuncs(
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
 	args *baseWorkerMergerArgs,
+	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
@@ -264,7 +268,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	var insert workerPhaseMergerInsertFunc
 	var wait workerPhaseMergerWaitFunc
 
-	switch i, w, err := newf(ctx, wargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+	switch i, w, err := newf(ctx, wargs, minEnough, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 	case err != nil:
 		return nil, nil, err
 	default:

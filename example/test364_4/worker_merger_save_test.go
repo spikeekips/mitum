@@ -23,7 +23,7 @@ type testSaveWorkerMerger struct {
 	baseTestWorkerMerger
 }
 
-func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops []Operation) (
+func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 	*phaseMergerArgs,
 	*workerPhaseMergerArgs,
 	*statesWorkerMergerArgs,
@@ -35,7 +35,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops [
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local, enoughWorkers)
+	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
 	sargs.BroadcastPhaseDone = func(context.Context, []uint64) error {
 		return nil
@@ -130,9 +130,9 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -154,7 +154,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 			expectedUnmerged[i] = uint64(i)
 		}
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, ops)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", ops)
 
 		foundMergedStates := util.NewLocked(false)
 		var unmerged []uint64
@@ -207,7 +207,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -254,7 +254,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		issuerState := t.newState(issuer, 1)
 		receiverState := t.newState(receiver, 1)
 
-		_, _, _, _, args, _, _, statesPool := t.newArgs("local", 1, []Operation{op})
+		_, _, _, _, args, _, _, statesPool := t.newArgs("local", []Operation{op})
 
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
@@ -358,7 +358,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -404,10 +404,10 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 		args.MaxOpsSize = 0
 
-		_, _, _, _, _, err := newSaveWorkerMerger(ctx, args)
+		_, _, _, _, _, err := newSaveWorkerMerger(ctx, args, 1)
 		t.ErrorContains(err, "empty size")
 	})
 
@@ -415,9 +415,9 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -433,9 +433,9 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		err = insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -453,9 +453,9 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -472,13 +472,13 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		args.NewStateFunc = func() (newStateFunc, error) {
 			return nil, errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -493,13 +493,13 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		args.MergeDone = func(context.Context, saveWorkerMergerMergeDoneFunc) error {
 			return errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -514,7 +514,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
@@ -527,7 +527,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			)
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -542,7 +542,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
@@ -555,7 +555,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			)
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -574,7 +574,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		issuerState := t.newState(op.Fact().(OpFact).Issuer, 1)
 		receiverState := t.newState(op.Fact().(OpFact).Receiver, 1)
 
-		_, _, _, _, args, _, _, statesPool := t.newArgs("local", 1, []Operation{op})
+		_, _, _, _, args, _, _, statesPool := t.newArgs("local", []Operation{op})
 
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
@@ -587,7 +587,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			})
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -605,13 +605,13 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		op := t.randomOp(1)
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
+		_, _, _, _, args, _, _, _ := t.newArgs("local", []Operation{op})
 
 		args.SaveReasons = func(reasons map[uint64]string) error {
 			return errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -629,7 +629,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		op := t.randomOp(1)
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
+		_, _, _, _, args, _, _, _ := t.newArgs("local", []Operation{op})
 
 		args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error {
@@ -641,7 +641,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			}, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -659,9 +659,9 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		cancel()
@@ -679,9 +679,9 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		defer cancel()
 
 		op := t.randomOp(1)
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, []Operation{op})
+		_, _, _, _, args, _, _, _ := t.newArgs("local", []Operation{op})
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		cancel()
@@ -701,7 +701,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		canceledch := make(chan bool, 1)
 		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
@@ -715,7 +715,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 			)
 		}
 
-		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -743,9 +743,9 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, workerPhaseDone, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, workerPhaseDone, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -765,9 +765,9 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -784,7 +784,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, _, _, args, _, _, _ := t.newArgs("local", 1, nil)
+		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
 
 		args.MergeDone = func(_ context.Context, f saveWorkerMergerMergeDoneFunc) error {
 			return f(
@@ -798,7 +798,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 				},
 			)
 		}
-		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args)
+		insertOps, _, _, mergeDone, saveDone, err := newSaveWorkerMerger(ctx, args, 1)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -813,7 +813,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 func (t *testSaveWorkerMerger) testMerger(
 	workerValues map[ /* worker */ string][] /* state key */ string,
 	workerOps map[ /* worker */ string][]uint64,
-	enoughWorkers uint64,
+	minEnough uint64,
 	sts []base.State,
 	ops []Operation,
 	expectedUnmerged []uint64,
@@ -823,7 +823,7 @@ func (t *testSaveWorkerMerger) testMerger(
 ) {
 	t.T().Helper()
 
-	t.T().Logf("condition: values=%v ops=%v enough workers=%d", workerValues, workerOps, enoughWorkers)
+	t.T().Logf("condition: values=%v ops=%v enough workers=%d", workerValues, workerOps, minEnough)
 
 	workerNames := make([]string, len(workerValues))
 
@@ -859,7 +859,7 @@ func (t *testSaveWorkerMerger) testMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		_, _, _, _, args, _, _, statesPool := t.newArgs(local, enoughWorkers, ops)
+		_, _, _, _, args, _, _, statesPool := t.newArgs(local, ops)
 
 		for i := range sts {
 			st := sts[i]
@@ -1012,7 +1012,7 @@ func (t *testSaveWorkerMerger) testMerger(
 				nil
 		}
 
-		insert, initialInsertOps, phaseDone, mergeWait, saveWait, err := newSaveWorkerMerger(wctx, args)
+		insert, initialInsertOps, phaseDone, mergeWait, saveWait, err := newSaveWorkerMerger(wctx, args, minEnough)
 		t.NoError(err)
 
 		insertOps[local] = insert
@@ -1108,7 +1108,7 @@ func (t *testSaveWorkerMerger) testMerger(
 			}
 
 			endedWorkers.SetValue(local, struct{}{})
-			if uint64(endedWorkers.Len()) >= enoughWorkers {
+			if uint64(endedWorkers.Len()) >= minEnough {
 				endWait()
 			}
 		}()
