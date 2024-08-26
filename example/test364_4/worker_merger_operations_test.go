@@ -22,7 +22,7 @@ type testOperationsWorkerMerger struct {
 }
 
 func (t *testOperationsWorkerMerger) newArgs(local string, enoughWorkers uint64, ops []Operation) (
-	*PhaseMergerArgs,
+	*phaseMergerArgs,
 	*workerPhaseMergerArgs,
 	*statesWorkerMergerArgs,
 	*operationsWorkerMergerArgs,

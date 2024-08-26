@@ -16,15 +16,14 @@ type (
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
 	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
 	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
-	newPhaseMergerFunc                func(context.Context, *PhaseMergerArgs, phaseMergerGetStateMergeValuesFunc) (
-		merge phaseMergerXMergeFunc,
-		unmerge phaseMergerXMergeFunc,
+	newPhaseMergerFunc                func(context.Context, *phaseMergerArgs, phaseMergerGetStateMergeValuesFunc, phaseMergerGetMergers) (
+		merge, unmerge phaseMergerXMergeFunc,
 		done func(),
 		wait phaseMergerWaitFunc,
 		_ error,
 	)
 	newPhaseMergerFuncs func() (
-		*PhaseMergerArgs,
+		*phaseMergerArgs,
 		newPhaseMergerFunc,
 		error,
 	)
@@ -44,7 +43,7 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 			return zctx.Str("module", "worker-phase-merger").Str("local", local)
 		}),
 		NewPhaseMergerFuncs: func() (
-			*PhaseMergerArgs,
+			*phaseMergerArgs,
 			newPhaseMergerFunc,
 			error,
 		) {
@@ -55,7 +54,12 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 	}
 }
 
-func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs, getStateMergeValues phaseMergerGetStateMergeValuesFunc) (
+func newWorkerPhaseMerger(
+	ctx context.Context,
+	args *workerPhaseMergerArgs,
+	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+	getMergers phaseMergerGetMergers,
+) (
 	workerPhaseMergerInsertFunc,
 	workerPhaseMergerWaitFunc,
 	error,
@@ -80,7 +84,7 @@ func newWorkerPhaseMerger(ctx context.Context, args *workerPhaseMergerArgs, getS
 	default:
 		pargs.SetLogging(args.Logging)
 
-		switch m, u, d, w, err := newf(pctx, pargs, getStateMergeValues); {
+		switch m, u, d, w, err := newf(pctx, pargs, getStateMergeValues, getMergers); {
 		case err != nil:
 			return nil, nil, err
 		default:

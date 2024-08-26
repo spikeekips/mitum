@@ -19,9 +19,12 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 1)
+		_, _, args, vp, mergers, _, _, getState := t.newInitialValuesArgs("local", 1)
 
-		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		defer closeMergers()
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args, getMergers)
 		t.NoError(err)
 
 		defer wait(nil)
@@ -57,9 +60,12 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 2)
+		_, _, args, vp, mergers, _, _, getState := t.newInitialValuesArgs("local", 2)
 
-		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		defer closeMergers()
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args, getMergers)
 		t.NoError(err)
 
 		defer wait(nil)
@@ -104,9 +110,12 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, _, _, _, _ := t.newInitialValuesArgs("local", 1)
+		_, _, args, _, mergers, _, _, getState := t.newInitialValuesArgs("local", 1)
 
-		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		defer closeMergers()
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args, getMergers)
 		t.NoError(err)
 
 		defer wait(nil)
@@ -136,9 +145,12 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, args, vp, _, _, _ := t.newInitialValuesArgs("local", 2)
+		_, _, args, vp, mergers, _, _, getState := t.newInitialValuesArgs("local", 2)
 
-		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args)
+		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		defer closeMergers()
+
+		initial, _, wait, err := newInitialValuesWorkerMerger(ctx, args, getMergers)
 		t.NoError(err)
 
 		defer wait(nil)

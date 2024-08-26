@@ -67,6 +67,7 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 func newInitialValuesWorkerMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
+	getMergers phaseMergerGetMergers,
 ) (
 	workerInitialInsertOpsFuncs,
 	workerMergerPhaseDoneFunc,
@@ -88,7 +89,7 @@ func newInitialValuesWorkerMerger(
 		vp = i
 	}
 
-	var pargs *PhaseMergerArgs
+	var pargs *phaseMergerArgs
 	var enoughWorkers uint64
 	var closeArgs func()
 
@@ -112,6 +113,7 @@ func newInitialValuesWorkerMerger(
 		pargs,
 		enoughWorkers,
 		getStateMergeValues,
+		getMergers,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
@@ -123,7 +125,7 @@ func newInitialValuesWorkerMerger(
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues); {
+	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues, getMergers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -294,9 +296,10 @@ func newInitialValuesWorkerMerger(
 func newInitialPhaseMerger(
 	ctx context.Context,
 	args *initialValuesWorkerMergerArgs,
-	pargs *PhaseMergerArgs,
+	pargs *phaseMergerArgs,
 	enoughWorkers uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+	getMergers phaseMergerGetMergers,
 ) (
 	_ workerNewInitialXMergeFuncs,
 	wait initialValuesWorkerMergerWaitFunc,
@@ -308,7 +311,7 @@ func newInitialPhaseMerger(
 	var initialDone func()
 	var initialWait phaseMergerWaitFunc
 
-	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues); {
+	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues, getMergers); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -386,7 +389,7 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 	args *initialValuesWorkerMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
 ) (
-	pargs *PhaseMergerArgs,
+	pargs *phaseMergerArgs,
 	wpargs *workerPhaseMergerArgs,
 	_ func(),
 	_ error,
@@ -419,7 +422,7 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
 	wpargs.NewPhaseMergerFuncs = func() (
-		*PhaseMergerArgs,
+		*phaseMergerArgs,
 		newPhaseMergerFunc,
 		error,
 	) {

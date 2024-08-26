@@ -68,21 +68,21 @@ func newStatesWorkerMerger(
 	}
 
 	var stateOps stateOpsFuncs
-	var closeMergers func()
 
-	switch s, c, err := patchStatesWorkerMergerArgs(args, mergersPool); {
+	switch s, err := patchStatesWorkerMergerArgs(args); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		stateOps = s
-		closeMergers = c
 	}
+
+	getMergers, closeMergers := newGetMergersFunc(mergersPool, args.GetState)
 
 	var initialValuesInsert workerInitialInsertOpsFuncs
 	var initialValuesPhaseDone workerMergerPhaseDoneFunc
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs); {
+	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs, getMergers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -132,12 +132,8 @@ func newStatesWorkerMerger(
 		nil
 }
 
-func patchStatesWorkerMergerArgs(
-	args *statesWorkerMergerArgs,
-	mergersPool util.LockedMap[string, StateMerger],
-) (
+func patchStatesWorkerMergerArgs(args *statesWorkerMergerArgs) (
 	stateOps stateOpsFuncs,
-	closeMergers func(),
 	_ error,
 ) {
 	var wpargs *workerPhaseMergerArgs
@@ -145,27 +141,25 @@ func patchStatesWorkerMergerArgs(
 
 	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		wpargs = a
 		wpnewf = n
 	}
 
-	var pargs *PhaseMergerArgs
+	var pargs *phaseMergerArgs
 	var pnewf newPhaseMergerFunc
 
 	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		pargs = a
 		pnewf = n
 	}
 
-	pargs.GetMergersFunc, closeMergers = newGetMergersFunc(mergersPool, args.GetState)
-
 	wpargs.NewPhaseMergerFuncs = func() (
-		*PhaseMergerArgs,
+		*phaseMergerArgs,
 		newPhaseMergerFunc,
 		error,
 	) {
@@ -182,13 +176,13 @@ func patchStatesWorkerMergerArgs(
 
 	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, args.MaxOpsSize, args.Log()); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		args.SetStateOpFunc = func() (setStateOpFunc, error) { return s, nil }
 		stateOps = o
 	}
 
-	return stateOps, closeMergers, nil
+	return stateOps, nil
 }
 
 func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Logger) (

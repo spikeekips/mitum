@@ -24,7 +24,7 @@ type testSaveWorkerMerger struct {
 }
 
 func (t *testSaveWorkerMerger) newArgs(local string, enoughWorkers uint64, ops []Operation) (
-	*PhaseMergerArgs,
+	*phaseMergerArgs,
 	*workerPhaseMergerArgs,
 	*statesWorkerMergerArgs,
 	*operationsWorkerMergerArgs,

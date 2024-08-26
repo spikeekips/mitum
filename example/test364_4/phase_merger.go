@@ -22,27 +22,20 @@ type (
 	phaseMergerGetStateMergeValuesFunc func(opindex uint64) ([]StateMergeValue, error)
 )
 
-type PhaseMergerArgs struct {
+type phaseMergerArgs struct {
 	*logging.Logging
 	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
-	GetMergersFunc                 phaseMergerGetMergers
 	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) ([]string, error)
 	XMergedOpsMapSize              uint64
 	ReasonsMapSize                 uint64
 	local                          string
 }
 
-func NewPhaseMergerArgs(local string) *PhaseMergerArgs {
-	args := &PhaseMergerArgs{
+func newPhaseMergerArgs(local string) *phaseMergerArgs {
+	args := &phaseMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "phase-merger").Str("local", local)
 		}),
-		GetMergersFunc: func(
-			[]string,
-			func(func(StateMergeValue) (StateMerger, error)) error,
-		) error {
-			return util.ErrNotImplemented.Errorf("GetMergersFunc")
-		},
 		ExtractStateMergeValueKeysFunc: func(opindex uint64, values []StateMergeValue) ([]string, error) {
 			return nil, util.ErrNotImplemented.Errorf("ExtractStateMergeValueKeysFunc")
 		},
@@ -65,7 +58,12 @@ func NewPhaseMergerArgs(local string) *PhaseMergerArgs {
 	return args
 }
 
-func newPhaseMerger(ctx context.Context, args *PhaseMergerArgs, getStateMergeValues phaseMergerGetStateMergeValuesFunc) (
+func newPhaseMerger(
+	ctx context.Context,
+	args *phaseMergerArgs,
+	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+	getMergers phaseMergerGetMergers,
+) (
 	merge, unmerge phaseMergerXMergeFunc,
 	done func(),
 	wait phaseMergerWaitFunc,
@@ -99,7 +97,7 @@ func newPhaseMerger(ctx context.Context, args *PhaseMergerArgs, getStateMergeVal
 
 	addReason, doneReason := newAddReasonsFuncs(args.ReasonsMapSize)
 
-	mergeCallback, unmergeCallback := newXMergeCallbackFuncs(args, addXMergedOp, addReason, getStateMergeValues)
+	mergeCallback, unmergeCallback := newXMergeCallbackFuncs(args, addXMergedOp, addReason, getStateMergeValues, getMergers)
 
 	waitf := func(f phaseMergerWaitCallbackFunc) error {
 		if err := jobWait(); err != nil {
@@ -133,10 +131,11 @@ func newPhaseMerger(ctx context.Context, args *PhaseMergerArgs, getStateMergeVal
 }
 
 func newXMergeCallbackFuncs(
-	args *PhaseMergerArgs,
+	args *phaseMergerArgs,
 	addXMergedOp func(int, uint64, xMergeFlag),
 	addReason func(reasons map[uint64]string) error,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+	getMergers phaseMergerGetMergers,
 ) (
 	merge func(opindex uint64) PhaseJobWorkerCallback,
 	unmerge func(opindex uint64) PhaseJobWorkerCallback,
@@ -173,7 +172,7 @@ func newXMergeCallbackFuncs(
 			Logger()
 
 		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
-			return args.GetMergersFunc(
+			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
 					ll := l.With().Int("phase", phase).Logger()
@@ -243,7 +242,7 @@ func newXMergeCallbackFuncs(
 			Logger()
 
 		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
-			return args.GetMergersFunc(
+			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
 					ll := l.With().Int("phase", phase).Logger()
