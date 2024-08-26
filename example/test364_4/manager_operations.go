@@ -60,13 +60,6 @@ func newManagerWorkersOperationsFuncs(
 	managerWorkersTreeFunc,
 	error,
 ) {
-	switch w := uint64(len(workers)); { // FIXME move to higher level
-	case w < 1:
-		return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
-	case maxFailed >= w:
-		return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
-	}
-
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 	var checkWorker checkEnoughFailedWorkerFunc

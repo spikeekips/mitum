@@ -36,28 +36,6 @@ func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperatio
 }
 
 func (t *testNewManagerWorkersOperationsFuncs) TestError() {
-	t.Run("empty workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		args := t.newArgs()
-		workers := t.workers(0)
-
-		_, _, _, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, nil)
-		t.ErrorContains(err, "empty workers")
-	})
-
-	t.Run("maxFailed >= workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		args := t.newArgs()
-		workers := t.workers(1)
-
-		_, _, _, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 1, nil)
-		t.ErrorContains(err, "invalid max failed")
-	})
-
 	t.Run("tree done error", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
