@@ -16,7 +16,13 @@ type (
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
 	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
 	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
-	newPhaseMergerFunc                func(context.Context, *phaseMergerArgs, phaseMergerGetStateMergeValuesFunc, phaseMergerGetMergers) (
+	newPhaseMergerFunc                func(
+		context.Context,
+		*phaseMergerArgs,
+		phaseMergerGetStateMergeValuesFunc,
+		phaseMergerGetMergers,
+		extractStateMergeValueKeysFunc,
+	) (
 		merge, unmerge phaseMergerXMergeFunc,
 		done func(),
 		wait phaseMergerWaitFunc,
@@ -59,6 +65,7 @@ func newWorkerPhaseMerger(
 	args *workerPhaseMergerArgs,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
+	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	workerPhaseMergerInsertFunc,
 	workerPhaseMergerWaitFunc,
@@ -84,7 +91,7 @@ func newWorkerPhaseMerger(
 	default:
 		pargs.SetLogging(args.Logging)
 
-		switch m, u, d, w, err := newf(pctx, pargs, getStateMergeValues, getMergers); {
+		switch m, u, d, w, err := newf(pctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 		case err != nil:
 			return nil, nil, err
 		default:

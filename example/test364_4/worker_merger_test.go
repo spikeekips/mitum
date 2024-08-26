@@ -41,8 +41,6 @@ func (t *baseTestWorkerMerger) newArgs(local string, workers uint64) (
 	}
 
 	pargs := newPhaseMergerArgs(local)
-	extractKeys, _ := newExtractStateMergeValueKeysFunc(1 << 9)
-	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
 	wpargs := newWorkerPhaseMergerArgs(local)
 	wpargs.NewPhaseMergerFuncs = func() (
@@ -227,7 +225,10 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		getMergers, closeMergers := newGetMergersFunc(workerMergers, getState)
 		defer closeMergers()
 
-		insert, wait, err := newBaseWorkerMerger(wctx, args, getValues, getMergers)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		defer closeExtractKeys()
+
+		insert, wait, err := newBaseWorkerMerger(wctx, args, getValues, getMergers, extractKeys)
 		t.NoError(err)
 
 		inserts[local] = insert
@@ -240,7 +241,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		}
 
 		initials[local] = func(values map[uint64][]StateMergeValue) (merged, unmerged []uint64, _ error) {
-			pmerge, _, pdone, pwait, err := newPhaseMerger(wctx, pargs, getValues, getMergers)
+			pmerge, _, pdone, pwait, err := newPhaseMerger(wctx, pargs, getValues, getMergers, extractKeys)
 			if err != nil {
 				return nil, nil, err
 			}

@@ -20,15 +20,15 @@ type (
 	phaseMergerWaitCallbackFunc        func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 	phaseMergerWaitFunc                func(phaseMergerWaitCallbackFunc) error
 	phaseMergerGetStateMergeValuesFunc func(opindex uint64) ([]StateMergeValue, error)
+	extractStateMergeValueKeysFunc     func(opindex uint64, values []StateMergeValue) ([]string, error)
 )
 
 type phaseMergerArgs struct {
 	*logging.Logging
-	NewPhaseJobWorkerFunc          NewPhaseJobWorkerFunc
-	ExtractStateMergeValueKeysFunc func(opindex uint64, values []StateMergeValue) ([]string, error)
-	XMergedOpsMapSize              uint64
-	ReasonsMapSize                 uint64
-	local                          string
+	NewPhaseJobWorkerFunc NewPhaseJobWorkerFunc
+	XMergedOpsMapSize     uint64
+	ReasonsMapSize        uint64
+	local                 string
 }
 
 func newPhaseMergerArgs(local string) *phaseMergerArgs {
@@ -36,9 +36,6 @@ func newPhaseMergerArgs(local string) *phaseMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "phase-merger").Str("local", local)
 		}),
-		ExtractStateMergeValueKeysFunc: func(opindex uint64, values []StateMergeValue) ([]string, error) {
-			return nil, util.ErrNotImplemented.Errorf("ExtractStateMergeValueKeysFunc")
-		},
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
 		local:             local,
@@ -63,6 +60,7 @@ func newPhaseMerger(
 	args *phaseMergerArgs,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
+	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	merge, unmerge phaseMergerXMergeFunc,
 	done func(),
@@ -97,7 +95,14 @@ func newPhaseMerger(
 
 	addReason, doneReason := newAddReasonsFuncs(args.ReasonsMapSize)
 
-	mergeCallback, unmergeCallback := newXMergeCallbackFuncs(args, addXMergedOp, addReason, getStateMergeValues, getMergers)
+	mergeCallback, unmergeCallback := newXMergeCallbackFuncs(
+		args,
+		addXMergedOp,
+		addReason,
+		getStateMergeValues,
+		getMergers,
+		extractStateMergeValueKeys,
+	)
 
 	waitf := func(f phaseMergerWaitCallbackFunc) error {
 		if err := jobWait(); err != nil {
@@ -136,6 +141,7 @@ func newXMergeCallbackFuncs(
 	addReason func(reasons map[uint64]string) error,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
+	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	merge func(opindex uint64) PhaseJobWorkerCallback,
 	unmerge func(opindex uint64) PhaseJobWorkerCallback,
@@ -157,7 +163,7 @@ func newXMergeCallbackFuncs(
 
 		var stateKeys []string
 
-		switch i, err := args.ExtractStateMergeValueKeysFunc(opindex, values); {
+		switch i, err := extractStateMergeValueKeys(opindex, values); {
 		case err != nil:
 			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
 				return err
@@ -227,7 +233,7 @@ func newXMergeCallbackFuncs(
 
 		var stateKeys []string
 
-		switch i, err := args.ExtractStateMergeValueKeysFunc(opindex, values); {
+		switch i, err := extractStateMergeValueKeys(opindex, values); {
 		case err != nil:
 			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
 				return err
@@ -279,7 +285,7 @@ func newXMergeCallbackFuncs(
 	return mergeCallback, unmergeCallback
 }
 
-func extractStateMergeValueKeys(values []StateMergeValue) (stateKeys []string) {
+func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys []string) {
 	switch i := len(values); {
 	case i < 1:
 		return nil
@@ -325,7 +331,7 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 					case found:
 						stateKeys = i
 					default:
-						stateKeys = extractStateMergeValueKeys(values)
+						stateKeys = extractStateMergeValueKeysFromValues(values)
 						if len(stateKeys) < 1 {
 							return nil, util.ErrNotFound.Errorf("empty state keys")
 						}
@@ -338,7 +344,7 @@ func newExtractStateMergeValueKeysFunc(cacheSize int) (
 			)
 
 			if len(stateKeys) < 1 {
-				return nil, errors.Errorf("empty extracted state keys from %v", extractStateMergeValueKeys(values))
+				return nil, errors.Errorf("empty extracted state keys")
 			}
 
 			return stateKeys, nil

@@ -91,16 +91,16 @@ func newInitialValuesWorkerMerger(
 
 	var pargs *phaseMergerArgs
 	var enoughWorkers uint64
-	var closeArgs func()
 
-	switch p, w, c, err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); {
+	switch p, w, err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		pargs = p
 		enoughWorkers = w.EnoughWorkers
-		closeArgs = c
 	}
+
+	extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
 
 	getStateMergeValues := getStateMergeValuesFuncFromPool(vp) // rename to getStateMergeValues
 
@@ -114,6 +114,7 @@ func newInitialValuesWorkerMerger(
 		enoughWorkers,
 		getStateMergeValues,
 		getMergers,
+		extractStateMergeValueKeys,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
@@ -125,7 +126,7 @@ func newInitialValuesWorkerMerger(
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues, getMergers); {
+	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -140,7 +141,7 @@ func newInitialValuesWorkerMerger(
 		return nil, nil, nil, err
 	default:
 		setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
-			switch stateKeys, err := pargs.ExtractStateMergeValueKeysFunc(opindex, values); {
+			switch stateKeys, err := extractStateMergeValueKeys(opindex, values); {
 			case err != nil:
 				return err
 			default:
@@ -208,7 +209,7 @@ func newInitialValuesWorkerMerger(
 				l := args.Log().With().
 					Str("worker", worker).
 					Uint64("opindex", opindex).
-					Strs("state_keys", extractStateMergeValueKeys(values)).
+					Strs("state_keys", extractStateMergeValueKeysFromValues(values)).
 					Logger()
 
 				l.Debug().Msg("initial insert ops")
@@ -231,7 +232,7 @@ func newInitialValuesWorkerMerger(
 	waitf := func(f initialValuesWorkerMergerResultFunc) error {
 		defer func() {
 			vp.Close()
-			closeArgs()
+			closeExtractStateMergeValueKeys()
 		}()
 
 		var reasons map[uint64]string
@@ -300,6 +301,7 @@ func newInitialPhaseMerger(
 	enoughWorkers uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
+	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	_ workerNewInitialXMergeFuncs,
 	wait initialValuesWorkerMergerWaitFunc,
@@ -311,7 +313,7 @@ func newInitialPhaseMerger(
 	var initialDone func()
 	var initialWait phaseMergerWaitFunc
 
-	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues, getMergers); {
+	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -391,14 +393,13 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 ) (
 	pargs *phaseMergerArgs,
 	wpargs *workerPhaseMergerArgs,
-	_ func(),
 	_ error,
 ) {
 	var wpnewf newWorkerPhaseMergerFunc
 
 	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		wpargs = a
 		wpnewf = n
@@ -410,16 +411,13 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 
 	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		pargs = a
 		pnewf = n
 	}
 
 	wpargs.SetLogging(args.Logging)
-
-	extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
-	pargs.ExtractStateMergeValueKeysFunc = extractKeys
 
 	wpargs.NewPhaseMergerFuncs = func() (
 		*phaseMergerArgs,
@@ -441,7 +439,7 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		return vp.Exists(opindex)
 	}
 
-	return pargs, wpargs, closeExtractKeys, nil
+	return pargs, wpargs, nil
 }
 
 func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue]) phaseMergerGetStateMergeValuesFunc {
