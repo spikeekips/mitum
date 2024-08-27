@@ -50,7 +50,6 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 	) {
 		return pargs, newPhaseMerger, nil
 	}
-	wpargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) { return m, u }
 
 	args := newBaseWorkerMergerArgs(local)
 

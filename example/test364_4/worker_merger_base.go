@@ -18,6 +18,7 @@ type (
 		_ phaseMergerGetStateMergeValuesFunc,
 		_ phaseMergerGetMergers,
 		_ extractStateMergeValueKeysFunc,
+		_ filterMergeOpsFunc,
 	) (
 		workerPhaseMergerInsertFunc,
 		workerPhaseMergerWaitFunc,
@@ -259,16 +260,22 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 
 	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps(args.local)
 
-	wargs.FilterMergeOps = func(m, u []uint64) ([]uint64, []uint64) {
-		return m, filterMergeOps(
-			util.FilterSlice(u, args.IsLocalOp),
-		)
-	}
-
 	var insert workerPhaseMergerInsertFunc
 	var wait workerPhaseMergerWaitFunc
 
-	switch i, w, err := newf(ctx, wargs, minEnough, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+	switch i, w, err := newf(
+		ctx,
+		wargs,
+		minEnough,
+		getStateMergeValues,
+		getMergers,
+		extractStateMergeValueKeys,
+		func(m, u []uint64) ([]uint64, []uint64) {
+			return m, filterMergeOps(
+				util.FilterSlice(u, args.IsLocalOp),
+			)
+		},
+	); {
 	case err != nil:
 		return nil, nil, err
 	default:

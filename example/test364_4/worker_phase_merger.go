@@ -13,6 +13,7 @@ import (
 var localWorkerName = "local"
 
 type (
+	filterMergeOpsFunc                func(mergeOps, unmergeOps []uint64) (filteredMergeOps, filteredUnmergeOps []uint64)
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
 	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
 	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
@@ -38,7 +39,6 @@ type (
 type workerPhaseMergerArgs struct {
 	*logging.Logging
 	NewPhaseMergerFuncs newPhaseMergerFuncs
-	FilterMergeOps      func(mergeOps, unmergeOps []uint64) (filteredMergeOps, filteredUnmergeOps []uint64)
 	local               string
 }
 
@@ -54,8 +54,7 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewPhaseMergerFuncs")
 		},
-		FilterMergeOps: func([]uint64, []uint64) ([]uint64, []uint64) { return nil, nil },
-		local:          local,
+		local: local,
 	}
 }
 
@@ -66,6 +65,7 @@ func newWorkerPhaseMerger(
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+	filterMergeOps filterMergeOpsFunc,
 ) (
 	workerPhaseMergerInsertFunc,
 	workerPhaseMergerWaitFunc,
@@ -163,7 +163,7 @@ func newWorkerPhaseMerger(
 						return nil
 					}
 
-					fm, fu := args.FilterMergeOps(mergeOps, unmergeOps)
+					fm, fu := filterMergeOps(mergeOps, unmergeOps)
 
 					ll.Debug().
 						Uints64("filtered_merge_ops", fm).
