@@ -25,10 +25,10 @@ type (
 
 type phaseMergerArgs struct {
 	*logging.Logging
-	NewPhaseJobWorkerFunc NewPhaseJobWorkerFunc
-	XMergedOpsMapSize     uint64
-	ReasonsMapSize        uint64
-	local                 string
+	NewPhaseJobWorker newPhaseJobWorkerFunc
+	XMergedOpsMapSize uint64
+	ReasonsMapSize    uint64
+	local             string
 }
 
 func newPhaseMergerArgs(local string) *phaseMergerArgs {
@@ -41,8 +41,8 @@ func newPhaseMergerArgs(local string) *phaseMergerArgs {
 		local:             local,
 	}
 
-	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
-		PhaseJobWorkerNewJobFunc,
+	args.NewPhaseJobWorker = func(ctx context.Context) (
+		phaseJobWorkerNewJobFunc,
 		func(),
 		func() error,
 		error,
@@ -80,11 +80,11 @@ func newPhaseMerger(
 		doneXMergedOps = d
 	}
 
-	var newJob PhaseJobWorkerNewJobFunc
+	var newJob phaseJobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := args.NewPhaseJobWorkerFunc(pctx); {
+	switch n, d, w, err := args.NewPhaseJobWorker(pctx); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -143,18 +143,18 @@ func newXMergeCallbackFuncs(
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
-	merge func(opindex uint64) PhaseJobWorkerCallback,
-	unmerge func(opindex uint64) PhaseJobWorkerCallback,
+	merge func(opindex uint64) phaseJobWorkerCallback,
+	unmerge func(opindex uint64) phaseJobWorkerCallback,
 ) {
-	var mergeCallback func(opindex uint64) PhaseJobWorkerCallback
-	var unmergeCallback func(opindex uint64) PhaseJobWorkerCallback
+	var mergeCallback func(opindex uint64) phaseJobWorkerCallback
+	var unmergeCallback func(opindex uint64) phaseJobWorkerCallback
 
-	mergeCallback = func(opindex uint64) PhaseJobWorkerCallback {
+	mergeCallback = func(opindex uint64) phaseJobWorkerCallback {
 		var values []StateMergeValue
 
 		switch i, err := getStateMergeValues(opindex); {
 		case err != nil:
-			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
 				return err
 			}
 		default:
@@ -165,7 +165,7 @@ func newXMergeCallbackFuncs(
 
 		switch i, err := extractStateMergeValueKeys(opindex, values); {
 		case err != nil:
-			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
 				return err
 			}
 		default:
@@ -177,7 +177,7 @@ func newXMergeCallbackFuncs(
 			Strs("state_keys", stateKeys).
 			Logger()
 
-		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+		return func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
@@ -219,12 +219,12 @@ func newXMergeCallbackFuncs(
 		}
 	}
 
-	unmergeCallback = func(opindex uint64) PhaseJobWorkerCallback {
+	unmergeCallback = func(opindex uint64) phaseJobWorkerCallback {
 		var values []StateMergeValue
 
 		switch i, err := getStateMergeValues(opindex); {
 		case err != nil:
-			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
 				return err
 			}
 		default:
@@ -235,7 +235,7 @@ func newXMergeCallbackFuncs(
 
 		switch i, err := extractStateMergeValueKeys(opindex, values); {
 		case err != nil:
-			return func(context.Context, int, PhaseJobWorkerNewJobFunc) error {
+			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
 				return err
 			}
 		default:
@@ -247,7 +247,7 @@ func newXMergeCallbackFuncs(
 			Strs("state_keys", stateKeys).
 			Logger()
 
-		return func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+		return func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {

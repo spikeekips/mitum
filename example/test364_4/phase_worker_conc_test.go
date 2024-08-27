@@ -29,7 +29,7 @@ func (t *testConcPhaseJobWorker) TestCancel() {
 
 		cancel()
 
-		err = newJob(0, func(ctx context.Context, _ int, _ PhaseJobWorkerNewJobFunc) error {
+		err = newJob(0, func(ctx context.Context, _ int, _ phaseJobWorkerNewJobFunc) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

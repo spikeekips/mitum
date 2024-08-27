@@ -9,10 +9,10 @@ import (
 )
 
 type (
-	PhaseJobWorkerNewJobFunc func(jobID uint64, _ PhaseJobWorkerCallback) error
-	PhaseJobWorkerCallback   func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error
-	NewPhaseJobWorkerFunc    func(context.Context) (
-		newJob PhaseJobWorkerNewJobFunc,
+	phaseJobWorkerNewJobFunc func(jobID uint64, _ phaseJobWorkerCallback) error
+	phaseJobWorkerCallback   func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
+	newPhaseJobWorkerFunc    func(context.Context) (
+		newJob phaseJobWorkerNewJobFunc,
 		jobDone func(),
 		wait func() error,
 		_ error,
@@ -40,7 +40,7 @@ func newConcPhaseJobWorkerArgs(local string) *concPhaseJobWorkerArgs {
 }
 
 func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, phase int) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -81,7 +81,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		wk = i
 	}
 
-	var nextPhaseNewJobFunc PhaseJobWorkerNewJobFunc
+	var nextPhaseNewJobFunc phaseJobWorkerNewJobFunc
 	nextPhaseWait := func() error { return nil }
 
 	newNextPhase := OnceFunc(func() error {
@@ -102,7 +102,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		}
 	})
 
-	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
+	nextPhaseNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
 		l.Debug().Uint64("job_id", jobID).Msg("next phase new job")
 
 		if err := newNextPhase(); err != nil {
@@ -112,7 +112,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		return nextPhaseNewJobFunc(jobID, c)
 	}
 
-	return func(jobID uint64, c PhaseJobWorkerCallback) error {
+	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			if c == nil {
 				return nil
 			}
@@ -144,7 +144,7 @@ func NewConcPhaseJobWorker(
 	ctx context.Context,
 	args *concPhaseJobWorkerArgs,
 ) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,

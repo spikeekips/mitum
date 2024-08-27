@@ -641,8 +641,8 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	_, sts, ops := t.baseTestMergeUnmerge()
 
 	vp, mergers, states, args, getValues, getState := t.newArgs()
-	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
-		PhaseJobWorkerNewJobFunc,
+	args.NewPhaseJobWorker = func(ctx context.Context) (
+		phaseJobWorkerNewJobFunc,
 		func(),
 		func() error,
 		error,
@@ -911,8 +911,8 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	}
 
 	vp, mergers, states, args, getValues, getState := t.newArgs()
-	args.NewPhaseJobWorkerFunc = func(ctx context.Context) (
-		PhaseJobWorkerNewJobFunc,
+	args.NewPhaseJobWorker = func(ctx context.Context) (
+		phaseJobWorkerNewJobFunc,
 		func(),
 		func() error,
 		error,

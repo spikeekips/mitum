@@ -26,10 +26,10 @@ func (t *testTwoStepPhaseJobWorker) newArgs() *TwoStepPhaseJobWorkerArgs {
 }
 
 func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
-	var callbackFunc func(jobID uint64, depth int, f func(phase int) (uint64, error)) PhaseJobWorkerCallback
+	var callbackFunc func(jobID uint64, depth int, f func(phase int) (uint64, error)) phaseJobWorkerCallback
 
-	callbackFunc = func(jobID uint64, depth int, f func(phase int) (uint64, error)) PhaseJobWorkerCallback {
-		return func(_ context.Context, phase int, c PhaseJobWorkerNewJobFunc) error {
+	callbackFunc = func(jobID uint64, depth int, f func(phase int) (uint64, error)) phaseJobWorkerCallback {
+		return func(_ context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 			t.T().Logf("> phase=%d jobid=%d", phase, jobID)
 
 			next := jobID
@@ -52,7 +52,7 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 	}
 
 	newCallbackFunc := func(f func(phase int) (uint64, error)) (
-		func(jobID uint64, depth int, f func(phase int) (uint64, error)) PhaseJobWorkerCallback,
+		func(jobID uint64, depth int, f func(phase int) (uint64, error)) phaseJobWorkerCallback,
 		func() [][2]interface{},
 	) {
 		add, done, _ := util.CompactAppendSliceV1[[2]interface{}](1<<9, 1<<9)
@@ -69,7 +69,7 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 			}
 		}
 
-		return func(jobID uint64, depth int, f func(phase int) (uint64, error)) PhaseJobWorkerCallback {
+		return func(jobID uint64, depth int, f func(phase int) (uint64, error)) phaseJobWorkerCallback {
 				return callbackFunc(jobID, depth, called(jobID, f))
 			}, func() (v [][2]interface{}) {
 				done(func(s [][2]interface{}) error {
@@ -406,7 +406,7 @@ func (t *testTwoStepPhaseJobWorker) TestPrevDone() {
 func (t *testTwoStepPhaseJobWorker) runPhases(
 	ctx context.Context,
 	jobs uint64,
-	c func() (jobID uint64, _ PhaseJobWorkerCallback),
+	c func() (jobID uint64, _ phaseJobWorkerCallback),
 ) error {
 	newJob, jobDone, wait, err := newTwoStepPhaseJobWorker(
 		ctx,
@@ -435,10 +435,10 @@ func (t *testTwoStepPhaseJobWorker) TestAdd() {
 
 		var jobID, sum uint64
 
-		t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.runPhases(ctx, 9, func() (uint64, phaseJobWorkerCallback) {
 			jobID++
 
-			return jobID, func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+			return jobID, func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				atomic.AddUint64(&sum, 1)
 
 				return nil
@@ -471,10 +471,10 @@ func (t *testTwoStepPhaseJobWorker) TestAdd() {
 			return j
 		}
 
-		var f func() func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error
+		var f func() func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
 
-		f = func() func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
-			return func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+		f = func() func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
+			return func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				id := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)
@@ -488,12 +488,12 @@ func (t *testTwoStepPhaseJobWorker) TestAdd() {
 			}
 		}
 
-		t.NoError(t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.NoError(t.runPhases(ctx, 9, func() (uint64, phaseJobWorkerCallback) {
 			id := newJobID()
 
 			atomic.AddUint64(&sum, id)
 
-			return id, func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+			return id, func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				id := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)

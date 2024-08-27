@@ -27,7 +27,7 @@ func (t *testOneStepPhaseJobWorker) TestCancel() {
 
 		cancel()
 
-		err = newJob(0, func(ctx context.Context, _ int, _ PhaseJobWorkerNewJobFunc) error {
+		err = newJob(0, func(ctx context.Context, _ int, _ phaseJobWorkerNewJobFunc) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -52,10 +52,10 @@ func (t *testOneStepPhaseJobWorker) TestCancel() {
 		newjobch := make(chan struct{}, 1)
 		nextphasecanceledch := make(chan int, 1)
 
-		t.NoError(newJob(0, func(_ context.Context, _ int, j PhaseJobWorkerNewJobFunc) error {
+		t.NoError(newJob(0, func(_ context.Context, _ int, j phaseJobWorkerNewJobFunc) error {
 			newjobch <- struct{}{}
 
-			return j(0, func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error {
+			return j(0, func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error {
 				select {
 				case <-ctx.Done():
 					nextphasecanceledch <- phase
@@ -94,7 +94,7 @@ func (t *testOneStepPhaseJobWorker) TestNewJobError() {
 		newJob, jobDone, wait, err := NewOneStepPhaseJobWorker(ctx, nil, 1<<9)
 		t.NoError(err)
 
-		t.NoError(newJob(0, func(ctx context.Context, _ int, _ PhaseJobWorkerNewJobFunc) error {
+		t.NoError(newJob(0, func(ctx context.Context, _ int, _ phaseJobWorkerNewJobFunc) error {
 			return errors.Errorf("showme")
 		}))
 
@@ -117,12 +117,12 @@ func (t *testOneStepPhaseJobWorker) TestJobID() {
 		for i := uint64(0); i < 3; i++ {
 			jobID := i
 
-			t.NoError(newJob(jobID, func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+			t.NoError(newJob(jobID, func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				t.T().Logf("new job: jobID=%d phase=%d", jobID, phase)
 
 				add([2]uint64{uint64(phase), jobID})
 
-				return j(jobID, func(ctx context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+				return j(jobID, func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 					t.T().Logf("new job: jobID=%d phase=%d", jobID, phase)
 
 					add([2]uint64{uint64(phase), jobID})
@@ -157,7 +157,7 @@ func (t *testOneStepPhaseJobWorker) TestJobID() {
 func (t *testOneStepPhaseJobWorker) runPhases(
 	ctx context.Context,
 	jobs uint64,
-	c func() (jobID uint64, _ PhaseJobWorkerCallback),
+	c func() (jobID uint64, _ phaseJobWorkerCallback),
 ) error {
 	newJob, jobDone, wait, err := NewOneStepPhaseJobWorker(ctx, nil, 1<<9)
 	t.NoError(err)
@@ -181,10 +181,10 @@ func (t *testOneStepPhaseJobWorker) TestAdd() {
 
 		var jobID, sum uint64
 
-		t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.runPhases(ctx, 9, func() (uint64, phaseJobWorkerCallback) {
 			jobID++
 
-			return jobID, func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+			return jobID, func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				atomic.AddUint64(&sum, 1)
 
 				return nil
@@ -217,10 +217,10 @@ func (t *testOneStepPhaseJobWorker) TestAdd() {
 			return j
 		}
 
-		var f func() func(_ context.Context, phase int, _ PhaseJobWorkerNewJobFunc) error
+		var f func() func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
 
-		f = func() func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
-			return func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+		f = func() func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
+			return func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				id := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)
@@ -234,12 +234,12 @@ func (t *testOneStepPhaseJobWorker) TestAdd() {
 			}
 		}
 
-		t.NoError(t.runPhases(ctx, 9, func() (uint64, PhaseJobWorkerCallback) {
+		t.NoError(t.runPhases(ctx, 9, func() (uint64, phaseJobWorkerCallback) {
 			id := newJobID()
 
 			atomic.AddUint64(&sum, id)
 
-			return id, func(_ context.Context, phase int, j PhaseJobWorkerNewJobFunc) error {
+			return id, func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 				id := newJobID()
 
 				// t.T().Logf("phase=%d jobID=%d", phase, j)

@@ -40,7 +40,7 @@ func newTwoStepPhaseJobWorker(
 	phase int,
 	prevWait func() error,
 ) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -86,7 +86,7 @@ func newTwoStepPhaseJobWorker(
 	})
 
 	var nextPhaseLock sync.RWMutex
-	var nextPhaseNewJobFunc PhaseJobWorkerNewJobFunc
+	var nextPhaseNewJobFunc phaseJobWorkerNewJobFunc
 	var nextPhaseWaitFunc func() error
 
 	newNextPhase := func() error {
@@ -116,7 +116,7 @@ func newTwoStepPhaseJobWorker(
 
 	nextPhaseNewJobCh := make(chan [2]interface{}, args.NextPhaseNewJobsChanBuffer)
 
-	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
+	nextPhaseNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
 		if c == nil {
 			return nil
 		}
@@ -136,13 +136,13 @@ func newTwoStepPhaseJobWorker(
 			args,
 			phase+1,
 			newNextPhase,
-			func() PhaseJobWorkerNewJobFunc {
+			func() phaseJobWorkerNewJobFunc {
 				nextPhaseLock.RLock()
 				defer nextPhaseLock.RUnlock()
 
 				return nextPhaseNewJobFunc
 			},
-			func(f func(jobID uint64, c PhaseJobWorkerCallback) error) error {
+			func(f func(jobID uint64, c phaseJobWorkerCallback) error) error {
 				for {
 					select {
 					case <-pctx.Done():
@@ -154,7 +154,7 @@ func newTwoStepPhaseJobWorker(
 
 						if err := f(
 							i[0].(uint64),
-							i[1].(PhaseJobWorkerCallback),
+							i[1].(phaseJobWorkerCallback),
 						); err != nil {
 							return err
 						}
@@ -188,7 +188,7 @@ func newTwoStepPhaseJobWorker(
 		return nextPhaseWaitFunc()
 	}
 
-	return func(jobID uint64, c PhaseJobWorkerCallback) error {
+	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			if c == nil {
 				return nil
 			}
@@ -229,8 +229,8 @@ func newPhaseJobWorkerNewJobsPool(
 	args *TwoStepPhaseJobWorkerArgs,
 	phase int,
 	newNextPhaseFunc func() error,
-	nextPhaseNewJobFunc func() PhaseJobWorkerNewJobFunc,
-	newJobs func(func(jobID uint64, c PhaseJobWorkerCallback) error) error,
+	nextPhaseNewJobFunc func() phaseJobWorkerNewJobFunc,
+	newJobs func(func(jobID uint64, c phaseJobWorkerCallback) error) error,
 	prevDonef func() error,
 ) error {
 	l := args.Log().With().Int("phase", phase).Logger()
@@ -269,7 +269,7 @@ func newPhaseJobWorkerNewJobsPool(
 	}
 
 	exhaust := func() error {
-		var newJob PhaseJobWorkerNewJobFunc
+		var newJob phaseJobWorkerNewJobFunc
 
 		return doneNext(func(s [][2]interface{}) error {
 			if len(s) < 1 {
@@ -285,7 +285,7 @@ func newPhaseJobWorkerNewJobsPool(
 			return util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
 				return true, newJob(
 					i[0].(uint64),
-					i[1].(PhaseJobWorkerCallback),
+					i[1].(phaseJobWorkerCallback),
 				)
 			})
 		})
@@ -293,7 +293,7 @@ func newPhaseJobWorkerNewJobsPool(
 
 	var nextPhaseNewJobExhaustOnce sync.Once
 
-	nextPhaseNewJob := func() (PhaseJobWorkerNewJobFunc, error) {
+	nextPhaseNewJob := func() (phaseJobWorkerNewJobFunc, error) {
 		newNextPhaseLock.RLock()
 		defer newNextPhaseLock.RUnlock()
 
@@ -314,7 +314,7 @@ func newPhaseJobWorkerNewJobsPool(
 		return nextPhaseNewJobFunc(), nil
 	}
 
-	addNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
+	addNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
 		switch f, err := nextPhaseNewJob(); {
 		case err != nil:
 			return err
@@ -347,7 +347,7 @@ func newPhaseJobWorkerNewJobsPool(
 	newJobsDone := NewFuncContextDoneFunc(
 		ctx,
 		func(context.Context) error {
-			return newJobs(func(jobID uint64, c PhaseJobWorkerCallback) error {
+			return newJobs(func(jobID uint64, c phaseJobWorkerCallback) error {
 				return addNewJob(jobID, c)
 			})
 		},
@@ -374,7 +374,7 @@ func NewTwoStepPhaseJobWorker(
 	ctx context.Context,
 	args *TwoStepPhaseJobWorkerArgs,
 ) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,

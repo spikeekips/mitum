@@ -12,7 +12,7 @@ func newOneStepPhaseJobWorker(
 	phase int,
 	jobIDLocked func(jobID uint64, phase int) bool,
 ) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -41,7 +41,7 @@ func newOneStepPhaseJobWorker(
 		doneNext = d
 	}
 
-	nextPhaseNewJob := func(jobID uint64, c PhaseJobWorkerCallback) error {
+	nextPhaseNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
 		addNext([2]interface{}{jobID, c})
 
 		return nil
@@ -60,7 +60,7 @@ func newOneStepPhaseJobWorker(
 				if err := util.TraverseSliceV1(s, func(_ int, i [2]interface{}) (bool, error) {
 					return true, n(
 						i[0].(uint64),
-						i[1].(PhaseJobWorkerCallback),
+						i[1].(phaseJobWorkerCallback),
 					)
 				}); err != nil {
 					return err
@@ -73,7 +73,7 @@ func newOneStepPhaseJobWorker(
 		})
 	}
 
-	return func(jobID uint64, c PhaseJobWorkerCallback) error {
+	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			return wk.NewJob(func(ctx context.Context) error {
 				if !jobIDLocked(jobID, phase) {
 					return nil
@@ -98,7 +98,7 @@ func NewOneStepPhaseJobWorker(
 	newJobWorker newJobWorkerFunc,
 	mapSize uint64,
 ) (
-	newJob PhaseJobWorkerNewJobFunc,
+	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,
@@ -120,7 +120,7 @@ func NewOneStepPhaseJobWorker(
 
 	pctx, pctxCancel := context.WithCancelCause(ctx)
 
-	var newJobFunc func(uint64, PhaseJobWorkerCallback) error
+	var newJobFunc func(uint64, phaseJobWorkerCallback) error
 	var doneFunc func()
 	var waitFunc func() error
 
@@ -158,7 +158,7 @@ func NewOneStepPhaseJobWorker(
 		jobIDLocked.Close()
 	}()
 
-	return func(jobID uint64, c PhaseJobWorkerCallback) error {
+	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			if err := newJobFunc(jobID, c); err != nil {
 				pctxCancel(err)
 
