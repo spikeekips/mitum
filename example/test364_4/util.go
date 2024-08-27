@@ -278,16 +278,34 @@ func OnceFuncCallback[T any](f func(T) error) func(T) error {
 func ContextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
-	return cctx, OnceFuncCallback(func(err error) error {
-		switch cerr := context.Cause(cctx); {
-		case cerr != nil:
+	var called bool
+	var gerr error
+	var once sync.Once
+
+	return cctx, func(err error) error {
+		if cerr := context.Cause(cctx); cerr != nil {
 			return cerr
-		default:
+		}
+
+		once.Do(func() {
 			cancel(err)
 
-			return err
+			switch {
+			case err == nil:
+				gerr = context.Canceled
+			default:
+				gerr = err
+			}
+
+			called = true
+		})
+
+		if err == nil && called {
+			return nil
 		}
-	})
+
+		return gerr
+	}
 }
 
 type errorFunc func(error) error

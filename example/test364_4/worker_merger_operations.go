@@ -218,10 +218,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 		},
 		func(worker string) (operationsworkerInitialInsertOpFunc, func() error, error) {
 			if worker == localWorkerName {
-				err := util.ErrFound.Errorf("%q", localWorkerName)
-				wctxCancel(err)
-
-				return nil, nil, err
+				return nil, nil, wctxCancel(util.ErrFound.Errorf("%q", localWorkerName))
 			}
 
 			var insert workerInitialInsertOpFunc

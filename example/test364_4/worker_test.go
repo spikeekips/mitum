@@ -276,7 +276,7 @@ func (t *testJobWorker) TestCancel() {
 				_ = wk.NewJob(callback(i))
 
 				if i == 3 {
-					go wk.Close()
+					wk.Close()
 				}
 			}
 
