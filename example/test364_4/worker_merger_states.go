@@ -148,25 +148,6 @@ func patchStatesWorkerMergerArgs(args *statesWorkerMergerArgs) (
 		wpnewf = n
 	}
 
-	var pargs *phaseMergerArgs
-	var pnewf newPhaseMergerFunc
-
-	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
-	case err != nil:
-		return nil, err
-	default:
-		pargs = a
-		pnewf = n
-	}
-
-	wpargs.NewPhaseMergerFuncs = func() (
-		*phaseMergerArgs,
-		newPhaseMergerFunc,
-		error,
-	) {
-		return pargs, pnewf, nil
-	}
-
 	args.NewWorkerPhaseMergerFuncs = func() (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,

@@ -47,7 +47,7 @@ func newManagerManifestArgs(targs *managerWorkersTreesArgs) *managerManifestArgs
 	}
 }
 
-func newManagerManifestFuncs(args *managerManifestArgs) managerManifestFuncs {
+func newManagerManifestFuncs(args *managerManifestArgs) managerManifestFuncs { // FIXME rename newFuncXX
 	workersTreeFuncs := newManagerWorkersTreesFuncs(args.managerWorkersTreesArgs)
 
 	return func(

@@ -29,17 +29,23 @@ type (
 		wait phaseMergerWaitFunc,
 		_ error,
 	)
-	newPhaseMergerFuncs func() (
-		*phaseMergerArgs,
-		newPhaseMergerFunc,
+	newWorkerPhaseMergerFunc func(
+		_ context.Context,
+		minEnough uint64,
+		_ phaseMergerGetStateMergeValuesFunc,
+		_ phaseMergerGetMergers,
+		_ extractStateMergeValueKeysFunc,
+		_ filterMergeOpsFunc,
+	) (
+		workerPhaseMergerInsertFunc,
+		workerPhaseMergerWaitFunc,
 		error,
 	)
 )
 
 type workerPhaseMergerArgs struct {
 	*logging.Logging
-	NewPhaseMergerFuncs newPhaseMergerFuncs
-	local               string
+	local string
 }
 
 func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
@@ -47,51 +53,41 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "worker-phase-merger").Str("local", local)
 		}),
-		NewPhaseMergerFuncs: func() (
-			*phaseMergerArgs,
-			newPhaseMergerFunc,
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewPhaseMergerFuncs")
-		},
 		local: local,
 	}
 }
 
-func newWorkerPhaseMerger(
-	ctx context.Context,
+func newFuncWorkerPhaseMerger(
 	args *workerPhaseMergerArgs,
-	minEnough uint64,
-	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
-	getMergers phaseMergerGetMergers,
-	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
-	filterMergeOps filterMergeOpsFunc,
-) (
-	workerPhaseMergerInsertFunc,
-	workerPhaseMergerWaitFunc,
-	error,
-) {
-	if minEnough < 1 {
-		return nil, nil, util.ErrInvalid.Errorf("min enough should be at least 1")
-	}
+	pargs *phaseMergerArgs,
+) newWorkerPhaseMergerFunc {
+	return func(
+		ctx context.Context,
+		minEnough uint64,
+		getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+		getMergers phaseMergerGetMergers,
+		extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+		filterMergeOps filterMergeOpsFunc,
+	) (
+		workerPhaseMergerInsertFunc,
+		workerPhaseMergerWaitFunc,
+		error,
+	) {
+		if minEnough < 1 {
+			return nil, nil, util.ErrInvalid.Errorf("min enough should be at least 1")
+		}
 
-	pctx, pctxCancel := ContextWithCancelCause(ctx)
+		pctx, pctxCancel := ContextWithCancelCause(ctx)
 
-	var merge, unmerge phaseMergerXMergeFunc
+		var merge, unmerge phaseMergerXMergeFunc
 
-	mergeDoneCh := make(chan struct{}, 1)
+		mergeDoneCh := make(chan struct{}, 1)
 
-	var mergeDone func()
-	var mergeWait phaseMergerWaitFunc
-	var insertOps func(mergeOps, unmergeOps []uint64) error
+		var mergeDone func()
+		var mergeWait phaseMergerWaitFunc
+		var insertOps func(mergeOps, unmergeOps []uint64) error
 
-	switch pargs, newf, err := args.NewPhaseMergerFuncs(); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		pargs.SetLogging(args.Logging)
-
-		switch m, u, d, w, err := newf(pctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+		switch m, u, d, w, err := newPhaseMerger(pctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 		case err != nil:
 			return nil, nil, err
 		default:
@@ -113,99 +109,99 @@ func newWorkerPhaseMerger(
 			mergeWait = w
 			insertOps = newWorkerPhaseMergerInsertFunc(merge, unmerge)
 		}
-	}
 
-	var checkWorker func(string, bool, func(_, _ bool) error) error
-	var checkWorkerEnoughEmpty func() bool
+		var checkWorker func(string, bool, func(_, _ bool) error) error
+		var checkWorkerEnoughEmpty func() bool
 
-	switch c, i, err := newIsEnoughkWokerPhaseMergerFuncs(minEnough); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		checkWorker = c
-		checkWorkerEnoughEmpty = i
-	}
+		switch c, i, err := newIsEnoughkWokerPhaseMergerFuncs(minEnough); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			checkWorker = c
+			checkWorkerEnoughEmpty = i
+		}
 
-	return func(worker string, mergeOps, unmergeOps []uint64) error {
-			if err := context.Cause(pctx); err != nil {
-				return errors.WithStack(err)
-			}
+		return func(worker string, mergeOps, unmergeOps []uint64) error {
+				if err := context.Cause(pctx); err != nil {
+					return errors.WithStack(err)
+				}
 
-			l := args.Log().With().Str("worker", worker).Logger()
+				l := args.Log().With().Str("worker", worker).Logger()
 
-			return checkWorker(
-				worker,
-				len(mergeOps) < 1 && len(unmergeOps) < 1,
-				func(enough, ok bool) error {
-					ll := l.With().
-						Bool("ok", ok).
-						Bool("enough", enough).
-						Uints64("merge_ops", mergeOps).
-						Uints64("unmerge_ops", unmergeOps).
-						Logger()
+				return checkWorker(
+					worker,
+					len(mergeOps) < 1 && len(unmergeOps) < 1,
+					func(enough, ok bool) error {
+						ll := l.With().
+							Bool("ok", ok).
+							Bool("enough", enough).
+							Uints64("merge_ops", mergeOps).
+							Uints64("unmerge_ops", unmergeOps).
+							Logger()
 
-					switch {
-					case !ok:
-						return nil
-					case enough:
-						defer func() {
-							l.Debug().Msg("enough; merge done")
+						switch {
+						case !ok:
+							return nil
+						case enough:
+							defer func() {
+								l.Debug().Msg("enough; merge done")
 
-							mergeDone()
-						}()
-					default:
-						ll.Debug().Msg("worker checked")
-					}
+								mergeDone()
+							}()
+						default:
+							ll.Debug().Msg("worker checked")
+						}
 
-					switch {
-					case worker == localWorkerName,
-						len(mergeOps) < 1 && len(unmergeOps) < 1:
-						return nil
-					}
-
-					fm, fu := filterMergeOps(mergeOps, unmergeOps)
-
-					ll.Debug().
-						Uints64("filtered_merge_ops", fm).
-						Uints64("filtered_unmerge_ops", fu).
-						Msg("insert merge/unmerge ops")
-
-					if len(fm) < 1 && len(fu) < 1 {
-						return nil
-					}
-
-					return insertOps(fm, fu)
-				},
-			)
-		},
-		func(f workerPhaseMergerWaitCallbackFunc) error {
-			defer func() {
-				_ = checkWorkerEnoughEmpty()
-			}()
-
-			select {
-			case <-pctx.Done():
-				return context.Cause(pctx)
-			case <-mergeDoneCh:
-				var gerr error
-
-				switch {
-				case mergeWait != nil:
-					gerr = mergeWait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-						if f == nil {
+						switch {
+						case worker == localWorkerName,
+							len(mergeOps) < 1 && len(unmergeOps) < 1:
 							return nil
 						}
 
-						return f(newMerged, newUnmerged, reasons, checkWorkerEnoughEmpty())
-					})
-				case f != nil:
-					gerr = f(nil, nil, nil, checkWorkerEnoughEmpty())
-				}
+						fm, fu := filterMergeOps(mergeOps, unmergeOps)
 
-				return pctxCancel(gerr)
-			}
-		},
-		nil
+						ll.Debug().
+							Uints64("filtered_merge_ops", fm).
+							Uints64("filtered_unmerge_ops", fu).
+							Msg("insert merge/unmerge ops")
+
+						if len(fm) < 1 && len(fu) < 1 {
+							return nil
+						}
+
+						return insertOps(fm, fu)
+					},
+				)
+			},
+			func(f workerPhaseMergerWaitCallbackFunc) error {
+				defer func() {
+					_ = checkWorkerEnoughEmpty()
+				}()
+
+				select {
+				case <-pctx.Done():
+					return context.Cause(pctx)
+				case <-mergeDoneCh:
+					var gerr error
+
+					switch {
+					case mergeWait != nil:
+						gerr = mergeWait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
+							if f == nil {
+								return nil
+							}
+
+							return f(newMerged, newUnmerged, reasons, checkWorkerEnoughEmpty())
+						})
+					case f != nil:
+						gerr = f(nil, nil, nil, checkWorkerEnoughEmpty())
+					}
+
+					return pctxCancel(gerr)
+				}
+			},
+			nil
+	}
 }
 
 func newIsEnoughkWokerPhaseMergerFuncs(

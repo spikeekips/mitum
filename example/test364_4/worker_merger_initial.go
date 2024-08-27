@@ -90,13 +90,8 @@ func newInitialValuesWorkerMerger(
 		vp = i
 	}
 
-	var pargs *phaseMergerArgs
-
-	switch p, err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); {
-	case err != nil:
+	if err := patchWorkerMergerArgsWithPhaseMergerArgs(args, vp); err != nil {
 		return nil, nil, nil, err
-	default:
-		pargs = p
 	}
 
 	extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
@@ -109,7 +104,7 @@ func newInitialValuesWorkerMerger(
 	switch i, w, err := newInitialPhaseMerger(
 		wctx,
 		args,
-		pargs,
+		nil, // FIXME set
 		minEnough,
 		getStateMergeValues,
 		getMergers,
@@ -389,40 +384,19 @@ func newInitialPhaseMerger(
 func patchWorkerMergerArgsWithPhaseMergerArgs(
 	args *initialValuesWorkerMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
-) (*phaseMergerArgs, error) {
+) error {
 	var wpargs *workerPhaseMergerArgs
 	var wpnewf newWorkerPhaseMergerFunc
 
 	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
 		wpargs = a
 		wpnewf = n
 	}
 
 	wpargs.SetLogging(args.Logging)
-
-	var pargs *phaseMergerArgs
-	var pnewf newPhaseMergerFunc
-
-	switch a, n, err := wpargs.NewPhaseMergerFuncs(); {
-	case err != nil:
-		return nil, err
-	default:
-		pargs = a
-		pnewf = n
-	}
-
-	wpargs.SetLogging(args.Logging)
-
-	wpargs.NewPhaseMergerFuncs = func() (
-		*phaseMergerArgs,
-		newPhaseMergerFunc,
-		error,
-	) {
-		return pargs, pnewf, nil
-	}
 
 	args.NewWorkerPhaseMergerFuncs = func() (
 		*workerPhaseMergerArgs,
@@ -436,7 +410,7 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		return vp.Exists(opindex)
 	}
 
-	return pargs, nil
+	return nil
 }
 
 func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue]) phaseMergerGetStateMergeValuesFunc {

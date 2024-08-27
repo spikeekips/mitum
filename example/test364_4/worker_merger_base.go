@@ -11,19 +11,6 @@ import (
 )
 
 type (
-	newWorkerPhaseMergerFunc func(
-		_ context.Context,
-		_ *workerPhaseMergerArgs,
-		minEnough uint64,
-		_ phaseMergerGetStateMergeValuesFunc,
-		_ phaseMergerGetMergers,
-		_ extractStateMergeValueKeysFunc,
-		_ filterMergeOpsFunc,
-	) (
-		workerPhaseMergerInsertFunc,
-		workerPhaseMergerWaitFunc,
-		error,
-	)
 	newWorkerPhaseMergerFuncs func() (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,
@@ -265,7 +252,6 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 
 	switch i, w, err := newf(
 		ctx,
-		wargs,
 		minEnough,
 		getStateMergeValues,
 		getMergers,

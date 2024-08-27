@@ -41,16 +41,7 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 	}
 
 	pargs := newPhaseMergerArgs(local)
-
 	wpargs := newWorkerPhaseMergerArgs(local)
-	wpargs.NewPhaseMergerFuncs = func() (
-		*phaseMergerArgs,
-		newPhaseMergerFunc,
-		error,
-	) {
-		return pargs, newPhaseMerger, nil
-	}
-
 	args := newBaseWorkerMergerArgs(local)
 
 	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
@@ -59,7 +50,7 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 		newWorkerPhaseMergerFunc,
 		error,
 	) {
-		return wpargs, newWorkerPhaseMerger, nil
+		return wpargs, newFuncWorkerPhaseMerger(wpargs, pargs), nil
 	}
 
 	args.SetLogging(logging.TestNilLogging)
