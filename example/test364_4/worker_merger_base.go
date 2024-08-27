@@ -19,6 +19,7 @@ type (
 	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
+	workerMergerIsLocalOpFunc   func(opindex uint64) bool
 )
 
 type baseWorkerMergerArgs struct {
@@ -26,7 +27,6 @@ type baseWorkerMergerArgs struct {
 	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
 	PoolMapSize               uint64
 	NewJobWorker              newJobWorkerFunc
-	IsLocalOp                 func(opindex uint64) bool
 	local                     string
 }
 
@@ -46,8 +46,7 @@ func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
-		IsLocalOp: func(opindex uint64) bool { return false },
-		local:     local,
+		local: local,
 	}
 }
 
@@ -58,6 +57,7 @@ func newBaseWorkerMerger(
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+	isLocalOp workerMergerIsLocalOpFunc,
 ) (
 	workerMergerPhaseDoneFunc,
 	workerMergerWaitFunc,
@@ -86,6 +86,7 @@ func newBaseWorkerMerger(
 		getStateMergeValues,
 		getMergers,
 		extractStateMergeValueKeys,
+		isLocalOp,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -227,6 +228,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+	isLocalOp workerMergerIsLocalOpFunc,
 ) (
 	workerPhaseMergerInsertFunc,
 	workerMergerWaitFunc,
@@ -258,7 +260,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 		extractStateMergeValueKeys,
 		func(m, u []uint64) ([]uint64, []uint64) {
 			return m, filterMergeOps(
-				util.FilterSlice(u, args.IsLocalOp),
+				util.FilterSlice(u, isLocalOp),
 			)
 		},
 	); {
@@ -398,5 +400,11 @@ func newLocalWorkerIsReadyFunc() func(worker string, _ func(isReady bool) error)
 		}
 
 		return f(ready)
+	}
+}
+
+func newWorkerMergerIsLocalOpFunc(f func(uint64) bool) workerMergerIsLocalOpFunc {
+	return func(opindex uint64) bool {
+		return f(opindex)
 	}
 }

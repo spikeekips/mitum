@@ -44,7 +44,6 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 	wpargs := newWorkerPhaseMergerArgs(local)
 	args := newBaseWorkerMergerArgs(local)
 
-	args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 	args.NewWorkerPhaseMergerFuncs = func() (
 		*workerPhaseMergerArgs,
 		newWorkerPhaseMergerFunc,
@@ -190,7 +189,6 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
-		args.IsLocalOp = func(opindex uint64) bool { return vp.Exists(opindex) }
 		broadcasts[local] = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
@@ -217,7 +215,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newBaseWorkerMerger(wctx, args, minEnough, getValues, getMergers, extractKeys)
+		insert, wait, err := newBaseWorkerMerger(wctx, args, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOpFunc(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert

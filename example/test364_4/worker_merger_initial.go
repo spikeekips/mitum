@@ -120,7 +120,15 @@ func newInitialValuesWorkerMerger(
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var workerMergerWait workerMergerWaitFunc
 
-	switch i, w, err := newBaseWorkerMerger(wctx, args.baseWorkerMergerArgs, minEnough, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+	switch i, w, err := newBaseWorkerMerger(
+		wctx,
+		args.baseWorkerMergerArgs,
+		minEnough,
+		getStateMergeValues,
+		getMergers,
+		extractStateMergeValueKeys,
+		newWorkerMergerIsLocalOpFunc(vp.Exists),
+	); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -404,10 +412,6 @@ func patchWorkerMergerArgsWithPhaseMergerArgs(
 		error,
 	) {
 		return wpargs, wpnewf, nil
-	}
-
-	args.IsLocalOp = func(opindex uint64) bool {
-		return vp.Exists(opindex)
 	}
 
 	return nil
