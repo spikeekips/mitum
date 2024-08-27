@@ -61,7 +61,7 @@ func newStatesWorkerMerger(
 	var mergersPool util.LockedMap[string, StateMerger]
 
 	// NOTE maximum number of states approximately max ops * 2.
-	switch i, err := util.NewShardedMap[string, StateMerger](args.MaxOpsSize*2, nil); {
+	switch i, err := util.NewShardedMap[string, StateMerger](1<<9, nil); { // FIXME set maxOps
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -84,7 +84,7 @@ func newStatesWorkerMerger(
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
 	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, nil, nil) // FIXME set
-	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, getMergers); {
+	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, 0, getMergers); {                         // FIXME set maxOps
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -138,7 +138,7 @@ func patchStatesWorkerMergerArgs(args *statesWorkerMergerArgs) (
 	stateOps stateOpsFuncs,
 	_ error,
 ) {
-	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, args.MaxOpsSize, args.Log()); {
+	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, 1<<9, args.Log()); { // FIXME set maxOps
 	case err != nil:
 		return nil, err
 	default:

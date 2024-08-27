@@ -154,7 +154,7 @@ func newSaveWorkerMergerMergeDoneFunc(
 	var addState util.CompactAppendSliceAddFunc[base.State]
 	var doneState util.CompactAppendSliceDoneFunc[base.State]
 
-	switch a, d, err := util.CompactAppendSliceV1[base.State](uint64(args.MaxOpsSize)*2, 1<<9); {
+	switch a, d, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9); { // FIXME set maxOps
 	case err != nil:
 		return nil, nil, err
 	default:

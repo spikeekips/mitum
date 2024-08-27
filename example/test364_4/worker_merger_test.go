@@ -886,7 +886,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
-		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, getMergers)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers)
 		t.NoError(err)
 
 		initials[local] = initial

@@ -405,8 +405,8 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		defer cancel()
 
 		_, _, _, _, args, _, _, _ := t.newArgs("local", nil)
-		args.MaxOpsSize = 0
 
+		// FIXME set maxOps
 		_, _, _, _, _, err := newSaveWorkerMerger(ctx, args, 1)
 		t.ErrorContains(err, "empty size")
 	})

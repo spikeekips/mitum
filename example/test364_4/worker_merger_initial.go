@@ -30,7 +30,8 @@ type (
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
 	newInitialValuesWorkerMergerFunc    func(
 		_ context.Context,
-		minEnough uint64,
+		minEnough,
+		maxOps uint64,
 		_ phaseMergerGetMergers,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -46,7 +47,6 @@ type initialValuesWorkerMergerArgs struct {
 	BroadcastPhaseDone workerBroadcastPhaseDoneFunc
 	NewValuesPool      func() (util.LockedMap[uint64, []StateMergeValue], error)
 	SetStateOpFunc     func() (setStateOpFunc, error)
-	MaxOpsSize         uint64
 }
 
 func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -70,7 +70,6 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 		SetStateOpFunc: func() (setStateOpFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("SetStateOpFunc")
 		},
-		MaxOpsSize: 1 << 9,
 	}
 }
 
@@ -83,7 +82,7 @@ func newFuncInitialValuesWorkerMerger(
 
 	return func(
 		ctx context.Context,
-		minEnough uint64,
+		minEnough, maxOps uint64,
 		getMergers phaseMergerGetMergers,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -91,8 +90,8 @@ func newFuncInitialValuesWorkerMerger(
 		initialValuesWorkerMergerWaitFunc,
 		error,
 	) {
-		if args.MaxOpsSize < 1 { // FIXME move to argument
-			return nil, nil, nil, errors.Errorf("zero MaxOpsSize")
+		if maxOps < 1 {
+			return nil, nil, nil, errors.Errorf("zero max ops")
 		}
 
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -106,7 +105,7 @@ func newFuncInitialValuesWorkerMerger(
 			vp = i
 		}
 
-		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(args.MaxOpsSize))
+		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(maxOps))
 
 		getStateMergeValues := getStateMergeValuesFuncFromPool(vp)
 
