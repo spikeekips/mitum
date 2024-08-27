@@ -20,14 +20,25 @@ type (
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 	workerMergerIsLocalOpFunc   func(opindex uint64) bool
+	newBaseWorkerMergerFunc     func(
+		_ context.Context,
+		minEnough uint64,
+		_ phaseMergerGetStateMergeValuesFunc,
+		_ phaseMergerGetMergers,
+		_ extractStateMergeValueKeysFunc,
+		_ workerMergerIsLocalOpFunc,
+	) (
+		workerMergerPhaseDoneFunc,
+		workerMergerWaitFunc,
+		error,
+	)
 )
 
 type baseWorkerMergerArgs struct {
 	*logging.Logging
-	NewWorkerPhaseMergerFuncs newWorkerPhaseMergerFuncs
-	PoolMapSize               uint64
-	NewJobWorker              newJobWorkerFunc
-	local                     string
+	PoolMapSize  uint64
+	NewJobWorker newJobWorkerFunc
+	local        string
 }
 
 func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
@@ -35,13 +46,6 @@ func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "base-worker-merger").Str("local", local)
 		}),
-		NewWorkerPhaseMergerFuncs: func() (
-			*workerPhaseMergerArgs,
-			newWorkerPhaseMergerFunc,
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewWorkerPhaseMergerFuncs")
-		},
 		PoolMapSize: 1 << 3,
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
@@ -50,112 +54,120 @@ func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
 	}
 }
 
-func newBaseWorkerMerger(
-	ctx context.Context,
+func newFuncBaseWorkerMerger(
 	args *baseWorkerMergerArgs,
-	minEnough uint64,
-	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
-	getMergers phaseMergerGetMergers,
-	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
-	isLocalOp workerMergerIsLocalOpFunc,
-) (
-	workerMergerPhaseDoneFunc,
-	workerMergerWaitFunc,
-	error,
-) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wpargs *workerPhaseMergerArgs,
+	pargs *phaseMergerArgs,
+) newBaseWorkerMergerFunc {
+	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(wpargs, pargs)
 
-	var insertPool func(worker string, unmerge []uint64) bool
-	var exhaustPool func(func(worker string, unmerge []uint64) error) error
+	return func(
+		ctx context.Context,
+		minEnough uint64,
+		getStateMergeValues phaseMergerGetStateMergeValuesFunc,
+		getMergers phaseMergerGetMergers,
+		extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+		isLocalOp workerMergerIsLocalOpFunc,
+	) (
+		workerMergerPhaseDoneFunc,
+		workerMergerWaitFunc,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-	switch i, e, err := newWorkerMergerPhasePoolFuncs(args.local, args.PoolMapSize); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		insertPool = i
-		exhaustPool = e
-	}
+		var insertPool func(worker string, unmerge []uint64) bool
+		var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
-	var phaseInsertFunc func(worker string, unmerge []uint64) error
-	var phaseWait workerMergerWaitFunc
-
-	switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(
-		wctx,
-		args,
-		minEnough,
-		getStateMergeValues,
-		getMergers,
-		extractStateMergeValueKeys,
-		isLocalOp,
-	); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		phaseInsertFunc = func(worker string, unmerge []uint64) error {
-			args.Log().Debug().
-				Str("worker", worker).
-				Uints64("unmerge", unmerge).
-				Msg("phase done")
-
-			return i(worker, nil, unmerge)
+		switch i, e, err := newWorkerMergerPhasePoolFuncs(args.local, args.PoolMapSize); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			insertPool = i
+			exhaustPool = e
 		}
-		phaseWait = w
-	}
 
-	localIsReady := newLocalWorkerIsReadyFunc()
+		var phaseInsertFunc func(worker string, unmerge []uint64) error
+		var phaseWait workerMergerWaitFunc
 
-	workerPhaseDone := func(worker string, unmerge []uint64) error {
-		var ok bool
+		switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(
+			wctx,
+			args.local,
+			newWorkerPhaseMergerf,
+			minEnough,
+			getStateMergeValues,
+			getMergers,
+			extractStateMergeValueKeys,
+			isLocalOp,
+		); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			phaseInsertFunc = func(worker string, unmerge []uint64) error {
+				args.Log().Debug().
+					Str("worker", worker).
+					Uints64("unmerge", unmerge).
+					Msg("phase done")
 
-		if err := localIsReady(worker, func(isReady bool) error {
-			if !isReady {
-				_ = insertPool(worker, unmerge)
-
-				return nil
+				return i(worker, nil, unmerge)
 			}
-
-			if worker == localWorkerName {
-				_ = insertPool(worker, unmerge)
-
-				return exhaustPool(phaseInsertFunc)
-			}
-
-			ok = true
-
-			return nil
-		}); err != nil {
-			return err
+			phaseWait = w
 		}
 
-		if ok {
-			return phaseInsertFunc(worker, unmerge)
-		}
+		localIsReady := newLocalWorkerIsReadyFunc()
 
-		return nil
-	}
+		workerPhaseDone := func(worker string, unmerge []uint64) error {
+			var ok bool
 
-	return func(worker string, unmerge []uint64) error {
-			return contextCauseError(wctx, dummyErrorFunc(), func() error {
-				if err := workerPhaseDone(worker, unmerge); err != nil {
-					args.Log().Error().
-						Err(err).
-						Str("worker", worker).
-						Msg("worker phase done")
+			if err := localIsReady(worker, func(isReady bool) error {
+				if !isReady {
+					_ = insertPool(worker, unmerge)
 
-					return err
+					return nil
 				}
 
-				return nil
-			})
-		},
-		func(f workerMergerUnmergedOpsFunc) error {
-			return contextCauseError(wctx, wctxCancel, func() error {
-				defer exhaustPool(nil)
+				if worker == localWorkerName {
+					_ = insertPool(worker, unmerge)
 
-				return phaseWait(f)
-			})
-		},
-		nil
+					return exhaustPool(phaseInsertFunc)
+				}
+
+				ok = true
+
+				return nil
+			}); err != nil {
+				return err
+			}
+
+			if ok {
+				return phaseInsertFunc(worker, unmerge)
+			}
+
+			return nil
+		}
+
+		return func(worker string, unmerge []uint64) error {
+				return contextCauseError(wctx, dummyErrorFunc(), func() error {
+					if err := workerPhaseDone(worker, unmerge); err != nil {
+						args.Log().Error().
+							Err(err).
+							Str("worker", worker).
+							Msg("worker phase done")
+
+						return err
+					}
+
+					return nil
+				})
+			},
+			func(f workerMergerUnmergedOpsFunc) error {
+				return contextCauseError(wctx, wctxCancel, func() error {
+					defer exhaustPool(nil)
+
+					return phaseWait(f)
+				})
+			},
+			nil
+	}
 }
 
 func newWorkerMergerPhasePoolFuncs(
@@ -223,7 +235,8 @@ func newWorkerMergerPhasePoolFuncs(
 
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
-	args *baseWorkerMergerArgs,
+	local string,
+	newf newWorkerPhaseMergerFunc,
 	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
@@ -234,20 +247,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	workerMergerWaitFunc,
 	error,
 ) {
-	var wargs *workerPhaseMergerArgs
-	var newf newWorkerPhaseMergerFunc
-
-	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		wargs = a
-		newf = n
-	}
-
-	wargs.SetLogging(args.Logging)
-
-	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps(args.local)
+	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps(local)
 
 	var insert workerPhaseMergerInsertFunc
 	var wait workerPhaseMergerWaitFunc

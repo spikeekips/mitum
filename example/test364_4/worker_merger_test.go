@@ -44,14 +44,6 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 	wpargs := newWorkerPhaseMergerArgs(local)
 	args := newBaseWorkerMergerArgs(local)
 
-	args.NewWorkerPhaseMergerFuncs = func() (
-		*workerPhaseMergerArgs,
-		newWorkerPhaseMergerFunc,
-		error,
-	) {
-		return wpargs, newFuncWorkerPhaseMerger(wpargs, pargs), nil
-	}
-
 	args.SetLogging(logging.TestNilLogging)
 
 	return pargs, wpargs, args, vp, mergers, states, getValues, getState
@@ -181,7 +173,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, _, args, vp, workerMergers, states, getValues, getState := t.newArgs(local)
+		pargs, wpargs, args, vp, workerMergers, states, getValues, getState := t.newArgs(local)
 
 		mergers[local] = workerMergers
 
@@ -215,7 +207,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newBaseWorkerMerger(wctx, args, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOpFunc(vp.Exists))
+		insert, wait, err := newFuncBaseWorkerMerger(args, wpargs, pargs)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOpFunc(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert

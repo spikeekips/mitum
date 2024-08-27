@@ -137,25 +137,6 @@ func patchStatesWorkerMergerArgs(args *statesWorkerMergerArgs) (
 	stateOps stateOpsFuncs,
 	_ error,
 ) {
-	var wpargs *workerPhaseMergerArgs
-	var wpnewf newWorkerPhaseMergerFunc
-
-	switch a, n, err := args.NewWorkerPhaseMergerFuncs(); {
-	case err != nil:
-		return nil, err
-	default:
-		wpargs = a
-		wpnewf = n
-	}
-
-	args.NewWorkerPhaseMergerFuncs = func() (
-		*workerPhaseMergerArgs,
-		newWorkerPhaseMergerFunc,
-		error,
-	) {
-		return wpargs, wpnewf, nil
-	}
-
 	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, args.MaxOpsSize, args.Log()); {
 	case err != nil:
 		return nil, err
