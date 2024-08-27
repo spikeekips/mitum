@@ -20,12 +20,23 @@ type (
 		_ statesWorkerMergerTraverseMergers,
 	) error
 	statesWorkerMergerWaitFunc func(statesWorkerMergerResultFunc) error
+	newStatesWorkerMergerFunc  func(
+		_ context.Context,
+		minEnough,
+		maxOps uint64,
+		_ workerBroadcastPhaseDoneFunc,
+		_ getStateFunc,
+	) (
+		workerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		statesWorkerMergerWaitFunc,
+		error,
+	)
 )
 
 type statesWorkerMergerArgs struct {
 	*logging.Logging
 	*initialValuesWorkerMergerArgs
-	GetState getStateFunc
 }
 
 func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -40,100 +51,105 @@ func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorke
 			return zctx.Str("module", "states-worker-merger").Str("local", args.local)
 		}),
 		initialValuesWorkerMergerArgs: args,
-		GetState: func(string) (base.State, bool, error) {
-			return nil, false, util.ErrNotImplemented.Errorf("GetState")
-		},
 	}
 }
 
-func newStatesWorkerMerger(
-	ctx context.Context,
+func newFuncStatesWorkerMerger(
 	args *statesWorkerMergerArgs,
-	minEnough uint64,
-) (
-	workerInitialInsertOpsFuncs,
-	workerMergerPhaseDoneFunc,
-	statesWorkerMergerWaitFunc,
-	error,
-) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wpargs *workerPhaseMergerArgs,
+	pargs *phaseMergerArgs,
+) newStatesWorkerMergerFunc {
+	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, wpargs, pargs)
 
-	var mergersPool util.LockedMap[string, StateMerger]
+	return func(
+		ctx context.Context,
+		minEnough, maxOps uint64,
+		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
+		getState getStateFunc,
+	) (
+		workerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		statesWorkerMergerWaitFunc,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-	// NOTE maximum number of states approximately max ops * 2.
-	switch i, err := util.NewShardedMap[string, StateMerger](1<<9, nil); { // FIXME set maxOps
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		mergersPool = i
-	}
+		var mergersPool util.LockedMap[string, StateMerger]
 
-	var stateOps stateOpsFuncs
-	var setStateOp setStateOpFunc
-
-	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, 1<<9, args.Log()); { // FIXME set maxOps
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		setStateOp = s
-		stateOps = o
-	}
-
-	getMergers, closeMergers := newGetMergersFunc(mergersPool, args.GetState)
-
-	var initialValuesInsert workerInitialInsertOpsFuncs
-	var initialValuesPhaseDone workerMergerPhaseDoneFunc
-	var initialValuesWait initialValuesWorkerMergerWaitFunc
-
-	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, nil, nil) // FIXME set
-	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, 0, getMergers, setStateOp, nil); {        // FIXME set maxOps, workerBroadcastPhaseDoneFunc
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		initialValuesInsert = func(worker string) (
-			workerInitialInsertOpFunc,
-			func() error,
-			error,
-		) {
-			switch j, d, err := i(worker); {
-			case err != nil:
-				args.Log().Error().Err(err).Msg("worker initial insert error")
-
-				return nil, nil, wctxCancel(err)
-			default:
-				return j, d, nil
-			}
+		// NOTE maximum number of states approximately max ops * 2.
+		switch i, err := util.NewShardedMap[string, StateMerger](maxOps*2, nil); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			mergersPool = i
 		}
-		initialValuesPhaseDone = func(worker string, unmerge []uint64) error {
-			err := p(worker, unmerge)
-			if err != nil {
-				args.Log().Error().Err(err).Str("worker", worker).Msg("worker phase done error")
-			}
 
-			return err
+		var stateOps stateOpsFuncs
+		var setStateOp setStateOpFunc
+
+		switch s, o, err := newSetStateOpFuncsWithLogger(args.local, maxOps, args.Log()); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			setStateOp = s
+			stateOps = o
 		}
-		initialValuesWait = w
+
+		getMergers, closeMergers := newGetMergersFunc(mergersPool, getState)
+
+		var initialValuesInsert workerInitialInsertOpsFuncs
+		var initialValuesPhaseDone workerMergerPhaseDoneFunc
+		var initialValuesWait initialValuesWorkerMergerWaitFunc
+
+		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, maxOps, getMergers, setStateOp, broadcastPhaseDone); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			initialValuesInsert = func(worker string) (
+				workerInitialInsertOpFunc,
+				func() error,
+				error,
+			) {
+				switch j, d, err := i(worker); {
+				case err != nil:
+					args.Log().Error().Err(err).Msg("worker initial insert error")
+
+					return nil, nil, wctxCancel(err)
+				default:
+					return j, d, nil
+				}
+			}
+			initialValuesPhaseDone = func(worker string, unmerge []uint64) error {
+				err := p(worker, unmerge)
+				if err != nil {
+					args.Log().Error().Err(err).Str("worker", worker).Msg("worker phase done error")
+				}
+
+				return err
+			}
+			initialValuesWait = w
+		}
+
+		return initialValuesInsert,
+			initialValuesPhaseDone,
+			func(f statesWorkerMergerResultFunc) error {
+				return wctxCancel(func() error {
+					defer func() {
+						closeMergers()
+						mergersPool.Close()
+					}()
+
+					return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
+						if f == nil {
+							return nil
+						}
+
+						return f(unmerged, reasons, newTraverseMergersFunc(wctx, mergersPool, stateOps, args.NewJobWorker))
+					})
+				}())
+			},
+			nil
 	}
-
-	return initialValuesInsert,
-		initialValuesPhaseDone,
-		func(f statesWorkerMergerResultFunc) error {
-			return wctxCancel(func() error {
-				defer func() {
-					closeMergers()
-					mergersPool.Close()
-				}()
-
-				return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
-					if f == nil {
-						return nil
-					}
-
-					return f(unmerged, reasons, newTraverseMergersFunc(wctx, mergersPool, stateOps, args.NewJobWorker))
-				})
-			}())
-		},
-		nil
 }
 
 func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Logger) (

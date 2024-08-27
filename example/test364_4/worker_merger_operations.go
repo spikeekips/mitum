@@ -90,7 +90,7 @@ func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMerger
 	var workerPhaseDone workerMergerPhaseDoneFunc
 	var statesWait statesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newStatesWorkerMerger(wctx, args.statesWorkerMergerArgs, minEnough); {
+	switch i, p, w, err := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, nil, nil)(wctx, minEnough, 0, nil, nil); { // FIXME set
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

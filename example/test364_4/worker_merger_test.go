@@ -83,11 +83,13 @@ func (t *baseTestWorkerMerger) newStatesArgs(local string) (
 	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local)
 
 	args := newStatesWorkerMergerArgs(iargs)
+	/* FIXME set
 	args.GetState = func(stateKey string) (base.State, bool, error) {
 		i, found := states.Value(stateKey)
 
 		return i, found, nil
 	}
+	*/
 
 	return pargs, wpargs, args, vp, mergers, states
 }
@@ -1178,7 +1180,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		}
 		*/
 
-		initial, phaseDone, wait, err := newStatesWorkerMerger(wctx, args, minEnough)
+		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, nil, nil)(wctx, minEnough, 0, nil, nil) // FIXME set
 		t.NoError(err)
 
 		initials[local] = initial
