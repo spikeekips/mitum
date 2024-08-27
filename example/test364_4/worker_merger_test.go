@@ -847,7 +847,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		_, _, args, _, workerMergers, states, getStateOpFuncs, getState := t.newInitialValuesArgs(local)
+		pargs, wpargs, args, _, workerMergers, states, getStateOpFuncs, getState := t.newInitialValuesArgs(local)
 
 		mergers[local] = workerMergers
 		getStateOps[local], _ = getStateOpFuncs()
@@ -885,7 +885,8 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		getMergers, closeMergers := newGetMergersFunc(workerMergers, getState)
 		defer closeMergers()
 
-		initial, phaseDone, wait, err := newInitialValuesWorkerMerger(wctx, args, minEnough, getMergers)
+		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, getMergers)
 		t.NoError(err)
 
 		initials[local] = initial

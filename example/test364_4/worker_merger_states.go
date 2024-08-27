@@ -83,7 +83,8 @@ func newStatesWorkerMerger(
 	var initialValuesPhaseDone workerMergerPhaseDoneFunc
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-	switch i, p, w, err := newInitialValuesWorkerMerger(wctx, args.initialValuesWorkerMergerArgs, minEnough, getMergers); {
+	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, nil, nil) // FIXME set
+	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, getMergers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
