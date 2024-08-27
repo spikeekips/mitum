@@ -69,12 +69,14 @@ func newStatesWorkerMerger(
 	}
 
 	var stateOps stateOpsFuncs
+	var setStateOp setStateOpFunc
 
-	switch s, err := patchStatesWorkerMergerArgs(args); {
+	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, 1<<9, args.Log()); { // FIXME set maxOps
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		stateOps = s
+		setStateOp = s
+		stateOps = o
 	}
 
 	getMergers, closeMergers := newGetMergersFunc(mergersPool, args.GetState)
@@ -84,7 +86,7 @@ func newStatesWorkerMerger(
 	var initialValuesWait initialValuesWorkerMergerWaitFunc
 
 	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, nil, nil) // FIXME set
-	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, 0, getMergers); {                         // FIXME set maxOps
+	switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, 0, getMergers, setStateOp); {             // FIXME set maxOps
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -132,21 +134,6 @@ func newStatesWorkerMerger(
 			}())
 		},
 		nil
-}
-
-func patchStatesWorkerMergerArgs(args *statesWorkerMergerArgs) (
-	stateOps stateOpsFuncs,
-	_ error,
-) {
-	switch s, o, err := newSetStateOpFuncsWithLogger(args.local, 1<<9, args.Log()); { // FIXME set maxOps
-	case err != nil:
-		return nil, err
-	default:
-		args.SetStateOpFunc = func() (setStateOpFunc, error) { return s, nil }
-		stateOps = o
-	}
-
-	return stateOps, nil
 }
 
 func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Logger) (

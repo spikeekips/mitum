@@ -56,7 +56,6 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(local string) (
 	util.LockedMap[uint64, []StateMergeValue],
 	util.LockedMap[string, StateMerger],
 	util.LockedMap[string, base.State],
-	stateOpsFuncs,
 	getStateFunc,
 ) {
 	t.T().Helper()
@@ -68,14 +67,7 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(local string) (
 		return vp, nil
 	}
 
-	setStateOp, getStateOp, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
-	t.NoError(err)
-
-	args.SetStateOpFunc = func() (setStateOpFunc, error) {
-		return setStateOp, nil
-	}
-
-	return pargs, wpargs, args, vp, mergers, states, getStateOp, getState
+	return pargs, wpargs, args, vp, mergers, states, getState
 }
 
 func (t *baseTestWorkerMerger) newStatesArgs(local string) (
@@ -88,7 +80,7 @@ func (t *baseTestWorkerMerger) newStatesArgs(local string) (
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, iargs, vp, mergers, states, _, _ := t.newInitialValuesArgs(local)
+	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local)
 
 	args := newStatesWorkerMergerArgs(iargs)
 	args.GetState = func(stateKey string) (base.State, bool, error) {
@@ -847,7 +839,10 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, wpargs, args, _, workerMergers, states, getStateOpFuncs, getState := t.newInitialValuesArgs(local)
+		pargs, wpargs, args, _, workerMergers, states, getState := t.newInitialValuesArgs(local)
+
+		setStateOp, getStateOpFuncs, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
+		t.NoError(err)
 
 		mergers[local] = workerMergers
 		getStateOps[local], _ = getStateOpFuncs()
@@ -886,7 +881,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
-		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		initials[local] = initial

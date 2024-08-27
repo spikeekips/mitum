@@ -33,6 +33,7 @@ type (
 		minEnough,
 		maxOps uint64,
 		_ phaseMergerGetMergers,
+		_ setStateOpFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -46,7 +47,6 @@ type initialValuesWorkerMergerArgs struct {
 	*baseWorkerMergerArgs
 	BroadcastPhaseDone workerBroadcastPhaseDoneFunc
 	NewValuesPool      func() (util.LockedMap[uint64, []StateMergeValue], error)
-	SetStateOpFunc     func() (setStateOpFunc, error)
 }
 
 func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -67,9 +67,6 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
-		SetStateOpFunc: func() (setStateOpFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("SetStateOpFunc")
-		},
 	}
 }
 
@@ -84,6 +81,7 @@ func newFuncInitialValuesWorkerMerger(
 		ctx context.Context,
 		minEnough, maxOps uint64,
 		getMergers phaseMergerGetMergers,
+		setStateOp setStateOpFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -146,21 +144,14 @@ func newFuncInitialValuesWorkerMerger(
 			workerMergerWait = w
 		}
 
-		var setStateOp func(int, uint64, []StateMergeValue, xMergeFlag) error
+		mSetStateOp := func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
+			switch stateKeys, err := extractStateMergeValueKeys(opindex, values); {
+			case err != nil:
+				return err
+			default:
+				setStateOp(phase, opindex, stateKeys, x)
 
-		switch i, err := args.SetStateOpFunc(); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			setStateOp = func(phase int, opindex uint64, values []StateMergeValue, x xMergeFlag) error {
-				switch stateKeys, err := extractStateMergeValueKeys(opindex, values); {
-				case err != nil:
-					return err
-				default:
-					i(phase, opindex, stateKeys, x)
-
-					return nil
-				}
+				return nil
 			}
 		}
 
@@ -185,7 +176,7 @@ func newFuncInitialValuesWorkerMerger(
 			if err := util.TraverseSliceV1(unmerged, func(_ int, opindex uint64) (bool, error) {
 				return true, jw.NewJob(func(context.Context) error {
 					if values, found := vp.Value(opindex); found {
-						return setStateOp(1, opindex, values, unmergeFlag)
+						return mSetStateOp(1, opindex, values, unmergeFlag)
 					}
 
 					return nil
@@ -233,7 +224,7 @@ func newFuncInitialValuesWorkerMerger(
 						l.Debug().Msg("initial insert ops done, but known values")
 					}
 
-					setStateOp(0, opindex, values, mergeFlag)
+					mSetStateOp(0, opindex, values, mergeFlag)
 
 					return insert(opindex)
 				},
