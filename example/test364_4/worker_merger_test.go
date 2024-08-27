@@ -857,7 +857,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
-		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
+		broadcastPhaseDone := func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
 			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
@@ -881,7 +881,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
-		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp, broadcastPhaseDone)
 		t.NoError(err)
 
 		initials[local] = initial
@@ -1156,6 +1156,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
+		/* FIXME set
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
@@ -1175,6 +1176,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 
 			return nil
 		}
+		*/
 
 		initial, phaseDone, wait, err := newStatesWorkerMerger(wctx, args, minEnough)
 		t.NoError(err)

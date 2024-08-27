@@ -37,10 +37,6 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
-	sargs.BroadcastPhaseDone = func(context.Context, []uint64) error {
-		return nil
-	}
-
 	eargs := newStateMergeValueExtractorArgs(local)
 	eargs.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
 		if opindex >= uint64(len(ops)) {
@@ -891,6 +887,7 @@ func (t *testSaveWorkerMerger) testMerger(
 			return f(ctx)
 		}
 
+		/* FIXME set
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
@@ -910,6 +907,7 @@ func (t *testSaveWorkerMerger) testMerger(
 
 			return nil
 		}
+		*/
 		args.IsLocalStateValue = func(stateKey string) bool {
 			return slices.Index(workerValues[local], stateKey) >= 0
 		}

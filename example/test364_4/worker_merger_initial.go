@@ -34,6 +34,7 @@ type (
 		maxOps uint64,
 		_ phaseMergerGetMergers,
 		_ setStateOpFunc,
+		_ workerBroadcastPhaseDoneFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -45,8 +46,7 @@ type (
 type initialValuesWorkerMergerArgs struct {
 	*logging.Logging
 	*baseWorkerMergerArgs
-	BroadcastPhaseDone workerBroadcastPhaseDoneFunc
-	NewValuesPool      func() (util.LockedMap[uint64, []StateMergeValue], error)
+	NewValuesPool func() (util.LockedMap[uint64, []StateMergeValue], error)
 }
 
 func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -61,9 +61,6 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 			return zctx.Str("module", "initial-worker-merger").Str("local", args.local)
 		}),
 		baseWorkerMergerArgs: args,
-		BroadcastPhaseDone: func(_ context.Context, newUnmerged []uint64) error {
-			return util.ErrNotImplemented.Errorf("BroadcastPhaseDone")
-		},
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
@@ -82,6 +79,7 @@ func newFuncInitialValuesWorkerMerger(
 		minEnough, maxOps uint64,
 		getMergers phaseMergerGetMergers,
 		setStateOp setStateOpFunc,
+		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -90,6 +88,10 @@ func newFuncInitialValuesWorkerMerger(
 	) {
 		if maxOps < 1 {
 			return nil, nil, nil, errors.Errorf("zero max ops")
+		}
+
+		if broadcastPhaseDone == nil {
+			broadcastPhaseDone = func(context.Context, []uint64) error { return nil }
 		}
 
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -245,7 +247,7 @@ func newFuncInitialValuesWorkerMerger(
 
 				reasons = r
 
-				if err := args.BroadcastPhaseDone(wctx, unmerged); err != nil {
+				if err := broadcastPhaseDone(wctx, unmerged); err != nil {
 					return err
 				}
 

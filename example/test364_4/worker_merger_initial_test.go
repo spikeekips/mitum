@@ -27,10 +27,8 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
 		t.NoError(err)
 
-		initial, _, wait, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
-
-		defer wait(nil)
 
 		insert, done, err := initial(localWorkerName)
 		t.NoError(err)
@@ -71,10 +69,8 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
 		t.NoError(err)
 
-		initial, _, wait, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
-
-		defer wait(nil)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
 		t.NoError(err)
@@ -124,10 +120,8 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
 		t.NoError(err)
 
-		initial, _, wait, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
-
-		defer wait(nil)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
 		t.NoError(err)
@@ -162,10 +156,8 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
 		t.NoError(err)
 
-		initial, _, wait, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
-
-		defer wait(nil)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
 		t.NoError(err)
