@@ -38,7 +38,7 @@ type (
 		error,
 	)
 	operationsWorkerMergerWaitFunc func(operationsWorkerMergerResultFunc) error
-	newOperationsWorkerMergerFunc  func(
+	newOperationsWorkerMergerFunc  func( // FIXME rename to operationsWorkerMergerFunc
 		_ context.Context,
 		minEnough,
 		maxOps uint64,

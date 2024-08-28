@@ -26,12 +26,29 @@ type (
 	saveWorkerMergerSaveReasonsFunc        func(reasons map[uint64]string) error
 	saveWorkerMergerSaveTraverseStatesFunc func(func(base.State) error) error
 	saveWorkerMergerSaveBlockMapItemFunc   func(base.BlockMapItem) error
+	saveWorkerMergerFunc                   func(
+		_ context.Context,
+		minEnough,
+		maxOps uint64,
+		_ workerBroadcastPhaseDoneFunc,
+		_ getStateFunc,
+		_ isLocalStateValueFunc,
+		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
+		_ stateMergeValueExtractorGetOperationFunc,
+		_ func() (newStateFunc, error),
+	) (
+		operationsWorkerLocalInsertOpsFuncs,
+		operationsworkerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		func() error,
+		func() error,
+		error,
+	)
 )
 
 type saveWorkerMergerArgs struct {
 	*logging.Logging
 	*operationsWorkerMergerArgs
-	NewStateFunc   func() (newStateFunc, error)
 	MergeDone      saveWorkerMergerSendMergeDoneFuncs
 	SaveOperations saveWorkerMergerSaveOperationsFunc
 	SaveStates     saveWorkerMergerSaveStatesFuncs
@@ -53,9 +70,6 @@ func newSaveWorkerMergerArgs(
 			return zctx.Str("module", "save-worker-merger").Str("local", args.local)
 		}),
 		operationsWorkerMergerArgs: args,
-		NewStateFunc: func() (newStateFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewStateFunc")
-		},
 		MergeDone: func(context.Context, saveWorkerMergerMergeDoneFunc) error {
 			return util.ErrNotImplemented.Errorf("MergeDone")
 		},
@@ -74,71 +88,98 @@ func newSaveWorkerMergerArgs(
 	}
 }
 
-func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs, minEnough uint64) (
-	operationsWorkerLocalInsertOpsFuncs,
-	operationsworkerInitialInsertOpsFuncs,
-	workerMergerPhaseDoneFunc,
-	func() error,
-	func() error,
-	error,
-) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+func newFuncSaveWorkerMerger(
+	args *saveWorkerMergerArgs,
+	eargs *stateMergeValueExtractorArgs,
+	wpargs *workerPhaseMergerArgs,
+	pargs *phaseMergerArgs,
+) saveWorkerMergerFunc {
+	newOperationsWorkerMergerf := newFuncOperationsWorkerMerger(args.operationsWorkerMergerArgs, eargs, wpargs, pargs)
 
-	var opLocalInsert operationsWorkerLocalInsertOpsFuncs
-	var opWorkerInsert operationsworkerInitialInsertOpsFuncs
-	var opWorkerPhaseDone workerMergerPhaseDoneFunc
-	var opWait operationsWorkerMergerWaitFunc
+	return func(
+		ctx context.Context,
+		minEnough, maxOps uint64,
+		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
+		getState getStateFunc,
+		isLocalStateValue isLocalStateValueFunc,
+		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
+		getOperation stateMergeValueExtractorGetOperationFunc,
+		stateFunc func() (newStateFunc, error),
+	) (
+		operationsWorkerLocalInsertOpsFuncs,
+		operationsworkerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		func() error,
+		func() error,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-	switch i, wi, p, w, err := newFuncOperationsWorkerMerger(args.operationsWorkerMergerArgs, nil, nil, nil)(wctx, minEnough, 0, nil, nil, nil, nil, nil); { // FIXME set
-	case err != nil:
-		return nil, nil, nil, nil, nil, err
-	default:
-		opLocalInsert = i
-		opWorkerInsert = wi
-		opWorkerPhaseDone = p
-		opWait = w
-	}
+		var opLocalInsert operationsWorkerLocalInsertOpsFuncs
+		var opWorkerInsert operationsworkerInitialInsertOpsFuncs
+		var opWorkerPhaseDone workerMergerPhaseDoneFunc
+		var opWait operationsWorkerMergerWaitFunc
 
-	_, mergeDone, mergeDoneWait := NewDoneContextFunc(wctx)
-	_, saveDone, saveDoneWait := NewDoneContextFunc(wctx)
+		switch i, wi, p, w, err := newOperationsWorkerMergerf(
+			wctx,
+			minEnough,
+			maxOps,
+			broadcastPhaseDone,
+			getState,
+			isLocalStateValue,
+			broadcastStateMergeValues,
+			getOperation,
+		); {
+		case err != nil:
+			return nil, nil, nil, nil, nil, err
+		default:
+			opLocalInsert = i
+			opWorkerInsert = wi
+			opWorkerPhaseDone = p
+			opWait = w
+		}
 
-	go func() {
-		_ = wctxCancel(opWait(func(
-			unmerged []uint64,
-			reasons map[uint64]string,
-			traverseMergers operationsWorkerMergerTraverseMergersFunc,
-			traverseOperations func(operationsWorkerSaveOperationsFunc) error,
-		) error {
-			var doneState util.CompactAppendSliceDoneFunc[base.State]
+		_, mergeDone, mergeDoneWait := NewDoneContextFunc(wctx)
+		_, saveDone, saveDoneWait := NewDoneContextFunc(wctx)
 
-			switch m, ds, err := newSaveWorkerMergerMergeDoneFunc(
-				wctx,
-				args,
-				unmerged,
-				newTraverseStateFunc(args, traverseMergers),
-			); {
-			case err != nil:
-				return err
-			default:
-				defer ds(nil)
+		go func() {
+			_ = wctxCancel(opWait(func(
+				unmerged []uint64,
+				reasons map[uint64]string,
+				traverseMergers operationsWorkerMergerTraverseMergersFunc,
+				traverseOperations func(operationsWorkerSaveOperationsFunc) error,
+			) error {
+				var doneState util.CompactAppendSliceDoneFunc[base.State]
 
-				if err := mergeDone(m()); err != nil {
+				switch m, ds, err := newSaveWorkerMergerMergeDoneFunc(
+					wctx,
+					args,
+					unmerged,
+					newTraverseStateFunc(args, traverseMergers, stateFunc),
+				); {
+				case err != nil:
 					return err
+				default:
+					defer ds(nil)
+
+					if err := mergeDone(m()); err != nil {
+						return err
+					}
+
+					doneState = ds
 				}
 
-				doneState = ds
-			}
+				return saveDone(newSaveWorkerMergerSaveFunc(wctx, args, reasons, doneState, traverseOperations))
+			}))
+		}()
 
-			return saveDone(newSaveWorkerMergerSaveFunc(wctx, args, reasons, doneState, traverseOperations))
-		}))
-	}()
-
-	return opLocalInsert,
-		opWorkerInsert,
-		opWorkerPhaseDone,
-		mergeDoneWait,
-		saveDoneWait,
-		nil
+		return opLocalInsert,
+			opWorkerInsert,
+			opWorkerPhaseDone,
+			mergeDoneWait,
+			saveDoneWait,
+			nil
+	}
 }
 
 func newSaveWorkerMergerMergeDoneFunc(
@@ -301,11 +342,12 @@ func newSaveWorkerMergerSaveStatesFunc(
 func newTraverseStateFunc(
 	args *saveWorkerMergerArgs,
 	traverseMergers operationsWorkerMergerTraverseMergersFunc,
+	stateFunc func() (newStateFunc, error),
 ) saveWorkerMergerSaveTraverseStatesFunc {
 	return func(f func(base.State) error) error {
 		var newState newStateFunc
 
-		switch n, err := args.NewStateFunc(); {
+		switch n, err := stateFunc(); {
 		case err != nil:
 			return err
 		default:
