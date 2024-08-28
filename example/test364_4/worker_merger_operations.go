@@ -46,6 +46,7 @@ type (
 		_ workerBroadcastPhaseDoneFunc,
 		_ getStateFunc,
 		_ isLocalStateValueFunc,
+		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -59,7 +60,6 @@ type (
 type operationsWorkerMergerArgs struct {
 	*logging.Logging
 	*statesWorkerMergerArgs
-	BroadcastStateMergeValuesFuncs operationsWorkerMergerBroadcastStateMergeValueFuncs
 }
 
 func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -74,13 +74,6 @@ func newOperationsWorkerMergerArgs(args *statesWorkerMergerArgs) *operationsWork
 			return zctx.Str("module", "operations-worker-merger").Str("local", args.local)
 		}),
 		statesWorkerMergerArgs: args,
-		BroadcastStateMergeValuesFuncs: func(context.Context) (
-			operationsworkerInitialInsertOpFunc,
-			func() error,
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("BroadcastStateMergeValuesFuncs")
-		},
 	}
 }
 
@@ -98,6 +91,7 @@ func newFuncOperationsWorkerMerger(
 		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 		getState getStateFunc,
 		isLocalStateValue isLocalStateValueFunc,
+		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -136,7 +130,7 @@ func newFuncOperationsWorkerMerger(
 
 		var broadcastStateValuesDone func() error
 
-		switch d, err := patchOperationsWorkerMergerArgs(wctx, args, eargs, initialInsertLocal, opsPool, isLocalStateValue); {
+		switch d, err := patchOperationsWorkerMergerArgs(wctx, args, eargs, initialInsertLocal, opsPool, isLocalStateValue, broadcastStateMergeValues); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -276,13 +270,14 @@ func patchOperationsWorkerMergerArgs(
 	initialInsertLocal workerInitialInsertOpFunc,
 	opsPool util.LockedMap[uint64, Operation],
 	isLocalStateValue isLocalStateValueFunc,
+	broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
 ) (
 	broadcastStateValuesDone func() error,
 	_ error,
 ) {
 	var broadcastStateValues operationsworkerInitialInsertOpFunc
 
-	switch d, o, err := args.BroadcastStateMergeValuesFuncs(ctx); {
+	switch d, o, err := broadcastStateMergeValues(ctx); {
 	case err != nil:
 		return nil, err
 	default:

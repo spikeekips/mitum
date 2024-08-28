@@ -49,6 +49,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 	// FIXME return *stateMergeValueExtractorArgs
 
 	oargs := newOperationsWorkerMergerArgs(sargs)
+	/* FIXME set
 	oargs.BroadcastStateMergeValuesFuncs = func(context.Context) (
 		operationsworkerInitialInsertOpFunc,
 		func() error,
@@ -56,7 +57,8 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 	) {
 		return func(uint64, util.Hash, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 	}
-	// FIXME oargs.IsLocalStateValue = func(string) bool { return true }
+	oargs.IsLocalStateValue = func(string) bool { return true }
+	*/
 
 	oargs.SetLogging(logging.TestNilLogging)
 
@@ -871,6 +873,7 @@ func (t *testSaveWorkerMerger) testMerger(
 
 		args.local = local
 
+		/* FIXME set
 		args.BroadcastStateMergeValuesFuncs = func(ctx context.Context) (
 			operationsworkerInitialInsertOpFunc,
 			func() error,
@@ -889,7 +892,6 @@ func (t *testSaveWorkerMerger) testMerger(
 			return f(ctx)
 		}
 
-		/* FIXME set
 		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
