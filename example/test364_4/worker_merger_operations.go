@@ -39,34 +39,41 @@ type (
 		error,
 	)
 	operationsWorkerMergerWaitFunc func(operationsWorkerMergerResultFunc) error
+	newOperationsWorkerMergerFunc  func(
+		_ context.Context,
+		minEnough,
+		maxOps uint64,
+		_ workerBroadcastPhaseDoneFunc,
+		_ getStateFunc,
+		_ isLocalStateValueFunc,
+	) (
+		operationsWorkerLocalInsertOpsFuncs,
+		operationsworkerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		operationsWorkerMergerWaitFunc,
+		error,
+	)
+	isLocalStateValueFunc func(stateKey string) bool
 )
 
 type operationsWorkerMergerArgs struct {
 	*logging.Logging
 	*statesWorkerMergerArgs
-	e                              *stateMergeValueExtractorArgs
-	IsLocalStateValue              func(stateKey string) bool
 	BroadcastStateMergeValuesFuncs operationsWorkerMergerBroadcastStateMergeValueFuncs
 }
 
 func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
 	args.statesWorkerMergerArgs.SetLogging(l)
-	args.e.SetLogging(l)
 
 	return args.Logging.SetLogging(l)
 }
 
-func newOperationsWorkerMergerArgs(
-	args *statesWorkerMergerArgs,
-	eArgs *stateMergeValueExtractorArgs,
-) *operationsWorkerMergerArgs {
+func newOperationsWorkerMergerArgs(args *statesWorkerMergerArgs) *operationsWorkerMergerArgs {
 	return &operationsWorkerMergerArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "operations-worker-merger").Str("local", args.local)
 		}),
 		statesWorkerMergerArgs: args,
-		e:                      eArgs,
-		IsLocalStateValue:      func(string) bool { return false },
 		BroadcastStateMergeValuesFuncs: func(context.Context) (
 			operationsworkerInitialInsertOpFunc,
 			func() error,
@@ -77,181 +84,198 @@ func newOperationsWorkerMergerArgs(
 	}
 }
 
-func newOperationsWorkerMerger(ctx context.Context, args *operationsWorkerMergerArgs, minEnough uint64) (
-	operationsWorkerLocalInsertOpsFuncs,
-	operationsworkerInitialInsertOpsFuncs,
-	workerMergerPhaseDoneFunc,
-	operationsWorkerMergerWaitFunc,
-	error,
-) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+func newFuncOperationsWorkerMerger(
+	args *operationsWorkerMergerArgs,
+	eargs *stateMergeValueExtractorArgs,
+	wpargs *workerPhaseMergerArgs,
+	pargs *phaseMergerArgs,
+) newOperationsWorkerMergerFunc {
+	newStatesWorkerMergerf := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, wpargs, pargs)
 
-	var initialInsert workerInitialInsertOpsFuncs
-	var workerPhaseDone workerMergerPhaseDoneFunc
-	var statesWait statesWorkerMergerWaitFunc
+	return func(
+		ctx context.Context,
+		minEnough, maxOps uint64,
+		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
+		getState getStateFunc,
+		isLocalStateValue isLocalStateValueFunc,
+	) (
+		operationsWorkerLocalInsertOpsFuncs,
+		operationsworkerInitialInsertOpsFuncs,
+		workerMergerPhaseDoneFunc,
+		operationsWorkerMergerWaitFunc,
+		error,
+	) {
+		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-	switch i, p, w, err := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, nil, nil)(wctx, minEnough, 0, nil, nil); { // FIXME set
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		initialInsert = i
-		workerPhaseDone = p
-		statesWait = w
-	}
+		var initialInsert workerInitialInsertOpsFuncs
+		var workerPhaseDone workerMergerPhaseDoneFunc
+		var statesWait statesWorkerMergerWaitFunc
 
-	var initialInsertLocal workerInitialInsertOpFunc
-	var initialInsertLocalDone func() error
+		switch i, p, w, err := newStatesWorkerMergerf(wctx, minEnough, maxOps, broadcastPhaseDone, getState); {
+		case err != nil:
+			return nil, nil, nil, nil, err
+		default:
+			initialInsert = i
+			workerPhaseDone = p
+			statesWait = w
+		}
 
-	switch i, d, err := initialInsert(localWorkerName); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		initialInsertLocal = i
-		initialInsertLocalDone = d
-	}
+		var initialInsertLocal workerInitialInsertOpFunc
+		var initialInsertLocalDone func() error
 
-	opsPool := util.NewSingleLockedMap[uint64, Operation]()
-	ophsPool := util.NewSingleLockedMap[uint64, util.Hash]()
+		switch i, d, err := initialInsert(localWorkerName); {
+		case err != nil:
+			return nil, nil, nil, nil, err
+		default:
+			initialInsertLocal = i
+			initialInsertLocalDone = d
+		}
 
-	var broadcastStateValuesDone func() error
+		opsPool := util.NewSingleLockedMap[uint64, Operation]()
+		ophsPool := util.NewSingleLockedMap[uint64, util.Hash]()
 
-	switch d, err := patchOperationsWorkerMergerArgs(wctx, args, initialInsertLocal, opsPool); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		broadcastStateValuesDone = d
-	}
+		var broadcastStateValuesDone func() error
 
-	var extractInsert stateMergeValueExtractorInsertFunc
-	var extractInsertDone func()
-	var extractWait stateMergeValueExtractorWaitFunc
+		switch d, err := patchOperationsWorkerMergerArgs(wctx, args, eargs, initialInsertLocal, opsPool, isLocalStateValue); {
+		case err != nil:
+			return nil, nil, nil, nil, err
+		default:
+			broadcastStateValuesDone = d
+		}
 
-	switch i, d, w, err := newStateMergeValueExtractor(wctx, args.e); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		extractInsert = i
-		extractInsertDone = d
-		extractWait = func(f stateMergeValueExtractorReasonsFunc) error {
-			if err := w(f); err != nil {
+		var extractInsert stateMergeValueExtractorInsertFunc
+		var extractInsertDone func()
+		var extractWait stateMergeValueExtractorWaitFunc
+
+		switch i, d, w, err := newStateMergeValueExtractor(wctx, eargs); {
+		case err != nil:
+			return nil, nil, nil, nil, err
+		default:
+			extractInsert = i
+			extractInsertDone = d
+			extractWait = func(f stateMergeValueExtractorReasonsFunc) error {
+				if err := w(f); err != nil {
+					return err
+				}
+
+				return initialInsertLocalDone()
+			}
+		}
+
+		waitf := func(f operationsWorkerMergerResultFunc) error {
+			defer func() {
+				opsPool.Close()
+				ophsPool.Close()
+			}()
+
+			mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
+
+			if err := extractWait(func(reasons map[uint64]string) error {
+				_ = mergeReasons(reasons)
+
+				return nil
+			}); err != nil {
 				return err
 			}
 
-			return initialInsertLocalDone()
-		}
-	}
-
-	waitf := func(f operationsWorkerMergerResultFunc) error {
-		defer func() {
-			opsPool.Close()
-			ophsPool.Close()
-		}()
-
-		mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
-
-		if err := extractWait(func(reasons map[uint64]string) error {
-			_ = mergeReasons(reasons)
-
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		if err := broadcastStateValuesDone(); err != nil {
-			return err
-		}
-
-		return statesWait(func(
-			unmerged []uint64,
-			reasons map[uint64]string,
-			traverseMergers statesWorkerMergerTraverseMergers,
-		) error {
-			if f == nil {
-				return nil
+			if err := broadcastStateValuesDone(); err != nil {
+				return err
 			}
 
-			return f(
-				mergeReasonsToUnmerged(unmerged),
-				mergeReasons(reasons),
-				func(f operationsWorkerMergerNewStateFunc) error {
-					return traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
-						ophs := make([]util.Hash, len(ops))
+			return statesWait(func(
+				unmerged []uint64,
+				reasons map[uint64]string,
+				traverseMergers statesWorkerMergerTraverseMergers,
+			) error {
+				if f == nil {
+					return nil
+				}
 
-						if err := util.TraverseSliceV1(ops, func(i int, opindex uint64) (bool, error) {
-							switch op, found := opsPool.Value(opindex); {
-							case !found:
-								switch h, found := ophsPool.Value(opindex); {
+				return f(
+					mergeReasonsToUnmerged(unmerged),
+					mergeReasons(reasons),
+					func(f operationsWorkerMergerNewStateFunc) error {
+						return traverseMergers(func(stateKey string, value base.StateValue, ops []uint64) error {
+							ophs := make([]util.Hash, len(ops))
+
+							if err := util.TraverseSliceV1(ops, func(i int, opindex uint64) (bool, error) {
+								switch op, found := opsPool.Value(opindex); {
 								case !found:
-									return false, util.ErrNotFound.Errorf("op not found in ops pool, %d", opindex)
+									switch h, found := ophsPool.Value(opindex); {
+									case !found:
+										return false, util.ErrNotFound.Errorf("op not found in ops pool, %d", opindex)
+									default:
+										ophs[i] = h
+									}
 								default:
-									ophs[i] = h
+									ophs[i] = op.Hash()
 								}
-							default:
-								ophs[i] = op.Hash()
+
+								return true, nil
+							}); err != nil {
+								return err
 							}
 
-							return true, nil
-						}); err != nil {
-							return err
-						}
+							return f(stateKey, value, ophs)
+						})
+					},
+					newTraverseOperationsFunc(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
+				)
+			})
+		}
 
-						return f(stateKey, value, ophs)
-					})
-				},
-				newTraverseOperationsFunc(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
-			)
-		})
+		return func(fs operationsWorkerInsertOpsFunc) error {
+				defer extractInsertDone()
+
+				if err := fs(func(opindex uint64, oph, _ util.Hash) error {
+					return extractInsert(opindex, oph)
+				}); err != nil {
+					args.Log().Error().Err(err).Msg("extract insert error")
+
+					return wctxCancel(err)
+				}
+
+				return nil
+			},
+			func(worker string) (operationsworkerInitialInsertOpFunc, func() error, error) {
+				if worker == localWorkerName {
+					return nil, nil, wctxCancel(util.ErrFound.Errorf("%q", localWorkerName))
+				}
+
+				var insert workerInitialInsertOpFunc
+				var done func() error
+
+				switch i, d, err := initialInsert(worker); {
+				case err != nil:
+					return nil, nil, err
+				default:
+					insert = i
+					done = d
+				}
+
+				return func(opindex uint64, oph util.Hash, values []StateMergeValue) error {
+						_ = ophsPool.SetValue(opindex, oph)
+
+						return insert(opindex, values)
+					},
+					done,
+					nil
+			},
+			workerPhaseDone,
+			func(f operationsWorkerMergerResultFunc) error {
+				return wctxCancel(waitf(f))
+			},
+			nil
 	}
-
-	return func(fs operationsWorkerInsertOpsFunc) error {
-			defer extractInsertDone()
-
-			if err := fs(func(opindex uint64, oph, _ util.Hash) error {
-				return extractInsert(opindex, oph)
-			}); err != nil {
-				args.Log().Error().Err(err).Msg("extract insert error")
-
-				return wctxCancel(err)
-			}
-
-			return nil
-		},
-		func(worker string) (operationsworkerInitialInsertOpFunc, func() error, error) {
-			if worker == localWorkerName {
-				return nil, nil, wctxCancel(util.ErrFound.Errorf("%q", localWorkerName))
-			}
-
-			var insert workerInitialInsertOpFunc
-			var done func() error
-
-			switch i, d, err := initialInsert(worker); {
-			case err != nil:
-				return nil, nil, err
-			default:
-				insert = i
-				done = d
-			}
-
-			return func(opindex uint64, oph util.Hash, values []StateMergeValue) error {
-					_ = ophsPool.SetValue(opindex, oph)
-
-					return insert(opindex, values)
-				},
-				done,
-				nil
-		},
-		workerPhaseDone,
-		func(f operationsWorkerMergerResultFunc) error {
-			return wctxCancel(waitf(f))
-		},
-		nil
 }
 
 func patchOperationsWorkerMergerArgs(
 	ctx context.Context,
 	args *operationsWorkerMergerArgs,
+	eargs *stateMergeValueExtractorArgs,
 	initialInsertLocal workerInitialInsertOpFunc,
 	opsPool util.LockedMap[uint64, Operation],
+	isLocalStateValue isLocalStateValueFunc,
 ) (
 	broadcastStateValuesDone func() error,
 	_ error,
@@ -266,16 +290,16 @@ func patchOperationsWorkerMergerArgs(
 		broadcastStateValuesDone = o
 	}
 
-	origDone := args.e.Done
+	origDone := eargs.Done
 	if origDone == nil {
 		origDone = func(context.Context, uint64, Operation, []StateMergeValue) error {
 			return nil
 		}
 	}
 
-	filterLocalStateValues := newFilterLocalStateValuesFunc(args.IsLocalStateValue)
+	filterLocalStateValues := newFilterLocalStateValuesFunc(isLocalStateValue)
 
-	args.e.Done = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
+	eargs.Done = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
 		_ = opsPool.SetValue(opindex, op)
 
 		if filtered := filterLocalStateValues(values); len(filtered) > 0 {
@@ -291,7 +315,7 @@ func patchOperationsWorkerMergerArgs(
 		return broadcastStateValues(opindex, op.Hash(), values)
 	}
 
-	args.e.SetLogging(args.Logging)
+	eargs.SetLogging(args.Logging)
 
 	return broadcastStateValuesDone, nil
 }

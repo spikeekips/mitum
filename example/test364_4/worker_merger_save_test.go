@@ -46,7 +46,9 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 		return ops[opindex], true, nil
 	}
 
-	oargs := newOperationsWorkerMergerArgs(sargs, eargs)
+	// FIXME return *stateMergeValueExtractorArgs
+
+	oargs := newOperationsWorkerMergerArgs(sargs)
 	oargs.BroadcastStateMergeValuesFuncs = func(context.Context) (
 		operationsworkerInitialInsertOpFunc,
 		func() error,
@@ -54,7 +56,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 	) {
 		return func(uint64, util.Hash, []StateMergeValue) error { return nil }, func() error { return nil }, nil
 	}
-	oargs.IsLocalStateValue = func(string) bool { return true }
+	// FIXME oargs.IsLocalStateValue = func(string) bool { return true }
 
 	oargs.SetLogging(logging.TestNilLogging)
 
@@ -907,10 +909,10 @@ func (t *testSaveWorkerMerger) testMerger(
 
 			return nil
 		}
-		*/
 		args.IsLocalStateValue = func(stateKey string) bool {
 			return slices.Index(workerValues[local], stateKey) >= 0
 		}
+		*/
 		args.NewStateFunc = func() (newStateFunc, error) {
 			return func(stateKey string, value base.StateValue, ophs []util.Hash) (base.State, error) {
 				return base.NewBaseState(33, stateKey, value, nil, ophs), nil

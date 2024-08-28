@@ -83,13 +83,6 @@ func (t *baseTestWorkerMerger) newStatesArgs(local string) (
 	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local)
 
 	args := newStatesWorkerMergerArgs(iargs)
-	/* FIXME set
-	args.GetState = func(stateKey string) (base.State, bool, error) {
-		i, found := states.Value(stateKey)
-
-		return i, found, nil
-	}
-	*/
 
 	return pargs, wpargs, args, vp, mergers, states
 }
@@ -1372,4 +1365,12 @@ func TestWorkerMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testWorkerMerger))
+}
+
+func newGetStateFunc(states util.LockedMap[string, base.State]) getStateFunc {
+	return func(stateKey string) (base.State, bool, error) {
+		i, found := states.Value(stateKey)
+
+		return i, found, nil
+	}
 }
