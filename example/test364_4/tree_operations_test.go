@@ -16,7 +16,7 @@ type testNewOperationsTreeWriterFunc struct {
 }
 
 func (t *testNewOperationsTreeWriterFunc) newFunc() newOperationsTreeFuncs {
-	return newOperationsTreeWriterFunc()
+	return newFuncOperationsTreeWriter()
 }
 
 func (t *testNewOperationsTreeWriterFunc) randomOps(n uint64) [][2]util.Hash {

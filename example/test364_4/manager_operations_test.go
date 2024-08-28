@@ -26,7 +26,7 @@ func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperatio
 		func(),
 		error,
 	) {
-		return newCheckEnoughFailedWorkersFunc(minEnough, maxFailed)
+		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
 	args.NewWorkersOpsFunc = serialNoShareWorkerOps
 
@@ -44,7 +44,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 
 		t.NoError(opf(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
@@ -122,7 +122,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 		args := t.newArgs()
 		workers := t.workers(1)
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, nil)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, nil)
 		t.NoError(err)
 
 		t.NoError(opf(func(ctx context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -151,7 +151,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
@@ -216,7 +216,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 1, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 		err = opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if worker == workers[0] {
@@ -255,7 +255,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 2, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 2, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if worker == workers[0] {
@@ -302,7 +302,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		args := t.newArgs()
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			return f(nil)
@@ -389,7 +389,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := newManagerWorkersOperationsFuncs(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
@@ -441,7 +441,7 @@ func (t *testNewDistributeItemsSerialNShareFunc) TestCallback() {
 	t.Run("zero items", func() {
 		workers := uint64(3)
 
-		f, err := newDistributeItemsSerialNShareFunc(workers, 0, 1)
+		f, err := newDistributeItemsSerialNShare(workers, 0, 1)
 		t.NoError(err)
 
 		for w := uint64(0); w < workers; w++ {
@@ -468,7 +468,7 @@ func (t *testNewDistributeItemsSerialNShareFunc) TestCallback() {
 	t.Run("worker has zero items", func() {
 		workers := uint64(3)
 
-		f, err := newDistributeItemsSerialNShareFunc(workers, 2, 1)
+		f, err := newDistributeItemsSerialNShare(workers, 2, 1)
 		t.NoError(err)
 
 		expected := map[uint64]int{
@@ -507,17 +507,17 @@ func (t *testNewDistributeItemsSerialNShareFunc) TestCallback() {
 
 func (t *testNewDistributeItemsSerialNShareFunc) TestError() {
 	t.Run("zero workers", func() {
-		_, err := newDistributeItemsSerialNShareFunc(0, 1, 1)
+		_, err := newDistributeItemsSerialNShare(0, 1, 1)
 		t.ErrorContains(err, "zero workers")
 	})
 
 	t.Run("zero share", func() {
-		_, err := newDistributeItemsSerialNShareFunc(1, 1, 0)
+		_, err := newDistributeItemsSerialNShare(1, 1, 0)
 		t.ErrorContains(err, "zero share")
 	})
 
 	t.Run("unknown worker", func() {
-		f, err := newDistributeItemsSerialNShareFunc(1, 1, 1)
+		f, err := newDistributeItemsSerialNShare(1, 1, 1)
 		t.NoError(err)
 		t.NoError(f(0, nil))
 		err = f(1, nil)
@@ -688,7 +688,7 @@ func TestNewDistributeItemsSerialNShareFuncCases(tt *testing.T) {
 		name := fmt.Sprintf("workers=%d items=%d share=%d", c.workers, c.items, c.share)
 
 		t.Run(name, func() {
-			f, err := newDistributeItemsSerialNShareFunc(
+			f, err := newDistributeItemsSerialNShare(
 				c.workers,
 				c.items,
 				c.share,
@@ -757,7 +757,7 @@ func TestNewDistributeItemsSerialNShareFuncCompound(tt *testing.T) {
 		name := fmt.Sprintf("workers=%d items=%d share=%d", workers, items, share)
 
 		t.Run(name, func() {
-			f, err := newDistributeItemsSerialNShareFunc(
+			f, err := newDistributeItemsSerialNShare(
 				workers,
 				items,
 				share,

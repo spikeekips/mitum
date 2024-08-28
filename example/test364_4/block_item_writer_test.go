@@ -48,7 +48,7 @@ func (t *baseTestBaseBlockItemWriterFunc) newCreateWriter() (
 }
 
 func (t *baseTestBaseBlockItemWriterFunc) compareChecksum(input []byte, output string) bool {
-	write, done := newChecksumWriteFuncs(
+	write, done := newChecksumWrite(
 
 		func(b []byte) (int, error) { return len(b), nil },
 		sha256.New(),
@@ -70,7 +70,7 @@ func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
 	t.Run("no write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -94,7 +94,7 @@ func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
 
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -142,7 +142,7 @@ func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
 				nil
 		}
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -164,7 +164,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -176,7 +176,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 	t.Run("no write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -200,7 +200,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -237,7 +237,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -272,7 +272,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -317,7 +317,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 				nil
 		}
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -355,7 +355,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 				nil
 		}
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)
@@ -393,7 +393,7 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 				nil
 		}
 
-		c := newBaseBlockItemWriterFunc(
+		c := newFuncBaseBlockItemWriter(
 			base.BlockItemStates,
 			createWriter,
 		)

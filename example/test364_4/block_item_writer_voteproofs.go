@@ -9,11 +9,11 @@ import (
 
 type blockItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string, _ base.INITVoteproof, _ base.ACCEPTVoteproof) (base.BlockMapItem, error)
 
-func newBlockItemVoteproofsWriterFunc(
+func newFuncBlockItemVoteproofsWriter(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterNewWriteVoteproofsFunc {
-	w := newBaseBlockItemWriterFunc(base.BlockItemVoteproofs, createWriter)
+	w := newFuncBaseBlockItemWriter(base.BlockItemVoteproofs, createWriter)
 
 	return func(ctx context.Context, createID string, ivp base.INITVoteproof, avp base.ACCEPTVoteproof) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc

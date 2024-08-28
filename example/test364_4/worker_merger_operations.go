@@ -38,7 +38,7 @@ type (
 		error,
 	)
 	operationsWorkerMergerWaitFunc func(operationsWorkerMergerResultFunc) error
-	newOperationsWorkerMergerFunc  func( // FIXME rename to operationsWorkerMergerFunc
+	operationsWorkerMergerFunc     func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
@@ -82,7 +82,7 @@ func newFuncOperationsWorkerMerger(
 	eargs *stateMergeValueExtractorArgs,
 	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
-) newOperationsWorkerMergerFunc {
+) operationsWorkerMergerFunc {
 	newStatesWorkerMergerf := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, wpargs, pargs)
 	newStateMergeValueExtractorf := newFuncStateMergeValueExtractor(eargs)
 
@@ -224,7 +224,7 @@ func newFuncOperationsWorkerMerger(
 							return f(stateKey, value, ophs)
 						})
 					},
-					newTraverseOperationsFunc(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
+					newTraverseOperations(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
 				)
 			})
 		}
@@ -296,7 +296,7 @@ func patchOperationsWorkerMerger(
 		broadcastStateValuesDone = o
 	}
 
-	filterLocalStateValues := newFilterLocalStateValuesFunc(isLocalStateValue)
+	filterLocalStateValues := newFilterLocalStateValues(isLocalStateValue)
 
 	extractorDone = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
 		_ = opsPool.SetValue(opindex, op)
@@ -358,7 +358,7 @@ func newUpdateReasonsFuncs() (
 		}
 }
 
-func newFilterLocalStateValuesFunc(
+func newFilterLocalStateValues(
 	isLocal func(stateKey string) bool,
 ) func([]StateMergeValue) []StateMergeValue {
 	return func(values []StateMergeValue) []StateMergeValue {
@@ -368,7 +368,7 @@ func newFilterLocalStateValuesFunc(
 	}
 }
 
-func newTraverseOperationsFunc(
+func newTraverseOperations(
 	ctx context.Context,
 	total uint64,
 	traverse func(func(uint64, Operation) bool) bool,

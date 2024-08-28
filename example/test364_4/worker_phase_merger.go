@@ -17,7 +17,7 @@ type (
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
 	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
 	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
-	newPhaseMergerFunc                func(
+	phaseMergerFunc                   func(
 		context.Context,
 		*phaseMergerArgs,
 		phaseMergerGetStateMergeValuesFunc,
@@ -29,7 +29,7 @@ type (
 		wait phaseMergerWaitFunc,
 		_ error,
 	)
-	newWorkerPhaseMergerFunc func(
+	workerPhaseMergerFunc func(
 		_ context.Context,
 		minEnough uint64,
 		_ phaseMergerGetStateMergeValuesFunc,
@@ -60,7 +60,7 @@ func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
 func newFuncWorkerPhaseMerger(
 	args *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
-) newWorkerPhaseMergerFunc {
+) workerPhaseMergerFunc {
 	return func(
 		ctx context.Context,
 		minEnough uint64,
@@ -107,7 +107,7 @@ func newFuncWorkerPhaseMerger(
 			}
 
 			mergeWait = w
-			insertOps = newWorkerPhaseMergerInsertFunc(merge, unmerge)
+			insertOps = newWorkerPhaseMergerInsert(merge, unmerge)
 		}
 
 		var checkWorker func(string, bool, func(_, _ bool) error) error
@@ -270,7 +270,7 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 		nil
 }
 
-func newWorkerPhaseMergerInsertFunc(
+func newWorkerPhaseMergerInsert(
 	merge, unmerge phaseMergerXMergeFunc,
 ) func(mergeOps, unmergeOps []uint64) error {
 	return func(mergeOps, unmergeOps []uint64) error {

@@ -142,12 +142,12 @@ func newFuncSaveWorkerMerger(
 			) error {
 				var doneState util.CompactAppendSliceDoneFunc[base.State]
 
-				switch m, ds, err := newSaveWorkerMergerMergeDoneFunc(
+				switch m, ds, err := newSaveWorkerMergerMergeDone(
 					wctx,
 					args,
 					maxOps,
 					unmerged,
-					newTraverseStateFunc(args, traverseMergers, stateFunc),
+					newTraverseState(args, traverseMergers, stateFunc),
 					sendMergeDone,
 				); {
 				case err != nil:
@@ -162,7 +162,7 @@ func newFuncSaveWorkerMerger(
 					doneState = ds
 				}
 
-				return saveDone(newSaveWorkerMergerSaveFunc(
+				return saveDone(newSaveWorkerMergerSave(
 					wctx,
 					args,
 					reasons,
@@ -185,7 +185,7 @@ func newFuncSaveWorkerMerger(
 	}
 }
 
-func newSaveWorkerMergerMergeDoneFunc(
+func newSaveWorkerMergerMergeDone(
 	ctx context.Context,
 	args *saveWorkerMergerArgs,
 	maxOps uint64,
@@ -249,7 +249,7 @@ func newSaveWorkerMergerMergeDoneFunc(
 		nil
 }
 
-func newSaveWorkerMergerSaveFunc(
+func newSaveWorkerMergerSave(
 	ctx context.Context,
 	args *saveWorkerMergerArgs,
 	reasons map[uint64]string,
@@ -299,7 +299,7 @@ func newSaveWorkerMergerSaveFunc(
 		}
 	})
 	addJob(func() error {
-		switch b, err := saveStates(wctx, newSaveWorkerMergerSaveStatesFunc(wctx, doneState, args.NewJobWorker)); {
+		switch b, err := saveStates(wctx, newSaveWorkerMergerSaveStates(wctx, doneState, args.NewJobWorker)); {
 		case err != nil, b == nil:
 			return err
 		default:
@@ -313,7 +313,7 @@ func newSaveWorkerMergerSaveFunc(
 	return saveDone(context.Cause(wctx))
 }
 
-func newSaveWorkerMergerSaveStatesFunc(
+func newSaveWorkerMergerSaveStates(
 	ctx context.Context,
 	traverse util.CompactAppendSliceDoneFunc[base.State],
 	newJobWorker newJobWorkerFunc,
@@ -348,7 +348,7 @@ func newSaveWorkerMergerSaveStatesFunc(
 	}
 }
 
-func newTraverseStateFunc(
+func newTraverseState(
 	args *saveWorkerMergerArgs,
 	traverseMergers operationsWorkerMergerTraverseMergersFunc,
 	stateFunc func() (newStateFunc, error),

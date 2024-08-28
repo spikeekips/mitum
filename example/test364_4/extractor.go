@@ -68,7 +68,7 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 
 		reasons := util.NewSingleLockedMap[uint64, string]()
 
-		extractf := newExtractStateMergeValueFunc(getOperation)
+		extractf := newFuncExtractStateMergeValue(getOperation)
 		extract := func(ctx context.Context, opindex uint64, oph util.Hash) error {
 			l := args.Log().With().Uint64("opindex", opindex).Stringer("op", oph).Logger()
 
@@ -122,7 +122,7 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 	}
 }
 
-func newExtractStateMergeValueFunc(
+func newFuncExtractStateMergeValue(
 	getOperation stateMergeValueExtractorGetOperationFunc,
 ) func(context.Context, uint64, util.Hash) (
 	op Operation,

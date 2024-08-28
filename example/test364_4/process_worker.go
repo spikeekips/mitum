@@ -17,7 +17,7 @@ type (
 	)
 )
 
-func newStateMergeValueExtractorGetOperationFunc(
+func newStateMergeValueExtractorGetOperation(
 	f stateMergeValueExtractorGetOperationFunc,
 	networkID base.NetworkID,
 ) stateMergeValueExtractorGetOperationFunc {
@@ -47,7 +47,7 @@ func newStateMergeValueExtractorGetOperationFunc(
 	}
 }
 
-func newBroadcastStateMergeValuesFuncs(
+func newBroadcastStateMergeValues(
 	ctx context.Context,
 	local string,
 	workers []string, // NOTE local not included
@@ -139,7 +139,7 @@ func newBroadcastStateMergeValuesFuncs(
 		nil
 }
 
-func newStateMergeValueOwnersFunc(
+func newStateMergeValueOwners(
 	local string,
 	owners func(stateKey string) []string,
 ) func([]StateMergeValue, func(worker string, _ []StateMergeValue) error) error {

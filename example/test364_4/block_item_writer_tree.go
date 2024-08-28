@@ -12,7 +12,7 @@ import (
 
 type blockItemWriterNewWriteTreeFunc func(_ context.Context, createID string, _ fixedtree.Tree) (base.BlockMapItem, error)
 
-func newBlockItemTreeWriterFunc(
+func newFuncBlockItemTreeWriter(
 	it base.BlockItemType,
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
@@ -26,7 +26,7 @@ func newBlockItemTreeWriterFunc(
 
 		var c blockItemWriterBaseNewWriteFunc
 
-		switch i, err := newBaseBlockItemWriterFunc(it, createWriter)(createID); {
+		switch i, err := newFuncBaseBlockItemWriter(it, createWriter)(createID); {
 		case err != nil:
 			return nil, err
 		default:

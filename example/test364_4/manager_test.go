@@ -76,19 +76,19 @@ type testCheckEnoughFailedWorkersFunc struct {
 
 func (t *testCheckEnoughFailedWorkersFunc) TestNew() {
 	t.Run("1 min enough + 0 max failed", func() {
-		_, _, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		_, _, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 	})
 
 	t.Run("0 min enough + 0 max failed", func() {
-		_, _, err := newCheckEnoughFailedWorkersFunc(0, 0)
+		_, _, err := newCheckEnoughFailedWorkers(0, 0)
 		t.ErrorContains(err, "zero min enough")
 	})
 }
 
 func (t *testCheckEnoughFailedWorkersFunc) TestEnough() {
 	t.Run("enough", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 
@@ -100,7 +100,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestEnough() {
 	})
 
 	t.Run("same worker", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 
@@ -116,7 +116,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestEnough() {
 	})
 
 	t.Run("ok, but after closed", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 
@@ -132,7 +132,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestEnough() {
 	})
 
 	t.Run("error, but after closed", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 
@@ -150,7 +150,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestEnough() {
 
 func (t *testCheckEnoughFailedWorkersFunc) TestFailed() {
 	t.Run("failed", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 
@@ -161,7 +161,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestFailed() {
 	})
 
 	t.Run("failed, over zero", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 1)
+		w, c, err := newCheckEnoughFailedWorkers(1, 1)
 		t.NoError(err)
 		defer c()
 
@@ -172,7 +172,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestFailed() {
 	})
 
 	t.Run("error, but under max failed", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 2)
+		w, c, err := newCheckEnoughFailedWorkers(1, 2)
 		t.NoError(err)
 		defer c()
 
@@ -188,7 +188,7 @@ func (t *testCheckEnoughFailedWorkersFunc) TestFailed() {
 	})
 
 	t.Run("ok, but after closed", func() {
-		w, c, err := newCheckEnoughFailedWorkersFunc(1, 0)
+		w, c, err := newCheckEnoughFailedWorkers(1, 0)
 		t.NoError(err)
 		defer c()
 

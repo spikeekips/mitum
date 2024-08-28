@@ -38,7 +38,7 @@ func newManagerStartWorkersArgs() *managerStartWorkersArgs {
 	}
 }
 
-func newManagerStartWorkersFunc(
+func newManagerStartWorkers(
 	ctx context.Context,
 	args *managerStartWorkersArgs,
 	workers []string,

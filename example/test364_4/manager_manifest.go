@@ -47,8 +47,8 @@ func newManagerManifestArgs(targs *managerWorkersTreesArgs) *managerManifestArgs
 	}
 }
 
-func newManagerManifestFuncs(args *managerManifestArgs) managerManifestFuncs { // FIXME rename newFuncXX
-	workersTreeFuncs := newManagerWorkersTreesFuncs(args.managerWorkersTreesArgs)
+func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
+	workersTreeFuncs := newFuncManagerWorkersTrees(args.managerWorkersTreesArgs)
 
 	return func(
 		ctx context.Context,
@@ -108,7 +108,7 @@ func newManagerManifestFuncs(args *managerManifestArgs) managerManifestFuncs { /
 				case err != nil:
 					return nil, nil, err
 				default:
-					return m, newManagerManifestSaveFunc(
+					return m, newFuncManagerManifestSave(
 						ctx,
 						workID,
 						treeSave,
@@ -121,7 +121,7 @@ func newManagerManifestFuncs(args *managerManifestArgs) managerManifestFuncs { /
 	}
 }
 
-func newManagerManifestSaveFunc(
+func newFuncManagerManifestSave(
 	ctx context.Context,
 	workID string,
 	treeSave managerWorkersTreeSaveFunc,

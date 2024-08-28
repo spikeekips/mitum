@@ -17,7 +17,7 @@ type (
 	newOperationsTreeFuncs          func(_ context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error)
 )
 
-func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
+func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
@@ -56,7 +56,7 @@ func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
 		var treeAdd func(uint64, fixedtree.Node, bool) error
 		var treeAddDone func()
 
-		switch a, d, err := treeAddOperationNodeFunc(opsSize, tw.Add); {
+		switch a, d, err := treeAddOperationNode(opsSize, tw.Add); {
 		case err != nil:
 			return nil, nil, nil, wctxCancel(err)
 		default:
@@ -153,7 +153,7 @@ func newOperationsTreeWriterFunc() newOperationsTreeFuncs {
 	}
 }
 
-func treeAddOperationNodeFunc(
+func treeAddOperationNode(
 	size uint64,
 	add func(uint64, fixedtree.Node) error,
 ) (

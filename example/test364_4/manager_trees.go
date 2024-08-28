@@ -65,7 +65,7 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 	}
 }
 
-func newManagerWorkersTreesFuncs(args *managerWorkersTreesArgs) managerWorkersTreesFuncs {
+func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTreesFuncs {
 	oargs := newManagerWorkersOperationsArgs()
 	oargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
 	oargs.NewWorkersOpsFunc = args.NewWorkersOpsFunc
@@ -96,7 +96,7 @@ func newManagerWorkersTreesFuncs(args *managerWorkersTreesArgs) managerWorkersTr
 		var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
 		var opsTreef managerWorkersTreeFunc
 
-		switch d, u, t, err := newManagerWorkersOperationsFuncs(wctx, oargs, workers, maxFailed, ophs); {
+		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, workers, maxFailed, ophs); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -108,7 +108,7 @@ func newManagerWorkersTreesFuncs(args *managerWorkersTreesArgs) managerWorkersTr
 		var statesWorker managerWorkersWorkerStatesFunc
 		var statesTreef managerWorkersTreeFunc
 
-		switch s, t, err := newManagerWorkersStatesFuncs(wctx, sargs, workers, minEnough, maxFailed); {
+		switch s, t, err := newManagerWorkersStates(wctx, sargs, workers, minEnough, maxFailed); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:

@@ -10,11 +10,11 @@ import (
 
 type blockItemWriterNewWriteOperationsFunc func(_ context.Context, createID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error)
 
-func newBlockItemOperationsWriterFunc(
+func newFuncBlockItemOperationsWriter(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterNewWriteOperationsFunc {
-	w := newBaseBlockItemWriterFunc(base.BlockItemOperations, createWriter)
+	w := newFuncBaseBlockItemWriter(base.BlockItemOperations, createWriter)
 
 	return func(ctx context.Context, createID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc

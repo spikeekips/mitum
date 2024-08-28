@@ -11,16 +11,16 @@ import (
 )
 
 type (
-	newWorkerPhaseMergerFuncs func() (
+	workerPhaseMergerFuncs func() (
 		*workerPhaseMergerArgs,
-		newWorkerPhaseMergerFunc,
+		workerPhaseMergerFunc,
 		error,
 	)
 	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
 	workerMergerIsLocalOpFunc   func(opindex uint64) bool
-	newBaseWorkerMergerFunc     func(
+	baseWorkerMergerFunc        func(
 		_ context.Context,
 		minEnough uint64,
 		_ phaseMergerGetStateMergeValuesFunc,
@@ -58,7 +58,7 @@ func newFuncBaseWorkerMerger(
 	args *baseWorkerMergerArgs,
 	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
-) newBaseWorkerMergerFunc {
+) baseWorkerMergerFunc {
 	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(wpargs, pargs)
 
 	return func(
@@ -113,7 +113,7 @@ func newFuncBaseWorkerMerger(
 			phaseWait = w
 		}
 
-		localIsReady := newLocalWorkerIsReadyFunc()
+		localIsReady := newLocalWorkerIsReady()
 
 		workerPhaseDone := func(worker string, unmerge []uint64) error {
 			var ok bool
@@ -236,7 +236,7 @@ func newWorkerMergerPhasePoolFuncs(
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
 	local string,
-	newf newWorkerPhaseMergerFunc,
+	newf workerPhaseMergerFunc,
 	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
@@ -387,7 +387,7 @@ func collectUnmergedOps(um map[uint64]struct{}, unmerged []uint64) map[uint64]st
 	return um
 }
 
-func newLocalWorkerIsReadyFunc() func(worker string, _ func(isReady bool) error) error {
+func newLocalWorkerIsReady() func(worker string, _ func(isReady bool) error) error {
 	var ready bool
 	var l sync.Mutex
 
@@ -403,7 +403,7 @@ func newLocalWorkerIsReadyFunc() func(worker string, _ func(isReady bool) error)
 	}
 }
 
-func newWorkerMergerIsLocalOpFunc(f func(uint64) bool) workerMergerIsLocalOpFunc {
+func newWorkerMergerIsLocalOp(f func(uint64) bool) workerMergerIsLocalOpFunc {
 	return func(opindex uint64) bool {
 		return f(opindex)
 	}

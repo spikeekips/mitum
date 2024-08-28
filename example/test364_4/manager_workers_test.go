@@ -22,7 +22,7 @@ func (t *testNewManagerStartWorkersFunc) newArgs() *managerStartWorkersArgs {
 		func(),
 		error,
 	) {
-		return newCheckEnoughFailedWorkersFunc(minEnough, maxFailed)
+		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
 	args.StartWorker = func(context.Context, string) error { return nil }
 
@@ -48,7 +48,7 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 		return nil
 	}
 
-	t.NoError(newManagerStartWorkersFunc(ctx, args, workers, 0))
+	t.NoError(newManagerStartWorkers(ctx, args, workers, 0))
 
 	doneWorker(func(s []string) error {
 		slices.Sort(s)
@@ -91,7 +91,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 			return nil
 		}
 
-		t.NoError(newManagerStartWorkersFunc(ctx, args, workers, 3))
+		t.NoError(newManagerStartWorkers(ctx, args, workers, 3))
 
 		doneWorker(func(s []string) error {
 			slices.Sort(s)
@@ -123,7 +123,7 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 			return nil
 		}
 
-		err := newManagerStartWorkersFunc(ctx, args, workers, 3)
+		err := newManagerStartWorkers(ctx, args, workers, 3)
 		t.ErrorContains(err, "showme")
 	})
 }

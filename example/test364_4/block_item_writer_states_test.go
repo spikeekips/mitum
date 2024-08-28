@@ -21,7 +21,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBlockItemStatesWriterNewWriteFunc(
+		c := newFuncBlockItemStatesWriterNewWrite(
 			t.enc,
 			createWriter,
 		)
@@ -33,7 +33,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 	t.Run("zero total", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemStatesWriterNewWriteFunc(
+		c := newFuncBlockItemStatesWriterNewWrite(
 			t.enc,
 			createWriter,
 		)
@@ -52,7 +52,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 	t.Run("zero total, but trying to write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemStatesWriterNewWriteFunc(
+		c := newFuncBlockItemStatesWriterNewWrite(
 			t.enc,
 			createWriter,
 		)
@@ -71,7 +71,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 	t.Run("single write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemStatesWriterNewWriteFunc(
+		c := newFuncBlockItemStatesWriterNewWrite(
 			t.enc,
 			createWriter,
 		)
@@ -102,7 +102,7 @@ func (t *testBlockItemStatesWriterFunc) TestWrite() {
 	t.Run("multiple write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemStatesWriterNewWriteFunc(
+		c := newFuncBlockItemStatesWriterNewWrite(
 			t.enc,
 			createWriter,
 		)

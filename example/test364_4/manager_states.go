@@ -36,7 +36,7 @@ func newManagerWorkersStatesArgs() *managerWorkersStatesArgs {
 	}
 }
 
-func newManagerWorkersStatesFuncs(
+func newManagerWorkersStates(
 	ctx context.Context,
 	args *managerWorkersStatesArgs,
 	workers []string,

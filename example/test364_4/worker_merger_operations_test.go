@@ -829,7 +829,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 		}, nil
 	}
 
-	broadcast, broadcastDone, err := newBroadcastStateMergeValuesFuncs(
+	broadcast, broadcastDone, err := newBroadcastStateMergeValues(
 		ctx,
 		local,
 		others,
@@ -868,7 +868,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 		return true, nil
 	})
 
-	valuesOwners := newStateMergeValueOwnersFunc(
+	valuesOwners := newStateMergeValueOwners(
 		local,
 		func(stateKey string) []string {
 			return rStateOwners[stateKey]

@@ -27,7 +27,7 @@ func (t *testBlockItemStatesTreeWriterFunc) TestWrite() {
 		t.NoError(err)
 
 		createWriter, buf := t.newCreateWriter()
-		c := newBlockItemStatesTreeWriterFunc(t.enc, createWriter)
+		c := newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.NoError(err)
@@ -57,7 +57,7 @@ func (t *testBlockItemStatesTreeWriterFunc) TestWrite() {
 		t.NoError(err)
 
 		createWriter, _ := t.newCreateWriter()
-		c := newBlockItemStatesTreeWriterFunc(t.enc, createWriter)
+		c := newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.ErrorIs(err, util.ErrInvalid)

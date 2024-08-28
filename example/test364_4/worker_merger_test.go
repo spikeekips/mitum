@@ -188,13 +188,13 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 			return nil
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(workerMergers, getState)
+		getMergers, closeMergers := newGetMergers(workerMergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncBaseWorkerMerger(args, wpargs, pargs)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOpFunc(vp.Exists))
+		insert, wait, err := newFuncBaseWorkerMerger(args, wpargs, pargs)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert
@@ -872,7 +872,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 			return nil
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(workerMergers, getState)
+		getMergers, closeMergers := newGetMergers(workerMergers, getState)
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
@@ -1139,20 +1139,19 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		_, _, args, _, _, states := t.newStatesArgs(local)
+		pargs, wpargs, args, _, _, statesPool := t.newStatesArgs(local)
 
 		for i := range sts {
 			st := sts[i]
 
-			states.SetValue(st.Key(), st)
+			statesPool.SetValue(st.Key(), st)
 		}
 
 		//if local == "w1" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
-		/* FIXME set
-		args.BroadcastPhaseDone = func(_ context.Context, unmerged []uint64) error {
+		broadcastPhaseDone := func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
 			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
@@ -1171,9 +1170,8 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 
 			return nil
 		}
-		*/
 
-		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, nil, nil)(wctx, minEnough, 0, nil, nil) // FIXME set
+		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, wpargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool))
 		t.NoError(err)
 
 		initials[local] = initial

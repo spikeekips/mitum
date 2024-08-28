@@ -20,7 +20,7 @@ type (
 		_ statesWorkerMergerTraverseMergers,
 	) error
 	statesWorkerMergerWaitFunc func(statesWorkerMergerResultFunc) error
-	newStatesWorkerMergerFunc  func(
+	statesWorkerMergerFunc     func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
@@ -58,7 +58,7 @@ func newFuncStatesWorkerMerger(
 	args *statesWorkerMergerArgs,
 	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
-) newStatesWorkerMergerFunc {
+) statesWorkerMergerFunc {
 	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, wpargs, pargs)
 
 	return func(
@@ -95,7 +95,7 @@ func newFuncStatesWorkerMerger(
 			stateOps = o
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(mergersPool, getState)
+		getMergers, closeMergers := newGetMergers(mergersPool, getState)
 
 		var initialValuesInsert workerInitialInsertOpsFuncs
 		var initialValuesPhaseDone workerMergerPhaseDoneFunc
@@ -144,7 +144,7 @@ func newFuncStatesWorkerMerger(
 							return nil
 						}
 
-						return f(unmerged, reasons, newTraverseMergersFunc(wctx, mergersPool, stateOps, args.NewJobWorker))
+						return f(unmerged, reasons, newTraverseMergers(wctx, mergersPool, stateOps, args.NewJobWorker))
 					})
 				}())
 			},
@@ -267,7 +267,7 @@ func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Lo
 		nil
 }
 
-func newTraverseMergersFunc(
+func newTraverseMergers(
 	ctx context.Context,
 	mergersPool util.LockedMap[string, StateMerger],
 	stateOps stateOpsFuncs,

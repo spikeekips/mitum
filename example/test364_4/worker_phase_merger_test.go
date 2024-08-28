@@ -54,10 +54,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -80,10 +80,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -105,10 +105,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -133,10 +133,10 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -160,10 +160,10 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -191,10 +191,10 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -221,10 +221,10 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -251,10 +251,10 @@ func (t *testWorkerPhaseMerger) TestWait() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -296,10 +296,10 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 				util.FilterSlice(u, func(op uint64) bool { return op == opindex })
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 2, getValues, getMergers, extractKeys, filterMergeOps)
@@ -333,10 +333,10 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 
 		filterMergeOps := func([]uint64, []uint64) ([]uint64, []uint64) { return nil, nil }
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, filterMergeOps)
@@ -402,10 +402,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 
 		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -431,10 +431,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -457,10 +457,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -493,10 +493,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 			_ = t.randomMergeValuesVP(vp, opindex, 1)
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -523,10 +523,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 
 		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -566,10 +566,10 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 			_ = t.randomMergeValuesVP(vp, opindex, 1)
 		}
 
-		getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
 
-		extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
 		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
@@ -646,10 +646,10 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 		seq[i] = opindex
 	}
 
-	getMergers, closeMergers := newGetMergersFunc(mergers, getState)
+	getMergers, closeMergers := newGetMergers(mergers, getState)
 	defer closeMergers()
 
-	extractKeys, closeExtractKeys := newExtractStateMergeValueKeysFunc(1 << 9)
+	extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 	defer closeExtractKeys()
 
 	insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)

@@ -44,11 +44,11 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 		NewWorkersOpsFunc: func([]string, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
-		NewTreeWriterFuncs: newOperationsTreeWriterFunc(),
+		NewTreeWriterFuncs: newFuncOperationsTreeWriter(),
 	}
 }
 
-func newManagerWorkersOperationsFuncs(
+func newManagerWorkersOperations(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
 	workers []string,
@@ -307,7 +307,7 @@ type (
 	distributeItemsSerialNShareFunc         func(worker uint64, f distributeItemsSerialNShareCallbackFunc) error
 )
 
-func newDistributeItemsSerialNShareFunc(workers, items, share uint64) (
+func newDistributeItemsSerialNShare(workers, items, share uint64) (
 	distributeItemsSerialNShareFunc,
 	error,
 ) {

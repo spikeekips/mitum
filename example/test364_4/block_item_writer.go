@@ -30,7 +30,7 @@ type (
 	blockItemWriterBaseNewWriteFuncs func(createID string) (blockItemWriterBaseNewWriteFunc, error)
 )
 
-func newBaseBlockItemWriterFunc(
+func newFuncBaseBlockItemWriter(
 	it base.BlockItemType,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterBaseNewWriteFuncs {
@@ -58,7 +58,7 @@ func newBaseBlockItemWriterFunc(
 					case err != nil:
 						return err
 					default:
-						w, chk := newChecksumWriteFuncs(w, sha256.New())
+						w, chk := newChecksumWrite(w, sha256.New())
 
 						write = w
 						checksum = chk
@@ -164,7 +164,7 @@ func (w writeFunc) Write(p []byte) (int, error) {
 	return w(p)
 }
 
-func newChecksumWriteFuncs(write ioWriteFunc, h hash.Hash) (
+func newChecksumWrite(write ioWriteFunc, h hash.Hash) (
 	ioWriteFunc,
 	func() string,
 ) {

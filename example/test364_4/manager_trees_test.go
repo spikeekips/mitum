@@ -24,11 +24,11 @@ func (t *testNewManagerWorkersTreesFuncs) newArgs() *managerWorkersTreesArgs {
 		func(),
 		error,
 	) {
-		return newCheckEnoughFailedWorkersFunc(minEnough, maxFailed)
+		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
 	args.NewWorkersOpsFunc = serialNoShareWorkerOps
-	args.NewOperationsTreeWriterFuncs = newOperationsTreeWriterFunc()
-	args.NewStatesTreeWriterFuncs = newStatesTreeWriterFunc(1<<9, 1<<9)
+	args.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
+	args.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
 	args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 		return nil
 	}
@@ -49,7 +49,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		workers := t.workers(3)
 
-		f := newManagerWorkersTreesFuncs(t.newArgs())
+		f := newFuncManagerWorkersTrees(t.newArgs())
 
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
@@ -85,7 +85,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return nil
 		}
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -127,7 +127,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return nil
 		}
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -161,7 +161,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -196,7 +196,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -226,7 +226,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		args := t.newArgs()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -260,7 +260,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 
 		workers := t.workers(3)
 
-		f := newManagerWorkersTreesFuncs(t.newArgs())
+		f := newFuncManagerWorkersTrees(t.newArgs())
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -297,7 +297,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return nil
 		}
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 2, 2, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -334,7 +334,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return nil
 		}
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -354,12 +354,12 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 func (t *testNewManagerWorkersTreesFuncs) newOpsBlockItemWriter() blockItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
 
-	return newBlockItemOperationsTreeWriterFunc(t.enc, createWriter)
+	return newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
 }
 
 func (t *testNewManagerWorkersTreesFuncs) newStatesBlockItemWriter() blockItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
-	return newBlockItemStatesTreeWriterFunc(t.enc, createWriter)
+	return newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
 }
 
 func (t *testNewManagerWorkersTreesFuncs) TestTree() {
@@ -374,7 +374,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), nil)
 		t.NoError(err)
 
@@ -409,7 +409,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
@@ -454,7 +454,7 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
 		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
-		f := newManagerWorkersTreesFuncs(args)
+		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 

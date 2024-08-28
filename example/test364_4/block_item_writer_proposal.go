@@ -9,11 +9,11 @@ import (
 
 type blockItemWriterNewWriteProposalFunc func(_ context.Context, createID string, _ base.ProposalSignFact) (base.BlockMapItem, error)
 
-func newBlockItemProposalWriterNewWriteFunc(
+func newFuncBlockItemProposalWriterNewWrite(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterNewWriteProposalFunc {
-	w := newBaseBlockItemWriterFunc(base.BlockItemProposal, createWriter)
+	w := newFuncBaseBlockItemWriter(base.BlockItemProposal, createWriter)
 
 	return func(ctx context.Context, createID string, pr base.ProposalSignFact) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc

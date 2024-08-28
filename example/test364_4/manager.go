@@ -17,7 +17,7 @@ var (
 	errCheckWorkersFailed = util.NewIDError("check workers; failed")
 )
 
-func newCheckEnoughFailedWorkersFunc(
+func newCheckEnoughFailedWorkers(
 	minEnough, maxFailed uint64,
 ) (
 	checkEnoughFailedWorkerFunc,

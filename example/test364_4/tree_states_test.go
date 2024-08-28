@@ -16,7 +16,7 @@ type testNewStatesTreeWriterFunc struct {
 }
 
 func (t *testNewStatesTreeWriterFunc) newFunc(size uint64, grow ...uint64) newStatesTreeFuncs {
-	return newStatesTreeWriterFunc(size, grow...)
+	return newFuncStatesTreeWriter(size, grow...)
 }
 
 func (t *testNewStatesTreeWriterFunc) TestAdd() {

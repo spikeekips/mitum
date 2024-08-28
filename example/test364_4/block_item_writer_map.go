@@ -10,7 +10,7 @@ import (
 
 type blockItemWriterNewWriteMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
 
-func newBlockItemMapWriterFunc(
+func newFuncBlockItemMapWriter(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterNewWriteMapFunc {

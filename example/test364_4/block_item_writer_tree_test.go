@@ -58,7 +58,7 @@ func (t *testBlockItemTreeWriterFunc) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBlockItemTreeWriterFunc(
+		c := newFuncBlockItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -71,7 +71,7 @@ func (t *testBlockItemTreeWriterFunc) TestWrite() {
 	t.Run("empty tree", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBlockItemTreeWriterFunc(
+		c := newFuncBlockItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -85,7 +85,7 @@ func (t *testBlockItemTreeWriterFunc) TestWrite() {
 	t.Run("ok", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newBlockItemTreeWriterFunc(
+		c := newFuncBlockItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -110,7 +110,7 @@ func (t *testBlockItemTreeWriterFunc) TestWrite() {
 	t.Run("context canceled", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newBlockItemTreeWriterFunc(
+		c := newFuncBlockItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,

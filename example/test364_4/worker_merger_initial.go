@@ -28,7 +28,7 @@ type (
 	setStateOpFunc                      func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
 	getStateOpsFunc                     func(stateKey string) (ops []uint64)
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
-	newInitialValuesWorkerMergerFunc    func(
+	initialValuesWorkerMergerFunc       func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
@@ -71,7 +71,7 @@ func newFuncInitialValuesWorkerMerger(
 	args *initialValuesWorkerMergerArgs,
 	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
-) newInitialValuesWorkerMergerFunc {
+) initialValuesWorkerMergerFunc {
 	newBaseWorkerMergerf := newFuncBaseWorkerMerger(args.baseWorkerMergerArgs, wpargs, pargs)
 
 	return func(
@@ -105,7 +105,7 @@ func newFuncInitialValuesWorkerMerger(
 			vp = i
 		}
 
-		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeysFunc(int(maxOps))
+		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeys(int(maxOps))
 
 		getStateMergeValues := getStateMergeValuesFuncFromPool(vp)
 
@@ -137,7 +137,7 @@ func newFuncInitialValuesWorkerMerger(
 			getStateMergeValues,
 			getMergers,
 			extractStateMergeValueKeys,
-			newWorkerMergerIsLocalOpFunc(vp.Exists),
+			newWorkerMergerIsLocalOp(vp.Exists),
 		); {
 		case err != nil:
 			return nil, nil, nil, err
