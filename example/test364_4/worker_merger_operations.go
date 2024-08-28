@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -47,6 +46,7 @@ type (
 		_ getStateFunc,
 		_ isLocalStateValueFunc,
 		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
+		_ stateMergeValueExtractorGetOperationFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -84,6 +84,7 @@ func newFuncOperationsWorkerMerger(
 	pargs *phaseMergerArgs,
 ) newOperationsWorkerMergerFunc {
 	newStatesWorkerMergerf := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, wpargs, pargs)
+	newStateMergeValueExtractorf := newFuncStateMergeValueExtractor(eargs)
 
 	return func(
 		ctx context.Context,
@@ -92,6 +93,7 @@ func newFuncOperationsWorkerMerger(
 		getState getStateFunc,
 		isLocalStateValue isLocalStateValueFunc,
 		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
+		getOperation stateMergeValueExtractorGetOperationFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -129,19 +131,28 @@ func newFuncOperationsWorkerMerger(
 		ophsPool := util.NewSingleLockedMap[uint64, util.Hash]()
 
 		var broadcastStateValuesDone func() error
+		var extractorDone stateMergeValueExtractorExtractDoneFunc
 
-		switch d, err := patchOperationsWorkerMergerArgs(wctx, args, eargs, initialInsertLocal, opsPool, isLocalStateValue, broadcastStateMergeValues); {
+		switch d, e, err := patchOperationsWorkerMerger(
+			wctx,
+			args,
+			initialInsertLocal,
+			opsPool,
+			isLocalStateValue,
+			broadcastStateMergeValues,
+		); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
 			broadcastStateValuesDone = d
+			extractorDone = e
 		}
 
 		var extractInsert stateMergeValueExtractorInsertFunc
 		var extractInsertDone func()
 		var extractWait stateMergeValueExtractorWaitFunc
 
-		switch i, d, w, err := newFuncStateMergeValueExtractor(eargs)(wctx, nil); { // FIXME set
+		switch i, d, w, err := newStateMergeValueExtractorf(wctx, getOperation, extractorDone); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -263,38 +274,31 @@ func newFuncOperationsWorkerMerger(
 	}
 }
 
-func patchOperationsWorkerMergerArgs(
+func patchOperationsWorkerMerger(
 	ctx context.Context,
 	args *operationsWorkerMergerArgs,
-	eargs *stateMergeValueExtractorArgs,
 	initialInsertLocal workerInitialInsertOpFunc,
 	opsPool util.LockedMap[uint64, Operation],
 	isLocalStateValue isLocalStateValueFunc,
 	broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
 ) (
 	broadcastStateValuesDone func() error,
+	extractorDone stateMergeValueExtractorExtractDoneFunc,
 	_ error,
 ) {
 	var broadcastStateValues operationsworkerInitialInsertOpFunc
 
 	switch d, o, err := broadcastStateMergeValues(ctx); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		broadcastStateValues = d
 		broadcastStateValuesDone = o
 	}
 
-	origDone := eargs.Done
-	if origDone == nil {
-		origDone = func(context.Context, uint64, Operation, []StateMergeValue) error {
-			return nil
-		}
-	}
-
 	filterLocalStateValues := newFilterLocalStateValuesFunc(isLocalStateValue)
 
-	eargs.Done = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
+	extractorDone = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
 		_ = opsPool.SetValue(opindex, op)
 
 		if filtered := filterLocalStateValues(values); len(filtered) > 0 {
@@ -303,16 +307,10 @@ func patchOperationsWorkerMergerArgs(
 			}
 		}
 
-		if err := origDone(ctx, opindex, op, values); !errors.Is(err, util.ErrNotImplemented) {
-			return err
-		}
-
 		return broadcastStateValues(opindex, op.Hash(), values)
 	}
 
-	eargs.SetLogging(args.Logging)
-
-	return broadcastStateValuesDone, nil
+	return broadcastStateValuesDone, extractorDone, nil
 }
 
 func newUpdateReasonsFuncs() (

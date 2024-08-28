@@ -12,9 +12,13 @@ type (
 	stateMergeValueExtractorGetOperationFunc func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
 	stateMergeValueExtractorInsertFunc       func(opindex uint64, oph util.Hash) error
 	stateMergeValueExtractorReasonsFunc      func(reasons map[uint64]string) error
-	stateMergeValueExtractorExtractDone      func(_ context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error
+	stateMergeValueExtractorExtractDoneFunc  func(_ context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error
 	stateMergeValueExtractorWaitFunc         func(stateMergeValueExtractorReasonsFunc) error
-	newStateMergeValueExtractorFunc          func(context.Context, stateMergeValueExtractorGetOperationFunc) (
+	newStateMergeValueExtractorFunc          func(
+		context.Context,
+		stateMergeValueExtractorGetOperationFunc,
+		stateMergeValueExtractorExtractDoneFunc,
+	) (
 		_ stateMergeValueExtractorInsertFunc,
 		extractDone func(),
 		wait stateMergeValueExtractorWaitFunc,
@@ -25,7 +29,6 @@ type (
 type stateMergeValueExtractorArgs struct {
 	*logging.Logging
 	NewJobWorker newJobWorkerFunc
-	Done         stateMergeValueExtractorExtractDone
 	local        string
 }
 
@@ -37,9 +40,6 @@ func newStateMergeValueExtractorArgs(local string) *stateMergeValueExtractorArgs
 		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, 1<<6)
 		},
-		Done: func(context.Context, uint64, Operation, []StateMergeValue) error {
-			return util.ErrNotImplemented.Errorf("Done")
-		},
 		local: local,
 	}
 }
@@ -48,6 +48,7 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 	return func(
 		ctx context.Context,
 		getOperation stateMergeValueExtractorGetOperationFunc,
+		done stateMergeValueExtractorExtractDoneFunc,
 	) (
 		_ stateMergeValueExtractorInsertFunc,
 		extractDone func(),
@@ -86,7 +87,7 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 
 				return nil
 			default:
-				return args.Done(ctx, opindex, op, values)
+				return done(ctx, opindex, op, values)
 			}
 
 			return nil

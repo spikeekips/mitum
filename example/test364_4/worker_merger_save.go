@@ -89,7 +89,7 @@ func newSaveWorkerMerger(ctx context.Context, args *saveWorkerMergerArgs, minEno
 	var opWorkerPhaseDone workerMergerPhaseDoneFunc
 	var opWait operationsWorkerMergerWaitFunc
 
-	switch i, wi, p, w, err := newFuncOperationsWorkerMerger(args.operationsWorkerMergerArgs, nil, nil, nil)(wctx, minEnough, 0, nil, nil, nil, nil); { // FIXME set
+	switch i, wi, p, w, err := newFuncOperationsWorkerMerger(args.operationsWorkerMergerArgs, nil, nil, nil)(wctx, minEnough, 0, nil, nil, nil, nil, nil); { // FIXME set
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
