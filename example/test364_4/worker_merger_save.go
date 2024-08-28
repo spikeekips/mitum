@@ -26,6 +26,7 @@ type (
 	saveWorkerMergerSaveReasonsFunc        func(reasons map[uint64]string) error
 	saveWorkerMergerSaveTraverseStatesFunc func(func(base.State) error) error
 	saveWorkerMergerSaveBlockMapItemFunc   func(base.BlockMapItem) error
+	saveWorkerMergerSendSaveDoneFunc       func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error)
 	saveWorkerMergerFunc                   func(
 		_ context.Context,
 		minEnough,
@@ -40,6 +41,7 @@ type (
 		_ saveWorkerMergerSaveOperationsFunc,
 		_ saveWorkerMergerSaveStatesFuncs,
 		_ saveWorkerMergerSaveReasonsFunc,
+		_ saveWorkerMergerSendSaveDoneFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -53,7 +55,6 @@ type (
 type saveWorkerMergerArgs struct {
 	*logging.Logging
 	*operationsWorkerMergerArgs
-	SaveDone func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error)
 }
 
 func (args *saveWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
@@ -70,9 +71,6 @@ func newSaveWorkerMergerArgs(
 			return zctx.Str("module", "save-worker-merger").Str("local", args.local)
 		}),
 		operationsWorkerMergerArgs: args,
-		SaveDone: func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
-			return nil, nil, util.ErrNotImplemented.Errorf("SaveDone")
-		},
 	}
 }
 
@@ -97,6 +95,7 @@ func newFuncSaveWorkerMerger(
 		saveOperations saveWorkerMergerSaveOperationsFunc,
 		saveStates saveWorkerMergerSaveStatesFuncs,
 		saveReasons saveWorkerMergerSaveReasonsFunc,
+		sendSaveDone saveWorkerMergerSendSaveDoneFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -172,6 +171,7 @@ func newFuncSaveWorkerMerger(
 					saveOperations,
 					saveStates,
 					saveReasons,
+					sendSaveDone,
 				))
 			}))
 		}()
@@ -258,6 +258,7 @@ func newSaveWorkerMergerSaveFunc(
 	saveOperations saveWorkerMergerSaveOperationsFunc,
 	saveStates saveWorkerMergerSaveStatesFuncs,
 	saveReasons saveWorkerMergerSaveReasonsFunc,
+	sendSaveDone saveWorkerMergerSendSaveDoneFunc,
 ) error {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 	defer wctxCancel(nil)
@@ -265,7 +266,7 @@ func newSaveWorkerMergerSaveFunc(
 	var saveDoneBlockMapItem saveWorkerMergerSaveBlockMapItemFunc
 	var saveDone errorFunc
 
-	switch b, d, err := args.SaveDone(wctx); {
+	switch b, d, err := sendSaveDone(wctx); {
 	case err != nil:
 		return err
 	default:
