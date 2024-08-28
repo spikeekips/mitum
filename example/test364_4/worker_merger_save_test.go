@@ -42,11 +42,6 @@ func (t *testSaveWorkerMerger) newArgs(local string) (
 
 	args := newSaveWorkerMergerArgs(oargs)
 
-	args.SaveReasons = func(reasons map[uint64]string) error {
-		fmt.Printf("save reasons: local=%q reasons=%v\n", local, reasons)
-
-		return nil
-	}
 	args.SaveDone = func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error) {
 		fmt.Printf("save done: local=%q\n", local)
 
@@ -63,7 +58,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -125,7 +120,8 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		var gatheredReasons map[uint64]string
-		args.SaveReasons = func(reasons map[uint64]string) error {
+
+		saveReasons := func(reasons map[uint64]string) error {
 			gatheredReasons = reasons
 
 			return nil
@@ -138,7 +134,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, sendMergeDone, saveOperations, dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, sendMergeDone, saveOperations, dummySaveStatesFunc("local"), saveReasons)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -261,7 +257,8 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 		}
 
 		var gatheredReasons map[uint64]string
-		args.SaveReasons = func(reasons map[uint64]string) error {
+
+		saveReasons := func(reasons map[uint64]string) error {
 			gatheredReasons = reasons
 
 			return nil
@@ -290,7 +287,7 @@ func (t *testSaveWorkerMerger) TestInsertOps() {
 			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), newStateFunc, sendMergeDone, saveOperations, saveStates)
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), newStateFunc, sendMergeDone, saveOperations, saveStates, saveReasons)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -338,7 +335,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		_, _, _, _, _, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 0, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		_, _, _, _, _, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 0, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.ErrorContains(err, "empty size")
 	})
 
@@ -348,7 +345,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -366,7 +363,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		err = insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -386,7 +383,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -409,7 +406,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			return nil, errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), newStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), newStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -430,7 +427,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			return errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -458,7 +455,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			)
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -486,7 +483,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			)
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -520,7 +517,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			})
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), saveStates)
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), saveStates, dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -532,7 +529,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 		t.ErrorContains(err, "findme")
 	})
 
-	t.Run("args.SaveReasons error", func() {
+	t.Run("SaveReasons error", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -541,11 +538,11 @@ func (t *testSaveWorkerMerger) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		args.SaveReasons = func(reasons map[uint64]string) error {
+		saveReasons := func(reasons map[uint64]string) error {
 			return errors.Errorf("findme")
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), saveReasons)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -576,7 +573,7 @@ func (t *testSaveWorkerMerger) TestErrors() {
 			}, nil
 		}
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -596,7 +593,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		cancel()
@@ -618,7 +615,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		cancel()
@@ -652,7 +649,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 			)
 		}
 
-		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, workerInsertOps, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -682,7 +679,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, workerPhaseDone, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, workerPhaseDone, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -704,7 +701,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -735,7 +732,7 @@ func (t *testSaveWorkerMerger) TestCancel() {
 				},
 			)
 		}
-		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"))
+		insertOps, _, _, mergeDone, saveDone, err := newFuncSaveWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil), dummyStateFunc, sendMergeDone, dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error { return nil }))
@@ -899,7 +896,7 @@ func (t *testSaveWorkerMerger) testMerger(
 					}
 				})
 		}
-		args.SaveReasons = func(reasons map[uint64]string) error {
+		saveReasons := func(reasons map[uint64]string) error {
 			TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
 				gatheredReasons.SetValue(opindex, reason)
 
@@ -962,6 +959,7 @@ func (t *testSaveWorkerMerger) testMerger(
 			sendMergeDone,
 			saveOperations,
 			saveStates,
+			saveReasons,
 		)
 		t.NoError(err)
 
@@ -1403,5 +1401,13 @@ func dummySaveStatesFunc(local string) saveWorkerMergerSaveStatesFuncs {
 				})
 			}
 		})
+	}
+}
+
+func dummySaveReasonsFunc(local string) saveWorkerMergerSaveReasonsFunc {
+	return func(reasons map[uint64]string) error {
+		fmt.Printf("save reasons: local=%q reasons=%v\n", local, reasons)
+
+		return nil
 	}
 }
