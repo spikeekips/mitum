@@ -38,6 +38,7 @@ type (
 		_ func() (newStateFunc, error),
 		_ saveWorkerMergerSendMergeDoneFuncs,
 		_ saveWorkerMergerSaveOperationsFunc,
+		_ saveWorkerMergerSaveStatesFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -51,7 +52,6 @@ type (
 type saveWorkerMergerArgs struct {
 	*logging.Logging
 	*operationsWorkerMergerArgs
-	SaveStates  saveWorkerMergerSaveStatesFuncs
 	SaveReasons saveWorkerMergerSaveReasonsFunc
 	SaveDone    func(context.Context) (saveWorkerMergerSaveBlockMapItemFunc, errorFunc, error)
 }
@@ -70,9 +70,6 @@ func newSaveWorkerMergerArgs(
 			return zctx.Str("module", "save-worker-merger").Str("local", args.local)
 		}),
 		operationsWorkerMergerArgs: args,
-		SaveStates: func(context.Context, func(saveWorkerMergerSaveStatesFunc) error) (base.BlockMapItem, error) {
-			return nil, util.ErrNotImplemented.Errorf("SaveStates")
-		},
 		SaveReasons: func(reasons map[uint64]string) error {
 			return util.ErrNotImplemented.Errorf("SaveReasons")
 		},
@@ -101,6 +98,7 @@ func newFuncSaveWorkerMerger(
 		stateFunc func() (newStateFunc, error),
 		sendMergeDone saveWorkerMergerSendMergeDoneFuncs,
 		saveOperations saveWorkerMergerSaveOperationsFunc,
+		saveStates saveWorkerMergerSaveStatesFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -167,7 +165,7 @@ func newFuncSaveWorkerMerger(
 					doneState = ds
 				}
 
-				return saveDone(newSaveWorkerMergerSaveFunc(wctx, args, reasons, doneState, traverseOperations, saveOperations))
+				return saveDone(newSaveWorkerMergerSaveFunc(wctx, args, reasons, doneState, traverseOperations, saveOperations, saveStates))
 			}))
 		}()
 
@@ -251,6 +249,7 @@ func newSaveWorkerMergerSaveFunc(
 	doneState util.CompactAppendSliceDoneFunc[base.State],
 	traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 	saveOperations saveWorkerMergerSaveOperationsFunc,
+	saveStates saveWorkerMergerSaveStatesFuncs,
 ) error {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 	defer wctxCancel(nil)
@@ -291,7 +290,7 @@ func newSaveWorkerMergerSaveFunc(
 		}
 	})
 	addJob(func() error {
-		switch b, err := args.SaveStates(wctx, newSaveWorkerMergerSaveStatesFunc(wctx, doneState, args.NewJobWorker)); {
+		switch b, err := saveStates(wctx, newSaveWorkerMergerSaveStatesFunc(wctx, doneState, args.NewJobWorker)); {
 		case err != nil, b == nil:
 			return err
 		default:
