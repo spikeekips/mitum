@@ -36,6 +36,7 @@ type (
 		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
 		_ stateMergeValueExtractorGetOperationFunc,
 		_ func() (newStateFunc, error),
+		_ saveWorkerMergerSendMergeDoneFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -49,7 +50,6 @@ type (
 type saveWorkerMergerArgs struct {
 	*logging.Logging
 	*operationsWorkerMergerArgs
-	MergeDone      saveWorkerMergerSendMergeDoneFuncs
 	SaveOperations saveWorkerMergerSaveOperationsFunc
 	SaveStates     saveWorkerMergerSaveStatesFuncs
 	SaveReasons    saveWorkerMergerSaveReasonsFunc
@@ -70,9 +70,6 @@ func newSaveWorkerMergerArgs(
 			return zctx.Str("module", "save-worker-merger").Str("local", args.local)
 		}),
 		operationsWorkerMergerArgs: args,
-		MergeDone: func(context.Context, saveWorkerMergerMergeDoneFunc) error {
-			return util.ErrNotImplemented.Errorf("MergeDone")
-		},
 		SaveOperations: func(context.Context, func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
 			return nil, util.ErrNotImplemented.Errorf("SaveOperations")
 		},
@@ -105,6 +102,7 @@ func newFuncSaveWorkerMerger(
 		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
 		getOperation stateMergeValueExtractorGetOperationFunc,
 		stateFunc func() (newStateFunc, error),
+		sendMergeDone saveWorkerMergerSendMergeDoneFuncs,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
 		operationsworkerInitialInsertOpsFuncs,
@@ -154,8 +152,10 @@ func newFuncSaveWorkerMerger(
 				switch m, ds, err := newSaveWorkerMergerMergeDoneFunc(
 					wctx,
 					args,
+					maxOps,
 					unmerged,
 					newTraverseStateFunc(args, traverseMergers, stateFunc),
+					sendMergeDone,
 				); {
 				case err != nil:
 					return err
@@ -185,8 +185,10 @@ func newFuncSaveWorkerMerger(
 func newSaveWorkerMergerMergeDoneFunc(
 	ctx context.Context,
 	args *saveWorkerMergerArgs,
+	maxOps uint64,
 	unmerged []uint64,
 	traverseStates saveWorkerMergerSaveTraverseStatesFunc,
+	sendMergeDone saveWorkerMergerSendMergeDoneFuncs,
 ) (
 	func() error,
 	util.CompactAppendSliceDoneFunc[base.State],
@@ -195,7 +197,7 @@ func newSaveWorkerMergerMergeDoneFunc(
 	var addState util.CompactAppendSliceAddFunc[base.State]
 	var doneState util.CompactAppendSliceDoneFunc[base.State]
 
-	switch a, d, err := util.CompactAppendSliceV1[base.State](1<<9, 1<<9); { // FIXME set maxOps
+	switch a, d, err := util.CompactAppendSliceV1[base.State](maxOps, 1<<9); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -204,7 +206,7 @@ func newSaveWorkerMergerMergeDoneFunc(
 	}
 
 	return func() error {
-			return args.MergeDone(ctx, func(statesf saveWorkerMergerSendStatesFuncs, unmergedf saveWorkerMergerUnmergedFunc) error {
+			return sendMergeDone(ctx, func(statesf saveWorkerMergerSendStatesFuncs, unmergedf saveWorkerMergerUnmergedFunc) error {
 				var wg sync.WaitGroup
 
 				mctx, mctxCancel := ContextWithCancelCause(ctx)
