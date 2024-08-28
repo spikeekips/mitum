@@ -37,6 +37,7 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
+	/* FIXME
 	eargs := newStateMergeValueExtractorArgs(local)
 	eargs.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
 		if opindex >= uint64(len(ops)) {
@@ -45,8 +46,8 @@ func (t *testSaveWorkerMerger) newArgs(local string, ops []Operation) (
 
 		return ops[opindex], true, nil
 	}
-
 	// FIXME return *stateMergeValueExtractorArgs
+	*/
 
 	oargs := newOperationsWorkerMergerArgs(sargs)
 	/* FIXME set

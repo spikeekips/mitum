@@ -36,6 +36,7 @@ func (t *testOperationsWorkerMerger) newArgs(local string, ops []Operation) (
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
 	eargs := newStateMergeValueExtractorArgs(local)
+	/* FIXME
 	eargs.GetOperation = func(_ context.Context, opindex uint64, _ util.Hash) (Operation, bool, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, nil
@@ -43,6 +44,7 @@ func (t *testOperationsWorkerMerger) newArgs(local string, ops []Operation) (
 
 		return ops[opindex], true, nil
 	}
+	*/
 
 	args := newOperationsWorkerMergerArgs(sargs)
 
@@ -210,9 +212,11 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		op := t.randomOp(1)
 
 		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", []Operation{op})
+		/* FIXME
 		eargs.GetOperation = func(_ context.Context, opindex uint64, oph util.Hash) (Operation, bool, error) {
 			return nil, false, errors.Errorf("showme")
 		}
+		*/
 
 		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs)
 		t.NoError(err)

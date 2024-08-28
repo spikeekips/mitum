@@ -141,7 +141,7 @@ func newFuncOperationsWorkerMerger(
 		var extractInsertDone func()
 		var extractWait stateMergeValueExtractorWaitFunc
 
-		switch i, d, w, err := newStateMergeValueExtractor(wctx, eargs); {
+		switch i, d, w, err := newFuncStateMergeValueExtractor(eargs)(wctx, nil); { // FIXME set
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
