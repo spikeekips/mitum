@@ -12,12 +12,8 @@ import (
 )
 
 type (
-	managerManifestSaveFunc func() (
-		opsTree, statesTree, proposal base.BlockMapItem,
-		_ error,
-	)
-	managerManifestDoneFunc func(func(_ base.ProposalSignFact, opsTree, statesTree fixedtree.Tree) error) error
-	managerManifestFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, _ base.ProposalSignFact) (
+	managerManifestDoneFunc func(func(opsTree, statesTree fixedtree.Tree) error) error
+	managerManifestFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, _ [][2]util.Hash) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
 		managerManifestDoneFunc,
@@ -27,38 +23,35 @@ type (
 
 type managerManifestArgs struct {
 	*logging.Logging
-	*managerWorkersTreesArgs
-	WriteBlockItemProposalFunc blockItemWriterNewWriteProposalFunc
 }
 
-func newManagerManifestArgs(targs *managerWorkersTreesArgs) *managerManifestArgs {
+func newManagerManifestArgs() *managerManifestArgs {
 	return &managerManifestArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "manager-manifest")
 		}),
-		managerWorkersTreesArgs: targs,
-		WriteBlockItemProposalFunc: func(context.Context, string, base.ProposalSignFact) (base.BlockMapItem, error) {
-			return nil, util.ErrNotImplemented.Errorf("WriteBlockItemProposalFunc")
-		},
 	}
 }
 
-func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
-	workersTreeFuncs := newFuncManagerWorkersTrees(args.managerWorkersTreesArgs)
+func newFuncManagerManifest(
+	args *managerManifestArgs,
+	targs *managerWorkersTreesArgs,
+) managerManifestFuncs {
+	workersTreeFuncs := newFuncManagerWorkersTrees(targs)
 
 	return func(
 		ctx context.Context,
 		workers []string,
 		minEnough, maxFailed uint64,
 		workID string,
-		pr base.ProposalSignFact,
+		ophs [][2]util.Hash,
 	) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
 		managerManifestDoneFunc,
 		error,
 	) {
-		switch w := uint64(len(workers)); {
+		switch w := uint64(len(workers)); { // FIXME move higher
 		case w < 1:
 			return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
 		case maxFailed >= w:
@@ -76,7 +69,7 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 			workers,
 			minEnough, maxFailed,
 			workID,
-			pr.ProposalFact().Operations(),
+			ophs,
 		); {
 		case err != nil:
 			return nil, nil, nil, err
@@ -87,7 +80,7 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 		}
 
 		return workersUnmerge, workersStates,
-			func(f func(base.ProposalSignFact, fixedtree.Tree, fixedtree.Tree) error) error {
+			func(f func(fixedtree.Tree, fixedtree.Tree) error) error {
 				var opsTree, statesTree fixedtree.Tree
 
 				switch o, s, err := workersTree(); {
@@ -98,7 +91,7 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 					statesTree = s
 				}
 
-				return f(pr, opsTree, statesTree)
+				return f(opsTree, statesTree)
 			},
 			nil
 	}

@@ -82,6 +82,10 @@ func newManagerWorkersStates(
 	errClosed := errors.New(util.UUID().String())
 
 	return func(ctx context.Context, worker string, f func(func(stateKey string) error) error) error {
+			if err := context.Cause(wctx); err != nil {
+				return errors.WithStack(err)
+			}
+
 			return contextCauseError(
 				ctx,
 				ifErrErrorFunc(closef),

@@ -44,11 +44,21 @@ func (t *baseTestManager) ophs(n int) [][2]util.Hash {
 	return ophs
 }
 
-func (t *baseTestManager) states(n int) []string {
+func (t *baseTestManager) stateKeys(n int) []string {
 	sts := make([]string, n)
 
 	for i := 0; i < n; i++ {
 		sts[i] = util.ULID().String()
+	}
+
+	return sts
+}
+
+func (t *baseTestManager) stateKeysUnordered(n int) []string {
+	sts := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		sts[i] = util.UUID().String()
 	}
 
 	return sts

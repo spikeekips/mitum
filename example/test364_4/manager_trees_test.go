@@ -369,7 +369,7 @@ func (t *testManagerWorkersTrees) TestTree() {
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
 		t.NoError(err)
 
-		statesKeys := t.states(3)
+		statesKeys := t.stateKeys(3)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			_, err := u(worker, []uint64{0})

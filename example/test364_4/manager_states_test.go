@@ -41,7 +41,7 @@ func (t *testManagerWorkersStates) TestError() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 1, 0)
 		t.NoError(err)
 
-		sts := t.states(3)
+		sts := t.stateKeys(3)
 
 		trch := make(chan fixedtree.Tree, 1)
 
@@ -102,7 +102,7 @@ func (t *testManagerWorkersStates) TestError() {
 		cancel()
 
 		_ = util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			sts := t.states(3)
+			sts := t.stateKeys(3)
 
 			err = s(ctx, worker, func(f func(stateKey string) error) error {
 				for i := range sts {
@@ -137,7 +137,7 @@ func (t *testManagerWorkersStates) TestError() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 1, 0)
 		t.NoError(err)
 
-		sts := t.states(3)
+		sts := t.stateKeys(3)
 
 		_ = util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, s(ctx, worker, func(f func(stateKey string) error) error {
@@ -172,7 +172,7 @@ func (t *testManagerWorkersStates) TestError() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 3, 0)
 		t.NoError(err)
 
-		sts := t.states(3)
+		sts := t.stateKeys(3)
 
 		jw, err := NewBaseJobWorker(ctx, 1<<9)
 		t.NoError(err)
@@ -219,7 +219,7 @@ func (t *testManagerWorkersStates) TestError() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 2, 2)
 		t.NoError(err)
 
-		sts := t.states(3)
+		sts := t.stateKeys(3)
 
 		jw, err := NewBaseJobWorker(ctx, 1<<9)
 		t.NoError(err)
@@ -272,7 +272,7 @@ func (t *testManagerWorkersStates) TestError() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 3, 0)
 		t.NoError(err)
 
-		sts := t.states(3)
+		sts := t.stateKeys(3)
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 			return true, s(ctx, worker, func(f func(stateKey string) error) error {
@@ -312,7 +312,7 @@ func (t *testManagerWorkersStates) TestAdd() {
 		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), workers, 33, 0)
 		t.NoError(err)
 
-		sts := t.states(99)
+		sts := t.stateKeys(99)
 
 		trch := make(chan fixedtree.Tree, 1)
 
