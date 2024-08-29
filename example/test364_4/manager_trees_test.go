@@ -6,18 +6,16 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
-type testNewManagerWorkersTreesFuncs struct {
+type testManagerWorkersTrees struct {
 	baseTestManager
 }
 
-func (t *testNewManagerWorkersTreesFuncs) newArgs() *managerWorkersTreesArgs {
+func (t *testManagerWorkersTrees) newArgs() *managerWorkersTreesArgs {
 	args := newManagerWorkersTreesArgs()
 	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
@@ -32,17 +30,11 @@ func (t *testNewManagerWorkersTreesFuncs) newArgs() *managerWorkersTreesArgs {
 	args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 		return nil
 	}
-	args.WriteBlockItemOperationsTree = func(context.Context, string, fixedtree.Tree) (base.BlockMapItem, error) {
-		return nil, nil
-	}
-	args.WriteBlockItemStatesTree = func(context.Context, string, fixedtree.Tree) (base.BlockMapItem, error) {
-		return nil, nil
-	}
 
 	return args
 }
 
-func (t *testNewManagerWorkersTreesFuncs) TestError() {
+func (t *testManagerWorkersTrees) TestError() {
 	t.Run("canceled before new", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -64,11 +56,12 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsR)
-		t.Nil(statesR)
-		t.Nil(save)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("canceled during distribute", func() {
@@ -102,11 +95,12 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsR)
-		t.Nil(statesR)
-		t.Nil(save)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("canceled after distribute", func() {
@@ -146,11 +140,12 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsR)
-		t.Nil(statesR)
-		t.Nil(save)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("canceled after unmerge", func() {
@@ -181,11 +176,12 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsR)
-		t.Nil(statesR)
-		t.Nil(save)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("canceled after state keys", func() {
@@ -211,49 +207,16 @@ func (t *testNewManagerWorkersTreesFuncs) TestError() {
 
 		cancel()
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsR)
-		t.Nil(statesR)
-		t.Nil(save)
-	})
-
-	t.Run("canceled before save", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		workers := t.workers(3)
-
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			t.NoError(err)
-
-			t.NoError(s(ctx, worker, nil))
-
-			return true, nil
-		})
-
-		opsR, statesR, save, err := tree()
-		t.NoError(err)
-		t.NotNil(opsR)
-		t.Nil(statesR)
-
-		cancel()
-
-		opsB, statesB, err := save()
-		t.ErrorIs(err, context.Canceled)
-		t.Nil(opsB)
-		t.Nil(statesB)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 }
 
-func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
+func (t *testManagerWorkersTrees) TestEnoughFailed() {
 	t.Run("over min enough", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -273,13 +236,13 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.NoError(err)
-		t.NotNil(opsR)
-		t.Nil(statesR)
 
-		_, _, err = save()
-		t.NoError(err)
+		t.NotEqual(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.NotNil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("over min enough; one failed", func() {
@@ -310,13 +273,13 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.NoError(err)
-		t.NotNil(opsR)
-		t.Nil(statesR)
 
-		_, _, err = save()
-		t.NoError(err)
+		t.NotEqual(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.NotNil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("over max failed", func() {
@@ -346,23 +309,23 @@ func (t *testNewManagerWorkersTreesFuncs) TestEnoughFailed() {
 			return true, nil
 		})
 
-		_, _, _, err = tree()
+		_, _, err = tree()
 		t.ErrorContains(err, "showme")
 	})
 }
 
-func (t *testNewManagerWorkersTreesFuncs) newOpsBlockItemWriter() blockItemWriterNewWriteTreeFunc {
+func (t *testManagerWorkersTrees) newOpsBlockItemWriter() blockItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
 
 	return newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
 }
 
-func (t *testNewManagerWorkersTreesFuncs) newStatesBlockItemWriter() blockItemWriterNewWriteTreeFunc {
+func (t *testManagerWorkersTrees) newStatesBlockItemWriter() blockItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
 	return newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
 }
 
-func (t *testNewManagerWorkersTreesFuncs) TestTree() {
+func (t *testManagerWorkersTrees) TestTree() {
 	t.Run("empty ophs", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -370,9 +333,6 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		workers := t.workers(3)
 
 		args := t.newArgs()
-
-		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
-		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
 		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), nil)
@@ -388,15 +348,13 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.NoError(err)
-		t.Nil(opsR)
-		t.Nil(statesR)
 
-		opsB, statesB, err := save()
-		t.NoError(err)
-		t.Nil(opsB)
-		t.Nil(statesB)
+		t.Equal(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.Nil(ops.Root())
+		t.Nil(states.Root())
 	})
 
 	t.Run("ok", func() {
@@ -406,8 +364,6 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		workers := t.workers(3)
 
 		args := t.newArgs()
-		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
-		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
 		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
@@ -433,15 +389,13 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.NoError(err)
-		t.NotNil(opsR)
-		t.NotNil(statesR)
 
-		opsB, statesB, err := save()
-		t.NoError(err)
-		t.NotNil(opsB)
-		t.NotNil(statesB)
+		t.NotEqual(0, ops.Len())
+		t.NotEqual(0, states.Len())
+		t.NotNil(ops.Root())
+		t.NotNil(states.Root())
 	})
 
 	t.Run("no states", func() {
@@ -451,8 +405,6 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 		workers := t.workers(3)
 
 		args := t.newArgs()
-		args.WriteBlockItemOperationsTree = t.newOpsBlockItemWriter()
-		args.WriteBlockItemStatesTree = t.newStatesBlockItemWriter()
 
 		f := newFuncManagerWorkersTrees(args)
 		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
@@ -468,20 +420,18 @@ func (t *testNewManagerWorkersTreesFuncs) TestTree() {
 			return true, nil
 		})
 
-		opsR, statesR, save, err := tree()
+		ops, states, err := tree()
 		t.NoError(err)
-		t.NotNil(opsR)
-		t.Nil(statesR)
 
-		opsB, statesB, err := save()
-		t.NoError(err)
-		t.NotNil(opsB)
-		t.Nil(statesB)
+		t.NotEqual(0, ops.Len())
+		t.Equal(0, states.Len())
+		t.NotNil(ops.Root())
+		t.Nil(states.Root())
 	})
 }
 
-func TestNewManagerWorkersTreesFuncs(t *testing.T) {
+func TestManagerWorkersTrees(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testNewManagerWorkersTreesFuncs))
+	suite.Run(t, new(testManagerWorkersTrees))
 }

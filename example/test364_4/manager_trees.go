@@ -4,19 +4,17 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	managerWorkersTreeSaveFunc  func() (ops, states base.BlockMapItem, _ error)
-	managerWorkersTreeRootsFunc func() (opsTreeRoot, statesTreeRoot util.Hash, save managerWorkersTreeSaveFunc, _ error)
+	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
 	managerWorkersTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, ophs [][2]util.Hash) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
-		managerWorkersTreeRootsFunc,
+		managerWorkersDoneTreesFunc,
 		error,
 	)
 )
@@ -28,8 +26,6 @@ type managerWorkersTreesArgs struct {
 	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
 	NewStatesTreeWriterFuncs     newStatesTreeFuncs
 	DistributeWorkerOps          managerWorkerOperationsFunc
-	WriteBlockItemOperationsTree blockItemWriterNewWriteTreeFunc
-	WriteBlockItemStatesTree     blockItemWriterNewWriteTreeFunc
 }
 
 func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
@@ -56,12 +52,6 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 		DistributeWorkerOps: func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 			return util.ErrNotImplemented.Errorf("DistributeWorkerOps")
 		},
-		WriteBlockItemOperationsTree: func(context.Context, string, fixedtree.Tree) (base.BlockMapItem, error) {
-			return nil, util.ErrNotImplemented.Errorf("WriteBlockItemOperationsTree")
-		},
-		WriteBlockItemStatesTree: func(context.Context, string, fixedtree.Tree) (base.BlockMapItem, error) {
-			return nil, util.ErrNotImplemented.Errorf("WriteBlockItemStatesTree")
-		},
 	}
 }
 
@@ -87,7 +77,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 	) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
-		managerWorkersTreeRootsFunc,
+		managerWorkersDoneTreesFunc,
 		error,
 	) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -125,9 +115,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		}()
 
 		return opsUnmerged, statesWorker,
-			func() (opsTreeRoot, statesTreeRoot util.Hash, _ managerWorkersTreeSaveFunc, _ error) {
-				var opsTree, statesTree fixedtree.Tree
-
+			func() (opsTree, statesTree fixedtree.Tree, _ error) {
 				if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
 					if err := opsTreef(func(tr fixedtree.Tree) error {
 						opsTree = tr
@@ -147,68 +135,10 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 
 					return nil
 				}); err != nil {
-					return nil, nil, nil, err
+					return opsTree, statesTree, err
 				}
 
-				opsTreeRoot = opsTree.Root()
-				statesTreeRoot = statesTree.Root()
-
-				return opsTreeRoot, statesTreeRoot, func() (base.BlockMapItem, base.BlockMapItem, error) {
-					var opsB, statesB base.BlockMapItem
-
-					closef := func(err error) error {
-						wctxCancel(err)
-
-						opsTree.Close()
-						statesTree.Close()
-
-						return err
-					}
-
-					if err := contextCauseError(wctx, closef, func() error {
-						if opsTreeRoot == nil && statesTreeRoot == nil {
-							return nil
-						}
-
-						var jw JobWorker
-
-						switch i, err := NewBaseJobWorker(wctx, 2); {
-						case err != nil:
-							return err
-						default:
-							defer i.Close()
-
-							jw = i
-						}
-
-						if err := jw.NewJob(func(ctx context.Context) error {
-							b, err := args.WriteBlockItemOperationsTree(ctx, workID, opsTree)
-
-							opsB = b
-
-							return err
-						}); err != nil {
-							return err
-						}
-
-						if err := jw.NewJob(func(ctx context.Context) error {
-							b, err := args.WriteBlockItemStatesTree(ctx, workID, statesTree)
-							statesB = b
-
-							return err
-						}); err != nil {
-							return err
-						}
-
-						jw.JobDone()
-
-						return jw.Wait()
-					}); err != nil {
-						return nil, nil, err
-					}
-
-					return opsB, statesB, nil
-				}, nil
+				return opsTree, statesTree, nil
 			},
 			nil
 	}

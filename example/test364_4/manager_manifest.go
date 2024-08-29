@@ -7,16 +7,16 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	managerManifestNewManifestFunc func(pr base.ProposalSignFact, opsTreeRoot, statesTreeRoot util.Hash) (base.Manifest, error)
-	managerManifestSaveFunc        func() (
+	managerManifestSaveFunc func() (
 		opsTree, statesTree, proposal base.BlockMapItem,
 		_ error,
 	)
-	managerManifestDoneFunc func() (base.Manifest, managerManifestSaveFunc, error)
+	managerManifestDoneFunc func(func(_ base.ProposalSignFact, opsTree, statesTree fixedtree.Tree) error) error
 	managerManifestFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, _ base.ProposalSignFact) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
@@ -28,7 +28,6 @@ type (
 type managerManifestArgs struct {
 	*logging.Logging
 	*managerWorkersTreesArgs
-	NewManifest                managerManifestNewManifestFunc
 	WriteBlockItemProposalFunc blockItemWriterNewWriteProposalFunc
 }
 
@@ -38,9 +37,6 @@ func newManagerManifestArgs(targs *managerWorkersTreesArgs) *managerManifestArgs
 			return zctx.Str("module", "manager-manifest")
 		}),
 		managerWorkersTreesArgs: targs,
-		NewManifest: func(base.ProposalSignFact, util.Hash, util.Hash) (base.Manifest, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewManifest")
-		},
 		WriteBlockItemProposalFunc: func(context.Context, string, base.ProposalSignFact) (base.BlockMapItem, error) {
 			return nil, util.ErrNotImplemented.Errorf("WriteBlockItemProposalFunc")
 		},
@@ -73,7 +69,7 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 
 		var workersUnmerge managerWorkersOperationsWorkerUnmergedFunc
 		var workersStates managerWorkersWorkerStatesFunc
-		var workersTree managerWorkersTreeRootsFunc
+		var workersTree managerWorkersDoneTreesFunc
 
 		switch u, s, t, err := workersTreeFuncs(
 			ctx,
@@ -91,31 +87,18 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 		}
 
 		return workersUnmerge, workersStates,
-			func() (base.Manifest, managerManifestSaveFunc, error) {
-				var opsTreeRoot, statesTreeRoot util.Hash
-				var treeSave managerWorkersTreeSaveFunc
+			func(f func(base.ProposalSignFact, fixedtree.Tree, fixedtree.Tree) error) error {
+				var opsTree, statesTree fixedtree.Tree
 
-				switch o, s, f, err := workersTree(); {
+				switch o, s, err := workersTree(); {
 				case err != nil:
-					return nil, nil, err
+					return err
 				default:
-					opsTreeRoot = o
-					statesTreeRoot = s
-					treeSave = f
+					opsTree = o
+					statesTree = s
 				}
 
-				switch m, err := args.NewManifest(pr, opsTreeRoot, statesTreeRoot); {
-				case err != nil:
-					return nil, nil, err
-				default:
-					return m, newFuncManagerManifestSave(
-						ctx,
-						workID,
-						treeSave,
-						pr,
-						args.WriteBlockItemProposalFunc,
-					), nil
-				}
+				return f(pr, opsTree, statesTree)
 			},
 			nil
 	}
