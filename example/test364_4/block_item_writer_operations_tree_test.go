@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemOperationsTreeWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testBlockItemOperationsTreeWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testBlockItemOperationsTreeWriterFunc) TestWrite() {
+func (t *testBlockItemOperationsTreeWriter) TestWrite() {
 	t.Run("ok", func() {
 		tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 1)
 		if err != nil {
@@ -66,6 +66,6 @@ func (t *testBlockItemOperationsTreeWriterFunc) TestWrite() {
 	})
 }
 
-func TestBlockItemOperationsTreeWriterFunc(t *testing.T) {
-	suite.Run(t, new(testBlockItemOperationsTreeWriterFunc))
+func TestBlockItemOperationsTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockItemOperationsTreeWriter))
 }

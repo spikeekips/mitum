@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testNewOperationsTreeWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testOperationsTreeWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testNewOperationsTreeWriterFunc) newFunc() newOperationsTreeFuncs {
+func (t *testOperationsTreeWriter) newFunc() newOperationsTreeFuncs {
 	return newFuncOperationsTreeWriter()
 }
 
-func (t *testNewOperationsTreeWriterFunc) randomOps(n uint64) [][2]util.Hash {
+func (t *testOperationsTreeWriter) randomOps(n uint64) [][2]util.Hash {
 	ops := make([][2]util.Hash, n)
 
 	for i := uint64(0); i < n; i++ {
@@ -29,7 +29,7 @@ func (t *testNewOperationsTreeWriterFunc) randomOps(n uint64) [][2]util.Hash {
 	return ops
 }
 
-func (t *testNewOperationsTreeWriterFunc) TestAdd() {
+func (t *testOperationsTreeWriter) TestAdd() {
 	t.Run("empty ops; nil error", func() {
 		_, j, d, err := t.newFunc()(context.Background(), nil)
 		t.NoError(err)
@@ -261,6 +261,6 @@ func (t *testNewOperationsTreeWriterFunc) TestAdd() {
 	})
 }
 
-func TestNewOperationsTreeWriterFunc(t *testing.T) {
-	suite.Run(t, new(testNewOperationsTreeWriterFunc))
+func TestOperationsTreeWriter(t *testing.T) {
+	suite.Run(t, new(testOperationsTreeWriter))
 }

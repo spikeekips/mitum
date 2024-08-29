@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemTreeWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testBlockItemTreeWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testBlockItemTreeWriterFunc) randomTree(n uint64) fixedtree.Tree {
+func (t *testBlockItemTreeWriter) randomTree(n uint64) fixedtree.Tree {
 	if n < 1 {
 		return fixedtree.EmptyTree()
 	}
@@ -36,7 +36,7 @@ func (t *testBlockItemTreeWriterFunc) randomTree(n uint64) fixedtree.Tree {
 	return tr
 }
 
-func (t *testBlockItemTreeWriterFunc) newTree(keys ...string) fixedtree.Tree {
+func (t *testBlockItemTreeWriter) newTree(keys ...string) fixedtree.Tree {
 	tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, uint64(len(keys)))
 	if err != nil {
 		panic(err)
@@ -54,7 +54,7 @@ func (t *testBlockItemTreeWriterFunc) newTree(keys ...string) fixedtree.Tree {
 	return tr
 }
 
-func (t *testBlockItemTreeWriterFunc) TestWrite() {
+func (t *testBlockItemTreeWriter) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
@@ -126,6 +126,6 @@ func (t *testBlockItemTreeWriterFunc) TestWrite() {
 	})
 }
 
-func TestBlockItemTreeWriterFunc(t *testing.T) {
-	suite.Run(t, new(testBlockItemTreeWriterFunc))
+func TestBlockItemTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockItemTreeWriter))
 }

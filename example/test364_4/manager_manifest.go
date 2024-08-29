@@ -104,62 +104,6 @@ func newFuncManagerManifest(args *managerManifestArgs) managerManifestFuncs {
 	}
 }
 
-func newFuncManagerManifestSave(
-	ctx context.Context,
-	workID string,
-	treeSave managerWorkersTreeSaveFunc,
-	pr base.ProposalSignFact,
-	writeBlockItemProposal blockItemWriterNewWriteProposalFunc,
-) managerManifestSaveFunc {
-	return func() (opsTree, statesTree, proposal base.BlockMapItem, _ error) {
-		var jw JobWorker
-
-		switch i, err := NewBaseJobWorker(ctx, 2); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			defer i.Close()
-
-			jw = i
-		}
-
-		if err := jw.NewJob(func(ctx context.Context) error {
-			switch o, s, err := treeSave(); {
-			case err != nil:
-				return err
-			default:
-				opsTree = o
-				statesTree = s
-
-				return nil
-			}
-		}); err != nil {
-			return nil, nil, nil, err
-		}
-
-		if err := jw.NewJob(func(ctx context.Context) error {
-			switch b, err := writeBlockItemProposal(ctx, workID, pr); {
-			case err != nil:
-				return err
-			default:
-				proposal = b
-
-				return nil
-			}
-		}); err != nil {
-			return nil, nil, nil, err
-		}
-
-		jw.JobDone()
-
-		if err := jw.Wait(); err != nil {
-			return nil, nil, nil, err
-		}
-
-		return opsTree, statesTree, proposal, nil
-	}
-}
-
 func newWorkID(pr base.ProposalSignFact) string {
 	return fmt.Sprintf("%21d-%21d-%s-%s",
 		pr.Point().Height(),

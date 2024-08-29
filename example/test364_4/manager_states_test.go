@@ -13,11 +13,11 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testNewManagerWorkersStatesFuncs struct {
+type testManagerWorkersStates struct {
 	baseTestManager
 }
 
-func (t *testNewManagerWorkersStatesFuncs) newArgs() *managerWorkersStatesArgs {
+func (t *testManagerWorkersStates) newArgs() *managerWorkersStatesArgs {
 	args := newManagerWorkersStatesArgs()
 	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
@@ -33,7 +33,7 @@ func (t *testNewManagerWorkersStatesFuncs) newArgs() *managerWorkersStatesArgs {
 	return args
 }
 
-func (t *testNewManagerWorkersStatesFuncs) TestError() {
+func (t *testManagerWorkersStates) TestError() {
 	t.Run("ok", func() {
 		ctx := context.Background()
 
@@ -303,7 +303,7 @@ func (t *testNewManagerWorkersStatesFuncs) TestError() {
 	})
 }
 
-func (t *testNewManagerWorkersStatesFuncs) TestAdd() {
+func (t *testManagerWorkersStates) TestAdd() {
 	t.Run("async", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -360,8 +360,8 @@ func (t *testNewManagerWorkersStatesFuncs) TestAdd() {
 	})
 }
 
-func TestNewManagerWorkersStatesFuncs(t *testing.T) {
+func TestManagerWorkersStates(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testNewManagerWorkersStatesFuncs))
+	suite.Run(t, new(testManagerWorkersStates))
 }

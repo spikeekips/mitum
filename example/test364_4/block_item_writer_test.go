@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type baseTestBaseBlockItemWriterFunc struct {
+type baseTestBaseBlockItemWriter struct {
 	baseTestWorkerMerger
 	enc encoder.Encoder
 }
 
-func (t *baseTestBaseBlockItemWriterFunc) SetupSuite() {
+func (t *baseTestBaseBlockItemWriter) SetupSuite() {
 	t.baseTestWorkerMerger.Suite = t.Suite
 	t.baseTestWorkerMerger.SetupSuite()
 
@@ -31,7 +31,7 @@ func (t *baseTestBaseBlockItemWriterFunc) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpHint, Instance: Op{}}))
 }
 
-func (t *baseTestBaseBlockItemWriterFunc) newCreateWriter() (
+func (t *baseTestBaseBlockItemWriter) newCreateWriter() (
 	blockItemWriterCreateWriterFunc,
 	func() ([]byte, error),
 ) {
@@ -47,7 +47,7 @@ func (t *baseTestBaseBlockItemWriterFunc) newCreateWriter() (
 		}
 }
 
-func (t *baseTestBaseBlockItemWriterFunc) compareChecksum(input []byte, output string) bool {
+func (t *baseTestBaseBlockItemWriter) compareChecksum(input []byte, output string) bool {
 	write, done := newChecksumWrite(
 
 		func(b []byte) (int, error) { return len(b), nil },
@@ -60,11 +60,11 @@ func (t *baseTestBaseBlockItemWriterFunc) compareChecksum(input []byte, output s
 	return done() == output
 }
 
-type testBaseBlockItemWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testBaseBlockItemWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
+func (t *testBaseBlockItemWriter) TestWriteHeader() {
 	header := "showme"
 
 	t.Run("no write", func() {
@@ -160,7 +160,7 @@ func (t *testBaseBlockItemWriterFunc) TestWriteHeader() {
 	})
 }
 
-func (t *testBaseBlockItemWriterFunc) TestWrite() {
+func (t *testBaseBlockItemWriter) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
@@ -298,7 +298,7 @@ func (t *testBaseBlockItemWriterFunc) TestWrite() {
 	})
 }
 
-func (t *testBaseBlockItemWriterFunc) TestCloseError() {
+func (t *testBaseBlockItemWriter) TestCloseError() {
 	t.Run("ok, but error", func() {
 		input := util.UUID().Bytes()
 
@@ -416,6 +416,6 @@ func (t *testBaseBlockItemWriterFunc) TestCloseError() {
 	})
 }
 
-func TestBaseBlockItemWriterFunc(t *testing.T) {
-	suite.Run(t, new(testBaseBlockItemWriterFunc))
+func TestBaseBlockItemWriter(t *testing.T) {
+	suite.Run(t, new(testBaseBlockItemWriter))
 }

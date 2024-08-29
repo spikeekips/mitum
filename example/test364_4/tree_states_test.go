@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testNewStatesTreeWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testStatesTreeWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testNewStatesTreeWriterFunc) newFunc(size uint64, grow ...uint64) newStatesTreeFuncs {
+func (t *testStatesTreeWriter) newFunc(size uint64, grow ...uint64) newStatesTreeFuncs {
 	return newFuncStatesTreeWriter(size, grow...)
 }
 
-func (t *testNewStatesTreeWriterFunc) TestAdd() {
+func (t *testStatesTreeWriter) TestAdd() {
 	t.Run("empty state keys; nil error", func() {
 		_, j, d, err := t.newFunc(0)(context.Background())
 		t.NoError(err)
@@ -289,6 +289,6 @@ func (t *testNewStatesTreeWriterFunc) TestAdd() {
 	})
 }
 
-func TestNewStatesTreeWriterFunc(t *testing.T) {
-	suite.Run(t, new(testNewStatesTreeWriterFunc))
+func TestStatesTreeWriter(t *testing.T) {
+	suite.Run(t, new(testStatesTreeWriter))
 }

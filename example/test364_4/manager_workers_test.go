@@ -11,11 +11,11 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testNewManagerStartWorkersFunc struct {
+type testManagerStartWorkers struct {
 	baseTestManager
 }
 
-func (t *testNewManagerStartWorkersFunc) newArgs() *managerStartWorkersArgs {
+func (t *testManagerStartWorkers) newArgs() *managerStartWorkersArgs {
 	args := newManagerStartWorkersArgs()
 	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
@@ -29,7 +29,7 @@ func (t *testNewManagerStartWorkersFunc) newArgs() *managerStartWorkersArgs {
 	return args
 }
 
-func (t *testNewManagerStartWorkersFunc) TestNew() {
+func (t *testManagerStartWorkers) TestNew() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -59,7 +59,7 @@ func (t *testNewManagerStartWorkersFunc) TestNew() {
 	})
 }
 
-func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
+func (t *testManagerStartWorkers) TestOverMaxFailed() {
 	t.Run("under", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -128,8 +128,8 @@ func (t *testNewManagerStartWorkersFunc) TestOverMaxFailed() {
 	})
 }
 
-func TestNewManagerStartWorkersFunc(t *testing.T) {
+func TestManagerStartWorkers(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testNewManagerStartWorkersFunc))
+	suite.Run(t, new(testManagerStartWorkers))
 }

@@ -15,11 +15,11 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testNewManagerWorkersOperationsFuncs struct {
+type testManagerWorkersOperations struct {
 	baseTestManager
 }
 
-func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperationsArgs {
+func (t *testManagerWorkersOperations) newArgs() *managerWorkersOperationsArgs {
 	args := newManagerWorkersOperationsArgs()
 	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
@@ -35,7 +35,7 @@ func (t *testNewManagerWorkersOperationsFuncs) newArgs() *managerWorkersOperatio
 	return args
 }
 
-func (t *testNewManagerWorkersOperationsFuncs) TestError() {
+func (t *testManagerWorkersOperations) TestError() {
 	t.Run("tree done error", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -74,7 +74,7 @@ func (t *testNewManagerWorkersOperationsFuncs) TestError() {
 	})
 }
 
-func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
+func (t *testManagerWorkersOperations) TestOps() {
 	newGatherOpsFunc := func() (
 		func(worker string, opindex uint64, oph, fact util.Hash),
 		func(worker string, opindex uint64, oph, fact util.Hash) error,
@@ -427,10 +427,10 @@ func (t *testNewManagerWorkersOperationsFuncs) TestOps() {
 	})
 }
 
-func TestNewManagerWorkersOperationsFuncs(t *testing.T) {
+func TestManagerWorkersOperations(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testNewManagerWorkersOperationsFuncs))
+	suite.Run(t, new(testManagerWorkersOperations))
 }
 
 type testNewDistributeItemsSerialNShareFunc struct {

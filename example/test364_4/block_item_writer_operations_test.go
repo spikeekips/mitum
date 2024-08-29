@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testNewBlockItemOperationsWriterFunc struct {
-	baseTestBaseBlockItemWriterFunc
+type testBlockItemOperationsWriter struct {
+	baseTestBaseBlockItemWriter
 }
 
-func (t *testNewBlockItemOperationsWriterFunc) TestWrite() {
+func (t *testBlockItemOperationsWriter) TestWrite() {
 	ctx := context.Background()
 
 	t.Run("empty create id", func() {
@@ -139,6 +139,6 @@ func (t *testNewBlockItemOperationsWriterFunc) TestWrite() {
 	})
 }
 
-func TestNewBlockItemOperationsWriterFunc(t *testing.T) {
-	suite.Run(t, new(testNewBlockItemOperationsWriterFunc))
+func TestBlockItemOperationsWriter(t *testing.T) {
+	suite.Run(t, new(testBlockItemOperationsWriter))
 }

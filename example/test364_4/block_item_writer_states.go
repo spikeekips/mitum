@@ -11,7 +11,7 @@ import (
 
 type blockItemWriterNewWriteStatesFunc func(_ context.Context, createID string, total uint64, _ func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error)
 
-func newFuncBlockItemStatesWriterNewWrite(
+func newFuncBlockItemStatesWriter(
 	enc encoder.Encoder,
 	createWriter blockItemWriterCreateWriterFunc,
 ) blockItemWriterNewWriteStatesFunc {
