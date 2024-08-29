@@ -38,7 +38,7 @@ func (t *testBlockItemStatesWriter) TestWrite() {
 			createWriter,
 		)
 
-		bm, err := c(ctx, util.UUID().String(), 0, func(saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(workerSaveStateFunc) error {
 			return nil
 		})
 		t.NoError(err)
@@ -57,7 +57,7 @@ func (t *testBlockItemStatesWriter) TestWrite() {
 			createWriter,
 		)
 
-		bm, err := c(ctx, util.UUID().String(), 0, func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 0, func(w workerSaveStateFunc) error {
 			return w(t.randomState())
 		})
 		t.ErrorContains(err, "zero total")
@@ -85,7 +85,7 @@ func (t *testBlockItemStatesWriter) TestWrite() {
 			[]util.Hash{valuehash.NewBytes([]byte("findme"))},
 		)
 
-		bm, err := c(ctx, util.UUID().String(), 1, func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), 1, func(w workerSaveStateFunc) error {
 			return w(st)
 		})
 		t.NoError(err)
@@ -117,7 +117,7 @@ func (t *testBlockItemStatesWriter) TestWrite() {
 		jw, err := NewBaseJobWorker(context.Background(), int64(len(sts)))
 		t.NoError(err)
 
-		bm, err := c(ctx, util.UUID().String(), uint64(len(sts)), func(w saveWorkerMergerSaveStateFunc) error {
+		bm, err := c(ctx, util.UUID().String(), uint64(len(sts)), func(w workerSaveStateFunc) error {
 			for i := range sts {
 				st := sts[i]
 

@@ -9,7 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockItemWriterNewWriteStatesFunc func(_ context.Context, createID string, total uint64, _ func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error)
+type blockItemWriterNewWriteStatesFunc func(_ context.Context, createID string, total uint64, _ func(workerSaveStateFunc) error) (base.BlockMapItem, error)
 
 func newFuncBlockItemStatesWriter(
 	enc encoder.Encoder,
@@ -17,7 +17,7 @@ func newFuncBlockItemStatesWriter(
 ) blockItemWriterNewWriteStatesFunc {
 	w := newFuncBaseBlockItemWriter(base.BlockItemStates, createWriter)
 
-	return func(ctx context.Context, createID string, total uint64, f func(saveWorkerMergerSaveStateFunc) error) (base.BlockMapItem, error) {
+	return func(ctx context.Context, createID string, total uint64, f func(workerSaveStateFunc) error) (base.BlockMapItem, error) {
 		var c blockItemWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
