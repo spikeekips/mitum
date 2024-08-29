@@ -2,436 +2,401 @@ package main
 
 import (
 	"context"
-	"sync/atomic"
+	"slices"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
-type testManagerWorkersTrees struct {
+type testManagerTrees struct {
 	baseTestManager
+	workID string
 }
 
-func (t *testManagerWorkersTrees) newArgs() *managerWorkersTreesArgs {
-	args := newManagerWorkersTreesArgs()
-	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
+func (t *testManagerTrees) SetupTest() {
+	t.workID = util.UUID().String()
+}
+
+func (t *testManagerTrees) newArgs() (
+	*managerTreesArgs,
+	*managerWorkersTreesArgs,
+) {
+	targs := newManagerWorkersTreesArgs()
+
+	targs.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
 		func(),
 		error,
 	) {
 		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
-	args.NewWorkersOpsFunc = serialNoShareWorkerOps
-	args.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
-	args.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
-	args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
+	targs.NewWorkersOpsFunc = serialNoShareWorkerOps
+	targs.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
+	targs.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
+	targs.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 		return nil
 	}
 
-	return args
+	args := newManagerTreesArgs()
+
+	_ = targs.SetLogging(logging.TestNilLogging)
+	_ = args.SetLogging(logging.TestNilLogging)
+
+	return args, targs
 }
 
-func (t *testManagerWorkersTrees) TestError() {
+func (t *testManagerTrees) TestError() {
+	args, targs := t.newArgs()
+
+	f := newFuncManagerTrees(args, targs)
+
 	t.Run("canceled before new", func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		workers := t.workers(3)
-
-		f := newFuncManagerWorkersTrees(t.newArgs())
-
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			t.ErrorIs(err, context.Canceled)
-
-			err = s(ctx, worker, nil)
-			t.ErrorIs(err, context.Canceled)
-
-			return true, nil
-		})
-
-		ops, states, err := tree()
-		t.ErrorIs(err, context.Canceled)
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
-	})
-
-	t.Run("canceled during distribute", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		workers := t.workers(3)
-
-		args := t.newArgs()
-
-		args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
-			cancel()
-
-			return nil
-		}
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		<-ctx.Done()
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			if _, err := u(worker, []uint64{0}); err != nil {
-				t.ErrorIs(err, context.Canceled)
-			}
-
-			err = s(ctx, worker, nil)
-			t.ErrorIs(err, context.Canceled)
-
-			return true, nil
-		})
-
-		ops, states, err := tree()
-		t.ErrorIs(err, context.Canceled)
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
-	})
-
-	t.Run("canceled after distribute", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		workers := t.workers(3)
-
-		args := t.newArgs()
-		var count int64
-
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
-			atomic.AddInt64(&count, 1)
-			if atomic.LoadInt64(&count) == int64(len(workers)) {
-				cancel()
-			}
-
-			return nil
-		}
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		<-ctx.Done()
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			if err != nil {
-				t.ErrorIs(err, context.Canceled)
-			}
-
-			err = s(ctx, worker, nil)
-			if err != nil {
-				t.ErrorIs(err, context.Canceled)
-			}
-
-			return true, nil
-		})
-
-		ops, states, err := tree()
-		t.ErrorIs(err, context.Canceled)
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
-	})
-
-	t.Run("canceled after unmerge", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		workers := t.workers(3)
-
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			t.NoError(err)
-
-			return true, nil
-		})
 
 		cancel()
 
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			err := s(ctx, worker, nil)
+		workers := t.workers(3)
+		ophs := t.ophs(3)
+
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, ophs)
+		t.NoError(err)
+
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, []uint64{uint64(i)})
+			t.False(ok)
 			t.ErrorIs(err, context.Canceled)
 
 			return true, nil
 		})
 
-		ops, states, err := tree()
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			err := states(
+				context.Background(),
+				worker,
+				func(func(string) error) error {
+					return nil
+				},
+			)
+			t.ErrorIs(err, context.Canceled)
+
+			return true, nil
+		})
+
+		var called bool
+
+		err = done(func(_, _ fixedtree.Tree) error {
+			called = true
+
+			return nil
+		})
 		t.ErrorIs(err, context.Canceled)
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
+		t.False(called)
 	})
 
-	t.Run("canceled after state keys", func() {
+	t.Run("cancel before done", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
+		ophs := t.ophs(3)
 
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, ophs)
 		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			t.NoError(err)
-
-			t.NoError(s(ctx, worker, nil))
-
-			return true, nil
-		})
 
 		cancel()
 
-		ops, states, err := tree()
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, []uint64{uint64(i)})
+			t.False(ok)
+			t.ErrorIs(err, context.Canceled)
+
+			return true, nil
+		})
+
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			err := states(
+				context.Background(),
+				worker,
+				func(func(string) error) error {
+					return nil
+				},
+			)
+			t.ErrorIs(err, context.Canceled)
+
+			return true, nil
+		})
+
+		var called bool
+
+		err = done(func(_, _ fixedtree.Tree) error {
+			called = true
+
+			return nil
+		})
 		t.ErrorIs(err, context.Canceled)
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
+		t.False(called)
 	})
 }
 
-func (t *testManagerWorkersTrees) TestEnoughFailed() {
-	t.Run("over min enough", func() {
+func (t *testManagerTrees) TestOps() {
+	args, targs := t.newArgs()
+
+	f := newFuncManagerTrees(args, targs)
+
+	t.Run("empty ops", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		f := newFuncManagerWorkersTrees(t.newArgs())
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, nil)
 		t.NoError(err)
 
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, nil)
 			t.NoError(err)
-
-			t.NoError(s(ctx, worker, nil))
+			t.True(ok)
 
 			return true, nil
 		})
 
-		ops, states, err := tree()
-		t.NoError(err)
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			t.NoError(states(
+				context.Background(),
+				worker,
+				func(func(string) error) error {
+					return nil
+				},
+			))
 
-		t.NotEqual(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.NotNil(ops.Root())
-		t.Nil(states.Root())
-	})
+			return true, nil
+		})
 
-	t.Run("over min enough; one failed", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		var called bool
 
-		workers := t.workers(3)
+		t.NoError(done(func(opsTree fixedtree.Tree, statesTree fixedtree.Tree) error {
+			t.Equal(0, opsTree.Len())
+			t.Equal(0, statesTree.Len())
+			t.Nil(opsTree.Root())
+			t.Nil(statesTree.Root())
 
-		args := t.newArgs()
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
-			if worker == workers[2] {
-				return errors.Errorf("showme")
-			}
+			called = true
 
 			return nil
-		}
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 2, 2, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
-			t.NoError(err)
-
-			t.NoError(s(ctx, worker, nil))
-
-			return true, nil
-		})
-
-		ops, states, err := tree()
-		t.NoError(err)
-
-		t.NotEqual(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.NotNil(ops.Root())
-		t.Nil(states.Root())
+		}))
+		t.True(called)
 	})
 
-	t.Run("over max failed", func() {
+	t.Run("none empty ops", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
+		ophs := t.ophs(3)
+		stateKeys := t.stateKeysUnordered(9)
 
-		args := t.newArgs()
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
-			if worker == workers[2] {
-				return errors.Errorf("showme")
-			}
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, ophs)
+		t.NoError(err)
+
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, nil)
+			t.NoError(err)
+			t.True(ok)
+
+			return true, nil
+		})
+
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			t.NoError(states(
+				context.Background(),
+				worker,
+				func(f func(string) error) error {
+					util.TraverseSliceV1(stateKeys[(i*3):(i+1)*3], func(_ int, stateKey string) (bool, error) {
+						t.NoError(f(stateKey))
+
+						return true, nil
+					})
+
+					return nil
+				},
+			))
+
+			return true, nil
+		})
+
+		var called bool
+
+		t.NoError(done(func(opsTree fixedtree.Tree, statesTree fixedtree.Tree) error {
+			t.Equal(len(ophs), opsTree.Len())
+			t.Equal(len(stateKeys), statesTree.Len())
+			t.NotNil(opsTree.Root())
+			t.NotNil(statesTree.Root())
+
+			opsTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+				t.Equal(ophs[index][1].String(), n.Key())
+
+				return true, nil
+			})
+
+			slices.Sort(stateKeys)
+
+			statesTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+				t.Equal(stateKeys[index], n.Key())
+
+				return true, nil
+			})
+
+			called = true
 
 			return nil
-		}
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, _ = u(worker, []uint64{0})
-
-			_ = s(ctx, worker, nil)
-
-			return true, nil
-		})
-
-		_, _, err = tree()
-		t.ErrorContains(err, "showme")
+		}))
+		t.True(called)
 	})
-}
 
-func (t *testManagerWorkersTrees) newOpsBlockItemWriter() blockItemWriterNewWriteTreeFunc {
-	createWriter, _ := t.newCreateWriter()
-
-	return newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
-}
-
-func (t *testManagerWorkersTrees) newStatesBlockItemWriter() blockItemWriterNewWriteTreeFunc {
-	createWriter, _ := t.newCreateWriter()
-	return newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
-}
-
-func (t *testManagerWorkersTrees) TestTree() {
-	t.Run("empty ophs", func() {
+	t.Run("none empty ops; with unmerged", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
+		ophs := t.ophs(9)
+		stateKeys := t.stateKeysUnordered(9)
 
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), nil)
-		t.NoError(err)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, nil)
-			t.NoError(err)
-
-			err = s(ctx, worker, nil)
-			t.NoError(err)
+		workersUnmerged := make([][]uint64, len(workers))
+		var unmerged []uint64
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			workersUnmerged[i] = []uint64{uint64(i)}
+			unmerged = append(unmerged, uint64(i))
 
 			return true, nil
 		})
 
-		ops, states, err := tree()
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, ophs)
 		t.NoError(err)
 
-		t.Equal(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.Nil(ops.Root())
-		t.Nil(states.Root())
-	})
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, workersUnmerged[i])
 
-	t.Run("ok", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		workers := t.workers(3)
-
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
-		t.NoError(err)
-
-		statesKeys := t.stateKeys(3)
-
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
 			t.NoError(err)
+			t.True(ok)
 
-			err = s(ctx, worker, func(f func(stateKey string) error) error {
-				for i := range statesKeys {
-					if err := f(statesKeys[i]); err != nil {
-						return err
-					}
+			return true, nil
+		})
+
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			t.NoError(states(
+				context.Background(),
+				worker,
+				func(f func(string) error) error {
+					util.TraverseSliceV1(stateKeys[(i*3):(i+1)*3], func(_ int, stateKey string) (bool, error) {
+						t.NoError(f(stateKey))
+
+						return true, nil
+					})
+
+					return nil
+				},
+			))
+
+			return true, nil
+		})
+
+		var called bool
+
+		t.NoError(done(func(opsTree fixedtree.Tree, statesTree fixedtree.Tree) error {
+			t.Equal(len(ophs), opsTree.Len())
+			t.Equal(len(stateKeys), statesTree.Len())
+			t.NotNil(opsTree.Root())
+			t.NotNil(statesTree.Root())
+
+			opsTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+				var expected string
+
+				switch {
+				case slices.Index(unmerged, index) < 0:
+					expected = base.NewInStateOperationFixedtreeNode(ophs[index][1], "").Key()
+				default:
+					expected = base.NewNotInStateOperationFixedtreeNode(ophs[index][1], "").Key()
 				}
 
-				return nil
+				t.Equal(expected, n.Key())
+
+				return true, nil
 			})
-			t.NoError(err)
 
-			return true, nil
-		})
+			slices.Sort(stateKeys)
 
-		ops, states, err := tree()
-		t.NoError(err)
+			statesTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+				t.Equal(stateKeys[index], n.Key())
 
-		t.NotEqual(0, ops.Len())
-		t.NotEqual(0, states.Len())
-		t.NotNil(ops.Root())
-		t.NotNil(states.Root())
+				return true, nil
+			})
+
+			called = true
+
+			return nil
+		}))
+		t.True(called)
 	})
 
-	t.Run("no states", func() {
+	t.Run("empty states", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
+		ophs := t.ophs(3)
 
-		args := t.newArgs()
-
-		f := newFuncManagerWorkersTrees(args)
-		u, s, tree, err := f(ctx, workers, 3, 0, util.UUID().String(), t.ophs(3))
+		unmerge, states, done, err := f(ctx, workers, 3, 0, t.workID, ophs)
 		t.NoError(err)
 
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			_, err := u(worker, []uint64{0})
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			ok, err := unmerge(worker, nil)
 			t.NoError(err)
-
-			err = s(ctx, worker, nil)
-			t.NoError(err)
+			t.True(ok)
 
 			return true, nil
 		})
 
-		ops, states, err := tree()
-		t.NoError(err)
+		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
+			t.NoError(states(
+				context.Background(),
+				worker,
+				func(f func(string) error) error {
+					return nil
+				},
+			))
 
-		t.NotEqual(0, ops.Len())
-		t.Equal(0, states.Len())
-		t.NotNil(ops.Root())
-		t.Nil(states.Root())
+			return true, nil
+		})
+
+		var called bool
+
+		t.NoError(done(func(opsTree fixedtree.Tree, statesTree fixedtree.Tree) error {
+			t.Equal(len(ophs), opsTree.Len())
+			t.Equal(0, statesTree.Len())
+			t.NotNil(opsTree.Root())
+			t.Nil(statesTree.Root())
+
+			opsTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+				t.Equal(ophs[index][1].String(), n.Key())
+
+				return true, nil
+			})
+
+			called = true
+
+			return nil
+		}))
+		t.True(called)
 	})
 }
 
-func TestManagerWorkersTrees(t *testing.T) {
+func TestManagerTrees(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testManagerWorkersTrees))
+	suite.Run(t, new(testManagerTrees))
 }

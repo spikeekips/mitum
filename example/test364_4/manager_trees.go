@@ -2,71 +2,42 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
-	managerWorkersTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, ophs [][2]util.Hash) (
+	managerTreesDoneFunc func(func(opsTree, statesTree fixedtree.Tree) error) error
+	managerTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, _ [][2]util.Hash) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
-		managerWorkersDoneTreesFunc,
+		managerTreesDoneFunc,
 		error,
 	)
 )
 
-type managerWorkersTreesArgs struct {
+type managerTreesArgs struct {
 	*logging.Logging
-	NewCheckWorkersFunc          checkEnoughFailedWorkersFuncs
-	NewWorkersOpsFunc            managerWorkersOperationsWorkersOpsFunc
-	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
-	NewStatesTreeWriterFuncs     newStatesTreeFuncs
-	DistributeWorkerOps          managerWorkerOperationsFunc
 }
 
-func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
-	return &managerWorkersTreesArgs{
+func newManagerTreesArgs() *managerTreesArgs {
+	return &managerTreesArgs{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-workers-trees")
+			return zctx.Str("module", "manager-trees")
 		}),
-		NewCheckWorkersFunc: func(_, maxFailed uint64) (
-			checkEnoughFailedWorkerFunc,
-			func(),
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
-		},
-		NewWorkersOpsFunc: func([]string, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
-			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
-		},
-		NewOperationsTreeWriterFuncs: func(context.Context, [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
-			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewOperationsTreeWriterFuncs")
-		},
-		NewStatesTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
-			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewStatesTreeWriterFuncs")
-		},
-		DistributeWorkerOps: func(context.Context, string, func(managerWorkerOperationFunc) error) error {
-			return util.ErrNotImplemented.Errorf("DistributeWorkerOps")
-		},
 	}
 }
 
-func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTreesFuncs {
-	oargs := newManagerWorkersOperationsArgs()
-	oargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
-	oargs.NewWorkersOpsFunc = args.NewWorkersOpsFunc
-	oargs.NewTreeWriterFuncs = args.NewOperationsTreeWriterFuncs
-
-	sargs := newManagerWorkersStatesArgs()
-	sargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
-	sargs.NewTreeWriterFuncs = args.NewStatesTreeWriterFuncs
-
-	oargs.SetLogging(args.Logging)
-	sargs.SetLogging(args.Logging)
+func newFuncManagerTrees(
+	args *managerTreesArgs,
+	targs *managerWorkersTreesArgs,
+) managerTreesFuncs {
+	workersTreeFuncs := newFuncManagerWorkersTrees(targs)
 
 	return func(
 		ctx context.Context,
@@ -77,88 +48,60 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 	) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
-		managerWorkersDoneTreesFunc,
+		managerTreesDoneFunc,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		switch w := uint64(len(workers)); { // FIXME move higher
+		case w < 1:
+			return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
+		case maxFailed >= w:
+			return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
+		case minEnough > w:
+			minEnough = w
+		}
 
-		var opsDistribute func(managerWorkerOperationsFunc) error
-		var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
-		var opsTreef managerWorkersTreeFunc
+		var workersUnmerge managerWorkersOperationsWorkerUnmergedFunc
+		var workersStates managerWorkersWorkerStatesFunc
+		var workersTree managerWorkersDoneTreesFunc
 
-		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, workers, maxFailed, ophs); {
+		switch u, s, t, err := workersTreeFuncs(
+			ctx,
+			workers,
+			minEnough, maxFailed,
+			workID,
+			ophs,
+		); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
-			opsDistribute = d
-			opsUnmerged = u
-			opsTreef = t
+			workersUnmerge = u
+			workersStates = s
+			workersTree = t
 		}
 
-		var statesWorker managerWorkersWorkerStatesFunc
-		var statesTreef managerWorkersTreeFunc
+		return workersUnmerge, workersStates,
+			func(f func(fixedtree.Tree, fixedtree.Tree) error) error {
+				var opsTree, statesTree fixedtree.Tree
 
-		switch s, t, err := newManagerWorkersStates(wctx, sargs, workers, minEnough, maxFailed); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			statesWorker = s
-			statesTreef = t
-		}
-
-		go func() {
-			_ = contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
-				return opsDistribute(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
-					return args.DistributeWorkerOps(ctx, worker, f)
-				})
-			})
-		}()
-
-		return opsUnmerged, statesWorker,
-			func() (opsTree, statesTree fixedtree.Tree, _ error) {
-				if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
-					if err := opsTreef(func(tr fixedtree.Tree) error {
-						opsTree = tr
-
-						return nil
-					}); err != nil {
-						return err
-					}
-
-					if err := statesTreef(func(tr fixedtree.Tree) error {
-						statesTree = tr
-
-						return nil
-					}); err != nil {
-						return err
-					}
-
-					return nil
-				}); err != nil {
-					return opsTree, statesTree, err
+				switch o, s, err := workersTree(); {
+				case err != nil:
+					return err
+				default:
+					opsTree = o
+					statesTree = s
 				}
 
-				return opsTree, statesTree, nil
+				return f(opsTree, statesTree)
 			},
 			nil
 	}
 }
 
-func newArgsForManagerWorkersTrees(args *managerWorkersTreesArgs, workID string) (
-	oargs *managerWorkersOperationsArgs,
-	sargs *managerWorkersStatesArgs,
-) {
-	oargs = newManagerWorkersOperationsArgs()
-	oargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
-	oargs.NewWorkersOpsFunc = args.NewWorkersOpsFunc
-	oargs.NewTreeWriterFuncs = args.NewOperationsTreeWriterFuncs
-
-	sargs = newManagerWorkersStatesArgs()
-	sargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
-	sargs.NewTreeWriterFuncs = args.NewStatesTreeWriterFuncs
-
-	oargs.SetLogging(args.Logging)
-	sargs.SetLogging(args.Logging)
-
-	return oargs, sargs
+func newWorkID(pr base.ProposalSignFact) string {
+	return fmt.Sprintf("%21d-%21d-%s-%s",
+		pr.Point().Height(),
+		pr.Point().Round(),
+		pr.Fact().Hash(),
+		util.ULID(),
+	)
 }
