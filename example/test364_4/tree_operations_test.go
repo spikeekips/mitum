@@ -12,7 +12,7 @@ import (
 )
 
 type testOperationsTreeWriter struct {
-	baseTestBaseBlockItemWriter
+	baseTestBaseBlockMapItemWriter
 }
 
 func (t *testOperationsTreeWriter) newFunc() newOperationsTreeFuncs {

@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemTreeWriter struct {
-	baseTestBaseBlockItemWriter
+type testBlockMapItemTreeWriter struct {
+	baseTestBaseBlockMapItemWriter
 }
 
-func (t *testBlockItemTreeWriter) randomTree(n uint64) fixedtree.Tree {
+func (t *testBlockMapItemTreeWriter) randomTree(n uint64) fixedtree.Tree {
 	if n < 1 {
 		return fixedtree.EmptyTree()
 	}
@@ -36,7 +36,7 @@ func (t *testBlockItemTreeWriter) randomTree(n uint64) fixedtree.Tree {
 	return tr
 }
 
-func (t *testBlockItemTreeWriter) newTree(keys ...string) fixedtree.Tree {
+func (t *testBlockMapItemTreeWriter) newTree(keys ...string) fixedtree.Tree {
 	tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, uint64(len(keys)))
 	if err != nil {
 		panic(err)
@@ -54,11 +54,11 @@ func (t *testBlockItemTreeWriter) newTree(keys ...string) fixedtree.Tree {
 	return tr
 }
 
-func (t *testBlockItemTreeWriter) TestWrite() {
+func (t *testBlockMapItemTreeWriter) TestWrite() {
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newFuncBlockItemTreeWriter(
+		c := newFuncBlockMapItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -71,7 +71,7 @@ func (t *testBlockItemTreeWriter) TestWrite() {
 	t.Run("empty tree", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newFuncBlockItemTreeWriter(
+		c := newFuncBlockMapItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -85,7 +85,7 @@ func (t *testBlockItemTreeWriter) TestWrite() {
 	t.Run("ok", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newFuncBlockItemTreeWriter(
+		c := newFuncBlockMapItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -110,7 +110,7 @@ func (t *testBlockItemTreeWriter) TestWrite() {
 	t.Run("context canceled", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newFuncBlockItemTreeWriter(
+		c := newFuncBlockMapItemTreeWriter(
 			base.BlockItemOperationsTree,
 			t.enc,
 			createWriter,
@@ -126,6 +126,6 @@ func (t *testBlockItemTreeWriter) TestWrite() {
 	})
 }
 
-func TestBlockItemTreeWriter(t *testing.T) {
-	suite.Run(t, new(testBlockItemTreeWriter))
+func TestBlockMapItemTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockMapItemTreeWriter))
 }

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemOperationsTreeWriter struct {
-	baseTestBaseBlockItemWriter
+type testBlockMapItemOperationsTreeWriter struct {
+	baseTestBaseBlockMapItemWriter
 }
 
-func (t *testBlockItemOperationsTreeWriter) TestWrite() {
+func (t *testBlockMapItemOperationsTreeWriter) TestWrite() {
 	t.Run("ok", func() {
 		tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 1)
 		if err != nil {
@@ -28,7 +28,7 @@ func (t *testBlockItemOperationsTreeWriter) TestWrite() {
 		t.NoError(err)
 
 		createWriter, buf := t.newCreateWriter()
-		c := newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
+		c := newFuncBlockMapItemOperationsTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.NoError(err)
@@ -58,7 +58,7 @@ func (t *testBlockItemOperationsTreeWriter) TestWrite() {
 		t.NoError(err)
 
 		createWriter, _ := t.newCreateWriter()
-		c := newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
+		c := newFuncBlockMapItemOperationsTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.ErrorIs(err, util.ErrInvalid)
@@ -66,6 +66,6 @@ func (t *testBlockItemOperationsTreeWriter) TestWrite() {
 	})
 }
 
-func TestBlockItemOperationsTreeWriter(t *testing.T) {
-	suite.Run(t, new(testBlockItemOperationsTreeWriter))
+func TestBlockMapItemOperationsTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockMapItemOperationsTreeWriter))
 }

@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemStatesTreeWriter struct {
-	baseTestBaseBlockItemWriter
+type testBlockMapItemStatesTreeWriter struct {
+	baseTestBaseBlockMapItemWriter
 }
 
-func (t *testBlockItemStatesTreeWriter) TestWrite() {
+func (t *testBlockMapItemStatesTreeWriter) TestWrite() {
 	t.Run("ok", func() {
 		tw, err := fixedtree.NewWriter(base.StateFixedtreeHint, 1)
 		if err != nil {
@@ -27,7 +27,7 @@ func (t *testBlockItemStatesTreeWriter) TestWrite() {
 		t.NoError(err)
 
 		createWriter, buf := t.newCreateWriter()
-		c := newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
+		c := newFuncBlockMapItemStatesTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.NoError(err)
@@ -57,7 +57,7 @@ func (t *testBlockItemStatesTreeWriter) TestWrite() {
 		t.NoError(err)
 
 		createWriter, _ := t.newCreateWriter()
-		c := newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
+		c := newFuncBlockMapItemStatesTreeWriter(t.enc, createWriter)
 
 		bm, err := c(context.Background(), util.UUID().String(), tr)
 		t.ErrorIs(err, util.ErrInvalid)
@@ -65,6 +65,6 @@ func (t *testBlockItemStatesTreeWriter) TestWrite() {
 	})
 }
 
-func TestBlockItemStatesTreeWriter(t *testing.T) {
-	suite.Run(t, new(testBlockItemStatesTreeWriter))
+func TestBlockMapItemStatesTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockMapItemStatesTreeWriter))
 }

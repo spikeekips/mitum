@@ -8,24 +8,24 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string) (
+type blockMapItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string) (
 	func(base.INITVoteproof) error,
 	func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
 	error,
 )
 
-func newFuncBlockItemVoteproofsWriter(
+func newFuncBlockMapItemVoteproofsWriter(
 	enc encoder.Encoder,
-	createWriter blockItemWriterCreateWriterFunc,
-) blockItemWriterNewWriteVoteproofsFunc {
-	w := newFuncBaseBlockItemWriter(base.BlockItemVoteproofs, createWriter)
+	createWriter blockMapItemWriterCreateWriterFunc,
+) blockMapItemWriterNewWriteVoteproofsFunc {
+	w := newFuncBaseBlockMapItemWriter(base.BlockItemVoteproofs, createWriter)
 
 	return func(ctx context.Context, createID string) (
 		func(base.INITVoteproof) error,
 		func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
 		error,
 	) {
-		var c blockItemWriterBaseNewWriteFunc
+		var c blockMapItemWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
 		case err != nil:

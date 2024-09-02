@@ -314,15 +314,15 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 	})
 }
 
-func (t *testManagerWorkersTrees) newOpsBlockItemWriter() blockItemWriterNewWriteTreeFunc {
+func (t *testManagerWorkersTrees) newOpsBlockMapItemWriter() blockMapItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
 
-	return newFuncBlockItemOperationsTreeWriter(t.enc, createWriter)
+	return newFuncBlockMapItemOperationsTreeWriter(t.enc, createWriter)
 }
 
-func (t *testManagerWorkersTrees) newStatesBlockItemWriter() blockItemWriterNewWriteTreeFunc {
+func (t *testManagerWorkersTrees) newStatesBlockMapItemWriter() blockMapItemWriterNewWriteTreeFunc {
 	createWriter, _ := t.newCreateWriter()
-	return newFuncBlockItemStatesTreeWriter(t.enc, createWriter)
+	return newFuncBlockMapItemStatesTreeWriter(t.enc, createWriter)
 }
 
 func (t *testManagerWorkersTrees) TestTree() {

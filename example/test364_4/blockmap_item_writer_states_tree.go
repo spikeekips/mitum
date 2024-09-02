@@ -9,11 +9,11 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
-func newFuncBlockItemStatesTreeWriter(
+func newFuncBlockMapItemStatesTreeWriter(
 	enc encoder.Encoder,
-	createWriter blockItemWriterCreateWriterFunc,
-) blockItemWriterNewWriteTreeFunc {
-	w := newFuncBlockItemTreeWriter(base.BlockItemStatesTree, enc, createWriter)
+	createWriter blockMapItemWriterCreateWriterFunc,
+) blockMapItemWriterNewWriteTreeFunc {
+	w := newFuncBlockMapItemTreeWriter(base.BlockItemStatesTree, enc, createWriter)
 
 	return func(ctx context.Context, createID string, tr fixedtree.Tree) (base.BlockMapItem, error) {
 		if tr.Len() < 1 {

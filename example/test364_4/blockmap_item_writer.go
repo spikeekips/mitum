@@ -20,21 +20,21 @@ import (
 var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 
 type (
-	ioWriteFunc                     func([]byte) (int, error)
-	blockItemWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
+	ioWriteFunc                        func([]byte) (int, error)
+	blockMapItemWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
 		ioWriteFunc,
 		errorFunc,
 		error,
 	)
-	blockItemWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)
-	blockItemWriterBaseNewWriteFuncs func(createID string) (blockItemWriterBaseNewWriteFunc, error)
+	blockMapItemWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)
+	blockMapItemWriterBaseNewWriteFuncs func(createID string) (blockMapItemWriterBaseNewWriteFunc, error)
 )
 
-func newFuncBaseBlockItemWriter(
+func newFuncBaseBlockMapItemWriter(
 	it base.BlockItemType,
-	createWriter blockItemWriterCreateWriterFunc,
-) blockItemWriterBaseNewWriteFuncs {
-	return func(createID string) (blockItemWriterBaseNewWriteFunc, error) {
+	createWriter blockMapItemWriterCreateWriterFunc,
+) blockMapItemWriterBaseNewWriteFuncs {
+	return func(createID string) (blockMapItemWriterBaseNewWriteFunc, error) {
 		if len(createID) < 1 {
 			return nil, errors.Errorf("empty create id")
 		}
@@ -66,7 +66,7 @@ func newFuncBaseBlockItemWriter(
 					}
 
 					if header != nil {
-						if err := writeBlockItemFileHeader(write, header); err != nil {
+						if err := writeBlockMapItemFileHeader(write, header); err != nil {
 							return err
 						}
 					}
@@ -127,7 +127,7 @@ func newTreeItemsHeader(enc hint.Hint, total uint64, tree hint.Hint) treeItemsHe
 	}
 }
 
-func writeBlockItemFileHeader(write ioWriteFunc, hs interface{}) error {
+func writeBlockMapItemFileHeader(write ioWriteFunc, hs interface{}) error {
 	switch b, err := util.MarshalJSON(hs); {
 	case err != nil:
 		return err
@@ -145,7 +145,7 @@ func writeBlockItemFileHeader(write ioWriteFunc, hs interface{}) error {
 	}
 }
 
-func readBlockItemFileHeader(r io.Reader, v interface{}) (*bufio.Reader, error) {
+func readBlockMapItemFileHeader(r io.Reader, v interface{}) (*bufio.Reader, error) {
 	switch bf, b, err := isaac.ReadBlockItemFileHeader(r); {
 	case err != nil:
 		return nil, err

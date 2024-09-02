@@ -8,12 +8,12 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockItemWriterNewWriteMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
+type blockMapItemWriterNewWriteMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
 
-func newFuncBlockItemMapWriter(
+func newFuncBlockMapItemMapWriter(
 	enc encoder.Encoder,
-	createWriter blockItemWriterCreateWriterFunc,
-) blockItemWriterNewWriteMapFunc {
+	createWriter blockMapItemWriterCreateWriterFunc,
+) blockMapItemWriterNewWriteMapFunc {
 	return func(ctx context.Context, createID string, bm base.BlockMap) error {
 		if len(createID) < 1 {
 			return errors.Errorf("empty create id")
@@ -30,7 +30,7 @@ func newFuncBlockItemMapWriter(
 			done = d
 		}
 
-		if err := writeBlockItemFileHeader(write, newItemsHeader(enc.Hint())); err != nil {
+		if err := writeBlockMapItemFileHeader(write, newItemsHeader(enc.Hint())); err != nil {
 			return err
 		}
 

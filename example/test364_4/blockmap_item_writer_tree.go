@@ -10,12 +10,12 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
-type blockItemWriterNewWriteTreeFunc func(_ context.Context, createID string, _ fixedtree.Tree) (base.BlockMapItem, error)
+type blockMapItemWriterNewWriteTreeFunc func(_ context.Context, createID string, _ fixedtree.Tree) (base.BlockMapItem, error)
 
-func newFuncBlockItemTreeWriter(
+func newFuncBlockMapItemTreeWriter(
 	it base.BlockItemType,
 	enc encoder.Encoder,
-	createWriter blockItemWriterCreateWriterFunc,
+	createWriter blockMapItemWriterCreateWriterFunc,
 ) func(context.Context, string, fixedtree.Tree) (base.BlockMapItem, error) {
 	encode := encodeWithTreeIndex[fixedtree.Node]
 
@@ -24,9 +24,9 @@ func newFuncBlockItemTreeWriter(
 			return nil, nil
 		}
 
-		var c blockItemWriterBaseNewWriteFunc
+		var c blockMapItemWriterBaseNewWriteFunc
 
-		switch i, err := newFuncBaseBlockItemWriter(it, createWriter)(createID); {
+		switch i, err := newFuncBaseBlockMapItemWriter(it, createWriter)(createID); {
 		case err != nil:
 			return nil, err
 		default:

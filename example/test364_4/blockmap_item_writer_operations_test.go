@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockItemOperationsWriter struct {
-	baseTestBaseBlockItemWriter
+type testBlockMapItemOperationsWriter struct {
+	baseTestBaseBlockMapItemWriter
 }
 
-func (t *testBlockItemOperationsWriter) TestWrite() {
+func (t *testBlockMapItemOperationsWriter) TestWrite() {
 	ctx := context.Background()
 
 	t.Run("empty create id", func() {
 		createWriter, _ := t.newCreateWriter()
 
-		c := newFuncBlockItemOperationsWriter(
+		c := newFuncBlockMapItemOperationsWriter(
 			t.enc,
 			createWriter,
 		)
@@ -32,7 +32,7 @@ func (t *testBlockItemOperationsWriter) TestWrite() {
 	t.Run("zero total", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newFuncBlockItemOperationsWriter(
+		c := newFuncBlockMapItemOperationsWriter(
 			t.enc,
 			createWriter,
 		)
@@ -51,7 +51,7 @@ func (t *testBlockItemOperationsWriter) TestWrite() {
 	t.Run("zero total, but trying to write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newFuncBlockItemOperationsWriter(
+		c := newFuncBlockMapItemOperationsWriter(
 			t.enc,
 			createWriter,
 		)
@@ -70,7 +70,7 @@ func (t *testBlockItemOperationsWriter) TestWrite() {
 	t.Run("single write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newFuncBlockItemOperationsWriter(
+		c := newFuncBlockMapItemOperationsWriter(
 			t.enc,
 			createWriter,
 		)
@@ -97,7 +97,7 @@ func (t *testBlockItemOperationsWriter) TestWrite() {
 	t.Run("multiple write", func() {
 		createWriter, buf := t.newCreateWriter()
 
-		c := newFuncBlockItemOperationsWriter(
+		c := newFuncBlockMapItemOperationsWriter(
 			t.enc,
 			createWriter,
 		)
@@ -139,6 +139,6 @@ func (t *testBlockItemOperationsWriter) TestWrite() {
 	})
 }
 
-func TestBlockItemOperationsWriter(t *testing.T) {
-	suite.Run(t, new(testBlockItemOperationsWriter))
+func TestBlockMapItemOperationsWriter(t *testing.T) {
+	suite.Run(t, new(testBlockMapItemOperationsWriter))
 }
