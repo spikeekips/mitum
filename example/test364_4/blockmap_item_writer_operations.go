@@ -8,16 +8,16 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockMapItemWriterNewWriteOperationsFunc func(_ context.Context, createID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error)
+type blockMapItemWriterNewWriteOperationsFunc func(_ context.Context, createID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) (blockMapItemChunk, error)
 
 func newFuncBlockMapItemOperationsWriter(
 	enc encoder.Encoder,
 	createWriter blockMapItemWriterCreateWriterFunc,
 ) blockMapItemWriterNewWriteOperationsFunc {
-	w := newFuncBaseBlockMapItemWriter(base.BlockItemOperations, createWriter)
+	w := newFuncBaseBlockMapItemChunkWriter(base.BlockItemOperations, createWriter)
 
-	return func(ctx context.Context, createID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) (base.BlockMapItem, error) {
-		var c blockMapItemWriterBaseNewWriteFunc
+	return func(ctx context.Context, createID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) (blockMapItemChunk, error) {
+		var c blockMapItemChunkWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
 		case err != nil:

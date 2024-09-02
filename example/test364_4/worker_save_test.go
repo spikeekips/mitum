@@ -11,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -99,7 +98,7 @@ func (t *testWorkerSave) TestInsertOps() {
 
 		gatheredOps := make([]Operation, len(ops))
 
-		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (blockMapItemChunk, error) {
 			return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 				fmt.Printf("save operations: total=%d\n", total)
 
@@ -122,10 +121,10 @@ func (t *testWorkerSave) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		sendSaveDone := func(context.Context) (workerSaveBlockMapItemFunc, errorFunc, error) {
+		sendSaveDone := func(context.Context) (workerSaveBlockMapItemChunkFunc, errorFunc, error) {
 			saveDoneCh <- true
 
-			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
+			return func(blockMapItemChunk) error { return nil }, func(err error) error { return err }, nil
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newFuncWorkerSave(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, sendMergeDone, saveOperations, dummySaveStatesFunc("local"), saveReasons, sendSaveDone)
@@ -236,7 +235,7 @@ func (t *testWorkerSave) TestInsertOps() {
 
 		gatheredOps := make([]Operation, 1)
 
-		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (blockMapItemChunk, error) {
 			return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 				fmt.Printf("save operations: total=%d\n", total)
 
@@ -260,7 +259,7 @@ func (t *testWorkerSave) TestInsertOps() {
 
 		gatheredStates := util.NewSingleLockedMap[string, base.State]()
 
-		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (base.BlockMapItem, error) {
+		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (blockMapItemChunk, error) {
 			return nil, f(func(total uint64) workerSaveStatesCallbackFunc {
 				fmt.Printf("save states: total=%d\n", total)
 
@@ -275,10 +274,10 @@ func (t *testWorkerSave) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		sendSaveDone := func(context.Context) (workerSaveBlockMapItemFunc, errorFunc, error) {
+		sendSaveDone := func(context.Context) (workerSaveBlockMapItemChunkFunc, errorFunc, error) {
 			saveDoneCh <- true
 
-			return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
+			return func(blockMapItemChunk) error { return nil }, func(err error) error { return err }, nil
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newFuncWorkerSave(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), newStateFunc, sendMergeDone, saveOperations, saveStates, saveReasons, sendSaveDone)
@@ -503,7 +502,7 @@ func (t *testWorkerSave) TestErrors() {
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (base.BlockMapItem, error) {
+		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (blockMapItemChunk, error) {
 			return nil, f(func(total uint64) workerSaveStatesCallbackFunc {
 				return func(func(workerSaveStateFunc) error) error {
 					return errors.Errorf("findme")
@@ -557,8 +556,8 @@ func (t *testWorkerSave) TestErrors() {
 
 		pargs, wpargs, _, eargs, _, args, _, _, statesPool := t.newArgs("local")
 
-		sendSaveDone := func(context.Context) (workerSaveBlockMapItemFunc, errorFunc, error) {
-			return func(base.BlockMapItem) error { return nil }, func(err error) error {
+		sendSaveDone := func(context.Context) (workerSaveBlockMapItemChunkFunc, errorFunc, error) {
+			return func(blockMapItemChunk) error { return nil }, func(err error) error {
 				if err != nil {
 					return err
 				}
@@ -779,7 +778,7 @@ func (t *testWorkerSave) testMerger(
 	mergedStates := util.NewSingleLockedMap[string, util.Hash]()
 	gatheredUnmerged := util.EmptyLocked[[]uint64]()
 	gatheredOps := util.NewSingleLockedMap[uint64, Operation]()
-	gatheredBlockMapItems := util.NewSingleLockedMap[string, [2]base.BlockMapItem]()
+	gatheredBlockMapItems := util.NewSingleLockedMap[string, [2]blockMapItemChunk]()
 
 	for i := range workerNames {
 		local := workerNames[i]
@@ -876,8 +875,9 @@ func (t *testWorkerSave) testMerger(
 				},
 			)
 		}
-		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
-			return isaacblock.NewBlockMapItem(base.BlockItemOperations, util.UUID().String()),
+		expectedOpsChunk := newBaseBlockMapItemChunk(util.UUID().String(), util.UUID().String(), "gz")
+		saveOperations := func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (blockMapItemChunk, error) {
+			return expectedOpsChunk,
 				f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 					fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
@@ -899,8 +899,9 @@ func (t *testWorkerSave) testMerger(
 
 			return nil
 		}
-		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (base.BlockMapItem, error) {
-			return isaacblock.NewBlockMapItem(base.BlockItemStates, util.UUID().String()),
+		expectedStatesChunk := newBaseBlockMapItemChunk(util.UUID().String(), util.UUID().String(), "gz")
+		saveStates := func(_ context.Context, f func(workerSaveStatesFunc) error) (blockMapItemChunk, error) {
+			return expectedStatesChunk,
 				f(func(total uint64) workerSaveStatesCallbackFunc {
 					fmt.Printf("save states: local=%q total=%d\n", local, total)
 
@@ -913,19 +914,19 @@ func (t *testWorkerSave) testMerger(
 					}
 				})
 		}
-		sendSaveDone := func(context.Context) (workerSaveBlockMapItemFunc, errorFunc, error) {
-			return func(bi base.BlockMapItem) error {
-					_, _, err := gatheredBlockMapItems.Set(local, func(p [2]base.BlockMapItem, _ bool) ([2]base.BlockMapItem, error) {
-						switch bi.Type() {
-						case base.BlockItemOperations:
+		sendSaveDone := func(context.Context) (workerSaveBlockMapItemChunkFunc, errorFunc, error) {
+			return func(bi blockMapItemChunk) error {
+					_, _, err := gatheredBlockMapItems.Set(local, func(p [2]blockMapItemChunk, _ bool) ([2]blockMapItemChunk, error) {
+						switch bi.URI() {
+						case expectedOpsChunk.URI():
 							if p[0] != nil {
-								return [2]base.BlockMapItem{}, util.ErrFound.Errorf("operations already set")
+								return [2]blockMapItemChunk{}, util.ErrFound.Errorf("operations already set")
 							}
 
 							p[0] = bi
-						case base.BlockItemStates:
+						case expectedStatesChunk.URI():
 							if p[1] != nil {
-								return [2]base.BlockMapItem{}, util.ErrFound.Errorf("states already set")
+								return [2]blockMapItemChunk{}, util.ErrFound.Errorf("states already set")
 							}
 
 							p[1] = bi
@@ -1368,7 +1369,7 @@ func dummySendMergeDoneFunc(local string) workerSaveSendMergeDoneFuncs {
 }
 
 func dummySaveOperationsFunc(local string) workerSaveSaveOperationsFunc {
-	return func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (base.BlockMapItem, error) {
+	return func(_ context.Context, f func(operationsWorkerSaveOperationsFunc) error) (blockMapItemChunk, error) {
 		return nil, f(func(total uint64) operationsWorkerSaveOperationsCallbackFunc {
 			fmt.Printf("save operations: local=%q total=%d\n", local, total)
 
@@ -1384,7 +1385,7 @@ func dummySaveOperationsFunc(local string) workerSaveSaveOperationsFunc {
 }
 
 func dummySaveStatesFunc(local string) workerSaveStatesFuncs {
-	return func(_ context.Context, f func(workerSaveStatesFunc) error) (base.BlockMapItem, error) {
+	return func(_ context.Context, f func(workerSaveStatesFunc) error) (blockMapItemChunk, error) {
 		return nil, f(func(total uint64) workerSaveStatesCallbackFunc {
 			fmt.Printf("save states: local=%q total=%d\n", local, total)
 
@@ -1408,9 +1409,9 @@ func dummySaveReasonsFunc(local string) workerSaveReasonsFunc {
 }
 
 func dummySendSaveDoneFunc(local string) workerSaveSendSaveDoneFunc {
-	return func(context.Context) (workerSaveBlockMapItemFunc, errorFunc, error) {
+	return func(context.Context) (workerSaveBlockMapItemChunkFunc, errorFunc, error) {
 		fmt.Printf("save done: local=%q\n", local)
 
-		return func(base.BlockMapItem) error { return nil }, func(err error) error { return err }, nil
+		return func(blockMapItemChunk) error { return nil }, func(err error) error { return err }, nil
 	}
 }

@@ -22,13 +22,89 @@ var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 type (
 	ioWriteFunc                        func([]byte) (int, error)
 	blockMapItemWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
-		ioWriteFunc,
-		errorFunc,
-		error,
+		filename string,
+		compressFormat string,
+		_ ioWriteFunc,
+		_ errorFunc,
+		_ error,
 	)
-	blockMapItemWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)
-	blockMapItemWriterBaseNewWriteFuncs func(createID string) (blockMapItemWriterBaseNewWriteFunc, error)
+	blockMapItemWriterBaseNewWriteFunc       func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)
+	blockMapItemWriterBaseNewWriteFuncs      func(createID string) (blockMapItemWriterBaseNewWriteFunc, error)
+	blockMapItemChunkWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (blockMapItemChunk, error)
+	blockMapItemChunkWriterBaseNewWriteFuncs func(createID string) (blockMapItemChunkWriterBaseNewWriteFunc, error)
 )
+
+func newFuncBaseBlockMapItemChunkWriter(
+	it base.BlockItemType,
+	createWriter blockMapItemWriterCreateWriterFunc,
+) blockMapItemChunkWriterBaseNewWriteFuncs {
+	return func(createID string) (blockMapItemChunkWriterBaseNewWriteFunc, error) {
+		if len(createID) < 1 {
+			return nil, errors.Errorf("empty create id")
+		}
+
+		return func(header interface{}, f func(ioWriteFunc) error) (blockMapItemChunk, error) {
+				donef := util.EmptyLocked[errorFunc]()
+
+				done := func(err error) error {
+					if f, isempty := donef.Value(); !isempty {
+						return f(err)
+					}
+
+					return err
+				}
+
+				var filename, compressFormat string
+				checksumf := func() string { return "" }
+				var write ioWriteFunc
+
+				once := OnceFunc(func() error {
+					switch f, c, w, d, err := createWriter(it, createID); {
+					case err != nil:
+						return err
+					default:
+						w, chk := newChecksumWrite(w, sha256.New())
+
+						write = w
+						filename = f
+						compressFormat = c
+						checksumf = chk
+						donef.SetValue(d)
+					}
+
+					if header != nil {
+						if err := writeBlockMapItemFileHeader(write, header); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
+
+				if err := f(func(b []byte) (int, error) {
+					if err := once(); err != nil {
+						return 0, err
+					}
+
+					return write(b)
+				}); err != nil {
+					return nil, done(err)
+				}
+
+				if err := done(nil); err != nil {
+					return nil, err
+				}
+
+				switch c := checksumf(); {
+				case len(c) > 0:
+					return newBaseBlockMapItemChunk(filename, c, compressFormat), nil
+				default:
+					return nil, nil
+				}
+			},
+			nil
+	}
+}
 
 func newFuncBaseBlockMapItemWriter(
 	it base.BlockItemType,
@@ -54,7 +130,7 @@ func newFuncBaseBlockMapItemWriter(
 				var write ioWriteFunc
 
 				once := OnceFunc(func() error {
-					switch w, d, err := createWriter(it, createID); {
+					switch _, _, w, d, err := createWriter(it, createID); {
 					case err != nil:
 						return err
 					default:

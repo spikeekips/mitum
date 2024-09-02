@@ -22,7 +22,7 @@ func newFuncBlockMapItemMapWriter(
 		var write ioWriteFunc
 		var done func(error) error
 
-		switch w, d, err := createWriter(base.BlockItemMap, createID); {
+		switch _, _, w, d, err := createWriter(base.BlockItemMap, createID); {
 		case err != nil:
 			return err
 		default:

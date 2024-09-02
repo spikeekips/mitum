@@ -29,6 +29,7 @@ func (t *baseTestBaseBlockMapItemWriter) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AccountStateMergeValueHint, Instance: AccountStateMergeValue{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpFactHint, Instance: OpFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpHint, Instance: Op{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: blockMapItemChunkHint, Instance: baseBlockMapItemChunk{}}))
 }
 
 func (t *baseTestBaseBlockMapItemWriter) newCreateWriter() (
@@ -37,8 +38,8 @@ func (t *baseTestBaseBlockMapItemWriter) newCreateWriter() (
 ) {
 	w := bytes.NewBuffer(nil)
 
-	return func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
-			return w.Write, func(err error) error { return err }, nil
+	return func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
+			return "", "", w.Write, func(err error) error { return err }, nil
 		},
 		func() ([]byte, error) {
 			defer w.Reset()
@@ -58,6 +59,57 @@ func (t *baseTestBaseBlockMapItemWriter) compareChecksum(input []byte, output st
 	t.NoError(err, "%+v", err)
 
 	return done() == output
+}
+
+type testBaseBlockMapItemChunkWriter struct {
+	baseTestBaseBlockMapItemWriter
+}
+
+func (t *testBaseBlockMapItemChunkWriter) TestWrite() {
+	t.Run("compress format", func() {
+		input := util.UUID().Bytes()
+
+		origCreateWriter, buf := t.newCreateWriter()
+
+		filename := util.UUID().String()
+		compressFormat := "gz"
+
+		createWriter := func(it base.BlockItemType, createID string) (string, string, ioWriteFunc, errorFunc, error) {
+			_, _, w, e, err := origCreateWriter(it, createID)
+
+			return filename, compressFormat, w, e, err
+		}
+
+		c := newFuncBaseBlockMapItemChunkWriter(
+			base.BlockItemOperations,
+			createWriter,
+		)
+
+		f, err := c(util.UUID().String())
+		t.NoError(err)
+
+		bc, err := f(nil, func(write ioWriteFunc) error {
+			_, err := write(input)
+
+			return err
+		})
+		t.NoError(err)
+		t.NotNil(bc)
+
+		t.Equal(filename, bc.URI())
+		t.Equal(compressFormat, bc.CompressFormat())
+		t.True(t.compareChecksum(input, bc.Checksum()))
+
+		written, err := buf()
+		t.NoError(err)
+		t.NotEmpty(written)
+
+		t.Equal(input, written)
+	})
+}
+
+func TestBaseBlockMapItemChunkWriter(t *testing.T) {
+	suite.Run(t, new(testBaseBlockMapItemChunkWriter))
 }
 
 type testBaseBlockMapItemWriter struct {
@@ -134,8 +186,8 @@ func (t *testBaseBlockMapItemWriter) TestWriteHeader() {
 	t.Run("failed to write header", func() {
 		input := util.UUID().Bytes()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
-			return func([]byte) (int, error) {
+		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
+			return "", "", func([]byte) (int, error) {
 					return 0, errors.Errorf("findme")
 				},
 				func(err error) error { return err },
@@ -305,8 +357,8 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
-			return w.Write,
+		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
+			return "", "", w.Write,
 				func(err error) error {
 					if err != nil {
 						return err
@@ -343,8 +395,8 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
-			return w.Write,
+		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
+			return "", "", w.Write,
 				func(err error) error {
 					if err != nil {
 						return err
@@ -378,8 +430,8 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (ioWriteFunc, errorFunc, error) {
-			return w.Write,
+		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
+			return "", "", w.Write,
 				func(err error) error {
 					if err != nil {
 						w.Reset()

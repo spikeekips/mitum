@@ -4,19 +4,18 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	managerWorkerBlockMapItemsWorkerBlockMapItemsFunc        func(worker string, _ []base.BlockMapItem) error
-	managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc func(_ context.Context, worker string, _ func(workerSaveBlockMapItemFunc) error) error
+	managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc   func(worker string, _ []blockMapItemChunk) error
+	managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc func(_ context.Context, worker string, _ func(workerSaveBlockMapItemChunkFunc) error) error
 	managerWorkerBlockMapItemsDoneFunc                       func() error
 	managerWorkerBlockMapItemsFunc                           func(
 		_ context.Context,
 		minEnough, maxFailed uint64,
-		_ managerWorkerBlockMapItemsWorkerBlockMapItemsFunc,
+		_ managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc,
 	) (
 		managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc,
 		managerWorkerBlockMapItemsDoneFunc,
@@ -43,7 +42,7 @@ func newFuncManagerWorkerBlockMapItems(
 	return func(
 		ctx context.Context,
 		minEnough, maxFailed uint64,
-		saveBlockMapItem managerWorkerBlockMapItemsWorkerBlockMapItemsFunc,
+		saveBlockMapItemChunks managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc,
 	) (
 		managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc,
 		managerWorkerBlockMapItemsDoneFunc,
@@ -64,7 +63,7 @@ func newFuncManagerWorkerBlockMapItems(
 			wctx,
 			minEnough, maxFailed,
 			newCheckWorkersFunc,
-			saveBlockMapItem,
+			saveBlockMapItemChunks,
 		); {
 		case err != nil:
 			return nil, nil, closef(err)
@@ -73,7 +72,7 @@ func newFuncManagerWorkerBlockMapItems(
 			receiveWorkerBlockMapItemWait = w
 		}
 
-		return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemFunc) error) error {
+		return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunkFunc) error) error {
 				return contextCauseError(wctx, ifErrErrorFunc(closef), func() error {
 					return receiveWorkerBlockMapItem(ctx, worker, f)
 				})
@@ -89,7 +88,7 @@ func newManagerWorkerWorkerBlockMapItem(
 	ctx context.Context,
 	minEnough, maxFailed uint64,
 	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
-	saveBlockMapItem managerWorkerBlockMapItemsWorkerBlockMapItemsFunc,
+	saveBlockMapItemChunks managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc,
 ) (
 	managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc,
 	func() error,
@@ -108,11 +107,11 @@ func newManagerWorkerWorkerBlockMapItem(
 
 	_, done, wait := NewDoneContextFunc(ctx)
 
-	return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemFunc) error) error {
-			var add util.CompactAppendSliceAddFunc[base.BlockMapItem]
-			var collect util.CompactAppendSliceDoneFunc[base.BlockMapItem]
+	return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunkFunc) error) error {
+			var add util.CompactAppendSliceAddFunc[blockMapItemChunk]
+			var collect util.CompactAppendSliceDoneFunc[blockMapItemChunk]
 
-			switch a, c, err := util.CompactAppendSliceV1[base.BlockMapItem](1<<3, 1<<3); {
+			switch a, c, err := util.CompactAppendSliceV1[blockMapItemChunk](1<<3, 1<<3); {
 			case err != nil:
 				return err
 			default:
@@ -125,7 +124,7 @@ func newManagerWorkerWorkerBlockMapItem(
 			switch ok, enough, failed, err := checkWorker(
 				worker,
 				func() error {
-					return f(func(item base.BlockMapItem) error {
+					return f(func(item blockMapItemChunk) error {
 						_, _ = add(item)
 
 						return nil
@@ -138,8 +137,8 @@ func newManagerWorkerWorkerBlockMapItem(
 				return nil
 			case !ok:
 			default:
-				if err := collect(func(s []base.BlockMapItem) error {
-					return saveBlockMapItem(worker, s)
+				if err := collect(func(s []blockMapItemChunk) error {
+					return saveBlockMapItemChunks(worker, s)
 				}); err != nil {
 					return err
 				}

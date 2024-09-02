@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
-	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
@@ -27,8 +25,8 @@ func (t *testManagerWorkerBlockMapItem) newArgs() *managerWorkerBlockMapItemsArg
 	return args
 }
 
-func (t *testManagerWorkerBlockMapItem) randomBlockMapItem() base.BlockMapItem {
-	return isaacblock.NewBlockMapItem(base.BlockItemType(util.UUID().String()), util.UUID().String())
+func (t *testManagerWorkerBlockMapItem) randomBlockMapItemChunk() blockMapItemChunk {
+	return newBaseBlockMapItemChunk(util.UUID().String(), util.UUID().String(), "gz")
 }
 
 func (t *testManagerWorkerBlockMapItem) TestError() {
@@ -42,7 +40,7 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 
 		cancel()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -50,8 +48,8 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return f(t.randomBlockMapItem())
+			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return f(t.randomBlockMapItemChunk())
 			})
 			t.ErrorIs(err, context.Canceled)
 
@@ -71,7 +69,7 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -86,8 +84,8 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 				canceled = true
 			}
 
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return f(t.randomBlockMapItem())
+			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return f(t.randomBlockMapItemChunk())
 			})
 
 			switch {
@@ -115,7 +113,7 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -123,8 +121,8 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return f(t.randomBlockMapItem())
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return f(t.randomBlockMapItemChunk())
 			}))
 
 			return true, nil
@@ -142,7 +140,7 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 2, 2, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, 2, 2, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -150,12 +148,12 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
 				if i == 1 {
 					return errors.Errorf("showme")
 				}
 
-				return f(t.randomBlockMapItem())
+				return f(t.randomBlockMapItemChunk())
 			}))
 
 			return true, nil
@@ -173,7 +171,7 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 2, 1, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, 2, 1, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -181,12 +179,12 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
+			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
 				if i == 1 {
 					return errors.Errorf("showme")
 				}
 
-				return f(t.randomBlockMapItem())
+				return f(t.randomBlockMapItemChunk())
 			})
 
 			switch {
@@ -212,7 +210,7 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 4, 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, 4, 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -220,8 +218,8 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return f(t.randomBlockMapItem())
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return f(t.randomBlockMapItemChunk())
 			}))
 
 			return true, nil
@@ -249,23 +247,23 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		defer cancel()
 
 		workers := t.workers(3)
-		items := make([]base.BlockMapItem, 9)
+		items := make([]blockMapItemChunk, 9)
 		for i := range items {
-			items[i] = t.randomBlockMapItem()
+			items[i] = t.randomBlockMapItemChunk()
 		}
 
-		workersItems := map[string][]base.BlockMapItem{}
+		workersItems := map[string][]blockMapItemChunk{}
 
 		for i := range workers {
 			workersItems[workers[i]] = items[i*3 : (i+1)*3]
 		}
 
-		received := util.NewSingleLockedMap[string, []base.BlockMapItem]()
+		received := util.NewSingleLockedMap[string, []blockMapItemChunk]()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
-			received.Set(worker, func(s []base.BlockMapItem, _ bool) ([]base.BlockMapItem, error) {
+			received.Set(worker, func(s []blockMapItemChunk, _ bool) ([]blockMapItemChunk, error) {
 				s = append(s, items...)
 
 				return s, nil
@@ -276,8 +274,8 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return util.TraverseSliceV1(workersItems[worker], func(_ int, item base.BlockMapItem) (bool, error) {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return util.TraverseSliceV1(workersItems[worker], func(_ int, item blockMapItemChunk) (bool, error) {
 					return true, f(item)
 				})
 			}))
@@ -298,12 +296,12 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		defer cancel()
 
 		workers := t.workers(3)
-		items := make([]base.BlockMapItem, 9)
+		items := make([]blockMapItemChunk, 9)
 		for i := range items {
-			items[i] = t.randomBlockMapItem()
+			items[i] = t.randomBlockMapItemChunk()
 		}
 
-		workersItems := map[string][]base.BlockMapItem{}
+		workersItems := map[string][]blockMapItemChunk{}
 
 		for i := range workers {
 			if i == 1 {
@@ -313,16 +311,16 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 			workersItems[workers[i]] = items[i*3 : (i+1)*3]
 		}
 
-		received := util.NewSingleLockedMap[string, []base.BlockMapItem]()
+		received := util.NewSingleLockedMap[string, []blockMapItemChunk]()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []base.BlockMapItem) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items []blockMapItemChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			if len(items) < 1 {
 				return nil
 			}
 
-			received.Set(worker, func(s []base.BlockMapItem, _ bool) ([]base.BlockMapItem, error) {
+			received.Set(worker, func(s []blockMapItemChunk, _ bool) ([]blockMapItemChunk, error) {
 				s = append(s, items...)
 
 				return s, nil
@@ -333,8 +331,8 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemFunc) error {
-				return util.TraverseSliceV1(workersItems[worker], func(_ int, item base.BlockMapItem) (bool, error) {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunkFunc) error {
+				return util.TraverseSliceV1(workersItems[worker], func(_ int, item blockMapItemChunk) (bool, error) {
 					return true, f(item)
 				})
 			}))
