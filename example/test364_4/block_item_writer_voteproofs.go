@@ -4,10 +4,15 @@ import (
 	"context"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string, _ base.INITVoteproof, _ base.ACCEPTVoteproof) (base.BlockMapItem, error)
+type blockItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string) (
+	func(base.INITVoteproof) error,
+	func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
+	error,
+)
 
 func newFuncBlockItemVoteproofsWriter(
 	enc encoder.Encoder,
@@ -15,34 +20,52 @@ func newFuncBlockItemVoteproofsWriter(
 ) blockItemWriterNewWriteVoteproofsFunc {
 	w := newFuncBaseBlockItemWriter(base.BlockItemVoteproofs, createWriter)
 
-	return func(ctx context.Context, createID string, ivp base.INITVoteproof, avp base.ACCEPTVoteproof) (base.BlockMapItem, error) {
+	return func(ctx context.Context, createID string) (
+		func(base.INITVoteproof) error,
+		func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
+		error,
+	) {
 		var c blockItemWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
 		case err != nil:
-			return nil, err
+			return nil, nil, err
 		default:
 			c = i
 		}
 
-		return c(newItemsHeader(enc.Hint()), func(write ioWriteFunc) error {
-			switch b, err := enc.Marshal(ivp); {
-			case err != nil:
-				return err
-			default:
-				if _, err := write(b); err != nil {
+		var ivpb []byte
+
+		return func(ivp base.INITVoteproof) error {
+				switch b, err := enc.Marshal(ivp); {
+				case err != nil:
 					return err
+				default:
+					ivpb = b
+
+					return nil
 				}
-			}
+			},
+			func(avp base.ACCEPTVoteproof) (base.BlockMapItem, error) {
+				if len(ivpb) < 1 {
+					return nil, util.ErrNotFound.Errorf("init voteproof")
+				}
 
-			switch b, err := enc.Marshal(avp); {
-			case err != nil:
-				return err
-			default:
-				_, err := write(b)
+				return c(newItemsHeader(enc.Hint()), func(write ioWriteFunc) error {
+					if _, err := write(ivpb); err != nil {
+						return err
+					}
 
-				return err
-			}
-		})
+					switch b, err := enc.Marshal(avp); {
+					case err != nil:
+						return err
+					default:
+						_, err := write(b)
+
+						return err
+					}
+				})
+			},
+			nil
 	}
 }
