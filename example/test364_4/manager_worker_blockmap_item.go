@@ -4,13 +4,14 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc   func(worker string, _ []blockMapItemChunk) error
-	managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc func(_ context.Context, worker string, _ func(workerSaveBlockMapItemChunkFunc) error) error
+	managerWorkerBlockMapItemsWorkerBlockMapItemChunksFunc   func(worker string, _ map[base.BlockItemType][]blockMapItemChunk) error
+	managerWorkerBlockMapItemsReceiveWorkerBlockMapItemsFunc func(_ context.Context, worker string, _ func(workerSaveBlockMapItemChunksFunc) error) error
 	managerWorkerBlockMapItemsDoneFunc                       func() error
 	managerWorkerBlockMapItemsFunc                           func(
 		_ context.Context,
@@ -72,7 +73,7 @@ func newFuncManagerWorkerBlockMapItems(
 			receiveWorkerBlockMapItemWait = w
 		}
 
-		return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunkFunc) error) error {
+		return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunksFunc) error) error {
 				return contextCauseError(wctx, ifErrErrorFunc(closef), func() error {
 					return receiveWorkerBlockMapItem(ctx, worker, f)
 				})
@@ -107,25 +108,15 @@ func newManagerWorkerWorkerBlockMapItem(
 
 	_, done, wait := NewDoneContextFunc(ctx)
 
-	return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunkFunc) error) error {
-			var add util.CompactAppendSliceAddFunc[blockMapItemChunk]
-			var collect util.CompactAppendSliceDoneFunc[blockMapItemChunk]
-
-			switch a, c, err := util.CompactAppendSliceV1[blockMapItemChunk](1<<3, 1<<3); {
-			case err != nil:
-				return err
-			default:
-				defer c(nil)
-
-				add = a
-				collect = c
-			}
+	return func(ctx context.Context, worker string, f func(workerSaveBlockMapItemChunksFunc) error) error {
+			chunks := util.NewSingleLockedMap[base.BlockItemType, []blockMapItemChunk]()
+			defer chunks.Close()
 
 			switch ok, enough, failed, err := checkWorker(
 				worker,
 				func() error {
-					return f(func(item blockMapItemChunk) error {
-						_, _ = add(item)
+					return f(func(it base.BlockItemType, items []blockMapItemChunk) error {
+						_ = chunks.SetValue(it, items)
 
 						return nil
 					})
@@ -137,10 +128,8 @@ func newManagerWorkerWorkerBlockMapItem(
 				return nil
 			case !ok:
 			default:
-				if err := collect(func(s []blockMapItemChunk) error {
-					return saveBlockMapItemChunks(worker, s)
-				}); err != nil {
-					return err
+				if err := saveBlockMapItemChunks(worker, chunks.Map()); err != nil {
+					return done(err)
 				}
 
 				if enough {
