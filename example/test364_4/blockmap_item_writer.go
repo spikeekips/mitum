@@ -21,11 +21,11 @@ var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 
 type (
 	ioWriteFunc                        func([]byte) (int, error)
+	blockMapItemDoneFileFunc           func(_ error, filenameBody string) error
 	blockMapItemWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
-		filename string,
 		compressFormat string,
 		_ ioWriteFunc,
-		_ errorFunc,
+		_ blockMapItemDoneFileFunc,
 		_ error,
 	)
 	blockMapItemWriterBaseNewWriteFunc       func(header interface{}, _ func(ioWriteFunc) error) (base.BlockMapItem, error)
@@ -44,29 +44,28 @@ func newFuncBaseBlockMapItemChunkWriter(
 		}
 
 		return func(header interface{}, f func(ioWriteFunc) error) (blockMapItemChunk, error) {
-				donef := util.EmptyLocked[errorFunc]()
+				donef := util.EmptyLocked[blockMapItemDoneFileFunc]()
 
-				done := func(err error) error {
+				done := func(err error, filenameBody string) error {
 					if f, isempty := donef.Value(); !isempty {
-						return f(err)
+						return f(err, filenameBody)
 					}
 
 					return err
 				}
 
-				var filename, compressFormat string
+				var compressFormat string
 				checksumf := func() string { return "" }
 				var write ioWriteFunc
 
 				once := OnceFunc(func() error {
-					switch f, c, w, d, err := createWriter(it, createID); {
+					switch c, w, d, err := createWriter(it, createID); {
 					case err != nil:
 						return err
 					default:
 						w, chk := newChecksumWrite(w, sha256.New())
 
 						write = w
-						filename = f
 						compressFormat = c
 						checksumf = chk
 						donef.SetValue(d)
@@ -88,19 +87,20 @@ func newFuncBaseBlockMapItemChunkWriter(
 
 					return write(b)
 				}); err != nil {
-					return nil, done(err)
+					return nil, done(err, "")
 				}
 
-				if err := done(nil); err != nil {
+				checksum := checksumf()
+				if len(checksum) < 1 {
+					return nil, done(nil, "")
+				}
+
+				filenameBody := blockMapItemFilenameBody(it, checksum)
+				if err := done(nil, filenameBody); err != nil {
 					return nil, err
 				}
 
-				switch c := checksumf(); {
-				case len(c) > 0:
-					return newBaseBlockMapItemChunk(filename, c, compressFormat), nil
-				default:
-					return nil, nil
-				}
+				return newBaseBlockMapItemChunk(filenameBody, checksum, compressFormat), nil
 			},
 			nil
 	}
@@ -116,28 +116,28 @@ func newFuncBaseBlockMapItemWriter(
 		}
 
 		return func(header interface{}, f func(ioWriteFunc) error) (base.BlockMapItem, error) {
-				donef := util.EmptyLocked[errorFunc]()
+				donef := util.EmptyLocked[blockMapItemDoneFileFunc]()
 
-				done := func(err error) error {
+				done := func(err error, filenameBody string) error {
 					if f, isempty := donef.Value(); !isempty {
-						return f(err)
+						return f(err, filenameBody)
 					}
 
 					return err
 				}
 
-				checksum := func() string { return "" }
+				checksumf := func() string { return "" }
 				var write ioWriteFunc
 
 				once := OnceFunc(func() error {
-					switch _, _, w, d, err := createWriter(it, createID); {
+					switch _, w, d, err := createWriter(it, createID); {
 					case err != nil:
 						return err
 					default:
 						w, chk := newChecksumWrite(w, sha256.New())
 
 						write = w
-						checksum = chk
+						checksumf = chk
 						donef.SetValue(d)
 					}
 
@@ -157,19 +157,21 @@ func newFuncBaseBlockMapItemWriter(
 
 					return write(b)
 				}); err != nil {
-					return nil, done(err)
+					return nil, done(err, "")
 				}
 
-				if err := done(nil); err != nil {
+				checksum := checksumf()
+				if len(checksum) < 1 {
+					return nil, done(nil, "")
+				}
+
+				filenameBody := blockMapItemFilenameBody(it, checksum)
+
+				if err := done(nil, filenameBody); err != nil {
 					return nil, err
 				}
 
-				switch ck := checksum(); {
-				case len(ck) > 0:
-					return isaacblock.NewBlockMapItem(it, ck), nil
-				default:
-					return nil, nil
-				}
+				return isaacblock.NewBlockMapItem(it, checksum), nil
 			},
 			nil
 	}
@@ -278,4 +280,14 @@ func safeStreamerEncode(enc util.StreamEncoder) func(interface{}) error {
 
 		return enc.Encode(i)
 	}
+}
+
+func blockMapItemFilenameBody(it base.BlockItemType, checksum string) string {
+	var pck string
+
+	if len(checksum) > 0 {
+		pck = "-" + checksum
+	}
+
+	return it.String() + pck
 }

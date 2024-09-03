@@ -20,9 +20,9 @@ func newFuncBlockMapItemMapWriter(
 		}
 
 		var write ioWriteFunc
-		var done func(error) error
+		var done blockMapItemDoneFileFunc
 
-		switch _, _, w, d, err := createWriter(base.BlockItemMap, createID); {
+		switch _, w, d, err := createWriter(base.BlockItemMap, createID); {
 		case err != nil:
 			return err
 		default:
@@ -36,13 +36,13 @@ func newFuncBlockMapItemMapWriter(
 
 		switch b, err := enc.Marshal(bm); {
 		case err != nil:
-			return done(err)
+			return done(err, "")
 		default:
 			if _, err := write(b); err != nil {
-				return done(err)
+				return done(err, "")
 			}
 
-			return done(nil)
+			return done(nil, blockMapItemFilenameBody(base.BlockItemMap, ""))
 		}
 	}
 }

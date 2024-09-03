@@ -38,8 +38,8 @@ func (t *baseTestBaseBlockMapItemWriter) newCreateWriter() (
 ) {
 	w := bytes.NewBuffer(nil)
 
-	return func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
-			return "", "", w.Write, func(err error) error { return err }, nil
+	return func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			return "", w.Write, func(err error, _ string) error { return err }, nil
 		},
 		func() ([]byte, error) {
 			defer w.Reset()
@@ -71,13 +71,12 @@ func (t *testBaseBlockMapItemChunkWriter) TestWrite() {
 
 		origCreateWriter, buf := t.newCreateWriter()
 
-		filename := util.UUID().String()
 		compressFormat := "gz"
 
-		createWriter := func(it base.BlockItemType, createID string) (string, string, ioWriteFunc, errorFunc, error) {
-			_, _, w, e, err := origCreateWriter(it, createID)
+		createWriter := func(it base.BlockItemType, createID string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			_, w, e, err := origCreateWriter(it, createID)
 
-			return filename, compressFormat, w, e, err
+			return compressFormat, w, e, err
 		}
 
 		c := newFuncBaseBlockMapItemChunkWriter(
@@ -95,6 +94,8 @@ func (t *testBaseBlockMapItemChunkWriter) TestWrite() {
 		})
 		t.NoError(err)
 		t.NotNil(bc)
+
+		filename := blockMapItemFilenameBody(base.BlockItemOperations, bc.Checksum())
 
 		t.Equal(filename, bc.URI())
 		t.Equal(compressFormat, bc.CompressFormat())
@@ -186,11 +187,11 @@ func (t *testBaseBlockMapItemWriter) TestWriteHeader() {
 	t.Run("failed to write header", func() {
 		input := util.UUID().Bytes()
 
-		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
-			return "", "", func([]byte) (int, error) {
+		createWriter := func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			return "", func([]byte) (int, error) {
 					return 0, errors.Errorf("findme")
 				},
-				func(err error) error { return err },
+				func(err error, _ string) error { return err },
 				nil
 		}
 
@@ -357,9 +358,9 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
-			return "", "", w.Write,
-				func(err error) error {
+		createWriter := func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			return "", w.Write,
+				func(err error, _ string) error {
 					if err != nil {
 						return err
 					}
@@ -395,9 +396,9 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
-			return "", "", w.Write,
-				func(err error) error {
+		createWriter := func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			return "", w.Write,
+				func(err error, _ string) error {
 					if err != nil {
 						return err
 					}
@@ -430,9 +431,9 @@ func (t *testBaseBlockMapItemWriter) TestCloseError() {
 		w := bytes.NewBuffer(nil)
 		defer w.Reset()
 
-		createWriter := func(base.BlockItemType, string) (string, string, ioWriteFunc, errorFunc, error) {
-			return "", "", w.Write,
-				func(err error) error {
+		createWriter := func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+			return "", w.Write,
+				func(err error, _ string) error {
 					if err != nil {
 						w.Reset()
 						t.T().Log("clear written")
