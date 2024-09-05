@@ -23,7 +23,7 @@ var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 
 type (
 	ioWriteFunc                     func([]byte) (int, error)
-	blockFileDoneFileFunc           func(_ error, filenameBody string) error
+	blockFileDoneFileFunc           func(_ error, filenameBody string) (filename string, _ error)
 	blockFileWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
 		compressFormat string,
 		_ ioWriteFunc,
@@ -50,12 +50,18 @@ func newFuncBaseBlockFileChunkWriter(
 
 				donef := util.EmptyLocked[blockFileDoneFileFunc]()
 
-				done := func(err error, filenameBody string) error {
+				done := func(err error, filenameBody string) (string, error) {
 					_ = checksumf()
 
 					if f, isempty := donef.Value(); !isempty {
 						return f(err, filenameBody)
 					}
+
+					return "", err
+				}
+
+				closef := func(err error) error {
+					_, err = done(err, "")
 
 					return err
 				}
@@ -87,20 +93,20 @@ func newFuncBaseBlockFileChunkWriter(
 
 					return write(b)
 				}); err != nil {
-					return nil, done(err, "")
+					return nil, closef(err)
 				}
 
 				checksum := checksumf()
 				if len(checksum) < 1 {
-					return nil, done(nil, "")
+					return nil, closef(nil)
 				}
 
-				filenameBody := blockFileFilenameBody(it, checksum)
-				if err := done(nil, filenameBody); err != nil {
+				switch filename, err := done(nil, blockFileFilenameBody(it, checksum)); {
+				case err != nil:
 					return nil, err
+				default:
+					return newBaseBlockFileChunk(filename, checksum, compressFormat), nil
 				}
-
-				return newBaseBlockFileChunk(filenameBody, checksum, compressFormat), nil
 			},
 			nil
 	}

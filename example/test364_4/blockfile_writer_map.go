@@ -36,13 +36,19 @@ func newFuncBlockFileMapWriter(
 
 		switch b, err := enc.Marshal(bm); {
 		case err != nil:
-			return done(err, "")
+			_, err := done(err, "")
+
+			return err
 		default:
 			if _, err := write(b); err != nil {
-				return done(err, "")
+				_, err := done(err, "")
+
+				return err
 			}
 
-			return done(nil, blockFileFilenameBody(base.BlockItemMap, ""))
+			_, err := done(nil, blockFileFilenameBody(base.BlockItemMap, ""))
+
+			return err
 		}
 	}
 }

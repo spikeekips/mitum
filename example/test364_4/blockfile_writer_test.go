@@ -48,7 +48,7 @@ func (t *baseTestBaseBlockFileWriter) newCreateWriter() (
 			w := bytes.NewBuffer(nil)
 			add(w)
 
-			return "", w.Write, func(err error, _ string) error { return err }, nil
+			return "", w.Write, func(err error, _ string) (string, error) { return util.UUID().String(), err }, nil
 		},
 		func(f func([][]byte) error) error {
 			return done(func(s []*bytes.Buffer) error {
@@ -413,11 +413,20 @@ func (t *testBaseBlockFileChunkWriter) TestWrite() {
 		origCreateWriter, bufs := t.newCreateWriter()
 
 		compressFormat := "gz"
+		var expectedFilename string
 
 		createWriter := func(it base.BlockItemType, createID string) (string, ioWriteFunc, blockFileDoneFileFunc, error) {
-			_, w, e, err := origCreateWriter(it, createID)
+			_, w, d, err := origCreateWriter(it, createID)
 
-			return compressFormat, w, e, err
+			return compressFormat, w,
+				func(err error, body string) (string, error) {
+					_, err = d(err, body)
+
+					expectedFilename = body + ".json." + compressFormat
+
+					return expectedFilename, err
+				},
+				err
 		}
 
 		c := newFuncBaseBlockFileChunkWriter(
@@ -436,9 +445,8 @@ func (t *testBaseBlockFileChunkWriter) TestWrite() {
 		t.NoError(err)
 		t.NotNil(bc)
 
-		filename := blockFileFilenameBody(base.BlockItemOperations, bc.Checksum())
-
-		t.Equal(filename, bc.URI())
+		t.T().Logf("expected filename: %q", expectedFilename)
+		t.Equal(expectedFilename, bc.URI())
 		t.Equal(compressFormat, bc.CompressFormat())
 		t.True(t.compareChecksum(input, bc.Checksum()))
 

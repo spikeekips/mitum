@@ -71,7 +71,7 @@ func (t *baseTestManager) newCreateWriter() (
 	w := bytes.NewBuffer(nil)
 
 	return func(base.BlockItemType, string) (string, ioWriteFunc, blockFileDoneFileFunc, error) {
-			return "", w.Write, func(err error, _ string) error { return err }, nil
+			return "", w.Write, func(err error, _ string) (string, error) { return util.UUID().String(), err }, nil
 		},
 		func() ([]byte, error) {
 			defer w.Reset()
