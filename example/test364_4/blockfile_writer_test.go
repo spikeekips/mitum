@@ -34,7 +34,6 @@ func (t *baseTestBaseBlockFileWriter) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: AccountStateMergeValueHint, Instance: AccountStateMergeValue{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpFactHint, Instance: OpFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: OpHint, Instance: Op{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: blockFileChunkHint, Instance: baseBlockFileChunk{}}))
 }
 
 func (t *baseTestBaseBlockFileWriter) newCreateWriter() (

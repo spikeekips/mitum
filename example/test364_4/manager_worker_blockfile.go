@@ -10,10 +10,11 @@ import (
 )
 
 type (
-	managerWorkerBlockFileWorkerFilesFunc func(worker string, _ map[base.BlockItemType][]blockFileChunk) error
-	managerWorkerBlockFileReceiveFunc     func(_ context.Context, worker string, _ func(workerSaveBlockFileChunksFunc) error) error
-	managerWorkerBlockFilesDoneFunc       func() error
-	managerWorkerBlockFilesFunc           func(
+	managerWorkerBlockFileWorkerFilesFunc      func(worker string, _ map[base.BlockItemType] /* []checksum */ []string) error
+	managerWorkerBlockFileReceiveChecksumsFunc func(base.BlockItemType /* checksums */, []string) error
+	managerWorkerBlockFileReceiveFunc          func(_ context.Context, worker string, _ func(managerWorkerBlockFileReceiveChecksumsFunc) error) error
+	managerWorkerBlockFilesDoneFunc            func() error
+	managerWorkerBlockFilesFunc                func(
 		_ context.Context,
 		minEnough, maxFailed uint64,
 		_ managerWorkerBlockFileWorkerFilesFunc,
@@ -73,7 +74,7 @@ func newFuncManagerWorkerBlockFiles(
 			receiveWorkerBlockFilesWait = w
 		}
 
-		return func(ctx context.Context, worker string, f func(workerSaveBlockFileChunksFunc) error) error {
+		return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
 				return contextCauseError(wctx, ifErrErrorFunc(closef), func() error {
 					return receiveWorkerBlockFiles(ctx, worker, f)
 				})
@@ -108,15 +109,15 @@ func newManagerWorkerWorkerBlockFiles(
 
 	_, done, wait := NewDoneContextFunc(ctx)
 
-	return func(ctx context.Context, worker string, f func(workerSaveBlockFileChunksFunc) error) error {
-			chunks := util.NewSingleLockedMap[base.BlockItemType, []blockFileChunk]()
-			defer chunks.Close()
+	return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
+			checksums := util.NewSingleLockedMap[base.BlockItemType, []string]()
+			defer checksums.Close()
 
 			switch ok, enough, failed, err := checkWorker(
 				worker,
 				func() error {
-					return f(func(it base.BlockItemType, items []blockFileChunk) error {
-						_ = chunks.SetValue(it, items)
+					return f(func(it base.BlockItemType, cs []string) error {
+						_ = checksums.SetValue(it, cs)
 
 						return nil
 					})
@@ -128,7 +129,7 @@ func newManagerWorkerWorkerBlockFiles(
 				return nil
 			case !ok:
 			default:
-				if err := saveBlockFiles(worker, chunks.Map()); err != nil {
+				if err := saveBlockFiles(worker, checksums.Map()); err != nil {
 					return done(err)
 				}
 
