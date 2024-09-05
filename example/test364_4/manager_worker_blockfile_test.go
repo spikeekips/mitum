@@ -14,32 +14,32 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testManagerWorkerBlockMapItem struct {
+type testManagerWorkerBlockFiles struct {
 	baseTestManager
 }
 
-func (t *testManagerWorkerBlockMapItem) newArgs() *managerWorkerBlockMapItemsArgs {
-	args := newManagerWorkerBlockMapItemsArgs()
+func (t *testManagerWorkerBlockFiles) newArgs() *managerWorkerBlockFilesArgs {
+	args := newManagerWorkerBlockFilesArgs()
 
 	_ = args.SetLogging(logging.TestNilLogging)
 
 	return args
 }
 
-func (t *testManagerWorkerBlockMapItem) randomBlockMapItemChunks(n int) []blockMapItemChunk {
-	chunks := make([]blockMapItemChunk, n)
+func (t *testManagerWorkerBlockFiles) randomBlockFileChunks(n int) []blockFileChunk {
+	chunks := make([]blockFileChunk, n)
 
 	for i := 0; i < n; i++ {
-		chunks[i] = newBaseBlockMapItemChunk(util.UUID().String(), util.UUID().String(), "gz")
+		chunks[i] = newBaseBlockFileChunk(util.UUID().String(), util.UUID().String(), "gz")
 	}
 
 	return chunks
 }
 
-func (t *testManagerWorkerBlockMapItem) TestError() {
+func (t *testManagerWorkerBlockFiles) TestError() {
 	t.Run("cancel before receive", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -47,7 +47,7 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 
 		cancel()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -55,8 +55,8 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+			err := receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			})
 			t.ErrorIs(err, context.Canceled)
 
@@ -69,14 +69,14 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 
 	t.Run("cancel during receive", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -91,8 +91,8 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 				canceled = true
 			}
 
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+			err := receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			})
 
 			switch {
@@ -110,17 +110,17 @@ func (t *testManagerWorkerBlockMapItem) TestError() {
 	})
 }
 
-func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
+func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	t.Run("no failed workers", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -128,8 +128,8 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			}))
 
 			return true, nil
@@ -140,14 +140,14 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 	t.Run("under max failed", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 2, 2, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, 2, 2, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -155,12 +155,12 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
 				if i == 1 {
 					return errors.Errorf("showme")
 				}
 
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			}))
 
 			return true, nil
@@ -171,14 +171,14 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 	t.Run("over max failed", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 2, 1, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, 2, 1, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -186,12 +186,12 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
+			err := receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
 				if i == 1 {
 					return errors.Errorf("showme")
 				}
 
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			})
 
 			switch {
@@ -210,14 +210,14 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 
 	t.Run("under min enough workers", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
 
-		receive, done, err := f(ctx, 4, 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, 4, 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			return nil
@@ -225,8 +225,8 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return f(base.BlockItemOperations, t.randomBlockMapItemChunks(3))
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return f(base.BlockItemOperations, t.randomBlockFileChunks(3))
 			}))
 
 			return true, nil
@@ -245,23 +245,23 @@ func (t *testManagerWorkerBlockMapItem) TestEnoughFailed() {
 	})
 }
 
-func (t *testManagerWorkerBlockMapItem) TestReceive() {
+func (t *testManagerWorkerBlockFiles) TestReceive() {
 	t.Run("ok", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
-		items := t.randomBlockMapItemChunks(9)
+		items := t.randomBlockFileChunks(9)
 
-		workersItems := map[string]map[base.BlockItemType][]blockMapItemChunk{}
+		workersItems := map[string]map[base.BlockItemType][]blockFileChunk{}
 
 		for i := range workers {
-			m := map[base.BlockItemType][]blockMapItemChunk{}
-			util.TraverseSliceV1(items[i*3:(i+1)*3], func(_ int, item blockMapItemChunk) (bool, error) {
-				m[base.BlockItemType(util.UUID().String())] = []blockMapItemChunk{item}
+			m := map[base.BlockItemType][]blockFileChunk{}
+			util.TraverseSliceV1(items[i*3:(i+1)*3], func(_ int, item blockFileChunk) (bool, error) {
+				m[base.BlockItemType(util.UUID().String())] = []blockFileChunk{item}
 
 				return true, nil
 			})
@@ -269,9 +269,9 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 			workersItems[workers[i]] = m
 		}
 
-		received := util.NewSingleLockedMap[string, map[base.BlockItemType][]blockMapItemChunk]()
+		received := util.NewSingleLockedMap[string, map[base.BlockItemType][]blockFileChunk]()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			received.SetValue(worker, items)
@@ -281,8 +281,8 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return TraverseMap(workersItems[worker], func(it base.BlockItemType, items []blockMapItemChunk) (bool, error) {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return TraverseMap(workersItems[worker], func(it base.BlockItemType, items []blockFileChunk) (bool, error) {
 					return true, f(it, items)
 				})
 			}))
@@ -297,20 +297,20 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 
 	t.Run("empty items", func() {
 		args := t.newArgs()
-		f := newFuncManagerWorkerBlockMapItems(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		workers := t.workers(3)
-		items := t.randomBlockMapItemChunks(9)
+		items := t.randomBlockFileChunks(9)
 
-		workersItems := map[string]map[base.BlockItemType][]blockMapItemChunk{}
+		workersItems := map[string]map[base.BlockItemType][]blockFileChunk{}
 
 		for i := range workers {
-			m := map[base.BlockItemType][]blockMapItemChunk{}
-			util.TraverseSliceV1(items[i*3:(i+1)*3], func(_ int, item blockMapItemChunk) (bool, error) {
-				m[base.BlockItemType(util.UUID().String())] = []blockMapItemChunk{item}
+			m := map[base.BlockItemType][]blockFileChunk{}
+			util.TraverseSliceV1(items[i*3:(i+1)*3], func(_ int, item blockFileChunk) (bool, error) {
+				m[base.BlockItemType(util.UUID().String())] = []blockFileChunk{item}
 
 				return true, nil
 			})
@@ -318,9 +318,9 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 			workersItems[workers[i]] = m
 		}
 
-		received := util.NewSingleLockedMap[string, map[base.BlockItemType][]blockMapItemChunk]()
+		received := util.NewSingleLockedMap[string, map[base.BlockItemType][]blockFileChunk]()
 
-		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockMapItemChunk) error {
+		receive, done, err := f(ctx, uint64(len(workers)), 0, func(worker string, items map[base.BlockItemType][]blockFileChunk) error {
 			fmt.Printf("receive: worker=%q items=%v\n", worker, items)
 
 			if len(items) < 1 {
@@ -334,8 +334,8 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockMapItemChunksFunc) error {
-				return TraverseMap(workersItems[worker], func(it base.BlockItemType, items []blockMapItemChunk) (bool, error) {
+			t.NoError(receive(context.Background(), worker, func(f workerSaveBlockFileChunksFunc) error {
+				return TraverseMap(workersItems[worker], func(it base.BlockItemType, items []blockFileChunk) (bool, error) {
 					return true, f(it, items)
 				})
 			}))
@@ -349,8 +349,8 @@ func (t *testManagerWorkerBlockMapItem) TestReceive() {
 	})
 }
 
-func TestManagerWorkerBlockMapItem(t *testing.T) {
+func TestManagerWorkerBlockFiles(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testManagerWorkerBlockMapItem))
+	suite.Run(t, new(testManagerWorkerBlockFiles))
 }

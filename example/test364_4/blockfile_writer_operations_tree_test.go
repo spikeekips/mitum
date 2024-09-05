@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockMapItemOperationsTreeWriter struct {
-	baseTestBaseBlockMapItemWriter
+type testBlockFileOperationsTreeWriter struct {
+	baseTestBaseBlockFileWriter
 }
 
-func (t *testBlockMapItemOperationsTreeWriter) TestWrite() {
+func (t *testBlockFileOperationsTreeWriter) TestWrite() {
 	t.Run("ok", func() {
 		tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 1)
 		if err != nil {
@@ -27,23 +27,30 @@ func (t *testBlockMapItemOperationsTreeWriter) TestWrite() {
 		tr, err := tw.Tree()
 		t.NoError(err)
 
-		createWriter, buf := t.newCreateWriter()
-		c := newFuncBlockMapItemOperationsTreeWriter(t.enc, createWriter)
+		createWriter, bufs := t.newCreateWriter()
+		c := newFuncBlockFileOperationsTreeWriter(t.enc, createWriter, nil, nil)
 
-		bm, err := c(context.Background(), util.UUID().String(), tr)
+		bms, err := c(context.Background(), util.UUID().String(), tr)
 		t.NoError(err)
-		t.NotNil(bm)
+		t.NotEmpty(bms)
 
-		written, err := buf()
-		t.NoError(err)
+		bufs(func(s [][]byte) error {
+			t.Equal(len(bms), len(s))
 
-		t.T().Logf("written:\n%s", string(written))
+			for i := range s {
+				written := s[i]
 
-		expected := `# {"tree":"operation-fixedtree-v0.0.1","writer":"block-localfs-writer-364-v0.0.1","encoder":"json-encoder-v0.0.1","total":1}
+				t.T().Logf("written %d:\n%s", i, string(written))
+
+				expected := `# {"tree":"operation-fixedtree-v0.0.1","writer":"block-localfs-writer-364-v0.0.1","encoder":"json-encoder-v0.0.1","total":1}
 # index=0
 {"reason":null,"hash":"b05b88b7511e113372d1637f2d2cdd0f4448efcb8b5bee99120023964786b66a","key":"73686f776d65"}
 `
-		t.Equal(expected, string(written))
+				t.Equal(expected, string(written))
+			}
+
+			return nil
+		})
 	})
 
 	t.Run("wrong tree hint", func() {
@@ -58,14 +65,14 @@ func (t *testBlockMapItemOperationsTreeWriter) TestWrite() {
 		t.NoError(err)
 
 		createWriter, _ := t.newCreateWriter()
-		c := newFuncBlockMapItemOperationsTreeWriter(t.enc, createWriter)
+		c := newFuncBlockFileOperationsTreeWriter(t.enc, createWriter, nil, nil)
 
-		bm, err := c(context.Background(), util.UUID().String(), tr)
+		bms, err := c(context.Background(), util.UUID().String(), tr)
 		t.ErrorIs(err, util.ErrInvalid)
-		t.Nil(bm)
+		t.Empty(bms)
 	})
 }
 
-func TestBlockMapItemOperationsTreeWriter(t *testing.T) {
-	suite.Run(t, new(testBlockMapItemOperationsTreeWriter))
+func TestBlockFileOperationsTreeWriter(t *testing.T) {
+	suite.Run(t, new(testBlockFileOperationsTreeWriter))
 }

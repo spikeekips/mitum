@@ -12,7 +12,7 @@ import (
 )
 
 type testStatesTreeWriter struct {
-	baseTestBaseBlockMapItemWriter
+	baseTestBaseBlockFileWriter
 }
 
 func (t *testStatesTreeWriter) newFunc(size uint64, grow ...uint64) newStatesTreeFuncs {

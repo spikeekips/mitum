@@ -65,12 +65,12 @@ func (t *baseTestManager) stateKeysUnordered(n int) []string {
 }
 
 func (t *baseTestManager) newCreateWriter() (
-	blockMapItemWriterCreateWriterFunc,
+	blockFileWriterCreateWriterFunc,
 	func() ([]byte, error),
 ) {
 	w := bytes.NewBuffer(nil)
 
-	return func(base.BlockItemType, string) (string, ioWriteFunc, blockMapItemDoneFileFunc, error) {
+	return func(base.BlockItemType, string) (string, ioWriteFunc, blockFileDoneFileFunc, error) {
 			return "", w.Write, func(err error, _ string) error { return err }, nil
 		},
 		func() ([]byte, error) {

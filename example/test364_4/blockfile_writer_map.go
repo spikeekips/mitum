@@ -8,19 +8,19 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockMapItemWriterNewWriteMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
+type blockFileWriterMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
 
-func newFuncBlockMapItemMapWriter(
+func newFuncBlockFileMapWriter(
 	enc encoder.Encoder,
-	createWriter blockMapItemWriterCreateWriterFunc,
-) blockMapItemWriterNewWriteMapFunc {
+	createWriter blockFileWriterCreateWriterFunc,
+) blockFileWriterMapFunc {
 	return func(ctx context.Context, createID string, bm base.BlockMap) error {
 		if len(createID) < 1 {
 			return errors.Errorf("empty create id")
 		}
 
 		var write ioWriteFunc
-		var done blockMapItemDoneFileFunc
+		var done blockFileDoneFileFunc
 
 		switch _, w, d, err := createWriter(base.BlockItemMap, createID); {
 		case err != nil:
@@ -30,7 +30,7 @@ func newFuncBlockMapItemMapWriter(
 			done = d
 		}
 
-		if err := writeBlockMapItemFileHeader(write, newItemsHeader(enc.Hint())); err != nil {
+		if err := writeBlockFileFileHeader(write, newItemsHeader(enc.Hint())); err != nil {
 			return err
 		}
 
@@ -42,7 +42,7 @@ func newFuncBlockMapItemMapWriter(
 				return done(err, "")
 			}
 
-			return done(nil, blockMapItemFilenameBody(base.BlockItemMap, ""))
+			return done(nil, blockFileFilenameBody(base.BlockItemMap, ""))
 		}
 	}
 }

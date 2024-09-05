@@ -11,23 +11,23 @@ import (
 )
 
 type (
-	newStateFunc                     func(stateKey string, _ base.StateValue, ophs []util.Hash) (base.State, error)
-	workerSaveMergeStatesFunc        func(stateKey string, _ util.Hash) error
-	workerSaveMergeStatesFuncs       func(workerSaveMergeStatesFunc) error
-	workerSaveSendStatesFuncs        func(workerSaveMergeStatesFuncs) error
-	workerSaveUnmergedFunc           func(unmerged []uint64) error
-	workerSaveMergeDoneFunc          func(workerSaveSendStatesFuncs, workerSaveUnmergedFunc) error
-	workerSaveSendMergeDoneFuncs     func(context.Context, workerSaveMergeDoneFunc) error
-	workerSaveSaveOperationsFunc     func(context.Context, func(operationsWorkerSaveOperationsFunc) error) ([]blockMapItemChunk, error)
-	workerSaveStateFunc              func(base.State) error
-	workerSaveStatesCallbackFunc     func(func(workerSaveStateFunc) error) error
-	workerSaveStatesFunc             func(total uint64) workerSaveStatesCallbackFunc
-	workerSaveStatesFuncs            func(context.Context, func(workerSaveStatesFunc) error) ([]blockMapItemChunk, error)
-	workerSaveReasonsFunc            func(reasons map[uint64]string) error
-	workerSaveTraverseStatesFunc     func(func(base.State) error) error
-	workerSaveBlockMapItemChunksFunc func(base.BlockItemType, []blockMapItemChunk) error
-	workerSaveSendSaveDoneFunc       func(context.Context) (workerSaveBlockMapItemChunksFunc, errorFunc, error)
-	workerSaveFunc                   func(
+	newStateFunc                  func(stateKey string, _ base.StateValue, ophs []util.Hash) (base.State, error)
+	workerSaveMergeStatesFunc     func(stateKey string, _ util.Hash) error
+	workerSaveMergeStatesFuncs    func(workerSaveMergeStatesFunc) error
+	workerSaveSendStatesFuncs     func(workerSaveMergeStatesFuncs) error
+	workerSaveUnmergedFunc        func(unmerged []uint64) error
+	workerSaveMergeDoneFunc       func(workerSaveSendStatesFuncs, workerSaveUnmergedFunc) error
+	workerSaveSendMergeDoneFuncs  func(context.Context, workerSaveMergeDoneFunc) error
+	workerSaveSaveOperationsFunc  func(context.Context, func(operationsWorkerSaveOperationsFunc) error) ([]blockFileChunk, error)
+	workerSaveStateFunc           func(base.State) error
+	workerSaveStatesCallbackFunc  func(func(workerSaveStateFunc) error) error
+	workerSaveStatesFunc          func(total uint64) workerSaveStatesCallbackFunc
+	workerSaveStatesFuncs         func(context.Context, func(workerSaveStatesFunc) error) ([]blockFileChunk, error)
+	workerSaveReasonsFunc         func(reasons map[uint64]string) error
+	workerSaveTraverseStatesFunc  func(func(base.State) error) error
+	workerSaveBlockFileChunksFunc func(base.BlockItemType, []blockFileChunk) error
+	workerSaveSendSaveDoneFunc    func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error)
+	workerSaveFunc                func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
@@ -263,14 +263,14 @@ func newWorkerSave(
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 	defer wctxCancel(nil)
 
-	var saveDoneBlockMapItemChunks workerSaveBlockMapItemChunksFunc
+	var saveDoneBlockFileChunks workerSaveBlockFileChunksFunc
 	var saveDone errorFunc
 
 	switch b, d, err := sendSaveDone(wctx); {
 	case err != nil:
 		return err
 	default:
-		saveDoneBlockMapItemChunks = b
+		saveDoneBlockFileChunks = b
 		saveDone = d
 	}
 
@@ -295,7 +295,7 @@ func newWorkerSave(
 		case err != nil:
 			return err
 		default:
-			return saveDoneBlockMapItemChunks(base.BlockItemOperations, bs)
+			return saveDoneBlockFileChunks(base.BlockItemOperations, bs)
 		}
 	})
 	addJob(func() error {
@@ -303,7 +303,7 @@ func newWorkerSave(
 		case err != nil, b == nil:
 			return err
 		default:
-			return saveDoneBlockMapItemChunks(base.BlockItemStates, b)
+			return saveDoneBlockFileChunks(base.BlockItemStates, b)
 		}
 	})
 	addJob(func() error { return saveReasons(reasons) })

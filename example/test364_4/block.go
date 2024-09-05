@@ -6,29 +6,29 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var blockMapItemChunkHint = hint.MustNewHint("blockmap-item-chunk-v0.0.1")
+var blockFileChunkHint = hint.MustNewHint("block-file-chunk-v0.0.1")
 
-type blockMapItemChunk interface {
+type blockFileChunk interface {
 	URI() string
 	Checksum() string
 	CompressFormat() string
 }
 
-type baseBlockMapItemChunk struct {
+type baseBlockFileChunk struct {
 	hint.BaseHinter
 	uri            string
 	checksum       string
 	compressFormat string
 }
 
-func newBaseBlockMapItemChunk(uri, checksum, compressFormat string) baseBlockMapItemChunk {
-	return baseBlockMapItemChunk{
-		BaseHinter: hint.NewBaseHinter(blockMapItemChunkHint),
+func newBaseBlockFileChunk(uri, checksum, compressFormat string) baseBlockFileChunk {
+	return baseBlockFileChunk{
+		BaseHinter: hint.NewBaseHinter(blockFileChunkHint),
 		uri:        uri, checksum: checksum, compressFormat: compressFormat,
 	}
 }
 
-func (c baseBlockMapItemChunk) IsValid([]byte) error {
+func (c baseBlockFileChunk) IsValid([]byte) error {
 	switch {
 	case len(c.uri) < 1:
 		return util.ErrInvalid.Errorf("uri")
@@ -39,19 +39,19 @@ func (c baseBlockMapItemChunk) IsValid([]byte) error {
 	return nil
 }
 
-func (c baseBlockMapItemChunk) URI() string            { return c.uri }
-func (c baseBlockMapItemChunk) Checksum() string       { return c.checksum }
-func (c baseBlockMapItemChunk) CompressFormat() string { return c.compressFormat }
+func (c baseBlockFileChunk) URI() string            { return c.uri }
+func (c baseBlockFileChunk) Checksum() string       { return c.checksum }
+func (c baseBlockFileChunk) CompressFormat() string { return c.compressFormat }
 
-type blockMapItemChunkJSONMarshaler struct {
+type baseBlockFileChunkJSONMarshaler struct {
 	hint.BaseHinter
 	Uri            string `json:"uri"`
 	Checksum       string `json:"checksum"`
 	CompressFormat string `json:"compress_format"`
 }
 
-func (c baseBlockMapItemChunk) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(blockMapItemChunkJSONMarshaler{
+func (c baseBlockFileChunk) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(baseBlockFileChunkJSONMarshaler{
 		BaseHinter:     c.BaseHinter,
 		Uri:            c.uri,
 		Checksum:       c.checksum,
@@ -59,8 +59,8 @@ func (c baseBlockMapItemChunk) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (c *baseBlockMapItemChunk) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u blockMapItemChunkJSONMarshaler
+func (c *baseBlockFileChunk) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u baseBlockFileChunkJSONMarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
 	}

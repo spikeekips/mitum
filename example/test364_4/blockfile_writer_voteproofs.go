@@ -8,24 +8,24 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockMapItemWriterNewWriteVoteproofsFunc func(_ context.Context, createID string) (
+type blockFileWriterVoteproofsFunc func(_ context.Context, createID string) (
 	func(base.INITVoteproof) error,
-	func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
+	func(base.ACCEPTVoteproof) (blockFileChunk, error),
 	error,
 )
 
-func newFuncBlockMapItemVoteproofsWriter(
+func newFuncBlockFileVoteproofsWriter(
 	enc encoder.Encoder,
-	createWriter blockMapItemWriterCreateWriterFunc,
-) blockMapItemWriterNewWriteVoteproofsFunc {
-	w := newFuncBaseBlockMapItemWriter(base.BlockItemVoteproofs, createWriter)
+	createWriter blockFileWriterCreateWriterFunc,
+) blockFileWriterVoteproofsFunc {
+	w := newFuncBaseBlockFileChunkWriter(base.BlockItemVoteproofs, createWriter)
 
 	return func(ctx context.Context, createID string) (
 		func(base.INITVoteproof) error,
-		func(base.ACCEPTVoteproof) (base.BlockMapItem, error),
+		func(base.ACCEPTVoteproof) (blockFileChunk, error),
 		error,
 	) {
-		var c blockMapItemWriterBaseNewWriteFunc
+		var c blockFileChunkWriterBaseNewWriteFunc
 
 		switch i, err := w(createID); {
 		case err != nil:
@@ -46,7 +46,7 @@ func newFuncBlockMapItemVoteproofsWriter(
 					return nil
 				}
 			},
-			func(avp base.ACCEPTVoteproof) (base.BlockMapItem, error) {
+			func(avp base.ACCEPTVoteproof) (blockFileChunk, error) {
 				if len(ivpb) < 1 {
 					return nil, util.ErrNotFound.Errorf("init voteproof")
 				}

@@ -9,13 +9,15 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
-func newFuncBlockMapItemOperationsTreeWriter(
+func newFuncBlockFileOperationsTreeWriter(
 	enc encoder.Encoder,
-	createWriter blockMapItemWriterCreateWriterFunc,
-) blockMapItemWriterNewWriteTreeFunc {
-	w := newFuncBlockMapItemTreeWriter(base.BlockItemOperationsTree, enc, createWriter)
+	createWriter blockFileWriterCreateWriterFunc,
+	chunkItemsf,
+	maxSemSizef func() uint64,
+) blockFileWriterTreeFunc {
+	w := newFuncBlockFileTreeWriter(base.BlockItemOperationsTree, enc, createWriter, chunkItemsf, maxSemSizef)
 
-	return func(ctx context.Context, createID string, tr fixedtree.Tree) (base.BlockMapItem, error) {
+	return func(ctx context.Context, createID string, tr fixedtree.Tree) ([]blockFileChunk, error) {
 		if tr.Len() < 1 {
 			return nil, nil
 		}
