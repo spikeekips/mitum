@@ -44,15 +44,14 @@ func (t *testManagerWorkersStates) TestError() {
 		sts := t.stateKeys(3)
 
 		trch := make(chan fixedtree.Tree, 1)
+		donech := make(chan error, 1)
 
 		go func() {
-			if err := tf(func(tr fixedtree.Tree) error {
+			donech <- tf(func(tr fixedtree.Tree) error {
 				trch <- tr
 
 				return nil
-			}); err != nil {
-				panic(err)
-			}
+			})
 		}()
 
 		t.NoError(util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
@@ -76,6 +75,15 @@ func (t *testManagerWorkersStates) TestError() {
 			n := tr.Nodes()
 			for i := range sts {
 				t.Equal(sts[i], n[i].Key())
+			}
+		}
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait done")
+		case err := <-donech:
+			if err != nil {
+				panic(err)
 			}
 		}
 
