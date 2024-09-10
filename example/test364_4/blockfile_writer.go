@@ -3,10 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"hash"
 	"io"
 	"slices"
 	"strings"
@@ -71,7 +68,7 @@ func newFuncBaseBlockFileChunkWriter(
 					case err != nil:
 						return err
 					default:
-						write, checksumf = newChecksumWrite(w, sha256.New())
+						write, checksumf = newChecksumWrite(w)
 
 						compressFormat = c
 						donef.SetValue(d)
@@ -198,35 +195,6 @@ type writeFunc func([]byte) (int, error)
 
 func (w writeFunc) Write(p []byte) (int, error) {
 	return w(p)
-}
-
-func newChecksumWrite(write ioWriteFunc, h hash.Hash) (
-	ioWriteFunc,
-	func() string,
-) {
-	var l sync.RWMutex
-
-	w := io.MultiWriter(writeFunc(write), h)
-
-	return func(b []byte) (int, error) {
-			l.Lock()
-			defer l.Unlock()
-
-			return w.Write(b)
-		},
-		func() string {
-			l.Lock()
-			defer l.Unlock()
-
-			defer h.Reset()
-
-			switch s := h.Sum(nil); {
-			case len(s) < 1:
-				return ""
-			default:
-				return hex.EncodeToString(s)
-			}
-		}
 }
 
 func safeStreamerEncode(enc util.StreamEncoder) func(interface{}) error {

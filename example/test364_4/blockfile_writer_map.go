@@ -8,13 +8,13 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockFileWriterMapFunc func(_ context.Context, createID string, _ base.BlockMap) error
+type blockFileWriterMapFunc func(_ context.Context, createID string, _ BlockMap) error
 
 func newFuncBlockFileMapWriter(
 	enc encoder.Encoder,
 	createWriter blockFileWriterCreateWriterFunc,
 ) blockFileWriterMapFunc {
-	return func(ctx context.Context, createID string, bm base.BlockMap) error {
+	return func(ctx context.Context, createID string, bm BlockMap) error {
 		if len(createID) < 1 {
 			return errors.Errorf("empty create id")
 		}

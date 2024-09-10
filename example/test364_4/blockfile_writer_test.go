@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"slices"
 	"strings"
@@ -71,9 +70,7 @@ func (t *baseTestBaseBlockFileWriter) newCreateWriter() (
 
 func (t *baseTestBaseBlockFileWriter) compareChecksum(input []byte, output string) bool {
 	write, done := newChecksumWrite(
-
 		func(b []byte) (int, error) { return len(b), nil },
-		sha256.New(),
 	)
 
 	_, err := write(input)
