@@ -95,15 +95,13 @@ func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 			func(err error) (tr fixedtree.Tree, _ error) {
 				defer closef(nil)
 
-				gerr := dummyContextErrorFunc(wctx, func(err error) error {
+				return tr, dummyContextErrorFunc(wctx, func(err error) error {
 					t, herr := done(err)
 
 					tr = t
 
 					return closef(herr)
 				})(err)
-
-				return tr, gerr
 			},
 			nil
 	}
@@ -180,7 +178,7 @@ func newTreeAddStateNode(
 				return tr, err
 			}
 
-			if err := done(func(s []fixedtree.Node) error {
+			return tr, done(func(s []fixedtree.Node) error {
 				if len(s) < 1 {
 					return nil
 				}
@@ -202,11 +200,7 @@ func newTreeAddStateNode(
 						return nil
 					}
 				}
-			}); err != nil {
-				return tr, err
-			}
-
-			return tr, nil
+			})
 		},
 		nil
 }

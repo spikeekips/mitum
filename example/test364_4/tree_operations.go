@@ -126,7 +126,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 				)
 			},
 			func(err error) (tr fixedtree.Tree, _ error) {
-				gerr := contextCauseError(
+				return tr, contextCauseError(
 					wctx,
 					closef,
 					func() error {
@@ -146,8 +146,6 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 						}
 					},
 				)
-
-				return tr, gerr
 			},
 			nil
 	}

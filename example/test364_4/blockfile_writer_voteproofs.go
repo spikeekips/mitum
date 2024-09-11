@@ -10,7 +10,7 @@ import (
 
 type blockFileWriterVoteproofsFunc func(_ context.Context, createID string) (
 	func(base.INITVoteproof) error,
-	func(base.ACCEPTVoteproof) (blockFileChunk, error),
+	func(base.ACCEPTVoteproof) (BlockMapItem, error),
 	error,
 )
 
@@ -22,7 +22,7 @@ func newFuncBlockFileVoteproofsWriter(
 
 	return func(ctx context.Context, createID string) (
 		func(base.INITVoteproof) error,
-		func(base.ACCEPTVoteproof) (blockFileChunk, error),
+		func(base.ACCEPTVoteproof) (BlockMapItem, error),
 		error,
 	) {
 		var c blockFileChunkWriterBaseNewWriteFunc
@@ -46,12 +46,12 @@ func newFuncBlockFileVoteproofsWriter(
 					return nil
 				}
 			},
-			func(avp base.ACCEPTVoteproof) (blockFileChunk, error) {
+			func(avp base.ACCEPTVoteproof) (BlockMapItem, error) {
 				if len(ivpb) < 1 {
 					return nil, util.ErrNotFound.Errorf("init voteproof")
 				}
 
-				return c(newItemsHeader(enc.Hint()), func(write ioWriteFunc) error {
+				switch b, err := c(newItemsHeader(enc.Hint()), func(write ioWriteFunc) error {
 					if _, err := write(ivpb); err != nil {
 						return err
 					}
@@ -64,7 +64,12 @@ func newFuncBlockFileVoteproofsWriter(
 
 						return err
 					}
-				})
+				}); {
+				case err != nil:
+					return nil, err
+				default:
+					return newBaseBlockMapItem(base.BlockItemVoteproofs, b.Checksum(), false), nil
+				}
 			},
 			nil
 	}

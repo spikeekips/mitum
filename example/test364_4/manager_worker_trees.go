@@ -116,7 +116,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 
 		return opsUnmerged, statesWorker,
 			func() (opsTree, statesTree fixedtree.Tree, _ error) {
-				if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
+				return opsTree, statesTree, contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func() error {
 					if err := opsTreef(func(tr fixedtree.Tree) error {
 						opsTree = tr
 
@@ -134,11 +134,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 					}
 
 					return nil
-				}); err != nil {
-					return opsTree, statesTree, err
-				}
-
-				return opsTree, statesTree, nil
+				})
 			},
 			nil
 	}

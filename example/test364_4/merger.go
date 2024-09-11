@@ -169,7 +169,7 @@ func xMergeOpValues(
 		return nil
 	})
 
-	if err := doneCommit(func(s []func() error) error {
+	return committed, nextOps, reasons, doneCommit(func(s []func() error) error {
 		switch size := int64(len(s)); {
 		case size < 1:
 			return nil
@@ -180,11 +180,7 @@ func xMergeOpValues(
 		return util.TraverseSliceV1(s, func(_ int, f func() error) (bool, error) {
 			return true, f()
 		})
-	}); err != nil {
-		return false, nil, nil, err
-	}
-
-	return committed, nextOps, reasons, nil
+	})
 }
 
 func mergeOp(
@@ -199,7 +195,7 @@ func mergeOp(
 	reasons map[uint64]string,
 	_ error,
 ) {
-	committed, nextUnmergeOps, reasons, err := xMergeOpValues(
+	return xMergeOpValues(
 		ctx,
 		fmt.Sprintf("merge: local=%q", local),
 		opindex,
@@ -209,8 +205,6 @@ func mergeOp(
 			return merger.Merge
 		},
 	)
-
-	return committed, nextUnmergeOps, reasons, err
 }
 
 func unmergeOp(
@@ -302,7 +296,7 @@ func getOrCreateMergerFunc(
 	getState getStateFunc,
 ) func(StateMergeValue) (StateMerger, error) {
 	return func(value StateMergeValue) (merger StateMerger, _ error) {
-		err := m.GetOrCreate(
+		return merger, m.GetOrCreate(
 			value.Key(),
 			func(i StateMerger, _ bool) error {
 				merger = i
@@ -322,7 +316,5 @@ func getOrCreateMergerFunc(
 				return value.Merger(stv)
 			},
 		)
-
-		return merger, err
 	}
 }

@@ -114,7 +114,7 @@ func newManagerWorkersOperations(
 			)
 		},
 		func(worker string, unmerged []uint64) (added bool, _ error) {
-			err := contextCauseError(
+			return added, contextCauseError(
 				wctx,
 				ifErrErrorFunc(closef),
 				func() error {
@@ -140,8 +140,6 @@ func newManagerWorkersOperations(
 					return nil
 				},
 			)
-
-			return added, err
 		},
 		func(f func(fixedtree.Tree) error) error {
 			return contextCauseError(
