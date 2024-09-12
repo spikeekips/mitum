@@ -112,30 +112,37 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		return nextPhaseNewJobFunc(jobID, c)
 	}
 
+	closef := func(err error) error {
+		pctxCancel(err)
+		jobIDLocked.Close()
+
+		return err
+	}
+
 	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			if c == nil {
 				return nil
 			}
 
 			return wk.NewJob(func(ctx context.Context) error {
-				if !filterJobID(jobID, phase) {
-					return nil
-				}
+				return contextCauseError(ctx, ifErrErrorFunc(closef), func(ctx context.Context) error {
+					if !filterJobID(jobID, phase) {
+						return nil
+					}
 
-				return c(ctx, phase, nextPhaseNewJob)
+					return c(ctx, phase, nextPhaseNewJob)
+				})
 			})
 		},
 		wk.JobDone,
 		func() error {
-			return pctxCancel(func() error {
-				defer jobIDLocked.Close()
-
+			return contextCauseError(pctx, closef, func(context.Context) error {
 				if err := wk.Wait(); err != nil {
 					return err
 				}
 
 				return nextPhaseWait()
-			}())
+			})
 		},
 		nil
 }

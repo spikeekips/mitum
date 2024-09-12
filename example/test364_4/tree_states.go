@@ -21,16 +21,14 @@ func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 	return func(ctx context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
+		ifErrorClose := ifErrErrorFunc(wctxCancel)
+
 		if size < 1 {
 			return func(string) (bool, bool, error) {
 					return false, false, wctxCancel(util.ErrFound.Errorf("zero size, but tried to add node"))
 				},
 				dummyContextErrorFunc(wctx, func(err error) error {
-					if err != nil {
-						return wctxCancel(err)
-					}
-
-					return nil
+					return ifErrorClose(err)
 				}),
 				func(err error) (tr fixedtree.Tree, _ error) {
 					return tr, dummyContextErrorFunc(wctx, wctxCancel)(err)
@@ -44,7 +42,7 @@ func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 
 		switch a, j, d, err := newTreeAddStateNode(wctx, size, grow...); {
 		case err != nil:
-			return nil, nil, nil, err
+			return nil, nil, nil, ifErrorClose(err)
 		default:
 			add = a
 			jobDone = j
@@ -90,7 +88,7 @@ func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 			dummyContextErrorFunc(wctx, func(err error) error {
 				defer jobDone()
 
-				return ifErrErrorFunc(closef)(err)
+				return ifErrorClose(err)
 			}),
 			func(err error) (tr fixedtree.Tree, _ error) {
 				defer closef(nil)

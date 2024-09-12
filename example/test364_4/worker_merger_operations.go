@@ -167,12 +167,16 @@ func newFuncOperationsWorkerMerger(
 			}
 		}
 
-		waitf := func(f operationsWorkerMergerResultFunc) error {
-			defer func() {
-				opsPool.Close()
-				ophsPool.Close()
-			}()
+		closef := func(err error) error {
+			wctxCancel(err)
+			extractInsertDone()
+			opsPool.Close()
+			ophsPool.Close()
 
+			return err
+		}
+
+		waitf := func(f operationsWorkerMergerResultFunc) error {
 			mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
 
 			if err := extractWait(func(reasons map[uint64]string) error {
@@ -230,21 +234,23 @@ func newFuncOperationsWorkerMerger(
 		}
 
 		return func(fs operationsWorkerInsertOpsFunc) error {
-				defer extractInsertDone()
+				return contextCauseError(wctx, ifErrErrorFunc(closef), func(context.Context) error {
+					defer extractInsertDone()
 
-				if err := fs(func(opindex uint64, oph, _ util.Hash) error {
-					return extractInsert(opindex, oph)
-				}); err != nil {
-					args.Log().Error().Err(err).Msg("extract insert error")
+					if err := fs(func(opindex uint64, oph, _ util.Hash) error {
+						return extractInsert(opindex, oph)
+					}); err != nil {
+						args.Log().Error().Err(err).Msg("extract insert error")
 
-					return wctxCancel(err)
-				}
+						return err
+					}
 
-				return nil
+					return nil
+				})
 			},
 			func(worker string) (operationsworkerInitialInsertOpFunc, func() error, error) {
 				if worker == localWorkerName {
-					return nil, nil, wctxCancel(util.ErrFound.Errorf("%q", localWorkerName))
+					return nil, nil, closef(util.ErrFound.Errorf("%q", localWorkerName))
 				}
 
 				var insert workerInitialInsertOpFunc
@@ -252,7 +258,7 @@ func newFuncOperationsWorkerMerger(
 
 				switch i, d, err := initialInsert(worker); {
 				case err != nil:
-					return nil, nil, err
+					return nil, nil, closef(err)
 				default:
 					insert = i
 					done = d
@@ -266,9 +272,15 @@ func newFuncOperationsWorkerMerger(
 					done,
 					nil
 			},
-			workerPhaseDone,
+			func(worker string, unmerge []uint64) error {
+				return contextCauseError(wctx, ifErrErrorFunc(closef), func(context.Context) error {
+					return workerPhaseDone(worker, unmerge)
+				})
+			},
 			func(f operationsWorkerMergerResultFunc) error {
-				return wctxCancel(waitf(f))
+				return contextCauseError(wctx, closef, func(context.Context) error {
+					return waitf(f)
+				})
 			},
 			nil
 	}

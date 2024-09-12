@@ -591,7 +591,8 @@ func (t *testWorkerSave) TestCancel() {
 
 		cancel()
 
-		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error { return nil }))
+		err = insertOps(func(f operationsWorkerLocalInsertOpFunc) error { return nil })
+		t.ErrorIs(err, context.Canceled)
 
 		err = mergeDone()
 		t.ErrorIs(err, context.Canceled)

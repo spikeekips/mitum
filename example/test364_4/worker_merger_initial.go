@@ -234,6 +234,14 @@ func newFuncInitialValuesWorkerMerger(
 				nil
 		}
 
+		closef := func(err error) error {
+			wctxCancel(err)
+			vp.Close()
+			closeExtractStateMergeValueKeys()
+
+			return err
+		}
+
 		waitf := func(f initialValuesWorkerMergerResultFunc) error {
 			defer func() {
 				vp.Close()
@@ -287,14 +295,20 @@ func newFuncInitialValuesWorkerMerger(
 						Str("worker", worker).
 						Msg("initial phase merger error")
 
-					return nil, nil, wctxCancel(err)
+					return nil, nil, closef(err)
 				}
 
 				return i, d, err
 			},
-			workerPhaseDone,
+			func(worker string, unmerge []uint64) error {
+				return contextCauseError(wctx, ifErrErrorFunc(closef), func(context.Context) error {
+					return workerPhaseDone(worker, unmerge)
+				})
+			},
 			func(f initialValuesWorkerMergerResultFunc) error {
-				return wctxCancel(waitf(f))
+				return contextCauseError(wctx, closef, func(context.Context) error {
+					return waitf(f)
+				})
 			},
 			nil
 	}
@@ -357,6 +371,13 @@ func newInitialPhaseMerger(
 		})
 	}
 
+	closef := func(err error) error {
+		wctxCancel(err)
+		closeCheckWorker()
+
+		return err
+	}
+
 	return func(worker string) (
 			phaseMergerXMergeFunc,
 			func() error,
@@ -364,18 +385,14 @@ func newInitialPhaseMerger(
 		) {
 			return initialMerge,
 				func() error {
-					if err := initialMergeDone(worker); err != nil {
-						return wctxCancel(err)
-					}
-
-					return nil
+					return contextCauseError(wctx, ifErrErrorFunc(closef), func(context.Context) error {
+						return initialMergeDone(worker)
+					})
 				},
 				nil
 		},
 		func(f initialValuesWorkerMergerResultFunc) error {
-			return wctxCancel(func() error {
-				defer closeCheckWorker()
-
+			return contextCauseError(wctx, closef, func(context.Context) error {
 				return initialWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
 					args.Log().Debug().
 						Uints64("new_unmerged", newUnmerged).
@@ -388,7 +405,7 @@ func newInitialPhaseMerger(
 
 					return f(newUnmerged, reasons)
 				})
-			}())
+			})
 		},
 		nil
 }

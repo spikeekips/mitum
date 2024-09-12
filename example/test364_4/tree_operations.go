@@ -21,6 +21,8 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
+		ifErrorClose := ifErrErrorFunc(wctxCancel)
+
 		if len(ops) < 1 {
 			return func([]uint64) error {
 					if err := context.Cause(wctx); err != nil {
@@ -30,11 +32,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 					return wctxCancel(util.ErrFound.Errorf("empty ops, but tried 'not in states'"))
 				},
 				dummyContextErrorFunc(wctx, func(err error) error {
-					if err != nil {
-						return wctxCancel(err)
-					}
-
-					return nil
+					return ifErrorClose(err)
 				}),
 				func(err error) (tr fixedtree.Tree, _ error) {
 					return tr, dummyContextErrorFunc(wctx, wctxCancel)(err)
@@ -66,14 +64,9 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 
 		_, initialTreeAdd, initialTreeAddDone := NewDoneContextFunc(wctx)
 		go func() {
-			err := util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
+			_ = initialTreeAdd(ifErrorClose(util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
 				return true, treeAdd(uint64(i), base.NewInStateOperationFixedtreeNode(hs[1], ""), false)
-			})
-			if err != nil {
-				wctxCancel(err)
-			}
-
-			_ = initialTreeAdd(err)
+			})))
 		}()
 
 		setNotInState := func(opindex uint64) error {

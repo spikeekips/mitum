@@ -81,7 +81,7 @@ func newFuncWorkerPhaseMerger(
 
 		var merge, unmerge phaseMergerXMergeFunc
 
-		mergeDoneCh := make(chan struct{}, 1)
+		_, mergeDoneDone, mergeDoneWait := NewDoneContextFunc(pctx)
 
 		var mergeDone func()
 		var mergeWait phaseMergerWaitFunc
@@ -94,16 +94,9 @@ func newFuncWorkerPhaseMerger(
 			merge = m
 			unmerge = u
 
-			mergeDoneOnce := OnceFunc(func() error {
-				close(mergeDoneCh)
-
-				d()
-
-				return nil
-			})
-
 			mergeDone = func() {
-				_ = mergeDoneOnce()
+				mergeDoneDone(nil)
+				d()
 			}
 
 			mergeWait = w
@@ -119,6 +112,13 @@ func newFuncWorkerPhaseMerger(
 		default:
 			checkWorker = c
 			checkWorkerEnoughEmpty = i
+		}
+
+		closef := func(err error) error {
+			pctxCancel(err)
+			_ = checkWorkerEnoughEmpty()
+
+			return err
 		}
 
 		return func(worker string, mergeOps, unmergeOps []uint64) error {
@@ -174,14 +174,11 @@ func newFuncWorkerPhaseMerger(
 				)
 			},
 			func(f workerPhaseMergerWaitCallbackFunc) error {
-				defer func() {
-					_ = checkWorkerEnoughEmpty()
-				}()
+				return contextCauseError(pctx, closef, func(context.Context) error {
+					if err := mergeDoneWait(); err != nil {
+						return err
+					}
 
-				select {
-				case <-pctx.Done():
-					return context.Cause(pctx)
-				case <-mergeDoneCh:
 					var gerr error
 
 					switch {
@@ -197,8 +194,8 @@ func newFuncWorkerPhaseMerger(
 						gerr = f(nil, nil, nil, checkWorkerEnoughEmpty())
 					}
 
-					return pctxCancel(gerr)
-				}
+					return gerr
+				})
 			},
 			nil
 	}

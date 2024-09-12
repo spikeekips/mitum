@@ -97,6 +97,14 @@ func newFuncStatesWorkerMerger(
 
 		getMergers, closeMergers := newGetMergers(mergersPool, getState)
 
+		closef := func(err error) error {
+			wctxCancel(err)
+			closeMergers()
+			mergersPool.Close()
+
+			return err
+		}
+
 		var initialValuesInsert workerInitialInsertOpsFuncs
 		var initialValuesPhaseDone workerMergerPhaseDoneFunc
 		var initialValuesWait initialValuesWorkerMergerWaitFunc
@@ -114,7 +122,7 @@ func newFuncStatesWorkerMerger(
 				case err != nil:
 					args.Log().Error().Err(err).Msg("worker initial insert error")
 
-					return nil, nil, wctxCancel(err)
+					return nil, nil, closef(err)
 				default:
 					return j, d, nil
 				}
@@ -131,14 +139,13 @@ func newFuncStatesWorkerMerger(
 		}
 
 		return initialValuesInsert,
-			initialValuesPhaseDone,
+			func(worker string, unmerge []uint64) error {
+				return contextCauseError(wctx, ifErrErrorFunc(closef), func(context.Context) error {
+					return initialValuesPhaseDone(worker, unmerge)
+				})
+			},
 			func(f statesWorkerMergerResultFunc) error {
-				return wctxCancel(func() error {
-					defer func() {
-						closeMergers()
-						mergersPool.Close()
-					}()
-
+				return contextCauseError(wctx, closef, func(context.Context) error {
 					return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
 						if f == nil {
 							return nil
@@ -146,7 +153,7 @@ func newFuncStatesWorkerMerger(
 
 						return f(unmerged, reasons, newTraverseMergers(wctx, mergersPool, stateOps, args.NewJobWorker))
 					})
-				}())
+				})
 			},
 			nil
 	}

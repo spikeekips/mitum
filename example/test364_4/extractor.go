@@ -93,20 +93,21 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 			return nil
 		}
 
+		closef := func(err error) error {
+			pctxCancel(err)
+			reasons.Close()
+
+			return err
+		}
+
 		return func(opindex uint64, oph util.Hash) error {
 				return jobWorker.NewJob(func(ctx context.Context) error {
-					if err := extract(ctx, opindex, oph); err != nil {
-						return pctxCancel(err)
-					}
-
-					return nil
+					return ifErrErrorFunc(closef)(extract(ctx, opindex, oph))
 				})
 			},
 			jobWorker.JobDone,
 			func(f stateMergeValueExtractorReasonsFunc) error {
-				return pctxCancel(func() error {
-					defer reasons.Close()
-
+				return contextCauseError(pctx, closef, func(context.Context) error {
 					if err := jobWorker.Wait(); err != nil {
 						return err
 					}
@@ -116,7 +117,7 @@ func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStat
 					}
 
 					return nil
-				}())
+				})
 			},
 			nil
 	}
