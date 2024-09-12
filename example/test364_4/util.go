@@ -326,12 +326,12 @@ func ifErrErrorFunc(f errorFunc) errorFunc {
 	}
 }
 
-func contextCauseError(ctx context.Context, ef errorFunc, f func() error) error {
+func contextCauseError(ctx context.Context, ef errorFunc, f func(context.Context) error) error {
 	if err := context.Cause(ctx); err != nil {
 		return errors.WithStack(err)
 	}
 
-	return ef(f())
+	return ef(f(ctx))
 }
 
 func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
@@ -344,10 +344,10 @@ func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
 	}
 }
 
-func contextCauseErrorWithNewJob(ctx context.Context, cancelf errorFunc, newJob func(ContextWorkerCallback) error, e func() error) error {
-	return contextCauseError(ctx, cancelf, func() error {
-		return newJob(func(context.Context) error {
-			return e()
+func contextCauseErrorWithNewJob(ctx context.Context, cancelf errorFunc, newJob func(ContextWorkerCallback) error, e func(context.Context) error) error {
+	return contextCauseError(ctx, cancelf, func(context.Context) error {
+		return newJob(func(ctx context.Context) error {
+			return e(ctx)
 		})
 	})
 }

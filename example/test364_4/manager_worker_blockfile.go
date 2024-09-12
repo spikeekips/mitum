@@ -60,7 +60,7 @@ func newFuncManagerWorkerBlockFiles(
 		})
 
 		var receiveWorkerBlockFiles managerWorkerBlockFileReceiveFunc
-		var receiveWorkerBlockFilesWait func() error
+		var receiveWorkerBlockFilesWait func(context.Context) error
 
 		switch i, w, err := newManagerWorkerWorkerBlockFiles(
 			wctx,
@@ -77,7 +77,7 @@ func newFuncManagerWorkerBlockFiles(
 
 		return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
 				// FIXME handle the delayed lazy workers
-				return contextCauseError(wctx, ifErrErrorFunc(closef), func() error {
+				return contextCauseError(wctx, ifErrErrorFunc(closef), func(ctx context.Context) error {
 					return receiveWorkerBlockFiles(ctx, worker, f)
 				})
 			},
@@ -95,7 +95,7 @@ func newManagerWorkerWorkerBlockFiles(
 	saveBlockFiles managerWorkerBlockFileWorkerFilesFunc,
 ) (
 	managerWorkerBlockFileReceiveFunc,
-	func() error,
+	func(context.Context) error,
 	error,
 ) {
 	var checkWorker checkEnoughFailedWorkerFunc
@@ -149,7 +149,7 @@ func newManagerWorkerWorkerBlockFiles(
 
 			return nil
 		},
-		func() error {
+		func(context.Context) error {
 			defer checkWorkerClose()
 
 			return wait()

@@ -146,7 +146,7 @@ func newFuncBaseWorkerMerger(
 		}
 
 		return func(worker string, unmerge []uint64) error {
-				return contextCauseError(wctx, dummyErrorFunc(), func() error {
+				return contextCauseError(wctx, dummyErrorFunc(), func(context.Context) error {
 					if err := workerPhaseDone(worker, unmerge); err != nil {
 						args.Log().Error().
 							Err(err).
@@ -160,7 +160,7 @@ func newFuncBaseWorkerMerger(
 				})
 			},
 			func(f workerMergerUnmergedOpsFunc) error {
-				return contextCauseError(wctx, wctxCancel, func() error {
+				return contextCauseError(wctx, wctxCancel, func(context.Context) error {
 					defer exhaustPool(nil)
 
 					return phaseWait(f)

@@ -89,7 +89,7 @@ func newManagerWorkersStates(
 			return contextCauseError(
 				ctx,
 				ifErrErrorFunc(closef),
-				func() error {
+				func(context.Context) error {
 					var gerr error
 
 					if f != nil {
@@ -131,7 +131,7 @@ func newManagerWorkersStates(
 			return contextCauseError(
 				wctx,
 				closef,
-				func() error {
+				func(context.Context) error {
 					switch tr, err := treeDone(nil); {
 					case err != nil:
 						return err

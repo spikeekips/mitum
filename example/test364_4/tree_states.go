@@ -63,7 +63,7 @@ func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 				err := contextCauseError(
 					wctx,
 					ifErrErrorFunc(closef),
-					func() error {
+					func(context.Context) error {
 						switch a, err := add(stateKey); {
 						case a:
 							added = true

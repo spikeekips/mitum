@@ -105,8 +105,8 @@ func newFuncManagerSave(
 		setManifest, setItem, mapDone := newMakeBlockMapFunc(args.BlockMapExpired)
 
 		return func(pr base.ProposalSignFact) error {
-				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func() error {
-					switch i, err := proposalWriter(wctx, createID, pr); {
+				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func(ctx context.Context) error {
+					switch i, err := proposalWriter(ctx, createID, pr); {
 					case err != nil:
 						return err
 					default:
@@ -116,7 +116,7 @@ func newFuncManagerSave(
 			},
 
 			func(ivp base.INITVoteproof) error {
-				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func() error {
+				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func(context.Context) error {
 					return ivpWriter(ivp)
 				})
 			},
@@ -130,7 +130,7 @@ func newFuncManagerSave(
 				return contextCauseError(
 					wctx,
 					ifErrErrorFunc(closef),
-					func() error {
+					func(context.Context) error {
 						return setManifest(manifest)
 					},
 				)
@@ -138,7 +138,7 @@ func newFuncManagerSave(
 				return nil
 			},
 			func(avp base.ACCEPTVoteproof) (bm BlockMap, _ error) {
-				return bm, contextCauseError(wctx, closef, func() error {
+				return bm, contextCauseError(wctx, closef, func(ctx context.Context) error {
 					jw.JobDone()
 
 					if err := jw.Wait(); err != nil {
@@ -160,7 +160,7 @@ func newFuncManagerSave(
 					default:
 						bm = m
 
-						return mapWriter(wctx, createID, bm)
+						return mapWriter(ctx, createID, bm)
 					}
 				})
 			},
@@ -225,7 +225,7 @@ func managerSaveTreeWithNewJob(
 	writer blockFileWriterTreeFunc,
 	setItem func(BlockMapItem) error,
 ) error {
-	return contextCauseErrorWithNewJob(ctx, cancelf, newJob, func() error {
+	return contextCauseErrorWithNewJob(ctx, cancelf, newJob, func(context.Context) error {
 		switch cs, err := writer(ctx, createID, tr); {
 		case err != nil:
 			return err

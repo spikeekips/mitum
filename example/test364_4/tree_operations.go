@@ -99,7 +99,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 				return contextCauseError(
 					wctx,
 					ifErrErrorFunc(closef),
-					func() error {
+					func(context.Context) error {
 						switch err := util.TraverseSliceV1(notInStates, func(_ int, opindex uint64) (bool, error) {
 							return true, setNotInState(opindex)
 						}); {
@@ -116,7 +116,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 				return contextCauseError(
 					wctx,
 					ifErrErrorFunc(closef),
-					func() error {
+					func(context.Context) error {
 						if err != nil {
 							return err
 						}
@@ -129,7 +129,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 				return tr, contextCauseError(
 					wctx,
 					closef,
-					func() error {
+					func(context.Context) error {
 						if err != nil {
 							return err
 						}

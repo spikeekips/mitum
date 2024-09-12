@@ -101,9 +101,9 @@ func newManagerWorkersOperations(
 			return contextCauseError(
 				wctx,
 				ifErrErrorFunc(closef),
-				func() error {
+				func(ctx context.Context) error {
 					return distributeDone(distributeOpsToWorkers(
-						wctx,
+						ctx,
 						args,
 						workers,
 						maxFailed,
@@ -117,7 +117,7 @@ func newManagerWorkersOperations(
 			return added, contextCauseError(
 				wctx,
 				ifErrErrorFunc(closef),
-				func() error {
+				func(context.Context) error {
 					switch ok, enough, failed, err := checkWorker(worker, nil); {
 					case failed:
 						return err
@@ -145,7 +145,7 @@ func newManagerWorkersOperations(
 			return contextCauseError(
 				wctx,
 				closef,
-				func() error {
+				func(context.Context) error {
 					if err := distributeWait(); err != nil {
 						return err
 					}
