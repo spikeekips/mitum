@@ -15,6 +15,7 @@ import (
 )
 
 type testManagerWorkerBlockFiles struct {
+	suite.Suite
 	baseTestManager
 }
 

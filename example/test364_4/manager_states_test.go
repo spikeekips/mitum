@@ -14,6 +14,7 @@ import (
 )
 
 type testManagerWorkersStates struct {
+	suite.Suite
 	baseTestManager
 }
 

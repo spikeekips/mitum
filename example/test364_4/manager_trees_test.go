@@ -14,6 +14,7 @@ import (
 )
 
 type testManagerTrees struct {
+	suite.Suite
 	baseTestManager
 	workID string
 }

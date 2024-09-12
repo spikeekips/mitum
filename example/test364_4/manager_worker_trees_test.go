@@ -12,6 +12,7 @@ import (
 )
 
 type testManagerWorkersTrees struct {
+	suite.Suite
 	baseTestManager
 }
 

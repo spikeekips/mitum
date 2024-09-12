@@ -9,7 +9,7 @@ import (
 
 type blockFileWriterProposalFunc func(_ context.Context, createID string, _ base.ProposalSignFact) (BlockMapItem, error)
 
-func newFuncBlockFileProposalWriterNewWrite(
+func newFuncBlockFileProposalWriter(
 	enc encoder.Encoder,
 	createWriter blockFileWriterCreateWriterFunc,
 ) blockFileWriterProposalFunc {

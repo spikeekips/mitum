@@ -16,6 +16,7 @@ import (
 )
 
 type testManagerWorkersOperations struct {
+	suite.Suite
 	baseTestManager
 }
 

@@ -16,7 +16,6 @@ import (
 )
 
 type baseTestManager struct {
-	suite.Suite
 	enc encoder.Encoder
 }
 

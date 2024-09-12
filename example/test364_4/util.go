@@ -343,3 +343,11 @@ func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
 		return ef(err)
 	}
 }
+
+func contextCauseErrorWithNewJob(ctx context.Context, cancelf errorFunc, newJob func(ContextWorkerCallback) error, e func() error) error {
+	return contextCauseError(ctx, cancelf, func() error {
+		return newJob(func(context.Context) error {
+			return e()
+		})
+	})
+}

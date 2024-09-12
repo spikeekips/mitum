@@ -15,8 +15,32 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type baseTestBlock struct{}
+
+func (t *baseTestBlock) newManifest() base.DummyManifest {
+	return base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
+}
+
+func (t *baseTestBlock) newItem(ty base.BlockItemType) BaseBlockMapItem {
+	return newBaseBlockMapItem(ty, util.UUID().String(), true)
+}
+
+func (t *baseTestBlock) newBaseItems() map[base.BlockItemType]BlockMapItem {
+	return map[base.BlockItemType]BlockMapItem{
+		base.BlockItemProposal:       t.newItem(base.BlockItemProposal),
+		base.BlockItemVoteproofs:     t.newItem(base.BlockItemVoteproofs),
+		base.BlockItemOperationsTree: t.newItem(base.BlockItemOperationsTree),
+		base.BlockItemStatesTree:     t.newItem(base.BlockItemStatesTree),
+	}
+}
+
+func (t *baseTestBlock) newBlockFileChunk() blockFileChunk {
+	return newBaseBlockFileChunk(util.UUID().String(), util.UUID().String(), "gz")
+}
+
 type testBlockMap struct {
 	suite.Suite
+	baseTestBlock
 	local     base.Address
 	priv      base.Privatekey
 	networkID base.NetworkID
@@ -26,23 +50,6 @@ func (t *testBlockMap) SetupSuite() {
 	t.local = base.RandomAddress("")
 	t.priv = base.NewMPrivatekey()
 	t.networkID = util.UUID().Bytes()
-}
-
-func (t *testBlockMap) newItem(ty base.BlockItemType) BaseBlockMapItem {
-	return newBaseBlockMapItem(ty, util.UUID().String(), true)
-}
-
-func (t *testBlockMap) newBaseItems() map[base.BlockItemType]BlockMapItem {
-	return map[base.BlockItemType]BlockMapItem{
-		base.BlockItemProposal:       t.newItem(base.BlockItemProposal),
-		base.BlockItemVoteproofs:     t.newItem(base.BlockItemVoteproofs),
-		base.BlockItemOperationsTree: t.newItem(base.BlockItemOperationsTree),
-		base.BlockItemStatesTree:     t.newItem(base.BlockItemStatesTree),
-	}
-}
-
-func (t *testBlockMap) newManifest() base.DummyManifest {
-	return base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 }
 
 func (t *testBlockMap) TestVerifyChecksum() {
