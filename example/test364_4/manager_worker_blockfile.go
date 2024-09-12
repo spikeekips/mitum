@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -75,6 +76,7 @@ func newFuncManagerWorkerBlockFiles(
 		}
 
 		return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
+				// FIXME handle the delayed lazy workers
 				return contextCauseError(wctx, ifErrErrorFunc(closef), func() error {
 					return receiveWorkerBlockFiles(ctx, worker, f)
 				})
@@ -117,9 +119,16 @@ func newManagerWorkerWorkerBlockFiles(
 				worker,
 				func() error {
 					return f(func(it base.BlockItemType, cs []string) error {
-						_ = checksums.SetValue(it, cs)
+						switch {
+						case util.IsDuplicatedSlice(cs, func(s string) (bool, string) { return true, s }):
+							return errors.Errorf("duplicated checksums")
+						case len(cs) < 1:
+							return nil
+						default:
+							_ = checksums.SetValue(it, cs)
 
-						return nil
+							return nil
+						}
 					})
 				},
 			); {
