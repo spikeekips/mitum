@@ -12,6 +12,8 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+var errCheckWorkersFailed = util.NewIDError("check workers; failed")
+
 type (
 	managerWorkerOperationFunc                 func(opindex uint64, oph, fact util.Hash) error
 	managerWorkerOperationsFunc                func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
@@ -19,7 +21,7 @@ type (
 	managerWorkersTreeFunc                     func(func(fixedtree.Tree) error) error
 	managerWorkersOperationsOpsFunc            func(func(managerWorkerOperationFunc) error) error
 	managerWorkersOperationsWorkerOpsFunc      func(worker string, _ managerWorkersOperationsOpsFunc) error
-	managerWorkersOperationsWorkersOpsFunc     func(workers []string, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error)
+	managerWorkersOperationsWorkersOpsFunc     func(workers []string, share uint64, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error)
 )
 
 type managerWorkersOperationsArgs struct {
@@ -41,7 +43,7 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
 		},
-		NewWorkersOpsFunc: func([]string, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
+		NewWorkersOpsFunc: func([]string, uint64, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
 		NewTreeWriterFuncs: newFuncOperationsTreeWriter(),
@@ -52,7 +54,7 @@ func newManagerWorkersOperations(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
 	workers []string,
-	maxFailed uint64,
+	share uint64,
 	ophs [][2]util.Hash,
 ) (
 	func(managerWorkerOperationsFunc) error,
@@ -62,10 +64,22 @@ func newManagerWorkersOperations(
 ) {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 
+	nworkers := uint64(len(workers))
+
+	var maxFailed uint64
+
+	switch _, f, s, err := minEnoughMaxFailed(nworkers, share); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		maxFailed = f
+		share = s
+	}
+
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerDone func()
 
-	switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
+	switch c, d, err := args.NewCheckWorkersFunc(nworkers, maxFailed); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -88,14 +102,14 @@ func newManagerWorkersOperations(
 
 	_, distributeDone, distributeWait := NewDoneContextFunc(wctx)
 
-	closef := OnceFuncCallback(func(err error) error {
+	closef := func(err error) error {
 		wctxCancel(err)
 		checkWorkerDone()
 		treeDone(err)
 		distributeDone(err)
 
 		return err
-	})
+	}
 
 	return func(f managerWorkerOperationsFunc) error {
 			return contextCauseError(
@@ -106,6 +120,7 @@ func newManagerWorkersOperations(
 						ctx,
 						args,
 						workers,
+						share,
 						maxFailed,
 						ophs,
 						f,
@@ -166,7 +181,7 @@ func distributeOpsToWorkers(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
 	workers []string,
-	maxFailed uint64,
+	share, maxFailed uint64,
 	ophs [][2]util.Hash,
 	wf managerWorkerOperationsFunc,
 ) error {
@@ -183,7 +198,7 @@ func distributeOpsToWorkers(
 
 	var workerOps managerWorkersOperationsWorkerOpsFunc
 
-	switch f, err := args.NewWorkersOpsFunc(workers, ophs); {
+	switch f, err := args.NewWorkersOpsFunc(workers, share, ophs); {
 	case err != nil:
 		return err
 	default:
@@ -234,6 +249,10 @@ func distributeOpsToWorker(
 ) (bool, error) {
 	switch _, _, failed, err := checkWorker(worker, func() error {
 		return wf(ctx, worker, func(of managerWorkerOperationFunc) error {
+			if ofs == nil {
+				return nil
+			}
+
 			return ofs(of)
 		})
 	}); {
@@ -379,4 +398,40 @@ func distributeItemsSerialNShareWorkerMaxItemsFunc(workers, items, share uint64)
 
 		return i + 1
 	}
+}
+
+func distributeNShareWorkerOps(workers []string, share uint64, ophs [][2]util.Hash) (
+	managerWorkersOperationsWorkerOpsFunc,
+	error,
+) {
+	var distribute distributeItemsSerialNShareFunc
+
+	switch i, err := newDistributeItemsSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
+	case err != nil:
+		return nil, err
+	default:
+		distribute = i
+	}
+
+	return func(worker string, f managerWorkersOperationsOpsFunc) error {
+			workerIndex := slices.Index(workers, worker)
+			if workerIndex < 0 {
+				return util.ErrNotFound.Errorf("unknown worker=%q", worker)
+			}
+
+			return f(func(of managerWorkerOperationFunc) error {
+				if of == nil {
+					return nil
+				}
+
+				return distribute(uint64(workerIndex), func(uf func(func(uint64) error) error) error {
+					return uf(func(opindex uint64) error {
+						hs := ophs[opindex]
+
+						return of(opindex, hs[0], hs[1])
+					})
+				})
+			})
+		},
+		nil
 }

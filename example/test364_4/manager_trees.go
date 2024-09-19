@@ -51,15 +51,6 @@ func newFuncManagerTrees(
 		managerTreesDoneFunc,
 		error,
 	) {
-		switch w := uint64(len(workers)); { // FIXME move higher
-		case w < 1:
-			return nil, nil, nil, util.ErrNotFound.Errorf("empty workers")
-		case maxFailed >= w:
-			return nil, nil, nil, util.ErrInvalid.Errorf("invalid max failed; max failed=%d >= workers=%d", maxFailed, w)
-		case minEnough > w:
-			minEnough = w
-		}
-
 		var workersUnmerge managerWorkersOperationsWorkerUnmergedFunc
 		var workersStates managerWorkersWorkerStatesFunc
 		var workersTree managerWorkersDoneTreesFunc

@@ -36,7 +36,7 @@ func (t *testManagerTrees) newArgs() (
 	) {
 		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
-	targs.NewWorkersOpsFunc = serialNoShareWorkerOps
+	targs.NewWorkersOpsFunc = distributeNShareWorkerOps
 	targs.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
 	targs.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
 	targs.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {

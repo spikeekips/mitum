@@ -7,16 +7,13 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
 type testManagerSave struct {
-	isaac.BaseTestBallots
 	baseTestManager
 	baseTestBlock
 }
@@ -25,81 +22,6 @@ func (t *testManagerSave) newArgs() *managerSaveArgs {
 	args := newManagerSaveArgs()
 
 	return args
-}
-
-func (t *testManagerSave) newProposalWriter(createWriter blockFileWriterCreateWriterFunc) blockFileWriterProposalFunc {
-	return newFuncBlockFileProposalWriter(t.enc, createWriter)
-}
-
-func (t *testManagerSave) newVoteproofsWriter(createWriter blockFileWriterCreateWriterFunc) blockFileWriterVoteproofsFunc {
-	return newFuncBlockFileVoteproofsWriter(t.enc, createWriter)
-}
-
-func (t *testManagerSave) newOperationsWriter(createWriter blockFileWriterCreateWriterFunc) blockFileWriterOperationsFunc {
-	return newFuncBlockFileOperationsWriter(t.enc, createWriter, nil, nil)
-}
-
-func (t *testManagerSave) newStatesWriter(createWriter blockFileWriterCreateWriterFunc) blockFileWriterStatesFunc {
-	return newFuncBlockFileStatesWriter(t.enc, createWriter, nil, nil)
-}
-
-func (t *testManagerSave) newMapWriter(createWriter blockFileWriterCreateWriterFunc) blockFileWriterMapFunc {
-	return newFuncBlockFileMapWriter(t.enc, createWriter)
-}
-
-func (t *testManagerSave) newProposal() base.ProposalSignFact {
-	fact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, [][2]util.Hash{{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, {valuehash.RandomSHA256(), valuehash.RandomSHA256()}})
-
-	return t.NewProposal(t.Local, fact)
-}
-
-func (t *testManagerSave) newINITVoteproof() base.INITVoteproof {
-	fact := t.NewINITBallotFact(base.RawPoint(33, 0), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	vp, err := t.NewINITVoteproof(fact, t.Local, []base.LocalNode{t.Local})
-	t.NoError(err)
-
-	return vp
-}
-
-func (t *testManagerSave) newACCEPTVoteproof() base.ACCEPTVoteproof {
-	fact := t.NewACCEPTBallotFact(base.RawPoint(33, 0), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-
-	vp, err := t.NewACCEPTVoteproof(fact, t.Local, []base.LocalNode{t.Local})
-	t.NoError(err)
-
-	return vp
-}
-
-func (t *testManagerSave) newOperationsTree() fixedtree.Tree {
-	tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 33)
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < tw.Len(); i++ {
-		t.NoError(tw.Add(uint64(i), base.NewInStateOperationFixedtreeNode(valuehash.RandomSHA256(), "")))
-	}
-
-	tr, err := tw.Tree()
-	t.NoError(err)
-
-	return tr
-}
-
-func (t *testManagerSave) newStatesTree() fixedtree.Tree {
-	tw, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 33)
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < tw.Len(); i++ {
-		t.NoError(tw.Add(uint64(i), fixedtree.NewBaseNode(util.ULID().String())))
-	}
-
-	tr, err := tw.Tree()
-	t.NoError(err)
-
-	return tr
 }
 
 func (t *testManagerSave) TestCancel() {

@@ -29,7 +29,7 @@ func (t *testManagerWorkersOperations) newArgs() *managerWorkersOperationsArgs {
 	) {
 		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
-	args.NewWorkersOpsFunc = serialNoShareWorkerOps
+	args.NewWorkersOpsFunc = distributeNShareWorkerOps
 
 	_ = args.SetLogging(logging.TestNilLogging)
 
@@ -45,7 +45,7 @@ func (t *testManagerWorkersOperations) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 
 		t.NoError(opf(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
@@ -123,7 +123,7 @@ func (t *testManagerWorkersOperations) TestOps() {
 		args := t.newArgs()
 		workers := t.workers(1)
 
-		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, nil)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, nil)
 		t.NoError(err)
 
 		t.NoError(opf(func(ctx context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -152,7 +152,7 @@ func (t *testManagerWorkersOperations) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
@@ -208,7 +208,7 @@ func (t *testManagerWorkersOperations) TestOps() {
 		t.False(called)
 	})
 
-	t.Run("under failed", func() {
+	t.Run("max failed", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -303,7 +303,7 @@ func (t *testManagerWorkersOperations) TestOps() {
 
 		args := t.newArgs()
 
-		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			return f(nil)
@@ -347,8 +347,8 @@ func (t *testManagerWorkersOperations) TestOps() {
 		workersOps := util.NewSingleLockedMap[string, [][3]interface{}]()
 
 		args := t.newArgs()
-		args.NewWorkersOpsFunc = func(workers []string, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
-			c, err := serialNoShareWorkerOps(workers, ophs)
+		args.NewWorkersOpsFunc = func(workers []string, share uint64, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
+			c, err := distributeNShareWorkerOps(workers, share, ophs)
 			if err != nil {
 				return nil, err
 			}
@@ -390,7 +390,7 @@ func (t *testManagerWorkersOperations) TestOps() {
 
 		g, gdone := newGatherOpsFunc()
 
-		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 0, ophs)
+		opf, u, tf, err := newManagerWorkersOperations(ctx, args, workers, 1, ophs)
 		t.NoError(err)
 		t.NoError(opf(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
 			if err := f(func(opindex uint64, oph, fact util.Hash) error {
