@@ -79,7 +79,7 @@ func newManagerWorkersStates(
 		treeDone = d
 	}
 
-	errClosed := errors.New(util.UUID().String())
+	errClosed := errors.New("closed: " + util.UUID().String())
 
 	return func(ctx context.Context, worker string, f func(func(stateKey string) error) error) error {
 			if err := context.Cause(wctx); err != nil {
