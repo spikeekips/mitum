@@ -42,7 +42,7 @@ func newFuncManagerTrees(
 	return func(
 		ctx context.Context,
 		workers []string,
-		minEnough, maxFailed uint64,
+		opsShare, statesShare uint64,
 		workID string,
 		ophs [][2]util.Hash,
 	) (
@@ -58,7 +58,7 @@ func newFuncManagerTrees(
 		switch u, s, t, err := workersTreeFuncs(
 			ctx,
 			workers,
-			minEnough, maxFailed,
+			opsShare, statesShare,
 			workID,
 			ophs,
 		); {

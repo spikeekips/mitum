@@ -28,7 +28,7 @@ func (t *testManagerWorkersTrees) newArgs() *managerWorkersTreesArgs {
 	args.NewWorkersOpsFunc = distributeNShareWorkerOps
 	args.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
 	args.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
-	args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
+	args.SendWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 		return nil
 	}
 
@@ -73,7 +73,7 @@ func (t *testManagerWorkersTrees) TestError() {
 
 		args := t.newArgs()
 
-		args.DistributeWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
+		args.SendWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 			cancel()
 
 			return nil
@@ -113,7 +113,7 @@ func (t *testManagerWorkersTrees) TestError() {
 		args := t.newArgs()
 		var count int64
 
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
+		args.SendWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
 			atomic.AddInt64(&count, 1)
 			if atomic.LoadInt64(&count) == int64(len(workers)) {
 				cancel()
@@ -253,7 +253,7 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 		workers := t.workers(3)
 
 		args := t.newArgs()
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
+		args.SendWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
 			if worker == workers[2] {
 				return errors.Errorf("showme")
 			}
@@ -290,7 +290,7 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 		workers := t.workers(3)
 
 		args := t.newArgs()
-		args.DistributeWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
+		args.SendWorkerOps = func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
 			if worker == workers[2] {
 				return errors.Errorf("showme")
 			}

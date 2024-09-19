@@ -11,7 +11,7 @@ import (
 
 type (
 	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
-	managerWorkersTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, ophs [][2]util.Hash) (
+	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, workID string, ophs [][2]util.Hash) (
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
 		managerWorkersDoneTreesFunc,
@@ -25,7 +25,7 @@ type managerWorkersTreesArgs struct {
 	NewWorkersOpsFunc            managerWorkersOperationsWorkersOpsFunc
 	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
 	NewStatesTreeWriterFuncs     newStatesTreeFuncs
-	DistributeWorkerOps          managerWorkerOperationsFunc
+	SendWorkerOps                managerWorkerOperationsFunc
 }
 
 func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
@@ -49,7 +49,7 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 		NewStatesTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewStatesTreeWriterFuncs")
 		},
-		DistributeWorkerOps: func(context.Context, string, func(managerWorkerOperationFunc) error) error {
+		SendWorkerOps: func(context.Context, string, func(managerWorkerOperationFunc) error) error {
 			return util.ErrNotImplemented.Errorf("DistributeWorkerOps")
 		},
 	}
@@ -119,7 +119,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		go func() {
 			_ = contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(context.Context) error {
 				return opsDistribute(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
-					return args.DistributeWorkerOps(ctx, worker, f)
+					return args.SendWorkerOps(ctx, worker, f)
 				})
 			})
 		}()
