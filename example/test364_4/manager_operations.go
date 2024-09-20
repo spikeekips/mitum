@@ -17,6 +17,7 @@ var errCheckWorkersFailed = util.NewIDError("check workers; failed")
 type (
 	managerWorkerOperationFunc                 func(opindex uint64, oph, fact util.Hash) error
 	managerWorkerOperationsFunc                func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
+	managerWorkersOperationsFunc               func(managerWorkerOperationsFunc) error
 	managerWorkersOperationsWorkerUnmergedFunc func(worker string, unmerge []uint64) (bool, error)
 	managerWorkersTreeFunc                     func(func(fixedtree.Tree) error) error
 	managerWorkersOperationsOpsFunc            func(func(managerWorkerOperationFunc) error) error
@@ -57,7 +58,7 @@ func newManagerWorkersOperations(
 	share uint64,
 	ophs [][2]util.Hash,
 ) (
-	func(managerWorkerOperationsFunc) error,
+	managerWorkersOperationsFunc,
 	managerWorkersOperationsWorkerUnmergedFunc,
 	managerWorkersTreeFunc,
 	error,
@@ -248,6 +249,14 @@ func distributeOpsToWorker(
 	checkWorker checkEnoughFailedWorkerFunc,
 ) (bool, error) {
 	switch _, _, failed, err := checkWorker(worker, func() error {
+		if wf == nil {
+			wf = func(_ context.Context, _ string, f func(managerWorkerOperationFunc) error) error {
+				return f(func(uint64, util.Hash, util.Hash) error {
+					return nil
+				})
+			}
+		}
+
 		return wf(ctx, worker, func(of managerWorkerOperationFunc) error {
 			if ofs == nil {
 				return nil

@@ -12,6 +12,7 @@ import (
 type (
 	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
 	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, workID string, ophs [][2]util.Hash) (
+		managerWorkersOperationsFunc,
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
 		managerWorkersDoneTreesFunc,
@@ -25,7 +26,6 @@ type managerWorkersTreesArgs struct {
 	NewWorkersOpsFunc            managerWorkersOperationsWorkersOpsFunc
 	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
 	NewStatesTreeWriterFuncs     newStatesTreeFuncs
-	SendWorkerOps                managerWorkerOperationsFunc
 }
 
 func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
@@ -48,9 +48,6 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 		},
 		NewStatesTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewStatesTreeWriterFuncs")
-		},
-		SendWorkerOps: func(context.Context, string, func(managerWorkerOperationFunc) error) error {
-			return util.ErrNotImplemented.Errorf("DistributeWorkerOps")
 		},
 	}
 }
@@ -75,6 +72,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		workID string,
 		ophs [][2]util.Hash,
 	) (
+		managerWorkersOperationsFunc,
 		managerWorkersOperationsWorkerUnmergedFunc,
 		managerWorkersWorkerStatesFunc,
 		managerWorkersDoneTreesFunc,
@@ -84,7 +82,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 
 		switch e, f, _, err := minEnoughMaxFailed(uint64(len(workers)), statesShare); {
 		case err != nil:
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		default:
 			statesMinEnough = e
 			statesMaxFailed = f
@@ -92,13 +90,13 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-		var opsDistribute func(managerWorkerOperationsFunc) error
+		var opsDistribute managerWorkersOperationsFunc
 		var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
 		var opsTreef managerWorkersTreeFunc
 
 		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, workers, opsShare, ophs); {
 		case err != nil:
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		default:
 			opsDistribute = d
 			opsUnmerged = u
@@ -110,21 +108,13 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 
 		switch s, t, err := newManagerWorkersStates(wctx, sargs, workers, statesMinEnough, statesMaxFailed); {
 		case err != nil:
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		default:
 			statesWorker = s
 			statesTreef = t
 		}
 
-		go func() {
-			_ = contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(context.Context) error {
-				return opsDistribute(func(ctx context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
-					return args.SendWorkerOps(ctx, worker, f)
-				})
-			})
-		}()
-
-		return opsUnmerged, statesWorker,
+		return opsDistribute, opsUnmerged, statesWorker,
 			func() (opsTree, statesTree fixedtree.Tree, _ error) {
 				return opsTree, statesTree, contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(context.Context) error {
 					if err := opsTreef(func(tr fixedtree.Tree) error {

@@ -16,7 +16,7 @@ import (
 type testManagerTrees struct {
 	suite.Suite
 	baseTestManager
-	workID string // FIXME createID -> workID
+	workID string
 }
 
 func (t *testManagerTrees) SetupTest() {
@@ -39,9 +39,6 @@ func (t *testManagerTrees) newArgs() (
 	targs.NewWorkersOpsFunc = distributeNShareWorkerOps
 	targs.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
 	targs.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
-	targs.SendWorkerOps = func(context.Context, string, func(managerWorkerOperationFunc) error) error {
-		return nil
-	}
 
 	args := newManagerTreesArgs()
 
@@ -64,8 +61,11 @@ func (t *testManagerTrees) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
 		t.NoError(err)
+
+		err = distribute(nil)
+		t.ErrorIs(err, context.Canceled)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
 			ok, err := unmerge(worker, []uint64{uint64(i)})
@@ -106,8 +106,10 @@ func (t *testManagerTrees) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
 		t.NoError(err)
+
+		t.NoError(distribute(nil))
 
 		cancel()
 
@@ -155,8 +157,10 @@ func (t *testManagerTrees) TestOps() {
 
 		workers := t.workers(3)
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, nil)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, nil)
 		t.NoError(err)
+
+		t.NoError(distribute(nil))
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
 			ok, err := unmerge(worker, nil)
@@ -201,8 +205,10 @@ func (t *testManagerTrees) TestOps() {
 		ophs := t.ophs(3)
 		stateKeys := t.stateKeysUnordered(9)
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
 		t.NoError(err)
+
+		t.NoError(distribute(nil))
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
 			ok, err := unmerge(worker, nil)
@@ -276,8 +282,10 @@ func (t *testManagerTrees) TestOps() {
 			return true, nil
 		})
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
 		t.NoError(err)
+
+		t.NoError(distribute(nil))
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
 			ok, err := unmerge(worker, workersUnmerged[i])
@@ -351,8 +359,10 @@ func (t *testManagerTrees) TestOps() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
 		t.NoError(err)
+
+		t.NoError(distribute(nil))
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
 			ok, err := unmerge(worker, nil)

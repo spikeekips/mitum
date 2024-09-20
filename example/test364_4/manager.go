@@ -12,10 +12,17 @@ type (
 	checkEnoughFailedWorkersFuncs func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
 )
 
-var (
-	errCheckWorkersEnough = util.NewIDError("check workers; enough")
-	errCheckWorkersFailed = util.NewIDError("check workers; failed")
-)
+func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed, newShare uint64, _ error) {
+	if share < 1 {
+		return 0, 0, 0, util.ErrNotFound.Errorf("zero share")
+	}
+
+	if share > workers {
+		share = workers
+	}
+
+	return workers - share + 1, share, share, nil
+}
 
 func newCheckEnoughFailedWorkers(
 	minEnough, maxFailed uint64,
