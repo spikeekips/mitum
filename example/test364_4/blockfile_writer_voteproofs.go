@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockFileWriterVoteproofsFunc func(_ context.Context, createID string) (
+type blockFileWriterVoteproofsFunc func(_ context.Context, workID string) (
 	func(base.INITVoteproof) error,
 	func(base.ACCEPTVoteproof) (BlockMapItem, error),
 	error,
@@ -20,14 +20,14 @@ func newFuncBlockFileVoteproofsWriter(
 ) blockFileWriterVoteproofsFunc {
 	w := newFuncBaseBlockFileChunkWriter(base.BlockItemVoteproofs, createWriter)
 
-	return func(ctx context.Context, createID string) (
+	return func(ctx context.Context, workID string) (
 		func(base.INITVoteproof) error,
 		func(base.ACCEPTVoteproof) (BlockMapItem, error),
 		error,
 	) {
 		var c blockFileChunkWriterBaseNewWriteFunc
 
-		switch i, err := w(createID); {
+		switch i, err := w(workID); {
 		case err != nil:
 			return nil, nil, err
 		default:

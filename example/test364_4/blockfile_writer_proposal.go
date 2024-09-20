@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockFileWriterProposalFunc func(_ context.Context, createID string, _ base.ProposalSignFact) (BlockMapItem, error)
+type blockFileWriterProposalFunc func(_ context.Context, workID string, _ base.ProposalSignFact) (BlockMapItem, error)
 
 func newFuncBlockFileProposalWriter(
 	enc encoder.Encoder,
@@ -15,10 +15,10 @@ func newFuncBlockFileProposalWriter(
 ) blockFileWriterProposalFunc {
 	w := newFuncBaseBlockFileChunkWriter(base.BlockItemProposal, createWriter)
 
-	return func(ctx context.Context, createID string, pr base.ProposalSignFact) (BlockMapItem, error) {
+	return func(ctx context.Context, workID string, pr base.ProposalSignFact) (BlockMapItem, error) {
 		var c blockFileChunkWriterBaseNewWriteFunc
 
-		switch i, err := w(createID); {
+		switch i, err := w(workID); {
 		case err != nil:
 			return nil, err
 		default:

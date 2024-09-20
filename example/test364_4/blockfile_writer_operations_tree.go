@@ -17,7 +17,7 @@ func newFuncBlockFileOperationsTreeWriter(
 ) blockFileWriterTreeFunc {
 	w := newFuncBlockFileTreeWriter(base.BlockItemOperationsTree, enc, createWriter, chunkItemsf, maxSemSizef)
 
-	return func(ctx context.Context, createID string, tr fixedtree.Tree) ([]blockFileChunk, error) {
+	return func(ctx context.Context, workID string, tr fixedtree.Tree) ([]blockFileChunk, error) {
 		if tr.Len() < 1 {
 			return nil, nil
 		}
@@ -26,6 +26,6 @@ func newFuncBlockFileOperationsTreeWriter(
 			return nil, util.ErrInvalid.Errorf("wrong operation fixed tree hint, %q", tr.Hint())
 		}
 
-		return w(ctx, createID, tr)
+		return w(ctx, workID, tr)
 	}
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
-type blockFileWriterTreeFunc func(_ context.Context, createID string, _ fixedtree.Tree) ([]blockFileChunk, error)
+type blockFileWriterTreeFunc func(_ context.Context, workID string, _ fixedtree.Tree) ([]blockFileChunk, error)
 
 func newFuncBlockFileTreeWriter(
 	it base.BlockItemType,
@@ -27,7 +27,7 @@ func newFuncBlockFileTreeWriter(
 		maxSemSizef = func() uint64 { return 1 << 9 }
 	}
 
-	return func(ctx context.Context, createID string, tr fixedtree.Tree) ([]blockFileChunk, error) {
+	return func(ctx context.Context, workID string, tr fixedtree.Tree) ([]blockFileChunk, error) {
 		total := uint64(tr.Len())
 
 		if total < 1 {
@@ -52,7 +52,7 @@ func newFuncBlockFileTreeWriter(
 			total,
 			newTreeItemsHeader(enc.Hint(), total, tr.Hint()),
 			func() (blockFileChunkWriterBaseNewWriteFunc, error) {
-				return w(createID)
+				return w(workID)
 			},
 			func(f func(func(ioWriteFunc) error) error) error {
 				if f == nil {

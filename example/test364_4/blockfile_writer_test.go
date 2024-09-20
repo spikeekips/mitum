@@ -411,8 +411,8 @@ func (t *testBaseBlockFileChunkWriter) TestWrite() {
 		compressFormat := "gz"
 		var expectedFilename string
 
-		createWriter := func(it base.BlockItemType, createID string) (string, ioWriteFunc, blockFileDoneFileFunc, error) {
-			_, w, d, err := origCreateWriter(it, createID)
+		createWriter := func(it base.BlockItemType, workID string) (string, ioWriteFunc, blockFileDoneFileFunc, error) {
+			_, w, d, err := origCreateWriter(it, workID)
 
 			return compressFormat, w,
 				func(err error, body string) (string, error) {

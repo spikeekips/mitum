@@ -21,22 +21,22 @@ var LocalFSWriterHint = hint.MustNewHint("block-localfs-writer-364-v0.0.1")
 type (
 	ioWriteFunc                     func([]byte) (int, error)
 	blockFileDoneFileFunc           func(_ error, filenameBody string) (filename string, _ error)
-	blockFileWriterCreateWriterFunc func(_ base.BlockItemType, createID string) (
+	blockFileWriterCreateWriterFunc func(_ base.BlockItemType, workID string) (
 		compressFormat string,
 		_ ioWriteFunc,
 		_ blockFileDoneFileFunc,
 		_ error,
 	)
 	blockFileChunkWriterBaseNewWriteFunc  func(header interface{}, _ func(ioWriteFunc) error) (blockFileChunk, error)
-	blockFileChunkWriterBaseNewWriteFuncs func(createID string) (blockFileChunkWriterBaseNewWriteFunc, error)
+	blockFileChunkWriterBaseNewWriteFuncs func(workID string) (blockFileChunkWriterBaseNewWriteFunc, error)
 )
 
 func newFuncBaseBlockFileChunkWriter(
 	it base.BlockItemType,
 	createWriter blockFileWriterCreateWriterFunc,
 ) blockFileChunkWriterBaseNewWriteFuncs {
-	return func(createID string) (blockFileChunkWriterBaseNewWriteFunc, error) {
-		if len(createID) < 1 {
+	return func(workID string) (blockFileChunkWriterBaseNewWriteFunc, error) {
+		if len(workID) < 1 {
 			return nil, errors.Errorf("empty create id")
 		}
 
@@ -64,7 +64,7 @@ func newFuncBaseBlockFileChunkWriter(
 				}
 
 				once := OnceFunc(func() error {
-					switch c, w, d, err := createWriter(it, createID); {
+					switch c, w, d, err := createWriter(it, workID); {
 					case err != nil:
 						return err
 					default:

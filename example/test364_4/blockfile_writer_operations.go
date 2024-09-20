@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type blockFileWriterOperationsFunc func(_ context.Context, createID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) ([]blockFileChunk, error)
+type blockFileWriterOperationsFunc func(_ context.Context, workID string, total uint64, _ func(operationsWorkerSaveOperationFunc) error) ([]blockFileChunk, error)
 
 func newFuncBlockFileOperationsWriter(
 	enc encoder.Encoder,
@@ -22,7 +22,7 @@ func newFuncBlockFileOperationsWriter(
 		maxSemSizef = func() uint64 { return 1 << 9 }
 	}
 
-	return func(ctx context.Context, createID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) ([]blockFileChunk, error) {
+	return func(ctx context.Context, workID string, total uint64, f func(operationsWorkerSaveOperationFunc) error) ([]blockFileChunk, error) {
 		var chunkItems uint64
 
 		switch {
@@ -41,7 +41,7 @@ func newFuncBlockFileOperationsWriter(
 			total,
 			newTotalItemsHeader(enc.Hint(), total),
 			func() (blockFileChunkWriterBaseNewWriteFunc, error) {
-				return w(createID)
+				return w(workID)
 			},
 			func(w func(func(ioWriteFunc) error) error) error {
 				if f == nil {

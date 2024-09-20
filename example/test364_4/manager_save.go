@@ -24,7 +24,7 @@ type (
 	managerSaveACCEPTVoteproofFunc func(base.ACCEPTVoteproof) (BlockMap, error)
 	managerSaveFunc                func(
 		_ context.Context,
-		createID string,
+		workID string,
 		proposalWriter blockFileWriterProposalFunc,
 		voteproofsWriter blockFileWriterVoteproofsFunc,
 		opsTreeWriter, statesTreeWriter blockFileWriterTreeFunc,
@@ -59,7 +59,7 @@ func newFuncManagerSave(
 ) managerSaveFunc {
 	return func(
 		ctx context.Context,
-		createID string,
+		workID string,
 		proposalWriter blockFileWriterProposalFunc,
 		voteproofsWriter blockFileWriterVoteproofsFunc,
 		opsTreeWriter, statesTreeWriter blockFileWriterTreeFunc,
@@ -94,7 +94,7 @@ func newFuncManagerSave(
 		var ivpWriter func(base.INITVoteproof) error
 		var avpWriter func(base.ACCEPTVoteproof) (BlockMapItem, error)
 
-		switch i, a, err := voteproofsWriter(wctx, createID); {
+		switch i, a, err := voteproofsWriter(wctx, workID); {
 		case err != nil:
 			return nil, nil, nil, nil, nil, nil, err
 		default:
@@ -106,7 +106,7 @@ func newFuncManagerSave(
 
 		return func(pr base.ProposalSignFact) error {
 				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func(ctx context.Context) error {
-					switch i, err := proposalWriter(ctx, createID, pr); {
+					switch i, err := proposalWriter(ctx, workID, pr); {
 					case err != nil:
 						return err
 					default:
@@ -121,10 +121,10 @@ func newFuncManagerSave(
 				})
 			},
 			func(tr fixedtree.Tree) error {
-				return managerSaveTreeWithNewJob(wctx, createID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemOperationsTree, tr, opsTreeWriter, setItem)
+				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemOperationsTree, tr, opsTreeWriter, setItem)
 			},
 			func(tr fixedtree.Tree) error {
-				return managerSaveTreeWithNewJob(wctx, createID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemStatesTree, tr, statesTreeWriter, setItem)
+				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemStatesTree, tr, statesTreeWriter, setItem)
 			},
 			func(manifest base.Manifest) error {
 				return contextCauseError(
@@ -160,7 +160,7 @@ func newFuncManagerSave(
 					default:
 						bm = m
 
-						return mapWriter(ctx, createID, bm)
+						return mapWriter(ctx, workID, bm)
 					}
 				})
 			},
@@ -217,7 +217,7 @@ func newMakeBlockMapFunc(expired time.Duration) (
 
 func managerSaveTreeWithNewJob(
 	ctx context.Context,
-	createID string,
+	workID string,
 	cancelf errorFunc,
 	newJob func(ContextWorkerCallback) error,
 	it base.BlockItemType,
@@ -226,7 +226,7 @@ func managerSaveTreeWithNewJob(
 	setItem func(BlockMapItem) error,
 ) error {
 	return contextCauseErrorWithNewJob(ctx, cancelf, newJob, func(context.Context) error {
-		switch cs, err := writer(ctx, createID, tr); {
+		switch cs, err := writer(ctx, workID, tr); {
 		case err != nil:
 			return err
 		case len(cs) < 1:
