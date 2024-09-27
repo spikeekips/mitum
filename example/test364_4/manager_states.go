@@ -10,7 +10,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type managerWorkersWorkerStatesFunc func(_ context.Context, worker string, _ func(func(stateKey string) error) error) error
+type managerWorkerStatesFunc func(_ context.Context, worker string, _ func(func(stateKey string) error) error) error
 
 type managerWorkersStatesArgs struct {
 	*logging.Logging
@@ -42,7 +42,7 @@ func newManagerWorkersStates(
 	workers []string,
 	minEnough, maxFailed uint64,
 ) (
-	managerWorkersWorkerStatesFunc,
+	managerWorkerStatesFunc,
 	managerWorkersTreeFunc,
 	error,
 ) {

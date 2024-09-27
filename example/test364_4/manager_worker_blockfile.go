@@ -53,12 +53,6 @@ func newFuncManagerWorkerBlockFiles(
 	) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
-		closef := OnceFuncCallback(func(err error) error {
-			wctxCancel(err)
-
-			return err
-		})
-
 		var receiveWorkerBlockFiles managerWorkerBlockFileReceiveFunc
 		var receiveWorkerBlockFilesWait func(context.Context) error
 
@@ -69,20 +63,19 @@ func newFuncManagerWorkerBlockFiles(
 			saveBlockFiles,
 		); {
 		case err != nil:
-			return nil, nil, closef(err)
+			return nil, nil, wctxCancel(err)
 		default:
 			receiveWorkerBlockFiles = i
 			receiveWorkerBlockFilesWait = w
 		}
 
 		return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
-				// FIXME handle the delayed lazy workers
-				return contextCauseError(wctx, ifErrErrorFunc(closef), func(ctx context.Context) error {
+				return contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(ctx context.Context) error {
 					return receiveWorkerBlockFiles(ctx, worker, f)
 				})
 			},
 			func() error {
-				return contextCauseError(wctx, closef, receiveWorkerBlockFilesWait)
+				return contextCauseError(wctx, wctxCancel, receiveWorkerBlockFilesWait)
 			},
 			nil
 	}
@@ -112,39 +105,32 @@ func newManagerWorkerWorkerBlockFiles(
 	_, done, wait := NewDoneContextFunc(ctx)
 
 	return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
-			checksums := util.NewSingleLockedMap[base.BlockItemType, []string]()
-			defer checksums.Close()
+			checksums := map[base.BlockItemType][]string{}
 
-			switch ok, enough, failed, err := checkWorker(
-				worker,
-				func() error {
-					return f(func(it base.BlockItemType, cs []string) error {
-						switch {
-						case util.IsDuplicatedSlice(cs, func(s string) (bool, string) { return true, s }):
-							return errors.Errorf("duplicated checksums")
-						case len(cs) < 1:
-							return nil
-						default:
-							_ = checksums.SetValue(it, cs)
+			gerr := f(func(it base.BlockItemType, cs []string) error {
+				switch {
+				case util.IsDuplicatedSlice(cs, func(s string) (bool, string) { return true, s }):
+					return errors.Errorf("duplicated checksums")
+				case len(cs) < 1:
+					return nil
+				default:
+					checksums[it] = cs
 
-							return nil
-						}
-					})
-				},
-			); {
+					return nil
+				}
+			})
+
+			if gerr == nil {
+				gerr = saveBlockFiles(worker, checksums)
+			}
+
+			switch _, enough, failed, err := checkWorker(worker, func() error { return gerr }); {
 			case failed:
 				return done(err)
 			case err != nil:
 				return nil
-			case !ok:
-			default:
-				if err := saveBlockFiles(worker, checksums.Map()); err != nil {
-					return done(err)
-				}
-
-				if enough {
-					return done(nil)
-				}
+			case enough:
+				return done(nil)
 			}
 
 			return nil

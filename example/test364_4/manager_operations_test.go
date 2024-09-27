@@ -404,9 +404,14 @@ func (t *testManagerWorkersOperations) TestOps() {
 			return nil
 		}))
 
-		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			return u(worker, nil)
-		})
+		go func() {
+			err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+				return u(worker, nil)
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
 
 		t.NoError(tf(func(tr fixedtree.Tree) error {
 			t.Equal(5, tr.Len())

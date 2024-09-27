@@ -244,6 +244,53 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 			t.Fail("unexpected wait done", err)
 		}
 	})
+
+	t.Run("receive over enough", func() {
+		args := t.newArgs()
+		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		workers := t.workers(33)
+
+		sent := map[string]map[base.BlockItemType][]string{}
+
+		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+			sent[worker] = map[base.BlockItemType][]string{base.BlockItemOperations: t.randomChecksums(3)}
+
+			return true, nil
+		})
+
+		received := util.NewSingleLockedMap[string, map[base.BlockItemType][]string]()
+
+		receive, done, err := f(ctx, 2, 0, func(worker string, checksums map[base.BlockItemType][]string) error {
+			fmt.Printf("receive: worker=%q checksums=%v\n", worker, checksums)
+
+			received.SetValue(worker, checksums)
+
+			return nil
+		})
+		t.NoError(err)
+
+		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
+				for it := range sent[worker] {
+					if err := f(it, sent[worker][it]); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}))
+
+			return true, nil
+		})
+
+		t.NoError(done())
+
+		t.Equal(sent, received.Map())
+	})
 }
 
 func (t *testManagerWorkerBlockFiles) TestReceive() {

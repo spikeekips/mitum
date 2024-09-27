@@ -32,7 +32,7 @@ func (t *testManagerSave) TestCancel() {
 
 		cancel()
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -57,10 +57,10 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.ErrorIs(pf(t.newProposal()), context.Canceled)
+		t.ErrorIs(pf(t.newProposal(3)), context.Canceled)
 		t.ErrorIs(ivpf(t.newINITVoteproof()), context.Canceled)
 		t.ErrorIs(otf(t.newOperationsTree()), context.Canceled)
-		t.ErrorIs(stf(t.newStatesTree()), context.Canceled)
+		t.ErrorIs(stf(t.newStatesTree(33)), context.Canceled)
 		t.ErrorIs(mf(t.newManifest()), context.Canceled)
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -74,7 +74,7 @@ func (t *testManagerSave) TestCancel() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -99,13 +99,13 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 
 		cancel()
 
 		t.ErrorIs(ivpf(t.newINITVoteproof()), context.Canceled)
 		t.ErrorIs(otf(t.newOperationsTree()), context.Canceled)
-		t.ErrorIs(stf(t.newStatesTree()), context.Canceled)
+		t.ErrorIs(stf(t.newStatesTree(33)), context.Canceled)
 		t.ErrorIs(mf(t.newManifest()), context.Canceled)
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -119,7 +119,7 @@ func (t *testManagerSave) TestCancel() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -144,13 +144,13 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 
 		cancel()
 
 		t.ErrorIs(otf(t.newOperationsTree()), context.Canceled)
-		t.ErrorIs(stf(t.newStatesTree()), context.Canceled)
+		t.ErrorIs(stf(t.newStatesTree(33)), context.Canceled)
 		t.ErrorIs(mf(t.newManifest()), context.Canceled)
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -164,7 +164,7 @@ func (t *testManagerSave) TestCancel() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -189,13 +189,13 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 
 		cancel()
 
-		t.ErrorIs(stf(t.newStatesTree()), context.Canceled)
+		t.ErrorIs(stf(t.newStatesTree(33)), context.Canceled)
 		t.ErrorIs(mf(t.newManifest()), context.Canceled)
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -209,7 +209,7 @@ func (t *testManagerSave) TestCancel() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -234,10 +234,10 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
-		t.NoError(stf(t.newStatesTree()))
+		t.NoError(stf(t.newStatesTree(33)))
 
 		cancel()
 
@@ -254,7 +254,7 @@ func (t *testManagerSave) TestCancel() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -279,10 +279,10 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
-		t.NoError(stf(t.newStatesTree()))
+		t.NoError(stf(t.newStatesTree(33)))
 		t.NoError(mf(t.newManifest()))
 
 		cancel()
@@ -306,7 +306,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -331,10 +331,10 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		ifErrorContains(pf(t.newProposal()), "proposal")
+		ifErrorContains(pf(t.newProposal(3)), "proposal")
 		ifErrorContains(ivpf(t.newINITVoteproof()), "proposal")
 		ifErrorContains(otf(t.newOperationsTree()), "proposal")
-		ifErrorContains(stf(t.newStatesTree()), "proposal")
+		ifErrorContains(stf(t.newStatesTree(33)), "proposal")
 		ifErrorContains(mf(t.newManifest()), "proposal")
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -348,7 +348,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -373,11 +373,11 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 
 		ifErrorContains(ivpf(t.newINITVoteproof()), "ivp")
 		ifErrorContains(otf(t.newOperationsTree()), "ivp")
-		ifErrorContains(stf(t.newStatesTree()), "ivp")
+		ifErrorContains(stf(t.newStatesTree(33)), "ivp")
 		ifErrorContains(mf(t.newManifest()), "ivp")
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -391,7 +391,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -416,11 +416,11 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 
 		ifErrorContains(otf(t.newOperationsTree()), "operations tree")
-		ifErrorContains(stf(t.newStatesTree()), "operations tree")
+		ifErrorContains(stf(t.newStatesTree(33)), "operations tree")
 		ifErrorContains(mf(t.newManifest()), "operations tree")
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -434,7 +434,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -459,11 +459,11 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 
-		ifErrorContains(stf(t.newStatesTree()), "states tree")
+		ifErrorContains(stf(t.newStatesTree(33)), "states tree")
 		ifErrorContains(mf(t.newManifest()), "states tree")
 
 		bm, err := avpf(t.newACCEPTVoteproof())
@@ -477,7 +477,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -502,10 +502,10 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
-		t.NoError(stf(t.newStatesTree()))
+		t.NoError(stf(t.newStatesTree(33)))
 
 		ifErrorContains(mf(nil), "nil manifest")
 
@@ -520,7 +520,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -545,10 +545,10 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
-		t.NoError(stf(t.newStatesTree()))
+		t.NoError(stf(t.newStatesTree(33)))
 
 		t.NoError(mf(t.newManifest()))
 
@@ -563,7 +563,7 @@ func (t *testManagerSave) TestError() {
 
 		f := newFuncManagerSave(t.newArgs())
 
-		pf, ivpf, otf, stf, mf, avpf, err := f(
+		pf, ivpf, otf, stf, mf, avpf, _, err := f(
 			ctx,
 			util.UUID().String(),
 			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
@@ -588,10 +588,10 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal()))
+		t.NoError(pf(t.newProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
-		t.NoError(stf(t.newStatesTree()))
+		t.NoError(stf(t.newStatesTree(33)))
 
 		t.NoError(mf(t.newManifest()))
 
@@ -607,11 +607,11 @@ func (t *testManagerSave) TestSave() {
 
 	f := newFuncManagerSave(t.newArgs())
 
-	proposal := t.newProposal()
+	proposal := t.newProposal(3)
 	ivp := t.newINITVoteproof()
 	avp := t.newACCEPTVoteproof()
 	opsTree := t.newOperationsTree()
-	statesTree := t.newStatesTree()
+	statesTree := t.newStatesTree(33)
 	manifest := t.newManifest()
 
 	proposalItem := t.newItem(base.BlockItemProposal)
@@ -632,7 +632,7 @@ func (t *testManagerSave) TestSave() {
 		t.newBlockFileChunk(),
 	}
 
-	pf, ivpf, otf, stf, mf, avpf, err := f(
+	pf, ivpf, otf, stf, mf, avpf, _, err := f(
 		ctx,
 		util.UUID().String(),
 		func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {

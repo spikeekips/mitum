@@ -25,9 +25,12 @@ func (t *testManagerStartWorkers) newArgs() *managerStartWorkersArgs {
 	) {
 		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
-	args.StartWorker = func(context.Context, string) error { return nil }
 
 	return args
+}
+
+func (t *testManagerStartWorkers) defaultStartWorker() func(context.Context, string) error {
+	return func(context.Context, string) error { return nil }
 }
 
 func (t *testManagerStartWorkers) TestNew() {
@@ -41,7 +44,7 @@ func (t *testManagerStartWorkers) TestNew() {
 	addWorker, doneWorker, err := util.CompactAppendSliceV1[string](3)
 	t.NoError(err)
 
-	args.StartWorker = func(_ context.Context, worker string) error {
+	startWorker := func(_ context.Context, worker string) error {
 		if n, _ := addWorker(worker); n < 1 {
 			return errors.Errorf("add worker, %q", worker)
 		}
@@ -49,7 +52,7 @@ func (t *testManagerStartWorkers) TestNew() {
 		return nil
 	}
 
-	t.NoError(newManagerStartWorkers(ctx, args, workers, 0))
+	t.NoError(newManagerStartWorkers(ctx, args, workers, 0, startWorker))
 
 	doneWorker(func(s []string) error {
 		slices.Sort(s)
@@ -80,7 +83,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 		addWorker, doneWorker, err := util.CompactAppendSliceV1[string](uint64(len(workers)))
 		t.NoError(err)
 
-		args.StartWorker = func(_ context.Context, worker string) error {
+		startWorker := func(_ context.Context, worker string) error {
 			if _, found := failedWorkers[worker]; found {
 				return errors.Errorf("showme")
 			}
@@ -92,7 +95,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 			return nil
 		}
 
-		t.NoError(newManagerStartWorkers(ctx, args, workers, 3))
+		t.NoError(newManagerStartWorkers(ctx, args, workers, 3, startWorker))
 
 		doneWorker(func(s []string) error {
 			slices.Sort(s)
@@ -116,7 +119,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 
 		args := t.newArgs()
 
-		args.StartWorker = func(_ context.Context, worker string) error {
+		startWorker := func(_ context.Context, worker string) error {
 			if _, found := failedWorkers[worker]; found {
 				return errors.Errorf("showme")
 			}
@@ -124,7 +127,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 			return nil
 		}
 
-		err := newManagerStartWorkers(ctx, args, workers, 3)
+		err := newManagerStartWorkers(ctx, args, workers, 3, startWorker)
 		t.ErrorContains(err, "showme")
 	})
 }

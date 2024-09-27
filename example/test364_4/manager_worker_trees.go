@@ -13,8 +13,8 @@ type (
 	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
 	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, workID string, ophs [][2]util.Hash) (
 		managerWorkersOperationsFunc,
-		managerWorkersOperationsWorkerUnmergedFunc,
-		managerWorkersWorkerStatesFunc,
+		managerWorkerUnmergedFunc,
+		managerWorkerStatesFunc,
 		managerWorkersDoneTreesFunc,
 		error,
 	)
@@ -73,8 +73,8 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		ophs [][2]util.Hash,
 	) (
 		managerWorkersOperationsFunc,
-		managerWorkersOperationsWorkerUnmergedFunc,
-		managerWorkersWorkerStatesFunc,
+		managerWorkerUnmergedFunc,
+		managerWorkerStatesFunc,
 		managerWorkersDoneTreesFunc,
 		error,
 	) {
@@ -91,7 +91,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
 
 		var opsDistribute managerWorkersOperationsFunc
-		var opsUnmerged managerWorkersOperationsWorkerUnmergedFunc
+		var opsUnmerged managerWorkerUnmergedFunc
 		var opsTreef managerWorkersTreeFunc
 
 		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, workers, opsShare, ophs); {
@@ -103,7 +103,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 			opsTreef = t
 		}
 
-		var statesWorker managerWorkersWorkerStatesFunc
+		var statesWorker managerWorkerStatesFunc
 		var statesTreef managerWorkersTreeFunc
 
 		switch s, t, err := newManagerWorkersStates(wctx, sargs, workers, statesMinEnough, statesMaxFailed); {

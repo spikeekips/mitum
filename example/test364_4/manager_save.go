@@ -22,6 +22,7 @@ type (
 	managerSaveStatesTreeFunc      func(fixedtree.Tree) error
 	managerSaveManifestFunc        func(base.Manifest) error
 	managerSaveACCEPTVoteproofFunc func(base.ACCEPTVoteproof) (BlockMap, error)
+	managerSaveSetBlockMapItem     func(BlockMapItem) error
 	managerSaveFunc                func(
 		_ context.Context,
 		workID string,
@@ -36,6 +37,7 @@ type (
 		managerSaveStatesTreeFunc,
 		managerSaveManifestFunc,
 		managerSaveACCEPTVoteproofFunc,
+		managerSaveSetBlockMapItem,
 		error,
 	)
 )
@@ -71,6 +73,7 @@ func newFuncManagerSave(
 		managerSaveStatesTreeFunc,
 		managerSaveManifestFunc,
 		managerSaveACCEPTVoteproofFunc,
+		managerSaveSetBlockMapItem,
 		error,
 	) {
 		wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -79,7 +82,7 @@ func newFuncManagerSave(
 
 		switch i, err := NewBaseJobWorker(wctx, 6); {
 		case err != nil:
-			return nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, err
 		default:
 			jw = i
 		}
@@ -96,7 +99,7 @@ func newFuncManagerSave(
 
 		switch i, a, err := voteproofsWriter(wctx, workID); {
 		case err != nil:
-			return nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, err
 		default:
 			ivpWriter = i
 			avpWriter = a
@@ -164,13 +167,14 @@ func newFuncManagerSave(
 					}
 				})
 			},
+			setItem,
 			nil
 	}
 }
 
 func newMakeBlockMapFunc(expired time.Duration) (
 	func(base.Manifest) error,
-	func(BlockMapItem) error,
+	managerSaveSetBlockMapItem,
 	func() (BlockMap, error),
 ) {
 	var l sync.Mutex
@@ -208,6 +212,9 @@ func newMakeBlockMapFunc(expired time.Duration) (
 		},
 		func() (BlockMap, error) {
 			if manifest == nil {
+				clear(items)
+				items = nil
+
 				return nil, util.ErrNotFound.Errorf("manifest")
 			}
 
@@ -223,7 +230,7 @@ func managerSaveTreeWithNewJob(
 	it base.BlockItemType,
 	tr fixedtree.Tree,
 	writer blockFileWriterTreeFunc,
-	setItem func(BlockMapItem) error,
+	setItem managerSaveSetBlockMapItem,
 ) error {
 	return contextCauseErrorWithNewJob(ctx, cancelf, newJob, func(context.Context) error {
 		switch cs, err := writer(ctx, workID, tr); {

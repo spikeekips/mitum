@@ -17,7 +17,6 @@ type managerStartWorkersFunc func(
 type managerStartWorkersArgs struct {
 	*logging.Logging
 	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
-	StartWorker         func(_ context.Context, worker string) error
 }
 
 func newManagerStartWorkersArgs() *managerStartWorkersArgs {
@@ -32,9 +31,6 @@ func newManagerStartWorkersArgs() *managerStartWorkersArgs {
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
 		},
-		StartWorker: func(context.Context, string) error {
-			return util.ErrNotImplemented.Errorf("StartWorker")
-		},
 	}
 }
 
@@ -43,6 +39,7 @@ func newManagerStartWorkers(
 	args *managerStartWorkersArgs,
 	workers []string,
 	maxFailed uint64,
+	startWorker func(_ context.Context, worker string) error,
 ) error {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
 	defer wctxCancel(nil)
@@ -72,7 +69,7 @@ func newManagerStartWorkers(
 	if err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
 		return true, jw.NewJob(func(ctx context.Context) error {
 			switch _, _, failed, err := checkWorker(worker, func() error {
-				return args.StartWorker(ctx, worker)
+				return startWorker(ctx, worker)
 			}); {
 			case failed:
 				return err
