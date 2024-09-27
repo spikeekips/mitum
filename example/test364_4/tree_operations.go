@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -52,22 +53,25 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 		}
 
 		var treeAdd func(uint64, fixedtree.Node, bool) error
-		var treeAddDone func()
+		var treeAddTree func() (fixedtree.Tree, error)
 
-		switch a, d, err := treeAddOperationNode(opsSize, tw.Add); {
+		switch a, t, err := treeAddOperationNode(tw); {
 		case err != nil:
 			return nil, nil, nil, wctxCancel(err)
 		default:
 			treeAdd = a
-			treeAddDone = d
+			treeAddTree = t
 		}
 
-		_, initialTreeAdd, initialTreeAddDone := NewDoneContextFunc(wctx)
+		_, initialTreeAddDone, initialTreeAddWait := NewDoneContextFunc(wctx)
+
 		go func() {
-			_ = initialTreeAdd(ifErrorClose(util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
+			_ = initialTreeAddDone(ifErrorClose(util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
 				return true, treeAdd(uint64(i), base.NewInStateOperationFixedtreeNode(hs[1], ""), false)
 			})))
 		}()
+
+		_, treeAddDone, treeAddWait := NewDoneContextFunc(wctx)
 
 		setNotInState := func(opindex uint64) error {
 			if opindex >= opsSize {
@@ -79,7 +83,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 
 		closef := OnceFuncCallback(func(err error) error {
 			wctxCancel(err)
-			treeAddDone()
+			treeAddTree()
 
 			return err
 		})
@@ -110,11 +114,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 					wctx,
 					ifErrErrorFunc(closef),
 					func(context.Context) error {
-						if err != nil {
-							return err
-						}
-
-						return initialTreeAddDone()
+						return treeAddDone(err)
 					},
 				)
 			},
@@ -127,9 +127,15 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 							return err
 						}
 
-						treeAddDone()
+						if err := initialTreeAddWait(); err != nil {
+							return err
+						}
 
-						switch t, err := tw.Tree(); {
+						if err := treeAddWait(); err != nil {
+							return err
+						}
+
+						switch t, err := treeAddTree(); {
 						case err != nil:
 							return err
 						default:
@@ -144,22 +150,21 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 	}
 }
 
-func treeAddOperationNode(
-	size uint64,
-	add func(uint64, fixedtree.Node) error,
-) (
+func treeAddOperationNode(tw *fixedtree.Writer) (
 	func(opindex uint64, _ fixedtree.Node, _ bool) error,
-	func(),
+	func() (fixedtree.Tree, error),
 	error,
 ) {
 	var m util.LockedMap[uint64 /* opindex */, struct{}]
 
-	switch i, err := util.NewLockedMap[uint64, struct{}](size, nil); {
+	switch i, err := util.NewLockedMap[uint64, struct{}](uint64(tw.Len()), nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		m = i
 	}
+
+	var twlock sync.RWMutex
 
 	return func(opindex uint64, n fixedtree.Node, notInStates bool) error {
 			_, _, err := m.Set(opindex, func(_ struct{}, found bool) (struct{}, error) {
@@ -167,11 +172,21 @@ func treeAddOperationNode(
 					return struct{}{}, util.ErrLockedSetIgnore
 				}
 
-				return struct{}{}, add(opindex, n)
+				twlock.RLock()
+				defer twlock.RUnlock()
+
+				return struct{}{}, tw.Add(opindex, n)
 			})
 
 			return err
 		},
-		m.Close,
+		func() (tr fixedtree.Tree, _ error) {
+			defer m.Close()
+
+			twlock.Lock()
+			defer twlock.Unlock()
+
+			return tw.Tree()
+		},
 		nil
 }
