@@ -126,7 +126,7 @@ func newManagerWorkerWorkerBlockFiles(
 
 			switch _, enough, failed, err := checkWorker(worker, func() error { return gerr }); {
 			case failed:
-				return done(err)
+				return done(errCheckWorkersFailed.Wrap(err))
 			case err != nil:
 				return nil
 			case enough:

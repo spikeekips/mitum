@@ -48,8 +48,6 @@ func newFuncBaseBlockFileChunkWriter(
 				donef := util.EmptyLocked[blockFileDoneFileFunc]()
 
 				done := func(err error, filenameBody string) (string, error) {
-					_ = checksumf()
-
 					if f, isempty := donef.Value(); !isempty {
 						return f(err, filenameBody)
 					}
@@ -71,7 +69,11 @@ func newFuncBaseBlockFileChunkWriter(
 						write, checksumf = newChecksumWrite(w)
 
 						compressFormat = c
-						donef.SetValue(d)
+						donef.SetValue(func(err error, filenameBody string) (string, error) {
+							_ = checksumf()
+
+							return d(err, filenameBody)
+						})
 					}
 
 					if header != nil {

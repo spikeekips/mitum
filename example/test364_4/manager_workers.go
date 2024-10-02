@@ -72,7 +72,7 @@ func newManagerStartWorkers(
 				return startWorker(ctx, worker)
 			}); {
 			case failed:
-				return err
+				return errCheckWorkersFailed.Wrap(err)
 			default:
 				return nil
 			}

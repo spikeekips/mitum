@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -330,6 +332,7 @@ func (t *testManager) TestStart() {
 
 			return nil
 		})
+		t.ErrorIs(err, errCheckWorkersFailed)
 		t.ErrorContains(err, "findme")
 	})
 
@@ -352,147 +355,188 @@ func (t *testManager) TestStart() {
 	})
 }
 
-func (t *testManager) TestManifest() {
+func (t *testManager) baseItems() (
+	pr base.ProposalSignFact,
+	ivp base.INITVoteproof,
+	avp base.ACCEPTVoteproof,
+	opsTree, statesTree fixedtree.Tree,
+	manifest base.Manifest,
+) {
+	pr = t.newProposal(3)
+	ivp = t.newINITVoteproof()
+	avp = t.newACCEPTVoteproof()
+
+	ophs := make([]util.Hash, len(pr.ProposalFact().Operations()))
+	util.TraverseSliceV1(pr.ProposalFact().Operations(), func(i int, h [2]util.Hash) (bool, error) {
+		ophs[i] = h[1]
+
+		return true, nil
+	})
+
+	opsTree = t.newOperationsTreeWithOps(ophs)
+	statesTree = t.newStatesTree(33)
+
+	dm := t.newManifest()
+	dm.SetHeight(pr.Point().Height())
+	dm.SetProposal(pr.Fact().Hash())
+	dm.SetProposedAt(pr.ProposalFact().ProposedAt())
+
+	dm.SetOperationsTree(opsTree.Root())
+	dm.SetStatesTree(statesTree.Root())
+
+	manifest = dm
+
+	return
+}
+
+func (t *testManager) blockMapItems(
+	workID string,
+	nworkers int,
+	pr base.ProposalSignFact,
+	ivp base.INITVoteproof,
+	avp base.ACCEPTVoteproof,
+	opsTree, statesTree fixedtree.Tree,
+) (
+	checksums map[base.BlockItemType][]string,
+	blockMapItemProposal,
+	blockMapItemOperations,
+	blockMapItemStates,
+	blockMapItemVoteproofs,
+	blockMapItemOpsTree,
+	blockMapItemStatesTree BlockMapItem,
+) {
+	checksums = map[base.BlockItemType][]string{}
+	checksums[base.BlockItemOperations] = t.checksums(nworkers * 3)
+	checksums[base.BlockItemStates] = t.checksums(nworkers * 3)
+
+	blockMapItemOperations = newBaseBlockMapItem(base.BlockItemOperations, baseBlockMapItemChecksum(checksums[base.BlockItemOperations]), true)
+	blockMapItemStates = newBaseBlockMapItem(base.BlockItemStates, baseBlockMapItemChecksum(checksums[base.BlockItemStates]), true)
+
+	{
+		bi, err := t.newProposalWriter()(context.Background(), workID, pr)
+		t.NoError(err)
+		blockMapItemProposal = bi
+	}
+
+	{
+		sivp, savp, err := t.newVoteproofsWriter()(context.Background(), workID)
+		t.NoError(err)
+		t.NoError(sivp(ivp))
+		bi, err := savp(avp)
+		t.NoError(err)
+
+		blockMapItemVoteproofs = bi
+	}
+
+	{
+		chunks, err := t.newOperationsTreeWriter()(context.Background(), workID, opsTree)
+		t.NoError(err)
+		blockMapItemOpsTree = newBlockMapItemFromChunks(base.BlockItemOperationsTree, chunks)
+	}
+
+	{
+		chunks, err := t.newStatesTreeWriter()(context.Background(), workID, statesTree)
+		t.NoError(err)
+		blockMapItemStatesTree = newBlockMapItemFromChunks(base.BlockItemStatesTree, chunks)
+	}
+
+	return
+}
+
+func (t *testManager) defaultStartWorker() func(context.Context, string) error {
+	return func(_ context.Context, worker string) error {
+		fmt.Printf("start: worker=%q\n", worker)
+
+		return nil
+	}
+}
+
+func (t *testManager) defaultDistributeOps() managerWorkerOperationsFunc {
+	return func(_ context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
+		fmt.Printf("distribute: worker=%q\n", worker)
+
+		return f(func(opindex uint64, oph, _ util.Hash) error {
+			fmt.Printf("distribute op: worker=%q opindex=%d oph=%v\n", worker, opindex, oph)
+
+			return nil
+		})
+	}
+}
+
+func (t *testManager) defaultWorkersUnmerge(workers []string, unmerge managerWorkerUnmergedFunc) error {
+	return util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+		fmt.Printf("worker unmerge: worker=%q\n", worker)
+
+		return unmerge(worker, nil)
+	})
+}
+
+func (t *testManager) defaultWorkersStates(
+	workers []string,
+	statesTree fixedtree.Tree,
+	w managerWorkerStatesFunc,
+) error {
+	nodes := statesTree.Nodes()
+
+	return util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+		fmt.Printf("worker states: worker=%q\n", worker)
+
+		d := statesTree.Len() / len(workers)
+		s := slices.Index(workers, worker) * d
+
+		return true, w(context.Background(), worker, func(f func(string) error) error {
+			return util.TraverseSliceV1(nodes[s:s+d], func(_ int, n fixedtree.Node) (bool, error) {
+				return true, f(n.Key())
+			})
+		})
+	})
+}
+
+func (t *testManager) defaultWorkersBlockFiles(
+	workers []string,
+	checksums map[base.BlockItemType][]string,
+	w managerWorkerBlockFileReceiveFunc,
+) error {
+	return util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+		return true, w(context.Background(), worker, func(bf managerWorkerBlockFileReceiveChecksumsFunc) error {
+			fmt.Printf("worker block files: worker=%q\n", worker)
+
+			for it := range checksums {
+				cs := checksums[it]
+				d := len(cs) / len(workers)
+				s := slices.Index(workers, worker) * d
+
+				if err := bf(it, cs[s:s+d]); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+	})
+}
+
+func (t *testManager) TestManifestAndSave() {
 	t.Run("ok: 3 workers", func() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr := t.newProposal(3)
-		ivp := t.newINITVoteproof()
-		avp := t.newACCEPTVoteproof()
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, expectedManifest := t.baseItems()
 
-		ophs := make([]util.Hash, len(pr.ProposalFact().Operations()))
-		util.TraverseSliceV1(pr.ProposalFact().Operations(), func(i int, h [2]util.Hash) (bool, error) {
-			ophs[i] = h[1]
-
-			return true, nil
-		})
-
-		expectedOpsTree := t.newOperationsTreeWithOps(ophs)
-		expectedStatesTree := t.newStatesTree(33)
-		t.T().Log("ops tree:", expectedOpsTree.Root())
-		t.T().Log("state tree:", expectedStatesTree.Root())
-
-		expectedManifest := t.newManifest()
-		expectedManifest.SetHeight(pr.Point().Height())
-		expectedManifest.SetProposal(pr.Fact().Hash())
-		expectedManifest.SetProposedAt(pr.ProposalFact().ProposedAt())
-
-		expectedManifest.SetOperationsTree(expectedOpsTree.Root())
-		expectedManifest.SetStatesTree(expectedStatesTree.Root())
-
-		expectedChecksums := map[base.BlockItemType][]string{}
-		expectedChecksums[base.BlockItemOperations] = t.checksums(len(workers) * 3)
-		expectedChecksums[base.BlockItemStates] = t.checksums(len(workers) * 3)
-
-		expectedBlockItemOperations := newBaseBlockMapItem(base.BlockItemOperations, baseBlockMapItemChecksum(expectedChecksums[base.BlockItemOperations]), true)
-		expectedBlockItemStates := newBaseBlockMapItem(base.BlockItemStates, baseBlockMapItemChecksum(expectedChecksums[base.BlockItemStates]), true)
-
-		proposalWriter := t.newProposalWriter()
-		expectedBlockItemProposal, err := proposalWriter(context.Background(), workID, pr)
-		t.NoError(err)
-
-		voteproofsWriter := t.newVoteproofsWriter()
-		var expectedBlockItemVoteproofs BlockMapItem
-		{
-			sivp, savp, err := voteproofsWriter(context.Background(), workID)
-			t.NoError(err)
-			t.NoError(sivp(ivp))
-			expectedBlockItemVoteproofs, err = savp(avp)
-			t.NoError(err)
-		}
-
-		opsTreeWriter := t.newOperationsTreeWriter()
-		var expectedBlockItemOpsTree BlockMapItem
-		{
-			chunks, err := opsTreeWriter(context.Background(), workID, expectedOpsTree)
-			t.NoError(err)
-			expectedBlockItemOpsTree = newBlockMapItemFromChunks(base.BlockItemOperationsTree, chunks)
-		}
-
-		statesTreeWriter := t.newStatesTreeWriter()
-		var expectedBlockItemstatesTree BlockMapItem
-		{
-			chunks, err := statesTreeWriter(context.Background(), workID, expectedStatesTree)
-			t.NoError(err)
-			expectedBlockItemstatesTree = newBlockMapItemFromChunks(base.BlockItemStatesTree, chunks)
-		}
+		expectedChecksums, expectedBlockItemProposal, expectedBlockItemOperations, expectedBlockItemStates, expectedBlockItemVoteproofs, expectedBlockItemOpsTree, expectedBlockItemStatesTree := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
 		f := t.newFunc()
 
-		p, err := f(context.Background(), workers, 1, 1, workID, func(_ context.Context, worker string) error {
-			fmt.Printf("start: worker=%q\n", worker)
-
-			return nil
-		})
+		p, err := f(context.Background(), workers, 1, 1, workID, t.defaultStartWorker())
 		t.NoError(err)
 
 		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
 		t.NoError(err)
 
-		t.NoError(distributeOps(func(_ context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
-			fmt.Printf("distribute: worker=%q\n", worker)
-
-			return f(func(opindex uint64, oph, _ util.Hash) error {
-				fmt.Printf("distribute op: worker=%q opindex=%d oph=%v\n", worker, opindex, oph)
-
-				return nil
-			})
-		}))
-
-		go func() {
-			err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-				fmt.Printf("worker unmerge: worker=%q\n", worker)
-
-				return workerUnmerge(worker, nil)
-			})
-			if err != nil {
-				panic(err)
-			}
-		}()
-
-		go func() {
-			nodes := expectedStatesTree.Nodes()
-
-			err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-				fmt.Printf("worker states: worker=%q\n", worker)
-
-				d := expectedStatesTree.Len() / len(workers)
-				s := slices.Index(workers, worker) * d
-
-				return true, workerStates(context.Background(), worker, func(f func(string) error) error {
-					return util.TraverseSliceV1(nodes[s:s+d], func(_ int, n fixedtree.Node) (bool, error) {
-						return true, f(n.Key())
-					})
-				})
-			})
-			if err != nil {
-				panic(err)
-			}
-		}()
-
-		go func() {
-			err := util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-				return true, workerBlockFiles(context.Background(), worker, func(bf managerWorkerBlockFileReceiveChecksumsFunc) error {
-					fmt.Printf("worker block files: worker=%q\n", worker)
-
-					for it := range expectedChecksums {
-						cs := expectedChecksums[it]
-						d := len(cs) / len(workers)
-						s := slices.Index(workers, worker) * d
-
-						if err := bf(it, cs[s:s+d]); err != nil {
-							return err
-						}
-					}
-
-					return nil
-				})
-			})
-			if err != nil {
-				panic(err)
-			}
-		}()
+		go ifErrorPanic(distributeOps(t.defaultDistributeOps()))
+		go ifErrorPanic(t.defaultWorkersUnmerge(workers, workerUnmerge))
+		go ifErrorPanic(t.defaultWorkersStates(workers, expectedStatesTree, workerStates))
+		go ifErrorPanic(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles))
 
 		save, err := mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
 			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
@@ -517,10 +561,10 @@ func (t *testManager) TestManifest() {
 
 		bm, err := save(
 			avp,
-			proposalWriter,
-			voteproofsWriter,
-			opsTreeWriter,
-			statesTreeWriter,
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
 			t.newMapWriter(),
 		)
 		t.NoError(err)
@@ -549,7 +593,470 @@ func (t *testManager) TestManifest() {
 
 		itemst, found := bm.Item(base.BlockItemStatesTree)
 		t.True(found)
-		base.IsEqualBlockMapItem(expectedBlockItemstatesTree, itemst)
+		base.IsEqualBlockMapItem(expectedBlockItemStatesTree, itemst)
+	})
+
+	t.Run("cancel before trees", func() {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		p, err := f(ctx, workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		doneDistribute := make(chan struct{}, 1)
+		go func() {
+			ifErrorPanic(distributeOps(t.defaultDistributeOps()))
+
+			close(doneDistribute)
+		}()
+
+		doneUnmerge := make(chan struct{}, 1)
+		go func() {
+			ifErrorPanic(t.defaultWorkersUnmerge(workers, workerUnmerge))
+
+			close(doneUnmerge)
+		}()
+
+		doneStates := make(chan struct{}, 1)
+		go func() {
+			ifErrorPanic(t.defaultWorkersStates(workers, expectedStatesTree, workerStates))
+
+			close(doneStates)
+		}()
+
+		doneBlockFiles := make(chan struct{}, 1)
+		go func() {
+			ifErrorPanic(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles))
+
+			close(doneBlockFiles)
+		}()
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("wait distribute done")
+		case <-doneDistribute:
+		}
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("wait unmerge done")
+		case <-doneUnmerge:
+		}
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("wait states done")
+		case <-doneStates:
+		}
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("wait blockfiles done")
+		case <-doneBlockFiles:
+		}
+
+		cancel()
+
+		_, err = mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			return t.newManifest(), nil
+		})
+		t.ErrorIs(err, context.Canceled)
+	})
+
+	t.Run("cancel after trees", func() {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		p, err := f(ctx, workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		go ifErrorPanic(distributeOps(t.defaultDistributeOps()))
+		go ifErrorPanic(t.defaultWorkersUnmerge(workers, workerUnmerge))
+		go ifErrorPanic(t.defaultWorkersStates(workers, expectedStatesTree, workerStates))
+		go ifErrorPanic(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles))
+
+		save, err := mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			cancel()
+
+			return t.newManifest(), nil
+		})
+		t.NoError(err)
+
+		_, err = save(
+			avp,
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
+			t.newMapWriter(),
+		)
+		t.ErrorIs(err, context.Canceled)
+	})
+}
+
+func (t *testManager) TestWorkersFails() {
+	checkError := func(err error, expected ...error) {
+		if err == nil {
+			return
+		}
+
+		var found bool
+
+		for i := range expected {
+			if errors.Is(err, expected[i]) {
+				found = true
+			}
+		}
+
+		if !found {
+			panic(err)
+		}
+	}
+
+	t.Run("distribute: over max failed", func() {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		p, err := f(ctx, workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		err = distributeOps(func(_ context.Context, worker string, f func(managerWorkerOperationFunc) error) error {
+			fmt.Printf("distribute: worker=%q\n", worker)
+
+			if worker == workers[2] {
+				return errors.Errorf("showme")
+			}
+
+			return f(func(opindex uint64, oph, _ util.Hash) error {
+				fmt.Printf("distribute op: worker=%q opindex=%d oph=%v\n", worker, opindex, oph)
+
+				return nil
+			})
+		})
+		switch {
+		case err == nil:
+			panic("distribute")
+		case !strings.Contains(err.Error(), "showme"):
+			panic(err)
+		}
+
+		go checkError(t.defaultWorkersUnmerge(workers, workerUnmerge), errCheckWorkersFailed)
+		go checkError(t.defaultWorkersStates(workers, expectedStatesTree, workerStates), errCheckWorkersFailed)
+		go checkError(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles), errCheckWorkersFailed)
+
+		_, err = mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			return t.newManifest(), nil
+		})
+		t.ErrorIs(err, errCheckWorkersFailed)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("worker states: over max failed", func() {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		p, err := f(ctx, workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		go checkError(distributeOps(t.defaultDistributeOps()), errCheckWorkersFailed)
+		go checkError(t.defaultWorkersUnmerge(workers, workerUnmerge), errCheckWorkersFailed)
+		go func() {
+			nodes := expectedStatesTree.Nodes()
+
+			util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+				fmt.Printf("worker states: worker=%q\n", worker)
+
+				d := expectedStatesTree.Len() / len(workers)
+				s := slices.Index(workers, worker) * d
+
+				err := workerStates(context.Background(), worker, func(f func(string) error) error {
+					if worker == workers[2] {
+						return errors.Errorf("showme")
+					}
+
+					return util.TraverseSliceV1(nodes[s:s+d], func(_ int, n fixedtree.Node) (bool, error) {
+						return true, f(n.Key())
+					})
+				})
+				switch {
+				case err == nil:
+				case !strings.Contains(err.Error(), "showme"):
+					panic(err)
+				}
+
+				return true, nil
+			})
+		}()
+
+		go checkError(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles), errCheckWorkersFailed)
+
+		_, err = mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			return t.newManifest(), nil
+		})
+		t.ErrorIs(err, errCheckWorkersFailed)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("block files: over max failed", func() {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		p, err := f(ctx, workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		go checkError(distributeOps(t.defaultDistributeOps()), errCheckWorkersFailed)
+		go checkError(t.defaultWorkersUnmerge(workers, workerUnmerge), errCheckWorkersFailed)
+		go checkError(t.defaultWorkersStates(workers, expectedStatesTree, workerStates), errCheckWorkersFailed)
+		go func() {
+			util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
+				err := workerBlockFiles(context.Background(), worker, func(bf managerWorkerBlockFileReceiveChecksumsFunc) error {
+					fmt.Printf("worker block files: worker=%q\n", worker)
+
+					if worker == workers[2] {
+						return errors.Errorf("showme")
+					}
+
+					for it := range expectedChecksums {
+						cs := expectedChecksums[it]
+						d := len(cs) / len(workers)
+						s := slices.Index(workers, worker) * d
+
+						if err := bf(it, cs[s:s+d]); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
+				switch {
+				case err == nil:
+				case !strings.Contains(err.Error(), "showme"):
+					panic(err)
+				}
+
+				return true, nil
+			})
+		}()
+
+		save, err := mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			return t.newManifest(), nil
+		})
+		t.NoError(err)
+
+		_, err = save(
+			avp,
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
+			t.newMapWriter(),
+		)
+		t.ErrorIs(err, errCheckWorkersFailed)
+		t.ErrorContains(err, "showme")
+	})
+}
+
+func (t *testManager) TestSaveError() {
+	prepare := func() func(
+		blockFileWriterProposalFunc,
+		blockFileWriterVoteproofsFunc,
+		blockFileWriterTreeFunc,
+		blockFileWriterTreeFunc,
+		blockFileWriterMapFunc,
+	) error {
+		workID := util.UUID().String()
+		workers := t.workers(3)
+
+		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+
+		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
+
+		f := t.newFunc()
+
+		p, err := f(context.Background(), workers, 1, 1, workID, t.defaultStartWorker())
+		t.NoError(err)
+
+		distributeOps, workerUnmerge, workerStates, mf, workerBlockFiles, err := p(pr, ivp)
+		t.NoError(err)
+
+		go ifErrorPanic(distributeOps(t.defaultDistributeOps()))
+		go ifErrorPanic(t.defaultWorkersUnmerge(workers, workerUnmerge))
+		go ifErrorPanic(t.defaultWorkersStates(workers, expectedStatesTree, workerStates))
+		go ifErrorPanic(t.defaultWorkersBlockFiles(workers, expectedChecksums, workerBlockFiles))
+
+		save, err := mf(func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error) {
+			fmt.Printf("trees: ops=%v states=%v\n", opsTree.Root(), statesTree.Root())
+
+			return t.newManifest(), nil
+		})
+		t.NoError(err)
+
+		return func(
+			pf blockFileWriterProposalFunc,
+			vf blockFileWriterVoteproofsFunc,
+			of blockFileWriterTreeFunc,
+			sf blockFileWriterTreeFunc,
+			mf blockFileWriterMapFunc,
+		) error {
+			_, err := save(avp, pf, vf, of, sf, mf)
+
+			return err
+		}
+	}
+
+	t.Run("proposal", func() {
+		save := prepare()
+
+		err := save(
+			func(context.Context, string, base.ProposalSignFact) (BlockMapItem, error) {
+				return nil, errors.Errorf("showme")
+			},
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
+			t.newMapWriter(),
+		)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("voteproofs: init voteproof", func() {
+		save := prepare()
+
+		err := save(
+			t.newProposalWriter(),
+			func(context.Context, string) (
+				func(base.INITVoteproof) error,
+				func(base.ACCEPTVoteproof) (BlockMapItem, error),
+				error,
+			) {
+				return func(base.INITVoteproof) error {
+						return errors.Errorf("showme")
+					},
+					func(base.ACCEPTVoteproof) (BlockMapItem, error) {
+						return nil, nil
+					},
+					nil
+			},
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
+			t.newMapWriter(),
+		)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("ops tree", func() {
+		save := prepare()
+
+		err := save(
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			func(context.Context, string, fixedtree.Tree) ([]blockFileChunk, error) {
+				return nil, errors.Errorf("showme")
+			},
+			t.newStatesTreeWriter(),
+			t.newMapWriter(),
+		)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("states tree", func() {
+		save := prepare()
+
+		err := save(
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			func(context.Context, string, fixedtree.Tree) ([]blockFileChunk, error) {
+				return nil, errors.Errorf("showme")
+			},
+			t.newMapWriter(),
+		)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("map", func() {
+		save := prepare()
+
+		err := save(
+			t.newProposalWriter(),
+			t.newVoteproofsWriter(),
+			t.newOperationsTreeWriter(),
+			t.newStatesTreeWriter(),
+			func(context.Context, string, BlockMap) error {
+				return errors.Errorf("showme")
+			},
+		)
+		t.ErrorContains(err, "showme")
 	})
 }
 
@@ -557,4 +1064,10 @@ func TestManager(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testManager))
+}
+
+func ifErrorPanic(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

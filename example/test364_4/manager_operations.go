@@ -136,7 +136,7 @@ func newManagerWorkersOperations(
 				func(context.Context) error {
 					switch ok, enough, failed, err := checkWorker(worker, nil); {
 					case failed:
-						return err
+						return errCheckWorkersFailed.Wrap(err)
 					case ok, enough:
 						added = ok
 

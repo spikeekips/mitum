@@ -288,11 +288,11 @@ func managerTreesWithProposal(
 			workerBlockFilesDone = d
 		}
 
-		var opsTree, statesTree fixedtree.Tree
-		var manifest base.Manifest
-
 		return workersOperations, workersUnmerged, workersStates,
 			func(f managerSaveWithTreeFunc) (managerSaveWithACCEPTVoteproofFunc, error) {
+				var opsTree, statesTree fixedtree.Tree
+				var manifest base.Manifest
+
 				if err := contextCauseError(ctx, ifErrErrorFunc(ctxCancel), func(context.Context) error {
 					return treesDone(func(ops, states fixedtree.Tree) error {
 						switch m, err := f(ops, states); {
@@ -348,6 +348,11 @@ func managerSaveWithACCEPTVoteproof(
 		opsTreeWriter, statesTreeWriter blockFileWriterTreeFunc,
 		mapWriter blockFileWriterMapFunc,
 	) (bm BlockMap, _ error) {
+		defer func() {
+			opsTree.Close()
+			statesTree.Close()
+		}()
+
 		return bm, contextCauseError(ctx, ctxCancel, func(context.Context) error {
 			if err := workerBlockFilesDone(); err != nil {
 				return err

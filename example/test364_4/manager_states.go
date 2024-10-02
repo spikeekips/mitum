@@ -114,7 +114,7 @@ func newManagerWorkersStates(
 						return gerr
 					}); {
 					case failed:
-						return err
+						return errCheckWorkersFailed.Wrap(err)
 					case ok, enough:
 						if enough {
 							if err := treeJobDone(nil); err != nil {
