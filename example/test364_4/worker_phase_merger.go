@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -45,15 +44,11 @@ type (
 
 type workerPhaseMergerArgs struct {
 	*logging.Logging
-	local string
 }
 
-func newWorkerPhaseMergerArgs(local string) *workerPhaseMergerArgs {
+func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
 	return &workerPhaseMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "worker-phase-merger").Str("local", local)
-		}),
-		local: local,
+		Logging: NewModuleLogging("worker-phase-merger", nil),
 	}
 }
 

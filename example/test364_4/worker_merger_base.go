@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -38,19 +37,13 @@ type baseWorkerMergerArgs struct {
 	*logging.Logging
 	PoolMapSize  uint64
 	NewJobWorker newJobWorkerFunc
-	local        string
 }
 
-func newBaseWorkerMergerArgs(local string) *baseWorkerMergerArgs {
+func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
 	return &baseWorkerMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "base-worker-merger").Str("local", local)
-		}),
-		PoolMapSize: 1 << 3,
-		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
-			return NewBaseJobWorker(ctx, 1<<6)
-		},
-		local: local,
+		Logging:      NewModuleLogging("base-worker-merger", nil),
+		PoolMapSize:  1 << 3,
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 	}
 }
 
@@ -78,7 +71,7 @@ func newFuncBaseWorkerMerger(
 		var insertPool func(worker string, unmerge []uint64) bool
 		var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
-		switch i, e, err := newWorkerMergerPhasePoolFuncs(args.local, args.PoolMapSize); {
+		switch i, e, err := newWorkerMergerPhasePoolFuncs(args.PoolMapSize); {
 		case err != nil:
 			return nil, nil, err
 		default:
@@ -91,7 +84,6 @@ func newFuncBaseWorkerMerger(
 
 		switch i, w, err := newWorkerPhaseMergerFuncsForWorkerMerger(
 			wctx,
-			args.local,
 			newWorkerPhaseMergerf,
 			minEnough,
 			getStateMergeValues,
@@ -171,7 +163,6 @@ func newFuncBaseWorkerMerger(
 }
 
 func newWorkerMergerPhasePoolFuncs(
-	local string,
 	mapSize uint64,
 ) (
 	phaseDone func(worker string, unmerge []uint64) bool,
@@ -235,7 +226,6 @@ func newWorkerMergerPhasePoolFuncs(
 
 func newWorkerPhaseMergerFuncsForWorkerMerger(
 	ctx context.Context,
-	local string,
 	newf workerPhaseMergerFunc,
 	minEnough uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
@@ -247,7 +237,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 	workerMergerWaitFunc,
 	error,
 ) {
-	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps(local)
+	collectOps, filterMergeOps, collectOpsDone := newCollectUnmergedOps()
 
 	var insert workerPhaseMergerInsertFunc
 	var wait workerPhaseMergerWaitFunc
@@ -294,7 +284,7 @@ func newWorkerPhaseMergerFuncsForWorkerMerger(
 		nil
 }
 
-func newCollectUnmergedOps(local string) (
+func newCollectUnmergedOps() (
 	insert func(worker string, unmerged []uint64),
 	filter func(unmerge []uint64) []uint64,
 	done func(func(unmerged []uint64) error) error,

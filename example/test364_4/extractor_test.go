@@ -21,7 +21,7 @@ type testStateMergeValueExtractor struct {
 func (t *testStateMergeValueExtractor) newArgs(ops []Operation) *stateMergeValueExtractorArgs {
 	t.T().Helper()
 
-	args := newStateMergeValueExtractorArgs("local")
+	args := newStateMergeValueExtractorArgs()
 	args.SetLogging(logging.TestNilLogging)
 
 	return args

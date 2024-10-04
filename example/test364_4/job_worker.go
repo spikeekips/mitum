@@ -173,3 +173,9 @@ func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error
 
 	return wk, nil
 }
+
+func NewFuncBaseJobWorker(semSize int64) newJobWorkerFunc {
+	return func(ctx context.Context) (JobWorker, error) {
+		return NewBaseJobWorker(ctx, semSize)
+	}
+}

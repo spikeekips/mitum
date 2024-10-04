@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -57,9 +56,7 @@ func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *loggi
 
 func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "initial-worker-merger").Str("local", args.local)
-		}),
+		Logging:              NewModuleLogging("initial-worker-merger", nil),
 		baseWorkerMergerArgs: args,
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")

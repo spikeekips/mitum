@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -21,12 +20,8 @@ type TwoStepPhaseJobWorkerArgs struct {
 
 func NewTwoStepPhaseJobWorkerArgs() *TwoStepPhaseJobWorkerArgs {
 	return &TwoStepPhaseJobWorkerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "phase-job-worker")
-		}),
-		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
-			return NewBaseJobWorker(ctx, 1<<9)
-		},
+		Logging:                    NewModuleLogging("phase-job-worker", nil),
+		NewJobWorker:               NewFuncBaseJobWorker(1 << 9),
 		NewJobPoolSize:             1 << 9,
 		NewJobPoolGrowSize:         1 << 9,
 		JobIDMapSize:               1 << 9,

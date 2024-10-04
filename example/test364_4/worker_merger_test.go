@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -40,11 +41,14 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 		return i, found, nil
 	}
 
-	pargs := newPhaseMergerArgs(local)
-	wpargs := newWorkerPhaseMergerArgs(local)
-	args := newBaseWorkerMergerArgs(local)
+	pargs := newPhaseMergerArgs()
+	wpargs := newWorkerPhaseMergerArgs()
+	args := newBaseWorkerMergerArgs()
 
 	args.SetLogging(logging.TestNilLogging)
+	args.Logging = LoggingWith(args.Logging, func(zctx zerolog.Context) zerolog.Context {
+		return zctx.Str("local", local)
+	})
 
 	return pargs, wpargs, args, vp, mergers, states, getValues, getState
 }
@@ -836,7 +840,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 
 		pargs, wpargs, args, _, workerMergers, states, getState := t.newInitialValuesArgs(local)
 
-		setStateOp, getStateOpFuncs, err := newSetStateOpFuncsWithLogger("", 1<<9, nil)
+		setStateOp, getStateOpFuncs, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
 		mergers[local] = workerMergers

@@ -185,7 +185,6 @@ func xMergeOpValues(
 
 func mergeOp(
 	ctx context.Context,
-	local string,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -197,7 +196,7 @@ func mergeOp(
 ) {
 	return xMergeOpValues(
 		ctx,
-		fmt.Sprintf("merge: local=%q", local),
+		"merge",
 		opindex,
 		values,
 		getMerger,
@@ -209,7 +208,6 @@ func mergeOp(
 
 func unmergeOp(
 	ctx context.Context,
-	local string,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -220,7 +218,7 @@ func unmergeOp(
 ) {
 	committed, nextMergeOp, _, err := xMergeOpValues(
 		ctx,
-		fmt.Sprintf("unmerge: local=%q", local),
+		"unmerge",
 		opindex,
 		values,
 		getMerger,

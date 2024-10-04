@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -70,9 +69,7 @@ func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.
 
 func newOperationsWorkerMergerArgs(args *statesWorkerMergerArgs) *operationsWorkerMergerArgs {
 	return &operationsWorkerMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "operations-worker-merger").Str("local", args.local)
-		}),
+		Logging:                NewModuleLogging("operations-worker-merger", nil),
 		statesWorkerMergerArgs: args,
 	}
 }

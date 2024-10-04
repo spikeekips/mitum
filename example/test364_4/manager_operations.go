@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/logging"
@@ -34,9 +33,7 @@ type managerWorkersOperationsArgs struct {
 
 func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 	return &managerWorkersOperationsArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-workers-operations")
-		}),
+		Logging: NewModuleLogging("manager-workers-operations", nil),
 		NewCheckWorkersFunc: func(_, maxFailed uint64) (
 			checkEnoughFailedWorkerFunc,
 			func(),

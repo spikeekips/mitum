@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -29,22 +28,18 @@ type (
 type stateMergeValueExtractorArgs struct {
 	*logging.Logging
 	NewJobWorker newJobWorkerFunc
-	local        string
 }
 
-func newStateMergeValueExtractorArgs(local string) *stateMergeValueExtractorArgs {
+func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
 	return &stateMergeValueExtractorArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "state-merge-value-extractor").Str("local", local)
-		}),
-		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
-			return NewBaseJobWorker(ctx, 1<<6)
-		},
-		local: local,
+		Logging:      NewModuleLogging("state-merge-value-extractor", nil),
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 	}
 }
 
-func newFuncStateMergeValueExtractor(args *stateMergeValueExtractorArgs) newStateMergeValueExtractorFunc {
+func newFuncStateMergeValueExtractor(
+	args *stateMergeValueExtractorArgs,
+) newStateMergeValueExtractorFunc {
 	return func(
 		ctx context.Context,
 		getOperation stateMergeValueExtractorGetOperationFunc,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -67,9 +66,7 @@ func newWorkerSaveArgs(
 	args *operationsWorkerMergerArgs,
 ) *workerSaveArgs {
 	return &workerSaveArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "save-worker-merger").Str("local", args.local)
-		}),
+		Logging:                    NewModuleLogging("save-worker-merger", nil),
 		operationsWorkerMergerArgs: args,
 	}
 }

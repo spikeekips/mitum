@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -49,9 +48,7 @@ type managerSaveArgs struct {
 
 func newManagerSaveArgs() *managerSaveArgs {
 	return &managerSaveArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-save")
-		}),
+		Logging:         NewModuleLogging("manager-save", nil),
 		BlockMapExpired: time.Hour,
 	}
 }

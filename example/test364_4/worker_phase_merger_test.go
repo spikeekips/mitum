@@ -37,9 +37,9 @@ func (t *testWorkerPhaseMerger) newArgs() (
 		return i, found, nil
 	}
 
-	pargs := newPhaseMergerArgs("local")
+	pargs := newPhaseMergerArgs()
 
-	args := newWorkerPhaseMergerArgs("local")
+	args := newWorkerPhaseMergerArgs()
 
 	args.SetLogging(logging.TestNilLogging)
 

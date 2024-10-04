@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -29,9 +28,7 @@ type managerTreesArgs struct {
 
 func newManagerTreesArgs() *managerTreesArgs {
 	return &managerTreesArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-trees")
-		}),
+		Logging: NewModuleLogging("manager-trees", nil),
 	}
 }
 

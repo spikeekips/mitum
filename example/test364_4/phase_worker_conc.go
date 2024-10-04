@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -23,19 +22,13 @@ type concPhaseJobWorkerArgs struct {
 	NewJobWorker newJobWorkerFunc
 	JobIDMapSize uint64
 	*logging.Logging
-	local string
 }
 
-func newConcPhaseJobWorkerArgs(local string) *concPhaseJobWorkerArgs {
+func newConcPhaseJobWorkerArgs() *concPhaseJobWorkerArgs {
 	return &concPhaseJobWorkerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "phase-job-worker")
-		}),
-		NewJobWorker: func(ctx context.Context) (JobWorker, error) {
-			return NewBaseJobWorker(ctx, 1<<9)
-		},
+		Logging:      NewModuleLogging("phase-job-worker", nil),
+		NewJobWorker: NewFuncBaseJobWorker(1 << 9),
 		JobIDMapSize: 1 << 9,
-		local:        local,
 	}
 }
 

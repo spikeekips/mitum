@@ -21,7 +21,7 @@ type testIsXMergedOPsFuncs struct {
 
 func (t *testIsXMergedOPsFuncs) TestAdd() {
 	t.Run("no add", func() {
-		_, done, err := isXMergedOps(localWorkerName, 1<<9)
+		_, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		t.NoError(done(func(merged, unmerged []uint64) error {
@@ -33,7 +33,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add merge", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -48,7 +48,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add unmerge", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, unmergeFlag)
@@ -63,7 +63,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add same", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -78,7 +78,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add same, but dismiss", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -95,7 +95,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 
 func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	t.Run("no add", func() {
-		_, done, err := isXMergedOps(localWorkerName, 1<<9)
+		_, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		t.NoError(done(func(merged, unmerged []uint64) error {
@@ -107,7 +107,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("add; same in base", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -123,7 +123,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("add; not same in base", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -139,7 +139,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("all same in base", func() {
-		add, done, err := isXMergedOps(localWorkerName, 1<<9)
+		add, done, err := isXMergedOps(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -182,7 +182,7 @@ func (t *testPhaseMerger) newArgs() (
 		return i, found, nil
 	}
 
-	args = newPhaseMergerArgs("local")
+	args = newPhaseMergerArgs()
 
 	return vp, mergers, states, args, getValues, getState
 }
@@ -647,7 +647,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		func() error,
 		error,
 	) {
-		args := newConcPhaseJobWorkerArgs("local")
+		args := newConcPhaseJobWorkerArgs()
 		args.NewJobWorker = func(context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, semSize)
 		}
@@ -764,7 +764,6 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 		switch isMerged, nexts, reason, err := mergeOp(
 			ctx,
-			"",
 			opindex,
 			values,
 			getMerger,
@@ -792,7 +791,6 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 		switch isUnmerged, nexts, err := unmergeOp(
 			ctx,
-			"",
 			opindex,
 			values,
 			getMerger,
@@ -917,7 +915,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		func() error,
 		error,
 	) {
-		args := newConcPhaseJobWorkerArgs("local")
+		args := newConcPhaseJobWorkerArgs()
 		args.NewJobWorker = func(context.Context) (JobWorker, error) {
 			return NewBaseJobWorker(ctx, semSize)
 		}

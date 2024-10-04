@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -47,9 +46,7 @@ type managerArgs struct {
 
 func newManagerArgs() *managerArgs {
 	return &managerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager")
-		}),
+		Logging: NewModuleLogging("manager", nil),
 	}
 }
 

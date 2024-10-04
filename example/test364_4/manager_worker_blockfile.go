@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -32,9 +31,7 @@ type managerWorkerBlockFilesArgs struct {
 
 func newManagerWorkerBlockFilesArgs() *managerWorkerBlockFilesArgs {
 	return &managerWorkerBlockFilesArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-worker-blockfile")
-		}),
+		Logging: NewModuleLogging("manager-worker-blockfile", nil),
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/singleflight"
@@ -28,17 +27,13 @@ type phaseMergerArgs struct {
 	NewPhaseJobWorker newPhaseJobWorkerFunc
 	XMergedOpsMapSize uint64
 	ReasonsMapSize    uint64
-	local             string
 }
 
-func newPhaseMergerArgs(local string) *phaseMergerArgs {
+func newPhaseMergerArgs() *phaseMergerArgs {
 	args := &phaseMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "phase-merger").Str("local", local)
-		}),
+		Logging:           NewModuleLogging("phase-merger", nil),
 		XMergedOpsMapSize: 1 << 9,
 		ReasonsMapSize:    1 << 9,
-		local:             local,
 	}
 
 	args.NewPhaseJobWorker = func(ctx context.Context) (
@@ -47,7 +42,7 @@ func newPhaseMergerArgs(local string) *phaseMergerArgs {
 		func() error,
 		error,
 	) {
-		cargs := newConcPhaseJobWorkerArgs(args.local)
+		cargs := newConcPhaseJobWorkerArgs()
 
 		return NewConcPhaseJobWorker(ctx, cargs)
 	}
@@ -72,7 +67,7 @@ func newPhaseMerger(
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := isXMergedOps(args.local, args.XMergedOpsMapSize); {
+	switch a, d, err := isXMergedOps(args.XMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -186,7 +181,6 @@ func newXMergeCallbacks(
 
 					switch committed, nexts, reasons, err := mergeOp(
 						ctx,
-						args.local,
 						opindex,
 						values,
 						getMerger,
@@ -256,7 +250,6 @@ func newXMergeCallbacks(
 
 					switch committed, nexts, err := unmergeOp(
 						ctx,
-						args.local,
 						opindex,
 						values,
 						getMerger,
@@ -387,7 +380,6 @@ const (
 )
 
 func isXMergedOps(
-	local string,
 	mapSize uint64,
 ) (
 	func(phase int, opindex uint64, _ xMergeFlag),

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -21,9 +20,7 @@ type managerStartWorkersArgs struct {
 
 func newManagerStartWorkersArgs() *managerStartWorkersArgs {
 	return &managerStartWorkersArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "manager-start-workers")
-		}),
+		Logging: NewModuleLogging("manager-start-workers", nil),
 		NewCheckWorkersFunc: func(_, maxFailed uint64) (
 			checkEnoughFailedWorkerFunc,
 			func(),

@@ -14,7 +14,7 @@ type testConcPhaseJobWorker struct {
 }
 
 func (t *testConcPhaseJobWorker) newArgs() *concPhaseJobWorkerArgs {
-	return newConcPhaseJobWorkerArgs("local")
+	return newConcPhaseJobWorkerArgs()
 }
 
 func (t *testConcPhaseJobWorker) TestCancel() {

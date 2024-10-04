@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 func TraverseMap[K cmp.Ordered, V any](m map[K]V, f func(K, V) (bool, error)) error {
@@ -486,4 +487,24 @@ func newCheckEnoughFailedWorkers(
 		},
 		m.Close,
 		nil
+}
+
+func LoggingWith(l *logging.Logging, f func(zerolog.Context) zerolog.Context) *logging.Logging {
+	return logging.NewLogging(f).SetLogging(l)
+}
+
+func NewModuleLogging(module string, f func(zctx zerolog.Context) zerolog.Context) *logging.Logging {
+	if f == nil {
+		f = func(zctx zerolog.Context) zerolog.Context { return zctx }
+	}
+
+	return logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+		zctx = zctx.Str("module", module)
+
+		if f == nil {
+			return f(zctx)
+		}
+
+		return zctx
+	})
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -35,11 +36,14 @@ func (t *testOperationsWorkerMerger) newArgs(local string, ops []Operation) (
 
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
-	eargs := newStateMergeValueExtractorArgs(local)
+	eargs := newStateMergeValueExtractorArgs()
 
 	args := newOperationsWorkerMergerArgs(sargs)
 
 	args.SetLogging(logging.TestNilLogging)
+	args.Logging = LoggingWith(args.Logging, func(zctx zerolog.Context) zerolog.Context {
+		return zctx.Str("local", local)
+	})
 
 	return pargs, wpargs, sargs, args, eargs, vp, mergersPool, statesPool
 }
@@ -341,8 +345,6 @@ func (t *testOperationsWorkerMerger) testMerger(
 		//if local == "w1" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
-
-		args.local = local
 
 		broadcastStateMergeValuesFuncs := func(ctx context.Context) (
 			operationsworkerInitialInsertOpFunc,

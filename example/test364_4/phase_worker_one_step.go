@@ -104,9 +104,7 @@ func NewOneStepPhaseJobWorker(
 	_ error,
 ) {
 	if newJobWorker == nil {
-		newJobWorker = func(ctx context.Context) (JobWorker, error) {
-			return NewBaseJobWorker(ctx, 1<<9)
-		}
+		newJobWorker = NewFuncBaseJobWorker(1 << 9)
 	}
 
 	var jobIDLocked *util.ShardedMap[uint64, int]

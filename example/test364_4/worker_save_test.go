@@ -36,7 +36,7 @@ func (t *testWorkerSave) newArgs(local string) (
 
 	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
-	eargs := newStateMergeValueExtractorArgs(local)
+	eargs := newStateMergeValueExtractorArgs()
 	oargs := newOperationsWorkerMergerArgs(sargs)
 
 	args := newWorkerSaveArgs(oargs)
@@ -798,8 +798,6 @@ func (t *testWorkerSave) testMerger(
 		//if local == "w1" {
 		//	args.SetLogging(logging.TestLogging)
 		//}
-
-		args.local = local
 
 		broadcastStateMergeValues := func(ctx context.Context) (
 			operationsworkerInitialInsertOpFunc,

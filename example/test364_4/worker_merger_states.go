@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -47,9 +46,7 @@ func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logg
 
 func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorkerMergerArgs {
 	return &statesWorkerMergerArgs{
-		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "states-worker-merger").Str("local", args.local)
-		}),
+		Logging:                       NewModuleLogging("states-worker-merger", nil),
 		initialValuesWorkerMergerArgs: args,
 	}
 }
@@ -87,7 +84,7 @@ func newFuncStatesWorkerMerger(
 		var stateOps stateOpsFuncs
 		var setStateOp setStateOpFunc
 
-		switch s, o, err := newSetStateOpFuncsWithLogger(args.local, maxOps, args.Log()); {
+		switch s, o, err := newSetStateOpFuncsWithLogger(maxOps); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -159,19 +156,11 @@ func newFuncStatesWorkerMerger(
 	}
 }
 
-func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Logger) (
+func newSetStateOpFuncsWithLogger(maxOpsSize uint64) (
 	setStateOpFunc,
 	stateOpsFuncs,
 	error,
 ) {
-	var l zerolog.Logger
-
-	if z != nil {
-		l = z.With().Str("local", local).Logger()
-	}
-
-	l.Debug().Msg("new set state op func")
-
 	var m util.LockedMap[string, map[uint64] /* {phase, count} */ [2]int]
 
 	switch i, err := util.NewShardedMap[string, map[uint64][2]int](maxOpsSize, nil); {
@@ -182,15 +171,6 @@ func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Lo
 	}
 
 	return func(phase int, opindex uint64, stateKeys []string, x xMergeFlag) {
-			ll := l.With().
-				Int("phase", phase).
-				Uint64("opindex", opindex).
-				Strs("state_keys", stateKeys).
-				Stringer("merge_flag", x).
-				Logger()
-
-			ll.Debug().Msg("trying to set state keys op")
-
 			_ = util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
 				_, _, _ = m.Set(stateKey, func(prev map[uint64][2]int, found bool) (map[uint64][2]int, error) {
 					c := 1
@@ -212,12 +192,6 @@ func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Lo
 						}
 					}
 
-					ll.Debug().
-						Str("state_key", stateKey).
-						Int("count", c).
-						Interface("updated", prev).
-						Msg("set state key op")
-
 					return prev, nil
 				})
 
@@ -227,12 +201,6 @@ func newSetStateOpFuncsWithLogger(local string, maxOpsSize uint64, z *zerolog.Lo
 		func() (getStateOpsFunc, func()) {
 			return func(stateKey string) (ops []uint64) {
 					_ = m.Get(stateKey, func(mops map[uint64][2]int, found bool) error {
-						l.Debug().
-							Str("state_key", stateKey).
-							Bool("found", found).
-							Interface("m", mops).
-							Msg("get state key ops")
-
 						if !found || len(mops) < 1 {
 							return nil
 						}
