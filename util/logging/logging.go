@@ -42,6 +42,10 @@ func (lg *Logging) SetLogger(l zerolog.Logger) *Logging {
 }
 
 func (lg *Logging) SetLogging(l *Logging) *Logging {
+	if lg == nil {
+		lg = NewLogging(nil)
+	}
+
 	return lg.SetLogger(l.orig)
 }
 
