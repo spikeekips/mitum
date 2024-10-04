@@ -24,28 +24,25 @@ type testOperationsWorkerMerger struct {
 
 func (t *testOperationsWorkerMerger) newArgs(local string, ops []Operation) (
 	*phaseMergerArgs,
-	*workerPhaseMergerArgs,
+	*initialValuesWorkerMergerArgs,
 	*statesWorkerMergerArgs,
 	*operationsWorkerMergerArgs,
-	*stateMergeValueExtractorArgs,
 	util.LockedMap[uint64, []StateMergeValue],
 	util.LockedMap[string, StateMerger],
 	util.LockedMap[string, base.State],
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
+	pargs, iargs, sargs, vp, mergersPool, statesPool := t.newStatesArgs(local)
 
-	eargs := newStateMergeValueExtractorArgs()
-
-	args := newOperationsWorkerMergerArgs(sargs)
+	args := newOperationsWorkerMergerArgs()
 
 	args.SetLogging(logging.TestNilLogging)
 	args.Logging = LoggingWith(args.Logging, func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Str("local", local)
 	})
 
-	return pargs, wpargs, sargs, args, eargs, vp, mergersPool, statesPool
+	return pargs, iargs, sargs, args, vp, mergersPool, statesPool
 }
 
 func (t *testOperationsWorkerMerger) TestInsertOp() {
@@ -53,11 +50,11 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", nil)
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", nil)
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -109,11 +106,11 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 		issuerState := t.newState(op.Fact().(OpFact).Issuer, 1)
 		receiverState := t.newState(op.Fact().(OpFact).Receiver, 1)
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", ops)
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", ops)
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		statesPool.SetValue(issuerState.Key(), issuerState)
@@ -187,9 +184,9 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", []Operation{t.randomOp(1)})
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", []Operation{t.randomOp(1)})
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
 		t.NoError(err)
 
 		err = insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -207,12 +204,12 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 
 		op := t.randomOp(1)
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", []Operation{op})
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", []Operation{op})
 		getOperation := func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) {
 			return nil, false, errors.Errorf("showme")
 		}
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, getOperation)
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, getOperation)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -232,11 +229,11 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		issuerState := t.newState(op.Fact().(OpFact).Issuer, 1)
 		receiverState := t.newState(op.Fact().(OpFact).Receiver, 1)
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", ops)
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", ops)
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -264,9 +261,9 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		op := t.randomOp(1)
 		ops := []Operation{op}
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs("local", ops)
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", ops)
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
@@ -334,7 +331,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, wpargs, _, args, eargs, _, _, statesPool := t.newArgs(local, ops)
+		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs(local, ops)
 
 		for i := range sts {
 			st := sts[i]
@@ -388,7 +385,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 			return slices.Index(workerValues[local], stateKey) >= 0
 		}
 
-		insert, initialInsertOps, phaseDone, wait, err := newFuncOperationsWorkerMerger(args, eargs, wpargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool), isLocalStateValue, broadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insert, initialInsertOps, phaseDone, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool), isLocalStateValue, broadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		insertOps[local] = insert

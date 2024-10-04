@@ -16,19 +16,6 @@ type testManagerStartWorkers struct {
 	baseTestManager
 }
 
-func (t *testManagerStartWorkers) newArgs() *managerStartWorkersArgs {
-	args := newManagerStartWorkersArgs()
-	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
-		checkEnoughFailedWorkerFunc,
-		func(),
-		error,
-	) {
-		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
-	}
-
-	return args
-}
-
 func (t *testManagerStartWorkers) defaultStartWorker() func(context.Context, string) error {
 	return func(context.Context, string) error { return nil }
 }
@@ -38,8 +25,6 @@ func (t *testManagerStartWorkers) TestNew() {
 	defer cancel()
 
 	workers := t.workers(3)
-
-	args := t.newArgs()
 
 	addWorker, doneWorker, err := util.CompactAppendSliceV1[string](3)
 	t.NoError(err)
@@ -52,7 +37,7 @@ func (t *testManagerStartWorkers) TestNew() {
 		return nil
 	}
 
-	t.NoError(newManagerStartWorkers(ctx, args, workers, 0, startWorker))
+	t.NoError(newManagerStartWorkers(ctx, workers, 0, t.newCheckWorkersFunc(), startWorker))
 
 	doneWorker(func(s []string) error {
 		slices.Sort(s)
@@ -78,8 +63,6 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 		okWorkers = slices.Delete(okWorkers, 9, 10)
 		slices.Sort(okWorkers)
 
-		args := t.newArgs()
-
 		addWorker, doneWorker, err := util.CompactAppendSliceV1[string](uint64(len(workers)))
 		t.NoError(err)
 
@@ -95,7 +78,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 			return nil
 		}
 
-		t.NoError(newManagerStartWorkers(ctx, args, workers, 3, startWorker))
+		t.NoError(newManagerStartWorkers(ctx, workers, 3, t.newCheckWorkersFunc(), startWorker))
 
 		doneWorker(func(s []string) error {
 			slices.Sort(s)
@@ -117,8 +100,6 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 			workers[13]: {},
 		}
 
-		args := t.newArgs()
-
 		startWorker := func(_ context.Context, worker string) error {
 			if _, found := failedWorkers[worker]; found {
 				return errors.Errorf("showme")
@@ -127,7 +108,7 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 			return nil
 		}
 
-		err := newManagerStartWorkers(ctx, args, workers, 3, startWorker)
+		err := newManagerStartWorkers(ctx, workers, 3, t.newCheckWorkersFunc(), startWorker)
 		t.ErrorContains(err, "showme")
 	})
 }

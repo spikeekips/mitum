@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -25,18 +24,7 @@ type (
 	)
 )
 
-type managerWorkerBlockFilesArgs struct {
-	*logging.Logging
-}
-
-func newManagerWorkerBlockFilesArgs() *managerWorkerBlockFilesArgs {
-	return &managerWorkerBlockFilesArgs{
-		Logging: NewModuleLogging("manager-worker-blockfile", nil),
-	}
-}
-
 func newFuncManagerWorkerBlockFiles(
-	args *managerWorkerBlockFilesArgs,
 	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 ) managerWorkerBlockFilesFunc {
 	return func(

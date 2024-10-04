@@ -19,7 +19,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
+		pargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -27,7 +27,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
 
 		insert, done, err := initial(localWorkerName)
@@ -61,7 +61,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
+		pargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -69,7 +69,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
@@ -112,7 +112,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, args, _, mergers, _, getState := t.newInitialValuesArgs("local")
+		pargs, args, _, mergers, _, getState := t.newInitialValuesArgs("local")
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -120,7 +120,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
@@ -148,7 +148,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, wpargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
+		pargs, args, vp, mergers, _, getState := t.newInitialValuesArgs("local")
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -156,7 +156,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 2, 1<<9, getMergers, setStateOp, nil)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)

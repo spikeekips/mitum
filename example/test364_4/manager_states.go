@@ -13,20 +13,12 @@ type managerWorkerStatesFunc func(_ context.Context, worker string, _ func(func(
 
 type managerWorkersStatesArgs struct {
 	*logging.Logging
-	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
-	NewTreeWriterFuncs  newStatesTreeFuncs
+	NewTreeWriterFuncs newStatesTreeFuncs
 }
 
 func newManagerWorkersStatesArgs() *managerWorkersStatesArgs {
 	return &managerWorkersStatesArgs{
 		Logging: NewModuleLogging("manager-workers-states", nil),
-		NewCheckWorkersFunc: func(minEnough, maxFailed uint64) (
-			checkEnoughFailedWorkerFunc,
-			func(),
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
-		},
 		NewTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewTreeWriterFuncs")
 		},
@@ -36,6 +28,7 @@ func newManagerWorkersStatesArgs() *managerWorkersStatesArgs {
 func newManagerWorkersStates(
 	ctx context.Context,
 	args *managerWorkersStatesArgs,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 	workers []string,
 	minEnough, maxFailed uint64,
 ) (
@@ -48,7 +41,7 @@ func newManagerWorkersStates(
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerDone func()
 
-	switch c, d, err := args.NewCheckWorkersFunc(minEnough, maxFailed); {
+	switch c, d, err := newCheckWorkersFunc(minEnough, maxFailed); {
 	case err != nil:
 		return nil, nil, err
 	default:

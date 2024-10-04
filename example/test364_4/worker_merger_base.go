@@ -6,15 +6,9 @@ import (
 	"sync"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	workerPhaseMergerFuncs func() (
-		*workerPhaseMergerArgs,
-		workerPhaseMergerFunc,
-		error,
-	)
 	workerMergerPhaseDoneFunc   func(worker string, unmerge []uint64) error
 	workerMergerUnmergedOpsFunc func(unmerged []uint64) error
 	workerMergerWaitFunc        func(workerMergerUnmergedOpsFunc) error
@@ -33,26 +27,14 @@ type (
 	)
 )
 
-type baseWorkerMergerArgs struct {
-	*logging.Logging
-	PoolMapSize  uint64
-	NewJobWorker newJobWorkerFunc
-}
-
-func newBaseWorkerMergerArgs() *baseWorkerMergerArgs {
-	return &baseWorkerMergerArgs{
-		Logging:      NewModuleLogging("base-worker-merger", nil),
-		PoolMapSize:  1 << 3,
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
-	}
-}
-
 func newFuncBaseWorkerMerger(
-	args *baseWorkerMergerArgs,
-	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
+	poolMapSize uint64,
+	newJobWorker newJobWorkerFunc,
 ) baseWorkerMergerFunc {
-	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(wpargs, pargs)
+	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(pargs)
+
+	log := NewModuleLogging("base-worker-merger", nil).SetLogging(pargs.Logging).Log()
 
 	return func(
 		ctx context.Context,
@@ -71,7 +53,7 @@ func newFuncBaseWorkerMerger(
 		var insertPool func(worker string, unmerge []uint64) bool
 		var exhaustPool func(func(worker string, unmerge []uint64) error) error
 
-		switch i, e, err := newWorkerMergerPhasePoolFuncs(args.PoolMapSize); {
+		switch i, e, err := newWorkerMergerPhasePoolFuncs(poolMapSize); {
 		case err != nil:
 			return nil, nil, err
 		default:
@@ -95,7 +77,7 @@ func newFuncBaseWorkerMerger(
 			return nil, nil, err
 		default:
 			phaseInsertFunc = func(worker string, unmerge []uint64) error {
-				args.Log().Debug().
+				log.Debug().
 					Str("worker", worker).
 					Uints64("unmerge", unmerge).
 					Msg("phase done")
@@ -140,7 +122,7 @@ func newFuncBaseWorkerMerger(
 		return func(worker string, unmerge []uint64) error {
 				return contextCauseError(wctx, dummyErrorFunc(), func(context.Context) error {
 					if err := workerPhaseDone(worker, unmerge); err != nil {
-						args.Log().Error().
+						log.Error().
 							Err(err).
 							Str("worker", worker).
 							Msg("worker phase done")

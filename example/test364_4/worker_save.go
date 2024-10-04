@@ -53,31 +53,24 @@ type (
 
 type workerSaveArgs struct {
 	*logging.Logging
-	*operationsWorkerMergerArgs
+	NewJobWorker newJobWorkerFunc
 }
 
-func (args *workerSaveArgs) SetLogging(l *logging.Logging) *logging.Logging {
-	args.operationsWorkerMergerArgs.SetLogging(l)
-
-	return args.Logging.SetLogging(l)
-}
-
-func newWorkerSaveArgs(
-	args *operationsWorkerMergerArgs,
-) *workerSaveArgs {
+func newWorkerSaveArgs() *workerSaveArgs {
 	return &workerSaveArgs{
-		Logging:                    NewModuleLogging("save-worker-merger", nil),
-		operationsWorkerMergerArgs: args,
+		Logging:      NewModuleLogging("save-worker", nil),
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 	}
 }
 
 func newFuncWorkerSave(
 	args *workerSaveArgs,
-	eargs *stateMergeValueExtractorArgs,
-	wpargs *workerPhaseMergerArgs,
+	iargs *initialValuesWorkerMergerArgs,
+	sargs *statesWorkerMergerArgs,
+	oargs *operationsWorkerMergerArgs,
 	pargs *phaseMergerArgs,
 ) workerSaveFunc {
-	newOperationsWorkerMergerf := newFuncOperationsWorkerMerger(args.operationsWorkerMergerArgs, eargs, wpargs, pargs)
+	newOperationsWorkerMergerf := newFuncOperationsWorkerMerger(oargs, iargs, sargs, pargs)
 
 	return func(
 		ctx context.Context,

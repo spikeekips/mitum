@@ -42,27 +42,32 @@ type (
 
 type managerArgs struct {
 	*logging.Logging
+	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
 }
 
 func newManagerArgs() *managerArgs {
 	return &managerArgs{
 		Logging: NewModuleLogging("manager", nil),
+		NewCheckWorkersFunc: func(_, maxFailed uint64) (
+			checkEnoughFailedWorkerFunc,
+			func(),
+			error,
+		) {
+			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
+		},
 	}
 }
 
 func newFuncManager(
 	args *managerArgs,
-	swargs *managerStartWorkersArgs,
-	targs *managerTreesArgs,
 	wtargs *managerWorkersTreesArgs,
-	bargs *managerWorkerBlockFilesArgs,
 	sargs *managerSaveArgs,
 ) (
 	managerStartFunc,
 	error,
 ) {
-	doTree := newFuncManagerTrees(targs, wtargs)
-	workerBlockItems := newFuncManagerWorkerBlockFiles(bargs, wtargs.NewCheckWorkersFunc)
+	doTree := newFuncManagerTrees(wtargs, args.NewCheckWorkersFunc)
+	workerBlockItems := newFuncManagerWorkerBlockFiles(args.NewCheckWorkersFunc)
 	doSave := newFuncManagerSave(sargs)
 
 	return func(
@@ -97,9 +102,9 @@ func newFuncManager(
 			if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(ctx context.Context) error {
 				return newManagerStartWorkers(
 					ctx,
-					swargs,
 					workers,
 					maxFailed,
+					args.NewCheckWorkersFunc,
 					startWorker,
 				)
 			}); err != nil {

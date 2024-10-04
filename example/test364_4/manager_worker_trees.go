@@ -21,7 +21,6 @@ type (
 
 type managerWorkersTreesArgs struct {
 	*logging.Logging
-	NewCheckWorkersFunc          checkEnoughFailedWorkersFuncs
 	NewWorkersOpsFunc            managerWorkersOperationsWorkersOpsFunc
 	NewOperationsTreeWriterFuncs newOperationsTreeFuncs
 	NewStatesTreeWriterFuncs     newStatesTreeFuncs
@@ -30,13 +29,6 @@ type managerWorkersTreesArgs struct {
 func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 	return &managerWorkersTreesArgs{
 		Logging: NewModuleLogging("manager-workers-trees", nil),
-		NewCheckWorkersFunc: func(_, maxFailed uint64) (
-			checkEnoughFailedWorkerFunc,
-			func(),
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
-		},
 		NewWorkersOpsFunc: func([]string, uint64, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
@@ -49,14 +41,15 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 	}
 }
 
-func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTreesFuncs {
+func newFuncManagerWorkersTrees(
+	args *managerWorkersTreesArgs,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
+) managerWorkersTreesFuncs {
 	oargs := newManagerWorkersOperationsArgs()
-	oargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
 	oargs.NewWorkersOpsFunc = args.NewWorkersOpsFunc
 	oargs.NewTreeWriterFuncs = args.NewOperationsTreeWriterFuncs
 
 	sargs := newManagerWorkersStatesArgs()
-	sargs.NewCheckWorkersFunc = args.NewCheckWorkersFunc
 	sargs.NewTreeWriterFuncs = args.NewStatesTreeWriterFuncs
 
 	oargs.SetLogging(args.Logging)
@@ -91,7 +84,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		var opsUnmerged managerWorkerUnmergedFunc
 		var opsTreef managerWorkersTreeFunc
 
-		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, workers, opsShare, ophs); {
+		switch d, u, t, err := newManagerWorkersOperations(wctx, oargs, newCheckWorkersFunc, workers, opsShare, ophs); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -103,7 +96,7 @@ func newFuncManagerWorkersTrees(args *managerWorkersTreesArgs) managerWorkersTre
 		var statesWorker managerWorkerStatesFunc
 		var statesTreef managerWorkersTreeFunc
 
-		switch s, t, err := newManagerWorkersStates(wctx, sargs, workers, statesMinEnough, statesMaxFailed); {
+		switch s, t, err := newManagerWorkersStates(wctx, sargs, newCheckWorkersFunc, workers, statesMinEnough, statesMaxFailed); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:

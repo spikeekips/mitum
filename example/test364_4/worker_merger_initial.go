@@ -44,20 +44,16 @@ type (
 
 type initialValuesWorkerMergerArgs struct {
 	*logging.Logging
-	*baseWorkerMergerArgs
+	PoolMapSize   uint64
+	NewJobWorker  newJobWorkerFunc
 	NewValuesPool func() (util.LockedMap[uint64, []StateMergeValue], error)
 }
 
-func (args *initialValuesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
-	args.baseWorkerMergerArgs.SetLogging(l)
-
-	return args.Logging.SetLogging(l)
-}
-
-func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValuesWorkerMergerArgs {
+func newInitialValuesWorkerMergerArgs() *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
-		Logging:              NewModuleLogging("initial-worker-merger", nil),
-		baseWorkerMergerArgs: args,
+		Logging:      NewModuleLogging("initial-worker-merger", nil),
+		PoolMapSize:  1 << 3,
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
@@ -66,10 +62,13 @@ func newInitialValuesWorkerMergerArgs(args *baseWorkerMergerArgs) *initialValues
 
 func newFuncInitialValuesWorkerMerger(
 	args *initialValuesWorkerMergerArgs,
-	wpargs *workerPhaseMergerArgs,
 	pargs *phaseMergerArgs,
 ) initialValuesWorkerMergerFunc {
-	newBaseWorkerMergerf := newFuncBaseWorkerMerger(args.baseWorkerMergerArgs, wpargs, pargs)
+	newBaseWorkerMergerf := newFuncBaseWorkerMerger(
+		pargs,
+		args.PoolMapSize,
+		args.NewJobWorker,
+	)
 
 	return func(
 		ctx context.Context,

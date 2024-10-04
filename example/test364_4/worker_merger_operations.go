@@ -58,30 +58,24 @@ type (
 
 type operationsWorkerMergerArgs struct {
 	*logging.Logging
-	*statesWorkerMergerArgs
+	NewJobWorker newJobWorkerFunc
 }
 
-func (args *operationsWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
-	args.statesWorkerMergerArgs.SetLogging(l)
-
-	return args.Logging.SetLogging(l)
-}
-
-func newOperationsWorkerMergerArgs(args *statesWorkerMergerArgs) *operationsWorkerMergerArgs {
+func newOperationsWorkerMergerArgs() *operationsWorkerMergerArgs {
 	return &operationsWorkerMergerArgs{
-		Logging:                NewModuleLogging("operations-worker-merger", nil),
-		statesWorkerMergerArgs: args,
+		Logging:      NewModuleLogging("operations-worker-merger", nil),
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 	}
 }
 
 func newFuncOperationsWorkerMerger(
 	args *operationsWorkerMergerArgs,
-	eargs *stateMergeValueExtractorArgs,
-	wpargs *workerPhaseMergerArgs,
+	iargs *initialValuesWorkerMergerArgs,
+	sargs *statesWorkerMergerArgs,
 	pargs *phaseMergerArgs,
 ) operationsWorkerMergerFunc {
-	newStatesWorkerMergerf := newFuncStatesWorkerMerger(args.statesWorkerMergerArgs, wpargs, pargs)
-	newStateMergeValueExtractorf := newFuncStateMergeValueExtractor(eargs)
+	newStatesWorkerMergerf := newFuncStatesWorkerMerger(sargs, iargs, pargs)
+	newStateMergeValueExtractorf := newFuncStateMergeValueExtractor(args.NewJobWorker)
 
 	return func(
 		ctx context.Context,

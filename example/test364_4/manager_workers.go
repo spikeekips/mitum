@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type managerStartWorkersFunc func(
@@ -13,29 +12,11 @@ type managerStartWorkersFunc func(
 	maxFailed uint64,
 ) error
 
-type managerStartWorkersArgs struct {
-	*logging.Logging
-	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
-}
-
-func newManagerStartWorkersArgs() *managerStartWorkersArgs {
-	return &managerStartWorkersArgs{
-		Logging: NewModuleLogging("manager-start-workers", nil),
-		NewCheckWorkersFunc: func(_, maxFailed uint64) (
-			checkEnoughFailedWorkerFunc,
-			func(),
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
-		},
-	}
-}
-
 func newManagerStartWorkers(
 	ctx context.Context,
-	args *managerStartWorkersArgs,
 	workers []string,
 	maxFailed uint64,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 	startWorker func(_ context.Context, worker string) error,
 ) error {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -43,7 +24,7 @@ func newManagerStartWorkers(
 
 	var checkWorker checkEnoughFailedWorkerFunc
 
-	switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
+	switch c, d, err := newCheckWorkersFunc(uint64(len(workers)), maxFailed); {
 	case err != nil:
 		return err
 	default:

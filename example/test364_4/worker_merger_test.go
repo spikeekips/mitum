@@ -23,8 +23,6 @@ type baseTestWorkerMerger struct {
 
 func (t *baseTestWorkerMerger) newArgs(local string) (
 	_ *phaseMergerArgs,
-	_ *workerPhaseMergerArgs,
-	_ *baseWorkerMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
@@ -42,20 +40,17 @@ func (t *baseTestWorkerMerger) newArgs(local string) (
 	}
 
 	pargs := newPhaseMergerArgs()
-	wpargs := newWorkerPhaseMergerArgs()
-	args := newBaseWorkerMergerArgs()
 
-	args.SetLogging(logging.TestNilLogging)
-	args.Logging = LoggingWith(args.Logging, func(zctx zerolog.Context) zerolog.Context {
+	pargs.Logging = LoggingWith(pargs.Logging, func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Str("local", local)
 	})
+	pargs.SetLogging(logging.TestNilLogging)
 
-	return pargs, wpargs, args, vp, mergers, states, getValues, getState
+	return pargs, vp, mergers, states, getValues, getState
 }
 
 func (t *baseTestWorkerMerger) newInitialValuesArgs(local string) (
 	*phaseMergerArgs,
-	*workerPhaseMergerArgs,
 	*initialValuesWorkerMergerArgs,
 	util.LockedMap[uint64, []StateMergeValue],
 	util.LockedMap[string, StateMerger],
@@ -64,19 +59,19 @@ func (t *baseTestWorkerMerger) newInitialValuesArgs(local string) (
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, bargs, vp, mergers, states, _, getState := t.newArgs(local)
+	pargs, vp, mergers, states, _, getState := t.newArgs(local)
 
-	args := newInitialValuesWorkerMergerArgs(bargs)
+	args := newInitialValuesWorkerMergerArgs()
 	args.NewValuesPool = func() (util.LockedMap[uint64, []StateMergeValue], error) {
 		return vp, nil
 	}
 
-	return pargs, wpargs, args, vp, mergers, states, getState
+	return pargs, args, vp, mergers, states, getState
 }
 
 func (t *baseTestWorkerMerger) newStatesArgs(local string) (
 	*phaseMergerArgs,
-	*workerPhaseMergerArgs,
+	*initialValuesWorkerMergerArgs,
 	*statesWorkerMergerArgs,
 	util.LockedMap[uint64, []StateMergeValue],
 	util.LockedMap[string, StateMerger],
@@ -84,11 +79,11 @@ func (t *baseTestWorkerMerger) newStatesArgs(local string) (
 ) {
 	t.T().Helper()
 
-	pargs, wpargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local)
+	pargs, iargs, vp, mergers, states, _ := t.newInitialValuesArgs(local)
 
-	args := newStatesWorkerMergerArgs(iargs)
+	args := newStatesWorkerMergerArgs()
 
-	return pargs, wpargs, args, vp, mergers, states
+	return pargs, iargs, args, vp, mergers, states
 }
 
 type testWorkerMerger struct {
@@ -164,7 +159,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, wpargs, args, vp, workerMergers, states, getValues, getState := t.newArgs(local)
+		pargs, vp, workerMergers, states, getValues, getState := t.newArgs(local)
 
 		mergers[local] = workerMergers
 
@@ -198,7 +193,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncBaseWorkerMerger(args, wpargs, pargs)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
+		insert, wait, err := newFuncBaseWorkerMerger(pargs, 1<<3, NewFuncBaseJobWorker(1<<6))(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert
@@ -838,7 +833,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, wpargs, args, _, workerMergers, states, getState := t.newInitialValuesArgs(local)
+		pargs, args, _, workerMergers, states, getState := t.newInitialValuesArgs(local)
 
 		setStateOp, getStateOpFuncs, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
@@ -879,7 +874,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		getMergers, closeMergers := newGetMergers(workerMergers, getState)
 		defer closeMergers()
 
-		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, wpargs, pargs)
+		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, pargs)
 		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp, broadcastPhaseDone)
 		t.NoError(err)
 
@@ -1143,7 +1138,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		wctx, wcancel := context.WithCancel(ctx)
 		defer wcancel()
 
-		pargs, wpargs, args, _, _, statesPool := t.newStatesArgs(local)
+		pargs, iargs, args, _, _, statesPool := t.newStatesArgs(local)
 
 		for i := range sts {
 			st := sts[i]
@@ -1175,7 +1170,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 			return nil
 		}
 
-		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, wpargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool))
+		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, iargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool))
 		t.NoError(err)
 
 		initials[local] = initial

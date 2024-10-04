@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -25,20 +24,8 @@ type (
 	)
 )
 
-type stateMergeValueExtractorArgs struct {
-	*logging.Logging
-	NewJobWorker newJobWorkerFunc
-}
-
-func newStateMergeValueExtractorArgs() *stateMergeValueExtractorArgs {
-	return &stateMergeValueExtractorArgs{
-		Logging:      NewModuleLogging("state-merge-value-extractor", nil),
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
-	}
-}
-
 func newFuncStateMergeValueExtractor(
-	args *stateMergeValueExtractorArgs,
+	newJobWorker newJobWorkerFunc,
 ) newStateMergeValueExtractorFunc {
 	return func(
 		ctx context.Context,
@@ -54,7 +41,7 @@ func newFuncStateMergeValueExtractor(
 
 		var jobWorker JobWorker
 
-		switch i, err := args.NewJobWorker(pctx); {
+		switch i, err := newJobWorker(pctx); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -65,19 +52,10 @@ func newFuncStateMergeValueExtractor(
 
 		extractf := newFuncExtractStateMergeValue(getOperation)
 		extract := func(ctx context.Context, opindex uint64, oph util.Hash) error {
-			l := args.Log().With().Uint64("opindex", opindex).Stringer("op", oph).Logger()
-
-			l.Debug().Msg("> extract")
-			defer l.Debug().Msg("< extracted")
-
 			switch op, values, reason, err := extractf(ctx, opindex, oph); {
 			case err != nil:
-				l.Error().Err(err).Msg("failed to extract")
-
 				return err
 			case len(reason) > 0:
-				l.Debug().Str("reason", reason).Msg("extracted, but reason")
-
 				_ = reasons.SetValue(opindex, reason)
 
 				return nil

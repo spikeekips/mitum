@@ -82,6 +82,10 @@ func (t *baseTestMergeOp) getFuncs() (
 		getStateMergeValuesFuncFromPool(vp)
 }
 
+func (t *baseTestMergeOp) newJobWorker() newJobWorkerFunc {
+	return NewFuncBaseJobWorker(1 << 6)
+}
+
 type testMergeOp struct {
 	baseTestMergeOp
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -18,23 +17,13 @@ type testStateMergeValueExtractor struct {
 	baseTestMergeOp
 }
 
-func (t *testStateMergeValueExtractor) newArgs(ops []Operation) *stateMergeValueExtractorArgs {
-	t.T().Helper()
-
-	args := newStateMergeValueExtractorArgs()
-	args.SetLogging(logging.TestNilLogging)
-
-	return args
-}
-
 func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := []Operation{t.randomOp(2)}
-		args := t.newArgs(ops)
 
-		insert, _, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
+		insert, _, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
 		t.NoError(err)
 
 		cancel()
@@ -50,9 +39,8 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := []Operation{t.randomOp(2)}
-		args := t.newArgs(ops)
 
-		insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
+		insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -68,9 +56,8 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		ops := []Operation{t.randomOp(2)}
-		args := t.newArgs(ops)
 
-		insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
+		insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -94,9 +81,8 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		defer cancel()
 
 		ops := []Operation{t.randomOp(2)}
-		args := t.newArgs(ops)
 
-		insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
+		insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
 		t.NoError(err)
 
 		t.NoError(insert(0, ops[0].Hash()))
@@ -110,9 +96,8 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		defer cancel()
 
 		ops := []Operation{t.randomOp(2)}
-		args := t.newArgs(ops)
 
-		insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
+		insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), dummyStateMergeValueExtractorExtractDone)
 		t.NoError(err)
 
 		t.NoError(insert(1, valuehash.RandomSHA256()))
@@ -137,7 +122,6 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			t.randomOp(2),
 			t.randomOp(3),
 		}
-		args := t.newArgs(ops)
 
 		origGetOperation := newGetOperationFunc(ops)
 		getOperation := func(ctx context.Context, opindex uint64, oph, _ util.Hash) (Operation, bool, error) {
@@ -156,7 +140,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			}
 		}
 
-		insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, getOperation, extractorDone)
+		insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, getOperation, extractorDone)
 		t.NoError(err)
 
 		for i := range ops {
@@ -191,8 +175,6 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 				opsValues[i] = values
 			}
 
-			args := t.newArgs(ops)
-
 			extracted := util.NewSingleLockedMap[uint64, [2]interface{}]()
 
 			extractorDone := func(_ context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
@@ -201,7 +183,7 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 				return nil
 			}
 
-			insert, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), extractorDone)
+			insert, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), extractorDone)
 			t.NoError(err)
 
 			for i := range ops {
@@ -255,13 +237,11 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		op := t.randomOp(0)
 		ops := []Operation{op}
 
-		args := t.newArgs(ops)
-
 		extractorDone := func(context.Context, uint64, Operation, []StateMergeValue) error {
 			return errors.Errorf("findme")
 		}
 
-		extract, done, wait, err := newFuncStateMergeValueExtractor(args)(ctx, newGetOperationFunc(ops), extractorDone)
+		extract, done, wait, err := newFuncStateMergeValueExtractor(t.newJobWorker())(ctx, newGetOperationFunc(ops), extractorDone)
 		t.NoError(err)
 
 		t.NoError(extract(0, op.Hash()))

@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 var localWorkerName = "local"
@@ -42,20 +41,9 @@ type (
 	)
 )
 
-type workerPhaseMergerArgs struct {
-	*logging.Logging
-}
+func newFuncWorkerPhaseMerger(args *phaseMergerArgs) workerPhaseMergerFunc {
+	log := NewModuleLogging("worker-phase-merger", nil).SetLogging(args.Logging).Log()
 
-func newWorkerPhaseMergerArgs() *workerPhaseMergerArgs {
-	return &workerPhaseMergerArgs{
-		Logging: NewModuleLogging("worker-phase-merger", nil),
-	}
-}
-
-func newFuncWorkerPhaseMerger(
-	args *workerPhaseMergerArgs,
-	pargs *phaseMergerArgs,
-) workerPhaseMergerFunc {
 	return func(
 		ctx context.Context,
 		minEnough uint64,
@@ -82,7 +70,7 @@ func newFuncWorkerPhaseMerger(
 		var mergeWait phaseMergerWaitFunc
 		var insertOps func(mergeOps, unmergeOps []uint64) error
 
-		switch m, u, d, w, err := newPhaseMerger(pctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+		switch m, u, d, w, err := newPhaseMerger(pctx, args, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
 		case err != nil:
 			return nil, nil, err
 		default:
@@ -121,7 +109,7 @@ func newFuncWorkerPhaseMerger(
 					return errors.WithStack(err)
 				}
 
-				l := args.Log().With().Str("worker", worker).Logger()
+				l := log.With().Str("worker", worker).Logger()
 
 				return checkWorker(
 					worker,

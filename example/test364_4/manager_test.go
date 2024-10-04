@@ -195,6 +195,16 @@ func (t *baseTestManager) checksums(n int) []string {
 	return c
 }
 
+func (t *baseTestManager) newCheckWorkersFunc() checkEnoughFailedWorkersFuncs {
+	return func(minEnough, maxFailed uint64) (
+		checkEnoughFailedWorkerFunc,
+		func(),
+		error,
+	) {
+		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
+	}
+}
+
 type testManager struct {
 	baseTestManager
 }
@@ -243,15 +253,11 @@ func (t *testManager) newStatesTreeWriter() blockFileWriterTreeFunc {
 
 func (t *testManager) newArgs() (
 	args *managerArgs,
-	swargs *managerStartWorkersArgs,
-	targs *managerTreesArgs,
 	wtargs *managerWorkersTreesArgs,
-	bargs *managerWorkerBlockFilesArgs,
 	sargs *managerSaveArgs,
 ) {
 	args = newManagerArgs()
-	swargs = newManagerStartWorkersArgs()
-	swargs.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
+	args.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
 		checkEnoughFailedWorkerFunc,
 		func(),
 		error,
@@ -259,36 +265,24 @@ func (t *testManager) newArgs() (
 		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
 	}
 
-	targs = newManagerTreesArgs()
 	wtargs = newManagerWorkersTreesArgs()
-	wtargs.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
-		checkEnoughFailedWorkerFunc,
-		func(),
-		error,
-	) {
-		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
-	}
 	wtargs.NewWorkersOpsFunc = distributeNShareWorkerOps
 	wtargs.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
 	wtargs.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
 
-	bargs = newManagerWorkerBlockFilesArgs()
 	sargs = newManagerSaveArgs()
 
 	args.SetLogging(logging.TestNilLogging)
-	swargs.SetLogging(logging.TestNilLogging)
-	targs.SetLogging(logging.TestNilLogging)
 	wtargs.SetLogging(logging.TestNilLogging)
-	bargs.SetLogging(logging.TestNilLogging)
 	sargs.SetLogging(logging.TestNilLogging)
 
 	return
 }
 
 func (t *testManager) newFunc() managerStartFunc {
-	args, swargs, targs, wtargs, bargs, sargs := t.newArgs()
+	args, wtargs, sargs := t.newArgs()
 
-	f, err := newFuncManager(args, swargs, targs, wtargs, bargs, sargs)
+	f, err := newFuncManager(args, wtargs, sargs)
 	t.NoError(err)
 
 	return f

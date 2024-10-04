@@ -23,35 +23,22 @@ func (t *testManagerTrees) SetupTest() {
 	t.workID = util.UUID().String()
 }
 
-func (t *testManagerTrees) newArgs() (
-	*managerTreesArgs,
-	*managerWorkersTreesArgs,
-) {
+func (t *testManagerTrees) newArgs() *managerWorkersTreesArgs {
 	targs := newManagerWorkersTreesArgs()
 
-	targs.NewCheckWorkersFunc = func(minEnough, maxFailed uint64) (
-		checkEnoughFailedWorkerFunc,
-		func(),
-		error,
-	) {
-		return newCheckEnoughFailedWorkers(minEnough, maxFailed)
-	}
 	targs.NewWorkersOpsFunc = distributeNShareWorkerOps
 	targs.NewOperationsTreeWriterFuncs = newFuncOperationsTreeWriter()
 	targs.NewStatesTreeWriterFuncs = newFuncStatesTreeWriter(1<<9, 1<<9)
 
-	args := newManagerTreesArgs()
-
 	_ = targs.SetLogging(logging.TestNilLogging)
-	_ = args.SetLogging(logging.TestNilLogging)
 
-	return args, targs
+	return targs
 }
 
 func (t *testManagerTrees) TestError() {
-	args, targs := t.newArgs()
+	targs := t.newArgs()
 
-	f := newFuncManagerTrees(args, targs)
+	f := newFuncManagerTrees(targs, t.newCheckWorkersFunc())
 
 	t.Run("canceled before new", func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -147,9 +134,9 @@ func (t *testManagerTrees) TestError() {
 }
 
 func (t *testManagerTrees) TestOps() {
-	args, targs := t.newArgs()
+	targs := t.newArgs()
 
-	f := newFuncManagerTrees(args, targs)
+	f := newFuncManagerTrees(targs, t.newCheckWorkersFunc())
 
 	t.Run("empty ops", func() {
 		ctx, cancel := context.WithCancel(context.Background())

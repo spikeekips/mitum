@@ -7,7 +7,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -22,21 +21,11 @@ type (
 	)
 )
 
-type managerTreesArgs struct {
-	*logging.Logging
-}
-
-func newManagerTreesArgs() *managerTreesArgs {
-	return &managerTreesArgs{
-		Logging: NewModuleLogging("manager-trees", nil),
-	}
-}
-
 func newFuncManagerTrees(
-	args *managerTreesArgs,
-	targs *managerWorkersTreesArgs,
+	args *managerWorkersTreesArgs,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 ) managerTreesFuncs {
-	workersTreeFuncs := newFuncManagerWorkersTrees(targs)
+	workersTreeFuncs := newFuncManagerWorkersTrees(args, newCheckWorkersFunc)
 
 	return func(
 		ctx context.Context,

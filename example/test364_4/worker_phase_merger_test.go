@@ -20,7 +20,6 @@ type testWorkerPhaseMerger struct {
 
 func (t *testWorkerPhaseMerger) newArgs() (
 	_ *phaseMergerArgs,
-	_ *workerPhaseMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
@@ -39,11 +38,9 @@ func (t *testWorkerPhaseMerger) newArgs() (
 
 	pargs := newPhaseMergerArgs()
 
-	args := newWorkerPhaseMergerArgs()
+	pargs.SetLogging(logging.TestNilLogging)
 
-	args.SetLogging(logging.TestNilLogging)
-
-	return pargs, args, vp, mergers, states, getValues, getState
+	return pargs, vp, mergers, states, getValues, getState
 }
 
 func (t *testWorkerPhaseMerger) filterMergeOps(m, u []uint64) ([]uint64, []uint64) { return m, u }
@@ -52,7 +49,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -60,7 +57,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		cancel()
@@ -78,7 +75,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("just after insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -86,7 +83,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -103,7 +100,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("just after insert", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -111,7 +108,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -131,7 +128,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -139,7 +136,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
@@ -158,7 +155,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -166,7 +163,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		done := NewFuncContextDoneFunc(
@@ -189,7 +186,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -197,7 +194,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
@@ -219,7 +216,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -227,7 +224,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -249,7 +246,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -257,7 +254,7 @@ func (t *testWorkerPhaseMerger) TestWait() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -286,7 +283,7 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		var opindex uint64 = 1
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
@@ -302,7 +299,7 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 2, getValues, getMergers, extractKeys, filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 2, getValues, getMergers, extractKeys, filterMergeOps)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
@@ -326,7 +323,7 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		var opindex uint64 = 1
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
@@ -339,7 +336,7 @@ func (t *testWorkerPhaseMerger) TestFilterOps() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, filterMergeOps)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, []uint64{opindex}, nil))
@@ -400,7 +397,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -408,7 +405,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -429,7 +426,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -437,7 +434,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 1, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		t.NoError(insert(localWorkerName, nil, nil))
@@ -455,7 +452,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -463,7 +460,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		insertf := t.newInsertWaitFuncs(insert, wait)
@@ -483,7 +480,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		ops := make([]uint64, 9)
 		for i := range ops {
@@ -499,7 +496,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		insertf := t.newInsertWaitFuncs(insert, wait)
@@ -521,7 +518,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, _, mergers, _, getValues, getState := t.newArgs()
+		pargs, _, mergers, _, getValues, getState := t.newArgs()
 
 		getMergers, closeMergers := newGetMergers(mergers, getState)
 		defer closeMergers()
@@ -529,7 +526,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		insertf := t.newInsertWaitFuncs(insert, wait)
@@ -556,7 +553,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		pargs, args, vp, mergers, _, getValues, getState := t.newArgs()
+		pargs, vp, mergers, _, getValues, getState := t.newArgs()
 
 		ops := make([]uint64, 12)
 		for i := range ops {
@@ -572,7 +569,7 @@ func (t *testWorkerPhaseMerger) TestMinEnoughWorkers() {
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+		insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 		t.NoError(err)
 
 		insertf := t.newInsertWaitFuncs(insert, wait)
@@ -633,7 +630,7 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 		},
 	}
 
-	pargs, args, vp, mergers, states, getValues, getState := t.newArgs()
+	pargs, vp, mergers, states, getValues, getState := t.newArgs()
 
 	for i := range sts {
 		states.SetValue(sts[i].Key(), sts[i])
@@ -652,7 +649,7 @@ func (t *testWorkerPhaseMerger) TestMerge() {
 	extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 	defer closeExtractKeys()
 
-	insert, wait, err := newFuncWorkerPhaseMerger(args, pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
+	insert, wait, err := newFuncWorkerPhaseMerger(pargs)(ctx, 3, getValues, getMergers, extractKeys, t.filterMergeOps)
 	t.NoError(err)
 
 	t.NoError(insert("w0", seq[:3], nil))

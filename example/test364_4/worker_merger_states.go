@@ -35,28 +35,22 @@ type (
 
 type statesWorkerMergerArgs struct {
 	*logging.Logging
-	*initialValuesWorkerMergerArgs
+	NewJobWorker newJobWorkerFunc
 }
 
-func (args *statesWorkerMergerArgs) SetLogging(l *logging.Logging) *logging.Logging {
-	args.initialValuesWorkerMergerArgs.SetLogging(l)
-
-	return args.Logging.SetLogging(l)
-}
-
-func newStatesWorkerMergerArgs(args *initialValuesWorkerMergerArgs) *statesWorkerMergerArgs {
+func newStatesWorkerMergerArgs() *statesWorkerMergerArgs {
 	return &statesWorkerMergerArgs{
-		Logging:                       NewModuleLogging("states-worker-merger", nil),
-		initialValuesWorkerMergerArgs: args,
+		Logging:      NewModuleLogging("states-worker-merger", nil),
+		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
 	}
 }
 
 func newFuncStatesWorkerMerger(
 	args *statesWorkerMergerArgs,
-	wpargs *workerPhaseMergerArgs,
+	iargs *initialValuesWorkerMergerArgs,
 	pargs *phaseMergerArgs,
 ) statesWorkerMergerFunc {
-	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args.initialValuesWorkerMergerArgs, wpargs, pargs)
+	newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(iargs, pargs)
 
 	return func(
 		ctx context.Context,

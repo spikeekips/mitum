@@ -26,21 +26,13 @@ type (
 
 type managerWorkersOperationsArgs struct {
 	*logging.Logging
-	NewCheckWorkersFunc checkEnoughFailedWorkersFuncs
-	NewWorkersOpsFunc   managerWorkersOperationsWorkersOpsFunc
-	NewTreeWriterFuncs  newOperationsTreeFuncs
+	NewWorkersOpsFunc  managerWorkersOperationsWorkersOpsFunc
+	NewTreeWriterFuncs newOperationsTreeFuncs
 }
 
 func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 	return &managerWorkersOperationsArgs{
 		Logging: NewModuleLogging("manager-workers-operations", nil),
-		NewCheckWorkersFunc: func(_, maxFailed uint64) (
-			checkEnoughFailedWorkerFunc,
-			func(),
-			error,
-		) {
-			return nil, nil, util.ErrNotImplemented.Errorf("NewCheckWorkers")
-		},
 		NewWorkersOpsFunc: func([]string, uint64, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
@@ -51,6 +43,7 @@ func newManagerWorkersOperationsArgs() *managerWorkersOperationsArgs {
 func newManagerWorkersOperations(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 	workers []string,
 	share uint64,
 	ophs [][2]util.Hash,
@@ -77,7 +70,7 @@ func newManagerWorkersOperations(
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerDone func()
 
-	switch c, d, err := args.NewCheckWorkersFunc(nworkers, maxFailed); {
+	switch c, d, err := newCheckWorkersFunc(nworkers, maxFailed); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -117,6 +110,7 @@ func newManagerWorkersOperations(
 					return distributeDone(distributeOpsToWorkers(
 						ctx,
 						args,
+						newCheckWorkersFunc,
 						workers,
 						share,
 						maxFailed,
@@ -178,6 +172,7 @@ func newManagerWorkersOperations(
 func distributeOpsToWorkers(
 	ctx context.Context,
 	args *managerWorkersOperationsArgs,
+	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 	workers []string,
 	share, maxFailed uint64,
 	ophs [][2]util.Hash,
@@ -185,7 +180,7 @@ func distributeOpsToWorkers(
 ) error {
 	var checkWorker checkEnoughFailedWorkerFunc
 
-	switch c, d, err := args.NewCheckWorkersFunc(uint64(len(workers)), maxFailed); {
+	switch c, d, err := newCheckWorkersFunc(uint64(len(workers)), maxFailed); {
 	case err != nil:
 		return err
 	default:

@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -17,14 +16,6 @@ import (
 type testManagerWorkerBlockFiles struct {
 	suite.Suite
 	baseTestManager
-}
-
-func (t *testManagerWorkerBlockFiles) newArgs() *managerWorkerBlockFilesArgs {
-	args := newManagerWorkerBlockFilesArgs()
-
-	_ = args.SetLogging(logging.TestNilLogging)
-
-	return args
 }
 
 func (t *testManagerWorkerBlockFiles) randomChecksums(n int) []string {
@@ -39,8 +30,7 @@ func (t *testManagerWorkerBlockFiles) randomChecksums(n int) []string {
 
 func (t *testManagerWorkerBlockFiles) TestError() {
 	t.Run("cancel before receive", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -69,8 +59,7 @@ func (t *testManagerWorkerBlockFiles) TestError() {
 	})
 
 	t.Run("cancel during receive", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -113,8 +102,7 @@ func (t *testManagerWorkerBlockFiles) TestError() {
 
 func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	t.Run("no failed workers", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -140,8 +128,7 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	})
 
 	t.Run("under max failed", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -171,8 +158,7 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	})
 
 	t.Run("over max failed", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -210,8 +196,7 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	})
 
 	t.Run("under min enough workers", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -246,8 +231,7 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 	})
 
 	t.Run("receive over enough", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -295,8 +279,7 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 
 func (t *testManagerWorkerBlockFiles) TestReceive() {
 	t.Run("ok", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -344,8 +327,7 @@ func (t *testManagerWorkerBlockFiles) TestReceive() {
 	})
 
 	t.Run("empty checksums", func() {
-		args := t.newArgs()
-		f := newFuncManagerWorkerBlockFiles(args, newCheckEnoughFailedWorkers)
+		f := newFuncManagerWorkerBlockFiles(newCheckEnoughFailedWorkers)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
