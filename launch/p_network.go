@@ -51,7 +51,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	client := NewNetworkClient(encs, encs.Default(), connectionPool) //nolint:gomnd //...
+	client := NewNetworkClient(encs, encs.Default(), connectionPool) //nolint:mnd //...
 
 	return util.ContextWithValues(pctx, map[util.ContextKey]interface{}{
 		QuicstreamClientContextKey: client,
@@ -159,7 +159,7 @@ func NewConnInfoDialFunc(networkID base.NetworkID, params *NetworkParams) quicst
 }
 
 func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {
-	key, err := rsa.GenerateKey(rand.Reader, 2048) //nolint:gomnd //...
+	key, err := rsa.GenerateKey(rand.Reader, 2048) //nolint:mnd //...
 	if err != nil {
 		panic(err)
 	}
@@ -188,9 +188,9 @@ func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {
 func DefaultServerQuicConfig() *quic.Config {
 	return &quic.Config{
 		HandshakeIdleTimeout: time.Second * 2,
-		MaxIdleTimeout:       time.Second * 30, //nolint:gomnd //...
-		KeepAlivePeriod:      time.Second * 6,  //nolint:gomnd //...
-		MaxIncomingStreams:   33,               //nolint:gomnd // default will be enough :)
+		MaxIdleTimeout:       time.Second * 30, //nolint:mnd //...
+		KeepAlivePeriod:      time.Second * 6,  //nolint:mnd //...
+		MaxIncomingStreams:   33,               //nolint:mnd // default will be enough :)
 	}
 }
 
@@ -208,8 +208,8 @@ func ServerQuicConfig(params *NetworkParams) *quic.Config {
 func DefaultDialQuicConfig() *quic.Config {
 	return &quic.Config{
 		HandshakeIdleTimeout: time.Second * 2,
-		MaxIdleTimeout:       time.Second * 30, //nolint:gomnd //...
-		KeepAlivePeriod:      time.Second * 6,  //nolint:gomnd //...
+		MaxIdleTimeout:       time.Second * 30, //nolint:mnd //...
+		KeepAlivePeriod:      time.Second * 6,  //nolint:mnd //...
 	}
 }
 

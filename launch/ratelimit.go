@@ -20,9 +20,9 @@ import (
 
 var (
 	ErrRateLimited                   = util.NewIDError("over ratelimit")
-	defaultRateLimiter               = NewRateLimiterRule(time.Second*3, 33)    //nolint:gomnd //...
-	defaultSuffrageRateLimiter       = NewRateLimiterRule(time.Second*3, 900)   //nolint:gomnd //...
-	defaultSuffrageSyncRateLimiter   = NewRateLimiterRule(time.Second*3, 90000) //nolint:gomnd //...
+	defaultRateLimiter               = NewRateLimiterRule(time.Second*3, 33)    //nolint:mnd //...
+	defaultSuffrageRateLimiter       = NewRateLimiterRule(time.Second*3, 900)   //nolint:mnd //...
+	defaultSuffrageSyncRateLimiter   = NewRateLimiterRule(time.Second*3, 90000) //nolint:mnd //...
 	defaultRateLimitHandlerPoolSizes = []uint64{1 << 7, 1 << 7, 1 << 7}
 )
 
@@ -40,7 +40,7 @@ type RateLimiter struct {
 	desc      string
 	updatedAt int64
 	nolimit   bool
-	sync.RWMutex
+	l         sync.RWMutex
 }
 
 // NewRateLimiter make new *RateLimiter;
@@ -66,29 +66,29 @@ func NewRateLimiter(limit rate.Limit, burst int, checksum, t, desc string) *Rate
 }
 
 func (r *RateLimiter) Checksum() string {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.checksum
 }
 
 func (r *RateLimiter) Type() string {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.t
 }
 
 func (r *RateLimiter) UpdatedAt() int64 {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.updatedAt
 }
 
 func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum, t, desc string) *RateLimiter {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	if r.Limiter == nil || (r.Limiter.Limit() != limit || r.Limiter.Burst() != burst) {
 		switch {
@@ -121,8 +121,8 @@ func (r *RateLimiter) Update(limit rate.Limit, burst int, checksum, t, desc stri
 }
 
 func (r *RateLimiter) Allow() bool {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	if r.Limiter == nil {
 		return r.nolimit
@@ -132,8 +132,8 @@ func (r *RateLimiter) Allow() bool {
 }
 
 func (r *RateLimiter) Limit() rate.Limit {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	switch {
 	case r.Limiter != nil:
@@ -146,8 +146,8 @@ func (r *RateLimiter) Limit() rate.Limit {
 }
 
 func (r *RateLimiter) Burst() int {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	switch {
 	case r.Limiter != nil:
@@ -158,8 +158,8 @@ func (r *RateLimiter) Burst() int {
 }
 
 func (r *RateLimiter) Tokens() float64 {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	switch {
 	case r.Limiter == nil:
@@ -170,8 +170,8 @@ func (r *RateLimiter) Tokens() float64 {
 }
 
 func (r *RateLimiter) Desc() string {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.desc
 }
@@ -190,8 +190,8 @@ type RateLimitHandlerArgs struct {
 
 func NewRateLimitHandlerArgs() *RateLimitHandlerArgs {
 	return &RateLimitHandlerArgs{
-		ExpireAddr:     time.Second * 33, //nolint:gomnd //...
-		ShrinkInterval: time.Second * 33, //nolint:gomnd // long enough
+		ExpireAddr:     time.Second * 33, //nolint:mnd //...
+		ShrinkInterval: time.Second * 33, //nolint:mnd // long enough
 		PoolSizes:      defaultRateLimitHandlerPoolSizes,
 		Rules:          NewRateLimiterRules(),
 		MaxAddrs:       math.MaxUint32,
@@ -286,7 +286,7 @@ func (r *RateLimitHandler) allow(addr net.Addr, handler string, hint RateLimitRu
 		r.rateLimiterFunc(addr, handler),
 	)
 
-	return l, l.Allow()
+	return l, l.Allow() //nolint:gocritic //...
 }
 
 func (r *RateLimitHandler) shrink(ctx context.Context) (removed uint64) {
@@ -371,7 +371,7 @@ type RateLimiterRules struct {
 	clientid            RateLimiterRuleSet
 	defaultMap          RateLimiterRuleMap
 	defaultMapUpdatedAt int64
-	sync.RWMutex
+	l                   sync.RWMutex
 }
 
 func NewRateLimiterRules() *RateLimiterRules {
@@ -411,8 +411,8 @@ func (r *RateLimiterRules) Rule(
 		return NewRateLimiter(rule.Limit, rule.Burst, checksum, t, desc), true
 	}
 
-	if r.clientid != nil && l.Type() == "clientid" &&
-		len(hint.ClientID) > 0 && l.UpdatedAt() >= r.clientid.UpdatedAt() {
+	if hint.ClientID != "" && (r.clientid != nil && l.Type() == "clientid") &&
+		l.UpdatedAt() >= r.clientid.UpdatedAt() {
 		return l, false
 	}
 
@@ -433,15 +433,15 @@ func (r *RateLimiterRules) Rule(
 }
 
 func (r *RateLimiterRules) DefaultRuleMap() RateLimiterRuleMap {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.defaultMap
 }
 
 func (r *RateLimiterRules) SetDefaultRuleMap(rule RateLimiterRuleMap) error {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	r.defaultMap = rule
 	r.defaultMapUpdatedAt = time.Now().UnixNano()
@@ -450,15 +450,15 @@ func (r *RateLimiterRules) SetDefaultRuleMap(rule RateLimiterRuleMap) error {
 }
 
 func (r *RateLimiterRules) SuffrageRuleSet() RateLimiterRuleSet {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.suffrage
 }
 
 func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	switch i, err := util.AssertInterfaceValue[*SuffrageRateLimiterRuleSet](l); {
 	case err != nil:
@@ -473,15 +473,15 @@ func (r *RateLimiterRules) SetSuffrageRuleSet(l RateLimiterRuleSet) error {
 }
 
 func (r *RateLimiterRules) NodeRuleSet() RateLimiterRuleSet {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.nodes
 }
 
 func (r *RateLimiterRules) SetNodeRuleSet(l RateLimiterRuleSet) error {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	r.nodes = l
 
@@ -489,15 +489,15 @@ func (r *RateLimiterRules) SetNodeRuleSet(l RateLimiterRuleSet) error {
 }
 
 func (r *RateLimiterRules) NetRuleSet() RateLimiterRuleSet {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.nets
 }
 
 func (r *RateLimiterRules) SetNetRuleSet(l RateLimiterRuleSet) error {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	r.nets = l
 
@@ -505,15 +505,15 @@ func (r *RateLimiterRules) SetNetRuleSet(l RateLimiterRuleSet) error {
 }
 
 func (r *RateLimiterRules) ClientIDRuleSet() RateLimiterRuleSet {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.clientid
 }
 
 func (r *RateLimiterRules) SetClientIDRuleSet(l RateLimiterRuleSet) error {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	r.clientid = l
 
@@ -521,8 +521,8 @@ func (r *RateLimiterRules) SetClientIDRuleSet(l RateLimiterRuleSet) error {
 }
 
 func (r *RateLimiterRules) DefaultMapUpdatedAt() int64 {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	return r.defaultMapUpdatedAt
 }
@@ -546,9 +546,9 @@ func (r *RateLimiterRules) rule(
 	hint RateLimitRuleHint,
 	t string,
 	updatedAt int64,
-) (checksum string, _ RateLimiterRule, rulesetType string, desc string, updated bool) {
-	r.RLock()
-	defer r.RUnlock()
+) (checksum string, _ RateLimiterRule, rulesetType, desc string, updated bool) {
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	var node base.Address
 	if hint.Node != nil {
@@ -782,7 +782,7 @@ func (rs StringKeyRateLimiterRuleSet) UpdatedAt() int64 {
 	return rs.updatedAt
 }
 
-func (rs StringKeyRateLimiterRuleSet) rule(i string, handler string) (rule RateLimiterRule, _ bool) {
+func (rs StringKeyRateLimiterRuleSet) rule(i, handler string) (rule RateLimiterRule, _ bool) {
 	m, found := rs.rules[i]
 	if !found {
 		return rule, false
@@ -828,7 +828,6 @@ type SuffrageRateLimiterRuleSet struct {
 	IsInConsensusNodesFunc func() (util.Hash, func(base.Address) (found bool), error)
 	rules                  RateLimiterRuleMap
 	updatedAt              int64
-	sync.RWMutex
 }
 
 func NewSuffrageRateLimiterRuleSet(rule RateLimiterRuleMap) *SuffrageRateLimiterRuleSet {
@@ -1060,43 +1059,43 @@ func (p *addrPool) shrinkAddrsQueue(maxAddrs uint64) uint64 {
 }
 
 type rateLimitAddrsQueue struct {
-	l *list.List
+	q *list.List
 	m map[string]*list.Element
-	sync.RWMutex
+	l sync.RWMutex
 }
 
 func newRateLimitAddrsQueue() *rateLimitAddrsQueue {
 	return &rateLimitAddrsQueue{
-		l: list.New(),
+		q: list.New(),
 		m: map[string]*list.Element{},
 	}
 }
 
 func (h *rateLimitAddrsQueue) Len() int {
-	h.RLock()
-	defer h.RUnlock()
+	h.l.RLock()
+	defer h.l.RUnlock()
 
-	return h.l.Len()
+	return h.q.Len()
 }
 
 func (h *rateLimitAddrsQueue) Add(addr string) {
-	h.Lock()
-	defer h.Unlock()
+	h.l.Lock()
+	defer h.l.Unlock()
 
 	if i, found := h.m[addr]; found {
-		_ = h.l.Remove(i)
+		_ = h.q.Remove(i)
 	}
 
-	h.m[addr] = h.l.PushBack(addr)
+	h.m[addr] = h.q.PushBack(addr)
 }
 
 func (h *rateLimitAddrsQueue) Remove(addr string) bool {
-	h.Lock()
-	defer h.Unlock()
+	h.l.Lock()
+	defer h.l.Unlock()
 
 	switch i, found := h.m[addr]; {
 	case found:
-		_ = h.l.Remove(i)
+		_ = h.q.Remove(i)
 		delete(h.m, addr)
 
 		return true
@@ -1106,12 +1105,12 @@ func (h *rateLimitAddrsQueue) Remove(addr string) bool {
 }
 
 func (h *rateLimitAddrsQueue) Pop() string {
-	h.Lock()
-	defer h.Unlock()
+	h.l.Lock()
+	defer h.l.Unlock()
 
-	e := h.l.Front()
+	e := h.q.Front()
 	if e != nil {
-		_ = h.l.Remove(e)
+		_ = h.q.Remove(e)
 	}
 
 	var addr string
@@ -1188,7 +1187,7 @@ func rateLimitHeaderHandlerFunc[T quicstreamheader.RequestHeader](
 
 		nctx := context.WithValue(ctx, RateLimiterLimiterNameContextKey, name)
 
-		if i, ok := (interface{})(header).(interface{ ClientID() string }); ok {
+		if i, ok := interface{}(header).(interface{ ClientID() string }); ok {
 			nctx = context.WithValue(nctx, RateLimiterClientIDContextKey, i.ClientID())
 		}
 

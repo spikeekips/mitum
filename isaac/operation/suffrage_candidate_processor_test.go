@@ -3,7 +3,6 @@ package isaacoperation
 import (
 	"context"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
@@ -342,7 +341,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 			getStateFunc,
 			func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
 				return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-					return base.NewBaseOperationProcessReasonError("hehehe"), nil
+					return base.NewBaseOperationProcessReason("hehehe"), nil
 				}, nil
 			},
 			nil,
@@ -493,7 +492,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	t.Equal(len(ops), len(nst.Operations()))
 
 	sort.Slice(ops, func(i, j int) bool {
-		return strings.Compare(ops[i].Hash().String(), ops[j].Hash().String()) < 0
+		return ops[i].Hash().String() < ops[j].Hash().String()
 	})
 
 	mops := nst.Operations()
@@ -511,7 +510,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	t.Equal(len(privs), len(cv.Nodes()))
 
 	sort.Slice(nodes, func(i, j int) bool {
-		return strings.Compare(nodes[i].Address().String(), nodes[j].Address().String()) < 0
+		return nodes[i].Address().String() < nodes[j].Address().String()
 	})
 
 	mnodes := cv.Nodes()

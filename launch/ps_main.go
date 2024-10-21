@@ -99,7 +99,7 @@ func PLoggingWithCLI(pctx context.Context) (context.Context, error) {
 					continue
 				}
 
-				name = "-" + strings.Replace(n.Path(), " ", "-", -1)
+				name = "-" + strings.ReplaceAll(n.Path(), " ", "-")
 
 				break
 			}

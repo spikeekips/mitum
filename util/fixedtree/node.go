@@ -37,7 +37,7 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 	switch {
 	case len(l) != 2:
 		return n, e.Errorf("invalid string")
-	case len(l[0]) > 0:
+	case l[0] != "":
 		switch i, err := valuehash.NewBytesFromString(l[0]); {
 		case err != nil:
 			return n, e.Wrap(err)

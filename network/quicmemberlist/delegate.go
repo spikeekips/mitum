@@ -116,7 +116,7 @@ func NewAliveDelegate(
 		challengef:      nchallengef,
 		allowf:          nallowf,
 		storeconninfof:  func(quicstream.ConnInfo) {},
-		challengecache:  util.NewLRUGCache[string, time.Time](1 << 9), //nolint:gomnd //...
+		challengecache:  util.NewLRUGCache[string, time.Time](1 << 9), //nolint:mnd //...
 		challengeexpire: defaultNodeChallengeExpire,
 	}
 }

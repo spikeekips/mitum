@@ -61,7 +61,7 @@ func PBlockItemReaders(pctx context.Context) (context.Context, error) {
 		}
 
 		readers := isaac.NewBlockItemReaders(root, encs, args)
-		_ = readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(1<<6)) //nolint:gomnd //...
+		_ = readers.Add(isaacblock.LocalFSWriterHint, isaacblock.NewDefaultItemReaderFunc(1<<6)) //nolint:mnd //...
 
 		_ = readers.SetLogging(log)
 

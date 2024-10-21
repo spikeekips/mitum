@@ -157,20 +157,20 @@ func NewBlockItemFile(uri url.URL, compressFormat string) BlockItemFile {
 	}
 }
 
-func NewLocalFSBlockItemFile(f string, compressFormat string) BlockItemFile {
+func NewLocalFSBlockItemFile(f, compressFormat string) BlockItemFile {
 	uri := url.URL{Scheme: LocalFSBlockItemScheme}
 
-	if len(f) > 0 && !strings.HasPrefix(f, "/") {
+	if f != "" && !strings.HasPrefix(f, "/") {
 		uri.Path = "/" + f
 	}
 
 	return NewBlockItemFile(uri, compressFormat)
 }
 
-func NewFileBlockItemFile(f string, compressFormat string) BlockItemFile {
+func NewFileBlockItemFile(f, compressFormat string) BlockItemFile {
 	uri := url.URL{Scheme: "file", Path: f}
 
-	if len(f) > 0 && !strings.HasPrefix(f, "/") {
+	if f != "" && !strings.HasPrefix(f, "/") {
 		uri.Path = "/" + f
 	}
 
@@ -201,7 +201,7 @@ func (f BlockItemFile) URI() url.URL {
 }
 
 func (f BlockItemFile) CompressFormat() string {
-	if len(f.compressFormat) > 0 {
+	if f.compressFormat != "" {
 		return f.compressFormat
 	}
 
@@ -287,7 +287,7 @@ func (f BlockItemFiles) Items() map[base.BlockItemType]base.BlockItemFile {
 type BlockItemFilesMaker struct {
 	enc   encoder.Encoder
 	files BlockItemFiles
-	sync.RWMutex
+	l     sync.RWMutex
 }
 
 func NewBlockItemFilesMaker(jsonenc encoder.Encoder) *BlockItemFilesMaker {
@@ -298,15 +298,15 @@ func NewBlockItemFilesMaker(jsonenc encoder.Encoder) *BlockItemFilesMaker {
 }
 
 func (f *BlockItemFilesMaker) Files() BlockItemFiles {
-	f.RLock()
-	defer f.RUnlock()
+	f.l.RLock()
+	defer f.l.RUnlock()
 
 	return f.files
 }
 
 func (f *BlockItemFilesMaker) SetItem(t base.BlockItemType, i base.BlockItemFile) (bool, error) {
-	f.Lock()
-	defer f.Unlock()
+	f.l.Lock()
+	defer f.l.Unlock()
 
 	if err := i.IsValid(nil); err != nil {
 		return false, err

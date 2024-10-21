@@ -88,7 +88,7 @@ func newHandoverXBrokerFunc(pctx context.Context) (isaacstates.NewHandoverXBroke
 
 	whenFinished := isaacstates.NewHandoverXFinishedFunc(
 		func() error {
-			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
+			return memberlist.Leave(time.Second * 33) //nolint:mnd // long enough
 		},
 		func(y base.Address, yci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), y), yci)
@@ -227,7 +227,7 @@ func newHandoverYBrokerFunc(pctx context.Context) (isaacstates.NewHandoverYBroke
 
 	whenCanceled := isaacstates.NewHandoverYCanceledFunc(
 		func() error {
-			return memberlist.Leave(time.Second * 33) //nolint:gomnd // long enough
+			return memberlist.Leave(time.Second * 33) //nolint:mnd // long enough
 		},
 		func(xci quicstream.ConnInfo) error {
 			nci := isaacnetwork.NewNodeConnInfoFromConnInfo(isaac.NewNode(local.Publickey(), local.Address()), xci)

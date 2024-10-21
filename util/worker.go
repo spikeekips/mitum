@@ -264,8 +264,6 @@ func runWorker(
 	defer worker.Close()
 
 	for i := int64(0); i < size; i++ {
-		i := i
-
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 			return f(ctx, uint64(i), jobid)
 		}); err != nil {

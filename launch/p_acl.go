@@ -35,7 +35,7 @@ func PLoadACL(pctx context.Context) (context.Context, error) {
 
 	var acl *YAMLACL
 
-	switch i, err := NewACL(33, local.Publickey().String()); { //nolint:gomnd //...
+	switch i, err := NewACL(33, local.Publickey().String()); { //nolint:mnd //...
 	case err != nil:
 		return pctx, e.Wrap(err)
 	default:

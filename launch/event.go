@@ -63,7 +63,6 @@ type EventLogging struct {
 	db *eventDatabase
 	w  io.Writer
 	m  map[EventLoggerName]zerolog.Logger
-	sync.RWMutex
 }
 
 func LoadDefaultEventStorage( //revive:disable-line:flag-parameter
@@ -191,7 +190,7 @@ var LeveldbLabelEventDatabase = leveldbstorage.KeyPrefix{0x02, 0x00}
 type eventDatabase struct {
 	pst          *leveldbstorage.PrefixStorage
 	keyPrefixAll [32]byte
-	sync.RWMutex
+	l            sync.RWMutex
 }
 
 func newEventDatabase(st *leveldbstorage.Storage) *eventDatabase {
@@ -204,8 +203,8 @@ func newEventDatabase(st *leveldbstorage.Storage) *eventDatabase {
 }
 
 func (db *eventDatabase) close() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if db.pst == nil {
 		return nil
@@ -359,8 +358,8 @@ func (db *eventDatabase) iter(
 }
 
 func (db *eventDatabase) st() (*leveldbstorage.PrefixStorage, error) {
-	db.RLock()
-	defer db.RUnlock()
+	db.l.RLock()
+	defer db.l.RUnlock()
 
 	if db.pst == nil {
 		return nil, storage.ErrClosed.WithStack()
@@ -413,7 +412,7 @@ func LoadRawEvent(raw []byte) ([]byte, error) {
 
 func LoadEventInfoFromKey(k []byte) (t time.Time, offset int64, _ error) {
 	switch {
-	case len(k) < 40: //nolint:gomnd // prefix(32)+time(8)
+	case len(k) < 40: //nolint:mnd // prefix(32)+time(8)
 		return t, 0, errors.Errorf("wrong size key")
 	default:
 		i, err := util.BytesToInt64(k[32:40])
@@ -587,7 +586,7 @@ func PEventLoggingNetworkHandlers(pctx context.Context) (context.Context, error)
 			isaacparams.NetworkID(),
 		),
 		eventLogging,
-		333, //nolint:gomnd //...
+		333, //nolint:mnd //...
 	)
 	if err != nil {
 		return pctx, err

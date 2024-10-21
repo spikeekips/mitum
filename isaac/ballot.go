@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -377,7 +376,7 @@ func sortExpelFacts(expelfacts []util.Hash) {
 	}
 
 	sort.Slice(expelfacts, func(i, j int) bool {
-		return strings.Compare(expelfacts[i].String(), expelfacts[j].String()) < 0
+		return expelfacts[i].String() < expelfacts[j].String()
 	})
 }
 
@@ -387,6 +386,6 @@ func sortExpels[T base.SuffrageExpelOperation](expels []T) {
 	}
 
 	sort.Slice(expels, func(i, j int) bool {
-		return strings.Compare(expels[i].Fact().Hash().String(), expels[j].Fact().Hash().String()) < 0
+		return expels[i].Fact().Hash().String() < expels[j].Fact().Hash().String()
 	})
 }

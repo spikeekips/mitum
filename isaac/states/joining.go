@@ -286,7 +286,7 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 	l := st.Log().With().Str("voteproof", avp.ID()).Logger()
 
 	switch lastheight := manifest.Height(); {
-	case avp.Point().Height() < lastheight+1: // NOTE lower height; ignore
+	case avp.Point().Height() <= lastheight: // NOTE lower height; ignore
 		return nil
 	case avp.Point().Height() > lastheight+1,
 		avp.Point().Height() == lastheight+1 && avp.Result() == base.VoteResultMajority:

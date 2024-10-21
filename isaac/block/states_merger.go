@@ -32,7 +32,7 @@ func NewDefaultStatesMerger(
 	getStateFunc base.GetStateFunc,
 	workersize int64,
 ) *DefaultStatesMerger {
-	stvmmap, _ := util.NewShardedMap[string, base.StateValueMerger](1<<9, nil) //nolint:gomnd //...
+	stvmmap, _ := util.NewShardedMap[string, base.StateValueMerger](1<<9, nil) //nolint:mnd //...
 
 	return &DefaultStatesMerger{
 		height:       height,

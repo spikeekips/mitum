@@ -48,15 +48,15 @@ type Transport struct {
 	packetch     chan *memberlist.Packet
 	conns        *util.ShardedMap[string, *qconn]
 	getconninfof TransportGetConnInfo
-	sync.RWMutex
-	shutdowned bool
+	l            sync.RWMutex
+	shutdowned   bool
 }
 
 func NewTransport(
 	laddr *net.UDPAddr,
 	args *TransportArgs,
 ) *Transport {
-	conns, _ := util.NewShardedMap[string, *qconn](1<<9, nil) //nolint:gomnd //...
+	conns, _ := util.NewShardedMap[string, *qconn](1<<9, nil) //nolint:mnd //...
 
 	return &Transport{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -221,8 +221,8 @@ func (t *Transport) PacketCh() <-chan *memberlist.Packet {
 }
 
 func (t *Transport) Start(context.Context) error {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	t.shutdowned = false
 
@@ -230,8 +230,8 @@ func (t *Transport) Start(context.Context) error {
 }
 
 func (t *Transport) Shutdown() error {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	t.shutdowned = true
 
@@ -239,8 +239,8 @@ func (t *Transport) Shutdown() error {
 }
 
 func (t *Transport) isShutdowned() bool {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	return t.shutdowned
 }

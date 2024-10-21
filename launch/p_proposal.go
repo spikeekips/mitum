@@ -289,8 +289,8 @@ func getProposalOperationFunc(pctx context.Context) (
 						return false, nil
 					}
 				},
-				15,                   //nolint:gomnd //...
-				time.Millisecond*333, //nolint:gomnd //...
+				15,                   //nolint:mnd //...
+				time.Millisecond*333, //nolint:mnd //...
 			); err != nil {
 				return nil, err
 			}
@@ -583,7 +583,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 	) (base.ProposalSignFact, bool, error) {
 		members, err := quicmemberlist.RandomAliveMembers(
 			m,
-			33, //nolint:gomnd //...
+			33, //nolint:mnd //...
 			func(node quicmemberlist.Member) bool {
 				switch {
 				case node.Address().Equal(local.Address()):

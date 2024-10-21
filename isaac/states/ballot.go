@@ -20,7 +20,7 @@ type DefaultBallotBroadcaster struct {
 	local         base.Address
 	pool          isaac.BallotPool
 	broadcastFunc func(base.Ballot) error
-	sync.Mutex
+	l             sync.Mutex
 }
 
 func NewDefaultBallotBroadcaster(
@@ -67,8 +67,8 @@ func (bb *DefaultBallotBroadcaster) Broadcast(bl base.Ballot) error {
 }
 
 func (bb *DefaultBallotBroadcaster) set(bl base.Ballot) error {
-	bb.Lock()
-	defer bb.Unlock()
+	bb.l.Lock()
+	defer bb.l.Unlock()
 
 	if !bl.SignFact().Node().Equal(bb.local) {
 		return nil

@@ -19,7 +19,7 @@ var (
 var hintcache util.GCache[string, any]
 
 func init() {
-	hintcache = util.NewLRUGCache[string, any](1 << 13) //nolint:gomnd //...
+	hintcache = util.NewLRUGCache[string, any](1 << 13) //nolint:mnd //...
 }
 
 type Hinter interface {

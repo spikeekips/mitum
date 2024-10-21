@@ -9,7 +9,7 @@ import (
 
 type BaseParams struct {
 	id string
-	sync.RWMutex
+	l  sync.RWMutex
 }
 
 func NewBaseParams() *BaseParams {
@@ -27,15 +27,15 @@ func (p *BaseParams) IsValid([]byte) error {
 }
 
 func (p *BaseParams) ID() string {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.id
 }
 
 func (p *BaseParams) Set(f func() (bool, error)) error {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	switch updated, err := f(); {
 	case err != nil:

@@ -148,7 +148,7 @@ func (*DummyOperationProcessor) Close() error {
 
 func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 	if p.preprocess == nil {
-		return ctx, base.NewBaseOperationProcessReasonError("nil preprocess"), nil
+		return ctx, base.NewBaseOperationProcessReason("nil preprocess"), nil
 	}
 
 	return p.preprocess(ctx, op, getStateFunc)
@@ -696,7 +696,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 					h.Equal(ophs[3][1]): // NOTE only will process, index 1 and 3 operation
 					return ctx, nil, nil
 				default:
-					return ctx, base.NewBaseOperationProcessReasonError("bad"), nil
+					return ctx, base.NewBaseOperationProcessReason("bad"), nil
 				}
 			},
 			process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
@@ -757,7 +757,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 				op.Fact().Hash().Equal(ophs[3][1]): // NOTE only will process, index 1 and 3 operation
 				return ctx, nil, nil
 			default:
-				return ctx, base.NewBaseOperationProcessReasonError("bad"), nil
+				return ctx, base.NewBaseOperationProcessReason("bad"), nil
 			}
 		}
 
@@ -939,7 +939,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 			switch {
 			case op.Fact().Hash().Equal(ophs[1][1]),
 				op.Fact().Hash().Equal(ophs[3][1]):
-				return ctx, base.NewBaseOperationProcessReasonError("showme, %q", op.Fact().Hash()), nil
+				return ctx, base.NewBaseOperationProcessReasonf("showme, %q", op.Fact().Hash()), nil
 			default:
 				return ctx, nil, nil
 			}
@@ -1848,7 +1848,7 @@ func (t *testDefaultProposalProcessor) TestEmptyAfterProcessEmptyProposalNoBlock
 
 			return &DummyOperationProcessor{
 				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
-					return ctx, base.NewBaseOperationProcessReasonError("ignore"), nil
+					return ctx, base.NewBaseOperationProcessReason("ignore"), nil
 				},
 				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 					return nil, base.ErrNotChangedOperationProcessReason, nil

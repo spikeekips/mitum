@@ -45,7 +45,7 @@ type RedisPermanent struct {
 	encs *encoder.Encoders
 	enc  encoder.Encoder
 	st   *redisstorage.Storage
-	sync.Mutex
+	l    sync.Mutex
 }
 
 func NewRedisPermanent(
@@ -313,8 +313,8 @@ func (db *RedisPermanent) BlockMapBytes(height base.Height) (
 }
 
 func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	e := util.StringError("merge TempDatabase")
 

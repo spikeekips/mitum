@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	DefaultNetworkBind                  = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
-	DefaultNetworkPublish               = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
+	DefaultNetworkBind                  = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:mnd //...
+	DefaultNetworkPublish               = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:mnd //...
 	DefaultStorageBase                  string
 	DefaultStorageDatabaseDirectoryName = "db"
 )
@@ -114,7 +114,7 @@ func NodeDesignFromConsul(addr, key string, jsonencoder encoder.Encoder) (design
 func (d *NodeDesign) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid NodeDesign")
 
-	if len(d.TimeServer) > 0 {
+	if d.TimeServer != "" {
 		switch i, err := url.Parse("http://" + d.TimeServer); {
 		case err != nil:
 			return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
@@ -132,7 +132,7 @@ func (d *NodeDesign) IsValid([]byte) error {
 				return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
 			}
 
-			if len(i.Port()) > 0 {
+			if i.Port() != "" {
 				p, err := strconv.ParseInt(i.Port(), 10, 64)
 				if err != nil {
 					return e.WithMessage(err, "invalid time server, %q", d.TimeServer)
@@ -381,7 +381,7 @@ func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
 func (y *NodeNetworkDesignMarshaler) Decode(encoder.Encoder) (d NodeNetworkDesign, _ error) {
 	e := util.StringError("decode NodeNetworkDesign")
 
-	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
+	if s := strings.TrimSpace(y.Bind); s != "" {
 		addr, err := net.ResolveUDPAddr("udp", y.Bind)
 		if err != nil {
 			return d, e.WithMessage(err, "invalid bind")
@@ -462,7 +462,7 @@ func (y *NodeStorageDesignLMarshaler) Decode(encoder.Encoder) (d NodeStorageDesi
 
 	d.Base = strings.TrimSpace(y.Base)
 
-	if s := strings.TrimSpace(y.Database); len(s) > 0 {
+	if s := strings.TrimSpace(y.Database); s != "" {
 		switch i, err := url.Parse(s); {
 		case err != nil:
 			return d, e.WithMessage(err, "invalid database")
@@ -570,17 +570,17 @@ func (d *GenesisDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error 
 }
 
 type SyncSourcesDesign struct {
-	l []isaacnetwork.SyncSource
-	sync.RWMutex
+	sources []isaacnetwork.SyncSource
+	l       sync.RWMutex
 }
 
-func NewSyncSourcesDesign(l []isaacnetwork.SyncSource) *SyncSourcesDesign {
-	return &SyncSourcesDesign{l: l}
+func NewSyncSourcesDesign(sources []isaacnetwork.SyncSource) *SyncSourcesDesign {
+	return &SyncSourcesDesign{sources: sources}
 }
 
 func (d *SyncSourcesDesign) IsValid([]byte) error {
-	for i := range d.l {
-		if err := d.l[i].IsValid(nil); err != nil {
+	for i := range d.sources {
+		if err := d.sources[i].IsValid(nil); err != nil {
 			return errors.WithMessage(err, "invalid SyncSourcesDesign")
 		}
 	}
@@ -589,17 +589,17 @@ func (d *SyncSourcesDesign) IsValid([]byte) error {
 }
 
 func (d *SyncSourcesDesign) Sources() []isaacnetwork.SyncSource {
-	d.RLock()
-	defer d.RUnlock()
+	d.l.RLock()
+	defer d.l.RUnlock()
 
-	return d.l
+	return d.sources
 }
 
-func (d *SyncSourcesDesign) Update(l []isaacnetwork.SyncSource) {
-	d.Lock()
-	defer d.Unlock()
+func (d *SyncSourcesDesign) Update(sources []isaacnetwork.SyncSource) {
+	d.l.Lock()
+	defer d.l.Unlock()
 
-	d.l = l
+	d.sources = sources
 }
 
 func IsValidSyncSourcesDesign(
@@ -612,8 +612,8 @@ func IsValidSyncSourcesDesign(
 
 	e := util.ErrInvalid.Errorf("invalid SyncSourcesDesign")
 
-	for i := range d.l {
-		s := d.l[i]
+	for i := range d.sources {
+		s := d.sources[i]
 		if err := s.IsValid(nil); err != nil {
 			return e.Wrap(err)
 		}
@@ -642,11 +642,11 @@ func IsValidSyncSourcesDesign(
 }
 
 func (d *SyncSourcesDesign) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(d.l)
+	return util.MarshalJSON(d.sources)
 }
 
 func (d *SyncSourcesDesign) MarshalYAML() (interface{}, error) {
-	return d.l, nil
+	return d.sources, nil
 }
 
 func (d *SyncSourcesDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) error {
@@ -675,7 +675,7 @@ func (d *SyncSourcesDesign) DecodeYAML(b []byte, jsonencoder encoder.Encoder) er
 		}
 	}
 
-	d.l = sources
+	d.sources = sources
 
 	return nil
 }
@@ -689,7 +689,7 @@ func defaultDatabaseURL(root string) *url.URL {
 
 func consulClient(addr string) (*consulapi.Client, error) {
 	config := consulapi.DefaultConfig()
-	if len(addr) > 0 {
+	if addr != "" {
 		config.Address = addr
 	}
 
@@ -724,7 +724,7 @@ func getFromHTTP(u string, tlsinsecure bool) ([]byte, error) {
 		},
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

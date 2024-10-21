@@ -25,7 +25,7 @@ type SimpleTimer struct {
 	expiredLocked *Locked[time.Time]
 	id            TimerID
 	called        uint64
-	sync.RWMutex
+	l             sync.RWMutex
 }
 
 func NewSimpleTimer(
@@ -68,8 +68,8 @@ func (t *SimpleTimer) isExpired() bool {
 }
 
 func (t *SimpleTimer) prepare() bool {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	i := t.intervalFunc(t.called)
 	if i < 1 {
@@ -82,8 +82,8 @@ func (t *SimpleTimer) prepare() bool {
 }
 
 func (t *SimpleTimer) run() (bool, error) {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	ctx := t.getCtx()
 

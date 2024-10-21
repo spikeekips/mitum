@@ -80,7 +80,7 @@ func newMemberWithMeta(name string, addr *net.UDPAddr, meta memberMeta) (b BaseM
 	var publish NamedConnInfo
 
 	switch p := meta.publish; {
-	case len(p) > 0:
+	case p != "":
 		i, err := NewNamedConnInfo(meta.publish, meta.tlsinsecure)
 		if err != nil {
 			return b, errors.WithMessage(err, "new Member")

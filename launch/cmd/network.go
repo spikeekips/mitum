@@ -66,7 +66,7 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 	}
 
 	connectionPool, err := launch.NewConnectionPool(
-		1<<9, //nolint:gomnd //...
+		1<<9, //nolint:mnd //...
 		base.NetworkID(cmd.NetworkID),
 		nil,
 	)

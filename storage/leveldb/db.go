@@ -189,7 +189,7 @@ func (st *Storage) Clean() error {
 	batch := &leveldb.Batch{}
 	defer batch.Reset()
 
-	if _, err := BatchRemove(st, nil, 333); err != nil { //nolint:gomnd //...
+	if _, err := BatchRemove(st, nil, 333); err != nil { //nolint:mnd //...
 		return err
 	}
 

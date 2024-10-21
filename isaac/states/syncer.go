@@ -50,7 +50,7 @@ func NewSyncerArgs() SyncerArgs {
 		) error {
 			return errors.Errorf("nothing happened")
 		},
-		BatchLimit:           33, //nolint:gomnd // big enough size
+		BatchLimit:           33, //nolint:mnd // big enough size
 		LastBlockMapInterval: time.Second * 2,
 		LastBlockMapTimeout:  isaac.DefaultTimeoutRequest,
 	}
@@ -89,7 +89,7 @@ func NewSyncer(prev base.BlockMap, args SyncerArgs) *Syncer {
 		topvalue:     util.NewLocked(prevheight),
 		isdonevalue:  &atomic.Value{},
 		startsyncch:  make(chan base.Height, 1<<9),
-		checkedprevs: util.NewLRUGCache[base.Height, string](1 << 3), //nolint:gomnd //...
+		checkedprevs: util.NewLRUGCache[base.Height, string](1 << 3), //nolint:mnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -166,8 +166,6 @@ func (s *Syncer) Cancel() error {
 
 		_, _ = s.doneerr.Set(func(i error, _ bool) (error, error) {
 			s.isdonevalue.Store(true)
-
-			// close(s.donech)
 
 			return i, nil
 		})

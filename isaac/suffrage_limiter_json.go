@@ -50,8 +50,8 @@ func (l MajoritySuffrageCandidateLimiterRule) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(majoritySuffrageCandidateLimiterRuleJSONMarshaler{
 		BaseHinter: l.BaseHinter,
 		Ratio:      l.ratio,
-		Min:        l.min,
-		Max:        l.max,
+		Min:        l.minv,
+		Max:        l.maxv,
 	})
 }
 
@@ -63,8 +63,8 @@ func (l *MajoritySuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
 	}
 
 	l.ratio = u.Ratio
-	l.min = u.Min
-	l.max = u.Max
+	l.minv = u.Min
+	l.maxv = u.Max
 
 	return nil
 }

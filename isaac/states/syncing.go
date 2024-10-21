@@ -310,7 +310,6 @@ func (st *SyncingHandler) add(h base.Height) bool {
 func (st *SyncingHandler) finishing(sc isaac.Syncer) {
 	var err error
 
-end:
 	for {
 		select {
 		case <-st.ctx.Done():
@@ -340,7 +339,7 @@ end:
 
 			go st.switchState(sctx)
 
-			break end
+			break
 		}
 	}
 }
@@ -438,7 +437,7 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 		return false, nil
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: // NOTE local is alone in suffrage node
 	default:
-		ctx, cancel := context.WithTimeout(st.ctx, time.Second*10) //nolint:gomnd //...
+		ctx, cancel := context.WithTimeout(st.ctx, time.Second*10) //nolint:mnd //...
 		defer cancel()
 
 		if err := st.args.JoinMemberlistFunc(ctx, suf); err != nil {

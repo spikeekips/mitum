@@ -13,7 +13,7 @@ import (
 type Storage struct {
 	client *redis.Client
 	prefix string
-	sync.RWMutex
+	l      sync.RWMutex
 }
 
 func NewStorage(ctx context.Context, opt *redis.Options, prefix string) (*Storage, error) {
@@ -29,8 +29,8 @@ func NewStorage(ctx context.Context, opt *redis.Options, prefix string) (*Storag
 }
 
 func (st *Storage) Connect(ctx context.Context) error {
-	st.Lock()
-	defer st.Unlock()
+	st.l.Lock()
+	defer st.l.Unlock()
 
 	return st.connect(ctx, st.client.Options())
 }
@@ -47,8 +47,8 @@ func (st *Storage) connect(ctx context.Context, opt *redis.Options) error {
 }
 
 func (st *Storage) Close() error {
-	st.Lock()
-	defer st.Unlock()
+	st.l.Lock()
+	defer st.l.Unlock()
 
 	if err := st.client.Close(); err != nil {
 		return storage.ErrInternal.WithMessage(err, "close redis client")
@@ -111,7 +111,7 @@ func (st *Storage) Clean(ctx context.Context) error {
 	var cursor uint64
 
 	for {
-		keys, c, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
+		keys, c, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:mnd // bulk size
 		if err != nil {
 			return e.Wrap(err)
 		}

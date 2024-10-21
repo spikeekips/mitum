@@ -27,7 +27,7 @@ func removeHeight(st *leveldbstorage.Storage, height base.Height) error { //noli
 		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1),
 	}
 
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:mnd //...
 		return errors.WithMessage(err, "failed to remove height")
 	}
 

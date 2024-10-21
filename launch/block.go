@@ -28,7 +28,7 @@ func ImportBlocks(
 	if err := isaacblock.ImportBlocks(
 		context.Background(),
 		fromHeight, toHeight,
-		333, //nolint:gomnd //...
+		333, //nolint:mnd //...
 		toreaders,
 		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
 			return isaac.BlockItemReadersDecode[base.BlockMap](

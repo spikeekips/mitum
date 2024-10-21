@@ -50,7 +50,7 @@ func NewBlockImporter(
 		return nil, e.Wrap(err)
 	}
 
-	finisheds, _ := util.NewShardedMap[base.BlockItemType, bool](6, nil) //nolint:gomnd //...
+	finisheds, _ := util.NewShardedMap[base.BlockItemType, bool](6, nil) //nolint:mnd //...
 
 	im := &BlockImporter{
 		root:                     root,
@@ -60,7 +60,7 @@ func NewBlockImporter(
 		bwdb:                     bwdb,
 		networkID:                networkID,
 		finisheds:                finisheds,
-		batchlimit:               333, //nolint:gomnd // enough big size
+		batchlimit:               333, //nolint:mnd // enough big size
 		mergeBlockWriteDatabasef: mergeBlockWriteDatabasef,
 	}
 

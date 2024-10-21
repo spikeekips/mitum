@@ -37,7 +37,7 @@ func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error)
 		return pctx, e.Wrap(err)
 	}
 
-	set := hint.NewCompatibleSet[base.SuffrageCandidateLimiterFunc](8) //nolint:gomnd //...
+	set := hint.NewCompatibleSet[base.SuffrageCandidateLimiterFunc](8) //nolint:mnd //...
 
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
@@ -782,7 +782,7 @@ func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 		switch {
 		case existings >= policy.MaxSuffrageSize():
 			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-				return base.NewBaseOperationProcessReasonError("reached limit, %d", policy.MaxSuffrageSize()), nil
+				return base.NewBaseOperationProcessReasonf("reached limit, %d", policy.MaxSuffrageSize()), nil
 			}, nil
 		case limit > policy.MaxSuffrageSize()-uint64(suf.Len()):
 			limit = policy.MaxSuffrageSize() - uint64(suf.Len())
@@ -790,7 +790,7 @@ func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		if limit < 1 {
 			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+				return base.NewBaseOperationProcessReasonf("reached limit, %d", limit), nil
 			}, nil
 		}
 
@@ -798,7 +798,7 @@ func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
 			if counted >= limit {
-				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+				return base.NewBaseOperationProcessReasonf("reached limit, %d", limit), nil
 			}
 
 			counted++
@@ -959,7 +959,7 @@ func broadcastSuffrageVotingFunc(
 				return time.Second * 2
 			},
 			base.MaxThreshold.Float64(),
-			9, //nolint:gomnd //...
+			9, //nolint:mnd //...
 			func(member quicmemberlist.Member) bool {
 				// NOTE exclude expel node
 				return member.Address().Equal(op.ExpelFact().Node())

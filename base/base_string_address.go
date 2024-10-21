@@ -10,7 +10,7 @@ import (
 var (
 	MaxAddressSize             = 100
 	MinAddressSize             = AddressTypeSize + 3
-	reBlankStringAddressString = regexp.MustCompile(`[\s][\s]*`)
+	reBlankStringAddressString = regexp.MustCompile(`\s+`)
 	REStringAddressString      = `[a-zA-Z0-9][\w\-\.\!\$\*\@]*[a-zA-Z0-9]`
 	reStringAddressString      = regexp.MustCompile(`^` + REStringAddressString + `$`)
 )

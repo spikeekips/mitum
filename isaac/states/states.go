@@ -77,7 +77,7 @@ type States struct {
 }
 
 func NewStates(networkID base.NetworkID, local base.LocalNode, args *StatesArgs) (*States, error) {
-	timers, err := util.NewSimpleTimers(1<<4, time.Millisecond*33) //nolint:gomnd //...
+	timers, err := util.NewSimpleTimers(1<<4, time.Millisecond*33) //nolint:mnd //...
 	if err != nil {
 		return nil, err
 	}
@@ -122,13 +122,13 @@ func (st *States) SetHandler(state StateType, h newHandler) *States {
 		panic("can not set state newHandler; already started")
 	}
 
-	if i, ok := (interface{})(h).(interface{ setStates(*States) }); ok {
+	if i, ok := interface{}(h).(interface{ setStates(*States) }); ok {
 		i.setStates(st)
 	}
 
 	st.newHandlers[state] = h
 
-	if l, ok := (interface{})(h).(logging.SetLogging); ok {
+	if l, ok := interface{}(h).(logging.SetLogging); ok {
 		_ = l.SetLogging(st.Logging)
 	}
 
@@ -137,7 +137,7 @@ func (st *States) SetHandler(state StateType, h newHandler) *States {
 
 func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
 	for i := range st.newHandlers {
-		if j, ok := (interface{})(st.newHandlers[i]).(logging.SetLogging); ok {
+		if j, ok := interface{}(st.newHandlers[i]).(logging.SetLogging); ok {
 			_ = j.SetLogging(l)
 		}
 	}
@@ -220,8 +220,6 @@ func (st *States) start(ctx context.Context) error {
 	}
 
 	serr := st.startStatesSwitch(ctx)
-
-	// st.cleanHandovers()
 
 	// NOTE exit current
 	switch current := st.current(); {
@@ -338,7 +336,7 @@ func (st *States) ensureSwitchState(sctx switchContext) error {
 	nsctx := sctx
 end:
 	for {
-		if n > 3 { //nolint:gomnd //...
+		if n > 3 { //nolint:mnd //...
 			st.Log().Warn().Msg("suspicious infinite loop in switch states; > 3; will move to broken")
 
 			nsctx = movetobroken(nsctx.from(), nsctx)
@@ -356,11 +354,7 @@ end:
 				return errors.Wrap(nsctx, "states stopped")
 			}
 
-			if err = st.checkOutOfHandoverX(nsctx); err != nil {
-				return err
-			}
-
-			return nil
+			return st.checkOutOfHandoverX(nsctx)
 		case !errors.As(err, &rsctx):
 			if nsctx.next() == StateBroken {
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")

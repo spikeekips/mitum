@@ -166,12 +166,12 @@ func TraverseSlice[T any](s []T, f func(int, T) error) error {
 	return nil
 }
 
-func randInt64(max int64) (int64, error) {
-	if max <= 0 {
+func randInt64(maxv int64) (int64, error) {
+	if maxv <= 0 {
 		return 0, errors.Errorf("invalid max")
 	}
 
-	b, err := rand.Int(rand.Reader, big.NewInt(max))
+	b, err := rand.Int(rand.Reader, big.NewInt(maxv))
 	if err != nil {
 		return -1, errors.WithMessage(err, "random int64")
 	}

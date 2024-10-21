@@ -12,7 +12,7 @@ import (
 type GzipWriter struct {
 	io.Writer
 	gw *gzip.Writer
-	sync.Mutex
+	l  sync.Mutex
 }
 
 func NewGzipWriter(f io.Writer, level int) (*GzipWriter, error) {
@@ -25,8 +25,8 @@ func NewGzipWriter(f io.Writer, level int) (*GzipWriter, error) {
 }
 
 func (w *GzipWriter) Write(p []byte) (int, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	return w.gw.Write(p) //nolint:wrapcheck //...
 }
@@ -92,7 +92,7 @@ type CompressedReader struct {
 	decompressReader func(io.Reader) (io.Reader, error)
 	Format           string // NOTE compress format, usually file extension without '.' prefix
 	decompressed     int    // 1=decompress 2=tee
-	sync.RWMutex
+	l                sync.RWMutex
 }
 
 func NewCompressedReader(
@@ -104,7 +104,7 @@ func NewCompressedReader(
 		return r, nil
 	}
 
-	if len(format) > 0 {
+	if format != "" {
 		if decompressReader == nil {
 			decompressReader = DefaultDecompressReaderFunc //revive:disable-line:modifies-parameter
 		}
@@ -126,8 +126,8 @@ func NewCompressedReader(
 
 // Close only closes decompress Reader.
 func (r *CompressedReader) Close() error {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	if r.cr != nil {
 		if i, ok := r.cr.(io.Closer); ok {
@@ -142,8 +142,8 @@ func (r *CompressedReader) Close() error {
 
 // Exaust read all unread bytes from Decompress().
 func (r *CompressedReader) Exaust() error {
-	r.RLock()
-	defer r.RUnlock()
+	r.l.RLock()
+	defer r.l.RUnlock()
 
 	if r.cr == nil {
 		return nil
@@ -155,8 +155,8 @@ func (r *CompressedReader) Exaust() error {
 }
 
 func (r *CompressedReader) Tee(tee, decompressed io.Writer) (io.Reader, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	switch r.decompressed {
 	case 2:
@@ -191,8 +191,8 @@ func (r *CompressedReader) Tee(tee, decompressed io.Writer) (io.Reader, error) {
 }
 
 func (r *CompressedReader) Decompress() (io.Reader, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	if r.decompressed == 2 {
 		return r.cr, nil

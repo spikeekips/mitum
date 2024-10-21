@@ -97,12 +97,12 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 	for i := range g.facts {
 		fact := g.facts[i]
 
-		var err error
-
 		var hinter hint.Hinter
-		if err = util.SetInterfaceValue(fact, &hinter); err != nil {
+		if err := util.SetInterfaceValue(fact, &hinter); err != nil {
 			return err
 		}
+
+		var err error
 
 		switch ht := hinter.Hint(); {
 		case ht.IsCompatible(isaacoperation.SuffrageGenesisJoinFactHint):

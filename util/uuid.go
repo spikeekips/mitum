@@ -25,7 +25,7 @@ func UUID() uuid.UUID {
 
 type ULIDPool struct {
 	entropy io.Reader
-	sync.Mutex
+	l       sync.Mutex
 }
 
 func NewULIDPool() *ULIDPool {
@@ -35,8 +35,8 @@ func NewULIDPool() *ULIDPool {
 }
 
 func (u *ULIDPool) New() ulid.ULID {
-	u.Lock()
-	defer u.Unlock()
+	u.l.Lock()
+	defer u.l.Unlock()
 
 	return ulid.MustNew(ulid.Timestamp(time.Now()), u.entropy)
 }

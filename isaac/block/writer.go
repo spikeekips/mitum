@@ -40,7 +40,7 @@ type Writer struct {
 	statesMerger  StatesMerger
 	ststree       fixedtree.Tree
 	workersize    int64
-	sync.RWMutex
+	l             sync.RWMutex
 }
 
 func NewWriter(
@@ -88,8 +88,8 @@ func NewWriter(
 }
 
 func (w *Writer) SetOperationsSize(n uint64) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	opstreeg, err := fixedtree.NewWriter(base.OperationFixedtreeHint, n)
 	if err != nil {
@@ -237,8 +237,8 @@ func (w *Writer) statesMergerClose(
 }
 
 func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Manifest, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	e := util.StringError("make manifest")
 
@@ -323,8 +323,8 @@ func (w *Writer) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) 
 }
 
 func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	e := util.StringError("save")
 
@@ -371,8 +371,8 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 }
 
 func (w *Writer) Cancel() error {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	e := util.StringError("cancel Writer")
 

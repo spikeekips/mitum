@@ -16,7 +16,7 @@ var (
 	// NOTE suffrage candidate can be approved within lifespan height; almost 15
 	// days(based on 5 second for one block)
 	DefaultSuffrageCandidateLifespan base.Height = 1 << 18
-	DefaultSuffrageExpelLifespan                 = base.Height(333) //nolint:gomnd //...
+	DefaultSuffrageExpelLifespan                 = base.Height(333) //nolint:mnd //...
 	DefaultEmptyProposalNoBlock                  = false
 )
 

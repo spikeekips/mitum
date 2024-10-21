@@ -18,7 +18,7 @@ type NodeWrite func(uint64, Node) error
 type Writer struct {
 	nodes []Node
 	ht    hint.Hint
-	sync.RWMutex
+	l     sync.RWMutex
 }
 
 func NewWriter(ht hint.Hint, size uint64) (*Writer, error) {
@@ -37,15 +37,15 @@ func (g *Writer) Hint() hint.Hint {
 }
 
 func (g *Writer) Len() int {
-	g.RLock()
-	defer g.RUnlock()
+	g.l.RLock()
+	defer g.l.RUnlock()
 
 	return len(g.nodes)
 }
 
 func (g *Writer) Root() util.Hash {
-	g.RLock()
-	defer g.RUnlock()
+	g.l.RLock()
+	defer g.l.RUnlock()
 
 	if len(g.nodes) < 1 {
 		return nil
@@ -67,8 +67,8 @@ func (g *Writer) Add(index uint64, n Node) error {
 func (g *Writer) Write(w NodeWrite) (err error) {
 	g.shrinkNodes()
 
-	g.RLock()
-	defer g.RUnlock()
+	g.l.RLock()
+	defer g.l.RUnlock()
 
 	if len(g.nodes) > 0 && g.nodes[0].Hash() == nil {
 		if _, err := generateNodesHash(g.nodes, w); err != nil {
@@ -82,8 +82,8 @@ func (g *Writer) Write(w NodeWrite) (err error) {
 func (g *Writer) Tree() (Tree, error) {
 	g.shrinkNodes()
 
-	g.RLock()
-	defer g.RUnlock()
+	g.l.RLock()
+	defer g.l.RUnlock()
 
 	if len(g.nodes) > 0 && g.nodes[0].Hash() == nil {
 		if _, err := generateNodesHash(g.nodes, func(uint64, Node) error { return nil }); err != nil {
@@ -95,8 +95,8 @@ func (g *Writer) Tree() (Tree, error) {
 }
 
 func (g *Writer) Traverse(f func(index uint64, node Node) (bool, error)) error {
-	g.RLock()
-	defer g.RUnlock()
+	g.l.RLock()
+	defer g.l.RUnlock()
 
 	for i := range g.nodes {
 		n := g.nodes[i]
@@ -116,8 +116,8 @@ func (g *Writer) Traverse(f func(index uint64, node Node) (bool, error)) error {
 }
 
 func (g *Writer) shrinkNodes() {
-	g.Lock()
-	defer g.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
 	if n := len(g.nodes); n < 1 {
 		return

@@ -9,18 +9,18 @@ import (
 
 type MemTempSyncPool struct {
 	pool util.LockedMap[base.Height, base.BlockMap]
-	sync.RWMutex
+	l    sync.RWMutex
 }
 
 func NewMemTempSyncPool() *MemTempSyncPool {
-	pool, _ := util.NewLockedMap[base.Height, base.BlockMap](1<<13, nil) //nolint:gomnd //...
+	pool, _ := util.NewLockedMap[base.Height, base.BlockMap](1<<13, nil) //nolint:mnd //...
 
 	return &MemTempSyncPool{pool: pool}
 }
 
 func (db *MemTempSyncPool) BlockMap(height base.Height) (base.BlockMap, bool, error) {
-	db.RLock()
-	defer db.RUnlock()
+	db.l.RLock()
+	defer db.l.RUnlock()
 
 	if db.pool == nil {
 		return nil, false, nil
@@ -35,8 +35,8 @@ func (db *MemTempSyncPool) BlockMap(height base.Height) (base.BlockMap, bool, er
 }
 
 func (db *MemTempSyncPool) SetBlockMap(m base.BlockMap) error {
-	db.RLock()
-	defer db.RUnlock()
+	db.l.RLock()
+	defer db.l.RUnlock()
 
 	if db.pool == nil {
 		return nil
@@ -48,8 +48,8 @@ func (db *MemTempSyncPool) SetBlockMap(m base.BlockMap) error {
 }
 
 func (db *MemTempSyncPool) Close() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if db.pool == nil {
 		return nil

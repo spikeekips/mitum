@@ -80,7 +80,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 
 	log.Log().Debug().Interface("design", design).Msg("design loaded")
 
-	if len(privstring) > 0 {
+	if privstring != "" {
 		priv, err := base.DecodePrivatekeyFromString(privstring, jsonencoder)
 		if err != nil {
 			return pctx, e.Wrap(err)

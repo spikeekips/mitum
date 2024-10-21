@@ -37,7 +37,7 @@ func NewLeveldbPermanent(
 		}),
 		basePermanent: newBasePermanent(stcachesize),
 		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
-		batchlimit:    333, //nolint:gomnd //...
+		batchlimit:    333, //nolint:mnd //...
 	}
 
 	if err := db.loadLastBlockMap(); err != nil {
@@ -63,7 +63,7 @@ func (db *LeveldbPermanent) Clean() error {
 
 	r := leveldbutil.BytesPrefix(pst.Prefix())
 
-	if _, err := leveldbstorage.BatchRemove(pst.Storage, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(pst.Storage, r, 333); err != nil { //nolint:mnd //...
 		return errors.WithMessage(err, "clean leveldb PermanentDatabase")
 	}
 

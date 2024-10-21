@@ -3,7 +3,6 @@ package isaac
 import (
 	"context"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
@@ -368,17 +367,11 @@ func (t *testSuffrageVoting) TestFindMultipleOperations() {
 	t.Equal(len(expectedexpelnodes), len(found))
 
 	sort.Slice(found, func(i, j int) bool {
-		return strings.Compare(
-			found[i].ExpelFact().Node().String(),
-			found[j].ExpelFact().Node().String(),
-		) < 0
+		return found[i].ExpelFact().Node().String() < found[j].ExpelFact().Node().String()
 	})
 
 	sort.Slice(expectedexpelnodes, func(i, j int) bool {
-		return strings.Compare(
-			expectedexpelnodes[i].Address().String(),
-			expectedexpelnodes[j].Address().String(),
-		) < 0
+		return expectedexpelnodes[i].Address().String() < expectedexpelnodes[j].Address().String()
 	})
 
 	for i := range found {
@@ -475,17 +468,11 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 	t.Equal(len(allexpelnodes)-len(insufficients), len(found))
 
 	sort.Slice(found, func(i, j int) bool {
-		return strings.Compare(
-			found[i].ExpelFact().Node().String(),
-			found[j].ExpelFact().Node().String(),
-		) < 0
+		return found[i].ExpelFact().Node().String() < found[j].ExpelFact().Node().String()
 	})
 
 	sort.Slice(expectedexpelnodes, func(i, j int) bool {
-		return strings.Compare(
-			expectedexpelnodes[i].Address().String(),
-			expectedexpelnodes[j].Address().String(),
-		) < 0
+		return expectedexpelnodes[i].Address().String() < expectedexpelnodes[j].Address().String()
 	})
 
 	for i := range found {

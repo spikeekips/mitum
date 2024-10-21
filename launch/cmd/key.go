@@ -37,7 +37,7 @@ func (cmd *KeyNewCommand) Run(pctx context.Context) error {
 	var key base.Privatekey
 
 	switch {
-	case len(cmd.Seed) > 0:
+	case cmd.Seed != "":
 		if len(strings.TrimSpace(cmd.Seed)) < 1 {
 			cmd.Log.Warn().Msg("seed consists with empty spaces")
 		}
@@ -65,7 +65,7 @@ func (cmd *KeyNewCommand) Run(pctx context.Context) error {
 		Type:       "privatekey",
 	}
 
-	if hinter, ok := (interface{})(key).(hint.Hinter); ok {
+	if hinter, ok := interface{}(key).(hint.Hinter); ok {
 		o.Hint = hinter.Hint()
 	}
 
@@ -325,7 +325,7 @@ func (cmd *KeySignCommand) updateToken(ptr interface{}) error {
 		}
 
 		token = base.Token([]byte(cmd.Token))
-	case len(cmd.Token) > 0:
+	case cmd.Token != "":
 		if !bytes.Equal([]byte(cmd.Token), token) {
 			return errors.Errorf("different token found")
 		}

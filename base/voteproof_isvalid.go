@@ -90,7 +90,6 @@ func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 	bs := make([]util.IsValider, len(vs))
 
 	for i := range vs {
-		i := i
 		bs[i] = util.DummyIsValider(func([]byte) error {
 			if vs[i] == nil {
 				return util.ErrInvalid.Errorf("nil sign fact found")

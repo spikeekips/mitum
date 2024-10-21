@@ -48,7 +48,7 @@ func Output(f string) (io.Writer, error) {
 		return nil, errors.Wrapf(err, "to open file, %q", f)
 	}
 
-	return diode.NewWriter(out, 1000, 0, nil), nil //nolint:gomnd //...
+	return diode.NewWriter(out, 1000, 0, nil), nil //nolint:mnd //...
 }
 
 func Outputs(files []string) (io.Writer, error) {

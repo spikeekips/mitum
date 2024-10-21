@@ -82,7 +82,7 @@ func baseHandler[T RequestHeader](
 			return ctx, errors.Errorf("expected %T, but %T", t, req)
 		}
 
-		if i, ok := (interface{})(header).(util.IsValider); ok {
+		if i, ok := interface{}(header).(util.IsValider); ok {
 			if err := i.IsValid(nil); err != nil {
 				return ctx, err
 			}

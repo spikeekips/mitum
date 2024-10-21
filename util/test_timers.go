@@ -5,7 +5,6 @@ package util
 
 import (
 	"sort"
-	"strings"
 )
 
 func (ts *SimpleTimers) TimerIDs() []TimerID {
@@ -18,7 +17,7 @@ func (ts *SimpleTimers) TimerIDs() []TimerID {
 	})
 
 	sort.Slice(ids, func(i, j int) bool {
-		return strings.Compare(ids[i].String(), ids[j].String()) < 0
+		return ids[i].String() < ids[j].String()
 	})
 
 	return ids

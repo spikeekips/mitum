@@ -2,7 +2,6 @@ package base
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/spikeekips/mitum/util"
 )
@@ -41,17 +40,11 @@ func IsEqualNodes(a, b []Node) bool {
 	}
 
 	sort.Slice(a, func(i, j int) bool {
-		return strings.Compare(
-			a[i].Address().String(),
-			a[j].Address().String(),
-		) < 0
+		return a[i].Address().String() < a[j].Address().String()
 	})
 
 	sort.Slice(b, func(i, j int) bool {
-		return strings.Compare(
-			b[i].Address().String(),
-			b[j].Address().String(),
-		) < 0
+		return b[i].Address().String() < b[j].Address().String()
 	})
 
 	for i := range a {

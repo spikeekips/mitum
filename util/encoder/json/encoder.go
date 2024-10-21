@@ -21,7 +21,7 @@ type Encoder struct {
 
 func NewEncoder() *Encoder {
 	return &Encoder{
-		decoders: hint.NewCompatibleSet[encoder.DecodeDetail](1 << 10), //nolint:gomnd // big enough
+		decoders: hint.NewCompatibleSet[encoder.DecodeDetail](1 << 10), //nolint:mnd // big enough
 	}
 }
 
@@ -311,12 +311,8 @@ func (*Encoder) analyzeExtensible(d encoder.DecodeDetail, ptr reflect.Value) enc
 		i.Type == reflect.TypeOf(util.DefaultExtensibleJSON{}) {
 		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 			i, err := p(b, ht)
-			if err != nil {
-				return i, err
-			}
-
-			if i == nil {
-				return i, nil
+			if i == nil || err != nil {
+				return nil, err
 			}
 
 			n := reflect.New(reflect.TypeOf(i))
@@ -344,12 +340,8 @@ func (*Encoder) analyzeExtensible(d encoder.DecodeDetail, ptr reflect.Value) enc
 
 	d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 		i, err := p(b, ht)
-		if err != nil {
-			return i, err
-		}
-
-		if i == nil {
-			return i, nil
+		if i == nil || err != nil {
+			return nil, err
 		}
 
 		uptr, _ := encoder.Ptr(i)

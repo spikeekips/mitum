@@ -741,7 +741,7 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder, stcachesize int) (
 	*isaacdatabase.RedisPermanent, error,
 ) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:mnd //...
 	defer cancel()
 
 	option, err := redis.ParseURL(uri)

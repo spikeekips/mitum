@@ -200,7 +200,7 @@ end:
 			if c[1] == nil {
 				c[1] = EmptyBaseNode()
 			}
-			extracted[(i*2)+1] = c[1] //nolint:gomnd //...
+			extracted[(i*2)+1] = c[1] //nolint:mnd //...
 		case errors.Is(err, errNoChildren):
 			if l != index {
 				return nil, e.Wrap(err)

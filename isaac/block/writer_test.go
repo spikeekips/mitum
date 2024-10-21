@@ -86,7 +86,7 @@ func (t *testWriter) TestSetOperations() {
 
 			var errorreason base.OperationProcessReasonError
 			if index%3 == 0 {
-				errorreason = base.NewBaseOperationProcessReasonError("%d", index)
+				errorreason = base.NewBaseOperationProcessReasonf("%d", index)
 			}
 			writer.SetProcessResult(ctx, index, ops[index], facts[index], errorreason == nil, errorreason)
 		}()

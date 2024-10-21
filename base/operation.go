@@ -51,10 +51,10 @@ type OperationFixedtreeNode struct {
 	inState bool
 }
 
-func newInStateOperationFixedtreeNode(facthash string, reason string, inState bool) OperationFixedtreeNode {
+func newInStateOperationFixedtreeNode(facthash, reason string, inState bool) OperationFixedtreeNode {
 	var operr OperationProcessReasonError
-	if len(reason) > 0 {
-		operr = NewBaseOperationProcessReasonError(reason)
+	if reason != "" {
+		operr = NewBaseOperationProcessReason(reason)
 	}
 
 	return OperationFixedtreeNode{
@@ -134,7 +134,7 @@ func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc encoder.Encoder) erro
 	return nil
 }
 
-var ErrNotChangedOperationProcessReason = NewBaseOperationProcessReasonError( //nolint:varcheck // .
+var ErrNotChangedOperationProcessReason = NewBaseOperationProcessReason( //nolint:varcheck // .
 	"states not changed")
 
 type OperationProcessReasonError interface {
@@ -148,14 +148,20 @@ type BaseOperationProcessReasonError struct {
 	hint.BaseHinter
 }
 
-func NewBaseOperationProcessReasonError(s string, a ...interface{}) BaseOperationProcessReasonError {
-	f := util.FuncCaller(3)
+func NewBaseOperationProcessReason(s string) BaseOperationProcessReasonError {
+	return newBaseOperationProcessReason(s)
+}
 
+func newBaseOperationProcessReason(s string) BaseOperationProcessReasonError {
 	return BaseOperationProcessReasonError{
 		BaseHinter: hint.NewBaseHinter(BaseOperationProcessReasonErrorHint),
-		id:         fmt.Sprintf("%+v", f),
-		msg:        fmt.Errorf(s, a...).Error(), //nolint:goerr113 // it just stores error message
+		id:         fmt.Sprintf("%+v", util.FuncCaller(4)),
+		msg:        s,
 	}
+}
+
+func NewBaseOperationProcessReasonf(s string, a ...interface{}) BaseOperationProcessReasonError {
+	return newBaseOperationProcessReason(fmt.Sprintf(s, a...))
 }
 
 func (BaseOperationProcessReasonError) Hint() hint.Hint {

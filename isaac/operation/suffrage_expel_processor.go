@@ -76,19 +76,19 @@ func (p *SuffrageExpelProcessor) PreProcess(ctx context.Context, op base.Operati
 
 	switch {
 	case fact.ExpelStart() > p.Height():
-		return ctx, base.NewBaseOperationProcessReasonError("wrong start height"), nil
+		return ctx, base.NewBaseOperationProcessReason("wrong start height"), nil
 	case fact.ExpelEnd() < p.Height():
-		return ctx, base.NewBaseOperationProcessReasonError("expired"), nil
+		return ctx, base.NewBaseOperationProcessReason("expired"), nil
 	}
 
 	n := fact.Node()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("already preprocessed, %q", n), nil
 	}
 
 	if !p.suffrage.Exists(n) {
-		return ctx, base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("not in suffrage, %q", n), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {

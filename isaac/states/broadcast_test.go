@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"context"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -60,10 +59,10 @@ func (t *testBallotBroadcastTimers) isEqualTimerIDs(a, b []util.TimerID) {
 	t.Equal(len(a), len(b))
 
 	sort.Slice(a, func(i, j int) bool {
-		return strings.Compare(string(a[i]), string(a[j])) < 0
+		return string(a[i]) < string(a[j])
 	})
 	sort.Slice(b, func(i, j int) bool {
-		return strings.Compare(string(b[i]), string(b[j])) < 0
+		return string(b[i]) < string(b[j])
 	})
 
 	for i := range a {

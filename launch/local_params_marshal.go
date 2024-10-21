@@ -263,8 +263,7 @@ type miscParamsYAMLUnmarshaler struct {
 }
 
 func (p *MISCParams) UnmarshalJSON(b []byte) error {
-	d := defaultMISCParams()
-	*p = *d
+	copyMISCParams(p)
 
 	e := util.StringError("decode MISCParams")
 
@@ -278,8 +277,7 @@ func (p *MISCParams) UnmarshalJSON(b []byte) error {
 }
 
 func (p *MISCParams) UnmarshalYAML(y *yaml.Node) error {
-	d := defaultMISCParams()
-	*p = *d
+	copyMISCParams(p)
 
 	e := util.StringError("decode MISCParams")
 
@@ -396,8 +394,7 @@ type networkParamsYAMLUnmarshaler struct {
 }
 
 func (p *NetworkParams) UnmarshalJSON(b []byte) error {
-	d := defaultNetworkParams()
-	*p = *d
+	copyNetworkParams(p)
 
 	e := util.StringError("decode NetworkParams")
 
@@ -411,8 +408,7 @@ func (p *NetworkParams) UnmarshalJSON(b []byte) error {
 }
 
 func (p *NetworkParams) UnmarshalYAML(y *yaml.Node) error {
-	d := defaultNetworkParams()
-	*p = *d
+	copyNetworkParams(p)
 
 	e := util.StringError("decode NetworkParams")
 

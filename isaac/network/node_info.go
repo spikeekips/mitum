@@ -118,7 +118,7 @@ func (info NodeInfo) StartedAt() time.Time {
 type NodeInfoUpdater struct {
 	id string
 	n  NodeInfo
-	sync.RWMutex
+	l  sync.RWMutex
 }
 
 func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.Version) *NodeInfoUpdater {
@@ -137,15 +137,15 @@ func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.
 }
 
 func (info *NodeInfoUpdater) ID() string {
-	info.RLock()
-	defer info.RUnlock()
+	info.l.RLock()
+	defer info.l.RUnlock()
 
 	return info.id
 }
 
 func (info *NodeInfoUpdater) NodeInfo() NodeInfo {
-	info.RLock()
-	defer info.RUnlock()
+	info.l.RLock()
+	defer info.l.RUnlock()
 
 	return info.n
 }
@@ -266,8 +266,8 @@ func (info *NodeInfoUpdater) SetLastVote(point base.StagePoint, result base.Vote
 }
 
 func (info *NodeInfoUpdater) set(f func() bool) bool {
-	info.Lock()
-	defer info.Unlock()
+	info.l.Lock()
+	defer info.l.Unlock()
 
 	switch {
 	case f():

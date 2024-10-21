@@ -878,7 +878,7 @@ func writeACL(pctx context.Context) (writeNodeValueFunc, error) {
 	) (interface{}, interface{}, bool, error) {
 		fullkey := fullKey("acl", key, nextkey)
 
-		if len(key) > 0 {
+		if key != "" {
 			return nil, nil, false, errors.Errorf("unknown key, %q", fullkey)
 		}
 
@@ -1534,7 +1534,7 @@ func readACL(pctx context.Context) (readNodeValueFunc, error) {
 	return readNodeKey(func(ctx context.Context, key, nextkey, acluser string) (interface{}, error) {
 		fullkey := fullKey("acl", key, nextkey)
 
-		if len(key) > 0 {
+		if key != "" {
 			return nil, errors.Errorf("unknown key, %q", fullkey)
 		}
 
@@ -1969,6 +1969,6 @@ func writeDesignFileFunc(flag DesignFlag) (func([]byte) error, error) {
 
 func fullKey(keys ...string) string {
 	return strings.Join(util.FilterSlice(keys, func(i string) bool {
-		return len(i) > 0
+		return i != ""
 	}), ".")
 }

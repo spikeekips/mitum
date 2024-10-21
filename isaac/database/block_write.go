@@ -30,7 +30,7 @@ type LeveldbBlockWrite struct {
 	batchDonef            func(func(func() error) error) error
 	batchCancelf          func()
 	height                base.Height
-	sync.Mutex
+	l                     sync.Mutex
 }
 
 func NewLeveldbBlockWrite(
@@ -44,7 +44,7 @@ func NewLeveldbBlockWrite(
 	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8, nil)
 
 	batchAdd, batchDone, batchCancel := pst.BatchFunc(
-		context.Background(), 1<<7, nil) //nolint:gomnd // TODO configurable
+		context.Background(), 1<<7, nil) //nolint:mnd // TODO configurable
 
 	return &LeveldbBlockWrite{
 		baseLeveldb:           newBaseLeveldb(pst, encs, enc),
@@ -62,8 +62,8 @@ func NewLeveldbBlockWrite(
 }
 
 func (db *LeveldbBlockWrite) Close() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if db.mp == nil {
 		return nil
@@ -75,8 +75,8 @@ func (db *LeveldbBlockWrite) Close() error {
 }
 
 func (db *LeveldbBlockWrite) Write() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	db.laststates.Close()
 
@@ -101,8 +101,8 @@ func (db *LeveldbBlockWrite) clean() {
 }
 
 func (db *LeveldbBlockWrite) Cancel() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if db.mp == nil {
 		return nil
@@ -293,8 +293,8 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 	e := util.StringError("make TempDatabase from BlockWriteDatabase")
 
 	temp, err := func() (isaac.TempDatabase, error) {
-		db.Lock()
-		defer db.Unlock()
+		db.l.Lock()
+		defer db.l.Unlock()
 
 		if _, err := db.BlockMap(); err != nil {
 			return nil, err
@@ -446,7 +446,7 @@ func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
 	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite[:])
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
 
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:mnd //...
 		return errors.WithMessage(err, "remove higher heights")
 	}
 

@@ -62,17 +62,17 @@ func NewMemberlistArgs(jsonencoder encoder.Encoder, config *memberlist.Config) *
 		Config:                               config,
 		ExtraSameMemberLimit:                 func() uint64 { return 1 },
 		WhenLeftFunc:                         func(Member) {},
-		NotAllowedMemberExpire:               time.Second * 6, //nolint:gomnd //...
+		NotAllowedMemberExpire:               time.Second * 6, //nolint:mnd //...
 		ChallengeExpire:                      defaultNodeChallengeExpire,
-		CallbackBroadcastMessageExpire:       time.Second * 30, //nolint:gomnd //...
-		FetchCallbackBroadcastMessageTimeout: time.Second * 6,  //nolint:gomnd //...
+		CallbackBroadcastMessageExpire:       time.Second * 30, //nolint:mnd //...
+		FetchCallbackBroadcastMessageTimeout: time.Second * 6,  //nolint:mnd //...
 		FetchCallbackBroadcastMessageFunc: func(context.Context, ConnInfoBroadcastMessage) (
 			[]byte, encoder.Encoder, error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("FetchCallbackBroadcastMessageFunc")
 		},
-		PongEnsureBroadcastMessageTimeout: time.Second * 3, //nolint:gomnd //...
-		PongEnsureBroadcastMessageExpire:  time.Second * 9, //nolint:gomnd //...
+		PongEnsureBroadcastMessageTimeout: time.Second * 3, //nolint:mnd //...
+		PongEnsureBroadcastMessageExpire:  time.Second * 9, //nolint:mnd //...
 		PongEnsureBroadcastMessageFunc: func(context.Context, ConnInfoBroadcastMessage) error {
 			return util.ErrNotImplemented.Errorf("PongEnsureBroadcastMessageFunc")
 		},
@@ -100,12 +100,12 @@ type Memberlist struct {
 }
 
 func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
-	ebtimers, err := util.NewSimpleTimers(1<<13, time.Millisecond*33) //nolint:gomnd //...
+	ebtimers, err := util.NewSimpleTimers(1<<13, time.Millisecond*33) //nolint:mnd //...
 	if err != nil {
 		return nil, err
 	}
 
-	ebrecords, err := util.NewLockedMap[string, []base.Address](1<<13, nil) //nolint:gomnd //...
+	ebrecords, err := util.NewLockedMap[string, []base.Address](1<<13, nil) //nolint:mnd //...
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +117,8 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 		local:     local,
 		args:      args,
 		members:   newMembersPool(),
-		cicache:   util.NewLRUGCache[string, quicstream.ConnInfo](1 << 9), //nolint:gomnd //...
-		cbcache:   util.NewLRUGCache[string, []byte](1 << 13),             //nolint:gomnd //...
+		cicache:   util.NewLRUGCache[string, quicstream.ConnInfo](1 << 9), //nolint:mnd //...
+		cbcache:   util.NewLRUGCache[string, []byte](1 << 13),             //nolint:mnd //...
 		ebrecords: ebrecords,
 		ebtimers:  ebtimers,
 		usermsgs:  list.New(),
@@ -559,7 +559,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 		}
 
 		// NOTE leave before shutdown
-		if err := srv.m.Leave(time.Second * 3); err != nil { //nolint:gomnd //...
+		if err := srv.m.Leave(time.Second * 3); err != nil { //nolint:mnd //...
 			srv.Log().Error().Err(err).Msg("failed to leave; ignored")
 		}
 
@@ -589,7 +589,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 		return errors.Errorf("alive delegate missing")
 	}
 
-	notallowedcache := util.NewLRUGCache[string, any](1 << 9) //nolint:gomnd //...
+	notallowedcache := util.NewLRUGCache[string, any](1 << 9) //nolint:mnd //...
 
 	switch i, ok := config.Transport.(*Transport); {
 	case !ok:
@@ -835,7 +835,7 @@ func (srv *Memberlist) notifyMsgEnsureBroadcastMessage(b []byte) ([]byte, error)
 }
 
 func (srv *Memberlist) allowMember(member Member) error {
-	max := srv.args.ExtraSameMemberLimit()
+	maxv := srv.args.ExtraSameMemberLimit()
 	id := memberid(member.Addr())
 
 	var extras uint64
@@ -850,9 +850,9 @@ func (srv *Memberlist) allowMember(member Member) error {
 		return true
 	})
 
-	if extras > max {
+	if extras > maxv {
 		return errors.Errorf("member(%s, %s) over limit, %d",
-			member.Address(), member.Publish(), max)
+			member.Address(), member.Publish(), maxv)
 	}
 
 	return nil
@@ -937,9 +937,6 @@ func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold, exc
 
 func (srv *Memberlist) loopUserMsgs(ctx context.Context) {
 	sem := semaphore.NewWeighted(maxHandleUserMsg)
-	go func() {
-		_ = sem.Acquire(ctx, maxHandleUserMsg+1)
-	}()
 
 	ticker := time.NewTicker(time.Millisecond * 33)
 	defer ticker.Stop()
@@ -1062,7 +1059,7 @@ func BasicMemberlistConfig() *memberlist.Config {
 	config.TCPTimeout = time.Second * 2
 	config.IndirectChecks = math.MaxInt8
 	config.RetransmitMult = 3
-	config.ProbeTimeout = 500 * time.Millisecond //nolint:gomnd //...
+	config.ProbeTimeout = 500 * time.Millisecond //nolint:mnd //...
 	config.ProbeInterval = 1 * time.Second
 	config.SuspicionMult = 3 // NOTE fast detection for failed members
 	config.SuspicionMaxTimeoutMult = 3
@@ -1086,8 +1083,8 @@ type membersPool struct {
 }
 
 func newMembersPool() *membersPool {
-	addrs, _ := util.NewShardedMap[string, Member](1<<9, nil)     //nolint:gomnd //...
-	members, _ := util.NewShardedMap[string, []Member](1<<9, nil) //nolint:gomnd //...
+	addrs, _ := util.NewShardedMap[string, Member](1<<9, nil)     //nolint:mnd //...
+	members, _ := util.NewShardedMap[string, []Member](1<<9, nil) //nolint:mnd //...
 
 	return &membersPool{
 		addrs:   addrs,
@@ -1113,7 +1110,7 @@ func (m *membersPool) Get(k *net.UDPAddr) (Member, bool) {
 	}
 }
 
-func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (memberslen int, others int, found bool) {
+func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (memberslen, others int, found bool) {
 	_ = m.members.Get(node.String(), func(members []Member, memberfound bool) error {
 		if !memberfound {
 			return nil

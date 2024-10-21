@@ -157,7 +157,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 	pos := index - currentFirst
 	nextFirst := uint64(math.Pow(2, float64(height+1)) - 1)
 
-	switch i := nextFirst + pos*2; { //nolint:gomnd //...
+	switch i := nextFirst + pos*2; { //nolint:mnd //...
 	case i >= uint64(size):
 		return c, errNoChildren.WithStack()
 	default:

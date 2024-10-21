@@ -84,7 +84,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 	n := fact.Node()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("already preprocessed, %q", n), nil
 	}
 
 	var expelpreprocessed []base.Address
@@ -94,16 +94,16 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 	if slices.IndexFunc(expelpreprocessed, func(addr base.Address) bool {
 		return addr.Equal(n)
 	}) >= 0 {
-		return ctx, base.NewBaseOperationProcessReasonError("already withdrew, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("already withdrew, %q", n), nil
 	}
 
 	switch stv, found := p.suffrage[n.String()]; {
 	case !found:
-		return ctx, base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("not in suffrage, %q", n), nil
 	case fact.Start() != stv.Start():
-		return ctx, base.NewBaseOperationProcessReasonError("start does not match"), nil
+		return ctx, base.NewBaseOperationProcessReason("start does not match"), nil
 	case !signer.Equal(stv.Publickey()):
-		return ctx, base.NewBaseOperationProcessReasonError("not signed by node key"), nil
+		return ctx, base.NewBaseOperationProcessReason("not signed by node key"), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {

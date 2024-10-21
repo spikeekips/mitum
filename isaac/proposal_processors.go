@@ -29,7 +29,7 @@ type ProposalProcessors struct {
 	getproposal   func(_ context.Context, _ base.Point, proposalFactHash util.Hash) (base.ProposalSignFact, error)
 	retryinterval time.Duration
 	retrylimit    int
-	sync.RWMutex
+	l             sync.RWMutex
 	previousSaved base.Height
 }
 
@@ -45,15 +45,15 @@ func NewProposalProcessors(
 		getproposal: getproposal,
 		// NOTE endure failure for almost 9 seconds, it is almost 3 consensus
 		// cycle.
-		retrylimit:    15,                     //nolint:gomnd //...
-		retryinterval: time.Millisecond * 600, //nolint:gomnd //...
+		retrylimit:    15,                     //nolint:mnd //...
+		retryinterval: time.Millisecond * 600, //nolint:mnd //...
 		previousSaved: base.NilHeight,
 	}
 }
 
 func (pps *ProposalProcessors) Processor() ProposalProcessor {
-	pps.RLock()
-	defer pps.RUnlock()
+	pps.l.RLock()
+	defer pps.l.RUnlock()
 
 	return pps.p
 }
@@ -65,7 +65,7 @@ func (pps *ProposalProcessors) Process(
 	previous base.Manifest,
 	ivp base.INITVoteproof,
 ) (ProcessorProcessFunc, error) {
-	pps.Lock()
+	pps.l.Lock()
 
 	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 
@@ -75,13 +75,13 @@ func (pps *ProposalProcessors) Process(
 
 	switch {
 	case err != nil:
-		pps.Unlock()
+		pps.l.Unlock()
 
 		l.Error().Err(err).Msg("failed to process proposal")
 
 		return nil, e.Wrap(err)
 	case p == nil:
-		pps.Unlock()
+		pps.l.Unlock()
 
 		return nil, nil
 	}
@@ -89,7 +89,7 @@ func (pps *ProposalProcessors) Process(
 	ch := make(chan [2]interface{}, 1)
 
 	go func() {
-		defer pps.Unlock()
+		defer pps.l.Unlock()
 
 		m, err := pps.runProcessor(ctx, p, ivp)
 
@@ -127,8 +127,8 @@ func (pps *ProposalProcessors) Process(
 func (pps *ProposalProcessors) Save(
 	ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof,
 ) (base.BlockMap, error) {
-	pps.Lock()
-	defer pps.Unlock()
+	pps.l.Lock()
+	defer pps.l.Unlock()
 
 	switch m, err := pps.save(ctx, facthash, avp); {
 	case err != nil:
@@ -189,8 +189,8 @@ func (pps *ProposalProcessors) save(
 }
 
 func (pps *ProposalProcessors) Cancel() error {
-	pps.Lock()
-	defer pps.Unlock()
+	pps.l.Lock()
+	defer pps.l.Unlock()
 
 	if pps.p != nil {
 		if err := pps.p.Cancel(); err != nil {

@@ -3,7 +3,6 @@ package base
 import (
 	"encoding/json"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/spikeekips/mitum/util"
@@ -218,7 +217,7 @@ type BaseStateValueMerger struct {
 	key    string
 	ops    []util.Hash
 	height Height
-	sync.RWMutex
+	l      sync.Mutex
 }
 
 func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
@@ -244,8 +243,8 @@ func (s *BaseStateValueMerger) Reset(height Height, key string, st State) {
 }
 
 func (s *BaseStateValueMerger) Close() error {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	s.height = 0
 	s.st = nil
@@ -263,8 +262,8 @@ func (s *BaseStateValueMerger) Key() string {
 }
 
 func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	s.value = value
 
@@ -274,15 +273,15 @@ func (s *BaseStateValueMerger) Merge(value StateValue, op util.Hash) error {
 }
 
 func (s *BaseStateValueMerger) CloseValue() (State, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	if s.value == nil || len(s.ops) < 1 {
 		return nil, ErrIgnoreStateValue.Errorf("empty state value")
 	}
 
 	sort.Slice(s.ops, func(i, j int) bool {
-		return strings.Compare(s.ops[i].String(), s.ops[j].String()) < 0
+		return s.ops[i].String() < s.ops[j].String()
 	})
 
 	var previous util.Hash
@@ -294,8 +293,8 @@ func (s *BaseStateValueMerger) CloseValue() (State, error) {
 }
 
 func (s *BaseStateValueMerger) AddOperation(op util.Hash) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	s.addOperation(op)
 }
@@ -309,8 +308,8 @@ func (s *BaseStateValueMerger) State() State {
 }
 
 func (s *BaseStateValueMerger) SetValue(v StateValue) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	s.value = v
 }

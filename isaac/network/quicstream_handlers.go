@@ -87,13 +87,13 @@ func QuicstreamHandlerSendOperation(
 		var op base.Operation
 		var body []byte
 
-		max := maxMessageSize()
+		maxv := maxMessageSize()
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
 			return ctx, e.Wrap(err)
-		case uint64(len(i)) > max:
-			return ctx, e.Errorf("too big size; >= %d", max)
+		case uint64(len(i)) > maxv:
+			return ctx, e.Errorf("too big size; >= %d", maxv)
 		default:
 			if err = encoder.Decode(broker.Encoder, i, &op); err != nil {
 				return ctx, e.Wrap(err)
@@ -588,13 +588,13 @@ func QuicstreamHandlerSendBallots(
 
 		var body []byte
 
-		max := maxMessageSize()
+		maxv := maxMessageSize()
 
 		switch i, err := io.ReadAll(rbody); {
 		case err != nil:
 			return ctx, e.Wrap(err)
-		case uint64(len(body)) > max:
-			return ctx, e.Errorf("too big size; >= %d", max)
+		case uint64(len(i)) > maxv:
+			return ctx, e.Errorf("too big size; >= %d", maxv)
 		default:
 			body = i
 		}
@@ -735,7 +735,7 @@ func quicstreamHandlerSetOperation(
 func quicstreamHandlerNodeConnInfos(
 	f func() ([]isaac.NodeConnInfo, error),
 ) quicstreamheader.Handler[quicstreamheader.RequestHeader] {
-	cache := util.NewLRUGCache[string, []isaac.NodeConnInfo](2) //nolint:gomnd //...
+	cache := util.NewLRUGCache[string, []isaac.NodeConnInfo](2) //nolint:mnd //...
 
 	var sg singleflight.Group
 
@@ -757,7 +757,7 @@ func quicstreamHandlerNodeConnInfos(
 						return nil, err
 					}
 
-					cache.Set("node_conn_infos", k, time.Second*3) //nolint:gomnd //...
+					cache.Set("node_conn_infos", k, time.Second*3) //nolint:mnd //...
 
 					cis = k
 				}
@@ -836,7 +836,7 @@ func boolBytesQUICstreamHandler[T quicstreamheader.RequestHeader](
 			body = buf
 		}
 
-		if len(enchint) > 0 {
+		if enchint != "" {
 			switch _, enc, efound, err := broker.Encoders.FindByString(enchint); {
 			case err != nil:
 				return ctx, errors.Wrapf(err, "find encoder, %q", enchint)

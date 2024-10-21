@@ -19,7 +19,7 @@ var (
 	ZeroStagePoint = StagePoint{Point: ZeroPoint, stage: StageUnknown}
 )
 
-var zeroPrefixHeightString = regexp.MustCompile(`^[0]+`)
+var zeroPrefixHeightString = regexp.MustCompile(`^0+`)
 
 // Height stands for height of Block
 type Height int64

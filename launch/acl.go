@@ -61,7 +61,7 @@ var ACLEventLogger EventLoggerName = "acl"
 type ACL struct {
 	m         util.LockedMap[ /* user */ string /* perm set */, map[ACLScope]ACLPerm]
 	superuser string
-	sync.RWMutex
+	l         sync.RWMutex
 }
 
 func NewACL(mapsize uint64, superuser string) (*ACL, error) {
@@ -74,8 +74,8 @@ func NewACL(mapsize uint64, superuser string) (*ACL, error) {
 }
 
 func (acl *ACL) Allow(user string, scope ACLScope, required ACLPerm) (ACLPerm, bool) {
-	acl.RLock()
-	defer acl.RUnlock()
+	acl.l.RLock()
+	defer acl.l.RUnlock()
 
 	if required == aclPermProhibit {
 		return aclPermProhibit, false
@@ -191,7 +191,7 @@ func (p ACLPerm) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
 }
 
-var regexpACLPermString = regexp.MustCompile(`^[o][o]*$`)
+var regexpACLPermString = regexp.MustCompile(`^o+$`)
 
 func (p *ACLPerm) UnmarshalText(b []byte) error {
 	switch t := string(b); {
@@ -233,8 +233,8 @@ func (acl *YAMLACL) Import(b []byte, enc encoder.Encoder) (updated bool, _ error
 		return false, err
 	}
 
-	acl.Lock()
-	defer acl.Unlock()
+	acl.l.Lock()
+	defer acl.l.Unlock()
 
 	switch om, updated, err := loadACLFromYAML(acl.ACL, b, enc); {
 	case err != nil:
@@ -496,7 +496,7 @@ func ACLNetworkHandler[T quicstreamheader.RequestHeader](
 	) (context.Context, error) {
 		var h ACLUser
 
-		switch i, ok := (interface{})(header).(ACLUser); {
+		switch i, ok := interface{}(header).(ACLUser); {
 		case !ok:
 			return ctx, errors.Errorf("invalid acl header")
 		default:

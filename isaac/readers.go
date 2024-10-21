@@ -283,16 +283,16 @@ func NewBlockItemReaders(
 		args = NewBlockItemReadersArgs() //revive:disable-line:modifies-parameter
 	}
 
-	emptyHeightDirectoryLock, _ := util.NewShardedMap[base.Height, time.Time](1<<5, nil) //nolint:gomnd //...
+	emptyHeightDirectoryLock, _ := util.NewShardedMap[base.Height, time.Time](1<<5, nil) //nolint:mnd //...
 
 	readers := &BlockItemReaders{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "block-item-readers")
 		}),
-		CompatibleSet:    hint.NewCompatibleSet[NewBlockItemReaderFunc](8), //nolint:gomnd //...
+		CompatibleSet:    hint.NewCompatibleSet[NewBlockItemReaderFunc](8), //nolint:mnd //...
 		root:             root,
 		encs:             encs,
-		bfilescache:      util.NewLFUGCache[base.Height, base.BlockItemFiles](1 << 9), //nolint:gomnd //...
+		bfilescache:      util.NewLFUGCache[base.Height, base.BlockItemFiles](1 << 9), //nolint:mnd //...
 		args:             args,
 		emptyHeightsLock: emptyHeightDirectoryLock,
 	}
@@ -789,7 +789,7 @@ func (rs *BlockItemReaders) removeEmptyHeightDirectory(height base.Height) (bool
 	case errors.Is(err, os.ErrNotExist):
 		return true, nil
 	case err != nil:
-		return false, errors.WithMessagef(err, d)
+		return false, errors.WithMessage(err, d)
 	case !i.IsDir():
 		return true, nil
 	}
@@ -979,7 +979,7 @@ func BlockHeightDirectory(height base.Height) string {
 	var i int
 
 	for {
-		e := (i * 3) + 3 //nolint:gomnd //...
+		e := (i * 3) + 3 //nolint:mnd //...
 		if e > len(p) {
 			e = len(p)
 		}
@@ -991,7 +991,7 @@ func BlockHeightDirectory(height base.Height) string {
 
 		sl[i] = s
 
-		if len(s) < 3 { //nolint:gomnd //...
+		if len(s) < 3 { //nolint:mnd //...
 			break
 		}
 
@@ -1134,7 +1134,7 @@ func httpBlockItemReadFunc(insecure bool) RemoteBlockItemReadFunc {
 	}
 
 	return func(ctx context.Context, uri url.URL, callback func(io.Reader) error) (bool, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), http.NoBody)
 		if err != nil {
 			return false, errors.WithStack(err)
 		}

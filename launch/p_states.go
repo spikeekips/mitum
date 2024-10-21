@@ -601,7 +601,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 	}
 
 	whenNewBlockSavedf := func(base.Height) {}
-	if err = util.LoadFromContext(pctx,
+	if err := util.LoadFromContext(pctx,
 		WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedf); err != nil {
 		return nil, err
 	}
@@ -708,7 +708,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 			tempsyncpool = i
 		}
 
-		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1<<9, nil) //nolint:gomnd //...
+		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.ConnInfo](1<<9, nil) //nolint:mnd //...
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(client, isaacparams, syncSourcePool)
@@ -1301,7 +1301,7 @@ func stateHandlerIsEmptyProposalFunc(
 			return true, nil
 		}
 
-		worker, _ := util.NewBaseJobWorker(ctx, 1<<10) //nolint:gomnd // big enough
+		worker, _ := util.NewBaseJobWorker(ctx, 1<<10) //nolint:mnd // big enough
 		defer worker.Close()
 
 		go func() {

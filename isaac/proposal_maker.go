@@ -18,7 +18,7 @@ type ProposalMaker struct {
 	getOperations func(context.Context, base.Height) ([][2]util.Hash, error)
 	lastBlockMap  func() (base.BlockMap, bool, error)
 	networkID     base.NetworkID
-	sync.Mutex
+	l             sync.Mutex
 }
 
 func NewProposalMaker(
@@ -57,8 +57,8 @@ func NewProposalMaker(
 func (p *ProposalMaker) PreferEmpty(
 	ctx context.Context, point base.Point, previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	e := util.StringError("make empty proposal")
 
@@ -96,8 +96,8 @@ func (p *ProposalMaker) preferEmpty(
 func (p *ProposalMaker) Make(
 	ctx context.Context, point base.Point, previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	e := util.StringError("make proposal, %q", point)
 

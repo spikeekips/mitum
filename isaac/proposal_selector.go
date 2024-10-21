@@ -40,8 +40,8 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 		RequestFunc: func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
 		},
-		RequestProposalInterval: time.Millisecond * 666,              //nolint:gomnd //...
-		MinProposerWait:         DefaultTimeoutRequest + time.Second, //nolint:gomnd //...
+		RequestProposalInterval: time.Millisecond * 666,              //nolint:mnd //...
+		MinProposerWait:         DefaultTimeoutRequest + time.Second, //nolint:mnd //...
 		TimeoutRequest: func() time.Duration {
 			return DefaultTimeoutRequest
 		},
@@ -51,7 +51,7 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 type BaseProposalSelector struct {
 	local base.LocalNode
 	args  *BaseProposalSelectorArgs
-	sync.Mutex
+	l     sync.Mutex
 }
 
 func NewBaseProposalSelector(
@@ -97,8 +97,8 @@ func (p *BaseProposalSelector) selectInternal(
 	previousBlock util.Hash,
 	wait time.Duration,
 ) (base.ProposalSignFact, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	pwait := wait
 	if pwait < p.args.MinProposerWait {
@@ -385,7 +385,6 @@ func ConcurrentRequestProposal(
 		defer worker.Done()
 
 		for i := range cis {
-			i := i
 			ci := cis[i]
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {

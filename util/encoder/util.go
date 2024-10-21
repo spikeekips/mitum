@@ -16,7 +16,7 @@ func init() {
 	encodersExtensionMap = map[hint.Type]string{}
 }
 
-func Ptr(i interface{}) (ptr reflect.Value, elem reflect.Value) {
+func Ptr(i interface{}) (ptr, elem reflect.Value) {
 	switch j, ok := i.(reflect.Value); {
 	case ok:
 		elem = j

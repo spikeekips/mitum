@@ -2,7 +2,6 @@ package ps
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -375,7 +374,7 @@ type PS struct {
 	*logging.Logging
 	m    map[Name]*P
 	runs []Name
-	sync.Mutex
+	l    sync.Mutex
 }
 
 func NewPS(name string) *PS {
@@ -479,8 +478,8 @@ func (ps *PS) P(name Name) (*P, bool) {
 }
 
 func (ps *PS) Run(pctx context.Context) (ctx context.Context, err error) {
-	ps.Lock()
-	defer ps.Unlock()
+	ps.l.Lock()
+	defer ps.l.Unlock()
 
 	ctx = pctx
 
@@ -541,16 +540,16 @@ func (ps *PS) AddP(name Name, p *P) bool {
 	return !exists
 }
 
-func (ps *PS) Add(name Name, run, close Func, requires ...Name) bool {
-	_, added := ps.add(name, run, close, requires...)
+func (ps *PS) Add(name Name, run, closef Func, requires ...Name) bool {
+	_, added := ps.add(name, run, closef, requires...)
 
 	return added
 }
 
-func (ps *PS) Replace(name Name, run, close Func, requires ...Name) bool {
+func (ps *PS) Replace(name Name, run, closef Func, requires ...Name) bool {
 	exists, found := ps.m[name]
 
-	p, added := ps.add(name, run, close, requires...)
+	p, added := ps.add(name, run, closef, requires...)
 
 	if found && exists != nil {
 		p.CopyHooks(exists)
@@ -559,7 +558,7 @@ func (ps *PS) Replace(name Name, run, close Func, requires ...Name) bool {
 	return added
 }
 
-func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
+func (ps *PS) add(name Name, run, closef Func, requires ...Name) (*P, bool) {
 	nrequires := requires
 
 	if name != NameINIT {
@@ -575,7 +574,7 @@ func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
 		}
 	}
 
-	p := NewP(run, close, nrequires...)
+	p := NewP(run, closef, nrequires...)
 	_ = p.SetLogging(ps.Logging)
 
 	_, found := ps.m[name]
@@ -595,14 +594,14 @@ func (ps *PS) Remove(name Name) bool {
 	return true
 }
 
-func (ps *PS) ReplaceOK(name Name, run, close Func, requires ...Name) *PS {
-	_ = ps.Replace(name, run, close, requires...)
+func (ps *PS) ReplaceOK(name Name, run, closef Func, requires ...Name) *PS {
+	_ = ps.Replace(name, run, closef, requires...)
 
 	return ps
 }
 
-func (ps *PS) AddOK(name Name, run, close Func, requires ...Name) *PS {
-	_ = ps.Add(name, run, close, requires...)
+func (ps *PS) AddOK(name Name, run, closef Func, requires ...Name) *PS {
+	_ = ps.Add(name, run, closef, requires...)
 
 	return ps
 }
@@ -615,7 +614,7 @@ func (ps *PS) RemoveOK(name Name) *PS {
 
 func (ps *PS) names() []Name {
 	addNames, doneNames := util.SortCompactAppendSlice[Name](len(ps.m), func(i, j Name) bool {
-		return strings.Compare(string(i), string(j)) < 0
+		return string(i) < string(j)
 	})
 
 	for i := range ps.m {

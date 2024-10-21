@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -102,7 +103,7 @@ func defaultMemberlistParams() *MemberlistParams {
 		suspicionMult:           config.SuspicionMult,
 		suspicionMaxTimeoutMult: config.SuspicionMaxTimeoutMult,
 		udpBufferSize:           config.UDPBufferSize,
-		extraSameMemberLimit:    1, //nolint:gomnd //...
+		extraSameMemberLimit:    1, //nolint:mnd //...
 	}
 }
 
@@ -247,19 +248,33 @@ type MISCParams struct {
 	blockItemReadersRemoveEmptyInterval   time.Duration
 	maxMessageSize                        uint64
 	objectCacheSize                       uint64
+	l                                     sync.RWMutex
 }
 
 func defaultMISCParams() *MISCParams {
 	return &MISCParams{
 		BaseParams:                            util.NewBaseParams(),
-		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
-		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
+		syncSourceCheckerInterval:             time.Second * 30, //nolint:mnd //...
+		validProposalOperationExpire:          time.Hour * 24,   //nolint:mnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,
 		blockItemReadersRemoveEmptyAfter:      isaac.DefaultBlockItemReadersRemoveEmptyAfter,
 		blockItemReadersRemoveEmptyInterval:   isaac.DefaultBlockItemReadersRemoveEmptyInterval,
-		maxMessageSize:                        1 << 18, //nolint:gomnd //...
-		objectCacheSize:                       1 << 13, //nolint:gomnd // big enough
+		maxMessageSize:                        1 << 18, //nolint:mnd //...
+		objectCacheSize:                       1 << 13, //nolint:mnd // big enough
 	}
+}
+
+func copyMISCParams(v *MISCParams) {
+	a := defaultMISCParams()
+
+	v.BaseParams = a.BaseParams
+	v.syncSourceCheckerInterval = a.syncSourceCheckerInterval
+	v.validProposalOperationExpire = a.validProposalOperationExpire
+	v.validProposalSuffrageOperationsExpire = a.validProposalSuffrageOperationsExpire
+	v.blockItemReadersRemoveEmptyAfter = a.blockItemReadersRemoveEmptyAfter
+	v.blockItemReadersRemoveEmptyInterval = a.blockItemReadersRemoveEmptyInterval
+	v.maxMessageSize = a.maxMessageSize
+	v.objectCacheSize = a.objectCacheSize
 }
 
 func (p *MISCParams) IsValid([]byte) error {
@@ -303,8 +318,8 @@ func (p *MISCParams) IsValid([]byte) error {
 // SyncSourceCheckerInterval is the interval to check the liveness of sync
 // sources.
 func (p *MISCParams) SyncSourceCheckerInterval() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.syncSourceCheckerInterval
 }
@@ -325,8 +340,8 @@ func (p *MISCParams) SetSyncSourceCheckerInterval(d time.Duration) error {
 // operation. If the creation time of operation is older than
 // ValidProposalOperationExpire, it will be ignored.
 func (p *MISCParams) ValidProposalOperationExpire() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.validProposalOperationExpire
 }
@@ -348,8 +363,8 @@ func (p *MISCParams) SetValidProposalOperationExpire(d time.Duration) error {
 // creation time of suffrage operation is older than
 // ValidProposalSuffrageOperationsExpire, it will be ignored.
 func (p *MISCParams) ValidProposalSuffrageOperationsExpire() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.validProposalSuffrageOperationsExpire
 }
@@ -369,8 +384,8 @@ func (p *MISCParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) e
 // BlockItemReadersRemoveEmptyAfter removes empty block item directory after
 // the duration. Zero duration not allowed.
 func (p *MISCParams) BlockItemReadersRemoveEmptyAfter() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.blockItemReadersRemoveEmptyAfter
 }
@@ -391,8 +406,8 @@ func (p *MISCParams) SetBlockItemReadersRemoveEmptyAfter(d time.Duration) error 
 // item directory after BlockItemReadersRemoveEmptyAfter. Zero duration not
 // allowed.
 func (p *MISCParams) BlockItemReadersRemoveEmptyInterval() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.blockItemReadersRemoveEmptyInterval
 }
@@ -412,8 +427,8 @@ func (p *MISCParams) SetBlockItemReadersRemoveEmptyInterval(d time.Duration) err
 // MaxMessageSize is the maximum size of incoming messages like ballot or
 // operation. If message size is over, it will be ignored.
 func (p *MISCParams) MaxMessageSize() uint64 {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.maxMessageSize
 }
@@ -433,8 +448,8 @@ func (p *MISCParams) SetMaxMessageSize(d uint64) error {
 // ObjectCacheSize is the cache size for various internal objects like address
 // or keypair.
 func (p *MISCParams) ObjectCacheSize() uint64 {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.objectCacheSize
 }
@@ -463,6 +478,7 @@ type NetworkParams struct {
 	connectionPoolSize    uint64
 	maxIncomingStreams    uint64
 	maxStreamTimeout      time.Duration
+	l                     sync.RWMutex
 }
 
 func defaultNetworkParams() *NetworkParams {
@@ -479,13 +495,29 @@ func defaultNetworkParams() *NetworkParams {
 		handshakeIdleTimeout:  d.HandshakeIdleTimeout,
 		maxIdleTimeout:        d.MaxIdleTimeout,
 		keepAlivePeriod:       d.KeepAlivePeriod,
-		defaultHandlerTimeout: time.Second * 6, //nolint:gomnd //...
+		defaultHandlerTimeout: time.Second * 6, //nolint:mnd //...
 		handlerTimeouts:       handlerTimeouts,
-		connectionPoolSize:    1 << 13, //nolint:gomnd // big enough
+		connectionPoolSize:    1 << 13, //nolint:mnd // big enough
 		maxIncomingStreams:    uint64(d.MaxIncomingStreams),
-		maxStreamTimeout:      time.Second * 30, //nolint:gomnd //...
+		maxStreamTimeout:      time.Second * 30, //nolint:mnd //...
 		rateLimit:             NewNetworkRateLimitParams(),
 	}
+}
+
+func copyNetworkParams(v *NetworkParams) {
+	a := defaultNetworkParams()
+
+	v.BaseParams = a.BaseParams
+	v.timeoutRequest = a.timeoutRequest
+	v.handshakeIdleTimeout = a.handshakeIdleTimeout
+	v.maxIdleTimeout = a.maxIdleTimeout
+	v.keepAlivePeriod = a.keepAlivePeriod
+	v.defaultHandlerTimeout = a.defaultHandlerTimeout
+	v.handlerTimeouts = a.handlerTimeouts
+	v.connectionPoolSize = a.connectionPoolSize
+	v.maxIncomingStreams = a.maxIncomingStreams
+	v.maxStreamTimeout = a.maxStreamTimeout
+	v.rateLimit = a.rateLimit
 }
 
 func (p *NetworkParams) IsValid([]byte) error {
@@ -547,8 +579,8 @@ func (p *NetworkParams) IsValid([]byte) error {
 // TimeoutRequest is the default timeout to request the other nodes; see
 // https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) TimeoutRequest() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.timeoutRequest
 }
@@ -567,8 +599,8 @@ func (p *NetworkParams) SetTimeoutRequest(d time.Duration) error {
 
 // HandshakeIdleTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) HandshakeIdleTimeout() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.handshakeIdleTimeout
 }
@@ -587,8 +619,8 @@ func (p *NetworkParams) SetHandshakeIdleTimeout(d time.Duration) error {
 
 // MaxIdleTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxIdleTimeout() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.maxIdleTimeout
 }
@@ -607,8 +639,8 @@ func (p *NetworkParams) SetMaxIdleTimeout(d time.Duration) error {
 
 // KeepAlivePeriod; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) KeepAlivePeriod() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.keepAlivePeriod
 }
@@ -628,8 +660,8 @@ func (p *NetworkParams) SetKeepAlivePeriod(d time.Duration) error {
 // DefaultHandlerTimeout is the default timeout for network handlers. If
 // handling request is over timeout, the request will be canceled by server.
 func (p *NetworkParams) DefaultHandlerTimeout() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.defaultHandlerTimeout
 }
@@ -688,8 +720,8 @@ func (p *NetworkParams) HandlerTimeoutFunc(i quicstream.HandlerName) (func() tim
 }
 
 func (p *NetworkParams) handlerTimeout(i quicstream.HandlerName) time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	switch d, found := p.handlerTimeouts[i]; {
 	case !found:
@@ -701,8 +733,8 @@ func (p *NetworkParams) handlerTimeout(i quicstream.HandlerName) time.Duration {
 
 // ConnectionPoolSize is the sharded map size for connection pool.
 func (p *NetworkParams) ConnectionPoolSize() uint64 {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.connectionPoolSize
 }
@@ -721,8 +753,8 @@ func (p *NetworkParams) SetConnectionPoolSize(d uint64) error {
 
 // MaxIncomingStreams; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxIncomingStreams() uint64 {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.maxIncomingStreams
 }
@@ -741,8 +773,8 @@ func (p *NetworkParams) SetMaxIncomingStreams(d uint64) error {
 
 // MaxStreamTimeout; see https://pkg.go.dev/github.com/quic-go/quic-go#Config .
 func (p *NetworkParams) MaxStreamTimeout() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.maxStreamTimeout
 }
@@ -760,15 +792,15 @@ func (p *NetworkParams) SetMaxStreamTimeout(d time.Duration) error {
 }
 
 func (p *NetworkParams) RateLimit() *NetworkRateLimitParams {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.rateLimit
 }
 
 func (p *NetworkParams) SetRateLimit(r *RateLimiterRules) error {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	p.rateLimit = &NetworkRateLimitParams{RateLimiterRules: r}
 

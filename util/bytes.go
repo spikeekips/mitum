@@ -38,7 +38,7 @@ func ConcatByterSlice[T Byter](bs []T) []byte {
 
 	for i := range bs {
 		j := bs[i]
-		if (interface{})(j) == nil { //nolint:govet //...
+		if interface{}(j) == nil { //nolint:govet //...
 			continue
 		}
 
@@ -188,13 +188,13 @@ func WriteLengthed(w io.Writer, b []byte) error {
 	return nil
 }
 
-func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
+func ReadLengthedBytes(b []byte) (_, left []byte, _ error) {
 	i, err := ReadLengthBytes(b)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if uint64(len(b)-8) < i { //nolint:gomnd //...
+	if uint64(len(b)-8) < i { //nolint:mnd //...
 		return nil, nil, errors.Errorf("wrong format; left not enough")
 	}
 
@@ -204,7 +204,7 @@ func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
 func ReadLengthBytes(b []byte) (uint64, error) {
 	i := uint64(len(b))
 
-	if i < 8 { //nolint:gomnd //...
+	if i < 8 { //nolint:mnd //...
 		return 0, errors.Errorf("wrong format; missing length part")
 	}
 
@@ -216,7 +216,7 @@ func ReadLengthBytes(b []byte) (uint64, error) {
 	return j, nil
 }
 
-func ReadLength(r io.Reader) (read uint64, length uint64, _ error) {
+func ReadLength(r io.Reader) (read, length uint64, _ error) {
 	p := make([]byte, 8)
 
 	switch n, err := EnsureRead(context.Background(), r, p); {
@@ -276,7 +276,7 @@ func WriteLengthedSlice(w io.Writer, m [][]byte) error {
 }
 
 func ReadLengthedBytesSlice(b []byte) (m [][]byte, left []byte, _ error) {
-	if len(b) < 8 { //nolint:gomnd //...
+	if len(b) < 8 { //nolint:mnd //...
 		return nil, nil, errors.Errorf("empty m length")
 	}
 
@@ -328,7 +328,7 @@ func ReadLengthedSlice(r io.Reader) (read uint64, hs [][]byte, _ error) {
 
 	for i := range hs {
 		switch n, b, err := ReadLengthed(r); {
-		case errors.Is(err, io.EOF) && i < len(hs)-1:
+		case i < len(hs)-1 && errors.Is(err, io.EOF):
 			return read, nil, errors.Wrap(err, "insufficient read")
 		case err == nil, errors.Is(err, io.EOF):
 			hs[i] = b

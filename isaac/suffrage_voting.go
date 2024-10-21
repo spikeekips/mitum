@@ -5,7 +5,6 @@ import (
 	"math/bits"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/spikeekips/mitum/base"
@@ -20,7 +19,7 @@ type SuffrageVoting struct {
 	db            SuffrageExpelPool
 	votedCallback func(base.SuffrageExpelOperation) error
 	existsInState func(util.Hash) (bool, error)
-	sync.Mutex
+	l             sync.Mutex
 }
 
 func NewSuffrageVoting(
@@ -45,8 +44,8 @@ func NewSuffrageVoting(
 }
 
 func (s *SuffrageVoting) Vote(op base.SuffrageExpelOperation) (bool, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	e := util.StringError("suffrage voting")
 
@@ -141,7 +140,7 @@ func (s *SuffrageVoting) Find(
 
 	// NOTE sort by fact hash
 	sort.Slice(collected, func(i, j int) bool {
-		return strings.Compare(collected[i].Hash().String(), collected[j].Hash().String()) < 0
+		return collected[i].Hash().String() < collected[j].Hash().String()
 	})
 
 	var expelnodes []string
@@ -287,11 +286,11 @@ func (*SuffrageVoting) filterSigns(
 // https://github.com/mxschmitt/golang-combinations/blob/v1.1.0/combinations.go#L32
 func findExpelCombinations(
 	ops []base.SuffrageExpelOperation,
-	min, max int,
+	minv, maxv int,
 	filterOperation func(int, base.SuffrageExpelOperation) bool,
 	callback func([]base.SuffrageExpelOperation) bool,
 ) {
-	if max > len(ops) {
+	if maxv > len(ops) {
 		return
 	}
 
@@ -302,12 +301,12 @@ end:
 		n := bits.OnesCount(uint(i))
 
 		switch {
-		case min >= 0 && n < min,
-			max >= 0 && n > max:
+		case minv >= 0 && n < minv,
+			maxv >= 0 && n > maxv:
 			continue
 		}
 
-		set := make([]base.SuffrageExpelOperation, max)
+		set := make([]base.SuffrageExpelOperation, maxv)
 
 		var k int
 		for j := 0; j < length; j++ {

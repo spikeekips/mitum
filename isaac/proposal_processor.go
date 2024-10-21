@@ -65,7 +65,7 @@ func NewDefaultProposalProcessorArgs() *DefaultProposalProcessorArgs {
 		NewOperationProcessorFunc: func(base.Height, hint.Hint, base.GetStateFunc) (base.OperationProcessor, error) {
 			return nil, nil
 		},
-		MaxWorkerSize:            1 << 13, //nolint:gomnd // big enough
+		MaxWorkerSize:            1 << 13, //nolint:mnd // big enough
 		EmptyProposalNoBlockFunc: func() bool { return false },
 	}
 }
@@ -92,7 +92,7 @@ func NewDefaultProposalProcessor(
 	previous base.Manifest,
 	args *DefaultProposalProcessorArgs,
 ) (*DefaultProposalProcessor, error) {
-	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1<<5, nil) //nolint:gomnd //...
+	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1<<5, nil) //nolint:mnd //...
 	stcache, _ := util.NewShardedMap[string, [2]interface{}](uint64(math.MaxUint16), nil)
 
 	ctx, ctxcancel := context.WithCancel(context.Background())
@@ -671,7 +671,7 @@ func (p *DefaultProposalProcessor) getOperation(ctx context.Context, oph, fact u
 		return NewReasonProcessedOperation(
 			oph,
 			fact,
-			base.NewBaseOperationProcessReasonError(err.Error()),
+			base.NewBaseOperationProcessReason(err.Error()),
 		), nil
 	default:
 		return nil, err

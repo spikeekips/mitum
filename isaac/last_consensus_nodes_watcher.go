@@ -296,9 +296,9 @@ func (*LastConsensusNodesWatcher) compareProofs(a, b []base.SuffrageProof) []bas
 	var newl3 []base.SuffrageProof
 
 	switch {
-	case len(nb) >= 3: //nolint:gomnd //...
+	case len(nb) >= 3: //nolint:mnd //...
 		newl3 = nb[len(nb)-3:]
-	case len(nb) < 3: //nolint:gomnd //...
+	case len(nb) < 3: //nolint:mnd //...
 		newl3 = nb
 
 		for i := len(a) - 1; i >= 0; i-- {
@@ -311,7 +311,7 @@ func (*LastConsensusNodesWatcher) compareProofs(a, b []base.SuffrageProof) []bas
 
 				newl3 = k
 
-				if len(newl3) == 3 { //nolint:gomnd //...
+				if len(newl3) == 3 { //nolint:mnd //...
 					break
 				}
 

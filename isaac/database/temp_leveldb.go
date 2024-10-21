@@ -26,7 +26,7 @@ type TempLeveldb struct {
 	proofbody             []byte
 	mpmeta                []byte // NOTE last blockmap bytes
 	mpbody                []byte // NOTE last blockmap bytes
-	sync.Mutex
+	l                     sync.Mutex
 }
 
 func NewTempLeveldbFromPrefix(
@@ -111,8 +111,8 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 }
 
 func (db *TempLeveldb) Close() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if err := db.baseLeveldb.Close(); err != nil {
 		return err
@@ -124,8 +124,8 @@ func (db *TempLeveldb) Close() error {
 }
 
 func (db *TempLeveldb) Remove() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if db.mp == nil {
 		return nil
@@ -151,8 +151,8 @@ func (db *TempLeveldb) Merge() error {
 	}
 
 	r := &leveldbutil.Range{
-		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()),   //nolint:gomnd //...
-		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()+1), //nolint:gomnd //...
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()),   //nolint:mnd //...
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()+1), //nolint:mnd //...
 	}
 
 	var lastprefix []byte

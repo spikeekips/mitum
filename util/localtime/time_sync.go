@@ -26,7 +26,7 @@ type TimeSyncer struct {
 	port     int
 	offset   time.Duration
 	interval time.Duration
-	sync.RWMutex
+	l        sync.RWMutex
 }
 
 // NewTimeSyncer creates new TimeSyncer
@@ -49,7 +49,7 @@ func NewTimeSyncer(server string, port int, interval time.Duration) (*TimeSyncer
 
 	ts.ContextDaemon = util.NewContextDaemon(ts.schedule)
 
-	return ts, ts.check()
+	return ts, ts.check() //nolint:gocritic //...
 }
 
 // Start starts TimeSyncer
@@ -93,15 +93,15 @@ end:
 
 // Offset returns the latest time offset.
 func (ts *TimeSyncer) Offset() time.Duration {
-	ts.RLock()
-	defer ts.RUnlock()
+	ts.l.RLock()
+	defer ts.l.RUnlock()
 
 	return ts.offset
 }
 
 func (ts *TimeSyncer) setOffset(d time.Duration) {
-	ts.Lock()
-	defer ts.Unlock()
+	ts.l.Lock()
+	defer ts.l.Unlock()
 
 	ts.offset = d
 }

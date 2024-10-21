@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -82,8 +81,8 @@ func (h *HandoverMessageChallengeResponse) UnmarshalJSON(b []byte) error {
 	h.point = u.Point
 	h.ok = u.OK
 
-	if len(u.Err) > 0 {
-		h.err = fmt.Errorf(u.Err) //nolint:goerr113 // no meaning to wrap
+	if u.Err != "" {
+		h.err = errors.New(u.Err)
 	}
 
 	return nil
@@ -240,8 +239,8 @@ func (h *HandoverMessageCancel) UnmarshalJSON(b []byte) error {
 		return errors.Errorf("unmarshal HandoverMessageCancel")
 	}
 
-	if len(u.Err) > 0 {
-		h.err = fmt.Errorf(u.Err) //nolint:goerr113 //...
+	if u.Err != "" {
+		h.err = errors.New(u.Err)
 	}
 
 	return nil

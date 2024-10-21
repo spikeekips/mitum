@@ -51,7 +51,7 @@ func (cmd *NetworkClientBlockItemFilesCommand) Run(
 }
 
 func (cmd *NetworkClientBlockItemFilesCommand) prepare(pctx context.Context) error {
-	if len(cmd.OutputDirectory) > 0 {
+	if cmd.OutputDirectory != "" {
 		switch fi, err := os.Stat(cmd.OutputDirectory); {
 		case os.IsNotExist(err):
 		case err != nil:
@@ -157,11 +157,11 @@ func (cmd *NetworkClientBlockItemFilesCommand) downloadBlockItemFiles(
 	case err != nil:
 		return nil, err
 	case !found:
-		kctx.Errorf(util.ErrNotFound.Errorf("block item files").Error())
+		kctx.Errorf(util.ErrNotFound.Errorf("block item files").Error()) //nolint:govet // ...
 		kctx.Exit(2)
 	}
 
-	if len(cmd.OutputDirectory) > 0 {
+	if cmd.OutputDirectory != "" {
 		obuf := bytes.NewBuffer(nil)
 		defer obuf.Reset()
 
@@ -203,14 +203,12 @@ func (cmd *NetworkClientBlockItemFilesCommand) downloadBlockItems(
 	defer worker.Close()
 
 	for t := range m {
-		t := t
-
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 			switch found, err := cmd.downloadBlockItem(ctx, t, m[t]); {
 			case err != nil:
 				return err
 			case !found:
-				kctx.Errorf(util.ErrNotFound.Errorf("block item file, %q", t.String()).Error())
+				kctx.Errorf(util.ErrNotFound.Errorf("block item file, %q", t.String()).Error()) //nolint:govet //...
 				kctx.Exit(2)
 			}
 
@@ -386,7 +384,7 @@ func (cmd *NetworkClientBlockItemFileCommand) Run(
 	case err != nil:
 		return err
 	case !found:
-		kctx.Errorf(util.ErrNotFound.Errorf("block item file").Error())
+		kctx.Errorf(util.ErrNotFound.Errorf("block item file").Error()) //nolint:govet //...
 		kctx.Exit(2)
 	}
 

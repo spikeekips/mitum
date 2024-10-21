@@ -38,7 +38,7 @@ func NewSuffrageStateBuilder(
 		lastSuffrageProof:          lastSuffrageProof,
 		getSuffrageProof:           getSuffrageProof,
 		lastSuffrageCandidateState: lastSuffrageCandidateState,
-		batchlimit:                 333, //nolint:gomnd //...
+		batchlimit:                 333, //nolint:mnd //...
 	}
 }
 

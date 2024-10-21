@@ -59,7 +59,7 @@ func PNetworkRateLimiter(pctx context.Context) (context.Context, error) {
 		return func(ctx context.Context, addr net.Addr, r io.Reader, w io.WriteCloser) (context.Context, error) {
 			ctx, err := handler(ctx, addr, r, w)
 			if ctx == nil {
-				return ctx, err
+				return nil, err
 			}
 
 			if result, ok := ctx.Value(RateLimiterResultContextKey).(func() RateLimiterResult); ok {

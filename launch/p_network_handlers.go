@@ -229,7 +229,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	set := hint.NewCompatibleSet[isaac.NewOperationProcessorInternalFunc](1 << 9) //nolint:gomnd //...
+	set := hint.NewCompatibleSet[isaac.NewOperationProcessorInternalFunc](1 << 9) //nolint:mnd //...
 
 	_ = set.Add(isaacoperation.SuffrageCandidateHint,
 		func(height base.Height, getStatef base.GetStateFunc) (base.OperationProcessor, error) {
@@ -601,7 +601,7 @@ func AttachBlockItemsNetworkHandlers(pctx context.Context) error {
 
 func EnsureHandlerAdd[T quicstreamheader.RequestHeader](
 	pctx context.Context,
-	gerr *error,
+	gerr *error, //nolint:gocritic //...
 	name quicstream.HandlerName,
 	handler quicstreamheader.Handler[T],
 	errhandler quicstreamheader.ErrorHandler,

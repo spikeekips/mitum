@@ -17,7 +17,7 @@ func DelmSplitStrings(s, delm string, n uint) string {
 	switch {
 	case len(s) < 1:
 		return s
-	case rWhitespace.Match([]byte(s)):
+	case rWhitespace.MatchString(s):
 		s = string(rWhitespace.ReplaceAll([]byte(s), []byte("_"))) //revive:disable-line:modifies-parameter
 	}
 
@@ -26,7 +26,7 @@ func DelmSplitStrings(s, delm string, n uint) string {
 	var i uint
 
 	for {
-		e := (i * n) + n //nolint:gomnd //...
+		e := (i * n) + n //nolint:mnd //...
 		if e > uint(len(s)) {
 			e = uint(len(s))
 		}
@@ -42,7 +42,7 @@ func DelmSplitStrings(s, delm string, n uint) string {
 
 		_, _ = sb.WriteString(j)
 
-		if uint(len(j)) < n { //nolint:gomnd //...
+		if uint(len(j)) < n { //nolint:mnd //...
 			break
 		}
 

@@ -444,7 +444,7 @@ func (h *NodeChallengeRequestHeader) DecodeJSON(b []byte, enc encoder.Encoder) e
 		h.me = i
 	}
 
-	if len(u.MePublickey) > 0 {
+	if u.MePublickey != "" {
 		switch i, err := base.DecodePublickeyFromString(u.MePublickey, enc); {
 		case err != nil:
 			return e.WithMessage(err, "me pub")
@@ -872,7 +872,7 @@ type blockItemResponseHeaderJSONMarshaler struct {
 
 func (h BlockItemResponseHeader) MarshalJSON() ([]byte, error) {
 	var uri string
-	if len(h.uri.Scheme) > 0 {
+	if h.uri.Scheme != "" {
 		uri = h.uri.String()
 	}
 

@@ -19,7 +19,7 @@ type ItemReader struct {
 	r             *util.CompressedReader
 	t             base.BlockItemType
 	maxWorkerSize uint64
-	sync.Mutex
+	l             sync.Mutex
 }
 
 func NewDefaultItemReaderFunc(workerSize uint64) isaac.NewBlockItemReaderFunc {
@@ -59,8 +59,8 @@ func (r *ItemReader) Reader() *util.CompressedReader {
 }
 
 func (r *ItemReader) Decode() (interface{}, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	if err := r.decompressed(); err != nil {
 		return nil, err
@@ -87,8 +87,8 @@ func (r *ItemReader) Decode() (interface{}, error) {
 }
 
 func (r *ItemReader) DecodeItems(f func(uint64, uint64, interface{}) error) (uint64, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	if err := r.decompressed(); err != nil {
 		return 0, err
@@ -98,7 +98,6 @@ func (r *ItemReader) DecodeItems(f func(uint64, uint64, interface{}) error) (uin
 	case base.BlockItemMap,
 		base.BlockItemProposal,
 		base.BlockItemVoteproofs,
-		base.BlockItemStatesTree,
 		base.BlockItemStatesTree:
 		return 0, errors.Errorf("unsupported items type, %q", r.t)
 	case base.BlockItemOperations, base.BlockItemStates:

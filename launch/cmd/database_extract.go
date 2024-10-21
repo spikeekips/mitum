@@ -144,9 +144,7 @@ func (cmd *DatabaseExtractCommand) prepare(pctx context.Context) error {
 			return fmt.Sprintf("%v", b)
 		}
 	case "hex":
-		cmd.encodeBytes = func(b []byte) string {
-			return hex.EncodeToString(b)
-		}
+		cmd.encodeBytes = hex.EncodeToString
 	default:
 		return errors.Errorf("unknown --bytes, %q", cmd.Bytes)
 	}
@@ -413,7 +411,7 @@ func (cmd *DatabaseExtractCommand) extract(context.Context) error {
 		}
 
 		if left > 0 {
-			if left = left - total; left < 1 {
+			if left -= left; left < 1 {
 				break
 			}
 		}
@@ -521,7 +519,7 @@ func (cmd *DatabaseExtractCommand) extractValue(label, prefix string, key, raw [
 	m["label"] = label
 	m["prefix"] = prefix
 
-	if len(comment) > 0 {
+	if comment != "" {
 		m["comment"] = comment
 	}
 

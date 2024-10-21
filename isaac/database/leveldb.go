@@ -136,27 +136,29 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta []byte, body []byte, _ error) {
+func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint string, meta, body []byte, _ error) {
 	e := util.StringError("load last blockmap")
 
-	pst, err := db.st()
-	if err != nil {
+	var pst *leveldbstorage.PrefixStorage
+
+	switch i, err := db.st(); {
+	case err != nil:
 		return nil, enchint, nil, nil, e.Wrap(err)
+	default:
+		pst = i
 	}
 
-	if err = pst.Iter(
+	if err := pst.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap[:]),
 		func(_, b []byte) (bool, error) {
+			var err error
+
 			enchint, meta, body, err = ReadOneHeaderFrame(b)
 			if err != nil {
 				return false, err
 			}
 
-			if err = DecodeFrame(db.encs, enchint, body, &m); err != nil {
-				return false, err
-			}
-
-			return false, nil
+			return false, DecodeFrame(db.encs, enchint, body, &m)
 		},
 		false,
 	); err != nil {

@@ -88,7 +88,7 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 
 		r := leveldbutil.BytesPrefix(pst.Prefix())
 
-		_, err := leveldbstorage.BatchRemove(pst.Storage, r, 333) //nolint:gomnd //...
+		_, err := leveldbstorage.BatchRemove(pst.Storage, r, 333) //nolint:mnd //...
 
 		return err
 	}(); err != nil {
@@ -105,7 +105,7 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 func CleanSyncPool(st *leveldbstorage.Storage) error {
 	r := leveldbutil.BytesPrefix(leveldbLabelSyncPool[:])
 
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:mnd //...
 		return errors.WithMessage(err, "clean syncpool database")
 	}
 

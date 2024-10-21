@@ -85,7 +85,7 @@ func (p *NetworkPolicyProcessor) PreProcess(ctx context.Context, op base.Operati
 	e := util.StringError("preprocess for network policy")
 
 	if p.newop != nil {
-		return ctx, base.NewBaseOperationProcessReasonError("only one network policy operation allowed"), nil
+		return ctx, base.NewBaseOperationProcessReason("only one network policy operation allowed"), nil
 	}
 
 	var noop base.NodeSignFact
@@ -101,13 +101,13 @@ func (p *NetworkPolicyProcessor) PreProcess(ctx context.Context, op base.Operati
 	}
 
 	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigns()); err != nil {
-		return ctx, base.NewBaseOperationProcessReasonError("not enough signs"), nil
+		return ctx, base.NewBaseOperationProcessReason("not enough signs"), nil
 	}
 
 	newpolicy := op.Fact().(NetworkPolicyFact).Policy() //nolint:forcetypeassert //...
 
 	if base.IsEqualNetworkPolicy(p.policy, newpolicy) {
-		return ctx, base.NewBaseOperationProcessReasonError("same with existing network policy"), nil
+		return ctx, base.NewBaseOperationProcessReason("same with existing network policy"), nil
 	}
 
 	p.newop = op.Hash()

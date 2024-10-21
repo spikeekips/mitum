@@ -240,9 +240,9 @@ func (SuffrageGenesisJoin) PreProcess(
 ) (context.Context, base.OperationProcessReasonError, error) {
 	switch _, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
-		return ctx, base.NewBaseOperationProcessReasonError("check suffrage state: %w", err), nil
+		return ctx, base.NewBaseOperationProcessReasonf("check suffrage state: %s", err), nil
 	case found:
-		return ctx, base.NewBaseOperationProcessReasonError("suffrage state already exists"), nil
+		return ctx, base.NewBaseOperationProcessReason("suffrage state already exists"), nil
 	default:
 		return ctx, nil, nil
 	}

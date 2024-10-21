@@ -29,7 +29,7 @@ type Center struct {
 	temps         []isaac.TempDatabase
 	removed       []isaac.TempDatabase
 	mergeInterval time.Duration
-	sync.RWMutex
+	l             sync.RWMutex
 }
 
 func NewCenter(
@@ -69,11 +69,11 @@ func (db *Center) SetLogging(l *logging.Logging) *logging.Logging {
 
 func (*Center) Close() error {
 	// WARN don't close temps
-	//for i := range db.temps {
-	//	if err := db.temps[i].Close(); err != nil {
-	//		return e.WithMessage(err, "close temp")
-	//	}
-	//}
+	// for i := range db.temps {
+	// 	if err := db.temps[i].Close(); err != nil {
+	// 		return e.WithMessage(err, "close temp")
+	// 	}
+	// }
 	return nil
 }
 
@@ -484,8 +484,8 @@ func (db *Center) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDat
 }
 
 func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	e := util.StringError("merge new TempDatabase")
 
@@ -534,8 +534,8 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 }
 
 func (db *Center) MergeAllPermanent() error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	for {
 		switch height, merged, err := mergeToPermanent(context.Background(),
@@ -555,8 +555,8 @@ func (db *Center) MergeAllPermanent() error {
 
 // RemoveBlocks removes temp databases over height including height.
 func (db *Center) RemoveBlocks(height base.Height) (bool, error) {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	switch {
 	case len(db.temps) < 1:
@@ -599,8 +599,8 @@ func (db *Center) RemoveBlocks(height base.Height) (bool, error) {
 }
 
 func (db *Center) activeTemps() []isaac.TempDatabase {
-	db.RLock()
-	defer db.RUnlock()
+	db.l.RLock()
+	defer db.l.RUnlock()
 
 	return append([]isaac.TempDatabase{}, db.temps...)
 }
@@ -636,8 +636,8 @@ func (db *Center) removeTemp(temp isaac.TempDatabase) error {
 }
 
 func (db *Center) findTemp(height base.Height) isaac.TempDatabase {
-	db.RLock()
-	defer db.RUnlock()
+	db.l.RLock()
+	defer db.l.RUnlock()
 
 	var found int64 = -1
 	if len(db.temps) > 0 {
@@ -721,7 +721,7 @@ func (db *Center) start(ctx context.Context) error {
 				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; will retry")
 			}
 
-			if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
+			if err := db.cleanRemoved(3); err != nil { //nolint:mnd //...
 				db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
 			}
 		}
@@ -729,8 +729,8 @@ func (db *Center) start(ctx context.Context) error {
 }
 
 func (db *Center) mergePermanent(ctx context.Context) (bool, error) {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	switch height, merged, err := mergeToPermanent(ctx, db.perm, db.temps, db.removeTemp); {
 	case err != nil:
@@ -745,8 +745,8 @@ func (db *Center) mergePermanent(ctx context.Context) (bool, error) {
 }
 
 func (db *Center) cleanRemoved(limit int) error {
-	db.Lock()
-	defer db.Unlock()
+	db.l.Lock()
+	defer db.l.Unlock()
 
 	if len(db.removed) <= limit {
 		// NOTE last limit temp databases will be kept for safe concurreny
@@ -782,8 +782,8 @@ func loadTemp(
 	enc encoder.Encoder,
 ) (isaac.TempDatabase, error) {
 	r := &leveldbutil.Range{
-		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),   //nolint:gomnd //...
-		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1), //nolint:gomnd //...
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),   //nolint:mnd //...
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1), //nolint:mnd //...
 	}
 
 	var lastprefix []byte

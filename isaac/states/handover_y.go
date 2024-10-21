@@ -43,9 +43,9 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 			return "", false, util.ErrNotImplemented.Errorf("AskFunc")
 		},
 		SyncDataFunc:             func(context.Context, quicstream.ConnInfo, chan<- struct{}) error { return nil },
-		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
-		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
-		MaxEnsureAsk:             9,                     //nolint:gomnd //...
+		MaxEnsureSendFailure:     9,                     //nolint:mnd //...
+		RetrySendMessageInterval: time.Millisecond * 33, //nolint:mnd //...
+		MaxEnsureAsk:             9,                     //nolint:mnd //...
 	}
 }
 
@@ -113,10 +113,10 @@ func NewHandoverYBroker(
 
 			syncdatacancel()
 
-			if id := broker.ID(); len(id) > 0 {
+			if id := broker.ID(); id != "" {
 				go func() {
 					_ = broker.retrySendMessage(
-						context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:gomnd //...
+						context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:mnd //...
 				}()
 			}
 
@@ -195,7 +195,7 @@ func (broker *HandoverYBroker) ConnInfo() quicstream.ConnInfo {
 func (broker *HandoverYBroker) IsAsked() bool {
 	id, _ := broker.id.Value()
 
-	return len(id) > 0
+	return id != ""
 }
 
 func (broker *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
@@ -248,7 +248,7 @@ func (broker *HandoverYBroker) Ask() (canMoveConsensus, isAsked bool, _ error) {
 
 	broker.Log().Debug().Str("id", id).Msg("handover asked")
 
-	return canMoveConsensus, len(id) > 0, nil
+	return canMoveConsensus, id != "", nil
 }
 
 func (broker *HandoverYBroker) ask() (id string, canMoveConsensus bool, _ error) {

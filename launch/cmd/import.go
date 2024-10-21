@@ -342,7 +342,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 	if err := util.BatchWork(
 		context.Background(),
 		d.Int64()+1,
-		333, //nolint:gomnd //...
+		333, //nolint:mnd //...
 		func(context.Context, uint64) error {
 			return nil
 		},
@@ -424,7 +424,7 @@ func (cmd *ImportCommand) tempRemoteItemFileName(uri url.URL, compressFormat str
 		[]byte(compressFormat),
 	))
 
-	return filepath.Join(cmd.CacheDirectory, util.DelmSplitStrings(h.String(), "/", 32)) //nolint:gomnd //...
+	return filepath.Join(cmd.CacheDirectory, util.DelmSplitStrings(h.String(), "/", 32)) //nolint:mnd //...
 }
 
 func (cmd *ImportCommand) writeTempRemoteItemFile(

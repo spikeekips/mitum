@@ -12,7 +12,7 @@ type Encoders struct {
 
 func NewEncoders(defaultenc, jenc Encoder) *Encoders {
 	encs := &Encoders{
-		CompatibleSet: hint.NewCompatibleSet[Encoder](3), //nolint:gomnd // small number of encoders
+		CompatibleSet: hint.NewCompatibleSet[Encoder](3), //nolint:mnd // small number of encoders
 		defaultenc:    defaultenc,
 		jenc:          jenc,
 	}

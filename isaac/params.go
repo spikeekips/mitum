@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -35,6 +36,7 @@ type Params struct {
 	maxTryHandoverYBrokerSyncData uint64
 	stateCacheSize                int
 	operationPoolCacheSize        int
+	l                             sync.RWMutex
 }
 
 func NewParams(networkID base.NetworkID) *Params {
@@ -53,9 +55,9 @@ func DefaultParams(networkID base.NetworkID) *Params {
 		threshold:                     base.DefaultThreshold,
 		intervalBroadcastBallot:       DefaultntervalBroadcastBallot,
 		waitPreparingINITBallot:       DefaultWaitPreparingINITBallot,
-		ballotStuckWait:               time.Second * 33, //nolint:gomnd // waitPreparingINITBallot * 10
-		ballotStuckResolveAfter:       time.Second * 66, //nolint:gomnd // ballotStuckWait * 2
-		maxTryHandoverYBrokerSyncData: 33,               //nolint:gomnd //...
+		ballotStuckWait:               time.Second * 33, //nolint:mnd // waitPreparingINITBallot * 10
+		ballotStuckResolveAfter:       time.Second * 66, //nolint:mnd // ballotStuckWait * 2
+		maxTryHandoverYBrokerSyncData: 33,               //nolint:mnd //...
 		minWaitNextBlockINITBallot:    DefaultMinWaitNextBlockINITBallot,
 		stateCacheSize:                DefaultStateCacheSize,
 		operationPoolCacheSize:        DefaultOperationPoolCacheSize,
@@ -113,8 +115,8 @@ func (p *Params) IsValid(networkID []byte) error {
 }
 
 func (p *Params) NetworkID() base.NetworkID {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.networkID
 }
@@ -136,8 +138,8 @@ func (p *Params) SetNetworkID(n base.NetworkID) error {
 }
 
 func (p *Params) Threshold() base.Threshold {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.threshold
 }
@@ -162,8 +164,8 @@ func (p *Params) SetThreshold(t base.Threshold) error {
 }
 
 func (p *Params) IntervalBroadcastBallot() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.intervalBroadcastBallot
 }
@@ -181,8 +183,8 @@ func (p *Params) SetIntervalBroadcastBallot(d time.Duration) error {
 }
 
 func (p *Params) WaitPreparingINITBallot() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.waitPreparingINITBallot
 }
@@ -200,8 +202,8 @@ func (p *Params) SetWaitPreparingINITBallot(d time.Duration) error {
 }
 
 func (p *Params) BallotStuckWait() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.ballotStuckWait
 }
@@ -219,8 +221,8 @@ func (p *Params) SetBallotStuckWait(d time.Duration) error {
 }
 
 func (p *Params) BallotStuckResolveAfter() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.ballotStuckResolveAfter
 }
@@ -238,8 +240,8 @@ func (p *Params) SetBallotStuckResolveAfter(d time.Duration) error {
 }
 
 func (p *Params) MaxTryHandoverYBrokerSyncData() uint64 {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.maxTryHandoverYBrokerSyncData
 }
@@ -260,8 +262,8 @@ func (p *Params) SetMaxTryHandoverYBrokerSyncData(d uint64) error {
 // block for new proposal; Too short MinWaitNextBlockINITBallot may cause empty
 // proposal.
 func (p *Params) MinWaitNextBlockINITBallot() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.minWaitNextBlockINITBallot
 }
@@ -279,8 +281,8 @@ func (p *Params) SetMinWaitNextBlockINITBallot(d time.Duration) error {
 }
 
 func (p *Params) StateCacheSize() int {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.stateCacheSize
 }
@@ -301,8 +303,8 @@ func (p *Params) SetStateCacheSize(d int) error {
 }
 
 func (p *Params) OperationPoolCacheSize() int {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.operationPoolCacheSize
 }

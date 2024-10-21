@@ -20,8 +20,8 @@ var (
 )
 
 type Locked[T any] struct {
-	value T
-	sync.RWMutex
+	value   T
+	l       sync.RWMutex
 	isempty bool
 }
 
@@ -34,8 +34,8 @@ func NewLocked[T any](v T) *Locked[T] {
 }
 
 func (l *Locked[T]) Value() (v T, isempty bool) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	if l.isempty {
 		return v, true
@@ -45,15 +45,15 @@ func (l *Locked[T]) Value() (v T, isempty bool) {
 }
 
 func (l *Locked[T]) MustValue() (v T) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	return l.value
 }
 
 func (l *Locked[T]) SetValue(v T) *Locked[T] {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	l.value = v
 	l.isempty = false
@@ -62,8 +62,8 @@ func (l *Locked[T]) SetValue(v T) *Locked[T] {
 }
 
 func (l *Locked[T]) EmptyValue() *Locked[T] {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	var v T
 
@@ -74,8 +74,8 @@ func (l *Locked[T]) EmptyValue() *Locked[T] {
 }
 
 func (l *Locked[T]) Get(f func(T, bool) error) error {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	return f(l.value, l.isempty)
 }
@@ -84,8 +84,8 @@ func (l *Locked[T]) GetOrCreate(
 	f func(_ T, created bool) error,
 	create func() (T, error),
 ) error {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if !l.isempty {
 		return f(l.value, false)
@@ -105,8 +105,8 @@ func (l *Locked[T]) GetOrCreate(
 }
 
 func (l *Locked[T]) Set(f func(_ T, isempty bool) (T, error)) (v T, _ error) {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	switch i, err := f(l.value, l.isempty); {
 	case err == nil:
@@ -122,8 +122,8 @@ func (l *Locked[T]) Set(f func(_ T, isempty bool) (T, error)) (v T, _ error) {
 }
 
 func (l *Locked[T]) Empty(f func(_ T, isempty bool) error) error {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	switch err := f(l.value, l.isempty); {
 	case err == nil:
@@ -179,7 +179,7 @@ func NewLockedMap[K cmp.Ordered, V any](
 
 type SingleLockedMap[K cmp.Ordered, V any] struct {
 	m map[K]V
-	sync.RWMutex
+	l sync.RWMutex
 }
 
 func NewSingleLockedMap[K cmp.Ordered, V any]() *SingleLockedMap[K, V] {
@@ -189,8 +189,8 @@ func NewSingleLockedMap[K cmp.Ordered, V any]() *SingleLockedMap[K, V] {
 }
 
 func (l *SingleLockedMap[K, V]) Exists(k K) bool {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	_, found := l.m[k]
 
@@ -198,8 +198,8 @@ func (l *SingleLockedMap[K, V]) Exists(k K) bool {
 }
 
 func (l *SingleLockedMap[K, V]) Value(k K) (v V, found bool) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	if l.m == nil {
 		return v, false
@@ -211,8 +211,8 @@ func (l *SingleLockedMap[K, V]) Value(k K) (v V, found bool) {
 }
 
 func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (added bool) {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if l.m == nil {
 		return false
@@ -226,8 +226,8 @@ func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (added bool) {
 }
 
 func (l *SingleLockedMap[K, V]) RemoveValue(k K) bool {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if l.m == nil {
 		return false
@@ -242,8 +242,8 @@ func (l *SingleLockedMap[K, V]) RemoveValue(k K) bool {
 }
 
 func (l *SingleLockedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	var v V
 	var found bool
@@ -260,8 +260,8 @@ func (l *SingleLockedMap[K, V]) GetOrCreate(
 	f func(_ V, created bool) error,
 	create func() (V, error),
 ) error {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if l.m == nil {
 		return ErrLockedMapClosed.WithStack()
@@ -284,8 +284,8 @@ func (l *SingleLockedMap[K, V]) GetOrCreate(
 }
 
 func (l *SingleLockedMap[K, V]) Set(k K, f func(_ V, found bool) (V, error)) (v V, created bool, _ error) {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if l.m == nil {
 		return v, false, ErrLockedMapClosed.WithStack()
@@ -306,8 +306,8 @@ func (l *SingleLockedMap[K, V]) Set(k K, f func(_ V, found bool) (V, error)) (v 
 }
 
 func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	i, found := l.m[k]
 
@@ -328,9 +328,9 @@ func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error)
 func (l *SingleLockedMap[K, V]) SetOrRemove(
 	k K,
 	f func(V, bool) (v V, _ bool, _ error),
-) (v V, _ bool, _ bool, _ error) {
-	l.Lock()
-	defer l.Unlock()
+) (v V, _, _ bool, _ error) {
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if l.m == nil {
 		return v, false, false, ErrLockedMapClosed.WithStack()
@@ -357,8 +357,8 @@ func (l *SingleLockedMap[K, V]) SetOrRemove(
 }
 
 func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	for k := range l.m {
 		if !f(k, l.m[k]) {
@@ -370,30 +370,30 @@ func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) bool {
 }
 
 func (l *SingleLockedMap[K, V]) Len() int {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	return len(l.m)
 }
 
 func (l *SingleLockedMap[K, V]) Empty() {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	clear(l.m)
 }
 
 func (l *SingleLockedMap[K, V]) Close() {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	clear(l.m)
 	l.m = nil
 }
 
 func (l *SingleLockedMap[K, V]) Map() (m map[K]V) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	for k := range l.m {
 		if m == nil {
@@ -412,7 +412,7 @@ type ShardedMap[K cmp.Ordered, V any] struct {
 	sharded []LockedMap[K, V]
 	seed    uint32
 	length  int64
-	sync.RWMutex
+	l       sync.RWMutex
 }
 
 func NewShardedMap[K cmp.Ordered, V any](
@@ -452,7 +452,6 @@ func NewDeepShardedMap[K cmp.Ordered, V any](
 
 	newMaps := make([]func() LockedMap[K, V], len(sizes))
 	for i := range newMaps {
-		i := i
 		size := sizes[i]
 		lsizes := sizes[i : len(sizes)-1]
 		df := deepHashFunc(seed, lsizes, total)
@@ -569,7 +568,7 @@ func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
 	switch i, found, isclosed := l.loadItem(key); {
 	case isclosed:
 		return ErrLockedMapClosed.WithStack()
-	case isclosed, !found:
+	case !found:
 		var v V
 
 		return f(v, false)
@@ -643,7 +642,7 @@ func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	}
 }
 
-func (l *ShardedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (v V, _ bool, _ bool, _ error) {
+func (l *ShardedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (v V, _, _ bool, _ error) {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return v, false, false, ErrLockedMapClosed.WithStack()
@@ -680,8 +679,8 @@ func (l *ShardedMap[K, V]) Traverse(f func(K, V) bool) bool {
 }
 
 func (l *ShardedMap[K, V]) Map() (m map[K]V) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	for i := range l.sharded {
 		if m == nil {
@@ -734,8 +733,8 @@ func (l *ShardedMap[K, V]) Len() int {
 }
 
 func (l *ShardedMap[K, V]) Close() {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	for i := range l.sharded {
 		if l.sharded[i] == nil {
@@ -751,8 +750,8 @@ func (l *ShardedMap[K, V]) Close() {
 }
 
 func (l *ShardedMap[K, V]) Empty() {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	for i := range l.sharded {
 		if l.sharded[i] == nil {
@@ -766,8 +765,8 @@ func (l *ShardedMap[K, V]) Empty() {
 }
 
 func (l *ShardedMap[K, V]) loadItem(k interface{}) (_ LockedMap[K, V], found, iscloed bool) {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	if len(l.sharded) < 1 {
 		return nil, false, true
@@ -791,8 +790,8 @@ func (l *ShardedMap[K, V]) loadItem(k interface{}) (_ LockedMap[K, V], found, is
 }
 
 func (l *ShardedMap[K, V]) newItem(k interface{}) (_ LockedMap[K, V], isclosed bool) {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	if len(l.sharded) < 1 {
 		return nil, true
@@ -816,8 +815,8 @@ func (l *ShardedMap[K, V]) newItem(k interface{}) (_ LockedMap[K, V], isclosed b
 }
 
 func (l *ShardedMap[K, V]) next(last *int) LockedMap[K, V] {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	for {
 		switch {
@@ -881,9 +880,9 @@ func defaultHashFunc(seed uint32, k interface{}, size uint64) (uint64, interface
 }
 
 func newDjb2Seed() uint32 {
-	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+	maxv := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
 
-	switch rnd, err := rand.Int(rand.Reader, max); {
+	switch rnd, err := rand.Int(rand.Reader, maxv); {
 	case err != nil:
 		return mathrand.Uint32()
 	default:
@@ -900,12 +899,12 @@ func stringdjb2(seed uint32, k string) uint64 {
 		i = uint32(0)
 	)
 
-	if l >= 4 { //nolint:gomnd //...
+	if l >= 4 { //nolint:mnd //...
 		for i < l-4 {
-			d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
-			d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
-			d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
-			d = (d * 33) ^ uint32(k[i+3]) //nolint:gomnd //...
+			d = (d * 33) ^ uint32(k[i])   //nolint:mnd //...
+			d = (d * 33) ^ uint32(k[i+1]) //nolint:mnd //...
+			d = (d * 33) ^ uint32(k[i+2]) //nolint:mnd //...
+			d = (d * 33) ^ uint32(k[i+3]) //nolint:mnd //...
 			i += 4
 		}
 	}
@@ -913,17 +912,17 @@ func stringdjb2(seed uint32, k string) uint64 {
 	switch l - i {
 	case 1:
 	case 2:
-		d = (d * 33) ^ uint32(k[i]) //nolint:gomnd //...
-	case 3: //nolint:gomnd //...
-		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
-		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
-	case 4: //nolint:gomnd //...
-		d = (d * 33) ^ uint32(k[i])   //nolint:gomnd //...
-		d = (d * 33) ^ uint32(k[i+1]) //nolint:gomnd //...
-		d = (d * 33) ^ uint32(k[i+2]) //nolint:gomnd //...
+		d = (d * 33) ^ uint32(k[i]) //nolint:mnd //...
+	case 3: //nolint:mnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:mnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:mnd //...
+	case 4: //nolint:mnd //...
+		d = (d * 33) ^ uint32(k[i])   //nolint:mnd //...
+		d = (d * 33) ^ uint32(k[i+1]) //nolint:mnd //...
+		d = (d * 33) ^ uint32(k[i+2]) //nolint:mnd //...
 	}
 
-	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
+	return uint64(d ^ (d >> 16)) //nolint:mnd //...
 }
 
 type deepHashedKey uint64

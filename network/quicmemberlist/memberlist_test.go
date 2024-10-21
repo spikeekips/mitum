@@ -265,7 +265,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
 	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+		return addrs[i].String() < addrs[j].String()
 	})
 
 	ljoinedch := make(chan Member, 1)
@@ -321,7 +321,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
+			return joined[i].Addr().String() < joined[j].Addr().String()
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -344,7 +344,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
+			return joined[i].Addr().String() < joined[j].Addr().String()
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -825,7 +825,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 
 	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
 	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+		return addrs[i].String() < addrs[j].String()
 	})
 
 	ljoinedch := make(chan Member, 1)
@@ -889,7 +889,7 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 
 	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
 	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+		return addrs[i].String() < addrs[j].String()
 	})
 
 	_, lsrv, lstartf, lstopf := t.newServersForJoining(
@@ -915,7 +915,7 @@ func (t *testMemberlist) checkJoined(
 
 	addrs := []*net.UDPAddr{lsrv.local.Addr(), rsrv.local.Addr()}
 	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+		return addrs[i].String() < addrs[j].String()
 	})
 
 	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
@@ -937,7 +937,7 @@ func (t *testMemberlist) checkJoined(
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
+			return joined[i].Addr().String() < joined[j].Addr().String()
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -960,7 +960,7 @@ func (t *testMemberlist) checkJoined(
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Addr().String(), joined[j].Addr().String()) < 0
+			return joined[i].Addr().String() < joined[j].Addr().String()
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -983,7 +983,7 @@ func (t *testMemberlist) checkJoined2(
 	}
 
 	sort.Slice(expectedjoined, func(i, j int) bool {
-		return strings.Compare(expectedjoined[i], expectedjoined[j]) < 0
+		return expectedjoined[i] < expectedjoined[j]
 	})
 
 	t.T().Log("rcis:", rcis)
@@ -1004,7 +1004,7 @@ func (t *testMemberlist) checkJoined2(
 		t.Equal(len(rsrvs)+1, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i], joined[j]) < 0
+			return joined[i] < joined[j]
 		})
 		t.Equal(expectedjoined, joined)
 	}
@@ -1028,7 +1028,7 @@ func (t *testMemberlist) checkJoined2(
 			t.Equal(len(rsrvs)+1, len(joined))
 
 			sort.Slice(joined, func(i, j int) bool {
-				return strings.Compare(joined[i], joined[j]) < 0
+				return joined[i] < joined[j]
 			})
 			t.Equal(expectedjoined, joined)
 		}
@@ -1043,7 +1043,7 @@ func (t *testMemberlist) TestBroadcast() {
 
 	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
 	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+		return addrs[i].String() < addrs[j].String()
 	})
 
 	ljoinedch := make(chan Member, 1)

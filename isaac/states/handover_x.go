@@ -55,11 +55,11 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
-		CleanAfter: time.Second * 33, //nolint:gomnd // long enough to handle
+		CleanAfter: time.Second * 33, //nolint:mnd // long enough to handle
 		// requests from handover y
 
-		MaxEnsureSendFailure:     9,                     //nolint:gomnd //...
-		RetrySendMessageInterval: time.Millisecond * 33, //nolint:gomnd //...
+		MaxEnsureSendFailure:     9,                     //nolint:mnd //...
+		RetrySendMessageInterval: time.Millisecond * 33, //nolint:mnd //...
 	}
 }
 
@@ -118,7 +118,7 @@ func NewHandoverXBroker(
 
 			go func() {
 				_ = broker.retrySendMessage(
-					context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:gomnd //...
+					context.Background(), NewHandoverMessageCancel(id, err), 3) //nolint:mnd //...
 			}()
 
 			cancel()
@@ -233,7 +233,7 @@ func (broker *HandoverXBroker) finish(ivp base.INITVoteproof, pr base.ProposalSi
 
 		hc := newHandoverMessageFinish(broker.id, ivp, pr)
 
-		if err := broker.retrySendMessage(broker.ctxFunc(), hc, 33); err != nil { //nolint:gomnd //...
+		if err := broker.retrySendMessage(broker.ctxFunc(), hc, 33); err != nil { //nolint:mnd //...
 			return false, err
 		}
 
@@ -366,10 +366,9 @@ func (broker *HandoverXBroker) Receive(i interface{}) error {
 	}
 
 	_, err := broker.successcount.Set(func(before uint64, _ bool) (uint64, error) {
-		var after, beforeReadyEnd uint64
-		{
-			beforeReadyEnd = broker.readyEnd
-		}
+		var after uint64
+
+		beforeReadyEnd := broker.readyEnd
 
 		var err error
 
@@ -731,14 +730,14 @@ func retryHandoverSendMessageFunc(
 func endureHandoverSendMessageFunc(
 	ctx context.Context,
 	count *util.Locked[uint64],
-	max uint64,
+	x uint64,
 	f func(context.Context, quicstream.ConnInfo, HandoverMessage) error,
 	ci quicstream.ConnInfo,
 	m HandoverMessage,
 ) (err error) {
 	prev, _ := count.Value()
 
-	if max > 0 && prev >= max {
+	if x > 0 && prev >= x {
 		return errors.Errorf("send handover message; over max")
 	}
 
@@ -749,7 +748,7 @@ func endureHandoverSendMessageFunc(
 		return nil
 	}
 
-	if prev < max {
+	if prev < x {
 		err = nil
 	}
 

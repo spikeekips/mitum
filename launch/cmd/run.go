@@ -54,7 +54,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	cmd.log = log.Log()
 
-	if len(cmd.HTTPState) > 0 {
+	if cmd.HTTPState != "" {
 		if err := cmd.runHTTPState(cmd.HTTPState); err != nil {
 			return errors.Wrap(err, "run http state")
 		}

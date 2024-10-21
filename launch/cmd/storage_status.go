@@ -25,9 +25,9 @@ type StorageStatusCommand struct { //nolint:govet //...
 	launch.DevFlags `embed:"" prefix:"dev."`
 }
 
-func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
+func (cmd *StorageStatusCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err = util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
@@ -73,6 +73,8 @@ func (cmd *StorageStatusCommand) Run(pctx context.Context) (err error) {
 	})
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
+
+	var err error
 
 	nctx, err = pps.Run(nctx)
 	defer func() {

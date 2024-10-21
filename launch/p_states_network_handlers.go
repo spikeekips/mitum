@@ -195,7 +195,7 @@ func AttachHandlerStreamOperations(pctx context.Context) error {
 		isaacnetwork.QuicstreamHandlerStreamOperations(
 			local.Publickey(),
 			params.ISAAC.NetworkID(),
-			333, //nolint:gomnd // big enough
+			333, //nolint:mnd // big enough
 			func(
 				ctx context.Context,
 				offset []byte,

@@ -30,7 +30,7 @@ func (r *RateLimiter) MarshalJSON() ([]byte, error) {
 }
 
 func (r RateLimiterRule) String() string {
-	if len(r.s) > 0 {
+	if r.s != "" {
 		return r.s
 	}
 
@@ -40,7 +40,7 @@ func (r RateLimiterRule) String() string {
 }
 
 func (r RateLimiterRule) MarshalText() ([]byte, error) {
-	if len(r.s) > 0 {
+	if r.s != "" {
 		return []byte(r.s), nil
 	}
 

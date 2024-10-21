@@ -40,7 +40,7 @@ func NewBallotbox(
 	getThreshold func() base.Threshold,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
-	vrs, _ := util.NewShardedMap[string, *voterecords](4, nil) //nolint:gomnd // last 4 stages
+	vrs, _ := util.NewShardedMap[string, *voterecords](4, nil) //nolint:mnd // last 4 stages
 
 	box := &Ballotbox{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -55,7 +55,7 @@ func NewBallotbox(
 		isValidVoteprooff: func(base.Voteproof, base.Suffrage) error { return nil },
 		suffrageVotef:     func(base.SuffrageExpelOperation) error { return nil },
 		newBallotf:        func(base.Ballot) {},
-		countAfter:        time.Second * 5, //nolint:gomnd //...
+		countAfter:        time.Second * 5, //nolint:mnd //...
 		interval:          time.Second,
 		removed:           util.EmptyLocked[[]*voterecords](),
 		lvp:               util.EmptyLocked[base.Voteproof](),
@@ -503,7 +503,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 			return nil
 		}
 
-		addFiltered, doneFiltered := util.CompactAppendSlice[base.Voteproof](3) //nolint:gomnd //...
+		addFiltered, doneFiltered := util.CompactAppendSlice[base.Voteproof](3) //nolint:mnd //...
 
 		for i := range vps {
 			if !isNewVoteproofWithSuffrageConfirmFunc(vr.isSuffrageConfirm())(last, vps[i]) {
@@ -705,7 +705,7 @@ func (vr *voterecords) vote(
 	vp base.Voteproof,
 	expels []base.SuffrageExpelOperation,
 	last isaac.LastPoint,
-) (voted bool, validated bool, err error) {
+) (voted, validated bool, err error) {
 	vr.Lock()
 	defer vr.Unlock()
 

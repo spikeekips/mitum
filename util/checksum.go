@@ -29,7 +29,7 @@ type HashChecksumWriter struct {
 	m        io.Writer
 	fname    string
 	checksum string
-	sync.Mutex
+	l        sync.Mutex
 }
 
 func NewHashChecksumWriterWithWriter(fname string, w io.Writer, h hash.Hash) *HashChecksumWriter {
@@ -66,8 +66,8 @@ func (w *HashChecksumWriter) Close() error {
 }
 
 func (w *HashChecksumWriter) Write(b []byte) (int, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	n, err := w.m.Write(b)
 	if err != nil {
@@ -82,10 +82,10 @@ func (w *HashChecksumWriter) Name() string {
 }
 
 func (w *HashChecksumWriter) Checksum() string {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
-	if len(w.checksum) > 0 {
+	if w.checksum != "" {
 		return w.checksum
 	}
 
@@ -126,7 +126,7 @@ type HashChecksumReader struct {
 	h        hash.Hash
 	m        io.Reader
 	checksum string
-	sync.Mutex
+	l        sync.Mutex
 }
 
 func NewHashChecksumReader(r io.Reader, h hash.Hash) *HashChecksumReader {
@@ -148,8 +148,8 @@ func (r *HashChecksumReader) Close() error {
 }
 
 func (r *HashChecksumReader) Read(b []byte) (int, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	n, err := r.m.Read(b)
 
@@ -164,10 +164,10 @@ func (r *HashChecksumReader) Read(b []byte) (int, error) {
 }
 
 func (r *HashChecksumReader) Checksum() string {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
-	if len(r.checksum) > 0 {
+	if r.checksum != "" {
 		return r.checksum
 	}
 

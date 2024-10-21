@@ -99,18 +99,18 @@ func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {
 type LastVoteproofsHandler struct {
 	cache util.GCache[string, LastVoteproofs]
 	last  LastVoteproofs
-	sync.RWMutex
+	l     sync.RWMutex
 }
 
 func NewLastVoteproofsHandler() *LastVoteproofsHandler {
 	return &LastVoteproofsHandler{
-		cache: util.NewLRUGCache[string, LastVoteproofs](1 << 3), //nolint:gomnd // keep last 8 voteproofs
+		cache: util.NewLRUGCache[string, LastVoteproofs](1 << 3), //nolint:mnd // keep last 8 voteproofs
 	}
 }
 
 func (l *LastVoteproofsHandler) Last() LastVoteproofs {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	return l.last
 }
@@ -120,8 +120,8 @@ func (l *LastVoteproofsHandler) Voteproofs(point base.StagePoint) (LastVoteproof
 }
 
 func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
-	l.RLock()
-	defer l.RUnlock()
+	l.l.RLock()
+	defer l.l.RUnlock()
 
 	lvp := l.last.Cap()
 	if lvp == nil {
@@ -137,8 +137,8 @@ func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 }
 
 func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	lvps := l.last
 
@@ -174,8 +174,8 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 }
 
 func (l *LastVoteproofsHandler) ForceSetLast(vp base.Voteproof) bool {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	lvps := l.last
 

@@ -647,7 +647,7 @@ func NewLongRunningMemberlistJoin(
 		isJoined:      isJoined,
 		cancelrunning: util.EmptyLocked[context.CancelFunc](),
 		donech:        util.EmptyLocked[chan struct{}](),
-		interval:      time.Second * 3, //nolint:gomnd //...
+		interval:      time.Second * 3, //nolint:mnd //...
 	}
 }
 

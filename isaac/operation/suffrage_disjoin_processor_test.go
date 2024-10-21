@@ -235,7 +235,7 @@ func (t *testSuffrageDisjoinProcessor) TestPreProcessConstaint() {
 		getStateFunc,
 		func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
 			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-				return base.NewBaseOperationProcessReasonError("hehehe"), nil
+				return base.NewBaseOperationProcessReason("hehehe"), nil
 			}, nil
 		},
 		nil,

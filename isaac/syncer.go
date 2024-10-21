@@ -30,19 +30,19 @@ type Syncer interface {
 }
 
 type SyncSourcePool struct {
-	problems util.GCache[string, any]
-	nonfixed map[string]NodeConnInfo
-	fixed    []NodeConnInfo
-	fixedids []string
-	sync.RWMutex
+	problems     util.GCache[string, any]
+	nonfixed     map[string]NodeConnInfo
+	fixed        []NodeConnInfo
+	fixedids     []string
+	l            sync.RWMutex
 	renewTimeout time.Duration
 }
 
 func NewSyncSourcePool(fixed []NodeConnInfo) *SyncSourcePool {
 	p := &SyncSourcePool{
 		nonfixed:     map[string]NodeConnInfo{},
-		problems:     util.NewLRUGCache[string, any](1 << 14), //nolint:gomnd // big enough for suffrage size
-		renewTimeout: time.Second * 3,                         //nolint:gomnd //...
+		problems:     util.NewLRUGCache[string, any](1 << 14), //nolint:mnd // big enough for suffrage size
+		renewTimeout: time.Second * 3,                         //nolint:mnd //...
 	}
 
 	_ = p.UpdateFixed(fixed)
@@ -51,8 +51,8 @@ func NewSyncSourcePool(fixed []NodeConnInfo) *SyncSourcePool {
 }
 
 func (p *SyncSourcePool) Pick() (NodeConnInfo, func(error), error) {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	_, nci, report, err := p.pick("")
 
@@ -60,8 +60,8 @@ func (p *SyncSourcePool) Pick() (NodeConnInfo, func(error), error) {
 }
 
 func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), error) {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	if n < 1 {
 		return nil, nil, errors.Errorf("zero")
@@ -109,15 +109,15 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 }
 
 func (p *SyncSourcePool) IsInFixed(node base.Address) bool {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return p.nodeIsInFixed(node) >= 0
 }
 
 func (p *SyncSourcePool) IsInNonFixed(node base.Address) bool {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	if p.nodeIsInFixed(node) >= 0 {
 		return false
@@ -133,8 +133,8 @@ func (p *SyncSourcePool) IsInNonFixed(node base.Address) bool {
 }
 
 func (p *SyncSourcePool) NodeExists(node base.Address) bool {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	for i := range p.fixed {
 		if p.fixed[i].Address().Equal(node) {
@@ -152,8 +152,8 @@ func (p *SyncSourcePool) NodeExists(node base.Address) bool {
 }
 
 func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	if len(p.fixed) == len(fixed) {
 		var notsame bool
@@ -186,8 +186,8 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 }
 
 func (p *SyncSourcePool) AddNonFixed(ncis ...NodeConnInfo) bool {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	var isnew bool
 
@@ -210,8 +210,8 @@ func (p *SyncSourcePool) AddNonFixed(ncis ...NodeConnInfo) bool {
 }
 
 func (p *SyncSourcePool) RemoveNonFixed(nci NodeConnInfo) bool {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	id := p.makeid(nci)
 
@@ -225,8 +225,8 @@ func (p *SyncSourcePool) RemoveNonFixed(nci NodeConnInfo) bool {
 }
 
 func (p *SyncSourcePool) RemoveNonFixedNode(nodes ...base.Address) bool {
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	var found bool
 
@@ -272,15 +272,15 @@ func (p *SyncSourcePool) Retry(
 }
 
 func (p *SyncSourcePool) Len() int {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	return len(p.fixed) + len(p.nonfixed)
 }
 
 func (p *SyncSourcePool) Traverse(f func(NodeConnInfo) bool) {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	for i := range p.fixedids {
 		if !f(p.fixed[i]) {
@@ -296,8 +296,8 @@ func (p *SyncSourcePool) Traverse(f func(NodeConnInfo) bool) {
 }
 
 func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
-	p.RLock()
-	defer p.RUnlock()
+	p.l.RLock()
+	defer p.l.RUnlock()
 
 	for i := range p.fixedids {
 		if p.problems.Exists(p.fixedids[i]) {
@@ -361,8 +361,8 @@ func (p *SyncSourcePool) reportProblem(id string, err error) {
 		return
 	}
 
-	p.Lock()
-	defer p.Unlock()
+	p.l.Lock()
+	defer p.l.Unlock()
 
 	if slices.Index(p.fixedids, id) < 0 {
 		if _, found := p.nonfixed[id]; !found {

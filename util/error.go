@@ -23,7 +23,7 @@ type baseError struct {
 func newBaseError(skip int, format string, args ...interface{}) *baseError {
 	return &baseError{
 		msg:  fmt.Sprintf(format, args...),
-		skip: skip + 4, //nolint:gomnd //...
+		skip: skip + 4, //nolint:mnd //...
 	}
 }
 
@@ -63,7 +63,7 @@ func (er *baseError) WithMessage(err error, format string, args ...interface{}) 
 
 	extra := fmt.Sprintf(format, args...)
 
-	if len(er.extra) > 0 {
+	if er.extra != "" {
 		extra = er.extra + "; " + extra
 	}
 
@@ -80,7 +80,7 @@ func (er *baseError) WithMessage(err error, format string, args ...interface{}) 
 func (er *baseError) Errorf(format string, args ...interface{}) *baseError {
 	extra := fmt.Sprintf(format, args...)
 
-	if len(er.extra) > 0 {
+	if er.extra != "" {
 		extra = er.extra + "; " + extra
 	}
 
@@ -124,7 +124,7 @@ func (er *baseError) Error() string {
 	s := er.message()
 
 	if er.wrapped != nil {
-		if e := er.wrapped.Error(); len(e) > 0 {
+		if e := er.wrapped.Error(); e != "" {
 			s += "; " + e
 		}
 	}
@@ -152,7 +152,7 @@ func (er *baseError) Format(st fmt.State, verb rune) {
 					fm.Format(st, verb)
 				} else {
 					var d string
-					if len(er.msg) > 0 {
+					if er.msg != "" {
 						d = "; "
 					}
 
@@ -175,7 +175,7 @@ func (er *baseError) Format(st fmt.State, verb rune) {
 
 func (er *baseError) message() string {
 	s := er.msg
-	if len(er.extra) > 0 {
+	if er.extra != "" {
 		s += " - " + er.extra
 	}
 

@@ -3,7 +3,6 @@ package isaacoperation
 import (
 	"context"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -100,11 +99,11 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
 	if _, found := p.preprocessed[fact.Address().String()]; found {
-		return ctx, base.NewBaseOperationProcessReasonError("candidate already preprocessed, %q", fact.Address()), nil
+		return ctx, base.NewBaseOperationProcessReasonf("candidate already preprocessed, %q", fact.Address()), nil
 	}
 
 	if _, found := p.suffrages[fact.Address().String()]; found {
-		return ctx, base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", fact.Address()), nil
+		return ctx, base.NewBaseOperationProcessReasonf("candidate already in suffrage, %q", fact.Address()), nil
 	}
 
 	switch record, found := p.existings[fact.Address().String()]; {
@@ -113,7 +112,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	case p.Height() <= record.Deadline():
 		p.preprocessed[fact.Address().String()] = struct{}{}
 
-		return ctx, base.NewBaseOperationProcessReasonError("already candidate up to, %d", record.Deadline()), nil
+		return ctx, base.NewBaseOperationProcessReasonf("already candidate up to, %d", record.Deadline()), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
@@ -162,7 +161,7 @@ type SuffrageCandidatesStateValueMerger struct {
 	existings []base.SuffrageCandidateStateValue
 	added     []base.SuffrageCandidateStateValue
 	removes   []base.Address
-	sync.Mutex
+	l         sync.Mutex
 }
 
 func NewSuffrageCandidatesStateValueMerger(height base.Height, st base.State) *SuffrageCandidatesStateValueMerger {
@@ -180,8 +179,8 @@ func NewSuffrageCandidatesStateValueMerger(height base.Height, st base.State) *S
 }
 
 func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, op util.Hash) error {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	switch t := value.(type) {
 	case isaac.SuffrageCandidatesStateValue:
@@ -198,8 +197,8 @@ func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, op uti
 }
 
 func (s *SuffrageCandidatesStateValueMerger) CloseValue() (base.State, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	newvalue, err := s.closeValue()
 	if err != nil {
@@ -235,7 +234,7 @@ func (s *SuffrageCandidatesStateValueMerger) closeValue() (base.StateValue, erro
 	}
 
 	sort.Slice(s.added, func(i, j int) bool { // NOTE sort by address
-		return strings.Compare(s.added[i].Address().String(), s.added[j].Address().String()) < 0
+		return s.added[i].Address().String() < s.added[j].Address().String()
 	})
 
 	newnodes := make([]base.SuffrageCandidateStateValue, len(existings)+len(s.added))

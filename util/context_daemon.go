@@ -11,7 +11,7 @@ type ContextDaemon struct {
 	callbackCancelFunc func()
 	stopfunc           func()
 	ctxLock            sync.RWMutex
-	sync.RWMutex
+	l                  sync.RWMutex
 }
 
 func NewContextDaemon(startfunc func(context.Context) error) *ContextDaemon {
@@ -38,8 +38,8 @@ func (dm *ContextDaemon) Start(ctx context.Context) error {
 }
 
 func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
-	dm.Lock()
-	defer dm.Unlock()
+	dm.l.Lock()
+	defer dm.l.Unlock()
 
 	ch := make(chan error, 1)
 
@@ -67,8 +67,8 @@ func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
 }
 
 func (dm *ContextDaemon) Stop() error {
-	dm.Lock()
-	defer dm.Unlock()
+	dm.l.Lock()
+	defer dm.l.Unlock()
 
 	if !dm.IsStarted() {
 		return ErrDaemonAlreadyStopped.WithStack()

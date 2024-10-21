@@ -99,7 +99,7 @@ type SyncSourceChecker struct {
 	local           base.LocalNode
 	networkID       base.NetworkID
 	interval        time.Duration
-	sync.Mutex
+	l               sync.Mutex
 }
 
 func NewSyncSourceChecker(
@@ -113,7 +113,7 @@ func NewSyncSourceChecker(
 	requestTimeoutf func() time.Duration,
 ) *SyncSourceChecker {
 	nrequestTimeoutf := func() time.Duration {
-		return isaac.DefaultTimeoutRequest //nolint:gomnd //...
+		return isaac.DefaultTimeoutRequest //nolint:mnd //...
 	}
 
 	if requestTimeoutf != nil {
@@ -161,8 +161,8 @@ func (c *SyncSourceChecker) start(ctx context.Context) error {
 }
 
 func (c *SyncSourceChecker) check(ctx context.Context) error {
-	c.Lock()
-	defer c.Unlock()
+	c.l.Lock()
+	defer c.l.Unlock()
 
 	sources := c.Sources()
 	if len(sources) < 1 {
@@ -207,7 +207,6 @@ func (c *SyncSourceChecker) checkSources(ctx context.Context, sources []SyncSour
 		defer worker.Done()
 
 		for i := range sources {
-			i := i
 			ci := sources[i]
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
@@ -307,7 +306,6 @@ func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis 
 		defer worker.Done()
 
 		for i := range ncis {
-			i := i
 			nci := ncis[i]
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
@@ -367,7 +365,7 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 		},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, nil // NOTE ignore network error
 	}

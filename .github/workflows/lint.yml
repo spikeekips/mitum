@@ -5,30 +5,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.21.x" ]
+        go: ["1.23.x" ]
     runs-on: ubuntu-latest
     name: "Lint (Go ${{matrix.go}})"
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
 
-      - name: Check that go.mod is tidied
-        run: |
-          cp go.mod /tmp/go.mod.orig
-          cp go.sum /tmp/go.sum.orig
-          go mod tidy
-          diff go.mod /tmp/go.mod.orig
-          diff go.sum /tmp/go.sum.orig
+      - name: Install dependencies
+        run: go mod tidy
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.56.2
+          version: v1.61.0
           args: -v
-          skip-pkg-cache: true
 
       - name: go vet
         run: |

@@ -195,7 +195,7 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 func (op DummyOperation) PreProcess(ctx context.Context, getStateFunc base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 	if op.preprocess == nil {
-		return ctx, base.NewBaseOperationProcessReasonError("nil preprocess"), nil
+		return ctx, base.NewBaseOperationProcessReason("nil preprocess"), nil
 	}
 
 	return op.preprocess(ctx, getStateFunc)
@@ -203,7 +203,7 @@ func (op DummyOperation) PreProcess(ctx context.Context, getStateFunc base.GetSt
 
 func (op DummyOperation) Process(ctx context.Context, getStateFunc base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 	if op.process == nil {
-		return nil, base.NewBaseOperationProcessReasonError("empty process"), nil
+		return nil, base.NewBaseOperationProcessReason("empty process"), nil
 	}
 
 	return op.process(ctx, getStateFunc)

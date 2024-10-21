@@ -86,7 +86,7 @@ func (GenesisNetworkPolicy) PreProcess(ctx context.Context, getStateFunc base.Ge
 	case err != nil:
 		return ctx, nil, err
 	case found:
-		return ctx, base.NewBaseOperationProcessReasonError("network policy state already exists"), nil
+		return ctx, base.NewBaseOperationProcessReason("network policy state already exists"), nil
 	default:
 		return ctx, nil, nil
 	}

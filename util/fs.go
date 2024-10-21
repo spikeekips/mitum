@@ -45,7 +45,7 @@ type BufferedResetReader struct {
 	io.Reader
 	r   io.Reader
 	buf *bytes.Buffer
-	sync.RWMutex
+	l   sync.RWMutex
 }
 
 func NewBufferedResetReader(r io.Reader) *BufferedResetReader {
@@ -59,8 +59,8 @@ func NewBufferedResetReader(r io.Reader) *BufferedResetReader {
 }
 
 func (s *BufferedResetReader) Close() error {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	if s.buf != nil {
 		s.buf.Reset()
@@ -71,8 +71,8 @@ func (s *BufferedResetReader) Close() error {
 }
 
 func (s *BufferedResetReader) Reset() {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	switch {
 	case s.buf == nil:
@@ -85,8 +85,8 @@ func (s *BufferedResetReader) Reset() {
 }
 
 func (s *BufferedResetReader) Read(p []byte) (int, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.l.RLock()
+	defer s.l.RUnlock()
 
 	if s.buf == nil {
 		return 0, os.ErrClosed

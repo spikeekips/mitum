@@ -32,7 +32,7 @@ func ParseTLSInsecure(s string) (string, bool) {
 	switch i := strings.Index(s, "#"); {
 	case i < 0:
 		return s, false
-	case len(s[i:]) > 0:
+	case s[i:] != "":
 		return s[:i], HasTLSInsecure(s[i+1:], DefaultTLSInsecureFlag)
 	default:
 		return s[:i], false

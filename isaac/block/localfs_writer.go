@@ -49,7 +49,7 @@ type LocalFSWriter struct {
 	saved            bool
 	opsHeaderOnce    sync.Once
 	statesHeaderOnce sync.Once
-	sync.Mutex
+	l                sync.Mutex
 }
 
 func NewLocalFSWriter(
@@ -200,8 +200,8 @@ func (w *LocalFSWriter) SetManifest(_ context.Context, m base.Manifest) error {
 }
 
 func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproof) error {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	w.vps[0] = vp
 	if w.vps[1] == nil {
@@ -216,8 +216,8 @@ func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproo
 }
 
 func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) error {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	w.vps[1] = vp
 	if w.vps[0] == nil {
@@ -274,8 +274,8 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 }
 
 func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	if w.saved {
 		return w.m, nil
@@ -368,8 +368,8 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 }
 
 func (w *LocalFSWriter) Cancel() error {
-	w.Lock()
-	defer w.Unlock()
+	w.l.Lock()
+	defer w.l.Unlock()
 
 	if w.opsf != nil {
 		_ = w.opsf.Close()
@@ -484,7 +484,7 @@ func (w *LocalFSWriter) saveMap() error {
 	return nil
 }
 
-func (w *LocalFSWriter) filename(t base.BlockItemType) (filename string, temppath string, err error) {
+func (w *LocalFSWriter) filename(t base.BlockItemType) (filename, temppath string, err error) {
 	f, err := DefaultBlockItemFileName(t, w.enc.Hint().Type())
 	if err != nil {
 		return "", "", err
@@ -566,15 +566,13 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockItemType) (util.ChecksumWr
 		}
 	}
 
-	f = util.NewBufferedWriter(f, 1<<13) //nolint:gomnd // TODO: configurable
+	f = util.NewBufferedWriter(f, 1<<13) //nolint:mnd // TODO: configurable
 
 	return util.NewHashChecksumWriterWithWriter(fname, f, sha256.New()), nil
 }
 
 func HeightFromDirectory(s string) (base.Height, error) {
-	hs := strings.Replace(s, "/", "", -1)
-
-	h, err := base.ParseHeightString(hs)
+	h, err := base.ParseHeightString(strings.ReplaceAll(s, "/", ""))
 	if err != nil {
 		return base.NilHeight, errors.WithMessage(err, "wrong directory for height")
 	}
@@ -594,15 +592,15 @@ func FindHighestDirectory(root string) (_ base.Height, directory string, found b
 }
 
 var (
-	rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
-	rBlockItemFiles  = regexp.MustCompile(`^([0-9][0-9]*)\.json$`)
+	rHeightDirectory = regexp.MustCompile(`^\d{3}$`)
+	rBlockItemFiles  = regexp.MustCompile(`^(\d+)\.json$`)
 )
 
 func FindHighestBlockItemFiles(p string, depth int) (height int64, lastpath string, _ error) {
 	switch {
-	case depth > 6: //nolint:gomnd //...
+	case depth > 6: //nolint:mnd //...
 		return -1, "", nil
-	case depth == 6: //nolint:gomnd //...
+	case depth == 6: //nolint:mnd //...
 		return findHighestBlockItemFilesInDirectory(p)
 	}
 
@@ -624,7 +622,7 @@ func FindHighestBlockItemFiles(p string, depth int) (height int64, lastpath stri
 
 		if len(files) > 1 {
 			sort.Slice(files, func(i, j int) bool {
-				return strings.Compare(files[i].Name(), files[j].Name()) > 0
+				return files[i].Name() > files[j].Name()
 			})
 		}
 
@@ -636,7 +634,7 @@ func FindHighestBlockItemFiles(p string, depth int) (height int64, lastpath stri
 	switch i, j, err := FindHighestBlockItemFiles(lastpath, depth+1); {
 	case err != nil:
 		return -1, "", err
-	case len(j) > 0:
+	case j != "":
 		return i, j, nil
 	default:
 		return -1, lastpath, nil
@@ -698,7 +696,7 @@ func BlockItemFileName(t base.BlockItemType, hinttype hint.Type, compressFormat 
 
 	ext, _ := encoder.EncodersExtension(hinttype)
 
-	if len(compressFormat) > 0 {
+	if compressFormat != "" {
 		ext += "." + compressFormat
 	}
 
@@ -748,7 +746,7 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 	switch {
 	case height < base.GenesisHeight:
 		return false, nil
-	case height < base.GenesisHeight+1:
+	case height <= base.GenesisHeight:
 		if err := os.RemoveAll(root); err != nil {
 			return false, errors.WithMessage(err, "clean localfs")
 		}

@@ -136,11 +136,11 @@ func BatchIsValidMaps(
 				return err
 			}
 
-			if err = func() error {
+			if err := func() error {
 				validateLock.Lock()
 				defer validateLock.Unlock()
 
-				if err = IsValidMaps(m, maps, lastprev); err != nil {
+				if err := IsValidMaps(m, maps, lastprev); err != nil {
 					return err
 				}
 

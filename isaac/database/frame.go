@@ -200,7 +200,7 @@ func ReadFrameHeaderOperation(b []byte) (header FrameHeaderPoolOperation, _ erro
 	switch hs, herr := fr.Header(); {
 	case herr != nil:
 		return header, herr
-	case len(hs) != 5: //nolint:gomnd //...
+	case len(hs) != 5: //nolint:mnd //...
 		return header, errors.Errorf("wrong size operation header")
 	default:
 		headers = hs
@@ -310,7 +310,7 @@ func readFrameHeaderSuffrageExpelOperation(headers [][]byte) (
 	_ error,
 ) {
 	switch {
-	case len(headers) < 4: //nolint:gomnd //...
+	case len(headers) < 4: //nolint:mnd //...
 		return r, errors.Errorf("missing header")
 	case len(headers[1]) < 1:
 		return r, errors.Errorf("wrong format; empty node")

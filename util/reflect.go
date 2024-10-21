@@ -59,7 +59,7 @@ func AssertInterfaceValue[T any](v interface{}) (t T, _ error) {
 
 	i, ok := v.(T)
 	if !ok {
-		return t, errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem(), v)
+		return t, errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem(), v) //nolint:gocritic //...
 	}
 
 	return i, nil

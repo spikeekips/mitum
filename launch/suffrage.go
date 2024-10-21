@@ -16,7 +16,7 @@ type SuffragePool struct {
 	cache        util.GCache[string, base.Suffrage]
 	sg           *singleflight.Group
 	expire       time.Duration
-	sync.RWMutex
+	l            sync.RWMutex
 }
 
 func NewSuffragePool(
@@ -26,15 +26,15 @@ func NewSuffragePool(
 	return &SuffragePool{
 		byHeightFunc: byHeightf,
 		lastf:        lastf,
-		cache:        util.NewLRUGCache[string, base.Suffrage](1 << 9), //nolint:gomnd //...
-		expire:       time.Second * 3,                                  //nolint:gomnd //...
+		cache:        util.NewLRUGCache[string, base.Suffrage](1 << 9), //nolint:mnd //...
+		expire:       time.Second * 3,                                  //nolint:mnd //...
 		sg:           &singleflight.Group{},
 	}
 }
 
 func (s *SuffragePool) Height(height base.Height) (base.Suffrage, bool, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.l.RLock()
+	defer s.l.RUnlock()
 
 	return s.get(
 		height,
@@ -43,8 +43,8 @@ func (s *SuffragePool) Height(height base.Height) (base.Suffrage, bool, error) {
 }
 
 func (s *SuffragePool) Last() (base.Suffrage, bool, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.l.RLock()
+	defer s.l.RUnlock()
 
 	switch i, err, _ := util.SingleflightDo[[2]interface{}](s.sg, "last", func() ([2]interface{}, error) {
 		switch height, i, found, err := s.lastf(); {
@@ -71,8 +71,8 @@ func (s *SuffragePool) Last() (base.Suffrage, bool, error) {
 }
 
 func (s *SuffragePool) Purge() {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	_, _, _ = s.sg.Do("last", func() (interface{}, error) {
 		s.cache.Purge()

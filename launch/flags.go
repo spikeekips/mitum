@@ -220,7 +220,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 		return nil
 	}
 
-	if len(n) > 0 && len(n[0]) > 0 {
+	if len(n) > 0 && n[0] != "" {
 		switch i, err := strconv.ParseUint(n[0], 10, 64); {
 		case err != nil:
 			return e.Wrap(err)
@@ -229,7 +229,7 @@ func (f *RangeFlag) UnmarshalText(b []byte) error {
 		}
 	}
 
-	if len(n) > 1 && len(n[1]) > 0 {
+	if len(n) > 1 && n[1] != "" {
 		switch i, err := strconv.ParseUint(n[1], 10, 64); {
 		case err != nil:
 			return e.Wrap(err)

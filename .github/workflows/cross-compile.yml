@@ -4,13 +4,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.21.x" ]
+        go: [ "1.23.x" ]
     runs-on: ubuntu-latest
     name: "Cross Compilation (Go ${{matrix.go}})"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           check-latest: true

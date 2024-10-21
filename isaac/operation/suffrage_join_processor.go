@@ -3,7 +3,6 @@ package isaacoperation
 import (
 	"context"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -92,7 +91,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 	context.Context, base.OperationProcessReasonError, error,
 ) {
 	if len(p.candidates) < 1 {
-		return ctx, base.NewBaseOperationProcessReasonError("not candidate"), nil
+		return ctx, base.NewBaseOperationProcessReason("not candidate"), nil
 	}
 
 	e := util.StringError("preprocess for SuffrageJoin")
@@ -106,31 +105,31 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 	n := fact.Candidate()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("already preprocessed, %q", n), nil
 	}
 
 	if p.suffrage.Exists(n) {
-		return ctx, base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("candidate already in suffrage, %q", n), nil
 	}
 
 	var info base.SuffrageCandidateStateValue
 
 	switch i, found := p.candidates[n.String()]; {
 	case !found:
-		return ctx, base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("candidate not in candidates, %q", n), nil
 	case fact.Start() != i.Start():
-		return ctx, base.NewBaseOperationProcessReasonError("start does not match"), nil
+		return ctx, base.NewBaseOperationProcessReason("start does not match"), nil
 	case i.Deadline() < p.Height():
-		return ctx, base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonf("candidate expired, %q", n), nil
 	default:
 		info = i
 	}
 
 	switch node, err := p.findCandidateFromSigns(op); {
 	case err != nil:
-		return ctx, base.NewBaseOperationProcessReasonError(err.Error()), nil
+		return ctx, base.NewBaseOperationProcessReason(err.Error()), nil
 	case !node.Publickey().Equal(info.Publickey()):
-		return ctx, base.NewBaseOperationProcessReasonError("not signed by candidate key"), nil
+		return ctx, base.NewBaseOperationProcessReason("not signed by candidate key"), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
@@ -141,7 +140,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 	}
 
 	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigns()); err != nil {
-		return ctx, base.NewBaseOperationProcessReasonError("not enough signs"), nil
+		return ctx, base.NewBaseOperationProcessReason("not enough signs"), nil
 	}
 
 	p.preprocessed[info.Address().String()] = struct{}{}
@@ -210,7 +209,7 @@ type SuffrageJoinStateValueMerger struct {
 	existing  base.SuffrageNodesStateValue
 	joined    []base.Node
 	disjoined []base.Address
-	sync.Mutex
+	l         sync.Mutex
 }
 
 func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *SuffrageJoinStateValueMerger {
@@ -224,8 +223,8 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 }
 
 func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, op util.Hash) error {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	switch t := value.(type) {
 	case suffrageJoinNodeStateValue:
@@ -242,8 +241,8 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, op util.Hash
 }
 
 func (s *SuffrageJoinStateValueMerger) CloseValue() (base.State, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	newvalue, err := s.closeValue()
 	if err != nil {
@@ -274,7 +273,7 @@ func (s *SuffrageJoinStateValueMerger) closeValue() (base.StateValue, error) {
 
 	if len(s.joined) > 0 {
 		sort.Slice(s.joined, func(i, j int) bool { // NOTE sort by address
-			return strings.Compare(s.joined[i].Address().String(), s.joined[j].Address().String()) < 0
+			return s.joined[i].Address().String() < s.joined[j].Address().String()
 		})
 	}
 
