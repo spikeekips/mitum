@@ -41,8 +41,8 @@ func (g *Writer) Hint() hint.Hint {
 }
 
 func (g *Writer) Close() {
-	g.Lock()
-	defer g.Unlock()
+	g.l.Lock()
+	defer g.l.Unlock()
 
 	clear(g.nodes)
 }
