@@ -20,7 +20,7 @@ type (
 
 func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		ifErrorClose := ifErrErrorFunc(wctxCancel)
 
@@ -63,7 +63,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 			treeAddTree = t
 		}
 
-		_, initialTreeAddDone, initialTreeAddWait := NewDoneContextFunc(wctx)
+		_, initialTreeAddDone, initialTreeAddWait := newDoneContextFunc(wctx)
 
 		go func() {
 			_ = initialTreeAddDone(ifErrorClose(util.TraverseSliceV1(ops, func(i int, hs [2]util.Hash) (bool, error) {
@@ -71,7 +71,7 @@ func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
 			})))
 		}()
 
-		_, treeAddDone, treeAddWait := NewDoneContextFunc(wctx)
+		_, treeAddDone, treeAddWait := newDoneContextFunc(wctx)
 
 		setNotInState := func(opindex uint64) error {
 			if opindex >= opsSize {

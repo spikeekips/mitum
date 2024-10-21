@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"slices"
 
@@ -60,8 +59,6 @@ type xMergeOpFunc func(uint64, base.StateValue) (
 )
 
 func xMergeOpValues(
-	ctx context.Context,
-	name string,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -170,8 +167,7 @@ func xMergeOpValues(
 	})
 
 	return committed, nextOps, reasons, doneCommit(func(s []func() error) error {
-		switch size := int64(len(s)); {
-		case size < 1:
+		if len(s) < 1 {
 			return nil
 		}
 
@@ -184,7 +180,6 @@ func xMergeOpValues(
 }
 
 func mergeOp(
-	ctx context.Context,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -195,8 +190,6 @@ func mergeOp(
 	_ error,
 ) {
 	return xMergeOpValues(
-		ctx,
-		"merge",
 		opindex,
 		values,
 		getMerger,
@@ -207,7 +200,6 @@ func mergeOp(
 }
 
 func unmergeOp(
-	ctx context.Context,
 	opindex uint64,
 	values []StateMergeValue,
 	getMerger func(StateMergeValue) (StateMerger, error),
@@ -217,8 +209,6 @@ func unmergeOp(
 	_ error,
 ) {
 	committed, nextMergeOp, _, err := xMergeOpValues(
-		ctx,
-		"unmerge",
 		opindex,
 		values,
 		getMerger,

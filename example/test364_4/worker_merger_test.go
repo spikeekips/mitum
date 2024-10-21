@@ -193,7 +193,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncBaseWorkerMerger(pargs, 1<<3, NewFuncBaseJobWorker(1<<6))(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
+		insert, wait, err := newFuncBaseWorkerMerger(pargs, 1<<3)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert

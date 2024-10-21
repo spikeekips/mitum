@@ -19,7 +19,7 @@ func newManagerStartWorkers(
 	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
 	startWorker func(_ context.Context, worker string) error,
 ) error {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := contextWithCancelCause(ctx)
 	defer wctxCancel(nil)
 
 	var checkWorker checkEnoughFailedWorkerFunc

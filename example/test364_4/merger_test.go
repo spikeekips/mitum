@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -83,7 +82,7 @@ func (t *baseTestMergeOp) getFuncs() (
 }
 
 func (t *baseTestMergeOp) newJobWorker() newJobWorkerFunc {
-	return NewFuncBaseJobWorker(1 << 6)
+	return newFuncBaseJobWorker(1 << 6)
 }
 
 type testMergeOp struct {
@@ -94,14 +93,11 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("ok", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 0
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -116,20 +112,17 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("merge same op", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 0
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err = mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -144,9 +137,6 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("merge same -op", func() {
 		vp, mergers, states, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		pub := base.NewDummyPublickey(util.UUID().String())
 		prevst := t.newState(pub, 1)
 		states.SetValue(prevst.Key(), prevst)
@@ -155,12 +145,12 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.newMergeValuesVP(vp, opindex, pub, -1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		isMerged, nexts, reason, err = mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err = mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -175,16 +165,13 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("getMerger error", func() {
 		vp, mergers, _, _, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
 		getMerger := func(value StateMergeValue) (StateMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
-		isMerged, nexts, reason, err := mergeOp(ctx, 1, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(1, vs, getMerger)
 		t.Error(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -199,14 +186,11 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("op reason", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 2
 
 		vs := t.randomMergeValuesVP(vp, opindex, -1)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.NotEmpty(reason)
@@ -220,9 +204,6 @@ func (t *testMergeOp) TestMergeSingleValue() {
 	t.Run("next unmerge op reason", func() {
 		vp, mergers, states, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex3, opindex4 uint64 = 3, 4
 
 		pub := base.NewDummyPublickey(util.UUID().String())
@@ -232,13 +213,13 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		vs3 := t.newMergeValuesVP(vp, opindex3, pub, -1)
 		vs4 := t.newMergeValuesVP(vp, opindex4, pub, -1)
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex4, vs4, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(opindex4, vs4, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(reasons)
 		t.Empty(nexts)
 
-		isMerged, nexts, reasons, err = mergeOp(ctx, opindex3, vs3, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(opindex3, vs3, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.NotEmpty(reasons)
@@ -259,14 +240,11 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 	t.Run("ok", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 0
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex, vs, getMerger)
+		isUnmerged, nexts, err := unmergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
@@ -280,16 +258,13 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 	t.Run("getMerger error", func() {
 		vp, mergers, _, _, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
 		getMerger := func(value StateMergeValue) (StateMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
-		isUnmerged, _, err := unmergeOp(ctx, 1, vs, getMerger)
+		isUnmerged, _, err := unmergeOp(1, vs, getMerger)
 		t.Error(err)
 		t.False(isUnmerged)
 		t.ErrorContains(err, "showme")
@@ -302,9 +277,6 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 	t.Run("next merge op", func() {
 		vp, mergers, states, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex3, opindex4 uint64 = 3, 4
 
 		pub := base.NewDummyPublickey(util.UUID().String())
@@ -314,12 +286,12 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		vs3 := t.newMergeValuesVP(vp, opindex3, pub, -1)
 		vs4 := t.newMergeValuesVP(vp, opindex4, pub, -1)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex4, vs4, getMerger)
+		isUnmerged, nexts, err := unmergeOp(opindex4, vs4, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		isUnmerged, nexts, err = unmergeOp(ctx, opindex3, vs3, getMerger)
+		isUnmerged, nexts, err = unmergeOp(opindex3, vs3, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Equal([]uint64{opindex4}, nexts)
@@ -335,14 +307,11 @@ func (t *testMergeOp) TestMergeValues() {
 	t.Run("ok", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 0
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1, 2, 3)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
@@ -373,9 +342,6 @@ func (t *testMergeOp) TestMergeValues() {
 	t.Run("multiple reasons", func() {
 		vp, mergers, states, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		pub0 := base.NewDummyPublickey(util.UUID().String())
 		pub1 := base.NewDummyPublickey(util.UUID().String())
 		pub2 := base.NewDummyPublickey(util.UUID().String())
@@ -403,13 +369,13 @@ func (t *testMergeOp) TestMergeValues() {
 		t.True(vp.SetValue(opindex0, vs0))
 		t.True(vp.SetValue(opindex1, vs1))
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex1, vs1, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(opindex1, vs1, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Empty(nexts)
 		t.Empty(reasons)
 
-		isMerged, nexts, reasons, err = mergeOp(ctx, opindex0, vs0, getMerger)
+		isMerged, nexts, reasons, err = mergeOp(opindex0, vs0, getMerger)
 		t.NoError(err)
 		t.True(isMerged)
 		t.Equal([]uint64{opindex1}, nexts)
@@ -429,14 +395,11 @@ func (t *testMergeOp) TestUnmergeValues() {
 	t.Run("ok", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 0
 
 		vs := t.randomMergeValuesVP(vp, opindex, 1, 2, 3)
 
-		isUnmerged, nexts, err := unmergeOp(ctx, opindex, vs, getMerger)
+		isUnmerged, nexts, err := unmergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.True(isUnmerged)
 		t.Empty(nexts)
@@ -468,9 +431,6 @@ func (t *testMergeOp) TestNotCommit() {
 	t.Run("no reason", func() {
 		vp, mergers, states, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		pub := base.NewDummyPublickey(util.UUID().String())
 		st := t.newState(pub, 1)
 		states.SetValue(st.Key(), st)
@@ -495,7 +455,7 @@ func (t *testMergeOp) TestNotCommit() {
 		vs := t.randomMergeValuesVP(vp, 1, 1, 1, 1)
 		vs = append(vs, v)
 
-		isMerged, nexts, reason, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reason, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)
@@ -513,14 +473,11 @@ func (t *testMergeOp) TestNotCommit() {
 	t.Run("reason", func() {
 		vp, mergers, _, getMerger, _ := t.getFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		var opindex uint64 = 1
 
 		vs := t.randomMergeValuesVP(vp, 1, 1, 1, -1) // one value has -1
 
-		isMerged, nexts, reasons, err := mergeOp(ctx, opindex, vs, getMerger)
+		isMerged, nexts, reasons, err := mergeOp(opindex, vs, getMerger)
 		t.NoError(err)
 		t.False(isMerged)
 		t.Empty(nexts)

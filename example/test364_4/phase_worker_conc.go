@@ -27,7 +27,7 @@ type concPhaseJobWorkerArgs struct {
 func newConcPhaseJobWorkerArgs() *concPhaseJobWorkerArgs {
 	return &concPhaseJobWorkerArgs{
 		Logging:      NewModuleLogging("phase-job-worker", nil),
-		NewJobWorker: NewFuncBaseJobWorker(1 << 9),
+		NewJobWorker: newFuncBaseJobWorker(1 << 9),
 		JobIDMapSize: 1 << 9,
 	}
 }
@@ -38,7 +38,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 	wait func() error,
 	_ error,
 ) {
-	pctx, pctxCancel := ContextWithCancelCause(ctx)
+	pctx, pctxCancel := contextWithCancelCause(ctx)
 
 	var jobIDLocked *util.ShardedMap[uint64, int]
 
@@ -140,7 +140,7 @@ func newConcPhaseJobWorker(ctx context.Context, args *concPhaseJobWorkerArgs, ph
 		nil
 }
 
-func NewConcPhaseJobWorker(
+func newFuncConcPhaseJobWorker(
 	ctx context.Context,
 	args *concPhaseJobWorkerArgs,
 ) (

@@ -654,7 +654,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 		args.SetLogging(logging.TestNilLogging)
 
-		return NewConcPhaseJobWorker(ctx, args)
+		return newFuncConcPhaseJobWorker(ctx, args)
 	}
 
 	for i := range sts {
@@ -725,9 +725,6 @@ func (t *testPhaseMerger) TestMergeReplay() {
 }
 
 func (t *testPhaseMerger) TestMergeUnmergeReplay() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	_, sts, ops := t.baseTestMergeUnmerge()
 	vp, mergers, states, _, _, _ := t.newArgs()
 
@@ -763,7 +760,6 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		}
 
 		switch isMerged, nexts, reason, err := mergeOp(
-			ctx,
 			opindex,
 			values,
 			getMerger,
@@ -790,7 +786,6 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		}
 
 		switch isUnmerged, nexts, err := unmergeOp(
-			ctx,
 			opindex,
 			values,
 			getMerger,
@@ -921,7 +916,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		}
 		args.SetLogging(logging.TestNilLogging)
 
-		return NewConcPhaseJobWorker(ctx, args)
+		return newFuncConcPhaseJobWorker(ctx, args)
 	}
 
 	for i := range sts {

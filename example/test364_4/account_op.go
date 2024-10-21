@@ -114,7 +114,7 @@ func (fact *OpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
-	if len(u.Issuer) > 0 {
+	if u.Issuer != "" {
 		switch i, err := base.DecodePublickeyFromString(u.Issuer, enc); {
 		case err != nil:
 			return err

@@ -59,7 +59,7 @@ type workerSaveArgs struct {
 func newWorkerSaveArgs() *workerSaveArgs {
 	return &workerSaveArgs{
 		Logging:      NewModuleLogging("save-worker", nil),
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
+		NewJobWorker: newFuncBaseJobWorker(1 << 6),
 	}
 }
 
@@ -94,7 +94,7 @@ func newFuncWorkerSave(
 		func() error,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var opLocalInsert operationsWorkerLocalInsertOpsFuncs
 		var opWorkerInsert operationsworkerInitialInsertOpsFuncs
@@ -120,8 +120,8 @@ func newFuncWorkerSave(
 			opWait = w
 		}
 
-		_, mergeDone, mergeDoneWait := NewDoneContextFunc(wctx)
-		_, saveDone, saveDoneWait := NewDoneContextFunc(wctx)
+		_, mergeDone, mergeDoneWait := newDoneContextFunc(wctx)
+		_, saveDone, saveDoneWait := newDoneContextFunc(wctx)
 
 		go func() {
 			_ = wctxCancel(opWait(func(
@@ -134,10 +134,9 @@ func newFuncWorkerSave(
 
 				switch m, ds, err := newWorkerSaveMergeDone(
 					wctx,
-					args,
 					maxOps,
 					unmerged,
-					newTraverseState(args, traverseMergers, stateFunc),
+					newTraverseState(traverseMergers, stateFunc),
 					sendMergeDone,
 				); {
 				case err != nil:
@@ -177,7 +176,6 @@ func newFuncWorkerSave(
 
 func newWorkerSaveMergeDone(
 	ctx context.Context,
-	args *workerSaveArgs,
 	maxOps uint64,
 	unmerged []uint64,
 	traverseStates workerSaveTraverseStatesFunc,
@@ -202,7 +200,7 @@ func newWorkerSaveMergeDone(
 			return sendMergeDone(ctx, func(statesf workerSaveSendStatesFuncs, unmergedf workerSaveUnmergedFunc) error {
 				var wg sync.WaitGroup
 
-				mctx, mctxCancel := ContextWithCancelCause(ctx)
+				mctx, mctxCancel := contextWithCancelCause(ctx)
 				defer mctxCancel(nil)
 
 				addJob := func(f func() error) {
@@ -250,7 +248,7 @@ func newWorkerSave(
 	saveReasons workerSaveReasonsFunc,
 	sendSaveDone workerSaveSendSaveDoneFunc,
 ) error {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := contextWithCancelCause(ctx)
 	defer wctxCancel(nil)
 
 	var saveDoneBlockFileChunks workerSaveBlockFileChunksFunc
@@ -339,7 +337,6 @@ func newWorkerSaveStates(
 }
 
 func newTraverseState(
-	args *workerSaveArgs,
 	traverseMergers operationsWorkerMergerTraverseMergersFunc,
 	stateFunc func() (newStateFunc, error),
 ) workerSaveTraverseStatesFunc {

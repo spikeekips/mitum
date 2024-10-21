@@ -64,7 +64,7 @@ type operationsWorkerMergerArgs struct {
 func newOperationsWorkerMergerArgs() *operationsWorkerMergerArgs {
 	return &operationsWorkerMergerArgs{
 		Logging:      NewModuleLogging("operations-worker-merger", nil),
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
+		NewJobWorker: newFuncBaseJobWorker(1 << 6),
 	}
 }
 
@@ -92,7 +92,7 @@ func newFuncOperationsWorkerMerger(
 		operationsWorkerMergerWaitFunc,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var initialInsert workerInitialInsertOpsFuncs
 		var workerPhaseDone workerMergerPhaseDoneFunc
@@ -126,7 +126,6 @@ func newFuncOperationsWorkerMerger(
 
 		switch d, e, err := patchOperationsWorkerMerger(
 			wctx,
-			args,
 			initialInsertLocal,
 			opsPool,
 			isLocalStateValue,
@@ -279,7 +278,6 @@ func newFuncOperationsWorkerMerger(
 
 func patchOperationsWorkerMerger(
 	ctx context.Context,
-	args *operationsWorkerMergerArgs,
 	initialInsertLocal workerInitialInsertOpFunc,
 	opsPool util.LockedMap[uint64, Operation],
 	isLocalStateValue isLocalStateValueFunc,
@@ -301,7 +299,7 @@ func patchOperationsWorkerMerger(
 
 	filterLocalStateValues := newFilterLocalStateValues(isLocalStateValue)
 
-	extractorDone = func(ctx context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
+	extractorDone = func(_ context.Context, opindex uint64, op Operation, values []StateMergeValue) error {
 		_ = opsPool.SetValue(opindex, op)
 
 		if filtered := filterLocalStateValues(values); len(filtered) > 0 {
@@ -399,6 +397,7 @@ func newTraverseOperations(
 
 				return gerr == nil
 			})
+
 			if gerr != nil {
 				return gerr
 			}

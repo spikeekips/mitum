@@ -73,7 +73,7 @@ func newFuncManagerSave(
 		managerSaveSetBlockMapItem,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var jw JobWorker
 
@@ -134,8 +134,6 @@ func newFuncManagerSave(
 						return setManifest(manifest)
 					},
 				)
-
-				return nil
 			},
 			func(avp base.ACCEPTVoteproof) (bm BlockMap, _ error) {
 				return bm, contextCauseError(wctx, closef, func(ctx context.Context) error {
@@ -200,7 +198,7 @@ func newMakeBlockMapFunc(expired time.Duration) (
 			defer l.Unlock()
 
 			if _, found := items[item.Type()]; found {
-				return util.ErrFound.Errorf(item.Type().String())
+				return util.ErrFound.Errorf("item=%q", item.Type().String())
 			}
 
 			items[item.Type()] = item

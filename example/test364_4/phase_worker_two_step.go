@@ -21,7 +21,7 @@ type TwoStepPhaseJobWorkerArgs struct {
 func NewTwoStepPhaseJobWorkerArgs() *TwoStepPhaseJobWorkerArgs {
 	return &TwoStepPhaseJobWorkerArgs{
 		Logging:                    NewModuleLogging("phase-job-worker", nil),
-		NewJobWorker:               NewFuncBaseJobWorker(1 << 9),
+		NewJobWorker:               newFuncBaseJobWorker(1 << 9),
 		NewJobPoolSize:             1 << 9,
 		NewJobPoolGrowSize:         1 << 9,
 		JobIDMapSize:               1 << 9,

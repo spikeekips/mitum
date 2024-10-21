@@ -189,17 +189,17 @@ type accountStateMergeValueJSONUnmarshaler struct {
 	Value json.RawMessage
 }
 
-func (s *AccountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
+func (v *AccountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u accountStateMergeValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
 	}
 
-	if err := s.AccountStateValue.DecodeJSON(u.Value, enc); err != nil {
+	if err := v.AccountStateValue.DecodeJSON(u.Value, enc); err != nil {
 		return err
 	}
 
-	s.key = u.Key
+	v.key = u.Key
 
 	return nil
 }

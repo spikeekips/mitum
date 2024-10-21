@@ -19,7 +19,7 @@ type (
 
 func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {
 	return func(ctx context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		ifErrorClose := ifErrErrorFunc(wctxCancel)
 
@@ -126,7 +126,7 @@ func newTreeAddStateNode(
 	var done util.CompactAppendSliceDoneFunc[fixedtree.Node]
 	var jobDone func()
 
-	_, j, wait := NewDoneContextFunc(ctx)
+	_, j, wait := newDoneContextFunc(ctx)
 
 	switch a, d, err := util.CompactAppendSliceV1[fixedtree.Node](size, grow...); {
 	case err != nil:
@@ -169,6 +169,7 @@ func newTreeAddStateNode(
 			defer func() {
 				m.Close()
 				jobDone()
+
 				_ = done(nil)
 			}()
 

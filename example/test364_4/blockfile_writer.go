@@ -69,6 +69,7 @@ func newFuncBaseBlockFileChunkWriter(
 						write, checksumf = newChecksumWrite(w)
 
 						compressFormat = c
+
 						donef.SetValue(func(err error, filenameBody string) (string, error) {
 							_ = checksumf()
 
@@ -154,13 +155,13 @@ func writeBlockFileFileHeader(write ioWriteFunc, hs interface{}) error {
 
 	var b []byte
 
-	switch hs.(type) {
+	switch t := hs.(type) {
 	case []byte:
-		b = hs.([]byte)
+		b = t
 	case json.RawMessage:
-		b = hs.(json.RawMessage)
+		b = t
 	default:
-		i, err := encodeBlockFileFileHeader(hs)
+		i, err := encodeBlockFileFileHeader(t)
 		if err != nil {
 			return err
 		}
@@ -213,7 +214,7 @@ func safeStreamerEncode(enc util.StreamEncoder) func(interface{}) error {
 func blockFileFilenameBody(it base.BlockItemType, checksum string) string {
 	var pck string
 
-	if len(checksum) > 0 {
+	if checksum != "" {
 		pck = "-" + checksum
 	}
 
@@ -262,7 +263,7 @@ func newBlockFileMultiChunksWriter(
 		headerb = i
 	}
 
-	wctx, wcancel := ContextWithCancelCause(ctx)
+	wctx, wcancel := contextWithCancelCause(ctx)
 	defer wcancel(nil)
 
 	switch i, err := NewBaseJobWorker(wctx, int64(semSize)); {
@@ -286,7 +287,8 @@ func newBlockFileMultiChunksWriter(
 	}
 
 	errorf := func(err error) error {
-		wcancel(err)
+		_ = wcancel(err)
+
 		doneChunk(nil)
 
 		return err
@@ -294,6 +296,7 @@ func newBlockFileMultiChunksWriter(
 
 	buckets := make([]chan func(ioWriteFunc) error, semSize)
 	bucketsCount := make([]uint64, semSize)
+
 	defer func() {
 		clear(buckets)
 		clear(bucketsCount)
@@ -345,7 +348,7 @@ func newBlockFileMultiChunksWriter(
 
 			if bucketsCount[b] == chunkItems {
 				if err := newBucket(b); err != nil {
-					errorf(err)
+					_ = errorf(err)
 				}
 			}
 		}()

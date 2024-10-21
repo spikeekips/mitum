@@ -41,7 +41,7 @@ type statesWorkerMergerArgs struct {
 func newStatesWorkerMergerArgs() *statesWorkerMergerArgs {
 	return &statesWorkerMergerArgs{
 		Logging:      NewModuleLogging("states-worker-merger", nil),
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
+		NewJobWorker: newFuncBaseJobWorker(1 << 6),
 	}
 }
 
@@ -63,7 +63,7 @@ func newFuncStatesWorkerMerger(
 		statesWorkerMergerWaitFunc,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var mergersPool util.LockedMap[string, StateMerger]
 
@@ -278,6 +278,7 @@ func newTraverseMergers(
 
 			return gerr == nil
 		})
+
 		if gerr != nil {
 			return gerr
 		}

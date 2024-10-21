@@ -29,14 +29,13 @@ func newManagerWorkersStates(
 	ctx context.Context,
 	args *managerWorkersStatesArgs,
 	newCheckWorkersFunc checkEnoughFailedWorkersFuncs,
-	workers []string,
 	minEnough, maxFailed uint64,
 ) (
 	managerWorkerStatesFunc,
 	managerWorkersTreeFunc,
 	error,
 ) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := contextWithCancelCause(ctx)
 
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerDone func()

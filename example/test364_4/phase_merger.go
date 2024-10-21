@@ -44,7 +44,7 @@ func newPhaseMergerArgs() *phaseMergerArgs {
 	) {
 		cargs := newConcPhaseJobWorkerArgs()
 
-		return NewConcPhaseJobWorker(ctx, cargs)
+		return newFuncConcPhaseJobWorker(ctx, cargs)
 	}
 
 	return args
@@ -62,7 +62,7 @@ func newPhaseMerger(
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
-	pctx, pctxCancel := ContextWithCancelCause(ctx)
+	pctx, pctxCancel := contextWithCancelCause(ctx)
 
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
@@ -172,7 +172,7 @@ func newXMergeCallbacks(
 			Strs("state_keys", stateKeys).
 			Logger()
 
-		return func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
+		return func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
@@ -180,7 +180,6 @@ func newXMergeCallbacks(
 					ll.Debug().Msg("> merge")
 
 					switch committed, nexts, reasons, err := mergeOp(
-						ctx,
 						opindex,
 						values,
 						getMerger,
@@ -241,7 +240,7 @@ func newXMergeCallbacks(
 			Strs("state_keys", stateKeys).
 			Logger()
 
-		return func(ctx context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
+		return func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
 			return getMergers(
 				stateKeys,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
@@ -249,7 +248,6 @@ func newXMergeCallbacks(
 					ll.Debug().Msg("> unmerge")
 
 					switch committed, nexts, err := unmergeOp(
-						ctx,
 						opindex,
 						values,
 						getMerger,
@@ -416,8 +414,8 @@ func isXMergedOps(
 				}
 			}
 
-			_, _, _ = ops.Set(opindex, func(prev int, found bool) (int, error) {
-				var i int = 1
+			_, _, _ = ops.Set(opindex, func(prev int, _ bool) (int, error) {
+				i := 1
 
 				if x == unmergeFlag {
 					i = -1

@@ -37,7 +37,7 @@ func newFuncStateMergeValueExtractor(
 		wait stateMergeValueExtractorWaitFunc,
 		_ error,
 	) {
-		pctx, pctxCancel := ContextWithCancelCause(ctx)
+		pctx, pctxCancel := contextWithCancelCause(ctx)
 
 		var jobWorker JobWorker
 
@@ -55,15 +55,13 @@ func newFuncStateMergeValueExtractor(
 			switch op, values, reason, err := extractf(ctx, opindex, oph); {
 			case err != nil:
 				return err
-			case len(reason) > 0:
+			case reason != "":
 				_ = reasons.SetValue(opindex, reason)
 
 				return nil
 			default:
 				return done(ctx, opindex, op, values)
 			}
-
-			return nil
 		}
 
 		closef := func(err error) error {

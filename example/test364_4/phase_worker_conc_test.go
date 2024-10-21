@@ -24,7 +24,7 @@ func (t *testConcPhaseJobWorker) TestCancel() {
 
 		args := t.newArgs()
 
-		newJob, jobDone, wait, err := NewConcPhaseJobWorker(ctx, args)
+		newJob, jobDone, wait, err := newFuncConcPhaseJobWorker(ctx, args)
 		t.NoError(err)
 
 		cancel()

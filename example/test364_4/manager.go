@@ -48,7 +48,7 @@ type managerArgs struct {
 func newManagerArgs() *managerArgs {
 	return &managerArgs{
 		Logging: NewModuleLogging("manager", nil),
-		NewCheckWorkersFunc: func(_, maxFailed uint64) (
+		NewCheckWorkersFunc: func(_, _ uint64) (
 			checkEnoughFailedWorkerFunc,
 			func(),
 			error,
@@ -96,7 +96,7 @@ func newFuncManager(
 				statesShare = ss
 			}
 
-			wctx, wctxCancel := ContextWithCancelCause(ctx)
+			wctx, wctxCancel := contextWithCancelCause(ctx)
 
 			// NOTE start workers
 			if err := contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(ctx context.Context) error {
@@ -161,7 +161,7 @@ func managerMinEnoughMaxFailed(
 	return minEnough, maxFailed, newOpsShare, newStatesShare, nil
 }
 
-func operationsFromINITVoteproof(pr base.ProposalSignFact, vp base.INITVoteproof) [][2]util.Hash {
+func operationsFromINITVoteproof(pr base.ProposalSignFact, _ base.INITVoteproof) [][2]util.Hash {
 	// FIXME expels from INITVoteproof
 	return pr.ProposalFact().Operations()
 }
@@ -172,7 +172,7 @@ func handleReceivedBlockFiles() (
 ) {
 	itemTypeChecksums := util.NewSingleLockedMap[base.BlockItemType, []string]()
 
-	return func(worker string, m map[base.BlockItemType][]string) error {
+	return func(_ string, m map[base.BlockItemType][]string) error {
 			_ = TraverseMap(m, func(it base.BlockItemType, checksums []string) (bool, error) {
 				_, _, err := itemTypeChecksums.Set(it, func(prev []string, found bool) ([]string, error) {
 					switch {
@@ -265,7 +265,6 @@ func managerTreesWithProposal(
 			ctx,
 			workers,
 			opsShare, statesShare,
-			workID,
 			ophs,
 		); {
 		case err != nil:

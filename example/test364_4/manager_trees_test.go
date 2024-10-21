@@ -48,7 +48,7 @@ func (t *testManagerTrees) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, ophs)
 		t.NoError(err)
 
 		err = distribute(nil)
@@ -93,7 +93,7 @@ func (t *testManagerTrees) TestError() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, ophs)
 		t.NoError(err)
 
 		t.NoError(distribute(nil))
@@ -144,7 +144,7 @@ func (t *testManagerTrees) TestOps() {
 
 		workers := t.workers(3)
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, nil)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, nil)
 		t.NoError(err)
 
 		t.NoError(distribute(nil))
@@ -192,7 +192,7 @@ func (t *testManagerTrees) TestOps() {
 		ophs := t.ophs(3)
 		stateKeys := t.stateKeysUnordered(9)
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, ophs)
 		t.NoError(err)
 
 		t.NoError(distribute(nil))
@@ -269,7 +269,7 @@ func (t *testManagerTrees) TestOps() {
 			return true, nil
 		})
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, ophs)
 		t.NoError(err)
 
 		t.NoError(distribute(nil))
@@ -346,7 +346,7 @@ func (t *testManagerTrees) TestOps() {
 		workers := t.workers(3)
 		ophs := t.ophs(3)
 
-		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, t.workID, ophs)
+		distribute, unmerge, states, done, err := f(ctx, workers, 1, 1, ophs)
 		t.NoError(err)
 
 		t.NoError(distribute(nil))

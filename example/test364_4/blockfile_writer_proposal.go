@@ -15,7 +15,7 @@ func newFuncBlockFileProposalWriter(
 ) blockFileWriterProposalFunc {
 	w := newFuncBaseBlockFileChunkWriter(base.BlockItemProposal, createWriter)
 
-	return func(ctx context.Context, workID string, pr base.ProposalSignFact) (BlockMapItem, error) {
+	return func(_ context.Context, workID string, pr base.ProposalSignFact) (BlockMapItem, error) {
 		var c blockFileChunkWriterBaseNewWriteFunc
 
 		switch i, err := w(workID); {

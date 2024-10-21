@@ -30,7 +30,6 @@ type (
 func newFuncBaseWorkerMerger(
 	pargs *phaseMergerArgs,
 	poolMapSize uint64,
-	newJobWorker newJobWorkerFunc,
 ) baseWorkerMergerFunc {
 	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(pargs)
 
@@ -48,7 +47,7 @@ func newFuncBaseWorkerMerger(
 		workerMergerWaitFunc,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var insertPool func(worker string, unmerge []uint64) bool
 		var exhaustPool func(func(worker string, unmerge []uint64) error) error

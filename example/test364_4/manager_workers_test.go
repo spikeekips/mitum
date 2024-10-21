@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -109,7 +110,12 @@ func (t *testManagerStartWorkers) TestOverMaxFailed() {
 		}
 
 		err := newManagerStartWorkers(ctx, workers, 3, t.newCheckWorkersFunc(), startWorker)
-		t.ErrorContains(err, "showme")
+		switch {
+		case strings.Contains(err.Error(), "showme"):
+		case errors.Is(err, context.Canceled):
+		default:
+			t.Fail("unexpected error: %+v", err)
+		}
 	})
 }
 

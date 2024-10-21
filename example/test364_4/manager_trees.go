@@ -12,7 +12,7 @@ import (
 type (
 	managerTreesFunc     func(opsTree, statesTree fixedtree.Tree) error
 	managerTreesDoneFunc func(managerTreesFunc) error
-	managerTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, workID string, _ [][2]util.Hash) (
+	managerTreesFuncs    func(_ context.Context, workers []string, minEnough, maxFailed uint64, _ [][2]util.Hash) (
 		managerWorkersOperationsFunc,
 		managerWorkerUnmergedFunc,
 		managerWorkerStatesFunc,
@@ -31,7 +31,6 @@ func newFuncManagerTrees(
 		ctx context.Context,
 		workers []string,
 		opsShare, statesShare uint64,
-		workID string,
 		ophs [][2]util.Hash,
 	) (
 		managerWorkersOperationsFunc,
@@ -49,7 +48,6 @@ func newFuncManagerTrees(
 			ctx,
 			workers,
 			opsShare, statesShare,
-			workID,
 			ophs,
 		); {
 		case err != nil:

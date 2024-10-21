@@ -37,8 +37,8 @@ func NewBaseJobWorker(ctx context.Context, semSize int64) (*BaseJobWorker, error
 
 	errNewJobDone := errors.New(util.UUID().String())
 
-	ectx, eCtxCancel := ContextWithCancelCause(ctx)
-	newJobCtx, newJobCtxCancel := ContextWithCancelCause(ectx)
+	ectx, eCtxCancel := contextWithCancelCause(ctx)
+	newJobCtx, newJobCtxCancel := contextWithCancelCause(ectx)
 
 	wk := &BaseJobWorker{
 		ctx:       func() context.Context { return ectx },
@@ -174,7 +174,7 @@ func NewErrCallbackJobWorker(ctx context.Context, semSize int64, errf func(error
 	return wk, nil
 }
 
-func NewFuncBaseJobWorker(semSize int64) newJobWorkerFunc {
+func newFuncBaseJobWorker(semSize int64) newJobWorkerFunc {
 	return func(ctx context.Context) (JobWorker, error) {
 		return NewBaseJobWorker(ctx, semSize)
 	}

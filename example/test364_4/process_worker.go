@@ -49,7 +49,6 @@ func newStateMergeValueExtractorGetOperation(
 
 func newBroadcastStateMergeValues(
 	ctx context.Context,
-	local string,
 	workers []string, // NOTE local not included
 	broadcastStateMergeValuesFuncs broadcastStateMergeValueFuncs,
 	checkWorkerError func(worker string, _ error) error,

@@ -34,7 +34,7 @@ func (t *testManagerWorkersTrees) TestError() {
 
 		f := newFuncManagerWorkersTrees(t.newArgs(), t.newCheckWorkersFunc())
 
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		err = d(nil)
@@ -67,7 +67,7 @@ func (t *testManagerWorkersTrees) TestError() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		err = d(func(context.Context, string, func(managerWorkerOperationFunc) error) error {
@@ -107,7 +107,7 @@ func (t *testManagerWorkersTrees) TestError() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		var count int64
@@ -153,7 +153,7 @@ func (t *testManagerWorkersTrees) TestError() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(nil))
@@ -191,7 +191,7 @@ func (t *testManagerWorkersTrees) TestError() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(nil))
@@ -224,7 +224,7 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 		workers := t.workers(3)
 
 		f := newFuncManagerWorkersTrees(t.newArgs(), t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(nil))
@@ -256,7 +256,7 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 2, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 2, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -294,7 +294,7 @@ func (t *testManagerWorkersTrees) TestEnoughFailed() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		err = d(func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error {
@@ -340,7 +340,7 @@ func (t *testManagerWorkersTrees) TestTree() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), nil)
+		d, u, s, tree, err := f(ctx, workers, 1, 1, nil)
 		t.NoError(err)
 
 		t.NoError(d(nil))
@@ -373,7 +373,7 @@ func (t *testManagerWorkersTrees) TestTree() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(nil))
@@ -416,7 +416,7 @@ func (t *testManagerWorkersTrees) TestTree() {
 		args := t.newArgs()
 
 		f := newFuncManagerWorkersTrees(args, t.newCheckWorkersFunc())
-		d, u, s, tree, err := f(ctx, workers, 1, 1, util.UUID().String(), t.ophs(3))
+		d, u, s, tree, err := f(ctx, workers, 1, 1, t.ophs(3))
 		t.NoError(err)
 
 		t.NoError(d(nil))

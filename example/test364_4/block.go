@@ -110,7 +110,7 @@ func (m BaseBlockMap) Item(it base.BlockItemType) (BlockMapItem, bool) {
 }
 
 func (m BaseBlockMap) Items(f func(BlockMapItem) bool) {
-	TraverseMap(m.items, func(_ base.BlockItemType, v BlockMapItem) (bool, error) {
+	_ = TraverseMap(m.items, func(_ base.BlockItemType, v BlockMapItem) (bool, error) {
 		if v == nil {
 			return true, nil
 		}
@@ -210,7 +210,7 @@ func (m BaseBlockMap) checkItems() error {
 func (m BaseBlockMap) signedBytes() []byte {
 	var ts [][]byte
 
-	TraverseMap(m.items, func(_ base.BlockItemType, v BlockMapItem) (bool, error) {
+	_ = TraverseMap(m.items, func(_ base.BlockItemType, v BlockMapItem) (bool, error) {
 		if v != nil {
 			// NOTE only checksum will be included in signature
 			ts = append(ts, []byte(v.Checksum()))

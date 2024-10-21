@@ -60,11 +60,11 @@ func newFuncWorkerPhaseMerger(args *phaseMergerArgs) workerPhaseMergerFunc {
 			return nil, nil, util.ErrInvalid.Errorf("min enough should be at least 1")
 		}
 
-		pctx, pctxCancel := ContextWithCancelCause(ctx)
+		pctx, pctxCancel := contextWithCancelCause(ctx)
 
 		var merge, unmerge phaseMergerXMergeFunc
 
-		_, mergeDoneDone, mergeDoneWait := NewDoneContextFunc(pctx)
+		_, mergeDoneDone, mergeDoneWait := newDoneContextFunc(pctx)
 
 		var mergeDone func()
 		var mergeWait phaseMergerWaitFunc
@@ -99,6 +99,7 @@ func newFuncWorkerPhaseMerger(args *phaseMergerArgs) workerPhaseMergerFunc {
 
 		closef := func(err error) error {
 			pctxCancel(err)
+
 			_ = checkWorkerEnoughEmpty()
 
 			return err
@@ -204,7 +205,7 @@ func newIsEnoughkWokerPhaseMergerFuncs(
 		}
 
 		if _, found := m[worker]; found {
-			return enough, false, util.ErrFound.Errorf(worker)
+			return enough, false, util.ErrFound.Errorf("worker=%q", worker)
 		}
 
 		m[worker] = isEmpty

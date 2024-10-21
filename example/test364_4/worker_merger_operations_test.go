@@ -830,7 +830,6 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 
 	broadcast, broadcastDone, err := newBroadcastStateMergeValues(
 		ctx,
-		local,
 		others,
 		func(ctx context.Context, worker string) (
 			operationsworkerInitialInsertOpFunc,

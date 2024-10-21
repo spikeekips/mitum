@@ -20,7 +20,7 @@ func newFuncBlockFileVoteproofsWriter(
 ) blockFileWriterVoteproofsFunc {
 	w := newFuncBaseBlockFileChunkWriter(base.BlockItemVoteproofs, createWriter)
 
-	return func(ctx context.Context, workID string) (
+	return func(_ context.Context, workID string) (
 		func(base.INITVoteproof) error,
 		func(base.ACCEPTVoteproof) (BlockMapItem, error),
 		error,

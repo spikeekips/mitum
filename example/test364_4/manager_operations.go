@@ -53,7 +53,7 @@ func newManagerWorkersOperations(
 	managerWorkersTreeFunc,
 	error,
 ) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := contextWithCancelCause(ctx)
 
 	nworkers := uint64(len(workers))
 
@@ -91,7 +91,7 @@ func newManagerWorkersOperations(
 		treeDone = d
 	}
 
-	_, distributeDone, distributeWait := NewDoneContextFunc(wctx)
+	_, distributeDone, distributeWait := newDoneContextFunc(wctx)
 
 	closef := func(err error) error {
 		wctxCancel(err)
@@ -274,21 +274,26 @@ func serialNoShareWorkerOps(workers []string, ophs [][2]util.Hash) (
 	case len(workers) < 1:
 		return nil, errors.Errorf("empty workers")
 	case o < 1:
-		return func(worker string, f managerWorkersOperationsOpsFunc) error {
+		return func(_ string, f managerWorkersOperationsOpsFunc) error {
 			return f(nil)
 		}, nil
 	}
 
 	ws := uint64(len(workers))
 	d := o / ws
+
 	if o%ws > 0 {
-		d += 1
+		d++
 	}
 
 	return func(worker string, f managerWorkersOperationsOpsFunc) error {
-			wi := uint64(slices.Index(workers, worker))
-			if wi < 0 {
-				return util.ErrNotFound.Errorf(worker)
+			var wi uint64
+
+			switch i := slices.Index(workers, worker); {
+			case i < 0:
+				return util.ErrNotFound.Errorf("worker=%q", worker)
+			default:
+				wi = uint64(i)
 			}
 
 			start := wi * d

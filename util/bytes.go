@@ -367,8 +367,8 @@ func ReadLengthedSliceFunc(r io.Reader, f func(uint64, uint64, []byte) error) (r
 		case iseof && i < n-1:
 			return read, errors.Wrap(err, "insufficient read")
 		case err == nil || iseof:
-			if err := f(size, i, b); err != nil {
-				return read, err
+			if ferr := f(size, i, b); ferr != nil {
+				return read, ferr
 			}
 
 			gerr = err

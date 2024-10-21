@@ -840,7 +840,7 @@ type LimitedLockedMap[K cmp.Ordered, V any] struct {
 	LockedMap[K, V]
 	allowKeyf func(K) bool
 	isclosed  bool
-	sync.RWMutex
+	l         sync.RWMutex
 }
 
 func NewLimitedLockedMap[K cmp.Ordered, V any](m LockedMap[K, V], allowKey func(K) bool) *LimitedLockedMap[K, V] {
@@ -984,16 +984,16 @@ func (l *LimitedLockedMap[K, V]) Map() map[K]V {
 
 func (*LimitedLockedMap[K, V]) Empty() {}
 func (l *LimitedLockedMap[K, V]) Close() {
-	l.Lock()
-	defer l.Unlock()
+	l.l.Lock()
+	defer l.l.Unlock()
 
 	l.isclosed = true
 }
 
 func (l *LimitedLockedMap[K, V]) allowKey(k K) (bool, error) {
 	if func() bool {
-		l.RLock()
-		defer l.RUnlock()
+		l.l.RLock()
+		defer l.l.RUnlock()
 
 		return l.isclosed
 	}() {

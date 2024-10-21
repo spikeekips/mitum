@@ -36,10 +36,13 @@ func ConcatSlice[S ~[]E, E any](s ...S) S {
 			panic("len out of range")
 		}
 	}
+
 	newslice := slices.Grow[S](nil, size)
+
 	for _, s := range s {
 		newslice = append(newslice, s...)
 	}
+
 	return newslice
 }
 
@@ -107,7 +110,7 @@ func UniqueCompactAppendSliceV1[T cmp.Ordered](size uint64, grow ...uint64) (
 		}, nil
 }
 
-func NewDoneContextFunc(ctx context.Context) (
+func newDoneContextFunc(ctx context.Context) (
 	context.Context,
 	errorFunc,
 	func() error,
@@ -146,7 +149,7 @@ func NewFuncContextDoneFunc(
 	ctx context.Context,
 	f func(context.Context) error,
 ) func() error {
-	cctx, done, wait := NewDoneContextFunc(ctx)
+	cctx, done, wait := newDoneContextFunc(ctx)
 
 	var once sync.Once
 
@@ -160,9 +163,9 @@ func NewFuncContextDoneFunc(
 }
 
 func newDjb2Seed() uint32 {
-	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+	maxv := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
 
-	switch rnd, err := rand.Int(rand.Reader, max); {
+	switch rnd, err := rand.Int(rand.Reader, maxv); {
 	case err != nil:
 		return mathrand.Uint32()
 	default:
@@ -205,7 +208,7 @@ func stringdjb2(seed uint32, k string) uint64 {
 	return uint64(d ^ (d >> 16)) //nolint:gomnd //...
 }
 
-func FuncErrorLogger(l *zerolog.Logger, format string, a ...any) errorFunc {
+func funcErrorLogger(l *zerolog.Logger, format string, a ...any) errorFunc {
 	started := time.Now()
 
 	msg := fmt.Sprintf(format, a...)
@@ -226,7 +229,7 @@ func FuncErrorLogger(l *zerolog.Logger, format string, a ...any) errorFunc {
 	}
 }
 
-func FuncErrorLog(e *zerolog.Event, format string, a ...any) errorFunc {
+func funcErrorLog(e *zerolog.Event, format string, a ...any) errorFunc {
 	started := time.Now()
 
 	msg := fmt.Sprintf(format, a...)
@@ -276,7 +279,7 @@ func OnceFuncCallback[T any](f func(T) error) func(T) error {
 	}
 }
 
-func ContextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
+func contextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
 	var called bool
@@ -337,8 +340,8 @@ func contextCauseError(ctx context.Context, ef errorFunc, f func(context.Context
 
 func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
 	return func(err error) error {
-		if err := context.Cause(ctx); err != nil {
-			return errors.WithStack(err)
+		if cerr := context.Cause(ctx); cerr != nil {
+			return errors.WithStack(cerr)
 		}
 
 		return ef(err)
@@ -421,7 +424,7 @@ func newCheckEnoughFailedWorkers(
 			return gIsClosed, enough, failed
 		}
 
-		return func(worker string, err error) (isClosed, enough, failed bool) {
+		return func(_ string, err error) (isClosed, enough, failed bool) {
 			if isClosed, enough, failed = c(); isClosed {
 				return isClosed, enough, failed
 			}

@@ -53,7 +53,7 @@ func newInitialValuesWorkerMergerArgs() *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
 		Logging:      NewModuleLogging("initial-worker-merger", nil),
 		PoolMapSize:  1 << 3,
-		NewJobWorker: NewFuncBaseJobWorker(1 << 6),
+		NewJobWorker: newFuncBaseJobWorker(1 << 6),
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
@@ -64,11 +64,7 @@ func newFuncInitialValuesWorkerMerger(
 	args *initialValuesWorkerMergerArgs,
 	pargs *phaseMergerArgs,
 ) initialValuesWorkerMergerFunc {
-	newBaseWorkerMergerf := newFuncBaseWorkerMerger(
-		pargs,
-		args.PoolMapSize,
-		args.NewJobWorker,
-	)
+	newBaseWorkerMergerf := newFuncBaseWorkerMerger(pargs, args.PoolMapSize)
 
 	return func(
 		ctx context.Context,
@@ -90,7 +86,7 @@ func newFuncInitialValuesWorkerMerger(
 			broadcastPhaseDone = func(context.Context, []uint64) error { return nil }
 		}
 
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var vp util.LockedMap[uint64, []StateMergeValue]
 
@@ -153,7 +149,7 @@ func newFuncInitialValuesWorkerMerger(
 			}
 		}
 
-		_, initialStateOpsDone, initialStateOpsWait := NewDoneContextFunc(wctx)
+		_, initialStateOpsDone, initialStateOpsWait := newDoneContextFunc(wctx)
 
 		setInitialUnmergedState := func(unmerged []uint64) error {
 			if len(unmerged) < 1 {
@@ -323,7 +319,7 @@ func newInitialPhaseMerger(
 	wait initialValuesWorkerMergerWaitFunc,
 	_ error,
 ) {
-	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := contextWithCancelCause(ctx)
 
 	var initialMerge phaseMergerXMergeFunc
 	var initialDone func()

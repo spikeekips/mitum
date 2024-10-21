@@ -36,7 +36,7 @@ func newFuncManagerWorkerBlockFiles(
 		managerWorkerBlockFilesDoneFunc,
 		error,
 	) {
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var receiveWorkerBlockFiles managerWorkerBlockFileReceiveFunc
 		var receiveWorkerBlockFilesWait func(context.Context) error
@@ -54,7 +54,7 @@ func newFuncManagerWorkerBlockFiles(
 			receiveWorkerBlockFilesWait = w
 		}
 
-		return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
+		return func(_ context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
 				return contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(ctx context.Context) error {
 					return receiveWorkerBlockFiles(ctx, worker, f)
 				})
@@ -87,9 +87,9 @@ func newManagerWorkerWorkerBlockFiles(
 		checkWorkerClose = d
 	}
 
-	_, done, wait := NewDoneContextFunc(ctx)
+	_, done, wait := newDoneContextFunc(ctx)
 
-	return func(ctx context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
+	return func(_ context.Context, worker string, f func(managerWorkerBlockFileReceiveChecksumsFunc) error) error {
 			checksums := map[base.BlockItemType][]string{}
 
 			gerr := f(func(it base.BlockItemType, cs []string) error {

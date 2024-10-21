@@ -32,7 +32,7 @@ func (t *testManagerWorkersStates) TestError() {
 		ctx := context.Background()
 
 		workers := t.workers(1)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 1, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 1, 0)
 		t.NoError(err)
 
 		sts := t.stateKeys(3)
@@ -98,7 +98,7 @@ func (t *testManagerWorkersStates) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 1, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 1, 0)
 		t.NoError(err)
 
 		cancel()
@@ -136,7 +136,7 @@ func (t *testManagerWorkersStates) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 1, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 1, 0)
 		t.NoError(err)
 
 		sts := t.stateKeys(3)
@@ -171,7 +171,7 @@ func (t *testManagerWorkersStates) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 3, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 3, 0)
 		t.NoError(err)
 
 		sts := t.stateKeys(3)
@@ -218,7 +218,7 @@ func (t *testManagerWorkersStates) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 2, 2)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 2, 2)
 		t.NoError(err)
 
 		sts := t.stateKeys(3)
@@ -271,7 +271,7 @@ func (t *testManagerWorkersStates) TestError() {
 		defer cancel()
 
 		workers := t.workers(3)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 3, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 3, 0)
 		t.NoError(err)
 
 		sts := t.stateKeys(3)
@@ -311,7 +311,7 @@ func (t *testManagerWorkersStates) TestAdd() {
 		defer cancel()
 
 		workers := t.workers(33)
-		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), workers, 33, 0)
+		s, tf, err := newManagerWorkersStates(ctx, t.newArgs(), t.newCheckWorkersFunc(), 33, 0)
 		t.NoError(err)
 
 		sts := t.stateKeys(99)

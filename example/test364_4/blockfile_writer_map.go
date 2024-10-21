@@ -14,7 +14,7 @@ func newFuncBlockFileMapWriter(
 	enc encoder.Encoder,
 	createWriter blockFileWriterCreateWriterFunc,
 ) blockFileWriterMapFunc {
-	return func(ctx context.Context, workID string, bm BlockMap) error {
+	return func(_ context.Context, workID string, bm BlockMap) error {
 		if len(workID) < 1 {
 			return errors.Errorf("empty create id")
 		}
@@ -36,12 +36,12 @@ func newFuncBlockFileMapWriter(
 
 		switch b, err := enc.Marshal(bm); {
 		case err != nil:
-			_, err := done(err, "")
+			_, err = done(err, "")
 
 			return err
 		default:
 			if _, err := write(b); err != nil {
-				_, err := done(err, "")
+				_, err = done(err, "")
 
 				return err
 			}

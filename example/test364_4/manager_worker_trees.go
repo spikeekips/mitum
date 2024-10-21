@@ -10,7 +10,7 @@ import (
 
 type (
 	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
-	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, workID string, ophs [][2]util.Hash) (
+	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, ophs [][2]util.Hash) (
 		managerWorkersOperationsFunc,
 		managerWorkerUnmergedFunc,
 		managerWorkerStatesFunc,
@@ -59,7 +59,6 @@ func newFuncManagerWorkersTrees(
 		ctx context.Context,
 		workers []string,
 		opsShare, statesShare uint64,
-		workID string,
 		ophs [][2]util.Hash,
 	) (
 		managerWorkersOperationsFunc,
@@ -78,7 +77,7 @@ func newFuncManagerWorkersTrees(
 			statesMaxFailed = f
 		}
 
-		wctx, wctxCancel := ContextWithCancelCause(ctx)
+		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var opsDistribute managerWorkersOperationsFunc
 		var opsUnmerged managerWorkerUnmergedFunc
@@ -96,7 +95,7 @@ func newFuncManagerWorkersTrees(
 		var statesWorker managerWorkerStatesFunc
 		var statesTreef managerWorkersTreeFunc
 
-		switch s, t, err := newManagerWorkersStates(wctx, sargs, newCheckWorkersFunc, workers, statesMinEnough, statesMaxFailed); {
+		switch s, t, err := newManagerWorkersStates(wctx, sargs, newCheckWorkersFunc, statesMinEnough, statesMaxFailed); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -115,15 +114,11 @@ func newFuncManagerWorkersTrees(
 						return err
 					}
 
-					if err := statesTreef(func(tr fixedtree.Tree) error {
+					return statesTreef(func(tr fixedtree.Tree) error {
 						statesTree = tr
 
 						return nil
-					}); err != nil {
-						return err
-					}
-
-					return nil
+					})
 				})
 			},
 			nil
