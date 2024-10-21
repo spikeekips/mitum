@@ -525,9 +525,9 @@ func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 		for i := range filtered {
 			box.newVoteproof(filtered[i])
 		}
-	}
 
-	box.clean()
+		box.clean()
+	}
 
 	return filtered
 }
@@ -543,14 +543,12 @@ func (box *Ballotbox) clean() {
 		}
 
 		last := box.LastPoint()
-		stagepoint := last.Decrease().Decrease().Decrease()
-
-		if last.IsZero() || stagepoint.IsZero() {
+		if last.IsZero() {
 			return nil, nil
 		}
 
 		box.vrs.Traverse(func(_ string, vr *voterecords) bool {
-			if vr.stagepoint().Compare(stagepoint) <= 0 {
+			if vr.stagepoint().Compare(last.StagePoint) < 0 {
 				removed = append(removed, vr)
 			}
 
