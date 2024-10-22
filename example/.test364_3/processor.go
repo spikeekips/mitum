@@ -186,7 +186,7 @@ func (opsr *OperationProcessor) process(ctx context.Context, opindex uint64, op,
 	case reason != nil:
 		return reason
 	case len(vs) < 1:
-		return base.NewBaseOperationProcessReasonError("empty values")
+		return base.NewBaseOperationProcessReason("empty values")
 	default:
 		return opsr.args.MergeStateMergeValueFunc(opindex, fact, vs)
 	}
@@ -197,7 +197,7 @@ func (opsr *OperationProcessor) getOperation(ctx context.Context, opindex uint64
 	case err != nil:
 		return nil, err
 	case !found:
-		return nil, base.NewBaseOperationProcessReasonError("not found operation")
+		return nil, base.NewBaseOperationProcessReason("not found operation")
 	default:
 		return op, nil
 	}
