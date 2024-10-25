@@ -205,6 +205,40 @@ func (t *baseTestManager) newCheckWorkersFunc() checkEnoughFailedWorkersFuncs {
 	}
 }
 
+func (t *baseTestManager) baseItems(nops int) (
+	pr base.ProposalSignFact,
+	ivp base.INITVoteproof,
+	avp base.ACCEPTVoteproof,
+	opsTree, statesTree fixedtree.Tree,
+	manifest base.Manifest,
+) {
+	pr = t.newProposal(nops)
+	ivp = t.newINITVoteproof()
+	avp = t.newACCEPTVoteproof()
+
+	ophs := make([]util.Hash, len(pr.ProposalFact().Operations()))
+	util.TraverseSliceV1(pr.ProposalFact().Operations(), func(i int, h [2]util.Hash) (bool, error) {
+		ophs[i] = h[1]
+
+		return true, nil
+	})
+
+	opsTree = t.newOperationsTreeWithOps(ophs)
+	statesTree = t.newStatesTree(33)
+
+	dm := t.newManifest()
+	dm.SetHeight(pr.Point().Height())
+	dm.SetProposal(pr.Fact().Hash())
+	dm.SetProposedAt(pr.ProposalFact().ProposedAt())
+
+	dm.SetOperationsTree(opsTree.Root())
+	dm.SetStatesTree(statesTree.Root())
+
+	manifest = dm
+
+	return
+}
+
 type testManager struct {
 	baseTestManager
 }
@@ -356,31 +390,7 @@ func (t *testManager) baseItems() (
 	opsTree, statesTree fixedtree.Tree,
 	manifest base.Manifest,
 ) {
-	pr = t.newProposal(3)
-	ivp = t.newINITVoteproof()
-	avp = t.newACCEPTVoteproof()
-
-	ophs := make([]util.Hash, len(pr.ProposalFact().Operations()))
-	util.TraverseSliceV1(pr.ProposalFact().Operations(), func(i int, h [2]util.Hash) (bool, error) {
-		ophs[i] = h[1]
-
-		return true, nil
-	})
-
-	opsTree = t.newOperationsTreeWithOps(ophs)
-	statesTree = t.newStatesTree(33)
-
-	dm := t.newManifest()
-	dm.SetHeight(pr.Point().Height())
-	dm.SetProposal(pr.Fact().Hash())
-	dm.SetProposedAt(pr.ProposalFact().ProposedAt())
-
-	dm.SetOperationsTree(opsTree.Root())
-	dm.SetStatesTree(statesTree.Root())
-
-	manifest = dm
-
-	return
+	return t.baseTestManager.baseItems(3)
 }
 
 func (t *testManager) blockMapItems(
