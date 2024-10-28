@@ -19,7 +19,12 @@ type managerWorkersStatesArgs struct {
 func newManagerWorkersStatesArgs() *managerWorkersStatesArgs {
 	return &managerWorkersStatesArgs{
 		Logging: NewModuleLogging("manager-workers-states", nil),
-		NewTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
+		NewTreeWriterFuncs: func(context.Context) (
+			newStatesTreeAddNodeFunc,
+			errorFunc,
+			newStatesTreeNewTreeFunc,
+			error,
+		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewTreeWriterFuncs")
 		},
 	}

@@ -348,7 +348,9 @@ func dummyContextErrorFunc(ctx context.Context, ef errorFunc) errorFunc {
 	}
 }
 
-func contextCauseErrorWithNewJob(ctx context.Context, cancelf errorFunc, newJob func(ContextWorkerCallback) error, e func(context.Context) error) error {
+func contextCauseErrorWithNewJob(ctx context.Context, cancelf errorFunc, newJob func(ContextWorkerCallback) error,
+	e func(context.Context) error,
+) error {
 	return contextCauseError(ctx, cancelf, func(context.Context) error {
 		return newJob(func(ctx context.Context) error {
 			return e(ctx)

@@ -21,6 +21,16 @@ type baseTestWorkerMerger struct {
 	baseTestMergeOp
 }
 
+func (t *baseTestWorkerMerger) workers(n int) []string {
+	w := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		w[i] = fmt.Sprintf("w%d", i)
+	}
+
+	return w
+}
+
 func (t *baseTestWorkerMerger) newArgs(local string) (
 	_ *phaseMergerArgs,
 	vp util.LockedMap[uint64, []StateMergeValue],
@@ -821,6 +831,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 	initials := map[string]workerInitialInsertOpsFuncs{}
 	mergers := map[string]util.LockedMap[string, StateMerger]{}
 	getStateOps := map[string]getStateOpsFunc{}
+	broadcastPhaseDones := map[string]workerBroadcastPhaseDoneFunc{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -851,7 +862,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
-		broadcastPhaseDone := func(_ context.Context, unmerged []uint64) error {
+		broadcastPhaseDones[local] = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
 			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
@@ -875,7 +886,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, pargs)
-		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp, broadcastPhaseDone)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		initials[local] = initial
@@ -961,7 +972,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		wait := waits[local]
 
 		go func() {
-			err := wait(func(unmerged []uint64, reasons map[uint64]string) error {
+			err := wait(broadcastPhaseDones[local], func(unmerged []uint64, reasons map[uint64]string) error {
 				fmt.Printf("wait done: worker=%q unmerged=%v reasons=%v\n", local, unmerged, reasons)
 
 				gatheredUnmerged.Set(func(prev []uint64, _ bool) ([]uint64, error) {
@@ -1125,6 +1136,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]statesWorkerMergerWaitFunc{}
 	initials := map[string]workerInitialInsertOpsFuncs{}
+	broadcastPhaseDones := map[string]workerBroadcastPhaseDoneFunc{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1150,7 +1162,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		//	args.SetLogging(logging.TestLogging)
 		//}
 
-		broadcastPhaseDone := func(_ context.Context, unmerged []uint64) error {
+		broadcastPhaseDones[local] = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
 			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
@@ -1170,7 +1182,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 			return nil
 		}
 
-		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, iargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool))
+		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, iargs, pargs)(wctx, minEnough, 1<<9, newGetStateFunc(statesPool))
 		t.NoError(err)
 
 		initials[local] = initial
@@ -1256,7 +1268,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 		wait := waits[local]
 
 		go func() {
-			err := wait(func(
+			err := wait(broadcastPhaseDones[local], func(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseMergers statesWorkerMergerTraverseMergers,

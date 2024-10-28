@@ -105,26 +105,34 @@ func newFuncManagerSave(
 		setManifest, setItem, mapDone := newMakeBlockMapFunc(args.BlockMapExpired)
 
 		return func(pr base.ProposalSignFact) error {
-				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func(ctx context.Context) error {
-					switch i, err := proposalWriter(ctx, workID, pr); {
-					case err != nil:
-						return err
-					default:
-						return setItem(i)
-					}
-				})
+				return contextCauseErrorWithNewJob(
+					wctx,
+					ifErrErrorFunc(closef),
+					jw.NewJob,
+					func(ctx context.Context) error {
+						switch i, err := proposalWriter(ctx, workID, pr); {
+						case err != nil:
+							return err
+						default:
+							return setItem(i)
+						}
+					},
+				)
 			},
 
 			func(ivp base.INITVoteproof) error {
-				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob, func(context.Context) error {
-					return ivpWriter(ivp)
-				})
+				return contextCauseErrorWithNewJob(wctx, ifErrErrorFunc(closef), jw.NewJob,
+					func(context.Context) error {
+						return ivpWriter(ivp)
+					})
 			},
 			func(tr fixedtree.Tree) error {
-				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemOperationsTree, tr, opsTreeWriter, setItem)
+				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob,
+					base.BlockItemOperationsTree, tr, opsTreeWriter, setItem)
 			},
 			func(tr fixedtree.Tree) error {
-				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob, base.BlockItemStatesTree, tr, statesTreeWriter, setItem)
+				return managerSaveTreeWithNewJob(wctx, workID, ifErrErrorFunc(closef), jw.NewJob,
+					base.BlockItemStatesTree, tr, statesTreeWriter, setItem)
 			},
 			func(manifest base.Manifest) error {
 				return contextCauseError(

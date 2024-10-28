@@ -11,11 +11,13 @@ import (
 var localWorkerName = "local"
 
 type (
-	filterMergeOpsFunc                func(mergeOps, unmergeOps []uint64) (filteredMergeOps, filteredUnmergeOps []uint64)
+	filterMergeOpsFunc func(mergeOps, unmergeOps []uint64) (
+		filteredMergeOps, filteredUnmergeOps []uint64)
 	workerPhaseMergerInsertFunc       func(worker string, mergeOps, unmergeOps []uint64) error
-	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string, isDone bool) error
-	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
-	phaseMergerFunc                   func(
+	workerPhaseMergerWaitCallbackFunc func(newMerged, newUnmerged []uint64, reasons map[uint64]string,
+		isDone bool) error
+	workerPhaseMergerWaitFunc func(workerPhaseMergerWaitCallbackFunc) error
+	phaseMergerFunc           func(
 		context.Context,
 		*phaseMergerArgs,
 		phaseMergerGetStateMergeValuesFunc,
@@ -70,7 +72,8 @@ func newFuncWorkerPhaseMerger(args *phaseMergerArgs) workerPhaseMergerFunc {
 		var mergeWait phaseMergerWaitFunc
 		var insertOps func(mergeOps, unmergeOps []uint64) error
 
-		switch m, u, d, w, err := newPhaseMerger(pctx, args, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+		switch m, u, d, w, err := newPhaseMerger(pctx, args, getStateMergeValues, getMergers,
+			extractStateMergeValueKeys); {
 		case err != nil:
 			return nil, nil, err
 		default:

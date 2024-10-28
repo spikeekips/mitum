@@ -54,7 +54,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -63,7 +63,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredOps := util.NewSingleLockedMap[uint64, Operation]()
 
-		t.NoError(wait(func(
+		t.NoError(wait(nil, func(
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
@@ -110,7 +110,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredState := util.NewSingleLockedMap[string, [2]interface{}]()
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		statesPool.SetValue(issuerState.Key(), issuerState)
@@ -122,7 +122,7 @@ func (t *testOperationsWorkerMerger) TestInsertOp() {
 
 		gatheredOps := util.NewSingleLockedMap[uint64, Operation]()
 
-		t.NoError(wait(func(
+		t.NoError(wait(nil, func(
 			unmerged []uint64,
 			reasons map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
@@ -186,7 +186,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 
 		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", []Operation{t.randomOp(1)})
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(nil))
 		t.NoError(err)
 
 		err = insertOps(func(operationsWorkerLocalInsertOpFunc) error {
@@ -194,7 +194,7 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		})
 		t.ErrorContains(err, "showme")
 
-		err = wait(nil)
+		err = wait(nil, nil)
 		t.ErrorContains(err, "showme")
 	})
 
@@ -209,14 +209,14 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 			return nil, false, errors.Errorf("showme")
 		}
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, getOperation)
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, getOperation)
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
-		err = wait(nil)
+		err = wait(nil, nil)
 		t.ErrorContains(err, "showme")
 	})
 
@@ -233,14 +233,14 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 		statesPool.SetValue(issuerState.Key(), issuerState)
 		statesPool.SetValue(receiverState.Key(), receiverState)
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
-		err = wait(func(
+		err = wait(nil, func(
 			_ []uint64,
 			_ map[uint64]string,
 			traverseMergers operationsWorkerMergerTraverseMergersFunc,
@@ -263,14 +263,14 @@ func (t *testOperationsWorkerMerger) TestErrors() {
 
 		pargs, iargs, sargs, args, _, _, statesPool := t.newArgs("local", ops)
 
-		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insertOps, _, _, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(ctx, 1, 1<<9, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		t.NoError(insertOps(func(f operationsWorkerLocalInsertOpFunc) error {
 			return f(0, nil, nil)
 		}))
 
-		err = wait(func(
+		err = wait(nil, func(
 			_ []uint64,
 			_ map[uint64]string,
 			_ operationsWorkerMergerTraverseMergersFunc,
@@ -324,6 +324,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 
 	gatheredReasons := util.NewSingleLockedMap[uint64, string]()
 	gatheredStates := util.NewSingleLockedMap[string, [2]interface{}]()
+	broadcastPhaseDones := map[string]workerBroadcastPhaseDoneFunc{}
 
 	for i := range workerNames {
 		local := workerNames[i]
@@ -361,7 +362,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 			return f(ctx)
 		}
 
-		broadcastPhaseDone := func(_ context.Context, unmerged []uint64) error {
+		broadcastPhaseDones[local] = func(_ context.Context, unmerged []uint64) error {
 			gerrs := map[string]error{}
 
 			TraverseMap(phaseDones, func(worker string, phaseDone workerMergerPhaseDoneFunc) (bool, error) {
@@ -385,7 +386,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 			return slices.Index(workerValues[local], stateKey) >= 0
 		}
 
-		insert, initialInsertOps, phaseDone, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(wctx, minEnough, 1<<9, broadcastPhaseDone, newGetStateFunc(statesPool), isLocalStateValue, broadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
+		insert, initialInsertOps, phaseDone, wait, err := newFuncOperationsWorkerMerger(args, iargs, sargs, pargs)(wctx, minEnough, 1<<9, newGetStateFunc(statesPool), isLocalStateValue, broadcastStateMergeValuesFuncs, newGetOperationFunc(ops))
 		t.NoError(err)
 
 		insertOps[local] = insert
@@ -446,7 +447,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		wait := waits[local]
 
 		go func() {
-			err := wait(func(
+			err := wait(broadcastPhaseDones[local], func(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseMergers operationsWorkerMergerTraverseMergersFunc,

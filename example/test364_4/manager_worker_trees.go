@@ -10,7 +10,12 @@ import (
 
 type (
 	managerWorkersDoneTreesFunc func() (opsTree, statesTree fixedtree.Tree, _ error)
-	managerWorkersTreesFuncs    func(_ context.Context, workers []string, opsShare, statesShare uint64, ophs [][2]util.Hash) (
+	managerWorkersTreesFuncs    func(
+		_ context.Context,
+		workers []string,
+		opsShare, statesShare uint64,
+		ophs [][2]util.Hash,
+	) (
 		managerWorkersOperationsFunc,
 		managerWorkerUnmergedFunc,
 		managerWorkerStatesFunc,
@@ -32,10 +37,20 @@ func newManagerWorkersTreesArgs() *managerWorkersTreesArgs {
 		NewWorkersOpsFunc: func([]string, uint64, [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewWorkersOpsFunc")
 		},
-		NewOperationsTreeWriterFuncs: func(context.Context, [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
+		NewOperationsTreeWriterFuncs: func(context.Context, [][2]util.Hash) (
+			newOperationsTreeNotInStateFunc,
+			errorFunc,
+			newOperationsTreeNewTreeFunc,
+			error,
+		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewOperationsTreeWriterFuncs")
 		},
-		NewStatesTreeWriterFuncs: func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error) {
+		NewStatesTreeWriterFuncs: func(context.Context) (
+			newStatesTreeAddNodeFunc,
+			errorFunc,
+			newStatesTreeNewTreeFunc,
+			error,
+		) {
 			return nil, nil, nil, util.ErrNotImplemented.Errorf("NewStatesTreeWriterFuncs")
 		},
 	}
@@ -95,7 +110,8 @@ func newFuncManagerWorkersTrees(
 		var statesWorker managerWorkerStatesFunc
 		var statesTreef managerWorkersTreeFunc
 
-		switch s, t, err := newManagerWorkersStates(wctx, sargs, newCheckWorkersFunc, statesMinEnough, statesMaxFailed); {
+		switch s, t, err := newManagerWorkersStates(wctx, sargs, newCheckWorkersFunc,
+			statesMinEnough, statesMaxFailed); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -105,21 +121,22 @@ func newFuncManagerWorkersTrees(
 
 		return opsDistribute, opsUnmerged, statesWorker,
 			func() (opsTree, statesTree fixedtree.Tree, _ error) {
-				return opsTree, statesTree, contextCauseError(wctx, ifErrErrorFunc(wctxCancel), func(context.Context) error {
-					if err := opsTreef(func(tr fixedtree.Tree) error {
-						opsTree = tr
+				return opsTree, statesTree, contextCauseError(wctx, ifErrErrorFunc(wctxCancel),
+					func(context.Context) error {
+						if err := opsTreef(func(tr fixedtree.Tree) error {
+							opsTree = tr
 
-						return nil
-					}); err != nil {
-						return err
-					}
+							return nil
+						}); err != nil {
+							return err
+						}
 
-					return statesTreef(func(tr fixedtree.Tree) error {
-						statesTree = tr
+						return statesTreef(func(tr fixedtree.Tree) error {
+							statesTree = tr
 
-						return nil
+							return nil
+						})
 					})
-				})
 			},
 			nil
 	}

@@ -15,11 +15,14 @@ import (
 type (
 	newOperationsTreeNotInStateFunc func(notInStates []uint64) error
 	newOperationsTreeNewTreeFunc    func(error) (fixedtree.Tree, error)
-	newOperationsTreeFuncs          func(_ context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error)
+	newOperationsTreeFuncs          func(_ context.Context, ops [][2]util.Hash) (
+		newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error)
 )
 
 func newFuncOperationsTreeWriter() newOperationsTreeFuncs {
-	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc, newOperationsTreeNewTreeFunc, error) {
+	return func(ctx context.Context, ops [][2]util.Hash) (newOperationsTreeNotInStateFunc, errorFunc,
+		newOperationsTreeNewTreeFunc, error,
+	) {
 		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		ifErrorClose := ifErrErrorFunc(wctxCancel)

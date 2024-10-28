@@ -361,7 +361,8 @@ func managerSaveWithACCEPTVoteproof(
 
 			var saveACCEPTVoteproof managerSaveACCEPTVoteproofFunc
 
-			switch saveProposal, saveINITVoteproof, saveOpsTree, saveStatesTree, saveManifest, savp, setBlockMapItem, err := doSave(
+			switch saveProposal, saveINITVoteproof, saveOpsTree, saveStatesTree,
+				saveManifest, savp, setBlockMapItem, err := doSave(
 				ctx,
 				workID,
 				proposalWriter,

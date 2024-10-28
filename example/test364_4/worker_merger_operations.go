@@ -36,12 +36,11 @@ type (
 		func() error,
 		error,
 	)
-	operationsWorkerMergerWaitFunc func(operationsWorkerMergerResultFunc) error
+	operationsWorkerMergerWaitFunc func(workerBroadcastPhaseDoneFunc, operationsWorkerMergerResultFunc) error
 	operationsWorkerMergerFunc     func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
-		_ workerBroadcastPhaseDoneFunc,
 		_ getStateFunc,
 		_ isLocalStateValueFunc,
 		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
@@ -80,7 +79,6 @@ func newFuncOperationsWorkerMerger(
 	return func(
 		ctx context.Context,
 		minEnough, maxOps uint64,
-		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 		getState getStateFunc,
 		isLocalStateValue isLocalStateValueFunc,
 		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
@@ -98,7 +96,7 @@ func newFuncOperationsWorkerMerger(
 		var workerPhaseDone workerMergerPhaseDoneFunc
 		var statesWait statesWorkerMergerWaitFunc
 
-		switch i, p, w, err := newStatesWorkerMergerf(wctx, minEnough, maxOps, broadcastPhaseDone, getState); {
+		switch i, p, w, err := newStatesWorkerMergerf(wctx, minEnough, maxOps, getState); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:
@@ -166,7 +164,7 @@ func newFuncOperationsWorkerMerger(
 			return err
 		}
 
-		waitf := func(f operationsWorkerMergerResultFunc) error {
+		waitf := func(broadcastPhaseDone workerBroadcastPhaseDoneFunc, f operationsWorkerMergerResultFunc) error {
 			mergeReasons, mergeReasonsToUnmerged := newUpdateReasonsFuncs()
 
 			if err := extractWait(func(reasons map[uint64]string) error {
@@ -181,7 +179,7 @@ func newFuncOperationsWorkerMerger(
 				return err
 			}
 
-			return statesWait(func(
+			return statesWait(broadcastPhaseDone, func(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseMergers statesWorkerMergerTraverseMergers,
@@ -267,9 +265,9 @@ func newFuncOperationsWorkerMerger(
 					return workerPhaseDone(worker, unmerge)
 				})
 			},
-			func(f operationsWorkerMergerResultFunc) error {
+			func(broadcastPhaseDone workerBroadcastPhaseDoneFunc, f operationsWorkerMergerResultFunc) error {
 				return contextCauseError(wctx, closef, func(context.Context) error {
-					return waitf(f)
+					return waitf(broadcastPhaseDone, f)
 				})
 			},
 			nil

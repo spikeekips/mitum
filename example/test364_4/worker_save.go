@@ -10,14 +10,15 @@ import (
 )
 
 type (
-	newStateFunc                  func(stateKey string, _ base.StateValue, ophs []util.Hash) (base.State, error)
-	workerSaveMergeStatesFunc     func(stateKey string, _ util.Hash) error
-	workerSaveMergeStatesFuncs    func(workerSaveMergeStatesFunc) error
-	workerSaveSendStatesFuncs     func(workerSaveMergeStatesFuncs) error
-	workerSaveUnmergedFunc        func(unmerged []uint64) error
-	workerSaveMergeDoneFunc       func(workerSaveSendStatesFuncs, workerSaveUnmergedFunc) error
-	workerSaveSendMergeDoneFuncs  func(context.Context, workerSaveMergeDoneFunc) error
-	workerSaveSaveOperationsFunc  func(context.Context, func(operationsWorkerSaveOperationsFunc) error) ([]blockFileChunk, error)
+	newStateFunc                 func(stateKey string, _ base.StateValue, ophs []util.Hash) (base.State, error)
+	workerSaveMergeStatesFunc    func(stateKey string, _ util.Hash) error
+	workerSaveMergeStatesFuncs   func(workerSaveMergeStatesFunc) error
+	workerSaveSendStatesFuncs    func(workerSaveMergeStatesFuncs) error
+	workerSaveUnmergedFunc       func(unmerged []uint64) error
+	workerSaveMergeDoneFunc      func(workerSaveSendStatesFuncs, workerSaveUnmergedFunc) error
+	workerSaveSendMergeDoneFuncs func(context.Context, workerSaveMergeDoneFunc) error
+	workerSaveSaveOperationsFunc func(context.Context, func(operationsWorkerSaveOperationsFunc) error) (
+		[]blockFileChunk, error)
 	workerSaveStateFunc           func(base.State) error
 	workerSaveStatesCallbackFunc  func(func(workerSaveStateFunc) error) error
 	workerSaveStatesFunc          func(total uint64) workerSaveStatesCallbackFunc
@@ -105,7 +106,6 @@ func newFuncWorkerSave(
 			wctx,
 			minEnough,
 			maxOps,
-			broadcastPhaseDone,
 			getState,
 			isLocalStateValue,
 			broadcastStateMergeValues,
@@ -124,7 +124,7 @@ func newFuncWorkerSave(
 		_, saveDone, saveDoneWait := newDoneContextFunc(wctx)
 
 		go func() {
-			_ = wctxCancel(opWait(func(
+			_ = wctxCancel(opWait(broadcastPhaseDone, func(
 				unmerged []uint64,
 				reasons map[uint64]string,
 				traverseMergers operationsWorkerMergerTraverseMergersFunc,

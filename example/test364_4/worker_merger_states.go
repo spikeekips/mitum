@@ -18,12 +18,11 @@ type (
 		reasons map[uint64]string,
 		_ statesWorkerMergerTraverseMergers,
 	) error
-	statesWorkerMergerWaitFunc func(statesWorkerMergerResultFunc) error
+	statesWorkerMergerWaitFunc func(workerBroadcastPhaseDoneFunc, statesWorkerMergerResultFunc) error
 	statesWorkerMergerFunc     func(
 		_ context.Context,
 		minEnough,
 		maxOps uint64,
-		_ workerBroadcastPhaseDoneFunc,
 		_ getStateFunc,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -55,7 +54,6 @@ func newFuncStatesWorkerMerger(
 	return func(
 		ctx context.Context,
 		minEnough, maxOps uint64,
-		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 		getState getStateFunc,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -100,7 +98,7 @@ func newFuncStatesWorkerMerger(
 		var initialValuesPhaseDone workerMergerPhaseDoneFunc
 		var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, maxOps, getMergers, setStateOp, broadcastPhaseDone); {
+		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, maxOps, getMergers, setStateOp); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -135,15 +133,17 @@ func newFuncStatesWorkerMerger(
 					return initialValuesPhaseDone(worker, unmerge)
 				})
 			},
-			func(f statesWorkerMergerResultFunc) error {
+			func(broadcastPhaseDone workerBroadcastPhaseDoneFunc, f statesWorkerMergerResultFunc) error {
 				return contextCauseError(wctx, closef, func(context.Context) error {
-					return initialValuesWait(func(unmerged []uint64, reasons map[uint64]string) error {
-						if f == nil {
-							return nil
-						}
+					return initialValuesWait(broadcastPhaseDone,
+						func(unmerged []uint64, reasons map[uint64]string) error {
+							if f == nil {
+								return nil
+							}
 
-						return f(unmerged, reasons, newTraverseMergers(wctx, mergersPool, stateOps, args.NewJobWorker))
-					})
+							return f(unmerged, reasons, newTraverseMergers(wctx, mergersPool, stateOps,
+								args.NewJobWorker))
+						})
 				})
 			},
 			nil

@@ -7,12 +7,21 @@ import (
 )
 
 type (
-	stateMergeValueExtractorGetOperationFunc func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
-	stateMergeValueExtractorInsertFunc       func(opindex uint64, oph util.Hash) error
-	stateMergeValueExtractorReasonsFunc      func(reasons map[uint64]string) error
-	stateMergeValueExtractorExtractDoneFunc  func(_ context.Context, opindex uint64, _ Operation, _ []StateMergeValue) error
-	stateMergeValueExtractorWaitFunc         func(stateMergeValueExtractorReasonsFunc) error
-	newStateMergeValueExtractorFunc          func(
+	stateMergeValueExtractorGetOperationFunc func(
+		_ context.Context,
+		opindex uint64,
+		oph, fact util.Hash,
+	) (Operation, bool, error)
+	stateMergeValueExtractorInsertFunc      func(opindex uint64, oph util.Hash) error
+	stateMergeValueExtractorReasonsFunc     func(reasons map[uint64]string) error
+	stateMergeValueExtractorExtractDoneFunc func(
+		_ context.Context,
+		opindex uint64,
+		_ Operation,
+		_ []StateMergeValue,
+	) error
+	stateMergeValueExtractorWaitFunc func(stateMergeValueExtractorReasonsFunc) error
+	newStateMergeValueExtractorFunc  func(
 		context.Context,
 		stateMergeValueExtractorGetOperationFunc,
 		stateMergeValueExtractorExtractDoneFunc,

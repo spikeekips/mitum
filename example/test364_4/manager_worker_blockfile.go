@@ -9,11 +9,18 @@ import (
 )
 
 type (
-	managerWorkerBlockFileWorkerFilesFunc      func(worker string, _ map[base.BlockItemType] /* []checksum */ []string) error
+	managerWorkerBlockFileWorkerFilesFunc func(
+		worker string,
+		_ map[base.BlockItemType] /* []checksum */ []string,
+	) error
 	managerWorkerBlockFileReceiveChecksumsFunc func(base.BlockItemType /* checksums */, []string) error
-	managerWorkerBlockFileReceiveFunc          func(_ context.Context, worker string, _ func(managerWorkerBlockFileReceiveChecksumsFunc) error) error
-	managerWorkerBlockFilesDoneFunc            func() error
-	managerWorkerBlockFilesFunc                func(
+	managerWorkerBlockFileReceiveFunc          func(
+		_ context.Context,
+		worker string,
+		_ func(managerWorkerBlockFileReceiveChecksumsFunc) error,
+	) error
+	managerWorkerBlockFilesDoneFunc func() error
+	managerWorkerBlockFilesFunc     func(
 		_ context.Context,
 		minEnough, maxFailed uint64,
 		_ managerWorkerBlockFileWorkerFilesFunc,

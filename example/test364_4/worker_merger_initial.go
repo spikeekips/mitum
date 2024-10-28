@@ -23,7 +23,8 @@ type (
 		error,
 	)
 	initialValuesWorkerMergerResultFunc func(unmerged []uint64, reasons map[uint64]string) error
-	initialValuesWorkerMergerWaitFunc   func(initialValuesWorkerMergerResultFunc) error
+	initialPhaseMergerWaitFunc          func(initialValuesWorkerMergerResultFunc) error
+	initialValuesWorkerMergerWaitFunc   func(workerBroadcastPhaseDoneFunc, initialValuesWorkerMergerResultFunc) error
 	setStateOpFunc                      func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
 	getStateOpsFunc                     func(stateKey string) (ops []uint64)
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
@@ -33,7 +34,6 @@ type (
 		maxOps uint64,
 		_ phaseMergerGetMergers,
 		_ setStateOpFunc,
-		_ workerBroadcastPhaseDoneFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -71,7 +71,6 @@ func newFuncInitialValuesWorkerMerger(
 		minEnough, maxOps uint64,
 		getMergers phaseMergerGetMergers,
 		setStateOp setStateOpFunc,
-		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 	) (
 		workerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
@@ -80,10 +79,6 @@ func newFuncInitialValuesWorkerMerger(
 	) {
 		if maxOps < 1 {
 			return nil, nil, nil, errors.Errorf("zero max ops")
-		}
-
-		if broadcastPhaseDone == nil {
-			broadcastPhaseDone = func(context.Context, []uint64) error { return nil }
 		}
 
 		wctx, wctxCancel := contextWithCancelCause(ctx)
@@ -102,7 +97,7 @@ func newFuncInitialValuesWorkerMerger(
 		getStateMergeValues := getStateMergeValuesFuncFromPool(vp)
 
 		var initialWorkerInsert workerNewInitialXMergeFuncs
-		var initialWait initialValuesWorkerMergerWaitFunc
+		var initialWait initialPhaseMergerWaitFunc
 
 		switch i, w, err := newInitialPhaseMerger(
 			wctx,
@@ -234,11 +229,15 @@ func newFuncInitialValuesWorkerMerger(
 			return err
 		}
 
-		waitf := func(f initialValuesWorkerMergerResultFunc) error {
+		waitf := func(broadcastPhaseDone workerBroadcastPhaseDoneFunc, f initialValuesWorkerMergerResultFunc) error {
 			defer func() {
 				vp.Close()
 				closeExtractStateMergeValueKeys()
 			}()
+
+			if broadcastPhaseDone == nil {
+				broadcastPhaseDone = func(context.Context, []uint64) error { return nil }
+			}
 
 			var reasons map[uint64]string
 
@@ -297,9 +296,9 @@ func newFuncInitialValuesWorkerMerger(
 					return workerPhaseDone(worker, unmerge)
 				})
 			},
-			func(f initialValuesWorkerMergerResultFunc) error {
+			func(broadcastPhaseDone workerBroadcastPhaseDoneFunc, f initialValuesWorkerMergerResultFunc) error {
 				return contextCauseError(wctx, closef, func(context.Context) error {
-					return waitf(f)
+					return waitf(broadcastPhaseDone, f)
 				})
 			},
 			nil
@@ -316,7 +315,7 @@ func newInitialPhaseMerger(
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	_ workerNewInitialXMergeFuncs,
-	wait initialValuesWorkerMergerWaitFunc,
+	wait initialPhaseMergerWaitFunc,
 	_ error,
 ) {
 	wctx, wctxCancel := contextWithCancelCause(ctx)
@@ -325,7 +324,8 @@ func newInitialPhaseMerger(
 	var initialDone func()
 	var initialWait phaseMergerWaitFunc
 
-	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues, getMergers, extractStateMergeValueKeys); {
+	switch m, _, d, w, err := newPhaseMerger(wctx, pargs, getStateMergeValues, getMergers,
+		extractStateMergeValueKeys); {
 	case err != nil:
 		return nil, nil, err
 	default:

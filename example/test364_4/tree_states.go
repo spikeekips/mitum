@@ -14,7 +14,8 @@ import (
 type (
 	newStatesTreeAddNodeFunc func(stateKey string) (added, closed bool, _ error)
 	newStatesTreeNewTreeFunc func(error) (fixedtree.Tree, error)
-	newStatesTreeFuncs       func(context.Context) (newStatesTreeAddNodeFunc, errorFunc, newStatesTreeNewTreeFunc, error)
+	newStatesTreeFuncs       func(context.Context) (newStatesTreeAddNodeFunc, errorFunc,
+		newStatesTreeNewTreeFunc, error)
 )
 
 func newFuncStatesTreeWriter(size uint64, grow ...uint64) newStatesTreeFuncs {

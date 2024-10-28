@@ -14,14 +14,21 @@ import (
 var errCheckWorkersFailed = util.NewIDError("check workers; failed")
 
 type (
-	managerWorkerOperationFunc             func(opindex uint64, oph, fact util.Hash) error
-	managerWorkerOperationsFunc            func(_ context.Context, worker string, _ func(managerWorkerOperationFunc) error) error
+	managerWorkerOperationFunc  func(opindex uint64, oph, fact util.Hash) error
+	managerWorkerOperationsFunc func(
+		_ context.Context,
+		worker string,
+		_ func(managerWorkerOperationFunc) error,
+	) error
 	managerWorkersOperationsFunc           func(managerWorkerOperationsFunc) error
 	managerWorkerUnmergedFunc              func(worker string, unmerge []uint64) (bool, error)
 	managerWorkersTreeFunc                 func(func(fixedtree.Tree) error) error
 	managerWorkersOperationsOpsFunc        func(func(managerWorkerOperationFunc) error) error
 	managerWorkersOperationsWorkerOpsFunc  func(worker string, _ managerWorkersOperationsOpsFunc) error
-	managerWorkersOperationsWorkersOpsFunc func(workers []string, share uint64, ophs [][2]util.Hash) (managerWorkersOperationsWorkerOpsFunc, error)
+	managerWorkersOperationsWorkersOpsFunc func(workers []string,
+		share uint64,
+		ophs [][2]util.Hash,
+	) (managerWorkersOperationsWorkerOpsFunc, error)
 )
 
 type managerWorkersOperationsArgs struct {
