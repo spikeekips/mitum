@@ -26,7 +26,7 @@ type (
 	workerSaveReasonsFunc         func(reasons map[uint64]string) error
 	workerSaveTraverseStatesFunc  func(func(base.State) error) error
 	workerSaveBlockFileChunksFunc func(base.BlockItemType, []blockFileChunk) error
-	workerSaveSendSaveDoneFunc    func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error)
+	workerSaveSendSaveDoneFunc    func(context.Context, func(workerSaveBlockFileChunksFunc) error) error
 	workerSaveFunc                func(
 		_ context.Context,
 		minEnough,
@@ -251,17 +251,6 @@ func newWorkerSave(
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 	defer wctxCancel(nil)
 
-	var saveDoneBlockFileChunks workerSaveBlockFileChunksFunc
-	var saveDone errorFunc
-
-	switch b, d, err := sendSaveDone(wctx); {
-	case err != nil:
-		return err
-	default:
-		saveDoneBlockFileChunks = b
-		saveDone = d
-	}
-
 	var wg sync.WaitGroup
 
 	addJob := func(f func() error) {
@@ -276,63 +265,62 @@ func newWorkerSave(
 		}()
 	}
 
+	chunks := util.NewSingleLockedMap[base.BlockItemType, []blockFileChunk]()
+	defer chunks.Close()
+
 	addJob(func() error {
 		switch bs, err := saveOperations(wctx, func(f operationsWorkerSaveOperationsFunc) error {
 			return traverseOperations(f)
 		}); {
-		case err != nil:
+		case err != nil, len(bs) < 1:
 			return err
+		case !chunks.SetValue(base.BlockItemOperations, bs):
+			return util.ErrFound.Errorf("%q alreay set", base.BlockItemOperations)
 		default:
-			return saveDoneBlockFileChunks(base.BlockItemOperations, bs)
+			return nil
 		}
 	})
 	addJob(func() error {
-		switch b, err := saveStates(wctx, newWorkerSaveStates(wctx, doneState, args.NewJobWorker)); {
-		case err != nil, b == nil:
+		switch bs, err := saveStates(wctx, newWorkerSaveStates(wctx, doneState)); {
+		case err != nil, len(bs) < 1:
 			return err
+		case !chunks.SetValue(base.BlockItemStates, bs):
+			return util.ErrFound.Errorf("%q alreay set", base.BlockItemOperations)
 		default:
-			return saveDoneBlockFileChunks(base.BlockItemStates, b)
+			return nil
 		}
 	})
 	addJob(func() error { return saveReasons(reasons) })
 
 	wg.Wait()
 
-	return saveDone(context.Cause(wctx))
+	if err := context.Cause(wctx); err != nil {
+		return err
+	}
+
+	return sendSaveDone(wctx, func(f workerSaveBlockFileChunksFunc) (err error) {
+		_ = chunks.Traverse(func(it base.BlockItemType, bs []blockFileChunk) bool {
+			err = f(it, bs)
+
+			return err == nil
+		})
+
+		return err
+	})
 }
 
 func newWorkerSaveStates(
 	ctx context.Context,
 	traverse util.CompactAppendSliceDoneFunc[base.State],
-	newJobWorker newJobWorkerFunc,
 ) func(workerSaveStatesFunc) error {
 	return func(f workerSaveStatesFunc) error {
-		var jw JobWorker
-
-		switch i, err := newJobWorker(ctx); {
-		case err != nil:
-			return err
-		default:
-			defer i.Close()
-
-			jw = i
-		}
-
-		if err := traverse(func(s []base.State) error {
+		return traverse(func(s []base.State) error {
 			return f(uint64(len(s)))(func(sf workerSaveStateFunc) error {
 				return util.TraverseSliceV1(s, func(_ int, st base.State) (bool, error) {
-					return true, jw.NewJob(func(context.Context) error {
-						return sf(st)
-					})
+					return true, sf(st)
 				})
 			})
-		}); err != nil {
-			return err
-		}
-
-		jw.JobDone()
-
-		return jw.Wait()
+		})
 	}
 }
 

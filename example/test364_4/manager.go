@@ -12,7 +12,8 @@ import (
 )
 
 type (
-	managerSaveWithTreeFunc            func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error)
+	managerStartWorkerFunc             func(_ context.Context, worker string) error
+	managerManifestFunc                func(opsTree, statesTree fixedtree.Tree) (base.Manifest, error)
 	managerSaveWithACCEPTVoteproofFunc func(
 		_ base.ACCEPTVoteproof,
 		_ blockFileWriterProposalFunc,
@@ -20,11 +21,12 @@ type (
 		opsTreeWriter, statesTreeWriter blockFileWriterTreeFunc,
 		_ blockFileWriterMapFunc,
 	) (BlockMap, error)
+	managerACCEPVoteproofFunc   func(managerManifestFunc) (managerSaveWithACCEPTVoteproofFunc, error)
 	managerTreeWithProposalFunc func(base.ProposalSignFact, base.INITVoteproof) (
 		managerWorkersOperationsFunc,
 		managerWorkerUnmergedFunc,
 		managerWorkerStatesFunc,
-		func(managerSaveWithTreeFunc) (managerSaveWithACCEPTVoteproofFunc, error),
+		managerACCEPVoteproofFunc,
 		managerWorkerBlockFileReceiveFunc,
 		error,
 	)
@@ -33,7 +35,7 @@ type (
 		workers []string,
 		opsShare, statesShare uint64,
 		workID string,
-		startWorker func(_ context.Context, worker string) error,
+		startWorker managerStartWorkerFunc,
 	) (
 		managerTreeWithProposalFunc,
 		error,
@@ -75,7 +77,7 @@ func newFuncManager(
 			workers []string,
 			opsShare, statesShare uint64,
 			workID string,
-			startWorker func(_ context.Context, worker string) error,
+			startWorker managerStartWorkerFunc,
 		) (
 			managerTreeWithProposalFunc,
 			error,
@@ -250,7 +252,7 @@ func managerTreesWithProposal(
 		managerWorkersOperationsFunc,
 		managerWorkerUnmergedFunc,
 		managerWorkerStatesFunc,
-		func(managerSaveWithTreeFunc) (managerSaveWithACCEPTVoteproofFunc, error),
+		managerACCEPVoteproofFunc,
 		managerWorkerBlockFileReceiveFunc,
 		error,
 	) {
@@ -290,7 +292,7 @@ func managerTreesWithProposal(
 		}
 
 		return workersOperations, workersUnmerged, workersStates,
-			func(f managerSaveWithTreeFunc) (managerSaveWithACCEPTVoteproofFunc, error) {
+			func(f managerManifestFunc) (managerSaveWithACCEPTVoteproofFunc, error) {
 				var opsTree, statesTree fixedtree.Tree
 				var manifest base.Manifest
 

@@ -57,7 +57,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.ErrorIs(pf(t.newProposal(3)), context.Canceled)
+		t.ErrorIs(pf(t.randomProposal(3)), context.Canceled)
 		t.ErrorIs(ivpf(t.newINITVoteproof()), context.Canceled)
 		t.ErrorIs(otf(t.newOperationsTree()), context.Canceled)
 		t.ErrorIs(stf(t.newStatesTree(33)), context.Canceled)
@@ -99,7 +99,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 
 		cancel()
 
@@ -144,7 +144,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 
 		cancel()
@@ -189,7 +189,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 
@@ -234,7 +234,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 		t.NoError(stf(t.newStatesTree(33)))
@@ -279,7 +279,7 @@ func (t *testManagerSave) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 		t.NoError(stf(t.newStatesTree(33)))
@@ -331,7 +331,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		ifErrorContains(pf(t.newProposal(3)), "proposal")
+		ifErrorContains(pf(t.randomProposal(3)), "proposal")
 		ifErrorContains(ivpf(t.newINITVoteproof()), "proposal")
 		ifErrorContains(otf(t.newOperationsTree()), "proposal")
 		ifErrorContains(stf(t.newStatesTree(33)), "proposal")
@@ -373,7 +373,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 
 		ifErrorContains(ivpf(t.newINITVoteproof()), "ivp")
 		ifErrorContains(otf(t.newOperationsTree()), "ivp")
@@ -416,7 +416,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 
 		ifErrorContains(otf(t.newOperationsTree()), "operations tree")
@@ -459,7 +459,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 
@@ -502,7 +502,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 		t.NoError(stf(t.newStatesTree(33)))
@@ -545,7 +545,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 		t.NoError(stf(t.newStatesTree(33)))
@@ -588,7 +588,7 @@ func (t *testManagerSave) TestError() {
 		)
 		t.NoError(err)
 
-		t.NoError(pf(t.newProposal(3)))
+		t.NoError(pf(t.randomProposal(3)))
 		t.NoError(ivpf(t.newINITVoteproof()))
 		t.NoError(otf(t.newOperationsTree()))
 		t.NoError(stf(t.newStatesTree(33)))
@@ -607,7 +607,7 @@ func (t *testManagerSave) TestSave() {
 
 	f := newFuncManagerSave(t.newArgs())
 
-	proposal := t.newProposal(3)
+	proposal := t.randomProposal(3)
 	ivp := t.newINITVoteproof()
 	avp := t.newACCEPTVoteproof()
 	opsTree := t.newOperationsTree()

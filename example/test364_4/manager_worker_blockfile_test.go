@@ -43,12 +43,13 @@ func (t *testManagerWorkerBlockFiles) TestError() {
 
 			return nil
 		})
-		t.NoError(err)
+		t.ErrorIs(err, context.Canceled)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			})
+			r, d, err := receive(worker)
+			t.NoError(err)
+
+			err = d(r(base.BlockItemOperations, t.randomChecksums(3)))
 			t.ErrorIs(err, context.Canceled)
 
 			return true, nil
@@ -81,9 +82,10 @@ func (t *testManagerWorkerBlockFiles) TestError() {
 				canceled = true
 			}
 
-			err := receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			})
+			r, d, err := receive(worker)
+			t.NoError(err)
+
+			err = d(r(base.BlockItemOperations, t.randomChecksums(3)))
 
 			switch {
 			case canceled:
@@ -117,11 +119,10 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			}))
+			r, d, err := receive(worker)
+			t.NoError(err)
 
-			return true, nil
+			return true, d(r(base.BlockItemOperations, t.randomChecksums(3)))
 		})
 
 		t.NoError(done())
@@ -143,15 +144,16 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				if i == 1 {
-					return errors.Errorf("showme")
-				}
+			r, d, err := receive(worker)
+			t.NoError(err)
 
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			}))
+			if i == 1 {
+				_ = d(errors.Errorf("showme"))
 
-			return true, nil
+				return true, nil
+			}
+
+			return true, d(r(base.BlockItemOperations, t.randomChecksums(3)))
 		})
 
 		t.NoError(done())
@@ -173,22 +175,16 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			err := receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				if i == 1 {
-					return errors.Errorf("showme")
-				}
+			r, d, err := receive(worker)
+			t.NoError(err)
 
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			})
+			if i == 1 {
+				_ = d(errors.Errorf("showme"))
 
-			switch {
-			case i >= 1:
-				t.ErrorContains(err, "showme")
-			default:
-				t.NoError(err)
+				return true, nil
 			}
 
-			return true, nil
+			return true, d(r(base.BlockItemOperations, t.randomChecksums(3)))
 		})
 
 		err = done()
@@ -211,11 +207,10 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return f(base.BlockItemOperations, t.randomChecksums(3))
-			}))
+			r, d, err := receive(worker)
+			t.NoError(err)
 
-			return true, nil
+			return true, d(r(base.BlockItemOperations, t.randomChecksums(3)))
 		})
 
 		donech := make(chan error, 1)
@@ -258,17 +253,16 @@ func (t *testManagerWorkerBlockFiles) TestEnoughFailed() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				for it := range sent[worker] {
-					if err := f(it, sent[worker][it]); err != nil {
-						return err
-					}
+			r, d, err := receive(worker)
+			t.NoError(err)
+
+			for it := range sent[worker] {
+				if err := r(it, sent[worker][it]); err != nil {
+					return true, d(err)
 				}
+			}
 
-				return nil
-			}))
-
-			return true, nil
+			return true, d(nil)
 		})
 
 		t.NoError(done())
@@ -312,11 +306,14 @@ func (t *testManagerWorkerBlockFiles) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return TraverseMap(workersChecksums[worker], func(it base.BlockItemType, checksums []string) (bool, error) {
-					return true, f(it, checksums)
-				})
-			}))
+			r, d, err := receive(worker)
+			t.NoError(err)
+
+			err = TraverseMap(workersChecksums[worker], func(it base.BlockItemType, checksums []string) (bool, error) {
+				return true, r(it, checksums)
+			})
+
+			_ = d(err)
 
 			return true, nil
 		})
@@ -364,11 +361,14 @@ func (t *testManagerWorkerBlockFiles) TestReceive() {
 		t.NoError(err)
 
 		util.TraverseSliceV1(workers, func(i int, worker string) (bool, error) {
-			t.NoError(receive(context.Background(), worker, func(f managerWorkerBlockFileReceiveChecksumsFunc) error {
-				return TraverseMap(workersChecksums[worker], func(it base.BlockItemType, checksums []string) (bool, error) {
-					return true, f(it, checksums)
-				})
-			}))
+			r, d, err := receive(worker)
+			t.NoError(err)
+
+			err = TraverseMap(workersChecksums[worker], func(it base.BlockItemType, checksums []string) (bool, error) {
+				return true, r(it, checksums)
+			})
+
+			_ = d(err)
 
 			return true, nil
 		})

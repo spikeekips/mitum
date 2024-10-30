@@ -326,7 +326,7 @@ func ifErrErrorFunc(f errorFunc) errorFunc {
 			return f(err)
 		}
 
-		return err
+		return nil
 	}
 }
 

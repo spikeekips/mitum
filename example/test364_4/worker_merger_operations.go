@@ -216,7 +216,7 @@ func newFuncOperationsWorkerMerger(
 							return f(stateKey, value, ophs)
 						})
 					},
-					newTraverseOperations(wctx, uint64(opsPool.Len()), opsPool.Traverse, args.NewJobWorker),
+					newTraverseOperations(wctx, uint64(opsPool.Len()), opsPool.Traverse),
 				)
 			})
 		}
@@ -371,38 +371,18 @@ func newTraverseOperations(
 	ctx context.Context,
 	total uint64,
 	traverse func(func(uint64, Operation) bool) bool,
-	newJobWorker newJobWorkerFunc,
 ) func(operationsWorkerSaveOperationsFunc) error {
 	return func(f operationsWorkerSaveOperationsFunc) error {
 		return f(total)(func(sf operationsWorkerSaveOperationFunc) error {
-			var jw JobWorker
-
-			switch i, err := newJobWorker(ctx); {
-			case err != nil:
-				return err
-			default:
-				defer i.Close()
-
-				jw = i
-			}
-
 			var gerr error
 
 			_ = traverse(func(opindex uint64, op Operation) bool {
-				gerr = jw.NewJob(func(context.Context) error {
-					return sf(opindex, op)
-				})
+				gerr = sf(opindex, op)
 
 				return gerr == nil
 			})
 
-			if gerr != nil {
-				return gerr
-			}
-
-			jw.JobDone()
-
-			return jw.Wait()
+			return gerr
 		})
 	}
 }

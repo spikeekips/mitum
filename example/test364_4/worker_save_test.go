@@ -119,10 +119,15 @@ func (t *testWorkerSave) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		sendSaveDone := func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error) {
-			saveDoneCh <- true
 
-			return func(base.BlockItemType, []blockFileChunk) error { return nil }, func(err error) error { return err }, nil
+		sendSaveDone := func(ctx context.Context, f func(workerSaveBlockFileChunksFunc) error) error {
+			defer func() {
+				saveDoneCh <- true
+			}()
+
+			return f(func(base.BlockItemType, []blockFileChunk) error {
+				return nil
+			})
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newFuncWorkerSave(args, iargs, sargs, oargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, sendMergeDone, saveOperations, dummySaveStatesFunc("local"), saveReasons, sendSaveDone)
@@ -272,10 +277,15 @@ func (t *testWorkerSave) TestInsertOps() {
 		}
 
 		saveDoneCh := make(chan bool, 1)
-		sendSaveDone := func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error) {
-			saveDoneCh <- true
 
-			return func(base.BlockItemType, []blockFileChunk) error { return nil }, func(err error) error { return err }, nil
+		sendSaveDone := func(ctx context.Context, f func(workerSaveBlockFileChunksFunc) error) error {
+			defer func() {
+				saveDoneCh <- true
+			}()
+
+			return f(func(base.BlockItemType, []blockFileChunk) error {
+				return nil
+			})
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newFuncWorkerSave(args, iargs, sargs, oargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), newStateFunc, sendMergeDone, saveOperations, saveStates, saveReasons, sendSaveDone)
@@ -554,14 +564,12 @@ func (t *testWorkerSave) TestErrors() {
 
 		pargs, iargs, sargs, oargs, args, _, _, statesPool := t.newArgs("local")
 
-		sendSaveDone := func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error) {
-			return func(base.BlockItemType, []blockFileChunk) error { return nil }, func(err error) error {
-				if err != nil {
-					return err
-				}
+		sendSaveDone := func(ctx context.Context, f func(workerSaveBlockFileChunksFunc) error) error {
+			_ = f(func(base.BlockItemType, []blockFileChunk) error {
+				return nil
+			})
 
-				return errors.Errorf("findme")
-			}, nil
+			return errors.Errorf("findme")
 		}
 
 		insertOps, _, _, mergeDone, saveDone, err := newFuncWorkerSave(args, iargs, sargs, oargs, pargs)(ctx, 1, 1<<9, nil, newGetStateFunc(statesPool), dummyIsLocalStateValue, dummyBroadcastStateMergeValuesFuncs, newGetOperationFunc(ops), dummyStateFunc, dummySendMergeDoneFunc("local"), dummySaveOperationsFunc("local"), dummySaveStatesFunc("local"), dummySaveReasonsFunc("local"), sendSaveDone)
@@ -911,35 +919,38 @@ func (t *testWorkerSave) testMerger(
 					}
 				})
 		}
-		sendSaveDone := func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error) {
-			return func(it base.BlockItemType, bs []blockFileChunk) error {
-					_, _, err := gatheredBlockFileChunks.Set(local, func(p [2]blockFileChunk, _ bool) ([2]blockFileChunk, error) {
-						if len(bs) < 1 {
-							return [2]blockFileChunk{}, util.ErrFound.Errorf("empty")
+
+		sendSaveDone := func(ctx context.Context, f func(workerSaveBlockFileChunksFunc) error) error {
+			if err := f(func(it base.BlockItemType, bs []blockFileChunk) error {
+				_, _, err := gatheredBlockFileChunks.Set(local, func(p [2]blockFileChunk, _ bool) ([2]blockFileChunk, error) {
+					if len(bs) < 1 {
+						return [2]blockFileChunk{}, util.ErrFound.Errorf("empty")
+					}
+
+					switch bs[0].URI() {
+					case expectedOpsChunk.URI():
+						if p[0] != nil {
+							return [2]blockFileChunk{}, util.ErrFound.Errorf("operations already set")
 						}
 
-						switch bs[0].URI() {
-						case expectedOpsChunk.URI():
-							if p[0] != nil {
-								return [2]blockFileChunk{}, util.ErrFound.Errorf("operations already set")
-							}
-
-							p[0] = bs[0]
-						case expectedStatesChunk.URI():
-							if p[1] != nil {
-								return [2]blockFileChunk{}, util.ErrFound.Errorf("states already set")
-							}
-
-							p[1] = bs[0]
+						p[0] = bs[0]
+					case expectedStatesChunk.URI():
+						if p[1] != nil {
+							return [2]blockFileChunk{}, util.ErrFound.Errorf("states already set")
 						}
 
-						return p, nil
-					})
+						p[1] = bs[0]
+					}
 
-					return err
-				},
-				func(err error) error { return err },
-				nil
+					return p, nil
+				})
+
+				return err
+			}); err != nil {
+				return err
+			}
+
+			return nil
 		}
 
 		insert, initialInsertOps, phaseDone, mergeWait, saveWait, err := newFuncWorkerSave(args, iargs, sargs, oargs, pargs)(
@@ -1410,9 +1421,11 @@ func dummySaveReasonsFunc(local string) workerSaveReasonsFunc {
 }
 
 func dummySendSaveDoneFunc(local string) workerSaveSendSaveDoneFunc {
-	return func(context.Context) (workerSaveBlockFileChunksFunc, errorFunc, error) {
+	return func(ctx context.Context, f func(workerSaveBlockFileChunksFunc) error) error {
 		fmt.Printf("save done: local=%q\n", local)
 
-		return func(base.BlockItemType, []blockFileChunk) error { return nil }, func(err error) error { return err }, nil
+		return f(func(base.BlockItemType, []blockFileChunk) error {
+			return nil
+		})
 	}
 }

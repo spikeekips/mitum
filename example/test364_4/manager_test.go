@@ -25,10 +25,13 @@ import (
 type baseTestManager struct {
 	isaac.BaseTestBallots
 	baseTestBlock
+	baseTestAccountStateMerger
 	enc encoder.Encoder
 }
 
 func (t *baseTestManager) SetupSuite() {
+	t.baseTestAccountStateMerger.SetupSuite()
+
 	t.enc = jsonenc.NewEncoder()
 }
 
@@ -116,16 +119,20 @@ func (t *baseTestManager) newStatesTreeWriter(createWriter blockFileWriterCreate
 	return newFuncBlockFileStatesTreeWriter(t.enc, createWriter, nil, nil)
 }
 
-func (t *baseTestManager) newProposal(n int) base.ProposalSignFact {
+func (t *baseTestManager) newProposal(ophs [][2]util.Hash) base.ProposalSignFact {
+	fact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, ophs)
+
+	return t.NewProposal(t.Local, fact)
+}
+
+func (t *baseTestManager) randomProposal(n int) base.ProposalSignFact {
 	ophs := make([][2]util.Hash, n)
 
 	for i := range ophs {
 		ophs[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
 	}
 
-	fact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, ophs)
-
-	return t.NewProposal(t.Local, fact)
+	return t.newProposal(ophs)
 }
 
 func (t *baseTestManager) newINITVoteproof() base.INITVoteproof {
@@ -206,25 +213,49 @@ func (t *baseTestManager) newCheckWorkersFunc() checkEnoughFailedWorkersFuncs {
 }
 
 func (t *baseTestManager) baseItems(nops int) (
+	ops []Operation,
 	pr base.ProposalSignFact,
 	ivp base.INITVoteproof,
 	avp base.ACCEPTVoteproof,
 	opsTree, statesTree fixedtree.Tree,
 	manifest base.Manifest,
 ) {
-	pr = t.newProposal(nops)
+	ops = make([]Operation, nops)
+	ophs := make([]util.Hash, nops)
+	opfhs := make([][2]util.Hash, nops)
+	for i := range ops {
+		op := t.randomOp(1)
+		ops[i] = op
+		opfhs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+		ophs[i] = op.Fact().Hash()
+	}
+
+	pr = t.newProposal(opfhs)
 	ivp = t.newINITVoteproof()
 	avp = t.newACCEPTVoteproof()
 
-	ophs := make([]util.Hash, len(pr.ProposalFact().Operations()))
-	util.TraverseSliceV1(pr.ProposalFact().Operations(), func(i int, h [2]util.Hash) (bool, error) {
-		ophs[i] = h[1]
-
-		return true, nil
-	})
-
 	opsTree = t.newOperationsTreeWithOps(ophs)
-	statesTree = t.newStatesTree(33)
+
+	{
+		i := newFuncStatesTreeWriter(uint64(len(ops) * 2))
+		a, d, tree, err := i(context.Background())
+		if err != nil {
+			panic(err)
+		}
+
+		util.TraverseSliceV1(ops, func(i int, op Operation) (bool, error) {
+			fact := op.Fact().(OpFact)
+
+			a(AccountStateKey(fact.Issuer))
+			a(AccountStateKey(fact.Receiver))
+
+			return true, nil
+		})
+
+		d(nil)
+
+		statesTree, _ = tree(nil)
+	}
 
 	dm := t.newManifest()
 	dm.SetHeight(pr.Point().Height())
@@ -384,6 +415,7 @@ func (t *testManager) TestStart() {
 }
 
 func (t *testManager) baseItems() (
+	ops []Operation,
 	pr base.ProposalSignFact,
 	ivp base.INITVoteproof,
 	avp base.ACCEPTVoteproof,
@@ -502,21 +534,26 @@ func (t *testManager) defaultWorkersBlockFiles(
 	w managerWorkerBlockFileReceiveFunc,
 ) error {
 	return util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-		return true, w(context.Background(), worker, func(bf managerWorkerBlockFileReceiveChecksumsFunc) error {
-			fmt.Printf("worker block files: worker=%q\n", worker)
+		r, d, err := w(worker)
+		if err != nil {
+			fmt.Printf("worker block files: worker=%q err=%+v\n", worker, err)
 
-			for it := range checksums {
-				cs := checksums[it]
-				d := len(cs) / len(workers)
-				s := slices.Index(workers, worker) * d
+			return true, nil
+		}
 
-				if err := bf(it, cs[s:s+d]); err != nil {
-					return err
-				}
+		for it := range checksums {
+			cs := checksums[it]
+			d := len(cs) / len(workers)
+			s := slices.Index(workers, worker) * d
+
+			if err := r(it, cs[s:s+d]); err != nil {
+				fmt.Printf("worker block files: worker=%q err=%+v\n", worker, err)
+
+				return true, nil
 			}
+		}
 
-			return nil
-		})
+		return true, d(nil)
 	})
 }
 
@@ -525,7 +562,7 @@ func (t *testManager) TestManifestAndSave() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, expectedManifest := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, expectedManifest := t.baseItems()
 
 		expectedChecksums, expectedBlockItemProposal, expectedBlockItemOperations, expectedBlockItemStates, expectedBlockItemVoteproofs, expectedBlockItemOpsTree, expectedBlockItemStatesTree := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -604,7 +641,7 @@ func (t *testManager) TestManifestAndSave() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -685,7 +722,7 @@ func (t *testManager) TestManifestAndSave() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -749,7 +786,7 @@ func (t *testManager) TestWorkersFails() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -801,7 +838,7 @@ func (t *testManager) TestWorkersFails() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -861,7 +898,7 @@ func (t *testManager) TestWorkersFails() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
@@ -881,32 +918,32 @@ func (t *testManager) TestWorkersFails() {
 		go checkError(t.defaultWorkersStates(workers, expectedStatesTree, workerStates), errCheckWorkersFailed)
 		go func() {
 			util.TraverseSliceV1(workers, func(_ int, worker string) (bool, error) {
-				err := workerBlockFiles(context.Background(), worker, func(bf managerWorkerBlockFileReceiveChecksumsFunc) error {
-					fmt.Printf("worker block files: worker=%q\n", worker)
+				r, d, err := workerBlockFiles(worker)
+				if err != nil {
+					fmt.Printf("worker block files: worker=%q err=%_v\n", worker, err)
 
-					if worker == workers[2] {
-						return errors.Errorf("showme")
-					}
-
-					for it := range expectedChecksums {
-						cs := expectedChecksums[it]
-						d := len(cs) / len(workers)
-						s := slices.Index(workers, worker) * d
-
-						if err := bf(it, cs[s:s+d]); err != nil {
-							return err
-						}
-					}
-
-					return nil
-				})
-				switch {
-				case err == nil:
-				case !strings.Contains(err.Error(), "showme"):
-					panic(err)
+					return true, nil
 				}
 
-				return true, nil
+				if worker == workers[2] {
+					_ = d(errors.Errorf("showme"))
+
+					return true, nil
+				}
+
+				for it := range expectedChecksums {
+					cs := expectedChecksums[it]
+					l := len(cs) / len(workers)
+					s := slices.Index(workers, worker) * l
+
+					if err := r(it, cs[s:s+l]); err != nil {
+						_ = d(err)
+
+						return true, nil
+					}
+				}
+
+				return true, d(nil)
 			})
 		}()
 
@@ -941,7 +978,7 @@ func (t *testManager) TestSaveError() {
 		workID := util.UUID().String()
 		workers := t.workers(3)
 
-		pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
+		_, pr, ivp, avp, expectedOpsTree, expectedStatesTree, _ := t.baseItems()
 
 		expectedChecksums, _, _, _, _, _, _ := t.blockMapItems(workID, len(workers), pr, ivp, avp, expectedOpsTree, expectedStatesTree)
 
