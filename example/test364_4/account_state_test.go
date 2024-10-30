@@ -9,7 +9,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -17,13 +16,19 @@ import (
 )
 
 type baseTestAccountStateMerger struct {
-	logging.BaseTestSuite
 	networkID base.NetworkID
 }
 
 func (t *baseTestAccountStateMerger) SetupSuite() {
-	t.BaseTestSuite.SetupSuite()
 	t.networkID = util.UUID().Bytes()
+}
+
+func (t *baseTestAccountStateMerger) Marshal(i interface{}) string {
+	return util.MustMarshalJSONString(i)
+}
+
+func (t *baseTestAccountStateMerger) MarshalIndent(i interface{}) string {
+	return util.MustMarshalJSONIndentString(i)
 }
 
 func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, AccountStateMergeValue) {
@@ -76,9 +81,13 @@ func (t *baseTestAccountStateMerger) newMergeValues(
 
 	for i := range vs {
 		address, ok := a[i*2].(base.Publickey)
-		t.True(ok)
+		if !ok {
+			panic("not base.Publickey")
+		}
 		balance, ok := a[(i*2)+1].(int)
-		t.True(ok)
+		if !ok {
+			panic("not int")
+		}
 
 		vs[i] = t.newAccountStateMergeValue(address, int64(balance))
 	}
@@ -93,7 +102,9 @@ func (t *baseTestAccountStateMerger) randomMergeValuesVP(
 ) []StateMergeValue {
 	vs := t.randomMergeValues(a...)
 
-	t.True(vp.SetValue(opindex, vs))
+	if !vp.SetValue(opindex, vs) {
+		panic("already exists")
+	}
 
 	return vs
 }
@@ -105,8 +116,9 @@ func (t *baseTestAccountStateMerger) newMergeValuesVP(
 ) []StateMergeValue {
 	vs := t.newMergeValues(a...)
 
-	t.True(vp.SetValue(opindex, vs))
-
+	if !vp.SetValue(opindex, vs) {
+		panic("already exists")
+	}
 	return vs
 }
 
@@ -134,7 +146,9 @@ func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base
 		receiver,
 	))
 
-	t.NoError(op.Sign(issuer, t.networkID))
+	if err := op.Sign(issuer, t.networkID); err != nil {
+		panic(err)
+	}
 
 	return op
 }
@@ -158,14 +172,16 @@ func (t *baseTestAccountStateMerger) randomOps(n int, amount int64) []Operation 
 }
 
 func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeValue {
-	t.T().Helper()
-
 	values := make([][]StateMergeValue, len(ops))
 
 	for i := range ops {
 		vs, r, err := ops[i].StateMergeValues(context.Background())
-		t.NoError(err)
-		t.Nil(r)
+		if err != nil {
+			panic(err)
+		}
+		if r == nil {
+			panic("r == nil")
+		}
 
 		values[i] = vs
 	}
@@ -174,6 +190,7 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 }
 
 type testAccountStateMerger struct {
+	suite.Suite
 	baseTestAccountStateMerger
 }
 

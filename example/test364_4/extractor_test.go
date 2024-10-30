@@ -14,6 +14,7 @@ import (
 )
 
 type testStateMergeValueExtractor struct {
+	suite.Suite
 	baseTestMergeOp
 }
 

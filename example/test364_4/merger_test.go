@@ -11,6 +11,7 @@ import (
 )
 
 type baseTestMergeOp struct {
+	suite.Suite
 	baseTestAccountStateMerger
 }
 

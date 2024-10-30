@@ -18,12 +18,12 @@ import (
 )
 
 type baseTestBaseBlockFileWriter struct {
+	suite.Suite
 	baseTestWorkerMerger
 	enc encoder.Encoder
 }
 
 func (t *baseTestBaseBlockFileWriter) SetupSuite() {
-	t.baseTestWorkerMerger.Suite = t.Suite
 	t.baseTestWorkerMerger.SetupSuite()
 
 	t.enc = jsonenc.NewEncoder()
