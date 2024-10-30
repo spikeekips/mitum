@@ -44,7 +44,7 @@ type (
 		_ workerSaveSendSaveDoneFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
-		operationsworkerInitialInsertOpsFuncs,
+		operationsWorkerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
 		func() error,
 		func() error,
@@ -89,7 +89,7 @@ func newFuncWorkerSave(
 		sendSaveDone workerSaveSendSaveDoneFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
-		operationsworkerInitialInsertOpsFuncs,
+		operationsWorkerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
 		func() error,
 		func() error,
@@ -98,7 +98,7 @@ func newFuncWorkerSave(
 		wctx, wctxCancel := contextWithCancelCause(ctx)
 
 		var opLocalInsert operationsWorkerLocalInsertOpsFuncs
-		var opWorkerInsert operationsworkerInitialInsertOpsFuncs
+		var opWorkerInsert operationsWorkerInitialInsertOpsFuncs
 		var opWorkerPhaseDone workerMergerPhaseDoneFunc
 		var opWait operationsWorkerMergerWaitFunc
 

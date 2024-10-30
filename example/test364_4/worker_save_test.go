@@ -768,7 +768,7 @@ func (t *testWorkerSave) testMerger(
 	}
 
 	insertOps := map[string]operationsWorkerLocalInsertOpsFuncs{}
-	workerInitialInsertOps := map[string]operationsworkerInitialInsertOpsFuncs{}
+	workerInitialInsertOps := map[string]operationsWorkerInitialInsertOpsFuncs{}
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	mergeWaits := map[string]func() error{}
 	saveWaits := map[string]func() error{}
@@ -806,7 +806,7 @@ func (t *testWorkerSave) testMerger(
 		//}
 
 		broadcastStateMergeValues := func(ctx context.Context) (
-			operationsworkerInitialInsertOpFunc,
+			operationsWorkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
@@ -814,7 +814,9 @@ func (t *testWorkerSave) testMerger(
 				wctx,
 				local,
 				workerValues,
-				workerInitialInsertOps,
+				func(worker string) operationsWorkerInitialInsertOpsFuncs {
+					return workerInitialInsertOps[worker]
+				},
 			)
 			if err != nil {
 				return nil, nil, err

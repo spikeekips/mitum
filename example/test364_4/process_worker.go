@@ -11,10 +11,11 @@ import (
 type (
 	broadcastStateMergeValueInsertFunc func(worker string, opindex uint64, oph util.Hash, _ []StateMergeValue) error
 	broadcastStateMergeValueFuncs      func(_ context.Context, worker string) (
-		operationsworkerInitialInsertOpFunc,
+		operationsWorkerInitialInsertOpFunc,
 		func() error,
 		error,
 	)
+	stateMergeValueOwnerFunc func(stateKey string) []string
 )
 
 func newStateMergeValueExtractorGetOperation(
@@ -57,6 +58,14 @@ func newBroadcastStateMergeValues(
 	func() error,
 	error,
 ) {
+	if len(workers) < 1 {
+		return func(string, uint64, util.Hash, []StateMergeValue) error {
+				return nil
+			},
+			func() error { return nil },
+			nil
+	}
+
 	var broadcastJw, doneJw JobWorker
 
 	switch i, err := NewBaseJobWorker(ctx, int64(len(workers))); {
@@ -79,7 +88,7 @@ func newBroadcastStateMergeValues(
 		return funcs.GetOrCreate(
 			worker,
 			func(f [2]interface{}, _ bool) error {
-				return checkWorkerError(worker, f[0].(operationsworkerInitialInsertOpFunc)(opindex, oph, values))
+				return checkWorkerError(worker, f[0].(operationsWorkerInitialInsertOpFunc)(opindex, oph, values))
 			},
 			func() ([2]interface{}, error) {
 				if slices.Index(workers, worker) < 0 {
@@ -140,7 +149,7 @@ func newBroadcastStateMergeValues(
 
 func newStateMergeValueOwners(
 	local string,
-	owners func(stateKey string) []string,
+	owners stateMergeValueOwnerFunc,
 ) func([]StateMergeValue, func(worker string, _ []StateMergeValue) error) error {
 	return func(values []StateMergeValue, f func(worker string, _ []StateMergeValue) error) error {
 		if len(values) < 1 {

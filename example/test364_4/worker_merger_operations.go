@@ -16,9 +16,9 @@ type (
 	operationsWorkerSaveOperationFunc          func(opindex uint64, _ Operation) error
 	operationsWorkerSaveOperationsCallbackFunc func(func(operationsWorkerSaveOperationFunc) error) error
 	operationsWorkerSaveOperationsFunc         func(total uint64) operationsWorkerSaveOperationsCallbackFunc
-	operationsworkerInitialInsertOpFunc        func(opindex uint64, oph util.Hash, _ []StateMergeValue) error
-	operationsworkerInitialInsertOpsFuncs      func(worker string) (
-		operationsworkerInitialInsertOpFunc,
+	operationsWorkerInitialInsertOpFunc        func(opindex uint64, oph util.Hash, _ []StateMergeValue) error
+	operationsWorkerInitialInsertOpsFuncs      func(worker string) (
+		operationsWorkerInitialInsertOpFunc,
 		func() error,
 		error,
 	)
@@ -32,7 +32,7 @@ type (
 		traverseOperations func(operationsWorkerSaveOperationsFunc) error,
 	) error
 	operationsWorkerMergerBroadcastStateMergeValueFuncs func(context.Context) (
-		operationsworkerInitialInsertOpFunc,
+		operationsWorkerInitialInsertOpFunc,
 		func() error,
 		error,
 	)
@@ -47,7 +47,7 @@ type (
 		_ stateMergeValueExtractorGetOperationFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
-		operationsworkerInitialInsertOpsFuncs,
+		operationsWorkerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
 		operationsWorkerMergerWaitFunc,
 		error,
@@ -85,7 +85,7 @@ func newFuncOperationsWorkerMerger(
 		getOperation stateMergeValueExtractorGetOperationFunc,
 	) (
 		operationsWorkerLocalInsertOpsFuncs,
-		operationsworkerInitialInsertOpsFuncs,
+		operationsWorkerInitialInsertOpsFuncs,
 		workerMergerPhaseDoneFunc,
 		operationsWorkerMergerWaitFunc,
 		error,
@@ -236,7 +236,7 @@ func newFuncOperationsWorkerMerger(
 					return nil
 				})
 			},
-			func(worker string) (operationsworkerInitialInsertOpFunc, func() error, error) {
+			func(worker string) (operationsWorkerInitialInsertOpFunc, func() error, error) {
 				if worker == localWorkerName {
 					return nil, nil, closef(util.ErrFound.Errorf("%q", localWorkerName))
 				}
@@ -285,7 +285,7 @@ func patchOperationsWorkerMerger(
 	extractorDone stateMergeValueExtractorExtractDoneFunc,
 	_ error,
 ) {
-	var broadcastStateValues operationsworkerInitialInsertOpFunc
+	var broadcastStateValues operationsWorkerInitialInsertOpFunc
 
 	switch d, o, err := broadcastStateMergeValues(ctx); {
 	case err != nil:

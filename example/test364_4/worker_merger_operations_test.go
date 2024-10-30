@@ -311,7 +311,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 	}
 
 	insertOps := map[string]operationsWorkerLocalInsertOpsFuncs{}
-	workerInitialInsertOps := map[string]operationsworkerInitialInsertOpsFuncs{}
+	workerInitialInsertOps := map[string]operationsWorkerInitialInsertOpsFuncs{}
 	phaseDones := map[string]workerMergerPhaseDoneFunc{}
 	waits := map[string]operationsWorkerMergerWaitFunc{}
 
@@ -345,7 +345,7 @@ func (t *testOperationsWorkerMerger) testMerger(
 		//}
 
 		broadcastStateMergeValuesFuncs := func(ctx context.Context) (
-			operationsworkerInitialInsertOpFunc,
+			operationsWorkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
@@ -353,7 +353,9 @@ func (t *testOperationsWorkerMerger) testMerger(
 				wctx,
 				local,
 				workerValues,
-				workerInitialInsertOps,
+				func(worker string) operationsWorkerInitialInsertOpsFuncs {
+					return workerInitialInsertOps[worker]
+				},
 			)
 			if err != nil {
 				return nil, nil, err
@@ -804,14 +806,14 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 	ctx context.Context,
 	local string,
 	stateOwners map[ /* worker */ string] /* state keys */ []string,
-	funcs map[string]operationsworkerInitialInsertOpsFuncs,
+	funcs func(worker string) operationsWorkerInitialInsertOpsFuncs,
 ) (
 	operationsWorkerMergerBroadcastStateMergeValueFuncs,
 	error,
 ) {
 	var others []string
 
-	TraverseMap(funcs, func(worker string, _ operationsworkerInitialInsertOpsFuncs) (bool, error) {
+	TraverseMap(stateOwners, func(worker string, _ []string) (bool, error) {
 		if worker != local {
 			others = append(others, worker)
 		}
@@ -821,7 +823,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 
 	if len(others) < 1 {
 		return func(ctx context.Context) (
-			operationsworkerInitialInsertOpFunc,
+			operationsWorkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
@@ -833,12 +835,12 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 		ctx,
 		others,
 		func(ctx context.Context, worker string) (
-			operationsworkerInitialInsertOpFunc,
+			operationsWorkerInitialInsertOpFunc,
 			func() error,
 			error,
 		) {
-			f, found := funcs[worker]
-			if !found {
+			f := funcs(worker)
+			if f == nil {
 				return nil, nil, util.ErrNotFound.Errorf("worker, %q", worker)
 			}
 
@@ -875,7 +877,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 	)
 
 	return func(ctx context.Context) (
-		operationsworkerInitialInsertOpFunc,
+		operationsWorkerInitialInsertOpFunc,
 		func() error,
 		error,
 	) {
@@ -899,7 +901,7 @@ func newBroadcastStateMergeValuesFuncsFromInitialInsertOpsFunc(
 
 func dummyIsLocalStateValue(string) bool { return true }
 func dummyBroadcastStateMergeValuesFuncs(context.Context) (
-	operationsworkerInitialInsertOpFunc,
+	operationsWorkerInitialInsertOpFunc,
 	func() error,
 	error,
 ) {
