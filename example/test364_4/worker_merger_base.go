@@ -15,6 +15,7 @@ type (
 	workerMergerIsLocalOpFunc   func(opindex uint64) bool
 	baseWorkerMergerFunc        func(
 		_ context.Context,
+		poolMapSize,
 		minEnough uint64,
 		_ phaseMergerGetStateMergeValuesFunc,
 		_ phaseMergerGetMergers,
@@ -29,7 +30,6 @@ type (
 
 func newFuncBaseWorkerMerger(
 	pargs *phaseMergerArgs,
-	poolMapSize uint64,
 ) baseWorkerMergerFunc {
 	newWorkerPhaseMergerf := newFuncWorkerPhaseMerger(pargs)
 
@@ -37,6 +37,7 @@ func newFuncBaseWorkerMerger(
 
 	return func(
 		ctx context.Context,
+		poolMapSize,
 		minEnough uint64,
 		getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 		getMergers phaseMergerGetMergers,
@@ -150,9 +151,9 @@ func newWorkerMergerPhasePoolFuncs(
 	exhaust func(func(worker string, unmerge []uint64) error) error,
 	_ error,
 ) {
-	var m *util.ShardedMap[string, []uint64]
+	var m util.LockedMap[string, []uint64]
 
-	switch i, err := util.NewShardedMap[string, []uint64](mapSize, nil); {
+	switch i, err := util.NewLockedMap[string, []uint64](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

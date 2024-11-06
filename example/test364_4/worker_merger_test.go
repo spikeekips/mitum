@@ -203,7 +203,7 @@ func (t *testWorkerMerger) testBaseWorkerMerger(
 		extractKeys, closeExtractKeys := newExtractStateMergeValueKeys(1 << 9)
 		defer closeExtractKeys()
 
-		insert, wait, err := newFuncBaseWorkerMerger(pargs, 1<<3)(wctx, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
+		insert, wait, err := newFuncBaseWorkerMerger(pargs)(wctx, 1<<3, minEnough, getValues, getMergers, extractKeys, newWorkerMergerIsLocalOp(vp.Exists))
 		t.NoError(err)
 
 		inserts[local] = insert
@@ -886,7 +886,7 @@ func (t *testWorkerMerger) testInitialValuesWorkerMerger(
 		defer closeMergers()
 
 		newInitialValuesWorkerMergerf := newFuncInitialValuesWorkerMerger(args, pargs)
-		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, minEnough, 1<<9, getMergers, setStateOp)
+		initial, phaseDone, wait, err := newInitialValuesWorkerMergerf(wctx, 1<<3, minEnough, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		initials[local] = initial
@@ -1182,7 +1182,7 @@ func (t *testWorkerMerger) testStatesWorkerMerger(
 			return nil
 		}
 
-		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, iargs, pargs)(wctx, minEnough, 1<<9, newGetStateFunc(statesPool))
+		initial, phaseDone, wait, err := newFuncStatesWorkerMerger(args, iargs, pargs)(wctx, 1<<3, minEnough, 1<<9, newGetStateFunc(statesPool))
 		t.NoError(err)
 
 		initials[local] = initial

@@ -267,7 +267,7 @@ func (t *testManagerWorkers) makeWorker(
 
 	localInsert, workerInsert, workerPhaseDone, mergeWait, saveWait, err := f(
 		ctx,
-		minEnough, maxOps,
+		nworkers, minEnough, maxOps,
 		func(context.Context, []uint64) error { return nil },
 		newGetStateFunc(statesPool),
 		func(stateKey string) bool {

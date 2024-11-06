@@ -21,8 +21,7 @@ type (
 	statesWorkerMergerWaitFunc func(workerBroadcastPhaseDoneFunc, statesWorkerMergerResultFunc) error
 	statesWorkerMergerFunc     func(
 		_ context.Context,
-		minEnough,
-		maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		_ getStateFunc,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -53,7 +52,7 @@ func newFuncStatesWorkerMerger(
 
 	return func(
 		ctx context.Context,
-		minEnough, maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		getState getStateFunc,
 	) (
 		workerInitialInsertOpsFuncs,
@@ -98,7 +97,7 @@ func newFuncStatesWorkerMerger(
 		var initialValuesPhaseDone workerMergerPhaseDoneFunc
 		var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, minEnough, maxOps, getMergers, setStateOp); {
+		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, workersSize, minEnough, maxOps, getMergers, setStateOp); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:

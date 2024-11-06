@@ -30,8 +30,7 @@ type (
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
 	initialValuesWorkerMergerFunc       func(
 		_ context.Context,
-		minEnough,
-		maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		_ phaseMergerGetMergers,
 		_ setStateOpFunc,
 	) (
@@ -44,16 +43,16 @@ type (
 
 type initialValuesWorkerMergerArgs struct {
 	*logging.Logging
-	PoolMapSize   uint64
-	NewJobWorker  newJobWorkerFunc
-	NewValuesPool func() (util.LockedMap[uint64, []StateMergeValue], error)
+	MaxPoolMapSize uint64
+	NewJobWorker   newJobWorkerFunc
+	NewValuesPool  func() (util.LockedMap[uint64, []StateMergeValue], error)
 }
 
 func newInitialValuesWorkerMergerArgs() *initialValuesWorkerMergerArgs {
 	return &initialValuesWorkerMergerArgs{
-		Logging:      NewModuleLogging("initial-worker-merger", nil),
-		PoolMapSize:  1 << 3,
-		NewJobWorker: newFuncBaseJobWorker(1 << 6),
+		Logging:        NewModuleLogging("initial-worker-merger", nil),
+		MaxPoolMapSize: 1 << 9,
+		NewJobWorker:   newFuncBaseJobWorker(1 << 6),
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
@@ -64,11 +63,11 @@ func newFuncInitialValuesWorkerMerger(
 	args *initialValuesWorkerMergerArgs,
 	pargs *phaseMergerArgs,
 ) initialValuesWorkerMergerFunc {
-	newBaseWorkerMergerf := newFuncBaseWorkerMerger(pargs, args.PoolMapSize)
+	newBaseWorkerMergerf := newFuncBaseWorkerMerger(pargs)
 
 	return func(
 		ctx context.Context,
-		minEnough, maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		getMergers phaseMergerGetMergers,
 		setStateOp setStateOpFunc,
 	) (
@@ -79,6 +78,12 @@ func newFuncInitialValuesWorkerMerger(
 	) {
 		if maxOps < 1 {
 			return nil, nil, nil, errors.Errorf("zero max ops")
+		}
+
+		poolMapSize := workersSize
+
+		if workersSize > args.MaxPoolMapSize {
+			poolMapSize = args.MaxPoolMapSize
 		}
 
 		wctx, wctxCancel := contextWithCancelCause(ctx)
@@ -120,6 +125,7 @@ func newFuncInitialValuesWorkerMerger(
 
 		switch i, w, err := newBaseWorkerMergerf(
 			wctx,
+			poolMapSize,
 			minEnough,
 			getStateMergeValues,
 			getMergers,

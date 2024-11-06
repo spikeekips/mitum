@@ -39,8 +39,7 @@ type (
 	operationsWorkerMergerWaitFunc func(workerBroadcastPhaseDoneFunc, operationsWorkerMergerResultFunc) error
 	operationsWorkerMergerFunc     func(
 		_ context.Context,
-		minEnough,
-		maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		_ getStateFunc,
 		_ isLocalStateValueFunc,
 		_ operationsWorkerMergerBroadcastStateMergeValueFuncs,
@@ -78,7 +77,7 @@ func newFuncOperationsWorkerMerger(
 
 	return func(
 		ctx context.Context,
-		minEnough, maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		getState getStateFunc,
 		isLocalStateValue isLocalStateValueFunc,
 		broadcastStateMergeValues operationsWorkerMergerBroadcastStateMergeValueFuncs,
@@ -96,7 +95,7 @@ func newFuncOperationsWorkerMerger(
 		var workerPhaseDone workerMergerPhaseDoneFunc
 		var statesWait statesWorkerMergerWaitFunc
 
-		switch i, p, w, err := newStatesWorkerMergerf(wctx, minEnough, maxOps, getState); {
+		switch i, p, w, err := newStatesWorkerMergerf(wctx, workersSize, minEnough, maxOps, getState); {
 		case err != nil:
 			return nil, nil, nil, nil, err
 		default:

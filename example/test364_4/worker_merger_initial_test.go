@@ -27,7 +27,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1<<3, 1, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		insert, done, err := initial(localWorkerName)
@@ -69,7 +69,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 2, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1<<3, 2, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
@@ -120,7 +120,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1<<3, 1, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
@@ -156,7 +156,7 @@ func (t *testInitialValuesWorkerMerger) TestInsertValues() {
 		setStateOp, _, err := newSetStateOpFuncsWithLogger(1 << 9)
 		t.NoError(err)
 
-		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 2, 1<<9, getMergers, setStateOp)
+		initial, _, _, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1<<3, 2, 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		insertLocal, doneLocal, err := initial(localWorkerName)
@@ -209,7 +209,7 @@ func (t *testInitialValuesWorkerMerger) TestBroadcastDone() {
 		workers := t.workers(2)
 		workers = append(workers, localWorkerName)
 
-		initial, workerDone, wait, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, uint64(len(workers)), 1<<9, getMergers, setStateOp)
+		initial, workerDone, wait, err := newFuncInitialValuesWorkerMerger(args, pargs)(ctx, 1<<3, uint64(len(workers)), 1<<9, getMergers, setStateOp)
 		t.NoError(err)
 
 		ops := make([][]StateMergeValue, (len(workers))*3)

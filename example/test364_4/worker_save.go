@@ -29,8 +29,7 @@ type (
 	workerSaveSendSaveDoneFunc    func(context.Context, func(workerSaveBlockFileChunksFunc) error) error
 	workerSaveFunc                func(
 		_ context.Context,
-		minEnough,
-		maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		_ workerBroadcastPhaseDoneFunc,
 		_ getStateFunc,
 		_ isLocalStateValueFunc,
@@ -75,7 +74,7 @@ func newFuncWorkerSave(
 
 	return func(
 		ctx context.Context,
-		minEnough, maxOps uint64,
+		workersSize, minEnough, maxOps uint64,
 		broadcastPhaseDone workerBroadcastPhaseDoneFunc,
 		getState getStateFunc,
 		isLocalStateValue isLocalStateValueFunc,
@@ -104,8 +103,7 @@ func newFuncWorkerSave(
 
 		switch i, wi, p, w, err := newOperationsWorkerMergerf(
 			wctx,
-			minEnough,
-			maxOps,
+			workersSize, minEnough, maxOps,
 			getState,
 			isLocalStateValue,
 			broadcastStateMergeValues,
