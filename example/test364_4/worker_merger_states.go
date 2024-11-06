@@ -97,7 +97,7 @@ func newFuncStatesWorkerMerger(
 		var initialValuesPhaseDone workerMergerPhaseDoneFunc
 		var initialValuesWait initialValuesWorkerMergerWaitFunc
 
-		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, workersSize, minEnough, maxOps, getMergers, setStateOp); {
+		switch i, p, w, err := newInitialValuesWorkerMergerf(wctx, workersSize, minEnough, getMergers, setStateOp); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:

@@ -598,3 +598,15 @@ func NewModuleLogging(module string, f func(zctx zerolog.Context) zerolog.Contex
 		return zctx
 	})
 }
+
+type EmptyGCache[K cmp.Ordered, V any] struct{}
+
+func newEmptyGCache[K cmp.Ordered, V any]() EmptyGCache[K, V] { return EmptyGCache[K, V]{} }
+
+func (c EmptyGCache[K, V]) Exists(K) bool            { return false }
+func (c EmptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false }
+func (c EmptyGCache[K, V]) Set(K, V, time.Duration)  {}
+func (c EmptyGCache[K, V]) Remove(K) bool            { return false }
+func (c EmptyGCache[K, V]) Close()                   {}
+func (c EmptyGCache[K, V]) Purge()                   {}
+func (c EmptyGCache[K, V]) Traverse(func(K, V) bool) {}

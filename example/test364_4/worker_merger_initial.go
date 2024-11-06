@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -30,7 +29,7 @@ type (
 	stateOpsFuncs                       func() (getStateOpsFunc, func())
 	initialValuesWorkerMergerFunc       func(
 		_ context.Context,
-		workersSize, minEnough, maxOps uint64,
+		workersSize, minEnough uint64,
 		_ phaseMergerGetMergers,
 		_ setStateOpFunc,
 	) (
@@ -43,9 +42,10 @@ type (
 
 type initialValuesWorkerMergerArgs struct {
 	*logging.Logging
-	MaxPoolMapSize uint64
-	NewJobWorker   newJobWorkerFunc
-	NewValuesPool  func() (util.LockedMap[uint64, []StateMergeValue], error)
+	MaxPoolMapSize       uint64
+	NewJobWorker         newJobWorkerFunc
+	NewValuesPool        func() (util.LockedMap[uint64, []StateMergeValue], error)
+	OpStateKeysCacheSize uint64
 }
 
 func newInitialValuesWorkerMergerArgs() *initialValuesWorkerMergerArgs {
@@ -56,6 +56,7 @@ func newInitialValuesWorkerMergerArgs() *initialValuesWorkerMergerArgs {
 		NewValuesPool: func() (util.LockedMap[uint64, []StateMergeValue], error) {
 			return nil, util.ErrNotImplemented.Errorf("NewValuesPool")
 		},
+		OpStateKeysCacheSize: 1 << 9,
 	}
 }
 
@@ -67,7 +68,7 @@ func newFuncInitialValuesWorkerMerger(
 
 	return func(
 		ctx context.Context,
-		workersSize, minEnough, maxOps uint64,
+		workersSize, minEnough uint64,
 		getMergers phaseMergerGetMergers,
 		setStateOp setStateOpFunc,
 	) (
@@ -76,10 +77,6 @@ func newFuncInitialValuesWorkerMerger(
 		initialValuesWorkerMergerWaitFunc,
 		error,
 	) {
-		if maxOps < 1 {
-			return nil, nil, nil, errors.Errorf("zero max ops")
-		}
-
 		poolMapSize := workersSize
 
 		if workersSize > args.MaxPoolMapSize {
@@ -97,7 +94,7 @@ func newFuncInitialValuesWorkerMerger(
 			vp = i
 		}
 
-		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeys(int(maxOps))
+		extractStateMergeValueKeys, closeExtractStateMergeValueKeys := newExtractStateMergeValueKeys(int(args.OpStateKeysCacheSize))
 
 		getStateMergeValues := getStateMergeValuesFuncFromPool(vp)
 

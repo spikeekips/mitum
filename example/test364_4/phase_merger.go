@@ -305,7 +305,14 @@ func newExtractStateMergeValueKeys(cacheSize int) (
 	func(uint64, []StateMergeValue) ([]string, error),
 	func(),
 ) {
-	cache := util.NewLFUGCache[uint64, []string](cacheSize)
+	var cache util.GCache[uint64, []string]
+
+	switch {
+	case cacheSize < 1:
+		cache = newEmptyGCache[uint64, []string]()
+	default:
+		cache = util.NewLFUGCache[uint64, []string](cacheSize)
+	}
 
 	var sg singleflight.Group
 
