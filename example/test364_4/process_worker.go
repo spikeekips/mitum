@@ -15,7 +15,7 @@ type (
 		func() error,
 		error,
 	)
-	stateMergeValueOwnerFunc func(stateKey string) []string
+	stateMergeValueOwnersFunc func(stateKey string) []string
 )
 
 func newStateMergeValueExtractorGetOperation(
@@ -149,7 +149,7 @@ func newBroadcastStateMergeValues(
 
 func newStateMergeValueOwners(
 	local string,
-	owners stateMergeValueOwnerFunc,
+	owners stateMergeValueOwnersFunc,
 ) func([]StateMergeValue, func(worker string, _ []StateMergeValue) error) error {
 	return func(values []StateMergeValue, f func(worker string, _ []StateMergeValue) error) error {
 		if len(values) < 1 {

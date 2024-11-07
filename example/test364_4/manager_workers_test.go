@@ -126,7 +126,7 @@ func (t *testManagerWorkers) broadcastStateMergeValuesFunc(
 	local string,
 	workers []string,
 	wbs map[string]*workerBroker,
-	stateOwners stateMergeValueOwnerFunc,
+	stateOwners stateMergeValueOwnersFunc,
 ) operationsWorkerMergerBroadcastStateMergeValueFuncs {
 	others := util.FilterSlice(workers, func(s string) bool {
 		return s != local
@@ -600,7 +600,7 @@ func extractChecksumsFromBlockFileChunks(bs []blockFileChunk) (checksums []strin
 	return
 }
 
-func stateOwnersFuncDistributeByCount(workers []string, share uint64) (stateMergeValueOwnerFunc, error) {
+func stateOwnersFuncDistributeByCount(workers []string, share uint64) (stateMergeValueOwnersFunc, error) {
 	var f func(k string) []uint64
 
 	switch i, _, err := distributeByCount(uint64(len(workers)), share); {
