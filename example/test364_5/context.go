@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type errorFunc func(error) error
@@ -52,4 +54,12 @@ func contextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 
 		return gerr
 	}
+}
+
+func contextCauseError(ctx context.Context, ef errorFunc, f func(context.Context) error) error {
+	if err := context.Cause(ctx); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return ef(f(ctx))
 }
