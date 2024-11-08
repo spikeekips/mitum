@@ -305,7 +305,7 @@ func contextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 
 	return cctx, func(err error) error {
 		if cerr := context.Cause(cctx); cerr != nil {
-			return cerr
+			return errors.WithStack(cerr)
 		}
 
 		once.Do(func() {
@@ -341,10 +341,10 @@ type emptyGCache[K cmp.Ordered, V any] struct{}
 
 func newEmptyGCache[K cmp.Ordered, V any]() emptyGCache[K, V] { return emptyGCache[K, V]{} }
 
-func (c emptyGCache[K, V]) Exists(K) bool            { return false }
-func (c emptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false }
-func (c emptyGCache[K, V]) Set(K, V, time.Duration)  {}
-func (c emptyGCache[K, V]) Remove(K) bool            { return false }
-func (c emptyGCache[K, V]) Close()                   {}
-func (c emptyGCache[K, V]) Purge()                   {}
-func (c emptyGCache[K, V]) Traverse(func(K, V) bool) {}
+func (emptyGCache[K, V]) Exists(K) bool            { return false }
+func (emptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false }
+func (emptyGCache[K, V]) Set(K, V, time.Duration)  {}
+func (emptyGCache[K, V]) Remove(K) bool            { return false }
+func (emptyGCache[K, V]) Close()                   {}
+func (emptyGCache[K, V]) Purge()                   {}
+func (emptyGCache[K, V]) Traverse(func(K, V) bool) {}

@@ -42,7 +42,7 @@ func newBaseJobWorker(
 	sem := semaphore.NewWeighted(semSize)
 
 	newJobf := newJobWorkerNewJobFunc(ctx, jctx, sem, errf)
-	waitf, errNewJobDone := newJobWorkerWaitFunc(ctx, jctx, sem, semSize, errf)
+	waitf, errNewJobDone := newJobWorkerWaitFunc(ctx, jctx, sem, semSize)
 
 	return func(c contextWorkerCallback) error {
 			switch err := newJobf(c); {
@@ -53,7 +53,7 @@ func newBaseJobWorker(
 			}
 		},
 		func() {
-			jctxCancel(errNewJobDone)
+			_ = jctxCancel(errNewJobDone)
 		},
 		func() error {
 			defer jctxCancel(nil)
@@ -146,7 +146,7 @@ func newJobWorkerNewJobFunc(
 
 		go func() {
 			if err := c(ctx); err != nil {
-				errf(err)
+				_ = errf(err)
 			}
 
 			sem.Release(1)
@@ -160,7 +160,6 @@ func newJobWorkerWaitFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
 	semSize int64,
-	ctxCancel errorFunc,
 ) (
 	_ jobWorkerWaitFunc,
 	doneErr error,
