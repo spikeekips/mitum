@@ -529,8 +529,8 @@ func (t *testAccountStateMerger) TestMerges() {
 				}
 			}
 
-			if err := util.TraverseSlice(doneCommits(), func(_ int, f func() error) error {
-				return f()
+			if err := traverseSlice(doneCommits(), func(_ int, f func() error) (bool, error) {
+				return true, f()
 			}); err != nil {
 				return err
 			}
@@ -540,8 +540,8 @@ func (t *testAccountStateMerger) TestMerges() {
 				nextname = "merge"
 			}
 
-			if err := util.TraverseSlice(doneNextops(), func(_ int, op uint64) error {
-				return xmerge(nextname, op, ops[op], unmergef, mergef)
+			if err := traverseSlice(doneNextops(), func(_ int, op uint64) (bool, error) {
+				return true, xmerge(nextname, op, ops[op], unmergef, mergef)
 			}); err != nil {
 				return err
 			}
