@@ -461,7 +461,7 @@ func isXMergedOps(
 			}
 
 			defer func() {
-				doneM(nil)
+				_ = doneM(nil)
 			}()
 
 			if err := rCompactAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
@@ -469,7 +469,7 @@ func isXMergedOps(
 			}
 
 			defer func() {
-				doneU(nil)
+				_ = doneU(nil)
 			}()
 
 			_ = ops.Traverse(func(opindex uint64, i int) bool {
@@ -613,7 +613,7 @@ func xMergeOpValues(
 				return
 			}
 
-			c()
+			_ = c()
 
 			reasons[o] = r
 		}

@@ -31,13 +31,13 @@ func (t *baseTestAccountStateMerger) MarshalIndent(i interface{}) string {
 	return util.MustMarshalJSONIndentString(i)
 }
 
-func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, AccountStateMergeValue) {
+func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, *AccountStateMergeValue) {
 	pub := base.NewMPrivatekey().Publickey()
 
 	return pub, t.newAccountStateMergeValue(pub, balance)
 }
 
-func (t *baseTestAccountStateMerger) newAccountStateMergeValue(address base.Publickey, balance int64) AccountStateMergeValue {
+func (t *baseTestAccountStateMerger) newAccountStateMergeValue(address base.Publickey, balance int64) *AccountStateMergeValue {
 	v, err := NewAccountStateMergeValue(address, balance)
 	if err != nil {
 		panic(err)
@@ -123,7 +123,7 @@ func (t *baseTestAccountStateMerger) newMergeValuesVP(
 }
 
 func (t *baseTestAccountStateMerger) newState(pub base.Publickey, balance int64) base.State {
-	return base.NewBaseState(
+	return newBaseState(
 		33,
 		AccountStateKey(pub),
 		NewAccountStateValue(pub, balance),
@@ -138,7 +138,7 @@ func (t *baseTestAccountStateMerger) randomState() base.State {
 	return t.newState(pub, 1)
 }
 
-func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base.Publickey, balance int64) Op {
+func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base.Publickey, balance int64) *Op {
 	op := NewOp(NewOpFact(
 		util.UUID().Bytes(),
 		balance,
@@ -153,7 +153,7 @@ func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base
 	return op
 }
 
-func (t *baseTestAccountStateMerger) randomOp(balance int64) Op {
+func (t *baseTestAccountStateMerger) randomOp(balance int64) *Op {
 	return t.newOp(
 		base.NewDummyPrivatekey(util.UUID().String()),
 		base.NewDummyPublickey(util.UUID().String()),
@@ -198,7 +198,7 @@ func (t *testAccountStateMerger) TestMergeError() {
 	t.Run("0 balance", func() {
 		priv := base.NewMPrivatekey()
 
-		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), AccountStateValue{})
+		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), &AccountStateValue{})
 
 		value := NewAccountStateValue(priv.Publickey(), 0)
 
@@ -244,7 +244,7 @@ func (t *testAccountStateMerger) TestMerge() {
 	t.Run("add balance", func() {
 		priv := base.NewMPrivatekey()
 
-		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), AccountStateValue{})
+		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), &AccountStateValue{})
 
 		value := NewAccountStateValue(priv.Publickey(), 3)
 
@@ -352,7 +352,7 @@ func (t *testAccountStateMerger) TestMerge() {
 		priv := base.NewMPrivatekey()
 		prev := NewAccountStateValue(priv.Publickey(), 3)
 
-		values := make([]AccountStateValue, 4)
+		values := make([]*AccountStateValue, 4)
 		for i := range values {
 			values[i] = NewAccountStateValue(priv.Publickey(), 1)
 		}
@@ -387,7 +387,7 @@ func (t *testAccountStateMerger) TestMerge() {
 		priv := base.NewMPrivatekey()
 		prev := NewAccountStateValue(priv.Publickey(), 4)
 
-		values := make([]AccountStateValue, 4)
+		values := make([]*AccountStateValue, 4)
 		for i := range values {
 			v := int64(1)
 			if i == len(values)-1 {
@@ -440,7 +440,7 @@ func (t *testAccountStateMerger) TestMerges() {
 		priv := base.NewMPrivatekey()
 		prev := NewAccountStateValue(priv.Publickey(), 4)
 
-		values := make([]AccountStateValue, 5)
+		values := make([]*AccountStateValue, 5)
 		for i := range values {
 			v := int64(1)
 			if i%2 == 0 {
@@ -450,9 +450,9 @@ func (t *testAccountStateMerger) TestMerges() {
 			values[i] = NewAccountStateValue(priv.Publickey(), v)
 		}
 
-		var xmerge func(op uint64, value AccountStateValue, mergef, unmergef stateMergerXMergeFunc) error
+		var xmerge func(op uint64, value *AccountStateValue, mergef, unmergef stateMergerXMergeFunc) error
 
-		xmerge = func(op uint64, value AccountStateValue, mergef, unmergef stateMergerXMergeFunc) error {
+		xmerge = func(op uint64, value *AccountStateValue, mergef, unmergef stateMergerXMergeFunc) error {
 			commit, nextop, err := mergef(op, value)
 			if err != nil {
 				return err
@@ -517,7 +517,7 @@ func (t *testAccountStateMerger) TestMerges() {
 
 				if commit == nil {
 					t.T().Logf("> ignored: name=%s op=%d i=%d value=%v",
-						name, op, i, value.Value().(AccountStateValue).Balance)
+						name, op, i, value.Value().(*AccountStateValue).Balance)
 
 					return nil
 				}
@@ -614,7 +614,7 @@ func (t *testAccountStateMerger) TestMerges() {
 			{
 				sv, err := merger0.Close()
 				t.NoError(err)
-				av := sv.(AccountStateValue)
+				av := sv.(*AccountStateValue)
 				t.T().Logf("account 0: balance=%d", av.Balance)
 
 				t.Equal(int64(3), av.Balance)
@@ -623,7 +623,7 @@ func (t *testAccountStateMerger) TestMerges() {
 			{
 				sv, err := merger1.Close()
 				t.NoError(err)
-				av := sv.(AccountStateValue)
+				av := sv.(*AccountStateValue)
 				t.T().Logf("account 1: balance=%d", av.Balance)
 
 				t.Equal(int64(4), av.Balance)
@@ -642,7 +642,7 @@ func (t *testAccountStateMerger) TestUnmergeError() {
 	t.Run("0 balance", func() {
 		priv := base.NewMPrivatekey()
 
-		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), AccountStateValue{})
+		merger := NewAccountStateMerger(AccountStateKey(priv.Publickey()), &AccountStateValue{})
 
 		commit, _, reason, err := merger.Merge(0, NewAccountStateValue(priv.Publickey(), 1))
 		t.NoError(err)
@@ -694,7 +694,7 @@ func TestEncodeAccountStateValue(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: AccountStateValue{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: &AccountStateValue{}}))
 
 	t.Encode = func() (interface{}, []byte) {
 		v := NewAccountStateValue(base.NewDummyPublickey(util.UUID().String()), 1)
@@ -707,14 +707,14 @@ func TestEncodeAccountStateValue(tt *testing.T) {
 		return v, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var u AccountStateValue
+		var u *AccountStateValue
 		t.NoError(encoder.Decode(enc, b, &u))
 
 		return u
 	}
 	t.Compare = func(a interface{}, b interface{}) {
-		av := a.(AccountStateValue)
-		bv := b.(AccountStateValue)
+		av := a.(*AccountStateValue)
+		bv := b.(*AccountStateValue)
 
 		t.True(av.Hint().Equal(bv.Hint()))
 		t.True(av.Address.Equal(bv.Address))

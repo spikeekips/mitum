@@ -34,7 +34,9 @@ func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerge
 		}
 
 		if st != nil {
-			m[stateKey] = st.(AccountStateValue).Balance
+			if v := st.(*AccountStateValue); v != nil {
+				m[stateKey] = v.Balance
+			}
 		}
 
 		return true
@@ -792,6 +794,7 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(err)
 
 		m, found := merged[vs[0].Key()]
+		fmt.Println(">", m, found)
 		t.True(found)
 		t.Equal(int64(3), m)
 	})
@@ -838,7 +841,7 @@ func (t *testPhaseMerger) TestMerge() {
 				i, found := merged[value.Key()]
 				t.True(found)
 
-				t.Equal(value.(AccountStateMergeValue).Balance, i)
+				t.Equal(value.(*AccountStateMergeValue).Balance, i)
 
 				return true, nil
 			})
@@ -1025,7 +1028,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		m, found := merged[vss[0][0].Key()]
 		t.True(found)
-		t.Equal(subed+prevst.Value().(AccountStateValue).Balance, m)
+		t.Equal(subed+prevst.Value().(*AccountStateValue).Balance, m)
 	})
 
 	t.Run("Merge() error", func() {

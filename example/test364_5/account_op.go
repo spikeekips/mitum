@@ -30,8 +30,8 @@ type OpFact struct {
 	Amount int64
 }
 
-func NewOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) OpFact {
-	fact := OpFact{
+func NewOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *OpFact {
+	fact := &OpFact{
 		BaseFact: base.NewBaseFact(OpFactHint, token),
 		Issuer:   issuer,
 		Receiver: receiver,
@@ -43,7 +43,7 @@ func NewOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) 
 	return fact
 }
 
-func (fact OpFact) IsValid([]byte) error {
+func (fact *OpFact) IsValid([]byte) error {
 	if err := fact.BaseFact.IsValid(nil); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (fact OpFact) IsValid([]byte) error {
 	return nil
 }
 
-func (fact OpFact) hash() util.Hash {
+func (fact *OpFact) hash() util.Hash {
 	var ib []byte
 	if fact.Issuer != nil {
 		ib = fact.Issuer.Bytes()
@@ -90,7 +90,7 @@ type opFactJSONMarshaler struct {
 	Amount int64 `json:"amount"`
 }
 
-func (fact OpFact) MarshalJSON() ([]byte, error) {
+func (fact *OpFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(opFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Issuer:                fact.Issuer,
@@ -139,25 +139,25 @@ type Op struct {
 	base.BaseOperation
 }
 
-func NewOp(fact OpFact) Op {
-	return Op{
+func NewOp(fact *OpFact) *Op {
+	return &Op{
 		BaseOperation: base.NewBaseOperation(OpHint, fact),
 	}
 }
 
-func (op Op) IsValid(networkID []byte) error {
+func (op *Op) IsValid(networkID []byte) error {
 	if err := op.BaseOperation.IsValid(networkID); err != nil {
 		return err
 	}
 
-	if _, ok := op.Fact().(OpFact); !ok {
+	if _, ok := op.Fact().(*OpFact); !ok {
 		return errors.Errorf("not Fact, %T", op.Fact())
 	}
 
 	return nil
 }
 
-func (op Op) StateMergeValues(context.Context) (
+func (op *Op) StateMergeValues(context.Context) (
 	[]StateMergeValue, base.OperationProcessReasonError, error,
 ) {
 	var fact OpFact
