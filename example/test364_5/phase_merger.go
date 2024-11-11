@@ -6,9 +6,9 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -60,37 +60,10 @@ type (
 	extractStateMergeValueKeysFunc     func(opindex uint64, _ []StateMergeValue) ([]string, error)
 )
 
-type phaseMergerOption struct {
-	*logging.Logging
-	NewPhaseJobWorker newPhaseJobWorkerFunc
-	XMergedOpsMapSize uint64
-	ReasonsMapSize    uint64
-}
-
-func newPhaseMergerOption() *phaseMergerOption {
-	option := &phaseMergerOption{
-		Logging:           newModuleLogging("phase-merger", nil),
-		XMergedOpsMapSize: 1 << 9,
-		ReasonsMapSize:    1 << 9,
-	}
-
-	option.NewPhaseJobWorker = func(ctx context.Context) (
-		phaseJobWorkerNewJobFunc,
-		func(),
-		func() error,
-		error,
-	) {
-		poption := newPhaseJobWorkerOption()
-
-		return newFuncPhaseJobWorker(ctx, poption)
-	}
-
-	return option
-}
-
 func newPhaseMerger(
 	ctx context.Context,
-	option *phaseMergerOption,
+	newJobWorker newJobWorkerFunc,
+	xMergedOpsMapSize uint64,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
@@ -104,7 +77,7 @@ func newPhaseMerger(
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := isXMergedOps(option.XMergedOpsMapSize); {
+	switch a, d, err := isXMergedOps(xMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -116,7 +89,7 @@ func newPhaseMerger(
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := option.NewPhaseJobWorker(ctx); {
+	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -125,10 +98,10 @@ func newPhaseMerger(
 		jobWait = w
 	}
 
-	addReason, doneReason := newAddOpUnmergeReasons(option.ReasonsMapSize)
+	addReason, doneReason := newAddOpUnmergeReasons(xMergedOpsMapSize)
 
 	mergeCallback, unmergeCallback := newXMergeCallbacks(
-		option,
+		ctx,
 		addXMergedOp,
 		addReason,
 		getStateMergeValues,
@@ -165,7 +138,7 @@ func newPhaseMerger(
 }
 
 func newXMergeCallbacks(
-	option *phaseMergerOption,
+	ctx context.Context,
 	addXMergedOp func(int, uint64, xMergeFlag),
 	addReason func(reasons map[uint64]string) error,
 	getStateMergeValues phaseMergerGetStateMergeValuesFunc,
@@ -179,7 +152,7 @@ func newXMergeCallbacks(
 	var unmergeCallback xMergeOpCallback
 
 	mergeCallback = newXMergeCallback(
-		option,
+		ctx,
 		mergeFlag,
 		func() xMergeOpCallback { return unmergeCallback },
 		addXMergedOp,
@@ -190,7 +163,7 @@ func newXMergeCallbacks(
 	)
 
 	unmergeCallback = newXMergeCallback(
-		option,
+		ctx,
 		unmergeFlag,
 		func() xMergeOpCallback { return mergeCallback },
 		addXMergedOp,
@@ -204,7 +177,7 @@ func newXMergeCallbacks(
 }
 
 func newXMergeCallback(
-	option *phaseMergerOption,
+	ctx context.Context,
 	x xMergeFlag,
 	nextCallback func() xMergeOpCallback,
 	addXMergedOp func(int, uint64, xMergeFlag),
@@ -213,6 +186,10 @@ func newXMergeCallback(
 	getMergers phaseMergerGetMergers,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) xMergeOpCallback {
+	var log *zerolog.Logger
+
+	_ = loadContextValueLogger(ctx, &log)
+
 	return func(opindex uint64) phaseJobWorkerCallback {
 		var xMergeOpValues xMergeOpValuesFunc
 
@@ -249,7 +226,7 @@ func newXMergeCallback(
 			stateKeys = i
 		}
 
-		l := option.Log().With().
+		l := log.With().
 			Uint64("opindex", opindex).
 			Strs("state_keys", stateKeys).
 			Logger()

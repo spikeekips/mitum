@@ -12,6 +12,26 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+const contextLoggerKey = "context-logger"
+
+var nopLogger = zerolog.Nop()
+
+func setContextValueLogger(ctx context.Context, v *zerolog.Logger) context.Context {
+	return context.WithValue(ctx, contextLoggerKey, v)
+}
+
+func loadContextValueLogger(ctx context.Context, v **zerolog.Logger) bool {
+	if i := ctx.Value(contextLoggerKey); i != nil {
+		if util.SetInterfaceValue(i, v) == nil {
+			return true
+		}
+	}
+
+	_ = util.SetInterfaceValue(&nopLogger, v)
+
+	return false
+}
+
 func traverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
 	if len(s) < 1 {
 		return nil

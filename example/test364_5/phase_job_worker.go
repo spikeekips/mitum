@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
@@ -18,23 +18,10 @@ type (
 	)
 )
 
-type phaseJobWorkerOption struct {
-	*logging.Logging
-	NewJobWorker newJobWorkerFunc
-	JobIDMapSize uint64
-}
-
-func newPhaseJobWorkerOption() *phaseJobWorkerOption {
-	return &phaseJobWorkerOption{
-		Logging:      newModuleLogging("phase-job-worker", nil),
-		NewJobWorker: newFuncJobWorker(1 << 9),
-		JobIDMapSize: 1 << 9,
-	}
-}
-
 func newPhaseJobWorker(
 	ctx context.Context,
-	option *phaseJobWorkerOption,
+	newJobWorker newJobWorkerFunc,
+	jobIDMapSize uint64,
 	phase int,
 ) (
 	phaseJobWorkerNewJobFunc,
@@ -42,10 +29,14 @@ func newPhaseJobWorker(
 	func() error,
 	error,
 ) {
+	var log *zerolog.Logger
+
+	_ = loadContextValueLogger(ctx, &log)
+
 	var jobIDFilter func(uint64, int) bool
 	var jobIDClose func()
 
-	switch f, c, err := newFuncJobID(option.JobIDMapSize); {
+	switch f, c, err := newFuncJobID(jobIDMapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -53,13 +44,13 @@ func newPhaseJobWorker(
 		jobIDClose = c
 	}
 
-	l := option.Log().With().Int("phase", phase).Logger()
+	l := log.With().Int("phase", phase).Logger()
 
 	var newJob jobWorkerNewJobFunc
 	var jobDone jobWorkerJobDoneFunc
 	var jobWait jobWorkerWaitFunc
 
-	switch n, d, w, err := option.NewJobWorker(ctx); {
+	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -74,7 +65,7 @@ func newPhaseJobWorker(
 	newNextPhase := onceFunc(func() error {
 		l.Debug().Int("phase", phase+1).Msg("new phase job worker")
 
-		switch n, d, w, err := newPhaseJobWorker(ctx, option, phase+1); {
+		switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1); {
 		case err != nil:
 			return err
 		default:
@@ -131,14 +122,15 @@ func newPhaseJobWorker(
 
 func newFuncPhaseJobWorker(
 	ctx context.Context,
-	option *phaseJobWorkerOption,
+	newJobWorker newJobWorkerFunc,
+	jobIDMapSize uint64,
 ) (
 	newJob phaseJobWorkerNewJobFunc,
 	jobDone func(),
 	wait func() error,
 	_ error,
 ) {
-	return newPhaseJobWorker(ctx, option, 0)
+	return newPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, 0)
 }
 
 func newFuncJobID(mapSize uint64) (
@@ -148,7 +140,7 @@ func newFuncJobID(mapSize uint64) (
 ) {
 	var m util.LockedMap[uint64, int]
 
-	switch i, err := util.NewShardedMap[uint64, int](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, int](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
