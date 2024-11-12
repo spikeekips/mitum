@@ -29,9 +29,9 @@ func newPhaseJobWorker(
 	func() error,
 	error,
 ) {
-	var log *zerolog.Logger
-
-	_ = loadContextValueLogger(ctx, &log)
+	log := newModuleLoggerFromContext(ctx, "phase-job-worker", func(zctx zerolog.Context) zerolog.Context {
+		return zctx.Int("phase", phase)
+	})
 
 	var jobIDFilter func(uint64, int) bool
 	var jobIDClose func()
@@ -43,8 +43,6 @@ func newPhaseJobWorker(
 		jobIDFilter = f
 		jobIDClose = c
 	}
-
-	l := log.With().Int("phase", phase).Logger()
 
 	var newJob jobWorkerNewJobFunc
 	var jobDone jobWorkerJobDoneFunc
@@ -63,7 +61,7 @@ func newPhaseJobWorker(
 	nextPhaseWait := func() error { return nil }
 
 	newNextPhase := onceFunc(func() error {
-		l.Debug().Int("phase", phase+1).Msg("new phase job worker")
+		log.Debug().Int("phase", phase+1).Msg("new phase job worker")
 
 		switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1); {
 		case err != nil:
@@ -81,7 +79,7 @@ func newPhaseJobWorker(
 	})
 
 	nextPhaseNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
-		l.Debug().Uint64("job_id", jobID).Msg("next phase new job")
+		log.Debug().Uint64("job_id", jobID).Msg("next phase new job")
 
 		if err := newNextPhase(); err != nil {
 			return err
