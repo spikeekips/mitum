@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 const contextLoggerKey = "context-logger"
@@ -20,16 +19,13 @@ func setContextValueLogger(ctx context.Context, v *zerolog.Logger) context.Conte
 	return context.WithValue(ctx, contextLoggerKey, v)
 }
 
-func loadContextValueLogger(ctx context.Context, v **zerolog.Logger) bool {
-	if i := ctx.Value(contextLoggerKey); i != nil {
-		if util.SetInterfaceValue(i, v) == nil {
-			return true
-		}
+func loadContextValueLogger(ctx context.Context) *zerolog.Logger {
+	switch t := ctx.Value(contextLoggerKey).(type) {
+	case *zerolog.Logger:
+		return t
+	default:
+		return nil
 	}
-
-	_ = util.SetInterfaceValue(&nopLogger, v)
-
-	return false
 }
 
 func traverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
@@ -270,20 +266,30 @@ func rUniqueCompactAppendSlice[T cmp.Ordered](
 	}
 }
 
-func newModuleLogging(module string, f func(zctx zerolog.Context) zerolog.Context) *logging.Logging {
+func newModuleLogger(logger *zerolog.Logger, module string, f func(zctx zerolog.Context) zerolog.Context) *zerolog.Logger {
 	if f == nil {
 		f = func(zctx zerolog.Context) zerolog.Context { return zctx }
 	}
 
-	return logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-		zctx = zctx.Str("module", module)
+	zctx := logger.With()
 
-		if f == nil {
-			return f(zctx)
-		}
+	zctx = zctx.Str("module", module)
+	if f != nil {
+		zctx = f(zctx)
+	}
 
-		return zctx
-	})
+	l := zctx.Logger()
+
+	return &l
+}
+
+func newModuleLoggerFromContext(ctx context.Context, module string, f func(zctx zerolog.Context) zerolog.Context) *zerolog.Logger {
+	logger := loadContextValueLogger(ctx)
+	if logger == nil {
+		return &nopLogger
+	}
+
+	return newModuleLogger(logger, module, f)
 }
 
 func onceFunc(f func() error) func() error {
@@ -368,3 +374,38 @@ func (emptyGCache[K, V]) Remove(K) bool            { return false }
 func (emptyGCache[K, V]) Close()                   {}
 func (emptyGCache[K, V]) Purge()                   {}
 func (emptyGCache[K, V]) Traverse(func(K, V) bool) {}
+
+func newDoneContextFunc(ctx context.Context) (
+	context.Context,
+	errorFunc,
+	func() error,
+) {
+	errDone := errors.New(util.UUID().String())
+	cctx, cctxCancel := context.WithCancelCause(ctx)
+
+	var once sync.Once
+
+	return cctx, func(err error) error {
+			once.Do(func() {
+				if err == nil {
+					cctxCancel(errDone)
+
+					return
+				}
+
+				cctxCancel(err)
+			})
+
+			return err
+		},
+		func() error {
+			<-cctx.Done()
+
+			switch err := context.Cause(cctx); {
+			case errors.Is(err, errDone):
+				return nil
+			default:
+				return err
+			}
+		}
+}

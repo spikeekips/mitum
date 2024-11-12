@@ -89,7 +89,7 @@ func newPhaseMerger(
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize); {
+	switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, 0); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

@@ -118,19 +118,6 @@ func newPhaseJobWorker(
 		nil
 }
 
-func newFuncPhaseJobWorker(
-	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
-	jobIDMapSize uint64,
-) (
-	newJob phaseJobWorkerNewJobFunc,
-	jobDone func(),
-	wait func() error,
-	_ error,
-) {
-	return newPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, 0)
-}
-
 func newFuncJobID(mapSize uint64) (
 	filter func(jobID uint64, phase int) (ok bool),
 	closef func(),
