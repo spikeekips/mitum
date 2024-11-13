@@ -43,6 +43,66 @@ func (t *testPhaseJobWorker) TestCancel() {
 	})
 }
 
+func (t *testPhaseJobWorker) TestPhase() {
+	t.Run("start from over zero", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var startPhase int = 3
+
+		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, startPhase)
+		t.NoError(err)
+
+		njobs := 13
+		endPhase := 3 + startPhase
+
+		var called uint64
+		var count func(context.Context, uint64, int, phaseJobWorkerNewJobFunc) error
+
+		count = func(ctx context.Context, jobID uint64, phase int, c phaseJobWorkerNewJobFunc) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(rand.Intn(99)) * time.Millisecond):
+				fmt.Printf("job: phase=%d jobID=%d\n", phase, jobID)
+
+				atomic.AddUint64(&called, 1)
+
+				return c(
+					jobID,
+					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
+						if phase == endPhase {
+							return nil
+						}
+
+						return count(ctx, jobID, phase, c)
+					},
+				)
+			}
+		}
+
+		go func() {
+			for i := range njobs {
+				t.NoError(newJob(
+					uint64(i),
+					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
+						return count(ctx, uint64(i), phase, c)
+					},
+				))
+			}
+
+			jobDone()
+		}()
+
+		t.NoError(wait())
+
+		ncalled := atomic.LoadUint64(&called)
+		expected := uint64(njobs * (endPhase - startPhase))
+		t.T().Logf("called=%d == expected=%d", ncalled, expected)
+		t.Equal(expected, ncalled)
+	})
+}
+
 func (t *testPhaseJobWorker) TestNewJob() {
 	t.Run("ok", func() {
 		ctx, cancel := context.WithCancel(context.Background())

@@ -12,6 +12,15 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const (
+	basePhase  int = 0
+	startPhase int = 1
+	lastPhase  int = -1
+
+	mergeFlag   xMergeFlag = "m"
+	unmergeFlag xMergeFlag = "u"
+)
+
 type xMergeFlag string
 
 func (x xMergeFlag) String() string {
@@ -24,11 +33,6 @@ func (x xMergeFlag) String() string {
 		return fmt.Sprintf("<unknown: %q>", string(x))
 	}
 }
-
-const (
-	mergeFlag   xMergeFlag = "m"
-	unmergeFlag xMergeFlag = "u"
-)
 
 type (
 	getStateFunc func(stateKey string) (base.State, bool, error)
@@ -77,7 +81,7 @@ func newPhaseMerger(
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := isXMergedOps(xMergedOpsMapSize); {
+	switch a, d, err := newCollectXmergedOpsFuncs(xMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -89,7 +93,7 @@ func newPhaseMerger(
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, 0); {
+	switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, startPhase); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -109,12 +113,12 @@ func newPhaseMerger(
 	)
 
 	return func(opindex uint64) error {
-			addXMergedOp(-1, opindex, mergeFlag)
+			addXMergedOp(basePhase, opindex, mergeFlag)
 
 			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
-			addXMergedOp(-1, opindex, unmergeFlag)
+			addXMergedOp(basePhase, opindex, unmergeFlag)
 
 			return newJob(opindex, unmergeCallback(opindex))
 		},
@@ -399,7 +403,7 @@ func newGetMergers(
 		mmergers.Close
 }
 
-func isXMergedOps(
+func newCollectXmergedOpsFuncs(
 	mapSize uint64,
 ) (
 	func(phase int, opindex uint64, _ xMergeFlag),
@@ -426,11 +430,11 @@ func isXMergedOps(
 
 	return func(phase int, opindex uint64, x xMergeFlag) {
 			switch {
-			case phase < 0:
+			case phase == basePhase:
 				baseMergedOps.SetValue(opindex, x)
 
 				return
-			case phase == 0:
+			case phase == startPhase:
 				if y, _ := baseMergedOps.Value(opindex); x == y {
 					return
 				}

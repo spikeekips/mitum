@@ -505,13 +505,13 @@ func TestMergeOp(t *testing.T) {
 	suite.Run(t, new(testMergeOp))
 }
 
-type testIsXMergedOPsFuncs struct {
+type testCollectXmergedOpsFuncs struct {
 	baseTestMergeOp
 }
 
-func (t *testIsXMergedOPsFuncs) TestAdd() {
+func (t *testCollectXmergedOpsFuncs) TestAdd() {
 	t.Run("no add", func() {
-		_, done, err := isXMergedOps(1 << 9)
+		_, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		t.NoError(done(func(merged, unmerged []uint64) error {
@@ -523,7 +523,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add merge", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -538,7 +538,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add unmerge", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, unmergeFlag)
@@ -553,7 +553,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add same", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -568,7 +568,7 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 
 	t.Run("add same, but dismiss", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(0, 1, mergeFlag)
@@ -583,9 +583,9 @@ func (t *testIsXMergedOPsFuncs) TestAdd() {
 	})
 }
 
-func (t *testIsXMergedOPsFuncs) TestWithBase() {
+func (t *testCollectXmergedOpsFuncs) TestWithBase() {
 	t.Run("no add", func() {
-		_, done, err := isXMergedOps(1 << 9)
+		_, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		t.NoError(done(func(merged, unmerged []uint64) error {
@@ -597,7 +597,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("add; same in base", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -613,7 +613,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("add; not same in base", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -629,7 +629,7 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 
 	t.Run("all same in base", func() {
-		add, done, err := isXMergedOps(1 << 9)
+		add, done, err := newCollectXmergedOpsFuncs(1 << 9)
 		t.NoError(err)
 
 		add(-1, 1, mergeFlag)
@@ -646,8 +646,8 @@ func (t *testIsXMergedOPsFuncs) TestWithBase() {
 	})
 }
 
-func TestIsXMergedOPsFuncs(t *testing.T) {
-	suite.Run(t, new(testIsXMergedOPsFuncs))
+func TestCollectXmergedOpsFuncs(t *testing.T) {
+	suite.Run(t, new(testCollectXmergedOpsFuncs))
 }
 
 type testPhaseMerger struct {
