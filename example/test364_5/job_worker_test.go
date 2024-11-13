@@ -39,7 +39,7 @@ func (t *testJobWorker) TestNoError() {
 		}
 	}
 
-	newJob, jobDone, wait, _ := newJobWorker(context.Background(), int64(l))
+	newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), int64(l))
 
 	go func() {
 		for i := uint64(0); i < l; i++ {
@@ -97,7 +97,7 @@ func (t *testJobWorker) TestError() {
 			}
 		}
 
-		newJob, jobDone, wait, _ := newJobWorker(context.Background(), int64(l))
+		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), int64(l))
 
 		go func() {
 			for i := uint64(0); i < l; i++ {
@@ -118,7 +118,7 @@ func (t *testJobWorker) TestError() {
 	})
 
 	t.Run("error, no cancel", func() {
-		newJob, jobDone, wait, _ := newJobWorker(context.Background(), 1)
+		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), 1)
 
 		var jobCount uint64
 		callback := func(context.Context) error {
@@ -162,7 +162,7 @@ func (t *testJobWorker) TestError() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, _ := newJobWorker(ctx, 1)
+		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, 1)
 
 		var jobCount uint64
 		callback := func(context.Context) error {
@@ -228,7 +228,7 @@ func (t *testJobWorker) TestDeadlineError() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
-	newJob, jobDone, wait, _ := newJobWorker(ctx, l)
+	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, l)
 
 	go func() {
 		for i := int64(0); i < l; i++ {
@@ -268,7 +268,7 @@ func (t *testJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, _ := newJobWorker(ctx, int64(l))
+		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
 
 		go func() {
 			for i := uint64(0); i < l; i++ {
@@ -291,7 +291,7 @@ func (t *testJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		_, _, wait, _ := newJobWorker(ctx, 1)
+		_, _, wait, _ := newFuncJobWorker(ctx, 1)
 
 		cancel()
 
@@ -303,7 +303,7 @@ func (t *testJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, _, wait, _ := newJobWorker(ctx, 1)
+		newJob, _, wait, _ := newFuncJobWorker(ctx, 1)
 
 		t.NoError(newJob(func(ctx context.Context) error {
 			select {
@@ -351,7 +351,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	newJob, jobDone, wait, _ := newJobWorker(ctx, int64(l))
+	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
 
 	enoughch := make(chan bool)
 	go func() {
@@ -382,7 +382,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 
 func (t *testJobWorker) TestDone() {
 	t.Run("NewJob() after Done()", func() {
-		newJob, jobDone, wait, _ := newJobWorker(context.Background(), 3)
+		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), 3)
 
 		jobdonech := make(chan struct{}, 1)
 		t.NoError(newJob(func(context.Context) error {
@@ -406,7 +406,7 @@ func (t *testJobWorker) TestDone() {
 
 func (t *testJobWorker) TestWait() {
 	t.Run("wait", func() {
-		newJob, jobDone, wait, _ := newJobWorker(context.Background(), 3)
+		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), 3)
 
 		jobdonech := make(chan struct{}, 1)
 		t.NoError(newJob(func(context.Context) error {
@@ -430,7 +430,7 @@ func (t *testJobWorker) TestWait() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, _ := newJobWorker(ctx, 3)
+		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, 3)
 
 		var called int
 
@@ -496,7 +496,7 @@ type testErrJobWorker struct {
 func (t *testErrJobWorker) TestError() {
 	t.Run("job error; no returned error", func() {
 		errch := make(chan error, 1)
-		newJob, jobDone, wait, err := newErrJobWorker(context.Background(), 3, func(err error) error {
+		newJob, jobDone, wait, err := newFuncErrJobWorker(context.Background(), 3, func(err error) error {
 			errch <- err
 
 			return nil
@@ -515,7 +515,7 @@ func (t *testErrJobWorker) TestError() {
 	})
 
 	t.Run("job error; returned error", func() {
-		newJob, jobDone, wait, err := newErrJobWorker(context.Background(), 3, func(err error) error {
+		newJob, jobDone, wait, err := newFuncErrJobWorker(context.Background(), 3, func(err error) error {
 			return err
 		})
 		t.NoError(err)
@@ -532,7 +532,7 @@ func (t *testErrJobWorker) TestError() {
 
 	t.Run("no error", func() {
 		errch := make(chan error, 1)
-		newJob, jobDone, wait, err := newErrJobWorker(context.Background(), 3, func(err error) error {
+		newJob, jobDone, wait, err := newFuncErrJobWorker(context.Background(), 3, func(err error) error {
 			errch <- err
 
 			return nil

@@ -22,7 +22,7 @@ func (t *testPhaseJobWorker) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, 0)
+		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
 
 		cancel()
@@ -50,7 +50,7 @@ func (t *testPhaseJobWorker) TestPhase() {
 
 		var startPhase int = 3
 
-		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, startPhase)
+		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, startPhase)
 		t.NoError(err)
 
 		njobs := 13
@@ -108,7 +108,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, 0)
+		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
 
 		njobs := 13
@@ -164,7 +164,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, 0)
+		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
 
 		endPhase := 3
@@ -231,7 +231,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		newJob, jobDone, wait, err := newPhaseJobWorker(ctx, newFuncJobWorker(1<<9), 1<<9, 0)
+		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
 
 		njobs := 13

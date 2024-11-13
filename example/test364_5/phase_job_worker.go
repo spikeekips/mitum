@@ -18,7 +18,7 @@ type (
 	)
 )
 
-func newPhaseJobWorker(
+func newFuncPhaseJobWorker(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
 	jobIDMapSize uint64,
@@ -63,7 +63,7 @@ func newPhaseJobWorker(
 	newNextPhase := onceFunc(func() error {
 		log.Debug().Int("phase", phase+1).Msg("new phase job worker")
 
-		switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1); {
+		switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1); {
 		case err != nil:
 			return err
 		default:

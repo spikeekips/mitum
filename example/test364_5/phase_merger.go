@@ -52,8 +52,8 @@ type (
 		reasons map[uint64]string,
 		_ error,
 	)
-	xMergeOpCallback     func(opindex uint64) phaseJobWorkerCallback
-	mergerGetMergersFunc func(
+	xMergeOpCallback          func(opindex uint64) phaseJobWorkerCallback
+	mergerGetStateMergersFunc func(
 		opindex uint64,
 		_ []StateMergeValue,
 		_ func(func(StateMergeValue) (StateMerger, error)) error,
@@ -65,12 +65,12 @@ type (
 	phaseMergerWaitFunc            func(phaseMergerWaitCallbackFunc) error
 )
 
-func newPhaseMerger(
+func newFuncPhaseMerger(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
 	getStateMergeValues mergerGetStateMergeValuesFunc,
-	getMergers mergerGetMergersFunc,
+	getStateMergers mergerGetStateMergersFunc,
 ) (
 	merge,
 	unmerge phaseMergerXMergeFunc,
@@ -81,7 +81,7 @@ func newPhaseMerger(
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
 
-	switch a, d, err := newCollectXmergedOpsFuncs(xMergedOpsMapSize); {
+	switch a, d, err := newFuncCollectXmergedOps(xMergedOpsMapSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -93,7 +93,7 @@ func newPhaseMerger(
 	var jobDone func()
 	var jobWait func() error
 
-	switch n, d, w, err := newPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, startPhase); {
+	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, startPhase); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -104,12 +104,12 @@ func newPhaseMerger(
 
 	addReason, doneReason := newAddOpUnmergeReasons(xMergedOpsMapSize)
 
-	mergeCallback, unmergeCallback := newXMergeCallbacks(
+	mergeCallback, unmergeCallback := newFuncXMergeCallbacks(
 		ctx,
 		addXMergedOp,
 		addReason,
 		getStateMergeValues,
-		getMergers,
+		getStateMergers,
 	)
 
 	return func(opindex uint64) error {
@@ -139,12 +139,12 @@ func newPhaseMerger(
 		nil
 }
 
-func newXMergeCallbacks(
+func newFuncXMergeCallbacks(
 	ctx context.Context,
 	addXMergedOp func(int, uint64, xMergeFlag),
 	addReason func(reasons map[uint64]string) error,
 	getStateMergeValues mergerGetStateMergeValuesFunc,
-	getMergers mergerGetMergersFunc,
+	getStateMergers mergerGetStateMergersFunc,
 ) (
 	merge,
 	unmerge xMergeOpCallback,
@@ -152,37 +152,37 @@ func newXMergeCallbacks(
 	var mergeCallback xMergeOpCallback
 	var unmergeCallback xMergeOpCallback
 
-	mergeCallback = newXMergeCallback(
+	mergeCallback = newFuncXMergeCallback(
 		ctx,
 		mergeFlag,
 		func() xMergeOpCallback { return unmergeCallback },
 		addXMergedOp,
 		addReason,
 		getStateMergeValues,
-		getMergers,
+		getStateMergers,
 	)
 
-	unmergeCallback = newXMergeCallback(
+	unmergeCallback = newFuncXMergeCallback(
 		ctx,
 		unmergeFlag,
 		func() xMergeOpCallback { return mergeCallback },
 		addXMergedOp,
 		addReason,
 		getStateMergeValues,
-		getMergers,
+		getStateMergers,
 	)
 
 	return mergeCallback, unmergeCallback
 }
 
-func newXMergeCallback(
+func newFuncXMergeCallback(
 	ctx context.Context,
 	x xMergeFlag,
 	nextCallback func() xMergeOpCallback,
 	addXMergedOp func(int, uint64, xMergeFlag),
 	addReason func(reasons map[uint64]string) error,
 	getStateMergeValues mergerGetStateMergeValuesFunc,
-	getMergers mergerGetMergersFunc,
+	getStateMergers mergerGetStateMergersFunc,
 ) xMergeOpCallback {
 	log := newModuleLoggerFromContext(ctx, "phase-merger", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Stringer("x", x)
@@ -216,7 +216,7 @@ func newXMergeCallback(
 		l := log.With().Uint64("opindex", opindex).Logger()
 
 		return func(_ context.Context, phase int, j phaseJobWorkerNewJobFunc) error {
-			return getMergers(
+			return getStateMergers(
 				opindex,
 				values,
 				func(getMerger func(StateMergeValue) (StateMerger, error)) error {
@@ -261,7 +261,7 @@ func newXMergeCallback(
 
 func unmergeValues(
 	getStateMergeValues mergerGetStateMergeValuesFunc,
-	getMergers mergerGetMergersFunc,
+	getStateMergers mergerGetStateMergersFunc,
 	opindex uint64,
 ) (
 	committed bool,
@@ -277,7 +277,7 @@ func unmergeValues(
 		values = i
 	}
 
-	return committed, nextMergeOps, getMergers(
+	return committed, nextMergeOps, getStateMergers(
 		opindex,
 		values,
 		func(getMerger func(StateMergeValue) (StateMerger, error)) error {
@@ -322,7 +322,7 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 	return stateKeys
 }
 
-func newExtractStateMergeValueKeys(cacheSize int) (
+func newFuncExtractStateMergeValueKeys(cacheSize int) (
 	extractStateMergeValueKeysFunc,
 	func(),
 ) {
@@ -371,12 +371,12 @@ func newExtractStateMergeValueKeys(cacheSize int) (
 		cache.Close
 }
 
-func newGetMergers(
+func newFuncGetStateMergers(
 	m util.LockedMap[string, StateMerger],
 	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
-	mergerGetMergersFunc,
+	mergerGetStateMergersFunc,
 	func(),
 ) {
 	mmergers := util.NewMultiKeysLockedMap[string, StateMerger](m)
@@ -403,7 +403,7 @@ func newGetMergers(
 		mmergers.Close
 }
 
-func newCollectXmergedOpsFuncs(
+func newFuncCollectXmergedOps(
 	mapSize uint64,
 ) (
 	func(phase int, opindex uint64, _ xMergeFlag),

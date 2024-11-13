@@ -23,7 +23,7 @@ type (
 	)
 )
 
-func newBaseJobWorker(
+func newFuncBaseJobWorker(
 	ctx context.Context,
 	semSize int64,
 	errf errorFunc,
@@ -41,8 +41,8 @@ func newBaseJobWorker(
 
 	sem := semaphore.NewWeighted(semSize)
 
-	newJobf := newJobWorkerNewJobFunc(ctx, jctx, sem, errf)
-	waitf, errNewJobDone := newJobWorkerWaitFunc(ctx, jctx, sem, semSize)
+	newJobf := newFuncJobWorkerNewJobFunc(ctx, jctx, sem, errf)
+	waitf, errNewJobDone := newFuncJobWorkerWaitFunc(ctx, jctx, sem, semSize)
 
 	return func(c contextWorkerCallback) error {
 			switch err := newJobf(c); {
@@ -78,7 +78,7 @@ func newBaseJobWorker(
 		nil
 }
 
-func newJobWorker(ctx context.Context, semSize int64) (
+func newFuncJobWorker(ctx context.Context, semSize int64) (
 	jobWorkerNewJobFunc,
 	jobWorkerJobDoneFunc,
 	jobWorkerWaitFunc,
@@ -86,7 +86,7 @@ func newJobWorker(ctx context.Context, semSize int64) (
 ) {
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	newJob, jobDone, wait, err := newBaseJobWorker(
+	newJob, jobDone, wait, err := newFuncBaseJobWorker(
 		wctx,
 		semSize,
 		wctxCancel,
@@ -102,7 +102,7 @@ func newJobWorker(ctx context.Context, semSize int64) (
 		nil
 }
 
-func newErrJobWorker(ctx context.Context, semSize int64, errf errorFunc) (
+func newFuncErrJobWorker(ctx context.Context, semSize int64, errf errorFunc) (
 	jobWorkerNewJobFunc,
 	jobWorkerJobDoneFunc,
 	jobWorkerWaitFunc,
@@ -112,7 +112,7 @@ func newErrJobWorker(ctx context.Context, semSize int64, errf errorFunc) (
 
 	ierrf := ifErrErrorFunc(wctxCancel)
 
-	newJob, jobDone, wait, err := newBaseJobWorker(
+	newJob, jobDone, wait, err := newFuncBaseJobWorker(
 		wctx,
 		semSize,
 		func(err error) error {
@@ -130,7 +130,7 @@ func newErrJobWorker(ctx context.Context, semSize int64, errf errorFunc) (
 		nil
 }
 
-func newJobWorkerNewJobFunc(
+func newFuncJobWorkerNewJobFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
 	errf errorFunc,
@@ -156,7 +156,7 @@ func newJobWorkerNewJobFunc(
 	}
 }
 
-func newJobWorkerWaitFunc(
+func newFuncJobWorkerWaitFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
 	semSize int64,
@@ -188,24 +188,24 @@ func newJobWorkerWaitFunc(
 		errNewJobDone
 }
 
-func newFuncJobWorker(semSize int64) newJobWorkerFunc {
+func newFuncNewJobWorkerFunc(semSize int64) newJobWorkerFunc {
 	return func(ctx context.Context) (
 		jobWorkerNewJobFunc,
 		jobWorkerJobDoneFunc,
 		jobWorkerWaitFunc,
 		error,
 	) {
-		return newJobWorker(ctx, semSize)
+		return newFuncJobWorker(ctx, semSize)
 	}
 }
 
-func newFuncErrJobWorker(semSize int64, errf errorFunc) newJobWorkerFunc {
+func newFuncNewErrJobWorkerFunc(semSize int64, errf errorFunc) newJobWorkerFunc {
 	return func(ctx context.Context) (
 		jobWorkerNewJobFunc,
 		jobWorkerJobDoneFunc,
 		jobWorkerWaitFunc,
 		error,
 	) {
-		return newErrJobWorker(ctx, semSize, errf)
+		return newFuncErrJobWorker(ctx, semSize, errf)
 	}
 }

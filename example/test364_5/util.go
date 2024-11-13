@@ -375,7 +375,7 @@ func (emptyGCache[K, V]) Close()                   {}
 func (emptyGCache[K, V]) Purge()                   {}
 func (emptyGCache[K, V]) Traverse(func(K, V) bool) {}
 
-func newDoneContextFunc(ctx context.Context) (
+func newDoneContext(ctx context.Context) (
 	context.Context,
 	errorFunc,
 	func() error,
