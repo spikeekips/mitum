@@ -29,7 +29,7 @@ func newFuncPhaseJobWorker(
 	func() error,
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "phase-job-worker", func(zctx zerolog.Context) zerolog.Context {
+	log := newModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Int("phase", phase)
 	})
 

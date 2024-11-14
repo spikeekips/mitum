@@ -1,0 +1,249 @@
+package main
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
+)
+
+type baseTestWorkers struct{}
+
+func (t *baseTestWorkers) workers(n int) []string {
+	w := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		w[i] = fmt.Sprintf("w%d", i)
+	}
+
+	return w
+}
+
+type testCheckEnoughFailedWorkers struct {
+	suite.Suite
+}
+
+func (t *testCheckEnoughFailedWorkers) TestNew() {
+	t.Run("1 min enough + 0 max failed", func() {
+		_, _, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+	})
+
+	t.Run("0 min enough + 0 max failed", func() {
+		_, _, err := newFuncCheckEnoughFailedWorkers(0, 0)
+		t.ErrorContains(err, "zero min enough")
+	})
+}
+
+func (t *testCheckEnoughFailedWorkers) TestEnough() {
+	t.Run("enough", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.NoError(err)
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+	})
+
+	t.Run("same worker", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w0", func() error { return nil })
+		t.False(ok)
+		t.False(enough)
+		t.False(failed)
+	})
+
+	t.Run("ok, but after closed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return nil })
+		t.False(ok)
+		t.True(enough)
+		t.False(failed)
+	})
+
+	t.Run("error, but after closed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return errors.Errorf("showme") })
+		t.False(ok)
+		t.True(enough)
+		t.False(failed)
+	})
+}
+
+func (t *testCheckEnoughFailedWorkers) TestEnoughUntil() {
+	t.Run("enough, but not ready", func() {
+		w, c, err := newFuncBaseCheckEnoughFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.NoError(err)
+		t.True(ok)
+		t.False(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return nil })
+		t.NoError(err)
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+	})
+
+	t.Run("enough, not ready", func() {
+		w, c, err := newFuncBaseCheckEnoughFailedWorkers(1, 0, func(worker string) bool { return worker == "w0" })
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.NoError(err)
+		t.True(ok)
+		t.True(enough)
+		t.False(failed)
+	})
+
+	t.Run("failed and ready", func() {
+		w, c, err := newFuncBaseCheckEnoughFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.ErrorContains(err, "showme")
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return nil })
+		t.ErrorIs(err, errWorkersFailed)
+		t.False(ok)
+		t.False(enough)
+		t.True(failed)
+	})
+
+	t.Run("ready, but failed", func() {
+		w, c, err := newFuncBaseCheckEnoughFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return nil })
+		t.NoError(err)
+		t.True(ok)
+		t.False(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return errors.Errorf("showme") })
+		t.ErrorContains(err, "showme")
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+	})
+}
+
+func (t *testCheckEnoughFailedWorkers) TestFailed() {
+	t.Run("failed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("error after failed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+
+		ok, enough, failed, err = w("w1", func() error { return nil })
+		t.False(ok)
+		t.False(enough)
+		t.True(failed)
+		t.ErrorIs(err, errWorkersFailed)
+	})
+
+	t.Run("failed, over zero", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 1)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+	})
+
+	t.Run("error, but under max failed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 2)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.False(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+	})
+
+	t.Run("ok, but after closed", func() {
+		w, c, err := newFuncCheckEnoughFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, enough, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(enough)
+		t.True(failed)
+
+		ok, enough, failed, err = w("w1", func() error { return nil })
+		t.False(ok)
+		t.False(enough)
+		t.True(failed)
+	})
+}
+
+func TestCheckEnoughFailedWorkersFunc(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testCheckEnoughFailedWorkers))
+}

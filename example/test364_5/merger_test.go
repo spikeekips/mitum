@@ -1,0 +1,116 @@
+package main
+
+import (
+	"context"
+	"slices"
+	"testing"
+
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
+)
+
+type testUnmerger struct {
+	suite.Suite
+	baseTestMergeOp
+}
+
+func (t *testUnmerger) newFuncs() (
+	vp util.LockedMap[uint64, []StateMergeValue],
+	mergers util.LockedMap[string, StateMerger],
+	states util.LockedMap[string, base.State],
+	_ mergerGetStateMergeValuesFunc,
+	getState getStateFunc,
+	getMergers mergerGetStateMergersFunc,
+) {
+	t.T().Helper()
+
+	vp, mergers, states, _, getValues := t.baseTestMergeOp.getFuncs()
+
+	getState = func(stateKey string) (base.State, bool, error) {
+		i, found := states.Value(stateKey)
+
+		return i, found, nil
+	}
+
+	extractKeys, _ := newFuncExtractStateMergeValueKeys(1 << 9)
+	getMergers, _ = newFuncGetStateMergers(mergers, getState, extractKeys)
+
+	return vp, mergers, states, getValues, getState, getMergers
+}
+
+func (t *testUnmerger) TestError() {
+	t.Run("zero xMergedOpsMapSize", func() {
+		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil)
+		t.ErrorContains(err, "empty size")
+	})
+}
+
+func (t *testUnmerger) TestUnmerge() {
+	t.Run("no merged ops", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
+
+		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
+
+		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers)
+		t.NoError(err)
+
+		ops := make([][]StateMergeValue, 33)
+		for i := range ops {
+			vs := t.randomMergeValues(1, 2)
+			vp.SetValue(uint64(i), vs)
+
+			ops[i] = vs
+		}
+
+		t.T().Log("insert ops")
+		{
+			newJob, jobDone, jobWait, err := newFuncJobWorker(ctx, 33)
+			t.NoError(err)
+
+			go func() {
+				for i := range ops {
+					opindex := uint64(i)
+
+					if err := newJob(func(context.Context) error {
+						return unmerge(opindex)
+					}); err != nil {
+						panic(err)
+					}
+				}
+
+				jobDone()
+			}()
+
+			t.NoError(jobWait())
+		}
+
+		t.T().Log("insert done")
+		done()
+
+		t.NoError(wait(func(unmergedOps []uint64) error {
+			slices.Sort(unmergedOps)
+
+			t.T().Logf("wait done: unmerged ops=%v", unmergedOps)
+
+			t.Equal(len(ops), len(unmergedOps))
+			t.Equal(uint64(0), unmergedOps[0])
+			t.Equal(uint64(len(ops)-1), unmergedOps[len(unmergedOps)-1])
+
+			return nil
+		}))
+
+		_, err = t.closeMergers(mergers)
+		t.ErrorContains(err, "under zero balance")
+	})
+}
+
+func TestUnmerger(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testUnmerger))
+}
