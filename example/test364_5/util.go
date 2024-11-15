@@ -24,7 +24,7 @@ func loadContextValueLogger(ctx context.Context) *zerolog.Logger {
 	case *zerolog.Logger:
 		return t
 	default:
-		return nil
+		return &nopLogger
 	}
 }
 
