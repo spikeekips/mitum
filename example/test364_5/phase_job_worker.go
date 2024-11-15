@@ -32,6 +32,7 @@ func newFuncPhaseJobWorker(
 	log := newModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Int("phase", phase)
 	})
+	ctx = setContextValueLogger(ctx, log)
 
 	var jobIDFilter func(uint64, int) bool
 	var jobIDClose func()
@@ -57,36 +58,7 @@ func newFuncPhaseJobWorker(
 		jobWait = w
 	}
 
-	var nextPhaseNewJobf phaseJobWorkerNewJobFunc
-	nextPhaseWait := func() error { return nil }
-
-	newNextPhase := onceFunc(func() error {
-		log.Debug().Int("phase", phase+1).Msg("new phase job worker")
-
-		switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1); {
-		case err != nil:
-			return err
-		default:
-			nextPhaseNewJobf = n
-			nextPhaseWait = func() error {
-				d()
-
-				return w()
-			}
-
-			return nil
-		}
-	})
-
-	nextPhaseNewJob := func(jobID uint64, c phaseJobWorkerCallback) error {
-		log.Debug().Uint64("job_id", jobID).Msg("next phase new job")
-
-		if err := newNextPhase(); err != nil {
-			return err
-		}
-
-		return nextPhaseNewJobf(jobID, c)
-	}
+	nextPhaseNewJob, nextPhaseWait := newLockedPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1)
 
 	return func(jobID uint64, c phaseJobWorkerCallback) error {
 			if c == nil {
@@ -121,6 +93,69 @@ func newFuncPhaseJobWorker(
 			})
 		},
 		nil
+}
+
+func newLockedPhaseJobWorker(
+	ctx context.Context,
+	newJobWorker newJobWorkerFunc,
+	jobIDMapSize uint64,
+	phase int,
+) (
+	phaseJobWorkerNewJobFunc,
+	errorFunc,
+) {
+	log := loadContextValueLogger(ctx)
+
+	l := log.With().Int("phase", phase).Logger()
+
+	newJobLocked := util.EmptyLocked[phaseJobWorkerNewJobFunc]()
+	waitLocked := util.EmptyLocked[errorFunc]()
+
+	once := onceFunc(func() error {
+		l.Debug().Msg("new phase job worker")
+
+		switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase); {
+		case err != nil:
+			return err
+		default:
+			newJobLocked.SetValue(n)
+			waitLocked.SetValue(func() error {
+				d()
+
+				return w()
+			})
+
+			return nil
+		}
+	})
+
+	return func(jobID uint64, c phaseJobWorkerCallback) error {
+			l.Debug().Uint64("job_id", jobID).Msg("new job")
+
+			if err := once(); err != nil {
+				return err
+			}
+
+			if i, isEmpty := newJobLocked.Value(); !isEmpty {
+				return i(jobID, c)
+			}
+
+			return nil
+		},
+		func() error {
+			l.Debug().Msg("wait done")
+
+			defer func() {
+				newJobLocked.EmptyValue()
+				waitLocked.EmptyValue()
+			}()
+
+			if i, isEmpty := waitLocked.Value(); !isEmpty {
+				return i()
+			}
+
+			return nil
+		}
 }
 
 func newFuncJobID(mapSize uint64) (
