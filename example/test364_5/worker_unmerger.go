@@ -232,14 +232,14 @@ func newFuncUnmergerLocked(
 		},
 
 		func(f unmergedFunc) error {
-			if i, isEmpty := waitLocked.Value(); !isEmpty {
-				return i(f)
-			}
-
 			defer func() {
 				doneLocked.EmptyValue()
 				waitLocked.EmptyValue()
 			}()
+
+			if i, isEmpty := waitLocked.Value(); !isEmpty {
+				return i(f)
+			}
 
 			return nil
 		}
