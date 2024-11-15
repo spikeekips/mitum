@@ -306,13 +306,17 @@ func onceFunc(f func() error) func() error {
 	}
 }
 
-type errorFunc func(error) error
+type (
+	contextInFunc func(context.Context) error
+	errorFunc     func() error
+	errorInFunc   func(error) error
+)
 
-func dummyErrorFunc(err error) error {
+func dummyErrorInFunc(err error) error {
 	return err
 }
 
-func ifErrErrorFunc(f errorFunc) errorFunc {
+func ifErrErrorInFunc(f errorInFunc) errorInFunc {
 	return func(err error) error {
 		if err != nil {
 			return f(err)
@@ -322,7 +326,7 @@ func ifErrErrorFunc(f errorFunc) errorFunc {
 	}
 }
 
-func contextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
+func contextWithCancelCause(ctx context.Context) (context.Context, errorInFunc) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
 	var called bool
@@ -355,7 +359,7 @@ func contextWithCancelCause(ctx context.Context) (context.Context, errorFunc) {
 	}
 }
 
-func contextCauseError(ctx context.Context, ef errorFunc, f func(context.Context) error) error {
+func contextCauseError(ctx context.Context, ef errorInFunc, f func(context.Context) error) error {
 	if err := context.Cause(ctx); err != nil {
 		return errors.WithStack(err)
 	}
@@ -377,7 +381,7 @@ func (emptyGCache[K, V]) Traverse(func(K, V) bool) {}
 
 func newDoneContext(ctx context.Context) (
 	context.Context,
-	errorFunc,
+	errorInFunc,
 	func() error,
 ) {
 	errDone := errors.New(util.UUID().String())

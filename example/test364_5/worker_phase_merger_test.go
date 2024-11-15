@@ -24,8 +24,8 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
-	_ mergerGetStateMergeValuesFunc,
-	getState getStateFunc,
+	_ opindexGetStateMergeValuesFunc,
+	getState createStateFunc,
 	newPhaseMergerf newPhaseMergerFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	traverseStateMergers traverseStateMergersFunc,
@@ -56,11 +56,11 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 
 	newPhaseMergerf = func(
 		ctx context.Context,
-		getStateMergeValues mergerGetStateMergeValuesFunc,
+		getStateMergeValues opindexGetStateMergeValuesFunc,
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge phaseMergerXMergeFunc,
+		unmerge opindexErrorFunc,
 		done func(),
 		wait phaseMergerWaitFunc,
 		_ error,
@@ -125,7 +125,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		err = insert("w0", func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+		err = insert("w0", func(f insertStateMergeValuesFunc) error {
 			return f(0, t.randomMergeValues(1))
 		})
 		t.ErrorIs(err, context.Canceled)
@@ -152,7 +152,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		cancel()
 
-		err = insert("w0", func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+		err = insert("w0", func(f insertStateMergeValuesFunc) error {
 			return f(0, t.randomMergeValues(1))
 		})
 		t.ErrorIs(err, context.Canceled)
@@ -177,7 +177,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert("w0", func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+		t.NoError(insert("w0", func(f insertStateMergeValuesFunc) error {
 			return f(0, t.randomMergeValues(1))
 		}))
 
@@ -206,7 +206,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		t.NoError(err)
 
 		traverseSlice(workers, func(_ int, worker string) (bool, error) {
-			err := insert(worker, func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+			err := insert(worker, func(f insertStateMergeValuesFunc) error {
 				for i := range 3 {
 					if worker == workers[1] && i == 1 {
 						cancel()
@@ -272,7 +272,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := insert("w0", func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+			err := insert("w0", func(f insertStateMergeValuesFunc) error {
 				var gerr error
 
 				vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
@@ -349,7 +349,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.T().Log("insert values")
 		go func() {
 			_ = traverseSlice(workers, func(wi int, worker string) (bool, error) {
-				_ = insert(worker, func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+				_ = insert(worker, func(f insertStateMergeValuesFunc) error {
 					for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
 						if err := f(uint64(i), values[i]); err != nil {
 							return err
@@ -428,7 +428,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		go func() {
 			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
-				return true, insert(worker, func(f workerPhaseMergerWorkerInsertValuesFunc) error {
+				return true, insert(worker, func(f insertStateMergeValuesFunc) error {
 					for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
 						if err := f(uint64(i), values[i]); err != nil {
 							return err

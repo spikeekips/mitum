@@ -45,8 +45,8 @@ func newFuncPhaseJobWorker(
 	}
 
 	var newJob jobWorkerNewJobFunc
-	var jobDone jobWorkerJobDoneFunc
-	var jobWait jobWorkerWaitFunc
+	var jobDone func()
+	var jobWait errorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -94,7 +94,7 @@ func newFuncPhaseJobWorker(
 			}
 
 			return newJob(func(ctx context.Context) error {
-				return contextCauseError(ctx, dummyErrorFunc, func(ctx context.Context) error {
+				return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
 					if !jobIDFilter(jobID, phase) {
 						return nil
 					}
@@ -112,7 +112,7 @@ func newFuncPhaseJobWorker(
 				jobIDClose()
 			}()
 
-			return contextCauseError(ctx, dummyErrorFunc, func(context.Context) error {
+			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				if err := jobWait(); err != nil {
 					return err
 				}

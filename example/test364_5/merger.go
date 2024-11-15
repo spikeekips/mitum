@@ -8,19 +8,19 @@ import (
 )
 
 type (
-	unmergerOpindexFilterFunc func(opindex uint64) (bool, error)
-	unmergerWaitCallbackFunc  func(unmerged []uint64) error
-	unmergerWaitFunc          func(unmergerWaitCallbackFunc) error
+	unmergedFunc      func(unmerged []uint64) error
+	opindexFilterFunc func(opindex uint64) (bool, error)
+	unmergerWaitFunc  func(unmergedFunc) error
 )
 
 func newFuncUnmerger(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
-	getStateMergeValues mergerGetStateMergeValuesFunc,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
 ) (
-	unmerge phaseMergerXMergeFunc,
+	unmerge opindexErrorFunc,
 	done func(),
 	wait unmergerWaitFunc,
 	_ error,
@@ -28,8 +28,8 @@ func newFuncUnmerger(
 	log := newModuleLoggerFromContext(ctx, "unmerger", nil)
 
 	var newJob jobWorkerNewJobFunc
-	var jobDone jobWorkerJobDoneFunc
-	var jobWait jobWorkerWaitFunc
+	var jobDone func()
+	var jobWait errorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -40,7 +40,7 @@ func newFuncUnmerger(
 		jobWait = w
 	}
 
-	var opindexFilter unmergerOpindexFilterFunc
+	var opindexFilter opindexFilterFunc
 	var opindexFilterClose func()
 
 	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues); {
@@ -97,7 +97,7 @@ func newFuncUnmerger(
 			})
 		},
 		jobDone,
-		func(f unmergerWaitCallbackFunc) error {
+		func(f unmergedFunc) error {
 			defer func() {
 				_ = doneOps(nil)
 				opindexFilterClose()
@@ -120,9 +120,9 @@ func newFuncUnmerger(
 
 func newFuncOpindexFilter(
 	mapSize uint64,
-	getStateMergeValues mergerGetStateMergeValuesFunc,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 ) (
-	_ unmergerOpindexFilterFunc,
+	_ opindexFilterFunc,
 	closef func(),
 	_ error,
 ) {

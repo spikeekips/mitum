@@ -9,8 +9,8 @@ import (
 )
 
 type (
-	checkEnoughFailedWorkerFunc  func(worker string, _ func() error) (ok, enough, failed bool, _ error)
-	checkEnoughFailedWorkersFunc func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
+	checkEnoughFailedWorkerFunc     func(worker string, _ func() error) (ok, enough, failed bool, _ error)
+	newCheckEnoughFailedWorkersFunc func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
 )
 
 var errWorkersFailed = util.NewIDError("workers failed")
@@ -155,7 +155,7 @@ func newFuncCheckEnoughFailedWorkers(minEnough, maxFailed uint64) (
 	)
 }
 
-func newFuncLocalCheckEnoughFailedWorkers(local string) checkEnoughFailedWorkersFunc {
+func newFuncLocalCheckEnoughFailedWorkers(local string) newCheckEnoughFailedWorkersFunc {
 	return func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error) {
 		return newFuncBaseCheckEnoughFailedWorkers(
 			minEnough, maxFailed,
@@ -168,7 +168,7 @@ type traverseStateMergersFunc func(func(stateKey string, merger StateMerger) (bo
 
 func newFuncStateMergers(
 	poolSize uint64,
-	getState getStateFunc,
+	getState createStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	getStateMergers mergerGetStateMergersFunc,
@@ -209,7 +209,7 @@ func newFuncStateMergers(
 
 func newFuncSetStateOps(mapSize uint64) (
 	setStateOpFunc,
-	getStateOpsFunc,
+	getStatesOpsFunc,
 	error,
 ) {
 	var m util.LockedMap[string, map[uint64] /* {phase, count} */ [2]int]
@@ -249,7 +249,7 @@ func newFuncSetStateOps(mapSize uint64) (
 				return true, nil
 			})
 		},
-		func(f func(getStateOpsCallbackFunc) error) error {
+		func(f func(getStateOpsFunc) error) error {
 			defer m.Close()
 
 			return f(func(stateKey string) (ops []uint64) {
@@ -295,7 +295,7 @@ func newFuncSetStateOps(mapSize uint64) (
 }
 
 func newStateMergeValuesPool(maxOps, poolSize uint64) (
-	_ mergerGetStateMergeValuesFunc,
+	_ opindexGetStateMergeValuesFunc,
 	closef func(),
 	_ error,
 ) {

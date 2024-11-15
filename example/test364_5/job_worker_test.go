@@ -22,7 +22,7 @@ func (t *testJobWorker) TestNoError() {
 	var l uint64 = 10
 	returnch := make(chan interface{}, l)
 
-	callback := func(j interface{}) contextWorkerCallback {
+	callback := func(j interface{}) contextInFunc {
 		return func(ctx context.Context) error {
 			if j == nil {
 				return nil
@@ -76,7 +76,7 @@ func (t *testJobWorker) TestError() {
 		var l uint64 = 10
 
 		var called uint64
-		callback := func(j interface{}) contextWorkerCallback {
+		callback := func(j interface{}) contextInFunc {
 			return func(ctx context.Context) error {
 				if j == nil {
 					return nil
@@ -212,7 +212,7 @@ func (t *testJobWorker) TestDeadlineError() {
 	var l int64 = 10
 
 	var called uint64
-	callback := func() contextWorkerCallback {
+	callback := func() contextInFunc {
 		return func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
@@ -253,7 +253,7 @@ func (t *testJobWorker) TestCancel() {
 	t.Run("cancel after NewJob", func() {
 		var l uint64 = 10
 
-		callback := func(j interface{}) contextWorkerCallback {
+		callback := func(j interface{}) contextInFunc {
 			return func(ctx context.Context) error {
 				select {
 				case <-ctx.Done():

@@ -20,8 +20,8 @@ func (t *testUnmerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
-	_ mergerGetStateMergeValuesFunc,
-	getState getStateFunc,
+	_ opindexGetStateMergeValuesFunc,
+	getState createStateFunc,
 	getMergers mergerGetStateMergersFunc,
 ) {
 	t.T().Helper()

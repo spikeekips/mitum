@@ -7,35 +7,35 @@ import (
 type (
 	newPhaseMergerFunc func(
 		_ context.Context,
-		getStateMergeValues mergerGetStateMergeValuesFunc,
+		getStateMergeValues opindexGetStateMergeValuesFunc,
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge phaseMergerXMergeFunc,
+		unmerge opindexErrorFunc,
 		done func(),
 		wait phaseMergerWaitFunc,
 		_ error,
 	)
-	setStateOpFunc                          func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
-	getStateOpsCallbackFunc                 func(stateKey string) (ops []uint64)
-	getStateOpsFunc                         func(func(getStateOpsCallbackFunc) error) error
-	workerPhaseMergerWorkerInsertValuesFunc func(opindex uint64, _ []StateMergeValue) error
-	workerPhaseMergerWorkerInsertFunc       func(worker string, _ func(workerPhaseMergerWorkerInsertValuesFunc) error) error
-	workerPhaseMergerWaitCallbackFunc       func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error
-	workerPhaseMergerWaitFunc               func(workerPhaseMergerWaitCallbackFunc) error
+	setStateOpFunc                    func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
+	getStateOpsFunc                   func(stateKey string) (ops []uint64)
+	getStatesOpsFunc                  func(func(getStateOpsFunc) error) error
+	insertStateMergeValuesFunc        func(opindex uint64, _ []StateMergeValue) error
+	insertWorkerStateMergeValuesFunc  func(worker string, _ func(insertStateMergeValuesFunc) error) error
+	workerPhaseMergerWaitCallbackFunc func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error
+	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
 )
 
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
 func newFuncWorkerPhaseMerger(
 	ctx context.Context,
-	getState getStateFunc,
-	getStateMergeValues mergerGetStateMergeValuesFunc,
+	getState createStateFunc,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
-	newCheckWorkers checkEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
+	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	newPhaseMerger newPhaseMergerFunc,
 	minEnough, maxFailed uint64,
 ) (
-	workerPhaseMergerWorkerInsertFunc,
+	insertWorkerStateMergeValuesFunc,
 	workerPhaseMergerWaitFunc,
 	error,
 ) {
@@ -61,7 +61,7 @@ func newFuncWorkerPhaseMerger(
 		checkWorkerInsertClose = c
 	}
 
-	var phaseMergerMerge phaseMergerXMergeFunc
+	var phaseMergerMerge opindexErrorFunc
 	var phaseMergerDone func()
 	var phaseMergerWait phaseMergerWaitFunc
 
@@ -80,10 +80,10 @@ func newFuncWorkerPhaseMerger(
 
 	_, workerInsertDone, workerInsertWait := newDoneContext(wctx)
 
-	return func(worker string, f func(workerPhaseMergerWorkerInsertValuesFunc) error) error {
+	return func(worker string, f func(insertStateMergeValuesFunc) error) error {
 			l := log.With().Str("worker", worker).Logger()
 
-			werr := contextCauseError(wctx, dummyErrorFunc,
+			werr := contextCauseError(wctx, dummyErrorInFunc,
 				func(context.Context) error {
 					return f(func(opindex uint64, values []StateMergeValue) error {
 						return phaseMergerMerge(opindex)
@@ -142,11 +142,11 @@ func newFuncPhaseMergerFunc(
 ) newPhaseMergerFunc {
 	return func(
 		ctx context.Context,
-		getStateMergeValues mergerGetStateMergeValuesFunc,
+		getStateMergeValues opindexGetStateMergeValuesFunc,
 		getStateMergers mergerGetStateMergersFunc,
 	) (
-		phaseMergerXMergeFunc,
-		phaseMergerXMergeFunc,
+		opindexErrorFunc,
+		opindexErrorFunc,
 		func(),
 		phaseMergerWaitFunc,
 		error,

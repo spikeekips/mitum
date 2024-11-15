@@ -8,8 +8,8 @@ import (
 )
 
 type (
-	workerPhaseDoneFunc    func(worker string, unmerged []uint64) error
-	workerUnmergerWaitFunc func(unmergerWaitCallbackFunc) error
+	workerUnmergedFunc     func(worker string, unmerged []uint64) error
+	workerUnmergerWaitFunc func(unmergedFunc) error
 )
 
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
@@ -18,12 +18,12 @@ func newFuncWorkerUnmerger(
 	local string,
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
-	getStateMergeValues mergerGetStateMergeValuesFunc,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
-	newCheckWorkers checkEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
+	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	minEnough, maxFailed uint64,
 ) (
-	workerPhaseDoneFunc,
+	workerUnmergedFunc,
 	workerUnmergerWaitFunc,
 	error,
 ) {
@@ -71,7 +71,7 @@ func newFuncWorkerUnmerger(
 	_, workerPhaseDone, workerPhaseDoneWait := newDoneContext(wctx)
 
 	return func(worker string, unmerged []uint64) error {
-			return contextCauseError(wctx, dummyErrorFunc, func(context.Context) error {
+			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
 				var gerr error
@@ -103,7 +103,7 @@ func newFuncWorkerUnmerger(
 				return gerr
 			})
 		},
-		func(f unmergerWaitCallbackFunc) error {
+		func(f unmergedFunc) error {
 			defer func() {
 				_ = unmergerWait(nil)
 				checkWorkerClose()
@@ -135,7 +135,7 @@ func newFuncWorkerPhaseDonePool(
 	local string,
 	whenReady func(worker string, unmerged []uint64) error,
 ) (
-	_ workerPhaseDoneFunc,
+	_ workerUnmergedFunc,
 	closef func(),
 ) {
 	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
@@ -187,17 +187,17 @@ func newFuncUnmergerLocked(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
-	getStateMergeValues mergerGetStateMergeValuesFunc,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
 ) (
-	phaseMergerXMergeFunc,
+	opindexErrorFunc,
 	func(),
 	unmergerWaitFunc,
 ) {
 	doneLocked := util.EmptyLocked[func()]()
-	waitLocked := util.EmptyLocked[func(unmergerWaitCallbackFunc) error]()
+	waitLocked := util.EmptyLocked[func(unmergedFunc) error]()
 
-	var unmerge phaseMergerXMergeFunc
+	var unmerge opindexErrorFunc
 
 	once := onceFunc(func() error {
 		switch u, d, w, err := newFuncUnmerger(
@@ -231,7 +231,7 @@ func newFuncUnmergerLocked(
 			}
 		},
 
-		func(f unmergerWaitCallbackFunc) error {
+		func(f unmergedFunc) error {
 			if i, isEmpty := waitLocked.Value(); !isEmpty {
 				return i(f)
 			}

@@ -9,14 +9,14 @@ import (
 func newFuncWorker(
 	ctx context.Context,
 	local string,
-	getState getStateFunc,
+	getState createStateFunc,
 	jobWorkerSemSize int64,
 	xMergedOpsMapSize, stateMergeValuesPoolSize, stateMergersPoolSize uint64,
 	extractStateKeyCacheSize int,
 	maxOps,
 	minEnoughOps, maxFailedOps uint64,
 ) (
-	workerPhaseMergerWorkerInsertFunc,
+	insertWorkerStateMergeValuesFunc,
 	workerPhaseMergerWaitFunc,
 	error,
 ) {
@@ -31,7 +31,7 @@ func newFuncWorker(
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	var getStateMergeValues mergerGetStateMergeValuesFunc
+	var getStateMergeValues opindexGetStateMergeValuesFunc
 	var stateMergeValuesPoolClose func()
 
 	switch g, c, err := newStateMergeValuesPool(maxOps, stateMergeValuesPoolSize); {
@@ -64,7 +64,7 @@ func newFuncWorker(
 	// FIXME stateMergeValues extractor
 	// phase merger
 
-	var workerPhaseMergerWorkerInsert workerPhaseMergerWorkerInsertFunc
+	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
 	var workerPhaseMergerWait workerPhaseMergerWaitFunc
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
