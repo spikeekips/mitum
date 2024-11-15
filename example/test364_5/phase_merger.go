@@ -78,8 +78,10 @@ func newFuncPhaseMerger(
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
+	getStateMergeValues = mustGetStateMergeValuesFunc(getStateMergeValues)
+
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
-	var doneXMergedOps func(func(mergedOps, unmergedOps []uint64) error) error
+	var doneXMergedOps func(func(merged, unmerged []uint64) error) error
 
 	switch a, d, err := newFuncCollectXmergedOps(xMergedOpsMapSize); {
 	case err != nil:
@@ -407,7 +409,7 @@ func newFuncCollectXmergedOps(
 	mapSize uint64,
 ) (
 	func(phase int, opindex uint64, _ xMergeFlag),
-	func(func(mergedOps, unmergedOps []uint64) error) error,
+	func(func(merged, unmerged []uint64) error) error,
 	error,
 ) {
 	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
@@ -508,7 +510,7 @@ func newFuncCollectXmergedOps(
 
 func newAddOpUnmergeReasons(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
-	done func(unmergedOps []uint64) map[uint64]string,
+	done func(unmerged []uint64) map[uint64]string,
 ) {
 	var m util.LockedMap[uint64, string]
 
@@ -547,21 +549,21 @@ func newAddOpUnmergeReasons(mapSize uint64) (
 
 			return nil
 		},
-		func(unmergedOps []uint64) map[uint64]string {
+		func(unmerged []uint64) map[uint64]string {
 			if m == nil {
 				return nil
 			}
 
 			defer m.Close()
 
-			if len(unmergedOps) < 1 {
+			if len(unmerged) < 1 {
 				return nil
 			}
 
 			r := m.Map()
 
 			for i := range r {
-				if slices.Index(unmergedOps, i) < 0 {
+				if slices.Index(unmerged, i) < 0 {
 					delete(r, i)
 				}
 			}
@@ -772,7 +774,20 @@ func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue
 	return func(opindex uint64) ([]StateMergeValue, error) {
 		switch i, found := vp.Value(opindex); {
 		case !found:
-			return nil, util.ErrNotFound.Errorf("state merge values, opindex=%d", opindex)
+			return nil, nil
+		default:
+			return i, nil
+		}
+	}
+}
+
+func mustGetStateMergeValuesFunc(get mergerGetStateMergeValuesFunc) mergerGetStateMergeValuesFunc {
+	return func(opindex uint64) ([]StateMergeValue, error) {
+		switch i, err := get(opindex); {
+		case err != nil:
+			return nil, err
+		case len(i) < 1:
+			return nil, util.ErrNotFound.Errorf("opindex=%d", opindex)
 		default:
 			return i, nil
 		}

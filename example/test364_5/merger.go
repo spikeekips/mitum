@@ -8,8 +8,9 @@ import (
 )
 
 type (
-	unmergerWaitCallbackFunc func(unmergedOps []uint64) error
-	unmergerWaitFunc         func(unmergerWaitCallbackFunc) error
+	unmergerOpindexFilterFunc func(opindex uint64) (bool, error)
+	unmergerWaitCallbackFunc  func(unmerged []uint64) error
+	unmergerWaitFunc          func(unmergerWaitCallbackFunc) error
 )
 
 func newFuncUnmerger(
@@ -39,10 +40,10 @@ func newFuncUnmerger(
 		jobWait = w
 	}
 
-	var opindexFilter func(opindex uint64) bool
+	var opindexFilter unmergerOpindexFilterFunc
 	var opindexFilterClose func()
 
-	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize); {
+	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -69,7 +70,10 @@ func newFuncUnmerger(
 	}
 
 	return func(opindex uint64) error {
-			if !opindexFilter(opindex) {
+			switch ok, err := opindexFilter(opindex); {
+			case err != nil:
+				return err
+			case !ok:
 				return nil
 			}
 
@@ -107,15 +111,18 @@ func newFuncUnmerger(
 				return nil
 			}
 
-			return doneOps(func(unmergedOps []uint64) error {
-				return f(unmergedOps)
+			return doneOps(func(unmerged []uint64) error {
+				return f(unmerged)
 			})
 		},
 		nil
 }
 
-func newFuncOpindexFilter(mapSize uint64) (
-	filter func(opindex uint64) bool,
+func newFuncOpindexFilter(
+	mapSize uint64,
+	getStateMergeValues mergerGetStateMergeValuesFunc,
+) (
+	_ unmergerOpindexFilterFunc,
 	closef func(),
 	_ error,
 ) {
@@ -123,7 +130,7 @@ func newFuncOpindexFilter(mapSize uint64) (
 	case err != nil:
 		return nil, nil, err
 	default:
-		return func(opindex uint64) bool {
+		return func(opindex uint64) (bool, error) {
 				_, created, _ := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
 					if found {
 						return v, util.ErrLockedSetIgnore
@@ -132,7 +139,13 @@ func newFuncOpindexFilter(mapSize uint64) (
 					return v, nil
 				})
 
-				return created
+				if created {
+					if i, err := getStateMergeValues(opindex); err != nil || len(i) < 1 {
+						return false, err
+					}
+				}
+
+				return created, nil
 			},
 			m.Close,
 			nil

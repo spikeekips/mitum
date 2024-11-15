@@ -105,7 +105,12 @@ func newFuncPhaseJobWorker(
 		},
 		jobDone,
 		func() error {
-			defer jobIDClose()
+			defer func() {
+				_ = jobWait()
+				_ = nextPhaseWait()
+
+				jobIDClose()
+			}()
 
 			return contextCauseError(ctx, dummyErrorFunc, func(context.Context) error {
 				if err := jobWait(); err != nil {

@@ -48,6 +48,8 @@ func newFuncWorkerPhaseMerger(
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
+	getStateMergeValues = mustGetStateMergeValuesFunc(getStateMergeValues)
+
 	var checkWorkerInsert checkEnoughFailedWorkerFunc
 	var checkWorkerInsertClose func()
 
@@ -91,11 +93,11 @@ func newFuncWorkerPhaseMerger(
 
 			switch ok, enough, failed, err := checkWorkerInsert(worker, func() error { return werr }); {
 			case failed:
-				l.Debug().Msg("insert; check workers: failed")
+				l.Error().Err(err).Msg("insert; check workers: failed")
 
-				return workerInsertDone(err)
+				return wctxCancel(workerInsertDone(err))
 			case err != nil: // NOTE ignore
-				l.Debug().Interface("err", err).Msg("insert")
+				l.Debug().Err(err).Msg("insert")
 
 				return err
 			case !ok:
@@ -111,14 +113,11 @@ func newFuncWorkerPhaseMerger(
 		func(f workerPhaseMergerWaitCallbackFunc) error {
 			defer func() {
 				_ = phaseMergerWait(nil)
+				workerInsertDone(nil)
+				checkWorkerInsertClose()
 			}()
 
 			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
-				defer func() {
-					workerInsertDone(nil)
-					checkWorkerInsertClose()
-				}()
-
 				if err := workerInsertWait(); err != nil {
 					return err
 				}

@@ -92,14 +92,14 @@ func (t *testUnmerger) TestUnmerge() {
 		t.T().Log("insert done")
 		done()
 
-		t.NoError(wait(func(unmergedOps []uint64) error {
-			slices.Sort(unmergedOps)
+		t.NoError(wait(func(unmerged []uint64) error {
+			slices.Sort(unmerged)
 
-			t.T().Logf("wait done: unmerged ops=%v", unmergedOps)
+			t.T().Logf("wait done: unmerged ops=%v", unmerged)
 
-			t.Equal(len(ops), len(unmergedOps))
-			t.Equal(uint64(0), unmergedOps[0])
-			t.Equal(uint64(len(ops)-1), unmergedOps[len(unmergedOps)-1])
+			t.Equal(len(ops), len(unmerged))
+			t.Equal(uint64(0), unmerged[0])
+			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
 			return nil
 		}))
