@@ -78,7 +78,7 @@ func newFuncPhaseMerger(
 	wait phaseMergerWaitFunc,
 	_ error,
 ) {
-	getStateMergeValues = mustGetStateMergeValuesFunc(getStateMergeValues)
+	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(merged, unmerged []uint64) error) error
@@ -104,7 +104,7 @@ func newFuncPhaseMerger(
 		jobWait = w
 	}
 
-	addReason, doneReason := newAddOpUnmergeReasons(xMergedOpsMapSize)
+	addReason, doneReason := newFuncAddOpUnmergeReasons(xMergedOpsMapSize)
 
 	mergeCallback, unmergeCallback := newFuncXMergeCallbacks(
 		ctx,
@@ -397,7 +397,7 @@ func newFuncGetStateMergers(
 				return mmergers.LockFunc(
 					i,
 					func(m util.LockedMap[string, StateMerger]) error {
-						return f(getOrCreateMergerFunc(m, getState))
+						return f(newFuncGetOrCreateMerger(m, getState))
 					},
 				)
 			}
@@ -508,7 +508,7 @@ func newFuncCollectXmergedOps(
 		nil
 }
 
-func newAddOpUnmergeReasons(mapSize uint64) (
+func newFuncAddOpUnmergeReasons(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
 	done func(unmerged []uint64) map[uint64]string,
 ) {
@@ -742,7 +742,7 @@ func unmergeOpValues(
 	return committed, nextMergeOps, reasons, err
 }
 
-func getOrCreateMergerFunc(
+func newFuncGetOrCreateMerger(
 	m util.LockedMap[string, StateMerger],
 	getState getStateFunc,
 ) func(StateMergeValue) (StateMerger, error) {
@@ -770,7 +770,7 @@ func getOrCreateMergerFunc(
 	}
 }
 
-func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue]) mergerGetStateMergeValuesFunc {
+func newFuncGetStateMergeValuesFromPool(vp util.LockedMap[uint64, []StateMergeValue]) mergerGetStateMergeValuesFunc {
 	return func(opindex uint64) ([]StateMergeValue, error) {
 		switch i, found := vp.Value(opindex); {
 		case !found:
@@ -781,7 +781,7 @@ func getStateMergeValuesFuncFromPool(vp util.LockedMap[uint64, []StateMergeValue
 	}
 }
 
-func mustGetStateMergeValuesFunc(get mergerGetStateMergeValuesFunc) mergerGetStateMergeValuesFunc {
+func mustFuncGetStateMergeValues(get mergerGetStateMergeValuesFunc) mergerGetStateMergeValuesFunc {
 	return func(opindex uint64) ([]StateMergeValue, error) {
 		switch i, err := get(opindex); {
 		case err != nil:

@@ -8,12 +8,12 @@ import (
 )
 
 type (
-	workerMergerPhaseDoneFunc func(worker string, unmerged []uint64) error
-	workerMergerWaitFunc      func(unmergerWaitCallbackFunc) error
+	workerPhaseDoneFunc    func(worker string, unmerged []uint64) error
+	workerUnmergerWaitFunc func(unmergerWaitCallbackFunc) error
 )
 
-// newFuncWorkerMerger finishes to merge operations after phase merger.
-func newFuncWorkerMerger(
+// newFuncWorkerUnmerger finishes to merge operations after phase merger.
+func newFuncWorkerUnmerger(
 	ctx context.Context,
 	local string,
 	newJobWorker newJobWorkerFunc,
@@ -23,16 +23,16 @@ func newFuncWorkerMerger(
 	newCheckWorkers checkEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	minEnough, maxFailed uint64,
 ) (
-	workerMergerPhaseDoneFunc,
-	workerMergerWaitFunc,
+	workerPhaseDoneFunc,
+	workerUnmergerWaitFunc,
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker-merger", nil)
+	log := newModuleLoggerFromContext(ctx, "worker-unmerger", nil)
 
 	log.Debug().
 		Uint64("min_enough", minEnough).
 		Uint64("max_failed", maxFailed).
-		Msg("newFuncWorkerMerger")
+		Msg("newFuncWorkerUnmerger")
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
@@ -135,7 +135,7 @@ func newFuncWorkerPhaseDonePool(
 	local string,
 	whenReady func(worker string, unmerged []uint64) error,
 ) (
-	_ workerMergerPhaseDoneFunc,
+	_ workerPhaseDoneFunc,
 	closef func(),
 ) {
 	pool := map[ /* worker */ string] /* unmerged */ []uint64{}

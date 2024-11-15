@@ -316,7 +316,7 @@ func newStateMergeValuesPool(maxOps, poolSize uint64) (
 		pool = i
 	}
 
-	return getStateMergeValuesFuncFromPool(pool),
+	return newFuncGetStateMergeValuesFromPool(pool),
 		pool.Close,
 		nil
 }

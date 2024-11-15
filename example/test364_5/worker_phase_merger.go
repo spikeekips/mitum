@@ -48,7 +48,7 @@ func newFuncWorkerPhaseMerger(
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	getStateMergeValues = mustGetStateMergeValuesFunc(getStateMergeValues)
+	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
 	var checkWorkerInsert checkEnoughFailedWorkerFunc
 	var checkWorkerInsertClose func()

@@ -17,13 +17,13 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testWorkerMerger struct {
+type testWorkerUnmerger struct {
 	suite.Suite
 	baseTestMergeOp
 	baseTestWorkers
 }
 
-func (t *testWorkerMerger) newFuncs() (
+func (t *testWorkerUnmerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
@@ -59,7 +59,7 @@ func (t *testWorkerMerger) newFuncs() (
 	return vp, mergers, states, getStateMergeValues, getState, getStateMergers, traverseStateMergers
 }
 
-func (t *testWorkerMerger) TestCancel() {
+func (t *testWorkerUnmerger) TestCancel() {
 	getStateMergeValues := func(uint64) ([]StateMergeValue, error) {
 		return t.randomMergeValues(2), nil
 	}
@@ -74,7 +74,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		phaseDone, wait, err := newFuncWorkerMerger(
+		phaseDone, wait, err := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -103,7 +103,7 @@ func (t *testWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		phaseDone, wait, err := newFuncWorkerMerger(
+		phaseDone, wait, err := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -147,7 +147,7 @@ func (t *testWorkerMerger) TestCancel() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		phaseDone, wait, err := newFuncWorkerMerger(
+		phaseDone, wait, err := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -178,7 +178,7 @@ func (t *testWorkerMerger) TestCancel() {
 	})
 }
 
-func (t *testWorkerMerger) TestWorkerPhaseDone() {
+func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 	getStateMergeValues := func(uint64) ([]StateMergeValue, error) {
 		return t.randomMergeValues(2), nil
 	}
@@ -190,7 +190,7 @@ func (t *testWorkerMerger) TestWorkerPhaseDone() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		phaseDone, wait, err := newFuncWorkerMerger(
+		phaseDone, wait, err := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -224,7 +224,7 @@ func (t *testWorkerMerger) TestWorkerPhaseDone() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		phaseDone, wait, err := newFuncWorkerMerger(
+		phaseDone, wait, err := newFuncWorkerUnmerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -318,10 +318,10 @@ func (t *testWorkerMerger) TestWorkerPhaseDone() {
 		do := func(
 			ctx context.Context,
 			minEnough, maxFailed uint64,
-		) workerMergerWaitFunc {
+		) workerUnmergerWaitFunc {
 			_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-			phaseDone, wait, err := newFuncWorkerMerger(
+			phaseDone, wait, err := newFuncWorkerUnmerger(
 				ctx,
 				local,
 				newFuncNewJobWorkerFunc(1<<9),
@@ -406,8 +406,8 @@ func (t *testWorkerMerger) TestWorkerPhaseDone() {
 	})
 }
 
-func TestWorkerMerger(t *testing.T) {
+func TestWorkerUnmerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testWorkerMerger))
+	suite.Run(t, new(testWorkerUnmerger))
 }

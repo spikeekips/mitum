@@ -86,7 +86,7 @@ func (t *baseTestMergeOp) getFuncs() (
 
 			return merger, err
 		},
-		getStateMergeValuesFuncFromPool(vp)
+		newFuncGetStateMergeValuesFromPool(vp)
 }
 
 func (t *baseTestMergeOp) newJobWorker() newJobWorkerFunc {
@@ -1234,7 +1234,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		return i, found, nil
 	}
 
-	getMerger := getOrCreateMergerFunc(mergers, getState)
+	getMerger := newFuncGetOrCreateMerger(mergers, getState)
 
 	merge := func(opindex uint64) error {
 		t.T().Logf("> merge: opindex=%d", opindex)
