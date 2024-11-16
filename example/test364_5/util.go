@@ -292,20 +292,6 @@ func newModuleLoggerFromContext(ctx context.Context, module string, f func(zctx 
 	return newModuleLogger(logger, module, f)
 }
 
-func onceFunc(f func() error) func() error {
-	var gerr error
-
-	var once sync.Once
-
-	return func() error {
-		once.Do(func() {
-			gerr = f()
-		})
-
-		return gerr
-	}
-}
-
 type (
 	contextInFunc func(context.Context) error
 	errorFunc     func() error

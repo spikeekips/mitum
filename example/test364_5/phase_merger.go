@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -59,6 +60,7 @@ type (
 		_ func(func(StateMergeValue) (StateMerger, error)) error,
 	) error
 	opindexGetStateMergeValuesFunc func(opindex uint64) ([]StateMergeValue, error)
+	opindexSetStateMergeValuesFunc func(opindex uint64, _ []StateMergeValue) (bool, error)
 	extractStateMergeValueKeysFunc func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
 	opindexErrorFunc               func(opindex uint64) error
 	phaseMergerWaitCallbackFunc    func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
@@ -514,7 +516,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 ) {
 	var m util.LockedMap[uint64, string]
 
-	newMap := onceFunc(func() error {
+	newMap := sync.OnceValue(func() error {
 		switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
 		case err != nil:
 			return err
@@ -613,7 +615,7 @@ func xMergeOpValues(
 	}()
 
 	addReason := func() func(uint64, string) {
-		c := onceFunc(func() error {
+		c := sync.OnceValue(func() error {
 			reasons = map[uint64]string{}
 
 			return nil

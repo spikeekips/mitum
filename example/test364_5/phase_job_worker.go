@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
@@ -111,7 +112,7 @@ func newLockedPhaseJobWorker(
 	newJobLocked := util.EmptyLocked[phaseJobWorkerNewJobFunc]()
 	waitLocked := util.EmptyLocked[errorFunc]()
 
-	once := onceFunc(func() error {
+	once := sync.OnceValue(func() error {
 		l.Debug().Msg("new phase job worker")
 
 		switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase); {

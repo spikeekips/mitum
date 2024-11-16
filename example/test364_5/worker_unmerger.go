@@ -19,11 +19,11 @@ func newFuncWorkerUnmerger(
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getMergers mergerGetStateMergersFunc,
+	getStateMergers mergerGetStateMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
-	minEnough, maxFailed uint64,
+	minEnough, maxFailed uint64, // NOTE for state owners
 ) (
-	workerUnmergedFunc,
+	workerUnmergedFunc, // NOTE from state owners, including local
 	workerUnmergerWaitFunc,
 	error,
 ) {
@@ -52,7 +52,7 @@ func newFuncWorkerUnmerger(
 		newJobWorker,
 		xMergedOpsMapSize,
 		getStateMergeValues,
-		getMergers,
+		getStateMergers,
 	)
 
 	workerPhaseDonePool, workerPhaseDonePoolClose := newFuncWorkerPhaseDonePool(
@@ -199,7 +199,7 @@ func newFuncUnmergerLocked(
 
 	var unmerge opindexErrorFunc
 
-	once := onceFunc(func() error {
+	once := sync.OnceValue(func() error {
 		switch u, d, w, err := newFuncUnmerger(
 			ctx,
 			newJobWorker,
