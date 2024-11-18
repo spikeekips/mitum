@@ -294,29 +294,33 @@ func newFuncSetStateOps(mapSize uint64) (
 		nil
 }
 
-func newStateMergeValuesPool(maxOps, poolSize uint64) (
+func newStateMergeValuesPool(poolSize uint64) (
 	_ opindexGetStateMergeValuesFunc,
+	_ opindexSetStateMergeValuesFunc,
 	closef func(),
 	_ error,
 ) {
-	if maxOps < 1 {
-		maxOps = 1
-	}
-
-	if poolSize < maxOps {
-		poolSize = maxOps
-	}
-
 	var pool util.LockedMap[uint64, []StateMergeValue]
 
 	switch i, err := util.NewLockedMap[uint64, []StateMergeValue](poolSize, nil); {
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, nil, err
 	default:
 		pool = i
 	}
 
 	return newFuncGetStateMergeValuesFromPool(pool),
+		func(opindex uint64, values []StateMergeValue) (bool, error) {
+			_, created, _ := pool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
+				if found {
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				return values, nil
+			})
+
+			return created, nil
+		},
 		pool.Close,
 		nil
 }

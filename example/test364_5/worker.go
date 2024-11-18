@@ -13,7 +13,6 @@ func newFuncWorker(
 	jobWorkerSemSize int64,
 	xMergedOpsMapSize, stateMergeValuesPoolSize, stateMergersPoolSize uint64,
 	extractStateKeyCacheSize int,
-	maxOps,
 	minEnoughOps, maxFailedOps uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
@@ -34,7 +33,7 @@ func newFuncWorker(
 	var getStateMergeValues opindexGetStateMergeValuesFunc
 	var stateMergeValuesPoolClose func()
 
-	switch g, c, err := newStateMergeValuesPool(maxOps, stateMergeValuesPoolSize); {
+	switch g, _, c, err := newStateMergeValuesPool(stateMergeValuesPoolSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -62,6 +61,7 @@ func newFuncWorker(
 	newCheckWorkers := newFuncLocalCheckEnoughFailedWorkers(local)
 
 	// FIXME stateMergeValues extractor
+	// FIXME if no stateMergeValues for local, report to manager and finish
 	// phase merger
 
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
