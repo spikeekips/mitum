@@ -222,7 +222,7 @@ func newFuncSetStateOps(mapSize uint64) (
 	}
 
 	return func(phase int, opindex uint64, stateKeys []string, x xMergeFlag) {
-			_ = util.TraverseSliceV1(stateKeys, func(_ int, stateKey string) (bool, error) {
+			_ = traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				_, _, _ = m.Set(stateKey, func(prev map[uint64][2]int, found bool) (map[uint64][2]int, error) {
 					c := 1
 					if x == unmergeFlag {
