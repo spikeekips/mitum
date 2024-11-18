@@ -247,3 +247,53 @@ func TestCheckEnoughFailedWorkersFunc(t *testing.T) {
 
 	suite.Run(t, new(testCheckEnoughFailedWorkers))
 }
+
+func TestMinEnoughMaxFailed(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	cases := []struct {
+		workers   uint64
+		share     uint64
+		err       string
+		minEnough uint64
+		maxFailed uint64
+	}{
+		{workers: 0, share: 1, err: "zero workers"},
+		{workers: 1, share: 0, err: "zero share"},
+		{workers: 1, share: 1, minEnough: 1, maxFailed: 0},
+		{workers: 1, share: 2, minEnough: 1, maxFailed: 0},
+		{workers: 2, share: 1, minEnough: 2, maxFailed: 0},
+		{workers: 2, share: 2, minEnough: 1, maxFailed: 1},
+	}
+
+	for i, c := range cases {
+		index := i
+		c := c
+
+		name := fmt.Sprintf("workers=%d share=%d", c.workers, c.share)
+
+		t.Run(name, func() {
+			me, mf, err := minEnoughMaxFailed(c.workers, c.share)
+
+			if c.err != "" {
+				if err == nil {
+					t.Fail("no error", `%d: expected=%q`, index, c.err)
+
+					return
+				}
+
+				t.ErrorContains(err, c.err, "%d", index)
+
+				return
+			} else if err != nil {
+				t.Fail("unexpected error", `%d: error=%+v`, index, err)
+
+				return
+			}
+
+			t.Equal(c.minEnough, me, "%s(%d): min enough; expected=%d result=%d", name, index, c.minEnough, me)
+			t.Equal(c.maxFailed, mf, "%s(%d): max failed; expected=%d result=%d", name, index, c.maxFailed, mf)
+		})
+	}
+}

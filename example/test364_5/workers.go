@@ -9,9 +9,23 @@ import (
 )
 
 type (
+	minEnoughMaxFailedFunc          func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkEnoughFailedWorkerFunc     func(worker string, _ func() error) (ok, enough, failed bool, _ error)
 	newCheckEnoughFailedWorkersFunc func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
 )
+
+func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
+	switch {
+	case workers < 1:
+		return 0, 0, util.ErrInvalid.Errorf("zero workers")
+	case share < 1:
+		return 0, 0, util.ErrInvalid.Errorf("zero share")
+	case workers < share:
+		share = workers
+	}
+
+	return workers - share + 1, share - 1, nil
+}
 
 var errWorkersFailed = util.NewIDError("workers failed")
 
