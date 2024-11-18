@@ -230,6 +230,56 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 }
 
 func (t *testWorkerPhaseMerger) TestEnoughFailed() {
+	t.Run("1 worker; empty", func() {
+		_, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		insert, wait, err := newFuncWorkerPhaseMerger(
+			ctx,
+			getState,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncCheckEnoughFailedWorkers,
+			newPhaseMerger,
+			1, 0,
+		)
+		t.NoError(err)
+
+		go func() {
+			err := insert("w0", func(f insertStateMergeValuesFunc) error {
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
+			t.Empty(unmerged)
+			t.Empty(reasons)
+
+			return nil
+		}))
+
+		{
+			t.T().Log("check mergers")
+
+			var called int64
+
+			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+				atomic.AddInt64(&called, 1)
+
+				return true
+			}))
+
+			t.Equal(int64(0), atomic.LoadInt64(&called))
+		}
+	})
+
 	t.Run("1 worker; enough", func() {
 		vp, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
@@ -377,6 +427,60 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 				return nil
 			})
 			t.ErrorContains(err, "findme")
+
+			t.Equal(int64(0), atomic.LoadInt64(&called))
+		}
+	})
+
+	t.Run("3 worker; empty", func() {
+		workers := t.workers(3)
+
+		_, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		insert, wait, err := newFuncWorkerPhaseMerger(
+			ctx,
+			getState,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncCheckEnoughFailedWorkers,
+			newPhaseMerger,
+			3, 0,
+		)
+		t.NoError(err)
+
+		go func() {
+			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
+				return true, insert(worker, func(f insertStateMergeValuesFunc) error {
+					return nil
+				})
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
+			t.Empty(unmerged)
+			t.Empty(reasons)
+
+			return nil
+		}))
+
+		{
+			t.T().Log("check mergers")
+
+			var called int64
+
+			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+				atomic.AddInt64(&called, 1)
+
+				return true
+			}))
 
 			t.Equal(int64(0), atomic.LoadInt64(&called))
 		}
