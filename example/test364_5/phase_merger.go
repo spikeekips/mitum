@@ -562,15 +562,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 				return nil
 			}
 
-			r := m.Map()
-
-			for i := range r {
-				if slices.Index(unmerged, i) < 0 {
-					delete(r, i)
-				}
-			}
-
-			return r
+			return filterReasons(m.Map(), unmerged)
 		}
 }
 
@@ -794,4 +786,20 @@ func mustFuncGetStateMergeValues(get opindexGetStateMergeValuesFunc) opindexGetS
 			return i, nil
 		}
 	}
+}
+
+func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]string {
+	if len(reasons) < 1 {
+		return nil
+	}
+
+	_ = traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+		if _, found := reasons[opindex]; found {
+			delete(reasons, opindex)
+		}
+
+		return true, nil
+	})
+
+	return reasons
 }
