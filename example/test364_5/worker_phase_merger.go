@@ -13,16 +13,15 @@ type (
 		merge,
 		unmerge opindexErrorFunc,
 		done func(),
-		wait phaseMergerWaitFunc,
+		_ inErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
 	)
 	setStateOpFunc                    func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
 	getStateOpsFunc                   func(stateKey string) (ops []uint64)
-	getStatesOpsFunc                  func(func(getStateOpsFunc) error) error
+	getStatesOpsFunc                  func(inErrorFunc[getStateOpsFunc]) error
 	insertStateMergeValuesFunc        func(opindex uint64, _ []StateMergeValue) error
-	insertWorkerStateMergeValuesFunc  func(worker string, _ func(insertStateMergeValuesFunc) error) error
+	insertWorkerStateMergeValuesFunc  func(worker string, _ inErrorFunc[insertStateMergeValuesFunc]) error
 	workerPhaseMergerWaitCallbackFunc func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error
-	workerPhaseMergerWaitFunc         func(workerPhaseMergerWaitCallbackFunc) error
 )
 
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
@@ -36,7 +35,7 @@ func newFuncWorkerPhaseMerger(
 	minEnough, maxFailed uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
-	workerPhaseMergerWaitFunc,
+	inErrorFunc[workerPhaseMergerWaitCallbackFunc],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-phase-merger", nil)
@@ -63,7 +62,7 @@ func newFuncWorkerPhaseMerger(
 
 	var phaseMergerMerge opindexErrorFunc
 	var phaseMergerDone func()
-	var phaseMergerWait phaseMergerWaitFunc
+	var phaseMergerWait inErrorFunc[phaseMergerWaitCallbackFunc]
 
 	switch m, _, d, w, err := newPhaseMerger(
 		wctx,
@@ -80,7 +79,7 @@ func newFuncWorkerPhaseMerger(
 
 	_, workerInsertDone, workerInsertWait := newDoneContext(wctx)
 
-	return func(worker string, f func(insertStateMergeValuesFunc) error) error {
+	return func(worker string, f inErrorFunc[insertStateMergeValuesFunc]) error {
 			l := log.With().Str("worker", worker).Logger()
 
 			werr := contextCauseError(wctx, dummyErrorInFunc,
@@ -148,7 +147,7 @@ func newFuncPhaseMergerFunc(
 		opindexErrorFunc,
 		opindexErrorFunc,
 		func(),
-		phaseMergerWaitFunc,
+		inErrorFunc[phaseMergerWaitCallbackFunc],
 		error,
 	) {
 		return newFuncPhaseMerger(

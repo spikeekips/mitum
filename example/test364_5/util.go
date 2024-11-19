@@ -293,16 +293,15 @@ func newModuleLoggerFromContext(ctx context.Context, module string, f func(zctx 
 }
 
 type (
-	contextInFunc func(context.Context) error
-	errorFunc     func() error
-	errorInFunc   func(error) error
+	inErrorFunc[T any] func(T) error
+	errorFunc          func() error
 )
 
 func dummyErrorInFunc(err error) error {
 	return err
 }
 
-func ifErrErrorInFunc(f errorInFunc) errorInFunc {
+func ifErrErrorInFunc(f inErrorFunc[error]) inErrorFunc[error] {
 	return func(err error) error {
 		if err != nil {
 			return f(err)
@@ -312,7 +311,7 @@ func ifErrErrorInFunc(f errorInFunc) errorInFunc {
 	}
 }
 
-func contextWithCancelCause(ctx context.Context) (context.Context, errorInFunc) {
+func contextWithCancelCause(ctx context.Context) (context.Context, inErrorFunc[error]) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
 	var called bool
@@ -345,7 +344,7 @@ func contextWithCancelCause(ctx context.Context) (context.Context, errorInFunc) 
 	}
 }
 
-func contextCauseError(ctx context.Context, ef errorInFunc, f func(context.Context) error) error {
+func contextCauseError(ctx context.Context, ef inErrorFunc[error], f inErrorFunc[context.Context]) error {
 	if err := context.Cause(ctx); err != nil {
 		return errors.WithStack(err)
 	}
@@ -367,7 +366,7 @@ func (emptyGCache[K, V]) Traverse(func(K, V) bool) {}
 
 func newDoneContext(ctx context.Context) (
 	context.Context,
-	errorInFunc,
+	inErrorFunc[error],
 	func() error,
 ) {
 	errDone := errors.New(util.UUID().String())

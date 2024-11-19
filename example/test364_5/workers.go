@@ -263,7 +263,7 @@ func newFuncSetStateOps(mapSize uint64) (
 				return true, nil
 			})
 		},
-		func(f func(getStateOpsFunc) error) error {
+		func(f inErrorFunc[getStateOpsFunc]) error {
 			defer m.Close()
 
 			return f(func(stateKey string) (ops []uint64) {

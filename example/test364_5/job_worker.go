@@ -11,7 +11,7 @@ import (
 var errJobWorkerDone = util.NewIDError("job worker: no more new job")
 
 type (
-	jobWorkerNewJobFunc func(contextInFunc) error
+	jobWorkerNewJobFunc func(inErrorFunc[context.Context]) error
 	newJobWorkerFunc    func(context.Context) (
 		jobWorkerNewJobFunc,
 		func(),
@@ -23,7 +23,7 @@ type (
 func newFuncBaseJobWorker(
 	ctx context.Context,
 	semSize int64,
-	errf errorInFunc,
+	errf inErrorFunc[error],
 ) (
 	jobWorkerNewJobFunc,
 	func(),
@@ -41,7 +41,7 @@ func newFuncBaseJobWorker(
 	newJobf := newFuncJobWorkerNewJobFunc(ctx, jctx, sem, errf)
 	waitf, errNewJobDone := newFuncJobWorkerWaitFunc(ctx, jctx, sem, semSize)
 
-	return func(c contextInFunc) error {
+	return func(c inErrorFunc[context.Context]) error {
 			switch err := newJobf(c); {
 			case errors.Is(err, errNewJobDone):
 				return errJobWorkerDone.WithStack()
@@ -99,7 +99,7 @@ func newFuncJobWorker(ctx context.Context, semSize int64) (
 		nil
 }
 
-func newFuncErrJobWorker(ctx context.Context, semSize int64, errf errorInFunc) (
+func newFuncErrJobWorker(ctx context.Context, semSize int64, errf inErrorFunc[error]) (
 	jobWorkerNewJobFunc,
 	func(),
 	errorFunc,
@@ -130,9 +130,9 @@ func newFuncErrJobWorker(ctx context.Context, semSize int64, errf errorInFunc) (
 func newFuncJobWorkerNewJobFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
-	errf errorInFunc,
+	errf inErrorFunc[error],
 ) jobWorkerNewJobFunc {
-	return func(c contextInFunc) error {
+	return func(c inErrorFunc[context.Context]) error {
 		if err := context.Cause(newJobCtx); err != nil {
 			return errors.WithStack(err)
 		}
@@ -196,7 +196,7 @@ func newFuncNewJobWorkerFunc(semSize int64) newJobWorkerFunc {
 	}
 }
 
-func newFuncNewErrJobWorkerFunc(semSize int64, errf errorInFunc) newJobWorkerFunc {
+func newFuncNewErrJobWorkerFunc(semSize int64, errf inErrorFunc[error]) newJobWorkerFunc {
 	return func(ctx context.Context) (
 		jobWorkerNewJobFunc,
 		func(),

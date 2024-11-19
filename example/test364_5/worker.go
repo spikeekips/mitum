@@ -16,7 +16,7 @@ func newFuncWorker(
 	minEnoughOps, maxFailedOps uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
-	workerPhaseMergerWaitFunc,
+	inErrorFunc[workerPhaseMergerWaitCallbackFunc],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker", nil)
@@ -65,7 +65,7 @@ func newFuncWorker(
 	// phase merger
 
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
-	var workerPhaseMergerWait workerPhaseMergerWaitFunc
+	var workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc]
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,

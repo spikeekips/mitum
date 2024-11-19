@@ -456,7 +456,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 		do := func(
 			ctx context.Context,
 			minEnough, maxFailed uint64,
-		) workerUnmergerWaitFunc {
+		) inErrorFunc[unmergedFunc] {
 			_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
 			phaseDone, setEF, wait, err := newFuncWorkerUnmerger(

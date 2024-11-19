@@ -62,7 +62,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		merge,
 		unmerge opindexErrorFunc,
 		done func(),
-		wait phaseMergerWaitFunc,
+		wait inErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
 	) {
 		return newFuncPhaseMerger(

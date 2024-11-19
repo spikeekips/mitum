@@ -64,7 +64,6 @@ type (
 	extractStateMergeValueKeysFunc func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
 	opindexErrorFunc               func(opindex uint64) error
 	phaseMergerWaitCallbackFunc    func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
-	phaseMergerWaitFunc            func(phaseMergerWaitCallbackFunc) error
 )
 
 func newFuncPhaseMerger(
@@ -77,7 +76,7 @@ func newFuncPhaseMerger(
 	merge,
 	unmerge opindexErrorFunc,
 	done func(),
-	wait phaseMergerWaitFunc,
+	wait inErrorFunc[phaseMergerWaitCallbackFunc],
 	_ error,
 ) {
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)

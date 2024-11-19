@@ -10,7 +10,6 @@ import (
 type (
 	setMinEnoughMaxFailedFunc func(minEnough, maxFailed uint64) error
 	workerUnmergedFunc        func(worker string, unmerged []uint64) error
-	workerUnmergerWaitFunc    func(unmergedFunc) error
 )
 
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
@@ -25,7 +24,7 @@ func newFuncWorkerUnmerger(
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
 	setMinEnoughMaxFailedFunc,
-	workerUnmergerWaitFunc,
+	inErrorFunc[unmergedFunc],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-unmerger", nil)
@@ -247,10 +246,10 @@ func newFuncUnmergerLocked(
 ) (
 	opindexErrorFunc,
 	func(),
-	unmergerWaitFunc,
+	inErrorFunc[unmergedFunc],
 ) {
 	doneLocked := util.EmptyLocked[func()]()
-	waitLocked := util.EmptyLocked[func(unmergedFunc) error]()
+	waitLocked := util.EmptyLocked[inErrorFunc[unmergedFunc]]()
 
 	var unmerge opindexErrorFunc
 

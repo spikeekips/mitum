@@ -10,7 +10,6 @@ import (
 type (
 	unmergedFunc      func(unmerged []uint64) error
 	opindexFilterFunc func(opindex uint64) (bool, error)
-	unmergerWaitFunc  func(unmergedFunc) error
 )
 
 func newFuncUnmerger(
@@ -22,7 +21,7 @@ func newFuncUnmerger(
 ) (
 	unmerge opindexErrorFunc,
 	done func(),
-	wait unmergerWaitFunc,
+	wait inErrorFunc[unmergedFunc],
 	_ error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "unmerger", nil)
