@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	stderrors "errors"
 	"sync"
 	"time"
 
@@ -324,13 +325,15 @@ func contextWithCancelCause(ctx context.Context) (context.Context, inErrorFunc[e
 		}
 
 		once.Do(func() {
-			cancel(err)
-
 			switch {
 			case err == nil:
 				gerr = context.Canceled
+
+				cancel(nil)
 			default:
-				gerr = err
+				gerr = stderrors.Join(err, context.Canceled)
+
+				cancel(gerr)
 			}
 
 			called = true
