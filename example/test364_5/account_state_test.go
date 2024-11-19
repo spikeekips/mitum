@@ -16,6 +16,7 @@ import (
 )
 
 type baseTestAccountStateMerger struct {
+	baseTest
 	networkID base.NetworkID
 }
 

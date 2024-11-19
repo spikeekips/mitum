@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sync/atomic"
 	"testing"
@@ -15,6 +14,7 @@ import (
 
 type testPhaseJobWorker struct {
 	suite.Suite
+	baseTest
 }
 
 func (t *testPhaseJobWorker) TestCancel() {
@@ -64,7 +64,7 @@ func (t *testPhaseJobWorker) TestPhase() {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(time.Duration(rand.Intn(99)) * time.Millisecond):
-				fmt.Printf("job: phase=%d jobID=%d\n", phase, jobID)
+				t.println("job: phase=%d jobID=%d", phase, jobID)
 
 				atomic.AddUint64(&called, 1)
 
@@ -122,7 +122,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(time.Duration(rand.Intn(99)) * time.Millisecond):
-				fmt.Printf("job: phase=%d jobID=%d\n", phase, jobID)
+				t.println("job: phase=%d jobID=%d", phase, jobID)
 
 				atomic.AddUint64(&called, 1)
 
@@ -184,7 +184,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 					err = errors.New("showme")
 				}
 
-				fmt.Printf("job: phase=%d jobID=%d err=%v\n", phase, jobID, err)
+				t.println("job: phase=%d jobID=%d err=%v", phase, jobID, err)
 
 				if err != nil {
 					return err
@@ -251,7 +251,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 					err = errors.New("showme")
 				}
 
-				fmt.Printf("job: phase=%d jobID=%d err=%v\n", phase, jobID, err)
+				t.println("job: phase=%d jobID=%d err=%v", phase, jobID, err)
 
 				if err != nil {
 					return err

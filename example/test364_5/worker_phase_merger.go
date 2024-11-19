@@ -27,6 +27,7 @@ type (
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
 func newFuncWorkerPhaseMerger(
 	ctx context.Context,
+	ctxCancel inErrorFunc[error],
 	getState createStateFunc,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
@@ -44,8 +45,6 @@ func newFuncWorkerPhaseMerger(
 		Uint64("min_enough", minEnough).
 		Uint64("max_failed", maxFailed).
 		Msg("newFuncWorkerPhaseMerger")
-
-	wctx, wctxCancel := contextWithCancelCause(ctx)
 
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
@@ -65,7 +64,7 @@ func newFuncWorkerPhaseMerger(
 	var phaseMergerWait inErrorFunc[phaseMergerWaitCallbackFunc]
 
 	switch m, _, d, w, err := newPhaseMerger(
-		wctx,
+		ctx,
 		getStateMergeValues,
 		getStateMergers,
 	); {
@@ -77,24 +76,22 @@ func newFuncWorkerPhaseMerger(
 		phaseMergerWait = w
 	}
 
-	_, workerInsertDone, workerInsertWait := newDoneContext(wctx)
+	_, workerInsertDone, workerInsertWait := newDoneContext(ctx)
 
 	return func(worker string, f inErrorFunc[insertStateMergeValuesFunc]) error {
 			l := log.With().Str("worker", worker).Logger()
 
-			werr := contextCauseError(wctx, dummyErrorInFunc,
-				func(context.Context) error {
-					return f(func(opindex uint64, values []StateMergeValue) error {
-						return phaseMergerMerge(opindex)
-					})
-				},
-			)
+			werr := contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+				return f(func(opindex uint64, values []StateMergeValue) error {
+					return phaseMergerMerge(opindex)
+				})
+			})
 
 			switch ok, enough, failed, err := checkWorkerInsert(worker, func() error { return werr }); {
 			case failed:
 				l.Error().Err(err).Msg("insert; check workers: failed")
 
-				return wctxCancel(workerInsertDone(err))
+				return ctxCancel(workerInsertDone(err))
 			case err != nil: // NOTE ignore
 				l.Debug().Err(err).Msg("insert")
 
@@ -116,7 +113,7 @@ func newFuncWorkerPhaseMerger(
 				checkWorkerInsertClose()
 			}()
 
-			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
+			return contextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerInsertWait(); err != nil {
 					return err
 				}
@@ -128,7 +125,7 @@ func newFuncWorkerPhaseMerger(
 						return nil
 					}
 
-					return f(wctx, newUnmerged, reasons)
+					return f(ctx, newUnmerged, reasons)
 				})
 			})
 		},

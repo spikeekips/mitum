@@ -69,6 +69,7 @@ func newFuncWorker(
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
+		wctxCancel,
 		getState,
 		getStateMergeValues,
 		getStateMergers,

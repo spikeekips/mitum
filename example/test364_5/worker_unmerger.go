@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -15,6 +16,7 @@ type (
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
 func newFuncWorkerUnmerger(
 	ctx context.Context,
+	ctxCancel inErrorFunc[error],
 	local string,
 	newJobWorker newJobWorkerFunc,
 	xMergedOpsMapSize uint64,
@@ -31,17 +33,15 @@ func newFuncWorkerUnmerger(
 
 	log.Debug().Msg("newFuncWorkerUnmerger")
 
-	wctx, wctxCancel := contextWithCancelCause(ctx)
-
 	unmergerUnmerge, unmergerDone, unmergerWait := newFuncUnmergerLocked(
-		wctx,
+		ctx,
 		newJobWorker,
 		xMergedOpsMapSize,
 		getStateMergeValues,
 		getStateMergers,
 	)
 
-	_, workerPhaseDone, workerPhaseDoneWait := newDoneContext(wctx)
+	_, workerPhaseDone, workerPhaseDoneWait := newDoneContext(ctx)
 
 	workerUnmerge, localReady, workerUnmergeClose := newFuncWorkerPhaseDonePool(
 		local,
@@ -54,14 +54,14 @@ func newFuncWorkerUnmerger(
 				return util.ErrFound.Errorf("unexpected local")
 			}
 
-			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
 				switch ok, enough, failed, err := workerUnmerge(worker, unmerged); {
 				case failed:
 					l.Error().Err(err).Msg("worker phase done; failed")
 
-					return wctxCancel(workerPhaseDone(err))
+					return ctxCancel(workerPhaseDone(err))
 				case err != nil: // NOTE ignore
 					l.Debug().Err(err).Msg("worker phase done")
 
@@ -78,7 +78,7 @@ func newFuncWorkerUnmerger(
 			})
 		},
 		func(minEnough, maxFailed uint64) error {
-			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().
 					Uint64("min_enough", minEnough).
 					Uint64("max_failed", maxFailed).
@@ -88,7 +88,7 @@ func newFuncWorkerUnmerger(
 				case failed:
 					l.Error().Err(err).Msg("local phase done; failed")
 
-					return wctxCancel(workerPhaseDone(err))
+					return ctxCancel(workerPhaseDone(err))
 				case err != nil: // NOTE ignore
 					l.Debug().Err(err).Msg("local phase done")
 
@@ -110,7 +110,7 @@ func newFuncWorkerUnmerger(
 				workerUnmergeClose()
 			}()
 
-			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
+			return contextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerPhaseDoneWait(); err != nil {
 					return err
 				}
@@ -197,6 +197,14 @@ func newFuncWorkerPhaseDonePool(
 			l.Lock()
 			defer l.Unlock()
 			defer closePool()
+
+			if minEnough < 1 {
+				if len(pool) > 0 { // non-empty pool; failed
+					return true, false, true, errors.Errorf("unmerged found in pool, but min enough is zero")
+				}
+
+				return true, true, false, nil
+			}
 
 			switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
 			case err != nil:

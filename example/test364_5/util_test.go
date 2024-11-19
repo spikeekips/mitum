@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -8,6 +9,12 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
+
+type baseTest struct{}
+
+func (t *baseTest) println(a string, b ...any) {
+	fmt.Printf(a+"\n", b...)
+}
 
 type testCompactAppendSlice struct {
 	suite.Suite

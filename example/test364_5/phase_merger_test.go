@@ -794,7 +794,6 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(err)
 
 		m, found := merged[vs[0].Key()]
-		fmt.Println(">", m, found)
 		t.True(found)
 		t.Equal(int64(3), m)
 	})
@@ -1178,12 +1177,11 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	done()
 
 	var newMerged, newUnmerged []uint64
-	var reasons map[uint64]string
 
-	t.NoError(wait(func(ms, us []uint64, rs map[uint64]string) error {
+	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
 		newMerged = slices.Clone(ms)
 		newUnmerged = slices.Clone(us)
-		reasons = rs
+		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 
 		return nil
 	}))
@@ -1205,7 +1203,6 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	t.Empty(newMerged)
 	t.Equal([]uint64{1, 3}, newUnmerged)
-	t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 }
 
 func (t *testPhaseMerger) TestMergeReplay() {
@@ -1426,12 +1423,11 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	done()
 
 	var newMerged, newUnmerged []uint64
-	var reasons map[uint64]string
 
-	t.NoError(wait(func(ms, us []uint64, rs map[uint64]string) error {
+	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
 		newMerged = slices.Clone(ms)
 		newUnmerged = slices.Clone(us)
-		reasons = rs
+		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 
 		return nil
 	}))
@@ -1457,7 +1453,6 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 
 	t.Empty(newMerged)
 	t.Equal([]uint64{1, 3}, newUnmerged)
-	t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
 }
 
 func (t *testPhaseMerger) TestMerge3Accounts() {

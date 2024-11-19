@@ -76,6 +76,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -107,6 +108,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -123,7 +125,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 				}
 
 				err := phaseDone(worker, nil)
-				fmt.Printf("worker phase done: worker=%q err=%v\n", worker, err)
+				t.println("worker phase done: worker=%q err=%v", worker, err)
 
 				if slices.Index(workers, worker) > slices.Index(workers, failedWorker) {
 					if !errors.Is(err, context.Canceled) {
@@ -159,6 +161,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -179,7 +182,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 					err = phaseDone(worker, nil)
 				}
 
-				fmt.Printf("worker phase done: worker=%q err=%v\n", worker, err)
+				t.println("worker phase done: worker=%q err=%v", worker, err)
 
 				return true, nil
 			})
@@ -208,6 +211,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -231,6 +235,72 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 		}))
 	})
 
+	t.Run("local: empty unmerged and zero min enough", func() {
+		local := "w0"
+		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, setEF, wait, err := newFuncWorkerUnmerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			1<<9,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncLocalCheckEnoughFailedWorkers(local),
+		)
+		t.NoError(err)
+
+		go func() {
+			err := setEF(0, 0)
+			t.println("local phase done: worker=%q err=%v", local, err)
+		}()
+
+		var called int64
+
+		t.NoError(wait(func(unmerged []uint64) error {
+			atomic.AddInt64(&called, 1)
+
+			return nil
+		}))
+
+		t.Equal(int64(0), atomic.LoadInt64(&called))
+	})
+
+	t.Run("local: unmerged and zero min enough", func() {
+		local := "w0"
+		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			1<<9,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncLocalCheckEnoughFailedWorkers(local),
+		)
+		t.NoError(err)
+
+		go func() {
+			err := phaseDone("w1", []uint64{0, 1, 2, 3, 4})
+			t.println("worker phase done: worker=%q err=%v", local, err)
+
+			err = setEF(0, 0)
+			t.println("local phase done: worker=%q err=%v", local, err)
+		}()
+
+		err = wait(func([]uint64) error { return nil })
+		t.ErrorContains(err, "unmerged found in pool")
+	})
+
 	t.Run("local: ok", func() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
@@ -240,6 +310,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		_, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -251,7 +322,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		go func() {
 			err := setEF(1, 0)
-			fmt.Printf("local phase done: worker=%q err=%v\n", local, err)
+			t.println("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		t.NoError(wait(func(unmerged []uint64) error {
@@ -272,6 +343,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -283,10 +355,10 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		go func() {
 			err := phaseDone("w1", []uint64{0, 1, 2, 3, 4})
-			fmt.Printf("worker phase done: worker=%q err=%v\n", local, err)
+			t.println("worker phase done: worker=%q err=%v", local, err)
 
 			err = setEF(1, 0)
-			fmt.Printf("local phase done: worker=%q err=%v\n", local, err)
+			t.println("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		t.NoError(wait(func(unmerged []uint64) error {
@@ -310,6 +382,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -326,14 +399,14 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 				}
 
 				err := phaseDone(worker, nil)
-				fmt.Printf("worker phase done: worker=%q err=%v\n", worker, err)
+				t.println("worker phase done: worker=%q err=%v", worker, err)
 
 				return true, nil
 			})
 
 			err := setEF(uint64(len(workers)), 0)
 
-			fmt.Printf("local phase done: worker=%q err=%v\n", local, err)
+			t.println("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		t.NoError(wait(func(unmerged []uint64) error {
@@ -357,6 +430,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 			ctx,
+			t.toCtxCancel(cancel),
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
 			1<<9,
@@ -397,14 +471,14 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 				wops := workerOps[worker]
 
 				err := phaseDone(worker, wops)
-				fmt.Printf("worker phase done: worker=%q ops=%v err=%v\n", worker, wops, err)
+				t.println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 
 				return true, nil
 			})
 
 			err := setEF(uint64(len(workers)), 0)
 
-			fmt.Printf("local phase done: worker=%q err=%v\n", local, err)
+			t.println("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		t.NoError(wait(func(unmerged []uint64) error {
@@ -455,12 +529,14 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		do := func(
 			ctx context.Context,
+			cancel context.CancelFunc,
 			minEnough, maxFailed uint64,
 		) inErrorFunc[unmergedFunc] {
 			_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
 			phaseDone, setEF, wait, err := newFuncWorkerUnmerger(
 				ctx,
+				t.toCtxCancel(cancel),
 				local,
 				newFuncNewJobWorkerFunc(1<<9),
 				1<<9,
@@ -472,7 +548,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 			{
 				err := setEF(minEnough, maxFailed)
-				fmt.Printf("local phase done: worker=%q err=%v\n", local, err)
+				t.println("local phase done: worker=%q err=%v", local, err)
 			}
 
 			traverseMap(workerOps, func(worker string, wops []uint64) (bool, error) {
@@ -482,7 +558,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 				go func() {
 					err := phaseDone(worker, wops)
-					fmt.Printf("worker phase done: worker=%q ops=%v err=%v\n", worker, wops, err)
+					t.println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 
 					if slices.Index(failedWorkers, worker) >= 0 {
 						if !strings.Contains(err.Error(), "findme") {
@@ -505,7 +581,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 			minEnough := uint64(len(workers) - len(failedWorkers))
 			maxFailed := uint64(len(failedWorkers) + 1)
 
-			wait := do(ctx, minEnough, maxFailed)
+			wait := do(ctx, cancel, minEnough, maxFailed)
 
 			t.NoError(wait(func(unmerged []uint64) error {
 				slices.Sort(unmerged)
@@ -526,7 +602,7 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 			minEnough := uint64(len(workers) - len(failedWorkers) + 1)
 			maxFailed := uint64(len(failedWorkers))
 
-			wait := do(ctx, minEnough, maxFailed)
+			wait := do(ctx, cancel, minEnough, maxFailed)
 
 			var called int64
 

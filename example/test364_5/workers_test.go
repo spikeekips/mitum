@@ -21,6 +21,14 @@ func (t *baseTestWorkers) workers(n int) []string {
 	return w
 }
 
+func (t *baseTestWorkers) toCtxCancel(f func()) inErrorFunc[error] {
+	return func(err error) error {
+		f()
+
+		return err
+	}
+}
+
 type testCheckEnoughFailedWorkers struct {
 	suite.Suite
 }

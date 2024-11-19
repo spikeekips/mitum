@@ -136,7 +136,9 @@ func newFuncPhaseMerger(
 					return nil
 				}
 
-				return f(newMerged, newUnmerged, doneReason(newUnmerged))
+				return doneReason(newUnmerged, func(reasons map[uint64]string) error {
+					return f(newMerged, newUnmerged, reasons)
+				})
 			})
 		},
 		nil
@@ -511,7 +513,7 @@ func newFuncCollectXmergedOps(
 
 func newFuncAddOpUnmergeReasons(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
-	done func(unmerged []uint64) map[uint64]string,
+	done func(unmerged []uint64, _ func(map[uint64]string) error) error,
 ) {
 	var m util.LockedMap[uint64, string]
 
@@ -550,7 +552,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 
 			return nil
 		},
-		func(unmerged []uint64) map[uint64]string {
+		func(unmerged []uint64, f func(reasons map[uint64]string) error) error {
 			if m == nil {
 				return nil
 			}
@@ -561,7 +563,13 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 				return nil
 			}
 
-			return filterReasons(m.Map(), unmerged)
+			n := filterReasons(m.Map(), unmerged)
+			defer func() {
+				clear(n)
+				n = nil
+			}()
+
+			return f(n)
 		}
 }
 
@@ -792,13 +800,15 @@ func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]stri
 		return nil
 	}
 
+	n := map[uint64]string{}
+
 	_ = traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
-		if _, found := reasons[opindex]; found {
-			delete(reasons, opindex)
+		if i, found := reasons[opindex]; found {
+			n[opindex] = i
 		}
 
 		return true, nil
 	})
 
-	return reasons
+	return n
 }
