@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	stderrors "errors"
 	"sync"
@@ -46,7 +45,7 @@ func traverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
 	return nil
 }
 
-func traverseMap[K cmp.Ordered, V any](m map[K]V, f func(K, V) (bool, error)) error {
+func traverseMap[K comparable, V any](m map[K]V, f func(K, V) (bool, error)) error {
 	for k := range m {
 		if keep, err := f(k, m[k]); err != nil || !keep {
 			return err
@@ -169,7 +168,7 @@ func compactAppendSlice[T any](size, grow uint64) (
 		nil
 }
 
-func uniqueCompactAppendSlice[T cmp.Ordered](size, grow uint64) (
+func uniqueCompactAppendSlice[T comparable](size, grow uint64) (
 	compactAppendSliceAddFunc[T],
 	compactAppendSliceDoneFunc[T],
 	error,
@@ -227,7 +226,7 @@ func uniqueCompactAppendSlice[T cmp.Ordered](size, grow uint64) (
 			lock.Lock()
 			defer lock.Unlock()
 
-			clear(m)
+			clearMap(m)
 
 			return done(f)
 		}, nil
@@ -250,7 +249,7 @@ func rCompactAppendSlice[T any](
 	}
 }
 
-func rUniqueCompactAppendSlice[T cmp.Ordered](
+func rUniqueCompactAppendSlice[T comparable](
 	size,
 	grow uint64,
 	add, done interface{},
@@ -355,9 +354,9 @@ func contextCauseError(ctx context.Context, ef inErrorFunc[error], f inErrorFunc
 	return ef(f(ctx))
 }
 
-type emptyGCache[K cmp.Ordered, V any] struct{}
+type emptyGCache[K, V any] struct{}
 
-func newEmptyGCache[K cmp.Ordered, V any]() emptyGCache[K, V] { return emptyGCache[K, V]{} }
+func newEmptyGCache[K, V any]() emptyGCache[K, V] { return emptyGCache[K, V]{} }
 
 func (emptyGCache[K, V]) Exists(K) bool            { return false }
 func (emptyGCache[K, V]) Get(K) (v V, _ bool)      { return v, false }
@@ -400,4 +399,9 @@ func newDoneContext(ctx context.Context) (
 				return err
 			}
 		}
+}
+
+func clearMap[K comparable, V any](m map[K]V) {
+	clear(m)
+	m = nil
 }
