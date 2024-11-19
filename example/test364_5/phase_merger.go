@@ -214,6 +214,10 @@ func newFuncXMergeCallback(
 			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
 				return err
 			}
+		case len(i) < 1:
+			return func(context.Context, int, phaseJobWorkerNewJobFunc) error {
+				return util.ErrNotFound.Errorf("unknown opindex, %d", opindex)
+			}
 		default:
 			values = i
 		}
@@ -278,6 +282,8 @@ func unmergeValues(
 	switch i, err := getStateMergeValues(opindex); {
 	case err != nil:
 		return false, nil, err
+	case len(i) < 1:
+		return false, nil, util.ErrNotFound.Errorf("unknown opindex, %d", opindex)
 	default:
 		values = i
 	}
