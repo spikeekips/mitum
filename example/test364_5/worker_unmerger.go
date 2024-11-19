@@ -120,11 +120,11 @@ func newFuncWorkerUnmerger(
 				return unmergerWait(func(unmerged []uint64) error {
 					log.Debug().Uints64("unmerged", unmerged).Msg("done")
 
-					if f == nil {
-						return nil
+					if f != nil {
+						return f(unmerged)
 					}
 
-					return f(unmerged)
+					return nil
 				})
 			})
 		},
@@ -141,11 +141,6 @@ func newFuncWorkerPhaseDonePool(
 	func(),
 ) {
 	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
-
-	closePool := func() {
-		clear(pool)
-		pool = nil
-	}
 
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerClose func()
@@ -196,7 +191,7 @@ func newFuncWorkerPhaseDonePool(
 		func(minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
 			l.Lock()
 			defer l.Unlock()
-			defer closePool()
+			defer clearMap(pool)
 
 			if minEnough < 1 {
 				if len(pool) > 0 { // non-empty pool; failed
@@ -237,7 +232,7 @@ func newFuncWorkerPhaseDonePool(
 			l.Lock()
 			defer l.Unlock()
 
-			closePool()
+			clearMap(pool)
 
 			if checkWorkerClose != nil {
 				checkWorkerClose()
@@ -257,7 +252,9 @@ func newFuncUnmergerLocked(
 	inErrorFunc[unmergedFunc],
 ) {
 	doneLocked := util.EmptyLocked[func()]()
-	waitLocked := util.EmptyLocked[inErrorFunc[unmergedFunc]]()
+	waitLocked := util.NewLocked[inErrorFunc[unmergedFunc]](func(f unmergedFunc) error {
+		return f(nil)
+	})
 
 	var unmerge opindexErrorFunc
 

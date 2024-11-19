@@ -226,13 +226,19 @@ func (t *testWorkerUnmerger) TestWorkerPhaseDone() {
 
 		t.NoError(setEF(1, 0))
 
+		var called int64
+
 		t.NoError(wait(func(unmerged []uint64) error {
+			atomic.AddInt64(&called, 1)
+
 			t.T().Logf("wait: unmerged=%v", unmerged)
 
 			t.Empty(unmerged)
 
 			return nil
 		}))
+
+		t.Equal(int64(0), atomic.LoadInt64(&called))
 	})
 
 	t.Run("local: empty unmerged and zero min enough", func() {
