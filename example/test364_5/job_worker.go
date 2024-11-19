@@ -53,7 +53,9 @@ func newFuncBaseJobWorker(
 			_ = jctxCancel(errNewJobDone)
 		},
 		func() error {
-			defer jctxCancel(nil)
+			defer func() {
+				_ = jctxCancel(nil)
+			}()
 
 			if err := context.Cause(ctx); err != nil {
 				return errors.WithStack(err)

@@ -105,7 +105,16 @@ func newFuncPhaseMerger(
 		jobWait = w
 	}
 
-	addReason, doneReason := newFuncAddOpUnmergeReasons(xMergedOpsMapSize)
+	var addReason func(reasons map[uint64]string) error
+	var doneReason func(unmerged []uint64, _ func(map[uint64]string) error) error
+
+	switch a, d, err := newFuncAddOpUnmergeReasons(xMergedOpsMapSize); {
+	case err != nil:
+		return nil, nil, nil, nil, err
+	default:
+		addReason = a
+		doneReason = d
+	}
 
 	mergeCallback, unmergeCallback := newFuncXMergeCallbacks(
 		ctx,
@@ -127,18 +136,22 @@ func newFuncPhaseMerger(
 		},
 		jobDone,
 		func(f phaseMergerWaitCallbackFunc) error {
+			defer func() {
+				doneReason(nil, nil)
+			}()
+
 			if err := jobWait(); err != nil {
 				return err
 			}
 
 			return doneXMergedOps(func(newMerged, newUnmerged []uint64) error {
-				if f == nil {
-					return nil
+				if f != nil {
+					return doneReason(newUnmerged, func(reasons map[uint64]string) error {
+						return f(newMerged, newUnmerged, reasons)
+					})
 				}
 
-				return doneReason(newUnmerged, func(reasons map[uint64]string) error {
-					return f(newMerged, newUnmerged, reasons)
-				})
+				return nil
 			})
 		},
 		nil
@@ -520,27 +533,20 @@ func newFuncCollectXmergedOps(
 func newFuncAddOpUnmergeReasons(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
 	done func(unmerged []uint64, _ func(map[uint64]string) error) error,
+	_ error,
 ) {
 	var m util.LockedMap[uint64, string]
 
-	newMap := sync.OnceValue(func() error {
-		switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
-		case err != nil:
-			return err
-		default:
-			m = i
-
-			return nil
-		}
-	})
+	switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		m = i
+	}
 
 	return func(reasons map[uint64]string) error {
 			if len(reasons) < 1 {
 				return nil
-			}
-
-			if err := newMap(); err != nil {
-				return err
 			}
 
 			for i := range reasons {
@@ -559,24 +565,22 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 			return nil
 		},
 		func(unmerged []uint64, f func(reasons map[uint64]string) error) error {
-			if m == nil {
-				return nil
-			}
-
 			defer m.Close()
 
-			if len(unmerged) < 1 {
+			if f == nil {
 				return nil
 			}
 
-			n := filterReasons(m.Map(), unmerged)
-			defer func() {
-				clear(n)
-				n = nil
-			}()
+			var n map[uint64]string
+
+			if m.Len() > 0 && len(unmerged) > 0 {
+				n = filterReasons(m.Map(), unmerged)
+				defer clearMap(n)
+			}
 
 			return f(n)
-		}
+		},
+		nil
 }
 
 func xMergeOpValues(

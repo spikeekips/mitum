@@ -121,11 +121,11 @@ func newFuncWorkerPhaseMerger(
 				phaseMergerDone()
 
 				return phaseMergerWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
-					if f == nil {
-						return nil
+					if f != nil {
+						return f(ctx, newUnmerged, reasons)
 					}
 
-					return f(ctx, newUnmerged, reasons)
+					return nil
 				})
 			})
 		},
