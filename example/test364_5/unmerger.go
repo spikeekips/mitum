@@ -18,6 +18,7 @@ func newFuncUnmerger(
 	xMergedOpsMapSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
+	localUnmerged []uint64,
 ) (
 	unmerge opindexErrorFunc,
 	done func(),
@@ -42,7 +43,7 @@ func newFuncUnmerger(
 	var opindexFilter opindexFilterFunc
 	var opindexFilterClose func()
 
-	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues); {
+	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues, localUnmerged); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -111,6 +112,7 @@ func newFuncUnmerger(
 			}
 
 			return doneOps(func(unmerged []uint64) error {
+				// NOTE local unmerged not included
 				return f(unmerged)
 			})
 		},
@@ -120,33 +122,44 @@ func newFuncUnmerger(
 func newFuncOpindexFilter(
 	mapSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
+	localUnmerged []uint64,
 ) (
 	_ opindexFilterFunc,
 	closef func(),
 	_ error,
 ) {
-	switch m, err := util.NewShardedMap[uint64, struct{}](mapSize, nil); {
+	var m util.LockedMap[uint64, struct{}]
+
+	switch i, err := util.NewShardedMap[uint64, struct{}](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
-		return func(opindex uint64) (bool, error) {
-				_, created, _ := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
-					if found {
-						return v, util.ErrLockedSetIgnore
-					}
+		m = i
 
-					return v, nil
-				})
+		_ = traverseSlice(localUnmerged, func(_ int, opindex uint64) (bool, error) {
+			_ = m.SetValue(opindex, struct{}{})
 
-				if created {
-					if i, err := getStateMergeValues(opindex); err != nil || len(i) < 1 {
-						return false, err
-					}
+			return true, nil
+		})
+	}
+
+	return func(opindex uint64) (bool, error) {
+			_, created, _ := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+				if found {
+					return v, util.ErrLockedSetIgnore
 				}
 
-				return created, nil
-			},
-			m.Close,
-			nil
-	}
+				return v, nil
+			})
+
+			if created {
+				if i, err := getStateMergeValues(opindex); err != nil || len(i) < 1 {
+					return false, err
+				}
+			}
+
+			return created, nil
+		},
+		m.Close,
+		nil
 }

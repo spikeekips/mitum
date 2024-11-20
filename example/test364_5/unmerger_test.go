@@ -42,13 +42,13 @@ func (t *testUnmerger) newFuncs() (
 
 func (t *testUnmerger) TestError() {
 	t.Run("zero xMergedOpsMapSize", func() {
-		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil)
+		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil, nil)
 		t.ErrorContains(err, "empty size")
 	})
 }
 
 func (t *testUnmerger) TestUnmerge() {
-	t.Run("no merged ops", func() {
+	t.Run("no merged/unmerged ops", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -56,7 +56,7 @@ func (t *testUnmerger) TestUnmerge() {
 
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
-		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers)
+		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers, nil)
 		t.NoError(err)
 
 		ops := make([][]StateMergeValue, 33)
@@ -99,6 +99,68 @@ func (t *testUnmerger) TestUnmerge() {
 
 			t.Equal(len(ops), len(unmerged))
 			t.Equal(uint64(0), unmerged[0])
+			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
+
+			return nil
+		}))
+
+		_, err = t.closeMergers(mergers)
+		t.ErrorContains(err, "under zero balance")
+	})
+
+	t.Run("no merged, but unmerged ops", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
+
+		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
+
+		ops := make([][]StateMergeValue, 33)
+		localUnmerged := []uint64{0, 1, 2, 3}
+
+		for i := range ops {
+			vs := t.randomMergeValues(1, 2)
+			vp.SetValue(uint64(i), vs)
+
+			ops[i] = vs
+		}
+
+		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers, localUnmerged)
+		t.NoError(err)
+
+		t.T().Log("insert ops")
+		{
+			newJob, jobDone, jobWait, err := newFuncJobWorker(ctx, 33)
+			t.NoError(err)
+
+			go func() {
+				for i := range ops {
+					opindex := uint64(i)
+
+					if err := newJob(func(context.Context) error {
+						return unmerge(opindex)
+					}); err != nil {
+						panic(err)
+					}
+				}
+
+				jobDone()
+			}()
+
+			t.NoError(jobWait())
+		}
+
+		t.T().Log("insert done")
+		done()
+
+		t.NoError(wait(func(unmerged []uint64) error {
+			slices.Sort(unmerged)
+
+			t.T().Logf("wait done: unmerged ops=%v", unmerged)
+
+			t.Equal(len(ops)-len(localUnmerged), len(unmerged))
+			t.Equal(uint64(localUnmerged[len(localUnmerged)-1]+1), unmerged[0])
 			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
 			return nil

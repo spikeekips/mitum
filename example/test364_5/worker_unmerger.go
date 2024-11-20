@@ -9,8 +9,14 @@ import (
 )
 
 type (
-	setMinEnoughMaxFailedFunc func(minEnough, maxFailed uint64) error
-	workerUnmergedFunc        func(worker string, unmerged []uint64) error
+	workerUnmergerNewFuncUnmergerFunc func(_ context.Context, localUnmerged []uint64) (
+		opindexErrorFunc,
+		func(),
+		inErrorFunc[unmergedFunc],
+		error,
+	)
+	workerUnmergerLocalReadyFunc func(localUnmerged []uint64, minEnough, maxFailed uint64) error
+	workerUnmergedFunc           func(worker string, unmerged []uint64) error
 )
 
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
@@ -25,29 +31,33 @@ func newFuncWorkerUnmerger(
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
-	setMinEnoughMaxFailedFunc,
+	workerUnmergerLocalReadyFunc,
 	inErrorFunc[unmergedFunc],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-unmerger", nil)
 
-	log.Debug().Msg("newFuncWorkerUnmerger")
+	log.Debug().
+		Str("local", local).
+		Msg("newFuncWorkerUnmerger")
 
-	unmergerUnmerge, unmergerDone, unmergerWait := newFuncUnmergerLocked(
+	localReady, workerUnmerge, unmergerDone, unmergerWait := newFuncWorkerUnmergerWorkerUnmergedPool(
 		ctx,
-		newJobWorker,
-		xMergedOpsMapSize,
-		getStateMergeValues,
-		getStateMergers,
+		local,
+		newCheckWorkers,
+		func(ctx context.Context, localUnmerged []uint64) (opindexErrorFunc, func(), inErrorFunc[unmergedFunc], error) {
+			return newFuncUnmerger(
+				ctx,
+				newJobWorker,
+				xMergedOpsMapSize,
+				getStateMergeValues,
+				getStateMergers,
+				localUnmerged,
+			)
+		},
 	)
 
 	_, workerPhaseDone, workerPhaseDoneWait := newDoneContext(ctx)
-
-	workerUnmerge, localReady, workerUnmergeClose := newFuncWorkerPhaseDonePool(
-		local,
-		newCheckWorkers,
-		unmergerUnmerge,
-	)
 
 	return func(worker string, unmerged []uint64) error {
 			if worker == local {
@@ -77,14 +87,14 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(minEnough, maxFailed uint64) error {
+		func(localUnmerged []uint64, minEnough, maxFailed uint64) error {
 			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().
 					Uint64("min_enough", minEnough).
 					Uint64("max_failed", maxFailed).
 					Logger()
 
-				switch ok, enough, failed, err := localReady(minEnough, maxFailed); {
+				switch ok, enough, failed, err := localReady(localUnmerged, minEnough, maxFailed); {
 				case failed:
 					l.Error().Err(err).Msg("local phase done; failed")
 
@@ -107,7 +117,6 @@ func newFuncWorkerUnmerger(
 		func(f unmergedFunc) error {
 			defer func() {
 				_ = unmergerWait(nil)
-				workerUnmergeClose()
 			}()
 
 			return contextCauseError(ctx, ctxCancel, func(context.Context) error {
@@ -131,40 +140,44 @@ func newFuncWorkerUnmerger(
 		nil
 }
 
-func newFuncWorkerPhaseDonePool(
+func newFuncWorkerUnmergerWorkerUnmergedPool(
+	ctx context.Context,
 	local string,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc,
-	unmergeOp opindexErrorFunc,
+	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
-	func(minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
-	func(),
+	localReady func(localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
+	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
+	unmergerDone func(),
+	unmergerWait inErrorFunc[unmergedFunc],
 ) {
-	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
+	addPool, poolLen, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerClose func()
 
-	var l sync.RWMutex
+	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(ctx, newFuncUnmergerFunc)
 
-	addPool := func(worker string, unmerged []uint64) (isReady bool) {
-		l.Lock()
-		defer l.Unlock()
+	var once sync.Once
+	var newUnmergerErr error
 
-		if _, found := pool[worker]; found {
-			return false
-		}
+	newUnmerger := func(localUnmerged []uint64, minEnough, maxFailed uint64) error {
+		once.Do(func() {
+			switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
+			case err != nil:
+				newUnmergerErr = err
+			default:
+				checkWorker = w
+				checkWorkerClose = c
+			}
 
-		if checkWorker != nil {
-			return true
-		}
+			newUnmergerErr = newUnmergerf(localUnmerged)
+		})
 
-		pool[worker] = unmerged
-
-		return false
+		return newUnmergerErr
 	}
 
-	unmergeOps := func(worker string, unmerged []uint64) (_, _, _ bool, _ error) {
+	unmergeOps := func(worker string, unmerged []uint64, unmergeOp opindexErrorFunc) (_, _, _ bool, _ error) {
 		gerr := traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
 			return true, unmergeOp(opindex)
 		})
@@ -177,47 +190,42 @@ func newFuncWorkerPhaseDonePool(
 		}
 	}
 
-	return func(worker string, unmerged []uint64) (_, _, _ bool, _ error) {
-			if worker == local {
-				return false, false, false, util.ErrFound.Errorf("unexpected local")
-			}
-
-			if !addPool(worker, unmerged) {
-				return false, false, false, nil
-			}
-
-			return unmergeOps(worker, unmerged)
-		},
-		func(minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
-			l.Lock()
-			defer l.Unlock()
-			defer clearMap(pool)
-
+	return func(localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
 			if minEnough < 1 {
-				if len(pool) > 0 { // non-empty pool; failed
+				if poolLen() > 0 { // non-empty pool; failed
 					return true, false, true, errors.Errorf("unmerged found in pool, but min enough is zero")
 				}
 
 				return true, true, false, nil
 			}
 
-			switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
-			case err != nil:
+			if err := newUnmerger(localUnmerged, minEnough, maxFailed); err != nil {
 				return false, false, false, err
-			default:
-				checkWorker = w
-				checkWorkerClose = c
 			}
 
-			if ok, enough, failed, err := unmergeOps(local, nil); failed || err != nil || enough {
+			var unmergeOp opindexErrorFunc
+
+			if err := unmergef(func(f opindexErrorFunc, isEmpty bool) error {
+				if isEmpty {
+					return errors.Errorf("empty unmerge of unmerger")
+				}
+
+				unmergeOp = f
+
+				return nil
+			}); err != nil {
+				return false, false, false, err
+			}
+
+			if ok, enough, failed, err := unmergeOps(local, nil, unmergeOp); failed || err != nil || enough {
 				return ok, enough, failed, err
 			}
 
 			var ok, enough, failed bool
 			var gerr error
 
-			_ = traverseMap(pool, func(worker string, unmerged []uint64) (bool, error) {
-				if o, e, f, err := unmergeOps(worker, unmerged); f || err != nil || e {
+			_ = traversePool(func(worker string, unmerged []uint64) (bool, error) {
+				if o, e, f, err := unmergeOps(worker, unmerged, unmergeOp); f || err != nil || e {
 					ok, enough, failed, gerr = o, e, f, err
 
 					return false, err
@@ -228,78 +236,133 @@ func newFuncWorkerPhaseDonePool(
 
 			return ok, enough, failed, gerr
 		},
-		func() {
-			l.Lock()
-			defer l.Unlock()
-
-			clearMap(pool)
-
-			if checkWorkerClose != nil {
-				checkWorkerClose()
+		func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error) {
+			if worker == local {
+				return false, false, false, util.ErrFound.Errorf("unexpected local")
 			}
+
+			return ok, enough, failed, unmergef(func(f opindexErrorFunc, isEmpty bool) error {
+				if isEmpty {
+					_ = addPool(worker, unmerged)
+
+					return nil
+				}
+
+				var err error
+
+				ok, enough, failed, err = unmergeOps(worker, unmerged, f)
+
+				return err
+			})
+		},
+		donef,
+		func(f unmergedFunc) error {
+			defer func() {
+				if checkWorkerClose != nil {
+					checkWorkerClose()
+				}
+
+				traversePool(nil)
+			}()
+
+			return waitf(f)
 		}
 }
 
-func newFuncUnmergerLocked(
-	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
-	xMergedOpsMapSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getMergers mergerGetStateMergersFunc,
-) (
-	opindexErrorFunc,
-	func(),
-	inErrorFunc[unmergedFunc],
+func newFuncWorkerUnmergerUnmergedPool() (
+	addPool func(worker string, unmerged []uint64) (added bool),
+	poolLen func() int,
+	traverse func(func(worker string, unmerged []uint64) (bool, error)) error,
 ) {
-	doneLocked := util.EmptyLocked[func()]()
-	waitLocked := util.NewLocked[inErrorFunc[unmergedFunc]](func(f unmergedFunc) error {
-		return f(nil)
-	})
+	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
 
-	var unmerge opindexErrorFunc
+	var l sync.RWMutex
 
-	once := sync.OnceValue(func() error {
-		switch u, d, w, err := newFuncUnmerger(
-			ctx,
-			newJobWorker,
-			xMergedOpsMapSize,
-			getStateMergeValues,
-			getMergers,
-		); {
-		case err != nil:
-			return err
-		default:
-			unmerge = u
-			_ = doneLocked.SetValue(d)
-			_ = waitLocked.SetValue(w)
+	return func(worker string, unmerged []uint64) bool {
+			l.Lock()
+			defer l.Unlock()
+
+			if _, found := pool[worker]; found {
+				return false
+			}
+
+			pool[worker] = unmerged
+
+			return true
+		},
+		func() int {
+			l.RLock()
+			defer l.RUnlock()
+
+			return len(pool)
+		},
+		func(f func(worker string, unmerged []uint64) (bool, error)) error {
+			l.Lock()
+			defer l.Unlock()
+
+			defer clearMap(pool)
+
+			if f != nil {
+				return traverseMap(pool, f)
+			}
 
 			return nil
 		}
-	})
+}
 
-	return func(opindex uint64) error {
-			if err := once(); err != nil {
+func newFuncWorkerUnmergerNewUnmergerFunc(
+	ctx context.Context,
+	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
+) (
+	func(localUnmerged []uint64) error,
+	func(func(_ opindexErrorFunc, isEmpty bool) error) error,
+	func(),
+	inErrorFunc[unmergedFunc],
+) {
+	unmergeLocked := util.EmptyLocked[opindexErrorFunc]()
+	doneLocked := util.EmptyLocked[func()]()
+	waitLocked := util.EmptyLocked[inErrorFunc[unmergedFunc]]()
+
+	var waitOnce sync.Once
+	var waitErr error
+
+	return func(localUnmerged []uint64) error {
+			switch u, d, w, err := newFuncUnmergerFunc(ctx, localUnmerged); {
+			case err != nil:
 				return err
-			}
+			default:
+				_ = unmergeLocked.SetValue(u)
+				_ = doneLocked.SetValue(d)
+				_ = waitLocked.SetValue(w)
 
-			return unmerge(opindex)
+				return nil
+			}
 		},
+		unmergeLocked.Get,
 		func() {
 			if i, isEmpty := doneLocked.Value(); !isEmpty {
 				i()
 			}
 		},
-
 		func(f unmergedFunc) error {
-			defer func() {
-				doneLocked.EmptyValue()
-				waitLocked.EmptyValue()
-			}()
+			waitOnce.Do(func() {
+				defer func() {
+					unmergeLocked.EmptyValue()
+					doneLocked.EmptyValue()
+					waitLocked.EmptyValue()
+				}()
 
-			if i, isEmpty := waitLocked.Value(); !isEmpty {
-				return i(f)
-			}
+				if f != nil {
+					if i, isEmpty := waitLocked.Value(); !isEmpty {
+						waitErr = i(f)
 
-			return nil
+						return
+					}
+
+					waitErr = f(nil)
+				}
+			})
+
+			return waitErr
 		}
 }

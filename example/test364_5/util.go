@@ -402,6 +402,10 @@ func newDoneContext(ctx context.Context) (
 }
 
 func clearMap[K comparable, V any](m map[K]V) {
+	if len(m) < 1 {
+		return
+	}
+
 	clear(m)
 	m = nil
 }

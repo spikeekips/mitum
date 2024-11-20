@@ -806,7 +806,7 @@ func mustFuncGetStateMergeValues(get opindexGetStateMergeValuesFunc) opindexGetS
 }
 
 func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]string {
-	if len(reasons) < 1 {
+	if len(reasons) < 1 || len(unmerged) < 1 {
 		return nil
 	}
 
