@@ -22,6 +22,7 @@ func newFuncWorker(
 	log := newModuleLoggerFromContext(ctx, "worker", nil)
 
 	log.Debug().
+		Str("local", local).
 		Dict("ops", zerolog.Dict().
 			Uint64("min_enough", minEnoughOps).
 			Uint64("max_failed", maxFailedOps),
