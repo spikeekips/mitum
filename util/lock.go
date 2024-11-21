@@ -1,7 +1,6 @@
 package util
 
 import (
-	"cmp"
 	"crypto/rand"
 	"fmt"
 	"math"
@@ -140,7 +139,7 @@ func (l *Locked[T]) Empty(f func(_ T, isempty bool) error) error {
 	}
 }
 
-type LockedMap[K cmp.Ordered, V any] interface { //nolint:interfacebloat //...
+type LockedMap[K comparable, V any] interface { //nolint:interfacebloat //...
 	Exists(key K) (found bool)
 	Value(key K) (value V, found bool)
 	SetValue(key K, value V) (added bool)
@@ -157,7 +156,7 @@ type LockedMap[K cmp.Ordered, V any] interface { //nolint:interfacebloat //...
 	Map() map[K]V
 }
 
-func NewLockedMap[K cmp.Ordered, V any](
+func NewLockedMap[K comparable, V any](
 	size uint64,
 	newMap func() LockedMap[K, V],
 ) (LockedMap[K, V], error) {
@@ -177,12 +176,12 @@ func NewLockedMap[K cmp.Ordered, V any](
 	}
 }
 
-type SingleLockedMap[K cmp.Ordered, V any] struct {
+type SingleLockedMap[K comparable, V any] struct {
 	m map[K]V
 	l sync.RWMutex
 }
 
-func NewSingleLockedMap[K cmp.Ordered, V any]() *SingleLockedMap[K, V] {
+func NewSingleLockedMap[K comparable, V any]() *SingleLockedMap[K, V] {
 	return &SingleLockedMap[K, V]{
 		m: map[K]V{},
 	}
@@ -406,7 +405,7 @@ func (l *SingleLockedMap[K, V]) Map() (m map[K]V) {
 	return m
 }
 
-type ShardedMap[K cmp.Ordered, V any] struct {
+type ShardedMap[K comparable, V any] struct {
 	hashf   func(interface{}) (uint64, interface{})
 	newMap  func() LockedMap[K, V]
 	sharded []LockedMap[K, V]
@@ -415,7 +414,7 @@ type ShardedMap[K cmp.Ordered, V any] struct {
 	l       sync.RWMutex
 }
 
-func NewShardedMap[K cmp.Ordered, V any](
+func NewShardedMap[K comparable, V any](
 	size uint64,
 	newMap func() LockedMap[K, V],
 ) (*ShardedMap[K, V], error) {
@@ -431,7 +430,7 @@ func NewShardedMap[K cmp.Ordered, V any](
 	)
 }
 
-func NewDeepShardedMap[K cmp.Ordered, V any](
+func NewDeepShardedMap[K comparable, V any](
 	sizes []uint64,
 	newMap func() LockedMap[K, V],
 ) (*ShardedMap[K, V], error) {
@@ -489,7 +488,7 @@ func NewDeepShardedMap[K cmp.Ordered, V any](
 	return NewShardedMapWithSeed(seed, sizes[0], hashf, newMaps[0])
 }
 
-func NewShardedMapWithSeed[K cmp.Ordered, V any](
+func NewShardedMapWithSeed[K comparable, V any](
 	seed uint32,
 	size uint64,
 	hashf func(interface{}, uint64) (uint64, interface{}),
@@ -700,7 +699,7 @@ func (l *ShardedMap[K, V]) Map() (m map[K]V) {
 	return m
 }
 
-type traverseMaper[K cmp.Ordered, V any] interface {
+type traverseMaper[K comparable, V any] interface {
 	TraverseMap(f func(LockedMap[K, V]) bool) bool
 }
 
@@ -836,14 +835,14 @@ func (l *ShardedMap[K, V]) next(last *int) LockedMap[K, V] {
 	}
 }
 
-type LimitedLockedMap[K cmp.Ordered, V any] struct {
+type LimitedLockedMap[K comparable, V any] struct {
 	LockedMap[K, V]
 	allowKeyf func(K) bool
 	isclosed  bool
 	l         sync.RWMutex
 }
 
-func NewLimitedLockedMap[K cmp.Ordered, V any](m LockedMap[K, V], allowKey func(K) bool) *LimitedLockedMap[K, V] {
+func NewLimitedLockedMap[K comparable, V any](m LockedMap[K, V], allowKey func(K) bool) *LimitedLockedMap[K, V] {
 	return &LimitedLockedMap[K, V]{
 		LockedMap: m,
 		allowKeyf: allowKey,
@@ -1003,13 +1002,13 @@ func (l *LimitedLockedMap[K, V]) allowKey(k K) (bool, error) {
 	return l.allowKeyf(k), nil
 }
 
-type MultiKeysLockedMap[K cmp.Ordered, V any] struct {
+type MultiKeysLockedMap[K comparable, V any] struct {
 	m       LockedMap[K, V]
 	lockchs map[K]<-chan struct{}
 	l       sync.Mutex
 }
 
-func NewMultiKeysLockedMap[K cmp.Ordered, V any](m LockedMap[K, V]) *MultiKeysLockedMap[K, V] {
+func NewMultiKeysLockedMap[K comparable, V any](m LockedMap[K, V]) *MultiKeysLockedMap[K, V] {
 	return &MultiKeysLockedMap[K, V]{
 		m:       m,
 		lockchs: map[K](<-chan struct{}){},

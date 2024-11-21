@@ -1,7 +1,6 @@
 package util
 
 import (
-	"cmp"
 	"crypto/rand"
 	"math/big"
 	"sort"
@@ -107,7 +106,7 @@ func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error)
 	return done(), nil
 }
 
-func RemoveDuplicatedOrderedSlice[T cmp.Ordered](keys []T) []T {
+func RemoveDuplicatedOrderedSlice[T comparable](keys []T) []T {
 	if len(keys) < 1 {
 		return nil
 	}
@@ -372,7 +371,7 @@ func SortCompactAppendSlice[T any](size int, less func(T, T) bool) (
 	}
 }
 
-func UniqCompactAppendSlice[T cmp.Ordered](size int) (
+func UniqCompactAppendSlice[T comparable](size int) (
 	func(...T) bool,
 	func() []T,
 ) {
@@ -409,7 +408,7 @@ func UniqCompactAppendSlice[T cmp.Ordered](size int) (
 		}
 }
 
-func SortUniqCompactAppendSlice[T cmp.Ordered](size int, less func(T, T) bool) (
+func SortUniqCompactAppendSlice[T comparable](size int, less func(T, T) bool) (
 	add func(...T) bool,
 	done func() []T,
 ) {

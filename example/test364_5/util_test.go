@@ -6,9 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
+
+var testLogger = logging.TestLogging.Log()
 
 type baseTest struct{}
 
