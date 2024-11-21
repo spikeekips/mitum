@@ -44,6 +44,8 @@ func newFuncWorkerUnmerger(
 	localReady, workerUnmerge, unmergerDone, unmergerWait := newFuncWorkerUnmergerWorkerUnmergedPool(
 		ctx,
 		local,
+		xMergedOpsMapSize,
+		getStateMergeValues,
 		newCheckWorkers,
 		func(ctx context.Context, localUnmerged []uint64) (opindexErrorFunc, func(), inErrorFunc[unmergedFunc], error) {
 			return newFuncUnmerger(
@@ -143,6 +145,8 @@ func newFuncWorkerUnmerger(
 func newFuncWorkerUnmergerWorkerUnmergedPool(
 	ctx context.Context,
 	local string,
+	xMergedOpsMapSize uint64,
+	getStateMergeValues opindexGetStateMergeValuesFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
@@ -151,7 +155,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	unmergerDone func(),
 	unmergerWait inErrorFunc[unmergedFunc],
 ) {
-	addPool, poolLen, traversePool := newFuncWorkerUnmergerUnmergedPool()
+	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerClose func()
@@ -192,11 +196,21 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 	return func(localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
 			if minEnough < 1 {
-				if poolLen() > 0 { // non-empty pool; failed
-					return true, false, true, errors.Errorf("unmerged found in pool, but min enough is zero")
-				}
+				switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues, localUnmerged); {
+				case err != nil:
+					return false, false, false, err
+				default:
+					defer c()
 
-				return true, true, false, nil
+					switch found, err := poolIsNotEmpty(f); { // non-empty pool; failed
+					case err != nil:
+						return false, false, false, err
+					case found:
+						return true, false, true, errors.Errorf("unmerged found in pool, but min enough is zero")
+					default:
+						return true, true, false, nil
+					}
+				}
 			}
 
 			if err := newUnmerger(localUnmerged, minEnough, maxFailed); err != nil {
@@ -271,7 +285,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 func newFuncWorkerUnmergerUnmergedPool() (
 	addPool func(worker string, unmerged []uint64) (added bool),
-	poolLen func() int,
+	isNotEmpty func(filter opindexFilterFunc) (bool, error),
 	traverse func(func(worker string, unmerged []uint64) (bool, error)) error,
 ) {
 	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
@@ -290,11 +304,24 @@ func newFuncWorkerUnmergerUnmergedPool() (
 
 			return true
 		},
-		func() int {
+		func(filter opindexFilterFunc) (found bool, _ error) {
 			l.RLock()
 			defer l.RUnlock()
 
-			return len(pool)
+			return found, traverseMap(pool, func(_ string, unmerged []uint64) (bool, error) {
+				return true, traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+					switch ok, err := filter(opindex); {
+					case err != nil:
+						return false, err
+					case ok:
+						found = true
+
+						return false, nil
+					default:
+						return true, nil
+					}
+				})
+			})
 		},
 		func(f func(worker string, unmerged []uint64) (bool, error)) error {
 			l.Lock()
