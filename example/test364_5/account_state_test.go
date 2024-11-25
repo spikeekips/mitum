@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -24,6 +25,18 @@ func (t *baseTestAccountStateMerger) SetupSuite() {
 	t.networkID = util.UUID().Bytes()
 }
 
+func (t *baseTestAccountStateMerger) printStateMergeValue(v base.StateValue) string {
+	switch i, ok := v.(*AccountStateValue); {
+	case ok:
+		return fmt.Sprintf("[address=%q balance=%d]",
+			i.Address,
+			i.Balance,
+		)
+	default:
+		return t.Marshal(v)
+	}
+}
+
 func (t *baseTestAccountStateMerger) Marshal(i interface{}) string {
 	return util.MustMarshalJSONString(i)
 }
@@ -32,13 +45,13 @@ func (t *baseTestAccountStateMerger) MarshalIndent(i interface{}) string {
 	return util.MustMarshalJSONIndentString(i)
 }
 
-func (t *baseTestAccountStateMerger) randomAccountStateMergeValue(balance int64) (base.Publickey, *AccountStateMergeValue) {
+func (t *baseTestAccountStateMerger) randomMergeValue(balance int64) (base.Publickey, *AccountStateMergeValue) {
 	pub := base.NewMPrivatekey().Publickey()
 
-	return pub, t.newAccountStateMergeValue(pub, balance)
+	return pub, t.newMergeValue(pub, balance)
 }
 
-func (t *baseTestAccountStateMerger) newAccountStateMergeValue(address base.Publickey, balance int64) *AccountStateMergeValue {
+func (t *baseTestAccountStateMerger) newMergeValue(address base.Publickey, balance int64) *AccountStateMergeValue {
 	v, err := NewAccountStateMergeValue(address, balance)
 	if err != nil {
 		panic(err)
@@ -63,7 +76,7 @@ func (t *baseTestAccountStateMerger) randomMergeValues(
 			panic(errors.Errorf("expected int, not %T", a[i]))
 		}
 
-		_, v := t.randomAccountStateMergeValue(int64(balance))
+		_, v := t.randomMergeValue(int64(balance))
 		vs[i] = v
 	}
 
@@ -90,7 +103,7 @@ func (t *baseTestAccountStateMerger) newMergeValues(
 			panic("not int")
 		}
 
-		vs[i] = t.newAccountStateMergeValue(address, int64(balance))
+		vs[i] = t.newMergeValue(address, int64(balance))
 	}
 
 	return vs
@@ -551,24 +564,24 @@ func (t *testAccountStateMerger) TestMerges() {
 		}
 
 		ops[0] = []StateMergeValue{
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub1, -2),
 		}
 		ops[1] = []StateMergeValue{ // ignored
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, -2),
 		}
 		ops[2] = []StateMergeValue{
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, 2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, 2),
 		}
 		ops[3] = []StateMergeValue{ // ignored
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, -2),
 		}
 		ops[4] = []StateMergeValue{
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, 2),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub1, 2),
 		}
 
 		// expected: account 0: balance=3

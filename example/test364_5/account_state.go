@@ -361,3 +361,7 @@ func (m *AccountStateMerger) addPrepOps(op uint64) {
 
 	slices.Sort(m.prepops)
 }
+
+func isSubAccountStateMergeValue(v *AccountStateMergeValue) bool {
+	return v.Balance < 0
+}

@@ -1109,24 +1109,24 @@ func (t *testPhaseMerger) baseTestMergeUnmerge() (
 
 	ops = [][]StateMergeValue{
 		{ // 0
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub1, -2),
 		},
 		{ // 1: ignored
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, -2),
 		},
 		{ // 2
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, 2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, 2),
 		},
 		{ // 3: ignored
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, -2),
 		},
 		{ // 4
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, 2),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub1, 2),
 		},
 	}
 
@@ -1364,28 +1364,28 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 
 	ops := [][]StateMergeValue{
 		{ // 0
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub1, -2),
 		},
 		{ // 1: ignored
-			t.newAccountStateMergeValue(pub1, -2),
-			t.newAccountStateMergeValue(pub2, -3),
+			t.newMergeValue(pub1, -2),
+			t.newMergeValue(pub2, -3),
 		},
 		{ // 2
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, 2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, 2),
 		},
 		{ // 3: ignored
-			t.newAccountStateMergeValue(pub0, -1),
-			t.newAccountStateMergeValue(pub1, -2),
+			t.newMergeValue(pub0, -1),
+			t.newMergeValue(pub1, -2),
 		},
 		{ // 4
-			t.newAccountStateMergeValue(pub0, 1),
-			t.newAccountStateMergeValue(pub2, -3),
+			t.newMergeValue(pub0, 1),
+			t.newMergeValue(pub2, -3),
 		},
 		{ // 5
-			t.newAccountStateMergeValue(pub1, 1),
-			t.newAccountStateMergeValue(pub2, 2),
+			t.newMergeValue(pub1, 1),
+			t.newMergeValue(pub2, 2),
 		},
 	}
 
