@@ -11,7 +11,7 @@ import (
 
 type (
 	workerUnmergerNewFuncUnmergerFunc func(_ context.Context, localUnmerged []uint64) (
-		opindexErrorFunc,
+		inErrorFunc[uint64],
 		func(),
 		inErrorFunc[unmergedFunc],
 		error,
@@ -49,7 +49,7 @@ func newFuncWorkerUnmerger(
 		xMergedOpsMapSize,
 		getStateMergeValues,
 		newCheckWorkers,
-		func(ctx context.Context, localUnmerged []uint64) (opindexErrorFunc, func(), inErrorFunc[unmergedFunc], error) {
+		func(ctx context.Context, localUnmerged []uint64) (inErrorFunc[uint64], func(), inErrorFunc[unmergedFunc], error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
@@ -187,7 +187,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	workerOpindexFilterLocalReady, workerOpindexFilter,
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(xMergedOpsMapSize, getStateMergeValues)
 
-	unmergeOps := func(worker string, unmerged []uint64, unmergeOp opindexErrorFunc, filter opindexFilterFunc) (_, _, _ bool, _ error) {
+	unmergeOps := func(worker string, unmerged []uint64, unmergeOp inErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
 		gerr := traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
 			if filter != nil {
 				switch ok, err := filter(opindex); {
@@ -230,10 +230,10 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, false, err
 			}
 
-			var unmergeOp opindexErrorFunc
+			var unmergeOp inErrorFunc[uint64]
 
-			if err := unmergef(func(f opindexErrorFunc, isEmpty bool) error {
-				if isEmpty {
+			if err := unmergef(func(f inErrorFunc[uint64]) error {
+				if f == nil {
 					return errors.Errorf("empty unmerge of unmerger")
 				}
 
@@ -273,8 +273,8 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, false, util.ErrFound.Errorf("unexpected local")
 			}
 
-			return ok, enough, failed, unmergef(func(f opindexErrorFunc, isEmpty bool) error {
-				if isEmpty {
+			return ok, enough, failed, unmergef(func(f inErrorFunc[uint64]) error {
+				if f == nil {
 					_ = addPool(worker, slices.Clone(unmerged))
 
 					return nil
@@ -372,51 +372,59 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
 	func(localUnmerged []uint64) error,
-	func(func(_ opindexErrorFunc, isEmpty bool) error) error,
+	func(func(inErrorFunc[uint64]) error) error,
 	func(),
 	inErrorFunc[unmergedFunc],
 ) {
-	unmergeLocked := util.EmptyLocked[opindexErrorFunc]()
-	doneLocked := util.EmptyLocked[func()]()
-	waitLocked := util.EmptyLocked[inErrorFunc[unmergedFunc]]()
+	var unmerge inErrorFunc[uint64]
+	var done func()
+	var wait inErrorFunc[unmergedFunc]
 
+	var l sync.RWMutex
 	var waitOnce sync.Once
 	var waitErr error
 
 	return func(localUnmerged []uint64) error {
+			l.Lock()
+			defer l.Unlock()
+
 			switch u, d, w, err := newFuncUnmergerFunc(ctx, localUnmerged); {
 			case err != nil:
 				return err
 			default:
-				_ = unmergeLocked.SetValue(u)
-				_ = doneLocked.SetValue(d)
-				_ = waitLocked.SetValue(w)
+				unmerge = u
+				done = d
+				wait = w
 
 				return nil
 			}
 		},
-		unmergeLocked.Get,
+		func(f func(inErrorFunc[uint64]) error) error {
+			l.RLock()
+			defer l.RUnlock()
+
+			return f(unmerge)
+		},
 		func() {
-			if i, isEmpty := doneLocked.Value(); !isEmpty {
-				i()
+			l.RLock()
+			defer l.RUnlock()
+
+			if done != nil {
+				done()
 			}
 		},
 		func(f unmergedFunc) error {
 			waitOnce.Do(func() {
-				defer func() {
-					unmergeLocked.EmptyValue()
-					doneLocked.EmptyValue()
-					waitLocked.EmptyValue()
-				}()
-
 				if f != nil {
-					if i, isEmpty := waitLocked.Value(); !isEmpty {
-						waitErr = i(f)
+					l.RLock()
+					defer l.RUnlock()
 
-						return
+					switch {
+					case wait != nil:
+						waitErr = wait(f)
+					default:
+						waitErr = f(nil)
 					}
-
-					waitErr = f(nil)
 				}
 			})
 
@@ -430,22 +438,30 @@ func newFuncWorkerOpindexFilter(
 ) (
 	localReady func(statesOwners []string, localUnmerged []uint64) error,
 	_ workerOpindexFilterFunc,
-	closef func(),
+	_ func(),
 ) {
 	var once sync.Once
 	var gerr error
 
-	filterLocked := util.EmptyLocked[func(worker string) opindexFilterFunc]()
-	closeLocked := util.EmptyLocked[func()]()
+	filter := func(string) opindexFilterFunc { return nil }
+	closef := func() {}
+
+	var l sync.RWMutex
 
 	newf := func(statesOwners []string, localUnmerged []uint64) error {
 		once.Do(func() {
+			if len(statesOwners) < 1 {
+				filter = func(string) opindexFilterFunc { return nil }
+
+				return
+			}
+
+			var ml sync.Mutex
+
 			switch f, c, err := newFuncOpindexFilter(mapSize, getStateMergeValues, localUnmerged); {
 			case err != nil:
 				gerr = err
 			default:
-				var l sync.Mutex
-
 				m := map[string]struct{}{}
 				traverseSlice(statesOwners, func(_ int, owner string) (bool, error) {
 					m[owner] = struct{}{}
@@ -453,9 +469,9 @@ func newFuncWorkerOpindexFilter(
 					return true, nil
 				})
 
-				_ = filterLocked.SetValue(func(worker string) opindexFilterFunc {
-					l.Lock()
-					defer l.Unlock()
+				filter = func(worker string) opindexFilterFunc {
+					ml.Lock()
+					defer ml.Unlock()
 
 					if _, found := m[worker]; !found {
 						return nil
@@ -464,15 +480,15 @@ func newFuncWorkerOpindexFilter(
 					m[worker] = struct{}{}
 
 					return f
-				})
+				}
 
-				_ = closeLocked.SetValue(func() {
-					l.Lock()
-					defer l.Unlock()
+				closef = func() {
+					ml.Lock()
+					defer ml.Unlock()
 
 					clearMap(m)
 					c()
-				})
+				}
 			}
 		})
 
@@ -480,24 +496,18 @@ func newFuncWorkerOpindexFilter(
 	}
 
 	return func(statesOwners []string, localUnmerged []uint64) error {
-			if len(statesOwners) < 1 {
-				filterLocked.SetValue(func(string) opindexFilterFunc { return nil })
-
-				return nil
-			}
-
 			return newf(statesOwners, localUnmerged)
 		},
 		func(worker string) opindexFilterFunc {
-			if i, isEmpty := filterLocked.Value(); !isEmpty {
-				return i(worker)
-			}
+			l.RLock()
+			defer l.RUnlock()
 
-			return nil
+			return filter(worker)
 		},
 		func() {
-			if i, isEmpty := closeLocked.Value(); !isEmpty {
-				i()
-			}
+			l.RLock()
+			defer l.RUnlock()
+
+			closef()
 		}
 }

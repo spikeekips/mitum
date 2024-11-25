@@ -14,7 +14,7 @@ type (
 	newPhaseJobWorkerFunc    func(context.Context) (
 		newJob phaseJobWorkerNewJobFunc,
 		jobDone func(),
-		wait func() error,
+		wait errorFunc,
 		_ error,
 	)
 )
@@ -27,7 +27,7 @@ func newFuncPhaseJobWorker(
 ) (
 	phaseJobWorkerNewJobFunc,
 	func(),
-	func() error,
+	errorFunc,
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
@@ -109,8 +109,9 @@ func newLockedPhaseJobWorker(
 
 	l := log.With().Int("phase", phase).Logger()
 
-	newJobLocked := util.EmptyLocked[phaseJobWorkerNewJobFunc]()
-	waitLocked := util.EmptyLocked[errorFunc]()
+	var fl sync.RWMutex
+	var newJob phaseJobWorkerNewJobFunc
+	var wait errorFunc
 
 	once := sync.OnceValue(func() error {
 		l.Debug().Msg("new phase job worker")
@@ -119,12 +120,15 @@ func newLockedPhaseJobWorker(
 		case err != nil:
 			return err
 		default:
-			newJobLocked.SetValue(n)
-			waitLocked.SetValue(func() error {
+			fl.Lock()
+			defer fl.Unlock()
+
+			newJob = n
+			wait = func() error {
 				d()
 
 				return w()
-			})
+			}
 
 			return nil
 		}
@@ -137,22 +141,16 @@ func newLockedPhaseJobWorker(
 				return err
 			}
 
-			if i, isEmpty := newJobLocked.Value(); !isEmpty {
-				return i(jobID, c)
-			}
-
-			return nil
+			return newJob(jobID, c)
 		},
 		func() error {
+			fl.RLock()
+			defer fl.RUnlock()
+
 			l.Debug().Msg("wait done")
 
-			defer func() {
-				newJobLocked.EmptyValue()
-				waitLocked.EmptyValue()
-			}()
-
-			if i, isEmpty := waitLocked.Value(); !isEmpty {
-				return i()
+			if wait != nil {
+				return wait()
 			}
 
 			return nil
