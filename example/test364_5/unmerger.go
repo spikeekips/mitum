@@ -18,7 +18,6 @@ func newFuncUnmerger(
 	xMergedOpsMapSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
-	localUnmerged []uint64,
 ) (
 	unmerge inErrorFunc[uint64],
 	done func(),
@@ -40,17 +39,6 @@ func newFuncUnmerger(
 		jobWait = w
 	}
 
-	var opindexFilter opindexFilterFunc
-	var opindexFilterClose func()
-
-	switch f, c, err := newFuncOpindexFilter(xMergedOpsMapSize, getStateMergeValues, localUnmerged); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		opindexFilter = f
-		opindexFilterClose = c
-	}
-
 	var addOps compactAppendSliceAddFunc[uint64]
 	var doneOps compactAppendSliceDoneFunc[uint64]
 
@@ -70,13 +58,6 @@ func newFuncUnmerger(
 	}
 
 	return func(opindex uint64) error {
-			switch ok, err := opindexFilter(opindex); {
-			case err != nil:
-				return err
-			case !ok:
-				return nil
-			}
-
 			l := log.With().Uint64("opindex", opindex).Logger()
 
 			return newJob(func(context.Context) error {
@@ -100,7 +81,6 @@ func newFuncUnmerger(
 		func(f unmergedFunc) error {
 			defer func() {
 				_ = doneOps(nil)
-				opindexFilterClose()
 			}()
 
 			if err := jobWait(); err != nil {

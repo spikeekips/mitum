@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	workerUnmergerNewFuncUnmergerFunc func(_ context.Context, localUnmerged []uint64) (
+	workerUnmergerNewFuncUnmergerFunc func(_ context.Context) (
 		inErrorFunc[uint64],
 		func(),
 		inErrorFunc[unmergedFunc],
@@ -49,14 +49,13 @@ func newFuncWorkerUnmerger(
 		xMergedOpsMapSize,
 		getStateMergeValues,
 		newCheckWorkers,
-		func(ctx context.Context, localUnmerged []uint64) (inErrorFunc[uint64], func(), inErrorFunc[unmergedFunc], error) {
+		func(ctx context.Context) (inErrorFunc[uint64], func(), inErrorFunc[unmergedFunc], error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
 				xMergedOpsMapSize,
 				getStateMergeValues,
 				getStateMergers,
-				localUnmerged,
 			)
 		},
 	)
@@ -168,7 +167,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	var once sync.Once
 	var newUnmergerErr error
 
-	newUnmerger := func(localUnmerged []uint64, minEnough, maxFailed uint64) error {
+	newUnmerger := func(minEnough, maxFailed uint64) error {
 		once.Do(func() {
 			switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
 			case err != nil:
@@ -178,7 +177,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				checkWorkerClose = c
 			}
 
-			newUnmergerErr = newUnmergerf(localUnmerged)
+			newUnmergerErr = newUnmergerf()
 		})
 
 		return newUnmergerErr
@@ -226,7 +225,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				}
 			}
 
-			if err := newUnmerger(localUnmerged, minEnough, maxFailed); err != nil {
+			if err := newUnmerger(minEnough, maxFailed); err != nil {
 				return false, false, false, err
 			}
 
@@ -371,7 +370,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	ctx context.Context,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	func(localUnmerged []uint64) error,
+	errorFunc,
 	func(func(inErrorFunc[uint64]) error) error,
 	func(),
 	inErrorFunc[unmergedFunc],
@@ -384,11 +383,11 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	var waitOnce sync.Once
 	var waitErr error
 
-	return func(localUnmerged []uint64) error {
+	return func() error {
 			l.Lock()
 			defer l.Unlock()
 
-			switch u, d, w, err := newFuncUnmergerFunc(ctx, localUnmerged); {
+			switch u, d, w, err := newFuncUnmergerFunc(ctx); {
 			case err != nil:
 				return err
 			default:

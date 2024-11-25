@@ -42,8 +42,8 @@ func (t *testUnmerger) newFuncs() (
 
 func (t *testUnmerger) TestError() {
 	t.Run("zero xMergedOpsMapSize", func() {
-		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil, nil)
-		t.ErrorContains(err, "empty size")
+		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil)
+		t.ErrorContains(err, "under 1")
 	})
 }
 
@@ -56,7 +56,7 @@ func (t *testUnmerger) TestUnmerge() {
 
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
-		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers, nil)
+		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		ops := make([][]StateMergeValue, 33)
@@ -117,7 +117,6 @@ func (t *testUnmerger) TestUnmerge() {
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
 		ops := make([][]StateMergeValue, 33)
-		localUnmerged := []uint64{0, 1, 2, 3}
 
 		for i := range ops {
 			vs := t.randomMergeValues(1, 2)
@@ -126,7 +125,7 @@ func (t *testUnmerger) TestUnmerge() {
 			ops[i] = vs
 		}
 
-		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers, localUnmerged)
+		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		t.T().Log("insert ops")
@@ -159,8 +158,8 @@ func (t *testUnmerger) TestUnmerge() {
 
 			t.T().Logf("wait done: unmerged ops=%v", unmerged)
 
-			t.Equal(len(ops)-len(localUnmerged), len(unmerged))
-			t.Equal(uint64(localUnmerged[len(localUnmerged)-1]+1), unmerged[0])
+			t.Equal(len(ops), len(unmerged))
+			t.Equal(uint64(0), unmerged[0])
 			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
 			return nil
