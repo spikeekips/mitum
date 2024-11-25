@@ -60,7 +60,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge opindexErrorFunc,
+		unmerge inErrorFunc[uint64],
 		done func(),
 		wait inErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,

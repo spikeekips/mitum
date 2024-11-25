@@ -20,7 +20,7 @@ func newFuncUnmerger(
 	getMergers mergerGetStateMergersFunc,
 	localUnmerged []uint64,
 ) (
-	unmerge opindexErrorFunc,
+	unmerge inErrorFunc[uint64],
 	done func(),
 	wait inErrorFunc[unmergedFunc],
 	_ error,

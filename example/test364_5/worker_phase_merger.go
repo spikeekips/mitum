@@ -11,7 +11,7 @@ type (
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge opindexErrorFunc,
+		unmerge inErrorFunc[uint64],
 		done func(),
 		_ inErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
@@ -59,7 +59,7 @@ func newFuncWorkerPhaseMerger(
 		checkWorkerInsertClose = c
 	}
 
-	var phaseMergerMerge opindexErrorFunc
+	var phaseMergerMerge inErrorFunc[uint64]
 	var phaseMergerDone func()
 	var phaseMergerWait inErrorFunc[phaseMergerWaitCallbackFunc]
 
@@ -141,8 +141,8 @@ func newFuncPhaseMergerFunc(
 		getStateMergeValues opindexGetStateMergeValuesFunc,
 		getStateMergers mergerGetStateMergersFunc,
 	) (
-		opindexErrorFunc,
-		opindexErrorFunc,
+		inErrorFunc[uint64],
+		inErrorFunc[uint64],
 		func(),
 		inErrorFunc[phaseMergerWaitCallbackFunc],
 		error,

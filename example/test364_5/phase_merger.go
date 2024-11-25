@@ -62,7 +62,6 @@ type (
 	opindexGetStateMergeValuesFunc func(opindex uint64) ([]StateMergeValue, error)
 	opindexSetStateMergeValuesFunc func(opindex uint64, _ []StateMergeValue) (bool, error)
 	extractStateMergeValueKeysFunc func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
-	opindexErrorFunc               func(opindex uint64) error
 	phaseMergerWaitCallbackFunc    func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 )
 
@@ -74,7 +73,7 @@ func newFuncPhaseMerger(
 	getStateMergers mergerGetStateMergersFunc,
 ) (
 	merge,
-	unmerge opindexErrorFunc,
+	unmerge inErrorFunc[uint64],
 	done func(),
 	wait inErrorFunc[phaseMergerWaitCallbackFunc],
 	_ error,
@@ -94,7 +93,7 @@ func newFuncPhaseMerger(
 
 	var newJob phaseJobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait func() error
+	var jobWait errorFunc
 
 	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, startPhase); {
 	case err != nil:
