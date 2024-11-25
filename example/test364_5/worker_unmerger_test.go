@@ -650,7 +650,9 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 					t.println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 
 					if slices.Index(failedWorkers, worker) >= 0 {
-						if !strings.Contains(err.Error(), "findme") {
+						switch {
+						case strings.Contains(err.Error(), "findme"), errors.Is(err, context.Canceled):
+						default:
 							panic(fmt.Sprintf(
 								"unexpected error for failed worker=%q err=%+v", worker, err))
 						}
