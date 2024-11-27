@@ -41,7 +41,7 @@ func (t *testUnmerger) newFuncs() (
 }
 
 func (t *testUnmerger) TestError() {
-	t.Run("zero xMergedOpsMapSize", func() {
+	t.Run("zero max ops size", func() {
 		_, _, _, err := newFuncUnmerger(context.Background(), t.newJobWorker(), 0, nil, nil)
 		t.ErrorContains(err, "under 1")
 	})

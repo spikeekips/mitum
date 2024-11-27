@@ -28,7 +28,7 @@ func newFuncWorkerMerger(
 	newJobWorker newJobWorkerFunc,
 	getState createStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
-	maxWorkerSize, xMergedOpsMapSize, stateMergeValuesPoolSize uint64,
+	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	insertWorkerStateMergeValuesWithStateOwnersFunc,
@@ -113,7 +113,7 @@ func newFuncWorkerMerger(
 		getStateMergeValues,
 		getStateMergers,
 		newCheckWorkers,
-		newFuncPhaseMergerFunc(newJobWorker, xMergedOpsMapSize),
+		newFuncPhaseMergerFunc(newJobWorker, maxOpsSize),
 		minEnoughOps, maxFailedOps,
 	); {
 	case err != nil:
@@ -132,7 +132,7 @@ func newFuncWorkerMerger(
 		ifErrErrorInFunc(wctxCancel),
 		local,
 		newJobWorker,
-		xMergedOpsMapSize,
+		maxOpsSize,
 		getStateMergeValues,
 		getStateMergers,
 		newCheckWorkers,

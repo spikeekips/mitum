@@ -68,7 +68,7 @@ type (
 func newFuncPhaseMerger(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
-	xMergedOpsMapSize uint64,
+	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 ) (
@@ -83,7 +83,7 @@ func newFuncPhaseMerger(
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
 	var doneXMergedOps func(func(merged, unmerged []uint64) error) error
 
-	switch a, d, err := newFuncCollectXmergedOps(xMergedOpsMapSize); {
+	switch a, d, err := newFuncCollectXmergedOps(maxOpsSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -95,7 +95,7 @@ func newFuncPhaseMerger(
 	var jobDone func()
 	var jobWait errorFunc
 
-	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, xMergedOpsMapSize, startPhase); {
+	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, maxOpsSize, startPhase); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -107,7 +107,7 @@ func newFuncPhaseMerger(
 	var addReason func(reasons map[uint64]string) error
 	var doneReason func(unmerged []uint64, _ func(map[uint64]string) error) error
 
-	switch a, d, err := newFuncAddOpUnmergeReasons(xMergedOpsMapSize); {
+	switch a, d, err := newFuncAddOpUnmergeReasons(maxOpsSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

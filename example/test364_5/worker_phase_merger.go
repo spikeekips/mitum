@@ -134,7 +134,7 @@ func newFuncWorkerPhaseMerger(
 
 func newFuncPhaseMergerFunc(
 	newJobWorker newJobWorkerFunc,
-	xMergedOpsMapSize uint64,
+	maxOpsSize uint64,
 ) newPhaseMergerFunc {
 	return func(
 		ctx context.Context,
@@ -150,7 +150,7 @@ func newFuncPhaseMergerFunc(
 		return newFuncPhaseMerger(
 			ctx,
 			newJobWorker,
-			xMergedOpsMapSize,
+			maxOpsSize,
 			getStateMergeValues,
 			getStateMergers,
 		)

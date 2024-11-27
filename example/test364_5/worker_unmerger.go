@@ -27,7 +27,7 @@ func newFuncWorkerUnmerger(
 	ctxCancel inErrorFunc[error],
 	local string,
 	newJobWorker newJobWorkerFunc,
-	xMergedOpsMapSize uint64,
+	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
@@ -46,14 +46,14 @@ func newFuncWorkerUnmerger(
 	localReady, workerUnmerge, unmergerDone, unmergerWait := newFuncWorkerUnmergerWorkerUnmergedPool(
 		ctx,
 		local,
-		xMergedOpsMapSize,
+		maxOpsSize,
 		getStateMergeValues,
 		newCheckWorkers,
 		func(ctx context.Context) (inErrorFunc[uint64], func(), inErrorFunc[unmergedFunc], error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
-				xMergedOpsMapSize,
+				maxOpsSize,
 				getStateMergeValues,
 				getStateMergers,
 			)
@@ -147,7 +147,7 @@ func newFuncWorkerUnmerger(
 func newFuncWorkerUnmergerWorkerUnmergedPool(
 	ctx context.Context,
 	local string,
-	xMergedOpsMapSize uint64,
+	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
@@ -184,7 +184,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	}
 
 	workerOpindexFilterLocalReady, workerOpindexFilter,
-		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(xMergedOpsMapSize, getStateMergeValues)
+		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getStateMergeValues)
 
 	unmergeOps := func(worker string, unmerged []uint64, unmergeOp inErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
 		return checkWorker(worker, func() error {
