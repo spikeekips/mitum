@@ -4,6 +4,8 @@ import (
 	"context"
 	"maps"
 	"slices"
+
+	"github.com/spikeekips/mitum/util"
 )
 
 type (
@@ -27,7 +29,7 @@ func newFuncWorkerMerger(
 	getState createStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	maxWorkerSize, xMergedOpsMapSize, stateMergeValuesPoolSize uint64,
-	minEnoughOps, maxFailedOps, statesShare uint64,
+	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	insertWorkerStateMergeValuesWithStateOwnersFunc,
 	workerUnmergedFunc,
@@ -36,7 +38,50 @@ func newFuncWorkerMerger(
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-merger", nil)
 
+	localInOpsWorkers := true
+	var mOpsWorkers util.LockedMap[string, struct{}]
+	var minEnoughOps, maxFailedOps uint64
+
+	switch opsWorkersSize := uint64(len(opsWorkers)); {
+	case maxWorkerSize < opsWorkersSize:
+		maxWorkerSize = opsWorkersSize
+
+		fallthrough
+	default:
+		switch e, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			minEnoughOps, maxFailedOps = e, f
+		}
+
+		switch i, err := util.NewLockedMap[string, struct{}](opsWorkersSize, nil); {
+		case err != nil:
+			return nil, nil, nil, err
+		default:
+			mOpsWorkers = i
+
+			_ = traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				mOpsWorkers.SetValue(worker, struct{}{})
+
+				return true, nil
+			})
+		}
+
+		if !mOpsWorkers.Exists(local) {
+			localInOpsWorkers = false
+
+			// NOTE if local is not in ops workers, to finish phase merger,
+			// increase min enough
+			minEnoughOps++
+		}
+	}
+
 	log.Debug().
+		Bool("local_in_ops_workers", localInOpsWorkers).
+		Strs("ops_workers", opsWorkers).
+		Uint64("ops_share", opsShare).
+		Uint64("states_share", statesShare).
 		Uint64("min_enough_ops", minEnoughOps).
 		Uint64("max_failed_ops", maxFailedOps).
 		Msg("newFuncWorkerMerger")
@@ -113,6 +158,13 @@ func newFuncWorkerMerger(
 
 	insert := newFuncWorkerMergerInsert(
 		wctx,
+		func(worker string) bool {
+			if worker == local {
+				return true
+			}
+
+			return mOpsWorkers.Exists(worker)
+		},
 		workerPhaseMergerWorkerInsert,
 		setStateMergeValues,
 		addStateOwners,
@@ -127,7 +179,15 @@ func newFuncWorkerMerger(
 		workerUnmergerWait,
 	)
 
-	return insert,
+	if !localInOpsWorkers {
+		if err := insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+			return nil
+		}); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return insert, // FIXME filter whether worker is in ops workers
 		func(worker string, unmerged []uint64) error {
 			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
 				return workerUnmergerUnmerged(worker, unmerged)
@@ -136,6 +196,7 @@ func newFuncWorkerMerger(
 		func(localDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 			defer func() {
 				stateMergeValuesPoolClose()
+				mOpsWorkers.Close()
 			}()
 
 			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
@@ -147,7 +208,8 @@ func newFuncWorkerMerger(
 
 func newFuncWorkerMergerInsert(
 	ctx context.Context,
-	workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc,
+	isOpsWorker func(worker string) bool,
+	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
 	addStateOwners addOwnersFunc,
 ) insertWorkerStateMergeValuesWithStateOwnersFunc {
@@ -155,7 +217,11 @@ func newFuncWorkerMergerInsert(
 		worker string,
 		insert func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,
 	) error {
-		return workerPhaseMergerWorkerInsert(worker, func(f insertStateMergeValuesFunc) error {
+		if !isOpsWorker(worker) {
+			return nil
+		}
+
+		return workerInsert(worker, func(f insertStateMergeValuesFunc) error {
 			return insert(
 				func(opindex uint64, values []StateMergeValue) error {
 					switch added, err := setStateMergeValues(opindex, values); {
@@ -185,6 +251,8 @@ func newFuncWorkerMergerWait(
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait inErrorFunc[unmergedFunc],
 ) workerMergerWaitFunc {
+	log := loadContextValueLogger(ctx)
+
 	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 		var phaseDoneReasons map[uint64]string
 		defer clearMap(phaseDoneReasons)
@@ -194,6 +262,12 @@ func newFuncWorkerMergerWait(
 
 		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
 			if err := doneStateOwners(func(statesOwners []string) error {
+				log.Debug().
+					Uints64("unmerged", unmerged).
+					Interface("reasons", reasons).
+					Strs("states_owners", statesOwners).
+					Msg("phase merger wait done")
+
 				if localPhaseDone != nil {
 					if err := localPhaseDone(unmerged, statesOwners); err != nil {
 						// FIXME broadcast unmerged to other active state owners
@@ -231,6 +305,11 @@ func newFuncWorkerMergerWait(
 		}
 
 		return workerUnmergerWait(func(unmerged []uint64) error {
+			log.Debug().
+				Uints64("unmerged", unmerged).
+				Uints64("local_unmerged", localUnmerged).
+				Msg("unmerger wait done")
+
 			if f != nil {
 				return mergeUnmergeds(localUnmerged, unmerged)(func(m []uint64) error {
 					n := filterReasons(phaseDoneReasons, m)
