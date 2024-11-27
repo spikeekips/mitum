@@ -8,33 +8,55 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type (
+	insertWorkerStateMergeValuesWithStateOwnersFunc func(
+		worker string,
+		_ func(
+			insertStateMergeValuesFunc,
+			inErrorFunc[ /* sub state owners */ []string],
+			inErrorFunc[ /* affected state owners */ []string],
+		) error,
+	) error
+	workerReportStateOwnersFunc func(stateOwners []string) error
+	workerReportResultFunc      func(
+		unmerged []uint64,
+		reasons map[uint64]string,
+		stateKeys []string,
+	) error
+	workerBroadcastUnmergedFunc func(workers []string, unmerged []uint64) error
+	workerWaitFunc              func(
+		workerReportStateOwnersFunc,
+		workerBroadcastUnmergedFunc,
+		workerReportResultFunc,
+	) error
+)
+
 type workerOptions struct {
-	Local                    string
-	JobWorkerSemSize         int64
-	ExtractStateKeyCacheSize int
+	Local                       string
+	JobWorkerSemSize            int64
+	MaxExtractStateKeyCacheSize int
 }
 
 func newWorkerOptions(local string) *workerOptions {
 	return &workerOptions{
-		Local:                    local,
-		JobWorkerSemSize:         1 << 9,
-		ExtractStateKeyCacheSize: 1 << 13,
+		Local:                       local,
+		JobWorkerSemSize:            1 << 9,
+		MaxExtractStateKeyCacheSize: 1 << 13,
 	}
 }
 
 func newFuncWorker(
 	ctx context.Context,
 	options *workerOptions,
-	workID string,
 	getState createStateFunc,
-	maxOpsSize, stateMergeValuesPoolSize, stateMergersPoolSize uint64,
-	extractStateKeyCacheSize int,
+	workID string,
+	maxOpsSize uint64,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 ) (
 	insertWorkerStateMergeValuesWithStateOwnersFunc,
 	workerUnmergedFunc,
-	func() error,
+	workerWaitFunc,
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
@@ -45,9 +67,10 @@ func newFuncWorker(
 
 	log.Debug().
 		Interface("options", options).
+		Uint64("max_ops_size", maxOpsSize).
 		Dict("workers", zerolog.Dict().
-			Strs("workers", workers).
-			Strs("ops_workers", opsWorkers),
+			Strs("all", workers).
+			Strs("ops", opsWorkers),
 		).
 		Dict("share", zerolog.Dict().
 			Uint64("ops", opsShare).
@@ -65,26 +88,39 @@ func newFuncWorker(
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(options.ExtractStateKeyCacheSize)
+	approxStatesKeys := maxOpsSize * 2
+
+	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(
+		options.MaxExtractStateKeyCacheSize, int(approxStatesKeys))
 
 	var getStateMergers mergerGetStateMergersFunc
 	var traverseStateMergers traverseStateMergersFunc
+	var stateMergersClose func()
 
-	switch g, t, _, err := newFuncStateMergers(
-		stateMergersPoolSize,
+	switch g, t, c, err := newFuncStateMergers(
+		approxStatesKeys,
 		getState,
 		extractStateMergeValueKeys,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		getStateMergers = g
-		traverseStateMergers = t
+		getStateMergers, traverseStateMergers, stateMergersClose = g, t, c
+	}
+
+	var addAffectedStateOwners addOwnersFunc
+	var doneAffectedStateOwners compactAppendSliceDoneFunc[string]
+
+	switch a, d, err := newFuncCollectStateOwners(uint64(len(workers))); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		addAffectedStateOwners, doneAffectedStateOwners = a, d
 	}
 
 	// FIXME stateMergeValues extractor
 
-	var insertWorkerStateMergeValues insertWorkerStateMergeValuesWithStateOwnersFunc
+	var insertWorkerStateMergeValues insertWorkerStateMergeValuesWithSubStateOwnersFunc
 	var workerUnmerged workerUnmergedFunc
 	var workerMergerWait workerMergerWaitFunc
 
@@ -94,22 +130,24 @@ func newFuncWorker(
 		newFuncNewJobWorkerFunc(options.JobWorkerSemSize),
 		getState,
 		getStateMergers,
-		uint64(len(workers)), maxOpsSize, maxOpsSize*2,
+		uint64(len(workers)), maxOpsSize, approxStatesKeys,
 		opsWorkers, opsShare, statesShare,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		insertWorkerStateMergeValues = i
-		workerUnmerged = u
-		workerMergerWait = w
+		insertWorkerStateMergeValues, workerUnmerged, workerMergerWait = i, u, w
 	}
 
-	// FIXME save (operations, states) and report saved files info to manager
+	insert := newFuncWorkerInsert(wctx, insertWorkerStateMergeValues, addAffectedStateOwners)
 
-	return insertWorkerStateMergeValues,
+	return insert,
 		workerUnmerged,
-		func() error {
+		func(
+			reportStateOwners workerReportStateOwnersFunc,
+			broadcastUnmerged workerBroadcastUnmergedFunc,
+			reportMerged workerReportResultFunc,
+		) error {
 			defer func() {
 				_ = workerMergerWait(nil, nil)
 			}()
@@ -117,23 +155,38 @@ func newFuncWorker(
 			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
 				defer func() {
 					extractStateKeyClose()
+					doneAffectedStateOwners(nil)
+					stateMergersClose()
 				}()
 
-				return workerMergerWait(
-					func(unmerged []uint64, subStatesOwners []string) error {
-						// FIXME report subStatesOwners to manager
-						// FIXME broadcast unmerged to other subStatesOwners
+				if err := workerMergerWait(
+					func(unmerged []uint64, subs []string) error {
+						_ = doneAffectedStateOwners(func(affected []string) error {
+							log.Debug().Strs("affected_states_owners", affected).Msg("worker merger wait done")
+
+							if err := mergeStateOwners(subs, affected)(func(allStateOwners []string) error {
+								return reportStateOwners(allStateOwners)
+							}); err != nil {
+								return err
+							}
+
+							return broadcastUnmerged(affected, unmerged)
+						})
 
 						return nil
 					},
 					func(unmerged []uint64, reasons map[uint64]string) error {
-						// FIXME report unmerged and reasons to manager
-
 						_ = traverseStateMergers // FIXME remove
 
-						return nil
+						return reportMerged(unmerged, reasons, nil) // FIXME state keys
 					},
-				)
+				); err != nil {
+					return err
+				}
+
+				// FIXME save (operations, states) and report saved files info to manager
+
+				return nil
 			})
 		},
 		nil
@@ -164,4 +217,81 @@ func isValidWorkerArgs(
 
 		return true, nil
 	})
+}
+
+func newFuncWorkerInsert(
+	ctx context.Context,
+	insertWorker insertWorkerStateMergeValuesWithSubStateOwnersFunc,
+	addAffectedStateOwners addOwnersFunc,
+) insertWorkerStateMergeValuesWithStateOwnersFunc {
+	return func(
+		worker string,
+		f func(
+			insertStateMergeValuesFunc,
+			inErrorFunc[[]string],
+			inErrorFunc[[]string],
+		) error,
+	) error {
+		return insertWorker(
+			worker,
+			func(ivf insertStateMergeValuesFunc, sub inErrorFunc[[]string]) error {
+				return f(ivf, sub, func(affected []string) error {
+					addAffectedStateOwners(affected)
+
+					return nil
+				})
+			},
+		)
+	}
+}
+
+func mergeStateOwners(a, b []string) func(func([]string) error) error {
+	switch {
+	case len(a) < 1:
+		return func(f func([]string) error) error { return f(b) }
+	case len(b) < 1:
+		return func(f func([]string) error) error { return f(a) }
+	}
+
+	as, bs := a, b
+
+	if len(b) > len(a) {
+		as = b
+		bs = a
+	}
+
+	var add compactAppendSliceAddFunc[string]
+	var done compactAppendSliceDoneFunc[string]
+
+	if err := rCompactAppendSlice[string](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
+		return func(func([]string) error) error {
+			return err
+		}
+	}
+
+	defer done(nil)
+
+	_ = traverseSlice(bs, func(_ int, opindex string) (bool, error) {
+		if slices.Index(as, opindex) >= 0 {
+			add(opindex)
+		}
+
+		return true, nil
+	})
+
+	return func(f func([]string) error) error {
+		return done(func(s []string) error {
+			if len(s) < 1 {
+				return f(as)
+			}
+
+			m := make([]string, len(as)+len(s))
+			defer clear(m)
+
+			copy(m, as)
+			copy(m[len(as):], s)
+
+			return f(m)
+		})
+	}
 }

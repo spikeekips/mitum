@@ -841,7 +841,6 @@ func (t *testWorkerMerger) workerMergers(
 
 				go func() {
 					defer func() {
-						donech <- worker
 						wg.Done()
 					}()
 
@@ -873,6 +872,10 @@ func (t *testWorkerMerger) workerMergers(
 					)
 
 					t.println("worker wait: worker=%q err=%v", worker, err)
+
+					if err == nil {
+						donech <- worker
+					}
 				}()
 
 				return true, nil
@@ -1204,6 +1207,10 @@ func (t *testWorkerMerger) TestNoSubs() {
 		collectedStates := map[string]int64{}
 
 		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+			if slices.Index(doneWorkers, worker) < 0 {
+				return nil
+			}
+
 			return f(func(stateKey string, merger StateMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
