@@ -256,7 +256,7 @@ func newFuncCollectStateOwners(maxSize uint64) (
 	)
 
 	if err := rUniqueCompactAppendSlice[string](
-		maxSize, 0, &add, &done); err != nil {
+		maxSize, 1<<5, &add, &done); err != nil {
 		return nil, nil, err
 	}
 
