@@ -12,10 +12,10 @@ type (
 	addOwnersFunc                                      func(owners []string)
 	insertWorkerStateMergeValuesWithSubStateOwnersFunc func(
 		worker string,
-		_ func(insertStateMergeValuesFunc, inErrorFunc[ /* sub states owners */ []string]) error,
+		_ func(insertStateMergeValuesFunc, inErrorFunc[ /* sub state owners */ []string]) error,
 	) error
 	workerMergerCallback                 func(unmerged []uint64, reasons map[uint64]string) error
-	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, subStatesOwners []string) error
+	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, subStateOwners []string) error
 	workerMergerWaitFunc                 func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
 

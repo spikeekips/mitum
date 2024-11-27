@@ -286,12 +286,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Empty(statesOwners)
+				t.Empty(subs)
 
 				return nil
 			},
@@ -343,12 +342,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Equal([]string{local}, statesOwners)
+				t.Equal([]string{local}, subs)
 
 				return nil
 			},
@@ -395,12 +393,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Empty(statesOwners)
+				t.Empty(subs)
 
 				return nil
 			},
@@ -493,12 +490,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Equal(opsWorkers, statesOwners)
+				t.Equal(opsWorkers, subs)
 
 				return nil
 			},
@@ -553,12 +549,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Empty(statesOwners)
+				t.Empty(subs)
 
 				return nil
 			},
@@ -626,12 +621,11 @@ func (t *testWorkerMerger) TestInsert() {
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, statesOwners []string) error {
-				t.T().Logf("local phase done: unmerged=%v states owners=%v",
-					unmerged, statesOwners)
+			func(unmerged []uint64, subs []string) error {
+				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
 
 				t.Empty(unmerged)
-				t.Equal([]string{local}, statesOwners)
+				t.Equal([]string{local}, subs)
 
 				return nil
 			},
@@ -658,7 +652,7 @@ func (t *testWorkerMerger) workerMergers(
 	share uint64,
 	states []base.State,
 	values [][]StateMergeValue,
-	statesOwners map[string][]string,
+	subs map[string][]string,
 ) (
 	func() error,
 	testWorkerMergerWaitsFunc,
@@ -672,9 +666,9 @@ func (t *testWorkerMerger) workerMergers(
 		return nil, nil, nil, err
 	}
 	t.T().Logf("min enough ops=%d max failed ops=%d", minEnough, maxFailed)
-	t.T().Log("states owners:", t.MarshalIndent(statesOwners))
+	t.T().Log("sub state owners:", t.MarshalIndent(subs))
 
-	getStateOwners := t.stateOwnersFunc(statesOwners)
+	getStateOwners := t.stateOwnersFunc(subs)
 
 	inserts := map[string]insertWorkerStateMergeValuesWithSubStateOwnersFunc{}
 	unmerges := map[string]workerUnmergedFunc{}
@@ -704,7 +698,7 @@ func (t *testWorkerMerger) workerMergers(
 			done workerMergerCallback,
 		) error {
 			return wait(
-				func(unmerged []uint64, statesOwners []string) error {
+				func(unmerged []uint64, subs []string) error {
 					var wg sync.WaitGroup
 
 					if err := traverseSlice(workers, func(_ int, other string) (bool, error) {
@@ -729,7 +723,7 @@ func (t *testWorkerMerger) workerMergers(
 
 					wg.Wait()
 
-					return localPhaseDone(unmerged, statesOwners)
+					return localPhaseDone(unmerged, subs)
 				},
 				done,
 			)
@@ -807,7 +801,7 @@ func (t *testWorkerMerger) workerMergers(
 							},
 						)
 
-						t.println("worker insert: worker=%q ops=%v states owners=%v err=%v", worker, ops, workerStateOwners[worker], err)
+						t.println("worker insert: worker=%q ops=%v sub state owners=%v err=%v", worker, ops, workerStateOwners[worker], err)
 
 						traverseMap(
 							inserts,
@@ -858,11 +852,11 @@ func (t *testWorkerMerger) workerMergers(
 					}
 
 					err := wf(
-						func(unmerged []uint64, statesOwners []string) error {
-							t.println("worker local phase done: worker=%q unmerged=%v states owners=%v", worker, unmerged, statesOwners)
+						func(unmerged []uint64, subs []string) error {
+							t.println("worker local phase done: worker=%q unmerged=%v sub state owners=%v", worker, unmerged, subs)
 
 							if l != nil {
-								return l(unmerged, statesOwners)
+								return l(unmerged, subs)
 							}
 
 							return nil
@@ -947,10 +941,10 @@ func (t *testWorkerMerger) workerMerger(
 }
 
 func (t *testWorkerMerger) stateOwnersFunc(
-	statesOwners map[string][]string,
+	subs map[string][]string,
 ) stateOwnersFunc {
 	return func(stateKey string) []string {
-		return statesOwners[stateKey]
+		return subs[stateKey]
 	}
 }
 
@@ -1078,7 +1072,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 	t.Run("3 workers, 1 share", func() {
 		workers := t.workers(3)
 		share := uint64(1)
-		statesOwners := map[string][]string{}
+		subs := map[string][]string{}
 
 		getStateOwners, getStateOwnersClose, err := stateOwnersFuncByCount(workers, share)
 		t.NoError(err)
@@ -1091,7 +1085,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			values[i] = vs
 
 			traverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
-				statesOwners[value.Key()] = getStateOwners(value.Key())
+				subs[value.Key()] = getStateOwners(value.Key())
 
 				return true, nil
 			})
@@ -1104,7 +1098,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		// ctx = setContextValueLogger(ctx, testLogger)
 
-		insert, waits, traverse, err := t.workerMergers(ctx, workers, share, nil, values, statesOwners)
+		insert, waits, traverse, err := t.workerMergers(ctx, workers, share, nil, values, subs)
 		t.NoError(err)
 
 		go func() {
@@ -1166,7 +1160,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 	t.Run("3 workers, 2 share", func() {
 		workers := t.workers(3)
 		share := uint64(2)
-		statesOwners := map[string][]string{}
+		subs := map[string][]string{}
 
 		getStateOwners, getStateOwnersClose, err := stateOwnersFuncByCount(workers, share)
 		t.NoError(err)
@@ -1179,7 +1173,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			values[i] = vs
 
 			traverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
-				statesOwners[value.Key()] = getStateOwners(value.Key())
+				subs[value.Key()] = getStateOwners(value.Key())
 
 				return true, nil
 			})
@@ -1192,7 +1186,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		// ctx = setContextValueLogger(ctx, testLogger)
 
-		insert, waits, traverse, err := t.workerMergers(ctx, workers, share, nil, values, statesOwners)
+		insert, waits, traverse, err := t.workerMergers(ctx, workers, share, nil, values, subs)
 		t.NoError(err)
 
 		go func() {
@@ -1346,25 +1340,25 @@ func (t *testWorkerMerger) TestSubs() {
 			t.NoError(err)
 			defer getStateOwnersClose()
 
-			statesOwners := map[string][]string{}
+			subs := map[string][]string{}
 			for i := range values {
 				vs := values[i]
 
 				traverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
-					statesOwners[value.Key()] = getStateOwners(value.Key())
+					subs[value.Key()] = getStateOwners(value.Key())
 
 					return true, nil
 				})
 			}
 
-			t.T().Log("states owners:", statesOwners)
+			t.T().Log("sub state owners:", subs)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			// ctx = setContextValueLogger(ctx, testLogger)
 
-			insert, waits, traverse, err := t.workerMergers(ctx, workers, share, states, values, statesOwners)
+			insert, waits, traverse, err := t.workerMergers(ctx, workers, share, states, values, subs)
 			t.NoError(err)
 
 			go func() {

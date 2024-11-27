@@ -16,7 +16,7 @@ type (
 		inErrorFunc[unmergedFunc],
 		error,
 	)
-	workerUnmergerLocalReadyFunc func(subStatesOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
+	workerUnmergerLocalReadyFunc func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
 	workerUnmergedFunc           func(worker string, unmerged []uint64) error
 	workerOpindexFilterFunc      func(worker string) opindexFilterFunc
 )
@@ -152,7 +152,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	newCheckWorkers newCheckEnoughFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	localReady func(subStatesOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
+	localReady func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
 	unmergerDone func(),
 	unmergerWait inErrorFunc[unmergedFunc],
@@ -427,7 +427,7 @@ func newFuncWorkerOpindexFilter(
 	mapSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 ) (
-	localReady func(subStatesOwners []string, localUnmerged []uint64) error,
+	localReady func(subStateOwners []string, localUnmerged []uint64) error,
 	_ workerOpindexFilterFunc,
 	_ func(),
 ) {
