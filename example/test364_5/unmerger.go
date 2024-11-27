@@ -42,7 +42,7 @@ func newFuncUnmerger(
 	var addOps compactAppendSliceAddFunc[uint64]
 	var doneOps compactAppendSliceDoneFunc[uint64]
 
-	if err := rCompactAppendSlice[uint64](maxOpsSize, 1<<5, &addOps, &doneOps); err != nil {
+	if err := rCompactAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
 		return nil, nil, nil, err
 	}
 
