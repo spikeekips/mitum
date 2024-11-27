@@ -9,10 +9,10 @@ import (
 )
 
 type (
-	addOwnersFunc                                   func(owners []string)
-	insertWorkerStateMergeValuesWithStateOwnersFunc func(
+	addOwnersFunc                                      func(owners []string)
+	insertWorkerStateMergeValuesWithSubStateOwnersFunc func(
 		worker string,
-		_ func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,
+		_ func(insertStateMergeValuesFunc, inErrorFunc[ /* sub states owners */ []string]) error,
 	) error
 	workerMergerCallback                 func(unmerged []uint64, reasons map[uint64]string) error
 	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, subStatesOwners []string) error
@@ -31,7 +31,7 @@ func newFuncWorkerMerger(
 	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
-	insertWorkerStateMergeValuesWithStateOwnersFunc,
+	insertWorkerStateMergeValuesWithSubStateOwnersFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
@@ -96,9 +96,7 @@ func newFuncWorkerMerger(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		getStateMergeValues = g
-		setStateMergeValues = s
-		stateMergeValuesPoolClose = c
+		getStateMergeValues, setStateMergeValues, stateMergeValuesPoolClose = g, s, c
 	}
 
 	newCheckWorkers := newFuncLocalCheckEnoughFailedWorkers(local)
@@ -119,8 +117,7 @@ func newFuncWorkerMerger(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		workerPhaseMergerWorkerInsert = i
-		workerPhaseMergerWait = w
+		workerPhaseMergerWorkerInsert, workerPhaseMergerWait = i, w
 	}
 
 	var workerUnmergerUnmerged workerUnmergedFunc
@@ -140,20 +137,17 @@ func newFuncWorkerMerger(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		workerUnmergerUnmerged = u
-		workerUnmergerLocalReady = s
-		workerUnmergerWait = w
+		workerUnmergerUnmerged, workerUnmergerLocalReady, workerUnmergerWait = u, s, w
 	}
 
-	var addStateOwners addOwnersFunc
-	var doneStateOwners compactAppendSliceDoneFunc[string]
+	var addSubStateOwners addOwnersFunc
+	var doneSubStateOwners compactAppendSliceDoneFunc[string]
 
 	switch a, d, err := newFuncCollectStateOwners(maxWorkerSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		addStateOwners = a
-		doneStateOwners = d
+		addSubStateOwners, doneSubStateOwners = a, d
 	}
 
 	insert := newFuncWorkerMergerInsert(
@@ -167,14 +161,14 @@ func newFuncWorkerMerger(
 		},
 		workerPhaseMergerWorkerInsert,
 		setStateMergeValues,
-		addStateOwners,
+		addSubStateOwners,
 	)
 
 	wait := newFuncWorkerMergerWait(
 		wctx,
 		statesShare,
 		workerPhaseMergerWait,
-		doneStateOwners,
+		doneSubStateOwners,
 		workerUnmergerLocalReady,
 		workerUnmergerWait,
 	)
@@ -208,11 +202,11 @@ func newFuncWorkerMerger(
 
 func newFuncWorkerMergerInsert(
 	ctx context.Context,
-	isOpsWorker func(worker string) bool,
+	isOpsWorker func(worker string) bool, // FIXME remove
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
-	addStateOwners addOwnersFunc,
-) insertWorkerStateMergeValuesWithStateOwnersFunc {
+	addSubStateOwners addOwnersFunc,
+) insertWorkerStateMergeValuesWithSubStateOwnersFunc {
 	return func(
 		worker string,
 		insert func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,
@@ -233,8 +227,8 @@ func newFuncWorkerMergerInsert(
 						return f(opindex, values)
 					}
 				},
-				func(stateOwners []string) error {
-					addStateOwners(stateOwners)
+				func(subStateOwners []string) error {
+					addSubStateOwners(subStateOwners)
 
 					return nil
 				},
@@ -247,7 +241,7 @@ func newFuncWorkerMergerWait(
 	ctx context.Context,
 	statesShare uint64,
 	workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc],
-	doneStateOwners compactAppendSliceDoneFunc[string],
+	doneSubStateOwners compactAppendSliceDoneFunc[string],
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait inErrorFunc[unmergedFunc],
 ) workerMergerWaitFunc {
@@ -255,21 +249,25 @@ func newFuncWorkerMergerWait(
 
 	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 		var phaseDoneReasons map[uint64]string
-		defer clearMap(phaseDoneReasons)
+
+		defer func() {
+			clearMap(phaseDoneReasons)
+			doneSubStateOwners(nil)
+		}()
 
 		var localUnmerged []uint64
 		defer clear(localUnmerged)
 
 		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			if err := doneStateOwners(func(subStatesOwners []string) error {
+			if err := doneSubStateOwners(func(subs []string) error {
 				log.Debug().
 					Uints64("unmerged", unmerged).
 					Interface("reasons", reasons).
-					Strs("sub_states_owners", subStatesOwners).
+					Strs("sub_states_owners", subs).
 					Msg("phase merger wait done")
 
 				if localPhaseDone != nil {
-					if err := localPhaseDone(unmerged, subStatesOwners); err != nil {
+					if err := localPhaseDone(unmerged, subs); err != nil {
 						// FIXME broadcast unmerged to other active state owners
 						return err
 					}
@@ -277,7 +275,7 @@ func newFuncWorkerMergerWait(
 
 				var minEnough, maxFailed uint64
 
-				if s := len(subStatesOwners); s > 0 {
+				if s := len(subs); s > 0 {
 					switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
 					case err != nil:
 						return err
@@ -286,7 +284,7 @@ func newFuncWorkerMergerWait(
 					}
 				}
 
-				return workerUnmergerLocalReady(subStatesOwners, unmerged, minEnough, maxFailed)
+				return workerUnmergerLocalReady(subs, unmerged, minEnough, maxFailed)
 			}); err != nil {
 				return err
 			}
@@ -368,17 +366,13 @@ func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {
 	var add compactAppendSliceAddFunc[uint64]
 	var done compactAppendSliceDoneFunc[uint64]
 
-	switch a, d, err := compactAppendSlice[uint64](uint64(len(as)+len(bs)), 0); {
-	case err != nil:
+	if err := rCompactAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
 		return func(func([]uint64) error) error {
 			return err
 		}
-	default:
-		defer d(nil)
-
-		add = a
-		done = d
 	}
+
+	defer done(nil)
 
 	_ = traverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
 		if slices.Index(as, opindex) >= 0 {

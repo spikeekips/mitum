@@ -90,15 +90,15 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(subStatesOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
+		func(subs []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
 			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().
-					Strs("sub_states_owners", subStatesOwners).
+					Strs("sub_states_owners", subs).
 					Uint64("min_enough", minEnough).
 					Uint64("max_failed", maxFailed).
 					Logger()
 
-				switch ok, enough, failed, err := localReady(subStatesOwners, localUnmerged, minEnough, maxFailed); {
+				switch ok, enough, failed, err := localReady(subs, localUnmerged, minEnough, maxFailed); {
 				case failed:
 					l.Error().Err(err).Msg("local phase done; failed")
 
@@ -173,8 +173,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			case err != nil:
 				newUnmergerErr = err
 			default:
-				checkWorker = w
-				checkWorkerClose = c
+				checkWorker, checkWorkerClose = w, c
 			}
 
 			newUnmergerErr = newUnmergerf()
@@ -203,8 +202,8 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		})
 	}
 
-	return func(subStatesOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
-			if err := workerOpindexFilterLocalReady(subStatesOwners, localUnmerged); err != nil {
+	return func(subs []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
+			if err := workerOpindexFilterLocalReady(subs, localUnmerged); err != nil {
 				return false, false, false, err
 			}
 
@@ -386,9 +385,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 			case err != nil:
 				return err
 			default:
-				unmerge = u
-				done = d
-				wait = w
+				unmerge, done, wait = u, d, w
 
 				return nil
 			}
@@ -442,9 +439,9 @@ func newFuncWorkerOpindexFilter(
 
 	var l sync.RWMutex
 
-	newf := func(subStatesOwners []string, localUnmerged []uint64) error {
+	newf := func(subs []string, localUnmerged []uint64) error {
 		once.Do(func() {
-			if len(subStatesOwners) < 1 {
+			if len(subs) < 1 {
 				filter = func(string) opindexFilterFunc { return nil }
 
 				return
@@ -457,7 +454,7 @@ func newFuncWorkerOpindexFilter(
 				gerr = err
 			default:
 				m := map[string]struct{}{}
-				traverseSlice(subStatesOwners, func(_ int, owner string) (bool, error) {
+				traverseSlice(subs, func(_ int, owner string) (bool, error) {
 					m[owner] = struct{}{}
 
 					return true, nil
@@ -489,8 +486,8 @@ func newFuncWorkerOpindexFilter(
 		return gerr
 	}
 
-	return func(subStatesOwners []string, localUnmerged []uint64) error {
-			return newf(subStatesOwners, localUnmerged)
+	return func(subs []string, localUnmerged []uint64) error {
+			return newf(subs, localUnmerged)
 		},
 		func(worker string) opindexFilterFunc {
 			l.RLock()
