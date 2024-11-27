@@ -283,7 +283,7 @@ func newModuleLogger(logger *zerolog.Logger, module string, f func(zctx zerolog.
 	return &l
 }
 
-func newModuleLoggerFromContext(ctx context.Context, module string, f func(zctx zerolog.Context) zerolog.Context) *zerolog.Logger {
+func newModuleLoggerFromContext(ctx context.Context, module string, f func(zerolog.Context) zerolog.Context) *zerolog.Logger {
 	logger := loadContextValueLogger(ctx)
 	if logger == nil {
 		return &nopLogger

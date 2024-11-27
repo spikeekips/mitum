@@ -15,7 +15,7 @@ type (
 		_ func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,
 	) error
 	workerMergerCallback                 func(unmerged []uint64, reasons map[uint64]string) error
-	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, statesOwners []string) error
+	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, subStatesOwners []string) error
 	workerMergerWaitFunc                 func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
 
@@ -187,7 +187,7 @@ func newFuncWorkerMerger(
 		}
 	}
 
-	return insert, // FIXME filter whether worker is in ops workers
+	return insert,
 		func(worker string, unmerged []uint64) error {
 			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
 				return workerUnmergerUnmerged(worker, unmerged)
@@ -261,15 +261,15 @@ func newFuncWorkerMergerWait(
 		defer clear(localUnmerged)
 
 		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			if err := doneStateOwners(func(statesOwners []string) error {
+			if err := doneStateOwners(func(subStatesOwners []string) error {
 				log.Debug().
 					Uints64("unmerged", unmerged).
 					Interface("reasons", reasons).
-					Strs("states_owners", statesOwners).
+					Strs("sub_states_owners", subStatesOwners).
 					Msg("phase merger wait done")
 
 				if localPhaseDone != nil {
-					if err := localPhaseDone(unmerged, statesOwners); err != nil {
+					if err := localPhaseDone(unmerged, subStatesOwners); err != nil {
 						// FIXME broadcast unmerged to other active state owners
 						return err
 					}
@@ -277,7 +277,7 @@ func newFuncWorkerMergerWait(
 
 				var minEnough, maxFailed uint64
 
-				if s := len(statesOwners); s > 0 {
+				if s := len(subStatesOwners); s > 0 {
 					switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
 					case err != nil:
 						return err
@@ -286,7 +286,7 @@ func newFuncWorkerMergerWait(
 					}
 				}
 
-				return workerUnmergerLocalReady(statesOwners, unmerged, minEnough, maxFailed)
+				return workerUnmergerLocalReady(subStatesOwners, unmerged, minEnough, maxFailed)
 			}); err != nil {
 				return err
 			}
