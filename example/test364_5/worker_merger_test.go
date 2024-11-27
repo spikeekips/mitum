@@ -1037,7 +1037,7 @@ func (t *testWorkerMerger) workersStateOwners(
 	return slices.Collect(maps.Keys(m))
 }
 
-func (t *testWorkerMerger) TestWorkersNoSubs() {
+func (t *testWorkerMerger) TestNoSubs() {
 	t.Run("3 workers; empty values", func() {
 		workers := t.workers(3)
 		share := uint64(1)
@@ -1123,6 +1123,10 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 		collectedStates := map[string]int64{}
 
 		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+			if slices.Index(doneWorkers, worker) < 0 {
+				return nil
+			}
+
 			return f(func(stateKey string, merger StateMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
@@ -1131,18 +1135,26 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 
 				var problem string
 
-				v := stv.(*AccountStateValue)
-				switch b, found := collectedStates[stateKey]; {
-				case found:
-					if v.Balance != b {
-						problem = "balance mismatch"
+				if stv == nil {
+					collectedStates[stateKey] = 0
+				} else {
+					v := stv.(*AccountStateValue)
+					switch b, found := collectedStates[stateKey]; {
+					case found:
+						if v.Balance != b {
+							problem = fmt.Sprintf("balance mismatch: key=%q prev=%d cur=%d", stateKey, b, v.Balance)
+						}
+					default:
+						collectedStates[stateKey] = v.Balance
 					}
-				default:
-					collectedStates[stateKey] = b
 				}
 
 				t.println("worker states: worker=%q state=%q value=%v problem=%q",
 					worker, stateKey, t.printStateMergeValue(stv), problem)
+
+				if problem != "" {
+					return false, errors.Errorf("%s: worker=%q", problem, worker)
+				}
 
 				return true, nil
 			})
@@ -1227,7 +1239,7 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 	})
 }
 
-func (t *testWorkerMerger) TestWorkersSubs() {
+func (t *testWorkerMerger) TestSubs() {
 	pub0 := base.NewDummyPublickey("p0")
 	pub1 := base.NewDummyPublickey("p1")
 	pub2 := base.NewDummyPublickey("p2")
