@@ -187,25 +187,20 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(xMergedOpsMapSize, getStateMergeValues)
 
 	unmergeOps := func(worker string, unmerged []uint64, unmergeOp inErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
-		gerr := traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
-			if filter != nil {
-				switch ok, err := filter(opindex); {
-				case err != nil:
-					return false, err
-				case !ok:
-					return true, nil
+		return checkWorker(worker, func() error {
+			return traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+				if filter != nil {
+					switch ok, err := filter(opindex); {
+					case err != nil:
+						return false, err
+					case !ok:
+						return true, nil
+					}
 				}
-			}
 
-			return true, unmergeOp(opindex)
+				return true, unmergeOp(opindex)
+			})
 		})
-
-		switch ok, enough, failed, err := checkWorker(worker, func() error { return gerr }); {
-		case failed, err != nil:
-			return ok, enough, failed, err
-		default:
-			return ok, enough, failed, gerr
-		}
 	}
 
 	return func(statesOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {

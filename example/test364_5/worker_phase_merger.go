@@ -48,15 +48,15 @@ func newFuncWorkerPhaseMerger(
 
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
-	var checkWorkerInsert checkEnoughFailedWorkerFunc
-	var checkWorkerInsertClose func()
+	var checkWorker checkEnoughFailedWorkerFunc
+	var checkWorkerClose func()
 
 	switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
 	case err != nil:
 		return nil, nil, err
 	default:
-		checkWorkerInsert = w
-		checkWorkerInsertClose = c
+		checkWorker = w
+		checkWorkerClose = c
 	}
 
 	var phaseMergerMerge inErrorFunc[uint64]
@@ -81,13 +81,13 @@ func newFuncWorkerPhaseMerger(
 	return func(worker string, f inErrorFunc[insertStateMergeValuesFunc]) error {
 			l := log.With().Str("worker", worker).Logger()
 
-			werr := contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				return f(func(opindex uint64, values []StateMergeValue) error {
-					return phaseMergerMerge(opindex)
+			switch ok, enough, failed, err := checkWorker(worker, func() error {
+				return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+					return f(func(opindex uint64, values []StateMergeValue) error {
+						return phaseMergerMerge(opindex)
+					})
 				})
-			})
-
-			switch ok, enough, failed, err := checkWorkerInsert(worker, func() error { return werr }); {
+			}); {
 			case failed:
 				l.Error().Err(err).Msg("insert; check workers: failed")
 
@@ -104,13 +104,13 @@ func newFuncWorkerPhaseMerger(
 				_ = workerInsertDone(nil)
 			}
 
-			return werr
+			return nil
 		},
 		func(f workerPhaseMergerWaitCallbackFunc) error {
 			defer func() {
 				_ = phaseMergerWait(nil)
 				workerInsertDone(nil)
-				checkWorkerInsertClose()
+				checkWorkerClose()
 			}()
 
 			return contextCauseError(ctx, ctxCancel, func(context.Context) error {

@@ -489,7 +489,7 @@ func (t *testWorkerMerger) TestInsert() {
 }
 
 type (
-	testWorkerMergerWaitsFunc           func(func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) error
+	testWorkerMergerWaitsFunc           func(func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) ([]string, error)
 	testWorkerMergerTraverseMergersFunc func(func(string, traverseStateMergersFunc) error) error
 )
 
@@ -506,11 +506,13 @@ func (t *testWorkerMerger) workerMergers(
 	testWorkerMergerTraverseMergersFunc,
 	error,
 ) {
-	minEnoughOps, maxFailedOps, err := minEnoughMaxFailed(uint64(len(workers)), share)
+	wctx, wctxCancel := context.WithCancel(ctx)
+
+	minEnough, maxFailed, err := minEnoughMaxFailed(uint64(len(workers)), share)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	t.T().Logf("min enough ops=%d max failed ops=%d", minEnoughOps, maxFailedOps)
+	t.T().Logf("min enough ops=%d max failed ops=%d", minEnough, maxFailed)
 	t.T().Log("states owners:", t.MarshalIndent(statesOwners))
 
 	getStateOwners := t.stateOwnersFunc(statesOwners)
@@ -522,9 +524,9 @@ func (t *testWorkerMerger) workerMergers(
 
 	if err := traverseSlice(workers, func(_ int, worker string) (bool, error) {
 		statesPool, insert, unmerge, wait, tr, err := t.workerMerger(
-			ctx,
+			wctx,
 			worker,
-			uint64(len(workers)), minEnoughOps, maxFailedOps, share,
+			uint64(len(workers)), minEnough, maxFailed, share,
 		)
 		if err != nil {
 			return false, err
@@ -676,14 +678,19 @@ func (t *testWorkerMerger) workerMergers(
 
 			return nil
 		},
-		func(f func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) error {
+		func(f func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) ([]string, error) {
+			donech := make(chan string, len(workers))
+
 			var wg sync.WaitGroup
 
 			traverseMap(waits, func(worker string, wf workerMergerWaitFunc) (bool, error) {
 				wg.Add(1)
 
 				go func() {
-					defer wg.Done()
+					defer func() {
+						donech <- worker
+						wg.Done()
+					}()
 
 					var l workerMergerLocalPhaseMergerDoneFunc
 					var c workerMergerCallback
@@ -718,9 +725,29 @@ func (t *testWorkerMerger) workerMergers(
 				return true, nil
 			})
 
+			var doneWorkers []string
+
+			var c uint64
+			for {
+				select {
+				case worker := <-donech:
+					doneWorkers = append(doneWorkers, worker)
+					c++
+				}
+
+				if c >= minEnough {
+					break
+				}
+			}
+			wctxCancel()
+
 			wg.Wait()
 
-			return nil
+			slices.Sort(doneWorkers)
+
+			t.println("all wait: done workers=%v", doneWorkers)
+
+			return doneWorkers, nil
 		},
 		func(f func(string, traverseStateMergersFunc) error) error {
 			return traverseMap(traverseMergers, func(worker string, wf traverseStateMergersFunc) (bool, error) {
@@ -873,7 +900,9 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 			}
 		}()
 
-		t.NoError(waits(nil))
+		doneWorkers, err := waits(nil)
+		t.NoError(err)
+		t.Equal(workers, doneWorkers)
 
 		var called int
 		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
@@ -928,7 +957,9 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 			}
 		}()
 
-		t.NoError(waits(nil))
+		doneWorkers, err := waits(nil)
+		t.NoError(err)
+		t.Equal(workers, doneWorkers)
 
 		collectedStates := map[string]int64{}
 
@@ -1002,7 +1033,8 @@ func (t *testWorkerMerger) TestWorkersNoSubs() {
 			}
 		}()
 
-		t.NoError(waits(nil))
+		doneWorkers, err := waits(nil)
+		t.True(len(doneWorkers) >= 2)
 
 		collectedStates := map[string]int64{}
 
@@ -1064,10 +1096,10 @@ func (t *testWorkerMerger) TestWorkersSubs() {
 		states[2].Key(): 2,
 	}
 
-	checkWaits := func(waits testWorkerMergerWaitsFunc) {
+	checkWaits := func(waits testWorkerMergerWaitsFunc) []string {
 		addUnmerged, doneUnmerged, _ := compactAppendSlice[uint64](uint64(len(values)), 0)
 
-		t.NoError(waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
+		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
 			return func([]uint64, []string) error { return nil },
 				func(unmerged []uint64, reasons map[uint64]string) error {
 					if len(unmerged) > 0 {
@@ -1076,7 +1108,8 @@ func (t *testWorkerMerger) TestWorkersSubs() {
 
 					return nil
 				}
-		}))
+		})
+		t.NoError(err)
 
 		doneUnmerged(func(s []uint64) error {
 			slices.Sort(s)
@@ -1086,12 +1119,18 @@ func (t *testWorkerMerger) TestWorkersSubs() {
 
 			return nil
 		})
+
+		return doneWorkers
 	}
 
-	checkMerged := func(traverse testWorkerMergerTraverseMergersFunc) {
+	checkMerged := func(doneWorkers []string, traverse testWorkerMergerTraverseMergersFunc) {
 		collectedStates := map[string]int64{}
 
 		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+			if slices.Index(doneWorkers, worker) < 0 {
+				return nil
+			}
+
 			return f(func(stateKey string, merger StateMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
@@ -1166,17 +1205,21 @@ func (t *testWorkerMerger) TestWorkersSubs() {
 				}
 			}()
 
-			checkWaits(waits)
-			checkMerged(traverse)
+			doneWorkers := checkWaits(waits)
+			checkMerged(doneWorkers, traverse)
 		}
 	}
 
-	maxWorkers := len(states)
-	for workers := 1; workers <= maxWorkers; workers++ {
-		for share := uint64(1); share <= uint64(maxWorkers); share++ {
-			t.Run(fmt.Sprintf("%d workers, %d share", workers, share), run(workers, share))
+	t.Run("repeat", func() {
+		maxWorkers := len(states)
+		for workers := 1; workers <= maxWorkers; workers++ {
+			for share := uint64(1); share <= uint64(maxWorkers); share++ {
+				for i := range 1 << 8 {
+					t.Run(fmt.Sprintf("%d: %d workers, %d share", i, workers, share), run(workers, share))
+				}
+			}
 		}
-	}
+	})
 }
 
 func TestWorkerMerger(t *testing.T) {
