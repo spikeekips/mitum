@@ -277,15 +277,11 @@ func newFuncSetStateOps(mapSize uint64) (
 					var add util.CompactAppendSliceAddFunc[uint64]
 					var done util.CompactAppendSliceDoneFunc[uint64]
 
-					switch a, d, err := util.CompactAppendSliceV1[uint64](uint64(len(mops))); {
-					case err != nil:
+					if err := rCompactAppendSlice[uint64](uint64(len(mops)), 0, &add, &done); err != nil {
 						return nil
-					default:
-						defer d(nil)
-
-						add = a
-						done = d
 					}
+
+					defer done(nil)
 
 					_ = traverseMap(mops, func(opindex uint64, v [2]int) (bool, error) {
 						if v[1] > 0 {
@@ -349,8 +345,7 @@ func stateOwnersFuncByCount(workers []string, share uint64) (stateOwnersFunc, fu
 	case err != nil:
 		return nil, nil, err
 	default:
-		f = i
-		closef = c
+		f, closef = i, c
 	}
 
 	return func(stateKey string) (owners []string) {

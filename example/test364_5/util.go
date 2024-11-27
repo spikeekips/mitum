@@ -438,11 +438,9 @@ func distributeByCount[K comparable](total, share uint64) (
 		for i := range total {
 			switch {
 			case p == nil:
-				p = &i
-				low = c[i]
+				p, low = &i, c[i]
 			case c[i] < low:
-				p = &i
-				low = c[i]
+				p, low = &i, c[i]
 			}
 		}
 

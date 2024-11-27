@@ -34,9 +34,7 @@ func newFuncUnmerger(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		newJob = n
-		jobDone = d
-		jobWait = w
+		newJob, jobDone, jobWait = n, d, w
 	}
 
 	var addOps compactAppendSliceAddFunc[uint64]

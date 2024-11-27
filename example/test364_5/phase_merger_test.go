@@ -93,6 +93,13 @@ func (t *baseTestMergeOp) newJobWorker() newJobWorkerFunc {
 	return newFuncNewJobWorkerFunc(1 << 6)
 }
 
+func (t *baseTestMergeOp) extractStateMergeValueKeys() (
+	extractStateMergeValueKeysFunc,
+	func(),
+) {
+	return newFuncExtractStateMergeValueKeys(1<<9, 1<<9)
+}
+
 type testMergeOp struct {
 	suite.Suite
 	baseTestMergeOp
@@ -685,7 +692,7 @@ func (t *testPhaseMerger) TestCancel() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -710,7 +717,7 @@ func (t *testPhaseMerger) TestCancel() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -735,7 +742,7 @@ func (t *testPhaseMerger) TestCancel() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -765,7 +772,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -804,7 +811,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -860,7 +867,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vs0keys := extractStateMergeValueKeysFromValues(vs0)
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		origGetMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -904,7 +911,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -951,7 +958,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		prevst := t.newState(pub, 1)
 		states.SetValue(prevst.Key(), prevst)
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -993,7 +1000,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		pub := base.NewDummyPublickey(util.UUID().String())
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -1057,7 +1064,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		vs0keys := extractStateMergeValueKeysFromValues(vs0)
 
-		extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
 		origGetMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -1149,7 +1156,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		states.SetValue(sts[i].Key(), sts[i])
 	}
 
-	extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+	extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 	defer closeExtractKeys()
 
 	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
@@ -1395,7 +1402,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		states.SetValue(sts[i].Key(), sts[i])
 	}
 
-	extractKeys, closeExtractKeys := newFuncExtractStateMergeValueKeys(1 << 9)
+	extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 	defer closeExtractKeys()
 
 	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)

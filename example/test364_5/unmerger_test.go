@@ -34,7 +34,7 @@ func (t *testUnmerger) newFuncs() (
 		return i, found, nil
 	}
 
-	extractKeys, _ := newFuncExtractStateMergeValueKeys(1 << 9)
+	extractKeys, _ := t.extractStateMergeValueKeys()
 	getMergers, _ = newFuncGetStateMergers(mergers, getState, extractKeys)
 
 	return vp, mergers, states, getValues, getState, getMergers

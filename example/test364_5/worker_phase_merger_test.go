@@ -40,7 +40,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		return i, found, nil
 	}
 
-	extractKeys, _ := newFuncExtractStateMergeValueKeys(1 << 9)
+	extractKeys, _ := t.extractStateMergeValueKeys()
 
 	switch g, t, _, err := newFuncStateMergers(
 		1<<9,

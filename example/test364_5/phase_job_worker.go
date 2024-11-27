@@ -42,8 +42,7 @@ func newFuncPhaseJobWorker(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		jobIDFilter = f
-		jobIDClose = c
+		jobIDFilter, jobIDClose = f, c
 	}
 
 	var newJob jobWorkerNewJobFunc
@@ -54,9 +53,7 @@ func newFuncPhaseJobWorker(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		newJob = n
-		jobDone = d
-		jobWait = w
+		newJob, jobDone, jobWait = n, d, w
 	}
 
 	nextPhaseNewJob, nextPhaseWait := newLockedPhaseJobWorker(ctx, newJobWorker, jobIDMapSize, phase+1)

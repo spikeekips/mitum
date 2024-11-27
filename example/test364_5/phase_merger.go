@@ -87,8 +87,7 @@ func newFuncPhaseMerger(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		addXMergedOp = a
-		doneXMergedOps = d
+		addXMergedOp, doneXMergedOps = a, d
 	}
 
 	var newJob phaseJobWorkerNewJobFunc
@@ -99,9 +98,7 @@ func newFuncPhaseMerger(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		newJob = n
-		jobDone = d
-		jobWait = w
+		newJob, jobDone, jobWait = n, d, w
 	}
 
 	var addReason func(reasons map[uint64]string) error
@@ -111,8 +108,7 @@ func newFuncPhaseMerger(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		addReason = a
-		doneReason = d
+		addReason, doneReason = a, d
 	}
 
 	mergeCallback, unmergeCallback := newFuncXMergeCallbacks(
@@ -345,17 +341,21 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 	return stateKeys
 }
 
-func newFuncExtractStateMergeValueKeys(cacheSize int) (
+func newFuncExtractStateMergeValueKeys(maxSize, size int) (
 	extractStateMergeValueKeysFunc,
 	func(),
 ) {
+	if size > maxSize {
+		size = maxSize
+	}
+
 	var cache util.GCache[uint64, []string]
 
 	switch {
-	case cacheSize < 1:
+	case size < 1:
 		cache = newEmptyGCache[uint64, []string]()
 	default:
-		cache = util.NewLFUGCache[uint64, []string](cacheSize)
+		cache = util.NewLFUGCache[uint64, []string](size)
 	}
 
 	var sg singleflight.Group

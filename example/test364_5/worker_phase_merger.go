@@ -55,8 +55,7 @@ func newFuncWorkerPhaseMerger(
 	case err != nil:
 		return nil, nil, err
 	default:
-		checkWorker = w
-		checkWorkerClose = c
+		checkWorker, checkWorkerClose = w, c
 	}
 
 	var phaseMergerMerge inErrorFunc[uint64]
@@ -71,9 +70,7 @@ func newFuncWorkerPhaseMerger(
 	case err != nil:
 		return nil, nil, err
 	default:
-		phaseMergerMerge = m
-		phaseMergerDone = d
-		phaseMergerWait = w
+		phaseMergerMerge, phaseMergerDone, phaseMergerWait = m, d, w
 	}
 
 	_, workerInsertDone, workerInsertWait := newDoneContext(ctx)
