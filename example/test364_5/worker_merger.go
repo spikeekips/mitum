@@ -10,7 +10,7 @@ import (
 
 type (
 	addOwnersFunc                                      func(owners []string)
-	insertWorkerStateMergeValuesWithSubStateOwnersFunc func(
+	workerInsertStateMergeValuesWithSubStateOwnersFunc func(
 		worker string,
 		_ func(insertStateMergeValuesFunc, inErrorFunc[ /* sub state owners */ []string]) error,
 	) error
@@ -31,7 +31,7 @@ func newFuncWorkerMerger(
 	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
-	insertWorkerStateMergeValuesWithSubStateOwnersFunc,
+	workerInsertStateMergeValuesWithSubStateOwnersFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
@@ -202,11 +202,11 @@ func newFuncWorkerMerger(
 
 func newFuncWorkerMergerInsert(
 	ctx context.Context,
-	isOpsWorker func(worker string) bool, // FIXME remove
+	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
 	addSubStateOwners addOwnersFunc,
-) insertWorkerStateMergeValuesWithSubStateOwnersFunc {
+) workerInsertStateMergeValuesWithSubStateOwnersFunc {
 	return func(
 		worker string,
 		insert func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,

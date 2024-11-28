@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	insertWorkerStateMergeValuesWithStateOwnersFunc func(
+	workerInsertStateMergeValuesWithStateOwnersFunc func(
 		worker string,
 		_ func(
 			insertStateMergeValuesFunc,
@@ -54,7 +54,7 @@ func newFuncWorker(
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 ) (
-	insertWorkerStateMergeValuesWithStateOwnersFunc,
+	workerInsertStateMergeValuesWithStateOwnersFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
 	error,
@@ -120,7 +120,7 @@ func newFuncWorker(
 
 	// FIXME stateMergeValues extractor
 
-	var insertWorkerStateMergeValues insertWorkerStateMergeValuesWithSubStateOwnersFunc
+	var insertWorkerStateMergeValues workerInsertStateMergeValuesWithSubStateOwnersFunc
 	var workerUnmerged workerUnmergedFunc
 	var workerMergerWait workerMergerWaitFunc
 
@@ -221,9 +221,9 @@ func isValidWorkerArgs(
 
 func newFuncWorkerInsert(
 	ctx context.Context,
-	insertWorker insertWorkerStateMergeValuesWithSubStateOwnersFunc,
+	insertWorker workerInsertStateMergeValuesWithSubStateOwnersFunc,
 	addAffectedStateOwners addOwnersFunc,
-) insertWorkerStateMergeValuesWithStateOwnersFunc {
+) workerInsertStateMergeValuesWithStateOwnersFunc {
 	return func(
 		worker string,
 		f func(

@@ -670,7 +670,7 @@ func (t *testWorkerMerger) workerMergers(
 
 	getStateOwners := t.stateOwnersFunc(subs)
 
-	inserts := map[string]insertWorkerStateMergeValuesWithSubStateOwnersFunc{}
+	inserts := map[string]workerInsertStateMergeValuesWithSubStateOwnersFunc{}
 	unmerges := map[string]workerUnmergedFunc{}
 	waits := map[string]workerMergerWaitFunc{}
 	traverseMergers := map[string]traverseStateMergersFunc{}
@@ -776,7 +776,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			traverseMap(
 				inserts,
-				func(worker string, f insertWorkerStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
+				func(worker string, f workerInsertStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
 					wg.Add(1)
 
 					go func() {
@@ -805,7 +805,7 @@ func (t *testWorkerMerger) workerMergers(
 
 						traverseMap(
 							inserts,
-							func(other string, f insertWorkerStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
+							func(other string, f workerInsertStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
 								if other == worker {
 									return true, nil
 								}
@@ -919,7 +919,7 @@ func (t *testWorkerMerger) workerMerger(
 	opsWorkers []string, share uint64,
 ) (
 	util.LockedMap[string, base.State],
-	insertWorkerStateMergeValuesWithSubStateOwnersFunc,
+	workerInsertStateMergeValuesWithSubStateOwnersFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	traverseStateMergersFunc,
