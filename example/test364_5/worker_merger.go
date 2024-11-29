@@ -143,11 +143,8 @@ func newFuncWorkerMerger(
 	var addSubStateOwners addOwnersFunc
 	var doneSubStateOwners compactAppendSliceDoneFunc[string]
 
-	switch a, d, err := newFuncCollectStateOwners(maxWorkerSize); {
-	case err != nil:
+	if err := newFuncAddStateOwners(maxWorkerSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
 		return nil, nil, nil, err
-	default:
-		addSubStateOwners, doneSubStateOwners = a, d
 	}
 
 	insert := newFuncWorkerMergerInsert(
@@ -322,30 +319,34 @@ func newFuncWorkerMergerWait(
 	}
 }
 
-func newFuncCollectStateOwners(maxSize uint64) (
-	addOwnersFunc,
-	compactAppendSliceDoneFunc[string],
-	error,
-) {
+func newFuncAddStateOwners(
+	maxSize uint64,
+	add *addOwnersFunc,
+	done *compactAppendSliceDoneFunc[string],
+) error {
 	var (
-		add  compactAppendSliceAddFunc[string]
-		done compactAppendSliceDoneFunc[string]
+		addf  compactAppendSliceAddFunc[string]
+		donef compactAppendSliceDoneFunc[string]
 	)
 
 	if err := rUniqueCompactAppendSlice[string](
-		maxSize, 1<<5, &add, &done); err != nil {
-		return nil, nil, err
+		maxSize, 1<<5, &addf, &donef); err != nil {
+		return err
 	}
 
-	return func(owners []string) {
-			if len(owners) < 1 {
-				return
-			}
+	a := addOwnersFunc(func(owners []string) {
+		if len(owners) < 1 {
+			return
+		}
 
-			add(owners[0], owners[1:]...)
-		},
-		done,
-		nil
+		addf(owners[0], owners[1:]...)
+	})
+
+	if err := util.ReflectSetInterfaceValue(a, add); err != nil {
+		return err
+	}
+
+	return util.ReflectSetInterfaceValue(donef, done)
 }
 
 func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {

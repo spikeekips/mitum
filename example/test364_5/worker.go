@@ -111,11 +111,9 @@ func newFuncWorker(
 	var addAffectedStateOwners addOwnersFunc
 	var doneAffectedStateOwners compactAppendSliceDoneFunc[string]
 
-	switch a, d, err := newFuncCollectStateOwners(uint64(len(workers))); {
-	case err != nil:
+	if err := newFuncAddStateOwners(
+		uint64(len(workers)), &addAffectedStateOwners, &doneAffectedStateOwners); err != nil {
 		return nil, nil, nil, err
-	default:
-		addAffectedStateOwners, doneAffectedStateOwners = a, d
 	}
 
 	// FIXME stateMergeValues extractor
