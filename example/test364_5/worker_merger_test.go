@@ -945,7 +945,7 @@ func (t *testWorkerMerger) workerMerger(
 
 func (t *testWorkerMerger) stateOwnersFunc(
 	subs map[string][]string,
-) stateOwnersFunc {
+) getStateOwnersFunc {
 	return func(stateKey string) []string {
 		return subs[stateKey]
 	}
@@ -953,7 +953,7 @@ func (t *testWorkerMerger) stateOwnersFunc(
 
 func (t *testWorkerMerger) assignWorkersValues(
 	values [][]StateMergeValue,
-	getStateOwners stateOwnersFunc,
+	getStateOwners getStateOwnersFunc,
 ) (
 	map[string]map[uint64][]StateMergeValue,
 	error,
@@ -990,7 +990,7 @@ func (t *testWorkerMerger) assignWorkersValues(
 
 func (t *testWorkerMerger) workersUnmerged(
 	values [][]StateMergeValue,
-	getStateOwners stateOwnersFunc,
+	getStateOwners getStateOwnersFunc,
 	unmerged []uint64,
 ) (map[string][]uint64, error) {
 	m := map[string][]uint64{}
@@ -1012,7 +1012,7 @@ func (t *testWorkerMerger) workersUnmerged(
 func (t *testWorkerMerger) workersStateOwners(
 	values [][]StateMergeValue,
 	workerValues map[uint64][]StateMergeValue,
-	getStateOwners stateOwnersFunc,
+	getStateOwners getStateOwnersFunc,
 ) []string {
 	m := map[string]struct{}{}
 	defer clearMap(m)

@@ -12,8 +12,8 @@ type (
 	minEnoughMaxFailedFunc          func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkEnoughFailedWorkerFunc     func(worker string, _ func() error) (ok, enough, failed bool, _ error)
 	newCheckEnoughFailedWorkersFunc func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
-	stateOwnersFunc                 func(stateKey string) []string
-	operationOwnersFunc             func(opindex uint64) []string
+	getStateOwnersFunc              func(stateKey string) []string
+	getOperationOwnersFunc          func(opindex uint64) []string
 )
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
@@ -337,7 +337,7 @@ func newStateMergeValuesPool(poolSize uint64) (
 		nil
 }
 
-func stateOwnersFuncByCount(workers []string, share uint64) (stateOwnersFunc, func(), error) {
+func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc, func(), error) {
 	var f func(k string) []uint64
 	var closef func()
 
