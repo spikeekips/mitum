@@ -651,6 +651,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 					if slices.Index(failedWorkers, worker) >= 0 {
 						switch {
+						case err == nil:
 						case strings.Contains(err.Error(), "findme"), errors.Is(err, context.Canceled):
 						default:
 							panic(fmt.Sprintf(
