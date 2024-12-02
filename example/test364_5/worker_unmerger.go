@@ -90,15 +90,15 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(subs []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
+		func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
 			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().
-					Strs("sub_states_owners", subs).
+					Strs("sub_states_owners", subws).
 					Uint64("min_enough", minEnough).
 					Uint64("max_failed", maxFailed).
 					Logger()
 
-				switch ok, enough, failed, err := localReady(subs, localUnmerged, minEnough, maxFailed); {
+				switch ok, enough, failed, err := localReady(subws, localUnmerged, minEnough, maxFailed); {
 				case failed:
 					l.Error().Err(err).Msg("local phase done; failed")
 
@@ -202,8 +202,8 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		})
 	}
 
-	return func(subs []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
-			if err := workerOpindexFilterLocalReady(subs, localUnmerged); err != nil {
+	return func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
+			if err := workerOpindexFilterLocalReady(subws, localUnmerged); err != nil {
 				return false, false, false, err
 			}
 

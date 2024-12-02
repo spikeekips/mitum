@@ -9,12 +9,12 @@ import (
 )
 
 type (
-	workerInsertStateMergeValuesWithStateOwnersFunc func(
+	localInsertStateMergeValuesFunc  func(opindex []uint64) error
+	workerInsertStateMergeValuesFunc func(
 		worker string,
 		_ func(
 			insertStateMergeValuesFunc,
-			inErrorFunc[ /* sub state owners */ []string],
-			inErrorFunc[ /* affected state owners */ []string],
+			in2ErrorFunc[ /* {sub, affected} state owners */ []string, []string],
 		) error,
 	) error
 	workerReportStateOwnersFunc func(stateOwners []string) error
@@ -53,8 +53,9 @@ func newFuncWorker(
 	maxOpsSize uint64,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
+	ops []uint64,
 ) (
-	workerInsertStateMergeValuesWithStateOwnersFunc,
+	workerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
 	error,
@@ -108,17 +109,7 @@ func newFuncWorker(
 		getStateMergers, traverseStateMergers, stateMergersClose = g, t, c
 	}
 
-	var addAffectedStateOwners addOwnersFunc
-	var doneAffectedStateOwners compactAppendSliceDoneFunc[string]
-
-	if err := newFuncAddStateOwners(
-		uint64(len(workers)), &addAffectedStateOwners, &doneAffectedStateOwners); err != nil {
-		return nil, nil, nil, err
-	}
-
-	// FIXME stateMergeValues extractor
-
-	var insertWorkerStateMergeValues workerInsertStateMergeValuesWithSubStateOwnersFunc
+	var insertWorkerStateMergeValues workerInsertStateMergeValues
 	var workerUnmerged workerUnmergedFunc
 	var workerMergerWait workerMergerWaitFunc
 
@@ -137,7 +128,25 @@ func newFuncWorker(
 		insertWorkerStateMergeValues, workerUnmerged, workerMergerWait = i, u, w
 	}
 
-	insert := newFuncWorkerInsert(wctx, insertWorkerStateMergeValues, addAffectedStateOwners)
+	var stateOwnersLocal localExtractedStateOwnersFunc
+	var stateOwnersWorker workerStateOwnersSetFunc
+	var stateOwnersDone func(insertStateOwnersSetFunc) error
+
+	switch l, o, d, err := newFuncWorkerStateOwners(wctx, options.Local, uint64(len(workers))); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		stateOwnersLocal = l
+		stateOwnersWorker = o
+		stateOwnersDone = d
+
+		_ = stateOwnersLocal // FIXME remove
+	}
+
+	// FIXME insert ops
+	// FIXME stateMergeValues extractor if len(ops) > 0
+
+	insert := newFuncWorkerInsert(wctx, insertWorkerStateMergeValues, stateOwnersWorker)
 
 	return insert,
 		workerUnmerged,
@@ -153,30 +162,46 @@ func newFuncWorker(
 			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
 				defer func() {
 					extractStateKeyClose()
-					doneAffectedStateOwners(nil)
 					stateMergersClose()
 				}()
 
 				if err := workerMergerWait(
-					func(unmerged []uint64, subs []string) error {
-						_ = doneAffectedStateOwners(func(affected []string) error {
-							log.Debug().Strs("affected_states_owners", affected).Msg("worker merger wait done")
-
-							if err := mergeStateOwners(subs, affected)(func(allStateOwners []string) error {
-								return reportStateOwners(allStateOwners)
-							}); err != nil {
+					func(unmerged []uint64) (localSubws []string, _ error) {
+						return localSubws, stateOwnersDone(func(subws, affected []string) error {
+							if err := reportStateOwners(slices.Concat(subws, affected)); err != nil {
 								return err
 							}
 
-							return broadcastUnmerged(affected, unmerged)
-						})
+							if err := broadcastUnmerged(affected, unmerged); err != nil {
+								return err
+							}
 
-						return nil
+							localSubws = slices.Clone(subws)
+
+							return nil
+						})
 					},
 					func(unmerged []uint64, reasons map[uint64]string) error {
-						_ = traverseStateMergers // FIXME remove
+						var addStateKey compactAppendSliceAddFunc[string]
+						var doneStateKey compactAppendSliceDoneFunc[string]
 
-						return reportMerged(unmerged, reasons, nil) // FIXME state keys
+						if err := rCompactAppendSlice[string](approxStatesKeys, 1<<9, &addStateKey, &doneStateKey); err != nil {
+							return err
+						}
+
+						if err := traverseStateMergers(func(stateKey string, merger StateMerger) (bool, error) {
+							addStateKey(stateKey)
+
+							// FIXME merger.Close()
+
+							return true, nil
+						}); err != nil {
+							return err
+						}
+
+						return doneStateKey(func(s []string) error {
+							return reportMerged(unmerged, reasons, s)
+						})
 					},
 				); err != nil {
 					return err
@@ -219,24 +244,21 @@ func isValidWorkerArgs(
 
 func newFuncWorkerInsert(
 	ctx context.Context,
-	insertWorker workerInsertStateMergeValuesWithSubStateOwnersFunc,
-	addAffectedStateOwners addOwnersFunc,
-) workerInsertStateMergeValuesWithStateOwnersFunc {
+	insertWorker workerInsertStateMergeValues,
+	addStatesOwners workerStateOwnersSetFunc,
+) workerInsertStateMergeValuesFunc {
 	return func(
 		worker string,
 		f func(
 			insertStateMergeValuesFunc,
-			inErrorFunc[[]string],
-			inErrorFunc[[]string],
+			in2ErrorFunc[[]string, []string],
 		) error,
 	) error {
 		return insertWorker(
 			worker,
-			func(ivf insertStateMergeValuesFunc, sub inErrorFunc[[]string]) error {
-				return f(ivf, sub, func(affected []string) error {
-					addAffectedStateOwners(affected)
-
-					return nil
+			func(ivf insertStateMergeValuesFunc) error {
+				return f(ivf, func(subws, affected []string) error { // FIXME sub owners
+					return addStatesOwners(worker, subws, affected)
 				})
 			},
 		)

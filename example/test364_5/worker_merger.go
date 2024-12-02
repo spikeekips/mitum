@@ -9,13 +9,12 @@ import (
 )
 
 type (
-	addOwnersFunc                                      func(owners []string)
-	workerInsertStateMergeValuesWithSubStateOwnersFunc func(
+	workerInsertStateMergeValues func(
 		worker string,
-		_ func(insertStateMergeValuesFunc, inErrorFunc[ /* sub state owners */ []string]) error,
+		_ func(insertStateMergeValuesFunc) error,
 	) error
 	workerMergerCallback                 func(unmerged []uint64, reasons map[uint64]string) error
-	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64, subStateOwners []string) error
+	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64) (subStateOwners []string, _ error)
 	workerMergerWaitFunc                 func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
 
@@ -31,7 +30,7 @@ func newFuncWorkerMerger(
 	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
-	workerInsertStateMergeValuesWithSubStateOwnersFunc,
+	workerInsertStateMergeValues,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
@@ -140,13 +139,6 @@ func newFuncWorkerMerger(
 		workerUnmergerUnmerged, workerUnmergerLocalReady, workerUnmergerWait = u, s, w
 	}
 
-	var addSubStateOwners addOwnersFunc
-	var doneSubStateOwners compactAppendSliceDoneFunc[string]
-
-	if err := newFuncAddStateOwners(maxWorkerSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
-		return nil, nil, nil, err
-	}
-
 	insert := newFuncWorkerMergerInsert(
 		wctx,
 		func(worker string) bool {
@@ -158,20 +150,18 @@ func newFuncWorkerMerger(
 		},
 		workerPhaseMergerWorkerInsert,
 		setStateMergeValues,
-		addSubStateOwners,
 	)
 
 	wait := newFuncWorkerMergerWait(
 		wctx,
 		statesShare,
 		workerPhaseMergerWait,
-		doneSubStateOwners,
 		workerUnmergerLocalReady,
 		workerUnmergerWait,
 	)
 
 	if !localInOpsWorkers {
-		if err := insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+		if err := insert(local, func(insertStateMergeValuesFunc) error {
 			return nil
 		}); err != nil {
 			return nil, nil, nil, err
@@ -202,11 +192,10 @@ func newFuncWorkerMergerInsert(
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
-	addSubStateOwners addOwnersFunc,
-) workerInsertStateMergeValuesWithSubStateOwnersFunc {
+) workerInsertStateMergeValues {
 	return func(
 		worker string,
-		insert func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error,
+		insert func(insertStateMergeValuesFunc) error,
 	) error {
 		if !isOpsWorker(worker) {
 			return nil
@@ -224,11 +213,6 @@ func newFuncWorkerMergerInsert(
 						return f(opindex, values)
 					}
 				},
-				func(subStateOwners []string) error {
-					addSubStateOwners(subStateOwners)
-
-					return nil
-				},
 			)
 		})
 	}
@@ -238,7 +222,6 @@ func newFuncWorkerMergerWait(
 	ctx context.Context,
 	statesShare uint64,
 	workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc],
-	doneSubStateOwners compactAppendSliceDoneFunc[string],
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait inErrorFunc[unmergedFunc],
 ) workerMergerWaitFunc {
@@ -249,40 +232,42 @@ func newFuncWorkerMergerWait(
 
 		defer func() {
 			clearMap(phaseDoneReasons)
-			doneSubStateOwners(nil)
 		}()
 
 		var localUnmerged []uint64
 		defer clear(localUnmerged)
 
 		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			if err := doneSubStateOwners(func(subs []string) error {
-				log.Debug().
-					Uints64("unmerged", unmerged).
-					Interface("reasons", reasons).
-					Strs("sub_states_owners", subs).
-					Msg("phase merger wait done")
+			var subws []string
 
-				if localPhaseDone != nil {
-					if err := localPhaseDone(unmerged, subs); err != nil {
-						// FIXME broadcast unmerged to other active state owners
-						return err
-					}
+			if localPhaseDone != nil {
+				// FIXME broadcast unmerged to other active state owners
+				switch i, err := localPhaseDone(unmerged); {
+				case err != nil:
+					return err
+				default:
+					subws = i
 				}
+			}
 
-				var minEnough, maxFailed uint64
+			log.Debug().
+				Uints64("unmerged", unmerged).
+				Interface("reasons", reasons).
+				Strs("sub_states_owners", subws).
+				Msg("phase merger wait done")
 
-				if s := len(subs); s > 0 {
-					switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
-					case err != nil:
-						return err
-					default:
-						minEnough, maxFailed = e, f
-					}
+			var minEnough, maxFailed uint64
+
+			if s := len(subws); s > 0 {
+				switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
+				case err != nil:
+					return err
+				default:
+					minEnough, maxFailed = e, f
 				}
+			}
 
-				return workerUnmergerLocalReady(subs, unmerged, minEnough, maxFailed)
-			}); err != nil {
+			if err := workerUnmergerLocalReady(subws, unmerged, minEnough, maxFailed); err != nil {
 				return err
 			}
 
@@ -317,36 +302,6 @@ func newFuncWorkerMergerWait(
 			return nil
 		})
 	}
-}
-
-func newFuncAddStateOwners(
-	maxSize uint64,
-	add *addOwnersFunc,
-	done *compactAppendSliceDoneFunc[string],
-) error {
-	var (
-		addf  compactAppendSliceAddFunc[string]
-		donef compactAppendSliceDoneFunc[string]
-	)
-
-	if err := rUniqueCompactAppendSlice[string](
-		maxSize, 1<<5, &addf, &donef); err != nil {
-		return err
-	}
-
-	a := addOwnersFunc(func(owners []string) {
-		if len(owners) < 1 {
-			return
-		}
-
-		addf(owners[0], owners[1:]...)
-	})
-
-	if err := util.ReflectSetInterfaceValue(a, add); err != nil {
-		return err
-	}
-
-	return util.ReflectSetInterfaceValue(donef, done)
 }
 
 func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {

@@ -77,7 +77,7 @@ func (t *testWorkerMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		err = insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error { return nil })
+		err = insert(local, func(insertStateMergeValuesFunc) error { return nil })
 		t.ErrorIs(err, context.Canceled)
 
 		err = unmerge(opsWorkers[1], nil)
@@ -105,7 +105,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		err = insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error { return nil })
+		err = insert(local, func(insertStateMergeValuesFunc) error { return nil })
 		t.ErrorIs(err, context.Canceled)
 
 		err = unmerge(opsWorkers[1], nil)
@@ -131,7 +131,7 @@ func (t *testWorkerMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error { return nil }))
+		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
 
 		cancel()
 
@@ -158,7 +158,7 @@ func (t *testWorkerMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error { return nil }))
+		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
 
 		t.NoError(unmerge(opsWorkers[1], nil))
 
@@ -220,7 +220,7 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		err = insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+		err = insert(local, func(insertStateMergeValuesFunc) error {
 			return errors.Errorf("findme")
 		})
 		t.ErrorContains(err, "findme")
@@ -246,9 +246,9 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error { return nil }))
+		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
 
-		err = insert(opsWorkers[1], func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+		err = insert(opsWorkers[1], func(insertStateMergeValuesFunc) error {
 			return errors.Errorf("findme")
 		})
 		t.ErrorContains(err, "findme")
@@ -281,18 +281,17 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+		t.NoError(insert(local, func(insertStateMergeValuesFunc) error {
 			return nil
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Empty(subs)
 
-				return nil
+				return nil, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
@@ -331,24 +330,23 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(f insertStateMergeValuesFunc, g inErrorFunc[[]string]) error {
+		t.NoError(insert(local, func(f insertStateMergeValuesFunc) error {
 			for i := range values {
 				if err := f(uint64(i), values[i]); err != nil {
 					return err
 				}
 			}
 
-			return g([]string{local})
+			return nil
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Equal([]string{local}, subs)
 
-				return nil
+				return []string{local}, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
@@ -383,7 +381,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		go func() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-				err := insert(worker, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+				err := insert(worker, func(insertStateMergeValuesFunc) error {
 					return nil
 				})
 				t.println("insert worker: worker=%q err=%v", worker, err)
@@ -393,13 +391,12 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Empty(subs)
 
-				return nil
+				return nil, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
@@ -461,14 +458,14 @@ func (t *testWorkerMerger) TestInsert() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				ops := workerValues[worker]
 
-				err := insert(worker, func(f insertStateMergeValuesFunc, g inErrorFunc[[]string]) error {
+				err := insert(worker, func(f insertStateMergeValuesFunc) error {
 					for i := range ops {
 						if err := f(ops[i], values[i]); err != nil {
 							return err
 						}
 					}
 
-					return g(opsWorkers)
+					return nil
 				})
 				t.println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 
@@ -490,13 +487,12 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Equal(opsWorkers, subs)
 
-				return nil
+				return opsWorkers, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				slices.Sort(unmerged)
@@ -532,7 +528,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		go func() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-				err := insert(worker, func(insertStateMergeValuesFunc, inErrorFunc[[]string]) error {
+				err := insert(worker, func(insertStateMergeValuesFunc) error {
 					return nil
 				})
 				t.println("insert worker: worker=%q err=%v", worker, err)
@@ -549,13 +545,12 @@ func (t *testWorkerMerger) TestInsert() {
 		}()
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Empty(subs)
 
-				return nil
+				return nil, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
@@ -596,38 +591,37 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 
 		traverseSlice(unknowns, func(_ int, worker string) (bool, error) {
-			err := insert(worker, func(f insertStateMergeValuesFunc, g inErrorFunc[[]string]) error {
+			err := insert(worker, func(f insertStateMergeValuesFunc) error {
 				for i := range values {
 					if err := f(uint64(i), values[i]); err != nil {
 						return err
 					}
 				}
 
-				return g(unknowns)
+				return nil
 			})
 			t.println("insert unknown worker: worker=%q err=%v", worker, err)
 
 			return true, nil
 		})
 
-		t.NoError(insert(local, func(f insertStateMergeValuesFunc, g inErrorFunc[[]string]) error {
+		t.NoError(insert(local, func(f insertStateMergeValuesFunc) error {
 			for i := range values {
 				if err := f(uint64(i), values[i]); err != nil {
 					return err
 				}
 			}
 
-			return g([]string{local})
+			return nil
 		}))
 
 		t.NoError(wait(
-			func(unmerged []uint64, subs []string) error {
-				t.T().Logf("local phase done: unmerged=%v sub state owners=%v", unmerged, subs)
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
 				t.Empty(unmerged)
-				t.Equal([]string{local}, subs)
 
-				return nil
+				return []string{local}, nil
 			},
 			func(unmerged []uint64, reasons map[uint64]string) error {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
@@ -670,7 +664,7 @@ func (t *testWorkerMerger) workerMergers(
 
 	getStateOwners := t.stateOwnersFunc(subs)
 
-	inserts := map[string]workerInsertStateMergeValuesWithSubStateOwnersFunc{}
+	inserts := map[string]workerInsertStateMergeValues{}
 	unmerges := map[string]workerUnmergedFunc{}
 	waits := map[string]workerMergerWaitFunc{}
 	traverseMergers := map[string]traverseStateMergersFunc{}
@@ -698,7 +692,7 @@ func (t *testWorkerMerger) workerMergers(
 			done workerMergerCallback,
 		) error {
 			return wait(
-				func(unmerged []uint64, subs []string) error {
+				func(unmerged []uint64) ([]string, error) {
 					var wg sync.WaitGroup
 
 					if err := traverseSlice(workers, func(_ int, other string) (bool, error) {
@@ -718,12 +712,12 @@ func (t *testWorkerMerger) workerMergers(
 
 						return true, nil
 					}); err != nil {
-						return err
+						return nil, err
 					}
 
 					wg.Wait()
 
-					return localPhaseDone(unmerged, subs)
+					return localPhaseDone(unmerged)
 				},
 				done,
 			)
@@ -736,47 +730,47 @@ func (t *testWorkerMerger) workerMergers(
 		return nil, nil, nil, err
 	}
 
-	return func() error {
-			workersValues, err := t.assignWorkersValues(values, getStateOwners)
-			if err != nil {
-				panic(err)
-			}
+	workersValues, err := t.assignWorkersValues(values, getStateOwners)
+	if err != nil {
+		panic(err)
+	}
 
-			{
-				traverseMap(workersValues, func(worker string, vs map[uint64][]StateMergeValue) (bool, error) {
-					m := map[uint64][]string{}
+	{
+		traverseMap(workersValues, func(worker string, vs map[uint64][]StateMergeValue) (bool, error) {
+			m := map[uint64][]string{}
 
-					traverseMap(vs, func(opindex uint64, vs []StateMergeValue) (bool, error) {
-						m[opindex] = extractStateMergeValueKeysFromValues(vs)
-
-						return true, nil
-					})
-
-					t.T().Logf("worker values: worker=%q values=%v", worker, m)
-
-					return true, nil
-				})
-			}
-
-			workerStateOwners := map[string][]string{}
-
-			traverseSlice(workers, func(_ int, worker string) (bool, error) {
-				workerStateOwners[worker] = t.workersStateOwners(
-					values,
-					workersValues[worker],
-					getStateOwners,
-				)
-
-				t.T().Logf("worker active states workers: worker=%q workers=%v", worker, workerStateOwners[worker])
+			traverseMap(vs, func(opindex uint64, vs []StateMergeValue) (bool, error) {
+				m[opindex] = extractStateMergeValueKeysFromValues(vs)
 
 				return true, nil
 			})
 
+			t.T().Logf("worker values: worker=%q values=%v", worker, m)
+
+			return true, nil
+		})
+	}
+
+	workerStateOwners := map[string][]string{}
+
+	traverseSlice(workers, func(_ int, worker string) (bool, error) {
+		workerStateOwners[worker] = t.workersStateOwners(
+			values,
+			workersValues[worker],
+			getStateOwners,
+		)
+
+		t.T().Logf("worker active states workers: worker=%q workers=%v", worker, workerStateOwners[worker])
+
+		return true, nil
+	})
+
+	return func() error {
 			var wg sync.WaitGroup
 
 			traverseMap(
 				inserts,
-				func(worker string, f workerInsertStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
+				func(worker string, f workerInsertStateMergeValues) (bool, error) {
 					wg.Add(1)
 
 					go func() {
@@ -788,32 +782,28 @@ func (t *testWorkerMerger) workerMergers(
 
 						err := f(
 							worker,
-							func(f insertStateMergeValuesFunc, s inErrorFunc[[]string]) error {
-								if err := traverseMap(opValues, func(opindex uint64, vs []StateMergeValue) (bool, error) {
+							func(f insertStateMergeValuesFunc) error {
+								return traverseMap(opValues, func(opindex uint64, vs []StateMergeValue) (bool, error) {
 									ops = append(ops, opindex)
 
 									return true, f(opindex, vs)
-								}); err != nil {
-									return err
-								}
-
-								return s(workerStateOwners[worker])
+								})
 							},
 						)
 
-						t.println("worker insert: worker=%q ops=%v sub state owners=%v err=%v", worker, ops, workerStateOwners[worker], err)
+						t.println("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
 
 						traverseMap(
 							inserts,
-							func(other string, f workerInsertStateMergeValuesWithSubStateOwnersFunc) (bool, error) {
+							func(other string, f workerInsertStateMergeValues) (bool, error) {
 								if other == worker {
 									return true, nil
 								}
 
 								err := f(
 									worker,
-									func(_ insertStateMergeValuesFunc, s inErrorFunc[[]string]) error {
-										return s(nil)
+									func(insertStateMergeValuesFunc) error {
+										return nil
 									},
 								)
 
@@ -851,14 +841,16 @@ func (t *testWorkerMerger) workerMergers(
 					}
 
 					err := wf(
-						func(unmerged []uint64, subs []string) error {
-							t.println("worker local phase done: worker=%q unmerged=%v sub state owners=%v", worker, unmerged, subs)
+						func(unmerged []uint64) ([]string, error) {
+							subws := workerStateOwners[worker]
+
+							t.println("worker local phase done: worker=%q unmerged=%v sub state owners=%v", worker, unmerged, subws)
 
 							if l != nil {
-								return l(unmerged, subs)
+								return l(unmerged)
 							}
 
-							return nil
+							return subws, nil
 						},
 						func(unmerged []uint64, reasons map[uint64]string) error {
 							t.println("worker wait done: worker=%q unmerged=%v reasons=%v", worker, unmerged, reasons)
@@ -919,7 +911,7 @@ func (t *testWorkerMerger) workerMerger(
 	opsWorkers []string, share uint64,
 ) (
 	util.LockedMap[string, base.State],
-	workerInsertStateMergeValuesWithSubStateOwnersFunc,
+	workerInsertStateMergeValues,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	traverseStateMergersFunc,
@@ -1272,7 +1264,7 @@ func (t *testWorkerMerger) TestSubs() {
 		addUnmerged, doneUnmerged, _ := compactAppendSlice[uint64](uint64(len(values)), 0)
 
 		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
-			return func([]uint64, []string) error { return nil },
+			return nil,
 				func(unmerged []uint64, reasons map[uint64]string) error {
 					if len(unmerged) > 0 {
 						addUnmerged(unmerged[0], unmerged[1:]...)
