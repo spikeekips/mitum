@@ -193,8 +193,8 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 		if err != nil {
 			panic(err)
 		}
-		if r == nil {
-			panic("r == nil")
+		if r == "" {
+			panic(`r == ""`)
 		}
 
 		values[i] = vs

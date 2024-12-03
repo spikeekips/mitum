@@ -19,7 +19,7 @@ var (
 type Operation interface {
 	base.Operation
 	StateMergeValues(context.Context) (
-		[]StateMergeValue, base.OperationProcessReasonError, error,
+		[]StateMergeValue, string, error,
 	)
 }
 
@@ -158,12 +158,12 @@ func (op *Op) IsValid(networkID []byte) error {
 }
 
 func (op *Op) StateMergeValues(context.Context) (
-	[]StateMergeValue, base.OperationProcessReasonError, error,
+	[]StateMergeValue, string, error,
 ) {
 	var fact OpFact
 
 	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	var values []StateMergeValue
@@ -181,5 +181,5 @@ func (op *Op) StateMergeValues(context.Context) (
 		values[1], _ = NewAccountStateMergeValue(fact.Issuer, fact.Amount*-1)
 	}
 
-	return values, nil, nil
+	return values, "", nil
 }
