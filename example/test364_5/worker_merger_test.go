@@ -24,7 +24,7 @@ type testWorkerMerger struct {
 func (t *testWorkerMerger) newFuncs() (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
-	getState createStateFunc,
+	getState getStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	traverseStateMergers traverseStateMergersFunc,
 ) {

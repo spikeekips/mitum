@@ -25,7 +25,6 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
-	getState createStateFunc,
 	newPhaseMergerf newPhaseMergerFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	traverseStateMergers traverseStateMergersFunc,
@@ -34,7 +33,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 
 	vp, mergers, states, _, getStateMergeValues := t.baseTestMergeOp.getFuncs()
 
-	getState = func(stateKey string) (base.State, bool, error) {
+	getState := func(stateKey string) (base.State, bool, error) {
 		i, found := states.Value(stateKey)
 
 		return i, found, nil
@@ -74,7 +73,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		)
 	}
 
-	return vp, mergers, states, getStateMergeValues, getState, newPhaseMergerf, getStateMergers, traverseStateMergers
+	return vp, mergers, states, getStateMergeValues, newPhaseMergerf, getStateMergers, traverseStateMergers
 }
 
 func (t *testWorkerPhaseMerger) closeStateMergers(
@@ -108,7 +107,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	}
 
 	t.Run("before new", func() {
-		_, _, _, _, getState, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -117,7 +116,6 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -136,14 +134,13 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("after new", func() {
-		_, _, _, _, getState, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -164,14 +161,13 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("after insert", func() {
-		_, _, _, _, getState, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -191,7 +187,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("during insert", func() {
-		_, _, _, _, getState, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -200,7 +196,6 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -235,7 +230,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("1 worker; empty", func() {
-		_, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -245,7 +240,6 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -286,7 +280,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	})
 
 	t.Run("1 worker; enough", func() {
-		vp, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		var expectedStateKeys []string
@@ -318,7 +312,6 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -375,7 +368,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		valuesPerWorker := 11
 		failedWorker := workers[1]
 
-		vp, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
 		values := make([][]StateMergeValue, valuesPerWorker*len(workers))
 
@@ -394,7 +387,6 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -442,7 +434,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("3 worker; empty", func() {
 		workers := t.workers(3)
 
-		_, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -452,7 +444,6 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -498,7 +489,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		workers := t.workers(3)
 		valuesPerWorker := 11
 
-		vp, _, _, getStateMergeValues, getState, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
 		values := make([][]StateMergeValue, valuesPerWorker*len(workers))
 		var expectedStateKeys []string
@@ -530,7 +521,6 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		insert, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
-			getState,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,

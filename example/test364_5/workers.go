@@ -184,7 +184,7 @@ type traverseStateMergersFunc = func(func(stateKey string, merger StateMerger) (
 
 func newFuncStateMergers(
 	poolSize uint64,
-	getState createStateFunc,
+	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	getStateMergers mergerGetStateMergersFunc,

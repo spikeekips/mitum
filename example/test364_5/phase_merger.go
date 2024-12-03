@@ -36,8 +36,8 @@ func (x xMergeFlag) String() string {
 }
 
 type (
-	createStateFunc = func(stateKey string) (base.State, bool, error)
-	xMergeOpFunc    = func(uint64, base.StateValue) (
+	getStateFunc = func(stateKey string) (base.State, bool, error)
+	xMergeOpFunc = func(uint64, base.StateValue) (
 		commit func() error,
 		next uint64,
 		reason string,
@@ -396,7 +396,7 @@ func newFuncExtractStateMergeValueKeys(maxSize, size int) (
 
 func newFuncGetStateMergers(
 	m util.LockedMap[string, StateMerger],
-	getState createStateFunc,
+	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	mergerGetStateMergersFunc,
@@ -754,7 +754,7 @@ func unmergeOpValues(
 
 func newFuncGetOrCreateMerger(
 	m util.LockedMap[string, StateMerger],
-	getState createStateFunc,
+	getState getStateFunc,
 ) func(StateMergeValue) (StateMerger, error) {
 	return func(value StateMergeValue) (merger StateMerger, _ error) {
 		return merger, m.GetOrCreate(

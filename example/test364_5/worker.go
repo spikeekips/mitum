@@ -48,7 +48,7 @@ func newWorkerOptions(local string) *workerOptions {
 func newFuncWorker(
 	ctx context.Context,
 	options *workerOptions,
-	getState createStateFunc,
+	getState getStateFunc,
 	workID string,
 	maxOpsSize uint64,
 	workers, opsWorkers []string,

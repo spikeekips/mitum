@@ -670,7 +670,7 @@ func (t *testPhaseMerger) newFuncs() (
 	mergers util.LockedMap[string, StateMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
-	getState createStateFunc,
+	getState getStateFunc,
 ) {
 	t.T().Helper()
 

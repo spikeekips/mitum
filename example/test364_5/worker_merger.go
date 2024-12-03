@@ -25,7 +25,7 @@ func newFuncWorkerMerger(
 	ctx context.Context,
 	local string,
 	newJobWorker newJobWorkerFunc,
-	getState createStateFunc,
+	getState getStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
@@ -106,7 +106,6 @@ func newFuncWorkerMerger(
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
 		ifErrErrorInFunc(wctxCancel),
-		getState,
 		getStateMergeValues,
 		getStateMergers,
 		newCheckWorkers,

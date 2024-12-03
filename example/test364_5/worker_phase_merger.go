@@ -28,7 +28,6 @@ type (
 func newFuncWorkerPhaseMerger(
 	ctx context.Context,
 	ctxCancel inErrorFunc[error],
-	getState createStateFunc,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
