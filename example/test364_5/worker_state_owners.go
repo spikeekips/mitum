@@ -5,7 +5,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 )
@@ -319,100 +318,6 @@ func newFuncCollectWorkerStateMergeValues() (
 				return err == nil, err
 			})
 		}
-}
-
-func newFuncInsertStateMergeValuesToWorker( // FIXME remove
-	write func(interface{}) error,
-) (
-	workerDistributeStateMergeValuesFunc,
-	func() error,
-) {
-	doneLocked := util.NewLocked[errorFunc](func() error { return errors.Errorf("not yet started") })
-
-	return func(ctx context.Context, worker string) (
-			_ insertStateMergeValuesFunc,
-			owners insertStateOwnersSetFunc,
-			_ error,
-		) {
-			wctx, wctxCancel, done := newDoneContext(ctx)
-
-			_ = doneLocked.SetValue(done)
-
-			return func(opindex uint64, values []StateMergeValue) error {
-					return contextCauseError(wctx, ifErrErrorInFunc(wctxCancel), func(context.Context) error {
-						return write([2]interface{}{opindex, values})
-					})
-				},
-				func(subws, affected []string) error {
-					return contextCauseError(wctx, wctxCancel, func(context.Context) error {
-						return write([2]interface{}{subws, affected})
-					})
-				},
-				nil
-		},
-		func() error {
-			defer doneLocked.EmptyValue()
-
-			i, _ := doneLocked.Value()
-
-			return i()
-		}
-}
-
-func newFuncWorkerDistributeStateMergeValue( // FIXME remove
-	ctx context.Context,
-	maxWorkerSize uint64,
-	newDistributef workerDistributeStateMergeValuesFunc,
-) (
-	insert func(worker string, opindex uint64, _ []StateMergeValue) error,
-	traverse func(func(worker string) (subws, affected []string)) error,
-	closef func(),
-	_ error,
-) {
-	var m util.LockedMap[string /* worker */, [2]interface{} /* funcs */]
-
-	switch i, err := util.NewLockedMap[string, [2]interface{}](maxWorkerSize, nil); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		m = i
-	}
-
-	return func(worker string, opindex uint64, values []StateMergeValue) error {
-			var f insertStateMergeValuesFunc
-
-			_, _, _ = m.Set(worker, func(prev [2]interface{}, found bool) (v [2]interface{}, _ error) {
-				if found {
-					f = prev[0].(insertStateMergeValuesFunc)
-
-					return v, util.ErrLockedSetIgnore
-				}
-
-				i, o, err := newDistributef(ctx, worker)
-				if err != nil {
-					return v, err
-				}
-
-				f = i
-
-				return [2]interface{}{i, o}, nil
-			})
-
-			return f(opindex, values)
-		},
-		func(f func(worker string) (subws, affected []string)) (gerr error) {
-			_ = m.Traverse(func(worker string, i [2]interface{}) bool {
-				subws, affected := f(worker)
-
-				gerr = i[1].(func(_, _ []string) error)(subws, affected)
-
-				return gerr == nil
-			})
-
-			return gerr
-		},
-		m.Close,
-		nil
 }
 
 func newFuncAddStateOwners(

@@ -305,3 +305,11 @@ func TestMinEnoughMaxFailed(tt *testing.T) {
 		})
 	}
 }
+
+func fixedStateOwnersFunc(owners map[string][]string) (getStateOwnersFunc, func(), error) {
+	return func(stateKey string) []string {
+			return owners[stateKey]
+		},
+		func() {},
+		nil
+}
