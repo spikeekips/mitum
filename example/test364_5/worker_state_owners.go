@@ -11,10 +11,10 @@ import (
 )
 
 type (
-	addOwnersFunc                                func(owners []string)
-	extractStateOwnersWorkerStateMergeValuesFunc func(worker string, _ []StateMergeValue) error
-	extractStateOwnersStateMergeValuesFunc       func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
-		func(extractStateOwnersWorkerStateMergeValuesFunc) error,
+	addOwnersFunc                          func(owners []string)
+	workerStateMergeValuesFunc             func(worker string, _ []StateMergeValue) error
+	extractStateOwnersStateMergeValuesFunc func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
+		func(workerStateMergeValuesFunc) error,
 		error,
 	)
 	insertStateOwnerSetFunc       func(subw string, affected []string) error
@@ -158,25 +158,38 @@ func newFuncLocalExtractedStateOwners(
 	}
 
 	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
-			f func(extractStateOwnersWorkerStateMergeValuesFunc) error,
+			f func(workerStateMergeValuesFunc) error,
 			_ error,
 		) {
 			return f, contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				addValue, traverseValues := newFuncCollectWorkerStateMergeValues()
 
-				_ = traverseSlice(getStateOwners(subv.Key()), func(_ int, subw string) (bool, error) {
-					addValue(subw, subv)
+				var subws []string
 
-					_ = traverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
-						adds := getStateOwners(value.Key())
+				if subv != nil {
+					ws := getStateOwners(subv.Key())
+					subws = make([]string, len(ws))
 
+					_ = traverseSlice(ws, func(i int, w string) (bool, error) {
+						addValue(w, subv)
+
+						subws[i] = w
+
+						return true, nil
+					})
+				}
+
+				_ = traverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
+					adds := getStateOwners(value.Key())
+
+					traverseSlice(subws, func(_ int, subw string) (bool, error) {
 						addOwnersSet(subw, adds)
 
-						_ = traverseSlice(adds, func(_ int, addw string) (bool, error) {
-							addValue(addw, value)
+						return true, nil
+					})
 
-							return true, nil
-						})
+					_ = traverseSlice(adds, func(_ int, addw string) (bool, error) {
+						addValue(addw, value)
 
 						return true, nil
 					})
@@ -290,14 +303,14 @@ func newFuncWorkerCollectStateOwnersSet(ctx context.Context, maxWorkerSize uint6
 
 func newFuncCollectWorkerStateMergeValues() (
 	func(worker string, _ StateMergeValue),
-	func(extractStateOwnersWorkerStateMergeValuesFunc) error,
+	func(workerStateMergeValuesFunc) error,
 ) {
 	m := map[string][]StateMergeValue{}
 
 	return func(worker string, value StateMergeValue) {
 			m[worker] = append(m[worker], value)
 		},
-		func(f extractStateOwnersWorkerStateMergeValuesFunc) error {
+		func(f workerStateMergeValuesFunc) error {
 			defer clearMap(m)
 
 			return traverseMap(m, func(worker string, values []StateMergeValue) (bool, error) {
