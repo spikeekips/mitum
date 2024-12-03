@@ -19,7 +19,7 @@ var (
 type Operation interface {
 	base.Operation
 	StateMergeValues(context.Context) (
-		[]StateMergeValue, string, error,
+		StateMergeValue, []StateMergeValue, string, error,
 	)
 }
 
@@ -158,28 +158,32 @@ func (op *Op) IsValid(networkID []byte) error {
 }
 
 func (op *Op) StateMergeValues(context.Context) (
-	[]StateMergeValue, string, error,
+	StateMergeValue, []StateMergeValue, string, error,
 ) {
 	var fact OpFact
 
 	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	var values []StateMergeValue
-
-	switch {
-	case fact.Issuer != nil:
-		values = make([]StateMergeValue, 2)
-	default:
-		values = make([]StateMergeValue, 1)
-	}
-
-	values[0], _ = NewAccountStateMergeValue(fact.Receiver, fact.Amount)
+	var subv StateMergeValue
+	var addvs []StateMergeValue
 
 	if fact.Issuer != nil {
-		values[1], _ = NewAccountStateMergeValue(fact.Issuer, fact.Amount*-1)
+		switch i, err := NewAccountStateMergeValue(fact.Issuer, fact.Amount*-1); {
+		case err != nil:
+			return nil, nil, "", err
+		default:
+			subv = i
+		}
 	}
 
-	return values, "", nil
+	switch i, err := NewAccountStateMergeValue(fact.Receiver, fact.Amount); {
+	case err != nil:
+		return nil, nil, "", err
+	default:
+		addvs = []StateMergeValue{i}
+	}
+
+	return subv, addvs, "", nil
 }

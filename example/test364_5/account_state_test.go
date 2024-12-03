@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -189,7 +190,7 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 	values := make([][]StateMergeValue, len(ops))
 
 	for i := range ops {
-		vs, r, err := ops[i].StateMergeValues(context.Background())
+		subv, addvs, r, err := ops[i].StateMergeValues(context.Background())
 		if err != nil {
 			panic(err)
 		}
@@ -197,7 +198,7 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 			panic(`r == ""`)
 		}
 
-		values[i] = vs
+		values[i] = slices.Concat([]StateMergeValue{subv}, addvs)
 	}
 
 	return values
