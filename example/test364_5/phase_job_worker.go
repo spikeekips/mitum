@@ -10,8 +10,8 @@ import (
 
 type (
 	phaseJobWorkerNewJobFunc func(jobID uint64, _ phaseJobWorkerCallback) error
-	phaseJobWorkerCallback   func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
-	newPhaseJobWorkerFunc    func(context.Context) (
+	phaseJobWorkerCallback   = func(_ context.Context, phase int, _ phaseJobWorkerNewJobFunc) error
+	newPhaseJobWorkerFunc    = func(context.Context) (
 		newJob phaseJobWorkerNewJobFunc,
 		jobDone func(),
 		wait errorFunc,

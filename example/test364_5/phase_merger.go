@@ -36,14 +36,14 @@ func (x xMergeFlag) String() string {
 }
 
 type (
-	createStateFunc func(stateKey string) (base.State, bool, error)
-	xMergeOpFunc    func(uint64, base.StateValue) (
+	createStateFunc = func(stateKey string) (base.State, bool, error)
+	xMergeOpFunc    = func(uint64, base.StateValue) (
 		commit func() error,
 		next uint64,
 		reason string,
 		_ error,
 	)
-	xMergeOpValuesFunc func(
+	xMergeOpValuesFunc = func(
 		opindex uint64,
 		_ []StateMergeValue,
 		getMerger func(StateMergeValue) (StateMerger, error),
@@ -53,16 +53,16 @@ type (
 		reasons map[uint64]string,
 		_ error,
 	)
-	opindexPhaseJobWorkerCallback func(opindex uint64) phaseJobWorkerCallback
-	mergerGetStateMergersFunc     func(
+	opindexPhaseJobWorkerCallback = func(opindex uint64) phaseJobWorkerCallback
+	mergerGetStateMergersFunc     = func(
 		opindex uint64,
 		_ []StateMergeValue,
 		_ func(func(StateMergeValue) (StateMerger, error)) error,
 	) error
-	opindexGetStateMergeValuesFunc func(opindex uint64) ([]StateMergeValue, error)
-	opindexSetStateMergeValuesFunc func(opindex uint64, _ []StateMergeValue) (bool, error)
-	extractStateMergeValueKeysFunc func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
-	phaseMergerWaitCallbackFunc    func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
+	opindexGetStateMergeValuesFunc = func(opindex uint64) ([]StateMergeValue, error)
+	opindexSetStateMergeValuesFunc = func(opindex uint64, _ []StateMergeValue) (bool, error)
+	extractStateMergeValueKeysFunc = func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
+	phaseMergerWaitCallbackFunc    = func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 )
 
 func newFuncPhaseMerger(

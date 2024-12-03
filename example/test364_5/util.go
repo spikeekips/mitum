@@ -293,9 +293,10 @@ func newModuleLoggerFromContext(ctx context.Context, module string, f func(zerol
 }
 
 type (
-	inErrorFunc[T any]     func(T) error
-	in2ErrorFunc[T, Y any] func(T, Y) error
-	errorFunc              func() error
+	inErrorFunc[T any]        func(T) error
+	in2ErrorFunc[T, Y any]    func(T, Y) error
+	in3ErrorFunc[T, Y, X any] func(T, Y, X) error
+	errorFunc                 func() error
 )
 
 func dummyErrorInFunc(err error) error {

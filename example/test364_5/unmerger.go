@@ -8,8 +8,8 @@ import (
 )
 
 type (
-	unmergedFunc      func(unmerged []uint64) error
-	opindexFilterFunc func(opindex uint64) (bool, error)
+	unmergedFunc      = func(unmerged []uint64) error
+	opindexFilterFunc = func(opindex uint64) (bool, error)
 )
 
 func newFuncUnmerger(

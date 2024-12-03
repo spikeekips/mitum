@@ -10,15 +10,15 @@ import (
 )
 
 type (
-	workerUnmergerNewFuncUnmergerFunc func(_ context.Context) (
+	workerUnmergerNewFuncUnmergerFunc = func(_ context.Context) (
 		inErrorFunc[uint64],
 		func(),
 		inErrorFunc[unmergedFunc],
 		error,
 	)
-	workerUnmergerLocalReadyFunc func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
-	workerUnmergedFunc           func(worker string, unmerged []uint64) error
-	workerOpindexFilterFunc      func(worker string) opindexFilterFunc
+	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
+	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
+	workerOpindexFilterFunc      = func(worker string) opindexFilterFunc
 )
 
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.

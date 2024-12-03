@@ -11,8 +11,8 @@ import (
 var errJobWorkerDone = util.NewIDError("job worker: no more new job")
 
 type (
-	jobWorkerNewJobFunc func(inErrorFunc[context.Context]) error
-	newJobWorkerFunc    func(context.Context) (
+	jobWorkerNewJobFunc = inErrorFunc[inErrorFunc[context.Context]]
+	newJobWorkerFunc    = func(context.Context) (
 		jobWorkerNewJobFunc,
 		func(),
 		errorFunc,

@@ -9,11 +9,11 @@ import (
 )
 
 type (
-	minEnoughMaxFailedFunc          func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
-	checkEnoughFailedWorkerFunc     func(worker string, _ func() error) (ok, enough, failed bool, _ error)
-	newCheckEnoughFailedWorkersFunc func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
-	getStateOwnersFunc              func(stateKey string) []string
-	getOperationOwnersFunc          func(opindex uint64) []string
+	minEnoughMaxFailedFunc          = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
+	checkEnoughFailedWorkerFunc     = func(worker string, _ func() error) (ok, enough, failed bool, _ error)
+	newCheckEnoughFailedWorkersFunc = func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
+	getStateOwnersFunc              = func(stateKey string) []string
+	getOperationOwnersFunc          = func(opindex uint64) []string
 )
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
@@ -180,7 +180,7 @@ func newFuncLocalCheckEnoughFailedWorkers(local string) newCheckEnoughFailedWork
 	}
 }
 
-type traverseStateMergersFunc func(func(stateKey string, merger StateMerger) (bool, error)) error
+type traverseStateMergersFunc = func(func(stateKey string, merger StateMerger) (bool, error)) error
 
 func newFuncStateMergers(
 	poolSize uint64,

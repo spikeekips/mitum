@@ -10,22 +10,22 @@ import (
 )
 
 type (
-	addOwnersFunc                          func(owners []string)
-	workerStateMergeValuesFunc             func(worker string, _ []StateMergeValue) error
-	extractStateOwnersStateMergeValuesFunc func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
+	addOwnersFunc                          = func(owners []string)
+	workerStateMergeValuesFunc             = func(worker string, _ []StateMergeValue) error
+	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
 		func(workerStateMergeValuesFunc) error,
 		error,
 	)
-	insertStateOwnerSetFunc       func(subw string, affected []string) error
-	insertStateOwnersSetFunc      func(subws, affected []string) error
-	localExtractedStateOwnersFunc func(getStateOwnersFunc) (
+	insertStateOwnerSetFunc       = func(subw string, affected []string) error
+	insertStateOwnersSetFunc      = func(subws, affected []string) error
+	localExtractedStateOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersStateMergeValuesFunc,
 		inErrorFunc[workerStateOwnersSetFunc],
 		error,
 	)
-	workerInsertStateOwnersSetFunc       func(worker string, _ insertStateOwnersSetFunc) error
-	workerStateOwnersSetFunc             func(worker string, subws, affected []string) error
-	workerDistributeStateMergeValuesFunc func(_ context.Context, worker string) (
+	workerInsertStateOwnersSetFunc       = func(worker string, _ insertStateOwnersSetFunc) error
+	workerStateOwnersSetFunc             = func(worker string, subws, affected []string) error
+	workerDistributeStateMergeValuesFunc = func(_ context.Context, worker string) (
 		_ insertStateMergeValuesFunc,
 		owners insertStateOwnersSetFunc,
 		_ error,

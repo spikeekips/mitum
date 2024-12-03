@@ -9,13 +9,13 @@ import (
 )
 
 type (
-	workerInsertStateMergeValues func(
+	workerInsertStateMergeValues = func(
 		worker string,
 		_ func(insertStateMergeValuesFunc) error,
 	) error
-	workerMergerCallback                 func(unmerged []uint64, reasons map[uint64]string) error
-	workerMergerLocalPhaseMergerDoneFunc func(unmerged []uint64) (subStateOwners []string, _ error)
-	workerMergerWaitFunc                 func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
+	workerMergerCallback                 = func(unmerged []uint64, reasons map[uint64]string) error
+	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
+	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
 
 // FIXME extractor reports the operation to manager, which has empty state merge

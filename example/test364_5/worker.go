@@ -9,22 +9,22 @@ import (
 )
 
 type (
-	localInsertStateMergeValuesFunc  func(opindex []uint64) error
-	workerInsertStateMergeValuesFunc func(
+	localInsertStateMergeValuesFunc  = func(opindex []uint64) error
+	workerInsertStateMergeValuesFunc = func(
 		worker string,
 		_ func(
 			insertStateMergeValuesFunc,
 			in2ErrorFunc[ /* {sub, affected} state owners */ []string, []string],
 		) error,
 	) error
-	workerReportStateOwnersFunc func(stateOwners []string) error
-	workerReportResultFunc      func(
+	workerReportStateOwnersFunc = func(stateOwners []string) error
+	workerReportResultFunc      = func(
 		unmerged []uint64,
 		reasons map[uint64]string,
 		stateKeys []string,
 	) error
-	workerBroadcastUnmergedFunc func(workers []string, unmerged []uint64) error
-	workerWaitFunc              func(
+	workerBroadcastUnmergedFunc = func(workers []string, unmerged []uint64) error
+	workerWaitFunc              = func(
 		workerReportStateOwnersFunc,
 		workerBroadcastUnmergedFunc,
 		workerReportResultFunc,
