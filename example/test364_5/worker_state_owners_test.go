@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -370,6 +369,12 @@ func (t *testWorkerStateOwners) TestInsert() {
 		p := func(opindex int, sub StateMergeValue, adds []StateMergeValue) {
 			var subs, affected []string
 
+			traverseSlice(getStateOwner(sub.Key()), func(_ int, owner string) (bool, error) {
+				subs = append(subs, owner)
+
+				return true, nil
+			})
+
 			traverseSlice(adds, func(_ int, value StateMergeValue) (bool, error) {
 				traverseSlice(getStateOwner(value.Key()), func(_ int, owner string) (bool, error) {
 					affected = append(affected, owner)
@@ -380,17 +385,16 @@ func (t *testWorkerStateOwners) TestInsert() {
 				return true, nil
 			})
 
-			traverseSlice(getStateOwner(sub.Key()), func(_ int, owner string) (bool, error) {
-				subs = append(subs, owner)
+			slices.Sort(subs)
+			subs = slices.Compact(subs)
+			slices.Sort(affected)
+			affected = slices.Compact(affected)
 
-				return true, nil
-			})
+			t.println("op owners: opindex=%d subs=%v affected=%v", opindex, subs, affected)
 
 			traverseSlice(subs, func(_ int, worker string) (bool, error) {
 				a := expectedAffected[worker]
-				a = append(a, util.FilterSlice(affected, func(b string) bool {
-					return b != worker
-				})...)
+				a = append(a, affected...)
 
 				expectedAffected[worker] = a
 
@@ -399,9 +403,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 			traverseSlice(affected, func(_ int, worker string) (bool, error) {
 				a := expectedSubs[worker]
-				a = append(a, util.FilterSlice(subs, func(b string) bool {
-					return b != worker
-				})...)
+				a = append(a, subs...)
 
 				expectedSubs[worker] = a
 
@@ -469,8 +471,14 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 			t.T().Logf("collected: worker=%q subs=%v affected=%v", worker, subws, affected)
 
-			t.Equal(expectedSubs[worker], subws)
-			t.Equal(expectedAffected[worker], affected)
+			t.Equal(expectedSubs[worker], subws, "sub: %q", worker)
+			t.Equal(expectedAffected[worker], affected, "affected: %q", worker)
+
+			return nil
+		}))
+
+		t.NoError(done(func(subws, affected []string) error {
+			t.T().Logf("done: subs=%v affected=%v", subws, affected)
 
 			return nil
 		}))

@@ -234,7 +234,6 @@ func newFuncWorkerCollectStateOwnersSet(ctx context.Context, maxWorkerSize uint6
 		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
 			_ = traverseSlice(b, func(_ int, worker string) (bool, error) {
 				switch {
-				case worker == a:
 				case len(prev) < 1:
 					prev = map[string]struct{}{worker: {}}
 				default:
