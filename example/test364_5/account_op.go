@@ -160,7 +160,7 @@ func (op *Op) IsValid(networkID []byte) error {
 func (op *Op) StateMergeValues(context.Context) (
 	StateMergeValue, []StateMergeValue, string, error,
 ) {
-	var fact OpFact
+	var fact *OpFact
 
 	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
 		return nil, nil, "", err
