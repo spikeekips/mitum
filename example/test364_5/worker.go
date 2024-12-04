@@ -190,7 +190,7 @@ func newFuncWorker(
 						}
 
 						if err := traverseStateMergers(func(stateKey string, merger StateMerger) (bool, error) {
-							addStateKey(stateKey)
+							addStateKey(stateKey) // FIXME state key and hash
 
 							// FIXME merger.Close()
 

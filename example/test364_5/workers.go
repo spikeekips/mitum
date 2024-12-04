@@ -210,6 +210,7 @@ func newFuncStateMergers(
 		func(f func(string, StateMerger) (bool, error)) (gerr error) {
 			_ = pool.Traverse(func(stateKey string, merger StateMerger) (ok bool) {
 				ok, gerr = f(stateKey, merger)
+				// FIXME close
 
 				return ok && gerr == nil
 			})

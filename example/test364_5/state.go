@@ -242,3 +242,16 @@ type StateMerger interface {
 		_ error,
 	)
 }
+
+func IsEqualStateMergeValue(a, b StateMergeValue) bool {
+	switch {
+	case a == nil && b == nil,
+		a == nil, b == nil:
+		return false
+	case a.Key() != b.Key(),
+		!base.IsEqualStateValue(a.Value(), b.Value()):
+		return false
+	default:
+		return true
+	}
+}
