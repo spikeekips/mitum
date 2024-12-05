@@ -18,18 +18,13 @@ type (
 	)
 	insertStateOwnerSetFunc       = func(subw string, affected []string) error
 	insertStateOwnersSetFunc      = func(subws, affected []string) error
+	workerStateOwnersSetFunc      = func(worker string, subws, affected []string) error
 	localExtractedStateOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersStateMergeValuesFunc,
 		inErrorFunc[workerStateOwnersSetFunc],
 		error,
 	)
-	workerInsertStateOwnersSetFunc       = func(worker string, _ insertStateOwnersSetFunc) error
-	workerStateOwnersSetFunc             = func(worker string, subws, affected []string) error
-	workerDistributeStateMergeValuesFunc = func(_ context.Context, worker string) (
-		_ insertStateMergeValuesFunc,
-		owners insertStateOwnersSetFunc,
-		_ error,
-	)
+	workerInsertStateOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
 )
 
 func newFuncWorkerStateOwners(
@@ -39,7 +34,7 @@ func newFuncWorkerStateOwners(
 ) (
 	localExtractedStateOwnersFunc,
 	workerStateOwnersSetFunc,
-	func(insertStateOwnersSetFunc) error,
+	inErrorFunc[insertStateOwnersSetFunc],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-state-owners", nil)

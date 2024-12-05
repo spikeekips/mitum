@@ -292,11 +292,18 @@ func newModuleLoggerFromContext(ctx context.Context, module string, f func(zerol
 	return newModuleLogger(logger, module, f)
 }
 
+func updateModuleLoggerFromContext(ctx context.Context, module string, f func(zerolog.Context) zerolog.Context) (context.Context, *zerolog.Logger) {
+	log := newModuleLoggerFromContext(ctx, module, f)
+
+	return setContextValueLogger(ctx, log), log
+}
+
 type (
-	inErrorFunc[T any]        func(T) error
-	in2ErrorFunc[T, Y any]    func(T, Y) error
-	in3ErrorFunc[T, Y, X any] func(T, Y, X) error
-	errorFunc                 func() error
+	inErrorFunc[T any]           func(T) error
+	in2ErrorFunc[T, Y any]       func(T, Y) error
+	in3ErrorFunc[T, Y, X any]    func(T, Y, X) error
+	in4ErrorFunc[T, Y, X, Z any] func(T, Y, X, Z) error
+	errorFunc                    func() error
 )
 
 func dummyErrorInFunc(err error) error {

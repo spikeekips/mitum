@@ -61,7 +61,7 @@ type (
 	) error
 	opindexGetStateMergeValuesFunc = func(opindex uint64) ([]StateMergeValue, error)
 	opindexSetStateMergeValuesFunc = func(opindex uint64, _ []StateMergeValue) (bool, error)
-	extractStateMergeValueKeysFunc = func(opindex uint64, _ []StateMergeValue) ( /* state keys */ []string, error)
+	extractStateMergeValueKeysFunc = func(opindex uint64, _ []StateMergeValue) ([]string /* state keys */, error)
 	phaseMergerWaitCallbackFunc    = func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
 )
 
@@ -442,7 +442,7 @@ func newFuncCollectXmergedOps(
 		baseMergedOps = i
 	}
 
-	var ops util.LockedMap[ /* opindex */ uint64 /* count */, int]
+	var ops util.LockedMap[uint64 /* opindex */, int /* count */]
 
 	switch i, err := util.NewShardedMap[uint64, int](mapSize, nil); {
 	case err != nil:

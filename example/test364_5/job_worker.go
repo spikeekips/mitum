@@ -208,3 +208,26 @@ func newFuncNewErrJobWorkerFunc(semSize int64, errf inErrorFunc[error]) newJobWo
 		return newFuncErrJobWorker(ctx, semSize, errf)
 	}
 }
+
+func funcsJobWorker(ctx context.Context, fs ...inErrorFunc[context.Context]) error {
+	var newJob jobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait errorFunc
+
+	switch n, d, w, err := newFuncJobWorker(ctx, int64(len(fs))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	go func() {
+		defer jobDone()
+
+		_ = traverseSlice(fs, func(_ int, f inErrorFunc[context.Context]) (bool, error) {
+			return true, newJob(f)
+		})
+	}()
+
+	return jobWait()
+}

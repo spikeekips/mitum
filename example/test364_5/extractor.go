@@ -21,6 +21,7 @@ type (
 		reason string,
 		_ error,
 	)
+	stateMergeValueExtractorInsertFunc    = in3ErrorFunc[getOperationFunc, inErrorFunc[opindexHashFunc], stateMergeValueExtractorExtractedFunc]
 	stateMergeValueExtractorExtractedFunc = func(
 		opindex uint64,
 		_ Operation,
@@ -40,7 +41,7 @@ func newFuncStateMergeValueExtractor(
 	newJobWorker newJobWorkerFunc,
 	maxOpsSize uint64,
 ) (
-	in3ErrorFunc[getOperationFunc, inErrorFunc[opindexHashFunc], stateMergeValueExtractorExtractedFunc],
+	stateMergeValueExtractorInsertFunc,
 	inErrorFunc[stateMergeValueExtractorWaitCallback],
 	error,
 ) {

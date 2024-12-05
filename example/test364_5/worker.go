@@ -9,25 +9,18 @@ import (
 )
 
 type (
-	localInsertStateMergeValuesFunc  = func(opindex []uint64) error
+	workerInsertStateMergeValuesCallback = func(
+		insertStateMergeValuesFunc,
+		in2ErrorFunc[[]string /* sub */, []string /* affected */],
+	) error
 	workerInsertStateMergeValuesFunc = func(
 		worker string,
-		_ func(
-			insertStateMergeValuesFunc,
-			in2ErrorFunc[ /* {sub, affected} state owners */ []string, []string],
-		) error,
+		_ workerInsertStateMergeValuesCallback,
 	) error
-	workerReportStateOwnersFunc = func(stateOwners []string) error
-	workerReportResultFunc      = func(
-		unmerged []uint64,
-		reasons map[uint64]string,
-		stateKeys []string,
-	) error
-	workerBroadcastUnmergedFunc = func(workers []string, unmerged []uint64) error
-	workerWaitFunc              = func(
-		workerReportStateOwnersFunc,
-		workerBroadcastUnmergedFunc,
-		workerReportResultFunc,
+	workerWaitFunc = func(
+		inErrorFunc[[]string /* state owners */],
+		in2ErrorFunc[[]string /* workers */, []uint64 /* unmerged */],
+		in3ErrorFunc[[]uint64 /* unmerged */, map[uint64]string /* reasons */, []string /* state hashes */],
 	) error
 )
 
@@ -50,7 +43,6 @@ func newFuncWorker(
 	options *workerOptions,
 	getState getStateFunc,
 	workID string,
-	maxOpsSize uint64,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	ops []uint64,
@@ -66,9 +58,11 @@ func newFuncWorker(
 			Str("local", options.Local)
 	})
 
+	opsSize := uint64(len(ops))
+
 	log.Debug().
 		Interface("options", options).
-		Uint64("max_ops_size", maxOpsSize).
+		Uint64("ops_size", opsSize).
 		Dict("workers", zerolog.Dict().
 			Strs("all", workers).
 			Strs("ops", opsWorkers),
@@ -89,7 +83,7 @@ func newFuncWorker(
 
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	approxStatesKeys := maxOpsSize * 2
+	approxStatesKeys := opsSize * 2
 
 	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(
 		options.MaxExtractStateKeyCacheSize, int(approxStatesKeys))
@@ -119,7 +113,7 @@ func newFuncWorker(
 		newFuncNewJobWorkerFunc(options.JobWorkerSemSize),
 		getState,
 		getStateMergers,
-		uint64(len(workers)), maxOpsSize, approxStatesKeys,
+		uint64(len(workers)), opsSize, approxStatesKeys,
 		opsWorkers, opsShare, statesShare,
 	); {
 	case err != nil:
@@ -151,9 +145,9 @@ func newFuncWorker(
 	return insert,
 		workerUnmerged,
 		func(
-			reportStateOwners workerReportStateOwnersFunc,
-			broadcastUnmerged workerBroadcastUnmergedFunc,
-			reportMerged workerReportResultFunc,
+			reportStateOwners inErrorFunc[[]string],
+			broadcastUnmerged in2ErrorFunc[[]string, []uint64],
+			reportMerged in3ErrorFunc[[]uint64, map[uint64]string, []string],
 		) error {
 			defer func() {
 				_ = workerMergerWait(nil, nil)

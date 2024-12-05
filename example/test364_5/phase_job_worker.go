@@ -30,10 +30,9 @@ func newFuncPhaseJobWorker(
 	errorFunc,
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
+	ctx, _ = updateModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Int("phase", phase)
 	})
-	ctx = setContextValueLogger(ctx, log)
 
 	var jobIDFilter func(uint64, int) bool
 	var jobIDClose func()

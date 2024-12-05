@@ -306,7 +306,7 @@ func newFuncWorkerUnmergerUnmergedPool() (
 	isNotEmpty func(filter workerOpindexFilterFunc) (bool, error),
 	traverse func(func(worker string, unmerged []uint64) (bool, error)) error,
 ) {
-	pool := map[ /* worker */ string] /* unmerged */ []uint64{}
+	pool := map[string] /* worker */ []uint64 /* unmerged */ {}
 
 	var l sync.RWMutex
 

@@ -210,7 +210,6 @@ func newFuncStateMergers(
 		func(f func(string, StateMerger) (bool, error)) (gerr error) {
 			_ = pool.Traverse(func(stateKey string, merger StateMerger) (ok bool) {
 				ok, gerr = f(stateKey, merger)
-				// FIXME close
 
 				return ok && gerr == nil
 			})
@@ -229,7 +228,7 @@ func newFuncSetStateOps(mapSize uint64) (
 	getStatesOpsFunc,
 	error,
 ) {
-	var m util.LockedMap[string, map[uint64] /* {phase, count} */ [2]int]
+	var m util.LockedMap[string, map[uint64][2]int /* {phase, count} */]
 
 	switch i, err := util.NewShardedMap[string, map[uint64][2]int](mapSize, nil); {
 	case err != nil:
