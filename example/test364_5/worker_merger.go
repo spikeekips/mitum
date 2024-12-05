@@ -167,7 +167,14 @@ func newFuncWorkerMerger(
 		}
 	}
 
-	return insert,
+	return func(
+			worker string,
+			f func(insertStateMergeValuesFunc) error,
+		) error {
+			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
+				return insert(worker, f)
+			})
+		},
 		func(worker string, unmerged []uint64) error {
 			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
 				return workerUnmergerUnmerged(worker, unmerged)
