@@ -58,7 +58,7 @@ func newFuncStateMergeValueExtractor(
 
 	var reasons util.LockedMap[uint64, string]
 
-	switch i, err := util.NewShardedMap[uint64, string](maxOpsSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, string](maxOpsSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

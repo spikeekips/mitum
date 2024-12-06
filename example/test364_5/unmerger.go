@@ -108,7 +108,7 @@ func newFuncOpindexFilter(
 ) {
 	var m util.LockedMap[uint64, struct{}]
 
-	switch i, err := util.NewShardedMap[uint64, struct{}](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, struct{}](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

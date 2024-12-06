@@ -435,7 +435,7 @@ func newFuncCollectXmergedOps(
 ) {
 	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
 
-	switch i, err := util.NewShardedMap[uint64, xMergeFlag](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, xMergeFlag](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -444,7 +444,7 @@ func newFuncCollectXmergedOps(
 
 	var ops util.LockedMap[uint64 /* opindex */, int /* count */]
 
-	switch i, err := util.NewShardedMap[uint64, int](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, int](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -536,7 +536,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 ) {
 	var m util.LockedMap[uint64, string]
 
-	switch i, err := util.NewShardedMap[uint64, string](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, string](mapSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
