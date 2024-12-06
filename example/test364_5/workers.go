@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -14,6 +15,10 @@ type (
 	newCheckEnoughFailedWorkersFunc = func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
 	getStateOwnersFunc              = func(stateKey string) []string
 	getOperationOwnersFunc          = func(opindex uint64) []string
+	mergeStateOpFunc                = func(opindex uint64, fact util.Hash, stateKeys []string) bool
+	unmergeStateOpFunc              = func(ops []uint64) bool
+	getStateOpsFunc                 = func(stateKey string) ([]util.Hash, error)
+	traverseStateOpsFunc            = func(in2ErrorFunc[int, getStateOpsFunc]) error
 )
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
@@ -194,7 +199,7 @@ func newFuncStateMergers(
 ) {
 	var pool util.LockedMap[string, StateMerger]
 
-	switch i, err := util.NewShardedMap[string, StateMerger](poolSize, nil); {
+	switch i, err := util.NewLockedMap[string, StateMerger](poolSize, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -224,83 +229,176 @@ func newFuncStateMergers(
 }
 
 func newFuncSetStateOps(mapSize uint64) (
-	setStateOpFunc,
-	getStatesOpsFunc,
+	mergeStateOpFunc,
+	unmergeStateOpFunc,
+	traverseStateOpsFunc,
 	error,
 ) {
-	var m util.LockedMap[string, map[uint64][2]int /* {phase, count} */]
+	var factPool util.LockedMap[uint64, util.Hash]
 
-	switch i, err := util.NewShardedMap[string, map[uint64][2]int](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, util.Hash](mapSize, nil); {
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, nil, err
+	default:
+		factPool = i
+	}
+
+	var m util.LockedMap[string, map[uint64]struct{}]
+
+	switch i, err := util.NewLockedMap[string, map[uint64]struct{}](mapSize, nil); {
+	case err != nil:
+		return nil, nil, nil, err
 	default:
 		m = i
 	}
 
-	return func(phase int, opindex uint64, stateKeys []string, x xMergeFlag) {
-			_ = traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
-				_, _, _ = m.Set(stateKey, func(prev map[uint64][2]int, found bool) (map[uint64][2]int, error) {
-					c := 1
-					if x == unmergeFlag {
-						c = -1
-					}
+	var keyPool util.LockedMap[uint64, []string]
 
-					switch {
-					case !found:
-						prev = map[uint64][2]int{opindex: {phase, c}}
-					default:
-						switch v, opfound := prev[opindex]; {
-						case !opfound:
-							prev[opindex] = [2]int{phase, c}
-						case phase <= v[0]:
-							return nil, util.ErrLockedSetIgnore
-						default:
-							prev[opindex] = [2]int{phase, v[1] + c}
+	switch i, err := util.NewLockedMap[uint64, []string](mapSize, nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		keyPool = i
+	}
+
+	set := func(opindex uint64, fact util.Hash, stateKeys []string, x xMergeFlag) (ok bool) {
+		_ = traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			_, _, _, _ = m.SetOrRemove(stateKey,
+				func(prev map[uint64]struct{}, _ bool) (map[uint64]struct{}, bool, error) {
+					switch x {
+					case mergeFlag:
+						if fact == nil {
+							return nil, false, errors.Errorf("nil fact hash")
 						}
+
+						if _, found := prev[opindex]; found {
+							return nil, false, util.ErrLockedSetIgnore
+						}
+
+						if prev == nil {
+							prev = map[uint64]struct{}{}
+						}
+
+						prev[opindex] = struct{}{}
+					case unmergeFlag:
+						if fact != nil {
+							return nil, false, errors.Errorf("not nil fact hash")
+						}
+
+						if _, found := prev[opindex]; !found {
+							return nil, false, util.ErrLockedSetIgnore
+						}
+
+						if len(prev) < 2 {
+							ok = true
+
+							return nil, true, nil
+						}
+
+						delete(prev, opindex)
 					}
 
-					return prev, nil
-				})
+					ok = true
+
+					return prev, false, nil
+				},
+			)
+
+			return true, nil
+		})
+
+		return ok
+	}
+
+	unmerge := func(opindex uint64) bool {
+		var stateKeys []string
+
+		_, _ = keyPool.Remove(opindex, func(s []string, found bool) error {
+			if !found {
+				return nil
+			}
+
+			stateKeys = s
+
+			return nil
+		})
+
+		if len(stateKeys) < 1 {
+			return false
+		}
+
+		return set(opindex, nil, stateKeys, unmergeFlag)
+	}
+
+	return func(opindex uint64, fact util.Hash, stateKeys []string) bool {
+			if _, created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
+				if found {
+					return nil, util.ErrLockedSetIgnore
+				}
+
+				return stateKeys, nil
+			}); !created {
+				return false
+			}
+
+			ok := set(opindex, fact, stateKeys, mergeFlag)
+			if ok {
+				_ = factPool.SetValue(opindex, fact)
+			}
+
+			return ok
+		},
+		func(ops []uint64) bool {
+			var notOk bool
+
+			traverseSlice(ops, func(_ int, opindex uint64) (bool, error) {
+				if !unmerge(opindex) {
+					notOk = true
+				}
 
 				return true, nil
 			})
+
+			return !notOk
 		},
-		func(f inErrorFunc[getStateOpsFunc]) error {
-			defer m.Close()
+		func(f in2ErrorFunc[int, getStateOpsFunc]) error {
+			defer func() {
+				m.Close()
+				keyPool.Close()
+				factPool.Close()
+			}()
 
-			return f(func(stateKey string) (ops []uint64) {
-				_ = m.Get(stateKey, func(mops map[uint64][2]int, found bool) error {
-					if !found || len(mops) < 1 {
-						return nil
-					}
+			return f(m.Len(), func(stateKey string) ([]util.Hash, error) {
+				switch i, found := m.Value(stateKey); {
+				case !found, len(i) < 1:
+					return nil, nil
+				default:
+					defer clearMap(i)
 
-					var add util.CompactAppendSliceAddFunc[uint64]
-					var done util.CompactAppendSliceDoneFunc[uint64]
+					facts := make([]util.Hash, len(i))
 
-					if err := rCompactAppendSlice[uint64](uint64(len(mops)), 0, &add, &done); err != nil {
-						return nil
-					}
+					var n int
 
-					defer done(nil)
+					if err := traverseMap(i, func(opindex uint64, _ struct{}) (bool, error) {
+						switch h, found := factPool.Value(opindex); {
+						case !found:
+							return false, util.ErrNotFound.Errorf("fact not found, %d", opindex)
+						default:
+							facts[n] = h
+							n++
 
-					_ = traverseMap(mops, func(opindex uint64, v [2]int) (bool, error) {
-						if v[1] > 0 {
-							add(opindex)
+							return true, nil
 						}
+					}); err != nil {
+						return nil, err
+					}
 
-						return true, nil
+					slices.SortFunc(facts, func(a, b util.Hash) int {
+						return strings.Compare(a.String(), b.String())
 					})
 
-					_ = done(func(s []uint64) error {
-						ops = slices.Clone(s)
-
-						return nil
-					})
-
-					return nil
-				})
-
-				return ops
+					return facts, nil
+				}
 			})
 		},
 		nil

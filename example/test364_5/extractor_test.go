@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"slices"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -261,16 +260,16 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			},
 			nil))
 
-		var called int64
+		var called bool
 
 		t.NoError(wait(func(reasons map[uint64]string) error {
-			atomic.AddInt64(&called, 1)
-
 			t.Equal(expectedReasons, reasons)
+
+			called = true
 
 			return nil
 		}))
-		t.Equal(int64(1), atomic.LoadInt64(&called))
+		t.True(called)
 	})
 }
 
@@ -282,22 +281,22 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		insert, wait, err := t.newf(ctx, nil)
 		t.NoError(err)
 
-		var called int64
+		var called int
 
 		t.NoError(insert(nil, nil,
 			func(uint64, Operation, StateMergeValue, []StateMergeValue) error {
-				atomic.AddInt64(&called, 1)
+				called++
 
 				return errors.Errorf("showme")
 			}))
 
 		t.NoError(wait(func(reasons map[uint64]string) error {
-			atomic.AddInt64(&called, 1)
+			called++
 
 			return nil
 		}))
 
-		t.Equal(int64(1), atomic.LoadInt64(&called))
+		t.Equal(1, called)
 	})
 
 	nOps := func(n int) func() {

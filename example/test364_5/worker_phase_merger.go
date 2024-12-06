@@ -16,9 +16,6 @@ type (
 		_ inErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
 	)
-	setStateOpFunc                    = func(phase int, opindex uint64, stateKeys []string, _ xMergeFlag)
-	getStateOpsFunc                   = func(stateKey string) (ops []uint64)
-	getStatesOpsFunc                  = func(inErrorFunc[getStateOpsFunc]) error
 	insertStateMergeValuesFunc        = func(opindex uint64, _ []StateMergeValue) error
 	insertWorkerStateMergeValuesFunc  = func(worker string, _ inErrorFunc[insertStateMergeValuesFunc]) error
 	workerPhaseMergerWaitCallbackFunc = func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error

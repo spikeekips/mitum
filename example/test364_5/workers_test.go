@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -312,4 +317,232 @@ func fixedStateOwnersFunc(owners map[string][]string) (getStateOwnersFunc, func(
 		},
 		func() {},
 		nil
+}
+
+type testSetStateOps struct {
+	suite.Suite
+}
+
+func (t *testSetStateOps) TestError() {
+	t.Run("zero map size", func() {
+		_, _, _, err := newFuncSetStateOps(0)
+		t.ErrorContains(err, "")
+	})
+}
+
+func (t *testSetStateOps) Test() {
+	t.Run("unmerge, not merged", func() {
+		_, u, tr, err := newFuncSetStateOps(1 << 9)
+		t.NoError(err)
+
+		t.False(u([]uint64{3}))
+
+		var called bool
+
+		t.NoError(tr(func(l int, f getStateOpsFunc) error {
+			called = true
+
+			t.Equal(0, l)
+
+			return nil
+		}))
+
+		t.True(called)
+	})
+
+	t.Run("merge, and then unmerge", func() {
+		m, u, tr, err := newFuncSetStateOps(1 << 9)
+		t.NoError(err)
+
+		stateKeys := []string{"1", "2", "3"}
+		t.True(m(3, valuehash.RandomSHA256(), stateKeys))
+		t.True(u([]uint64{3}))
+
+		var called bool
+
+		t.NoError(tr(func(l int, f getStateOpsFunc) error {
+			called = true
+
+			t.Equal(0, l)
+
+			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+				t.Empty(f(stateKey))
+
+				return true, nil
+			})
+
+			return nil
+		}))
+
+		t.True(called)
+	})
+
+	t.Run("merge, merge, and then unmerge", func() {
+		m, u, tr, err := newFuncSetStateOps(1 << 9)
+		t.NoError(err)
+
+		expectedFacts := []util.Hash{
+			valuehash.RandomSHA256(),
+			valuehash.RandomSHA256(),
+			valuehash.RandomSHA256(),
+		}
+
+		slices.SortFunc(expectedFacts, func(a, b util.Hash) int {
+			return strings.Compare(a.String(), b.String())
+		})
+
+		stateKeys := []string{"1", "2", "3"}
+		t.True(m(0, expectedFacts[0], stateKeys))
+		t.True(m(1, expectedFacts[1], stateKeys))
+		t.True(m(2, expectedFacts[2], stateKeys))
+
+		t.True(m(3, valuehash.RandomSHA256(), stateKeys))
+		t.True(u([]uint64{3}))
+
+		var called bool
+
+		t.NoError(tr(func(l int, f getStateOpsFunc) error {
+			called = true
+
+			t.Equal(3, l)
+
+			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+				facts, err := f(stateKey)
+				t.NoError(err)
+
+				t.Equal(len(facts), len(facts))
+
+				for i := range facts {
+					t.True(expectedFacts[i].Equal(facts[i]))
+				}
+
+				return true, nil
+			})
+
+			return nil
+		}))
+
+		t.True(called)
+	})
+
+	t.Run("async", func() {
+		m, u, tr, err := newFuncSetStateOps(1 << 9)
+		t.NoError(err)
+
+		nstateKeys := 30
+		stateKeys := make([]string, nstateKeys)
+		traverseSlice(stateKeys, func(i int, _ string) (bool, error) {
+			stateKeys[i] = fmt.Sprintf("s%d", i)
+
+			return true, nil
+		})
+
+		nops := 33
+
+		opindexStateKeys := map[uint64][]string{}
+		facts := map[uint64]util.Hash{}
+
+		for i := range nops {
+			opindex := uint64(i)
+
+			opindexStateKeys[opindex] = []string{
+				stateKeys[((i * 3) % nstateKeys)],
+				stateKeys[((i*3)+1)%nstateKeys],
+				stateKeys[((i*3)+2)%nstateKeys],
+			}
+			facts[opindex] = valuehash.RandomSHA256()
+		}
+
+		unmergeOps := []uint64{0, 9, 30}
+
+		expectedStateKeyFact := map[string][]util.Hash{}
+		traverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+			if slices.Index(unmergeOps, opindex) >= 0 {
+				return true, nil
+			}
+
+			return true, traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+				s := expectedStateKeyFact[stateKey]
+				s = append(s, facts[opindex])
+
+				expectedStateKeyFact[stateKey] = s
+
+				return true, nil
+			})
+		})
+
+		newJob, jobDone, jobWait, err := newFuncJobWorker(context.Background(), int64(nops))
+		t.NoError(err)
+
+		go func() {
+			defer jobDone()
+
+			err := traverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+				return true, newJob(func(context.Context) error {
+					if !m(opindex, facts[opindex], stateKeys) {
+						return errors.Errorf("not merged, %d", opindex)
+					}
+
+					return nil
+				})
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(jobWait())
+
+		newJob, jobDone, jobWait, err = newFuncJobWorker(context.Background(), int64(nops))
+		t.NoError(err)
+
+		go func() {
+			defer jobDone()
+
+			err := newJob(func(context.Context) error {
+				if !u(unmergeOps) {
+					return errors.Errorf("not unmerged, %v", unmergeOps)
+				}
+
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(jobWait())
+
+		var called bool
+
+		t.NoError(tr(func(l int, f getStateOpsFunc) error {
+			called = true
+
+			t.Equal(nstateKeys, l)
+
+			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+				e := expectedStateKeyFact[stateKey]
+				slices.SortFunc(e, func(a, b util.Hash) int {
+					return strings.Compare(a.String(), b.String())
+				})
+
+				s, err := f(stateKey)
+				t.NoError(err)
+
+				t.Equal(e, s, "state key=%q expected=%v collected=%v", stateKey, e, s)
+
+				return true, nil
+			})
+
+			return nil
+		}))
+
+		t.True(called)
+	})
+}
+
+func TestSetStateOps(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testSetStateOps))
 }
