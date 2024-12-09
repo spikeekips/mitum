@@ -60,7 +60,7 @@ func newFuncWorkerUnmerger(
 		},
 	)
 
-	_, workerPhaseDone, workerPhaseDoneWait := newDoneContext(ctx)
+	_, workerPhaseDone, workerPhaseDoneWait := newContextDone(ctx)
 
 	return func(worker string, unmerged []uint64) error {
 			if worker == local {

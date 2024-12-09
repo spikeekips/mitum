@@ -69,7 +69,7 @@ func newFuncWorkerPhaseMerger(
 		phaseMergerMerge, phaseMergerDone, phaseMergerWait = m, d, w
 	}
 
-	_, workerInsertDone, workerInsertWait := newDoneContext(ctx)
+	_, workerInsertDone, workerInsertWait := newContextDone(ctx)
 
 	return func(worker string, f inErrorFunc[insertStateMergeValuesFunc]) error {
 			l := log.With().Str("worker", worker).Logger()
