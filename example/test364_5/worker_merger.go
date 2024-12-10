@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	workerInsertStateMergeValues = func(
+	workerMergerInsertStateMergeValuesFunc = func(
 		worker string,
 		_ func(insertStateMergeValuesFunc) error,
 	) error
@@ -30,7 +30,7 @@ func newFuncWorkerMerger(
 	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
-	workerInsertStateMergeValues,
+	workerMergerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
@@ -198,7 +198,7 @@ func newFuncWorkerMergerInsert(
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
-) workerInsertStateMergeValues {
+) workerMergerInsertStateMergeValuesFunc {
 	return func(
 		worker string,
 		insert func(insertStateMergeValuesFunc) error,

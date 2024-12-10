@@ -103,7 +103,7 @@ func newFuncWorker(
 		getStateMergers, traverseStateMergers, stateMergersClose = g, t, c
 	}
 
-	var insertWorkerStateMergeValues workerInsertStateMergeValues
+	var insertWorkerStateMergeValues workerMergerInsertStateMergeValuesFunc
 	var workerUnmerged workerUnmergedFunc
 	var workerMergerWait workerMergerWaitFunc
 
@@ -238,7 +238,7 @@ func isValidWorkerArgs(
 
 func newFuncWorkerInsert(
 	ctx context.Context,
-	insertWorker workerInsertStateMergeValues,
+	insertWorker workerMergerInsertStateMergeValuesFunc,
 	addStatesOwners workerStateOwnersSetFunc,
 ) workerInsertStateMergeValuesFunc {
 	return func(
