@@ -20,10 +20,12 @@ import (
 type baseTestAccountStateMerger struct {
 	baseTest
 	networkID base.NetworkID
+	rootpriv  base.Privatekey
 }
 
 func (t *baseTestAccountStateMerger) SetupSuite() {
 	t.networkID = util.UUID().Bytes()
+	t.rootpriv = base.NewMPrivatekey()
 }
 
 func (t *baseTestAccountStateMerger) printStateMergeValue(v base.StateValue) string {
@@ -154,14 +156,25 @@ func (t *baseTestAccountStateMerger) randomState() base.State {
 }
 
 func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base.Publickey, balance int64) *Op {
+	var issuerPub base.Publickey
+
+	if issuer != nil {
+		issuerPub = issuer.Publickey()
+	}
+
 	op := NewOp(NewOpFact(
 		util.UUID().Bytes(),
 		balance,
-		issuer.Publickey(),
+		issuerPub,
 		receiver,
 	))
 
-	if err := op.Sign(issuer, t.networkID); err != nil {
+	signer := t.rootpriv
+	if issuer != nil {
+		signer = issuer
+	}
+
+	if err := op.Sign(signer, t.networkID); err != nil {
 		panic(err)
 	}
 
@@ -171,6 +184,14 @@ func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base
 func (t *baseTestAccountStateMerger) randomOp(balance int64) *Op {
 	return t.newOp(
 		base.NewDummyPrivatekey(util.UUID().String()),
+		base.NewDummyPublickey(util.UUID().String()),
+		balance,
+	)
+}
+
+func (t *baseTestAccountStateMerger) randomAddOp(balance int64) *Op {
+	return t.newOp(
+		nil,
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
