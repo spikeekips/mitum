@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -706,6 +707,117 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.ErrorContains(err, "findme")
 			t.True(atomic.LoadInt64(&called) < 1)
 		})
+	})
+
+	t.Run("local outside sub workers", func() {
+		local := "local"
+		worker := "w0"
+		workers := []string{worker}
+
+		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			1<<9,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncLocalCheckEnoughFailedWorkers(local),
+		)
+		t.NoError(err)
+
+		ops := make([]uint64, 3)
+
+		for i := range ops {
+			ops[i] = uint64(i)
+		}
+
+		go func() {
+			err := workerUnmerge(worker, ops)
+			t.println("worker phase done: worker=%q ops=%v err=%v", worker, ops, err)
+
+			err = localReady(workers, nil, uint64(len(workers)), 0)
+
+			t.println("local phase done: worker=%q err=%v", local, err)
+		}()
+
+		t.NoError(wait(func(unmerged []uint64) error {
+			slices.Sort(unmerged)
+
+			t.T().Logf("wait: unmerged=%v", unmerged)
+
+			t.Equal(ops, unmerged)
+
+			return nil
+		}))
+	})
+
+	t.Run("local outside sub workers; not unmerge by worker", func() {
+		local := "local"
+		worker := "w0"
+		workers := []string{worker}
+
+		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		_, localReady, wait, err := newFuncWorkerUnmerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			1<<9,
+			getStateMergeValues,
+			getStateMergers,
+			newFuncLocalCheckEnoughFailedWorkers(local),
+		)
+		t.NoError(err)
+
+		ops := make([]uint64, 3)
+
+		for i := range ops {
+			ops[i] = uint64(i)
+		}
+
+		go func() {
+			err = localReady(workers, nil, uint64(len(workers)), 0)
+
+			t.println("local phase done: worker=%q err=%v", local, err)
+		}()
+
+		donech := make(chan error, 1)
+
+		go func() {
+			err := wait(func(unmerged []uint64) error {
+				slices.Sort(unmerged)
+
+				t.T().Logf("wait: unmerged=%v", unmerged)
+
+				t.Equal(ops, unmerged)
+
+				return nil
+			})
+
+			t.println("wait: err=%v", err)
+
+			donech <- err
+		}()
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-donech:
+			t.Fail("unexpected wait done: %+v", err)
+		}
 	})
 }
 

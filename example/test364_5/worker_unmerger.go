@@ -92,6 +92,10 @@ func newFuncWorkerUnmerger(
 		},
 		func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
 			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+				if slices.Index(subws, local) < 0 {
+					minEnough++
+				}
+
 				l := log.With().
 					Strs("sub_states_owners", subws).
 					Uint64("min_enough", minEnough).

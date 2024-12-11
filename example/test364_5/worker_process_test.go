@@ -345,7 +345,7 @@ func (t *testWorkerProcess) newFuncGetOperation(ops []Operation) getOperationFun
 	}
 }
 
-func (t *testWorkerProcess) TestInitialInsert() {
+func (t *testWorkerProcess) TestLocal() {
 	t.Run("local only; inside ops workers", func() {
 		local := "local"
 		workers := []string{local}
@@ -446,7 +446,7 @@ func (t *testWorkerProcess) TestInitialInsert() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		initial, insert, _, wait, savedOps, savedStates := t.newf(
+		initial, insert, unmerge, wait, savedOps, savedStates := t.newf(
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
@@ -501,6 +501,10 @@ func (t *testWorkerProcess) TestInitialInsert() {
 					return g(workers, workers)
 				},
 			)
+		})
+
+		traverseSlice(workers, func(_ int, worker string) (bool, error) {
+			return true, unmerge(worker, nil)
 		})
 
 		t.NoError(wait(
