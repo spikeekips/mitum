@@ -299,6 +299,8 @@ func updateModuleLoggerFromContext(ctx context.Context, module string, f func(ze
 }
 
 type (
+	inFunc[T, Y any]             func(T) Y
+	in2Func[T, Y, X any]         func(T, Y) X
 	inErrorFunc[T any]           func(T) error
 	in2ErrorFunc[T, Y any]       func(T, Y) error
 	in3ErrorFunc[T, Y, X any]    func(T, Y, X) error
