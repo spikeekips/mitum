@@ -15,10 +15,11 @@ type (
 		base.State,
 		error,
 	)
-	workerDistributeStateMergeValuesFunc = func(workID string, workerSize uint64) (
-		workerStateMergeValuesFunc,
+	workerDistributeWorkerStateMergeValuesFunc = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	workerDistributeStateMergeValuesFunc       = func(_ context.Context, local, workID string, workersSize uint64) (
+		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
-		func(),
+		errorFunc,
 		error,
 	)
 	workerProcessInitialInsertFunc = func(
@@ -423,14 +424,16 @@ func newFuncWorkerProcessInitialInsert(
 				doneExtractStateOwnersStateMergeValues = s
 			}
 
-			var distributeWorkerStateMergeValues workerStateMergeValuesFunc
+			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
 			var doneDistributeWorkerStateMergevalues workerStateOwnersSetFunc
 
-			switch i, o, c, err := distribute(workID, workersSize); {
+			switch i, o, c, err := distribute(ctx, local, workID, workersSize); {
 			case err != nil:
 				return err
 			default:
-				defer c()
+				defer func() {
+					_ = c()
+				}()
 
 				distributeWorkerStateMergeValues, doneDistributeWorkerStateMergevalues = i, o
 			}
@@ -468,7 +471,7 @@ func newFuncorkerProcessExtracted(
 	local string,
 	saveOperation in2ErrorFunc[uint64, Operation],
 	extractStateOwners extractStateOwnersStateMergeValuesFunc,
-	distribute workerStateMergeValuesFunc,
+	distribute workerDistributeWorkerStateMergeValuesFunc,
 	mergeStateOp mergeStateOpFunc,
 	insertToMerger insertStateMergeValuesFunc,
 ) stateMergeValueExtractorExtractedFunc {
@@ -514,6 +517,8 @@ func newFuncorkerProcessExtracted(
 			return err
 		}
 
+		fact := op.Fact().Hash()
+
 		switch d, err := extractStateOwners(opindex, subv, addvs); {
 		case err != nil:
 			return err
@@ -523,13 +528,13 @@ func newFuncorkerProcessExtracted(
 					return nil
 				}
 
-				return distribute(worker, values)
+				return distribute(worker, opindex, fact, values)
 			}); err != nil {
 				return err
 			}
 		}
 
-		_ = mergeStateOp(opindex, op.Fact().Hash(), stateKeys)
+		_ = mergeStateOp(opindex, fact, stateKeys)
 
 		return nil
 	}
@@ -685,16 +690,16 @@ func workerProcessCloseStateMergers(
 }
 
 func newFuncDistributeStateMergeValues(
-	newFuncs func(workID, worker string) (
-		inErrorFunc[[]StateMergeValue],
+	newFuncs func(_ context.Context, local, workID, worker string) (
+		in3ErrorFunc[uint64 /* opindex */, util.Hash /* fact */, []StateMergeValue],
 		in2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	),
 ) workerDistributeStateMergeValuesFunc {
-	return func(workID string, workerSize uint64) (
-		workerStateMergeValuesFunc,
+	return func(ctx context.Context, local, workID string, workerSize uint64) (
+		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
-		func(),
+		errorFunc,
 		error,
 	) {
 		var pool util.LockedMap[string, [2]interface{}]
@@ -706,17 +711,17 @@ func newFuncDistributeStateMergeValues(
 			pool = i
 		}
 
-		return func(worker string, values []StateMergeValue) error {
-				var insert inErrorFunc[[]StateMergeValue]
+		return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				var insert in3ErrorFunc[uint64, util.Hash, []StateMergeValue]
 
 				if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
 					if found {
-						insert = i[0].(inErrorFunc[[]StateMergeValue])
+						insert = i[0].(in3ErrorFunc[uint64, util.Hash, []StateMergeValue])
 
 						return v, util.ErrLockedSetIgnore
 					}
 
-					switch s, o, err := newFuncs(workID, worker); {
+					switch s, o, err := newFuncs(ctx, local, workID, worker); {
 					case err != nil:
 						return v, err
 					default:
@@ -728,33 +733,48 @@ func newFuncDistributeStateMergeValues(
 					return err
 				}
 
-				return insert(values)
+				return insert(opindex, fact, values)
 			},
 			func(worker string, subws, affected []string) error {
 				var sendOwners in2ErrorFunc[[]string, []string]
 
-				if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
-					if found {
-						sendOwners = i[1].(in2ErrorFunc[[]string, []string])
+				if _, err := pool.Remove(
+					worker,
+					func(i [2]interface{}, found bool) error {
+						if found {
+							sendOwners = i[1].(in2ErrorFunc[[]string, []string])
 
-						return v, util.ErrLockedSetIgnore
-					}
+							return nil
+						}
 
-					switch s, o, err := newFuncs(workID, worker); {
-					case err != nil:
-						return v, err
-					default:
-						sendOwners = o
+						switch _, o, err := newFuncs(ctx, local, workID, worker); {
+						case err != nil:
+							return err
+						default:
+							sendOwners = o
 
-						return [2]interface{}{s, o}, nil
-					}
-				}); err != nil {
+							return nil
+						}
+					},
+				); err != nil {
 					return err
 				}
 
 				return sendOwners(subws, affected)
 			},
-			pool.Close,
+			func() error {
+				defer pool.Close()
+
+				_ = pool.Traverse(func(worker string, i [2]interface{}) bool {
+					sendOwners := i[1].(in2ErrorFunc[[]string, []string])
+
+					_ = sendOwners(nil, nil)
+
+					return true
+				})
+
+				return nil
+			},
 			nil
 	}
 }

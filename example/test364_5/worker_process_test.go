@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -53,14 +54,14 @@ func (t *testWorkerProcess) newf(
 	t.NoError(err)
 
 	defaultDistribute := newFuncDistributeStateMergeValues(
-		func(workID, worker string) (inErrorFunc[[]StateMergeValue], in2ErrorFunc[[]string, []string], error) {
-			return func(values []StateMergeValue) error {
-					t.println("worker distribute: worker=%q values=%d", worker, len(values))
+		func(_ context.Context, local, workID, worker string) (in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error) {
+			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+					t.println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
 					return nil
 				},
 				func(subws []string, affected []string) error {
-					t.println("worker distribute: worker=%q subs=%v affected=%v", worker, subws, affected)
+					t.println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
 					return nil
 				},
@@ -190,6 +191,18 @@ func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) inErrorFunc[opi
 	}
 }
 
+func (t *testWorkerProcess) newStateFunc() newStateFunc {
+	return func(stateKey string, v base.StateValue, ops []util.Hash) (base.State, error) {
+		return base.NewBaseState(
+			3,
+			stateKey,
+			v,
+			valuehash.NewBytes(v.HashBytes()),
+			ops,
+		), nil
+	}
+}
+
 func (t *testWorkerProcess) TestCancel() {
 	local := "w0"
 
@@ -216,15 +229,15 @@ func (t *testWorkerProcess) TestCancel() {
 		return func() error {
 				return insertOps(
 					func(string) []string { return workers },
-					func(string, uint64) (
-						workerStateMergeValuesFunc,
+					func(context.Context, string, string, uint64) (
+						workerDistributeWorkerStateMergeValuesFunc,
 						workerStateOwnersSetFunc,
-						func(),
+						errorFunc,
 						error,
 					) {
-						return func(string, []StateMergeValue) error { return nil },
+						return func(string, uint64, util.Hash, []StateMergeValue) error { return nil },
 							func(string, []string, []string) error { return nil },
-							func() {},
+							func() error { return nil },
 							nil
 					},
 					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
@@ -362,15 +375,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			func(stateKey string, v base.StateValue, ops []util.Hash) (base.State, error) {
-				return base.NewBaseState(
-					3,
-					stateKey,
-					v,
-					valuehash.NewBytes(v.HashBytes()),
-					ops,
-				), nil
-			},
+			t.newStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -450,15 +455,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			func(stateKey string, v base.StateValue, ops []util.Hash) (base.State, error) {
-				return base.NewBaseState(
-					3,
-					stateKey,
-					v,
-					valuehash.NewBytes(v.HashBytes()),
-					ops,
-				), nil
-			},
+			t.newStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -546,6 +543,382 @@ func (t *testWorkerProcess) TestLocal() {
 		}
 
 		t.Equal(len(ops), savedStates.Len())
+	})
+}
+
+func (t *testWorkerProcess) newProcessWorker(
+	ctx context.Context,
+	local string,
+	workers, opsWorkers []string,
+	opsShare, statesShare uint64,
+	workID string,
+) (
+	workerProcessInitialInsertFunc,
+	workerProcessWorkerInsertStateMergeValuesFunc,
+	workerUnmergedFunc,
+	workerProcessWaitFunc,
+) {
+	if slices.Index(workers, local) < 0 {
+		t.Fail("local not in workers")
+	}
+
+	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
+		ctx,
+		local,
+		newFuncNewJobWorkerFunc(1<<9),
+		func(string) (base.State, bool, error) { return nil, false, nil },
+		t.newStateFunc(),
+		1<<9,
+		workID,
+		workers, opsWorkers, opsShare, statesShare,
+		1<<9,
+	)
+	t.NoError(err)
+
+	return initial, insert, unmerged, wait
+}
+
+func (t *testWorkerProcess) newProcessWorkers(
+	ctx context.Context,
+	workers, opsWorkers []string,
+	opsShare, statesShare uint64,
+	ops []Operation,
+) {
+	traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+		if slices.Index(workers, worker) < 0 {
+			t.Fail("unknown op worker, %q", worker)
+		}
+
+		return true, nil
+	})
+
+	initials := map[string]workerProcessInitialInsertFunc{}
+	workerInserts := map[string]workerProcessWorkerInsertStateMergeValuesFunc{}
+	workerUnmerges := map[string]workerUnmergedFunc{}
+	workerWaits := map[string]workerProcessWaitFunc{}
+
+	traverseSlice(workers, func(_ int, local string) (bool, error) {
+		initials[local], workerInserts[local], workerUnmerges[local], workerWaits[local] = t.newProcessWorker(
+			ctx,
+			local, workers, opsWorkers,
+			opsShare, statesShare,
+			util.UUID().String(),
+		)
+
+		return true, nil
+	})
+
+	getOperation := t.newFuncGetOperation(ops)
+	getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
+	t.NoError(err)
+	defer stateOwnersClose()
+
+	distributeValues := newFuncDistributeStateMergeValues(
+		func(ctx context.Context, local, workID, worker string) (
+			in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error,
+		) {
+			insertch := make(chan [3]interface{}, 1<<9)
+
+			insertf := func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				insertch <- [3]interface{}{opindex, fact, values}
+
+				return nil
+			}
+
+			ownersch := make(chan [2][]string, 1<<9)
+
+			ownersf := func(subws, affected []string) error {
+				ownersch <- [2][]string{subws, affected}
+
+				return nil
+			}
+
+			go func() {
+				err := workerInserts[worker](
+					local,
+					func(
+						insert workerProcessInsertStateMergeValuesFunc,
+						owners in2ErrorFunc[[]string, []string],
+					) error {
+						wctx, wctxCancel, wctxWait := newContextDone(ctx)
+						defer wctxCancel(nil)
+
+						_, done, wait := newContextDone(wctx)
+
+						go func() {
+							for {
+								select {
+								case <-wctx.Done():
+									return
+								case i := <-insertch:
+									if i[0] == nil {
+										done(nil)
+
+										return
+									}
+
+									opindex := i[0].(uint64)
+									err := insert(
+										opindex,
+										i[1].(util.Hash),
+										i[2].([]StateMergeValue),
+									)
+									t.println("insert value: local=%q worker=%q opindex=%d err=%v", local, worker, opindex, err)
+
+									if err != nil {
+										done(err)
+
+										return
+									}
+								}
+							}
+						}()
+
+						go func() {
+							select {
+							case <-wctx.Done():
+							case i := <-ownersch:
+								insertch <- [3]interface{}{nil, nil, nil}
+
+								if err := wait(); err != nil {
+									wctxCancel(err)
+
+									return
+								}
+
+								err := wctxCancel(owners(i[0], i[1]))
+								t.println("insert owners: local=%q worker=%q sub=%v affected=%v err=%v", local, worker, i[0], i[1], err)
+							}
+						}()
+
+						return wctxWait()
+					},
+				)
+
+				t.println("insert values done: local=%q worker=%q err=%v", local, worker, err)
+			}()
+
+			return insertf, ownersf, nil
+		},
+	)
+
+	distributeValues = t.newFuncDistributeStateMergeValues(
+		func(worker string) workerProcessWorkerInsertStateMergeValuesFunc {
+			return workerInserts[worker]
+		},
+	)
+
+	go func() {
+		ophs := make([][2]util.Hash, len(ops))
+		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+			ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+
+			return true, nil
+		})
+
+		opWorkers, err := opsNShareWorker(opsWorkers, opsShare, ophs)
+		if err != nil {
+			panic(err)
+		}
+
+		var wg sync.WaitGroup
+
+		traverseSlice(opsWorkers, func(_ int, local string) (bool, error) {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				err := initials[local](
+					getStateOwners,
+					distributeValues,
+					getOperation,
+					func(f opindexHashFunc) error {
+						return opWorkers(local, f)
+					},
+					func(opindex uint64, op Operation) error {
+						return nil
+					},
+				)
+
+				t.println("initial: worker=%q err=%v", local, err)
+			}()
+
+			return true, nil
+		})
+
+		wg.Wait()
+	}()
+
+	var wg sync.WaitGroup
+
+	traverseSlice(workers, func(_ int, local string) (bool, error) {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := workerWaits[local](
+				func(opindex uint64, op Operation) bool { return true },
+				func(ctx context.Context, worker string, unmerged []uint64) error {
+					t.println("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
+
+					return workerUnmerges[worker](local, unmerged)
+				},
+				func(ctx context.Context, owners []string) error {
+					t.println("worker owners: local=%q owners=%v", local, owners)
+
+					return nil
+				},
+				func(
+					ctx context.Context,
+					unmerged []uint64,
+					reasons map[uint64]string,
+					f inErrorFunc[inErrorFunc[base.State]],
+				) error {
+					t.println("wait states: local=%q unmerged=%v reasons=%v", local, unmerged, reasons)
+
+					return f(func(st base.State) error {
+						t.println("\tstate: local=%q st=%q", local, st.Key())
+
+						return nil
+					})
+				},
+			)
+
+			t.println("wait done: worker=%q err=%v", local, err)
+		}()
+
+		return true, nil
+	})
+
+	wg.Wait()
+}
+
+func (t *testWorkerProcess) newFuncDistributeStateMergeValues(
+	getWorkerInserts func(worker string) workerProcessWorkerInsertStateMergeValuesFunc,
+) workerDistributeStateMergeValuesFunc {
+	return newFuncDistributeStateMergeValues(
+		func(ctx context.Context, local, workID, worker string) (
+			in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error,
+		) {
+			insertch := make(chan [3]interface{}, 1<<9)
+			ownersch := make(chan [2][]string, 1<<9)
+
+			wctx, wctxCancel, wctxWait := newContextDone(ctx)
+			ictx, idone, iwait := newContextDone(wctx)
+
+			insertf := func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				return contextCauseError(ictx, dummyErrorInFunc, func(context.Context) error {
+					insertch <- [3]interface{}{opindex, fact, values}
+
+					return nil
+				})
+			}
+
+			ownersf := func(subws, affected []string) error {
+				ownersch <- [2][]string{subws, affected}
+
+				return nil
+			}
+
+			go func() {
+				err := getWorkerInserts(worker)(
+					local,
+					func(
+						insert workerProcessInsertStateMergeValuesFunc,
+						owners in2ErrorFunc[[]string, []string],
+					) error {
+						defer wctxCancel(nil)
+
+						go func() {
+							for {
+								select {
+								case <-ictx.Done():
+									return
+								case i := <-insertch:
+									opindex := i[0].(uint64)
+									err := insert(
+										opindex,
+										i[1].(util.Hash),
+										i[2].([]StateMergeValue),
+									)
+
+									t.println("insert value: local=%q worker=%q opindex=%d err=%v", local, worker, opindex, err)
+
+									if err != nil {
+										idone(err)
+
+										return
+									}
+								}
+							}
+						}()
+
+						go func() {
+							select {
+							case <-wctx.Done():
+							case i := <-ownersch:
+								idone(nil)
+
+								if err := iwait(); err != nil {
+									wctxCancel(err)
+
+									return
+								}
+
+								err := wctxCancel(owners(i[0], i[1]))
+								t.println("insert owners: local=%q worker=%q sub=%v affected=%v err=%v", local, worker, i[0], i[1], err)
+							}
+						}()
+
+						return wctxWait()
+					},
+				)
+
+				t.println("insert values done: local=%q worker=%q err=%v", local, worker, err)
+			}()
+
+			return insertf, ownersf, nil
+		},
+	)
+}
+
+func (t *testWorkerProcess) TestWorkers() {
+	t.Run("local only", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		workers := t.workers(1)
+		ops := make([]Operation, 33)
+		for i := range ops {
+			ops[i] = t.randomAddOp(1)
+		}
+
+		t.newProcessWorkers(
+			ctx,
+			workers, workers,
+			1, 1,
+			ops,
+		)
+	})
+
+	t.Run("2 workers", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		workers := t.workers(2)
+		ops := make([]Operation, 33)
+		for i := range ops {
+			ops[i] = t.randomAddOp(1)
+		}
+
+		t.newProcessWorkers(
+			ctx,
+			workers, workers,
+			1, 1,
+			ops,
+		)
 	})
 }
 

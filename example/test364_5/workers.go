@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 )
 
 type (
+	workerOperationsFunc            = in2ErrorFunc[string /* worker */, opindexHashFunc]
 	minEnoughMaxFailedFunc          = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkEnoughFailedWorkerFunc     = func(worker string, _ func() error) (ok, enough, failed bool, _ error)
 	newCheckEnoughFailedWorkersFunc = func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
@@ -436,7 +438,7 @@ func newStateMergeValuesPool(poolSize uint64) (
 }
 
 func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc, func(), error) {
-	var f func(k string) []uint64
+	var f func(string) []uint64
 	var closef func()
 
 	switch i, c, err := distributeByCount[string](uint64(len(workers)), share); {
@@ -457,5 +459,99 @@ func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc,
 			return owners
 		},
 		closef,
+		nil
+}
+
+func opsNShareWorker(workers []string, share uint64, ophs [][2]util.Hash) (
+	workerOperationsFunc,
+	error,
+) {
+	var distribute in2ErrorFunc[uint64, inErrorFunc[uint64]]
+
+	switch i, err := newDistributeItemsSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
+	case err != nil:
+		return nil, err
+	default:
+		distribute = i
+	}
+
+	return func(worker string, f opindexHashFunc) error {
+			workerIndex := slices.Index(workers, worker)
+			if workerIndex < 0 {
+				return util.ErrNotFound.Errorf("unknown worker=%q", worker)
+			}
+
+			if f != nil {
+				return distribute(uint64(workerIndex), func(opindex uint64) error {
+					return f(opindex, ophs[opindex][0], ophs[opindex][1])
+				})
+			}
+
+			return nil
+		},
+		nil
+}
+
+func newDistributeItemsSerialNShare(workers, items, share uint64) (
+	in2ErrorFunc[uint64 /* worker */, inErrorFunc[uint64]],
+	error,
+) {
+	switch {
+	case workers < 1:
+		return nil, errors.Errorf("zero workers")
+	case items < 1:
+		return func(uint64, inErrorFunc[uint64]) error {
+			return nil
+		}, nil
+	case share < 1:
+		return nil, errors.Errorf("zero share")
+	case share > workers:
+		share = workers
+	}
+
+	pos := func(worker, item uint64) uint64 {
+		return uint64(math.Floor(
+			float64((workers*item)+worker) / float64(share),
+		))
+	}
+
+	var workerMaxItems func(uint64) uint64
+
+	{
+		total := items * share
+
+		i := uint64(math.Floor(float64(total) / float64(workers)))
+		j := total - (i * workers)
+
+		workerMaxItems = func(worker uint64) uint64 {
+			if worker >= j {
+				return i
+			}
+
+			return i + 1
+		}
+	}
+
+	return func(worker uint64, f inErrorFunc[uint64]) error {
+			switch {
+			case worker >= workers:
+				return util.ErrNotFound.Errorf("unknown worker=%d", worker)
+			case f == nil:
+				return nil
+			}
+
+			maxItems := workerMaxItems(worker)
+			if maxItems < 1 {
+				return nil
+			}
+
+			for item := uint64(0); item < maxItems; item++ {
+				if err := f(pos(worker, item)); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
 		nil
 }
