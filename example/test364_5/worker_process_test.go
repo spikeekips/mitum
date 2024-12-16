@@ -54,7 +54,7 @@ func (t *testWorkerProcess) newf(
 	t.NoError(err)
 
 	defaultDistribute := newFuncDistributeStateMergeValues(
-		func(_ context.Context, local, workID, worker string) (in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error) {
+		func(_ context.Context, local, workID, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
 			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
 					t.println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
@@ -251,19 +251,16 @@ func (t *testWorkerProcess) TestCancel() {
 						return true, nil
 					}
 
-					return true, insertValues(
-						worker,
-						func(
-							insert workerProcessInsertStateMergeValuesFunc,
-							owners in2ErrorFunc[[]string, []string],
-						) error {
-							if err := insert(0, valuehash.RandomSHA256(), t.randomMergeValues(1, 2, 3)); err != nil {
-								return err
-							}
+					insert, done, err := insertValues(worker)
+					if err != nil {
+						return false, err
+					}
 
-							return owners(workers, nil)
-						},
-					)
+					if err := insert(0, valuehash.RandomSHA256(), t.randomMergeValues(1, 2, 3)); err != nil {
+						return false, err
+					}
+
+					return true, done(workers, nil)
 				})
 			},
 			func() error {
@@ -451,7 +448,7 @@ func (t *testWorkerProcess) TestLocal() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		initial, insert, unmerge, wait, savedOps, savedStates := t.newf(
+		initial, insertf, unmerge, wait, savedOps, savedStates := t.newf(
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
@@ -459,45 +456,42 @@ func (t *testWorkerProcess) TestLocal() {
 			workers, workers, 1, 1,
 		)
 
-		t.NoError(initial(nil, nil, nil, nil, nil))
+		t.NoError(initial(nil, nil, nil, func(opindexHashFunc) error { return nil }, nil))
 
 		var calledBroadcastUnmerged bool
 		var reportedStateOwners atomic.Value
 		var reportedStates atomic.Value
 
 		traverseSlice(workers, func(_ int, worker string) (bool, error) {
-			return true, insert(
-				worker,
-				func(
-					f workerProcessInsertStateMergeValuesFunc,
-					g in2ErrorFunc[[]string, []string],
-				) error {
-					if err := traverseSlice(ops, func(i int, op Operation) (bool, error) {
-						subv, addvs, reason, err := op.StateMergeValues(ctx)
-						if err != nil {
-							panic(err)
-						}
+			insert, done, err := insertf(worker)
+			if err != nil {
+				return false, err
+			}
 
-						if reason != "" {
-							panic(fmt.Sprintf("not empty reason, %q", reason))
-						}
+			if err := traverseSlice(ops, func(i int, op Operation) (bool, error) {
+				subv, addvs, reason, err := op.StateMergeValues(ctx)
+				if err != nil {
+					panic(err)
+				}
 
-						var values []StateMergeValue
+				if reason != "" {
+					panic(fmt.Sprintf("not empty reason, %q", reason))
+				}
 
-						if subv != nil {
-							values = append(values, subv)
-						}
+				var values []StateMergeValue
 
-						values = append(values, addvs...)
+				if subv != nil {
+					values = append(values, subv)
+				}
 
-						return true, f(uint64(i), op.Fact().Hash(), values)
-					}); err != nil {
-						return err
-					}
+				values = append(values, addvs...)
 
-					return g(workers, workers)
-				},
-			)
+				return true, insert(uint64(i), op.Fact().Hash(), values)
+			}); err != nil {
+				return false, err
+			}
+
+			return true, done(workers, workers)
 		})
 
 		traverseSlice(workers, func(_ int, worker string) (bool, error) {
@@ -613,100 +607,13 @@ func (t *testWorkerProcess) newProcessWorkers(
 	t.NoError(err)
 	defer stateOwnersClose()
 
-	distributeValues := newFuncDistributeStateMergeValues(
-		func(ctx context.Context, local, workID, worker string) (
-			in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error,
-		) {
-			insertch := make(chan [3]interface{}, 1<<9)
-
-			insertf := func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-				insertch <- [3]interface{}{opindex, fact, values}
-
-				return nil
-			}
-
-			ownersch := make(chan [2][]string, 1<<9)
-
-			ownersf := func(subws, affected []string) error {
-				ownersch <- [2][]string{subws, affected}
-
-				return nil
-			}
-
-			go func() {
-				err := workerInserts[worker](
-					local,
-					func(
-						insert workerProcessInsertStateMergeValuesFunc,
-						owners in2ErrorFunc[[]string, []string],
-					) error {
-						wctx, wctxCancel, wctxWait := newContextDone(ctx)
-						defer wctxCancel(nil)
-
-						_, done, wait := newContextDone(wctx)
-
-						go func() {
-							for {
-								select {
-								case <-wctx.Done():
-									return
-								case i := <-insertch:
-									if i[0] == nil {
-										done(nil)
-
-										return
-									}
-
-									opindex := i[0].(uint64)
-									err := insert(
-										opindex,
-										i[1].(util.Hash),
-										i[2].([]StateMergeValue),
-									)
-									t.println("insert value: local=%q worker=%q opindex=%d err=%v", local, worker, opindex, err)
-
-									if err != nil {
-										done(err)
-
-										return
-									}
-								}
-							}
-						}()
-
-						go func() {
-							select {
-							case <-wctx.Done():
-							case i := <-ownersch:
-								insertch <- [3]interface{}{nil, nil, nil}
-
-								if err := wait(); err != nil {
-									wctxCancel(err)
-
-									return
-								}
-
-								err := wctxCancel(owners(i[0], i[1]))
-								t.println("insert owners: local=%q worker=%q sub=%v affected=%v err=%v", local, worker, i[0], i[1], err)
-							}
-						}()
-
-						return wctxWait()
-					},
-				)
-
-				t.println("insert values done: local=%q worker=%q err=%v", local, worker, err)
-			}()
-
-			return insertf, ownersf, nil
-		},
-	)
-
-	distributeValues = t.newFuncDistributeStateMergeValues(
-		func(worker string) workerProcessWorkerInsertStateMergeValuesFunc {
-			return workerInserts[worker]
-		},
-	)
+	distributeValues := newFuncDistributeStateMergeValues(func(_ context.Context, local, workID, worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		in2ErrorFunc[[]string, []string],
+		error,
+	) {
+		return workerInserts[worker](local)
+	})
 
 	go func() {
 		ophs := make([][2]util.Hash, len(ops))
@@ -793,95 +700,6 @@ func (t *testWorkerProcess) newProcessWorkers(
 	})
 
 	wg.Wait()
-}
-
-func (t *testWorkerProcess) newFuncDistributeStateMergeValues(
-	getWorkerInserts func(worker string) workerProcessWorkerInsertStateMergeValuesFunc,
-) workerDistributeStateMergeValuesFunc {
-	return newFuncDistributeStateMergeValues(
-		func(ctx context.Context, local, workID, worker string) (
-			in3ErrorFunc[uint64, util.Hash, []StateMergeValue], in2ErrorFunc[[]string, []string], error,
-		) {
-			insertch := make(chan [3]interface{}, 1<<9)
-			ownersch := make(chan [2][]string, 1<<9)
-
-			wctx, wctxCancel, wctxWait := newContextDone(ctx)
-			ictx, idone, iwait := newContextDone(wctx)
-
-			insertf := func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-				return contextCauseError(ictx, dummyErrorInFunc, func(context.Context) error {
-					insertch <- [3]interface{}{opindex, fact, values}
-
-					return nil
-				})
-			}
-
-			ownersf := func(subws, affected []string) error {
-				ownersch <- [2][]string{subws, affected}
-
-				return nil
-			}
-
-			go func() {
-				err := getWorkerInserts(worker)(
-					local,
-					func(
-						insert workerProcessInsertStateMergeValuesFunc,
-						owners in2ErrorFunc[[]string, []string],
-					) error {
-						defer wctxCancel(nil)
-
-						go func() {
-							for {
-								select {
-								case <-ictx.Done():
-									return
-								case i := <-insertch:
-									opindex := i[0].(uint64)
-									err := insert(
-										opindex,
-										i[1].(util.Hash),
-										i[2].([]StateMergeValue),
-									)
-
-									t.println("insert value: local=%q worker=%q opindex=%d err=%v", local, worker, opindex, err)
-
-									if err != nil {
-										idone(err)
-
-										return
-									}
-								}
-							}
-						}()
-
-						go func() {
-							select {
-							case <-wctx.Done():
-							case i := <-ownersch:
-								idone(nil)
-
-								if err := iwait(); err != nil {
-									wctxCancel(err)
-
-									return
-								}
-
-								err := wctxCancel(owners(i[0], i[1]))
-								t.println("insert owners: local=%q worker=%q sub=%v affected=%v err=%v", local, worker, i[0], i[1], err)
-							}
-						}()
-
-						return wctxWait()
-					},
-				)
-
-				t.println("insert values done: local=%q worker=%q err=%v", local, worker, err)
-			}()
-
-			return insertf, ownersf, nil
-		},
-	)
 }
 
 func (t *testWorkerProcess) TestWorkers() {

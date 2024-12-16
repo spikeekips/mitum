@@ -9,6 +9,7 @@ import (
 )
 
 type (
+	insertStateMergeValuesFunc           = func(opindex uint64, _ []StateMergeValue) error
 	workerInsertStateMergeValuesCallback = func(
 		insertStateMergeValuesFunc,
 		in2ErrorFunc[[]string /* sub */, []string /* affected */],
@@ -140,7 +141,7 @@ func newFuncWorker(
 	// FIXME insert ops
 	// FIXME stateMergeValues extractor if len(ops) > 0
 
-	insert := newFuncWorkerInsert(wctx, insertWorkerStateMergeValues, stateOwnersWorker)
+	insert := newFuncWorkerInsert(wctx, insertWorkerStateMergeValues, stateOwnersWorker) // FIXME remove
 
 	return insert,
 		workerUnmerged,
@@ -248,14 +249,14 @@ func newFuncWorkerInsert(
 			in2ErrorFunc[[]string, []string],
 		) error,
 	) error {
-		return insertWorker(
-			worker,
-			func(ivf insertStateMergeValuesFunc) error {
-				return f(ivf, func(subws, affected []string) error { // FIXME sub owners
-					return addStatesOwners(worker, subws, affected)
-				})
-			},
-		)
+		insert, insertDone, err := insertWorker(worker)
+		if err != nil {
+			return err
+		}
+
+		return insertDone(f(insert, func(subws, affected []string) error { // FIXME sub owners
+			return addStatesOwners(worker, subws, affected)
+		}))
 	}
 }
 

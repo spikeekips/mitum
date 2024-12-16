@@ -66,7 +66,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -77,7 +77,12 @@ func (t *testWorkerMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		err = insert(local, func(insertStateMergeValuesFunc) error { return nil })
+		insert, insertDone, err := insertf(local)
+		t.NoError(err)
+
+		err = insert(0, t.randomMergeValues(1))
+		t.ErrorIs(err, context.Canceled)
+		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		err = unmerge(opsWorkers[1], nil)
@@ -92,7 +97,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -105,7 +110,12 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel()
 
-		err = insert(local, func(insertStateMergeValuesFunc) error { return nil })
+		insert, insertDone, err := insertf(local)
+		t.NoError(err)
+
+		err = insert(0, t.randomMergeValues(1))
+		t.ErrorIs(err, context.Canceled)
+		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		err = unmerge(opsWorkers[1], nil)
@@ -116,30 +126,69 @@ func (t *testWorkerMerger) TestCancel() {
 	})
 
 	t.Run("before unmerge", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		t.Run("before insert done", func() {
+			ctx, cancel := context.WithCancel(context.Background())
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+			_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
-			ctx,
-			local,
-			newFuncNewJobWorkerFunc(1<<9),
-			getState,
-			getStateMergers,
-			1<<9, 1<<9, 1<<9,
-			opsWorkers, 1, 1,
-		)
-		t.NoError(err)
+			insertf, unmerge, wait, err := newFuncWorkerMerger(
+				ctx,
+				local,
+				newFuncNewJobWorkerFunc(1<<9),
+				getState,
+				getStateMergers,
+				1<<9, 1<<9, 1<<9,
+				opsWorkers, 1, 1,
+			)
+			t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
 
-		cancel()
+			t.NoError(insert(0, t.randomMergeValues(1)))
 
-		err = unmerge(opsWorkers[1], nil)
-		t.ErrorIs(err, context.Canceled)
+			cancel()
 
-		err = wait(nil, nil)
-		t.ErrorIs(err, context.Canceled)
+			err = insertDone(nil)
+			t.ErrorIs(err, context.Canceled)
+
+			err = unmerge(opsWorkers[1], nil)
+			t.ErrorIs(err, context.Canceled)
+
+			err = wait(nil, nil)
+			t.ErrorIs(err, context.Canceled)
+		})
+
+		t.Run("after insert done", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+
+			_, _, getState, getStateMergers, _ := t.newFuncs()
+
+			insertf, unmerge, wait, err := newFuncWorkerMerger(
+				ctx,
+				local,
+				newFuncNewJobWorkerFunc(1<<9),
+				getState,
+				getStateMergers,
+				1<<9, 1<<9, 1<<9,
+				opsWorkers, 1, 1,
+			)
+			t.NoError(err)
+
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
+
+			t.NoError(insert(0, t.randomMergeValues(1)))
+			t.NoError(insertDone(nil))
+
+			cancel()
+
+			err = unmerge(opsWorkers[1], nil)
+			t.ErrorIs(err, context.Canceled)
+
+			err = wait(nil, nil)
+			t.ErrorIs(err, context.Canceled)
+		})
 	})
 
 	t.Run("before wait", func() {
@@ -147,7 +196,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -158,7 +207,11 @@ func (t *testWorkerMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
+		insert, insertDone, err := insertf(local)
+		t.NoError(err)
+
+		t.NoError(insert(0, t.randomMergeValues(1)))
+		t.NoError(insertDone(nil))
 
 		t.NoError(unmerge(opsWorkers[1], nil))
 
@@ -209,7 +262,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, _, wait, err := newFuncWorkerMerger(
+		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -220,9 +273,12 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		err = insert(local, func(insertStateMergeValuesFunc) error {
-			return errors.Errorf("findme")
-		})
+		insert, insertDone, err := insertf(local)
+		t.NoError(err)
+
+		t.NoError(insert(0, t.randomMergeValues(1)))
+
+		err = insertDone(errors.Errorf("findme"))
 		t.ErrorContains(err, "findme")
 
 		err = wait(nil, nil)
@@ -235,7 +291,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -246,11 +302,13 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc) error { return nil }))
+		_, insertDone, err := insertf(local)
+		t.NoError(err)
+		t.NoError(insertDone(nil))
 
-		err = insert(opsWorkers[1], func(insertStateMergeValuesFunc) error {
-			return errors.Errorf("findme")
-		})
+		_, insertDone, err = insertf(opsWorkers[1])
+		t.NoError(err)
+		err = insertDone(errors.Errorf("findme"))
 		t.ErrorContains(err, "findme")
 
 		err = unmerge(opsWorkers[1], nil)
@@ -270,7 +328,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, _, wait, err := newFuncWorkerMerger(
+		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -281,9 +339,9 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(insertStateMergeValuesFunc) error {
-			return nil
-		}))
+		_, insertDone, err := insertf(local)
+		t.NoError(err)
+		t.NoError(insertDone(nil))
 
 		t.NoError(wait(
 			func(unmerged []uint64) ([]string, error) {
@@ -318,7 +376,7 @@ func (t *testWorkerMerger) TestInsert() {
 			values[i] = vs
 		}
 
-		insert, _, wait, err := newFuncWorkerMerger(
+		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -330,15 +388,18 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		t.NoError(insert(local, func(f insertStateMergeValuesFunc) error {
+		{
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
+
 			for i := range values {
-				if err := f(uint64(i), values[i]); err != nil {
-					return err
+				if err := insert(uint64(i), values[i]); err != nil {
+					panic(err)
 				}
 			}
 
-			return nil
-		}))
+			_ = insertDone(nil)
+		}
 
 		t.NoError(wait(
 			func(unmerged []uint64) ([]string, error) {
@@ -368,7 +429,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, _, wait, err := newFuncWorkerMerger(
+		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -381,9 +442,11 @@ func (t *testWorkerMerger) TestInsert() {
 
 		go func() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-				err := insert(worker, func(insertStateMergeValuesFunc) error {
-					return nil
-				})
+				_, insertDone, err := insertf(worker)
+				if err == nil {
+					err = insertDone(err)
+				}
+
 				t.println("insert worker: worker=%q err=%v", worker, err)
 
 				return true, nil
@@ -443,7 +506,7 @@ func (t *testWorkerMerger) TestInsert() {
 			}
 		}
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -458,15 +521,18 @@ func (t *testWorkerMerger) TestInsert() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				ops := workerValues[worker]
 
-				err := insert(worker, func(f insertStateMergeValuesFunc) error {
+				insert, insertDone, err := insertf(worker)
+
+				if err == nil {
 					for i := range ops {
-						if err := f(ops[i], values[i]); err != nil {
-							return err
+						if err = insert(ops[i], values[i]); err != nil {
+							break
 						}
 					}
 
-					return nil
-				})
+					err = insertDone(err)
+				}
+
 				t.println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 
 				return true, nil
@@ -515,7 +581,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
-		insert, unmerge, wait, err := newFuncWorkerMerger(
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -528,9 +594,11 @@ func (t *testWorkerMerger) TestInsert() {
 
 		go func() {
 			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-				err := insert(worker, func(insertStateMergeValuesFunc) error {
-					return nil
-				})
+				_, insertDone, err := insertf(worker)
+				if err == nil {
+					err = insertDone(nil)
+				}
+
 				t.println("insert worker: worker=%q err=%v", worker, err)
 
 				return true, nil
@@ -578,7 +646,7 @@ func (t *testWorkerMerger) TestInsert() {
 			values[i] = vs
 		}
 
-		insert, _, wait, err := newFuncWorkerMerger(
+		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			newFuncNewJobWorkerFunc(1<<9),
@@ -591,29 +659,37 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 
 		traverseSlice(unknowns, func(_ int, worker string) (bool, error) {
-			err := insert(worker, func(f insertStateMergeValuesFunc) error {
+			insert, insertDone, err := insertf(worker)
+
+			if insert != nil && err == nil {
 				for i := range values {
-					if err := f(uint64(i), values[i]); err != nil {
-						return err
+					if err = insert(uint64(i), values[i]); err != nil {
+						break
 					}
 				}
 
-				return nil
-			})
+				err = insertDone(err)
+			}
+
 			t.println("insert unknown worker: worker=%q err=%v", worker, err)
 
 			return true, nil
 		})
 
-		t.NoError(insert(local, func(f insertStateMergeValuesFunc) error {
-			for i := range values {
-				if err := f(uint64(i), values[i]); err != nil {
-					return err
-				}
-			}
+		{
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
 
-			return nil
-		}))
+			if err == nil {
+				for i := range values {
+					if err = insert(uint64(i), values[i]); err != nil {
+						break
+					}
+				}
+
+				t.NoError(insertDone(err))
+			}
+		}
 
 		t.NoError(wait(
 			func(unmerged []uint64) ([]string, error) {
@@ -780,16 +856,16 @@ func (t *testWorkerMerger) workerMergers(
 
 						opValues := workersValues[worker]
 
-						err := f(
-							worker,
-							func(f insertStateMergeValuesFunc) error {
-								return traverseMap(opValues, func(opindex uint64, vs []StateMergeValue) (bool, error) {
-									ops = append(ops, opindex)
+						insert, insertDone, err := f(worker)
+						if insert != nil && err == nil {
+							err = traverseMap(opValues, func(opindex uint64, vs []StateMergeValue) (bool, error) {
+								ops = append(ops, opindex)
 
-									return true, f(opindex, vs)
-								})
-							},
-						)
+								return true, insert(opindex, vs)
+							})
+
+							err = insertDone(err)
+						}
 
 						t.println("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
 
@@ -800,12 +876,10 @@ func (t *testWorkerMerger) workerMergers(
 									return true, nil
 								}
 
-								err := f(
-									worker,
-									func(insertStateMergeValuesFunc) error {
-										return nil
-									},
-								)
+								insert, insertDone, err := f(worker)
+								if insert != nil && err == nil {
+									err = insertDone(nil)
+								}
 
 								t.println("worker to other insert: worker=%q other=%q err=%v", worker, other, err)
 

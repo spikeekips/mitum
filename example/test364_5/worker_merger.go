@@ -9,10 +9,11 @@ import (
 )
 
 type (
-	workerMergerInsertStateMergeValuesFunc = func(
-		worker string,
-		_ func(insertStateMergeValuesFunc) error,
-	) error
+	workerMergerInsertStateMergeValuesFunc = func(worker string) (
+		insertStateMergeValuesFunc,
+		inErrorFunc[error],
+		error,
+	)
 	workerMergerCallback                 = func(unmerged []uint64, reasons map[uint64]string) error
 	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
@@ -160,21 +161,17 @@ func newFuncWorkerMerger(
 	)
 
 	if !localInOpsWorkers {
-		if err := insert(local, func(insertStateMergeValuesFunc) error {
-			return nil
-		}); err != nil {
+		switch _, d, err := insert(local); {
+		case err != nil:
 			return nil, nil, nil, err
+		case d != nil:
+			if err := d(nil); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 
-	return func(
-			worker string,
-			f func(insertStateMergeValuesFunc) error,
-		) error {
-			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
-				return insert(worker, f)
-			})
-		},
+	return insert,
 		func(worker string, unmerged []uint64) error {
 			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
 				return workerUnmergerUnmerged(worker, unmerged)
@@ -199,28 +196,40 @@ func newFuncWorkerMergerInsert(
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
 ) workerMergerInsertStateMergeValuesFunc {
-	return func(
-		worker string,
-		insert func(insertStateMergeValuesFunc) error,
-	) error {
+	return func(worker string) (
+		insertStateMergeValuesFunc,
+		inErrorFunc[error],
+		error,
+	) {
 		if !isOpsWorker(worker) {
-			return nil
+			return nil, nil, nil
 		}
 
-		return workerInsert(worker, func(f insertStateMergeValuesFunc) error {
-			return insert(
-				func(opindex uint64, values []StateMergeValue) error {
+		var insert inErrorFunc[uint64]
+		var done inErrorFunc[error]
+
+		switch i, d, err := workerInsert(worker); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			insert = i
+			done = d
+		}
+
+		return func(opindex uint64, values []StateMergeValue) error {
+				return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 					switch added, err := setStateMergeValues(opindex, values); {
 					case err != nil:
 						return err
-					case !added:
-						return nil
-					default:
-						return f(opindex, values)
+					case added:
+						return insert(opindex)
 					}
-				},
-			)
-		})
+
+					return nil
+				})
+			},
+			done,
+			nil
 	}
 }
 

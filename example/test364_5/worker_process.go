@@ -34,10 +34,11 @@ type (
 		workerProcessInsertStateMergeValuesFunc,
 		in2ErrorFunc[[]string /* sub */, []string /* affected */],
 	) error
-	workerProcessWorkerInsertStateMergeValuesFunc = func(
-		worker string,
-		_ workerProcessInsertStateMergeValuesCallback,
-	) error
+	workerProcessWorkerInsertStateMergeValuesFunc = func(worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		in2ErrorFunc[[]string /* sub */, []string /* affected */],
+		error,
+	)
 	workerProcessReportStates func(
 		context.Context,
 		[]uint64, /* unmerged */
@@ -333,24 +334,33 @@ func newFuncWorkerProcessStateValueMerger(
 				)
 			})
 		},
-		func(worker string, f workerProcessInsertStateMergeValuesCallback) error {
-			return workerInsertStateValues(
-				worker,
-				func(isf insertStateMergeValuesFunc) error {
-					return f(
-						func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-							if err := mergeStateOpFromValues(mergeStateOp, opindex, fact, nil, values); err != nil {
-								return err
-							}
+		func(worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			in2ErrorFunc[[]string, []string],
+			error,
+		) {
+			var insert insertStateMergeValuesFunc
+			var done inErrorFunc[error]
 
-							return isf(opindex, values)
-						},
-						func(subws, affected []string) error {
-							return workerStateOwnersSet(worker, subws, affected)
-						},
-					)
+			switch i, d, err := workerInsertStateValues(worker); {
+			case err != nil:
+				return nil, nil, err
+			default:
+				insert = i
+				done = d
+			}
+
+			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+					if err := mergeStateOpFromValues(mergeStateOp, opindex, fact, nil, values); err != nil {
+						return err
+					}
+
+					return insert(opindex, values)
 				},
-			)
+				func(subws, affected []string) error {
+					return done(workerStateOwnersSet(worker, subws, affected))
+				},
+				nil
 		},
 		workerUnmerged,
 		func(
@@ -438,30 +448,42 @@ func newFuncWorkerProcessInitialInsert(
 				distributeWorkerStateMergeValues, doneDistributeWorkerStateMergevalues = i, o
 			}
 
-			return workerInsertStateValues(
+			var insert insertStateMergeValuesFunc
+			var insertDone inErrorFunc[error]
+
+			switch i, d, err := workerInsertStateValues(local); {
+			case err != nil:
+				return err
+			default:
+				defer d(nil)
+
+				insert = i
+				insertDone = d
+			}
+
+			extracted := newFuncorkerProcessExtracted(
+				ctx,
 				local,
-				func(insertToMerger insertStateMergeValuesFunc) error {
-					extracted := newFuncorkerProcessExtracted(
-						ctx,
-						local,
-						saveOperation,
-						extractStateOwnersStateMergeValues,
-						distributeWorkerStateMergeValues,
-						mergeStateOp,
-						insertToMerger,
-					)
-
-					if err := insertOps(getOperation, insertOp, extracted); err != nil {
-						return err
-					}
-
-					return extractorWait(func(reasons map[uint64]string) error {
-						// FIXME report to manager
-
-						return doneExtractStateOwnersStateMergeValues(doneDistributeWorkerStateMergevalues)
-					})
-				},
+				saveOperation,
+				extractStateOwnersStateMergeValues,
+				distributeWorkerStateMergeValues,
+				mergeStateOp,
+				insert,
 			)
+
+			if err := insertOps(getOperation, insertOp, extracted); err != nil {
+				return err
+			}
+
+			return extractorWait(func(reasons map[uint64]string) error {
+				if err := insertDone(nil); err != nil {
+					return err
+				}
+
+				// FIXME report to manager
+
+				return doneExtractStateOwnersStateMergeValues(doneDistributeWorkerStateMergevalues)
+			})
 		},
 		nil
 }
@@ -691,7 +713,7 @@ func workerProcessCloseStateMergers(
 
 func newFuncDistributeStateMergeValues(
 	newFuncs func(_ context.Context, local, workID, worker string) (
-		in3ErrorFunc[uint64 /* opindex */, util.Hash /* fact */, []StateMergeValue],
+		workerProcessInsertStateMergeValuesFunc,
 		in2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	),
@@ -716,7 +738,7 @@ func newFuncDistributeStateMergeValues(
 
 				if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
 					if found {
-						insert = i[0].(in3ErrorFunc[uint64, util.Hash, []StateMergeValue])
+						insert = i[0].(workerProcessInsertStateMergeValuesFunc)
 
 						return v, util.ErrLockedSetIgnore
 					}

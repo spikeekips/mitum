@@ -113,7 +113,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		cancel()
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -124,9 +124,12 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		err = insert("w0", func(f insertStateMergeValuesFunc) error {
-			return f(0, t.randomMergeValues(1))
-		})
+		insert, insertDone, err := insertf("w0")
+		t.NoError(err)
+
+		err = insert(0)
+		t.ErrorIs(err, context.Canceled)
+		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		err = wait(nil)
@@ -138,7 +141,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -151,9 +154,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		cancel()
 
-		err = insert("w0", func(f insertStateMergeValuesFunc) error {
-			return f(0, t.randomMergeValues(1))
-		})
+		insert, insertDone, err := insertf("w0")
+		err = insert(0)
+		t.ErrorIs(err, context.Canceled)
+		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		err = wait(nil)
@@ -161,29 +165,63 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("after insert", func() {
-		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		t.Run("after insert", func() {
+			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.Background())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
-			ctx,
-			t.toCtxCancel(cancel),
-			getStateMergeValues,
-			getStateMergers,
-			newFuncCheckEnoughFailedWorkers,
-			newPhaseMerger,
-			1, 0,
-		)
-		t.NoError(err)
+			insertf, wait, err := newFuncWorkerPhaseMerger(
+				ctx,
+				t.toCtxCancel(cancel),
+				getStateMergeValues,
+				getStateMergers,
+				newFuncCheckEnoughFailedWorkers,
+				newPhaseMerger,
+				1, 0,
+			)
+			t.NoError(err)
 
-		t.NoError(insert("w0", func(f insertStateMergeValuesFunc) error {
-			return f(0, t.randomMergeValues(1))
-		}))
+			insert, insertDone, err := insertf("w0")
+			t.NoError(err)
 
-		cancel()
+			t.NoError(insert(0))
 
-		err = wait(nil)
-		t.ErrorIs(err, context.Canceled)
+			cancel()
+
+			err = insertDone(nil)
+			t.ErrorIs(err, context.Canceled)
+
+			err = wait(nil)
+			t.ErrorIs(err, context.Canceled)
+		})
+
+		t.Run("after insert done", func() {
+			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			insertf, wait, err := newFuncWorkerPhaseMerger(
+				ctx,
+				t.toCtxCancel(cancel),
+				getStateMergeValues,
+				getStateMergers,
+				newFuncCheckEnoughFailedWorkers,
+				newPhaseMerger,
+				1, 0,
+			)
+			t.NoError(err)
+
+			insert, insertDone, err := insertf("w0")
+			t.NoError(err)
+
+			t.NoError(insert(0))
+			t.NoError(insertDone(nil))
+
+			cancel()
+
+			err = wait(nil)
+			t.ErrorIs(err, context.Canceled)
+		})
 	})
 
 	t.Run("during insert", func() {
@@ -193,7 +231,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		workers := t.workers(2)
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -205,19 +243,20 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		t.NoError(err)
 
 		traverseSlice(workers, func(_ int, worker string) (bool, error) {
-			err := insert(worker, func(f insertStateMergeValuesFunc) error {
-				for i := range 3 {
-					if worker == workers[1] && i == 1 {
-						cancel()
-					}
+			insert, insertDone, err := insertf(worker)
 
-					err := f(uint64(i), t.randomMergeValues(2))
-
-					t.T().Logf("worker insert error: worker=%q opindex=%d err=%v", worker, i, err)
+			for i := range 3 {
+				if worker == workers[1] && i == 1 {
+					cancel()
 				}
 
-				return nil
-			})
+				err := insert(uint64(i))
+
+				t.T().Logf("worker insert error: worker=%q opindex=%d err=%v", worker, i, err)
+			}
+
+			err = insertDone(nil)
+
 			t.T().Logf("worker error: worker=%q err=%v", worker, err)
 
 			return true, nil
@@ -237,7 +276,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -249,10 +288,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := insert("w0", func(f insertStateMergeValuesFunc) error {
-				return nil
-			})
+			_, insertDone, err := insertf("w0")
 			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
 				panic(err)
 			}
 		}()
@@ -309,7 +350,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -321,18 +362,17 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := insert("w0", func(f insertStateMergeValuesFunc) error {
-				var gerr error
+			insert, insertDone, err := insertf("w0")
 
-				vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
-					gerr = f(opindex, vs)
-
-					return gerr == nil
-				})
-
-				return gerr
+			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+				return insert(opindex) == nil
 			})
+
 			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
 				panic(err)
 			}
 		}()
@@ -370,11 +410,8 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-		values := make([][]StateMergeValue, valuesPerWorker*len(workers))
-
-		for i := range values {
+		for i := range valuesPerWorker * len(workers) {
 			vs := t.randomMergeValues(3, 3, 3)
-			values[i] = vs
 
 			vp.SetValue(uint64(i), vs)
 		}
@@ -384,7 +421,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -398,19 +435,18 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.T().Log("insert values")
 		go func() {
 			_ = traverseSlice(workers, func(wi int, worker string) (bool, error) {
-				_ = insert(worker, func(f insertStateMergeValuesFunc) error {
-					for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
-						if err := f(uint64(i), values[i]); err != nil {
-							return err
-						}
-					}
+				insert, insertDone, err := insertf(worker)
+				if err != nil {
+					panic(err)
+				}
 
-					if worker == failedWorker {
-						return errors.Errorf("findme")
-					}
+				for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
+					_ = insert(uint64(i))
+				}
 
-					return nil
-				})
+				if worker == failedWorker {
+					_ = insertDone(errors.Errorf("findme"))
+				}
 
 				return true, nil
 			})
@@ -441,7 +477,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -454,9 +490,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		go func() {
 			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
-				return true, insert(worker, func(f insertStateMergeValuesFunc) error {
-					return nil
-				})
+				_, insertDone, err := insertf(worker)
+				if err != nil {
+					return false, err
+				}
+
+				return true, insertDone(nil)
 			})
 			if err != nil {
 				panic(err)
@@ -491,12 +530,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
-		values := make([][]StateMergeValue, valuesPerWorker*len(workers))
 		var expectedStateKeys []string
 
-		for i := range values {
+		for i := range valuesPerWorker * len(workers) {
 			vs := t.randomMergeValues(3, 3, 3)
-			values[i] = vs
 
 			vp.SetValue(uint64(i), vs)
 
@@ -518,7 +555,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
-		insert, wait, err := newFuncWorkerPhaseMerger(
+		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
 			t.toCtxCancel(cancel),
 			getStateMergeValues,
@@ -531,15 +568,18 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		go func() {
 			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
-				return true, insert(worker, func(f insertStateMergeValuesFunc) error {
-					for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
-						if err := f(uint64(i), values[i]); err != nil {
-							return err
-						}
-					}
+				insert, insertDone, err := insertf(worker)
+				if err != nil {
+					return false, err
+				}
 
-					return nil
-				})
+				for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
+					if err := insert(uint64(i)); err != nil {
+						return false, insertDone(err)
+					}
+				}
+
+				return true, insertDone(nil)
 			})
 			if err != nil {
 				panic(err)
