@@ -73,38 +73,32 @@ func newFuncWorkerPhaseMerger(
 	return func(worker string) (inErrorFunc[uint64], inErrorFunc[error], error) {
 			l := log.With().Str("worker", worker).Logger()
 
-			ictx, ictxCancel := contextWithCancelCause(ctx)
-
 			return func(opindex uint64) error {
-					return contextCauseError(ictx, ifErrErrorInFunc(ictxCancel), func(context.Context) error {
+					return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 						return phaseMergerMerge(opindex)
 					})
 				},
 				func(err error) error {
-					defer ictxCancel(err)
+					return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+						switch ok, enough, failed, err := checkWorker(worker, func() error { return err }); {
+						case failed:
+							l.Error().Err(err).Msg("insert; check workers: failed")
 
-					switch ok, enough, failed, err := checkWorker(worker, func() error {
-						return contextCauseError(ictx, dummyErrorInFunc, func(context.Context) error {
-							return ictxCancel(err)
-						})
-					}); {
-					case failed:
-						l.Error().Err(err).Msg("insert; check workers: failed")
+							return ctxCancel(workerInsertDone(err))
+						case err != nil: // NOTE ignore
+							l.Debug().Err(err).Msg("insert")
 
-						return ctxCancel(workerInsertDone(err))
-					case err != nil: // NOTE ignore
-						l.Debug().Err(err).Msg("insert")
+							return err
+						case !ok:
+							l.Debug().Msg("insert; check workers: not ok")
+						case enough:
+							l.Debug().Msg("insert; check workers: enough")
 
-						return err
-					case !ok:
-						l.Debug().Msg("insert; check workers: not ok")
-					case enough:
-						l.Debug().Msg("insert; check workers: enough")
+							_ = workerInsertDone(nil)
+						}
 
-						_ = workerInsertDone(nil)
-					}
-
-					return nil
+						return nil
+					})
 				},
 				nil
 		},

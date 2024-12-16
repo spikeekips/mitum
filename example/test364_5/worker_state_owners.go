@@ -12,10 +12,8 @@ import (
 type (
 	addOwnersFunc                          = func(owners []string)
 	workerStateMergeValuesFunc             = func(worker string, _ []StateMergeValue) error
-	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
-		func(workerStateMergeValuesFunc) error,
-		error,
-	)
+	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error
+
 	insertStateOwnerSetFunc       = func(subw string, affected []string) error
 	insertStateOwnersSetFunc      = func(subws, affected []string) error
 	workerStateOwnersSetFunc      = func(worker string, subws, affected []string) error
@@ -60,7 +58,7 @@ func newFuncWorkerStateOwners(
 			var localInsertValues extractStateOwnersStateMergeValuesFunc
 			var traverseOwnersSet inErrorFunc[workerStateOwnersSetFunc]
 
-			switch i, t, err := newFuncLocalExtractedStateOwners(ctx, maxWorkerSize, getStateOwners); {
+			switch i, t, err := newFuncLocalExtractedStateOwners(maxWorkerSize, getStateOwners); {
 			case err != nil:
 				return nil, nil, err
 			default:
@@ -98,12 +96,10 @@ func newFuncWorkerStateOwners(
 				).
 				Msg("worker owners inserted")
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				addSubStateOwners(subws)
-				addAffectedStateOwners(affected)
+			addSubStateOwners(subws)
+			addAffectedStateOwners(affected)
 
-				return nil
-			})
+			return nil
 		},
 		func(f insertStateOwnersSetFunc) error {
 			defer func() {
@@ -111,20 +107,18 @@ func newFuncWorkerStateOwners(
 				doneAffectedStateOwners(nil)
 			}()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				if f == nil {
-					return nil
-				}
+			if f == nil {
+				return nil
+			}
 
-				return doneSubStateOwners(func(subws []string) error {
-					return doneAffectedStateOwners(func(affected []string) error {
-						log.Debug().Dict("state_owners", zerolog.Dict().
-							Strs("sub", subws).
-							Strs("affected", affected),
-						).Msg("state owners")
+			return doneSubStateOwners(func(subws []string) error {
+				return doneAffectedStateOwners(func(affected []string) error {
+					log.Debug().Dict("state_owners", zerolog.Dict().
+						Strs("sub", subws).
+						Strs("affected", affected),
+					).Msg("state owners")
 
-						return f(subws, affected)
-					})
+					return f(subws, affected)
 				})
 			})
 		},
@@ -132,7 +126,6 @@ func newFuncWorkerStateOwners(
 }
 
 func newFuncLocalExtractedStateOwners(
-	ctx context.Context,
 	maxWorkerSize uint64,
 	getStateOwners getStateOwnersFunc,
 ) (
@@ -143,7 +136,7 @@ func newFuncLocalExtractedStateOwners(
 	var addOwnersSet insertStateOwnerSetFunc
 	var traverseWorkerOwnersSet inErrorFunc[workerStateOwnersSetFunc]
 
-	switch a, w, err := newFuncWorkerCollectStateOwnersSet(ctx, maxWorkerSize); {
+	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkerSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -151,56 +144,49 @@ func newFuncLocalExtractedStateOwners(
 		traverseWorkerOwnersSet = w
 	}
 
-	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) (
-			f func(workerStateMergeValuesFunc) error,
-			_ error,
-		) {
-			return f, contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				addValue, traverseValues := newFuncCollectWorkerStateMergeValues()
+	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error {
+			addValue, traverseValues := newFuncCollectWorkerStateMergeValues()
 
-				var subws []string
+			var subws []string
 
-				if subv != nil {
-					ws := getStateOwners(subv.Key())
-					subws = make([]string, len(ws))
+			if subv != nil {
+				ws := getStateOwners(subv.Key())
+				subws = make([]string, len(ws))
 
-					_ = traverseSlice(ws, func(i int, w string) (bool, error) {
-						addValue(w, subv)
+				_ = traverseSlice(ws, func(i int, w string) (bool, error) {
+					addValue(w, subv)
 
-						subws[i] = w
+					subws[i] = w
 
-						return true, nil
-					})
-				}
+					return true, nil
+				})
+			}
 
-				_ = traverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
-					adds := getStateOwners(value.Key())
+			_ = traverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
+				adds := getStateOwners(value.Key())
 
-					traverseSlice(subws, func(_ int, subw string) (bool, error) {
-						addOwnersSet(subw, adds)
-
-						return true, nil
-					})
-
-					_ = traverseSlice(adds, func(_ int, addw string) (bool, error) {
-						addValue(addw, value)
-
-						return true, nil
-					})
+				traverseSlice(subws, func(_ int, subw string) (bool, error) {
+					addOwnersSet(subw, adds)
 
 					return true, nil
 				})
 
-				f = traverseValues
+				_ = traverseSlice(adds, func(_ int, addw string) (bool, error) {
+					addValue(addw, value)
 
-				return nil
+					return true, nil
+				})
+
+				return true, nil
 			})
+
+			return traverseValues
 		},
 		traverseWorkerOwnersSet,
 		nil
 }
 
-func newFuncWorkerCollectStateOwnersSet(ctx context.Context, maxWorkerSize uint64) (
+func newFuncWorkerCollectStateOwnersSet(maxWorkerSize uint64) (
 	insertStateOwnerSetFunc,
 	inErrorFunc[workerStateOwnersSetFunc],
 	error,
@@ -245,51 +231,49 @@ func newFuncWorkerCollectStateOwnersSet(ctx context.Context, maxWorkerSize uint6
 	}
 
 	return func(subw string, affected []string) error {
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				if len(affected) < 1 {
-					return nil
-				}
-
-				add(msubs, subw, affected)
-
-				_ = traverseSlice(affected, func(_ int, worker string) (bool, error) {
-					add(maffected, worker, []string{subw})
-
-					return true, nil
-				})
-
+			if len(affected) < 1 {
 				return nil
+			}
+
+			add(msubs, subw, affected)
+
+			_ = traverseSlice(affected, func(_ int, worker string) (bool, error) {
+				add(maffected, worker, []string{subw})
+
+				return true, nil
 			})
+
+			return nil
 		},
-		func(f workerStateOwnersSetFunc) (gerr error) {
+		func(f workerStateOwnersSetFunc) error {
 			defer func() {
 				msubs.Close()
 				maffected.Close()
 			}()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				if f != nil {
-					_ = msubs.Traverse(func(worker string, i map[string]struct{}) bool {
-						var affected, subws []string
+			if f != nil {
+				var gerr error
 
-						if len(i) > 0 {
-							affected = slices.Collect(maps.Keys(i))
-							defer clear(affected)
-						}
+				_ = msubs.Traverse(func(worker string, i map[string]struct{}) bool {
+					var affected, subws []string
 
-						if i, found := maffected.Value(worker); found && len(i) > 0 {
-							subws = slices.Collect(maps.Keys(i))
-							defer clear(subws)
-						}
+					if len(i) > 0 {
+						affected = slices.Collect(maps.Keys(i))
+						defer clear(affected)
+					}
 
-						gerr = f(worker, subws, affected)
+					if i, found := maffected.Value(worker); found && len(i) > 0 {
+						subws = slices.Collect(maps.Keys(i))
+						defer clear(subws)
+					}
 
-						return gerr == nil
-					})
-				}
+					gerr = f(worker, subws, affected)
 
-				return gerr
-			})
+					return gerr == nil
+				})
+			}
+
+			return nil
 		},
 		nil
 }

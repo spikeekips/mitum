@@ -63,13 +63,11 @@ func newFuncPhaseJobWorker(
 			}
 
 			return newJob(func(ctx context.Context) error {
-				return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
-					if !jobIDFilter(jobID, phase) {
-						return nil
-					}
+				if !jobIDFilter(jobID, phase) {
+					return nil
+				}
 
-					return c(ctx, phase, nextPhaseNewJob)
-				})
+				return c(ctx, phase, nextPhaseNewJob)
 			})
 		},
 		jobDone,
@@ -81,13 +79,11 @@ func newFuncPhaseJobWorker(
 				jobIDClose()
 			}()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				if err := jobWait(); err != nil {
-					return err
-				}
+			if err := jobWait(); err != nil {
+				return err
+			}
 
-				return nextPhaseWait()
-			})
+			return nextPhaseWait()
 		},
 		nil
 }

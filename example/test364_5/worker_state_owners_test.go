@@ -35,134 +35,6 @@ func (t *testWorkerStateOwners) randomGetStateOwners() getStateOwnersFunc {
 	}
 }
 
-func (t *testWorkerStateOwners) TestCancel() {
-	local := "local"
-
-	t.Run("before local", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		cancel()
-
-		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		{
-			insert, traverse, err := insertf(t.randomGetStateOwners())
-			t.NoError(err)
-
-			_, err = insert(0, t.randomMergeValues(1)[0], t.randomMergeValues(1, 2))
-			t.ErrorIs(err, context.Canceled)
-
-			err = traverse(nil)
-			t.ErrorIs(err, context.Canceled)
-		}
-
-		err = add("w0", t.owners(3, "a"), t.owners(3, "b"))
-		t.ErrorIs(err, context.Canceled)
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("before local insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		{
-			insert, traverse, err := insertf(t.randomGetStateOwners())
-			t.NoError(err)
-
-			cancel()
-
-			_, err = insert(0, t.randomMergeValues(1)[0], t.randomMergeValues(1, 2))
-			t.ErrorIs(err, context.Canceled)
-
-			err = traverse(nil)
-			t.ErrorIs(err, context.Canceled)
-		}
-
-		err = add("w0", t.owners(3, "a"), t.owners(3, "b"))
-		t.ErrorIs(err, context.Canceled)
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("before local travese", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		{
-			insert, traverse, err := insertf(t.randomGetStateOwners())
-			t.NoError(err)
-
-			_, err = insert(0, t.randomMergeValues(1)[0], t.randomMergeValues(1, 2))
-			t.NoError(err)
-
-			cancel()
-
-			err = traverse(nil)
-			t.ErrorIs(err, context.Canceled)
-		}
-
-		err = add("w0", t.owners(3, "a"), t.owners(3, "b"))
-		t.ErrorIs(err, context.Canceled)
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("before add", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		cancel()
-
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		err = add("w0", t.owners(3, "a"), t.owners(3, "b"))
-		t.ErrorIs(err, context.Canceled)
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("during add", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		t.NoError(add("w0", t.owners(3, "a"), t.owners(3, "b")))
-
-		cancel()
-
-		err = add("w1", t.owners(3, "a"), t.owners(3, "b"))
-		t.ErrorIs(err, context.Canceled)
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-
-	t.Run("after add", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
-		t.NoError(err)
-
-		t.NoError(add("w0", t.owners(3, "a"), t.owners(3, "b")))
-
-		cancel()
-
-		err = done(nil)
-		t.ErrorIs(err, context.Canceled)
-	})
-}
-
 func (t *testWorkerStateOwners) TestInsert() {
 	local := "local"
 
@@ -217,12 +89,11 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 
 		for i := range 3 {
-			_, err = insert(
+			_ = insert(
 				uint64(i),
 				nil,
 				t.randomMergeValues(1, 2),
 			)
-			t.NoError(err)
 		}
 
 		var called int64
@@ -253,12 +124,11 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		for i := range 3 {
 			_, value := t.randomMergeValue(1)
-			_, err = insert(
+			_ = insert(
 				uint64(i),
 				value,
 				nil,
 			)
-			t.NoError(err)
 		}
 
 		var called int64
@@ -323,13 +193,13 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 
 		t.NoError(traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
-			_, err = insert(
+			_ = insert(
 				uint64(i),
 				v[0].(StateMergeValue),
 				v[1].([]StateMergeValue),
 			)
 
-			return err == nil, err
+			return true, nil
 		}))
 
 		t.NoError(traverse(func(worker string, subws, affected []string) error {
@@ -460,9 +330,9 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 
 		t.NoError(traverseSlice(values, func(i int, v [2][]StateMergeValue) (bool, error) {
-			_, err = insert(uint64(i), v[0][0], v[1])
+			_ = insert(uint64(i), v[0][0], v[1])
 
-			return err == nil, err
+			return true, nil
 		}))
 
 		t.NoError(traverse(func(worker string, subws, affected []string) error {
@@ -538,13 +408,13 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 
 		t.NoError(traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
-			_, err = insert(
+			_ = insert(
 				uint64(i),
 				v[0].(StateMergeValue),
 				v[1].([]StateMergeValue),
 			)
 
-			return err == nil, err
+			return true, nil
 		}))
 
 		err = traverse(func(worker string, subws, affected []string) error {

@@ -88,17 +88,15 @@ func newFuncStateMergeValueExtractor(
 				reasons.Close()
 			}()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				if err := jobWait(); err != nil {
-					return err
-				}
+			if err := jobWait(); err != nil {
+				return err
+			}
 
-				if f != nil {
-					return f(reasons.Map())
-				}
+			if f != nil {
+				return f(reasons.Map())
+			}
 
-				return nil
-			})
+			return nil
 		},
 		nil
 }

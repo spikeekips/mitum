@@ -182,56 +182,54 @@ func newFuncWorkerProcess(
 				savedOps.Close()
 			}()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
-				if err := wait(
-					func(unmerged []uint64, subws, affected []string) error {
-						log.Debug().
-							Dict("owners", zerolog.Dict().
-								Strs("sub", subws).
-								Strs("affected", affected),
-							).Msg("state owners")
+			if err := wait(
+				func(unmerged []uint64, subws, affected []string) error {
+					log.Debug().
+						Dict("owners", zerolog.Dict().
+							Strs("sub", subws).
+							Strs("affected", affected),
+						).Msg("state owners")
 
-						return funcsJobWorker(
+					return funcsJobWorker(
+						ctx,
+						func(ctx context.Context) error {
+							s := slices.Concat(subws, affected)
+							slices.Sort(s)
+							s = slices.Compact(s)
+
+							defer clear(s)
+
+							return reportStateOwners(ctx, s)
+						},
+						func(ctx context.Context) error {
+							return workersBroadcastUnmerged(ctx, local, affected, unmerged, broacastUnmerged)
+						},
+					)
+				},
+				func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
+					return reportStates(ctx, unmerged, reasons, func(f inErrorFunc[base.State]) error {
+						return workerProcessCloseStateMergers(
 							ctx,
-							func(ctx context.Context) error {
-								s := slices.Concat(subws, affected)
-								slices.Sort(s)
-								s = slices.Compact(s)
-
-								defer clear(s)
-
-								return reportStateOwners(ctx, s)
-							},
-							func(ctx context.Context) error {
-								return workersBroadcastUnmerged(ctx, local, affected, unmerged, broacastUnmerged)
-							},
+							newState,
+							traverseStateMergers,
+							traverseStateOps,
+							func(st base.State) error { return f(st) },
 						)
-					},
-					func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
-						return reportStates(ctx, unmerged, reasons, func(f inErrorFunc[base.State]) error {
-							return workerProcessCloseStateMergers(
-								ctx,
-								newState,
-								traverseStateMergers,
-								traverseStateOps,
-								func(st base.State) error { return f(st) },
-							)
-						})
-					},
-				); err != nil {
-					log.Error().Err(err).Msg("wait done")
+					})
+				},
+			); err != nil {
+				log.Error().Err(err).Msg("wait done")
 
-					return err
-				}
+				return err
+			}
 
-				if traverseOperations != nil {
-					_ = savedOps.Traverse(traverseOperations)
-				}
+			if traverseOperations != nil {
+				_ = savedOps.Traverse(traverseOperations)
+			}
 
-				log.Debug().Msg("wait done")
+			log.Debug().Msg("wait done")
 
-				return nil
-			})
+			return nil
 		},
 		nil
 }
@@ -324,15 +322,13 @@ func newFuncWorkerProcessStateValueMerger(
 			insertOp inErrorFunc[opindexHashFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
 		) error {
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-				return initialInsert(
-					getStateOwners,
-					distribute,
-					getOperation,
-					insertOp,
-					saveOperation,
-				)
-			})
+			return initialInsert(
+				getStateOwners,
+				distribute,
+				getOperation,
+				insertOp,
+				saveOperation,
+			)
 		},
 		func(worker string) (
 			workerProcessInsertStateMergeValuesFunc,
@@ -541,19 +537,14 @@ func newFuncorkerProcessExtracted(
 
 		fact := op.Fact().Hash()
 
-		switch d, err := extractStateOwners(opindex, subv, addvs); {
-		case err != nil:
-			return err
-		default:
-			if err := d(func(worker string, values []StateMergeValue) error {
-				if worker == local {
-					return nil
-				}
-
-				return distribute(worker, opindex, fact, values)
-			}); err != nil {
-				return err
+		if err := extractStateOwners(opindex, subv, addvs)(func(worker string, values []StateMergeValue) error {
+			if worker == local {
+				return nil
 			}
+
+			return distribute(worker, opindex, fact, values)
+		}); err != nil {
+			return err
 		}
 
 		_ = mergeStateOp(opindex, fact, stateKeys)
