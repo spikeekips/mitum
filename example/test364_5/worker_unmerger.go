@@ -70,6 +70,12 @@ func newFuncWorkerUnmerger(
 			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
+				if worker == managerName {
+					l.Debug().Msg("manager done")
+
+					return workerPhaseDone(nil)
+				}
+
 				switch ok, enough, failed, err := workerUnmerge(worker, unmerged); {
 				case failed:
 					l.Error().Err(err).Msg("worker phase done; failed")

@@ -613,6 +613,242 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	})
 }
 
+func (t *testWorkerPhaseMerger) TestManagerWorker() {
+	t.Run("only manager", func() {
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		insertf, wait, err := newFuncWorkerPhaseMerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			getStateMergeValues,
+			getStateMergers,
+			newFuncCheckEnoughFailedWorkers,
+			newPhaseMerger,
+			1, 0,
+		)
+		t.NoError(err)
+
+		go func() {
+			_, insertDone, err := insertf(managerName)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
+			t.Empty(unmerged)
+			t.Empty(reasons)
+
+			return nil
+		}))
+
+		{
+			t.T().Log("check mergers")
+
+			var called int64
+
+			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+				atomic.AddInt64(&called, 1)
+
+				return true
+			}))
+
+			t.Equal(int64(0), atomic.LoadInt64(&called))
+		}
+	})
+
+	t.Run("1 worker enough and then manager", func() {
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+
+		values := make([][]StateMergeValue, 33)
+		var expectedStateKeys []string
+
+		for i := range values {
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+
+			vp.SetValue(uint64(i), vs)
+
+			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				if err != nil {
+					return false, err
+				}
+
+				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+
+				return true, nil
+			})
+		}
+		slices.Sort(expectedStateKeys)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		insertf, wait, err := newFuncWorkerPhaseMerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			getStateMergeValues,
+			getStateMergers,
+			newFuncCheckEnoughFailedWorkers,
+			newPhaseMerger,
+			1, 0,
+		)
+		t.NoError(err)
+
+		go func() {
+			insert, insertDone, err := insertf("w0")
+			if err != nil {
+				panic(err)
+			}
+
+			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+				return insert(opindex) == nil
+			})
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+
+			_, insertDone, err = insertf(managerName)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
+			t.Empty(unmerged)
+			t.Empty(reasons)
+
+			return nil
+		}))
+
+		{
+			t.T().Log("check mergers")
+
+			var stateKeys []string
+
+			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+				stateKeys = append(stateKeys, stateKey)
+
+				t.Equal(int64(3), v.Balance)
+
+				return true
+			}))
+
+			slices.Sort(stateKeys)
+
+			t.Equal(expectedStateKeys, stateKeys)
+		}
+	})
+
+	t.Run("1 worker not enough and then manager", func() {
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+
+		values := make([][]StateMergeValue, 33)
+		var expectedStateKeys []string
+
+		for i := range values {
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+
+			vp.SetValue(uint64(i), vs)
+
+			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				if err != nil {
+					return false, err
+				}
+
+				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+
+				return true, nil
+			})
+		}
+		slices.Sort(expectedStateKeys)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+
+		insertf, wait, err := newFuncWorkerPhaseMerger(
+			ctx,
+			t.toCtxCancel(cancel),
+			getStateMergeValues,
+			getStateMergers,
+			newFuncCheckEnoughFailedWorkers,
+			newPhaseMerger,
+			2, 0,
+		)
+		t.NoError(err)
+
+		go func() {
+			insert, insertDone, err := insertf("w0")
+			if err != nil {
+				panic(err)
+			}
+
+			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+				return insert(opindex) == nil
+			})
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+
+			_, insertDone, err = insertf(managerName)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
+			t.Empty(unmerged)
+			t.Empty(reasons)
+
+			return nil
+		}))
+
+		{
+			t.T().Log("check mergers")
+
+			var stateKeys []string
+
+			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+				stateKeys = append(stateKeys, stateKey)
+
+				t.Equal(int64(3), v.Balance)
+
+				return true
+			}))
+
+			slices.Sort(stateKeys)
+
+			t.Equal(expectedStateKeys, stateKeys)
+		}
+	})
+}
+
 func TestWorkerPhaseMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

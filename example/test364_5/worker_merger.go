@@ -139,6 +139,12 @@ func newFuncWorkerMerger(
 		workerUnmergerUnmerged, workerUnmergerLocalReady, workerUnmergerWait = u, s, w
 	}
 
+	unmerge := func(worker string, unmerged []uint64) error {
+		return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
+			return workerUnmergerUnmerged(worker, unmerged)
+		})
+	}
+
 	insert := newFuncWorkerMergerInsert(
 		wctx,
 		func(worker string) bool {
@@ -150,6 +156,7 @@ func newFuncWorkerMerger(
 		},
 		workerPhaseMergerWorkerInsert,
 		setStateMergeValues,
+		unmerge,
 	)
 
 	wait := newFuncWorkerMergerWait(
@@ -171,12 +178,7 @@ func newFuncWorkerMerger(
 		}
 	}
 
-	return insert,
-		func(worker string, unmerged []uint64) error {
-			return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
-				return workerUnmergerUnmerged(worker, unmerged)
-			})
-		},
+	return insert, unmerge,
 		func(localDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 			defer func() {
 				stateMergeValuesPoolClose()
@@ -195,13 +197,16 @@ func newFuncWorkerMergerInsert(
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerStateMergeValuesFunc,
 	setStateMergeValues opindexSetStateMergeValuesFunc,
+	unmerge workerUnmergedFunc,
 ) workerMergerInsertStateMergeValuesFunc {
 	return func(worker string) (
 		insertStateMergeValuesFunc,
 		inErrorFunc[error],
 		error,
 	) {
-		if !isOpsWorker(worker) {
+		switch {
+		case worker == managerName:
+		case !isOpsWorker(worker):
 			return nil, nil, nil
 		}
 
@@ -216,20 +221,33 @@ func newFuncWorkerMergerInsert(
 			done = d
 		}
 
-		return func(opindex uint64, values []StateMergeValue) error {
-				return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
-					switch added, err := setStateMergeValues(opindex, values); {
-					case err != nil:
+		f := func(opindex uint64, values []StateMergeValue) error {
+			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+				switch added, err := setStateMergeValues(opindex, values); {
+				case err != nil:
+					return err
+				case added:
+					return insert(opindex)
+				}
+
+				return nil
+			})
+		}
+
+		if worker == managerName {
+			return f, func(err error) error {
+					gerr := done(err)
+
+					if err := unmerge(worker, nil); err != nil {
 						return err
-					case added:
-						return insert(opindex)
 					}
 
-					return nil
-				})
-			},
-			done,
-			nil
+					return gerr
+				},
+				nil
+		}
+
+		return f, done, nil
 	}
 }
 

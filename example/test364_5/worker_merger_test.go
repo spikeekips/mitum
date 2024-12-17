@@ -1460,6 +1460,406 @@ func (t *testWorkerMerger) TestSubs() {
 	})
 }
 
+func (t *testWorkerMerger) TestWorkerManager() {
+	local := "w0"
+
+	t.Run("1 worker and then manager", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		opsWorkers := []string{local}
+
+		_, _, getState, getStateMergers, _ := t.newFuncs()
+
+		values := make([][]StateMergeValue, 33)
+		for i := range values {
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+		}
+
+		insertf, _, wait, err := newFuncWorkerMerger(
+			ctx,
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			getState,
+			getStateMergers,
+			1<<9,
+			1<<9, 1<<9,
+			opsWorkers, 1, 1,
+		)
+		t.NoError(err)
+
+		{
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
+
+			for i := range values {
+				if err := insert(uint64(i), values[i]); err != nil {
+					panic(err)
+				}
+			}
+
+			_ = insertDone(nil)
+
+			_, insertDone, err = insertf(managerName)
+			t.NoError(err)
+
+			_ = insertDone(nil)
+		}
+
+		t.NoError(wait(
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
+
+				t.Empty(unmerged)
+
+				return []string{local}, nil
+			},
+			func(unmerged []uint64, reasons map[uint64]string) error {
+				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+
+				t.Empty(unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("manager before 1 worker", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		opsWorkers := []string{local}
+
+		_, _, getState, getStateMergers, _ := t.newFuncs()
+
+		values := make([][]StateMergeValue, 33)
+		for i := range values {
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+		}
+
+		insertf, _, wait, err := newFuncWorkerMerger(
+			ctx,
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			getState,
+			getStateMergers,
+			1<<9,
+			1<<9, 1<<9,
+			opsWorkers, 1, 1,
+		)
+		t.NoError(err)
+
+		{
+			_, insertDone, err := insertf(managerName)
+			t.NoError(err)
+
+			_ = insertDone(nil)
+
+			insert, insertDone, err := insertf(local)
+			t.NoError(err)
+
+			for i := range values {
+				if err := insert(uint64(i), values[i]); err != nil {
+					panic(err)
+				}
+			}
+
+			_ = insertDone(nil)
+		}
+
+		t.NoError(wait(
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
+
+				t.Empty(unmerged)
+
+				return []string{local}, nil
+			},
+			func(unmerged []uint64, reasons map[uint64]string) error {
+				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+
+				t.Empty(unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("empty values; 2 worker and then manager", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		opsWorkers := []string{local, "w0"}
+
+		_, _, getState, getStateMergers, _ := t.newFuncs()
+
+		insertf, _, wait, err := newFuncWorkerMerger(
+			ctx,
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			getState,
+			getStateMergers,
+			1<<9, 1<<9, 1<<9,
+			opsWorkers, 1, 1,
+		)
+		t.NoError(err)
+
+		_, insertDone, err := insertf(local)
+		t.NoError(err)
+		t.NoError(insertDone(nil))
+
+		_, insertDone, err = insertf(managerName)
+		t.NoError(err)
+		t.NoError(insertDone(nil))
+
+		t.NoError(wait(
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
+
+				t.Empty(unmerged)
+
+				return nil, nil
+			},
+			func(unmerged []uint64, reasons map[uint64]string) error {
+				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+
+				t.Empty(unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("over workers and manager before unmerge", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		opsWorkers := t.workers(4)
+		local = opsWorkers[0]
+		valuesPerWorker := 3
+
+		_, _, getState, getStateMergers, _ := t.newFuncs()
+
+		workerValues := map[string][]uint64{}
+		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
+
+		var expectedUnmerged []uint64
+
+		for i := range values {
+			opindex := uint64(i)
+
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+
+			l := len(opsWorkers)
+
+			worker := opsWorkers[i%l]
+
+			wv := workerValues[worker]
+			wv = append(wv, opindex)
+			workerValues[worker] = wv
+
+			if worker != local {
+				expectedUnmerged = append(expectedUnmerged, opindex)
+			}
+		}
+
+		overWorkers := slices.Clone(opsWorkers)
+		overWorkers = append(overWorkers, "o0", "o1")
+
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
+			ctx,
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			getState,
+			getStateMergers,
+			1<<9, 1<<9, 1<<9,
+			overWorkers, 1, 1,
+		)
+		t.NoError(err)
+
+		go func() {
+			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				ops := workerValues[worker]
+
+				insert, insertDone, err := insertf(worker)
+
+				if err == nil {
+					for i := range ops {
+						if err = insert(ops[i], values[i]); err != nil {
+							break
+						}
+					}
+
+					err = insertDone(err)
+				}
+
+				t.println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+
+				return true, nil
+			})
+
+			_, insertDone, err := insertf(managerName)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+
+			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				if worker == local {
+					return true, nil
+				}
+
+				ops := workerValues[worker]
+
+				err := unmerge(worker, ops)
+				t.println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
+
+				return true, nil
+			})
+		}()
+
+		t.NoError(wait(
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
+
+				t.Empty(unmerged)
+
+				return opsWorkers, nil
+			},
+			func(unmerged []uint64, reasons map[uint64]string) error {
+				slices.Sort(unmerged)
+				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+
+				t.Equal(expectedUnmerged, unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("over workers and manager", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		opsWorkers := t.workers(4)
+		local = opsWorkers[0]
+		valuesPerWorker := 3
+
+		_, _, getState, getStateMergers, _ := t.newFuncs()
+
+		workerValues := map[string][]uint64{}
+		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
+
+		var expectedUnmerged []uint64
+
+		for i := range values {
+			opindex := uint64(i)
+
+			vs := t.randomMergeValues(3, 3, 3)
+			values[i] = vs
+
+			l := len(opsWorkers)
+
+			worker := opsWorkers[i%l]
+
+			wv := workerValues[worker]
+			wv = append(wv, opindex)
+			workerValues[worker] = wv
+
+			if worker != local {
+				expectedUnmerged = append(expectedUnmerged, opindex)
+			}
+		}
+
+		overWorkers := slices.Clone(opsWorkers)
+		overWorkers = append(overWorkers, "o0", "o1")
+
+		insertf, unmerge, wait, err := newFuncWorkerMerger(
+			ctx,
+			local,
+			newFuncNewJobWorkerFunc(1<<9),
+			getState,
+			getStateMergers,
+			1<<9, 1<<9, 1<<9,
+			overWorkers, 1, 1,
+		)
+		t.NoError(err)
+
+		go func() {
+			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				ops := workerValues[worker]
+
+				insert, insertDone, err := insertf(worker)
+
+				if err == nil {
+					for i := range ops {
+						if err = insert(ops[i], values[i]); err != nil {
+							break
+						}
+					}
+
+					err = insertDone(err)
+				}
+
+				t.println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+
+				return true, nil
+			})
+
+			traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				if worker == local {
+					return true, nil
+				}
+
+				ops := workerValues[worker]
+
+				err := unmerge(worker, ops)
+				t.println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
+
+				return true, nil
+			})
+
+			_, insertDone, err := insertf(managerName)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := insertDone(nil); err != nil {
+				panic(err)
+			}
+		}()
+
+		t.NoError(wait(
+			func(unmerged []uint64) ([]string, error) {
+				t.T().Logf("local phase done: unmerged=%v", unmerged)
+
+				t.Empty(unmerged)
+
+				return opsWorkers, nil
+			},
+			func(unmerged []uint64, reasons map[uint64]string) error {
+				slices.Sort(unmerged)
+				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+
+				t.Equal(expectedUnmerged, unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+	})
+}
+
 func TestWorkerMerger(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

@@ -80,6 +80,12 @@ func newFuncWorkerPhaseMerger(
 				},
 				func(err error) error {
 					return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+						if worker == managerName {
+							l.Debug().Msg("manager done")
+
+							return ifErrErrorInFunc(ctxCancel)(workerInsertDone(err))
+						}
+
 						switch ok, enough, failed, err := checkWorker(worker, func() error { return err }); {
 						case failed:
 							l.Error().Err(err).Msg("insert; check workers: failed")

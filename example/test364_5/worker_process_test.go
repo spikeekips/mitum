@@ -383,7 +383,6 @@ func (t *testWorkerProcess) TestLocal() {
 		))
 
 		var calledBroadcastUnmerged bool
-		var reportedStateOwners atomic.Value
 		var reportedStates atomic.Value
 
 		t.NoError(wait(
@@ -394,7 +393,7 @@ func (t *testWorkerProcess) TestLocal() {
 				return nil
 			},
 			func(_ context.Context, owners []string) error {
-				reportedStateOwners.Store(slices.Clone(owners))
+				t.Empty(owners)
 
 				return nil
 			},
@@ -416,7 +415,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.False(calledBroadcastUnmerged)
 
 		t.Equal(len(ops), savedOps.Len())
-		t.Empty(reportedStateOwners.Load().([]string))
 
 		{
 			reported := reportedStates.Load().([2]interface{})
@@ -537,6 +535,118 @@ func (t *testWorkerProcess) TestLocal() {
 		}
 
 		t.Equal(len(ops), savedStates.Len())
+	})
+}
+
+func (t *testWorkerProcess) TestWorkerManager() {
+	t.Run("insert and then manager", func() {
+		local := "local"
+		workers := []string{local, "w0"}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		initial, insertf, _, wait, savedOps, savedStates := t.newf(
+			ctx,
+			local,
+			func(string) (base.State, bool, error) { return nil, false, nil },
+			t.newStateFunc(),
+			workers, workers, 1, 1,
+		)
+
+		go func() {
+			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
+
+			_, insertDone, err := insertf(managerName)
+			t.NoError(err)
+			t.NoError(insertDone(nil, nil))
+		}()
+
+		var calledBroadcastUnmerged bool
+
+		t.NoError(wait(
+			nil,
+			func(_ context.Context, worker string, unmerged []uint64) error {
+				calledBroadcastUnmerged = true
+
+				return nil
+			},
+			func(_ context.Context, owners []string) error {
+				t.Empty(owners)
+
+				return nil
+			},
+			func(
+				_ context.Context,
+				unmerged []uint64,
+				reasons map[uint64]string,
+				states inErrorFunc[inErrorFunc[base.State]],
+			) error {
+				t.Empty(unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+
+		t.False(calledBroadcastUnmerged)
+		t.Equal(0, savedOps.Len())
+		t.Equal(0, savedStates.Len())
+	})
+
+	t.Run("manager and then insert", func() {
+		local := "local"
+		workers := []string{local, "w0"}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		initial, insertf, _, wait, savedOps, savedStates := t.newf(
+			ctx,
+			local,
+			func(string) (base.State, bool, error) { return nil, false, nil },
+			t.newStateFunc(),
+			workers, workers, 1, 1,
+		)
+
+		go func() {
+			_, insertDone, err := insertf(managerName)
+			t.NoError(err)
+			t.NoError(insertDone(nil, nil))
+
+			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
+		}()
+
+		var calledBroadcastUnmerged bool
+
+		t.NoError(wait(
+			nil,
+			func(_ context.Context, worker string, unmerged []uint64) error {
+				calledBroadcastUnmerged = true
+
+				return nil
+			},
+			func(_ context.Context, owners []string) error {
+				t.Empty(owners)
+
+				return nil
+			},
+			func(
+				_ context.Context,
+				unmerged []uint64,
+				reasons map[uint64]string,
+				states inErrorFunc[inErrorFunc[base.State]],
+			) error {
+				t.Empty(unmerged)
+				t.Empty(reasons)
+
+				return nil
+			},
+		))
+
+		t.False(calledBroadcastUnmerged)
+		t.Equal(0, savedOps.Len())
+		t.Equal(0, savedStates.Len())
 	})
 }
 
