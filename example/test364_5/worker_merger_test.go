@@ -1335,7 +1335,7 @@ func (t *testWorkerMerger) TestSubs() {
 	}
 
 	checkWaits := func(waits testWorkerMergerWaitsFunc) []string {
-		addUnmerged, doneUnmerged, _ := compactAppendSlice[uint64](uint64(len(values)), 0)
+		addUnmerged, doneUnmerged, _ := appendSlice[uint64](uint64(len(values)), 0)
 
 		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
 			return nil,

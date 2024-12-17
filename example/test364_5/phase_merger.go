@@ -53,7 +53,7 @@ type (
 		reasons map[uint64]string,
 		_ error,
 	)
-	opindexPhaseJobWorkerCallback = func(opindex uint64) phaseJobWorkerCallback
+	opindexPhaseJobWorkerCallback = inFunc[uint64 /* opindex */, phaseJobWorkerCallback]
 	mergerGetStateMergersFunc     = func(
 		opindex uint64,
 		_ []StateMergeValue,
@@ -324,7 +324,7 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 		return []string{values[0].Key()}
 	}
 
-	add, done, _ := uniqueCompactAppendSlice[string](uint64(len(values)), 0)
+	add, done, _ := uniqueAppendSlice[string](uint64(len(values)), 0)
 
 	_ = traverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
 		add(value.Key())
@@ -485,10 +485,10 @@ func newFuncCollectXmergedOps(
 				return nil
 			}
 
-			var addM, addU compactAppendSliceAddFunc[uint64]
-			var doneM, doneU compactAppendSliceDoneFunc[uint64]
+			var addM, addU appendSliceAddFunc[uint64]
+			var doneM, doneU appendSliceDoneFunc[uint64]
 
-			if err := rCompactAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
+			if err := rAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
 				return err
 			}
 
@@ -496,7 +496,7 @@ func newFuncCollectXmergedOps(
 				_ = doneM(nil)
 			}()
 
-			if err := rCompactAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
+			if err := rAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
 				return err
 			}
 
@@ -598,13 +598,13 @@ func xMergeOpValues(
 	}
 
 	var (
-		addNext    compactAppendSliceAddFunc[uint64]
-		doneNext   compactAppendSliceDoneFunc[uint64]
-		addCommit  compactAppendSliceAddFunc[func() error]
-		doneCommit compactAppendSliceDoneFunc[func() error]
+		addNext    appendSliceAddFunc[uint64]
+		doneNext   appendSliceDoneFunc[uint64]
+		addCommit  appendSliceAddFunc[func() error]
+		doneCommit appendSliceDoneFunc[func() error]
 	)
 
-	if err := rUniqueCompactAppendSlice[uint64](
+	if err := rUniqueAppendSlice[uint64](
 		uint64(len(values)), 0, &addNext, &doneNext); err != nil {
 		return false, nil, nil, err
 	}
@@ -613,7 +613,7 @@ func xMergeOpValues(
 		_ = doneNext(nil)
 	}()
 
-	if err := rCompactAppendSlice[func() error](
+	if err := rAppendSlice[func() error](
 		uint64(len(values)), 0, &addCommit, &doneCommit); err != nil {
 		return false, nil, nil, err
 	}

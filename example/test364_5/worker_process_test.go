@@ -81,7 +81,7 @@ func (t *testWorkerProcess) newf(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			insertOp inErrorFunc[opindexHashFunc],
+			insertOp inErrorFunc[opindexOpHashesFunc],
 			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			if getStateOwners == nil {
@@ -181,8 +181,8 @@ func (t *testWorkerProcess) newf(
 		savedStates
 }
 
-func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) inErrorFunc[opindexHashFunc] {
-	return func(f opindexHashFunc) error {
+func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) inErrorFunc[opindexOpHashesFunc] {
+	return func(f opindexOpHashesFunc) error {
 		return traverseSlice(ops, func(i int, op Operation) (bool, error) {
 			return true, f(uint64(i), op.Hash(), op.Fact().Hash())
 		})
@@ -239,7 +239,7 @@ func (t *testWorkerProcess) TestCancel() {
 							nil
 					},
 					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
-					func(opindexHashFunc) error { return nil },
+					func(opindexOpHashesFunc) error { return nil },
 					nil,
 				)
 			},
@@ -453,7 +453,7 @@ func (t *testWorkerProcess) TestLocal() {
 			workers, workers, 1, 1,
 		)
 
-		t.NoError(initial(nil, nil, nil, func(opindexHashFunc) error { return nil }, nil))
+		t.NoError(initial(nil, nil, nil, func(opindexOpHashesFunc) error { return nil }, nil))
 
 		var calledBroadcastUnmerged bool
 		var reportedStateOwners atomic.Value
@@ -564,7 +564,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
-			func(f opindexHashFunc) error {
+			func(f opindexOpHashesFunc) error {
 				if err := traverseSlice(ops, func(i int, op Operation) (bool, error) {
 					return true, f(uint64(i), op.Hash(), op.Fact().Hash())
 				}); err != nil {
@@ -843,7 +843,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 					getStateOwners,
 					distributeValues,
 					getOperation,
-					func(f opindexHashFunc) error {
+					func(f opindexOpHashesFunc) error {
 						return opWorkers(local, f)
 					},
 					nil,

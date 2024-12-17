@@ -621,7 +621,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			ctx context.Context,
 			cancel context.CancelFunc,
 			minEnough, maxFailed uint64,
-		) inErrorFunc[unmergedFunc] {
+		) inErrorFunc[inErrorFunc[[]uint64]] {
 			_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
 			workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(

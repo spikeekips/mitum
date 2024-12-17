@@ -26,14 +26,14 @@ type (
 		getStateOwnersFunc,
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
-		inErrorFunc[opindexHashFunc],
+		inErrorFunc[opindexOpHashesFunc],
 		inErrorFunc[map[uint64]string],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
-		inErrorFunc[opindexHashFunc],
+		inErrorFunc[opindexOpHashesFunc],
 		in2ErrorFunc[uint64, Operation],
 		inErrorFunc[map[uint64]string],
 	) error
@@ -160,7 +160,7 @@ func newFuncWorkerProcess(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			insertOp inErrorFunc[opindexHashFunc],
+			insertOp inErrorFunc[opindexOpHashesFunc],
 			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			return initialInsert(
@@ -342,7 +342,7 @@ func newFuncWorkerProcessStateValueMerger(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			insertOp inErrorFunc[opindexHashFunc],
+			insertOp inErrorFunc[opindexOpHashesFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
 			reportReasons inErrorFunc[map[uint64]string],
 		) error {
@@ -428,7 +428,7 @@ func newFuncWorkerProcessInitialInsert(
 	error,
 ) {
 	var insertOps stateMergeValueExtractorInsertFunc
-	var extractorWait inErrorFunc[stateMergeValueExtractorWaitCallback]
+	var extractorWait inErrorFunc[inErrorFunc[map[uint64]string]]
 
 	switch i, e, err := newFuncStateMergeValueExtractor(ctx, newJobWorker, maxOpsSize); {
 	case err != nil:
@@ -441,7 +441,7 @@ func newFuncWorkerProcessInitialInsert(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			insertOp inErrorFunc[opindexHashFunc],
+			insertOp inErrorFunc[opindexOpHashesFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
 			reportReasons inErrorFunc[map[uint64]string],
 		) error {
@@ -636,11 +636,11 @@ func mergeStateOpFromValues(
 	values []StateMergeValue,
 ) error {
 	var (
-		add  compactAppendSliceAddFunc[string]
-		done compactAppendSliceDoneFunc[string]
+		add  appendSliceAddFunc[string]
+		done appendSliceDoneFunc[string]
 	)
 
-	if err := rCompactAppendSlice[string](
+	if err := rAppendSlice[string](
 		uint64(len(values)+1), 0, &add, &done); err != nil {
 		return err
 	}

@@ -7,28 +7,24 @@ import (
 )
 
 type (
-	opindexHashFunc    = func(opindex uint64, oph, fact util.Hash) error
-	ctxOpindexHashFunc = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc   = func(
-		_ context.Context,
-		opindex uint64,
-		oph, fact util.Hash,
-	) (Operation, bool, error)
-	extracttateMergeValuesFunc = func(context.Context, uint64, util.Hash, util.Hash) (
+	opindexOpHashesFunc         = func(opindex uint64, oph, fact util.Hash) error
+	ctxOpindexOpHashesFunc      = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
+	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
+	extractStateMergeValuesFunc = func(context.Context, uint64, util.Hash, util.Hash) (
 		_ Operation,
-		_ StateMergeValue,
-		_ []StateMergeValue,
+		subv StateMergeValue,
+		addvs []StateMergeValue,
 		reason string,
 		_ error,
 	)
-	stateMergeValueExtractorInsertFunc    = in3ErrorFunc[getOperationFunc, inErrorFunc[opindexHashFunc], stateMergeValueExtractorExtractedFunc]
+	stateMergeValueExtractorInsertFunc = in3ErrorFunc[
+		getOperationFunc, inErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc]
 	stateMergeValueExtractorExtractedFunc = func(
 		opindex uint64,
 		_ Operation,
-		_ StateMergeValue,
-		_ []StateMergeValue,
+		subv StateMergeValue,
+		addvs []StateMergeValue,
 	) error
-	stateMergeValueExtractorWaitCallback = func(reasons map[uint64]string) error
 )
 
 var (
@@ -42,7 +38,7 @@ func newFuncStateMergeValueExtractor(
 	maxOpsSize uint64,
 ) (
 	stateMergeValueExtractorInsertFunc,
-	inErrorFunc[stateMergeValueExtractorWaitCallback],
+	inErrorFunc[inErrorFunc[map[uint64]string]],
 	error,
 ) {
 	var newJob jobWorkerNewJobFunc
@@ -67,7 +63,7 @@ func newFuncStateMergeValueExtractor(
 
 	return func(
 			getOperation getOperationFunc,
-			f inErrorFunc[opindexHashFunc],
+			f inErrorFunc[opindexOpHashesFunc],
 			extracted stateMergeValueExtractorExtractedFunc,
 		) error {
 			defer jobDone()
@@ -82,7 +78,7 @@ func newFuncStateMergeValueExtractor(
 				})
 			})
 		},
-		func(f stateMergeValueExtractorWaitCallback) error {
+		func(f inErrorFunc[map[uint64]string]) error {
 			defer func() {
 				_ = jobWait()
 				reasons.Close()
@@ -103,7 +99,7 @@ func newFuncStateMergeValueExtractor(
 
 func newFuncExtractStateMergeValue(
 	getOperation getOperationFunc,
-) extracttateMergeValuesFunc {
+) extractStateMergeValuesFunc {
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) (
 		Operation,
 		StateMergeValue,
@@ -139,7 +135,7 @@ func newFuncExtractorStateMergeValues(
 	getOperation getOperationFunc,
 	extracted stateMergeValueExtractorExtractedFunc,
 	setReason func(opindex uint64, reason string),
-) ctxOpindexHashFunc {
+) ctxOpindexOpHashesFunc {
 	extractf := newFuncExtractStateMergeValue(getOperation)
 
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) error {

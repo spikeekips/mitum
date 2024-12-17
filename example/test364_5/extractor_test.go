@@ -21,15 +21,15 @@ type testStateMergeValueExtractor struct {
 }
 
 func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation) (
-	in3ErrorFunc[getOperationFunc, inErrorFunc[opindexHashFunc], stateMergeValueExtractorExtractedFunc],
-	inErrorFunc[stateMergeValueExtractorWaitCallback],
+	in3ErrorFunc[getOperationFunc, inErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
+	inErrorFunc[inErrorFunc[map[uint64]string /* reason */]],
 	error,
 ) {
 	insert, wait, err := newFuncStateMergeValueExtractor(ctx, t.newJobWorker(), 1<<9)
 
 	return func(
 			getOperation getOperationFunc,
-			f inErrorFunc[opindexHashFunc],
+			f inErrorFunc[opindexOpHashesFunc],
 			extracted stateMergeValueExtractorExtractedFunc,
 		) error {
 			of := newGetOperationFunc(ops)
@@ -37,7 +37,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 				of = getOperation
 			}
 
-			inf := func(f opindexHashFunc) error {
+			inf := func(f opindexOpHashesFunc) error {
 				return traverseSlice(ops, func(opindex int, op Operation) (bool, error) {
 					t.T().Logf("insert: opindex=%d op=%q", opindex, op.Hash())
 
@@ -62,7 +62,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 				},
 			)
 		},
-		func(f stateMergeValueExtractorWaitCallback) error {
+		func(f inErrorFunc[map[uint64]string]) error {
 			return wait(func(reasons map[uint64]string) error {
 				t.T().Logf("reasons: %v", reasons)
 
@@ -190,7 +190,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
-		err = insert(nil, func(f opindexHashFunc) error {
+		err = insert(nil, func(f opindexOpHashesFunc) error {
 			return errors.Errorf("findme")
 		}, nil)
 		t.ErrorContains(err, "findme")
@@ -249,7 +249,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		expectedReasons := map[uint64]string{}
 
 		t.NoError(insert(nil,
-			func(f opindexHashFunc) error {
+			func(f opindexOpHashesFunc) error {
 				for i := range 3 {
 					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 

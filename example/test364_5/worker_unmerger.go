@@ -13,7 +13,7 @@ type (
 	workerUnmergerNewFuncUnmergerFunc = func(_ context.Context) (
 		inErrorFunc[uint64],
 		func(),
-		inErrorFunc[unmergedFunc],
+		inErrorFunc[inErrorFunc[[]uint64]],
 		error,
 	)
 	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
@@ -34,7 +34,7 @@ func newFuncWorkerUnmerger(
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
 	workerUnmergerLocalReadyFunc,
-	inErrorFunc[unmergedFunc],
+	inErrorFunc[inErrorFunc[[]uint64]],
 	error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "worker-unmerger", nil)
@@ -49,7 +49,7 @@ func newFuncWorkerUnmerger(
 		maxOpsSize,
 		getStateMergeValues,
 		newCheckWorkers,
-		func(ctx context.Context) (inErrorFunc[uint64], func(), inErrorFunc[unmergedFunc], error) {
+		func(ctx context.Context) (inErrorFunc[uint64], func(), inErrorFunc[inErrorFunc[[]uint64]], error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
@@ -128,7 +128,7 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(f unmergedFunc) error {
+		func(f inErrorFunc[[]uint64]) error {
 			defer func() {
 				_ = unmergerWait(nil)
 			}()
@@ -165,7 +165,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	localReady func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
 	unmergerDone func(),
-	unmergerWait inErrorFunc[unmergedFunc],
+	unmergerWait inErrorFunc[inErrorFunc[[]uint64]],
 ) {
 	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
@@ -296,7 +296,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			})
 		},
 		donef,
-		func(f unmergedFunc) error {
+		func(f inErrorFunc[[]uint64]) error {
 			defer func() {
 				if checkWorkerClose != nil {
 					checkWorkerClose()
@@ -377,11 +377,11 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	errorFunc,
 	func(func(inErrorFunc[uint64]) error) error,
 	func(),
-	inErrorFunc[unmergedFunc],
+	inErrorFunc[inErrorFunc[[]uint64]],
 ) {
 	var unmerge inErrorFunc[uint64]
 	var done func()
-	var wait inErrorFunc[unmergedFunc]
+	var wait inErrorFunc[inErrorFunc[[]uint64]]
 
 	var l sync.RWMutex
 	var waitOnce sync.Once
@@ -414,7 +414,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 				done()
 			}
 		},
-		func(f unmergedFunc) error {
+		func(f inErrorFunc[[]uint64]) error {
 			waitOnce.Do(func() {
 				if f != nil {
 					l.RLock()

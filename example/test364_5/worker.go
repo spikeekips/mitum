@@ -122,7 +122,7 @@ func newFuncWorker(
 				getStateOwners,
 				distribute,
 				getOperation,
-				func(f opindexHashFunc) error {
+				func(f opindexOpHashesFunc) error {
 					return traverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
 						return true, f(uint64(i), oph[0], oph[1])
 					})

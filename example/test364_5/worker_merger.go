@@ -104,7 +104,7 @@ func newFuncWorkerMerger(
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
-		ifErrErrorInFunc(wctxCancel),
+		newIfErrErrorInFunc(wctxCancel),
 		getStateMergeValues,
 		getStateMergers,
 		newCheckWorkers,
@@ -119,11 +119,11 @@ func newFuncWorkerMerger(
 
 	var workerUnmergerUnmerged workerUnmergedFunc
 	var workerUnmergerLocalReady workerUnmergerLocalReadyFunc
-	var workerUnmergerWait inErrorFunc[unmergedFunc]
+	var workerUnmergerWait inErrorFunc[inErrorFunc[[]uint64]]
 
 	switch u, s, w, err := newFuncWorkerUnmerger(
 		wctx,
-		ifErrErrorInFunc(wctxCancel),
+		newIfErrErrorInFunc(wctxCancel),
 		local,
 		newJobWorker,
 		maxOpsSize,
@@ -254,7 +254,7 @@ func newFuncWorkerMergerWait(
 	statesShare uint64,
 	workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc],
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
-	workerUnmergerWait inErrorFunc[unmergedFunc],
+	workerUnmergerWait inErrorFunc[inErrorFunc[[]uint64]],
 ) workerMergerWaitFunc {
 	log := loadContextValueLogger(ctx)
 
@@ -349,10 +349,10 @@ func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {
 		bs = a
 	}
 
-	var add compactAppendSliceAddFunc[uint64]
-	var done compactAppendSliceDoneFunc[uint64]
+	var add appendSliceAddFunc[uint64]
+	var done appendSliceDoneFunc[uint64]
 
-	if err := rCompactAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
+	if err := rAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
 		return func(func([]uint64) error) error {
 			return err
 		}

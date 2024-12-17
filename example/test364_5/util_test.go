@@ -19,30 +19,30 @@ func (t *baseTest) println(a string, b ...any) {
 	fmt.Printf(a+"\n", b...)
 }
 
-type testCompactAppendSlice struct {
+type testAppendSlice struct {
 	suite.Suite
 }
 
-func (t *testCompactAppendSlice) TestCompactAppendSlice() {
+func (t *testAppendSlice) TestAppendSlice() {
 	t.Run("error, size 0", func() {
-		_, _, err := compactAppendSlice[int](0, 0)
+		_, _, err := appendSlice[int](0, 0)
 		t.ErrorContains(err, "size and grow under 1")
 	})
 
 	t.Run("error, size, grow 0", func() {
-		_, _, err := compactAppendSlice[int](0, 0)
+		_, _, err := appendSlice[int](0, 0)
 		t.ErrorContains(err, "size and grow under 1")
 	})
 
 	t.Run("no error, size 0, but grow over 0", func() {
-		_, _, err := compactAppendSlice[int](0, 1)
+		_, _, err := appendSlice[int](0, 1)
 		t.NoError(err)
 	})
 
 	t.Run("size < 1 and grow > 0", func() {
 		var grow uint64 = 1
 
-		add, done, err := compactAppendSlice[int](0, grow)
+		add, done, err := appendSlice[int](0, grow)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -69,7 +69,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("ok", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -96,7 +96,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("add after done", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -125,7 +125,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("nil done", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -148,7 +148,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("variadic, less", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1, 2)
@@ -163,7 +163,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("variadic, full", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1, 2, 3)
@@ -178,7 +178,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("variadic, over", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1, 2, 3, 4)
@@ -193,7 +193,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("none", func() {
-		_, done, err := compactAppendSlice[int](3, 0)
+		_, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		t.NoError(done(func(s []int) error {
@@ -204,7 +204,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("less", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -224,7 +224,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 
 	t.Run("over size", func() {
-		add, done, err := compactAppendSlice[int](3, 0)
+		add, done, err := appendSlice[int](3, 0)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -257,7 +257,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	t.Run("grow", func() {
 		var grow uint64 = 1
 
-		add, done, err := compactAppendSlice[int](3, grow)
+		add, done, err := appendSlice[int](3, grow)
 		t.NoError(err)
 
 		added, left := add(1)
@@ -297,7 +297,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 
 	t.Run("async", func() {
 		var size uint64 = 3333
-		add, done, err := compactAppendSlice[uint64](size, 0)
+		add, done, err := appendSlice[uint64](size, 0)
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -331,7 +331,7 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 
 	t.Run("async, grow", func() {
 		var size uint64 = 3333
-		add, done, err := compactAppendSlice[uint64](3, 3)
+		add, done, err := appendSlice[uint64](3, 3)
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -364,12 +364,12 @@ func (t *testCompactAppendSlice) TestCompactAppendSlice() {
 	})
 }
 
-func (t *testCompactAppendSlice) TestRCompactAppendSlice() {
+func (t *testAppendSlice) TestRAppendSlice() {
 	t.Run("ok", func() {
-		var add compactAppendSliceAddFunc[int]
-		var done compactAppendSliceDoneFunc[int]
+		var add appendSliceAddFunc[int]
+		var done appendSliceDoneFunc[int]
 
-		t.NoError(rCompactAppendSlice[int](3, 0, &add, &done))
+		t.NoError(rAppendSlice[int](3, 0, &add, &done))
 
 		added, left := add(1)
 		t.EqualValues(1, added)
@@ -383,15 +383,15 @@ func (t *testCompactAppendSlice) TestRCompactAppendSlice() {
 	})
 
 	t.Run("wrong type", func() {
-		var add compactAppendSliceAddFunc[int]
+		var add appendSliceAddFunc[int]
 
-		err := rCompactAppendSlice[int](3, 0, &add, &add)
-		t.ErrorContains(err, "compactAppendSliceAddFunc[int]")
+		err := rAppendSlice[int](3, 0, &add, &add)
+		t.ErrorContains(err, "appendSliceAddFunc[int]")
 	})
 }
 
-func TestCompactAppendSlice(t *testing.T) {
+func TestAppendSlice(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testCompactAppendSlice))
+	suite.Run(t, new(testAppendSlice))
 }

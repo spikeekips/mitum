@@ -58,7 +58,7 @@ func newFuncBaseJobWorker(
 			}()
 
 			if err := context.Cause(ctx); err != nil {
-				return errors.WithStack(err)
+				return errorWithStack(err)
 			}
 
 			waitch := make(chan error, 1)
@@ -71,7 +71,7 @@ func newFuncBaseJobWorker(
 			case err := <-waitch:
 				return err
 			case <-ctx.Done():
-				return errors.WithStack(context.Cause(ctx))
+				return errorWithStack(context.Cause(ctx))
 			}
 		},
 		nil
@@ -109,7 +109,7 @@ func newFuncErrJobWorker(ctx context.Context, semSize int64, errf inErrorFunc[er
 ) {
 	wctx, wctxCancel := contextWithCancelCause(ctx)
 
-	ierrf := ifErrErrorInFunc(wctxCancel)
+	ierrf := newIfErrErrorInFunc(wctxCancel)
 
 	newJob, jobDone, wait, err := newFuncBaseJobWorker(
 		wctx,
@@ -135,23 +135,21 @@ func newFuncJobWorkerNewJobFunc(
 	errf inErrorFunc[error],
 ) jobWorkerNewJobFunc {
 	return func(c inErrorFunc[context.Context]) error {
-		if err := context.Cause(newJobCtx); err != nil {
-			return errors.WithStack(err)
-		}
+		iferr := newIfErrErrorInFunc(errf)
 
-		if err := sem.Acquire(newJobCtx, 1); err != nil {
-			return errors.WithStack(err)
-		}
-
-		go func() {
-			if err := c(ctx); err != nil {
-				_ = errf(err)
+		return contextCauseError(newJobCtx, iferr, func(context.Context) error {
+			if err := sem.Acquire(newJobCtx, 1); err != nil {
+				return errorWithStack(err)
 			}
 
-			sem.Release(1)
-		}()
+			go func() {
+				defer sem.Release(1)
 
-		return nil
+				_ = iferr(c(ctx))
+			}()
+
+			return nil
+		})
 	}
 }
 
@@ -168,21 +166,9 @@ func newFuncJobWorkerWaitFunc(
 	return func() error {
 			<-newJobCtx.Done()
 
-			switch err := context.Cause(ctx); {
-			case err == nil, errors.Is(err, errNewJobDone):
-			default:
-				return errors.WithStack(err)
-			}
-
-			if err := sem.Acquire(ctx, semSize); err != nil {
-				if cerr := context.Cause(ctx); cerr != nil {
-					return errors.WithStack(cerr)
-				}
-
-				return errors.WithStack(err)
-			}
-
-			return errors.WithStack(context.Cause(ctx))
+			return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
+				return sem.Acquire(ctx, semSize)
+			})
 		},
 		errNewJobDone
 }

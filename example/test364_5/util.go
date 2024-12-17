@@ -13,21 +13,6 @@ import (
 
 const contextLoggerKey = "context-logger"
 
-var nopLogger = zerolog.Nop()
-
-func setContextValueLogger(ctx context.Context, v *zerolog.Logger) context.Context {
-	return context.WithValue(ctx, contextLoggerKey, v)
-}
-
-func loadContextValueLogger(ctx context.Context) *zerolog.Logger {
-	switch t := ctx.Value(contextLoggerKey).(type) {
-	case *zerolog.Logger:
-		return t
-	default:
-		return &nopLogger
-	}
-}
-
 func traverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
 	if len(s) < 1 {
 		return nil
@@ -56,13 +41,13 @@ func traverseMap[K comparable, V any](m map[K]V, f func(K, V) (bool, error)) err
 }
 
 type (
-	compactAppendSliceAddFunc[T any]  func(T, ...T) (added, left uint64)
-	compactAppendSliceDoneFunc[T any] func(func([]T) error) error
+	appendSliceAddFunc[T any]  func(T, ...T) (added, left uint64)
+	appendSliceDoneFunc[T any] func(func([]T) error) error
 )
 
-func compactAppendSlice[T any](size, grow uint64) (
-	add compactAppendSliceAddFunc[T],
-	done compactAppendSliceDoneFunc[T],
+func appendSlice[T any](size, grow uint64) (
+	add appendSliceAddFunc[T],
+	done appendSliceDoneFunc[T],
 	_ error,
 ) {
 	if size < 1 {
@@ -168,12 +153,12 @@ func compactAppendSlice[T any](size, grow uint64) (
 		nil
 }
 
-func uniqueCompactAppendSlice[T comparable](size, grow uint64) (
-	compactAppendSliceAddFunc[T],
-	compactAppendSliceDoneFunc[T],
+func uniqueAppendSlice[T comparable](size, grow uint64) (
+	appendSliceAddFunc[T],
+	appendSliceDoneFunc[T],
 	error,
 ) {
-	add, done, err := compactAppendSlice[T](size, grow)
+	add, done, err := appendSlice[T](size, grow)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -232,12 +217,12 @@ func uniqueCompactAppendSlice[T comparable](size, grow uint64) (
 		}, nil
 }
 
-func rCompactAppendSlice[T any](
+func rAppendSlice[T any](
 	size,
 	grow uint64,
 	add, done interface{},
 ) error {
-	switch a, d, err := compactAppendSlice[T](size, grow); {
+	switch a, d, err := appendSlice[T](size, grow); {
 	case err != nil:
 		return err
 	default:
@@ -249,12 +234,12 @@ func rCompactAppendSlice[T any](
 	}
 }
 
-func rUniqueCompactAppendSlice[T comparable](
+func rUniqueAppendSlice[T comparable](
 	size,
 	grow uint64,
 	add, done interface{},
 ) error {
-	switch a, d, err := uniqueCompactAppendSlice[T](size, grow); {
+	switch a, d, err := uniqueAppendSlice[T](size, grow); {
 	case err != nil:
 		return err
 	default:
@@ -263,6 +248,21 @@ func rUniqueCompactAppendSlice[T comparable](
 		}
 
 		return util.ReflectSetInterfaceValue(d, done)
+	}
+}
+
+var nopLogger = zerolog.Nop()
+
+func setContextValueLogger(ctx context.Context, v *zerolog.Logger) context.Context {
+	return context.WithValue(ctx, contextLoggerKey, v)
+}
+
+func loadContextValueLogger(ctx context.Context) *zerolog.Logger {
+	switch t := ctx.Value(contextLoggerKey).(type) {
+	case *zerolog.Logger:
+		return t
+	default:
+		return &nopLogger
 	}
 }
 
@@ -312,7 +312,7 @@ func dummyErrorInFunc(err error) error {
 	return err
 }
 
-func ifErrErrorInFunc(f inErrorFunc[error]) inErrorFunc[error] {
+func newIfErrErrorInFunc(f inErrorFunc[error]) inErrorFunc[error] {
 	return func(err error) error {
 		if err != nil {
 			return f(err)
@@ -331,7 +331,7 @@ func contextWithCancelCause(ctx context.Context) (context.Context, inErrorFunc[e
 
 	return cctx, func(err error) error {
 		if cerr := context.Cause(cctx); cerr != nil {
-			return errors.WithStack(cerr)
+			return errorWithStack(cerr)
 		}
 
 		once.Do(func() {
@@ -359,7 +359,7 @@ func contextWithCancelCause(ctx context.Context) (context.Context, inErrorFunc[e
 
 func contextCauseError(ctx context.Context, ef inErrorFunc[error], f inErrorFunc[context.Context]) error {
 	if err := context.Cause(ctx); err != nil {
-		return errors.WithStack(err)
+		return errorWithStack(err)
 	}
 
 	return ef(f(ctx))
@@ -502,4 +502,20 @@ func distributeByCount[K comparable](total, share uint64) (
 			cache.Close()
 		},
 		nil
+}
+
+type stackTracer interface {
+	StackTrace() errors.StackTrace
+}
+
+func errorWithStack(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(stackTracer); ok {
+		return err
+	}
+
+	return errors.WithStack(err)
 }

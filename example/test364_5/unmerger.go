@@ -8,7 +8,6 @@ import (
 )
 
 type (
-	unmergedFunc      = func(unmerged []uint64) error
 	opindexFilterFunc = func(opindex uint64) (bool, error)
 )
 
@@ -21,7 +20,7 @@ func newFuncUnmerger(
 ) (
 	unmerge inErrorFunc[uint64],
 	done func(),
-	wait inErrorFunc[unmergedFunc],
+	wait inErrorFunc[inErrorFunc[[]uint64]],
 	_ error,
 ) {
 	log := newModuleLoggerFromContext(ctx, "unmerger", nil)
@@ -37,10 +36,10 @@ func newFuncUnmerger(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	var addOps compactAppendSliceAddFunc[uint64]
-	var doneOps compactAppendSliceDoneFunc[uint64]
+	var addOps appendSliceAddFunc[uint64]
+	var doneOps appendSliceDoneFunc[uint64]
 
-	if err := rCompactAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
+	if err := rAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -76,7 +75,7 @@ func newFuncUnmerger(
 			})
 		},
 		jobDone,
-		func(f unmergedFunc) error {
+		func(f inErrorFunc[[]uint64]) error {
 			defer func() {
 				_ = doneOps(nil)
 			}()

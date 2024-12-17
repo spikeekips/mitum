@@ -38,7 +38,7 @@ func newFuncWorkerStateOwners(
 	log := newModuleLoggerFromContext(ctx, "worker-state-owners", nil)
 
 	var addSubStateOwners, addAffectedStateOwners addOwnersFunc
-	var doneSubStateOwners, doneAffectedStateOwners compactAppendSliceDoneFunc[string]
+	var doneSubStateOwners, doneAffectedStateOwners appendSliceDoneFunc[string]
 
 	if err := newFuncAddStateOwners(
 		maxWorkerSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
@@ -301,14 +301,14 @@ func newFuncCollectWorkerStateMergeValues() (
 func newFuncAddStateOwners(
 	maxSize uint64,
 	add *addOwnersFunc,
-	done *compactAppendSliceDoneFunc[string],
+	done *appendSliceDoneFunc[string],
 ) error {
 	var (
-		addf  compactAppendSliceAddFunc[string]
-		donef compactAppendSliceDoneFunc[string]
+		addf  appendSliceAddFunc[string]
+		donef appendSliceDoneFunc[string]
 	)
 
-	if err := rUniqueCompactAppendSlice[string](
+	if err := rUniqueAppendSlice[string](
 		maxSize, 1<<5, &addf, &donef); err != nil {
 		return err
 	}

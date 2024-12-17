@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	workerOperationsFunc            = in2ErrorFunc[string /* worker */, opindexHashFunc]
+	workerOperationsFunc            = in2ErrorFunc[string /* worker */, opindexOpHashesFunc]
 	minEnoughMaxFailedFunc          = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkEnoughFailedWorkerFunc     = func(worker string, _ func() error) (ok, enough, failed bool, _ error)
 	newCheckEnoughFailedWorkersFunc = func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
@@ -475,7 +475,7 @@ func opsNShareWorker(workers []string, share uint64, ophs [][2]util.Hash) (
 		distribute = i
 	}
 
-	return func(worker string, f opindexHashFunc) error {
+	return func(worker string, f opindexOpHashesFunc) error {
 			workerIndex := slices.Index(workers, worker)
 			if workerIndex < 0 {
 				return util.ErrNotFound.Errorf("unknown worker=%q", worker)
