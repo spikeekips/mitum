@@ -20,9 +20,6 @@ type (
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
 
-// FIXME extractor reports the operation to manager, which has empty state merge
-// values.
-
 func newFuncWorkerMerger(
 	ctx context.Context,
 	local string,
@@ -275,7 +272,6 @@ func newFuncWorkerMergerWait(
 			var subws []string
 
 			if localPhaseDone != nil {
-				// FIXME broadcast unmerged to other active state owners
 				switch i, err := localPhaseDone(unmerged); {
 				case err != nil:
 					return err

@@ -27,6 +27,7 @@ type (
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		inErrorFunc[opindexHashFunc],
+		inErrorFunc[map[uint64]string],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
@@ -34,6 +35,7 @@ type (
 		getOperationFunc,
 		inErrorFunc[opindexHashFunc],
 		in2ErrorFunc[uint64, Operation],
+		inErrorFunc[map[uint64]string],
 	) error
 	workerProcessInsertStateMergeValuesFunc     = func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
 	workerProcessInsertStateMergeValuesCallback = func(
@@ -159,6 +161,7 @@ func newFuncWorkerProcess(
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexHashFunc],
+			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -170,6 +173,7 @@ func newFuncWorkerProcess(
 
 					return nil
 				},
+				reportReasons,
 			)
 		},
 		workerInsertStateValues,
@@ -340,6 +344,7 @@ func newFuncWorkerProcessStateValueMerger(
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexHashFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
+			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -347,6 +352,7 @@ func newFuncWorkerProcessStateValueMerger(
 				getOperation,
 				insertOp,
 				saveOperation,
+				reportReasons,
 			)
 		},
 		func(worker string) (
@@ -437,6 +443,7 @@ func newFuncWorkerProcessInitialInsert(
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexHashFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
+			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			var extractStateOwnersStateMergeValues extractStateOwnersStateMergeValuesFunc
 			var doneExtractStateOwnersStateMergeValues inErrorFunc[workerStateOwnersSetFunc]
@@ -495,7 +502,11 @@ func newFuncWorkerProcessInitialInsert(
 					return err
 				}
 
-				// FIXME report to manager
+				if len(reasons) > 0 && reportReasons != nil {
+					if err := reportReasons(reasons); err != nil {
+						return err
+					}
+				}
 
 				return doneExtractStateOwnersStateMergeValues(doneDistributeWorkerStateMergevalues)
 			})
