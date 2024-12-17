@@ -9,6 +9,7 @@ import (
 )
 
 type (
+	insertStateMergeValuesFunc             = func(opindex uint64, _ []StateMergeValue) error
 	workerMergerInsertStateMergeValuesFunc = func(worker string) (
 		insertStateMergeValuesFunc,
 		inErrorFunc[error],

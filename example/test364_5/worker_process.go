@@ -27,6 +27,12 @@ type (
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		inErrorFunc[opindexHashFunc],
+	) error
+	workerProcessInitialInsertFunc2 = func(
+		getStateOwnersFunc,
+		workerDistributeStateMergeValuesFunc,
+		getOperationFunc,
+		inErrorFunc[opindexHashFunc],
 		in2ErrorFunc[uint64, Operation],
 	) error
 	workerProcessInsertStateMergeValuesFunc     = func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
@@ -45,12 +51,15 @@ type (
 		map[uint64]string, /* reasons */
 		inErrorFunc[inErrorFunc[base.State]],
 	) error
-	workerProcessWaitFunc = func(
-		in2Func[uint64 /*opindex */, Operation, bool],
+	workerProcessTraverseOperationsFunc inErrorFunc[func(uint64, Operation) (bool, error)]
+	workerProcessWaitFunc               = func(
 		in3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		in2ErrorFunc[context.Context, []string /* all state owners */],
 		workerProcessReportStates,
-	) error
+	) (
+		workerProcessTraverseOperationsFunc,
+		error,
+	)
 )
 
 func newFuncWorkerProcess(
@@ -110,7 +119,7 @@ func newFuncWorkerProcess(
 
 	workersSize := uint64(len(workers))
 
-	var initialInsert workerProcessInitialInsertFunc
+	var initialInsert workerProcessInitialInsertFunc2
 	var workerInsertStateValues workerProcessWorkerInsertStateMergeValuesFunc
 	var unmerge workerUnmergedFunc
 	var wait in2ErrorFunc[
@@ -150,7 +159,6 @@ func newFuncWorkerProcess(
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexHashFunc],
-			saveOperation in2ErrorFunc[uint64, Operation],
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -158,11 +166,7 @@ func newFuncWorkerProcess(
 				getOperation,
 				insertOp,
 				func(opindex uint64, op Operation) error {
-					savedOps.SetValue(opindex, op)
-
-					if saveOperation != nil {
-						return saveOperation(opindex, op)
-					}
+					_ = savedOps.SetValue(opindex, op)
 
 					return nil
 				},
@@ -171,15 +175,16 @@ func newFuncWorkerProcess(
 		workerInsertStateValues,
 		unmerge,
 		func(
-			traverseOperations in2Func[uint64 /*opindex */, Operation, bool],
 			broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
 			reportStateOwners in2ErrorFunc[context.Context, []string],
 			reportStates workerProcessReportStates,
-		) error {
+		) (
+			workerProcessTraverseOperationsFunc,
+			error,
+		) {
 			defer func() {
 				stateMergersClose()
 				extractStateKeyClose()
-				savedOps.Close()
 			}()
 
 			if err := wait(
@@ -220,16 +225,30 @@ func newFuncWorkerProcess(
 			); err != nil {
 				log.Error().Err(err).Msg("wait done")
 
-				return err
-			}
-
-			if traverseOperations != nil {
-				_ = savedOps.Traverse(traverseOperations)
+				return nil, err
 			}
 
 			log.Debug().Msg("wait done")
 
-			return nil
+			return func(f func(uint64, Operation) (bool, error)) (gerr error) {
+					defer savedOps.Close()
+
+					_ = savedOps.Traverse(func(opindex uint64, op Operation) bool {
+						switch ok, err := f(opindex, op); {
+						case !ok:
+							return false
+						case err != nil:
+							gerr = err
+
+							return false
+						default:
+							return true
+						}
+					})
+
+					return gerr
+				},
+				nil
 		},
 		nil
 }
@@ -246,7 +265,7 @@ func newFuncWorkerProcessStateValueMerger(
 	opsShare, statesShare, maxOpsSize uint64,
 	getStateMergers mergerGetStateMergersFunc,
 ) (
-	workerProcessInitialInsertFunc,
+	workerProcessInitialInsertFunc2,
 	workerProcessWorkerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	in2ErrorFunc[
@@ -296,7 +315,7 @@ func newFuncWorkerProcessStateValueMerger(
 		localExtractedStateOwners, workerStateOwnersSet, doneStateOwnersSet = l, w, t
 	}
 
-	var initialInsert workerProcessInitialInsertFunc
+	var initialInsert workerProcessInitialInsertFunc2
 
 	switch i, err := newFuncWorkerProcessInitialInsert(
 		ctx,
@@ -399,7 +418,7 @@ func newFuncWorkerProcessInitialInsert(
 	workerInsertStateValues workerMergerInsertStateMergeValuesFunc,
 	mergeStateOp mergeStateOpFunc,
 ) (
-	workerProcessInitialInsertFunc,
+	workerProcessInitialInsertFunc2,
 	error,
 ) {
 	var insertOps stateMergeValueExtractorInsertFunc
