@@ -47,17 +47,18 @@ type (
 		in2ErrorFunc[[]string /* sub */, []string /* affected */],
 		error,
 	)
-	workerProcessReportStates func(
-		context.Context,
-		[]uint64, /* unmerged */
-		map[uint64]string, /* reasons */
-		inErrorFunc[inErrorFunc[base.State]],
+	workerProcessReportResult func(
+		_ context.Context,
+		unmerged []uint64,
+		reasons map[uint64]string,
+		statesSize uint64,
+		_ inErrorFunc[inErrorFunc[base.State]],
 	) error
 	workerProcessTraverseOperationsFunc inErrorFunc[func(uint64, Operation) (bool, error)]
 	workerProcessWaitFunc               = func(
 		in3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		in2ErrorFunc[context.Context, []string /* all state owners */],
-		workerProcessReportStates,
+		workerProcessReportResult,
 	) (
 		workerProcessTraverseOperationsFunc,
 		error,
@@ -104,10 +105,9 @@ func newFuncWorkerProcess(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
 	var getStateMergers mergerGetStateMergersFunc
-	var traverseStateMergers traverseStateMergersFunc
-	var stateMergersClose func()
+	var traverseStateMergersf func() (uint64, traverseStateMergersFunc)
 
-	switch g, t, c, err := newFuncStateMergers(
+	switch g, t, err := newFuncStateMergers(
 		maxOpsSize*2, // NOTE approximate states size
 		getState,
 		extractStateMergeValueKeys,
@@ -115,8 +115,7 @@ func newFuncWorkerProcess(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		getStateMergers, traverseStateMergers, stateMergersClose = g, t, c
-		_, _, _ = getStateMergers, traverseStateMergers, stateMergersClose
+		getStateMergers, traverseStateMergersf = g, t
 	}
 
 	workersSize := uint64(len(workers))
@@ -149,7 +148,7 @@ func newFuncWorkerProcess(
 
 	var savedOps util.LockedMap[uint64, Operation]
 
-	switch i, err := util.NewShardedMap[uint64, Operation](maxOpsSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, Operation](maxOpsSize, nil); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -181,15 +180,12 @@ func newFuncWorkerProcess(
 		func(
 			broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
 			reportStateOwners in2ErrorFunc[context.Context, []string],
-			reportStates workerProcessReportStates,
+			reportResult workerProcessReportResult,
 		) (
 			workerProcessTraverseOperationsFunc,
 			error,
 		) {
-			defer func() {
-				stateMergersClose()
-				extractStateKeyClose()
-			}()
+			defer extractStateKeyClose()
 
 			if err := wait(
 				func(unmerged []uint64, subws, affected []string) error {
@@ -216,7 +212,9 @@ func newFuncWorkerProcess(
 					)
 				},
 				func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
-					return reportStates(ctx, unmerged, reasons, func(f inErrorFunc[base.State]) error {
+					statesSize, traverseStateMergers := traverseStateMergersf()
+
+					return reportResult(ctx, unmerged, reasons, statesSize, func(f inErrorFunc[base.State]) error {
 						return workerProcessCloseStateMergers(
 							ctx,
 							newState,
@@ -236,6 +234,10 @@ func newFuncWorkerProcess(
 
 			return func(f func(uint64, Operation) (bool, error)) (gerr error) {
 					defer savedOps.Close()
+
+					if f == nil {
+						return nil
+					}
 
 					_ = savedOps.Traverse(func(opindex uint64, op Operation) bool {
 						switch ok, err := f(opindex, op); {
@@ -389,7 +391,7 @@ func newFuncWorkerProcessStateValueMerger(
 			f in3ErrorFunc[[]uint64, map[uint64]string, traverseStateOpsFunc],
 		) error {
 			defer func() {
-				doneStateOwnersSet(nil)
+				_ = doneStateOwnersSet(nil)
 			}()
 
 			return workerMergerWait(
@@ -452,8 +454,11 @@ func newFuncWorkerProcessInitialInsert(
 			case err != nil:
 				return err
 			default:
-				extractStateOwnersStateMergeValues = e
-				doneExtractStateOwnersStateMergeValues = s
+				defer func() {
+					_ = s(nil)
+				}()
+
+				extractStateOwnersStateMergeValues, doneExtractStateOwnersStateMergeValues = e, s
 			}
 
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
@@ -479,8 +484,7 @@ func newFuncWorkerProcessInitialInsert(
 			default:
 				defer d(nil)
 
-				insert = i
-				insertDone = d
+				insert, insertDone = i, d
 			}
 
 			extracted := newFuncorkerProcessExtracted(

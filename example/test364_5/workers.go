@@ -194,16 +194,15 @@ func newFuncStateMergers(
 	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
-	getStateMergers mergerGetStateMergersFunc,
-	traverse traverseStateMergersFunc,
-	closef func(),
-	_ error,
+	mergerGetStateMergersFunc,
+	func() (size uint64, _ traverseStateMergersFunc),
+	error,
 ) {
 	var pool util.LockedMap[string, StateMerger]
 
 	switch i, err := util.NewLockedMap[string, StateMerger](poolSize, nil); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, err
 	default:
 		pool = i
 	}
@@ -214,18 +213,22 @@ func newFuncStateMergers(
 		extractStateMergeValueKeys,
 	)
 	return g,
-		func(f func(string, StateMerger) (bool, error)) (gerr error) {
-			_ = pool.Traverse(func(stateKey string, merger StateMerger) (ok bool) {
-				ok, gerr = f(stateKey, merger)
+		func() (uint64, traverseStateMergersFunc) {
+			return uint64(pool.Len()),
+				func(f func(string, StateMerger) (bool, error)) (gerr error) {
+					defer func() {
+						c()
+						pool.Close()
+					}()
 
-				return ok && gerr == nil
-			})
+					_ = pool.Traverse(func(stateKey string, merger StateMerger) (ok bool) {
+						ok, gerr = f(stateKey, merger)
 
-			return gerr
-		},
-		func() {
-			c()
-			pool.Close()
+						return ok && gerr == nil
+					})
+
+					return gerr
+				}
 		},
 		nil
 }
@@ -468,7 +471,7 @@ func opsNShareWorker(workers []string, share uint64, ophs [][2]util.Hash) (
 ) {
 	var distribute in2ErrorFunc[uint64, inErrorFunc[uint64]]
 
-	switch i, err := newDistributeItemsSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
+	switch i, err := newDistributeSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
 	case err != nil:
 		return nil, err
 	default:
@@ -492,7 +495,7 @@ func opsNShareWorker(workers []string, share uint64, ophs [][2]util.Hash) (
 		nil
 }
 
-func newDistributeItemsSerialNShare(workers, items, share uint64) (
+func newDistributeSerialNShare(workers, items, share uint64) (
 	in2ErrorFunc[uint64 /* worker */, inErrorFunc[uint64]],
 	error,
 ) {

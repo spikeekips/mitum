@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -18,7 +19,7 @@ type (
 	workerWaitFunc = func(
 		broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
 		reportStateOwners in2ErrorFunc[context.Context, []string],
-		reportStates workerProcessReportStates,
+		reportStates workerProcessReportResult,
 	) error
 )
 
@@ -106,10 +107,7 @@ func newFuncWorker(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		initialInsert = i
-		workerInsert = w
-		workerUnmerge = u
-		processWait = p
+		initialInsert, workerInsert, workerUnmerge, processWait = i, w, u, p
 	}
 
 	return func(
@@ -135,20 +133,56 @@ func newFuncWorker(
 		func(
 			broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
 			reportStateOwners in2ErrorFunc[context.Context, []string],
-			reportStates workerProcessReportStates,
+			reportResult workerProcessReportResult,
 		) error {
 			var traverseOps workerProcessTraverseOperationsFunc
+			var savedStates util.LockedMap[string, base.State]
 
-			switch i, err := processWait(broacastUnmerged, reportStateOwners, reportStates); {
+			defer func() {
+				if savedStates != nil {
+					savedStates.Close()
+				}
+			}()
+
+			switch i, err := processWait(
+				broacastUnmerged,
+				reportStateOwners,
+				func(
+					ctx context.Context,
+					unmerged []uint64,
+					reasons map[uint64]string,
+					statesSize uint64,
+					reportStates inErrorFunc[inErrorFunc[base.State]],
+				) error {
+					switch i, err := util.NewLockedMap[string, base.State](statesSize, nil); {
+					case err != nil:
+						return err
+					default:
+						savedStates = i
+					}
+
+					return reportResult(ctx, unmerged, reasons, statesSize,
+						func(f inErrorFunc[base.State]) error {
+							return reportStates(func(st base.State) error {
+								_ = savedStates.SetValue(st.Key(), st)
+
+								return f(st)
+							})
+						})
+				},
+			); {
 			case err != nil:
 				return err
 			default:
+				defer i(nil)
+
 				traverseOps = i
 			}
 
 			// FIXME save
 
 			_ = traverseOps // FIXME save ops
+			_ = savedStates // FIXME save states
 
 			return nil
 		},

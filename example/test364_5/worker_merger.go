@@ -260,13 +260,12 @@ func newFuncWorkerMergerWait(
 
 	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 		var phaseDoneReasons map[uint64]string
+		var localUnmerged []uint64
 
 		defer func() {
 			clearMap(phaseDoneReasons)
+			clear(localUnmerged)
 		}()
-
-		var localUnmerged []uint64
-		defer clear(localUnmerged)
 
 		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
 			var subws []string
@@ -321,7 +320,7 @@ func newFuncWorkerMergerWait(
 				Msg("unmerger wait done")
 
 			if f != nil {
-				return mergeUnmergeds(localUnmerged, unmerged)(func(m []uint64) error {
+				return mergeUnmergeds(localUnmerged, unmerged, func(m []uint64) error {
 					n := filterReasons(phaseDoneReasons, m)
 					defer clearMap(n)
 
@@ -334,12 +333,12 @@ func newFuncWorkerMergerWait(
 	}
 }
 
-func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {
+func mergeUnmergeds(a, b []uint64, f inErrorFunc[[]uint64]) error {
 	switch {
 	case len(a) < 1:
-		return func(f func([]uint64) error) error { return f(b) }
+		return f(b)
 	case len(b) < 1:
-		return func(f func([]uint64) error) error { return f(a) }
+		return f(a)
 	}
 
 	as, bs := a, b
@@ -353,12 +352,8 @@ func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {
 	var done appendSliceDoneFunc[uint64]
 
 	if err := rAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
-		return func(func([]uint64) error) error {
-			return err
-		}
+		return err
 	}
-
-	defer done(nil)
 
 	_ = traverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
 		if slices.Index(as, opindex) >= 0 {
@@ -368,19 +363,17 @@ func mergeUnmergeds(a, b []uint64) func(func([]uint64) error) error {
 		return true, nil
 	})
 
-	return func(f func([]uint64) error) error {
-		return done(func(s []uint64) error {
-			if len(s) < 1 {
-				return f(as)
-			}
+	return done(func(s []uint64) error {
+		if len(s) < 1 {
+			return f(as)
+		}
 
-			m := make([]uint64, len(as)+len(s))
-			defer clear(m)
+		m := make([]uint64, len(as)+len(s))
+		defer clear(m)
 
-			copy(m, as)
-			copy(m[len(as):], s)
+		copy(m, as)
+		copy(m[len(as):], s)
 
-			return f(m)
-		})
-	}
+		return f(m)
+	})
 }

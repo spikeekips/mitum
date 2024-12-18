@@ -40,7 +40,7 @@ func (t *testWorkerMerger) newFuncs() (
 
 	extractKeys, _ := t.extractStateMergeValueKeys()
 
-	switch g, t, _, err := newFuncStateMergers(
+	switch g, t, err := newFuncStateMergers(
 		1<<9,
 		getState,
 		extractKeys,
@@ -49,7 +49,7 @@ func (t *testWorkerMerger) newFuncs() (
 		panic(err)
 	default:
 		getStateMergers = g
-		traverseStateMergers = t
+		_, traverseStateMergers = t()
 	}
 
 	return mergers, states, getState, getStateMergers, traverseStateMergers
