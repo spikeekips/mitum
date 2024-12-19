@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -518,4 +519,25 @@ func errorWithStack(err error) error {
 	}
 
 	return errors.WithStack(err)
+}
+
+func elapsedLogger(l zerolog.Logger, format string, a ...any) inErrorFunc[error] {
+	started := time.Now()
+
+	msg := fmt.Sprintf(format, a...)
+	l.Debug().CallerSkipFrame(1).Msg("> " + msg)
+
+	return func(err error) error {
+		ll := l.With().Dur("elapsed", time.Since(started)).Logger()
+
+		e := ll.Debug().CallerSkipFrame(1)
+
+		if err != nil {
+			e = ll.Error().Err(err)
+		}
+
+		e.Msg(fmt.Sprintf("< %s", msg))
+
+		return err
+	}
 }
