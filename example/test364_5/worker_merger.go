@@ -26,7 +26,7 @@ func newFuncWorkerMerger(
 	newJobWorker newJobWorkerFunc,
 	getState getStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
-	maxWorkerSize, maxOpsSize, stateMergeValuesPoolSize uint64,
+	maxWorkersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	workerMergerInsertStateMergeValuesFunc,
@@ -41,8 +41,8 @@ func newFuncWorkerMerger(
 	var minEnoughOps, maxFailedOps uint64
 
 	switch opsWorkersSize := uint64(len(opsWorkers)); {
-	case maxWorkerSize < opsWorkersSize:
-		maxWorkerSize = opsWorkersSize
+	case maxWorkersSize < opsWorkersSize:
+		maxWorkersSize = opsWorkersSize
 
 		fallthrough
 	default:

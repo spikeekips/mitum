@@ -17,8 +17,8 @@ type (
 		base.State,
 		error,
 	)
-	workerDistributeWorkerStateMergeValuesFunc = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
-	workerDistributeStateMergeValuesFunc       = func(_ context.Context, local, workID string, workersSize uint64) (
+	workerDistributeWorkerStateMergeValuesFunc  = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	workerProcessDistributeStateMergeValuesFunc = func(_ context.Context, workersSize uint64) (
 		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
 		errorFunc,
@@ -26,13 +26,13 @@ type (
 	)
 	workerProcessInitialInsertFunc = func(
 		getStateOwnersFunc,
-		workerDistributeStateMergeValuesFunc,
+		workerProcessDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		inErrorFunc[opindexOpHashesFunc],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
-		workerDistributeStateMergeValuesFunc,
+		workerProcessDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		inErrorFunc[opindexOpHashesFunc],
 		in2ErrorFunc[uint64, Operation],
@@ -73,7 +73,6 @@ func newFuncWorkerProcess(
 	getState getStateFunc,
 	newState newStateFunc,
 	maxExtractStateKeyCacheSize int,
-	workID string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -84,11 +83,7 @@ func newFuncWorkerProcess(
 	workerProcessWaitFunc,
 	error,
 ) {
-	ctx, log := updateModuleLoggerFromContext(ctx, "worker-process", func(zctx zerolog.Context) zerolog.Context {
-		return zctx.
-			Str("work_id", workID).
-			Str("local", local)
-	})
+	log := newModuleLoggerFromContext(ctx, "worker-process", nil)
 
 	log.Debug().
 		Uint64("ops_size", maxOpsSize).
@@ -135,7 +130,6 @@ func newFuncWorkerProcess(
 		newJobWorker,
 		getState,
 		newState,
-		workID,
 		workersSize,
 		opsWorkers,
 		opsShare, statesShare, maxOpsSize,
@@ -160,7 +154,7 @@ func newFuncWorkerProcess(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerDistributeStateMergeValuesFunc,
+			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
 		) error {
@@ -277,7 +271,6 @@ func newFuncWorkerProcessStateValueMerger(
 	newJobWorker newJobWorkerFunc,
 	getState getStateFunc,
 	newState newStateFunc,
-	workID string,
 	workersSize uint64,
 	opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
@@ -338,7 +331,6 @@ func newFuncWorkerProcessStateValueMerger(
 	switch i, err := newFuncWorkerProcessInitialInsert(
 		ctx,
 		local,
-		workID,
 		newJobWorker,
 		workersSize,
 		maxOpsSize,
@@ -354,7 +346,7 @@ func newFuncWorkerProcessStateValueMerger(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerDistributeStateMergeValuesFunc,
+			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
@@ -431,7 +423,6 @@ func newFuncWorkerProcessStateValueMerger(
 func newFuncWorkerProcessInitialInsert(
 	ctx context.Context,
 	local string,
-	workID string,
 	newJobWorker newJobWorkerFunc,
 	workersSize, maxOpsSize uint64,
 	localExtractedStateOwners localExtractedStateOwnersFunc,
@@ -453,7 +444,7 @@ func newFuncWorkerProcessInitialInsert(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerDistributeStateMergeValuesFunc,
+			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
 			saveOperation in2ErrorFunc[uint64, Operation],
@@ -476,7 +467,7 @@ func newFuncWorkerProcessInitialInsert(
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
 			var doneDistributeWorkerStateMergevalues workerStateOwnersSetFunc
 
-			switch i, o, c, err := distribute(ctx, local, workID, workersSize); {
+			switch i, o, c, err := distribute(ctx, workersSize); {
 			case err != nil:
 				return err
 			default:
@@ -749,13 +740,13 @@ func workerProcessCloseStateMergers(
 }
 
 func newFuncDistributeStateMergeValues(
-	newFuncs func(_ context.Context, local, workID, worker string) (
+	newFuncs func(_ context.Context, worker string) (
 		workerProcessInsertStateMergeValuesFunc,
 		in2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	),
-) workerDistributeStateMergeValuesFunc {
-	return func(ctx context.Context, local, workID string, workerSize uint64) (
+) workerProcessDistributeStateMergeValuesFunc {
+	return func(ctx context.Context, workersSize uint64) (
 		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
 		errorFunc,
@@ -763,7 +754,7 @@ func newFuncDistributeStateMergeValues(
 	) {
 		var pool util.LockedMap[string, [2]interface{}]
 
-		switch i, err := util.NewLockedMap[string, [2]interface{}](workerSize, nil); {
+		switch i, err := util.NewLockedMap[string, [2]interface{}](workersSize, nil); {
 		case err != nil:
 			return nil, nil, nil, err
 		default:
@@ -780,7 +771,7 @@ func newFuncDistributeStateMergeValues(
 						return v, util.ErrLockedSetIgnore
 					}
 
-					switch s, o, err := newFuncs(ctx, local, workID, worker); {
+					switch s, o, err := newFuncs(ctx, worker); {
 					case err != nil:
 						return v, err
 					default:
@@ -806,7 +797,7 @@ func newFuncDistributeStateMergeValues(
 							return nil
 						}
 
-						switch _, o, err := newFuncs(ctx, local, workID, worker); {
+						switch _, o, err := newFuncs(ctx, worker); {
 						case err != nil:
 							return err
 						default:

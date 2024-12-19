@@ -49,7 +49,6 @@ func (t *testWorkerProcess) newf(
 		getState,
 		newState,
 		1<<9,
-		util.UUID().String(),
 		workers, opsWorkers, opsShare, statesShare,
 		1<<9,
 	)
@@ -59,7 +58,7 @@ func (t *testWorkerProcess) newf(
 	t.NoError(err)
 
 	defaultDistribute := newFuncDistributeStateMergeValues(
-		func(_ context.Context, local, workID, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
+		func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
 			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
 					t.println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
@@ -79,7 +78,7 @@ func (t *testWorkerProcess) newf(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerDistributeStateMergeValuesFunc,
+			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
 		) error {
@@ -219,14 +218,13 @@ func (t *testWorkerProcess) TestCancel() {
 			func(string) (base.State, bool, error) { return nil, false, nil },
 			func(string, base.StateValue, []util.Hash) (base.State, error) { return nil, nil },
 			1<<9,
-			util.UUID().String(),
 			workers, workers, 1, 1, 1<<9,
 		)
 
 		return func() error {
 				return insertOps(
 					func(string) []string { return workers },
-					func(context.Context, string, string, uint64) (
+					func(context.Context, uint64) (
 						workerDistributeWorkerStateMergeValuesFunc,
 						workerStateOwnersSetFunc,
 						errorFunc,
@@ -759,7 +757,6 @@ func (t *testWorkerProcess) newProcessWorker(
 	local string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
-	workID string,
 ) (
 	workerProcessInitialInsertFunc,
 	workerProcessWorkerInsertStateMergeValuesFunc,
@@ -777,7 +774,6 @@ func (t *testWorkerProcess) newProcessWorker(
 		func(string) (base.State, bool, error) { return nil, false, nil },
 		t.newStateFunc(),
 		1<<9,
-		workID,
 		workers, opsWorkers, opsShare, statesShare,
 		1<<9,
 	)
@@ -810,7 +806,6 @@ func (t *testWorkerProcess) newProcessWorkers(
 			ctx,
 			local, workers, opsWorkers,
 			opsShare, statesShare,
-			util.UUID().String(),
 		)
 
 		return true, nil
@@ -821,13 +816,15 @@ func (t *testWorkerProcess) newProcessWorkers(
 	t.NoError(err)
 	defer stateOwnersClose()
 
-	distributeValues := newFuncDistributeStateMergeValues(func(_ context.Context, local, workID, worker string) (
-		workerProcessInsertStateMergeValuesFunc,
-		in2ErrorFunc[[]string, []string],
-		error,
-	) {
-		return workerInserts[worker](local)
-	})
+	distributeValues := func(local string) workerProcessDistributeStateMergeValuesFunc {
+		return newFuncDistributeStateMergeValues(func(_ context.Context, worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			in2ErrorFunc[[]string, []string],
+			error,
+		) {
+			return workerInserts[worker](local)
+		})
+	}
 
 	go func() {
 		ophs := make([][2]util.Hash, len(ops))
@@ -852,7 +849,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 				err := initials[local](
 					getStateOwners,
-					distributeValues,
+					distributeValues(local),
 					getOperation,
 					func(f opindexOpHashesFunc) error {
 						return opWorkers(local, f)

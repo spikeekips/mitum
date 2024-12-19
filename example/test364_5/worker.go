@@ -10,15 +10,43 @@ import (
 )
 
 type (
+	workerDistributeStateMergeValuesFunc = func(_ context.Context, workID string, workersSize uint64) (
+		workerDistributeWorkerStateMergeValuesFunc,
+		workerStateOwnersSetFunc,
+		errorFunc,
+		error,
+	)
 	workerInitialInsertFunc = func(
 		getStateOwnersFunc,
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 	) error
+	workerBroacastUnmerged = func(
+		_ context.Context,
+		local,
+		workID,
+		worker string,
+		unmerged []uint64,
+	) error
+	workerReportStateOwnersFunc = func(
+		_ context.Context,
+		local,
+		workID string,
+		owners []string,
+	) error
+	workerReportResultFunc func(
+		_ context.Context,
+		local,
+		workID string,
+		unmerged []uint64,
+		reasons map[uint64]string,
+		statesSize uint64,
+		_ inErrorFunc[inErrorFunc[base.State]],
+	) error
 	workerWaitFunc = func(
-		broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
-		reportStateOwners in2ErrorFunc[context.Context, []string],
-		reportStates workerProcessReportResult,
+		workerBroacastUnmerged,
+		workerReportStateOwnersFunc,
+		workerReportResultFunc,
 	) error
 )
 
@@ -98,7 +126,6 @@ func newFuncWorker(
 		getState,
 		newState,
 		options.MaxExtractStateKeyCacheSize,
-		workID,
 		workers, opsWorkers,
 		opsShare, statesShare,
 		opsSize,
@@ -116,7 +143,14 @@ func newFuncWorker(
 		) error {
 			return initialInsert(
 				getStateOwners,
-				distribute,
+				func(ctx context.Context, workersSize uint64) (
+					workerDistributeWorkerStateMergeValuesFunc,
+					workerStateOwnersSetFunc,
+					errorFunc,
+					error,
+				) {
+					return distribute(ctx, workID, workersSize)
+				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {
 					return traverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
@@ -128,9 +162,9 @@ func newFuncWorker(
 		workerInsert,
 		workerUnmerge,
 		func(
-			broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
-			reportStateOwners in2ErrorFunc[context.Context, []string],
-			reportResult workerProcessReportResult,
+			broacastUnmerged workerBroacastUnmerged,
+			reportStateOwners workerReportStateOwnersFunc,
+			reportResult workerReportResultFunc,
 		) error {
 			var traverseOps workerProcessTraverseOperationsFunc
 			var savedStates util.LockedMap[string, base.State]
@@ -142,8 +176,12 @@ func newFuncWorker(
 			}()
 
 			switch i, err := processWait(
-				broacastUnmerged,
-				reportStateOwners,
+				func(ctx context.Context, worker string, unmerged []uint64) error {
+					return broacastUnmerged(ctx, options.Local, workID, worker, unmerged)
+				},
+				func(ctx context.Context, owners []string) error {
+					return reportStateOwners(ctx, options.Local, workID, owners)
+				},
 				func(
 					ctx context.Context,
 					unmerged []uint64,
@@ -158,7 +196,7 @@ func newFuncWorker(
 						savedStates = i
 					}
 
-					return reportResult(ctx, unmerged, reasons, statesSize,
+					return reportResult(ctx, options.Local, workID, unmerged, reasons, statesSize,
 						func(f inErrorFunc[base.State]) error {
 							return reportStates(func(st base.State) error {
 								_ = savedStates.SetValue(st.Key(), st)

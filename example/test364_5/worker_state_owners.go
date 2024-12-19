@@ -28,7 +28,7 @@ type (
 func newFuncWorkerStateOwners(
 	ctx context.Context,
 	local string,
-	maxWorkerSize uint64,
+	maxWorkersSize uint64,
 ) (
 	localExtractedStateOwnersFunc,
 	workerStateOwnersSetFunc,
@@ -41,12 +41,12 @@ func newFuncWorkerStateOwners(
 	var doneSubStateOwners, doneAffectedStateOwners appendSliceDoneFunc[string]
 
 	if err := newFuncAddStateOwners(
-		maxWorkerSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
+		maxWorkersSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
 		return nil, nil, nil, err
 	}
 
 	if err := newFuncAddStateOwners(
-		maxWorkerSize, &addAffectedStateOwners, &doneAffectedStateOwners); err != nil {
+		maxWorkersSize, &addAffectedStateOwners, &doneAffectedStateOwners); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -58,7 +58,7 @@ func newFuncWorkerStateOwners(
 			var localInsertValues extractStateOwnersStateMergeValuesFunc
 			var traverseOwnersSet inErrorFunc[workerStateOwnersSetFunc]
 
-			switch i, t, err := newFuncLocalExtractedStateOwners(maxWorkerSize, getStateOwners); {
+			switch i, t, err := newFuncLocalExtractedStateOwners(maxWorkersSize, getStateOwners); {
 			case err != nil:
 				return nil, nil, err
 			default:
@@ -126,7 +126,7 @@ func newFuncWorkerStateOwners(
 }
 
 func newFuncLocalExtractedStateOwners(
-	maxWorkerSize uint64,
+	maxWorkersSize uint64,
 	getStateOwners getStateOwnersFunc,
 ) (
 	extractStateOwnersStateMergeValuesFunc,
@@ -136,7 +136,7 @@ func newFuncLocalExtractedStateOwners(
 	var addOwnersSet insertStateOwnerSetFunc
 	var traverseWorkerOwnersSet inErrorFunc[workerStateOwnersSetFunc]
 
-	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkerSize); {
+	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkersSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -186,7 +186,7 @@ func newFuncLocalExtractedStateOwners(
 		nil
 }
 
-func newFuncWorkerCollectStateOwnersSet(maxWorkerSize uint64) (
+func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	insertStateOwnerSetFunc,
 	inErrorFunc[workerStateOwnersSetFunc],
 	error,
@@ -194,14 +194,14 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkerSize uint64) (
 	var msubs util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
 	var maffected util.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkerSize, nil); {
+	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		msubs = i
 	}
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkerSize, nil); {
+	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
