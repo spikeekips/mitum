@@ -11,10 +11,9 @@ import (
 
 type (
 	workerInitialInsertFunc = func(
-		_ getStateOwnersFunc,
-		_ workerDistributeStateMergeValuesFunc,
-		_ getOperationFunc,
-		reportReasons inErrorFunc[map[uint64]string],
+		getStateOwnersFunc,
+		workerDistributeStateMergeValuesFunc,
+		getOperationFunc,
 	) error
 	workerWaitFunc = func(
 		broacastUnmerged in3ErrorFunc[context.Context, string, []uint64],
@@ -114,7 +113,6 @@ func newFuncWorker(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -125,7 +123,6 @@ func newFuncWorker(
 						return true, f(uint64(i), oph[0], oph[1])
 					})
 				},
-				reportReasons,
 			)
 		},
 		workerInsert,

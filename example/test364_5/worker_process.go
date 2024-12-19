@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"maps"
 	"slices"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -27,7 +29,6 @@ type (
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		inErrorFunc[opindexOpHashesFunc],
-		inErrorFunc[map[uint64]string],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
@@ -155,12 +156,13 @@ func newFuncWorkerProcess(
 		savedOps = i
 	}
 
+	var unusedOps atomic.Value
+
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
-			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -172,7 +174,11 @@ func newFuncWorkerProcess(
 
 					return nil
 				},
-				reportReasons,
+				func(reasons map[uint64]string) error {
+					unusedOps.Store(reasons)
+
+					return nil
+				},
 			)
 		},
 		workerInsertStateValues,
@@ -212,6 +218,12 @@ func newFuncWorkerProcess(
 					)
 				},
 				func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
+					unmerged, reasons = mergeUnmergedReasons(unmerged, reasons, unusedOps)
+					defer func() {
+						clear(unmerged)
+						clearMap(reasons)
+					}()
+
 					statesSize, traverseStateMergers := traverseStateMergersf()
 
 					return reportResult(ctx, unmerged, reasons, statesSize, func(f inErrorFunc[base.State]) error {
@@ -823,5 +835,44 @@ func newFuncDistributeStateMergeValues(
 				return nil
 			},
 			nil
+	}
+}
+
+func mergeUnmergedReasons(unmerged []uint64, reasons map[uint64]string, unusedOps atomic.Value) ([]uint64, map[uint64]string) {
+	var u map[uint64]string
+
+	if i := unusedOps.Load(); i != nil {
+		u = i.(map[uint64]string)
+	}
+
+	if len(u) < 1 {
+		defer clearMap(u)
+
+		return unmerged, reasons
+	}
+
+	switch {
+	case len(reasons) < 1:
+		reasons = u
+	default:
+		defer clearMap(u)
+
+		_ = traverseMap(u, func(opindex uint64, reason string) (bool, error) {
+			if _, found := reasons[opindex]; !found {
+				reasons[opindex] = reason
+			}
+
+			return true, nil
+		})
+	}
+
+	switch {
+	case len(unmerged) < 1:
+		return slices.Collect(maps.Keys(u)), reasons
+	default:
+		unmerged = slices.AppendSeq(unmerged, maps.Keys(u))
+		slices.Sort(unmerged)
+
+		return slices.Compact(unmerged), reasons
 	}
 }

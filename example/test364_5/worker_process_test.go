@@ -82,7 +82,6 @@ func (t *testWorkerProcess) newf(
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp inErrorFunc[opindexOpHashesFunc],
-			reportReasons inErrorFunc[map[uint64]string],
 		) error {
 			if getStateOwners == nil {
 				getStateOwners = defaultGetStateOwners
@@ -97,7 +96,6 @@ func (t *testWorkerProcess) newf(
 				distribute,
 				getOperation,
 				insertOp,
-				reportReasons,
 			)
 		},
 		insert,
@@ -241,7 +239,6 @@ func (t *testWorkerProcess) TestCancel() {
 					},
 					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
 					func(opindexOpHashesFunc) error { return nil },
-					nil,
 				)
 			},
 			func() error {
@@ -380,7 +377,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
 			t.defaultFuncInsertOp(ops),
-			nil,
 		))
 
 		var calledBroadcastUnmerged bool
@@ -457,7 +453,7 @@ func (t *testWorkerProcess) TestLocal() {
 			workers, workers, 1, 1,
 		)
 
-		t.NoError(initial(nil, nil, nil, func(opindexOpHashesFunc) error { return nil }, nil))
+		t.NoError(initial(nil, nil, nil, func(opindexOpHashesFunc) error { return nil }))
 
 		var calledBroadcastUnmerged bool
 		var reportedStateOwners atomic.Value
@@ -568,6 +564,8 @@ func (t *testWorkerProcess) TestLocal() {
 
 			return true, nil
 		})
+		expectedUnmergedAfterExtracted := slices.Collect(maps.Keys(expectedReasonsAfterExtracted))
+		slices.Sort(expectedUnmergedAfterExtracted)
 
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
@@ -581,11 +579,6 @@ func (t *testWorkerProcess) TestLocal() {
 				return traverseMap(expectedReasonsAfterExtracted, func(opindex uint64, _ string) (bool, error) {
 					return true, f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 				})
-			},
-			func(reasons map[uint64]string) error {
-				t.Equal(expectedReasonsAfterExtracted, reasons)
-
-				return nil
 			},
 		))
 
@@ -626,8 +619,12 @@ func (t *testWorkerProcess) TestLocal() {
 
 		{
 			reported := reportedStates.Load().([2]interface{})
-			t.Empty(reported[0].([]uint64))
-			t.Empty(reported[1].(map[uint64]string))
+
+			unmerged := reported[0].([]uint64)
+			slices.Sort(unmerged)
+
+			t.Equal(expectedUnmergedAfterExtracted, unmerged)
+			t.Equal(expectedReasonsAfterExtracted, reported[1].(map[uint64]string))
 		}
 
 		t.Equal(len(ops), savedStates.Len())
@@ -660,7 +657,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		)
 
 		go func() {
-			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
+			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
 
 			_, insertDone, err := insertf(managerName)
 			t.NoError(err)
@@ -720,7 +717,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			t.NoError(err)
 			t.NoError(insertDone(nil, nil))
 
-			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
+			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
 		}()
 
 		var calledBroadcastUnmerged bool
@@ -840,7 +837,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 			return true, nil
 		})
 
-		opWorkers, err := opsNShareWorker(opsWorkers, opsShare, ophs)
+		_, opWorkers, err := opsNShareWorkers(opsWorkers, opsShare, ophs)
 		if err != nil {
 			panic(err)
 		}
@@ -860,7 +857,6 @@ func (t *testWorkerProcess) newProcessWorkers(
 					func(f opindexOpHashesFunc) error {
 						return opWorkers(local, f)
 					},
-					nil,
 				)
 
 				t.println("initial: worker=%q err=%v", local, err)
