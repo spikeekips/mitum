@@ -7,19 +7,18 @@ import (
 )
 
 type (
-	newWorkerSendOpFunc func(_ context.Context, workID, worker string) (opindexOpHashesFunc, inErrorFunc[error], error)
+	newWorkerSendOpFunc func(_ context.Context, worker string) (opindexOpHashesFunc, inErrorFunc[error], error)
 )
 
 func newFuncManagerWorkersOps(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
-	newWorkerSendOp newWorkerSendOpFunc,
-	workID string,
 	workers []string,
 	opsShare uint64,
 	ophs [][2]util.Hash,
+	newWorkerSendOp newWorkerSendOpFunc,
 ) error {
-	log := newModuleLoggerFromContext(ctx, "manager-process", nil)
+	log := newModuleLoggerFromContext(ctx, "manager-workers-ops", nil)
 
 	if len(ophs) < 1 {
 		return util.ErrInvalid.Errorf("empty ophs")
@@ -43,7 +42,6 @@ func newFuncManagerWorkersOps(
 		ctx,
 		newJobWorker,
 		newWorkerSendOp,
-		workID,
 		opsWorkers,
 		opsShare,
 		workerOps,
@@ -54,7 +52,6 @@ func managerDistributeWorkersOps(
 	ctx context.Context,
 	newJobWorker newJobWorkerFunc,
 	newWorkerSendOp newWorkerSendOpFunc,
-	workID string,
 	opsWorkers []string,
 	opsShare uint64,
 	workerOps workerOperationsFunc,
@@ -91,7 +88,7 @@ func managerDistributeWorkersOps(
 	}
 
 	sendWorker := func(ctx context.Context, worker string) error {
-		switch s, d, err := newWorkerSendOp(ctx, workID, worker); {
+		switch s, d, err := newWorkerSendOp(ctx, worker); {
 		case err != nil:
 			return err
 		default:
