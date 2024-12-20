@@ -17,73 +17,53 @@ func newFuncManagerWorkersOps(
 	opsShare uint64,
 	ophs [][2]util.Hash,
 	newWorkerSendOp newWorkerSendOpFunc,
-) error {
-	log := newModuleLoggerFromContext(ctx, "manager-workers-ops", nil)
-
+) (errorFunc, errorFunc, error) {
 	if len(ophs) < 1 {
-		return util.ErrInvalid.Errorf("empty ophs")
+		return nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
+
+	log := loadContextValueLogger(ctx)
+
+	l := log.Debug().
+		Uint64("ops_share", opsShare).
+		Int("ophs", len(ophs))
 
 	var opsWorkers []string
 	var workerOps workerOperationsFunc
 
 	switch w, d, err := opsNShareWorkers(workers, opsShare, ophs); {
 	case err != nil:
-		return err
+		return nil, nil, err
 	default:
 		opsWorkers = w()
 		workerOps = d
+
+		l = l.Strs("ops_workers", opsWorkers)
 	}
-
-	return elapsedLogger(
-		log.With().Strs("ops_workers", opsWorkers).Logger(),
-		"sent ops to workers",
-	)(managerDistributeWorkersOps(
-		ctx,
-		newJobWorker,
-		newWorkerSendOp,
-		opsWorkers,
-		opsShare,
-		workerOps,
-	))
-}
-
-func managerDistributeWorkersOps(
-	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
-	newWorkerSendOp newWorkerSendOpFunc,
-	opsWorkers []string,
-	opsShare uint64,
-	workerOps workerOperationsFunc,
-) error {
-	log := loadContextValueLogger(ctx)
 
 	opsWorkersSize := uint64(len(opsWorkers))
 
-	var maxFailed uint64
-
-	switch _, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
-	case err != nil:
-		return err
-	default:
-		maxFailed = f
-	}
-
-	log.Debug().
-		Uint64("ops_workers_size", opsWorkersSize).
-		Uint64("max_failed", maxFailed).
-		Msg("distribute ops to workers")
+	l = l.Uint64("ops_workers_size", opsWorkersSize)
 
 	var checkWorker checkFailedWorkerFunc
+	var checkWorkerClose func()
 
-	switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, maxFailed); {
+	switch _, maxFailed, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
 	case err != nil:
-		return err
+		return nil, nil, err
 	default:
-		defer c()
+		l = l.Uint64("max_failed", maxFailed)
 
-		checkWorker = w
+		switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, maxFailed); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			checkWorker = w
+			checkWorkerClose = c
+		}
 	}
+
+	l.Msg("send ops to workers")
 
 	var newJob jobWorkerNewJobFunc
 	var jobDone func()
@@ -91,7 +71,7 @@ func managerDistributeWorkersOps(
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
-		return err
+		return nil, nil, err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
@@ -107,28 +87,32 @@ func managerDistributeWorkersOps(
 		}
 	}
 
-	if err := traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-		return true, newJob(func(ctx context.Context) error {
-			l := log.With().Str("worker", worker).Logger()
+	return func() error {
+			defer jobDone()
 
-			gerr := sendWorker(ctx, worker)
+			return traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+				return true, newJob(func(ctx context.Context) error {
+					l := log.With().Str("worker", worker).Logger()
 
-			switch _, failed, err := checkWorker(worker, func() error { return gerr }); {
-			case failed:
-				l.Error().Err(err).Msg("sent; check workers: failed")
+					gerr := sendWorker(ctx, worker)
 
-				return err
-			case err != nil: // NOTE ignore
-				l.Debug().Err(err).Msg("sent")
-			}
+					switch _, failed, err := checkWorker(worker, func() error { return gerr }); {
+					case failed:
+						l.Error().Err(err).Msg("sent; check workers: failed")
 
-			return nil
-		})
-	}); err != nil {
-		return err
-	}
+						return err
+					case err != nil: // NOTE ignore
+						l.Debug().Err(err).Msg("sent")
+					}
 
-	jobDone()
+					return nil
+				})
+			})
+		},
+		func() error {
+			defer checkWorkerClose()
 
-	return jobWait()
+			return jobWait()
+		},
+		nil
 }

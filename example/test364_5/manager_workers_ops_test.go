@@ -48,39 +48,44 @@ func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {
 }
 
 func (t *testManagerWorkersOps) TestCancel() {
-	t.Run("before new", func() {
+	t.Run("before send", func() {
 		workers := t.workers(3)
 		ophs := t.randomOphs(3)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		cancel()
-
-		err := newFuncManagerWorkersOps(
+		send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			newFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
 			ophs,
 			t.workerSendOpFunc(),
 		)
+		t.NoError(err)
+
+		cancel()
+
+		err = send()
+		t.ErrorIs(err, context.Canceled)
+		err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 
-	t.Run("during sending", func() {
+	t.Run("during send", func() {
 		workers := t.workers(3)
 		ophs := t.randomOphs(3)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		send := t.workerSendOpFunc()
+		sendf := t.workerSendOpFunc()
 
-		err := newFuncManagerWorkersOps(
+		send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			newFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
 			ophs,
 			func(ctx context.Context, worker string) (opindexOpHashesFunc, inErrorFunc[error], error) {
-				o, d, err := send(ctx, worker)
+				o, d, err := sendf(ctx, worker)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -100,7 +105,18 @@ func (t *testManagerWorkersOps) TestCancel() {
 					nil
 			},
 		)
-		t.ErrorIs(err, context.Canceled)
+
+		err = send()
+		if err != nil {
+			t.ErrorIs(err, context.Canceled)
+		}
+
+		switch err = wait(); {
+		case errors.Is(err, context.Canceled):
+		case errors.Is(err, errWorkersFailed):
+		default:
+			t.NoError(err)
+		}
 	})
 }
 
@@ -111,7 +127,7 @@ func (t *testManagerWorkersOps) TestSend() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		err := newFuncManagerWorkersOps(
+		_, _, err := newFuncManagerWorkersOps(
 			ctx,
 			newFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
@@ -159,18 +175,18 @@ func (t *testManagerWorkersOps) TestSend() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		send := t.workerSendOpFunc()
+		sendf := t.workerSendOpFunc()
 
 		sentOps, err := util.NewLockedMap[string, [][3]interface{}](1<<9, nil)
 		t.NoError(err)
 
-		t.NoError(newFuncManagerWorkersOps(
+		send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			newFuncNewJobWorkerFunc(1<<9),
 			workers, opsShare,
 			ophs,
 			func(ctx context.Context, worker string) (opindexOpHashesFunc, inErrorFunc[error], error) {
-				o, d, err := send(ctx, worker)
+				o, d, err := sendf(ctx, worker)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -197,7 +213,10 @@ func (t *testManagerWorkersOps) TestSend() {
 					},
 					nil
 			},
-		))
+		)
+
+		t.NoError(send())
+		t.NoError(wait())
 
 		t.Equal(len(expectedOpsWorkers), len(sentOps.Map()))
 		t.Equal(expected, sentOps.Map())
@@ -254,7 +273,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 		sentOps, err := util.NewLockedMap[string, [][3]interface{}](1<<9, nil)
 		t.NoError(err)
 
-		err = newFuncManagerWorkersOps(
+		send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			newFuncNewJobWorkerFunc(1<<9),
 			workers, opsShare,
@@ -292,6 +311,16 @@ func (t *testManagerWorkersOps) TestFailed() {
 					nil
 			},
 		)
+		if err != nil {
+			return err
+		}
+
+		if err := send(); err != nil {
+			return err
+		}
+		if err := wait(); err != nil {
+			return err
+		}
 
 		if err == nil {
 			t.Equal(len(expectedOpsWorkers), len(sentOps.Map()))
