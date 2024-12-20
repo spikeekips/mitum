@@ -486,6 +486,7 @@ func (t *testWorkerMerger) TestInsert() {
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
 		var expectedUnmerged []uint64
+		expectedReasons := map[uint64]string{}
 
 		for i := range values {
 			opindex := uint64(i)
@@ -503,6 +504,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 			if worker != local {
 				expectedUnmerged = append(expectedUnmerged, opindex)
+				expectedReasons[opindex] = ""
 			}
 		}
 
@@ -565,7 +567,7 @@ func (t *testWorkerMerger) TestInsert() {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
 
 				t.Equal(expectedUnmerged, unmerged)
-				t.Empty(reasons)
+				t.Equal(expectedReasons, reasons)
 
 				return nil
 			},
@@ -1649,6 +1651,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
 		var expectedUnmerged []uint64
+		expectedReasons := map[uint64]string{}
 
 		for i := range values {
 			opindex := uint64(i)
@@ -1666,6 +1669,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 			if worker != local {
 				expectedUnmerged = append(expectedUnmerged, opindex)
+				expectedReasons[opindex] = ""
 			}
 		}
 
@@ -1740,7 +1744,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
 
 				t.Equal(expectedUnmerged, unmerged)
-				t.Empty(reasons)
+				t.Equal(expectedReasons, reasons)
 
 				return nil
 			},
@@ -1761,6 +1765,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
 		var expectedUnmerged []uint64
+		expectedReasons := map[uint64]string{}
 
 		for i := range values {
 			opindex := uint64(i)
@@ -1778,6 +1783,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 			if worker != local {
 				expectedUnmerged = append(expectedUnmerged, opindex)
+				expectedReasons[opindex] = ""
 			}
 		}
 
@@ -1852,7 +1858,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
 
 				t.Equal(expectedUnmerged, unmerged)
-				t.Empty(reasons)
+				t.Equal(expectedReasons, reasons)
 
 				return nil
 			},

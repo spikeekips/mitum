@@ -125,7 +125,8 @@ func newFuncPhaseMerger(
 			return newJob(opindex, mergeCallback(opindex))
 		},
 		func(opindex uint64) error {
-			addXMergedOp(basePhase, opindex, unmergeFlag)
+			// NOTE for testing
+			// addXMergedOp(basePhase, opindex, unmergeFlag)
 
 			return newJob(opindex, unmergeCallback(opindex))
 		},
@@ -570,14 +571,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 				return nil
 			}
 
-			var n map[uint64]string
-
-			if m.Len() > 0 && len(unmerged) > 0 {
-				n = filterReasons(m.Map(), unmerged)
-				defer clearMap(n)
-			}
-
-			return f(n)
+			return f(m.Map())
 		},
 		nil
 }
@@ -805,15 +799,18 @@ func mustFuncGetStateMergeValues(get opindexGetStateMergeValuesFunc) opindexGetS
 }
 
 func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]string {
-	if len(reasons) < 1 || len(unmerged) < 1 {
+	if len(unmerged) < 1 {
 		return nil
 	}
 
 	n := map[uint64]string{}
 
 	_ = traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
-		if i, found := reasons[opindex]; found {
+		switch i, found := reasons[opindex]; {
+		case found:
 			n[opindex] = i
+		default:
+			n[opindex] = ""
 		}
 
 		return true, nil

@@ -38,7 +38,6 @@ type (
 		_ context.Context,
 		local,
 		workID string,
-		unmerged []uint64,
 		reasons map[uint64]string,
 		statesSize uint64,
 		_ inErrorFunc[inErrorFunc[base.State]],
@@ -184,7 +183,6 @@ func newFuncWorker(
 				},
 				func(
 					ctx context.Context,
-					unmerged []uint64,
 					reasons map[uint64]string,
 					statesSize uint64,
 					reportStates inErrorFunc[inErrorFunc[base.State]],
@@ -196,7 +194,7 @@ func newFuncWorker(
 						savedStates = i
 					}
 
-					return reportResult(ctx, options.Local, workID, unmerged, reasons, statesSize,
+					return reportResult(ctx, options.Local, workID, reasons, statesSize,
 						func(f inErrorFunc[base.State]) error {
 							return reportStates(func(st base.State) error {
 								_ = savedStates.SetValue(st.Key(), st)

@@ -129,17 +129,16 @@ func (t *testWorkerProcess) newf(
 				},
 				func(
 					ctx context.Context,
-					unmerged []uint64,
 					reasons map[uint64]string,
 					statesSize uint64,
 					states inErrorFunc[inErrorFunc[base.State]],
 				) error {
-					t.println("wait: report result: unmerged=%v reasons=%v states=%d", unmerged, reasons, statesSize)
+					t.println("wait: report result: reasons=%v states=%d", reasons, statesSize)
 
 					var called bool
 
 					if d != nil {
-						if err := d(ctx, unmerged, reasons, statesSize,
+						if err := d(ctx, reasons, statesSize,
 							func(f inErrorFunc[base.State]) error {
 								called = true
 
@@ -393,15 +392,11 @@ func (t *testWorkerProcess) TestLocal() {
 			},
 			func(
 				_ context.Context,
-				unmerged []uint64,
 				reasons map[uint64]string,
 				statesSize uint64,
 				states inErrorFunc[inErrorFunc[base.State]],
 			) error {
-				reportedStates.Store([2]interface{}{
-					slices.Clone(unmerged),
-					maps.Clone(reasons),
-				})
+				reportedStates.Store(maps.Clone(reasons))
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -414,9 +409,8 @@ func (t *testWorkerProcess) TestLocal() {
 		t.Equal(len(ops), savedOps.Len())
 
 		{
-			reported := reportedStates.Load().([2]interface{})
-			t.Empty(reported[0].([]uint64))
-			t.Empty(reported[1].(map[uint64]string))
+			reported := reportedStates.Load().(map[uint64]string)
+			t.Empty(reported)
 		}
 
 		t.Equal(len(ops), savedStates.Len())
@@ -506,15 +500,11 @@ func (t *testWorkerProcess) TestLocal() {
 			},
 			func(
 				_ context.Context,
-				unmerged []uint64,
 				reasons map[uint64]string,
 				statesSize uint64,
 				states inErrorFunc[inErrorFunc[base.State]],
 			) error {
-				reportedStates.Store([2]interface{}{
-					slices.Clone(unmerged),
-					maps.Clone(reasons),
-				})
+				reportedStates.Store(maps.Clone(reasons))
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -528,9 +518,8 @@ func (t *testWorkerProcess) TestLocal() {
 		t.Equal(workers, reportedStateOwners.Load().([]string))
 
 		{
-			reported := reportedStates.Load().([2]interface{})
-			t.Empty(reported[0].([]uint64))
-			t.Empty(reported[1].(map[uint64]string))
+			reported := reportedStates.Load().(map[uint64]string)
+			t.Empty(reported)
 		}
 
 		t.Equal(len(ops), savedStates.Len())
@@ -596,15 +585,11 @@ func (t *testWorkerProcess) TestLocal() {
 			},
 			func(
 				_ context.Context,
-				unmerged []uint64,
 				reasons map[uint64]string,
 				statesSize uint64,
 				states inErrorFunc[inErrorFunc[base.State]],
 			) error {
-				reportedStates.Store([2]interface{}{
-					slices.Clone(unmerged),
-					maps.Clone(reasons),
-				})
+				reportedStates.Store(maps.Clone(reasons))
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -616,13 +601,8 @@ func (t *testWorkerProcess) TestLocal() {
 		t.Equal(len(ops), savedOps.Len())
 
 		{
-			reported := reportedStates.Load().([2]interface{})
-
-			unmerged := reported[0].([]uint64)
-			slices.Sort(unmerged)
-
-			t.Equal(expectedUnmergedAfterExtracted, unmerged)
-			t.Equal(expectedReasonsAfterExtracted, reported[1].(map[uint64]string))
+			reported := reportedStates.Load().(map[uint64]string)
+			t.Equal(expectedReasonsAfterExtracted, reported)
 		}
 
 		t.Equal(len(ops), savedStates.Len())
@@ -677,12 +657,10 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			},
 			func(
 				_ context.Context,
-				unmerged []uint64,
 				reasons map[uint64]string,
 				statesSize uint64,
 				states inErrorFunc[inErrorFunc[base.State]],
 			) error {
-				t.Empty(unmerged)
 				t.Empty(reasons)
 				t.Equal(uint64(0), statesSize)
 
@@ -733,12 +711,10 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			},
 			func(
 				_ context.Context,
-				unmerged []uint64,
 				reasons map[uint64]string,
 				statesSize uint64,
 				states inErrorFunc[inErrorFunc[base.State]],
 			) error {
-				t.Empty(unmerged)
 				t.Empty(reasons)
 				t.Equal(uint64(0), statesSize)
 
@@ -886,12 +862,11 @@ func (t *testWorkerProcess) newProcessWorkers(
 				},
 				func(
 					ctx context.Context,
-					unmerged []uint64,
 					reasons map[uint64]string,
 					statesSize uint64,
 					f inErrorFunc[inErrorFunc[base.State]],
 				) error {
-					t.println("wait states: local=%q unmerged=%v reasons=%v states=%d", local, unmerged, reasons, statesSize)
+					t.println("wait states: local=%q reasons=%v states=%d", local, reasons, statesSize)
 
 					return f(func(st base.State) error {
 						t.println("\tstate: local=%q st=%q", local, st.Key())

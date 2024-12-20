@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"maps"
 	"slices"
 	"sync/atomic"
 
@@ -50,7 +49,6 @@ type (
 	)
 	workerProcessReportResult func(
 		_ context.Context,
-		unmerged []uint64,
 		reasons map[uint64]string,
 		statesSize uint64,
 		_ inErrorFunc[inErrorFunc[base.State]],
@@ -212,15 +210,14 @@ func newFuncWorkerProcess(
 					)
 				},
 				func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
-					unmerged, reasons = mergeUnmergedReasons(unmerged, reasons, unusedOps)
+					reasons = mergeUnusedReasons(reasons, unusedOps)
 					defer func() {
-						clear(unmerged)
 						clearMap(reasons)
 					}()
 
 					statesSize, traverseStateMergers := traverseStateMergersf()
 
-					return reportResult(ctx, unmerged, reasons, statesSize, func(f inErrorFunc[base.State]) error {
+					return reportResult(ctx, reasons, statesSize, func(f inErrorFunc[base.State]) error {
 						return workerProcessCloseStateMergers(
 							ctx,
 							newState,
@@ -829,7 +826,7 @@ func newFuncDistributeStateMergeValues(
 	}
 }
 
-func mergeUnmergedReasons(unmerged []uint64, reasons map[uint64]string, unusedOps atomic.Value) ([]uint64, map[uint64]string) {
+func mergeUnusedReasons(reasons map[uint64]string, unusedOps atomic.Value) map[uint64]string {
 	var u map[uint64]string
 
 	if i := unusedOps.Load(); i != nil {
@@ -839,7 +836,7 @@ func mergeUnmergedReasons(unmerged []uint64, reasons map[uint64]string, unusedOp
 	if len(u) < 1 {
 		defer clearMap(u)
 
-		return unmerged, reasons
+		return reasons
 	}
 
 	switch {
@@ -857,13 +854,5 @@ func mergeUnmergedReasons(unmerged []uint64, reasons map[uint64]string, unusedOp
 		})
 	}
 
-	switch {
-	case len(unmerged) < 1:
-		return slices.Collect(maps.Keys(u)), reasons
-	default:
-		unmerged = slices.AppendSeq(unmerged, maps.Keys(u))
-		slices.Sort(unmerged)
-
-		return slices.Compact(unmerged), reasons
-	}
+	return reasons
 }

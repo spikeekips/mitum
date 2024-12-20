@@ -976,7 +976,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		done()
 		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
 			t.Empty(newMerged)
-			t.Empty(newUnmerged)
+			t.Equal([]uint64{1}, newUnmerged)
 			t.Empty(reasons)
 
 			return nil
@@ -1009,9 +1009,11 @@ func (t *testPhaseMerger) TestUnmerge() {
 		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
+		expectedUnmerged := make([]uint64, len(vss))
 		var subed int64
 		for i := range vss {
 			opindex := uint64(i)
+			expectedUnmerged[i] = opindex
 
 			vss[i] = t.newMergeValuesVP(vp, opindex, pub, i+1)
 
@@ -1028,7 +1030,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		done()
 		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
 			t.Empty(newMerged)
-			t.Empty(newUnmerged)
+			t.Equal(expectedUnmerged, newUnmerged)
 			t.Empty(reasons)
 
 			return nil
@@ -1188,7 +1190,14 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
 		newMerged = slices.Clone(ms)
 		newUnmerged = slices.Clone(us)
-		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
+
+		reason, found := reasons[1]
+		t.True(found)
+		t.Equal("previous issuer found", reason)
+
+		reason, found = reasons[3]
+		t.True(found)
+		t.Equal("previous issuer found", reason)
 
 		return nil
 	}))
@@ -1434,7 +1443,14 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
 		newMerged = slices.Clone(ms)
 		newUnmerged = slices.Clone(us)
-		t.Equal(map[uint64]string{1: "previous issuer found", 3: "previous issuer found"}, reasons)
+
+		reason, found := reasons[1]
+		t.True(found)
+		t.Equal("previous issuer found", reason)
+
+		reason, found = reasons[3]
+		t.True(found)
+		t.Equal("previous issuer found", reason)
 
 		return nil
 	}))

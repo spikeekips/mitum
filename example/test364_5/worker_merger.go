@@ -15,7 +15,7 @@ type (
 		inErrorFunc[error],
 		error,
 	)
-	workerMergerCallback                 = func(unmerged []uint64, reasons map[uint64]string) error
+	workerMergerCallback                 = func(unmerged []uint64, reasons map[uint64]string) error // FIXME remove unmerged
 	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
