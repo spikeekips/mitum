@@ -34,6 +34,99 @@ func (t *baseTestWorkers) toCtxCancel(f func()) inErrorFunc[error] {
 	}
 }
 
+type testCheckFailedWorkers struct {
+	suite.Suite
+}
+
+func (t *testCheckFailedWorkers) TestNew() {
+	t.Run("0 max workers size", func() {
+		_, _, err := newFuncCheckFailedWorkers(0, 1)
+		t.ErrorContains(err, "zero max workers size")
+	})
+
+	t.Run("0 max failed", func() {
+		_, _, err := newFuncCheckFailedWorkers(1, 0)
+		t.NoError(err)
+	})
+}
+
+func (t *testCheckFailedWorkers) TestFailed() {
+	t.Run("failed", func() {
+		w, c, err := newFuncCheckFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("error after failed", func() {
+		w, c, err := newFuncCheckFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+
+		ok, failed, err = w("w1", func() error { return nil })
+		t.False(ok)
+		t.True(failed)
+		t.ErrorIs(err, errWorkersFailed)
+	})
+
+	t.Run("failed, over zero", func() {
+		w, c, err := newFuncCheckFailedWorkers(1, 1)
+		t.NoError(err)
+		defer c()
+
+		ok, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.True(failed)
+	})
+
+	t.Run("error, but under max failed", func() {
+		w, c, err := newFuncCheckFailedWorkers(1, 2)
+		t.NoError(err)
+		defer c()
+
+		ok, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.False(failed)
+		t.ErrorContains(err, "showme")
+
+		ok, failed, err = w("w1", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("ok, but after closed", func() {
+		w, c, err := newFuncCheckFailedWorkers(1, 0)
+		t.NoError(err)
+		defer c()
+
+		ok, failed, err := w("w0", func() error { return errors.Errorf("showme") })
+		t.True(ok)
+		t.True(failed)
+		t.ErrorContains(err, "showme")
+
+		ok, failed, err = w("w1", func() error { return nil })
+		t.False(ok)
+		t.True(failed)
+		t.ErrorIs(err, errWorkersFailed)
+	})
+}
+
+func TestCheckFailedWorkersFunc(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testCheckFailedWorkers))
+}
+
 type testCheckEnoughFailedWorkers struct {
 	suite.Suite
 }
@@ -274,10 +367,10 @@ func TestMinEnoughMaxFailed(tt *testing.T) {
 	}{
 		{workers: 0, share: 1, err: "zero workers"},
 		{workers: 1, share: 0, err: "zero share"},
-		{workers: 1, share: 1, minEnough: 1, maxFailed: 0},
-		{workers: 1, share: 2, minEnough: 1, maxFailed: 0},
-		{workers: 2, share: 1, minEnough: 2, maxFailed: 0},
-		{workers: 2, share: 2, minEnough: 1, maxFailed: 1},
+		{workers: 1, share: 1, minEnough: 1, maxFailed: 1},
+		{workers: 1, share: 2, minEnough: 1, maxFailed: 1},
+		{workers: 2, share: 1, minEnough: 2, maxFailed: 1},
+		{workers: 2, share: 2, minEnough: 1, maxFailed: 2},
 	}
 
 	for i, c := range cases {

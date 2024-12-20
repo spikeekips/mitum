@@ -56,18 +56,27 @@ func managerDistributeWorkersOps(
 	opsShare uint64,
 	workerOps workerOperationsFunc,
 ) error {
-	var minEnough, maxFailed uint64
+	log := loadContextValueLogger(ctx)
 
-	switch e, f, err := minEnoughMaxFailed(uint64(len(opsWorkers)), opsShare); {
+	opsWorkersSize := uint64(len(opsWorkers))
+
+	var maxFailed uint64
+
+	switch _, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
 	case err != nil:
 		return err
 	default:
-		minEnough, maxFailed = e, f
+		maxFailed = f
 	}
 
-	var checkWorker checkEnoughFailedWorkerFunc
+	log.Debug().
+		Uint64("ops_workers_size", opsWorkersSize).
+		Uint64("max_failed", maxFailed).
+		Msg("distribute ops to workers")
 
-	switch w, c, err := newFuncCheckEnoughFailedWorkers(minEnough, maxFailed); {
+	var checkWorker checkFailedWorkerFunc
+
+	switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, maxFailed); {
 	case err != nil:
 		return err
 	default:
@@ -98,25 +107,19 @@ func managerDistributeWorkersOps(
 		}
 	}
 
-	log := loadContextValueLogger(ctx)
-
 	if err := traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 		return true, newJob(func(ctx context.Context) error {
 			l := log.With().Str("worker", worker).Logger()
 
-			switch ok, enough, failed, err := checkWorker(worker, func() error { return sendWorker(ctx, worker) }); {
+			gerr := sendWorker(ctx, worker)
+
+			switch _, failed, err := checkWorker(worker, func() error { return gerr }); {
 			case failed:
-				l.Error().Err(err).Msg("send; check workers: failed")
+				l.Error().Err(err).Msg("sent; check workers: failed")
 
 				return err
 			case err != nil: // NOTE ignore
-				l.Debug().Err(err).Msg("send")
-
-				return nil
-			case !ok:
-				l.Debug().Msg("sent; check workers: not ok")
-			case enough:
-				l.Debug().Msg("sent; check workers: enough")
+				l.Debug().Err(err).Msg("sent")
 			}
 
 			return nil

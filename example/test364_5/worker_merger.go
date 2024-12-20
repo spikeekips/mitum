@@ -233,16 +233,9 @@ func newFuncWorkerMergerInsert(
 		}
 
 		if worker == managerName {
-			return f, func(err error) error {
-					gerr := done(err)
-
-					if err := unmerge(worker, nil); err != nil {
-						return err
-					}
-
-					return gerr
-				},
-				nil
+			if err := unmerge(worker, nil); err != nil {
+				return nil, nil, err
+			}
 		}
 
 		return f, done, nil
