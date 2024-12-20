@@ -21,7 +21,7 @@ type (
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 	) error
-	workerBroacastUnmerged = func(
+	workerBroadcastUnmerged = func(
 		_ context.Context,
 		local,
 		workID,
@@ -43,7 +43,7 @@ type (
 		_ inErrorFunc[inErrorFunc[base.State]],
 	) error
 	workerWaitFunc = func(
-		workerBroacastUnmerged,
+		workerBroadcastUnmerged,
 		workerReportStateOwnersFunc,
 		workerReportResultFunc,
 	) error
@@ -161,7 +161,7 @@ func newFuncWorker(
 		workerInsert,
 		workerUnmerge,
 		func(
-			broacastUnmerged workerBroacastUnmerged,
+			broacastUnmerged workerBroadcastUnmerged,
 			reportStateOwners workerReportStateOwnersFunc,
 			reportResult workerReportResultFunc,
 		) error {
