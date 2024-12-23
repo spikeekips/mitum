@@ -223,7 +223,7 @@ func (t *testWorkerProcess) TestCancel() {
 		return func() error {
 				return insertOps(
 					func(string) []string { return workers },
-					func(context.Context, uint64) (
+					func(context.Context, string, []string) (
 						workerDistributeWorkerStateMergeValuesFunc,
 						workerStateOwnersSetFunc,
 						errorFunc,
@@ -603,6 +603,192 @@ func (t *testWorkerProcess) TestLocal() {
 		{
 			reported := reportedStates.Load().(map[uint64]string)
 			t.Equal(expectedReasonsAfterExtracted, reported)
+		}
+
+		t.Equal(len(ops), savedStates.Len())
+
+		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+			s, found := savedOps.Value(uint64(i))
+			t.True(found)
+
+			base.EqualOperation(t.Assert(), op, s)
+
+			return true, nil
+		})
+	})
+
+	t.Run("local inside ops workers; empty state merge values", func() {
+		local := "local"
+		other := "w0"
+		workers := []string{local, other}
+
+		ops := make([]Operation, 3)
+		for i := range ops {
+			ops[i] = t.randomAddOp(1)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		initial, insertf, _, wait, savedOps, savedStates := t.newf(
+			ctx,
+			local,
+			func(string) (base.State, bool, error) { return nil, false, nil },
+			t.newStateFunc(),
+			workers, workers, 1, 1,
+		)
+
+		t.NoError(initial(
+			func(string) []string { return []string{other} },
+			nil,
+			t.newFuncGetOperation(ops),
+			t.defaultFuncInsertOp(ops),
+		))
+
+		go func() {
+			_, insertDone, err := insertf(other)
+			if err != nil {
+				panic(err)
+			}
+
+			err = insertDone(nil, nil)
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		var calledBroadcastUnmerged bool
+		var reportedStates atomic.Value
+
+		t.NoError(wait(
+			func(_ context.Context, worker string, unmerged []uint64) error {
+				calledBroadcastUnmerged = true
+
+				return nil
+			},
+			func(_ context.Context, owners []string) error {
+				t.Empty(owners)
+
+				return nil
+			},
+			func(
+				_ context.Context,
+				reasons map[uint64]string,
+				statesSize uint64,
+				states inErrorFunc[inErrorFunc[base.State]],
+			) error {
+				reportedStates.Store(maps.Clone(reasons))
+
+				t.Equal(uint64(len(ops)), statesSize)
+
+				return nil
+			},
+		))
+
+		t.False(calledBroadcastUnmerged)
+		t.Equal(len(ops), savedOps.Len())
+
+		{
+			reported := reportedStates.Load().(map[uint64]string)
+			t.Empty(reported)
+		}
+
+		t.Equal(len(ops), savedStates.Len())
+
+		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+			s, found := savedOps.Value(uint64(i))
+			t.True(found)
+
+			base.EqualOperation(t.Assert(), op, s)
+
+			return true, nil
+		})
+	})
+
+	t.Run("local broadcasts insert done to outside ops workers", func() {
+		local := "local"
+		opsWorkers := []string{local}
+		workers := []string{local, "w0"}
+
+		ops := make([]Operation, 3)
+		for i := range ops {
+			ops[i] = t.randomAddOp(1)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		initial, _, _, wait, savedOps, savedStates := t.newf(
+			ctx,
+			local,
+			func(string) (base.State, bool, error) { return nil, false, nil },
+			t.newStateFunc(),
+			workers, opsWorkers, 1, 1,
+		)
+
+		var otherInserted, otherInsertedDone bool
+
+		t.NoError(initial(
+			func(string) []string { return []string{local} },
+			newFuncDistributeStateMergeValues(
+				func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
+					return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+							otherInserted = true
+
+							return nil
+						},
+						func(subws []string, affected []string) error {
+							otherInsertedDone = true
+
+							t.println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+
+							return nil
+						},
+						nil
+				},
+			),
+
+			t.newFuncGetOperation(ops),
+			t.defaultFuncInsertOp(ops),
+		))
+
+		var calledBroadcastUnmerged bool
+		var reportedStates atomic.Value
+
+		t.NoError(wait(
+			func(_ context.Context, worker string, unmerged []uint64) error {
+				calledBroadcastUnmerged = true
+
+				return nil
+			},
+			func(_ context.Context, owners []string) error {
+				t.Empty(owners)
+
+				return nil
+			},
+			func(
+				_ context.Context,
+				reasons map[uint64]string,
+				statesSize uint64,
+				states inErrorFunc[inErrorFunc[base.State]],
+			) error {
+				reportedStates.Store(maps.Clone(reasons))
+
+				t.Equal(uint64(len(ops)), statesSize)
+
+				return nil
+			},
+		))
+
+		t.False(otherInserted)
+		t.True(otherInsertedDone)
+
+		t.False(calledBroadcastUnmerged)
+		t.Equal(len(ops), savedOps.Len())
+
+		{
+			reported := reportedStates.Load().(map[uint64]string)
+			t.Empty(reported)
 		}
 
 		t.Equal(len(ops), savedStates.Len())

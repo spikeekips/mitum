@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	workerDistributeStateMergeValuesFunc = func(_ context.Context, workID string, workersSize uint64) (
+	workerDistributeStateMergeValuesFunc = func(_ context.Context, workID, local string, workers []string) (
 		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
 		errorFunc,
@@ -142,13 +142,13 @@ func newFuncWorker(
 		) error {
 			return initialInsert(
 				getStateOwners,
-				func(ctx context.Context, workersSize uint64) (
+				func(ctx context.Context, local string, workers []string) (
 					workerDistributeWorkerStateMergeValuesFunc,
 					workerStateOwnersSetFunc,
 					errorFunc,
 					error,
 				) {
-					return distribute(ctx, workID, workersSize)
+					return distribute(ctx, workID, local, workers)
 				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {

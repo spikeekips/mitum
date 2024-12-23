@@ -17,7 +17,7 @@ func newFuncManagerWorkersOps(
 	opsShare uint64,
 	ophs [][2]util.Hash,
 	newWorkerSendOp newWorkerSendOpFunc,
-) (errorFunc, errorFunc, error) {
+) (errorFunc, errorFunc, error) { // FIXME return minEnough, maxFailed for newFuncManagerWorkersOpsWait
 	if len(ophs) < 1 {
 		return nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
@@ -25,6 +25,7 @@ func newFuncManagerWorkersOps(
 	log := loadContextValueLogger(ctx)
 
 	l := log.Debug().
+		Strs("workers", workers).
 		Uint64("ops_share", opsShare).
 		Int("ophs", len(ophs))
 
