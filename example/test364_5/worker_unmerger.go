@@ -67,7 +67,7 @@ func newFuncWorkerUnmerger(
 				return util.ErrFound.Errorf("unexpected local")
 			}
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
 				if worker == managerName {
@@ -97,7 +97,7 @@ func newFuncWorkerUnmerger(
 			})
 		},
 		func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, nil, func(context.Context) error {
 				if slices.Index(subws, local) < 0 {
 					minEnough++
 				}

@@ -166,7 +166,7 @@ func newFuncJobWorkerWaitFunc(
 	return func() error {
 			<-newJobCtx.Done()
 
-			return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
+			return contextCauseError(ctx, nil, func(ctx context.Context) error {
 				return sem.Acquire(ctx, int64(semSize))
 			})
 		},

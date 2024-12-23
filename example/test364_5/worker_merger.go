@@ -138,7 +138,7 @@ func newFuncWorkerMerger(
 	}
 
 	unmerge := func(worker string, unmerged []uint64) error {
-		return contextCauseError(wctx, dummyErrorInFunc, func(context.Context) error {
+		return contextCauseError(wctx, nil, func(context.Context) error {
 			return workerUnmergerUnmerged(worker, unmerged)
 		})
 	}
@@ -220,7 +220,7 @@ func newFuncWorkerMergerInsert(
 		}
 
 		f := func(opindex uint64, values []StateMergeValue) error {
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, nil, func(context.Context) error {
 				switch added, err := setStateMergeValues(opindex, values); {
 				case err != nil:
 					return err

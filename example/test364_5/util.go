@@ -312,10 +312,6 @@ type (
 	errorFunc                    func() error
 )
 
-func dummyErrorInFunc(err error) error {
-	return err
-}
-
 func newIfErrErrorInFunc(f inErrorFunc[error]) inErrorFunc[error] {
 	return func(err error) error {
 		if err != nil {

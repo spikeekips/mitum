@@ -74,12 +74,12 @@ func newFuncWorkerPhaseMerger(
 			l := log.With().Str("worker", worker).Logger()
 
 			return func(opindex uint64) error {
-					return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+					return contextCauseError(ctx, nil, func(context.Context) error {
 						return phaseMergerMerge(opindex)
 					})
 				},
 				func(err error) error {
-					return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+					return contextCauseError(ctx, nil, func(context.Context) error {
 						if worker == managerName {
 							l.Debug().Msg("manager done")
 

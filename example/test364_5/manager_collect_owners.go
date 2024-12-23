@@ -40,7 +40,7 @@ func newFuncManagerCollectOwners(
 	}
 
 	return func(worker string, owners []string) error {
-			return contextCauseError(ctx, dummyErrorInFunc, func(context.Context) error {
+			return contextCauseError(ctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Logger()
 
 				switch ok, enough, _, err := checkWorker(worker, func() error {
