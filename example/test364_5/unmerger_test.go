@@ -12,7 +12,7 @@ import (
 )
 
 type testUnmerger struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 }
 
@@ -49,8 +49,7 @@ func (t *testUnmerger) TestError() {
 
 func (t *testUnmerger) TestUnmerge() {
 	t.Run("no merged/unmerged ops", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
 
@@ -109,8 +108,7 @@ func (t *testUnmerger) TestUnmerge() {
 	})
 
 	t.Run("no merged, but unmerged ops", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
 

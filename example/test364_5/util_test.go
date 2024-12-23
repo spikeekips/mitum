@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"sync"
@@ -12,6 +13,18 @@ import (
 )
 
 var testLogger = logging.TestLogging.Log()
+
+type testSuite struct {
+	suite.Suite
+}
+
+func (t *testSuite) Ctx() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	t.T().Cleanup(cancel)
+
+	return ctx, cancel
+}
 
 type baseTest struct{}
 

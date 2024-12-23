@@ -19,7 +19,7 @@ import (
 )
 
 type testWorkerUnmerger struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -74,7 +74,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		cancel()
@@ -108,8 +108,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -161,8 +160,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -207,8 +205,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -246,8 +243,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		_, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -281,8 +277,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -312,8 +307,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		_, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -345,8 +339,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -382,8 +375,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := workers[2]
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -432,8 +424,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -513,8 +504,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := workers[2]
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -668,8 +658,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		}
 
 		t.Run("under max failed", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx, cancel := t.Ctx()
 
 			minEnough := uint64(len(workers) - len(failedWorkers))
 			maxFailed := uint64(len(failedWorkers) + 1)
@@ -689,8 +678,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		})
 
 		t.Run("over max failed", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx, cancel := t.Ctx()
 
 			minEnough := uint64(len(workers) - len(failedWorkers) + 1)
 			maxFailed := uint64(len(failedWorkers))
@@ -716,8 +704,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -766,8 +753,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -826,8 +812,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 			ctx,
@@ -862,8 +847,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 		local := "w0"
 		_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		workerUnmerge, _, wait, err := newFuncWorkerUnmerger(
 			ctx,

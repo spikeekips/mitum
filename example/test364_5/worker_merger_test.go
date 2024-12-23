@@ -16,7 +16,7 @@ import (
 )
 
 type testWorkerMerger struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -60,7 +60,7 @@ func (t *testWorkerMerger) TestCancel() {
 	opsWorkers := t.workers(2)
 
 	t.Run("before new", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		cancel()
 
@@ -93,7 +93,7 @@ func (t *testWorkerMerger) TestCancel() {
 	})
 
 	t.Run("before insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -127,7 +127,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 	t.Run("before unmerge", func() {
 		t.Run("before insert done", func() {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := t.Ctx()
 
 			_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -160,7 +160,7 @@ func (t *testWorkerMerger) TestCancel() {
 		})
 
 		t.Run("after insert done", func() {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := t.Ctx()
 
 			_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -192,7 +192,7 @@ func (t *testWorkerMerger) TestCancel() {
 	})
 
 	t.Run("before wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -257,8 +257,7 @@ func (t *testWorkerMerger) TestInsert() {
 	opsWorkers := t.workers(3)
 
 	t.Run("local insert error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -286,8 +285,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("worker insert error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, _, getState, getStateMergers, _ := t.newFuncs()
 
@@ -321,8 +319,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("empty values; 1 worker", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local}
 
@@ -363,8 +360,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("ok; 1 worker", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local}
 
@@ -421,8 +417,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("empty values; 3 worker", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := t.workers(4)
 		local = opsWorkers[0]
@@ -473,8 +468,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("ok; 3 worker", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := t.workers(4)
 		local = opsWorkers[0]
@@ -575,8 +569,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("3 workers, but local not in ops workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{"w1", "w2"}
 		t.True(slices.Index(opsWorkers, local) < 0)
@@ -634,8 +627,7 @@ func (t *testWorkerMerger) TestInsert() {
 	})
 
 	t.Run("unknown worker insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local}
 		unknowns := []string{"u0", "u1", "u2"}
@@ -1107,8 +1099,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 		workers := t.workers(3)
 		share := uint64(1)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		// ctx = setContextValueLogger(ctx, testLogger)
 
@@ -1164,8 +1155,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			expectedValues += len(vs)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		// ctx = setContextValueLogger(ctx, testLogger)
 
@@ -1252,8 +1242,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			expectedValues += len(vs)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		// ctx = setContextValueLogger(ctx, testLogger)
 
@@ -1428,8 +1417,7 @@ func (t *testWorkerMerger) TestSubs() {
 
 			t.T().Log("sub state owners:", subs)
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx, _ := t.Ctx()
 
 			// ctx = setContextValueLogger(ctx, testLogger)
 
@@ -1466,8 +1454,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 	local := "w0"
 
 	t.Run("1 worker and then manager", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local}
 
@@ -1529,8 +1516,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 	})
 
 	t.Run("manager before 1 worker", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local}
 
@@ -1592,8 +1578,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 	})
 
 	t.Run("empty values; 2 worker and then manager", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := []string{local, "w0"}
 
@@ -1638,8 +1623,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 	})
 
 	t.Run("over workers and manager before unmerge", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := t.workers(4)
 		local = opsWorkers[0]
@@ -1752,8 +1736,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 	})
 
 	t.Run("over workers and manager", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		opsWorkers := t.workers(4)
 		local = opsWorkers[0]

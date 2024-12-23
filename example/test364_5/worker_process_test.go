@@ -18,7 +18,7 @@ import (
 )
 
 type testWorkerProcess struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -274,7 +274,7 @@ func (t *testWorkerProcess) TestCancel() {
 	}
 
 	t.Run("before insert ops; local not in ops workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		cancel()
 
@@ -283,7 +283,7 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 
 	t.Run("before insert ops", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		cancel()
 
@@ -295,7 +295,7 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 
 	t.Run("before insert values", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		insertOps, insertValues, _, _, err := newf(ctx, local)
 		t.NoError(err)
@@ -309,7 +309,7 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 
 	t.Run("before unmerged", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		insertOps, insertValues, unmerged, _, err := newf(ctx, local)
 		t.NoError(err)
@@ -324,7 +324,7 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 
 	t.Run("before wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		insertOps, insertValues, unmerged, wait, err := newf(ctx, local)
 		t.NoError(err)
@@ -360,8 +360,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ops[i] = t.randomAddOp(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, _, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -434,8 +433,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ops[i] = t.randomAddOp(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, insertf, unmerge, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -534,8 +532,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ops[i] = t.randomAddOp(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, _, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -627,8 +624,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ops[i] = t.randomAddOp(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, insertf, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -715,8 +711,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ops[i] = t.randomAddOp(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, _, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -809,8 +804,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		local := "local"
 		workers := []string{local, "w0"}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, insertf, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -863,8 +857,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		local := "local"
 		workers := []string{local, "w0"}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		initial, insertf, _, wait, savedOps, savedStates := t.newf(
 			ctx,
@@ -1086,8 +1079,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 func (t *testWorkerProcess) TestWorkers() {
 	t.Run("local only", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		workers := t.workers(1)
 		ops := make([]Operation, 33)
@@ -1104,8 +1096,7 @@ func (t *testWorkerProcess) TestWorkers() {
 	})
 
 	t.Run("2 workers", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		workers := t.workers(2)
 		ops := make([]Operation, 33)

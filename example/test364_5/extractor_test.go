@@ -16,7 +16,7 @@ import (
 )
 
 type testStateMergeValueExtractor struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 }
 
@@ -78,7 +78,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 
 func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("before insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -95,7 +95,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	})
 
 	t.Run("after insert", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -111,8 +111,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	})
 
 	t.Run("after wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -132,8 +131,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 
 func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("ok", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -182,8 +180,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	})
 
 	t.Run("insert op error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -199,8 +196,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	})
 
 	t.Run("get operation error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -220,8 +216,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	})
 
 	t.Run("extracted error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		ops := []Operation{t.randomOp(2)}
 
@@ -240,8 +235,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	})
 
 	t.Run("get operation; not found", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insert, wait, err := t.newf(ctx, nil)
 		t.NoError(err)
@@ -275,8 +269,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 
 func (t *testStateMergeValueExtractor) TestExtract() {
 	t.Run("empty operation", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insert, wait, err := t.newf(ctx, nil)
 		t.NoError(err)
@@ -303,8 +296,7 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		t.T().Helper()
 
 		return func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx, _ := t.Ctx()
 
 			ops := make([]Operation, n)
 			opsValues := make([][2][]StateMergeValue, len(ops))

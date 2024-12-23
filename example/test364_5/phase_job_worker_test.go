@@ -13,14 +13,13 @@ import (
 )
 
 type testPhaseJobWorker struct {
-	suite.Suite
+	testSuite
 	baseTest
 }
 
 func (t *testPhaseJobWorker) TestCancel() {
 	t.Run("before new job", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
@@ -45,8 +44,7 @@ func (t *testPhaseJobWorker) TestCancel() {
 
 func (t *testPhaseJobWorker) TestPhase() {
 	t.Run("start from over zero", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		var startPhase int = 3
 
@@ -105,8 +103,7 @@ func (t *testPhaseJobWorker) TestPhase() {
 
 func (t *testPhaseJobWorker) TestNewJob() {
 	t.Run("ok", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
@@ -161,8 +158,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 	})
 
 	t.Run("error: first phase", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)
@@ -228,8 +224,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 	})
 
 	t.Run("error: after first phase", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		newJob, jobDone, wait, err := newFuncPhaseJobWorker(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, 0)
 		t.NoError(err)

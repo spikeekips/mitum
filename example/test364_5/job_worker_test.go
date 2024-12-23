@@ -15,7 +15,7 @@ import (
 )
 
 type testJobWorker struct {
-	suite.Suite
+	testSuite
 }
 
 func (t *testJobWorker) TestNoError() {
@@ -159,8 +159,7 @@ func (t *testJobWorker) TestError() {
 	})
 
 	t.Run("error and canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, 1)
 
@@ -265,8 +264,7 @@ func (t *testJobWorker) TestCancel() {
 			}
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
 
@@ -288,8 +286,7 @@ func (t *testJobWorker) TestCancel() {
 	})
 
 	t.Run("cancel before wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		_, _, wait, _ := newFuncJobWorker(ctx, 1)
 
@@ -300,8 +297,7 @@ func (t *testJobWorker) TestCancel() {
 	})
 
 	t.Run("cancel after wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		newJob, _, wait, _ := newFuncJobWorker(ctx, 1)
 
@@ -348,8 +344,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 		return nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancel := t.Ctx()
 
 	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
 
@@ -427,8 +422,7 @@ func (t *testJobWorker) TestWait() {
 	})
 
 	t.Run("no wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, 3)
 

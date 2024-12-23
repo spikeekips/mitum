@@ -661,7 +661,7 @@ func TestCollectXmergedOpsFuncs(t *testing.T) {
 }
 
 type testPhaseMerger struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 }
 
@@ -687,8 +687,7 @@ func (t *testPhaseMerger) newFuncs() (
 
 func (t *testPhaseMerger) TestCancel() {
 	t.Run("ctx cancel; merge", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -712,8 +711,7 @@ func (t *testPhaseMerger) TestCancel() {
 	})
 
 	t.Run("ctx cancel; unmerge", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -737,8 +735,7 @@ func (t *testPhaseMerger) TestCancel() {
 	})
 
 	t.Run("ctx cancel; wait", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -767,8 +764,7 @@ func (t *testPhaseMerger) TestCancel() {
 
 func (t *testPhaseMerger) TestMerge() {
 	t.Run("ok, 1", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -806,8 +802,7 @@ func (t *testPhaseMerger) TestMerge() {
 	})
 
 	t.Run("ok, 33", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -855,8 +850,7 @@ func (t *testPhaseMerger) TestMerge() {
 	})
 
 	t.Run("Merge() error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -906,8 +900,7 @@ func (t *testPhaseMerger) TestMerge() {
 	})
 
 	t.Run("reason", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, _, getValues, getState := t.newFuncs()
 
@@ -949,8 +942,7 @@ func (t *testPhaseMerger) TestMerge() {
 
 func (t *testPhaseMerger) TestUnmerge() {
 	t.Run("ok, 1", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, states, getValues, getState := t.newFuncs()
 
@@ -991,8 +983,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 	})
 
 	t.Run("ok, 33", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, states, getValues, getState := t.newFuncs()
 
@@ -1046,8 +1037,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 	})
 
 	t.Run("Merge() error", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		vp, mergers, states, getValues, getState := t.newFuncs()
 
@@ -1147,8 +1137,7 @@ func (t *testPhaseMerger) baseTestMergeUnmerge() (
 func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	t.T().Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := t.Ctx()
 
 	_, sts, ops := t.baseTestMergeUnmerge()
 
@@ -1366,8 +1355,7 @@ func (t *testPhaseMerger) TestMergeUnmerge() {
 func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	t.T().Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := t.Ctx()
 
 	pub0 := base.NewDummyPublickey(util.UUID().String())
 	pub1 := base.NewDummyPublickey(util.UUID().String())

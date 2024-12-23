@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"sync"
@@ -14,7 +13,7 @@ import (
 )
 
 type testWorkerStateOwners struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -41,8 +40,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("no insert", func() {
 		workers := t.workers(9)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -74,8 +72,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("nil sub value", func() {
 		workers := t.workers(9)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -108,8 +105,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("nil add value", func() {
 		workers := t.workers(9)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -143,8 +139,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("only local insert", func() {
 		workers := t.workers(9)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -319,8 +314,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return true, nil
 		})
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -358,8 +352,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		workers := t.workers(9)
 		local := workers[0]
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -478,8 +471,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 	local := "local"
 
 	t.Run("empty", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -496,8 +488,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 		expectedSubs := t.owners(9, "s")
 		expectedAffected := t.owners(9, "a")
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
@@ -537,8 +528,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 		expectedSubs := t.owners(9, "s")
 		expectedAffected := t.owners(9, "a")
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1)
 		t.NoError(err)
@@ -578,8 +568,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 		expectedSubs := t.owners(9, "s")
 		expectedAffected := t.owners(9, "a")
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)

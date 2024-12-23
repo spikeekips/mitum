@@ -15,7 +15,7 @@ import (
 )
 
 type testWorkerPhaseMerger struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -109,7 +109,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("before new", func() {
 		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		cancel()
 
@@ -139,7 +139,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("after new", func() {
 		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
@@ -168,7 +168,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		t.Run("after insert", func() {
 			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := t.Ctx()
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
@@ -198,7 +198,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		t.Run("after insert done", func() {
 			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := t.Ctx()
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
@@ -227,7 +227,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	t.Run("during insert", func() {
 		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		workers := t.workers(2)
 
@@ -271,8 +271,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("1 worker; empty", func() {
 		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -345,8 +344,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}
 		slices.Sort(expectedStateKeys)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -416,8 +414,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			vp.SetValue(uint64(i), vs)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -472,8 +469,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -550,8 +546,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}
 		slices.Sort(expectedStateKeys)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -617,8 +612,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	t.Run("only manager", func() {
 		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -691,8 +685,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		}
 		slices.Sort(expectedStateKeys)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 
@@ -782,8 +775,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		}
 		slices.Sort(expectedStateKeys)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, cancel := t.Ctx()
 
 		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
 

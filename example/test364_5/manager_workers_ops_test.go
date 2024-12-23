@@ -14,7 +14,7 @@ import (
 )
 
 type testManagerWorkersOps struct {
-	suite.Suite
+	testSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -52,7 +52,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 		workers := t.workers(3)
 		ophs := t.randomOphs(3)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		send, wait, err := newFuncManagerWorkersOps(
 			ctx,
@@ -75,7 +75,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 		workers := t.workers(3)
 		ophs := t.randomOphs(3)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := t.Ctx()
 
 		sendf := t.workerSendOpFunc()
 
@@ -124,8 +124,7 @@ func (t *testManagerWorkersOps) TestSend() {
 	t.Run("empty ophs", func() {
 		workers := t.workers(3)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		_, _, err := newFuncManagerWorkersOps(
 			ctx,
@@ -172,8 +171,7 @@ func (t *testManagerWorkersOps) TestSend() {
 			})
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		sendf := t.workerSendOpFunc()
 
@@ -267,8 +265,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			})
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx, _ := t.Ctx()
 
 		sentOps, err := util.NewLockedMap[string, [][3]interface{}](1<<9, nil)
 		t.NoError(err)
