@@ -39,7 +39,7 @@ func (t *testJobWorker) TestNoError() {
 		}
 	}
 
-	newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), int64(l))
+	newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), l)
 
 	go func() {
 		for i := uint64(0); i < l; i++ {
@@ -97,7 +97,7 @@ func (t *testJobWorker) TestError() {
 			}
 		}
 
-		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), int64(l))
+		newJob, jobDone, wait, _ := newFuncJobWorker(context.Background(), l)
 
 		go func() {
 			for i := uint64(0); i < l; i++ {
@@ -208,7 +208,7 @@ func (t *testJobWorker) TestError() {
 }
 
 func (t *testJobWorker) TestDeadlineError() {
-	var l int64 = 10
+	var l uint64 = 10
 
 	var called uint64
 	callback := func() inErrorFunc[context.Context] {
@@ -230,7 +230,7 @@ func (t *testJobWorker) TestDeadlineError() {
 	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, l)
 
 	go func() {
-		for i := int64(0); i < l; i++ {
+		for i := uint64(0); i < l; i++ {
 			if err := newJob(callback()); err != nil {
 				break
 			}
@@ -266,7 +266,7 @@ func (t *testJobWorker) TestCancel() {
 
 		ctx, cancel := t.Ctx()
 
-		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
+		newJob, jobDone, wait, _ := newFuncJobWorker(ctx, l)
 
 		go func() {
 			for i := uint64(0); i < l; i++ {
@@ -323,20 +323,20 @@ func (t *testJobWorker) TestCancel() {
 }
 
 func (t *testJobWorker) TestCancelBeforeRun() {
-	var l int64 = 33
+	var l uint64 = 33
 
-	var called int64
+	var called uint64
 
 	callback := func(ctx context.Context) error {
-		if atomic.LoadInt64(&called) < 5 {
-			atomic.AddInt64(&called, 1)
+		if atomic.LoadUint64(&called) < 5 {
+			atomic.AddUint64(&called, 1)
 
 			return nil
 		}
 
 		select {
 		case <-time.After(time.Second):
-			atomic.AddInt64(&called, 1)
+			atomic.AddUint64(&called, 1)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -346,11 +346,11 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 
 	ctx, cancel := t.Ctx()
 
-	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, int64(l))
+	newJob, jobDone, wait, _ := newFuncJobWorker(ctx, l)
 
 	enoughch := make(chan bool)
 	go func() {
-		for i := int64(0); i < l; i++ {
+		for i := uint64(0); i < l; i++ {
 			if i == 5 {
 				enoughch <- true
 			}
@@ -370,7 +370,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 	t.Error(err)
 	t.ErrorIs(err, context.Canceled)
 
-	c := atomic.LoadInt64(&called)
+	c := atomic.LoadUint64(&called)
 	t.T().Logf("called=%d, total=%d", c, l)
 	t.True(c < l, "called=%d, total=%d", c, l)
 }

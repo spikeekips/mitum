@@ -522,7 +522,7 @@ func (t *testSetStateOps) Test() {
 		m, u, tr, err := newFuncSetStateOps(1 << 9)
 		t.NoError(err)
 
-		nstateKeys := 30
+		var nstateKeys uint64 = 30
 		stateKeys := make([]string, nstateKeys)
 		traverseSlice(stateKeys, func(i int, _ string) (bool, error) {
 			stateKeys[i] = fmt.Sprintf("s%d", i)
@@ -530,7 +530,7 @@ func (t *testSetStateOps) Test() {
 			return true, nil
 		})
 
-		nops := 33
+		var nops uint64 = 33
 
 		opindexStateKeys := map[uint64][]string{}
 		facts := map[uint64]util.Hash{}
@@ -564,7 +564,7 @@ func (t *testSetStateOps) Test() {
 			})
 		})
 
-		newJob, jobDone, jobWait, err := newFuncJobWorker(context.Background(), int64(nops))
+		newJob, jobDone, jobWait, err := newFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
 
 		go func() {
@@ -586,7 +586,7 @@ func (t *testSetStateOps) Test() {
 
 		t.NoError(jobWait())
 
-		newJob, jobDone, jobWait, err = newFuncJobWorker(context.Background(), int64(nops))
+		newJob, jobDone, jobWait, err = newFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
 
 		go func() {
@@ -611,7 +611,7 @@ func (t *testSetStateOps) Test() {
 		t.NoError(tr(func(l int, f getStateOpsFunc) error {
 			called = true
 
-			t.Equal(nstateKeys, l)
+			t.Equal(nstateKeys, uint64(l))
 
 			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				e := expectedStateKeyFact[stateKey]

@@ -51,7 +51,7 @@ type (
 
 type workerOptions struct {
 	Local                       string
-	JobWorkerSemSize            int64
+	JobWorkerSemSize            uint64
 	MaxExtractStateKeyCacheSize int
 }
 

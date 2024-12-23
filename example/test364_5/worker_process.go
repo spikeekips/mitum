@@ -608,7 +608,7 @@ func workersBroadcastUnmerged(
 	var jobDone func()
 	var jobWait errorFunc
 
-	switch n, d, w, err := newFuncJobWorker(ctx, int64(len(filtered))); {
+	switch n, d, w, err := newFuncJobWorker(ctx, uint64(len(filtered))); {
 	case err != nil:
 		return err
 	default:
@@ -684,7 +684,7 @@ func workerProcessCloseStateMergers(
 		var jobDone func()
 		var jobWait errorFunc
 
-		switch n, d, w, err := newFuncJobWorker(ctx, int64(size)); {
+		switch n, d, w, err := newFuncJobWorker(ctx, uint64(size)); {
 		case err != nil:
 			return err
 		default:
@@ -828,7 +828,7 @@ func newFuncDistributeStateMergeValues(
 				var jobDone func()
 				var jobWait errorFunc
 
-				switch n, d, w, err := newFuncJobWorker(ctx, int64(len(workers))); {
+				switch n, d, w, err := newFuncJobWorker(ctx, uint64(len(workers))); {
 				case err != nil:
 					return err
 				default:

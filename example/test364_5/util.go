@@ -366,6 +366,10 @@ func contextCauseError(ctx context.Context, ef inErrorFunc[error], f inErrorFunc
 		return errorWithStack(err)
 	}
 
+	if ef == nil {
+		return f(ctx)
+	}
+
 	return ef(f(ctx))
 }
 

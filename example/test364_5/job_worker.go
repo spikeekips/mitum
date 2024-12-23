@@ -22,7 +22,7 @@ type (
 
 func newFuncBaseJobWorker(
 	ctx context.Context,
-	semSize int64,
+	semSize uint64,
 	errf inErrorFunc[error],
 ) (
 	jobWorkerNewJobFunc,
@@ -36,7 +36,7 @@ func newFuncBaseJobWorker(
 
 	jctx, jctxCancel := contextWithCancelCause(ctx)
 
-	sem := semaphore.NewWeighted(semSize)
+	sem := semaphore.NewWeighted(int64(semSize))
 
 	newJobf := newFuncJobWorkerNewJobFunc(ctx, jctx, sem, errf)
 	waitf, errNewJobDone := newFuncJobWorkerWaitFunc(ctx, jctx, sem, semSize)
@@ -77,7 +77,7 @@ func newFuncBaseJobWorker(
 		nil
 }
 
-func newFuncJobWorker(ctx context.Context, semSize int64) (
+func newFuncJobWorker(ctx context.Context, semSize uint64) (
 	jobWorkerNewJobFunc,
 	func(),
 	errorFunc,
@@ -101,7 +101,7 @@ func newFuncJobWorker(ctx context.Context, semSize int64) (
 		nil
 }
 
-func newFuncErrJobWorker(ctx context.Context, semSize int64, errf inErrorFunc[error]) (
+func newFuncErrJobWorker(ctx context.Context, semSize uint64, errf inErrorFunc[error]) (
 	jobWorkerNewJobFunc,
 	func(),
 	errorFunc,
@@ -156,7 +156,7 @@ func newFuncJobWorkerNewJobFunc(
 func newFuncJobWorkerWaitFunc(
 	ctx, newJobCtx context.Context,
 	sem *semaphore.Weighted,
-	semSize int64,
+	semSize uint64,
 ) (
 	_ errorFunc,
 	doneErr error,
@@ -167,13 +167,13 @@ func newFuncJobWorkerWaitFunc(
 			<-newJobCtx.Done()
 
 			return contextCauseError(ctx, dummyErrorInFunc, func(ctx context.Context) error {
-				return sem.Acquire(ctx, semSize)
+				return sem.Acquire(ctx, int64(semSize))
 			})
 		},
 		errNewJobDone
 }
 
-func newFuncNewJobWorkerFunc(semSize int64) newJobWorkerFunc {
+func newFuncNewJobWorkerFunc(semSize uint64) newJobWorkerFunc {
 	return func(ctx context.Context) (
 		jobWorkerNewJobFunc,
 		func(),
@@ -184,7 +184,7 @@ func newFuncNewJobWorkerFunc(semSize int64) newJobWorkerFunc {
 	}
 }
 
-func newFuncNewErrJobWorkerFunc(semSize int64, errf inErrorFunc[error]) newJobWorkerFunc {
+func newFuncNewErrJobWorkerFunc(semSize uint64, errf inErrorFunc[error]) newJobWorkerFunc {
 	return func(ctx context.Context) (
 		jobWorkerNewJobFunc,
 		func(),
@@ -200,7 +200,7 @@ func funcsJobWorker(ctx context.Context, fs ...inErrorFunc[context.Context]) err
 	var jobDone func()
 	var jobWait errorFunc
 
-	switch n, d, w, err := newFuncJobWorker(ctx, int64(len(fs))); {
+	switch n, d, w, err := newFuncJobWorker(ctx, uint64(len(fs))); {
 	case err != nil:
 		return err
 	default:
