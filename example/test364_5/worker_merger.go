@@ -15,7 +15,7 @@ type (
 		inErrorFunc[error],
 		error,
 	)
-	workerMergerCallback                 = func(unmerged []uint64, reasons map[uint64]string) error // FIXME remove unmerged
+	workerMergerCallback                 = func(reasons map[uint64]string) error
 	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
 )
@@ -317,7 +317,7 @@ func newFuncWorkerMergerWait(
 					n := filterReasons(phaseDoneReasons, m)
 					defer clearMap(n)
 
-					return f(m, n)
+					return f(n)
 				})
 			}
 

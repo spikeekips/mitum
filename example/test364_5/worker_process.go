@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync/atomic"
 
@@ -117,7 +118,7 @@ func newFuncWorkerProcess(
 	var unmerge workerUnmergedFunc
 	var wait in2ErrorFunc[
 		in3ErrorFunc[[]uint64, []string, []string],
-		in3ErrorFunc[[]uint64, map[uint64]string, traverseStateOpsFunc],
+		in2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
 	]
 
 	switch i, s, u, w, err := newFuncWorkerProcessStateValueMerger(
@@ -207,7 +208,7 @@ func newFuncWorkerProcess(
 						},
 					)
 				},
-				func(unmerged []uint64, reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
+				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
 					defer func() {
 						clearMap(reasons)
@@ -276,7 +277,7 @@ func newFuncWorkerProcessStateValueMerger(
 	workerUnmergedFunc,
 	in2ErrorFunc[
 		in3ErrorFunc[[]uint64, []string, []string],
-		in3ErrorFunc[[]uint64, map[uint64]string, traverseStateOpsFunc],
+		in2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
 	],
 	error,
 ) {
@@ -387,7 +388,7 @@ func newFuncWorkerProcessStateValueMerger(
 		workerUnmerged,
 		func(
 			localDone in3ErrorFunc[[]uint64, []string, []string],
-			f in3ErrorFunc[[]uint64, map[uint64]string, traverseStateOpsFunc],
+			f in2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
 		) error {
 			defer func() {
 				_ = doneStateOwnersSet(nil)
@@ -405,10 +406,10 @@ func newFuncWorkerProcessStateValueMerger(
 						return localDone(unmerged, subws, affected)
 					})
 				},
-				func(unmerged []uint64, reasons map[uint64]string) error {
-					_ = unmergeStateOp(unmerged)
+				func(reasons map[uint64]string) error {
+					_ = unmergeStateOp(slices.Collect(maps.Keys(reasons)))
 
-					return f(unmerged, reasons, traverseStateOps)
+					return f(reasons, traverseStateOps)
 				},
 			)
 		},

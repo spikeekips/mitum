@@ -348,10 +348,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -405,10 +404,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return []string{local}, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -456,10 +454,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -479,7 +476,6 @@ func (t *testWorkerMerger) TestInsert() {
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
-		var expectedUnmerged []uint64
 		expectedReasons := map[uint64]string{}
 
 		for i := range values {
@@ -497,7 +493,6 @@ func (t *testWorkerMerger) TestInsert() {
 			workerValues[worker] = wv
 
 			if worker != local {
-				expectedUnmerged = append(expectedUnmerged, opindex)
 				expectedReasons[opindex] = ""
 			}
 		}
@@ -556,11 +551,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return opsWorkers, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				slices.Sort(unmerged)
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedUnmerged, unmerged)
 				t.Equal(expectedReasons, reasons)
 
 				return nil
@@ -615,10 +608,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -693,10 +685,9 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return []string{local}, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -920,11 +911,11 @@ func (t *testWorkerMerger) workerMergers(
 
 							return subws, nil
 						},
-						func(unmerged []uint64, reasons map[uint64]string) error {
-							t.println("worker wait done: worker=%q unmerged=%v reasons=%v", worker, unmerged, reasons)
+						func(reasons map[uint64]string) error {
+							t.println("worker wait done: worker=%q reasons=%v", worker, reasons)
 
 							if c != nil {
-								return c(unmerged, reasons)
+								return c(reasons)
 							}
 
 							return nil
@@ -1330,7 +1321,9 @@ func (t *testWorkerMerger) TestSubs() {
 
 		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
 			return nil,
-				func(unmerged []uint64, reasons map[uint64]string) error {
+				func(reasons map[uint64]string) error {
+					unmerged := slices.Collect(maps.Keys(reasons))
+
 					if len(unmerged) > 0 {
 						addUnmerged(unmerged[0], unmerged[1:]...)
 					}
@@ -1504,10 +1497,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return []string{local}, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -1566,10 +1558,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return []string{local}, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -1611,10 +1602,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return nil, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(unmerged)
 				t.Empty(reasons)
 
 				return nil
@@ -1634,7 +1624,6 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
-		var expectedUnmerged []uint64
 		expectedReasons := map[uint64]string{}
 
 		for i := range values {
@@ -1652,7 +1641,6 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			workerValues[worker] = wv
 
 			if worker != local {
-				expectedUnmerged = append(expectedUnmerged, opindex)
 				expectedReasons[opindex] = ""
 			}
 		}
@@ -1723,11 +1711,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return opsWorkers, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				slices.Sort(unmerged)
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedUnmerged, unmerged)
 				t.Equal(expectedReasons, reasons)
 
 				return nil
@@ -1747,7 +1733,6 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
 
-		var expectedUnmerged []uint64
 		expectedReasons := map[uint64]string{}
 
 		for i := range values {
@@ -1765,7 +1750,6 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			workerValues[worker] = wv
 
 			if worker != local {
-				expectedUnmerged = append(expectedUnmerged, opindex)
 				expectedReasons[opindex] = ""
 			}
 		}
@@ -1836,11 +1820,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return opsWorkers, nil
 			},
-			func(unmerged []uint64, reasons map[uint64]string) error {
-				slices.Sort(unmerged)
-				t.T().Logf("wait: unmerged=%v reasons=%v", unmerged, reasons)
+			func(reasons map[uint64]string) error {
+				t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedUnmerged, unmerged)
 				t.Equal(expectedReasons, reasons)
 
 				return nil
