@@ -308,8 +308,8 @@ func newFuncAddStateOwners(
 		donef appendSliceDoneFunc[string]
 	)
 
-	if err := rUniqueAppendSlice[string](
-		maxSize, 1<<5, &addf, &donef); err != nil {
+	if err := rUniqueAppendSlice[string, string](
+		maxSize, 1<<5, func(s string) string { return s }, &addf, &donef); err != nil {
 		return err
 	}
 

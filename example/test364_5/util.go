@@ -154,7 +154,7 @@ func appendSlice[T any](size, grow uint64) (
 		nil
 }
 
-func uniqueAppendSlice[T comparable](size, grow uint64) (
+func uniqueAppendSlice[T any, K comparable](size, grow uint64, key func(T) K) (
 	appendSliceAddFunc[T],
 	appendSliceDoneFunc[T],
 	error,
@@ -164,14 +164,16 @@ func uniqueAppendSlice[T comparable](size, grow uint64) (
 		return nil, nil, err
 	}
 
-	m := map[T]struct{}{}
+	m := map[K]struct{}{}
 
 	filterOne := func(a T) bool {
-		if _, found := m[a]; found {
+		k := key(a)
+
+		if _, found := m[k]; found {
 			return false
 		}
 
-		m[a] = struct{}{}
+		m[k] = struct{}{}
 
 		return true
 	}
@@ -235,12 +237,13 @@ func rAppendSlice[T any](
 	}
 }
 
-func rUniqueAppendSlice[T comparable](
+func rUniqueAppendSlice[T any, K comparable](
 	size,
 	grow uint64,
+	key func(T) K,
 	add, done interface{},
 ) error {
-	switch a, d, err := uniqueAppendSlice[T](size, grow); {
+	switch a, d, err := uniqueAppendSlice[T](size, grow, key); {
 	case err != nil:
 		return err
 	default:

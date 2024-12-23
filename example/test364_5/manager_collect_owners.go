@@ -35,7 +35,7 @@ func newFuncManagerCollectOwners(
 	var add appendSliceAddFunc[string]
 	var done appendSliceDoneFunc[string]
 
-	if err := rUniqueAppendSlice[string](workersSize, 0, &add, &done); err != nil {
+	if err := rUniqueAppendSlice[string, string](workersSize, 0, func(s string) string { return s }, &add, &done); err != nil {
 		return nil, nil, err
 	}
 

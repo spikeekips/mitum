@@ -325,7 +325,7 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 		return []string{values[0].Key()}
 	}
 
-	add, done, _ := uniqueAppendSlice[string](uint64(len(values)), 0)
+	add, done, _ := uniqueAppendSlice[string](uint64(len(values)), 0, func(k string) string { return k })
 
 	_ = traverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
 		add(value.Key())
@@ -599,7 +599,7 @@ func xMergeOpValues(
 	)
 
 	if err := rUniqueAppendSlice[uint64](
-		uint64(len(values)), 0, &addNext, &doneNext); err != nil {
+		uint64(len(values)), 0, func(k uint64) uint64 { return k }, &addNext, &doneNext); err != nil {
 		return false, nil, nil, err
 	}
 
