@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
 type testUnmerger struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 }
 
@@ -51,7 +52,7 @@ func (t *testUnmerger) TestUnmerge() {
 	t.Run("no merged/unmerged ops", func() {
 		ctx, _ := t.Ctx()
 
-		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
+		// ctx = dutil.SetContextValueLogger(ctx, logging.TestLogging.Log())
 
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
@@ -68,7 +69,7 @@ func (t *testUnmerger) TestUnmerge() {
 
 		t.T().Log("insert ops")
 		{
-			newJob, jobDone, jobWait, err := newFuncJobWorker(ctx, 33)
+			newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, 33)
 			t.NoError(err)
 
 			go func() {
@@ -110,7 +111,7 @@ func (t *testUnmerger) TestUnmerge() {
 	t.Run("no merged, but unmerged ops", func() {
 		ctx, _ := t.Ctx()
 
-		// ctx = setContextValueLogger(ctx, logging.TestLogging.Log())
+		// ctx = dutil.SetContextValueLogger(ctx, logging.TestLogging.Log())
 
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
@@ -128,7 +129,7 @@ func (t *testUnmerger) TestUnmerge() {
 
 		t.T().Log("insert ops")
 		{
-			newJob, jobDone, jobWait, err := newFuncJobWorker(ctx, 33)
+			newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, 33)
 			t.NoError(err)
 
 			go func() {

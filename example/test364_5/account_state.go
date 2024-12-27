@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -309,7 +310,7 @@ func (m *AccountStateMerger) Unmerge(op uint64, value base.StateValue) (
 			return nil, op, nil
 		}
 
-		_ = traverseSlice(m.prepops, func(_ int, s uint64) (bool, error) {
+		_ = dutil.TraverseSlice(m.prepops, func(_ int, s uint64) (bool, error) {
 			if s > op {
 				mergeOp = s
 

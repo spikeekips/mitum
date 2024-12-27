@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -62,7 +63,7 @@ func (s *BaseState) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := traverseSlice(s.ops, func(_ int, h util.Hash) (bool, error) {
+	if err := dutil.TraverseSlice(s.ops, func(_ int, h util.Hash) (bool, error) {
 		return true, h.IsValid(nil)
 	}); err != nil {
 		return e.Wrap(err)

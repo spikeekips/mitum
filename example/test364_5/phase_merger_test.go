@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -89,8 +90,8 @@ func (t *baseTestMergeOp) getFuncs() (
 		newFuncGetStateMergeValuesFromPool(vp)
 }
 
-func (t *baseTestMergeOp) newJobWorker() newJobWorkerFunc {
-	return newFuncNewJobWorkerFunc(1 << 6)
+func (t *baseTestMergeOp) newJobWorker() dutil.NewJobWorkerFunc {
+	return dutil.NewFuncNewJobWorkerFunc(1 << 6)
 }
 
 func (t *baseTestMergeOp) extractStateMergeValueKeys() (
@@ -337,7 +338,7 @@ func (t *testMergeOp) TestMergeValues() {
 		t.NoError(err)
 		t.Equal(len(vs), len(merged))
 
-		traverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+		dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
 			var balance int64
 
 			switch value.Key() {
@@ -424,7 +425,7 @@ func (t *testMergeOp) TestUnmergeValues() {
 		t.Error(err)
 		t.Equal(3, len(merged))
 
-		traverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+		dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
 			var balance int64
 
 			switch value.Key() {
@@ -661,7 +662,7 @@ func TestCollectXmergedOpsFuncs(t *testing.T) {
 }
 
 type testPhaseMerger struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 }
 
@@ -697,14 +698,14 @@ func (t *testPhaseMerger) TestCancel() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		merge, _, _, _, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, _, _, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex uint64 = 1
 
 		t.randomMergeValuesVP(vp, opindex, 1)
 
-		cancel()
+		cancel(nil)
 
 		err = merge(opindex)
 		t.ErrorIs(err, context.Canceled)
@@ -721,14 +722,14 @@ func (t *testPhaseMerger) TestCancel() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		_, unmerge, _, _, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		_, unmerge, _, _, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex uint64 = 1
 
 		_ = t.randomMergeValuesVP(vp, opindex, 1)
 
-		cancel()
+		cancel(nil)
 
 		err = unmerge(opindex)
 		t.ErrorIs(err, context.Canceled)
@@ -745,7 +746,7 @@ func (t *testPhaseMerger) TestCancel() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -754,7 +755,7 @@ func (t *testPhaseMerger) TestCancel() {
 
 		t.NoError(merge(opindex))
 
-		cancel()
+		cancel(nil)
 
 		done()
 		err = wait(nil)
@@ -774,7 +775,7 @@ func (t *testPhaseMerger) TestMerge() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -812,7 +813,7 @@ func (t *testPhaseMerger) TestMerge() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		vss := make([][]StateMergeValue, 33)
@@ -820,7 +821,7 @@ func (t *testPhaseMerger) TestMerge() {
 			vss[i] = t.randomMergeValuesVP(vp, uint64(i), i+1)
 		}
 
-		t.NoError(traverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
+		t.NoError(dutil.TraverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
 			return true, merge(uint64(i))
 		}))
 
@@ -837,8 +838,8 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(err)
 		t.Equal(33, len(merged))
 
-		traverseSlice(vss, func(_ int, values []StateMergeValue) (bool, error) {
-			return true, traverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
+		dutil.TraverseSlice(vss, func(_ int, values []StateMergeValue) (bool, error) {
+			return true, dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
 				i, found := merged[value.Key()]
 				t.True(found)
 
@@ -884,7 +885,7 @@ func (t *testPhaseMerger) TestMerge() {
 			return origGetMergers(opindex, values, f)
 		}
 
-		merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		t.NoError(merge(opindex0))
@@ -910,7 +911,7 @@ func (t *testPhaseMerger) TestMerge() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex0, opindex1 uint64 = 1, 2
@@ -956,7 +957,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		var opindex uint64 = 1
@@ -997,7 +998,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
-		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		expectedUnmerged := make([]uint64, len(vss))
@@ -1014,7 +1015,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		prevst := t.newState(pub, (subed)*-1)
 		states.SetValue(prevst.Key(), prevst)
 
-		t.NoError(traverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
+		t.NoError(dutil.TraverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
 			return true, unmerge(uint64(i))
 		}))
 
@@ -1079,7 +1080,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 			return origGetMergers(opindex, values, f)
 		}
 
-		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
 		t.NoError(unmerge(opindex0))
@@ -1153,7 +1154,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 	defer closeMergers()
 
-	merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+	merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 	t.NoError(err)
 
 	if seq == nil {
@@ -1193,7 +1194,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
-	traverseMap(merged, func(key string, v int64) (bool, error) {
+	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(3), v)
@@ -1318,7 +1319,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
-	traverseMap(merged, func(key string, v int64) (bool, error) {
+	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(3), v)
@@ -1405,7 +1406,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
 	defer closeMergers()
 
-	merge, _, done, wait, err := newFuncPhaseMerger(ctx, newFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
+	merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 	t.NoError(err)
 
 	if seq == nil {
@@ -1447,7 +1448,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	t.NoError(err)
 	t.Equal(3, len(merged))
 
-	traverseMap(merged, func(key string, v int64) (bool, error) {
+	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(2), v)

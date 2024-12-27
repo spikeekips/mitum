@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
 type testWorkerStateOwners struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -155,10 +156,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 		defer stateOwnersClose()
 
 		// NOTE preload
-		traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
+		dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
 			_ = getStateOwner(v[0].(StateMergeValue).Key())
 
-			traverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
 				_ = getStateOwner(value.Key())
 
 				return true, nil
@@ -187,7 +188,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		insert, traverse, err := insertf(getStateOwner)
 		t.NoError(err)
 
-		t.NoError(traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
+		t.NoError(dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
 			_ = insert(
 				uint64(i),
 				v[0].(StateMergeValue),
@@ -213,7 +214,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		pubs := make([]base.Publickey, len(workers))
 		owners := map[string][]string{}
 
-		traverseSlice(pubs, func(i int, _ base.Publickey) (bool, error) {
+		dutil.TraverseSlice(pubs, func(i int, _ base.Publickey) (bool, error) {
 			pub := base.NewDummyPublickey(fmt.Sprintf("p%d", i))
 			pubs[i] = pub
 			owners[t.newMergeValue(pub, 1).Key()] = []string{
@@ -234,14 +235,14 @@ func (t *testWorkerStateOwners) TestInsert() {
 		p := func(opindex int, sub StateMergeValue, adds []StateMergeValue) {
 			var subs, affected []string
 
-			traverseSlice(getStateOwner(sub.Key()), func(_ int, owner string) (bool, error) {
+			dutil.TraverseSlice(getStateOwner(sub.Key()), func(_ int, owner string) (bool, error) {
 				subs = append(subs, owner)
 
 				return true, nil
 			})
 
-			traverseSlice(adds, func(_ int, value StateMergeValue) (bool, error) {
-				traverseSlice(getStateOwner(value.Key()), func(_ int, owner string) (bool, error) {
+			dutil.TraverseSlice(adds, func(_ int, value StateMergeValue) (bool, error) {
+				dutil.TraverseSlice(getStateOwner(value.Key()), func(_ int, owner string) (bool, error) {
 					affected = append(affected, owner)
 
 					return true, nil
@@ -255,9 +256,9 @@ func (t *testWorkerStateOwners) TestInsert() {
 			slices.Sort(affected)
 			affected = slices.Compact(affected)
 
-			t.println("op owners: opindex=%d subs=%v affected=%v", opindex, subs, affected)
+			t.Println("op owners: opindex=%d subs=%v affected=%v", opindex, subs, affected)
 
-			traverseSlice(subs, func(_ int, worker string) (bool, error) {
+			dutil.TraverseSlice(subs, func(_ int, worker string) (bool, error) {
 				a := expectedAffected[worker]
 				a = append(a, affected...)
 
@@ -266,7 +267,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 				return true, nil
 			})
 
-			traverseSlice(affected, func(_ int, worker string) (bool, error) {
+			dutil.TraverseSlice(affected, func(_ int, worker string) (bool, error) {
 				a := expectedSubs[worker]
 				a = append(a, subs...)
 
@@ -277,7 +278,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		}
 
 		values := make([][2][]StateMergeValue, len(pubs)*2)
-		traverseSlice(pubs, func(i int, pub base.Publickey) (bool, error) {
+		dutil.TraverseSlice(pubs, func(i int, pub base.Publickey) (bool, error) {
 			sub0 := t.newMergeValue(pub, -1)
 			affected0 := []StateMergeValue{
 				t.newMergeValue(pubs[(i+1)%len(pubs)], 1),
@@ -299,7 +300,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return true, nil
 		})
 
-		traverseSlice(workers, func(_ int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			subs := expectedSubs[worker]
 			slices.Sort(subs)
 			expectedSubs[worker] = slices.Compact(subs)
@@ -323,7 +324,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		insert, traverse, err := insertf(getStateOwner)
 		t.NoError(err)
 
-		t.NoError(traverseSlice(values, func(i int, v [2][]StateMergeValue) (bool, error) {
+		t.NoError(dutil.TraverseSlice(values, func(i int, v [2][]StateMergeValue) (bool, error) {
 			_ = insert(uint64(i), v[0][0], v[1])
 
 			return true, nil
@@ -368,10 +369,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 		defer stateOwnersClose()
 
 		// NOTE preload
-		traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
+		dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
 			_ = getStateOwner(v[0].(StateMergeValue).Key())
 
-			traverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
 				_ = getStateOwner(value.Key())
 
 				return true, nil
@@ -400,7 +401,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		insert, traverse, err := insertf(getStateOwner)
 		t.NoError(err)
 
-		t.NoError(traverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
+		t.NoError(dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
 			_ = insert(
 				uint64(i),
 				v[0].(StateMergeValue),
@@ -440,7 +441,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return o
 		}()
 
-		traverseSlice(workers, func(i int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
 			if worker == local {
 				return true, nil
 			}

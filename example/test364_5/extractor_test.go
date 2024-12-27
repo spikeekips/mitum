@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -16,20 +17,20 @@ import (
 )
 
 type testStateMergeValueExtractor struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 }
 
 func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation) (
-	in3ErrorFunc[getOperationFunc, inErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
-	inErrorFunc[inErrorFunc[map[uint64]string /* reason */]],
+	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
+	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string /* reason */]],
 	error,
 ) {
 	insert, wait, err := newFuncStateMergeValueExtractor(ctx, t.newJobWorker(), 1<<9)
 
 	return func(
 			getOperation getOperationFunc,
-			f inErrorFunc[opindexOpHashesFunc],
+			f dutil.InErrorFunc[opindexOpHashesFunc],
 			extracted stateMergeValueExtractorExtractedFunc,
 		) error {
 			of := newGetOperationFunc(ops)
@@ -38,7 +39,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 			}
 
 			inf := func(f opindexOpHashesFunc) error {
-				return traverseSlice(ops, func(opindex int, op Operation) (bool, error) {
+				return dutil.TraverseSlice(ops, func(opindex int, op Operation) (bool, error) {
 					t.T().Logf("insert: opindex=%d op=%q", opindex, op.Hash())
 
 					return true, f(uint64(opindex), op.Hash(), op.Fact().Hash())
@@ -62,7 +63,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 				},
 			)
 		},
-		func(f inErrorFunc[map[uint64]string]) error {
+		func(f dutil.InErrorFunc[map[uint64]string]) error {
 			return wait(func(reasons map[uint64]string) error {
 				t.T().Logf("reasons: %v", reasons)
 
@@ -85,7 +86,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
-		cancel()
+		cancel(nil)
 
 		err = insert(nil, nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -104,7 +105,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 
 		t.NoError(insert(nil, nil, nil))
 
-		cancel()
+		cancel(nil)
 
 		err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
@@ -161,7 +162,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			})
 
 			t.Equal(len(eaddvs), len(addvs))
-			traverseSlice(eaddvs, func(i int, value StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(eaddvs, func(i int, value StateMergeValue) (bool, error) {
 				t.True(IsEqualStateMergeValue(value, addvs[i]))
 
 				return true, nil

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/rs/zerolog"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -19,7 +20,7 @@ type (
 	workerStateOwnersSetFunc      = func(worker string, subws, affected []string) error
 	localExtractedStateOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersStateMergeValuesFunc,
-		inErrorFunc[workerStateOwnersSetFunc],
+		dutil.InErrorFunc[workerStateOwnersSetFunc],
 		error,
 	)
 	workerInsertStateOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
@@ -32,13 +33,13 @@ func newFuncWorkerStateOwners(
 ) (
 	localExtractedStateOwnersFunc,
 	workerStateOwnersSetFunc,
-	inErrorFunc[insertStateOwnersSetFunc],
+	dutil.InErrorFunc[insertStateOwnersSetFunc],
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker-state-owners", nil)
+	log := dutil.NewModuleLoggerFromContext(ctx, "worker-state-owners", nil)
 
 	var addSubStateOwners, addAffectedStateOwners addOwnersFunc
-	var doneSubStateOwners, doneAffectedStateOwners appendSliceDoneFunc[string]
+	var doneSubStateOwners, doneAffectedStateOwners dutil.AppendSliceDoneFunc[string]
 
 	if err := newFuncAddStateOwners(
 		maxWorkersSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
@@ -52,11 +53,11 @@ func newFuncWorkerStateOwners(
 
 	return func(getStateOwners getStateOwnersFunc) (
 			extractStateOwnersStateMergeValuesFunc,
-			inErrorFunc[workerStateOwnersSetFunc],
+			dutil.InErrorFunc[workerStateOwnersSetFunc],
 			error,
 		) {
 			var localInsertValues extractStateOwnersStateMergeValuesFunc
-			var traverseOwnersSet inErrorFunc[workerStateOwnersSetFunc]
+			var traverseOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
 
 			switch i, t, err := newFuncLocalExtractedStateOwners(maxWorkersSize, getStateOwners); {
 			case err != nil:
@@ -130,11 +131,11 @@ func newFuncLocalExtractedStateOwners(
 	getStateOwners getStateOwnersFunc,
 ) (
 	extractStateOwnersStateMergeValuesFunc,
-	inErrorFunc[workerStateOwnersSetFunc],
+	dutil.InErrorFunc[workerStateOwnersSetFunc],
 	error,
 ) {
 	var addOwnersSet insertStateOwnerSetFunc
-	var traverseWorkerOwnersSet inErrorFunc[workerStateOwnersSetFunc]
+	var traverseWorkerOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
 
 	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkersSize); {
 	case err != nil:
@@ -153,7 +154,7 @@ func newFuncLocalExtractedStateOwners(
 				ws := getStateOwners(subv.Key())
 				subws = make([]string, len(ws))
 
-				_ = traverseSlice(ws, func(i int, w string) (bool, error) {
+				_ = dutil.TraverseSlice(ws, func(i int, w string) (bool, error) {
 					addValue(w, subv)
 
 					subws[i] = w
@@ -162,16 +163,16 @@ func newFuncLocalExtractedStateOwners(
 				})
 			}
 
-			_ = traverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
+			_ = dutil.TraverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
 				adds := getStateOwners(value.Key())
 
-				traverseSlice(subws, func(_ int, subw string) (bool, error) {
+				dutil.TraverseSlice(subws, func(_ int, subw string) (bool, error) {
 					addOwnersSet(subw, adds)
 
 					return true, nil
 				})
 
-				_ = traverseSlice(adds, func(_ int, addw string) (bool, error) {
+				_ = dutil.TraverseSlice(adds, func(_ int, addw string) (bool, error) {
 					addValue(addw, value)
 
 					return true, nil
@@ -188,7 +189,7 @@ func newFuncLocalExtractedStateOwners(
 
 func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	insertStateOwnerSetFunc,
-	inErrorFunc[workerStateOwnersSetFunc],
+	dutil.InErrorFunc[workerStateOwnersSetFunc],
 	error,
 ) {
 	var msubs util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
@@ -213,7 +214,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 		a string, b []string,
 	) {
 		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
-			_ = traverseSlice(b, func(_ int, worker string) (bool, error) {
+			_ = dutil.TraverseSlice(b, func(_ int, worker string) (bool, error) {
 				switch {
 				case len(prev) < 1:
 					prev = map[string]struct{}{worker: {}}
@@ -237,7 +238,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 
 			add(msubs, subw, affected)
 
-			_ = traverseSlice(affected, func(_ int, worker string) (bool, error) {
+			_ = dutil.TraverseSlice(affected, func(_ int, worker string) (bool, error) {
 				add(maffected, worker, []string{subw})
 
 				return true, nil
@@ -288,9 +289,9 @@ func newFuncCollectWorkerStateMergeValues() (
 			m[worker] = append(m[worker], value)
 		},
 		func(f workerStateMergeValuesFunc) error {
-			defer clearMap(m)
+			defer dutil.ClearMap(m)
 
-			return traverseMap(m, func(worker string, values []StateMergeValue) (bool, error) {
+			return dutil.TraverseMap(m, func(worker string, values []StateMergeValue) (bool, error) {
 				err := f(worker, values)
 
 				return err == nil, err
@@ -301,14 +302,14 @@ func newFuncCollectWorkerStateMergeValues() (
 func newFuncAddStateOwners(
 	maxSize uint64,
 	add *addOwnersFunc,
-	done *appendSliceDoneFunc[string],
+	done *dutil.AppendSliceDoneFunc[string],
 ) error {
 	var (
-		addf  appendSliceAddFunc[string]
-		donef appendSliceDoneFunc[string]
+		addf  dutil.AppendSliceAddFunc[string]
+		donef dutil.AppendSliceDoneFunc[string]
 	)
 
-	if err := rUniqueAppendSlice[string, string](
+	if err := dutil.RUniqueAppendSlice[string, string](
 		maxSize, 1<<5, func(s string) string { return s }, &addf, &donef); err != nil {
 		return err
 	}

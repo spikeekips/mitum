@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -14,23 +15,23 @@ type (
 	newPhaseJobWorkerFunc    = func(context.Context) (
 		newJob phaseJobWorkerNewJobFunc,
 		jobDone func(),
-		wait errorFunc,
+		wait dutil.ErrorFunc,
 		_ error,
 	)
 )
 
 func newFuncPhaseJobWorker(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	jobIDMapSize uint64,
 	phase int,
 ) (
 	phaseJobWorkerNewJobFunc,
 	func(),
-	errorFunc,
+	dutil.ErrorFunc,
 	error,
 ) {
-	ctx, _ = updateModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
+	ctx, _ = dutil.UpdateModuleLoggerFromContext(ctx, "newFuncPhaseJobWorker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Int("phase", phase)
 	})
 
@@ -44,9 +45,9 @@ func newFuncPhaseJobWorker(
 		jobIDFilter, jobIDClose = f, c
 	}
 
-	var newJob jobWorkerNewJobFunc
+	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait errorFunc
+	var jobWait dutil.ErrorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -90,20 +91,20 @@ func newFuncPhaseJobWorker(
 
 func newLockedPhaseJobWorker(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	jobIDMapSize uint64,
 	phase int,
 ) (
 	phaseJobWorkerNewJobFunc,
-	errorFunc,
+	dutil.ErrorFunc,
 ) {
-	log := loadContextValueLogger(ctx)
+	log := dutil.LoadContextValueLogger(ctx)
 
 	l := log.With().Int("phase", phase).Logger()
 
 	var fl sync.RWMutex
 	var newJob phaseJobWorkerNewJobFunc
-	var wait errorFunc
+	var wait dutil.ErrorFunc
 
 	once := sync.OnceValue(func() error {
 		l.Debug().Msg("new phase job worker")

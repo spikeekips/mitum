@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -12,7 +13,7 @@ type (
 	insertStateMergeValuesFunc             = func(opindex uint64, _ []StateMergeValue) error
 	workerMergerInsertStateMergeValuesFunc = func(worker string) (
 		insertStateMergeValuesFunc,
-		inErrorFunc[error],
+		dutil.InErrorFunc[error],
 		error,
 	)
 	workerMergerCallback                 = func(reasons map[uint64]string) error
@@ -23,7 +24,7 @@ type (
 func newFuncWorkerMerger(
 	ctx context.Context,
 	local string,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	getState getStateFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	maxWorkersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
@@ -34,7 +35,7 @@ func newFuncWorkerMerger(
 	workerMergerWaitFunc,
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker-merger", nil)
+	log := dutil.NewModuleLoggerFromContext(ctx, "worker-merger", nil)
 
 	localInOpsWorkers := true
 	var mOpsWorkers util.LockedMap[string, struct{}]
@@ -59,7 +60,7 @@ func newFuncWorkerMerger(
 		default:
 			mOpsWorkers = i
 
-			_ = traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			_ = dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				mOpsWorkers.SetValue(worker, struct{}{})
 
 				return true, nil
@@ -84,7 +85,7 @@ func newFuncWorkerMerger(
 		Uint64("max_failed_ops", maxFailedOps).
 		Msg("newFuncWorkerMerger")
 
-	wctx, wctxCancel := contextWithCancelCause(ctx)
+	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
 	var getStateMergeValues opindexGetStateMergeValuesFunc
 	var setStateMergeValues opindexSetStateMergeValuesFunc
@@ -100,11 +101,11 @@ func newFuncWorkerMerger(
 	newCheckWorkers := newFuncLocalCheckEnoughFailedWorkers(local)
 
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
-	var workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc]
+	var workerPhaseMergerWait dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc]
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
-		newIfErrErrorInFunc(wctxCancel),
+		dutil.NewIfErrErrorInFunc(wctxCancel),
 		getStateMergeValues,
 		getStateMergers,
 		newCheckWorkers,
@@ -119,11 +120,11 @@ func newFuncWorkerMerger(
 
 	var workerUnmergerUnmerged workerUnmergedFunc
 	var workerUnmergerLocalReady workerUnmergerLocalReadyFunc
-	var workerUnmergerWait inErrorFunc[inErrorFunc[[]uint64]]
+	var workerUnmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]]
 
 	switch u, s, w, err := newFuncWorkerUnmerger(
 		wctx,
-		newIfErrErrorInFunc(wctxCancel),
+		dutil.NewIfErrErrorInFunc(wctxCancel),
 		local,
 		newJobWorker,
 		maxOpsSize,
@@ -138,7 +139,7 @@ func newFuncWorkerMerger(
 	}
 
 	unmerge := func(worker string, unmerged []uint64) error {
-		return contextCauseError(wctx, nil, func(context.Context) error {
+		return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
 			return workerUnmergerUnmerged(worker, unmerged)
 		})
 	}
@@ -183,7 +184,7 @@ func newFuncWorkerMerger(
 				mOpsWorkers.Close()
 			}()
 
-			return contextCauseError(wctx, wctxCancel, func(context.Context) error {
+			return dutil.ContextCauseError(wctx, wctxCancel, func(context.Context) error {
 				return wait(localDone, f)
 			})
 		},
@@ -199,7 +200,7 @@ func newFuncWorkerMergerInsert(
 ) workerMergerInsertStateMergeValuesFunc {
 	return func(worker string) (
 		insertStateMergeValuesFunc,
-		inErrorFunc[error],
+		dutil.InErrorFunc[error],
 		error,
 	) {
 		switch {
@@ -208,8 +209,8 @@ func newFuncWorkerMergerInsert(
 			return nil, nil, nil
 		}
 
-		var insert inErrorFunc[uint64]
-		var done inErrorFunc[error]
+		var insert dutil.InErrorFunc[uint64]
+		var done dutil.InErrorFunc[error]
 
 		switch i, d, err := workerInsert(worker); {
 		case err != nil:
@@ -220,7 +221,7 @@ func newFuncWorkerMergerInsert(
 		}
 
 		f := func(opindex uint64, values []StateMergeValue) error {
-			return contextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				switch added, err := setStateMergeValues(opindex, values); {
 				case err != nil:
 					return err
@@ -245,18 +246,18 @@ func newFuncWorkerMergerInsert(
 func newFuncWorkerMergerWait(
 	ctx context.Context,
 	statesShare uint64,
-	workerPhaseMergerWait inErrorFunc[workerPhaseMergerWaitCallbackFunc],
+	workerPhaseMergerWait dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc],
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
-	workerUnmergerWait inErrorFunc[inErrorFunc[[]uint64]],
+	workerUnmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 ) workerMergerWaitFunc {
-	log := loadContextValueLogger(ctx)
+	log := dutil.LoadContextValueLogger(ctx)
 
 	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
 		var phaseDoneReasons map[uint64]string
 		var localUnmerged []uint64
 
 		defer func() {
-			clearMap(phaseDoneReasons)
+			dutil.ClearMap(phaseDoneReasons)
 			clear(localUnmerged)
 		}()
 
@@ -315,7 +316,7 @@ func newFuncWorkerMergerWait(
 			if f != nil {
 				return mergeUnmergeds(localUnmerged, unmerged, func(m []uint64) error {
 					n := filterReasons(phaseDoneReasons, m)
-					defer clearMap(n)
+					defer dutil.ClearMap(n)
 
 					return f(n)
 				})
@@ -326,7 +327,7 @@ func newFuncWorkerMergerWait(
 	}
 }
 
-func mergeUnmergeds(a, b []uint64, f inErrorFunc[[]uint64]) error {
+func mergeUnmergeds(a, b []uint64, f dutil.InErrorFunc[[]uint64]) error {
 	switch {
 	case len(a) < 1:
 		return f(b)
@@ -341,14 +342,14 @@ func mergeUnmergeds(a, b []uint64, f inErrorFunc[[]uint64]) error {
 		bs = a
 	}
 
-	var add appendSliceAddFunc[uint64]
-	var done appendSliceDoneFunc[uint64]
+	var add dutil.AppendSliceAddFunc[uint64]
+	var done dutil.AppendSliceDoneFunc[uint64]
 
-	if err := rAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
+	if err := dutil.RAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
 		return err
 	}
 
-	_ = traverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
+	_ = dutil.TraverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
 		if slices.Index(as, opindex) >= 0 {
 			add(opindex)
 		}

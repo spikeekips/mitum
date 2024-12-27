@@ -6,19 +6,20 @@ import (
 	"slices"
 	"testing"
 
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
 
 type testManagerCollectOwners struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestWorkers
 }
 
 func (t *testManagerCollectOwners) TestCancel() {
 	t.Run("before new", func() {
 		ctx, cancel := t.Ctx()
-		cancel()
+		cancel(nil)
 
 		add, done, err := newFuncManagerCollectOwners(ctx, 1, 1)
 		t.NoError(err)
@@ -36,7 +37,7 @@ func (t *testManagerCollectOwners) TestCancel() {
 		add, done, err := newFuncManagerCollectOwners(ctx, 1, 1)
 		t.NoError(err)
 
-		cancel()
+		cancel(nil)
 
 		err = add("w0", []string{"w1"})
 		t.ErrorIs(err, context.Canceled)
@@ -53,7 +54,7 @@ func (t *testManagerCollectOwners) TestCancel() {
 
 		t.NoError(add("w0", []string{"w1"}))
 
-		cancel()
+		cancel(nil)
 
 		err = done(nil)
 		t.ErrorIs(err, context.Canceled)
@@ -151,7 +152,7 @@ func (t *testManagerCollectOwners) TestAdd() {
 		add, done, err := newFuncManagerCollectOwners(ctx, uint64(len(workers)), uint64(len(workers)))
 		t.NoError(err)
 
-		traverseSlice(workers, func(i int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
 			j := i
 
 			go func() {

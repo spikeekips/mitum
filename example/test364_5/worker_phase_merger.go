@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
 type (
@@ -11,19 +13,19 @@ type (
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge inErrorFunc[uint64],
+		unmerge dutil.InErrorFunc[uint64],
 		done func(),
-		_ inErrorFunc[phaseMergerWaitCallbackFunc],
+		_ dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
 	)
-	insertWorkerStateMergeValuesFunc  = func(worker string) (inErrorFunc[uint64], inErrorFunc[error], error)
+	insertWorkerStateMergeValuesFunc  = func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error)
 	workerPhaseMergerWaitCallbackFunc = func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error
 )
 
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
 func newFuncWorkerPhaseMerger(
 	ctx context.Context,
-	ctxCancel inErrorFunc[error],
+	ctxCancel dutil.InErrorFunc[error],
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
@@ -31,10 +33,10 @@ func newFuncWorkerPhaseMerger(
 	minEnough, maxFailed uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
-	inErrorFunc[workerPhaseMergerWaitCallbackFunc],
+	dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc],
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker-phase-merger", nil)
+	log := dutil.NewModuleLoggerFromContext(ctx, "worker-phase-merger", nil)
 
 	log.Debug().
 		Uint64("min_enough", minEnough).
@@ -53,9 +55,9 @@ func newFuncWorkerPhaseMerger(
 		checkWorker, checkWorkerClose = w, c
 	}
 
-	var phaseMergerMerge inErrorFunc[uint64]
+	var phaseMergerMerge dutil.InErrorFunc[uint64]
 	var phaseMergerDone func()
-	var phaseMergerWait inErrorFunc[phaseMergerWaitCallbackFunc]
+	var phaseMergerWait dutil.InErrorFunc[phaseMergerWaitCallbackFunc]
 
 	switch m, _, d, w, err := newPhaseMerger(
 		ctx,
@@ -68,22 +70,22 @@ func newFuncWorkerPhaseMerger(
 		phaseMergerMerge, phaseMergerDone, phaseMergerWait = m, d, w
 	}
 
-	_, workerInsertDone, workerInsertWait := newContextDone(ctx)
+	_, workerInsertDone, workerInsertWait := dutil.NewContextDone(ctx)
 
-	return func(worker string) (inErrorFunc[uint64], inErrorFunc[error], error) {
+	return func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error) {
 			l := log.With().Str("worker", worker).Logger()
 
 			return func(opindex uint64) error {
-					return contextCauseError(ctx, nil, func(context.Context) error {
+					return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 						return phaseMergerMerge(opindex)
 					})
 				},
 				func(err error) error {
-					return contextCauseError(ctx, nil, func(context.Context) error {
+					return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 						if worker == managerName {
 							l.Debug().Msg("manager done")
 
-							return newIfErrErrorInFunc(ctxCancel)(workerInsertDone(err))
+							return dutil.NewIfErrErrorInFunc(ctxCancel)(workerInsertDone(err))
 						}
 
 						switch ok, enough, failed, err := checkWorker(worker, func() error { return err }); {
@@ -115,7 +117,7 @@ func newFuncWorkerPhaseMerger(
 				checkWorkerClose()
 			}()
 
-			return contextCauseError(ctx, ctxCancel, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerInsertWait(); err != nil {
 					return err
 				}
@@ -135,7 +137,7 @@ func newFuncWorkerPhaseMerger(
 }
 
 func newFuncPhaseMergerFunc(
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 ) newPhaseMergerFunc {
 	return func(
@@ -143,10 +145,10 @@ func newFuncPhaseMergerFunc(
 		getStateMergeValues opindexGetStateMergeValuesFunc,
 		getStateMergers mergerGetStateMergersFunc,
 	) (
-		inErrorFunc[uint64],
-		inErrorFunc[uint64],
+		dutil.InErrorFunc[uint64],
+		dutil.InErrorFunc[uint64],
 		func(),
-		inErrorFunc[phaseMergerWaitCallbackFunc],
+		dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
 		error,
 	) {
 		return newFuncPhaseMerger(

@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -13,7 +14,7 @@ type (
 	workerDistributeStateMergeValuesFunc = func(_ context.Context, workID, local string, workers []string) (
 		workerDistributeWorkerStateMergeValuesFunc,
 		workerStateOwnersSetFunc,
-		errorFunc,
+		dutil.ErrorFunc,
 		error,
 	)
 	workerInitialInsertFunc = func(
@@ -40,7 +41,7 @@ type (
 		workID string,
 		reasons map[uint64]string,
 		statesSize uint64,
-		_ inErrorFunc[inErrorFunc[base.State]],
+		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error
 	workerWaitFunc = func(
 		workerBroadcastUnmerged,
@@ -79,7 +80,7 @@ func newFuncWorker(
 	workerWaitFunc,
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
+	log := dutil.NewModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.
 			Str("work_id", workID).
 			Str("local", options.Local)
@@ -121,7 +122,7 @@ func newFuncWorker(
 	switch i, w, u, p, err := newFuncWorkerProcess(
 		ctx,
 		options.Local,
-		newFuncNewJobWorkerFunc(options.JobWorkerSemSize),
+		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerSemSize),
 		getState,
 		newState,
 		options.MaxExtractStateKeyCacheSize,
@@ -145,14 +146,14 @@ func newFuncWorker(
 				func(ctx context.Context, local string, workers []string) (
 					workerDistributeWorkerStateMergeValuesFunc,
 					workerStateOwnersSetFunc,
-					errorFunc,
+					dutil.ErrorFunc,
 					error,
 				) {
 					return distribute(ctx, workID, local, workers)
 				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {
-					return traverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
+					return dutil.TraverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
 						return true, f(uint64(i), oph[0], oph[1])
 					})
 				},
@@ -185,7 +186,7 @@ func newFuncWorker(
 					ctx context.Context,
 					reasons map[uint64]string,
 					statesSize uint64,
-					reportStates inErrorFunc[inErrorFunc[base.State]],
+					reportStates dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					switch i, err := util.NewLockedMap[string, base.State](statesSize, nil); {
 					case err != nil:
@@ -195,7 +196,7 @@ func newFuncWorker(
 					}
 
 					return reportResult(ctx, options.Local, workID, reasons, statesSize,
-						func(f inErrorFunc[base.State]) error {
+						func(f dutil.InErrorFunc[base.State]) error {
 							return reportStates(func(st base.State) error {
 								_ = savedStates.SetValue(st.Key(), st)
 
@@ -240,7 +241,7 @@ func isValidWorkerArgs(
 		return util.ErrInvalid.Errorf("empty ops workers")
 	}
 
-	return traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+	return dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 		if slices.Index(workers, worker) < 0 {
 			return false, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
 		}

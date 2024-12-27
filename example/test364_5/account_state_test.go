@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -18,7 +19,7 @@ import (
 )
 
 type baseTestAccountStateMerger struct {
-	baseTest
+	dutil.BaseSuite
 	networkID base.NetworkID
 	rootpriv  base.Privatekey
 }
@@ -565,7 +566,7 @@ func (t *testAccountStateMerger) TestMerges() {
 				}
 			}
 
-			if err := traverseSlice(doneCommits(), func(_ int, f func() error) (bool, error) {
+			if err := dutil.TraverseSlice(doneCommits(), func(_ int, f func() error) (bool, error) {
 				return true, f()
 			}); err != nil {
 				return err
@@ -576,7 +577,7 @@ func (t *testAccountStateMerger) TestMerges() {
 				nextname = "merge"
 			}
 
-			if err := traverseSlice(doneNextops(), func(_ int, op uint64) (bool, error) {
+			if err := dutil.TraverseSlice(doneNextops(), func(_ int, op uint64) (bool, error) {
 				return true, xmerge(nextname, op, ops[op], unmergef, mergef)
 			}); err != nil {
 				return err

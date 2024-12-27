@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -18,7 +19,7 @@ import (
 )
 
 type testWorkerProcess struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -35,8 +36,8 @@ func (t *testWorkerProcess) newf(
 	workerProcessWorkerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	func(
-		in3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
-		in2ErrorFunc[context.Context, []string /* all state owners */],
+		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
+		dutil.In2ErrorFunc[context.Context, []string /* all state owners */],
 		workerProcessReportResult,
 	) error,
 	util.LockedMap[uint64, Operation],
@@ -45,7 +46,7 @@ func (t *testWorkerProcess) newf(
 	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
 		ctx,
 		local,
-		newFuncNewJobWorkerFunc(1<<9),
+		dutil.NewFuncNewJobWorkerFunc(1<<9),
 		getState,
 		newState,
 		1<<9,
@@ -58,14 +59,14 @@ func (t *testWorkerProcess) newf(
 	t.NoError(err)
 
 	defaultDistribute := newFuncDistributeStateMergeValues(
-		func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
+		func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
 			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-					t.println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
+					t.Println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
 					return nil
 				},
 				func(subws []string, affected []string) error {
-					t.println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+					t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
 					return nil
 				},
@@ -80,7 +81,7 @@ func (t *testWorkerProcess) newf(
 			getStateOwners getStateOwnersFunc,
 			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
-			insertOp inErrorFunc[opindexOpHashesFunc],
+			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
 		) error {
 			if getStateOwners == nil {
 				getStateOwners = defaultGetStateOwners
@@ -100,8 +101,8 @@ func (t *testWorkerProcess) newf(
 		insert,
 		unmerged,
 		func(
-			b in3ErrorFunc[context.Context, string, []uint64],
-			c in2ErrorFunc[context.Context, []string],
+			b dutil.In3ErrorFunc[context.Context, string, []uint64],
+			c dutil.In2ErrorFunc[context.Context, []string],
 			d workerProcessReportResult,
 		) error {
 			defer func() {
@@ -110,7 +111,7 @@ func (t *testWorkerProcess) newf(
 
 			traverseOps, err := wait(
 				func(ctx context.Context, worker string, unmerged []uint64) error {
-					t.println("wait: broadcast unmerged: worker=%q unmerged=%v", worker, unmerged)
+					t.Println("wait: broadcast unmerged: worker=%q unmerged=%v", worker, unmerged)
 
 					if b != nil {
 						return b(ctx, worker, unmerged)
@@ -119,7 +120,7 @@ func (t *testWorkerProcess) newf(
 					return nil
 				},
 				func(ctx context.Context, owners []string) error {
-					t.println("wait: report state owners: owners=%v", owners)
+					t.Println("wait: report state owners: owners=%v", owners)
 
 					if c != nil {
 						return c(ctx, owners)
@@ -131,15 +132,15 @@ func (t *testWorkerProcess) newf(
 					ctx context.Context,
 					reasons map[uint64]string,
 					statesSize uint64,
-					states inErrorFunc[inErrorFunc[base.State]],
+					states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					t.println("wait: report result: reasons=%v states=%d", reasons, statesSize)
+					t.Println("wait: report result: reasons=%v states=%d", reasons, statesSize)
 
 					var called bool
 
 					if d != nil {
 						if err := d(ctx, reasons, statesSize,
-							func(f inErrorFunc[base.State]) error {
+							func(f dutil.InErrorFunc[base.State]) error {
 								called = true
 
 								return states(func(st base.State) error {
@@ -178,9 +179,9 @@ func (t *testWorkerProcess) newf(
 		savedStates
 }
 
-func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) inErrorFunc[opindexOpHashesFunc] {
+func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) dutil.InErrorFunc[opindexOpHashesFunc] {
 	return func(f opindexOpHashesFunc) error {
-		return traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		return dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			return true, f(uint64(i), op.Hash(), op.Fact().Hash())
 		})
 	}
@@ -202,10 +203,10 @@ func (t *testWorkerProcess) TestCancel() {
 	local := "w0"
 
 	newf := func(ctx context.Context, local string) (
-		errorFunc,
-		errorFunc,
-		errorFunc,
-		errorFunc,
+		dutil.ErrorFunc,
+		dutil.ErrorFunc,
+		dutil.ErrorFunc,
+		dutil.ErrorFunc,
 		error,
 	) {
 		workers := t.workers(3)
@@ -213,7 +214,7 @@ func (t *testWorkerProcess) TestCancel() {
 		insertOps, insertValues, unmerged, wait, err := newFuncWorkerProcess(
 			ctx,
 			local,
-			newFuncNewJobWorkerFunc(1<<9),
+			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			func(string) (base.State, bool, error) { return nil, false, nil },
 			func(string, base.StateValue, []util.Hash) (base.State, error) { return nil, nil },
 			1<<9,
@@ -226,7 +227,7 @@ func (t *testWorkerProcess) TestCancel() {
 					func(context.Context, string, []string) (
 						workerDistributeWorkerStateMergeValuesFunc,
 						workerStateOwnersSetFunc,
-						errorFunc,
+						dutil.ErrorFunc,
 						error,
 					) {
 						return func(string, uint64, util.Hash, []StateMergeValue) error { return nil },
@@ -239,7 +240,7 @@ func (t *testWorkerProcess) TestCancel() {
 				)
 			},
 			func() error {
-				return traverseSlice(workers, func(_ int, worker string) (bool, error) {
+				return dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 					if worker == local {
 						return true, nil
 					}
@@ -257,7 +258,7 @@ func (t *testWorkerProcess) TestCancel() {
 				})
 			},
 			func() error {
-				return traverseSlice(workers, func(_ int, worker string) (bool, error) {
+				return dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 					if worker == local {
 						return true, nil
 					}
@@ -276,7 +277,7 @@ func (t *testWorkerProcess) TestCancel() {
 	t.Run("before insert ops; local not in ops workers", func() {
 		ctx, cancel := t.Ctx()
 
-		cancel()
+		cancel(nil)
 
 		_, _, _, _, err := newf(ctx, "local")
 		t.ErrorIs(err, context.Canceled)
@@ -285,7 +286,7 @@ func (t *testWorkerProcess) TestCancel() {
 	t.Run("before insert ops", func() {
 		ctx, cancel := t.Ctx()
 
-		cancel()
+		cancel(nil)
 
 		insert, _, _, _, err := newf(ctx, local)
 		t.NoError(err)
@@ -302,7 +303,7 @@ func (t *testWorkerProcess) TestCancel() {
 
 		t.NoError(insertOps())
 
-		cancel()
+		cancel(nil)
 
 		err = insertValues()
 		t.ErrorIs(err, context.Canceled)
@@ -317,7 +318,7 @@ func (t *testWorkerProcess) TestCancel() {
 		t.NoError(insertOps())
 		t.NoError(insertValues())
 
-		cancel()
+		cancel(nil)
 
 		err = unmerged()
 		t.ErrorIs(err, context.Canceled)
@@ -333,7 +334,7 @@ func (t *testWorkerProcess) TestCancel() {
 		t.NoError(insertValues())
 		t.NoError(unmerged())
 
-		cancel()
+		cancel(nil)
 
 		err = wait()
 		t.ErrorIs(err, context.Canceled)
@@ -393,7 +394,7 @@ func (t *testWorkerProcess) TestLocal() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				reportedStates.Store(maps.Clone(reasons))
 
@@ -414,7 +415,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
@@ -449,13 +450,13 @@ func (t *testWorkerProcess) TestLocal() {
 		var reportedStateOwners atomic.Value
 		var reportedStates atomic.Value
 
-		traverseSlice(workers, func(_ int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			insert, done, err := insertf(worker)
 			if err != nil {
 				return false, err
 			}
 
-			if err := traverseSlice(ops, func(i int, op Operation) (bool, error) {
+			if err := dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 				subv, addvs, reason, err := op.StateMergeValues(ctx)
 				if err != nil {
 					panic(err)
@@ -481,7 +482,7 @@ func (t *testWorkerProcess) TestLocal() {
 			return true, done(workers, workers)
 		})
 
-		traverseSlice(workers, func(_ int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			return true, unmerge(worker, nil)
 		})
 
@@ -500,7 +501,7 @@ func (t *testWorkerProcess) TestLocal() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				reportedStates.Store(maps.Clone(reasons))
 
@@ -543,7 +544,7 @@ func (t *testWorkerProcess) TestLocal() {
 		)
 
 		expectedReasonsAfterExtracted := map[uint64]string{}
-		traverseSlice(make([]int, 3), func(i int, _ int) (bool, error) {
+		dutil.TraverseSlice(make([]int, 3), func(i int, _ int) (bool, error) {
 			expectedReasonsAfterExtracted[uint64(i+len(ops))] = reasonOperationNotFound
 
 			return true, nil
@@ -554,13 +555,13 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
 			func(f opindexOpHashesFunc) error {
-				if err := traverseSlice(ops, func(i int, op Operation) (bool, error) {
+				if err := dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 					return true, f(uint64(i), op.Hash(), op.Fact().Hash())
 				}); err != nil {
 					return err
 				}
 
-				return traverseMap(expectedReasonsAfterExtracted, func(opindex uint64, _ string) (bool, error) {
+				return dutil.TraverseMap(expectedReasonsAfterExtracted, func(opindex uint64, _ string) (bool, error) {
 					return true, f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 				})
 			},
@@ -584,7 +585,7 @@ func (t *testWorkerProcess) TestLocal() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				reportedStates.Store(maps.Clone(reasons))
 
@@ -604,7 +605,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
@@ -671,7 +672,7 @@ func (t *testWorkerProcess) TestLocal() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				reportedStates.Store(maps.Clone(reasons))
 
@@ -691,7 +692,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
@@ -726,7 +727,7 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(initial(
 			func(string) []string { return []string{local} },
 			newFuncDistributeStateMergeValues(
-				func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, in2ErrorFunc[[]string, []string], error) {
+				func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
 					return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
 							otherInserted = true
 
@@ -735,7 +736,7 @@ func (t *testWorkerProcess) TestLocal() {
 						func(subws []string, affected []string) error {
 							otherInsertedDone = true
 
-							t.println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+							t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
 							return nil
 						},
@@ -765,7 +766,7 @@ func (t *testWorkerProcess) TestLocal() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				reportedStates.Store(maps.Clone(reasons))
 
@@ -788,7 +789,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
@@ -839,7 +840,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				t.Empty(reasons)
 				t.Equal(uint64(0), statesSize)
@@ -892,7 +893,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 				_ context.Context,
 				reasons map[uint64]string,
 				statesSize uint64,
-				states inErrorFunc[inErrorFunc[base.State]],
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
 				t.Empty(reasons)
 				t.Equal(uint64(0), statesSize)
@@ -925,7 +926,7 @@ func (t *testWorkerProcess) newProcessWorker(
 	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
 		ctx,
 		local,
-		newFuncNewJobWorkerFunc(1<<9),
+		dutil.NewFuncNewJobWorkerFunc(1<<9),
 		func(string) (base.State, bool, error) { return nil, false, nil },
 		t.newStateFunc(),
 		1<<9,
@@ -943,7 +944,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 	opsShare, statesShare uint64,
 	ops []Operation,
 ) {
-	traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+	dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 		if slices.Index(workers, worker) < 0 {
 			t.Fail("unknown op worker, %q", worker)
 		}
@@ -956,7 +957,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 	workerUnmerges := map[string]workerUnmergedFunc{}
 	workerWaits := map[string]workerProcessWaitFunc{}
 
-	traverseSlice(workers, func(_ int, local string) (bool, error) {
+	dutil.TraverseSlice(workers, func(_ int, local string) (bool, error) {
 		initials[local], workerInserts[local], workerUnmerges[local], workerWaits[local] = t.newProcessWorker(
 			ctx,
 			local, workers, opsWorkers,
@@ -974,7 +975,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 	distributeValues := func(local string) workerProcessDistributeStateMergeValuesFunc {
 		return newFuncDistributeStateMergeValues(func(_ context.Context, worker string) (
 			workerProcessInsertStateMergeValuesFunc,
-			in2ErrorFunc[[]string, []string],
+			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
 			return workerInserts[worker](local)
@@ -983,7 +984,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 	go func() {
 		ophs := make([][2]util.Hash, len(ops))
-		traverseSlice(ops, func(i int, op Operation) (bool, error) {
+		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 			ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 
 			return true, nil
@@ -996,7 +997,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 		var wg sync.WaitGroup
 
-		traverseSlice(opsWorkers, func(_ int, local string) (bool, error) {
+		dutil.TraverseSlice(opsWorkers, func(_ int, local string) (bool, error) {
 			wg.Add(1)
 
 			go func() {
@@ -1011,7 +1012,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 					},
 				)
 
-				t.println("initial: worker=%q err=%v", local, err)
+				t.Println("initial: worker=%q err=%v", local, err)
 			}()
 
 			return true, nil
@@ -1022,7 +1023,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 	var wg sync.WaitGroup
 
-	traverseSlice(workers, func(_ int, local string) (bool, error) {
+	dutil.TraverseSlice(workers, func(_ int, local string) (bool, error) {
 		wg.Add(1)
 
 		go func() {
@@ -1030,12 +1031,12 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 			traverseOps, err := workerWaits[local](
 				func(ctx context.Context, worker string, unmerged []uint64) error {
-					t.println("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
+					t.Println("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
 
 					return workerUnmerges[worker](local, unmerged)
 				},
 				func(ctx context.Context, owners []string) error {
-					t.println("worker owners: local=%q owners=%v", local, owners)
+					t.Println("worker owners: local=%q owners=%v", local, owners)
 
 					return nil
 				},
@@ -1043,12 +1044,12 @@ func (t *testWorkerProcess) newProcessWorkers(
 					ctx context.Context,
 					reasons map[uint64]string,
 					statesSize uint64,
-					f inErrorFunc[inErrorFunc[base.State]],
+					f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					t.println("wait states: local=%q reasons=%v states=%d", local, reasons, statesSize)
+					t.Println("wait states: local=%q reasons=%v states=%d", local, reasons, statesSize)
 
 					return f(func(st base.State) error {
-						t.println("\tstate: local=%q st=%q", local, st.Key())
+						t.Println("\tstate: local=%q st=%q", local, st.Key())
 
 						return nil
 					})
@@ -1068,7 +1069,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 				})
 			}
 
-			t.println("wait done: worker=%q err=%v", local, err)
+			t.Println("wait done: worker=%q err=%v", local, err)
 		}()
 
 		return true, nil

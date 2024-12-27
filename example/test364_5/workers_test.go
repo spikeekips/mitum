@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -24,14 +25,6 @@ func (t *baseTestWorkers) workers(n int) []string {
 	}
 
 	return w
-}
-
-func (t *baseTestWorkers) toCtxCancel(f func()) inErrorFunc[error] {
-	return func(err error) error {
-		f()
-
-		return err
-	}
 }
 
 type testCheckFailedWorkers struct {
@@ -458,7 +451,7 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(0, l)
 
-			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				t.Empty(f(stateKey))
 
 				return true, nil
@@ -499,7 +492,7 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(3, l)
 
-			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				facts, err := f(stateKey)
 				t.NoError(err)
 
@@ -524,7 +517,7 @@ func (t *testSetStateOps) Test() {
 
 		var nstateKeys uint64 = 30
 		stateKeys := make([]string, nstateKeys)
-		traverseSlice(stateKeys, func(i int, _ string) (bool, error) {
+		dutil.TraverseSlice(stateKeys, func(i int, _ string) (bool, error) {
 			stateKeys[i] = fmt.Sprintf("s%d", i)
 
 			return true, nil
@@ -549,12 +542,12 @@ func (t *testSetStateOps) Test() {
 		unmergeOps := []uint64{0, 9, 30}
 
 		expectedStateKeyFact := map[string][]util.Hash{}
-		traverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+		dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
 			if slices.Index(unmergeOps, opindex) >= 0 {
 				return true, nil
 			}
 
-			return true, traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			return true, dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				s := expectedStateKeyFact[stateKey]
 				s = append(s, facts[opindex])
 
@@ -564,13 +557,13 @@ func (t *testSetStateOps) Test() {
 			})
 		})
 
-		newJob, jobDone, jobWait, err := newFuncJobWorker(context.Background(), nops)
+		newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
 
 		go func() {
 			defer jobDone()
 
-			err := traverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+			err := dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
 				return true, newJob(func(context.Context) error {
 					if !m(opindex, facts[opindex], stateKeys) {
 						return errors.Errorf("not merged, %d", opindex)
@@ -586,7 +579,7 @@ func (t *testSetStateOps) Test() {
 
 		t.NoError(jobWait())
 
-		newJob, jobDone, jobWait, err = newFuncJobWorker(context.Background(), nops)
+		newJob, jobDone, jobWait, err = dutil.NewFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
 
 		go func() {
@@ -613,7 +606,7 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(nstateKeys, uint64(l))
 
-			traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 				e := expectedStateKeyFact[stateKey]
 				slices.SortFunc(e, func(a, b util.Hash) int {
 					return strings.Compare(a.String(), b.String())

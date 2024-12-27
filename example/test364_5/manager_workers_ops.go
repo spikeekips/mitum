@@ -3,26 +3,27 @@ package main
 import (
 	"context"
 
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
 type (
-	newWorkerSendOpFunc func(_ context.Context, worker string) (opindexOpHashesFunc, inErrorFunc[error], error)
+	newWorkerSendOpFunc func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error)
 )
 
 func newFuncManagerWorkersOps(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	workers []string,
 	opsShare uint64,
 	ophs [][2]util.Hash,
 	newWorkerSendOp newWorkerSendOpFunc,
-) (errorFunc, errorFunc, error) { // FIXME return minEnough, maxFailed for newFuncManagerWorkersOpsWait
+) (dutil.ErrorFunc, dutil.ErrorFunc, error) { // FIXME return minEnough, maxFailed for newFuncManagerWorkersOpsWait
 	if len(ophs) < 1 {
 		return nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
 
-	log := loadContextValueLogger(ctx)
+	log := dutil.LoadContextValueLogger(ctx)
 
 	l := log.Debug().
 		Strs("workers", workers).
@@ -66,9 +67,9 @@ func newFuncManagerWorkersOps(
 
 	l.Msg("send ops to workers")
 
-	var newJob jobWorkerNewJobFunc
+	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait errorFunc
+	var jobWait dutil.ErrorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -91,7 +92,7 @@ func newFuncManagerWorkersOps(
 	return func() error {
 			defer jobDone()
 
-			return traverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			return dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				return true, newJob(func(ctx context.Context) error {
 					l := log.With().Str("worker", worker).Logger()
 

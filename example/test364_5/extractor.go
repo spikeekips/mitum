@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -17,8 +18,8 @@ type (
 		reason string,
 		_ error,
 	)
-	stateMergeValueExtractorInsertFunc = in3ErrorFunc[
-		getOperationFunc, inErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc]
+	stateMergeValueExtractorInsertFunc = dutil.In3ErrorFunc[
+		getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc]
 	stateMergeValueExtractorExtractedFunc = func(
 		opindex uint64,
 		_ Operation,
@@ -34,16 +35,16 @@ var (
 
 func newFuncStateMergeValueExtractor(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 ) (
 	stateMergeValueExtractorInsertFunc,
-	inErrorFunc[inErrorFunc[map[uint64]string]],
+	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
-	var newJob jobWorkerNewJobFunc
+	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait errorFunc
+	var jobWait dutil.ErrorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -63,7 +64,7 @@ func newFuncStateMergeValueExtractor(
 
 	return func(
 			getOperation getOperationFunc,
-			f inErrorFunc[opindexOpHashesFunc],
+			f dutil.InErrorFunc[opindexOpHashesFunc],
 			extracted stateMergeValueExtractorExtractedFunc,
 		) error {
 			defer jobDone()
@@ -78,7 +79,7 @@ func newFuncStateMergeValueExtractor(
 				})
 			})
 		},
-		func(f inErrorFunc[map[uint64]string]) error {
+		func(f dutil.InErrorFunc[map[uint64]string]) error {
 			defer func() {
 				_ = jobWait()
 				reasons.Close()

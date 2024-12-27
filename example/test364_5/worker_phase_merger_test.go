@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
@@ -15,7 +16,7 @@ import (
 )
 
 type testWorkerPhaseMerger struct {
-	testSuite
+	dutil.BaseSuite
 	baseTestMergeOp
 	baseTestWorkers
 }
@@ -59,14 +60,14 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		getStateMergers mergerGetStateMergersFunc,
 	) (
 		merge,
-		unmerge inErrorFunc[uint64],
+		unmerge dutil.InErrorFunc[uint64],
 		done func(),
-		wait inErrorFunc[phaseMergerWaitCallbackFunc],
+		wait dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
 		_ error,
 	) {
 		return newFuncPhaseMerger(
 			ctx,
-			newFuncNewJobWorkerFunc(1<<9),
+			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1<<9,
 			getStateMergeValues,
 			getStateMergers,
@@ -111,11 +112,11 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		ctx, cancel := t.Ctx()
 
-		cancel()
+		cancel(nil)
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -143,7 +144,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -152,7 +153,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		cancel()
+		cancel(nil)
 
 		insert, insertDone, err := insertf("w0")
 		err = insert(0)
@@ -172,7 +173,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
-				t.toCtxCancel(cancel),
+				cancel,
 				getStateMergeValues,
 				getStateMergers,
 				newFuncCheckEnoughFailedWorkers,
@@ -186,7 +187,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			t.NoError(insert(0))
 
-			cancel()
+			cancel(nil)
 
 			err = insertDone(nil)
 			t.ErrorIs(err, context.Canceled)
@@ -202,7 +203,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
-				t.toCtxCancel(cancel),
+				cancel,
 				getStateMergeValues,
 				getStateMergers,
 				newFuncCheckEnoughFailedWorkers,
@@ -217,7 +218,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			t.NoError(insert(0))
 			t.NoError(insertDone(nil))
 
-			cancel()
+			cancel(nil)
 
 			err = wait(nil)
 			t.ErrorIs(err, context.Canceled)
@@ -233,7 +234,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -242,12 +243,12 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		traverseSlice(workers, func(_ int, worker string) (bool, error) {
+		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			insert, insertDone, err := insertf(worker)
 
 			for i := range 3 {
 				if worker == workers[1] && i == 1 {
-					cancel()
+					cancel(nil)
 				}
 
 				err := insert(uint64(i))
@@ -273,11 +274,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -331,7 +332,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			vp.SetValue(uint64(i), vs)
 
-			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
 				if err != nil {
 					return false, err
@@ -346,11 +347,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -416,11 +417,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -431,7 +432,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		t.T().Log("insert values")
 		go func() {
-			_ = traverseSlice(workers, func(wi int, worker string) (bool, error) {
+			_ = dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
 				insert, insertDone, err := insertf(worker)
 				if err != nil {
 					panic(err)
@@ -471,11 +472,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -485,7 +486,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
+			err := dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
 				_, insertDone, err := insertf(worker)
 				if err != nil {
 					return false, err
@@ -533,7 +534,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			vp.SetValue(uint64(i), vs)
 
-			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
 				if err != nil {
 					return false, err
@@ -548,11 +549,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -562,7 +563,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := traverseSlice(workers, func(wi int, worker string) (bool, error) {
+			err := dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
 				insert, insertDone, err := insertf(worker)
 				if err != nil {
 					return false, err
@@ -614,11 +615,11 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -672,7 +673,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			vp.SetValue(uint64(i), vs)
 
-			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
 				if err != nil {
 					return false, err
@@ -687,11 +688,11 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,
@@ -762,7 +763,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			vp.SetValue(uint64(i), vs)
 
-			traverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
 				if err != nil {
 					return false, err
@@ -777,11 +778,11 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		ctx, cancel := t.Ctx()
 
-		ctx = setContextValueLogger(ctx, logging.TestNilLogging.Log())
+		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
-			t.toCtxCancel(cancel),
+			cancel,
 			getStateMergeValues,
 			getStateMergers,
 			newFuncCheckEnoughFailedWorkers,

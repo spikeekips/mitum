@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/sync/singleflight"
 )
@@ -53,7 +54,7 @@ type (
 		reasons map[uint64]string,
 		_ error,
 	)
-	opindexPhaseJobWorkerCallback = inFunc[uint64 /* opindex */, phaseJobWorkerCallback]
+	opindexPhaseJobWorkerCallback = dutil.InFunc[uint64 /* opindex */, phaseJobWorkerCallback]
 	mergerGetStateMergersFunc     = func(
 		opindex uint64,
 		_ []StateMergeValue,
@@ -67,15 +68,15 @@ type (
 
 func newFuncPhaseMerger(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 ) (
 	merge,
-	unmerge inErrorFunc[uint64],
+	unmerge dutil.InErrorFunc[uint64],
 	done func(),
-	wait inErrorFunc[phaseMergerWaitCallbackFunc],
+	wait dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
 	_ error,
 ) {
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
@@ -92,7 +93,7 @@ func newFuncPhaseMerger(
 
 	var newJob phaseJobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait errorFunc
+	var jobWait dutil.ErrorFunc
 
 	switch n, d, w, err := newFuncPhaseJobWorker(ctx, newJobWorker, maxOpsSize, startPhase); {
 	case err != nil:
@@ -198,7 +199,7 @@ func newFuncXMergeCallback(
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
 ) opindexPhaseJobWorkerCallback {
-	log := newModuleLoggerFromContext(ctx, "phase-merger", func(zctx zerolog.Context) zerolog.Context {
+	log := dutil.NewModuleLoggerFromContext(ctx, "phase-merger", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Stringer("x", x)
 	})
 
@@ -267,7 +268,7 @@ func newFuncXMergeCallback(
 							return err
 						}
 
-						return traverseSlice(nexts, func(_ int, next uint64) (bool, error) {
+						return dutil.TraverseSlice(nexts, func(_ int, next uint64) (bool, error) {
 							return true, j(next, nextCallback()(next))
 						})
 					}
@@ -325,9 +326,9 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 		return []string{values[0].Key()}
 	}
 
-	add, done, _ := uniqueAppendSlice[string](uint64(len(values)), 0, func(k string) string { return k })
+	add, done, _ := dutil.UniqueAppendSlice[string](uint64(len(values)), 0, func(k string) string { return k })
 
-	_ = traverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
+	_ = dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
 		add(value.Key())
 
 		return true, nil
@@ -354,7 +355,7 @@ func newFuncExtractStateMergeValueKeys(maxSize, size int) (
 
 	switch {
 	case size < 1:
-		cache = newEmptyGCache[uint64, []string]()
+		cache = dutil.NewEmptyGCache[uint64, []string]()
 	default:
 		cache = util.NewLFUGCache[uint64, []string](size)
 	}
@@ -486,10 +487,10 @@ func newFuncCollectXmergedOps(
 				return nil
 			}
 
-			var addM, addU appendSliceAddFunc[uint64]
-			var doneM, doneU appendSliceDoneFunc[uint64]
+			var addM, addU dutil.AppendSliceAddFunc[uint64]
+			var doneM, doneU dutil.AppendSliceDoneFunc[uint64]
 
-			if err := rAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
+			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
 				return err
 			}
 
@@ -497,7 +498,7 @@ func newFuncCollectXmergedOps(
 				_ = doneM(nil)
 			}()
 
-			if err := rAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
+			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
 				return err
 			}
 
@@ -592,13 +593,13 @@ func xMergeOpValues(
 	}
 
 	var (
-		addNext    appendSliceAddFunc[uint64]
-		doneNext   appendSliceDoneFunc[uint64]
-		addCommit  appendSliceAddFunc[func() error]
-		doneCommit appendSliceDoneFunc[func() error]
+		addNext    dutil.AppendSliceAddFunc[uint64]
+		doneNext   dutil.AppendSliceDoneFunc[uint64]
+		addCommit  dutil.AppendSliceAddFunc[func() error]
+		doneCommit dutil.AppendSliceDoneFunc[func() error]
 	)
 
-	if err := rUniqueAppendSlice[uint64](
+	if err := dutil.RUniqueAppendSlice[uint64](
 		uint64(len(values)), 0, func(k uint64) uint64 { return k }, &addNext, &doneNext); err != nil {
 		return false, nil, nil, err
 	}
@@ -607,7 +608,7 @@ func xMergeOpValues(
 		_ = doneNext(nil)
 	}()
 
-	if err := rAppendSlice[func() error](
+	if err := dutil.RAppendSlice[func() error](
 		uint64(len(values)), 0, &addCommit, &doneCommit); err != nil {
 		return false, nil, nil, err
 	}
@@ -636,7 +637,7 @@ func xMergeOpValues(
 
 	var notCommitted bool
 
-	if err := traverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
+	if err := dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
 		var merger StateMerger
 
 		switch i, err := getMerger(value); {
@@ -689,7 +690,7 @@ func xMergeOpValues(
 
 		committed = true
 
-		return traverseSlice(s, func(_ int, f func() error) (bool, error) {
+		return dutil.TraverseSlice(s, func(_ int, f func() error) (bool, error) {
 			return true, f()
 		})
 	})
@@ -805,7 +806,7 @@ func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]stri
 
 	n := map[uint64]string{}
 
-	_ = traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+	_ = dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
 		switch i, found := reasons[opindex]; {
 		case found:
 			n[opindex] = i

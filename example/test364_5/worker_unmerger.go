@@ -6,14 +6,15 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
 type (
 	workerUnmergerNewFuncUnmergerFunc = func(_ context.Context) (
-		inErrorFunc[uint64],
+		dutil.InErrorFunc[uint64],
 		func(),
-		inErrorFunc[inErrorFunc[[]uint64]],
+		dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 		error,
 	)
 	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
@@ -24,9 +25,9 @@ type (
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
 func newFuncWorkerUnmerger(
 	ctx context.Context,
-	ctxCancel inErrorFunc[error],
+	ctxCancel dutil.InErrorFunc[error],
 	local string,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateMergers mergerGetStateMergersFunc,
@@ -34,10 +35,10 @@ func newFuncWorkerUnmerger(
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
 	workerUnmergerLocalReadyFunc,
-	inErrorFunc[inErrorFunc[[]uint64]],
+	dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 	error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "worker-unmerger", nil)
+	log := dutil.NewModuleLoggerFromContext(ctx, "worker-unmerger", nil)
 
 	log.Debug().
 		Str("local", local).
@@ -49,7 +50,7 @@ func newFuncWorkerUnmerger(
 		maxOpsSize,
 		getStateMergeValues,
 		newCheckWorkers,
-		func(ctx context.Context) (inErrorFunc[uint64], func(), inErrorFunc[inErrorFunc[[]uint64]], error) {
+		func(ctx context.Context) (dutil.InErrorFunc[uint64], func(), dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]], error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
@@ -60,14 +61,14 @@ func newFuncWorkerUnmerger(
 		},
 	)
 
-	_, workerPhaseDone, workerPhaseDoneWait := newContextDone(ctx)
+	_, workerPhaseDone, workerPhaseDoneWait := dutil.NewContextDone(ctx)
 
 	return func(worker string, unmerged []uint64) error {
 			if worker == local {
 				return util.ErrFound.Errorf("unexpected local")
 			}
 
-			return contextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
 				if worker == managerName {
@@ -97,7 +98,7 @@ func newFuncWorkerUnmerger(
 			})
 		},
 		func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
-			return contextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				if slices.Index(subws, local) < 0 {
 					minEnough++
 				}
@@ -128,12 +129,12 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(f inErrorFunc[[]uint64]) error {
+		func(f dutil.InErrorFunc[[]uint64]) error {
 			defer func() {
 				_ = unmergerWait(nil)
 			}()
 
-			return contextCauseError(ctx, ctxCancel, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerPhaseDoneWait(); err != nil {
 					return err
 				}
@@ -165,7 +166,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	localReady func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
 	unmergerDone func(),
-	unmergerWait inErrorFunc[inErrorFunc[[]uint64]],
+	unmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 ) {
 	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
@@ -195,9 +196,9 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	workerOpindexFilterLocalReady, workerOpindexFilter,
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getStateMergeValues)
 
-	unmergeOps := func(worker string, unmerged []uint64, unmergeOp inErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
+	unmergeOps := func(worker string, unmerged []uint64, unmergeOp dutil.InErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
 		return checkWorker(worker, func() error {
-			return traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+			return dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
 				if filter != nil {
 					switch ok, err := filter(opindex); {
 					case err != nil:
@@ -233,9 +234,9 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, false, err
 			}
 
-			var unmergeOp inErrorFunc[uint64]
+			var unmergeOp dutil.InErrorFunc[uint64]
 
-			if err := unmergef(func(f inErrorFunc[uint64]) error {
+			if err := unmergef(func(f dutil.InErrorFunc[uint64]) error {
 				if f == nil {
 					return errors.Errorf("empty unmerge of unmerger")
 				}
@@ -276,7 +277,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, false, util.ErrFound.Errorf("unexpected local")
 			}
 
-			return ok, enough, failed, unmergef(func(f inErrorFunc[uint64]) error {
+			return ok, enough, failed, unmergef(func(f dutil.InErrorFunc[uint64]) error {
 				if f == nil {
 					_ = addPool(worker, slices.Clone(unmerged))
 
@@ -296,7 +297,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			})
 		},
 		donef,
-		func(f inErrorFunc[[]uint64]) error {
+		func(f dutil.InErrorFunc[[]uint64]) error {
 			defer func() {
 				if checkWorkerClose != nil {
 					checkWorkerClose()
@@ -336,8 +337,8 @@ func newFuncWorkerUnmergerUnmergedPool() (
 			l.RLock()
 			defer l.RUnlock()
 
-			return found, traverseMap(pool, func(worker string, unmerged []uint64) (bool, error) {
-				return true, traverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+			return found, dutil.TraverseMap(pool, func(worker string, unmerged []uint64) (bool, error) {
+				return true, dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
 					switch f := filter(worker); {
 					case f == nil:
 						return true, nil
@@ -360,10 +361,10 @@ func newFuncWorkerUnmergerUnmergedPool() (
 			l.Lock()
 			defer l.Unlock()
 
-			defer clearMap(pool)
+			defer dutil.ClearMap(pool)
 
 			if f != nil {
-				return traverseMap(pool, f)
+				return dutil.TraverseMap(pool, f)
 			}
 
 			return nil
@@ -374,14 +375,14 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	ctx context.Context,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	errorFunc,
-	func(func(inErrorFunc[uint64]) error) error,
+	dutil.ErrorFunc,
+	func(func(dutil.InErrorFunc[uint64]) error) error,
 	func(),
-	inErrorFunc[inErrorFunc[[]uint64]],
+	dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 ) {
-	var unmerge inErrorFunc[uint64]
+	var unmerge dutil.InErrorFunc[uint64]
 	var done func()
-	var wait inErrorFunc[inErrorFunc[[]uint64]]
+	var wait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]]
 
 	var l sync.RWMutex
 	var waitOnce sync.Once
@@ -400,7 +401,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 				return nil
 			}
 		},
-		func(f func(inErrorFunc[uint64]) error) error {
+		func(f func(dutil.InErrorFunc[uint64]) error) error {
 			l.RLock()
 			defer l.RUnlock()
 
@@ -414,7 +415,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 				done()
 			}
 		},
-		func(f inErrorFunc[[]uint64]) error {
+		func(f dutil.InErrorFunc[[]uint64]) error {
 			waitOnce.Do(func() {
 				if f != nil {
 					l.RLock()
@@ -464,7 +465,7 @@ func newFuncWorkerOpindexFilter(
 				gerr = err
 			default:
 				m := map[string]struct{}{}
-				traverseSlice(subs, func(_ int, owner string) (bool, error) {
+				dutil.TraverseSlice(subs, func(_ int, owner string) (bool, error) {
 					m[owner] = struct{}{}
 
 					return true, nil
@@ -487,7 +488,7 @@ func newFuncWorkerOpindexFilter(
 					ml.Lock()
 					defer ml.Unlock()
 
-					clearMap(m)
+					dutil.ClearMap(m)
 					c()
 				}
 			}

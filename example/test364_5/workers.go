@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
 type (
-	workerOperationsFunc            = in2ErrorFunc[string /* worker */, opindexOpHashesFunc]
+	workerOperationsFunc            = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
 	minEnoughMaxFailedFunc          = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkFailedWorkerFunc           = func(worker string, _ func() error) (ok, failed bool, _ error)
 	checkEnoughFailedWorkerFunc     = func(worker string, _ func() error) (ok, enough, failed bool, _ error)
@@ -21,7 +22,7 @@ type (
 	mergeStateOpFunc                = func(opindex uint64, fact util.Hash, stateKeys []string) bool
 	unmergeStateOpFunc              = func(ops []uint64) bool
 	getStateOpsFunc                 = func(stateKey string) ([]util.Hash, error)
-	traverseStateOpsFunc            = func(in2ErrorFunc[int, getStateOpsFunc]) error
+	traverseStateOpsFunc            = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
@@ -380,7 +381,7 @@ func newFuncSetStateOps(mapSize uint64) (
 	}
 
 	set := func(opindex uint64, fact util.Hash, stateKeys []string, x xMergeFlag) (ok bool) {
-		_ = traverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+		_ = dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 			_, _, _, _ = m.SetOrRemove(stateKey,
 				func(prev map[uint64]struct{}, _ bool) (map[uint64]struct{}, bool, error) {
 					switch x {
@@ -469,7 +470,7 @@ func newFuncSetStateOps(mapSize uint64) (
 		func(ops []uint64) bool {
 			var notOk bool
 
-			traverseSlice(ops, func(_ int, opindex uint64) (bool, error) {
+			dutil.TraverseSlice(ops, func(_ int, opindex uint64) (bool, error) {
 				if !unmerge(opindex) {
 					notOk = true
 				}
@@ -479,7 +480,7 @@ func newFuncSetStateOps(mapSize uint64) (
 
 			return !notOk
 		},
-		func(f in2ErrorFunc[int, getStateOpsFunc]) error {
+		func(f dutil.In2ErrorFunc[int, getStateOpsFunc]) error {
 			defer func() {
 				m.Close()
 				keyPool.Close()
@@ -491,13 +492,13 @@ func newFuncSetStateOps(mapSize uint64) (
 				case !found, len(i) < 1:
 					return nil, nil
 				default:
-					defer clearMap(i)
+					defer dutil.ClearMap(i)
 
 					facts := make([]util.Hash, len(i))
 
 					var n int
 
-					if err := traverseMap(i, func(opindex uint64, _ struct{}) (bool, error) {
+					if err := dutil.TraverseMap(i, func(opindex uint64, _ struct{}) (bool, error) {
 						switch h, found := factPool.Value(opindex); {
 						case !found:
 							return false, util.ErrNotFound.Errorf("fact not found, %d", opindex)
@@ -557,7 +558,7 @@ func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc,
 	var f func(string) []uint64
 	var closef func()
 
-	switch i, c, err := distributeByCount[string](uint64(len(workers)), share); {
+	switch i, c, err := dutil.DistributeByCount[string](uint64(len(workers)), share); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -583,8 +584,8 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 	workerOperationsFunc,
 	error,
 ) {
-	var workerMaxItems inFunc[uint64, uint64]
-	var distribute in2ErrorFunc[uint64, inErrorFunc[uint64]]
+	var workerMaxItems dutil.InFunc[uint64, uint64]
+	var distribute dutil.In2ErrorFunc[uint64, dutil.InErrorFunc[uint64]]
 
 	switch w, i, err := newDistributeSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
 	case err != nil:
@@ -593,10 +594,10 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 		workerMaxItems, distribute = w, i
 	}
 
-	var add appendSliceAddFunc[string]
-	var done appendSliceDoneFunc[string]
+	var add dutil.AppendSliceAddFunc[string]
+	var done dutil.AppendSliceDoneFunc[string]
 
-	if err := rAppendSlice[string](uint64(len(workers)), 0, &add, &done); err != nil {
+	if err := dutil.RAppendSlice[string](uint64(len(workers)), 0, &add, &done); err != nil {
 		return nil, nil, err
 	}
 
@@ -609,7 +610,7 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 	}
 
 	return func() (opsWorkers []string) {
-			_ = traverseSlice(workers, func(i int, worker string) (bool, error) {
+			_ = dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
 				if workerMaxItems(uint64(i)) > 0 {
 					add(worker)
 				}
@@ -645,8 +646,8 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 }
 
 func newDistributeSerialNShare(workers, items, share uint64) (
-	inFunc[uint64, uint64],
-	in2ErrorFunc[uint64 /* worker */, inErrorFunc[uint64]],
+	dutil.InFunc[uint64, uint64],
+	dutil.In2ErrorFunc[uint64 /* worker */, dutil.InErrorFunc[uint64]],
 	error,
 ) {
 	switch {
@@ -654,7 +655,7 @@ func newDistributeSerialNShare(workers, items, share uint64) (
 		return nil, nil, errors.Errorf("zero workers")
 	case items < 1:
 		return func(uint64) uint64 { return 0 },
-			func(uint64, inErrorFunc[uint64]) error {
+			func(uint64, dutil.InErrorFunc[uint64]) error {
 				return nil
 			},
 			nil
@@ -672,7 +673,7 @@ func newDistributeSerialNShare(workers, items, share uint64) (
 
 	workerMaxItems := newFuncDistributeWorkerMaxItems(workers, items, share)
 
-	return workerMaxItems, func(worker uint64, f inErrorFunc[uint64]) error {
+	return workerMaxItems, func(worker uint64, f dutil.InErrorFunc[uint64]) error {
 			switch {
 			case worker >= workers:
 				return util.ErrNotFound.Errorf("unknown worker=%d", worker)
@@ -696,7 +697,7 @@ func newDistributeSerialNShare(workers, items, share uint64) (
 		nil
 }
 
-func newFuncDistributeWorkerMaxItems(workers, items, share uint64) inFunc[uint64, uint64] {
+func newFuncDistributeWorkerMaxItems(workers, items, share uint64) dutil.InFunc[uint64, uint64] {
 	total := items * share
 
 	i := uint64(math.Floor(float64(total) / float64(workers)))

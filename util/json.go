@@ -5,12 +5,15 @@ import (
 	"io"
 )
 
-var nullJSONBytes = []byte("null")
+var (
+	nullJSONBytes        = []byte("null")
+	emptyStructJSONBytes = []byte{123, 125}
+)
 
 func IsNilJSON(b []byte) bool {
 	i := bytes.TrimSpace(b)
 
-	return len(i) < 1 || bytes.Equal(i, nullJSONBytes)
+	return len(i) < 1 || bytes.Equal(i, nullJSONBytes) || bytes.Equal(i, emptyStructJSONBytes)
 }
 
 func MarshalJSON(v interface{}) ([]byte, error) {

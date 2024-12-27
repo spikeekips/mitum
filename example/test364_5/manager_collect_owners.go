@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
+
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
 func newFuncManagerCollectOwners(
 	ctx context.Context,
 	workersSize, minEnough uint64,
 ) (
-	in2ErrorFunc[string /* worker */, []string /* owners */],
-	inErrorFunc[inErrorFunc[[]string /* owners */]],
+	dutil.In2ErrorFunc[string /* worker */, []string /* owners */],
+	dutil.InErrorFunc[dutil.InErrorFunc[[]string /* owners */]],
 	error,
 ) {
-	log := loadContextValueLogger(ctx)
+	log := dutil.LoadContextValueLogger(ctx)
 
 	log.Debug().
 		Uint64("workers", workersSize).
@@ -30,17 +32,17 @@ func newFuncManagerCollectOwners(
 		checkWorkerClose = c
 	}
 
-	_, ownersDone, ownersWait := newContextDone(ctx)
+	_, ownersDone, ownersWait := dutil.NewContextDone(ctx)
 
-	var add appendSliceAddFunc[string]
-	var done appendSliceDoneFunc[string]
+	var add dutil.AppendSliceAddFunc[string]
+	var done dutil.AppendSliceDoneFunc[string]
 
-	if err := rUniqueAppendSlice[string, string](workersSize, 0, func(s string) string { return s }, &add, &done); err != nil {
+	if err := dutil.RUniqueAppendSlice[string, string](workersSize, 0, func(s string) string { return s }, &add, &done); err != nil {
 		return nil, nil, err
 	}
 
 	return func(worker string, owners []string) error {
-			return contextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Logger()
 
 				switch ok, enough, _, err := checkWorker(worker, func() error {
@@ -66,7 +68,7 @@ func newFuncManagerCollectOwners(
 				return nil
 			})
 		},
-		func(f inErrorFunc[[]string]) error {
+		func(f dutil.InErrorFunc[[]string]) error {
 			defer func() {
 				checkWorkerClose()
 				done(nil)

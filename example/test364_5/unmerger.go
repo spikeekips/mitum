@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -13,21 +14,21 @@ type (
 
 func newFuncUnmerger(
 	ctx context.Context,
-	newJobWorker newJobWorkerFunc,
+	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getMergers mergerGetStateMergersFunc,
 ) (
-	unmerge inErrorFunc[uint64],
+	unmerge dutil.InErrorFunc[uint64],
 	done func(),
-	wait inErrorFunc[inErrorFunc[[]uint64]],
+	wait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
 	_ error,
 ) {
-	log := newModuleLoggerFromContext(ctx, "unmerger", nil)
+	log := dutil.NewModuleLoggerFromContext(ctx, "unmerger", nil)
 
-	var newJob jobWorkerNewJobFunc
+	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait errorFunc
+	var jobWait dutil.ErrorFunc
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -36,10 +37,10 @@ func newFuncUnmerger(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	var addOps appendSliceAddFunc[uint64]
-	var doneOps appendSliceDoneFunc[uint64]
+	var addOps dutil.AppendSliceAddFunc[uint64]
+	var doneOps dutil.AppendSliceDoneFunc[uint64]
 
-	if err := rAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
+	if err := dutil.RAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -75,7 +76,7 @@ func newFuncUnmerger(
 			})
 		},
 		jobDone,
-		func(f inErrorFunc[[]uint64]) error {
+		func(f dutil.InErrorFunc[[]uint64]) error {
 			defer func() {
 				_ = doneOps(nil)
 			}()
@@ -113,7 +114,7 @@ func newFuncOpindexFilter(
 	default:
 		m = i
 
-		_ = traverseSlice(localUnmerged, func(_ int, opindex uint64) (bool, error) {
+		_ = dutil.TraverseSlice(localUnmerged, func(_ int, opindex uint64) (bool, error) {
 			_ = m.SetValue(opindex, struct{}{})
 
 			return true, nil
