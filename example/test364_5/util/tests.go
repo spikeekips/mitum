@@ -1,0 +1,41 @@
+//go:build test
+// +build test
+
+package util
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
+)
+
+var TestLogger = logging.TestLogging.Log()
+
+type BaseSuite struct {
+	suite.Suite
+}
+
+func (t *BaseSuite) Ctx() (context.Context, InErrorFunc[error]) {
+	ctx, cancel := ContextWithCancelCause(context.Background())
+
+	t.T().Cleanup(func() {
+		cancel(nil)
+	})
+
+	return ctx, cancel
+}
+
+func (t *BaseSuite) Println(a string, b ...any) {
+	fmt.Printf(a+"\n", b...)
+}
+
+func (t *BaseSuite) RunWithGoLeak(name string, f func()) {
+	t.Run(name, func() {
+		defer goleak.VerifyNone(t.T())
+
+		f()
+	})
+}
