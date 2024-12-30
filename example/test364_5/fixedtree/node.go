@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -15,7 +16,7 @@ type Node interface {
 	Key() string
 	Hash() util.Hash
 	Equal(Node) bool
-	SetHash(left, right Node) (util.Hash, func() error, error)
+	SetHash(left, right Node) (util.Hash, dutil.ErrorFunc, error)
 }
 
 type BaseNode struct {
@@ -28,41 +29,23 @@ func NewBaseNode(key string) *BaseNode {
 }
 
 func (n *BaseNode) Key() string {
+	if n == nil {
+		return ""
+	}
+
 	return n.key
 }
 
 func (n *BaseNode) Hash() util.Hash {
+	if n == nil {
+		return nil
+	}
+
 	return n.h
 }
 
-func (n *BaseNode) SetHash(left, right Node) (util.Hash, func() error, error) {
-	if n.key == "" {
-		return nil, nil, errors.Errorf("empty key")
-	}
-
-	var lh, rh []byte
-
-	switch {
-	case left == nil:
-		lh = emptyNodeBytes
-	case left.Hash() == nil:
-		return nil, nil, util.ErrInvalid.Errorf("nil left hash")
-	default:
-		lh = left.Hash().Bytes()
-	}
-
-	switch {
-	case right == nil:
-		lh = emptyNodeBytes
-	case right.Hash() == nil:
-		return nil, nil, util.ErrInvalid.Errorf("nil right hash")
-	default:
-		rh = right.Hash().Bytes()
-	}
-
-	h := valuehash.NewSHA256(slices.Concat([]byte(n.key), lh, rh))
-
-	return h, func() error {
+func (n *BaseNode) UpdateHashFunc(h util.Hash) dutil.ErrorFunc {
+	return func() error {
 		if n.h != nil {
 			return errors.Errorf("already hashed")
 		}
@@ -70,43 +53,26 @@ func (n *BaseNode) SetHash(left, right Node) (util.Hash, func() error, error) {
 		n.h = h
 
 		return nil
-	}, nil
+	}
 }
 
-func (n *BaseNode) isEmpty() bool {
-	return n.key == "" && n.h == nil
+func (n *BaseNode) SetHash(left, right Node) (util.Hash, dutil.ErrorFunc, error) {
+	switch h, err := MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
+		return []byte(n.key), nil
+	}); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		return h, n.UpdateHashFunc(h), nil
+	}
 }
 
 func (n *BaseNode) Equal(b Node) bool {
-	if b == nil {
-		return n.isEmpty()
-	}
-
-	var nb *BaseNode
-
-	switch i, ok := b.(*BaseNode); {
-	case !ok:
-		return false
-	case i == nil:
-		return n.isEmpty()
-	default:
-		nb = i
-	}
-
-	switch {
-	case n.key != nb.key:
-		return false
-	case n.h == nil || nb.h == nil:
-		return n.h == nil && nb.h == nil
-	case !n.h.Equal(nb.h):
-		return false
-	}
-
-	return true
+	return IsEqualNode(n, b)
 }
 
 func (n *BaseNode) IsValid(b []byte) error {
-	return util.ErrInvalid.Wrap(IsValidNode(n, b))
+	return IsValidNode(n, b)
 }
 
 type BaseNodeJSONMarshaler struct {
@@ -155,14 +121,71 @@ func (n *BaseNode) UnmarshalJSON(b []byte) error {
 func IsValidNode(n Node, b []byte) error {
 	switch {
 	case len(n.Key()) < 1:
-		return errors.Errorf("empty key")
+		return util.ErrInvalid.Errorf("empty key")
 	case n.Hash() == nil:
-		return errors.Errorf("nil node hash")
+		return util.ErrInvalid.Errorf("nil node hash")
 	default:
 		if err := n.Hash().IsValid(nil); err != nil {
-			return errors.WithMessage(err, "node")
+			return util.ErrInvalid.WithMessage(err, "node")
 		}
 	}
 
 	return nil
+}
+
+func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, error)) (util.Hash, error) {
+	if self.Key() == "" {
+		return nil, errors.Errorf("empty key")
+	}
+
+	var b []byte
+
+	switch i, err := nodeHashBytes(); {
+	case err != nil:
+		return nil, err
+	default:
+		b = i
+	}
+
+	var lh, rh []byte
+
+	switch {
+	case left == nil:
+		lh = emptyNodeBytes
+	case left.Hash() == nil:
+		return nil, errors.Errorf("nil left hash")
+	default:
+		lh = left.Hash().Bytes()
+	}
+
+	switch {
+	case right == nil:
+		lh = emptyNodeBytes
+	case right.Hash() == nil:
+		return nil, errors.Errorf("nil right hash")
+	default:
+		rh = right.Hash().Bytes()
+	}
+
+	return valuehash.NewSHA256(slices.Concat(b, lh, rh)), nil
+}
+
+func IsEqualNode(a, b Node) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil, b == nil:
+		return false
+	}
+
+	switch {
+	case a.Key() != b.Key():
+		return false
+	case a.Hash() == nil || b.Hash() == nil:
+		return a.Hash() == nil && b.Hash() == nil
+	case !a.Hash().Equal(b.Hash()):
+		return false
+	}
+
+	return true
 }

@@ -54,8 +54,7 @@ func (t *testWrite) TestWriteNodes() {
 
 	t.T().Logf("size-%d: total=%v", size, totalelapsed)
 
-	tr, err := NewTree(treeHint, written)
-	t.NoError(err)
+	tr := NewTree(treeHint, written)
 	t.NoError(tr.IsValid(nil))
 
 	tr.Traverse(func(index uint64, a Node) (bool, error) {
@@ -209,8 +208,7 @@ func (t *testWrite) TestBenchmarkGenerateHash() {
 
 		gelapsed := time.Since(started)
 
-		tr, err := NewTree(treeHint, nodes)
-		t.NoError(err)
+		tr := NewTree(treeHint, nodes)
 
 		started = time.Now()
 		t.NoError(tr.IsValid(nil))

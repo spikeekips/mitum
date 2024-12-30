@@ -59,7 +59,24 @@ func ContextCauseError(ctx context.Context, ef InErrorFunc[error], f InErrorFunc
 func NewContextDone(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
+	func() (bool, error),
 	func() error,
+) {
+	cctx, cctxCancel, check := CheckContextDone(ctx)
+
+	return cctx, cctxCancel, check, func() error {
+		<-cctx.Done()
+
+		_, err := check()
+
+		return err
+	}
+}
+
+func CheckContextDone(ctx context.Context) (
+	context.Context,
+	InErrorFunc[error],
+	func() (bool, error),
 ) {
 	errDone := errors.New(util.UUID().String())
 	cctx, cctxCancel := context.WithCancelCause(ctx)
@@ -79,14 +96,20 @@ func NewContextDone(ctx context.Context) (
 
 			return err
 		},
-		func() error {
-			<-cctx.Done()
+		func() (bool, error) {
+			if err := context.Cause(ctx); err != nil {
+				defer cctxCancel(nil)
+
+				return false, err
+			}
 
 			switch err := context.Cause(cctx); {
 			case errors.Is(err, errDone):
-				return nil
+				return false, nil
+			case err != nil:
+				return false, err
 			default:
-				return err
+				return true, nil
 			}
 		}
 }

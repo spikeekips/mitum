@@ -32,7 +32,7 @@ func newFuncManagerCollectOwners(
 		checkWorkerClose = c
 	}
 
-	_, ownersDone, ownersWait := dutil.NewContextDone(ctx)
+	_, ownersDone, _, ownersWait := dutil.NewContextDone(ctx)
 
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.AppendSliceDoneFunc[string]

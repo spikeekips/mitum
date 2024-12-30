@@ -15,15 +15,11 @@ type Tree struct {
 	hint.BaseHinter
 }
 
-func NewTree(ht hint.Hint, nodes []Node) (*Tree, error) {
-	if len(nodes) < 1 {
-		return nil, errors.Errorf("empty nodes")
-	}
-
+func NewTree(ht hint.Hint, nodes []Node) *Tree {
 	return &Tree{
 		BaseHinter: hint.NewBaseHinter(ht),
 		nodes:      nodes,
-	}, nil
+	}
 }
 
 func (t *Tree) IsValid(b []byte) error {

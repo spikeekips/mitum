@@ -27,6 +27,18 @@ func (t *baseTestWorkers) workers(n int) []string {
 	return w
 }
 
+func (t *baseTestWorkers) randomOphs(n int) [][2]util.Hash {
+	h := make([][2]util.Hash, n)
+	for i := range n {
+		h[i] = [2]util.Hash{
+			valuehash.RandomSHA256(),
+			valuehash.RandomSHA256(),
+		}
+	}
+
+	return h
+}
+
 type testCheckFailedWorkers struct {
 	suite.Suite
 }

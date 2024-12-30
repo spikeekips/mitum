@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -18,18 +17,6 @@ type testManagerWorkersOps struct {
 	dutil.BaseSuite
 	baseTestMergeOp
 	baseTestWorkers
-}
-
-func (t *testManagerWorkersOps) randomOphs(n int) [][2]util.Hash {
-	h := make([][2]util.Hash, n)
-	for i := range n {
-		h[i] = [2]util.Hash{
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
-		}
-	}
-
-	return h
 }
 
 func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {

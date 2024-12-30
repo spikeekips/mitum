@@ -46,8 +46,7 @@ type testTree struct {
 func (t *testTree) TestNew() {
 	nodes := t.nodes(33)
 
-	tr, err := NewTree(treeHint, nodes)
-	t.NoError(err)
+	tr := NewTree(treeHint, nodes)
 	t.NoError(tr.IsValid(nil))
 	t.Equal(len(nodes), tr.Len())
 
@@ -68,9 +67,8 @@ func (t *testTree) TestInvalid() {
 		n.h = nil
 		nodes[0] = n
 
-		tr, err := NewTree(treeHint, nodes)
-		t.NoError(err)
-		err = tr.IsValid(nil)
+		tr := NewTree(treeHint, nodes)
+		err := tr.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "nil node hash")
 	})
@@ -80,9 +78,8 @@ func (t *testTree) TestInvalid() {
 
 		nodes[0] = nil
 
-		tr, err := NewTree(treeHint, nodes)
-		t.NoError(err)
-		err = tr.IsValid(nil)
+		tr := NewTree(treeHint, nodes)
+		err := tr.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "nil node")
 	})
@@ -94,9 +91,8 @@ func (t *testTree) TestInvalid() {
 		n.h = valuehash.RandomSHA256()
 		nodes[2] = n
 
-		tr, err := NewTree(treeHint, nodes)
-		t.NoError(err)
-		err = tr.IsValid(nil)
+		tr := NewTree(treeHint, nodes)
+		err := tr.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
 		t.ErrorContains(err, "hash does not match")
 	})

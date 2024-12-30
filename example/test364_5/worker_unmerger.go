@@ -61,7 +61,7 @@ func newFuncWorkerUnmerger(
 		},
 	)
 
-	_, workerPhaseDone, workerPhaseDoneWait := dutil.NewContextDone(ctx)
+	_, workerPhaseDone, _, workerPhaseDoneWait := dutil.NewContextDone(ctx)
 
 	return func(worker string, unmerged []uint64) error {
 			if worker == local {
