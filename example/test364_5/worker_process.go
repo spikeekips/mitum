@@ -95,7 +95,7 @@ func newFuncWorkerProcess(
 			Uint64("ops", opsShare).
 			Uint64("states", statesShare),
 		).
-		Msg("newFuncWorkerProcess")
+		Msg("new")
 
 	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))

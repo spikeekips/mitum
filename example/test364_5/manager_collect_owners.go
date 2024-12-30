@@ -14,12 +14,12 @@ func newFuncManagerCollectOwners(
 	dutil.InErrorFunc[dutil.InErrorFunc[[]string /* owners */]],
 	error,
 ) {
-	log := dutil.LoadContextValueLogger(ctx)
+	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-owners", nil)
 
 	log.Debug().
 		Uint64("workers", workersSize).
 		Uint64("min_enough", minEnough).
-		Msg("managerCollectOwners")
+		Msg("new")
 
 	var checkWorker checkEnoughFailedWorkerFunc
 	var checkWorkerClose func()

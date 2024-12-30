@@ -17,25 +17,33 @@ func newFuncManagerWorkersOps(
 	workers []string,
 	opsShare uint64,
 	ophs [][2]util.Hash,
-	newWorkerSendOp newWorkerSendOpFunc,
-) (dutil.ErrorFunc, dutil.ErrorFunc, error) { // FIXME return minEnough, maxFailed for newFuncManagerWorkersOpsWait
+) (
+	opsWorkers []string,
+	minEnough, maxFailed uint64,
+	_ dutil.InErrorFunc[newWorkerSendOpFunc],
+	_ dutil.ErrorFunc,
+	_ error,
+) {
 	if len(ophs) < 1 {
-		return nil, nil, util.ErrInvalid.Errorf("empty ophs")
+		return nil, 0, 0, nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
 
 	log := dutil.LoadContextValueLogger(ctx)
+	log := dutil.NewModuleLoggerFromContext(ctx, "manager-wokers-ops", nil)
 
-	l := log.Debug().
+	log.Debug().
 		Strs("workers", workers).
 		Uint64("ops_share", opsShare).
 		Int("ophs", len(ophs))
+	Msg("new")
 
-	var opsWorkers []string
+	l := log.Debug()
+
 	var workerOps workerOperationsFunc
 
 	switch w, d, err := opsNShareWorkers(workers, opsShare, ophs); {
 	case err != nil:
-		return nil, nil, err
+		return nil, 0, 0, nil, nil, err
 	default:
 		opsWorkers = w()
 		workerOps = d
@@ -50,19 +58,22 @@ func newFuncManagerWorkersOps(
 	var checkWorker checkFailedWorkerFunc
 	var checkWorkerClose func()
 
-	switch _, maxFailed, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
+	switch me, mf, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
 	case err != nil:
-		return nil, nil, err
+		return nil, 0, 0, nil, nil, err
 	default:
 		l = l.Uint64("max_failed", maxFailed)
 
-		switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, maxFailed); {
+		switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, mf); {
 		case err != nil:
-			return nil, nil, err
+			return nil, 0, 0, nil, nil, err
 		default:
 			checkWorker = w
 			checkWorkerClose = c
 		}
+
+		minEnough = me
+		maxFailed = mf
 	}
 
 	l.Msg("send ops to workers")
@@ -73,12 +84,12 @@ func newFuncManagerWorkersOps(
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
-		return nil, nil, err
+		return nil, 0, 0, nil, nil, err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	sendWorker := func(ctx context.Context, worker string) error {
+	sendWorker := func(ctx context.Context, newWorkerSendOp newWorkerSendOpFunc, worker string) error {
 		switch s, d, err := newWorkerSendOp(ctx, worker); {
 		case err != nil:
 			return err
@@ -89,14 +100,15 @@ func newFuncManagerWorkersOps(
 		}
 	}
 
-	return func() error {
+	return opsWorkers, minEnough, maxFailed,
+		func(newWorkerSendOp newWorkerSendOpFunc) error {
 			defer jobDone()
 
 			return dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				return true, newJob(func(ctx context.Context) error {
 					l := log.With().Str("worker", worker).Logger()
 
-					gerr := sendWorker(ctx, worker)
+					gerr := sendWorker(ctx, newWorkerSendOp, worker)
 
 					switch _, failed, err := checkWorker(worker, func() error { return gerr }); {
 					case failed:

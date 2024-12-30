@@ -41,7 +41,7 @@ func newFuncWorkerPhaseMerger(
 	log.Debug().
 		Uint64("min_enough", minEnough).
 		Uint64("max_failed", maxFailed).
-		Msg("newFuncWorkerPhaseMerger")
+		Msg("new")
 
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 

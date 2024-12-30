@@ -42,18 +42,17 @@ func (t *testManagerWorkersOps) TestCancel() {
 
 		ctx, cancel := t.Ctx()
 
-		send, wait, err := newFuncManagerWorkersOps(
+		_, _, _, send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
 			ophs,
-			t.workerSendOpFunc(),
 		)
 		t.NoError(err)
 
 		cancel(nil)
 
-		err = send()
+		err = send(nil)
 		t.ErrorIs(err, context.Canceled)
 		err = wait()
 		t.ErrorIs(err, context.Canceled)
@@ -67,11 +66,14 @@ func (t *testManagerWorkersOps) TestCancel() {
 
 		sendf := t.workerSendOpFunc()
 
-		send, wait, err := newFuncManagerWorkersOps(
+		_, _, _, send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
 			ophs,
+		)
+
+		err = send(
 			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
@@ -93,8 +95,6 @@ func (t *testManagerWorkersOps) TestCancel() {
 					nil
 			},
 		)
-
-		err = send()
 		if err != nil {
 			t.ErrorIs(err, context.Canceled)
 		}
@@ -114,12 +114,11 @@ func (t *testManagerWorkersOps) TestSend() {
 
 		ctx, _ := t.Ctx()
 
-		_, _, err := newFuncManagerWorkersOps(
+		_, _, _, _, _, err := newFuncManagerWorkersOps(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers, 1,
 			nil,
-			t.workerSendOpFunc(),
 		)
 		t.ErrorContains(err, "empty ophs")
 	})
@@ -166,11 +165,14 @@ func (t *testManagerWorkersOps) TestSend() {
 		sentOps, err := util.NewLockedMap[string, [][3]interface{}](1<<9, nil)
 		t.NoError(err)
 
-		send, wait, err := newFuncManagerWorkersOps(
+		_, _, _, send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers, opsShare,
 			ophs,
+		)
+
+		t.NoError(send(
 			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
@@ -199,9 +201,7 @@ func (t *testManagerWorkersOps) TestSend() {
 					},
 					nil
 			},
-		)
-
-		t.NoError(send())
+		))
 		t.NoError(wait())
 
 		t.Equal(len(expectedOpsWorkers), len(sentOps.Map()))
@@ -258,11 +258,17 @@ func (t *testManagerWorkersOps) TestFailed() {
 		sentOps, err := util.NewLockedMap[string, [][3]interface{}](1<<9, nil)
 		t.NoError(err)
 
-		send, wait, err := newFuncManagerWorkersOps(
+		_, _, _, send, wait, err := newFuncManagerWorkersOps(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers, opsShare,
 			ophs,
+		)
+		if err != nil {
+			return err
+		}
+
+		if err := send(
 			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
@@ -295,12 +301,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 					},
 					nil
 			},
-		)
-		if err != nil {
-			return err
-		}
-
-		if err := send(); err != nil {
+		); err != nil {
 			return err
 		}
 		if err := wait(); err != nil {

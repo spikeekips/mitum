@@ -42,7 +42,7 @@ func newFuncWorkerUnmerger(
 
 	log.Debug().
 		Str("local", local).
-		Msg("newFuncWorkerUnmerger")
+		Msg("new")
 
 	localReady, workerUnmerge, unmergerDone, unmergerWait := newFuncWorkerUnmergerWorkerUnmergedPool(
 		ctx,

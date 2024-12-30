@@ -83,7 +83,7 @@ func newFuncWorkerMerger(
 		Uint64("states_share", statesShare).
 		Uint64("min_enough_ops", minEnoughOps).
 		Uint64("max_failed_ops", maxFailedOps).
-		Msg("newFuncWorkerMerger")
+		Msg("new")
 
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 

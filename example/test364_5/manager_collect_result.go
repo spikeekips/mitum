@@ -23,7 +23,7 @@ type (
 		dutil.InErrorFunc[*fixedtree.Tree /* operations fixedtree tree */],
 		dutil.InErrorFunc[*fixedtree.Tree /* states fixedtree tree */],
 	]
-	managerCollectRersultOwnersReadyFunc = dutil.In2ErrorFunc[[]string /* stateOwners */, uint64 /* statesShare */]
+	managerCollectResultOwnersReadyFunc = dutil.In2ErrorFunc[[]string /* stateOwners */, uint64 /* statesShare */]
 )
 
 func newFuncManagerCollectResult(
@@ -32,7 +32,7 @@ func newFuncManagerCollectResult(
 	ophs [][2]util.Hash,
 ) (
 	managerInsertWorkerResultFunc,
-	managerCollectRersultOwnersReadyFunc,
+	managerCollectResultOwnersReadyFunc,
 	managerCollectRersultWaitFunc,
 	error,
 ) {
@@ -40,11 +40,11 @@ func newFuncManagerCollectResult(
 		return nil, nil, nil, errors.Errorf("empty ophs")
 	}
 
-	log := dutil.LoadContextValueLogger(ctx)
+	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-result", nil)
 
 	log.Debug().
 		Uint64("max_states_size", maxStatesSize).
-		Msg("managerCollectResult")
+		Msg("new")
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
@@ -75,7 +75,7 @@ func newFuncManagerCollectResult(
 	}
 
 	var workerResult managerInsertWorkerResultFunc
-	var ownersReady managerCollectRersultOwnersReadyFunc
+	var ownersReady managerCollectResultOwnersReadyFunc
 	var workersWait dutil.ErrorFunc
 	var workersDone dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
 
@@ -220,7 +220,7 @@ func newFuncManagerWorkersResult(
 	workerReasons dutil.InErrorFunc[map[uint64]string],
 ) (
 	_ managerInsertWorkerResultFunc,
-	ready managerCollectRersultOwnersReadyFunc,
+	ready managerCollectResultOwnersReadyFunc,
 	insertDone dutil.ErrorFunc,
 	_ dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]],
 	_ error,
