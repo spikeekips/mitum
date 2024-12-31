@@ -100,31 +100,29 @@ func newFuncManagerCollectResult(
 		func(g fixedtree.GenerateNodesHashFunc, opsTree dutil.InErrorFunc[*fixedtree.Tree], statesTree dutil.InErrorFunc[*fixedtree.Tree]) error {
 			defer func() {
 				_ = opsJobWait(context.Canceled)
+				_ = baseOpsWait(context.Canceled)
 			}()
-
-			if err := baseOpsWait(); err != nil {
-				return err
-			}
 
 			if err := workersWait(); err != nil {
 				return err
 			}
 
-			return dutil.FuncsJobWorker(
-				ctx,
-				func(context.Context) error {
-					opsJobDone()
+			return dutil.FuncsJobWorker(ctx, func(context.Context) error {
+				if err := baseOpsWait(nil); err != nil {
+					return err
+				}
 
-					if err := opsJobWait(nil); err != nil {
-						return err
-					}
+				opsJobDone()
 
-					return doneOpsTree(g, opsTree)
-				},
+				if err := opsJobWait(nil); err != nil {
+					return err
+				}
+
+				return doneOpsTree(g, opsTree)
+			},
 				func(context.Context) error {
 					return workerStatesTree(g, statesTree)
-				},
-			)
+				})
 		},
 		nil
 }
@@ -416,14 +414,13 @@ func newFuncManagerWorkersResult(
 				workerErrPool.Close()
 			}()
 
-			return workersWait()
+			return workersWait(nil)
 		},
 		func(
 			g fixedtree.GenerateNodesHashFunc,
 			statesTree dutil.InErrorFunc[*fixedtree.Tree],
 		) error {
 			defer func() {
-				_ = workersDone(nil)
 				_ = workerErrPool.Get(util.UUID().String(), func(error, bool) error {
 					if checkWorkerClose != nil {
 						checkWorkerClose()

@@ -60,14 +60,24 @@ func NewContextDone(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
 	func() (bool, error),
-	func() error,
+	InErrorFunc[error],
 ) {
 	cctx, cctxCancel, check := CheckContextDone(ctx)
 
-	return cctx, cctxCancel, check, func() error {
+	return cctx, cctxCancel, check, func(err error) error {
+		if err != nil {
+			if err := context.Cause(ctx); err != nil {
+				return ErrorWithStack(err)
+			}
+
+			_ = cctxCancel(err)
+
+			return err
+		}
+
 		<-cctx.Done()
 
-		_, err := check()
+		_, err = check()
 
 		return err
 	}

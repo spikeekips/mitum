@@ -113,12 +113,12 @@ func newFuncWorkerPhaseMerger(
 		func(f workerPhaseMergerWaitCallbackFunc) error {
 			defer func() {
 				_ = phaseMergerWait(nil)
-				workerInsertDone(nil)
+				_ = workerInsertWait(nil)
 				checkWorkerClose()
 			}()
 
 			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
-				if err := workerInsertWait(); err != nil {
+				if err := workerInsertWait(nil); err != nil {
 					return err
 				}
 

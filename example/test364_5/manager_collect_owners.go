@@ -80,7 +80,7 @@ func newFuncManagerCollectOwners(
 				done(nil)
 			}()
 
-			if err := ownersWait(); err != nil {
+			if err := ownersWait(nil); err != nil {
 				return err
 			}
 

@@ -132,10 +132,11 @@ func newFuncWorkerUnmerger(
 		func(f dutil.InErrorFunc[[]uint64]) error {
 			defer func() {
 				_ = unmergerWait(nil)
+				_ = workerPhaseDoneWait(nil)
 			}()
 
 			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
-				if err := workerPhaseDoneWait(); err != nil {
+				if err := workerPhaseDoneWait(nil); err != nil {
 					return err
 				}
 
