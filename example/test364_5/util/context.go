@@ -113,3 +113,14 @@ func CheckContextDone(ctx context.Context) (
 			}
 		}
 }
+
+func NewFuncCheckParentContextError(f func() (bool, error), cancel InErrorFunc[error]) func() (bool, error) {
+	return func() (bool, error) {
+		ok, err := f()
+		if err != nil || !ok {
+			cancel(err)
+		}
+
+		return ok, err
+	}
+}

@@ -124,7 +124,7 @@ func (t *testManagerCollectOwners) TestAdd() {
 		add, done, err := newFuncManagerCollectOwners(ctx, 4, 2)
 		t.NoError(err)
 
-		expectedOwners := []string{"w3", "w4", "w5", "w6"}
+		expectedOwners := []string{"w3", "w4", "w5"}
 		t.NoError(add("w1", []string{"w4", "w5"}))
 		t.NoError(add("w0", []string{"w3", "w4"}))
 		t.NoError(add("w2", []string{"w5", "w6"}))

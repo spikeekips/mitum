@@ -28,14 +28,13 @@ func newFuncManagerWorkersOps(
 		return nil, 0, 0, nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
 
-	log := dutil.LoadContextValueLogger(ctx)
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-wokers-ops", nil)
 
 	log.Debug().
 		Strs("workers", workers).
 		Uint64("ops_share", opsShare).
-		Int("ophs", len(ophs))
-	Msg("new")
+		Int("ophs", len(ophs)).
+		Msg("new")
 
 	l := log.Debug()
 

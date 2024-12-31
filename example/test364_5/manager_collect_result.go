@@ -299,14 +299,6 @@ func newFuncManagerWorkersResult(
 		}
 	}
 
-	checkParentContextError := func() error {
-		if ok, err := parentContextError(); err != nil || !ok {
-			return err
-		}
-
-		return nil
-	}
-
 	return func(worker string) (
 			dutil.InErrorFunc[map[uint64]string],
 			dutil.In2ErrorFunc[string, util.Hash],
@@ -314,9 +306,10 @@ func newFuncManagerWorkersResult(
 			error,
 		) {
 			wctx, cancel := dutil.ContextWithCancelCause(wsctx)
+			checkParentContextError := dutil.NewFuncCheckParentContextError(parentContextError, cancel)
 
 			return func(reasons map[uint64]string) error {
-					if err := dutil.NewIfErrErrorInFunc(cancel)(checkParentContextError()); err != nil {
+					if ok, err := checkParentContextError(); err != nil || !ok {
 						return err
 					}
 
@@ -327,7 +320,7 @@ func newFuncManagerWorkersResult(
 					})
 				},
 				func(stateKey string, stateHash util.Hash) error {
-					if err := dutil.NewIfErrErrorInFunc(cancel)(checkParentContextError()); err != nil {
+					if ok, err := checkParentContextError(); err != nil || !ok {
 						return err
 					}
 
@@ -342,7 +335,7 @@ func newFuncManagerWorkersResult(
 				func(err error) error {
 					defer cancel(nil)
 
-					if err := checkParentContextError(); err != nil {
+					if ok, err := checkParentContextError(); err != nil || !ok {
 						return err
 					}
 

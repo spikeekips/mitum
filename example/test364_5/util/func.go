@@ -10,6 +10,10 @@ type (
 	ErrorFunc                    = func() error
 )
 
+func DummyErrorInFunc(err error) error {
+	return err
+}
+
 func NewIfErrErrorInFunc(f InErrorFunc[error]) InErrorFunc[error] {
 	return func(err error) error {
 		if err != nil {
