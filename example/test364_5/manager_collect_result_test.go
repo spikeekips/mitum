@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -236,17 +237,17 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 		t.NoError(err)
 		t.NoError(d(nil))
 
-		var called bool
+		var called atomic.Value
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
 			t.checkOpsTree(ophs, nil, tr)
 
-			called = true
+			called.Store(true)
 
 			return nil
 		}, nil))
 
-		t.True(called)
+		t.True(called.Load().(bool))
 
 		// NOTE already done
 		_, _, d, err = wr("w1")
@@ -271,17 +272,17 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 
 		t.NoError(or(workers, 2))
 
-		var called bool
+		var called atomic.Value
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
 			t.checkOpsTree(ophs, nil, tr)
 
-			called = true
+			called.Store(true)
 
 			return nil
 		}, nil))
 
-		t.True(called)
+		t.True(called.Load().(bool))
 
 		// NOTE already done
 		_, _, d, err = wr("w1")
@@ -302,27 +303,27 @@ func (t *testManagerCollectResult) TestStateOwners() {
 
 		t.NoError(or(nil, 1))
 
-		var opsCalled, statesCalled bool
+		var opsCalled, statesCalled atomic.Value
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
 				t.checkOpsTree(ophs, nil, tr)
 
-				opsCalled = true
+				opsCalled.Store(true)
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
 				t.checkStatesTree(nil, tr)
 
-				statesCalled = true
+				statesCalled.Store(true)
 
 				return nil
 			},
 		))
 
-		t.True(opsCalled)
-		t.True(statesCalled)
+		t.True(opsCalled.Load().(bool))
+		t.True(statesCalled.Load().(bool))
 	})
 }
 
@@ -352,17 +353,17 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		t.NoError(or(workers, 1))
 
-		var called bool
+		var called atomic.Value
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
 			t.checkOpsTree(ophs, nil, tr)
 
-			called = true
+			called.Store(true)
 
 			return nil
 		}, nil))
 
-		t.True(called)
+		t.True(called.Load().(bool))
 	})
 
 	t.RunWithGoLeak("with reasons", func() {
@@ -389,17 +390,17 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		t.NoError(or(workers, 1))
 
-		var called bool
+		var called atomic.Value
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
 			t.checkOpsTree(ophs, expectedReasons, tr)
 
-			called = true
+			called.Store(true)
 
 			return nil
 		}, nil))
 
-		t.True(called)
+		t.True(called.Load().(bool))
 	})
 }
 
@@ -421,27 +422,27 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(or(workers, 1))
 
-		var opsCalled, statesCalled bool
+		var opsCalled, statesCalled atomic.Value
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
 				t.checkOpsTree(ophs, nil, tr)
 
-				opsCalled = true
+				opsCalled.Store(true)
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
 				t.checkStatesTree(nil, tr)
 
-				statesCalled = true
+				statesCalled.Store(true)
 
 				return nil
 			},
 		))
 
-		t.True(opsCalled)
-		t.True(statesCalled)
+		t.True(opsCalled.Load().(bool))
+		t.True(statesCalled.Load().(bool))
 	})
 
 	t.RunWithGoLeak("ok", func() {
@@ -469,27 +470,27 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(or(workers, 1))
 
-		var opsCalled, statesCalled bool
+		var opsCalled, statesCalled atomic.Value
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
 				t.checkOpsTree(ophs, nil, tr)
 
-				opsCalled = true
+				opsCalled.Store(true)
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
 				t.checkStatesTree(expectedStates, tr)
 
-				statesCalled = true
+				statesCalled.Store(true)
 
 				return nil
 			},
 		))
 
-		t.True(opsCalled)
-		t.True(statesCalled)
+		t.True(opsCalled.Load().(bool))
+		t.True(statesCalled.Load().(bool))
 	})
 }
 

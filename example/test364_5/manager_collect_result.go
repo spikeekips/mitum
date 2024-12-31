@@ -46,15 +46,15 @@ func newFuncManagerCollectResult(
 		Uint64("max_states_size", maxStatesSize).
 		Msg("new")
 
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var opsNewJob dutil.JobWorkerNewJobFunc
+	var opsJobDone func()
+	var opsJobWait dutil.ErrorFunc
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		newJob, jobDone, jobWait = n, d, w
+		opsNewJob, opsJobDone, opsJobWait = n, d, w
 	}
 
 	_, baseOpsDone, _, baseOpsWait := dutil.NewContextDone(ctx)
@@ -62,7 +62,7 @@ func newFuncManagerCollectResult(
 	var unmergedOp dutil.In2ErrorFunc[uint64, string]
 	var doneOpsTree dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
 
-	switch startOpsFixedNodes, u, d, err := newFuncGenerateOperationFixedtree(ctx, ophs, newJob); {
+	switch startOpsFixedNodes, u, d, err := newFuncGenerateOperationFixedtree(ctx, ophs, opsNewJob); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -77,12 +77,12 @@ func newFuncManagerCollectResult(
 	var workerResult managerInsertWorkerResultFunc
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var workersWait dutil.ErrorFunc
-	var workersDone dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
+	var workerStatesTree dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
 
-	switch r, o, d, w, err := newFuncManagerWorkersResult(
+	switch r, o, w, t, err := newFuncManagerWorkersResult(
 		ctx,
 		maxStatesSize,
-		newJob,
+		opsNewJob,
 		func(reasons map[uint64]string) error {
 			return dutil.TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
 				return true, unmergedOp(opindex, reason)
@@ -92,7 +92,7 @@ func newFuncManagerCollectResult(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		workerResult, ownersReady, workersWait, workersDone = r, o, d, w
+		workerResult, ownersReady, workersWait, workerStatesTree = r, o, w, t
 	}
 
 	return workerResult,
@@ -106,19 +106,19 @@ func newFuncManagerCollectResult(
 				return err
 			}
 
-			jobDone()
-
-			if err := jobWait(); err != nil {
-				return err
-			}
-
 			return dutil.FuncsJobWorker(
 				ctx,
 				func(context.Context) error {
+					opsJobDone()
+
+					if err := opsJobWait(); err != nil {
+						return err
+					}
+
 					return doneOpsTree(g, opsTree)
 				},
 				func(context.Context) error {
-					return workersDone(g, statesTree)
+					return workerStatesTree(g, statesTree)
 				},
 			)
 		},
@@ -216,7 +216,7 @@ func newFuncGenerateOperationFixedtree(
 func newFuncManagerWorkersResult(
 	ctx context.Context,
 	maxStatesSize uint64,
-	newJob dutil.JobWorkerNewJobFunc,
+	opsNewjob dutil.JobWorkerNewJobFunc,
 	workerReasons dutil.InErrorFunc[map[uint64]string],
 ) (
 	_ managerInsertWorkerResultFunc,
@@ -226,6 +226,17 @@ func newFuncManagerWorkersResult(
 	_ error,
 ) {
 	log := dutil.LoadContextValueLogger(ctx)
+
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.ErrorFunc
+
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
+	case err != nil:
+		return nil, nil, nil, nil, err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
 
 	wsctx, workersDone, parentContextError, workersWait := dutil.NewContextDone(ctx)
 
@@ -314,7 +325,7 @@ func newFuncManagerWorkersResult(
 					}
 
 					return dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
-						return newJob(func(context.Context) error {
+						return opsNewjob(func(context.Context) error {
 							return workerReasons(reasons)
 						})
 					})
@@ -395,7 +406,11 @@ func newFuncManagerWorkersResult(
 			})
 		},
 		func() error {
-			defer workerErrPool.Close()
+			defer func() {
+				jobDone()
+
+				workerErrPool.Close()
+			}()
 
 			return workersWait()
 		},
@@ -412,10 +427,15 @@ func newFuncManagerWorkersResult(
 
 					return nil
 				})
+				_ = jobWait()
 				doneState(nil)
 			}()
 
 			return dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
+				if err := jobWait(); err != nil {
+					return err
+				}
+
 				return doneState(func(s []fixedtree.Node) error {
 					if statesTree == nil {
 						return nil
