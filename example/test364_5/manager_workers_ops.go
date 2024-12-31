@@ -79,7 +79,7 @@ func newFuncManagerWorkersOps(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -125,7 +125,7 @@ func newFuncManagerWorkersOps(
 		func() error {
 			defer checkWorkerClose()
 
-			return jobWait()
+			return jobWait(nil)
 		},
 		nil
 }

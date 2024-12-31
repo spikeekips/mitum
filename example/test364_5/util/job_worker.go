@@ -15,7 +15,7 @@ type (
 	NewJobWorkerFunc    = func(context.Context) (
 		JobWorkerNewJobFunc,
 		func(),
-		ErrorFunc,
+		InErrorFunc[error],
 		error,
 	)
 )
@@ -27,7 +27,7 @@ func NewFuncBaseJobWorker(
 ) (
 	JobWorkerNewJobFunc,
 	func(),
-	ErrorFunc,
+	InErrorFunc[error],
 	error,
 ) {
 	if semSize < 1 {
@@ -52,7 +52,15 @@ func NewFuncBaseJobWorker(
 		func() {
 			_ = jctxCancel(errNewJobDone)
 		},
-		func() error {
+		func(err error) error {
+			if err != nil {
+				if err := context.Cause(ctx); err != nil {
+					return ErrorWithStack(err)
+				}
+
+				return jctxCancel(err)
+			}
+
 			defer func() {
 				_ = jctxCancel(nil)
 			}()
@@ -80,7 +88,7 @@ func NewFuncBaseJobWorker(
 func NewFuncJobWorker(ctx context.Context, semSize uint64) (
 	JobWorkerNewJobFunc,
 	func(),
-	ErrorFunc,
+	InErrorFunc[error],
 	error,
 ) {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -95,8 +103,8 @@ func NewFuncJobWorker(ctx context.Context, semSize uint64) (
 	}
 
 	return newJob, jobDone,
-		func() error {
-			return wctxCancel(wait())
+		func(err error) error {
+			return wctxCancel(wait(err))
 		},
 		nil
 }
@@ -104,7 +112,7 @@ func NewFuncJobWorker(ctx context.Context, semSize uint64) (
 func NewFuncErrJobWorker(ctx context.Context, semSize uint64, errf InErrorFunc[error]) (
 	JobWorkerNewJobFunc,
 	func(),
-	ErrorFunc,
+	InErrorFunc[error],
 	error,
 ) {
 	wctx, wctxCancel := ContextWithCancelCause(ctx)
@@ -123,8 +131,8 @@ func NewFuncErrJobWorker(ctx context.Context, semSize uint64, errf InErrorFunc[e
 	}
 
 	return newJob, jobDone,
-		func() error {
-			return wctxCancel(wait())
+		func(err error) error {
+			return wctxCancel(wait(err))
 		},
 		nil
 }
@@ -177,7 +185,7 @@ func NewFuncNewJobWorkerFunc(semSize uint64) NewJobWorkerFunc {
 	return func(ctx context.Context) (
 		JobWorkerNewJobFunc,
 		func(),
-		ErrorFunc,
+		InErrorFunc[error],
 		error,
 	) {
 		return NewFuncJobWorker(ctx, semSize)
@@ -188,7 +196,7 @@ func NewFuncNewErrJobWorkerFunc(semSize uint64, errf InErrorFunc[error]) NewJobW
 	return func(ctx context.Context) (
 		JobWorkerNewJobFunc,
 		func(),
-		ErrorFunc,
+		InErrorFunc[error],
 		error,
 	) {
 		return NewFuncErrJobWorker(ctx, semSize, errf)
@@ -198,7 +206,7 @@ func NewFuncNewErrJobWorkerFunc(semSize uint64, errf InErrorFunc[error]) NewJobW
 func FuncsJobWorker(ctx context.Context, fs ...InErrorFunc[context.Context]) error {
 	var newJob JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait ErrorFunc
+	var jobWait InErrorFunc[error]
 
 	switch n, d, w, err := NewFuncJobWorker(ctx, uint64(len(fs))); {
 	case err != nil:
@@ -215,5 +223,5 @@ func FuncsJobWorker(ctx context.Context, fs ...InErrorFunc[context.Context]) err
 		})
 	}()
 
-	return jobWait()
+	return jobWait(nil)
 }

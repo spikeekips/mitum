@@ -607,7 +607,7 @@ func workersBroadcastUnmerged(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(filtered))); {
 	case err != nil:
@@ -630,7 +630,7 @@ func workersBroadcastUnmerged(
 		})
 	}()
 
-	return jobWait()
+	return jobWait(nil)
 }
 
 func mergeStateOpFromValues(
@@ -683,12 +683,16 @@ func workerProcessCloseStateMergers(
 
 		var newJob dutil.JobWorkerNewJobFunc
 		var jobDone func()
-		var jobWait dutil.ErrorFunc
+		var jobWait dutil.InErrorFunc[error]
 
 		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(size)); {
 		case err != nil:
 			return err
 		default:
+			defer func() {
+				_ = jobWait(context.Canceled)
+			}()
+
 			newJob, jobDone, jobWait = n, d, w
 		}
 
@@ -733,7 +737,7 @@ func workerProcessCloseStateMergers(
 
 		jobDone()
 
-		return jobWait()
+		return jobWait(nil)
 	})
 }
 
@@ -827,12 +831,16 @@ func newFuncDistributeStateMergeValues(
 
 				var newJob dutil.JobWorkerNewJobFunc
 				var jobDone func()
-				var jobWait dutil.ErrorFunc
+				var jobWait dutil.InErrorFunc[error]
 
 				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(workers))); {
 				case err != nil:
 					return err
 				default:
+					defer func() {
+						_ = jobWait(context.Canceled)
+					}()
+
 					newJob, jobDone, jobWait = n, d, w
 				}
 
@@ -868,7 +876,7 @@ func newFuncDistributeStateMergeValues(
 
 				jobDone()
 
-				return jobWait()
+				return jobWait(nil)
 			},
 			nil
 	}

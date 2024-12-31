@@ -589,7 +589,7 @@ func (t *testSetStateOps) Test() {
 			}
 		}()
 
-		t.NoError(jobWait())
+		t.NoError(jobWait(nil))
 
 		newJob, jobDone, jobWait, err = dutil.NewFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
@@ -609,7 +609,7 @@ func (t *testSetStateOps) Test() {
 			}
 		}()
 
-		t.NoError(jobWait())
+		t.NoError(jobWait(nil))
 
 		var called bool
 

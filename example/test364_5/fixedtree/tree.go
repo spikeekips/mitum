@@ -218,7 +218,7 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	if semSize > nnodes {
 		semSize = nnodes
@@ -241,7 +241,7 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 		}
 	}()
 
-	return jobWait()
+	return jobWait(nil)
 }
 
 func isValidNodeHash(b []byte, index uint64, nodes []Node) error {

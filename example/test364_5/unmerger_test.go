@@ -86,7 +86,7 @@ func (t *testUnmerger) TestUnmerge() {
 				jobDone()
 			}()
 
-			t.NoError(jobWait())
+			t.NoError(jobWait(nil))
 		}
 
 		t.T().Log("insert done")
@@ -146,7 +146,7 @@ func (t *testUnmerger) TestUnmerge() {
 				jobDone()
 			}()
 
-			t.NoError(jobWait())
+			t.NoError(jobWait(nil))
 		}
 
 		t.T().Log("insert done")

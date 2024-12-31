@@ -134,7 +134,7 @@ func newFuncPhaseMerger(
 		jobDone,
 		func(f phaseMergerWaitCallbackFunc) error {
 			defer func() {
-				doneReason(nil, nil)
+				_ = doneReason(nil, nil)
 			}()
 
 			if err := jobWait(); err != nil {

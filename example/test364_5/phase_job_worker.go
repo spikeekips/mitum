@@ -47,7 +47,7 @@ func newFuncPhaseJobWorker(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -74,13 +74,11 @@ func newFuncPhaseJobWorker(
 		jobDone,
 		func() error {
 			defer func() {
-				_ = jobWait()
 				_ = nextPhaseWait()
-
 				jobIDClose()
 			}()
 
-			if err := jobWait(); err != nil {
+			if err := jobWait(nil); err != nil {
 				return err
 			}
 

@@ -28,7 +28,7 @@ func newFuncUnmerger(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -81,7 +81,7 @@ func newFuncUnmerger(
 				_ = doneOps(nil)
 			}()
 
-			if err := jobWait(); err != nil {
+			if err := jobWait(nil); err != nil {
 				return err
 			}
 

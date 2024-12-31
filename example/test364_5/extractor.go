@@ -44,7 +44,7 @@ func newFuncStateMergeValueExtractor(
 ) {
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := newJobWorker(ctx); {
 	case err != nil:
@@ -80,12 +80,9 @@ func newFuncStateMergeValueExtractor(
 			})
 		},
 		func(f dutil.InErrorFunc[map[uint64]string]) error {
-			defer func() {
-				_ = jobWait()
-				reasons.Close()
-			}()
+			defer reasons.Close()
 
-			if err := jobWait(); err != nil {
+			if err := jobWait(nil); err != nil {
 				return err
 			}
 

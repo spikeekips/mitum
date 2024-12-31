@@ -48,7 +48,7 @@ func newFuncManagerCollectResult(
 
 	var opsNewJob dutil.JobWorkerNewJobFunc
 	var opsJobDone func()
-	var opsJobWait dutil.ErrorFunc
+	var opsJobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
 	case err != nil:
@@ -98,6 +98,10 @@ func newFuncManagerCollectResult(
 	return workerResult,
 		ownersReady,
 		func(g fixedtree.GenerateNodesHashFunc, opsTree dutil.InErrorFunc[*fixedtree.Tree], statesTree dutil.InErrorFunc[*fixedtree.Tree]) error {
+			defer func() {
+				_ = opsJobWait(context.Canceled)
+			}()
+
 			if err := baseOpsWait(); err != nil {
 				return err
 			}
@@ -111,7 +115,7 @@ func newFuncManagerCollectResult(
 				func(context.Context) error {
 					opsJobDone()
 
-					if err := opsJobWait(); err != nil {
+					if err := opsJobWait(nil); err != nil {
 						return err
 					}
 
@@ -229,7 +233,7 @@ func newFuncManagerWorkersResult(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
 	case err != nil:
@@ -427,12 +431,12 @@ func newFuncManagerWorkersResult(
 
 					return nil
 				})
-				_ = jobWait()
+				_ = jobWait(context.Canceled)
 				doneState(nil)
 			}()
 
 			return dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
-				if err := jobWait(); err != nil {
+				if err := jobWait(nil); err != nil {
 					return err
 				}
 

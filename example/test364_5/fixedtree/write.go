@@ -57,16 +57,12 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
 	case err != nil:
 		return err
 	default:
-		defer func() {
-			_ = jobWait()
-		}()
-
 		newJob, jobDone, jobWait = n, d, w
 	}
 
@@ -84,7 +80,7 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 		})
 	}()
 
-	return jobWait()
+	return jobWait(nil)
 }
 
 func GenerateNodeHash(index uint64, nodes []Node, w NodeWriteFunc) error {
@@ -208,12 +204,16 @@ func AsyncGenerateNodesHashByFollowingParent(
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
-	var jobWait dutil.ErrorFunc
+	var jobWait dutil.InErrorFunc[error]
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
 	case err != nil:
 		return err
 	default:
+		defer func() {
+			_ = jobWait(nil)
+		}()
+
 		newJob, jobDone, jobWait = n, d, w
 	}
 
@@ -271,7 +271,7 @@ func AsyncGenerateNodesHashByFollowingParent(
 		}
 	}
 
-	return jobWait()
+	return jobWait(nil)
 }
 
 func AsyncGenerateNodesHashByHeight(
@@ -301,16 +301,12 @@ func AsyncGenerateNodesHashByHeight(
 
 		var newJob dutil.JobWorkerNewJobFunc
 		var jobDone func()
-		var jobWait dutil.ErrorFunc
+		var jobWait dutil.InErrorFunc[error]
 
 		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(is))); {
 		case err != nil:
 			return err
 		default:
-			defer func() {
-				_ = jobWait()
-			}()
-
 			newJob, jobDone, jobWait = n, d, w
 		}
 
@@ -324,7 +320,7 @@ func AsyncGenerateNodesHashByHeight(
 			})
 		}()
 
-		return jobWait()
+		return jobWait(nil)
 	})
 }
 
