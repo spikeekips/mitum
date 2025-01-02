@@ -51,7 +51,7 @@ func (t *testJobWorker) TestNoError() {
 		jobDone()
 	}()
 
-	t.NoError(wait())
+	t.NoError(wait(nil))
 
 	close(returnch)
 
@@ -109,7 +109,7 @@ func (t *testJobWorker) TestError() {
 			jobDone()
 		}()
 
-		err := wait()
+		err := wait(nil)
 		t.NotNil(err)
 		t.ErrorContains(err, "error:3")
 
@@ -153,7 +153,7 @@ func (t *testJobWorker) TestError() {
 			t.Fail("expected context.Canceled or findme")
 		}
 
-		err := wait()
+		err := wait(nil)
 		t.Error(err)
 		t.ErrorContains(err, "findme")
 	})
@@ -201,7 +201,7 @@ func (t *testJobWorker) TestError() {
 			t.Fail("expected context.Canceled or findme")
 		}
 
-		err := wait()
+		err := wait(nil)
 		t.Error(err)
 		t.ErrorContains(err, "findme")
 	})
@@ -239,7 +239,7 @@ func (t *testJobWorker) TestDeadlineError() {
 		jobDone()
 	}()
 
-	err := wait()
+	err := wait(nil)
 	t.Error(err)
 	t.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 
@@ -280,7 +280,7 @@ func (t *testJobWorker) TestCancel() {
 			jobDone()
 		}()
 
-		err := wait()
+		err := wait(nil)
 		t.Error(err)
 		t.ErrorIs(err, context.Canceled)
 	})
@@ -292,7 +292,7 @@ func (t *testJobWorker) TestCancel() {
 
 		cancel(nil)
 
-		err := wait()
+		err := wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -312,7 +312,7 @@ func (t *testJobWorker) TestCancel() {
 
 		errch := make(chan error, 1)
 		go func() {
-			errch <- wait()
+			errch <- wait(nil)
 		}()
 
 		cancel(nil)
@@ -366,7 +366,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 	<-enoughch
 	cancel(nil)
 
-	err := wait()
+	err := wait(nil)
 	t.Error(err)
 	t.ErrorIs(err, context.Canceled)
 
@@ -395,15 +395,16 @@ func (t *testJobWorker) TestDone() {
 		t.Error(err)
 		t.ErrorIs(err, ErrJobWorkerDone)
 
-		t.NoError(wait())
+		t.NoError(wait(nil))
 	})
 }
 
 func (t *testJobWorker) TestWait() {
-	t.Run("wait", func() {
-		newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), 3)
+	t.Run("wait cancel; before job finished", func() {
+		newJob, jobDone, wait, err := NewFuncJobWorker(context.Background(), 3)
+		t.NoError(err)
 
-		jobdonech := make(chan struct{}, 1)
+		jobdonech := make(chan struct{}, 0)
 		t.NoError(newJob(func(context.Context) error {
 			jobdonech <- struct{}{}
 
@@ -412,13 +413,50 @@ func (t *testJobWorker) TestWait() {
 
 		jobDone()
 
-		t.NoError(wait())
+		err = wait(errors.Errorf("showme"))
+		t.ErrorIs(err, context.Canceled)
+		t.ErrorContains(err, "showme")
 
 		select {
 		case <-time.After(time.Second):
 			t.Fail("wait job done")
 		case <-jobdonech:
 		}
+	})
+
+	t.Run("wait cancel; after job finished", func() {
+		newJob, jobDone, wait, err := NewFuncJobWorker(context.Background(), 3)
+		t.NoError(err)
+
+		jobdonech := make(chan struct{}, 0)
+		t.NoError(newJob(func(context.Context) error {
+			jobdonech <- struct{}{}
+
+			return nil
+		}))
+
+		jobDone()
+		<-jobdonech
+
+		err = wait(errors.Errorf("showme"))
+		t.ErrorIs(err, context.Canceled)
+		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("wait", func() {
+		newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), 3)
+
+		var called int64
+		t.NoError(newJob(func(context.Context) error {
+			atomic.AddInt64(&called, 1)
+
+			return nil
+		}))
+
+		jobDone()
+
+		t.NoError(wait(nil))
+		t.Equal(int64(1), atomic.LoadInt64(&called))
 	})
 
 	t.Run("no wait", func() {
@@ -443,7 +481,7 @@ func (t *testJobWorker) TestWait() {
 
 		waitch := make(chan error, 1)
 		go func() {
-			waitch <- wait()
+			waitch <- wait(nil)
 		}()
 
 		<-time.After(time.Second)
@@ -489,9 +527,10 @@ type testErrJobWorker struct {
 
 func (t *testErrJobWorker) TestError() {
 	t.Run("job error; no returned error", func() {
-		errch := make(chan error, 1)
+		var gerr atomic.Value
+
 		newJob, jobDone, wait, err := NewFuncErrJobWorker(context.Background(), 3, func(err error) error {
-			errch <- err
+			gerr.Store(err)
 
 			return nil
 		})
@@ -501,10 +540,10 @@ func (t *testErrJobWorker) TestError() {
 			return errors.Errorf("findme")
 		}))
 		jobDone()
-		t.NoError(wait())
+		t.NoError(wait(nil))
 
-		err = <-errch
-		t.Error(err)
+		err, ok := gerr.Load().(error)
+		t.True(ok)
 		t.ErrorContains(err, "findme")
 	})
 
@@ -520,14 +559,15 @@ func (t *testErrJobWorker) TestError() {
 
 		jobDone()
 
-		err = wait()
+		err = wait(nil)
 		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("no error", func() {
-		errch := make(chan error, 1)
+		var gerr atomic.Value
+
 		newJob, jobDone, wait, err := NewFuncErrJobWorker(context.Background(), 3, func(err error) error {
-			errch <- err
+			gerr.Store(err)
 
 			return nil
 		})
@@ -537,10 +577,9 @@ func (t *testErrJobWorker) TestError() {
 			return nil
 		}))
 		jobDone()
-		t.NoError(wait())
-		errch <- nil
+		t.NoError(wait(nil))
 
-		t.NoError(<-errch)
+		t.Nil(gerr.Load())
 	})
 }
 

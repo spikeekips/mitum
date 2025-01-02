@@ -34,12 +34,13 @@ func NewFuncBaseJobWorker(
 		return nil, nil, nil, errors.Errorf("semSize under 1")
 	}
 
-	jctx, jctxCancel := ContextWithCancelCause(ctx)
+	wctx, wctxCancel := ContextWithCancelCause(ctx)
+	jctx, jctxCancel := ContextWithCancelCause(wctx)
 
 	sem := semaphore.NewWeighted(int64(semSize))
 
-	newJobf := NewFuncJobWorkerNewJobFunc(ctx, jctx, sem, errf)
-	waitf, errNewJobDone := NewFuncJobWorkerWaitFunc(ctx, jctx, sem, semSize)
+	newJobf := NewFuncJobWorkerNewJobFunc(wctx, jctx, sem, errf)
+	waitf, errNewJobDone := NewFuncJobWorkerWaitFunc(wctx, jctx, sem, semSize)
 
 	return func(c InErrorFunc[context.Context]) error {
 			switch err := newJobf(c); {
@@ -53,19 +54,19 @@ func NewFuncBaseJobWorker(
 			_ = jctxCancel(errNewJobDone)
 		},
 		func(err error) error {
+			defer func() {
+				_ = wctxCancel(nil)
+			}()
+
 			if err != nil {
-				if err := context.Cause(ctx); err != nil {
+				if err := context.Cause(wctx); err != nil {
 					return ErrorWithStack(err)
 				}
 
-				return jctxCancel(err)
+				return wctxCancel(err)
 			}
 
-			defer func() {
-				_ = jctxCancel(nil)
-			}()
-
-			if err := context.Cause(ctx); err != nil {
+			if err := context.Cause(wctx); err != nil {
 				return ErrorWithStack(err)
 			}
 
@@ -78,8 +79,8 @@ func NewFuncBaseJobWorker(
 			select {
 			case err := <-waitch:
 				return err
-			case <-ctx.Done():
-				return ErrorWithStack(context.Cause(ctx))
+			case <-wctx.Done():
+				return ErrorWithStack(context.Cause(wctx))
 			}
 		},
 		nil
