@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"slices"
-	"strings"
 	"sync"
 	"testing"
 
@@ -19,53 +17,7 @@ import (
 type testManagerCollectResult struct {
 	dutil.BaseSuite
 	baseTestWorkers
-}
-
-func (t *testManagerCollectResult) checkOpsTree(ophs [][2]util.Hash, expectedReasons map[uint64]string, tr *fixedtree.Tree) {
-	t.NoError(tr.IsValid(nil))
-
-	t.Equal(len(ophs), tr.Len())
-
-	tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
-		t.NoError(n.IsValid(nil))
-
-		op := ophs[index]
-		b, ok := n.(*OperationTreeNode)
-		t.True(ok)
-
-		t.NotNil(b.Hash())
-		t.Equal(op[0].String(), b.Key())
-		t.True(op[1].Equal(b.Fact()))
-
-		if e, found := expectedReasons[index]; found {
-			t.Equal(e, b.Reason())
-		} else {
-			t.Empty(b.Reason())
-		}
-
-		return true, nil
-	})
-}
-
-func (t *testManagerCollectResult) checkStatesTree(expectedStates [][2]interface{}, tr *fixedtree.Tree) {
-	t.NoError(tr.IsValid(nil))
-
-	t.Equal(len(expectedStates), tr.Len())
-
-	slices.SortFunc(expectedStates, func(a, b [2]interface{}) int {
-		return strings.Compare(a[0].(string), b[0].(string))
-	})
-
-	t.NoError(tr.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
-		a := expectedStates[index]
-		b, ok := n.(*StateTreeNode)
-		t.True(ok)
-
-		t.Equal(a[0].(string), b.Key())
-		t.True(a[1].(util.Hash).Equal(b.StateHash()))
-
-		return true, nil
-	}))
+	baseTestManager
 }
 
 func (t *testManagerCollectResult) TestCancel() {
@@ -239,7 +191,7 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 		var called bool
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.checkOpsTree(ophs, nil, tr)
+			t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 			called = true
 
@@ -274,7 +226,7 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 		var called bool
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.checkOpsTree(ophs, nil, tr)
+			t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 			called = true
 
@@ -306,14 +258,14 @@ func (t *testManagerCollectResult) TestStateOwners() {
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
-				t.checkOpsTree(ophs, nil, tr)
+				t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 				opsCalled = true
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
-				t.checkStatesTree(nil, tr)
+				t.NoError(t.checkStatesTree(nil, tr))
 
 				statesCalled = true
 
@@ -355,7 +307,7 @@ func (t *testManagerCollectResult) TestOpsTree() {
 		var called bool
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.checkOpsTree(ophs, nil, tr)
+			t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 			called = true
 
@@ -392,7 +344,7 @@ func (t *testManagerCollectResult) TestOpsTree() {
 		var called bool
 
 		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.checkOpsTree(ophs, expectedReasons, tr)
+			t.NoError(t.checkOpsTree(ophs, expectedReasons, tr))
 
 			called = true
 
@@ -425,14 +377,14 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
-				t.checkOpsTree(ophs, nil, tr)
+				t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 				opsCalled = true
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
-				t.checkStatesTree(nil, tr)
+				t.NoError(t.checkStatesTree(nil, tr))
 
 				statesCalled = true
 
@@ -473,14 +425,14 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(w(nil,
 			func(tr *fixedtree.Tree) error {
-				t.checkOpsTree(ophs, nil, tr)
+				t.NoError(t.checkOpsTree(ophs, nil, tr))
 
 				opsCalled = true
 
 				return nil
 			},
 			func(tr *fixedtree.Tree) error {
-				t.checkStatesTree(expectedStates, tr)
+				t.NoError(t.checkStatesTree(expectedStates, tr))
 
 				statesCalled = true
 
@@ -492,6 +444,8 @@ func (t *testManagerCollectResult) TestStatesTree() {
 		t.True(statesCalled)
 	})
 }
+
+// FIXME test; over enough, over max failed
 
 func TestManagerCollectResult(t *testing.T) {
 	defer goleak.VerifyNone(t)

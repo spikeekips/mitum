@@ -184,6 +184,8 @@ func (t *testManagerCollectOwners) TestAdd() {
 	})
 }
 
+// FIXME test; over enough, over max failed
+
 func TestManagerCollectOwners(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

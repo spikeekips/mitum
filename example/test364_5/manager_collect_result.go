@@ -318,6 +318,10 @@ func newFuncManagerWorkersResult(
 			dutil.InErrorFunc[error],
 			error,
 		) {
+			if ok, err := parentContextError(); err != nil || !ok {
+				return nil, nil, nil, err
+			}
+
 			wctx, cancel := dutil.ContextWithCancelCause(wsctx)
 			checkParentContextError := dutil.NewFuncCheckParentContextError(parentContextError, cancel)
 
@@ -362,7 +366,7 @@ func newFuncManagerWorkersResult(
 			}
 
 			return dutil.ContextCauseError(wsctx, dutil.NewIfErrErrorInFunc(workersDone), func(context.Context) error {
-				return workerErrPool.Get(util.UUID().String(), func(error, bool) error {
+				if err := workerErrPool.Get(util.UUID().String(), func(error, bool) error {
 					if checkWorker != nil {
 						return nil
 					}
@@ -381,30 +385,35 @@ func newFuncManagerWorkersResult(
 						case err != nil:
 							return err
 						default:
+							so := slices.Clone(stateOwners)
 							checkWorker = func(worker string, f func() error) (bool, bool, bool, error) {
-								if slices.Index(stateOwners, worker) < 0 {
+								if slices.Index(so, worker) < 0 {
 									return false, false, false, util.ErrNotFound.Errorf("unknown worker, %q", worker)
 								}
 
 								return w(worker, f)
 							}
 							checkWorkerClose = c
+
+							return nil
 						}
 					}
+				}); err != nil {
+					return err
+				}
 
-					var gerr error
+				var gerr error
 
-					// NOTE exhaust  errors in pool
-					_ = workerErrPool.Traverse(func(worker string, err error) bool {
-						if failed, err := checkWorkerDone(ctx, checkWorker, worker, err); failed {
-							gerr = err
-						}
+				// NOTE exhaust  errors in pool
+				_ = workerErrPool.Traverse(func(worker string, err error) bool {
+					if failed, err := checkWorkerDone(ctx, checkWorker, worker, err); failed {
+						gerr = err
+					}
 
-						return true
-					})
-
-					return gerr
+					return gerr == nil
 				})
+
+				return gerr
 			})
 		},
 		func() error {
