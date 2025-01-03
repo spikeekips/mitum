@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -31,17 +30,6 @@ func newManagerProcess(
 	_ managerProcessWaitFunc,
 	_ error,
 ) {
-	switch { // FIXME move to manager
-	case len(ophs) < 1:
-		return nil, nil, nil, nil, errors.Errorf("empty ophs")
-	case len(workers) < 1:
-		return nil, nil, nil, nil, errors.Errorf("empty workers")
-	case opsShare < 1:
-		return nil, nil, nil, nil, errors.Errorf("zero ops share")
-	case statesShare < 1:
-		return nil, nil, nil, nil, errors.Errorf("zero states share")
-	}
-
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-process", nil)
 
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]

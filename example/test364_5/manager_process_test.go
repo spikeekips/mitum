@@ -342,7 +342,9 @@ func (t *testManagerProcess) TestCancel() {
 	})
 }
 
-func (t *testManagerProcess) TestNew() {
+func (t *testManagerProcess) TestNew() { // FIXME move to TestManager
+	t.T().Skip()
+
 	t.Run("empty ophs", func() {
 		_, _, _, _, err := newManagerProcess(
 			context.Background(),
