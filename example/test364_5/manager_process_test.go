@@ -342,54 +342,6 @@ func (t *testManagerProcess) TestCancel() {
 	})
 }
 
-func (t *testManagerProcess) TestNew() { // FIXME move to TestManager
-	t.T().Skip()
-
-	t.Run("empty ophs", func() {
-		_, _, _, _, err := newManagerProcess(
-			context.Background(),
-			dutil.NewFuncNewJobWorkerFunc(1<<9),
-			t.workers(3),
-			1, 1,
-			nil,
-		)
-		t.ErrorContains(err, "empty ophs")
-	})
-
-	t.Run("empty workers", func() {
-		_, _, _, _, err := newManagerProcess(
-			context.Background(),
-			dutil.NewFuncNewJobWorkerFunc(1<<9),
-			nil,
-			1, 1,
-			t.randomOphs(33),
-		)
-		t.ErrorContains(err, "empty workers")
-	})
-
-	t.Run("zero ops share", func() {
-		_, _, _, _, err := newManagerProcess(
-			context.Background(),
-			dutil.NewFuncNewJobWorkerFunc(1<<9),
-			t.workers(3),
-			0, 1,
-			t.randomOphs(33),
-		)
-		t.ErrorContains(err, "zero ops share")
-	})
-
-	t.Run("zero states share", func() {
-		_, _, _, _, err := newManagerProcess(
-			context.Background(),
-			dutil.NewFuncNewJobWorkerFunc(1<<9),
-			t.workers(3),
-			1, 0,
-			t.randomOphs(33),
-		)
-		t.ErrorContains(err, "zero states share")
-	})
-}
-
 func (t *testManagerProcess) TestOpsTree() {
 	t.Run("ok", func() {
 		ctx, cancel := t.Ctx()

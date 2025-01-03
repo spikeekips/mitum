@@ -122,22 +122,29 @@ func isValidManagerArgs(
 ) (uint64, uint64, error) {
 	nworkers := uint64(len(workers))
 
+	var err error
+
 	switch {
 	case workID == "":
-		return 0, 0, errors.Errorf("empty work id")
+		err = errors.Errorf("empty work id")
 	case len(ophs) < 1:
-		return 0, 0, errors.Errorf("empty ophs")
+		err = errors.Errorf("empty ophs")
 	case nworkers < 1:
-		return 0, 0, errors.Errorf("empty workers")
+		err = errors.Errorf("empty workers")
 	case opsShare < 1:
-		return 0, 0, errors.Errorf("zero ops share")
+		err = errors.Errorf("zero ops share")
 	case statesShare < 1:
-		return 0, 0, errors.Errorf("zero states share")
+		err = errors.Errorf("zero states share")
+	}
+
+	if err != nil {
+		return 0, 0, err
 	}
 
 	if opsShare >= nworkers {
 		opsShare = nworkers
 	}
+
 	if statesShare >= nworkers {
 		statesShare = nworkers
 	}
