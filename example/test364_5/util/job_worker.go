@@ -12,7 +12,7 @@ var ErrJobWorkerDone = util.NewIDError("job worker: no more new job")
 
 type (
 	JobWorkerNewJobFunc = InErrorFunc[InErrorFunc[context.Context]]
-	NewJobWorkerFunc    = func(context.Context) (
+	NewJobWorkerFunc    = func(_ context.Context, semSize uint64) (
 		JobWorkerNewJobFunc,
 		func(),
 		InErrorFunc[error],
@@ -182,24 +182,32 @@ func NewFuncJobWorkerWaitFunc(
 		errNewJobDone
 }
 
-func NewFuncNewJobWorkerFunc(semSize uint64) NewJobWorkerFunc {
-	return func(ctx context.Context) (
+func NewFuncNewJobWorkerFunc(maxSemSize uint64) NewJobWorkerFunc {
+	return func(ctx context.Context, semSize uint64) (
 		JobWorkerNewJobFunc,
 		func(),
 		InErrorFunc[error],
 		error,
 	) {
+		if semSize > maxSemSize {
+			semSize = maxSemSize
+		}
+
 		return NewFuncJobWorker(ctx, semSize)
 	}
 }
 
-func NewFuncNewErrJobWorkerFunc(semSize uint64, errf InErrorFunc[error]) NewJobWorkerFunc {
-	return func(ctx context.Context) (
+func NewFuncNewErrJobWorkerFunc(maxSemSize uint64, errf InErrorFunc[error]) NewJobWorkerFunc {
+	return func(ctx context.Context, semSize uint64) (
 		JobWorkerNewJobFunc,
 		func(),
 		InErrorFunc[error],
 		error,
 	) {
+		if semSize > maxSemSize {
+			semSize = maxSemSize
+		}
+
 		return NewFuncErrJobWorker(ctx, semSize, errf)
 	}
 }

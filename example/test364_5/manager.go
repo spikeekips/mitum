@@ -20,13 +20,13 @@ type (
 )
 
 type managerOptions struct {
-	JobWorkerSemSize      uint64
+	JobWorkerMaxSemSize   uint64
 	GenerateNodesHashFunc fixedtree.GenerateNodesHashFunc
 }
 
 func newManagerOptions() *managerOptions {
 	return &managerOptions{
-		JobWorkerSemSize:      1 << 9,
+		JobWorkerMaxSemSize:   1 << 9,
 		GenerateNodesHashFunc: fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9),
 	}
 }
@@ -67,7 +67,7 @@ func newManager(
 
 	switch s, o, r, w, err := newManagerProcess(
 		ctx,
-		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerSemSize),
+		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
 		workers,
 		opsShare, statesShare,
 		ophs,

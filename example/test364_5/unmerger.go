@@ -31,7 +31,7 @@ func newFuncUnmerger(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx); {
+	switch n, d, w, err := newJobWorker(ctx, maxOpsSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

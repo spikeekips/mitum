@@ -81,7 +81,7 @@ func newFuncManagerWorkersOps(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx); {
+	switch n, d, w, err := newJobWorker(ctx, opsWorkersSize); {
 	case err != nil:
 		return nil, 0, 0, nil, nil, err
 	default:

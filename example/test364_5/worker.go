@@ -52,14 +52,14 @@ type (
 
 type workerOptions struct {
 	Local                       string
-	JobWorkerSemSize            uint64
+	JobWorkerMaxSemSize         uint64
 	MaxExtractStateKeyCacheSize int
 }
 
 func newWorkerOptions(local string) *workerOptions {
 	return &workerOptions{
 		Local:                       local,
-		JobWorkerSemSize:            1 << 9,
+		JobWorkerMaxSemSize:         1 << 9,
 		MaxExtractStateKeyCacheSize: 1 << 13,
 	}
 }
@@ -122,7 +122,7 @@ func newFuncWorker(
 	switch i, w, u, p, err := newFuncWorkerProcess(
 		ctx,
 		options.Local,
-		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerSemSize),
+		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
 		getState,
 		newState,
 		options.MaxExtractStateKeyCacheSize,
