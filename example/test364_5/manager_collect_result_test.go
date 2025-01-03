@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -29,20 +28,12 @@ func (t *testManagerCollectResult) TestCancel() {
 		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, t.randomOphs(3))
 		t.NoError(err)
 
-		{
-			r, s, d, err := wr("w0")
-			t.NoError(err)
-			err = r(nil)
-			t.ErrorIs(err, context.Canceled)
-			err = s(util.UUID().String(), valuehash.RandomSHA256())
-			t.ErrorIs(err, context.Canceled)
-			err = d(nil)
-			t.ErrorIs(err, context.Canceled)
-		}
+		_, _, _, err = wr("w0")
+		t.ErrorIs(err, context.Canceled)
 
 		err = or([]string{util.UUID().String(), util.UUID().String()}, 1)
 		t.ErrorIs(err, context.Canceled)
-		err = w(nil, nil, nil)
+		_, _, err = w(t.baseGenerateNodesHashFunc())
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -54,20 +45,12 @@ func (t *testManagerCollectResult) TestCancel() {
 
 		cancel(nil)
 
-		{
-			r, s, d, err := wr("w0")
-			t.NoError(err)
-			err = r(nil)
-			t.ErrorIs(err, context.Canceled)
-			err = s(util.UUID().String(), valuehash.RandomSHA256())
-			t.ErrorIs(err, context.Canceled)
-			err = d(nil)
-			t.ErrorIs(err, context.Canceled)
-		}
+		_, _, _, err = wr("w0")
+		t.ErrorIs(err, context.Canceled)
 
 		err = or([]string{util.UUID().String(), util.UUID().String()}, 1)
 		t.ErrorIs(err, context.Canceled)
-		err = w(nil, nil, nil)
+		_, _, err = w(t.baseGenerateNodesHashFunc())
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -84,7 +67,7 @@ func (t *testManagerCollectResult) TestCancel() {
 			case err == nil,
 				errors.Is(err, context.Canceled):
 			default:
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}
 
@@ -96,7 +79,7 @@ func (t *testManagerCollectResult) TestCancel() {
 
 				r, s, d, err := wr(worker)
 				if err != nil {
-					panic(err)
+					return
 				}
 
 				if i == 1 {
@@ -122,7 +105,7 @@ func (t *testManagerCollectResult) TestCancel() {
 
 		err = or([]string{util.UUID().String(), util.UUID().String()}, 1)
 		t.ErrorIs(err, context.Canceled)
-		err = w(nil, nil, nil)
+		_, _, err = w(t.baseGenerateNodesHashFunc())
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -142,7 +125,7 @@ func (t *testManagerCollectResult) TestCancel() {
 
 		err = or([]string{util.UUID().String(), util.UUID().String()}, 1)
 		t.ErrorIs(err, context.Canceled)
-		err = w(nil, nil, nil)
+		_, _, err = w(t.baseGenerateNodesHashFunc())
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -162,7 +145,7 @@ func (t *testManagerCollectResult) TestCancel() {
 
 		cancel(nil)
 
-		err = w(nil, nil, nil)
+		_, _, err = w(t.baseGenerateNodesHashFunc())
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -188,22 +171,14 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 		t.NoError(err)
 		t.NoError(d(nil))
 
-		var called bool
-
-		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-			called = true
-
-			return nil
-		}, nil))
-
-		t.True(called)
+		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
 
 		// NOTE already done
-		_, _, d, err = wr("w1")
+		_, _, d, err = wr("w0")
 		t.NoError(err)
-		t.NoError(d(nil))
+		t.Nil(d)
 	})
 
 	t.RunWithGoLeak("after workers done", func() {
@@ -223,22 +198,14 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 
 		t.NoError(or(workers, 2))
 
-		var called bool
-
-		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-			called = true
-
-			return nil
-		}, nil))
-
-		t.True(called)
+		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
 
 		// NOTE already done
 		_, _, d, err = wr("w1")
 		t.NoError(err)
-		t.NoError(d(nil))
+		t.Nil(d)
 	})
 }
 
@@ -254,27 +221,10 @@ func (t *testManagerCollectResult) TestStateOwners() {
 
 		t.NoError(or(nil, 1))
 
-		var opsCalled, statesCalled bool
-
-		t.NoError(w(nil,
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-				opsCalled = true
-
-				return nil
-			},
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkStatesTree(nil, tr))
-
-				statesCalled = true
-
-				return nil
-			},
-		))
-
-		t.True(opsCalled)
-		t.True(statesCalled)
+		opsTree, statesTree, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
+		t.NoError(t.checkStatesTree(nil, statesTree))
 	})
 }
 
@@ -304,17 +254,9 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		t.NoError(or(workers, 1))
 
-		var called bool
-
-		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-			called = true
-
-			return nil
-		}, nil))
-
-		t.True(called)
+		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
 	})
 
 	t.RunWithGoLeak("with reasons", func() {
@@ -341,17 +283,9 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		t.NoError(or(workers, 1))
 
-		var called bool
-
-		t.NoError(w(nil, func(tr *fixedtree.Tree) error {
-			t.NoError(t.checkOpsTree(ophs, expectedReasons, tr))
-
-			called = true
-
-			return nil
-		}, nil))
-
-		t.True(called)
+		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, expectedReasons, opsTree))
 	})
 }
 
@@ -373,27 +307,10 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(or(workers, 1))
 
-		var opsCalled, statesCalled bool
-
-		t.NoError(w(nil,
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-				opsCalled = true
-
-				return nil
-			},
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkStatesTree(nil, tr))
-
-				statesCalled = true
-
-				return nil
-			},
-		))
-
-		t.True(opsCalled)
-		t.True(statesCalled)
+		opsTree, statesTree, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
+		t.NoError(t.checkStatesTree(nil, statesTree))
 	})
 
 	t.RunWithGoLeak("ok", func() {
@@ -421,27 +338,10 @@ func (t *testManagerCollectResult) TestStatesTree() {
 
 		t.NoError(or(workers, 1))
 
-		var opsCalled, statesCalled bool
-
-		t.NoError(w(nil,
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkOpsTree(ophs, nil, tr))
-
-				opsCalled = true
-
-				return nil
-			},
-			func(tr *fixedtree.Tree) error {
-				t.NoError(t.checkStatesTree(expectedStates, tr))
-
-				statesCalled = true
-
-				return nil
-			},
-		))
-
-		t.True(opsCalled)
-		t.True(statesCalled)
+		opsTree, statesTree, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
+		t.NoError(t.checkStatesTree(expectedStates, statesTree))
 	})
 }
 

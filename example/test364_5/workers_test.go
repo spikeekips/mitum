@@ -418,7 +418,7 @@ func fixedStateOwnersFunc(owners map[string][]string) (getStateOwnersFunc, func(
 }
 
 type testSetStateOps struct {
-	suite.Suite
+	dutil.BaseSuite
 }
 
 func (t *testSetStateOps) TestError() {
@@ -575,7 +575,7 @@ func (t *testSetStateOps) Test() {
 		go func() {
 			defer jobDone()
 
-			err := dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+			t.IfErrPanic(dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
 				return true, newJob(func(context.Context) error {
 					if !m(opindex, facts[opindex], stateKeys) {
 						return errors.Errorf("not merged, %d", opindex)
@@ -583,10 +583,7 @@ func (t *testSetStateOps) Test() {
 
 					return nil
 				})
-			})
-			if err != nil {
-				panic(err)
-			}
+			}))
 		}()
 
 		t.NoError(jobWait(nil))
@@ -597,16 +594,13 @@ func (t *testSetStateOps) Test() {
 		go func() {
 			defer jobDone()
 
-			err := newJob(func(context.Context) error {
+			t.IfErrPanic(newJob(func(context.Context) error {
 				if !u(unmergeOps) {
 					return errors.Errorf("not unmerged, %v", unmergeOps)
 				}
 
 				return nil
-			})
-			if err != nil {
-				panic(err)
-			}
+			}))
 		}()
 
 		t.NoError(jobWait(nil))

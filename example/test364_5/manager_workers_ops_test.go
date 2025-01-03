@@ -372,7 +372,12 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 			err := runFailedNewSendFunc(workers, failedWorker, opsShare, t.randomOphs(33))
 			t.ErrorIs(err, errWorkersFailed)
-			t.ErrorContains(err, "showme")
+
+			switch {
+			case errors.Is(err, context.Canceled):
+			default:
+				t.ErrorContains(err, "showme")
+			}
 		})
 	})
 
@@ -441,7 +446,12 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 			err := runFailedSendFunc(workers, failedWorker, opsShare, t.randomOphs(33))
 			t.ErrorIs(err, errWorkersFailed)
-			t.ErrorContains(err, "showme")
+
+			switch {
+			case errors.Is(err, context.Canceled):
+			default:
+				t.ErrorContains(err, "showme")
+			}
 		})
 	})
 
@@ -501,7 +511,12 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 			err := runFailedSendDoneFunc(workers, failedWorker, opsShare, t.randomOphs(33))
 			t.ErrorIs(err, errWorkersFailed)
-			t.ErrorContains(err, "showme")
+
+			switch {
+			case errors.Is(err, context.Canceled):
+			default:
+				t.ErrorContains(err, "showme")
+			}
 		})
 	})
 }

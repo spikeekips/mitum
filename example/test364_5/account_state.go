@@ -189,17 +189,6 @@ func (m *AccountStateMerger) Key() string {
 	return m.key
 }
 
-func (m *AccountStateMerger) Clone() StateMerger {
-	return &AccountStateMerger{
-		address: m.address,
-		prev:    m.prev,
-		prepops: slices.Clone(m.prepops),
-		key:     m.key,
-		sum:     m.sum,
-		lastop:  m.lastop,
-	}
-}
-
 func (m *AccountStateMerger) Close() (base.StateValue, error) {
 	defer func() {
 		m.lastop = nil

@@ -76,11 +76,9 @@ func (t *testUnmerger) TestUnmerge() {
 				for i := range ops {
 					opindex := uint64(i)
 
-					if err := newJob(func(context.Context) error {
+					t.IfErrPanic(newJob(func(context.Context) error {
 						return unmerge(opindex)
-					}); err != nil {
-						panic(err)
-					}
+					}))
 				}
 
 				jobDone()
@@ -92,17 +90,15 @@ func (t *testUnmerger) TestUnmerge() {
 		t.T().Log("insert done")
 		done()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			slices.Sort(unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		slices.Sort(unmerged)
 
-			t.T().Logf("wait done: unmerged ops=%v", unmerged)
+		t.T().Logf("wait done: unmerged ops=%v", unmerged)
 
-			t.Equal(len(ops), len(unmerged))
-			t.Equal(uint64(0), unmerged[0])
-			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
-
-			return nil
-		}))
+		t.Equal(len(ops), len(unmerged))
+		t.Equal(uint64(0), unmerged[0])
+		t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
 		_, err = t.closeMergers(mergers)
 		t.ErrorContains(err, "under zero balance")
@@ -136,11 +132,9 @@ func (t *testUnmerger) TestUnmerge() {
 				for i := range ops {
 					opindex := uint64(i)
 
-					if err := newJob(func(context.Context) error {
+					t.IfErrPanic(newJob(func(context.Context) error {
 						return unmerge(opindex)
-					}); err != nil {
-						panic(err)
-					}
+					}))
 				}
 
 				jobDone()
@@ -152,17 +146,15 @@ func (t *testUnmerger) TestUnmerge() {
 		t.T().Log("insert done")
 		done()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			slices.Sort(unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		slices.Sort(unmerged)
 
-			t.T().Logf("wait done: unmerged ops=%v", unmerged)
+		t.T().Logf("wait done: unmerged ops=%v", unmerged)
 
-			t.Equal(len(ops), len(unmerged))
-			t.Equal(uint64(0), unmerged[0])
-			t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
-
-			return nil
-		}))
+		t.Equal(len(ops), len(unmerged))
+		t.Equal(uint64(0), unmerged[0])
+		t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
 		_, err = t.closeMergers(mergers)
 		t.ErrorContains(err, "under zero balance")

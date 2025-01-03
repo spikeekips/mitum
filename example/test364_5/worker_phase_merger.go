@@ -15,11 +15,11 @@ type (
 		merge,
 		unmerge dutil.InErrorFunc[uint64],
 		done func(),
-		_ dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
+		_ phaseMergerWaitFunc,
 		_ error,
 	)
-	insertWorkerStateMergeValuesFunc  = func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error)
-	workerPhaseMergerWaitCallbackFunc = func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error
+	insertWorkerStateMergeValuesFunc = func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error)
+	workerPhaseMergerWaitFunc        = func() (unmerged []uint64, reasons map[uint64]string, _ error)
 )
 
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
@@ -33,7 +33,7 @@ func newFuncWorkerPhaseMerger(
 	minEnough, maxFailed uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
-	dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc],
+	workerPhaseMergerWaitFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-phase-merger", nil)
@@ -57,7 +57,7 @@ func newFuncWorkerPhaseMerger(
 
 	var phaseMergerMerge dutil.InErrorFunc[uint64]
 	var phaseMergerDone func()
-	var phaseMergerWait dutil.InErrorFunc[phaseMergerWaitCallbackFunc]
+	var phaseMergerWait phaseMergerWaitFunc
 
 	switch m, _, d, w, err := newPhaseMerger(
 		ctx,
@@ -110,27 +110,29 @@ func newFuncWorkerPhaseMerger(
 				},
 				nil
 		},
-		func(f workerPhaseMergerWaitCallbackFunc) error {
+		func() (unmerged []uint64, reasons map[uint64]string, _ error) {
 			defer func() {
-				_ = phaseMergerWait(nil)
+				_, _, _, _ = phaseMergerWait()
 				_ = workerInsertWait(nil)
 				checkWorkerClose()
 			}()
 
-			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
+			return unmerged, reasons, dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerInsertWait(nil); err != nil {
 					return err
 				}
 
 				phaseMergerDone()
 
-				return phaseMergerWait(func(_, newUnmerged []uint64, reasons map[uint64]string) error {
-					if f != nil {
-						return f(ctx, newUnmerged, reasons)
-					}
+				switch _, newUnmerged, r, err := phaseMergerWait(); {
+				case err != nil:
+					return err
+				default:
+					unmerged = newUnmerged
+					reasons = r
 
 					return nil
-				})
+				}
 			})
 		},
 		nil
@@ -148,7 +150,7 @@ func newFuncPhaseMergerFunc(
 		dutil.InErrorFunc[uint64],
 		dutil.InErrorFunc[uint64],
 		func(),
-		dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
+		phaseMergerWaitFunc,
 		error,
 	) {
 		return newFuncPhaseMerger(

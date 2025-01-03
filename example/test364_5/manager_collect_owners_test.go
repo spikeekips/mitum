@@ -27,7 +27,7 @@ func (t *testManagerCollectOwners) TestCancel() {
 		err = add("w0", []string{"w1"})
 		t.ErrorIs(err, context.Canceled)
 
-		err = done(nil)
+		_, err = done()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -42,7 +42,7 @@ func (t *testManagerCollectOwners) TestCancel() {
 		err = add("w0", []string{"w1"})
 		t.ErrorIs(err, context.Canceled)
 
-		err = done(nil)
+		_, err = done()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -56,7 +56,7 @@ func (t *testManagerCollectOwners) TestCancel() {
 
 		cancel(nil)
 
-		err = done(nil)
+		_, err = done()
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -71,11 +71,9 @@ func (t *testManagerCollectOwners) TestAdd() {
 		owners := []string{"w1"}
 		t.NoError(add("w0", owners))
 
-		t.NoError(done(func(s []string) error {
-			t.Equal(owners, s)
-
-			return nil
-		}))
+		s, err := done()
+		t.NoError(err)
+		t.Equal(owners, s)
 	})
 
 	t.Run("duplicated worker", func() {
@@ -90,13 +88,11 @@ func (t *testManagerCollectOwners) TestAdd() {
 
 		t.NoError(add("w1", []string{"w6", "w7"}))
 
-		t.NoError(done(func(s []string) error {
-			slices.Sort(s)
+		s, err := done()
+		t.NoError(err)
+		slices.Sort(s)
 
-			t.Equal(expectedOwners, s)
-
-			return nil
-		}))
+		t.Equal(expectedOwners, s)
 	})
 
 	t.Run("duplicated owners", func() {
@@ -109,13 +105,11 @@ func (t *testManagerCollectOwners) TestAdd() {
 		t.NoError(add("w1", []string{"w4", "w5"}))
 		t.NoError(add("w0", []string{"w3", "w4"}))
 
-		t.NoError(done(func(s []string) error {
-			slices.Sort(s)
+		s, err := done()
+		t.NoError(err)
+		slices.Sort(s)
 
-			t.Equal(expectedOwners, s)
-
-			return nil
-		}))
+		t.Equal(expectedOwners, s)
 	})
 
 	t.Run("over enough", func() {
@@ -129,13 +123,11 @@ func (t *testManagerCollectOwners) TestAdd() {
 		t.NoError(add("w0", []string{"w3", "w4"}))
 		t.NoError(add("w2", []string{"w5", "w6"}))
 
-		t.NoError(done(func(s []string) error {
-			slices.Sort(s)
+		s, err := done()
+		t.NoError(err)
+		slices.Sort(s)
 
-			t.Equal(expectedOwners, s)
-
-			return nil
-		}))
+		t.Equal(expectedOwners, s)
 	})
 
 	t.Run("async", func() {
@@ -166,21 +158,17 @@ func (t *testManagerCollectOwners) TestAdd() {
 					owners = append(owners, workers[:ownersPerWorker-len(owners)]...)
 				}
 
-				if err := add(worker, owners); err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(add(worker, owners))
 			}()
 
 			return true, nil
 		})
 
-		t.NoError(done(func(s []string) error {
-			slices.Sort(s)
+		s, err := done()
+		t.NoError(err)
+		slices.Sort(s)
 
-			t.Equal(workers, s)
-
-			return nil
-		}))
+		t.Equal(workers, s)
 	})
 }
 

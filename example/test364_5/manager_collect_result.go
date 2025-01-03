@@ -18,11 +18,12 @@ type (
 		dutil.InErrorFunc[error],
 		error,
 	)
-	managerCollectRersultWaitFunc = dutil.In3ErrorFunc[
-		fixedtree.GenerateNodesHashFunc,
-		dutil.InErrorFunc[*fixedtree.Tree /* operations fixedtree tree */],
-		dutil.InErrorFunc[*fixedtree.Tree /* states fixedtree tree */],
-	]
+	managerCollectRersultWaitFunc = func(fixedtree.GenerateNodesHashFunc) (
+		*fixedtree.Tree, /* operations fixedtree tree */
+		*fixedtree.Tree, /* states fixedtree tree */
+		error,
+	)
+	generateFixedTreeFunc               = func(fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error)
 	managerCollectResultOwnersReadyFunc = dutil.In2ErrorFunc[[]string /* stateOwners */, uint64 /* statesShare */]
 )
 
@@ -60,7 +61,7 @@ func newFuncManagerCollectResult(
 	_, baseOpsDone, _, baseOpsWait := dutil.NewContextDone(ctx)
 
 	var unmergedOp dutil.In2ErrorFunc[uint64, string]
-	var doneOpsTree dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
+	var doneOpsTree generateFixedTreeFunc
 
 	switch startOpsFixedNodes, u, d, err := newFuncGenerateOperationFixedtree(ctx, ophs, opsNewJob); {
 	case err != nil:
@@ -77,7 +78,7 @@ func newFuncManagerCollectResult(
 	var workerResult managerInsertWorkerResultFunc
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var workersWait dutil.ErrorFunc
-	var workerStatesTree dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]]
+	var workerStatesTree generateFixedTreeFunc
 
 	switch r, o, w, t, err := newFuncManagerWorkersResult(
 		ctx,
@@ -97,17 +98,21 @@ func newFuncManagerCollectResult(
 
 	return workerResult,
 		ownersReady,
-		func(g fixedtree.GenerateNodesHashFunc, opsTree dutil.InErrorFunc[*fixedtree.Tree], statesTree dutil.InErrorFunc[*fixedtree.Tree]) error {
+		func(g fixedtree.GenerateNodesHashFunc) (opsTree, statesTree *fixedtree.Tree, _ error) {
 			defer func() {
 				_ = opsJobWait(context.Canceled)
 				_ = baseOpsWait(context.Canceled)
 			}()
 
-			if err := workersWait(); err != nil {
-				return err
+			if g == nil {
+				return nil, nil, nil
 			}
 
-			return dutil.FuncsJobWorker(ctx, func(context.Context) error {
+			if err := workersWait(); err != nil {
+				return nil, nil, err
+			}
+
+			return opsTree, statesTree, dutil.FuncsJobWorker(ctx, func(context.Context) error {
 				if err := baseOpsWait(nil); err != nil {
 					return err
 				}
@@ -118,10 +123,24 @@ func newFuncManagerCollectResult(
 					return err
 				}
 
-				return doneOpsTree(g, opsTree)
+				switch tr, err := doneOpsTree(g); {
+				case err != nil:
+					return err
+				default:
+					opsTree = tr
+
+					return nil
+				}
 			},
 				func(context.Context) error {
-					return workerStatesTree(g, statesTree)
+					switch tr, err := workerStatesTree(g); {
+					case err != nil:
+						return err
+					default:
+						statesTree = tr
+
+						return nil
+					}
 				})
 		},
 		nil
@@ -134,7 +153,7 @@ func newFuncGenerateOperationFixedtree(
 ) (
 	_ dutil.ErrorFunc,
 	unmerge dutil.In2ErrorFunc[uint64 /* opindex */, string /* reason */],
-	_ dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]],
+	_ generateFixedTreeFunc,
 	_ error,
 ) {
 	var pool util.LockedMap[uint64, *OperationTreeNode]
@@ -181,17 +200,13 @@ func newFuncGenerateOperationFixedtree(
 
 			return nil
 		},
-		func(g fixedtree.GenerateNodesHashFunc, f dutil.InErrorFunc[*fixedtree.Tree]) error {
+		func(g fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error) {
 			defer pool.Close()
-
-			if f == nil {
-				return nil
-			}
 
 			nnodes := uint64(pool.Len())
 
 			if nnodes < 1 {
-				return f(nil)
+				return nil, nil
 			}
 
 			nodes := make([]fixedtree.Node, nnodes)
@@ -202,15 +217,11 @@ func newFuncGenerateOperationFixedtree(
 				return true
 			})
 
-			if g == nil {
-				g = fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(nnodes)
-			}
-
 			if err := g(ctx, nodes, nil); err != nil {
-				return err
+				return nil, err
 			}
 
-			return f(newOperationsTree(nodes))
+			return newOperationsTree(nodes), nil
 		},
 		nil
 }
@@ -224,7 +235,7 @@ func newFuncManagerWorkersResult(
 	_ managerInsertWorkerResultFunc,
 	ready managerCollectResultOwnersReadyFunc,
 	insertDone dutil.ErrorFunc,
-	_ dutil.In2ErrorFunc[fixedtree.GenerateNodesHashFunc, dutil.InErrorFunc[*fixedtree.Tree]],
+	_ generateFixedTreeFunc,
 	_ error,
 ) {
 	log := dutil.LoadContextValueLogger(ctx)
@@ -243,7 +254,7 @@ func newFuncManagerWorkersResult(
 	wsctx, workersDone, parentContextError, workersWait := dutil.NewContextDone(ctx)
 
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
-	var doneState dutil.AppendSliceDoneFunc[fixedtree.Node]
+	var doneState dutil.OutFunc[[]fixedtree.Node]
 
 	if err := dutil.RUniqueAppendSlice[fixedtree.Node, string](maxStatesSize, 0,
 		func(n fixedtree.Node) string { return n.Key() },
@@ -425,10 +436,7 @@ func newFuncManagerWorkersResult(
 
 			return workersWait(nil)
 		},
-		func(
-			g fixedtree.GenerateNodesHashFunc,
-			statesTree dutil.InErrorFunc[*fixedtree.Tree],
-		) error {
+		func(g fixedtree.GenerateNodesHashFunc) (tr *fixedtree.Tree, _ error) {
 			defer func() {
 				_ = workerErrPool.Get(util.UUID().String(), func(error, bool) error {
 					if checkWorkerClose != nil {
@@ -438,35 +446,26 @@ func newFuncManagerWorkersResult(
 					return nil
 				})
 				_ = jobWait(context.Canceled)
-				doneState(nil)
 			}()
 
-			return dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
+			return tr, dutil.ContextCauseError(ctx, workersDone, func(context.Context) error {
 				if err := jobWait(nil); err != nil {
 					return err
 				}
 
-				return doneState(func(s []fixedtree.Node) error {
-					if statesTree == nil {
-						return nil
-					}
+				nodes := doneState()
 
-					nodes := slices.Clone(s)
-
-					slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
-						return strings.Compare(a.Key(), b.Key())
-					})
-
-					if g == nil {
-						g = fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(uint64(len(nodes)))
-					}
-
-					if err := g(ctx, nodes, nil); err != nil {
-						return err
-					}
-
-					return statesTree(newStatesTree(nodes))
+				slices.SortFunc(nodes, func(a, b fixedtree.Node) int {
+					return strings.Compare(a.Key(), b.Key())
 				})
+
+				if err := g(ctx, nodes, nil); err != nil {
+					return err
+				}
+
+				tr = newStatesTree(nodes)
+
+				return nil
 			})
 		},
 		nil

@@ -14,12 +14,13 @@ type (
 	workerUnmergerNewFuncUnmergerFunc = func(_ context.Context) (
 		dutil.InErrorFunc[uint64],
 		func(),
-		dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+		unmergedErrorFunc,
 		error,
 	)
 	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
 	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
 	workerOpindexFilterFunc      = func(worker string) opindexFilterFunc
+	workerUnmergerWaitFunc       = unmergedErrorFunc
 )
 
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
@@ -35,7 +36,7 @@ func newFuncWorkerUnmerger(
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
 	workerUnmergerLocalReadyFunc,
-	dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+	workerUnmergerWaitFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-unmerger", nil)
@@ -50,7 +51,7 @@ func newFuncWorkerUnmerger(
 		maxOpsSize,
 		getStateMergeValues,
 		newCheckWorkers,
-		func(ctx context.Context) (dutil.InErrorFunc[uint64], func(), dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]], error) {
+		func(ctx context.Context) (dutil.InErrorFunc[uint64], func(), unmergedErrorFunc, error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
@@ -129,28 +130,29 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(f dutil.InErrorFunc[[]uint64]) error {
+		func() (unmerged []uint64, _ error) {
 			defer func() {
-				_ = unmergerWait(nil)
+				_, _ = unmergerWait()
 				_ = workerPhaseDoneWait(nil)
 			}()
 
-			return dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
+			return unmerged, dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
 				if err := workerPhaseDoneWait(nil); err != nil {
 					return err
 				}
 
 				unmergerDone()
 
-				return unmergerWait(func(unmerged []uint64) error {
-					log.Debug().Uints64("unmerged", unmerged).Msg("done")
+				switch u, err := unmergerWait(); {
+				case err != nil:
+					return err
+				default:
+					log.Debug().Uints64("unmerged", u).Msg("done")
 
-					if f != nil {
-						return f(unmerged)
-					}
+					unmerged = u
 
 					return nil
-				})
+				}
 			})
 		},
 		nil
@@ -167,7 +169,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	localReady func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error),
 	unmergerDone func(),
-	unmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+	_ workerUnmergerWaitFunc,
 ) {
 	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
@@ -280,7 +282,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 			return ok, enough, failed, unmergef(func(f dutil.InErrorFunc[uint64]) error {
 				if f == nil {
-					_ = addPool(worker, slices.Clone(unmerged))
+					_ = addPool(worker, unmerged)
 
 					return nil
 				}
@@ -298,7 +300,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			})
 		},
 		donef,
-		func(f dutil.InErrorFunc[[]uint64]) error {
+		func() ([]uint64, error) {
 			defer func() {
 				if checkWorkerClose != nil {
 					checkWorkerClose()
@@ -309,7 +311,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				traversePool(nil)
 			}()
 
-			return waitf(f)
+			return waitf()
 		}
 }
 
@@ -379,11 +381,11 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 	dutil.ErrorFunc,
 	func(func(dutil.InErrorFunc[uint64]) error) error,
 	func(),
-	dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+	unmergedErrorFunc,
 ) {
 	var unmerge dutil.InErrorFunc[uint64]
 	var done func()
-	var wait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]]
+	var wait unmergedErrorFunc
 
 	var l sync.RWMutex
 	var waitOnce sync.Once
@@ -416,22 +418,17 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 				done()
 			}
 		},
-		func(f dutil.InErrorFunc[[]uint64]) error {
+		func() (unmerged []uint64, _ error) {
 			waitOnce.Do(func() {
-				if f != nil {
-					l.RLock()
-					defer l.RUnlock()
+				l.RLock()
+				defer l.RUnlock()
 
-					switch {
-					case wait != nil:
-						waitErr = wait(f)
-					default:
-						waitErr = f(nil)
-					}
+				if wait != nil {
+					unmerged, waitErr = wait()
 				}
 			})
 
-			return waitErr
+			return unmerged, waitErr
 		}
 }
 

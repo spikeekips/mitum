@@ -45,7 +45,6 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
 		t.NoError(err)
@@ -62,12 +61,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 		})
 		t.NoError(err)
 
-		t.NoError(done(func(subws, affected []string) error {
-			t.Empty(subws)
-			t.Empty(affected)
-
-			return nil
-		}))
+		subws, affected, err := done()
+		t.NoError(err)
+		t.Empty(subws)
+		t.Empty(affected)
 	})
 
 	t.Run("nil sub value", func() {
@@ -75,9 +72,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
 		t.NoError(err)
@@ -108,9 +104,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
 		t.NoError(err)
@@ -142,9 +137,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		values := make([][2]interface{}, len(workers))
 		for i := range values {
@@ -319,7 +313,6 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		insert, traverse, err := insertf(getStateOwner)
 		t.NoError(err)
@@ -342,11 +335,9 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return nil
 		}))
 
-		t.NoError(done(func(subws, affected []string) error {
-			t.T().Logf("done: subs=%v affected=%v", subws, affected)
-
-			return nil
-		}))
+		subws, affected, err := done()
+		t.NoError(err)
+		t.T().Logf("done: subs=%v affected=%v", subws, affected)
 	})
 
 	t.Run("local insert with other workers", func() {
@@ -357,7 +348,6 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
-		defer t.NoError(done(nil))
 
 		values := make([][2]interface{}, len(workers))
 		for i := range values {
@@ -451,20 +441,18 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return true, nil
 		})
 
-		t.NoError(done(func(subws, affected []string) error {
-			slices.Sort(subws)
-			slices.Sort(affected)
+		subws, affected, err := done()
+		t.NoError(err)
+		slices.Sort(subws)
+		slices.Sort(affected)
 
-			localExpectedSubws := slices.Concat(expectedSubws[local], otherSubws)
-			slices.Sort(localExpectedSubws)
-			t.Equal(localExpectedSubws, subws)
+		localExpectedSubws := slices.Concat(expectedSubws[local], otherSubws)
+		slices.Sort(localExpectedSubws)
+		t.Equal(localExpectedSubws, subws)
 
-			localExpectedAffected := slices.Concat(expectedAffected[local], otherAffected)
-			slices.Sort(localExpectedAffected)
-			t.Equal(localExpectedAffected, affected)
-
-			return nil
-		}))
+		localExpectedAffected := slices.Concat(expectedAffected[local], otherAffected)
+		slices.Sort(localExpectedAffected)
+		t.Equal(localExpectedAffected, affected)
 	})
 }
 
@@ -477,12 +465,10 @@ func (t *testWorkerStateOwners) TestAdd() {
 		_, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
-		t.NoError(done(func(subs, affected []string) error {
-			t.Empty(subs)
-			t.Empty(affected)
-
-			return nil
-		}))
+		subws, affected, err := done()
+		t.NoError(err)
+		t.Empty(subws)
+		t.Empty(affected)
 	})
 
 	t.Run("add async", func() {
@@ -502,27 +488,23 @@ func (t *testWorkerStateOwners) TestAdd() {
 			go func() {
 				defer wg.Done()
 
-				if err := add(
+				t.IfErrPanic(add(
 					fmt.Sprintf("w%d", i),
 					expectedSubs[i*3:(i+1)*3],
 					expectedAffected[i*3:(i+1)*3],
-				); err != nil {
-					panic(err)
-				}
+				))
 			}()
 		}
 
 		wg.Wait()
 
-		t.NoError(done(func(subs, affected []string) error {
-			slices.Sort(subs)
-			t.Equal(expectedSubs, subs)
+		subws, affected, err := done()
+		t.NoError(err)
+		slices.Sort(subws)
+		t.Equal(expectedSubs, subws)
 
-			slices.Sort(affected)
-			t.Equal(expectedAffected, affected)
-
-			return nil
-		}))
+		slices.Sort(affected)
+		t.Equal(expectedAffected, affected)
 	})
 
 	t.Run("over max size", func() {
@@ -542,27 +524,23 @@ func (t *testWorkerStateOwners) TestAdd() {
 			go func() {
 				defer wg.Done()
 
-				if err := add(
+				t.IfErrPanic(add(
 					fmt.Sprintf("w%d", i),
 					expectedSubs[i*3:(i+1)*3],
 					expectedAffected[i*3:(i+1)*3],
-				); err != nil {
-					panic(err)
-				}
+				))
 			}()
 		}
 
 		wg.Wait()
 
-		t.NoError(done(func(subs, affected []string) error {
-			slices.Sort(subs)
-			t.Equal(expectedSubs, subs)
+		subws, affected, err := done()
+		t.NoError(err)
+		slices.Sort(subws)
+		t.Equal(expectedSubs, subws)
 
-			slices.Sort(affected)
-			t.Equal(expectedAffected, affected)
-
-			return nil
-		}))
+		slices.Sort(affected)
+		t.Equal(expectedAffected, affected)
 	})
 
 	t.Run("duplicated", func() {
@@ -582,23 +560,19 @@ func (t *testWorkerStateOwners) TestAdd() {
 			go func() {
 				defer wg.Done()
 
-				if err := add(fmt.Sprintf("w%d", i), expectedSubs, expectedAffected); err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(add(fmt.Sprintf("w%d", i), expectedSubs, expectedAffected))
 			}()
 		}
 
 		wg.Wait()
 
-		t.NoError(done(func(subs, affected []string) error {
-			slices.Sort(subs)
-			t.Equal(expectedSubs, subs)
+		subws, affected, err := done()
+		t.NoError(err)
+		slices.Sort(subws)
+		t.Equal(expectedSubs, subws)
 
-			slices.Sort(affected)
-			t.Equal(expectedAffected, affected)
-
-			return nil
-		}))
+		slices.Sort(affected)
+		t.Equal(expectedAffected, affected)
 	})
 }
 

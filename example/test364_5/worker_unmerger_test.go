@@ -6,7 +6,6 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -98,7 +97,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 		err = localReady([]string{local}, nil, 1, 0)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil)
+		_, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -133,9 +132,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 				t.Println("worker phase done: worker=%q err=%v", worker, err)
 
 				if slices.Index(workers, worker) > slices.Index(workers, failedWorker) {
-					if !errors.Is(err, context.Canceled) {
-						panic(errors.Errorf("unexpected error, %+v", err))
-					}
+					t.IfTruePanic(!errors.Is(err, context.Canceled), "unexpected error, %+v", err)
 				}
 
 				if worker == failedWorker {
@@ -151,7 +148,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 			t.ErrorIs(err, context.Canceled)
 		}
 
-		err = wait(nil)
+		_, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -196,7 +193,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 		}()
 
 		<-donech
-		err = wait(nil)
+		_, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -225,19 +222,11 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		t.NoError(localReady([]string{local}, nil, 1, 0))
 
-		var called int64
+		unmerged, err := wait()
+		t.NoError(err)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			atomic.AddInt64(&called, 1)
-
-			t.T().Logf("wait: unmerged=%v", unmerged)
-
-			t.Empty(unmerged)
-
-			return nil
-		}))
-
-		t.Equal(int64(1), atomic.LoadInt64(&called))
+		t.Empty(unmerged)
 	})
 
 	t.Run("local: empty unmerged and 1 min enough", func() {
@@ -263,15 +252,9 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		var called int64
-
-		t.NoError(wait(func(unmerged []uint64) error {
-			atomic.AddInt64(&called, 1)
-
-			return nil
-		}))
-
-		t.Equal(int64(1), atomic.LoadInt64(&called))
+		unmerged, err := wait()
+		t.NoError(err)
+		t.Empty(unmerged)
 	})
 
 	t.Run("local: unmerged and 1 min enough", func() {
@@ -300,7 +283,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		err = wait(func([]uint64) error { return nil })
+		_, err = wait()
 		t.ErrorContains(err, "unmerged found in pool")
 	})
 
@@ -327,13 +310,10 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		unmerged, err := wait()
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		t.Empty(unmerged)
 	})
 
 	t.Run("local: enough", func() {
@@ -362,13 +342,11 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		t.Empty(unmerged)
 	})
 
 	t.Run("3 workers: empty", func() {
@@ -409,13 +387,11 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		t.Empty(unmerged)
 	})
 
 	t.Run("3 workers: unknown worker unmerge", func() {
@@ -489,15 +465,13 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			slices.Sort(unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		slices.Sort(unmerged)
 
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Equal(expectedOps, unmerged)
-
-			return nil
-		}))
+		t.Equal(expectedOps, unmerged)
 	})
 
 	t.Run("3 workers: ok", func() {
@@ -562,15 +536,13 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			slices.Sort(unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		slices.Sort(unmerged)
 
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Equal(expectedOps, unmerged)
-
-			return nil
-		}))
+		t.Equal(expectedOps, unmerged)
 	})
 
 	t.Run("3 workers: max failed", func() {
@@ -612,7 +584,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			ctx context.Context,
 			cancel dutil.InErrorFunc[error],
 			minEnough, maxFailed uint64,
-		) dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]] {
+		) workerUnmergerWaitFunc {
 			_, _, _, _, _, getStateMergers, _ := t.newFuncs()
 
 			workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
@@ -666,16 +638,14 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 			wait := do(ctx, cancel, minEnough, maxFailed)
 
-			t.NoError(wait(func(unmerged []uint64) error {
-				slices.Sort(unmerged)
+			unmerged, err := wait()
+			t.NoError(err)
+			slices.Sort(unmerged)
 
-				t.T().Logf("wait: unmerged=%v", unmerged)
+			t.T().Logf("wait: unmerged=%v", unmerged)
 
-				expected := int(minEnough-1) * opsPerWorker
-				t.True(len(unmerged) >= expected, "unmerged=%d >= expected=%d", len(unmerged), expected)
-
-				return nil
-			}))
+			expected := int(minEnough-1) * opsPerWorker
+			t.True(len(unmerged) >= expected, "unmerged=%d >= expected=%d", len(unmerged), expected)
 		})
 
 		t.Run("over max failed", func() {
@@ -686,15 +656,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 			wait := do(ctx, cancel, minEnough, maxFailed)
 
-			var called int64
-
-			err := wait(func(unmerged []uint64) error {
-				atomic.AddInt64(&called, 1)
-
-				return nil
-			})
+			_, err := wait()
 			t.ErrorContains(err, "findme")
-			t.True(atomic.LoadInt64(&called) < 1)
 		})
 	})
 
@@ -736,15 +699,13 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.Println("local phase done: worker=%q err=%v", local, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			slices.Sort(unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		slices.Sort(unmerged)
 
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Equal(ops, unmerged)
-
-			return nil
-		}))
+		t.Equal(ops, unmerged)
 	})
 
 	t.Run("local outside sub workers; not unmerge by worker", func() {
@@ -785,17 +746,21 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		donech := make(chan error, 1)
 
 		go func() {
-			err := wait(func(unmerged []uint64) error {
+			unmerged, err := wait()
+			t.Println("wait: unmerged=%v err=%v", unmerged, err)
+
+			if err == nil {
 				slices.Sort(unmerged)
+				t.IfTruePanic(len(ops) != len(unmerged), "ops=%d != unmerged=%d", len(ops), len(unmerged))
 
-				t.T().Logf("wait: unmerged=%v", unmerged)
+				t.IfErrPanic(dutil.TraverseSlice(unmerged, func(i int, v uint64) (bool, error) {
+					if ops[i] != v {
+						return false, errors.Errorf("%d: ops=%d != unmerged=%d", i, ops[i], v)
+					}
 
-				t.Equal(ops, unmerged)
-
-				return nil
-			})
-
-			t.Println("wait: err=%v", err)
+					return true, nil
+				}))
+			}
 
 			donech <- err
 		}()
@@ -835,13 +800,11 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			t.Println("worker phase done: worker=%q err=%v", managerName, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		t.Empty(unmerged)
 	})
 
 	t.Run("manager before local enough", func() {
@@ -863,17 +826,15 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 		t.NoError(err)
 
 		go func() {
-			err = workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
+			err := workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
 			t.Println("worker phase done: worker=%q err=%v", managerName, err)
 		}()
 
-		t.NoError(wait(func(unmerged []uint64) error {
-			t.T().Logf("wait: unmerged=%v", unmerged)
+		unmerged, err := wait()
+		t.NoError(err)
+		t.T().Logf("wait: unmerged=%v", unmerged)
 
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		t.Empty(unmerged)
 	})
 }
 

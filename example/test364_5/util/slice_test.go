@@ -51,11 +51,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(1, added)
 		t.EqualValues(grow, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3, 4}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3, 4}, done())
 	})
 
 	t.Run("ok", func() {
@@ -78,11 +74,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(0, added)
 		t.EqualValues(0, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3}, done())
 	})
 
 	t.Run("add after done", func() {
@@ -97,44 +89,13 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(1, added)
 		t.EqualValues(1, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2}, s)
-
-			return nil
-		}))
-
-		added, left = add(3)
-		t.EqualValues(0, added)
-		t.EqualValues(0, left)
-
-		t.NoError(done(func(s []int) error {
-			t.Equal(0, len(s))
-
-			return nil
-		}))
-	})
-
-	t.Run("nil done", func() {
-		add, done, err := AppendSlice[int](3, 0)
-		t.NoError(err)
-
-		added, left := add(1)
-		t.EqualValues(1, added)
-		t.EqualValues(2, left)
-
-		added, left = add(2)
-		t.EqualValues(1, added)
-		t.EqualValues(1, left)
+		t.Equal([]int{1, 2}, done())
 
 		added, left = add(3)
 		t.EqualValues(1, added)
 		t.EqualValues(0, left)
 
-		added, left = add(4)
-		t.EqualValues(0, added)
-		t.EqualValues(0, left)
-
-		t.NoError(done(nil))
+		t.Equal([]int{1, 2, 3}, done())
 	})
 
 	t.Run("variadic, less", func() {
@@ -145,11 +106,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(2, added)
 		t.EqualValues(1, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2}, done())
 	})
 
 	t.Run("variadic, full", func() {
@@ -160,11 +117,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(3, added)
 		t.EqualValues(0, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3}, done())
 	})
 
 	t.Run("variadic, over", func() {
@@ -175,22 +128,14 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(3, added)
 		t.EqualValues(0, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3}, done())
 	})
 
 	t.Run("none", func() {
 		_, done, err := AppendSlice[int](3, 0)
 		t.NoError(err)
 
-		t.NoError(done(func(s []int) error {
-			t.Nil(s)
-
-			return nil
-		}))
+		t.Nil(done())
 	})
 
 	t.Run("less", func() {
@@ -205,12 +150,8 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(1, added)
 		t.EqualValues(1, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal(2, len(s))
-			t.Equal([]int{1, 2}, s)
-
-			return nil
-		}))
+		t.Equal(2, len(done()))
+		t.Equal([]int{1, 2}, done())
 	})
 
 	t.Run("over size", func() {
@@ -237,11 +178,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(0, added)
 		t.EqualValues(0, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3}, done())
 	})
 
 	t.Run("grow", func() {
@@ -278,11 +215,7 @@ func (t *testAppendSlice) TestAppendSlice() {
 		t.EqualValues(1, added)
 		t.EqualValues(grow, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1, 2, 3, 4, 5, 6, 7}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1, 2, 3, 4, 5, 6, 7}, done())
 	})
 
 	t.Run("async", func() {
@@ -309,14 +242,11 @@ func (t *testAppendSlice) TestAppendSlice() {
 
 		wg.Wait()
 
-		t.NoError(done(func(s []uint64) error {
-			t.EqualValues(size, len(s))
-			slices.Sort(s)
+		s := done()
+		t.EqualValues(size, len(s))
+		slices.Sort(s)
 
-			t.Equal(expected, s)
-
-			return nil
-		}))
+		t.Equal(expected, s)
 	})
 
 	t.Run("async, grow", func() {
@@ -343,21 +273,18 @@ func (t *testAppendSlice) TestAppendSlice() {
 
 		wg.Wait()
 
-		t.NoError(done(func(s []uint64) error {
-			t.EqualValues(size, len(s))
-			slices.Sort(s)
+		s := done()
+		t.EqualValues(size, len(s))
+		slices.Sort(s)
 
-			t.Equal(expected, s)
-
-			return nil
-		}))
+		t.Equal(expected, s)
 	})
 }
 
 func (t *testAppendSlice) TestRAppendSlice() {
 	t.Run("ok", func() {
 		var add AppendSliceAddFunc[int]
-		var done AppendSliceDoneFunc[int]
+		var done OutFunc[[]int]
 
 		t.NoError(RAppendSlice[int](3, 0, &add, &done))
 
@@ -365,11 +292,7 @@ func (t *testAppendSlice) TestRAppendSlice() {
 		t.EqualValues(1, added)
 		t.EqualValues(2, left)
 
-		t.NoError(done(func(s []int) error {
-			t.Equal([]int{1}, s)
-
-			return nil
-		}))
+		t.Equal([]int{1}, done())
 	})
 
 	t.Run("wrong type", func() {

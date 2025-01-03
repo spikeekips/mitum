@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -396,7 +395,7 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(maps.Clone(reasons))
+				reportedStates.Store(reasons)
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -458,13 +457,8 @@ func (t *testWorkerProcess) TestLocal() {
 
 			if err := dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
 				subv, addvs, reason, err := op.StateMergeValues(ctx)
-				if err != nil {
-					panic(err)
-				}
-
-				if reason != "" {
-					panic(fmt.Sprintf("not empty reason, %q", reason))
-				}
+				t.IfErrPanic(err)
+				t.IfTruePanic(reason != "", "not empty reason, %q", reason)
 
 				var values []StateMergeValue
 
@@ -493,7 +487,7 @@ func (t *testWorkerProcess) TestLocal() {
 				return nil
 			},
 			func(_ context.Context, owners []string) error {
-				reportedStateOwners.Store(slices.Clone(owners))
+				reportedStateOwners.Store(owners)
 
 				return nil
 			},
@@ -503,7 +497,7 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(maps.Clone(reasons))
+				reportedStates.Store(reasons)
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -587,7 +581,7 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(maps.Clone(reasons))
+				reportedStates.Store(reasons)
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -644,14 +638,8 @@ func (t *testWorkerProcess) TestLocal() {
 
 		go func() {
 			_, insertDone, err := insertf(other)
-			if err != nil {
-				panic(err)
-			}
-
-			err = insertDone(nil, nil)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
+			t.IfErrPanic(insertDone(nil, nil))
 		}()
 
 		var calledBroadcastUnmerged bool
@@ -674,7 +662,7 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(maps.Clone(reasons))
+				reportedStates.Store(reasons)
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -768,7 +756,7 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(maps.Clone(reasons))
+				reportedStates.Store(reasons)
 
 				t.Equal(uint64(len(ops)), statesSize)
 
@@ -870,10 +858,9 @@ func (t *testWorkerProcess) TestWorkerManager() {
 
 		go func() {
 			_, insertDone, err := insertf(managerName)
-			t.NoError(err)
-			t.NoError(insertDone(nil, nil))
-
-			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
+			t.IfErrPanic(err)
+			t.IfErrPanic(insertDone(nil, nil))
+			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
 		}()
 
 		var calledBroadcastUnmerged bool
@@ -991,9 +978,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 		})
 
 		_, opWorkers, err := opsNShareWorkers(opsWorkers, opsShare, ophs)
-		if err != nil {
-			panic(err)
-		}
+		t.IfErrPanic(err)
 
 		var wg sync.WaitGroup
 

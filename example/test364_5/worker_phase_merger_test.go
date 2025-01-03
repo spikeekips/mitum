@@ -62,7 +62,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 		merge,
 		unmerge dutil.InErrorFunc[uint64],
 		done func(),
-		wait dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
+		wait phaseMergerWaitFunc,
 		_ error,
 	) {
 		return newFuncPhaseMerger(
@@ -133,7 +133,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil)
+		_, _, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -161,7 +161,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		err = insertDone(nil)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil)
+		_, _, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -192,7 +192,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			err = insertDone(nil)
 			t.ErrorIs(err, context.Canceled)
 
-			err = wait(nil)
+			_, _, err = wait()
 			t.ErrorIs(err, context.Canceled)
 		})
 
@@ -220,7 +220,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			cancel(nil)
 
-			err = wait(nil)
+			_, _, err = wait()
 			t.ErrorIs(err, context.Canceled)
 		})
 	})
@@ -263,7 +263,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			return true, nil
 		})
 
-		err = wait(nil)
+		_, _, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -289,21 +289,14 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		go func() {
 			_, insertDone, err := insertf("w0")
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -362,26 +355,18 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		go func() {
 			insert, insertDone, err := insertf("w0")
+			t.IfErrPanic(err)
 
 			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
-			if err != nil {
-				panic(err)
-			}
-
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -434,9 +419,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		go func() {
 			_ = dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
 				insert, insertDone, err := insertf(worker)
-				if err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(err)
 
 				for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
 					_ = insert(uint64(i))
@@ -451,18 +434,8 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		}()
 
 		t.T().Log("wait")
-		{
-			var called int64
-
-			err = wait(func(context.Context, []uint64, map[uint64]string) error {
-				atomic.AddInt64(&called, 1)
-
-				return nil
-			})
-			t.ErrorContains(err, "findme")
-
-			t.Equal(int64(0), atomic.LoadInt64(&called))
-		}
+		_, _, err = wait()
+		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("3 worker; empty", func() {
@@ -494,17 +467,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 				return true, insertDone(nil)
 			})
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -563,7 +531,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			t.IfErrPanic(dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
 				insert, insertDone, err := insertf(worker)
 				if err != nil {
 					return false, err
@@ -576,18 +544,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 				}
 
 				return true, insertDone(nil)
-			})
-			if err != nil {
-				panic(err)
-			}
+			}))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -630,21 +592,14 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		go func() {
 			_, insertDone, err := insertf(managerName)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -703,34 +658,23 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		go func() {
 			insert, insertDone, err := insertf("w0")
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
 			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 
 			_, insertDone, err = insertf(managerName)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")
@@ -793,34 +737,23 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		go func() {
 			insert, insertDone, err := insertf("w0")
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
 			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 
 			_, insertDone, err = insertf(managerName)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(unmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		unmerged, reasons, err := wait()
+		t.Empty(unmerged)
+		t.Empty(reasons)
 
 		{
 			t.T().Log("check mergers")

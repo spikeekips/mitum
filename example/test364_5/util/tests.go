@@ -32,6 +32,18 @@ func (t *BaseSuite) Println(a string, b ...any) {
 	fmt.Printf(a+"\n", b...)
 }
 
+func (t *BaseSuite) IfErrPanic(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (t *BaseSuite) IfTruePanic(ok bool, a string, b ...interface{}) {
+	if ok {
+		panic(fmt.Sprintf(a, b...))
+	}
+}
+
 func (t *BaseSuite) RunWithGoLeak(name string, f func()) {
 	t.Run(name, func() {
 		defer goleak.VerifyNone(t.T())

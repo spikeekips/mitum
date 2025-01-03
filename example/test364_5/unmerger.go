@@ -10,6 +10,7 @@ import (
 
 type (
 	opindexFilterFunc = func(opindex uint64) (bool, error)
+	unmergedErrorFunc = func() ([]uint64, error)
 )
 
 func newFuncUnmerger(
@@ -21,7 +22,7 @@ func newFuncUnmerger(
 ) (
 	unmerge dutil.InErrorFunc[uint64],
 	done func(),
-	wait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+	wait unmergedErrorFunc,
 	_ error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "unmerger", nil)
@@ -38,7 +39,7 @@ func newFuncUnmerger(
 	}
 
 	var addOps dutil.AppendSliceAddFunc[uint64]
-	var doneOps dutil.AppendSliceDoneFunc[uint64]
+	var doneOps dutil.OutFunc[[]uint64]
 
 	if err := dutil.RAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
 		return nil, nil, nil, err
@@ -76,23 +77,13 @@ func newFuncUnmerger(
 			})
 		},
 		jobDone,
-		func(f dutil.InErrorFunc[[]uint64]) error {
-			defer func() {
-				_ = doneOps(nil)
-			}()
-
+		func() ([]uint64, error) {
 			if err := jobWait(nil); err != nil {
-				return err
+				return nil, err
 			}
 
-			if f == nil {
-				return nil
-			}
-
-			return doneOps(func(unmerged []uint64) error {
-				// NOTE local unmerged not included
-				return f(unmerged)
-			})
+			// NOTE local unmerged not included
+			return doneOps(), nil
 		},
 		nil
 }

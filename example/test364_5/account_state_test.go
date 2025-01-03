@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -57,9 +56,7 @@ func (t *baseTestAccountStateMerger) randomMergeValue(balance int64) (base.Publi
 
 func (t *baseTestAccountStateMerger) newMergeValue(address base.Publickey, balance int64) *AccountStateMergeValue {
 	v, err := NewAccountStateMergeValue(address, balance)
-	if err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(err)
 
 	return v
 }
@@ -67,18 +64,12 @@ func (t *baseTestAccountStateMerger) newMergeValue(address base.Publickey, balan
 func (t *baseTestAccountStateMerger) randomMergeValues(
 	a ...interface{},
 ) (vs []StateMergeValue) {
-	switch {
-	case len(a) < 1:
-		panic("empty balances")
-	default:
-		vs = make([]StateMergeValue, len(a))
-	}
+	t.IfTruePanic(len(a) < 1, "empty balances")
+	vs = make([]StateMergeValue, len(a))
 
 	for i := range vs {
 		balance, ok := a[i].(int)
-		if !ok {
-			panic(errors.Errorf("expected int, not %T", a[i]))
-		}
+		t.IfTruePanic(!ok, "expected int, not %T", a[i])
 
 		_, v := t.randomMergeValue(int64(balance))
 		vs[i] = v
@@ -90,22 +81,15 @@ func (t *baseTestAccountStateMerger) randomMergeValues(
 func (t *baseTestAccountStateMerger) newMergeValues(
 	a ...interface{},
 ) (vs []StateMergeValue) {
-	switch {
-	case len(a)%2 != 0:
-		panic("invalid number of arguments")
-	default:
-		vs = make([]StateMergeValue, len(a)/2)
-	}
+	t.IfTruePanic(len(a)%2 != 0, "invalid number of arguments")
+
+	vs = make([]StateMergeValue, len(a)/2)
 
 	for i := range vs {
 		address, ok := a[i*2].(base.Publickey)
-		if !ok {
-			panic("not base.Publickey")
-		}
+		t.IfTruePanic(!ok, "not base.Publickey")
 		balance, ok := a[(i*2)+1].(int)
-		if !ok {
-			panic("not int")
-		}
+		t.IfTruePanic(!ok, "not int")
 
 		vs[i] = t.newMergeValue(address, int64(balance))
 	}
@@ -120,9 +104,7 @@ func (t *baseTestAccountStateMerger) randomMergeValuesVP(
 ) []StateMergeValue {
 	vs := t.randomMergeValues(a...)
 
-	if !vp.SetValue(opindex, vs) {
-		panic("already exists")
-	}
+	t.IfTruePanic(!vp.SetValue(opindex, vs), "already exists")
 
 	return vs
 }
@@ -134,9 +116,8 @@ func (t *baseTestAccountStateMerger) newMergeValuesVP(
 ) []StateMergeValue {
 	vs := t.newMergeValues(a...)
 
-	if !vp.SetValue(opindex, vs) {
-		panic("already exists")
-	}
+	t.IfTruePanic(!vp.SetValue(opindex, vs), "already exists")
+
 	return vs
 }
 
@@ -175,9 +156,7 @@ func (t *baseTestAccountStateMerger) newOp(issuer base.Privatekey, receiver base
 		signer = issuer
 	}
 
-	if err := op.Sign(signer, t.networkID); err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(op.Sign(signer, t.networkID))
 
 	return op
 }
@@ -213,12 +192,8 @@ func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeV
 
 	for i := range ops {
 		subv, addvs, r, err := ops[i].StateMergeValues(context.Background())
-		if err != nil {
-			panic(err)
-		}
-		if r == "" {
-			panic(`r == ""`)
-		}
+		t.IfErrPanic(err)
+		t.IfTruePanic(r == "", `r == ""`)
 
 		values[i] = slices.Concat([]StateMergeValue{subv}, addvs)
 	}

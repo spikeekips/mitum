@@ -86,3 +86,7 @@ func (t *baseTestManager) checkStatesTree(expectedStates [][2]interface{}, tr *f
 		return true, nil
 	})
 }
+
+func (t *baseTestManager) baseGenerateNodesHashFunc() fixedtree.GenerateNodesHashFunc {
+	return fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
+}

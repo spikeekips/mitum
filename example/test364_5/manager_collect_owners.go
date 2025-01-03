@@ -11,7 +11,7 @@ func newFuncManagerCollectOwners(
 	workersSize, minEnough uint64,
 ) (
 	dutil.In2ErrorFunc[string /* worker */, []string /* owners */],
-	dutil.InErrorFunc[dutil.InErrorFunc[[]string /* owners */]],
+	dutil.OutErrorFunc[[]string /* owners */],
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-owners", nil)
@@ -35,7 +35,7 @@ func newFuncManagerCollectOwners(
 	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextDone(ctx)
 
 	var add dutil.AppendSliceAddFunc[string]
-	var done dutil.AppendSliceDoneFunc[string]
+	var done dutil.OutFunc[[]string]
 
 	if err := dutil.RUniqueAppendSlice[string, string](workersSize, 0, func(s string) string { return s }, &add, &done); err != nil {
 		return nil, nil, err
@@ -56,7 +56,7 @@ func newFuncManagerCollectOwners(
 						return nil
 					}
 
-					_, _ = add(owners[0], owners[1:]...)
+					_, _ = add(owners...)
 
 					return nil
 				}); {
@@ -74,17 +74,14 @@ func newFuncManagerCollectOwners(
 				return nil
 			})
 		},
-		func(f dutil.InErrorFunc[[]string]) error {
-			defer func() {
-				checkWorkerClose()
-				done(nil)
-			}()
+		func() ([]string, error) {
+			defer checkWorkerClose()
 
 			if err := ownersWait(nil); err != nil {
-				return err
+				return nil, err
 			}
 
-			return done(f)
+			return done(), nil
 		},
 		nil
 }

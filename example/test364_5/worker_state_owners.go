@@ -24,6 +24,7 @@ type (
 		error,
 	)
 	workerInsertStateOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
+	workerStateOwnersDoneFunc      = func() (subws, affected []string, _ error)
 )
 
 func newFuncWorkerStateOwners(
@@ -33,13 +34,13 @@ func newFuncWorkerStateOwners(
 ) (
 	localExtractedStateOwnersFunc,
 	workerStateOwnersSetFunc,
-	dutil.InErrorFunc[insertStateOwnersSetFunc],
+	workerStateOwnersDoneFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-state-owners", nil)
 
 	var addSubStateOwners, addAffectedStateOwners addOwnersFunc
-	var doneSubStateOwners, doneAffectedStateOwners dutil.AppendSliceDoneFunc[string]
+	var doneSubStateOwners, doneAffectedStateOwners dutil.OutFunc[[]string]
 
 	if err := newFuncAddStateOwners(
 		maxWorkersSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
@@ -102,26 +103,8 @@ func newFuncWorkerStateOwners(
 
 			return nil
 		},
-		func(f insertStateOwnersSetFunc) error {
-			defer func() {
-				doneSubStateOwners(nil)
-				doneAffectedStateOwners(nil)
-			}()
-
-			if f == nil {
-				return nil
-			}
-
-			return doneSubStateOwners(func(subws []string) error {
-				return doneAffectedStateOwners(func(affected []string) error {
-					log.Debug().Dict("state_owners", zerolog.Dict().
-						Strs("sub", subws).
-						Strs("affected", affected),
-					).Msg("state owners")
-
-					return f(subws, affected)
-				})
-			})
+		func() ([]string, []string, error) {
+			return doneSubStateOwners(), doneAffectedStateOwners(), nil
 		},
 		nil
 }
@@ -302,11 +285,11 @@ func newFuncCollectWorkerStateMergeValues() (
 func newFuncAddStateOwners(
 	maxSize uint64,
 	add *addOwnersFunc,
-	done *dutil.AppendSliceDoneFunc[string],
+	done *dutil.OutFunc[[]string],
 ) error {
 	var (
 		addf  dutil.AppendSliceAddFunc[string]
-		donef dutil.AppendSliceDoneFunc[string]
+		donef dutil.OutFunc[[]string]
 	)
 
 	if err := dutil.RUniqueAppendSlice[string, string](
@@ -319,7 +302,7 @@ func newFuncAddStateOwners(
 			return
 		}
 
-		addf(owners[0], owners[1:]...)
+		addf(owners...)
 	})
 
 	if err := util.ReflectSetInterfaceValue(a, add); err != nil {

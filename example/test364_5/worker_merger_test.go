@@ -89,7 +89,7 @@ func (t *testWorkerMerger) TestCancel() {
 		err = unmerge(opsWorkers[1], nil)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil, nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -122,7 +122,7 @@ func (t *testWorkerMerger) TestCancel() {
 		err = unmerge(opsWorkers[1], nil)
 		t.ErrorIs(err, context.Canceled)
 
-		err = wait(nil, nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -156,7 +156,7 @@ func (t *testWorkerMerger) TestCancel() {
 			err = unmerge(opsWorkers[1], nil)
 			t.ErrorIs(err, context.Canceled)
 
-			err = wait(nil, nil)
+			_, err = wait(nil)
 			t.ErrorIs(err, context.Canceled)
 		})
 
@@ -187,7 +187,7 @@ func (t *testWorkerMerger) TestCancel() {
 			err = unmerge(opsWorkers[1], nil)
 			t.ErrorIs(err, context.Canceled)
 
-			err = wait(nil, nil)
+			_, err = wait(nil)
 			t.ErrorIs(err, context.Canceled)
 		})
 	})
@@ -218,7 +218,7 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel(nil)
 
-		err = wait(nil, nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -281,7 +281,7 @@ func (t *testWorkerMerger) TestInsert() {
 		err = insertDone(errors.Errorf("findme"))
 		t.ErrorContains(err, "findme")
 
-		err = wait(nil, nil)
+		_, err = wait(nil)
 		t.ErrorContains(err, "findme")
 	})
 
@@ -314,7 +314,7 @@ func (t *testWorkerMerger) TestInsert() {
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "findme")
 
-		err = wait(nil, nil)
+		_, err = wait(nil)
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "findme")
 	})
@@ -341,7 +341,7 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 		t.NoError(insertDone(nil))
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -349,14 +349,10 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("ok; 1 worker", func() {
@@ -389,15 +385,13 @@ func (t *testWorkerMerger) TestInsert() {
 			t.NoError(err)
 
 			for i := range values {
-				if err := insert(uint64(i), values[i]); err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(insert(uint64(i), values[i]))
 			}
 
 			_ = insertDone(nil)
 		}
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -405,14 +399,10 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return []string{local}, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("empty values; 3 worker", func() {
@@ -447,7 +437,7 @@ func (t *testWorkerMerger) TestInsert() {
 			})
 		}()
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -455,14 +445,11 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
 
-				t.Empty(reasons)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("ok; 3 worker", func() {
@@ -544,7 +531,7 @@ func (t *testWorkerMerger) TestInsert() {
 			})
 		}()
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -552,14 +539,10 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return opsWorkers, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedReasons, reasons)
-
-				return nil
-			},
-		))
+		t.Equal(expectedReasons, reasons)
 	})
 
 	t.Run("3 workers, but local not in ops workers", func() {
@@ -601,7 +584,7 @@ func (t *testWorkerMerger) TestInsert() {
 			})
 		}()
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -609,14 +592,10 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return nil, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("unknown worker insert", func() {
@@ -678,7 +657,7 @@ func (t *testWorkerMerger) TestInsert() {
 			}
 		}
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -686,19 +665,17 @@ func (t *testWorkerMerger) TestInsert() {
 
 				return []string{local}, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 }
 
 type (
-	testWorkerMergerWaitsFunc           func(func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) ([]string, error)
+	testWorkerMergeReasonsFunc func(reasons map[uint64]string) error
+	testWorkerMergerWaitsFunc  func(func(string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc)) ([]string, error)
+
 	testWorkerMergerTraverseMergersFunc func(func(string, traverseStateMergersFunc) error) error
 )
 
@@ -751,8 +728,7 @@ func (t *testWorkerMerger) workerMergers(
 		unmerges[worker] = unmerge
 		waits[worker] = func(
 			localPhaseDone workerMergerLocalPhaseMergerDoneFunc,
-			done workerMergerCallback,
-		) error {
+		) (map[uint64]string, error) {
 			return wait(
 				func(unmerged []uint64) ([]string, error) {
 					var wg sync.WaitGroup
@@ -781,7 +757,6 @@ func (t *testWorkerMerger) workerMergers(
 
 					return localPhaseDone(unmerged)
 				},
-				done,
 			)
 		}
 
@@ -793,9 +768,7 @@ func (t *testWorkerMerger) workerMergers(
 	}
 
 	workersValues, err := t.assignWorkersValues(values, getStateOwners)
-	if err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(err)
 
 	{
 		dutil.TraverseMap(workersValues, func(worker string, vs map[uint64][]StateMergeValue) (bool, error) {
@@ -881,7 +854,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			return nil
 		},
-		func(f func(string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback)) ([]string, error) {
+		func(f func(worker string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc)) ([]string, error) {
 			donech := make(chan string, len(workers))
 
 			var wg sync.WaitGroup
@@ -895,12 +868,12 @@ func (t *testWorkerMerger) workerMergers(
 					}()
 
 					var l workerMergerLocalPhaseMergerDoneFunc
-					var c workerMergerCallback
+					var c testWorkerMergeReasonsFunc
 					if f != nil {
 						l, c = f(worker)
 					}
 
-					err := wf(
+					reasons, err := wf(
 						func(unmerged []uint64) ([]string, error) {
 							subws := workerStateOwners[worker]
 
@@ -912,18 +885,13 @@ func (t *testWorkerMerger) workerMergers(
 
 							return subws, nil
 						},
-						func(reasons map[uint64]string) error {
-							t.Println("worker wait done: worker=%q reasons=%v", worker, reasons)
-
-							if c != nil {
-								return c(reasons)
-							}
-
-							return nil
-						},
 					)
 
-					t.Println("worker wait: worker=%q err=%v", worker, err)
+					t.Println("worker wait done: worker=%q reasons=%v, err=%v", worker, reasons, err)
+
+					if err == nil && c != nil {
+						err = c(reasons)
+					}
 
 					if err == nil {
 						donech <- worker
@@ -1102,9 +1070,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			err := insert()
 
 			t.Println("insert workers: err=%v", err)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 		}()
 
 		doneWorkers, err := waits(nil)
@@ -1158,9 +1124,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			err := insert()
 
 			t.Println("insert workers: err=%v", err)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 		}()
 
 		doneWorkers, err := waits(nil)
@@ -1245,9 +1209,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 			err := insert()
 
 			t.Println("insert workers: err=%v", err)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 		}()
 
 		doneWorkers, err := waits(nil)
@@ -1320,13 +1282,13 @@ func (t *testWorkerMerger) TestSubs() {
 	checkWaits := func(waits testWorkerMergerWaitsFunc) []string {
 		addUnmerged, doneUnmerged, _ := dutil.AppendSlice[uint64](uint64(len(values)), 0)
 
-		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) {
+		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc) {
 			return nil,
 				func(reasons map[uint64]string) error {
 					unmerged := slices.Collect(maps.Keys(reasons))
 
 					if len(unmerged) > 0 {
-						addUnmerged(unmerged[0], unmerged[1:]...)
+						addUnmerged(unmerged...)
 					}
 
 					return nil
@@ -1334,14 +1296,12 @@ func (t *testWorkerMerger) TestSubs() {
 		})
 		t.NoError(err)
 
-		doneUnmerged(func(s []uint64) error {
-			slices.Sort(s)
-			s = slices.Compact(s)
+		s := doneUnmerged()
 
-			t.Equal(expectedUnmerged, s)
+		slices.Sort(s)
+		s = slices.Compact(s)
 
-			return nil
-		})
+		t.Equal(expectedUnmerged, s)
 
 		return doneWorkers
 	}
@@ -1422,9 +1382,7 @@ func (t *testWorkerMerger) TestSubs() {
 				err := insert()
 
 				t.Println("insert workers: err=%v", err)
-				if err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(err)
 			}()
 
 			doneWorkers := checkWaits(waits)
@@ -1477,9 +1435,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			t.NoError(err)
 
 			for i := range values {
-				if err := insert(uint64(i), values[i]); err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(insert(uint64(i), values[i]))
 			}
 
 			_ = insertDone(nil)
@@ -1490,7 +1446,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			_ = insertDone(nil)
 		}
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -1498,14 +1454,10 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return []string{local}, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("manager before 1 worker", func() {
@@ -1543,15 +1495,13 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			t.NoError(err)
 
 			for i := range values {
-				if err := insert(uint64(i), values[i]); err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(insert(uint64(i), values[i]))
 			}
 
 			_ = insertDone(nil)
 		}
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -1559,14 +1509,10 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return []string{local}, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("empty values; 2 worker and then manager", func() {
@@ -1595,7 +1541,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		t.NoError(err)
 		t.NoError(insertDone(nil))
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -1603,14 +1549,10 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return nil, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Empty(reasons)
-
-				return nil
-			},
-		))
+		t.Empty(reasons)
 	})
 
 	t.Run("over workers and manager before unmerge", func() {
@@ -1682,13 +1624,9 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			})
 
 			_, insertDone, err := insertf(managerName)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 
 			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
 				if worker == local {
@@ -1704,7 +1642,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			})
 		}()
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -1712,14 +1650,10 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return opsWorkers, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedReasons, reasons)
-
-				return nil
-			},
-		))
+		t.Equal(expectedReasons, reasons)
 	})
 
 	t.Run("over workers and manager", func() {
@@ -1804,16 +1738,12 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			})
 
 			_, insertDone, err := insertf(managerName)
-			if err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(err)
 
-			if err := insertDone(nil); err != nil {
-				panic(err)
-			}
+			t.IfErrPanic(insertDone(nil))
 		}()
 
-		t.NoError(wait(
+		reasons, err := wait(
 			func(unmerged []uint64) ([]string, error) {
 				t.T().Logf("local phase done: unmerged=%v", unmerged)
 
@@ -1821,14 +1751,10 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 				return opsWorkers, nil
 			},
-			func(reasons map[uint64]string) error {
-				t.T().Logf("wait: reasons=%v", reasons)
+		)
+		t.T().Logf("wait: reasons=%v", reasons)
 
-				t.Equal(expectedReasons, reasons)
-
-				return nil
-			},
-		))
+		t.Equal(expectedReasons, reasons)
 	})
 }
 

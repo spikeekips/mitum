@@ -9,12 +9,14 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type managerProcessWaitFunc = dutil.In4ErrorFunc[
+type managerProcessWaitFunc = func(
 	fixedtree.GenerateNodesHashFunc,
 	dutil.InErrorFunc[[]string /* owners */],
-	dutil.InErrorFunc[*fixedtree.Tree /* operations fixedtree tree */],
-	dutil.InErrorFunc[*fixedtree.Tree /* states fixedtree tree */],
-]
+) (
+	*fixedtree.Tree, /* operations fixedtree tree */
+	*fixedtree.Tree, /* states fixedtree tree */
+	error,
+)
 
 func newManagerProcess(
 	ctx context.Context,
@@ -61,7 +63,7 @@ func newManagerProcess(
 		Int("ophs", len(ophs)).
 		Msg("new")
 
-	var workerOwnersWait dutil.InErrorFunc[dutil.InErrorFunc[[]string]]
+	var workerOwnersWait dutil.OutErrorFunc[[]string]
 
 	switch o, w, err := newFuncManagerCollectOwners(ctx, uint64(len(opsWorkers)), opsMinEnough); {
 	case err != nil:
@@ -87,31 +89,31 @@ func newManagerProcess(
 		func(
 			g fixedtree.GenerateNodesHashFunc,
 			ownersf dutil.InErrorFunc[[]string],
-			opsTree dutil.InErrorFunc[*fixedtree.Tree],
-			statesTree dutil.InErrorFunc[*fixedtree.Tree],
-		) error {
+		) (*fixedtree.Tree, *fixedtree.Tree, error) {
 			defer func() {
-				_ = workerOwnersWait(nil)
-				_ = resultWait(nil, nil, nil)
+				_, _, _ = resultWait(nil)
 			}()
 
 			if err := opsWait(); err != nil {
-				return err
+				return nil, nil, err
 			}
 
-			if err := workerOwnersWait(func(owners []string) error {
+			switch owners, err := workerOwnersWait(); {
+			case err != nil:
+				return nil, nil, err
+			default:
 				if ownersf != nil {
 					if err := ownersf(owners); err != nil {
-						return err
+						return nil, nil, err
 					}
 				}
 
-				return ownersReady(owners, statesShare)
-			}); err != nil {
-				return err
+				if err := ownersReady(owners, statesShare); err != nil {
+					return nil, nil, err
+				}
 			}
 
-			return resultWait(g, opsTree, statesTree)
+			return resultWait(g)
 		},
 		nil
 }

@@ -159,7 +159,7 @@ func (t *testOperationTreeNode) TestOperationNodeHash() {
 		t.NoError(f())
 
 		rh, err := fixedtree.MakeBaseNodeHash(n, nil, nil, func() ([]byte, error) {
-			return slices.Concat([]byte(oph.String()), fact.Bytes(), []byte(reason)), nil
+			return slices.Concat([]byte(oph.String()), fact.Bytes()), nil
 		})
 		t.NoError(err)
 

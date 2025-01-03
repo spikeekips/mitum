@@ -50,19 +50,13 @@ func (t *baseTestMergeOp) getFuncs() (
 	getValues func(uint64) ([]StateMergeValue, error),
 ) {
 	vp, err := util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
-	if err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(err)
 
 	mergers, err := util.NewShardedMap[string, StateMerger](1<<9, nil)
-	if err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(err)
 
 	states, err := util.NewShardedMap[string, base.State](1<<9, nil)
-	if err != nil {
-		panic(err)
-	}
+	t.IfErrPanic(err)
 
 	return vp, mergers, states, func(value StateMergeValue) (StateMerger, error) {
 			var merger StateMerger
@@ -525,12 +519,10 @@ func (t *testCollectXmergedOps) TestAdd() {
 		_, done, err := newFuncCollectXmergedOps(1 << 9)
 		t.NoError(err)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Empty(merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Empty(merged)
+		t.Empty(unmerged)
 	})
 
 	t.Run("add merge", func() {
@@ -540,12 +532,10 @@ func (t *testCollectXmergedOps) TestAdd() {
 		add(startPhase, 1, mergeFlag)
 		add(startPhase, 2, mergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Equal([]uint64{1, 2}, merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Equal([]uint64{1, 2}, merged)
+		t.Empty(unmerged)
 	})
 
 	t.Run("add unmerge", func() {
@@ -555,12 +545,10 @@ func (t *testCollectXmergedOps) TestAdd() {
 		add(startPhase, 1, unmergeFlag)
 		add(startPhase, 2, unmergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Empty(merged)
-			t.Equal([]uint64{1, 2}, unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Empty(merged)
+		t.Equal([]uint64{1, 2}, unmerged)
 	})
 
 	t.Run("add same", func() {
@@ -570,12 +558,10 @@ func (t *testCollectXmergedOps) TestAdd() {
 		add(startPhase, 1, mergeFlag)
 		add(startPhase, 1, mergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Equal([]uint64{1}, merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Equal([]uint64{1}, merged)
+		t.Empty(unmerged)
 	})
 
 	t.Run("add same, but dismiss", func() {
@@ -585,12 +571,10 @@ func (t *testCollectXmergedOps) TestAdd() {
 		add(startPhase, 1, mergeFlag)
 		add(startPhase, 1, unmergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Empty(merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Empty(merged)
+		t.Empty(unmerged)
 	})
 }
 
@@ -599,12 +583,10 @@ func (t *testCollectXmergedOps) TestWithBase() {
 		_, done, err := newFuncCollectXmergedOps(1 << 9)
 		t.NoError(err)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Empty(merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Empty(merged)
+		t.Empty(unmerged)
 	})
 
 	t.Run("add; same in base", func() {
@@ -615,12 +597,10 @@ func (t *testCollectXmergedOps) TestWithBase() {
 		add(startPhase, 1, mergeFlag)
 		add(startPhase, 2, mergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Equal([]uint64{2}, merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Equal([]uint64{2}, merged)
+		t.Empty(unmerged)
 	})
 
 	t.Run("add; not same in base", func() {
@@ -631,12 +611,10 @@ func (t *testCollectXmergedOps) TestWithBase() {
 		add(startPhase, 1, unmergeFlag)
 		add(startPhase, 2, mergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Equal([]uint64{2}, merged)
-			t.Equal([]uint64{1}, unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Equal([]uint64{2}, merged)
+		t.Equal([]uint64{1}, unmerged)
 	})
 
 	t.Run("all same in base", func() {
@@ -648,12 +626,10 @@ func (t *testCollectXmergedOps) TestWithBase() {
 		add(startPhase, 1, mergeFlag)
 		add(startPhase, 2, mergeFlag)
 
-		t.NoError(done(func(merged, unmerged []uint64) error {
-			t.Empty(merged)
-			t.Empty(unmerged)
-
-			return nil
-		}))
+		merged, unmerged, err := done()
+		t.NoError(err)
+		t.Empty(merged)
+		t.Empty(unmerged)
 	})
 }
 
@@ -758,7 +734,8 @@ func (t *testPhaseMerger) TestCancel() {
 		cancel(nil)
 
 		done()
-		err = wait(nil)
+
+		_, _, _, err = wait()
 		t.ErrorIs(err, context.Canceled)
 	})
 }
@@ -786,13 +763,11 @@ func (t *testPhaseMerger) TestMerge() {
 
 		done()
 
-		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(newMerged)
-			t.Empty(newUnmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		newMerged, newUnmerged, reasons, err := wait()
+		t.NoError(err)
+		t.Empty(newMerged)
+		t.Empty(newUnmerged)
+		t.Empty(reasons)
 
 		merged, err := t.closeMergers(mergers)
 		t.NoError(err)
@@ -826,13 +801,11 @@ func (t *testPhaseMerger) TestMerge() {
 		}))
 
 		done()
-		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(newMerged)
-			t.Empty(newUnmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		newMerged, newUnmerged, reasons, err := wait()
+		t.NoError(err)
+		t.Empty(newMerged)
+		t.Empty(newUnmerged)
+		t.Empty(reasons)
 
 		merged, err := t.closeMergers(mergers)
 		t.NoError(err)
@@ -896,7 +869,7 @@ func (t *testPhaseMerger) TestMerge() {
 		}
 
 		done()
-		err = wait(nil)
+		_, _, _, err = wait()
 		t.ErrorContains(err, "showme")
 	})
 
@@ -924,13 +897,11 @@ func (t *testPhaseMerger) TestMerge() {
 
 		done()
 
-		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(newMerged)
-			t.Equal([]uint64{1}, newUnmerged)
-			t.Equal(map[uint64]string{1: "insufficient balance"}, reasons)
-
-			return nil
-		}))
+		newMerged, newUnmerged, reasons, err := wait()
+		t.NoError(err)
+		t.Empty(newMerged)
+		t.Equal([]uint64{1}, newUnmerged)
+		t.Equal(map[uint64]string{1: "insufficient balance"}, reasons)
 
 		merged, err := t.closeMergers(mergers)
 		t.NoError(err)
@@ -967,13 +938,11 @@ func (t *testPhaseMerger) TestUnmerge() {
 		t.NoError(unmerge(opindex))
 
 		done()
-		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(newMerged)
-			t.Equal([]uint64{1}, newUnmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		newMerged, newUnmerged, reasons, err := wait()
+		t.NoError(err)
+		t.Empty(newMerged)
+		t.Equal([]uint64{1}, newUnmerged)
+		t.Empty(reasons)
 
 		merged, err := t.closeMergers(mergers)
 		t.NoError(err)
@@ -1020,13 +989,11 @@ func (t *testPhaseMerger) TestUnmerge() {
 		}))
 
 		done()
-		t.NoError(wait(func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error {
-			t.Empty(newMerged)
-			t.Equal(expectedUnmerged, newUnmerged)
-			t.Empty(reasons)
-
-			return nil
-		}))
+		newMerged, newUnmerged, reasons, err := wait()
+		t.NoError(err)
+		t.Empty(newMerged)
+		t.Equal(expectedUnmerged, newUnmerged)
+		t.Empty(reasons)
 
 		merged, err := t.closeMergers(mergers)
 		t.NoError(err)
@@ -1091,7 +1058,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		}
 
 		done()
-		err = wait(nil)
+		_, _, _, err = wait()
 		t.ErrorContains(err, "showme")
 	})
 }
@@ -1177,20 +1144,16 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	var newMerged, newUnmerged []uint64
 
-	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
-		newMerged = slices.Clone(ms)
-		newUnmerged = slices.Clone(us)
+	newMerged, newUnmerged, reasons, err := wait()
+	t.NoError(err)
 
-		reason, found := reasons[1]
-		t.True(found)
-		t.Equal("previous issuer found", reason)
+	reason, found := reasons[1]
+	t.True(found)
+	t.Equal("previous issuer found", reason)
 
-		reason, found = reasons[3]
-		t.True(found)
-		t.Equal("previous issuer found", reason)
-
-		return nil
-	}))
+	reason, found = reasons[3]
+	t.True(found)
+	t.Equal("previous issuer found", reason)
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
@@ -1429,20 +1392,16 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 
 	var newMerged, newUnmerged []uint64
 
-	t.NoError(wait(func(ms, us []uint64, reasons map[uint64]string) error {
-		newMerged = slices.Clone(ms)
-		newUnmerged = slices.Clone(us)
+	newMerged, newUnmerged, reasons, err := wait()
+	t.NoError(err)
 
-		reason, found := reasons[1]
-		t.True(found)
-		t.Equal("previous issuer found", reason)
+	reason, found := reasons[1]
+	t.True(found)
+	t.Equal("previous issuer found", reason)
 
-		reason, found = reasons[3]
-		t.True(found)
-		t.Equal("previous issuer found", reason)
-
-		return nil
-	}))
+	reason, found = reasons[3]
+	t.True(found)
+	t.Equal("previous issuer found", reason)
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)

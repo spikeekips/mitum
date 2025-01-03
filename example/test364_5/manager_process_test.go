@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -67,21 +66,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("before send", func() {
@@ -112,21 +98,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("during send", func() {
@@ -174,21 +147,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("before worker owners", func() {
@@ -222,21 +182,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("during worker owners", func() {
@@ -281,21 +228,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("before worker result", func() {
@@ -328,21 +262,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("during worker result", func() {
@@ -384,21 +305,8 @@ func (t *testManagerProcess) TestCancel() {
 			return true, nil
 		})
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 
 	t.Run("before wait", func() {
@@ -429,21 +337,8 @@ func (t *testManagerProcess) TestCancel() {
 
 		cancel(nil)
 
-		var opsCalled, statesCalled bool
-		err = w(nil, nil,
-			func(*fixedtree.Tree) error {
-				opsCalled = true
-
-				return nil
-			},
-			func(*fixedtree.Tree) error {
-				statesCalled = true
-
-				return nil
-			})
+		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
-		t.False(opsCalled)
-		t.False(statesCalled)
 	})
 }
 
@@ -542,19 +437,15 @@ func (t *testManagerProcess) TestOpsTree() {
 			len(workers), len(ophs), opsShare, 3)
 
 		go func() {
-			if err := s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			t.IfErrPanic(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error {
-						if err != nil {
-							panic(err)
-						}
+						t.IfErrPanic(err)
 
 						return err
 					},
 					nil
-			}); err != nil {
-				panic(err)
-			}
+			}))
 
 			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 				owners, found := workersOwners[worker]
@@ -573,9 +464,7 @@ func (t *testManagerProcess) TestOpsTree() {
 			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 				go func() {
 					_, _, d, err := wr(worker)
-					if err != nil {
-						panic(err)
-					}
+					t.IfErrPanic(err)
 
 					if d != nil {
 						err := d(nil)
@@ -589,30 +478,16 @@ func (t *testManagerProcess) TestOpsTree() {
 			})
 		}()
 
-		var opsCalled, statesCalled bool
-		var opsTree, statesTree *fixedtree.Tree
-		err = w(nil,
+		opsTree, statesTree, err := w(
+			t.baseGenerateNodesHashFunc(),
 			func(owners []string) error {
 				slices.Sort(owners)
 
 				t.Equal(expectedOwners, owners)
 				return nil
 			},
-			func(tr *fixedtree.Tree) error {
-				opsTree = tr
-				opsCalled = true
-
-				return nil
-			},
-			func(tr *fixedtree.Tree) error {
-				statesTree = tr
-				statesCalled = true
-
-				return nil
-			})
+		)
 		t.NoError(err)
-		t.True(opsCalled)
-		t.True(statesCalled)
 
 		t.Equal(len(ophs), opsTree.Len())
 		t.Equal(0, statesTree.Len())

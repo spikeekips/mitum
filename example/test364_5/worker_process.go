@@ -314,7 +314,7 @@ func newFuncWorkerProcessStateValueMerger(
 
 	var localExtractedStateOwners localExtractedStateOwnersFunc
 	var workerStateOwnersSet workerStateOwnersSetFunc
-	var doneStateOwnersSet dutil.InErrorFunc[insertStateOwnersSetFunc]
+	var doneStateOwnersSet workerStateOwnersDoneFunc
 
 	switch l, w, t, err := newFuncWorkerStateOwners(ctx, local, maxOpsSize); {
 	case err != nil:
@@ -392,27 +392,28 @@ func newFuncWorkerProcessStateValueMerger(
 			f dutil.In2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
 		) error {
 			defer func() {
-				_ = doneStateOwnersSet(nil)
+				_, _, _ = doneStateOwnersSet()
 			}()
 
-			return workerMergerWait(
+			switch reasons, err := workerMergerWait(
 				func(unmerged []uint64) ([]string, error) {
 					_ = unmergeStateOp(unmerged)
 
-					var subOwners []string
-
-					return subOwners, doneStateOwnersSet(func(subws, affected []string) error {
-						subOwners = slices.Clone(subws)
-
-						return localDone(unmerged, subws, affected)
-					})
+					switch subws, affected, err := doneStateOwnersSet(); {
+					case err != nil:
+						return nil, err
+					default:
+						return subws, localDone(unmerged, subws, affected)
+					}
 				},
-				func(reasons map[uint64]string) error {
-					_ = unmergeStateOp(slices.Collect(maps.Keys(reasons)))
+			); {
+			case err != nil:
+				return err
+			default:
+				_ = unmergeStateOp(slices.Collect(maps.Keys(reasons)))
 
-					return f(reasons, traverseStateOps)
-				},
-			)
+				return f(reasons, traverseStateOps)
+			}
 		},
 		nil
 }
@@ -642,15 +643,13 @@ func mergeStateOpFromValues(
 ) error {
 	var (
 		add  dutil.AppendSliceAddFunc[string]
-		done dutil.AppendSliceDoneFunc[string]
+		done dutil.OutFunc[[]string]
 	)
 
 	if err := dutil.RAppendSlice[string](
 		uint64(len(values)+1), 0, &add, &done); err != nil {
 		return err
 	}
-
-	defer done(nil)
 
 	if value != nil {
 		_, _ = add(value.Key())
@@ -662,11 +661,9 @@ func mergeStateOpFromValues(
 		return true, nil
 	})
 
-	return done(func(s []string) error {
-		_ = mergeStateOp(opindex, fact, s)
+	_ = mergeStateOp(opindex, fact, done())
 
-		return nil
-	})
+	return nil
 }
 
 func workerProcessCloseStateMergers(

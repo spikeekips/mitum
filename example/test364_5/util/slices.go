@@ -34,14 +34,11 @@ func TraverseMap[K comparable, V any](m map[K]V, f func(K, V) (bool, error)) err
 	return nil
 }
 
-type (
-	AppendSliceAddFunc[T any]  func(T, ...T) (added, left uint64)
-	AppendSliceDoneFunc[T any] func(func([]T) error) error
-)
+type AppendSliceAddFunc[T any] func(...T) (added, left uint64)
 
 func AppendSlice[T any](size, grow uint64) (
 	add AppendSliceAddFunc[T],
-	done AppendSliceDoneFunc[T],
+	done OutFunc[[]T],
 	_ error,
 ) {
 	if size < 1 {
@@ -91,26 +88,24 @@ func AppendSlice[T any](size, grow uint64) (
 		return n, prevStart, start, lastSize
 	}
 
-	insert := func(t T, ts []T) (_ uint64, afterStart uint64, afterLastSize uint64) {
+	insert := func(ts []T) (_ uint64, afterStart uint64, afterLastSize uint64) {
 		lock.Lock()
 		defer lock.Unlock()
 
-		n, si, st, l := count(uint64(len(ts) + 1))
+		n, si, st, l := count(uint64(len(ts)))
 		if n < 1 {
 			return n, st, l
 		}
 
-		s[si] = t
-
-		for i := range ts[:n-1] {
-			s[si+uint64(i+1)] = ts[i]
+		for i := range ts[:n] {
+			s[si+uint64(i)] = ts[i]
 		}
 
 		return n, st, l
 	}
 
-	return func(t T, ts ...T) (uint64, uint64) {
-			n, st, l := insert(t, ts)
+	return func(ts ...T) (uint64, uint64) {
+			n, st, l := insert(ts)
 			if n < 1 {
 				return 0, l - st
 			}
@@ -122,34 +117,22 @@ func AppendSlice[T any](size, grow uint64) (
 
 			return n, left
 		},
-		func(f func([]T) error) error {
-			lock.Lock()
+		func() []T {
+			lock.RLock()
+			defer lock.RUnlock()
 
-			defer func() {
-				clear(s)
-				s = nil
-				start = 0
-				lastSize = 0
-
-				lock.Unlock()
-			}()
-
-			if f == nil {
+			if start < 1 {
 				return nil
 			}
 
-			if start < 1 {
-				return f(nil)
-			}
-
-			return f(s[:start])
+			return s[:start]
 		},
 		nil
 }
 
 func UniqueAppendSlice[T any, K comparable](size, grow uint64, key func(T) K) (
 	AppendSliceAddFunc[T],
-	AppendSliceDoneFunc[T],
+	OutFunc[[]T],
 	error,
 ) {
 	add, done, err := AppendSlice[T](size, grow)
@@ -173,18 +156,13 @@ func UniqueAppendSlice[T any, K comparable](size, grow uint64, key func(T) K) (
 
 	var lock sync.RWMutex
 
-	filter := func(t T, ts []T) []T {
+	filter := func(ts []T) []T {
 		lock.Lock()
 		defer lock.Unlock()
 
-		as := make([]T, len(ts)+1)
+		as := make([]T, len(ts))
 
 		var n int
-
-		if filterOne(t) {
-			as[n] = t
-			n++
-		}
 
 		for i := range ts {
 			if filterOne(ts[i]) {
@@ -196,20 +174,20 @@ func UniqueAppendSlice[T any, K comparable](size, grow uint64, key func(T) K) (
 		return as[:n]
 	}
 
-	return func(t T, ts ...T) (uint64, uint64) {
-			n := filter(t, ts)
+	return func(ts ...T) (uint64, uint64) {
+			n := filter(ts)
 			if len(n) < 1 {
 				return 0, 0
 			}
 
-			return add(n[0], n[1:]...)
-		}, func(f func([]T) error) error {
+			return add(n...)
+		}, func() []T {
 			lock.Lock()
 			defer lock.Unlock()
 
 			ClearMap(m)
 
-			return done(f)
+			return done()
 		}, nil
 }
 
@@ -246,6 +224,11 @@ func RUniqueAppendSlice[T any, K comparable](
 
 		return util.ReflectSetInterfaceValue(d, done)
 	}
+}
+
+func ClearSlice[T any](s []T) {
+	clear(s)
+	s = s[:0]
 }
 
 func ClearMap[K comparable, V any](m map[K]V) {

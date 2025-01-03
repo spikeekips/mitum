@@ -214,8 +214,6 @@ type StateMerger interface {
 	Key() string
 	// Close sets StateMerger not to get no more Merge or Unmerge.
 	Close() (mergedValue base.StateValue, _ error)
-	// Clone clones StateMerger itself.
-	Clone() StateMerger
 	// Merge merges new (partial) state value to state. If failed to merge,
 	// *reason* describes the reason why merge(unmerge) opeartion is not merged.
 	// *unmergeOp* is to be unmerge after merging the new state value.

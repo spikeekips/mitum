@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"maps"
 	"slices"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -16,9 +15,8 @@ type (
 		dutil.InErrorFunc[error],
 		error,
 	)
-	workerMergerCallback                 = func(reasons map[uint64]string) error
 	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
-	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc, workerMergerCallback) error
+	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc) (map[uint64]string, error)
 )
 
 func newFuncWorkerMerger(
@@ -101,7 +99,7 @@ func newFuncWorkerMerger(
 	newCheckWorkers := newFuncLocalCheckEnoughFailedWorkers(local)
 
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
-	var workerPhaseMergerWait dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc]
+	var workerPhaseMergerWait workerPhaseMergerWaitFunc
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
@@ -120,7 +118,7 @@ func newFuncWorkerMerger(
 
 	var workerUnmergerUnmerged workerUnmergedFunc
 	var workerUnmergerLocalReady workerUnmergerLocalReadyFunc
-	var workerUnmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]]
+	var workerUnmergerWait workerUnmergerWaitFunc
 
 	switch u, s, w, err := newFuncWorkerUnmerger(
 		wctx,
@@ -178,14 +176,21 @@ func newFuncWorkerMerger(
 	}
 
 	return insert, unmerge,
-		func(localDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
+		func(localDone workerMergerLocalPhaseMergerDoneFunc) (reasons map[uint64]string, _ error) {
 			defer func() {
 				stateMergeValuesPoolClose()
 				mOpsWorkers.Close()
 			}()
 
-			return dutil.ContextCauseError(wctx, wctxCancel, func(context.Context) error {
-				return wait(localDone, f)
+			return reasons, dutil.ContextCauseError(wctx, wctxCancel, func(context.Context) error {
+				switch r, err := wait(localDone); {
+				case err != nil:
+					return err
+				default:
+					reasons = r
+
+					return nil
+				}
 			})
 		},
 		nil
@@ -246,93 +251,83 @@ func newFuncWorkerMergerInsert(
 func newFuncWorkerMergerWait(
 	ctx context.Context,
 	statesShare uint64,
-	workerPhaseMergerWait dutil.InErrorFunc[workerPhaseMergerWaitCallbackFunc],
+	workerPhaseMergerWait workerPhaseMergerWaitFunc,
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
-	workerUnmergerWait dutil.InErrorFunc[dutil.InErrorFunc[[]uint64]],
+	workerUnmergerWait workerUnmergerWaitFunc,
 ) workerMergerWaitFunc {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc, f workerMergerCallback) error {
-		var phaseDoneReasons map[uint64]string
+	return func(localPhaseDone workerMergerLocalPhaseMergerDoneFunc) (map[uint64]string, error) {
 		var localUnmerged []uint64
+		var localReasons map[uint64]string
 
-		defer func() {
-			dutil.ClearMap(phaseDoneReasons)
-			clear(localUnmerged)
-		}()
+		defer dutil.ClearMap(localReasons)
 
-		if err := workerPhaseMergerWait(func(_ context.Context, unmerged []uint64, reasons map[uint64]string) error {
-			var subws []string
-
-			if localPhaseDone != nil {
-				switch i, err := localPhaseDone(unmerged); {
-				case err != nil:
-					return err
-				default:
-					subws = i
-				}
-			}
-
-			log.Debug().
-				Uints64("unmerged", unmerged).
-				Interface("reasons", reasons).
-				Strs("sub_states_owners", subws).
-				Msg("phase merger wait done")
-
-			var minEnough, maxFailed uint64
-
-			if s := len(subws); s > 0 {
-				switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
-				case err != nil:
-					return err
-				default:
-					minEnough, maxFailed = e, f
-				}
-			}
-
-			if err := workerUnmergerLocalReady(subws, unmerged, minEnough, maxFailed); err != nil {
-				return err
-			}
-
-			if len(unmerged) > 0 {
-				localUnmerged = slices.Clone(unmerged)
-			}
-
-			if len(reasons) > 0 {
-				phaseDoneReasons = maps.Clone(reasons)
-			}
-
-			return nil
-		}); err != nil {
-			return err
+		switch unmerged, reasons, err := workerPhaseMergerWait(); {
+		case err != nil:
+			return nil, err
+		default:
+			localUnmerged = unmerged
+			localReasons = reasons
 		}
 
-		return workerUnmergerWait(func(unmerged []uint64) error {
+		var subws []string
+
+		if localPhaseDone != nil {
+			switch i, err := localPhaseDone(localUnmerged); {
+			case err != nil:
+				return nil, err
+			default:
+				subws = i
+			}
+		}
+
+		log.Debug().
+			Uints64("local_unmerged", localUnmerged).
+			Interface("local_reasons", localReasons).
+			Strs("sub_states_owners", subws).
+			Msg("phase merger wait done")
+
+		var minEnough, maxFailed uint64
+
+		if s := len(subws); s > 0 {
+			switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
+			case err != nil:
+				return nil, err
+			default:
+				minEnough, maxFailed = e, f
+			}
+		}
+
+		if err := workerUnmergerLocalReady(subws, localUnmerged, minEnough, maxFailed); err != nil {
+			return nil, err
+		}
+
+		switch unmerged, err := workerUnmergerWait(); {
+		case err != nil:
+			return nil, err
+		default:
 			log.Debug().
 				Uints64("unmerged", unmerged).
 				Uints64("local_unmerged", localUnmerged).
 				Msg("unmerger wait done")
 
-			if f != nil {
-				return mergeUnmergeds(localUnmerged, unmerged, func(m []uint64) error {
-					n := filterReasons(phaseDoneReasons, m)
-					defer dutil.ClearMap(n)
-
-					return f(n)
-				})
+			switch m, err := mergeUnmergeds(localUnmerged, unmerged); {
+			case err != nil:
+				return nil, err
+			default:
+				return filterReasons(localReasons, m), nil
 			}
-
-			return nil
-		})
+		}
 	}
 }
 
-func mergeUnmergeds(a, b []uint64, f dutil.InErrorFunc[[]uint64]) error {
+func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
 	switch {
 	case len(a) < 1:
-		return f(b)
+		return b, nil
 	case len(b) < 1:
-		return f(a)
+		return a, nil
 	}
 
 	as, bs := a, b
@@ -343,10 +338,10 @@ func mergeUnmergeds(a, b []uint64, f dutil.InErrorFunc[[]uint64]) error {
 	}
 
 	var add dutil.AppendSliceAddFunc[uint64]
-	var done dutil.AppendSliceDoneFunc[uint64]
+	var done dutil.OutFunc[[]uint64]
 
 	if err := dutil.RAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
-		return err
+		return nil, err
 	}
 
 	_ = dutil.TraverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
@@ -357,17 +352,18 @@ func mergeUnmergeds(a, b []uint64, f dutil.InErrorFunc[[]uint64]) error {
 		return true, nil
 	})
 
-	return done(func(s []uint64) error {
-		if len(s) < 1 {
-			return f(as)
-		}
+	s := done()
+	defer dutil.ClearSlice(s)
 
-		m := make([]uint64, len(as)+len(s))
-		defer clear(m)
+	if len(s) < 1 {
+		return as, nil
+	}
 
-		copy(m, as)
-		copy(m[len(as):], s)
+	m := make([]uint64, len(as)+len(s))
+	defer dutil.ClearSlice(m)
 
-		return f(m)
-	})
+	copy(m, as)
+	copy(m[len(as):], s)
+
+	return m, nil
 }

@@ -595,18 +595,10 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 	}
 
 	var add dutil.AppendSliceAddFunc[string]
-	var done dutil.AppendSliceDoneFunc[string]
+	var done dutil.OutFunc[[]string]
 
 	if err := dutil.RAppendSlice[string](uint64(len(workers)), 0, &add, &done); err != nil {
 		return nil, nil, err
-	}
-
-	var once sync.Once
-
-	closef := func() {
-		once.Do(func() {
-			done(nil)
-		})
 	}
 
 	return func() (opsWorkers []string) {
@@ -618,17 +610,9 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 				return true, nil
 			})
 
-			_ = done(func(s []string) error {
-				opsWorkers = slices.Clone(s)
-
-				return nil
-			})
-
-			return opsWorkers
+			return done()
 		},
 		func(worker string, f opindexOpHashesFunc) error {
-			defer closef()
-
 			workerIndex := slices.Index(workers, worker)
 			if workerIndex < 0 {
 				return util.ErrNotFound.Errorf("unknown worker=%q", worker)

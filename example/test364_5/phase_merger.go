@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -63,7 +62,7 @@ type (
 	opindexGetStateMergeValuesFunc = func(opindex uint64) ([]StateMergeValue, error)
 	opindexSetStateMergeValuesFunc = func(opindex uint64, _ []StateMergeValue) (bool, error)
 	extractStateMergeValueKeysFunc = func(opindex uint64, _ []StateMergeValue) ([]string /* state keys */, error)
-	phaseMergerWaitCallbackFunc    = func(newMerged, newUnmerged []uint64, reasons map[uint64]string) error
+	phaseMergerWaitFunc            func() (newMerged, newUnmerged []uint64, reasons map[uint64]string, _ error)
 )
 
 func newFuncPhaseMerger(
@@ -76,13 +75,13 @@ func newFuncPhaseMerger(
 	merge,
 	unmerge dutil.InErrorFunc[uint64],
 	done func(),
-	wait dutil.InErrorFunc[phaseMergerWaitCallbackFunc],
+	_ phaseMergerWaitFunc,
 	_ error,
 ) {
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
 	var addXMergedOp func(phase int, opindex uint64, _ xMergeFlag)
-	var doneXMergedOps func(func(merged, unmerged []uint64) error) error
+	var doneXMergedOps func() (merged, unmerged []uint64, _ error)
 
 	switch a, d, err := newFuncCollectXmergedOps(maxOpsSize); {
 	case err != nil:
@@ -103,7 +102,7 @@ func newFuncPhaseMerger(
 	}
 
 	var addReason func(reasons map[uint64]string) error
-	var doneReason func(unmerged []uint64, _ func(map[uint64]string) error) error
+	var doneReason func() (map[uint64]string, error)
 
 	switch a, d, err := newFuncAddOpUnmergeReasons(maxOpsSize); {
 	case err != nil:
@@ -132,24 +131,26 @@ func newFuncPhaseMerger(
 			return newJob(opindex, unmergeCallback(opindex))
 		},
 		jobDone,
-		func(f phaseMergerWaitCallbackFunc) error {
+		func() ([]uint64, []uint64, map[uint64]string, error) {
 			defer func() {
-				_ = doneReason(nil, nil)
+				_, _ = doneReason()
 			}()
 
 			if err := jobWait(); err != nil {
-				return err
+				return nil, nil, nil, err
 			}
 
-			return doneXMergedOps(func(newMerged, newUnmerged []uint64) error {
-				if f != nil {
-					return doneReason(newUnmerged, func(reasons map[uint64]string) error {
-						return f(newMerged, newUnmerged, reasons)
-					})
+			switch m, u, err := doneXMergedOps(); {
+			case err != nil:
+				return nil, nil, nil, err
+			default:
+				switch r, err := doneReason(); {
+				case err != nil:
+					return nil, nil, nil, err
+				default:
+					return m, u, r, nil
 				}
-
-				return nil
-			})
+			}
 		},
 		nil
 }
@@ -334,13 +335,7 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 		return true, nil
 	})
 
-	_ = done(func(s []string) error {
-		stateKeys = slices.Clone(s)
-
-		return nil
-	})
-
-	return stateKeys
+	return done()
 }
 
 func newFuncExtractStateMergeValueKeys(maxSize, size int) (
@@ -432,7 +427,7 @@ func newFuncCollectXmergedOps(
 	mapSize uint64,
 ) (
 	func(phase int, opindex uint64, _ xMergeFlag),
-	func(func(merged, unmerged []uint64) error) error,
+	func() (merged, unmerged []uint64, _ error),
 	error,
 ) {
 	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
@@ -477,34 +472,22 @@ func newFuncCollectXmergedOps(
 				return prev, nil
 			})
 		},
-		func(f func([]uint64, []uint64) error) error {
+		func() ([]uint64, []uint64, error) {
 			defer func() {
 				baseMergedOps.Close()
 				ops.Close()
 			}()
 
-			if f == nil {
-				return nil
-			}
-
 			var addM, addU dutil.AppendSliceAddFunc[uint64]
-			var doneM, doneU dutil.AppendSliceDoneFunc[uint64]
+			var doneM, doneU dutil.OutFunc[[]uint64]
 
 			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
-				return err
+				return nil, nil, err
 			}
-
-			defer func() {
-				_ = doneM(nil)
-			}()
 
 			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
-				return err
+				return nil, nil, err
 			}
-
-			defer func() {
-				_ = doneU(nil)
-			}()
 
 			_ = ops.Traverse(func(opindex uint64, i int) bool {
 				switch {
@@ -522,18 +505,14 @@ func newFuncCollectXmergedOps(
 				return true
 			})
 
-			return doneM(func(merged []uint64) error {
-				return doneU(func(unmerged []uint64) error {
-					return f(merged, unmerged)
-				})
-			})
+			return doneM(), doneU(), nil
 		},
 		nil
 }
 
 func newFuncAddOpUnmergeReasons(mapSize uint64) (
 	add func(reasons map[uint64]string) error,
-	done func(unmerged []uint64, _ func(map[uint64]string) error) error,
+	done func() (reasons map[uint64]string, _ error),
 	_ error,
 ) {
 	var m util.LockedMap[uint64, string]
@@ -565,14 +544,10 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 
 			return nil
 		},
-		func(unmerged []uint64, f func(reasons map[uint64]string) error) error {
+		func() (map[uint64]string, error) {
 			defer m.Close()
 
-			if f == nil {
-				return nil
-			}
-
-			return f(m.Map())
+			return m.Map(), nil
 		},
 		nil
 }
@@ -594,9 +569,9 @@ func xMergeOpValues(
 
 	var (
 		addNext    dutil.AppendSliceAddFunc[uint64]
-		doneNext   dutil.AppendSliceDoneFunc[uint64]
+		doneNext   dutil.OutFunc[[]uint64]
 		addCommit  dutil.AppendSliceAddFunc[func() error]
-		doneCommit dutil.AppendSliceDoneFunc[func() error]
+		doneCommit dutil.OutFunc[[]func() error]
 	)
 
 	if err := dutil.RUniqueAppendSlice[uint64](
@@ -604,18 +579,10 @@ func xMergeOpValues(
 		return false, nil, nil, err
 	}
 
-	defer func() {
-		_ = doneNext(nil)
-	}()
-
 	if err := dutil.RAppendSlice[func() error](
 		uint64(len(values)), 0, &addCommit, &doneCommit); err != nil {
 		return false, nil, nil, err
 	}
-
-	defer func() {
-		_ = doneCommit(nil)
-	}()
 
 	addReason := func() func(uint64, string) {
 		c := sync.OnceValue(func() error {
@@ -677,13 +644,8 @@ func xMergeOpValues(
 		return false, nil, reasons, nil
 	}
 
-	_ = doneNext(func(s []uint64) error {
-		nextOps = slices.Clone(s)
-
-		return nil
-	})
-
-	return committed, nextOps, reasons, doneCommit(func(s []func() error) error {
+	return committed, doneNext(), reasons, func() error {
+		s := doneCommit()
 		if len(s) < 1 {
 			return nil
 		}
@@ -693,7 +655,7 @@ func xMergeOpValues(
 		return dutil.TraverseSlice(s, func(_ int, f func() error) (bool, error) {
 			return true, f()
 		})
-	})
+	}()
 }
 
 func mergeOpValues(
