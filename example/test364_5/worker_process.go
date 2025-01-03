@@ -198,11 +198,8 @@ func newFuncWorkerProcess(
 						func(ctx context.Context) error {
 							s := slices.Concat(subws, affected)
 							slices.Sort(s)
-							s = slices.Compact(s)
 
-							defer clear(s)
-
-							return reportStateOwners(ctx, s)
+							return reportStateOwners(ctx, slices.Compact(s))
 						},
 						func(ctx context.Context) error {
 							return workersBroadcastUnmerged(ctx, local, affected, unmerged, broacastUnmerged)
@@ -211,9 +208,6 @@ func newFuncWorkerProcess(
 				},
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
-					defer func() {
-						dutil.ClearMap(reasons)
-					}()
 
 					statesSize, traverseStateMergers := traverseStateMergersf()
 

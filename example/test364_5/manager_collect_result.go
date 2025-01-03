@@ -396,9 +396,8 @@ func newFuncManagerWorkersResult(
 						case err != nil:
 							return err
 						default:
-							so := slices.Clone(stateOwners)
 							checkWorker = func(worker string, f func() error) (bool, bool, bool, error) {
-								if slices.Index(so, worker) < 0 {
+								if slices.Index(stateOwners, worker) < 0 {
 									return false, false, false, util.ErrNotFound.Errorf("unknown worker, %q", worker)
 								}
 
