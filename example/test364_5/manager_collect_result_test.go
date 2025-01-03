@@ -209,6 +209,87 @@ func (t *testManagerCollectResult) TestWorkerResult() {
 	})
 }
 
+func (t *testManagerCollectResult) TestMaxFailed() {
+	t.RunWithGoLeak("under max failed", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workers := t.workers(3)
+		var statesShare uint64 = 2
+		ophs := t.randomOphs(3)
+
+		{
+			minEnough, maxFailed, err := minEnoughMaxFailed(uint64(len(workers)), statesShare)
+			t.NoError(err)
+			t.T().Logf("workers=%d states share=%d min enough=%d max failed=%d", len(workers), statesShare, minEnough, maxFailed)
+		}
+
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
+		t.NoError(err)
+
+		t.NoError(or(workers, statesShare))
+
+		_, _, d, err := wr("w0") // NOTE w0 ok
+		t.NoError(err)
+		t.NoError(d(nil))
+
+		_, _, d, err = wr("w1") // NOTE w1 error
+		t.NoError(err)
+
+		err = d(errors.Errorf("showme"))
+		t.NotErrorIs(err, errWorkersFailed)
+		t.ErrorContains(err, "showme")
+
+		_, _, d, err = wr("w2") // NOTE w2 ok
+		t.NoError(err)
+		t.NoError(d(nil))
+
+		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
+		t.NoError(err)
+		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
+	})
+
+	t.RunWithGoLeak("over max failed", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workers := t.workers(3)
+		var statesShare uint64 = 1
+		ophs := t.randomOphs(3)
+
+		{
+			minEnough, maxFailed, err := minEnoughMaxFailed(uint64(len(workers)), statesShare)
+			t.NoError(err)
+			t.T().Logf("workers=%d states share=%d min enough=%d max failed=%d", len(workers), statesShare, minEnough, maxFailed)
+		}
+
+		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
+		t.NoError(err)
+
+		t.NoError(or(workers, statesShare))
+
+		_, _, d, err := wr("w0") // NOTE w0 ok
+		t.NoError(err)
+		t.NoError(d(nil))
+
+		_, _, d, err = wr("w1") // NOTE w1 error
+		t.NoError(err)
+
+		err = d(errors.Errorf("showme"))
+		t.ErrorIs(err, errWorkersFailed)
+		t.ErrorContains(err, "showme")
+
+		_, _, err = w(t.baseGenerateNodesHashFunc())
+		t.ErrorIs(err, errWorkersFailed)
+
+		switch {
+		case errors.Is(err, context.Canceled):
+		default:
+			t.ErrorContains(err, "showme")
+		}
+	})
+}
+
 func (t *testManagerCollectResult) TestStateOwners() {
 	t.RunWithGoLeak("empty state owners", func() {
 		ctx, cancel := t.Ctx()
@@ -344,8 +425,6 @@ func (t *testManagerCollectResult) TestStatesTree() {
 		t.NoError(t.checkStatesTree(expectedStates, statesTree))
 	})
 }
-
-// FIXME test; over enough, over max failed
 
 func TestManagerCollectResult(t *testing.T) {
 	defer goleak.VerifyNone(t)
