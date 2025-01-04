@@ -83,7 +83,7 @@ func NewHashDecoder(h util.Hash) HashDecoder {
 	return HashDecoder{h: h}
 }
 
-func (d *HashDecoder) MarshalText() ([]byte, error) {
+func (d HashDecoder) MarshalText() ([]byte, error) {
 	if d.h == nil {
 		return nil, nil
 	}
