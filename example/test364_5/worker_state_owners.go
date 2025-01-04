@@ -243,12 +243,10 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 
 					if len(i) > 0 {
 						affected = slices.Collect(maps.Keys(i))
-						defer clear(affected)
 					}
 
 					if i, found := maffected.Value(worker); found && len(i) > 0 {
 						subws = slices.Collect(maps.Keys(i))
-						defer clear(subws)
 					}
 
 					gerr = f(worker, subws, affected)

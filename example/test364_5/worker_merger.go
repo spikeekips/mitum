@@ -238,12 +238,6 @@ func newFuncWorkerMergerInsert(
 			})
 		}
 
-		if worker == managerName {
-			if err := unmerge(worker, nil); err != nil {
-				return nil, nil, err
-			}
-		}
-
 		return f, done, nil
 	}
 }
@@ -360,7 +354,6 @@ func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
 	}
 
 	m := make([]uint64, len(as)+len(s))
-	defer dutil.ClearSlice(m)
 
 	copy(m, as)
 	copy(m[len(as):], s)

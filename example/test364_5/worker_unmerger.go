@@ -62,14 +62,14 @@ func newFuncWorkerUnmerger(
 		},
 	)
 
-	_, workerPhaseDone, _, workerPhaseDoneWait := dutil.NewContextDone(ctx)
+	wctx, workerPhaseDone, _, workerPhaseDoneWait := dutil.NewContextDone(ctx)
 
 	return func(worker string, unmerged []uint64) error {
 			if worker == local {
 				return util.ErrFound.Errorf("unexpected local")
 			}
 
-			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
 				if worker == managerName {
@@ -99,7 +99,7 @@ func newFuncWorkerUnmerger(
 			})
 		},
 		func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) error {
-			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
+			return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
 				if slices.Index(subws, local) < 0 {
 					minEnough++
 				}
