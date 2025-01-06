@@ -368,6 +368,8 @@ func (t *testManagerProcess) TestOpsTree() {
 					return nil
 				})
 
+				t.T().Logf("worker owners: worker=%q owners=%v", worker, owners)
+
 				workersOwners[worker] = owners
 				expectedOwners = append(expectedOwners, owners...)
 
