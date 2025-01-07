@@ -1,10 +1,25 @@
 package util
 
 import (
+	"iter"
 	"sync"
 
 	"github.com/pkg/errors"
 )
+
+func FilterSlice[T any](s []T, f func(T) bool) iter.Seq[T] {
+	return func(yield func(T) bool) {
+	end:
+		for i := range s {
+			switch {
+			case !f(s[i]):
+				continue end
+			case !yield(s[i]):
+				break end
+			}
+		}
+	}
+}
 
 func TraverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
 	if len(s) < 1 {

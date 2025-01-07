@@ -226,7 +226,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			expectedOpsWorkers = w()
 			slices.Sort(expectedOpsWorkers)
 
-			expectedOpsWorkers = util.FilterSlice(expectedOpsWorkers, func(a string) bool { return a != failedWorker })
+			expectedOpsWorkers = slices.Collect(dutil.FilterSlice(expectedOpsWorkers, func(a string) bool { return a != failedWorker }))
 
 			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 				if worker == failedWorker {
