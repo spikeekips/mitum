@@ -769,24 +769,3 @@ func mustFuncGetStateMergeValues(get opindexGetStateMergeValuesFunc) opindexGetS
 		}
 	}
 }
-
-func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]string {
-	if len(unmerged) < 1 {
-		return nil
-	}
-
-	n := map[uint64]string{}
-
-	_ = dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
-		switch i, found := reasons[opindex]; {
-		case found:
-			n[opindex] = i
-		default:
-			n[opindex] = ""
-		}
-
-		return true, nil
-	})
-
-	return n
-}

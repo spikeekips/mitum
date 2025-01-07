@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -314,12 +315,12 @@ func newFuncWorkerMergerWait(
 	}
 }
 
-func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
+func mergeUnmergeds(a, b []uint64) (iter.Seq[uint64], error) {
 	switch {
 	case len(a) < 1:
-		return b, nil
+		return slices.Values(b), nil
 	case len(b) < 1:
-		return a, nil
+		return slices.Values(a), nil
 	}
 
 	as, bs := a, b
@@ -332,11 +333,11 @@ func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
 	var add dutil.AppendSliceAddFunc[uint64]
 	var done dutil.OutFunc[[]uint64]
 
-	switch a, d, err := dutil.NewAppendSlice[uint64](uint64(len(as)+len(bs)), 0); {
+	switch i, d, err := dutil.NewAppendSlice[uint64](uint64(len(as)+len(bs)), 0); {
 	case err != nil:
 		return nil, err
 	default:
-		add, done = a, d
+		add, done = i, d
 	}
 
 	_ = dutil.TraverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
@@ -351,13 +352,41 @@ func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
 	defer dutil.ClearSlice(s)
 
 	if len(s) < 1 {
-		return as, nil
+		return slices.Values(as), nil
 	}
 
-	m := make([]uint64, len(as)+len(s))
+	return func(yield func(uint64) bool) {
+			for i := range as {
+				if !yield(as[i]) {
+					return
+				}
+			}
 
-	copy(m, as)
-	copy(m[len(as):], s)
+			for i := range s {
+				if !yield(s[i]) {
+					return
+				}
+			}
+		},
+		nil
+}
 
-	return m, nil
+func filterReasons(reasons map[uint64]string, unmerged iter.Seq[uint64]) map[uint64]string {
+	next, stop := iter.Pull(unmerged)
+	defer stop()
+
+	for {
+		switch opindex, ok := next(); {
+		case !ok:
+			return reasons
+		default:
+			if _, found := reasons[opindex]; !found {
+				if reasons == nil {
+					reasons = map[uint64]string{}
+				}
+
+				reasons[opindex] = ""
+			}
+		}
+	}
 }
