@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"iter"
 	"maps"
 	"slices"
+	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -202,6 +205,10 @@ func newFuncWorkerProcess(
 							return reportStateOwners(ctx, slices.Compact(s))
 						},
 						func(ctx context.Context) error {
+							if slices.Index(opsWorkers, local) < 0 {
+								return nil
+							}
+
 							return workersBroadcastUnmerged(ctx, local, affected, unmerged, broacastUnmerged)
 						},
 					)
@@ -589,40 +596,60 @@ func workersBroadcastUnmerged(
 	unmerged []uint64,
 	f dutil.In3ErrorFunc[context.Context, string, []uint64],
 ) error {
-	log := dutil.LoadContextValueLogger(ctx)
-
-	filtered := util.FilterSlice(affected, func(a string) bool {
-		return a == local
-	})
-
-	if len(filtered) < 1 {
+	if len(affected) < 1 {
 		return nil
 	}
+
+	log := dutil.LoadContextValueLogger(ctx)
 
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(filtered))); {
-	case err != nil:
-		return err
-	default:
-		newJob, jobDone, jobWait = n, d, w
-	}
+	next, stop := iter.Pull(
+		dutil.FilterSlice(affected, func(worker string) bool {
+			return worker != local
+		}))
+	defer stop()
 
-	go func() {
-		defer jobDone()
+	var once sync.Once
 
-		_ = dutil.TraverseSlice(filtered, func(_ int, worker string) (bool, error) {
-			return true, newJob(func(ctx context.Context) error {
+end:
+	for {
+		switch worker, ok := next(); {
+		case !ok:
+			break end
+		default:
+			var gerr error
+
+			once.Do(func() {
+				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(affected))); {
+				case err != nil:
+					gerr = jobWait(err)
+				default:
+					newJob, jobDone, jobWait = n, d, w
+				}
+			})
+			if gerr != nil {
+				return gerr
+			}
+
+			_ = newJob(func(ctx context.Context) error {
+				fmt.Println(">>>", worker, unmerged)
 				if err := f(ctx, worker, unmerged); err != nil {
 					log.Debug().Err(err).Msg("failed to broadcast unmerged")
 				}
 
 				return nil
 			})
-		})
-	}()
+		}
+	}
+
+	if jobDone == nil {
+		return nil
+	}
+
+	jobDone()
 
 	return jobWait(nil)
 }

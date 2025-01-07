@@ -435,15 +435,13 @@ func (t *testWorkerProcess) TestLocal() {
 
 		ctx, _ := t.Ctx()
 
-		initial, insertf, unmerge, wait, savedOps, savedStates := t.newf(
+		_, insertf, unmerge, wait, savedOps, savedStates := t.newf(
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
 			t.newStateFunc(),
 			workers, workers, 1, 1,
 		)
-
-		t.NoError(initial(nil, nil, nil, func(opindexOpHashesFunc) error { return nil }))
 
 		var calledBroadcastUnmerged bool
 		var reportedStateOwners atomic.Value
