@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -75,7 +76,7 @@ func (fact *OpFact) hash() util.Hash {
 		ib = fact.Issuer.Bytes()
 	}
 
-	return valuehash.NewSHA256(util.ConcatBytesSlice(
+	return valuehash.NewSHA256(slices.Concat(
 		fact.Token(),
 		ib,
 		fact.Receiver.Bytes(),

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -107,40 +108,36 @@ func (s *BaseState) Operations() []util.Hash {
 }
 
 func (s *BaseState) generateHash() util.Hash {
-	return valuehash.NewSHA256(util.ConcatByters(
-		util.DummyByter(func() []byte {
-			if s.previous == nil {
-				return nil
-			}
+	var bs [][]byte
+	var bsSize int
 
-			return s.previous.Bytes()
-		}),
-		util.BytesToByter([]byte(s.k)),
-		util.DummyByter(func() []byte {
-			if s.v == nil {
-				return nil
-			}
+	switch {
+	case len(s.ops) < 1:
+		bsSize = 2
+	default:
+		bsSize = len(s.ops) + 2
+	}
 
-			return s.v.HashBytes()
-		}),
-		util.DummyByter(func() []byte {
-			if len(s.ops) < 1 {
-				return nil
-			}
+	bs = make([][]byte, bsSize)
+	clear(bs)
 
-			bs := make([][]byte, len(s.ops))
+	if s.previous != nil {
+		bs[0] = s.previous.Bytes()
+	}
 
-			for i := range s.ops {
-				if s.ops[i] == nil {
-					continue
-				}
+	if s.v != nil {
+		bs[1] = s.v.HashBytes()
+	}
 
-				bs[i] = s.ops[i].Bytes()
-			}
+	for i := range s.ops {
+		if s.ops[i] == nil {
+			continue
+		}
 
-			return util.ConcatBytesSlice(bs...)
-		}),
-	))
+		bs[i+2] = s.ops[i].Bytes()
+	}
+
+	return valuehash.NewSHA256(slices.Concat(bs...))
 }
 
 type baseStateJSONMarshaler struct {

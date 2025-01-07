@@ -32,7 +32,7 @@ func NewAccountStateValue(address base.Publickey, balance int64) *AccountStateVa
 }
 
 func (s *AccountStateValue) HashBytes() []byte {
-	return util.ConcatBytesSlice(
+	return slices.Concat(
 		s.Address.Bytes(),
 		util.Int64ToBytes(s.Balance),
 	)
