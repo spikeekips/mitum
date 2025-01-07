@@ -1,7 +1,6 @@
 package util
 
 import (
-	"iter"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -262,24 +261,4 @@ func ClearMap[K comparable, V any](m map[K]V) {
 
 	clear(m)
 	m = nil
-}
-
-func EnumerateSeq[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
-	return func(yield func(int, T) bool) {
-		next, stop := iter.Pull(seq)
-		defer stop()
-
-		var i int
-
-		for {
-			switch v, ok := next(); {
-			case !ok:
-				return
-			case !yield(i, v):
-				return
-			default:
-				i++
-			}
-		}
-	}
 }
