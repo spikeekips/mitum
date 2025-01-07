@@ -108,7 +108,7 @@ func (t *testManager) newOptions() *managerOptions {
 
 func (t *testManager) TestNew() {
 	t.Run("empty work id", func() {
-		_, _, _, _, err := newManager(
+		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			"",
@@ -120,7 +120,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty ophs", func() {
-		_, _, _, _, err := newManager(
+		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			util.UUID().String(),
@@ -132,7 +132,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty workers", func() {
-		_, _, _, _, err := newManager(
+		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			util.UUID().String(),
@@ -144,7 +144,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero ops share", func() {
-		_, _, _, _, err := newManager(
+		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			util.UUID().String(),
@@ -156,7 +156,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero states share", func() {
-		_, _, _, _, err := newManager(
+		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			util.UUID().String(),

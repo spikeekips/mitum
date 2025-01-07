@@ -31,7 +31,7 @@ func newManagerOptions() *managerOptions {
 	}
 }
 
-func newManager(
+func newFuncManager(
 	ctx context.Context,
 	options *managerOptions,
 	workID string,
@@ -65,7 +65,7 @@ func newManager(
 	var workerResult managerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
-	switch s, o, r, w, err := newManagerProcess(
+	switch s, o, r, w, err := newFuncManagerProcess(
 		ctx,
 		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
 		workers,

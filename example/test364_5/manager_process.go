@@ -17,7 +17,7 @@ type managerProcessWaitFunc = func(
 	error,
 )
 
-func newManagerProcess(
+func newFuncManagerProcess(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workers []string,

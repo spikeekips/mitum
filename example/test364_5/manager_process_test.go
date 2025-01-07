@@ -28,7 +28,7 @@ func (t *testManagerProcess) TestCancel() {
 	) {
 		workers := t.workers(3)
 
-		s, wo, wr, w, err := newManagerProcess(
+		s, wo, wr, w, err := newFuncManagerProcess(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers,
@@ -381,7 +381,7 @@ func (t *testManagerProcess) TestOpsTree() {
 		}
 		t.T().Log("expected owners:", expectedOwners)
 
-		s, wo, wr, w, err := newManagerProcess(
+		s, wo, wr, w, err := newFuncManagerProcess(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers,
