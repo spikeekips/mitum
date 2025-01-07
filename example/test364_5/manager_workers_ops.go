@@ -44,8 +44,7 @@ func newFuncManagerWorkersOps(
 	case err != nil:
 		return nil, 0, 0, nil, nil, err
 	default:
-		opsWorkers = w()
-		workerOps = d
+		opsWorkers, workerOps = w(), d
 
 		l = l.Strs("ops_workers", opsWorkers)
 	}
@@ -67,8 +66,7 @@ func newFuncManagerWorkersOps(
 		case err != nil:
 			return nil, 0, 0, nil, nil, err
 		default:
-			checkWorker = w
-			checkWorkerClose = c
+			checkWorker, checkWorkerClose = w, c
 		}
 
 		minEnough = me

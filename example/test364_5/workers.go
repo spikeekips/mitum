@@ -597,17 +597,24 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.OutFunc[[]string]
 
-	if err := dutil.RAppendSlice[string](uint64(len(workers)), 0, &add, &done); err != nil {
+	switch a, d, err := dutil.NewLockAppendSlice[string](uint64(len(workers)), 0); {
+	case err != nil:
 		return nil, nil, err
+	default:
+		add, done = a, d
 	}
 
-	return func() (opsWorkers []string) {
-			_ = dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
-				if workerMaxItems(uint64(i)) > 0 {
-					add(worker)
-				}
+	var once sync.Once
 
-				return true, nil
+	return func() (opsWorkers []string) {
+			once.Do(func() {
+				_ = dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
+					if workerMaxItems(uint64(i)) > 0 {
+						add(worker)
+					}
+
+					return true, nil
+				})
 			})
 
 			return done()

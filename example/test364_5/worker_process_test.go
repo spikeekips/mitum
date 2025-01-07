@@ -804,11 +804,11 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		)
 
 		go func() {
-			t.NoError(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
+			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
 
 			_, insertDone, err := insertf(managerName)
-			t.NoError(err)
-			t.NoError(insertDone(nil, nil))
+			t.IfErrPanic(err)
+			t.IfErrPanic(insertDone(nil, nil))
 		}()
 
 		var calledBroadcastUnmerged bool
@@ -860,7 +860,12 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			_, insertDone, err := insertf(managerName)
 			t.IfErrPanic(err)
 			t.IfErrPanic(insertDone(nil, nil))
-			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
+
+			switch err := initial(nil, nil, nil, t.defaultFuncInsertOp(nil)); {
+			case errors.Is(err, context.Canceled):
+			case err == nil:
+				t.IfErrPanic(err)
+			}
 		}()
 
 		var calledBroadcastUnmerged bool

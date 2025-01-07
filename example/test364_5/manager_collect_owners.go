@@ -28,8 +28,7 @@ func newFuncManagerCollectOwners(
 	case err != nil:
 		return nil, nil, err
 	default:
-		checkWorker = w
-		checkWorkerClose = c
+		checkWorker, checkWorkerClose = w, c
 	}
 
 	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextDone(ctx)
@@ -37,8 +36,11 @@ func newFuncManagerCollectOwners(
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.OutFunc[[]string]
 
-	if err := dutil.RUniqueAppendSlice[string, string](workersSize, 0, func(s string) string { return s }, &add, &done); err != nil {
+	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](workersSize, 0); {
+	case err != nil:
 		return nil, nil, err
+	default:
+		add, done = a, d
 	}
 
 	checkParentContextError := dutil.NewFuncCheckParentContextError(parentContextError, dutil.DummyErrorInFunc)

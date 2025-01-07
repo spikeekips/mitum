@@ -1280,7 +1280,7 @@ func (t *testWorkerMerger) TestSubs() {
 	}
 
 	checkWaits := func(waits testWorkerMergerWaitsFunc) []string {
-		addUnmerged, doneUnmerged, _ := dutil.AppendSlice[uint64](uint64(len(values)), 0)
+		addUnmerged, doneUnmerged, _ := dutil.NewLockAppendSlice[uint64](uint64(len(values)), 0)
 
 		doneWorkers, err := waits(func(worker string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc) {
 			return nil,

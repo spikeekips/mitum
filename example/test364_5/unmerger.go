@@ -41,8 +41,11 @@ func newFuncUnmerger(
 	var addOps dutil.AppendSliceAddFunc[uint64]
 	var doneOps dutil.OutFunc[[]uint64]
 
-	if err := dutil.RAppendSlice[uint64](maxOpsSize, maxOpsSize, &addOps, &doneOps); err != nil {
+	switch a, d, err := dutil.NewLockAppendSlice[uint64](maxOpsSize, maxOpsSize); {
+	case err != nil:
 		return nil, nil, nil, err
+	default:
+		addOps, doneOps = a, d
 	}
 
 	unmergef := func(opindex uint64) (committed bool, _ error) {

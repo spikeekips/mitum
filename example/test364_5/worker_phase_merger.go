@@ -128,8 +128,7 @@ func newFuncWorkerPhaseMerger(
 				case err != nil:
 					return err
 				default:
-					unmerged = newUnmerged
-					reasons = r
+					unmerged, reasons = newUnmerged, r
 
 					return nil
 				}

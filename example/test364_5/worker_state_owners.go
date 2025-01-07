@@ -42,14 +42,18 @@ func newFuncWorkerStateOwners(
 	var addSubStateOwners, addAffectedStateOwners addOwnersFunc
 	var doneSubStateOwners, doneAffectedStateOwners dutil.OutFunc[[]string]
 
-	if err := newFuncAddStateOwners(
-		maxWorkersSize, &addSubStateOwners, &doneSubStateOwners); err != nil {
+	switch a, d, err := newFuncAddStateOwners(maxWorkersSize); {
+	case err != nil:
 		return nil, nil, nil, err
+	default:
+		addSubStateOwners, doneSubStateOwners = a, d
 	}
 
-	if err := newFuncAddStateOwners(
-		maxWorkersSize, &addAffectedStateOwners, &doneAffectedStateOwners); err != nil {
+	switch a, d, err := newFuncAddStateOwners(maxWorkersSize); {
+	case err != nil:
 		return nil, nil, nil, err
+	default:
+		addAffectedStateOwners, doneAffectedStateOwners = a, d
 	}
 
 	return func(getStateOwners getStateOwnersFunc) (
@@ -64,8 +68,7 @@ func newFuncWorkerStateOwners(
 			case err != nil:
 				return nil, nil, err
 			default:
-				localInsertValues = i
-				traverseOwnersSet = t
+				localInsertValues, traverseOwnersSet = i, t
 			}
 
 			return localInsertValues,
@@ -124,8 +127,7 @@ func newFuncLocalExtractedStateOwners(
 	case err != nil:
 		return nil, nil, err
 	default:
-		addOwnersSet = a
-		traverseWorkerOwnersSet = w
+		addOwnersSet, traverseWorkerOwnersSet = a, w
 	}
 
 	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error {
@@ -282,30 +284,23 @@ func newFuncCollectWorkerStateMergeValues() (
 
 func newFuncAddStateOwners(
 	maxSize uint64,
-	add *addOwnersFunc,
-	done *dutil.OutFunc[[]string],
-) error {
-	var (
-		addf  dutil.AppendSliceAddFunc[string]
-		donef dutil.OutFunc[[]string]
-	)
+) (
+	addOwnersFunc,
+	dutil.OutFunc[[]string],
+	error,
+) {
+	switch add, done, err := dutil.NewLockComparableUniqueAppendSlice[string](maxSize, 1<<5); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		return addOwnersFunc(func(owners []string) {
+				if len(owners) < 1 {
+					return
+				}
 
-	if err := dutil.RUniqueAppendSlice[string, string](
-		maxSize, 1<<5, func(s string) string { return s }, &addf, &donef); err != nil {
-		return err
+				add(owners...)
+			}),
+			done,
+			nil
 	}
-
-	a := addOwnersFunc(func(owners []string) {
-		if len(owners) < 1 {
-			return
-		}
-
-		addf(owners...)
-	})
-
-	if err := util.ReflectSetInterfaceValue(a, add); err != nil {
-		return err
-	}
-
-	return util.ReflectSetInterfaceValue(donef, done)
 }

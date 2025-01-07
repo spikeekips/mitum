@@ -364,8 +364,7 @@ func newFuncWorkerProcessStateValueMerger(
 			case err != nil:
 				return nil, nil, err
 			default:
-				insert = i
-				done = d
+				insert, done = i, d
 			}
 
 			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
@@ -635,27 +634,29 @@ func mergeStateOpFromValues(
 	value StateMergeValue,
 	values []StateMergeValue,
 ) error {
-	var (
-		add  dutil.AppendSliceAddFunc[string]
-		done dutil.OutFunc[[]string]
-	)
+	var stateKeys []string
+	var stateKeysSize uint64
 
-	if err := dutil.RAppendSlice[string](
-		uint64(len(values)+1), 0, &add, &done); err != nil {
-		return err
+	switch s := uint64(len(values)); {
+	case value == nil:
+		stateKeysSize = s
+	default:
+		stateKeysSize = s + 1
 	}
 
-	if value != nil {
-		_, _ = add(value.Key())
-	}
+	stateKeys = make([]string, stateKeysSize)
 
-	_ = dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
-		add(value.Key())
+	_ = dutil.TraverseSlice(values, func(i int, value StateMergeValue) (bool, error) {
+		stateKeys[i] = value.Key()
 
 		return true, nil
 	})
 
-	_ = mergeStateOp(opindex, fact, done())
+	if value != nil {
+		stateKeys[stateKeysSize-1] = value.Key()
+	}
+
+	_ = mergeStateOp(opindex, fact, stateKeys)
 
 	return nil
 }

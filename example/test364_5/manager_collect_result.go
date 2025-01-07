@@ -67,8 +67,7 @@ func newFuncManagerCollectResult(
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		unmergedOp = u
-		doneOpsTree = d
+		unmergedOp, doneOpsTree = u, d
 
 		go func() {
 			_ = baseOpsDone(startOpsFixedNodes())
@@ -256,10 +255,12 @@ func newFuncManagerWorkersResult(
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
 	var doneState dutil.OutFunc[[]fixedtree.Node]
 
-	if err := dutil.RUniqueAppendSlice[fixedtree.Node, string](maxStatesSize, 0,
-		func(n fixedtree.Node) string { return n.Key() },
-		&addState, &doneState); err != nil {
+	switch a, d, err := dutil.NewLockUniqueAppendSlice[fixedtree.Node, string](maxStatesSize, 0,
+		func(n fixedtree.Node) string { return n.Key() }); {
+	case err != nil:
 		return nil, nil, nil, nil, err
+	default:
+		addState, doneState = a, d
 	}
 
 	var checkWorker checkEnoughFailedWorkerFunc

@@ -81,7 +81,7 @@ func (t *testPhaseJobWorker) TestPhase() {
 
 		go func() {
 			for i := range njobs {
-				t.NoError(newJob(
+				t.IfErrPanic(newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)
@@ -138,7 +138,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 
 		go func() {
 			for i := range njobs {
-				t.NoError(newJob(
+				t.IfErrPanic(newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)
@@ -203,7 +203,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 
 		go func() {
 			for i := range njobs {
-				t.NoError(newJob(
+				t.IfErrPanic(newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)
@@ -269,7 +269,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 
 		go func() {
 			for i := range njobs {
-				t.NoError(newJob(
+				t.IfErrPanic(newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)

@@ -327,15 +327,15 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 		return []string{values[0].Key()}
 	}
 
-	add, done, _ := dutil.UniqueAppendSlice[string](uint64(len(values)), 0, func(k string) string { return k })
+	stateKeys = make([]string, len(values))
 
-	_ = dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
-		add(value.Key())
+	_ = dutil.TraverseSlice(values, func(i int, value StateMergeValue) (bool, error) {
+		stateKeys[i] = value.Key()
 
 		return true, nil
 	})
 
-	return done()
+	return stateKeys
 }
 
 func newFuncExtractStateMergeValueKeys(maxSize, size int) (
@@ -481,12 +481,18 @@ func newFuncCollectXmergedOps(
 			var addM, addU dutil.AppendSliceAddFunc[uint64]
 			var doneM, doneU dutil.OutFunc[[]uint64]
 
-			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addM, &doneM); err != nil {
+			switch a, d, err := dutil.NewAppendSlice[uint64](mapSize, mapSize); {
+			case err != nil:
 				return nil, nil, err
+			default:
+				addM, doneM = a, d
 			}
 
-			if err := dutil.RAppendSlice[uint64](mapSize, mapSize, &addU, &doneU); err != nil {
+			switch a, d, err := dutil.NewAppendSlice[uint64](mapSize, mapSize); {
+			case err != nil:
 				return nil, nil, err
+			default:
+				addU, doneU = a, d
 			}
 
 			_ = ops.Traverse(func(opindex uint64, i int) bool {
@@ -563,7 +569,9 @@ func xMergeOpValues(
 	reasons map[uint64]string,
 	_ error,
 ) {
-	if len(values) < 1 {
+	valuesSize := uint64(len(values))
+
+	if valuesSize < 1 {
 		return false, nil, nil, errors.Errorf("xmergeOp; empty values")
 	}
 
@@ -574,14 +582,18 @@ func xMergeOpValues(
 		doneCommit dutil.OutFunc[[]func() error]
 	)
 
-	if err := dutil.RUniqueAppendSlice[uint64](
-		uint64(len(values)), 0, func(k uint64) uint64 { return k }, &addNext, &doneNext); err != nil {
+	switch a, d, err := dutil.NewComparableUniqueAppendSlice[uint64](valuesSize, 0); {
+	case err != nil:
 		return false, nil, nil, err
+	default:
+		addNext, doneNext = a, d
 	}
 
-	if err := dutil.RAppendSlice[func() error](
-		uint64(len(values)), 0, &addCommit, &doneCommit); err != nil {
+	switch a, d, err := dutil.NewLockAppendSlice[func() error](valuesSize, 0); {
+	case err != nil:
 		return false, nil, nil, err
+	default:
+		addCommit, doneCommit = a, d
 	}
 
 	addReason := func() func(uint64, string) {
@@ -645,14 +657,11 @@ func xMergeOpValues(
 	}
 
 	return committed, doneNext(), reasons, func() error {
-		s := doneCommit()
-		if len(s) < 1 {
-			return nil
-		}
+		return dutil.TraverseSlice(doneCommit(), func(i int, f func() error) (bool, error) {
+			if i == 0 {
+				committed = true
+			}
 
-		committed = true
-
-		return dutil.TraverseSlice(s, func(_ int, f func() error) (bool, error) {
 			return true, f()
 		})
 	}()

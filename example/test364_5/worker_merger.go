@@ -221,8 +221,7 @@ func newFuncWorkerMergerInsert(
 		case err != nil:
 			return nil, nil, err
 		default:
-			insert = i
-			done = d
+			insert, done = i, d
 		}
 
 		f := func(opindex uint64, values []StateMergeValue) error {
@@ -261,8 +260,7 @@ func newFuncWorkerMergerWait(
 		case err != nil:
 			return nil, err
 		default:
-			localUnmerged = unmerged
-			localReasons = reasons
+			localUnmerged, localReasons = unmerged, reasons
 		}
 
 		var subws []string
@@ -334,8 +332,11 @@ func mergeUnmergeds(a, b []uint64) ([]uint64, error) {
 	var add dutil.AppendSliceAddFunc[uint64]
 	var done dutil.OutFunc[[]uint64]
 
-	if err := dutil.RAppendSlice[uint64](uint64(len(as)+len(bs)), 0, &add, &done); err != nil {
+	switch a, d, err := dutil.NewAppendSlice[uint64](uint64(len(as)+len(bs)), 0); {
+	case err != nil:
 		return nil, err
+	default:
+		add, done = a, d
 	}
 
 	_ = dutil.TraverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
