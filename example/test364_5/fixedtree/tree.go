@@ -232,15 +232,15 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	go func() {
-		defer jobDone()
-
-		for index := range nnodes {
-			_ = newJob(func(context.Context) error {
-				return isValidNodeHash(b, index, nodes)
-			})
+	for index := range nnodes {
+		if err := newJob(func(context.Context) error {
+			return isValidNodeHash(b, index, nodes)
+		}); err != nil {
+			return jobWait(err)
 		}
-	}()
+	}
+
+	jobDone()
 
 	return jobWait(nil)
 }

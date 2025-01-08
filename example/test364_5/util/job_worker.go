@@ -54,21 +54,17 @@ func NewFuncBaseJobWorker(
 			_ = jctxCancel(errNewJobDone)
 		},
 		func(err error) error {
-			defer func() {
-				_ = wctxCancel(nil)
-			}()
-
-			if err != nil {
-				if err := context.Cause(wctx); err != nil {
-					return ErrorWithStack(err)
-				}
-
-				return wctxCancel(err)
-			}
-
 			if err := context.Cause(wctx); err != nil {
 				return ErrorWithStack(err)
 			}
+
+			if err != nil {
+				return wctxCancel(err)
+			}
+
+			defer func() {
+				_ = wctxCancel(nil)
+			}()
 
 			waitch := make(chan error, 1)
 

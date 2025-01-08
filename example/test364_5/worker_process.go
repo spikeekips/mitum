@@ -614,7 +614,7 @@ func workersBroadcastUnmerged(
 		once.Do(func() {
 			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(affected))); {
 			case err != nil:
-				gerr = jobWait(err)
+				gerr = err
 			default:
 				newJob, jobDone, jobWait = n, d, w
 			}
@@ -623,13 +623,15 @@ func workersBroadcastUnmerged(
 			return gerr
 		}
 
-		_ = newJob(func(ctx context.Context) error {
+		if err := newJob(func(ctx context.Context) error {
 			if err := f(ctx, worker, unmerged); err != nil {
 				log.Debug().Err(err).Msg("failed to broadcast unmerged")
 			}
 
 			return nil
-		})
+		}); err != nil {
+			return jobWait(err)
+		}
 	}
 
 	if jobDone == nil {
@@ -693,15 +695,11 @@ func workerProcessCloseStateMergers(
 		case err != nil:
 			return err
 		default:
-			defer func() {
-				_ = jobWait(context.Canceled)
-			}()
-
 			newJob, jobDone, jobWait = n, d, w
 		}
 
 		if err := traverseStateMergers(func(stateKey string, merger StateMerger) (bool, error) {
-			err := newJob(func(context.Context) error {
+			return true, newJob(func(context.Context) error {
 				var facts []util.Hash
 
 				switch i, err := getStateOps(stateKey); {
@@ -733,10 +731,8 @@ func workerProcessCloseStateMergers(
 					return h(st)
 				}
 			})
-
-			return err == nil, err
 		}); err != nil {
-			return err
+			return jobWait(err)
 		}
 
 		jobDone()
@@ -841,10 +837,6 @@ func newFuncDistributeStateMergeValues(
 				case err != nil:
 					return err
 				default:
-					defer func() {
-						_ = jobWait(context.Canceled)
-					}()
-
 					newJob, jobDone, jobWait = n, d, w
 				}
 
@@ -875,7 +867,7 @@ func newFuncDistributeStateMergeValues(
 						return nil
 					})
 				}); err != nil {
-					return err
+					return jobWait(err)
 				}
 
 				jobDone()

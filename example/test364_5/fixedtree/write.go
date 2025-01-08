@@ -54,34 +54,30 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 		return nil
 	}
 
-	wctx, cancel := dutil.ContextWithCancelCause(ctx)
-	defer cancel(nil)
-
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, semSize); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, semSize); {
 	case err != nil:
 		return err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	go func() {
-		defer jobDone()
-
-		for i, n := range dutil.SliceAll(nodes) {
-			if n == nil {
-				// FIXME  cancel(errors.Errorf("nil node at %d", i))
-				continue
-			}
-
-			_ = newJob(func(context.Context) error {
-				return w(uint64(i), n)
-			})
+	for i, n := range dutil.SliceAll(nodes) {
+		if n == nil {
+			return jobWait(errors.Errorf("nil node at %d", i))
 		}
-	}()
+
+		if err := newJob(func(context.Context) error {
+			return w(uint64(i), n)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
 
 	return jobWait(nil)
 }
@@ -213,10 +209,6 @@ func AsyncGenerateNodesHashByFollowingParent(
 	case err != nil:
 		return err
 	default:
-		defer func() {
-			_ = jobWait(nil)
-		}()
-
 		newJob, jobDone, jobWait = n, d, w
 	}
 
@@ -270,7 +262,7 @@ func AsyncGenerateNodesHashByFollowingParent(
 		}
 
 		if err := gen(index); err != nil {
-			return err
+			return jobWait(err)
 		}
 	}
 
@@ -340,7 +332,7 @@ func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is it
 		if err := newJob(func(context.Context) error {
 			return GenerateNodeHash(i, nodes, w)
 		}); err != nil {
-			return err
+			return jobWait(err)
 		}
 	}
 
