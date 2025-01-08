@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"iter"
 	"slices"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -305,88 +304,31 @@ func newFuncWorkerMergerWait(
 				Uints64("local_unmerged", localUnmerged).
 				Msg("unmerger wait done")
 
-			switch m, err := mergeUnmergeds(localUnmerged, unmerged); {
-			case err != nil:
-				return nil, err
-			default:
-				return filterReasons(localReasons, m), nil
-			}
+			s := slices.Concat(localUnmerged, unmerged)
+			defer func() {
+				dutil.ClearSlice(unmerged)
+				dutil.ClearSlice(s)
+			}()
+
+			slices.Sort(s)
+
+			return filterReasons(localReasons, slices.Compact(s)), nil
 		}
 	}
 }
 
-func mergeUnmergeds(a, b []uint64) (iter.Seq[uint64], error) {
-	switch {
-	case len(a) < 1:
-		return slices.Values(b), nil
-	case len(b) < 1:
-		return slices.Values(a), nil
-	}
+func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]string {
+	for i := range unmerged {
+		opindex := unmerged[i]
 
-	as, bs := a, b
-
-	if len(b) > len(a) {
-		as = b
-		bs = a
-	}
-
-	var add dutil.AppendSliceAddFunc[uint64]
-	var done dutil.OutFunc[[]uint64]
-
-	switch i, d, err := dutil.NewAppendSlice[uint64](uint64(len(as)+len(bs)), 0); {
-	case err != nil:
-		return nil, err
-	default:
-		add, done = i, d
-	}
-
-	_ = dutil.TraverseSlice(bs, func(_ int, opindex uint64) (bool, error) {
-		if slices.Index(as, opindex) >= 0 {
-			add(opindex)
-		}
-
-		return true, nil
-	})
-
-	s := done()
-	defer dutil.ClearSlice(s)
-
-	if len(s) < 1 {
-		return slices.Values(as), nil
-	}
-
-	return func(yield func(uint64) bool) {
-			for i := range as {
-				if !yield(as[i]) {
-					return
-				}
+		if _, found := reasons[opindex]; !found {
+			if reasons == nil {
+				reasons = map[uint64]string{}
 			}
 
-			for i := range s {
-				if !yield(s[i]) {
-					return
-				}
-			}
-		},
-		nil
-}
-
-func filterReasons(reasons map[uint64]string, unmerged iter.Seq[uint64]) map[uint64]string {
-	next, stop := iter.Pull(unmerged)
-	defer stop()
-
-	for {
-		switch opindex, ok := next(); {
-		case !ok:
-			return reasons
-		default:
-			if _, found := reasons[opindex]; !found {
-				if reasons == nil {
-					reasons = map[uint64]string{}
-				}
-
-				reasons[opindex] = ""
-			}
+			reasons[opindex] = ""
 		}
 	}
+
+	return reasons
 }

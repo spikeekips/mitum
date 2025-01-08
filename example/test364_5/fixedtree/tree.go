@@ -34,7 +34,7 @@ func (t *Tree) IsValid(b []byte) error {
 }
 
 func (t *Tree) Close() {
-	clear(t.nodes)
+	dutil.ClearSlice(t.nodes)
 }
 
 func (t *Tree) Len() int {

@@ -187,7 +187,7 @@ func NewUniqueAppendSlice[T any, K comparable](size, grow uint64, keyf func(T) K
 
 	return add,
 		func() []T {
-			defer clear(m)
+			defer ClearMap(m)
 
 			return done()
 		},

@@ -193,7 +193,7 @@ func (m *AccountStateMerger) Close() (base.StateValue, error) {
 	defer func() {
 		m.lastop = nil
 
-		clear(m.prepops)
+		dutil.ClearSlice(m.prepops)
 	}()
 
 	if m.sum == 0 {

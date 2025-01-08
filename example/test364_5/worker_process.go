@@ -908,26 +908,24 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps atomic.Value) map[u
 		u = i.(map[uint64]string)
 	}
 
-	if len(u) < 1 {
+	switch {
+	case len(u) < 1:
 		defer dutil.ClearMap(u)
 
 		return reasons
-	}
-
-	switch {
 	case len(reasons) < 1:
-		reasons = u
-	default:
-		defer dutil.ClearMap(u)
-
-		_ = dutil.TraverseMap(u, func(opindex uint64, reason string) (bool, error) {
-			if _, found := reasons[opindex]; !found {
-				reasons[opindex] = reason
-			}
-
-			return true, nil
-		})
+		return u
 	}
+
+	defer dutil.ClearMap(u)
+
+	_ = dutil.TraverseMap(u, func(opindex uint64, reason string) (bool, error) {
+		if _, found := reasons[opindex]; !found {
+			reasons[opindex] = reason
+		}
+
+		return true, nil
+	})
 
 	return reasons
 }
