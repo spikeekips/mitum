@@ -7,14 +7,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-func FilterSlice[T any](s []T, f func(T) bool) iter.Seq[T] {
+func FilterSlice[T any](s iter.Seq[T], f func(T) bool) iter.Seq[T] {
 	return func(yield func(T) bool) {
 	end:
 		for i := range s {
 			switch {
-			case !f(s[i]):
+			case !f(i):
 				continue end
-			case !yield(s[i]):
+			case !yield(i):
 				break end
 			}
 		}
@@ -276,4 +276,14 @@ func ClearMap[K comparable, V any](m map[K]V) {
 
 	clear(m)
 	m = nil
+}
+
+func SliceAll[T any](s []T) iter.Seq2[int, T] {
+	return func(yield func(int, T) bool) {
+		for i := range s {
+			if !yield(i, s[i]) {
+				return
+			}
+		}
+	}
 }

@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"iter"
 	"maps"
 	"slices"
 	"sync"
@@ -557,14 +555,12 @@ func newFuncorkerProcessExtracted(
 			stateMergeValues[i] = value
 		}
 
-		_ = dutil.TraverseSlice(addvs, func(i int, value StateMergeValue) (bool, error) {
+		for i, value := range dutil.SliceAll(addvs) {
 			add(i, value)
-
-			return true, nil
-		})
+		}
 
 		if subv != nil {
-			add(len(addvs), subv)
+			add(size-1, subv)
 		}
 
 		if err := insertToMerger(opindex, stateMergeValues); err != nil {
@@ -606,43 +602,34 @@ func workersBroadcastUnmerged(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	next, stop := iter.Pull(
-		dutil.FilterSlice(affected, func(worker string) bool {
-			return worker != local
-		}))
-	defer stop()
+	it := dutil.FilterSlice(slices.Values(affected), func(worker string) bool {
+		return worker != local
+	})
 
 	var once sync.Once
 
-end:
-	for {
-		switch worker, ok := next(); {
-		case !ok:
-			break end
-		default:
-			var gerr error
+	for worker := range it {
+		var gerr error
 
-			once.Do(func() {
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(affected))); {
-				case err != nil:
-					gerr = jobWait(err)
-				default:
-					newJob, jobDone, jobWait = n, d, w
-				}
-			})
-			if gerr != nil {
-				return gerr
+		once.Do(func() {
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(affected))); {
+			case err != nil:
+				gerr = jobWait(err)
+			default:
+				newJob, jobDone, jobWait = n, d, w
+			}
+		})
+		if gerr != nil {
+			return gerr
+		}
+
+		_ = newJob(func(ctx context.Context) error {
+			if err := f(ctx, worker, unmerged); err != nil {
+				log.Debug().Err(err).Msg("failed to broadcast unmerged")
 			}
 
-			_ = newJob(func(ctx context.Context) error {
-				fmt.Println(">>>", worker, unmerged)
-				if err := f(ctx, worker, unmerged); err != nil {
-					log.Debug().Err(err).Msg("failed to broadcast unmerged")
-				}
-
-				return nil
-			})
-		}
+			return nil
+		})
 	}
 
 	if jobDone == nil {
@@ -673,11 +660,9 @@ func mergeStateOpFromValues(
 
 	stateKeys = make([]string, stateKeysSize)
 
-	_ = dutil.TraverseSlice(values, func(i int, value StateMergeValue) (bool, error) {
+	for i, value := range dutil.SliceAll(values) {
 		stateKeys[i] = value.Key()
-
-		return true, nil
-	})
+	}
 
 	if value != nil {
 		stateKeys[stateKeysSize-1] = value.Key()
@@ -919,13 +904,11 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps atomic.Value) map[u
 
 	defer dutil.ClearMap(u)
 
-	_ = dutil.TraverseMap(u, func(opindex uint64, reason string) (bool, error) {
+	for opindex, reason := range maps.All(u) {
 		if _, found := reasons[opindex]; !found {
 			reasons[opindex] = reason
 		}
-
-		return true, nil
-	})
+	}
 
 	return reasons
 }

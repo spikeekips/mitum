@@ -494,23 +494,30 @@ func newFuncSetStateOps(mapSize uint64) (
 				default:
 					defer dutil.ClearMap(i)
 
-					facts := make([]util.Hash, len(i))
+					var addFact dutil.AppendSliceAddFunc[util.Hash]
+					var doneFact dutil.OutFunc[[]util.Hash]
 
-					var n int
+					switch a, d, err := dutil.NewAppendSlice[util.Hash](uint64(len(i)), 0); {
+					case err != nil:
+						return nil, err
+					default:
+						addFact, doneFact = a, d
+					}
 
 					if err := dutil.TraverseMap(i, func(opindex uint64, _ struct{}) (bool, error) {
 						switch h, found := factPool.Value(opindex); {
 						case !found:
 							return false, util.ErrNotFound.Errorf("fact not found, %d", opindex)
 						default:
-							facts[n] = h
-							n++
+							addFact(h)
 
 							return true, nil
 						}
 					}); err != nil {
 						return nil, err
 					}
+
+					facts := doneFact()
 
 					slices.SortFunc(facts, func(a, b util.Hash) int {
 						return strings.Compare(a.String(), b.String())

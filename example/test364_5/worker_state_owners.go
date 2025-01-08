@@ -136,16 +136,11 @@ func newFuncLocalExtractedStateOwners(
 			var subws []string
 
 			if subv != nil {
-				ws := getStateOwners(subv.Key())
-				subws = make([]string, len(ws))
+				subws = getStateOwners(subv.Key())
 
-				_ = dutil.TraverseSlice(ws, func(i int, w string) (bool, error) {
+				for w := range slices.Values(subws) {
 					addValue(w, subv)
-
-					subws[i] = w
-
-					return true, nil
-				})
+				}
 			}
 
 			_ = dutil.TraverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {

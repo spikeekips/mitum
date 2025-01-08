@@ -165,8 +165,8 @@ func newFuncGenerateOperationFixedtree(
 	}
 
 	return func() error {
-			return dutil.TraverseSlice(ophs, func(i int, hs [2]util.Hash) (bool, error) {
-				return true, newJob(func(context.Context) error {
+			for i, hs := range dutil.SliceAll(ophs) {
+				if err := newJob(func(context.Context) error {
 					_, _, _ = pool.Set(uint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
 						if found {
 							return nil, util.ErrLockedSetIgnore
@@ -176,8 +176,12 @@ func newFuncGenerateOperationFixedtree(
 					})
 
 					return nil
-				})
-			})
+				}); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		},
 		func(opindex uint64, reason string) error {
 			if reason == "" {

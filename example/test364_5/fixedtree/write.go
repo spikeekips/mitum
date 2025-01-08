@@ -71,15 +71,16 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 	go func() {
 		defer jobDone()
 
-		_ = dutil.TraverseSlice(nodes, func(i int, n Node) (bool, error) {
+		for i, n := range dutil.SliceAll(nodes) {
 			if n == nil {
-				return false, cancel(errors.Errorf("nil node at %d", i))
+				// FIXME  cancel(errors.Errorf("nil node at %d", i))
+				continue
 			}
 
-			return true, newJob(func(context.Context) error {
+			_ = newJob(func(context.Context) error {
 				return w(uint64(i), n)
 			})
-		})
+		}
 	}()
 
 	return jobWait(nil)
@@ -296,26 +297,18 @@ func AsyncGenerateNodesHashByHeight(
 		return SyncronousGenerateNodesHash(ctx, nodes, w)
 	}
 
-	var next func() (uint64, iter.Seq[uint64], bool)
-	var stop func()
+	var it iter.Seq2[uint64, iter.Seq[uint64]]
 
 	switch i, err := reverseByHeight(nnodes); {
 	case err != nil:
 		return err
 	default:
-		next, stop = iter.Pull2(i)
-		defer stop()
+		it = i
 	}
 
-end:
-	for {
-		switch _, is, ok := next(); {
-		case !ok:
-			break end
-		default:
-			if err := generateNodesHash(ctx, nodes, w, is); err != nil {
-				return err
-			}
+	for _, is := range it {
+		if err := generateNodesHash(ctx, nodes, w, is); err != nil {
+			return err
 		}
 	}
 
@@ -323,40 +316,31 @@ end:
 }
 
 func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is iter.Seq[uint64]) error {
-	next, stop := iter.Pull(is)
-	defer stop()
-
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
 	var once sync.Once
 
-end:
-	for {
-		switch i, ok := next(); {
-		case !ok:
-			break end
-		default:
-			var gerr error
+	for i := range is {
+		var gerr error
 
-			once.Do(func() {
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
-				case err != nil:
-					gerr = err
-				default:
-					newJob, jobDone, jobWait = n, d, w
-				}
-			})
-			if gerr != nil {
-				return gerr
+		once.Do(func() {
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
+			case err != nil:
+				gerr = err
+			default:
+				newJob, jobDone, jobWait = n, d, w
 			}
+		})
+		if gerr != nil {
+			return gerr
+		}
 
-			if err := newJob(func(context.Context) error {
-				return GenerateNodeHash(i, nodes, w)
-			}); err != nil {
-				return err
-			}
+		if err := newJob(func(context.Context) error {
+			return GenerateNodeHash(i, nodes, w)
+		}); err != nil {
+			return err
 		}
 	}
 

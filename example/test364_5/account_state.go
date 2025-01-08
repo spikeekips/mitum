@@ -299,15 +299,13 @@ func (m *AccountStateMerger) Unmerge(op uint64, value base.StateValue) (
 			return nil, op, nil
 		}
 
-		_ = dutil.TraverseSlice(m.prepops, func(_ int, s uint64) (bool, error) {
+		for s := range slices.Values(m.prepops) {
 			if s > op {
 				mergeOp = s
 
-				return false, nil
+				break
 			}
-
-			return true, nil
-		})
+		}
 	}
 
 	return func() error {
