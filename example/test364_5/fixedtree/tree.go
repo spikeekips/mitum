@@ -2,6 +2,7 @@ package fixedtree
 
 import (
 	"context"
+	"iter"
 	"math"
 
 	"github.com/pkg/errors"
@@ -108,7 +109,7 @@ func indexHeight(index uint64) uint64 {
 	return uint64(math.Log(float64(index+1)) / math.Log(2))
 }
 
-func heightIndicesLen(size, height uint64) uint64 {
+func lenNodesInHeight(size, height uint64) uint64 {
 	cf := uint64(math.Pow(2, float64(height)) - 1)
 
 	switch l := uint64(math.Pow(2, float64(height))); {
@@ -119,7 +120,7 @@ func heightIndicesLen(size, height uint64) uint64 {
 	}
 }
 
-func heightIndices(size, height uint64) []uint64 {
+func indicesInHeight(size, height uint64) iter.Seq[uint64] {
 	cf := uint64(math.Pow(2, float64(height)) - 1)
 
 	var n uint64
@@ -131,13 +132,13 @@ func heightIndices(size, height uint64) []uint64 {
 		n = l
 	}
 
-	ns := make([]uint64, n)
-
-	for i := range ns {
-		ns[i] = cf + uint64(i)
+	return func(yield func(uint64) bool) {
+		for i := range n {
+			if !yield(cf + uint64(i)) {
+				return
+			}
+		}
 	}
-
-	return ns
 }
 
 func children(size, index uint64) (c [2]uint64, err error) {
@@ -179,31 +180,31 @@ func parent(index uint64) (uint64, error) {
 
 func baseTraverseByHeight(
 	size uint64,
-	f func(height uint64, is []uint64) error,
 	h func(uint64, uint64) uint64,
-) error {
+) (iter.Seq2[uint64 /* height */, iter.Seq[uint64] /* nodes */], error) {
 	if size < 1 {
-		return errors.Errorf("zero size")
+		return nil, errors.Errorf("zero size")
 	}
 
 	last := indexHeight(size - 1)
 
-	for i := range last + 1 {
-		height := h(last, i)
-		if err := f(height, heightIndices(size, height)); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return func(yield func(uint64, iter.Seq[uint64]) bool) {
+			for i := range last + 1 {
+				height := h(last, i)
+				if !yield(height, indicesInHeight(size, height)) {
+					return
+				}
+			}
+		},
+		nil
 }
 
-func traverseByHeight(size uint64, f func(height uint64, is []uint64) error) error {
-	return baseTraverseByHeight(size, f, func(_ uint64, i uint64) uint64 { return i })
+func traverseByHeight(size uint64) (iter.Seq2[uint64, iter.Seq[uint64]], error) {
+	return baseTraverseByHeight(size, func(_ uint64, i uint64) uint64 { return i })
 }
 
-func reverseByHeight(size uint64, f func(height uint64, is []uint64) error) error {
-	return baseTraverseByHeight(size, f, func(last, i uint64) uint64 { return last - i })
+func reverseByHeight(size uint64) (iter.Seq2[uint64, iter.Seq[uint64]], error) {
+	return baseTraverseByHeight(size, func(last, i uint64) uint64 { return last - i })
 }
 
 func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes []Node) error {

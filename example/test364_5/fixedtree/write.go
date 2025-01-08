@@ -2,6 +2,8 @@ package fixedtree
 
 import (
 	"context"
+	"iter"
+	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -185,8 +187,8 @@ func AsyncGenerateNodesHashByFollowingParent(
 	var ncc uint64
 
 	{
-		ln := heightIndicesLen(nnodes, last)
-		ncc = nnodes - ln - heightIndicesLen(nnodes, last-1)
+		ln := lenNodesInHeight(nnodes, last)
+		ncc = nnodes - ln - lenNodesInHeight(nnodes, last-1)
 
 		switch {
 		case ln%2 == 1:
@@ -294,34 +296,77 @@ func AsyncGenerateNodesHashByHeight(
 		return SyncronousGenerateNodesHash(ctx, nodes, w)
 	}
 
-	return reverseByHeight(nnodes, func(_ uint64, is []uint64) error {
-		if len(is) < 2 {
-			return GenerateNodeHash(is[0], nodes, w)
-		}
+	var next func() (uint64, iter.Seq[uint64], bool)
+	var stop func()
 
-		var newJob dutil.JobWorkerNewJobFunc
-		var jobDone func()
-		var jobWait dutil.InErrorFunc[error]
+	switch i, err := reverseByHeight(nnodes); {
+	case err != nil:
+		return err
+	default:
+		next, stop = iter.Pull2(i)
+		defer stop()
+	}
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(is))); {
-		case err != nil:
-			return err
+end:
+	for {
+		switch _, is, ok := next(); {
+		case !ok:
+			break end
 		default:
-			newJob, jobDone, jobWait = n, d, w
+			if err := generateNodesHash(ctx, nodes, w, is); err != nil {
+				return err
+			}
 		}
+	}
 
-		go func() {
-			defer jobDone()
+	return nil
+}
 
-			_ = dutil.TraverseSlice(is, func(_ int, n uint64) (bool, error) {
-				return true, newJob(func(context.Context) error {
-					return GenerateNodeHash(n, nodes, w)
-				})
+func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is iter.Seq[uint64]) error {
+	next, stop := iter.Pull(is)
+	defer stop()
+
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	var once sync.Once
+
+end:
+	for {
+		switch i, ok := next(); {
+		case !ok:
+			break end
+		default:
+			var gerr error
+
+			once.Do(func() {
+				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
+				case err != nil:
+					gerr = err
+				default:
+					newJob, jobDone, jobWait = n, d, w
+				}
 			})
-		}()
+			if gerr != nil {
+				return gerr
+			}
 
-		return jobWait(nil)
-	})
+			if err := newJob(func(context.Context) error {
+				return GenerateNodeHash(i, nodes, w)
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	if jobDone == nil {
+		return nil
+	}
+
+	jobDone()
+
+	return jobWait(nil)
 }
 
 func NewFuncAsyncGenerateNodesHashByFollowingParent(semSize uint64) GenerateNodesHashFunc {
