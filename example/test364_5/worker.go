@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	"github.com/rs/zerolog"
@@ -21,6 +22,8 @@ type (
 		getStateOwnersFunc,
 		workerDistributeStateMergeValuesFunc,
 		getOperationFunc,
+		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
+		workerReportStateOwnersFunc,
 	) error
 	workerBroadcastUnmerged = func(
 		_ context.Context,
@@ -45,7 +48,6 @@ type (
 	) error
 	workerWaitFunc = func(
 		workerBroadcastUnmerged,
-		workerReportStateOwnersFunc,
 		workerReportResultFunc,
 	) error
 )
@@ -72,7 +74,7 @@ func newFuncWorker(
 	workID string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
-	ophs [][2]util.Hash,
+	maxOpsSize uint64,
 ) (
 	workerInitialInsertFunc,
 	workerProcessWorkerInsertStateMergeValuesFunc,
@@ -86,11 +88,9 @@ func newFuncWorker(
 			Str("local", options.Local)
 	})
 
-	opsSize := uint64(len(ophs))
-
 	log.Debug().
 		Interface("options", options).
-		Uint64("ops_size", opsSize).
+		Uint64("max_ops_size", maxOpsSize).
 		Dict("workers", zerolog.Dict().
 			Strs("all", workers).
 			Strs("ops", opsWorkers),
@@ -99,11 +99,6 @@ func newFuncWorker(
 			Uint64("ops", opsShare).
 			Uint64("states", statesShare),
 		).
-		Func(func(e *zerolog.Event) {
-			if log.GetLevel() == zerolog.TraceLevel {
-				e.Interface("ops", ophs)
-			}
-		}).
 		Msg("newFuncWorker")
 
 	if err := isValidWorkerArgs(
@@ -128,7 +123,7 @@ func newFuncWorker(
 		options.MaxExtractStateKeyCacheSize,
 		workers, opsWorkers,
 		opsShare, statesShare,
-		opsSize,
+		maxOpsSize,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, err
@@ -140,6 +135,8 @@ func newFuncWorker(
 			getStateOwners getStateOwnersFunc,
 			distribute workerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
+			ophs iter.Seq2[uint64, [2]util.Hash],
+			reportStateOwners workerReportStateOwnersFunc,
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -153,9 +150,16 @@ func newFuncWorker(
 				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {
-					return dutil.TraverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
-						return true, f(uint64(i), oph[0], oph[1])
-					})
+					for opindex, hs := range ophs {
+						if err := f(opindex, hs[0], hs[1]); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				},
+				func(owners []string, _ map[uint64]string) error {
+					return reportStateOwners(ctx, options.Local, workID, owners)
 				},
 			)
 		},
@@ -163,7 +167,6 @@ func newFuncWorker(
 		workerUnmerge,
 		func(
 			broacastUnmerged workerBroadcastUnmerged,
-			reportStateOwners workerReportStateOwnersFunc,
 			reportResult workerReportResultFunc,
 		) error {
 			var traverseOps workerProcessTraverseOperationsFunc
@@ -178,9 +181,6 @@ func newFuncWorker(
 			switch i, err := processWait(
 				func(ctx context.Context, worker string, unmerged []uint64) error {
 					return broacastUnmerged(ctx, options.Local, workID, worker, unmerged)
-				},
-				func(ctx context.Context, owners []string) error {
-					return reportStateOwners(ctx, options.Local, workID, owners)
 				},
 				func(
 					ctx context.Context,

@@ -50,7 +50,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 		defer stateOwnersClose()
 
-		_, traverse, err := insertf(getStateOwner)
+		_, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
 		err = traverse(func(worker string, subws, affected []string) error {
@@ -61,6 +61,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 		})
 		t.NoError(err)
 
+		t.Empty(localOwners())
+
 		subws, affected, err := done()
 		t.NoError(err)
 		t.Empty(subws)
@@ -70,38 +72,68 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("nil sub value", func() {
 		workers := t.workers(9)
 
+		var values [][]StateMergeValue
+		for range 3 {
+			values = append(values, t.randomMergeValues(1, 2))
+		}
+
 		ctx, _ := t.Ctx()
 
 		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
-		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
+		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
 		defer stateOwnersClose()
 
-		insert, traverse, err := insertf(getStateOwner)
+		var expectedOwners []string
+		for i := range slices.Values(values) {
+			for j := range slices.Values(i) {
+				o := getStateOwner(j.Key())
+				expectedOwners = append(expectedOwners, o...)
+			}
+		}
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
+
+		insert, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
-		for i := range 3 {
+		for i := range values {
 			_ = insert(
 				uint64(i),
 				nil,
-				t.randomMergeValues(1, 2),
+				values[i],
 			)
 		}
 
-		var called int64
+		var called atomic.Value
+
 		t.NoError(traverse(func(worker string, subws, affected []string) error {
-			atomic.AddInt64(&called, 1)
+			t.T().Logf("worker=%q sub=%v affected=%v", worker, subws, affected)
+
+			called.Store(true)
 
 			return nil
 		}))
-		t.Equal(int64(0), atomic.LoadInt64(&called))
+
+		t.Nil(called.Load())
+
+		o := localOwners()
+		slices.Sort(o)
+		t.Equal(expectedOwners, o)
 	})
 
 	t.Run("nil add value", func() {
 		workers := t.workers(9)
 
+		var values []StateMergeValue
+		for range 3 {
+			_, v := t.randomMergeValue(1)
+			values = append(values, v)
+		}
+
 		ctx, _ := t.Ctx()
 
 		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
@@ -111,29 +143,46 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(err)
 		defer stateOwnersClose()
 
-		insert, traverse, err := insertf(getStateOwner)
+		var expectedOwners []string
+		for i := range slices.Values(values) {
+			o := getStateOwner(i.Key())
+			expectedOwners = append(expectedOwners, o...)
+		}
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
+
+		insert, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
 		for i := range 3 {
-			_, value := t.randomMergeValue(1)
 			_ = insert(
 				uint64(i),
-				value,
+				values[i],
 				nil,
 			)
 		}
 
-		var called int64
+		var called atomic.Value
+
 		t.NoError(traverse(func(worker string, subws, affected []string) error {
-			atomic.AddInt64(&called, 1)
+			t.T().Logf("worker=%q sub=%v affected=%v", worker, subws, affected)
+
+			called.Store(true)
 
 			return nil
 		}))
-		t.Equal(int64(0), atomic.LoadInt64(&called))
+
+		t.Nil(called.Load())
+
+		o := localOwners()
+		slices.Sort(o)
+		t.Equal(expectedOwners, o)
 	})
 
 	t.Run("only local insert", func() {
 		workers := t.workers(9)
+		local = workers[0]
 
 		ctx, _ := t.Ctx()
 
@@ -150,16 +199,24 @@ func (t *testWorkerStateOwners) TestInsert() {
 		defer stateOwnersClose()
 
 		// NOTE preload
+		var expectedOwners []string
+
 		dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
-			_ = getStateOwner(v[0].(StateMergeValue).Key())
+			o := getStateOwner(v[0].(StateMergeValue).Key())
+			expectedOwners = append(expectedOwners, o...)
 
 			dutil.TraverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
-				_ = getStateOwner(value.Key())
+				o := getStateOwner(value.Key())
+				expectedOwners = append(expectedOwners, o...)
 
 				return true, nil
 			})
+
 			return true, nil
 		})
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
 
 		expectedSubws := map[string][]string{
 			"w0": {"w6", "w7"},
@@ -179,7 +236,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			"w7": {"w0", "w1", "w2", "w8"},
 		}
 
-		insert, traverse, err := insertf(getStateOwner)
+		insert, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
 		t.NoError(dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
@@ -200,6 +257,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 			return nil
 		}))
+
+		o := localOwners()
+		slices.Sort(o)
+		t.Equal(expectedOwners, o)
 	})
 
 	t.Run("only local insert; fixed owner", func() {
@@ -309,12 +370,26 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return true, nil
 		})
 
+		var expectedOwners []string
+		for i := range slices.Values(values) {
+			o := getStateOwner(i[0][0].Key())
+			expectedOwners = append(expectedOwners, o...)
+
+			for j := range slices.Values(i[1]) {
+				o := getStateOwner(j.Key())
+				expectedOwners = append(expectedOwners, o...)
+			}
+		}
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
+
 		ctx, _ := t.Ctx()
 
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
-		insert, traverse, err := insertf(getStateOwner)
+		insert, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
 		t.NoError(dutil.TraverseSlice(values, func(i int, v [2][]StateMergeValue) (bool, error) {
@@ -334,6 +409,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 			return nil
 		}))
+
+		o := localOwners()
+		slices.Sort(o)
+		t.Equal(expectedOwners, o)
 
 		subws, affected, err := done()
 		t.NoError(err)
@@ -359,16 +438,23 @@ func (t *testWorkerStateOwners) TestInsert() {
 		defer stateOwnersClose()
 
 		// NOTE preload
+		var expectedOwners []string
+
 		dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
-			_ = getStateOwner(v[0].(StateMergeValue).Key())
+			o := getStateOwner(v[0].(StateMergeValue).Key())
+			expectedOwners = append(expectedOwners, o...)
 
 			dutil.TraverseSlice(v[1].([]StateMergeValue), func(i int, value StateMergeValue) (bool, error) {
-				_ = getStateOwner(value.Key())
+				o := getStateOwner(value.Key())
+				expectedOwners = append(expectedOwners, o...)
 
 				return true, nil
 			})
 			return true, nil
 		})
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
 
 		expectedSubws := map[string][]string{
 			"w0": {"w6", "w7"},
@@ -388,7 +474,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			"w7": {"w0", "w1", "w2", "w8"},
 		}
 
-		insert, traverse, err := insertf(getStateOwner)
+		insert, traverse, localOwners, err := insertf(getStateOwner)
 		t.NoError(err)
 
 		t.NoError(dutil.TraverseSlice(values, func(i int, v [2]interface{}) (bool, error) {
@@ -441,6 +527,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 			return true, nil
 		})
 
+		o := localOwners()
+		slices.Sort(o)
+		t.Equal(expectedOwners, o)
+
 		subws, affected, err := done()
 		t.NoError(err)
 		slices.Sort(subws)
@@ -453,6 +543,62 @@ func (t *testWorkerStateOwners) TestInsert() {
 		localExpectedAffected := slices.Concat(expectedAffected[local], otherAffected)
 		slices.Sort(localExpectedAffected)
 		t.Equal(localExpectedAffected, affected)
+	})
+
+	t.Run("local owners", func() {
+		workers := t.workers(9)
+		local = workers[0]
+
+		subs := t.randomMergeValues(1, 2)
+		addvs := make([][]StateMergeValue, len(subs))
+
+		for i := range subs {
+			addvs[i] = t.randomMergeValues(1)
+		}
+
+		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
+		t.NoError(err)
+		defer stateOwnersClose()
+
+		var expectedOwners []string
+		for i := range slices.Values(subs) {
+			o := getStateOwner(i.Key())
+			expectedOwners = append(expectedOwners, o...)
+		}
+
+		for i := range slices.Values(addvs) {
+			for j := range slices.Values(i) {
+				o := getStateOwner(j.Key())
+				expectedOwners = append(expectedOwners, o...)
+			}
+		}
+
+		slices.Sort(expectedOwners)
+		expectedOwners = slices.Compact(expectedOwners)
+
+		ctx, _ := t.Ctx()
+
+		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		t.NoError(err)
+
+		insert, traverse, localOwners, err := insertf(getStateOwner)
+		t.NoError(err)
+
+		for i := range subs {
+			_ = insert(uint64(i), subs[i], addvs[i])
+		}
+
+		t.NoError(traverse(func(worker string, subws, affected []string) error {
+			t.T().Logf("worker=%q sub=%v affected=%v", worker, subws, affected)
+
+			return nil
+		}))
+
+		o := localOwners()
+		slices.Sort(o)
+		t.T().Log("local owners:", o)
+
+		t.Equal(expectedOwners, o)
 	})
 }
 

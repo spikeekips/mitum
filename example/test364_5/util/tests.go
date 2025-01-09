@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -50,4 +51,12 @@ func (t *BaseSuite) RunWithGoLeak(name string, f func()) {
 
 		f()
 	})
+}
+
+func (t *BaseSuite) Marshal(i interface{}) string {
+	return util.MustMarshalJSONString(i)
+}
+
+func (t *BaseSuite) MarshalIndent(i interface{}) string {
+	return util.MustMarshalJSONIndentString(i)
 }

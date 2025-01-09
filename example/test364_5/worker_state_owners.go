@@ -21,6 +21,7 @@ type (
 	localExtractedStateOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersStateMergeValuesFunc,
 		dutil.InErrorFunc[workerStateOwnersSetFunc],
+		dutil.OutFunc[[]string],
 		error,
 	)
 	workerInsertStateOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
@@ -59,16 +60,18 @@ func newFuncWorkerStateOwners(
 	return func(getStateOwners getStateOwnersFunc) (
 			extractStateOwnersStateMergeValuesFunc,
 			dutil.InErrorFunc[workerStateOwnersSetFunc],
+			dutil.OutFunc[[]string],
 			error,
 		) {
 			var localInsertValues extractStateOwnersStateMergeValuesFunc
 			var traverseOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
+			var localOwners dutil.OutFunc[[]string]
 
-			switch i, t, err := newFuncLocalExtractedStateOwners(maxWorkersSize, getStateOwners); {
+			switch i, t, l, err := newFuncLocalExtractedStateOwners(maxWorkersSize, getStateOwners); {
 			case err != nil:
-				return nil, nil, err
+				return nil, nil, nil, err
 			default:
-				localInsertValues, traverseOwnersSet = i, t
+				localInsertValues, traverseOwnersSet, localOwners = i, t, l
 			}
 
 			return localInsertValues,
@@ -86,6 +89,7 @@ func newFuncWorkerStateOwners(
 						return nil
 					})
 				},
+				localOwners,
 				nil
 		},
 		func(worker string, subws, affected []string) error {
@@ -118,6 +122,7 @@ func newFuncLocalExtractedStateOwners(
 ) (
 	extractStateOwnersStateMergeValuesFunc,
 	dutil.InErrorFunc[workerStateOwnersSetFunc],
+	dutil.OutFunc[[]string],
 	error,
 ) {
 	var addOwnersSet insertStateOwnerSetFunc
@@ -125,9 +130,19 @@ func newFuncLocalExtractedStateOwners(
 
 	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkersSize); {
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, nil, err
 	default:
 		addOwnersSet, traverseWorkerOwnersSet = a, w
+	}
+
+	var addOwners dutil.AppendSliceAddFunc[string]
+	var doneOwners dutil.OutFunc[[]string]
+
+	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](maxWorkersSize, 0); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		addOwners, doneOwners = a, d
 	}
 
 	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error {
@@ -137,6 +152,7 @@ func newFuncLocalExtractedStateOwners(
 
 			if subv != nil {
 				subws = getStateOwners(subv.Key())
+				addOwners(subws...)
 
 				for w := range slices.Values(subws) {
 					addValue(w, subv)
@@ -145,6 +161,7 @@ func newFuncLocalExtractedStateOwners(
 
 			_ = dutil.TraverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
 				adds := getStateOwners(value.Key())
+				addOwners(adds...)
 
 				dutil.TraverseSlice(subws, func(_ int, subw string) (bool, error) {
 					addOwnersSet(subw, adds)
@@ -164,6 +181,7 @@ func newFuncLocalExtractedStateOwners(
 			return traverseValues
 		},
 		traverseWorkerOwnersSet,
+		doneOwners,
 		nil
 }
 

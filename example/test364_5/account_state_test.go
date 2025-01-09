@@ -40,14 +40,6 @@ func (t *baseTestAccountStateMerger) printStateMergeValue(v base.StateValue) str
 	}
 }
 
-func (t *baseTestAccountStateMerger) Marshal(i interface{}) string {
-	return util.MustMarshalJSONString(i)
-}
-
-func (t *baseTestAccountStateMerger) MarshalIndent(i interface{}) string {
-	return util.MustMarshalJSONIndentString(i)
-}
-
 func (t *baseTestAccountStateMerger) randomMergeValue(balance int64) (base.Publickey, *AccountStateMergeValue) {
 	pub := base.NewMPrivatekey().Publickey()
 
@@ -182,6 +174,16 @@ func (t *baseTestAccountStateMerger) randomOps(n int, amount int64) []Operation 
 
 	for i := 0; i < n; i++ {
 		m[i] = t.randomOp(amount)
+	}
+
+	return m
+}
+
+func (t *baseTestAccountStateMerger) randomAddOps(n int, amount int64) []Operation {
+	m := make([]Operation, n)
+
+	for i := 0; i < n; i++ {
+		m[i] = t.randomAddOp(amount)
 	}
 
 	return m

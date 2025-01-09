@@ -61,7 +61,7 @@ func newFuncManager(
 		Uint64("states_share", statesShare).
 		Msg("new")
 
-	var sendOp dutil.InErrorFunc[newWorkerSendOpFunc]
+	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var workerResult managerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
@@ -75,11 +75,11 @@ func newFuncManager(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		sendOp, workerOwners, workerResult, processWait = s, o, r, w
+		sendOps, workerOwners, workerResult, processWait = s, o, r, w
 	}
 
 	return func(f newManagerWorkerSendOpFunc) error {
-			return sendOp(func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			return sendOps(func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return f(ctx, workID, worker)
 			})
 		},

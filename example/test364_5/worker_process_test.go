@@ -36,7 +36,6 @@ func (t *testWorkerProcess) newf(
 	workerUnmergedFunc,
 	func(
 		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
-		dutil.In2ErrorFunc[context.Context, []string /* all state owners */],
 		workerProcessReportResult,
 	) error,
 	util.LockedMap[uint64, Operation],
@@ -81,6 +80,7 @@ func (t *testWorkerProcess) newf(
 			distribute workerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
+			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			if getStateOwners == nil {
 				getStateOwners = defaultGetStateOwners
@@ -95,13 +95,13 @@ func (t *testWorkerProcess) newf(
 				distribute,
 				getOperation,
 				insertOp,
+				reportDone,
 			)
 		},
 		insert,
 		unmerged,
 		func(
 			b dutil.In3ErrorFunc[context.Context, string, []uint64],
-			c dutil.In2ErrorFunc[context.Context, []string],
 			d workerProcessReportResult,
 		) error {
 			defer func() {
@@ -114,15 +114,6 @@ func (t *testWorkerProcess) newf(
 
 					if b != nil {
 						return b(ctx, worker, unmerged)
-					}
-
-					return nil
-				},
-				func(ctx context.Context, owners []string) error {
-					t.Println("wait: report state owners: owners=%v", owners)
-
-					if c != nil {
-						return c(ctx, owners)
 					}
 
 					return nil
@@ -236,6 +227,7 @@ func (t *testWorkerProcess) TestCancel() {
 					},
 					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
 					func(opindexOpHashesFunc) error { return nil },
+					func([]string, map[uint64]string) error { return nil },
 				)
 			},
 			func() error {
@@ -266,7 +258,7 @@ func (t *testWorkerProcess) TestCancel() {
 				})
 			},
 			func() error {
-				_, err := wait(nil, nil, nil)
+				_, err := wait(nil, nil)
 
 				return err
 			},
@@ -373,6 +365,11 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
 			t.defaultFuncInsertOp(ops),
+			func(owners []string, reasons map[uint64]string) error {
+				t.Equal(workers, owners)
+
+				return nil
+			},
 		))
 
 		var calledBroadcastUnmerged bool
@@ -381,11 +378,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -444,7 +436,6 @@ func (t *testWorkerProcess) TestLocal() {
 		)
 
 		var calledBroadcastUnmerged bool
-		var reportedStateOwners atomic.Value
 		var reportedStates atomic.Value
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
@@ -484,11 +475,6 @@ func (t *testWorkerProcess) TestLocal() {
 
 				return nil
 			},
-			func(_ context.Context, owners []string) error {
-				reportedStateOwners.Store(owners)
-
-				return nil
-			},
 			func(
 				_ context.Context,
 				reasons map[uint64]string,
@@ -506,7 +492,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.False(calledBroadcastUnmerged)
 
 		t.Equal(0, savedOps.Len())
-		t.Equal(workers, reportedStateOwners.Load().([]string))
 
 		{
 			reported := reportedStates.Load().(map[uint64]string)
@@ -557,6 +542,11 @@ func (t *testWorkerProcess) TestLocal() {
 					return true, f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 				})
 			},
+			func(owners []string, reasons map[uint64]string) error {
+				t.Equal([]string{local}, owners)
+
+				return nil
+			},
 		))
 
 		var calledBroadcastUnmerged bool
@@ -565,11 +555,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -632,6 +617,11 @@ func (t *testWorkerProcess) TestLocal() {
 			nil,
 			t.newFuncGetOperation(ops),
 			t.defaultFuncInsertOp(ops),
+			func(owners []string, reasons map[uint64]string) error {
+				t.Equal([]string{other}, owners)
+
+				return nil
+			},
 		))
 
 		go func() {
@@ -646,11 +636,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -732,6 +717,11 @@ func (t *testWorkerProcess) TestLocal() {
 
 			t.newFuncGetOperation(ops),
 			t.defaultFuncInsertOp(ops),
+			func(owners []string, reasons map[uint64]string) error {
+				t.Equal(opsWorkers, owners)
+
+				return nil
+			},
 		))
 
 		var calledBroadcastUnmerged bool
@@ -740,11 +730,6 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -802,7 +787,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		)
 
 		go func() {
-			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil)))
+			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
 
 			_, insertDone, err := insertf(managerName)
 			t.IfErrPanic(err)
@@ -814,11 +799,6 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -859,7 +839,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			t.IfErrPanic(err)
 			t.IfErrPanic(insertDone(nil, nil))
 
-			switch err := initial(nil, nil, nil, t.defaultFuncInsertOp(nil)); {
+			switch err := initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil); {
 			case errors.Is(err, context.Canceled):
 			case err == nil:
 				t.IfErrPanic(err)
@@ -871,11 +851,6 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
 				calledBroadcastUnmerged = true
-
-				return nil
-			},
-			func(_ context.Context, owners []string) error {
-				t.Empty(owners)
 
 				return nil
 			},
@@ -998,6 +973,11 @@ func (t *testWorkerProcess) newProcessWorkers(
 					func(f opindexOpHashesFunc) error {
 						return opWorkers(local, f)
 					},
+					func(owners []string, reasons map[uint64]string) error {
+						t.Println("local done: local=%q owners=%v reasons=%v", local, owners, reasons)
+
+						return nil
+					},
 				)
 
 				t.Println("initial: worker=%q err=%v", local, err)
@@ -1022,11 +1002,6 @@ func (t *testWorkerProcess) newProcessWorkers(
 					t.Println("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
 
 					return workerUnmerges[worker](local, unmerged)
-				},
-				func(ctx context.Context, owners []string) error {
-					t.Println("worker owners: local=%q owners=%v", local, owners)
-
-					return nil
 				},
 				func(
 					ctx context.Context,
