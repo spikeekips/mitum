@@ -20,7 +20,7 @@ type testManagerProcess struct {
 func (t *testManagerProcess) TestCancel() {
 	newf := func(ctx context.Context) (
 		[]string,
-		dutil.InErrorFunc[newWorkerSendOpFunc],
+		dutil.In2ErrorFunc[dutil.InErrorFunc[[]string], newWorkerSendOpFunc],
 		dutil.In2ErrorFunc[string, []string],
 		managerInsertWorkerResultFunc,
 		managerProcessWaitFunc,
@@ -46,7 +46,7 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		err = s(nil)
+		err = s(nil, nil)
 		t.ErrorIs(err, context.Canceled)
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
@@ -78,7 +78,7 @@ func (t *testManagerProcess) TestCancel() {
 
 		cancel(nil)
 
-		err = s(nil)
+		err = s(nil, nil)
 		t.ErrorIs(err, context.Canceled)
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
@@ -108,15 +108,18 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		err = s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			if worker == workers[1] {
-				cancel(nil)
-			}
+		err = s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				if worker == workers[1] {
+					cancel(nil)
+				}
 
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		})
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		)
 		if err != nil {
 			t.ErrorIs(err, context.Canceled)
 		}
@@ -157,11 +160,14 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		t.NoError(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		cancel(nil)
 
@@ -192,11 +198,14 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		t.NoError(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			if worker == workers[1] {
@@ -238,11 +247,14 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		t.NoError(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			t.NoError(wo(worker, workers))
@@ -272,11 +284,14 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		t.NoError(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			t.NoError(wo(worker, workers))
@@ -315,11 +330,14 @@ func (t *testManagerProcess) TestCancel() {
 		workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		t.NoError(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(s(
+			func([]string) error { return nil },
+			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 			t.NoError(wo(worker, workers))
@@ -393,15 +411,18 @@ func (t *testManagerProcess) TestOpsTree() {
 			len(workers), len(ophs), opsShare, 3)
 
 		go func() {
-			t.IfErrPanic(s(func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				return func(uint64, util.Hash, util.Hash) error { return nil },
-					func(err error) error {
-						t.IfErrPanic(err)
+			t.IfErrPanic(s(
+				func([]string) error { return nil },
+				func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+					return func(uint64, util.Hash, util.Hash) error { return nil },
+						func(err error) error {
+							t.IfErrPanic(err)
 
-						return err
-					},
-					nil
-			}))
+							return err
+						},
+						nil
+				},
+			))
 
 			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
 				owners, found := workersOwners[worker]

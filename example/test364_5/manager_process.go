@@ -25,7 +25,7 @@ func newFuncManagerProcess(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	_ dutil.InErrorFunc[newWorkerSendOpFunc],
+	_ dutil.In2ErrorFunc[dutil.InErrorFunc[[]string /* ops workers */], newWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
 	_ managerInsertWorkerResultFunc,
 	_ managerProcessWaitFunc,
@@ -73,7 +73,16 @@ func newFuncManagerProcess(
 		workerResult, ownersReady, resultWait = wr, r, w
 	}
 
-	return sendOps,
+	return func(
+			opsWorkersf dutil.InErrorFunc[[]string],
+			sendOpsf newWorkerSendOpFunc,
+		) error {
+			if err := opsWorkersf(opsWorkers); err != nil {
+				return err
+			}
+
+			return sendOps(sendOpsf)
+		},
 		func(worker string, owners []string) error {
 			if slices.Index(opsWorkers, worker) < 0 {
 				return util.ErrInvalid.Errorf("unknown ops worker, %q", worker)

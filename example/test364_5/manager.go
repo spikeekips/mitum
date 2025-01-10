@@ -14,6 +14,13 @@ import (
 var managerName = "manager"
 
 type (
+	managerStartWorkerFunc = func(
+		_ context.Context,
+		workID, worker string,
+		workers, opsWorkers []string,
+		opsShare, statesShare uint64,
+		maxOpsSize uint64,
+	) error
 	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
 		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree util.Hash) (base.Manifest, error)
@@ -40,7 +47,7 @@ func newFuncManager(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	_ dutil.InErrorFunc[newManagerWorkerSendOpFunc],
+	_ dutil.In2ErrorFunc[managerStartWorkerFunc, newManagerWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
 	_ managerInsertWorkerResultFunc,
 	wait managerWaitFunc,
@@ -64,7 +71,7 @@ func newFuncManager(
 
 	newJobWorker := dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize)
 
-	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
+	var sendOps dutil.In2ErrorFunc[dutil.InErrorFunc[[]string], newWorkerSendOpFunc]
 	var workerResult managerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
@@ -81,15 +88,31 @@ func newFuncManager(
 		sendOps, workerOwners, workerResult, processWait = s, o, r, w
 	}
 
-	return func(f newManagerWorkerSendOpFunc) error {
-			return sendOps(func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				return f(ctx, workID, worker)
-			})
+	return func(
+			startWorker managerStartWorkerFunc,
+			f newManagerWorkerSendOpFunc,
+		) error {
+			return sendOps(
+				func(opsWorkers []string) error {
+					return managerStartWorkers(
+						ctx,
+						newJobWorker,
+						workID,
+						workers, opsWorkers,
+						opsShare, statesShare,
+						uint64(len(ophs)),
+						startWorker,
+					)
+				},
+				func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+					return f(ctx, workID, worker)
+				},
+			)
 		},
 		workerOwners,
 		workerResult,
 		func(
-			workerDone dutil.InContextErrorFunc[string],
+			workerInsertDone dutil.InContextErrorFunc[string],
 			mf newManagerManifestFunc,
 		) error {
 			var opsTree, statesTree *fixedtree.Tree
@@ -98,12 +121,12 @@ func newFuncManager(
 				options.GenerateNodesHashFunc,
 				func(owners []string) error {
 					// NOTE manager done to workers outside owners
-					return newFuncWorkerManagerDone(
+					return newFuncManagerWorkerInsertDone(
 						ctx,
 						newJobWorker,
 						workers,
 						owners,
-						workerDone,
+						workerInsertDone,
 					)
 				},
 			); {
@@ -167,7 +190,7 @@ func isValidManagerArgs(
 	return opsShare, statesShare, nil
 }
 
-func newFuncWorkerManagerDone(
+func newFuncManagerWorkerInsertDone(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workers, owners []string,
@@ -189,6 +212,46 @@ func newFuncWorkerManagerDone(
 	}) {
 		if err := newJob(func(ctx context.Context) error {
 			return workerDone(ctx, worker)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func managerStartWorkers(
+	ctx context.Context,
+	newJobWorker dutil.NewJobWorkerFunc,
+	workID string,
+	workers, opsWorkers []string,
+	opsShare, statesShare uint64,
+	maxOpsSize uint64,
+	f managerStartWorkerFunc,
+) error {
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for worker := range slices.Values(workers) {
+		if err := newJob(func(ctx context.Context) error {
+			return f(
+				ctx,
+				workID,
+				worker,
+				workers, opsWorkers,
+				opsShare, statesShare,
+				maxOpsSize,
+			)
 		}); err != nil {
 			return jobWait(err)
 		}
