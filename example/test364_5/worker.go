@@ -17,7 +17,6 @@ type (
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
-
 	workerInitialInsertFunc = func(
 		getStateOwnersFunc,
 		newWorkerDistributeStateMergeValuesFunc,
