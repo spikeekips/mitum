@@ -77,8 +77,10 @@ func newFuncManagerProcess(
 			opsWorkersf dutil.InErrorFunc[[]string],
 			sendOpsf newWorkerSendOpFunc,
 		) error {
-			if err := opsWorkersf(opsWorkers); err != nil {
-				return err
+			if opsWorkersf != nil {
+				if err := opsWorkersf(opsWorkers); err != nil {
+					return err
+				}
 			}
 
 			return sendOps(sendOpsf)

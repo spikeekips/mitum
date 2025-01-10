@@ -373,6 +373,8 @@ func newFuncWorkerProcessStateValueMerger(
 			switch i, d, err := workerInsertStateValues(worker); {
 			case err != nil:
 				return nil, nil, err
+			case i == nil:
+				return nil, nil, nil
 			default:
 				insert, done = i, d
 			}
@@ -859,6 +861,10 @@ func workersDistributeStateMergeValues(
 					return true, nil
 				default:
 					sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
+				}
+
+				if sendOwners == nil {
+					return true, nil
 				}
 
 				return true, newJob(func(context.Context) error {
