@@ -18,7 +18,7 @@ func DistributeByCount[K comparable](total, share uint64) (
 	case total < 2:
 		return func(K) []uint64 { return []uint64{0} }, func() {}, nil
 	case share > total:
-		share = total
+		return nil, nil, errors.Errorf("share > total")
 	}
 
 	c := map[uint64]uint64{}
@@ -26,9 +26,6 @@ func DistributeByCount[K comparable](total, share uint64) (
 	var l sync.Mutex
 
 	findLow := func() uint64 {
-		l.Lock()
-		defer l.Unlock()
-
 		var p *uint64
 		var low uint64
 
@@ -43,10 +40,11 @@ func DistributeByCount[K comparable](total, share uint64) (
 
 		var pos uint64
 
-		if p != nil {
-			pos = *p
+		if p == nil {
+			return 0
 		}
 
+		pos = *p
 		c[pos]++
 
 		return pos
@@ -62,24 +60,21 @@ func DistributeByCount[K comparable](total, share uint64) (
 	}
 
 	return func(k K) (poses []uint64) {
-			_ = cache.GetOrCreate(
-				k,
-				func(i []uint64, _ bool) error {
-					poses = i
+			l.Lock()
+			defer l.Unlock()
 
-					return nil
-				},
-				func() ([]uint64, error) {
-					n := make([]uint64, share)
-					for i := range n {
-						p := findLow()
+			if i, found := cache.Value(k); found {
+				return i
+			}
 
-						n[i] = p
-					}
+			poses = make([]uint64, share)
 
-					return n, nil
-				},
-			)
+			for i := range share {
+				p := findLow()
+				poses[i] = p
+			}
+
+			cache.SetValue(k, poses)
 
 			return poses
 		},
