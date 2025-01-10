@@ -254,8 +254,6 @@ func newFuncWorkerMergerWait(
 		var localUnmerged []uint64
 		var localReasons map[uint64]string
 
-		defer dutil.ClearMap(localReasons)
-
 		switch unmerged, reasons, err := workerPhaseMergerWait(); {
 		case err != nil:
 			return nil, err
