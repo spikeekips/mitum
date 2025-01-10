@@ -143,6 +143,8 @@ func newFuncManager(
 				_ = manifest
 			}
 
+			// FIXME check workers by ops workers + states workers
+
 			// FIXME save,
 			// - block map
 			// - trees
@@ -231,6 +233,22 @@ func managerStartWorkers(
 	maxOpsSize uint64,
 	f managerStartWorkerFunc,
 ) error {
+	var checkWorker checkEnoughFailedWorkerFunc
+
+	switch _, f, err := minEnoughMaxFailed(uint64(len(opsWorkers)), opsShare); {
+	case err != nil:
+		return err
+	default:
+		switch w, c, err := newFuncCheckEnoughFailedWorkers(uint64(len(workers)), f); {
+		case err != nil:
+			return err
+		default:
+			defer c()
+
+			checkWorker = w
+		}
+	}
+
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
@@ -242,16 +260,31 @@ func managerStartWorkers(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
+	check := func(worker string, err error) error {
+		var gerr error
+
+		// NOTE check failed ops workers
+		if err != nil && slices.Index(opsWorkers, worker) >= 0 {
+			gerr = err
+		}
+
+		if _, _, failed, err := checkWorker(worker, func() error { return gerr }); failed {
+			return err
+		}
+
+		return nil
+	}
+
 	for worker := range slices.Values(workers) {
 		if err := newJob(func(ctx context.Context) error {
-			return f(
+			return check(worker, f(
 				ctx,
 				workID,
 				worker,
 				workers, opsWorkers,
 				opsShare, statesShare,
 				maxOpsSize,
-			)
+			))
 		}); err != nil {
 			return jobWait(err)
 		}

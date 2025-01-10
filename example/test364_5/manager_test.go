@@ -170,6 +170,125 @@ func (t *testManager) TestNew() {
 	})
 }
 
+func (t *testManager) TestStartWorkers() {
+	getOpsWorkers := func(workers []string, opsShare uint64, ophs [][2]util.Hash) []string {
+		w, _, err := opsNShareWorkers(workers, opsShare, ophs)
+		t.IfErrPanic(err)
+
+		return w()
+	}
+
+	run := func(
+		workers []string,
+		opsShare, statesShare uint64,
+		ophs [][2]util.Hash,
+		failedWorkers []string,
+	) error {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		opsWorkers := getOpsWorkers(workers, opsShare, ophs)
+		t.T().Logf("ops share=%d ops workers=%v", opsShare, opsWorkers)
+
+		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+			ctx,
+			t.newOptions(),
+			util.UUID().String(),
+			workers,
+			opsShare, statesShare,
+			ophs,
+		)
+		t.IfErrPanic(err)
+		err = sendOps(
+			func(_ context.Context,
+				_ string, worker string,
+				_, _ []string,
+				_, _, _ uint64,
+			) error {
+				if slices.Index(failedWorkers, worker) < 0 {
+					return nil
+				}
+
+				return errors.Errorf("failed, worker=%q", worker)
+			},
+			func(context.Context, string, string) (
+				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+			) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		for worker := range slices.Values(workers) {
+			err := workerOwners(worker, workers)
+			t.T().Logf("worker owners: worker=%q owners=%v err=%v", worker, workers, err)
+		}
+
+		for worker := range slices.Values(workers) {
+			_, _, done, err := workerResult(worker)
+			if err == nil {
+				err = done(nil)
+			}
+
+			t.T().Logf("worker result: worker=%q err=%v", worker, err)
+		}
+
+		return wait(
+			func(_ context.Context, worker string) error {
+				t.T().Logf("non state owner: worker=%q", worker)
+
+				return nil
+			},
+			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+
+				return nil, nil
+			},
+		)
+	}
+
+	t.Run("no failed", func() {
+		t.NoError(run(
+			t.workers(9),
+			1, 1,
+			t.randomOphs(3),
+			nil,
+		))
+	})
+
+	t.Run("failed ops worker; under max failed", func() {
+		t.NoError(run(
+			t.workers(9),
+			2, 1,
+			t.randomOphs(3),
+			[]string{"w0"},
+		))
+	})
+
+	t.Run("failed ops worker; over max failed", func() {
+		err := run(
+			t.workers(9),
+			1, 1,
+			t.randomOphs(3),
+			[]string{"w0", "w1"},
+		)
+		t.ErrorIs(err, errWorkersFailed)
+	})
+
+	t.Run("failed non-ops worker; over max failed", func() {
+		t.NoError(run(
+			t.workers(9),
+			1, 1,
+			t.randomOphs(3),
+			[]string{"w6", "w7", "w8"},
+		))
+	})
+}
+
 func (t *testManager) TestBroadcastManagerDone() {
 	t.Run("no workers", func() {
 		ctx, cancel := t.Ctx()
