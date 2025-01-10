@@ -186,13 +186,22 @@ func (t *testManager) TestBroadcastManagerDone() {
 			t.randomOphs(33),
 		)
 		t.NoError(err)
-		t.NoError(sendOps(func(context.Context, string, string) (
-			opindexOpHashesFunc, dutil.InErrorFunc[error], error,
-		) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(sendOps(
+			func(context.Context,
+				string, string,
+				[]string, []string,
+				uint64, uint64, uint64,
+			) error {
+				return nil
+			},
+			func(context.Context, string, string) (
+				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+			) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		owners := workers
 
@@ -248,13 +257,22 @@ func (t *testManager) TestBroadcastManagerDone() {
 			t.randomOphs(33),
 		)
 		t.NoError(err)
-		t.NoError(sendOps(func(context.Context, string, string) (
-			opindexOpHashesFunc, dutil.InErrorFunc[error], error,
-		) {
-			return func(uint64, util.Hash, util.Hash) error { return nil },
-				func(err error) error { return err },
-				nil
-		}))
+		t.NoError(sendOps(
+			func(context.Context,
+				string, string,
+				[]string, []string,
+				uint64, uint64, uint64,
+			) error {
+				return nil
+			},
+			func(context.Context, string, string) (
+				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+			) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
 
 		owners := workers[:2]
 
