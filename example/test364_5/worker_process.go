@@ -149,7 +149,7 @@ func newFuncWorkerProcess(
 		savedOps = i
 	}
 
-	var unusedOps atomic.Value
+	unusedOps := new(atomic.Value)
 
 	return func(
 			getStateOwners getStateOwnersFunc,
@@ -870,23 +870,19 @@ func newFuncDistributeStateMergeValues(
 	}
 }
 
-func mergeUnusedReasons(reasons map[uint64]string, unusedOps atomic.Value) map[uint64]string {
+func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[uint64]string {
 	var u map[uint64]string
 
 	if i := unusedOps.Load(); i != nil {
-		u = i.(map[uint64]string)
+		u = maps.Clone(i.(map[uint64]string))
 	}
 
 	switch {
 	case len(u) < 1:
-		defer dutil.ClearMap(u)
-
 		return reasons
 	case len(reasons) < 1:
 		return u
 	}
-
-	defer dutil.ClearMap(u)
 
 	for opindex, reason := range maps.All(u) {
 		if _, found := reasons[opindex]; !found {
