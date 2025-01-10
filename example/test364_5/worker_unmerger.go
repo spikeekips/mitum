@@ -19,7 +19,7 @@ type (
 	)
 	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) error
 	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
-	workerOpindexFilterFunc      = func(worker string) opindexFilterFunc
+	workerOpindexFilterFunc      = func(worker string) (opindexFilterFunc, error)
 	workerUnmergerWaitFunc       = unmergedErrorFunc
 )
 
@@ -259,9 +259,13 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			var gerr error
 
 			_ = traversePool(func(worker string, unmerged []uint64) (bool, error) {
-				filter := workerOpindexFilter(worker)
-				if filter == nil {
+				var filter opindexFilterFunc
+
+				switch f, err := workerOpindexFilter(worker); {
+				case err != nil || f == nil:
 					return true, nil
+				default:
+					filter = f
 				}
 
 				if o, e, f, err := unmergeOps(worker, unmerged, unmergeOp, filter); f || err != nil || e {
@@ -287,9 +291,13 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 					return nil
 				}
 
-				filter := workerOpindexFilter(worker)
-				if filter == nil {
-					return nil
+				var filter opindexFilterFunc
+
+				switch f, err := workerOpindexFilter(worker); {
+				case err != nil || f == nil:
+					return err
+				default:
+					filter = f
 				}
 
 				var err error
@@ -342,8 +350,8 @@ func newFuncWorkerUnmergerUnmergedPool() (
 
 			return found, dutil.TraverseMap(pool, func(worker string, unmerged []uint64) (bool, error) {
 				return true, dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
-					switch f := filter(worker); {
-					case f == nil:
+					switch f, err := filter(worker); {
+					case err != nil, f == nil:
 						return true, nil
 					default:
 						switch ok, err := f(opindex); {
@@ -443,7 +451,7 @@ func newFuncWorkerOpindexFilter(
 	var once sync.Once
 	var gerr error
 
-	filter := func(string) opindexFilterFunc { return nil }
+	filter := func(string) (opindexFilterFunc, error) { return nil, nil }
 	closef := func() {}
 
 	var l sync.RWMutex
@@ -451,7 +459,7 @@ func newFuncWorkerOpindexFilter(
 	newf := func(subs []string, localUnmerged []uint64) error {
 		once.Do(func() {
 			if len(subs) < 1 {
-				filter = func(string) opindexFilterFunc { return nil }
+				filter = func(string) (opindexFilterFunc, error) { return nil, nil }
 
 				return
 			}
@@ -469,17 +477,17 @@ func newFuncWorkerOpindexFilter(
 					return true, nil
 				})
 
-				filter = func(worker string) opindexFilterFunc {
+				filter = func(worker string) (opindexFilterFunc, error) {
 					ml.Lock()
 					defer ml.Unlock()
 
 					if _, found := m[worker]; !found {
-						return nil
+						return nil, util.ErrInvalid.Errorf("unknown sub state owner, %q", worker)
 					}
 
 					m[worker] = struct{}{}
 
-					return f
+					return f, nil
 				}
 
 				closef = func() {
@@ -498,7 +506,7 @@ func newFuncWorkerOpindexFilter(
 	return func(subs []string, localUnmerged []uint64) error {
 			return newf(subs, localUnmerged)
 		},
-		func(worker string) opindexFilterFunc {
+		func(worker string) (opindexFilterFunc, error) {
 			l.RLock()
 			defer l.RUnlock()
 

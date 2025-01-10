@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -51,13 +52,14 @@ func newFuncManagerProcess(
 		Int("ophs", len(ophs)).
 		Msg("new")
 
+	var workerOwnersf dutil.In2ErrorFunc[string, []string]
 	var workerOwnersWait dutil.OutErrorFunc[[]string]
 
 	switch o, w, err := newFuncManagerCollectOwners(ctx, uint64(len(opsWorkers)), opsMinEnough); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		workerOwners, workerOwnersWait = o, w
+		workerOwnersf, workerOwnersWait = o, w
 	}
 
 	var workerResult managerInsertWorkerResultFunc
@@ -72,7 +74,13 @@ func newFuncManagerProcess(
 	}
 
 	return sendOps,
-		workerOwners,
+		func(worker string, owners []string) error {
+			if slices.Index(opsWorkers, worker) < 0 {
+				return util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
+			}
+
+			return workerOwnersf(worker, owners)
+		},
 		workerResult,
 		func(
 			g fixedtree.GenerateNodesHashFunc,

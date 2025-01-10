@@ -179,7 +179,20 @@ func newFuncWorkerProcess(
 				},
 			)
 		},
-		workerInsertStateValues,
+		func(worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			dutil.In2ErrorFunc[[]string, []string],
+			error,
+		) {
+			switch {
+			case worker == managerName:
+			case slices.Index(opsWorkers, worker) >= 0:
+			default:
+				return nil, nil, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
+			}
+
+			return workerInsertStateValues(worker)
+		},
 		unmerge,
 		func(
 			broacastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
