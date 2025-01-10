@@ -19,23 +19,22 @@ type (
 		base.State,
 		error,
 	)
-	workerDistributeWorkerStateMergeValuesFunc  = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
-	workerProcessDistributeStateMergeValuesFunc = func(_ context.Context, local string, workers []string) (
-		workerDistributeWorkerStateMergeValuesFunc,
-		workerStateOwnersSetFunc,
-		dutil.ErrorFunc,
+	workerDistributeWorkerStateMergeValuesFunc     = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	newWorkerProcessDistributeStateMergeValuesFunc func(_ context.Context, worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
 	workerProcessInitialInsertFunc = func(
 		getStateOwnersFunc,
-		workerProcessDistributeStateMergeValuesFunc,
+		newWorkerProcessDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		dutil.InErrorFunc[opindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
-		workerProcessDistributeStateMergeValuesFunc,
+		newWorkerProcessDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		dutil.InErrorFunc[opindexOpHashesFunc],
 		dutil.In2ErrorFunc[uint64, Operation],
@@ -153,7 +152,7 @@ func newFuncWorkerProcess(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerProcessDistributeStateMergeValuesFunc,
+			distribute newWorkerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
@@ -348,7 +347,7 @@ func newFuncWorkerProcessStateValueMerger(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerProcessDistributeStateMergeValuesFunc,
+			distribute newWorkerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
 			saveOperation dutil.In2ErrorFunc[uint64, Operation],
@@ -447,7 +446,7 @@ func newFuncWorkerProcessInitialInsert(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerProcessDistributeStateMergeValuesFunc,
+			distribute newWorkerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
 			saveOperation dutil.In2ErrorFunc[uint64, Operation],
@@ -469,9 +468,9 @@ func newFuncWorkerProcessInitialInsert(
 			}
 
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
-			var doneDistributeWorkerStateMergevalues workerStateOwnersSetFunc
+			var distributeWorkerStateMergeValuesDone workerStateOwnersSetFunc
 
-			switch i, o, c, err := distribute(ctx, local, workers); {
+			switch i, o, c, err := workersDistributeStateMergeValues(ctx, local, workers, distribute); {
 			case err != nil:
 				return err
 			default:
@@ -479,7 +478,7 @@ func newFuncWorkerProcessInitialInsert(
 					_ = c()
 				}()
 
-				distributeWorkerStateMergeValues, doneDistributeWorkerStateMergevalues = i, o
+				distributeWorkerStateMergeValues, distributeWorkerStateMergeValuesDone = i, o
 			}
 
 			var insert insertStateMergeValuesFunc
@@ -517,7 +516,7 @@ func newFuncWorkerProcessInitialInsert(
 					return err
 				}
 
-				return doneExtractStateOwnersStateMergeValues(doneDistributeWorkerStateMergevalues)
+				return doneExtractStateOwnersStateMergeValues(distributeWorkerStateMergeValuesDone)
 			})
 		},
 		nil
@@ -746,141 +745,136 @@ func workerProcessCloseStateMergers(
 	})
 }
 
-func newFuncDistributeStateMergeValues(
-	newFuncs func(_ context.Context, worker string) (
-		workerProcessInsertStateMergeValuesFunc,
-		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
-		error,
-	),
-) workerProcessDistributeStateMergeValuesFunc {
-	return func(ctx context.Context, local string, workers []string) (
-		workerDistributeWorkerStateMergeValuesFunc,
-		workerStateOwnersSetFunc,
-		dutil.ErrorFunc,
-		error,
-	) {
-		var pool util.LockedMap[string, [2]interface{}]
+func workersDistributeStateMergeValues(
+	ctx context.Context, local string, workers []string,
+	newf newWorkerProcessDistributeStateMergeValuesFunc,
+) (
+	workerDistributeWorkerStateMergeValuesFunc,
+	workerStateOwnersSetFunc,
+	dutil.ErrorFunc,
+	error,
+) {
+	var pool util.LockedMap[string, [2]interface{}]
 
-		switch i, err := util.NewLockedMap[string, [2]interface{}](uint64(len(workers)), nil); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			pool = i
-		}
+	switch i, err := util.NewLockedMap[string, [2]interface{}](uint64(len(workers)), nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		pool = i
+	}
 
-		return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
-				var insert dutil.In3ErrorFunc[uint64, util.Hash, []StateMergeValue]
+	return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			var insert dutil.In3ErrorFunc[uint64, util.Hash, []StateMergeValue]
 
-				if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
-					if found {
-						if i[0] != nil {
-							insert = i[0].(workerProcessInsertStateMergeValuesFunc)
-						}
-
-						return v, util.ErrLockedSetIgnore
+			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				if found {
+					if i[0] != nil {
+						insert = i[0].(workerProcessInsertStateMergeValuesFunc)
 					}
 
-					switch s, o, err := newFuncs(ctx, worker); {
+					return v, util.ErrLockedSetIgnore
+				}
+
+				switch s, o, err := newf(ctx, worker); {
+				case err != nil:
+					return v, err
+				default:
+					insert = s
+
+					return [2]interface{}{s, o}, nil
+				}
+			}); err != nil {
+				return err
+			}
+
+			if insert != nil {
+				return insert(opindex, fact, values)
+			}
+
+			return nil
+		},
+		func(worker string, subws, affected []string) error {
+			var sendOwners dutil.In2ErrorFunc[[]string, []string]
+
+			if _, _, err := pool.Set(
+				worker,
+				func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
+					if found {
+						if i[1] != nil {
+							sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
+						}
+
+						return v, nil
+					}
+
+					switch _, o, err := newf(ctx, worker); {
 					case err != nil:
 						return v, err
 					default:
-						insert = s
+						sendOwners = o
 
-						return [2]interface{}{s, o}, nil
+						return v, nil
 					}
-				}); err != nil {
-					return err
+				},
+			); err != nil {
+				return err
+			}
+
+			if sendOwners != nil {
+				return sendOwners(subws, affected)
+			}
+
+			return nil
+		},
+		func() error {
+			defer pool.Close()
+
+			var newJob dutil.JobWorkerNewJobFunc
+			var jobDone func()
+			var jobWait dutil.InErrorFunc[error]
+
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(workers))); {
+			case err != nil:
+				return err
+			default:
+				newJob, jobDone, jobWait = n, d, w
+			}
+
+			if err := dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+				if worker == local {
+					return true, nil
 				}
 
-				if insert != nil {
-					return insert(opindex, fact, values)
-				}
-
-				return nil
-			},
-			func(worker string, subws, affected []string) error {
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
 
-				if _, _, err := pool.Set(
-					worker,
-					func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
-						if found {
-							if i[1] != nil {
-								sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
-							}
-
-							return v, nil
-						}
-
-						switch _, o, err := newFuncs(ctx, worker); {
-						case err != nil:
-							return v, err
-						default:
-							sendOwners = o
-
-							return v, nil
-						}
-					},
-				); err != nil {
-					return err
-				}
-
-				if sendOwners != nil {
-					return sendOwners(subws, affected)
-				}
-
-				return nil
-			},
-			func() error {
-				defer pool.Close()
-
-				var newJob dutil.JobWorkerNewJobFunc
-				var jobDone func()
-				var jobWait dutil.InErrorFunc[error]
-
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(workers))); {
-				case err != nil:
-					return err
-				default:
-					newJob, jobDone, jobWait = n, d, w
-				}
-
-				if err := dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
-					if worker == local {
-						return true, nil
-					}
-
-					var sendOwners dutil.In2ErrorFunc[[]string, []string]
-
-					switch i, found := pool.Value(worker); {
-					case !found:
-						switch _, o, err := newFuncs(ctx, worker); {
-						case err != nil:
-							return true, nil
-						default:
-							sendOwners = o
-						}
-					case i[1] == nil:
+				switch i, found := pool.Value(worker); {
+				case !found:
+					switch _, o, err := newf(ctx, worker); {
+					case err != nil:
 						return true, nil
 					default:
-						sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
+						sendOwners = o
 					}
-
-					return true, newJob(func(context.Context) error {
-						_ = sendOwners(nil, nil)
-
-						return nil
-					})
-				}); err != nil {
-					return jobWait(err)
+				case i[1] == nil:
+					return true, nil
+				default:
+					sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
 				}
 
-				jobDone()
+				return true, newJob(func(context.Context) error {
+					_ = sendOwners(nil, nil)
 
-				return jobWait(nil)
-			},
-			nil
-	}
+					return nil
+				})
+			}); err != nil {
+				return jobWait(err)
+			}
+
+			jobDone()
+
+			return jobWait(nil)
+		},
+		nil
 }
 
 func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[uint64]string {

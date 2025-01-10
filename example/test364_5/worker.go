@@ -12,15 +12,15 @@ import (
 )
 
 type (
-	workerDistributeStateMergeValuesFunc = func(_ context.Context, workID, local string, workers []string) (
-		workerDistributeWorkerStateMergeValuesFunc,
-		workerStateOwnersSetFunc,
-		dutil.ErrorFunc,
+	newWorkerDistributeStateMergeValuesFunc func(_ context.Context, workID, worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
+
 	workerInitialInsertFunc = func(
 		getStateOwnersFunc,
-		workerDistributeStateMergeValuesFunc,
+		newWorkerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		workerReportStateOwnersFunc,
@@ -133,20 +133,20 @@ func newFuncWorker(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerDistributeStateMergeValuesFunc,
+			distribute newWorkerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStateOwners workerReportStateOwnersFunc,
 		) error {
+			// FIXME filter invalid ops; already processed, etc
 			return initialInsert(
 				getStateOwners,
-				func(ctx context.Context, local string, workers []string) (
-					workerDistributeWorkerStateMergeValuesFunc,
-					workerStateOwnersSetFunc,
-					dutil.ErrorFunc,
+				func(ctx context.Context, worker string) (
+					workerProcessInsertStateMergeValuesFunc,
+					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {
-					return distribute(ctx, workID, local, workers)
+					return distribute(ctx, workID, worker)
 				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {

@@ -56,28 +56,26 @@ func (t *testWorkerProcess) newf(
 	defaultGetStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
 	t.NoError(err)
 
-	defaultDistribute := newFuncDistributeStateMergeValues(
-		func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
-			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-					t.Println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
+	defaultDistribute := func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
+		return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				t.Println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
-					return nil
-				},
-				func(subws []string, affected []string) error {
-					t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+				return nil
+			},
+			func(subws []string, affected []string) error {
+				t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
-					return nil
-				},
-				nil
-		},
-	)
+				return nil
+			},
+			nil
+	}
 
 	savedOps := util.NewSingleLockedMap[uint64, Operation]()
 	savedStates := util.NewSingleLockedMap[string, base.State]()
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute workerProcessDistributeStateMergeValuesFunc,
+			distribute newWorkerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
@@ -214,15 +212,13 @@ func (t *testWorkerProcess) TestCancel() {
 		return func() error {
 				return insertOps(
 					func(string) []string { return workers },
-					func(context.Context, string, []string) (
-						workerDistributeWorkerStateMergeValuesFunc,
-						workerStateOwnersSetFunc,
-						dutil.ErrorFunc,
+					func(context.Context, string) (
+						workerProcessInsertStateMergeValuesFunc,
+						dutil.In2ErrorFunc[[]string, []string],
 						error,
 					) {
-						return func(string, uint64, util.Hash, []StateMergeValue) error { return nil },
-							func(string, []string, []string) error { return nil },
-							func() error { return nil },
+						return func(uint64, util.Hash, []StateMergeValue) error { return nil },
+							func([]string, []string) error { return nil },
 							nil
 					},
 					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
@@ -697,24 +693,21 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.NoError(initial(
 			func(string) []string { return []string{local} },
-			newFuncDistributeStateMergeValues(
-				func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
-					return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-							otherInserted = true
+			func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
+				return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+						otherInserted = true
 
-							return nil
-						},
-						func(subws []string, affected []string) error {
-							otherInsertedDone = true
+						return nil
+					},
+					func(subws []string, affected []string) error {
+						otherInsertedDone = true
 
-							t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+						t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
-							return nil
-						},
-						nil
-				},
-			),
-
+						return nil
+					},
+					nil
+			},
 			t.newFuncGetOperation(ops),
 			t.defaultFuncInsertOp(ops),
 			func(owners []string, reasons map[uint64]string) error {
@@ -937,14 +930,14 @@ func (t *testWorkerProcess) newProcessWorkers(
 	t.NoError(err)
 	defer stateOwnersClose()
 
-	distributeValues := func(local string) workerProcessDistributeStateMergeValuesFunc {
-		return newFuncDistributeStateMergeValues(func(_ context.Context, worker string) (
+	distributeValues := func(local string) newWorkerProcessDistributeStateMergeValuesFunc {
+		return func(_ context.Context, worker string) (
 			workerProcessInsertStateMergeValuesFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
 			return workerInserts[worker](local)
-		})
+		}
 	}
 
 	go func() {
