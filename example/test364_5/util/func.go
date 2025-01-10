@@ -1,5 +1,7 @@
 package util
 
+import "context"
+
 type (
 	InFunc[T, Y any]             func(T) Y
 	In2Func[T, Y, X any]         func(T, Y) X
@@ -10,6 +12,7 @@ type (
 	OutFunc[T any]               func() T
 	ErrorFunc                    = OutFunc[error]
 	OutErrorFunc[T any]          func() (T, error)
+	InContextErrorFunc[T any]    func(context.Context, T) error
 )
 
 func DummyErrorInFunc(err error) error {

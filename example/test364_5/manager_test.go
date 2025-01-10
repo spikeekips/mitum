@@ -168,6 +168,8 @@ func (t *testManager) TestNew() {
 	})
 }
 
+// FIXME test; broadcast to non-owners workers
+
 func TestManager(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

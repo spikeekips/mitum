@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -16,7 +17,7 @@ type (
 	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
 		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree util.Hash) (base.Manifest, error)
-	managerWaitFunc        = dutil.InErrorFunc[newManagerManifestFunc]
+	managerWaitFunc        = dutil.In2ErrorFunc[dutil.InContextErrorFunc[string], newManagerManifestFunc]
 )
 
 type managerOptions struct {
@@ -61,13 +62,15 @@ func newFuncManager(
 		Uint64("states_share", statesShare).
 		Msg("new")
 
+	newJobWorker := dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize)
+
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var workerResult managerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
 	switch s, o, r, w, err := newFuncManagerProcess(
 		ctx,
-		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
+		newJobWorker,
 		workers,
 		opsShare, statesShare,
 		ophs,
@@ -85,12 +88,18 @@ func newFuncManager(
 		},
 		workerOwners,
 		workerResult,
-		func(mf newManagerManifestFunc) error {
+		func(
+			workerDone dutil.InContextErrorFunc[string],
+			mf newManagerManifestFunc,
+		) error {
 			var opsTree, statesTree *fixedtree.Tree
 
 			switch otr, str, err := processWait(
 				options.GenerateNodesHashFunc,
-				nil,
+				func(owners []string) error {
+					// NOTE manager done to workers outside owners
+					return nil
+				},
 			); {
 			case err != nil:
 				return err
@@ -150,4 +159,36 @@ func isValidManagerArgs(
 	}
 
 	return opsShare, statesShare, nil
+}
+
+func newFuncWorkerManagerDone(
+	ctx context.Context,
+	newJobWorker dutil.NewJobWorkerFunc,
+	workers, owners []string,
+	workerDone dutil.InContextErrorFunc[string],
+) error {
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for worker := range dutil.FilterSlice(slices.Values(workers), func(i string) bool {
+		return slices.Index(owners, i) >= 0
+	}) {
+		if err := newJob(func(ctx context.Context) error {
+			return workerDone(ctx, worker)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
 }
