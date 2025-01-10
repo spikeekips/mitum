@@ -98,7 +98,13 @@ func newFuncManager(
 				options.GenerateNodesHashFunc,
 				func(owners []string) error {
 					// NOTE manager done to workers outside owners
-					return nil
+					return newFuncWorkerManagerDone(
+						ctx,
+						newJobWorker,
+						workers,
+						owners,
+						workerDone,
+					)
 				},
 			); {
 			case err != nil:
@@ -179,7 +185,7 @@ func newFuncWorkerManagerDone(
 	}
 
 	for worker := range dutil.FilterSlice(slices.Values(workers), func(i string) bool {
-		return slices.Index(owners, i) >= 0
+		return slices.Index(owners, i) < 0
 	}) {
 		if err := newJob(func(ctx context.Context) error {
 			return workerDone(ctx, worker)

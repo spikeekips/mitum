@@ -4,9 +4,11 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -168,7 +170,132 @@ func (t *testManager) TestNew() {
 	})
 }
 
-// FIXME test; broadcast to non-owners workers
+func (t *testManager) TestBroadcastManagerDone() {
+	t.Run("no workers", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workers := t.workers(9)
+
+		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+			ctx,
+			t.newOptions(),
+			util.UUID().String(),
+			workers,
+			1, 1,
+			t.randomOphs(33),
+		)
+		t.NoError(err)
+		t.NoError(sendOps(func(context.Context, string, string) (
+			opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+		) {
+			return func(uint64, util.Hash, util.Hash) error { return nil },
+				func(err error) error { return err },
+				nil
+		}))
+
+		owners := workers
+
+		for worker := range slices.Values(workers) {
+			t.T().Logf("worker owners: worker=%q owners=%v", worker, owners)
+
+			t.NoError(workerOwners(worker, owners))
+		}
+
+		for worker := range slices.Values(owners) {
+			t.T().Logf("worker result: worker=%q", worker)
+
+			_, _, done, err := workerResult(worker)
+			t.NoError(err)
+			t.NoError(done(nil))
+		}
+
+		var nonOwners []string
+		var l sync.Mutex
+
+		t.NoError(wait(
+			func(_ context.Context, worker string) error {
+				t.T().Logf("non state owner: worker=%q", worker)
+
+				l.Lock()
+				nonOwners = append(nonOwners, worker)
+				l.Unlock()
+
+				return nil
+			},
+			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+
+				return nil, nil
+			},
+		))
+
+		t.Empty(nonOwners)
+	})
+
+	t.Run("some workers", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workers := t.workers(9)
+
+		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+			ctx,
+			t.newOptions(),
+			util.UUID().String(),
+			workers,
+			1, 1,
+			t.randomOphs(33),
+		)
+		t.NoError(err)
+		t.NoError(sendOps(func(context.Context, string, string) (
+			opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+		) {
+			return func(uint64, util.Hash, util.Hash) error { return nil },
+				func(err error) error { return err },
+				nil
+		}))
+
+		owners := workers[:2]
+
+		for worker := range slices.Values(workers) {
+			t.T().Logf("worker owners: worker=%q owners=%v", worker, owners)
+
+			t.NoError(workerOwners(worker, owners))
+		}
+
+		for worker := range slices.Values(workers) {
+			t.T().Logf("worker result: worker=%q", worker)
+
+			_, _, done, err := workerResult(worker)
+			t.NoError(err)
+			t.NoError(done(nil))
+		}
+
+		var nonOwners []string
+		var l sync.Mutex
+
+		t.NoError(wait(
+			func(_ context.Context, worker string) error {
+				t.T().Logf("non state owner: worker=%q", worker)
+
+				l.Lock()
+				nonOwners = append(nonOwners, worker)
+				l.Unlock()
+
+				return nil
+			},
+			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+
+				return nil, nil
+			},
+		))
+
+		slices.Sort(nonOwners)
+		t.Equal(workers[2:], nonOwners)
+	})
+}
 
 func TestManager(t *testing.T) {
 	defer goleak.VerifyNone(t)
