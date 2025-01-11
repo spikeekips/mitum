@@ -234,12 +234,12 @@ func (t *testManagerWithWorkers) newManager(
 				opsShare, statesShare uint64,
 				maxOpsSize uint64,
 			) error {
-				t.Println("start worker: work id=%q worker=%q workers=%v opsWorkers=%v ops share=%d states share=%d max ops size=%d",
-					workID, worker,
-					workers, opsWorkers,
-					opsShare, statesShare,
-					maxOpsSize,
-				)
+				//t.Println("start worker: work id=%q worker=%q workers=%v opsWorkers=%v ops share=%d states share=%d max ops size=%d",
+				//	workID, worker,
+				//	workers, opsWorkers,
+				//	opsShare, statesShare,
+				//	maxOpsSize,
+				//)
 
 				return nil
 			},
