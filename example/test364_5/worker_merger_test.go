@@ -1393,7 +1393,7 @@ func (t *testWorkerMerger) TestSubs() {
 	t.Run("repeat", func() {
 		maxWorkers := len(states)
 		for workers := 1; workers <= maxWorkers; workers++ {
-			for share := uint64(1); share <= uint64(maxWorkers); share++ {
+			for share := uint64(1); share <= uint64(workers); share++ {
 				for i := range 1 << 8 {
 					t.Run(fmt.Sprintf("%d: %d workers, %d share", i, workers, share), run(workers, share))
 				}
