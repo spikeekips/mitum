@@ -24,7 +24,7 @@ func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[e
 		once.Do(func() {
 			switch {
 			case err == nil:
-				gerr = context.Canceled
+				gerr = ErrorWithStack(context.Canceled)
 
 				cancel(nil)
 			default:
