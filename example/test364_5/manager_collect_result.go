@@ -170,7 +170,7 @@ func newFuncGenerateOperationFixedtree(
 	}
 
 	return func() error {
-			for i, hs := range dutil.SliceAll(ophs) {
+			for i, hs := range slices.All(ophs) {
 				if err := newJob(func(context.Context) error {
 					_, _, _ = pool.Set(uint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
 						if found {

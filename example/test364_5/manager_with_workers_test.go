@@ -35,7 +35,7 @@ func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) 
 	ops := t.baseTestAccountStateMerger.randomAddOps(n, 1)
 
 	ophs := make([][2]util.Hash, len(ops))
-	for i, op := range dutil.SliceAll(ops) {
+	for i, op := range slices.All(ops) {
 		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 	}
 
@@ -175,7 +175,7 @@ func (t *testManagerWithWorkers) newManager(
 	workID := util.UUID().String()
 
 	ophs := make([][2]util.Hash, len(ops))
-	for i, op := range dutil.SliceAll(ops) {
+	for i, op := range slices.All(ops) {
 		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 	}
 

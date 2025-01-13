@@ -251,16 +251,6 @@ func ClearMap[K comparable, V any](m map[K]V) {
 	m = nil
 }
 
-func SliceAll[T any](s []T) iter.Seq2[int, T] { // FIXME remove; use slices.All
-	return func(yield func(int, T) bool) {
-		for i := range s {
-			if !yield(i, s[i]) {
-				return
-			}
-		}
-	}
-}
-
 func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
 		var i int

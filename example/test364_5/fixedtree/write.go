@@ -3,6 +3,7 @@ package fixedtree
 import (
 	"context"
 	"iter"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -65,7 +66,7 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	for i, n := range dutil.SliceAll(nodes) {
+	for i, n := range slices.All(nodes) {
 		if n == nil {
 			return jobWait(errors.Errorf("nil node at %d", i))
 		}

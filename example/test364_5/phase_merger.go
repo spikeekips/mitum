@@ -334,7 +334,7 @@ func extractStateMergeValueKeysFromValues(values []StateMergeValue) (stateKeys [
 
 	stateKeys = make([]string, len(values))
 
-	for i, value := range dutil.SliceAll(values) {
+	for i, value := range slices.All(values) {
 		stateKeys[i] = value.Key()
 	}
 

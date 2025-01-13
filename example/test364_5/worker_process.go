@@ -561,7 +561,7 @@ func newFuncorkerProcessExtracted(
 			stateMergeValues[i] = value
 		}
 
-		for i, value := range dutil.SliceAll(addvs) {
+		for i, value := range slices.All(addvs) {
 			add(i, value)
 		}
 
@@ -659,7 +659,7 @@ func mergeStateOpFromValues(
 
 	stateKeys = make([]string, len(values))
 
-	for i, value := range dutil.SliceAll(values) {
+	for i, value := range slices.All(values) {
 		stateKeys[i] = value.Key()
 	}
 
