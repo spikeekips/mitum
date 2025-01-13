@@ -19,11 +19,11 @@ type testUnmerger struct {
 
 func (t *testUnmerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateMerger],
+	mergers util.LockedMap[string, StateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
-	getMergers mergerGetStateMergersFunc,
+	getMergers mergerGetStateValueMergersFunc,
 ) {
 	t.T().Helper()
 
@@ -36,7 +36,7 @@ func (t *testUnmerger) newFuncs() (
 	}
 
 	extractKeys, _ := t.extractStateMergeValueKeys()
-	getMergers, _ = newFuncGetStateMergers(mergers, getState, extractKeys)
+	getMergers, _ = newFuncGetStateValueMergers(mergers, getState, extractKeys)
 
 	return vp, mergers, states, getValues, getState, getMergers
 }

@@ -17,15 +17,15 @@ import (
 )
 
 type baseTestMergeOp struct {
-	baseTestAccountStateMerger
+	baseTestAccountStateValueMerger
 }
 
-func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerger]) (map[string]int64, error) {
+func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateValueMerger]) (map[string]int64, error) {
 	m := map[string]int64{}
 
 	var gerr error
 
-	mergers.Traverse(func(stateKey string, merger StateMerger) bool {
+	mergers.Traverse(func(stateKey string, merger StateValueMerger) bool {
 		st, err := merger.Close()
 		if err != nil {
 			gerr = err
@@ -45,31 +45,31 @@ func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateMerge
 
 func (t *baseTestMergeOp) getFuncs() (
 	_ util.LockedMap[uint64, []StateMergeValue],
-	_ util.LockedMap[string, StateMerger],
+	_ util.LockedMap[string, StateValueMerger],
 	_ util.LockedMap[string, base.State],
-	getMerger func(StateMergeValue) (StateMerger, error),
+	getMerger func(StateMergeValue) (StateValueMerger, error),
 	getValues func(uint64) ([]StateMergeValue, error),
 ) {
 	vp, err := util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
 	t.IfErrPanic(err)
 
-	mergers, err := util.NewShardedMap[string, StateMerger](1<<9, nil)
+	mergers, err := util.NewShardedMap[string, StateValueMerger](1<<9, nil)
 	t.IfErrPanic(err)
 
 	states, err := util.NewShardedMap[string, base.State](1<<9, nil)
 	t.IfErrPanic(err)
 
-	return vp, mergers, states, func(value StateMergeValue) (StateMerger, error) {
-			var merger StateMerger
+	return vp, mergers, states, func(value StateMergeValue) (StateValueMerger, error) {
+			var merger StateValueMerger
 
 			err := mergers.GetOrCreate(
 				value.Key(),
-				func(i StateMerger, _ bool) error {
+				func(i StateValueMerger, _ bool) error {
 					merger = i
 
 					return nil
 				},
-				func() (StateMerger, error) {
+				func() (StateValueMerger, error) {
 					var stv base.StateValue
 
 					if i, found := states.Value(value.Key()); found {
@@ -179,7 +179,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
-		getMerger := func(value StateMergeValue) (StateMerger, error) {
+		getMerger := func(value StateMergeValue) (StateValueMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
@@ -272,7 +272,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
-		getMerger := func(value StateMergeValue) (StateMerger, error) {
+		getMerger := func(value StateMergeValue) (StateValueMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
@@ -641,7 +641,7 @@ type testPhaseMerger struct {
 
 func (t *testPhaseMerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateMerger],
+	mergers util.LockedMap[string, StateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
@@ -668,7 +668,7 @@ func (t *testPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		merge, _, _, _, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -692,7 +692,7 @@ func (t *testPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		_, unmerge, _, _, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -716,7 +716,7 @@ func (t *testPhaseMerger) TestCancel() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -746,7 +746,7 @@ func (t *testPhaseMerger) TestMerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -782,7 +782,7 @@ func (t *testPhaseMerger) TestMerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -833,13 +833,13 @@ func (t *testPhaseMerger) TestMerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		origGetMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		origGetMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		getMergers := func(
 			opindex uint64,
 			values []StateMergeValue,
-			f func(func(StateMergeValue) (StateMerger, error)) error,
+			f func(func(StateMergeValue) (StateValueMerger, error)) error,
 		) error {
 			stateKeys, err := extractKeys(opindex, values)
 			if err != nil {
@@ -876,7 +876,7 @@ func (t *testPhaseMerger) TestMerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -920,7 +920,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -959,7 +959,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		_, unmerge, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -1022,13 +1022,13 @@ func (t *testPhaseMerger) TestUnmerge() {
 		extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 		defer closeExtractKeys()
 
-		origGetMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+		origGetMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 		defer closeMergers()
 
 		getMergers := func(
 			opindex uint64,
 			values []StateMergeValue,
-			f func(func(StateMergeValue) (StateMerger, error)) error,
+			f func(func(StateMergeValue) (StateValueMerger, error)) error,
 		) error {
 			stateKeys, err := extractKeys(opindex, values)
 			if err != nil {
@@ -1113,7 +1113,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 	defer closeExtractKeys()
 
-	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+	getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 	defer closeMergers()
 
 	merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
@@ -1359,7 +1359,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	extractKeys, closeExtractKeys := t.extractStateMergeValueKeys()
 	defer closeExtractKeys()
 
-	getMergers, closeMergers := newFuncGetStateMergers(mergers, getState, extractKeys)
+	getMergers, closeMergers := newFuncGetStateValueMergers(mergers, getState, extractKeys)
 	defer closeMergers()
 
 	merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)

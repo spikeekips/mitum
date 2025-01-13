@@ -100,10 +100,10 @@ func newFuncWorkerProcess(
 	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
-	var getStateMergers mergerGetStateMergersFunc
-	var traverseStateMergersf func() (uint64, traverseStateMergersFunc)
+	var getStateValueMergers mergerGetStateValueMergersFunc
+	var traverseStateValueMergersf func() (uint64, traverseStateValueMergersFunc)
 
-	switch g, t, err := newFuncStateMergers(
+	switch g, t, err := newFuncStateValueMergers(
 		maxOpsSize*2, // NOTE approximate states size
 		getState,
 		extractStateMergeValueKeys,
@@ -111,7 +111,7 @@ func newFuncWorkerProcess(
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		getStateMergers, traverseStateMergersf = g, t
+		getStateValueMergers, traverseStateValueMergersf = g, t
 	}
 
 	var initialInsert workerProcessInitialInsertFunc2
@@ -131,7 +131,7 @@ func newFuncWorkerProcess(
 		workers,
 		opsWorkers,
 		opsShare, statesShare, maxOpsSize,
-		getStateMergers,
+		getStateValueMergers,
 	); {
 	case err != nil:
 		return nil, nil, nil, nil, err
@@ -219,13 +219,13 @@ func newFuncWorkerProcess(
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
 
-					statesSize, traverseStateMergers := traverseStateMergersf()
+					statesSize, traverseStateValueMergers := traverseStateValueMergersf()
 
 					return reportResult(ctx, reasons, statesSize, func(f dutil.InErrorFunc[base.State]) error {
-						return workerProcessCloseStateMergers(
+						return workerProcessCloseStateValueMergers(
 							ctx,
 							newState,
-							traverseStateMergers,
+							traverseStateValueMergers,
 							traverseStateOps,
 							func(st base.State) error { return f(st) },
 						)
@@ -275,7 +275,7 @@ func newFuncWorkerProcessStateValueMerger(
 	workers []string,
 	opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
-	getStateMergers mergerGetStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
 ) (
 	workerProcessInitialInsertFunc2,
 	workerProcessWorkerInsertStateMergeValuesFunc,
@@ -306,7 +306,7 @@ func newFuncWorkerProcessStateValueMerger(
 		local,
 		newJobWorker,
 		getState,
-		getStateMergers,
+		getStateValueMergers,
 		uint64(len(workers)), maxOpsSize, maxOpsSize*2, // NOTE approximate states size
 		opsWorkers, opsShare, statesShare,
 	); {
@@ -668,10 +668,10 @@ func mergeStateOpFromValues(
 	return nil
 }
 
-func workerProcessCloseStateMergers(
+func workerProcessCloseStateValueMergers(
 	ctx context.Context,
 	newState newStateFunc,
-	traverseStateMergers traverseStateMergersFunc,
+	traverseStateValueMergers traverseStateValueMergersFunc,
 	traverseStateOps traverseStateOpsFunc,
 	h dutil.InErrorFunc[base.State],
 ) error {
@@ -691,7 +691,7 @@ func workerProcessCloseStateMergers(
 			newJob, jobDone, jobWait = n, d, w
 		}
 
-		if err := traverseStateMergers(func(stateKey string, merger StateMerger) (bool, error) {
+		if err := traverseStateValueMergers(func(stateKey string, merger StateValueMerger) (bool, error) {
 			return true, newJob(func(context.Context) error {
 				var facts []util.Hash
 

@@ -23,11 +23,11 @@ type testWorkerMerger struct {
 }
 
 func (t *testWorkerMerger) newFuncs() (
-	mergers util.LockedMap[string, StateMerger],
+	mergers util.LockedMap[string, StateValueMerger],
 	states util.LockedMap[string, base.State],
 	getState getStateFunc,
-	getStateMergers mergerGetStateMergersFunc,
-	traverseStateMergers traverseStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
+	traverseStateValueMergers traverseStateValueMergersFunc,
 ) {
 	t.T().Helper()
 
@@ -41,7 +41,7 @@ func (t *testWorkerMerger) newFuncs() (
 
 	extractKeys, _ := t.extractStateMergeValueKeys()
 
-	switch g, t, err := newFuncStateMergers(
+	switch g, t, err := newFuncStateValueMergers(
 		1<<9,
 		getState,
 		extractKeys,
@@ -49,11 +49,11 @@ func (t *testWorkerMerger) newFuncs() (
 	case err != nil:
 		panic(err)
 	default:
-		getStateMergers = g
-		_, traverseStateMergers = t()
+		getStateValueMergers = g
+		_, traverseStateValueMergers = t()
 	}
 
-	return mergers, states, getState, getStateMergers, traverseStateMergers
+	return mergers, states, getState, getStateValueMergers, traverseStateValueMergers
 }
 
 func (t *testWorkerMerger) TestCancel() {
@@ -65,14 +65,14 @@ func (t *testWorkerMerger) TestCancel() {
 
 		cancel(nil)
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -96,14 +96,14 @@ func (t *testWorkerMerger) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := t.Ctx()
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -130,14 +130,14 @@ func (t *testWorkerMerger) TestCancel() {
 		t.Run("before insert done", func() {
 			ctx, cancel := t.Ctx()
 
-			_, _, getState, getStateMergers, _ := t.newFuncs()
+			_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 			insertf, unmerge, wait, err := newFuncWorkerMerger(
 				ctx,
 				local,
 				dutil.NewFuncNewJobWorkerFunc(1<<9),
 				getState,
-				getStateMergers,
+				getStateValueMergers,
 				1<<9, 1<<9, 1<<9,
 				opsWorkers, 1, 1,
 			)
@@ -163,14 +163,14 @@ func (t *testWorkerMerger) TestCancel() {
 		t.Run("after insert done", func() {
 			ctx, cancel := t.Ctx()
 
-			_, _, getState, getStateMergers, _ := t.newFuncs()
+			_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 			insertf, unmerge, wait, err := newFuncWorkerMerger(
 				ctx,
 				local,
 				dutil.NewFuncNewJobWorkerFunc(1<<9),
 				getState,
-				getStateMergers,
+				getStateValueMergers,
 				1<<9, 1<<9, 1<<9,
 				opsWorkers, 1, 1,
 			)
@@ -195,14 +195,14 @@ func (t *testWorkerMerger) TestCancel() {
 	t.Run("before wait", func() {
 		ctx, cancel := t.Ctx()
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -224,7 +224,7 @@ func (t *testWorkerMerger) TestCancel() {
 }
 
 func (t *testWorkerMerger) TestError() {
-	_, _, getState, getStateMergers, _ := t.newFuncs()
+	_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 	t.Run("empty ops workers", func() {
 		_, _, _, err := newFuncWorkerMerger(
@@ -232,7 +232,7 @@ func (t *testWorkerMerger) TestError() {
 			"w0",
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			nil, 1, 1,
 		)
@@ -245,7 +245,7 @@ func (t *testWorkerMerger) TestError() {
 			"w0",
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1, 1<<9, 1<<9,
 			t.workers(9), 0, 1,
 		)
@@ -260,14 +260,14 @@ func (t *testWorkerMerger) TestInsert() {
 	t.Run("local insert error", func() {
 		ctx, _ := t.Ctx()
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -288,14 +288,14 @@ func (t *testWorkerMerger) TestInsert() {
 	t.Run("worker insert error", func() {
 		ctx, _ := t.Ctx()
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -324,14 +324,14 @@ func (t *testWorkerMerger) TestInsert() {
 
 		opsWorkers := []string{local}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -360,7 +360,7 @@ func (t *testWorkerMerger) TestInsert() {
 
 		opsWorkers := []string{local}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		for i := range values {
@@ -373,7 +373,7 @@ func (t *testWorkerMerger) TestInsert() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9,
 			1<<9, 1<<9,
 			opsWorkers, 1, 1,
@@ -411,14 +411,14 @@ func (t *testWorkerMerger) TestInsert() {
 		opsWorkers := t.workers(4)
 		local = opsWorkers[0]
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -457,7 +457,7 @@ func (t *testWorkerMerger) TestInsert() {
 		local = opsWorkers[0]
 		valuesPerWorker := 3
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
@@ -488,7 +488,7 @@ func (t *testWorkerMerger) TestInsert() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -545,14 +545,14 @@ func (t *testWorkerMerger) TestInsert() {
 		opsWorkers := []string{"w1", "w2"}
 		t.True(slices.Index(opsWorkers, local) < 0)
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, unmerge, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -594,7 +594,7 @@ func (t *testWorkerMerger) TestInsert() {
 		opsWorkers := []string{local}
 		unknowns := []string{"u0", "u1", "u2"}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		for i := range values {
@@ -607,7 +607,7 @@ func (t *testWorkerMerger) TestInsert() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9,
 			1<<9, 1<<9,
 			opsWorkers, 1, 1,
@@ -664,7 +664,7 @@ type (
 	testWorkerMergeReasonsFunc func(reasons map[uint64]string) error
 	testWorkerMergerWaitsFunc  func(func(string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc)) ([]string, error)
 
-	testWorkerMergerTraverseMergersFunc func(func(string, traverseStateMergersFunc) error) error
+	testWorkerMergerTraverseMergersFunc func(func(string, traverseStateValueMergersFunc) error) error
 )
 
 func (t *testWorkerMerger) workerMergers(
@@ -694,7 +694,7 @@ func (t *testWorkerMerger) workerMergers(
 	inserts := map[string]workerMergerInsertStateMergeValuesFunc{}
 	unmerges := map[string]workerUnmergedFunc{}
 	waits := map[string]workerMergerWaitFunc{}
-	traverseMergers := map[string]traverseStateMergersFunc{}
+	traverseMergers := map[string]traverseStateValueMergersFunc{}
 
 	for worker := range slices.Values(workers) {
 		statesPool, insert, unmerge, wait, tr, err := t.workerMerger(
@@ -886,7 +886,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			return doneWorkers, nil
 		},
-		func(f func(string, traverseStateMergersFunc) error) error {
+		func(f func(string, traverseStateValueMergersFunc) error) error {
 			for worker, wf := range maps.All(traverseMergers) {
 				if err := f(worker, wf); err != nil {
 					return err
@@ -907,10 +907,10 @@ func (t *testWorkerMerger) workerMerger(
 	workerMergerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
-	traverseStateMergersFunc,
+	traverseStateValueMergersFunc,
 	error,
 ) {
-	_, statesPool, getState, getStateMergers, traverseStateMergers := t.newFuncs()
+	_, statesPool, getState, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 	logger := dutil.LoadContextValueLogger(ctx).With().Str("local", local).Logger()
 	ctx = dutil.SetContextValueLogger(ctx, &logger)
@@ -920,12 +920,12 @@ func (t *testWorkerMerger) workerMerger(
 		local,
 		dutil.NewFuncNewJobWorkerFunc(1<<9),
 		getState,
-		getStateMergers,
+		getStateValueMergers,
 		1<<9, 1<<9, 1<<9,
 		opsWorkers, share, share,
 	)
 
-	return statesPool, i, u, m, traverseStateMergers, err
+	return statesPool, i, u, m, traverseStateValueMergers, err
 }
 
 func (t *testWorkerMerger) stateOwnersFunc(
@@ -1035,8 +1035,8 @@ func (t *testWorkerMerger) TestNoSubs() {
 		t.Equal(workers, doneWorkers)
 
 		var called int
-		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
-			return f(func(stateKey string, merger StateMerger) (bool, error) {
+		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
+			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
 				called++
 
 				return true, nil
@@ -1088,12 +1088,12 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateMerger) (bool, error) {
+			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
 					return false, errors.WithMessage(err, worker)
@@ -1170,12 +1170,12 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateMerger) (bool, error) {
+			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
 					return false, errors.WithMessage(err, worker)
@@ -1262,12 +1262,12 @@ func (t *testWorkerMerger) TestSubs() {
 	checkMerged := func(doneWorkers []string, traverse testWorkerMergerTraverseMergersFunc) {
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateMergersFunc) error {
+		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateMerger) (bool, error) {
+			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
 				stv, err := merger.Close()
 				if err != nil {
 					return false, errors.WithMessage(err, worker)
@@ -1361,7 +1361,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 		opsWorkers := []string{local}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		for i := range values {
@@ -1374,7 +1374,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9,
 			1<<9, 1<<9,
 			opsWorkers, 1, 1,
@@ -1416,7 +1416,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 		opsWorkers := []string{local}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		for i := range values {
@@ -1429,7 +1429,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9,
 			1<<9, 1<<9,
 			opsWorkers, 1, 1,
@@ -1471,14 +1471,14 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 		opsWorkers := []string{local, "w0"}
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		insertf, _, wait, err := newFuncWorkerMerger(
 			ctx,
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			opsWorkers, 1, 1,
 		)
@@ -1513,7 +1513,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		local = opsWorkers[0]
 		valuesPerWorker := 3
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
@@ -1547,7 +1547,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			overWorkers, 1, 1,
 		)
@@ -1610,7 +1610,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		local = opsWorkers[0]
 		valuesPerWorker := 3
 
-		_, _, getState, getStateMergers, _ := t.newFuncs()
+		_, _, getState, getStateValueMergers, _ := t.newFuncs()
 
 		workerValues := map[string][]uint64{}
 		values := make([][]StateMergeValue, len(opsWorkers)*valuesPerWorker)
@@ -1644,7 +1644,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			getState,
-			getStateMergers,
+			getStateValueMergers,
 			1<<9, 1<<9, 1<<9,
 			overWorkers, 1, 1,
 		)

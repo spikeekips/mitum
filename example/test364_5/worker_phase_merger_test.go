@@ -23,12 +23,12 @@ type testWorkerPhaseMerger struct {
 
 func (t *testWorkerPhaseMerger) newFuncs() (
 	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateMerger],
+	mergers util.LockedMap[string, StateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	newPhaseMergerf newPhaseMergerFunc,
-	getStateMergers mergerGetStateMergersFunc,
-	traverseStateMergers traverseStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
+	traverseStateValueMergers traverseStateValueMergersFunc,
 ) {
 	t.T().Helper()
 
@@ -42,7 +42,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 
 	extractKeys, _ := t.extractStateMergeValueKeys()
 
-	switch g, t, err := newFuncStateMergers(
+	switch g, t, err := newFuncStateValueMergers(
 		1<<9,
 		getState,
 		extractKeys,
@@ -50,14 +50,14 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 	case err != nil:
 		panic(err)
 	default:
-		getStateMergers = g
-		_, traverseStateMergers = t()
+		getStateValueMergers = g
+		_, traverseStateValueMergers = t()
 	}
 
 	newPhaseMergerf = func(
 		ctx context.Context,
 		getStateMergeValues opindexGetStateMergeValuesFunc,
-		getStateMergers mergerGetStateMergersFunc,
+		getStateValueMergers mergerGetStateValueMergersFunc,
 	) (
 		merge,
 		unmerge dutil.InErrorFunc[uint64],
@@ -70,18 +70,18 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1<<9,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 		)
 	}
 
-	return vp, mergers, states, getStateMergeValues, newPhaseMergerf, getStateMergers, traverseStateMergers
+	return vp, mergers, states, getStateMergeValues, newPhaseMergerf, getStateValueMergers, traverseStateValueMergers
 }
 
-func (t *testWorkerPhaseMerger) closeStateMergers(
-	traverseStateMergers traverseStateMergersFunc,
+func (t *testWorkerPhaseMerger) closeStateValueMergers(
+	traverseStateValueMergers traverseStateValueMergersFunc,
 	f func(stateKey string, _ *AccountStateValue) bool,
 ) error {
-	return traverseStateMergers(func(stateKey string, merger StateMerger) (bool, error) {
+	return traverseStateValueMergers(func(stateKey string, merger StateValueMerger) (bool, error) {
 		var st base.StateValue
 
 		switch s, err := merger.Close(); {
@@ -108,7 +108,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	}
 
 	t.Run("before new", func() {
-		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -118,7 +118,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -138,7 +138,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("after new", func() {
-		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -146,7 +146,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -167,7 +167,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 	t.Run("after insert", func() {
 		t.Run("after insert", func() {
-			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+			_, _, _, _, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 			ctx, cancel := t.Ctx()
 
@@ -175,7 +175,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 				ctx,
 				cancel,
 				getStateMergeValues,
-				getStateMergers,
+				getStateValueMergers,
 				newFuncCheckEnoughFailedWorkers,
 				newPhaseMerger,
 				1, 0,
@@ -197,7 +197,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		})
 
 		t.Run("after insert done", func() {
-			_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+			_, _, _, _, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 			ctx, cancel := t.Ctx()
 
@@ -205,7 +205,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 				ctx,
 				cancel,
 				getStateMergeValues,
-				getStateMergers,
+				getStateValueMergers,
 				newFuncCheckEnoughFailedWorkers,
 				newPhaseMerger,
 				1, 0,
@@ -226,7 +226,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 	})
 
 	t.Run("during insert", func() {
-		_, _, _, _, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		_, _, _, _, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -236,7 +236,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			2, 0,
@@ -268,7 +268,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("1 worker; empty", func() {
-		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -278,7 +278,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -301,7 +301,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -312,7 +312,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	})
 
 	t.Run("1 worker; enough", func() {
-		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		var expectedStateKeys []string
@@ -340,7 +340,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -367,7 +367,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -386,7 +386,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		valuesPerWorker := 11
 		failedWorker := workers[1]
 
-		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, _ := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, _ := t.newFuncs()
 
 		for i := range valuesPerWorker * len(workers) {
 			vs := t.randomMergeValues(3, 3, 3)
@@ -402,7 +402,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			3, 0,
@@ -433,7 +433,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("3 worker; empty", func() {
 		workers := t.workers(3)
 
-		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -443,7 +443,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			3, 0,
@@ -468,7 +468,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -482,7 +482,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		workers := t.workers(3)
 		valuesPerWorker := 11
 
-		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		var expectedStateKeys []string
 
@@ -508,7 +508,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			3, 0,
@@ -539,7 +539,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -556,7 +556,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	t.Run("only manager", func() {
-		_, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		_, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -566,7 +566,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -589,7 +589,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var called int64
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -600,7 +600,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	})
 
 	t.Run("1 worker enough and then manager", func() {
-		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		var expectedStateKeys []string
@@ -628,7 +628,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			1, 0,
@@ -660,7 +660,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -675,7 +675,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	})
 
 	t.Run("1 worker not enough and then manager", func() {
-		vp, _, _, getStateMergeValues, newPhaseMerger, getStateMergers, traverseStateMergers := t.newFuncs()
+		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
 		values := make([][]StateMergeValue, 33)
 		var expectedStateKeys []string
@@ -703,7 +703,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			ctx,
 			cancel,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
 			2, 0,
@@ -735,7 +735,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateMergers(traverseStateMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)

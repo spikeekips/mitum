@@ -302,41 +302,41 @@ func newFuncLocalCheckEnoughFailedWorkers(local string) newCheckEnoughFailedWork
 	}
 }
 
-type traverseStateMergersFunc = func(func(stateKey string, merger StateMerger) (bool, error)) error
+type traverseStateValueMergersFunc = func(func(stateKey string, merger StateValueMerger) (bool, error)) error
 
-func newFuncStateMergers(
+func newFuncStateValueMergers(
 	poolSize uint64,
 	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
-	mergerGetStateMergersFunc,
-	func() (size uint64, _ traverseStateMergersFunc),
+	mergerGetStateValueMergersFunc,
+	func() (size uint64, _ traverseStateValueMergersFunc),
 	error,
 ) {
-	var pool util.LockedMap[string, StateMerger]
+	var pool util.LockedMap[string, StateValueMerger]
 
-	switch i, err := util.NewLockedMap[string, StateMerger](poolSize, nil); {
+	switch i, err := util.NewLockedMap[string, StateValueMerger](poolSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		pool = i
 	}
 
-	g, c := newFuncGetStateMergers(
+	g, c := newFuncGetStateValueMergers(
 		pool,
 		getState,
 		extractStateMergeValueKeys,
 	)
 	return g,
-		func() (uint64, traverseStateMergersFunc) {
+		func() (uint64, traverseStateValueMergersFunc) {
 			return uint64(pool.Len()),
-				func(f func(string, StateMerger) (bool, error)) (gerr error) {
+				func(f func(string, StateValueMerger) (bool, error)) (gerr error) {
 					defer func() {
 						c()
 						pool.Close()
 					}()
 
-					_ = pool.Traverse(func(stateKey string, merger StateMerger) (ok bool) {
+					_ = pool.Traverse(func(stateKey string, merger StateValueMerger) (ok bool) {
 						ok, gerr = f(stateKey, merger)
 
 						return ok && gerr == nil

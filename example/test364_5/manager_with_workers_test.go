@@ -18,7 +18,7 @@ import (
 
 type testManagerWithWorkers struct {
 	dutil.BaseSuite
-	baseTestAccountStateMerger
+	baseTestAccountStateValueMerger
 	baseTestWorkers
 	baseTestManager
 }
@@ -32,7 +32,7 @@ func (t *testManagerWithWorkers) newWorkerOptions(local string) *workerOptions {
 }
 
 func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) {
-	ops := t.baseTestAccountStateMerger.randomAddOps(n, 1)
+	ops := t.baseTestAccountStateValueMerger.randomAddOps(n, 1)
 
 	ophs := make([][2]util.Hash, len(ops))
 	for i, op := range slices.All(ops) {

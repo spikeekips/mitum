@@ -32,7 +32,7 @@ func newFuncWorkerUnmerger(
 	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getStateMergers mergerGetStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
@@ -58,7 +58,7 @@ func newFuncWorkerUnmerger(
 				newJobWorker,
 				maxOpsSize,
 				getStateMergeValues,
-				getStateMergers,
+				getStateValueMergers,
 			)
 		},
 	)

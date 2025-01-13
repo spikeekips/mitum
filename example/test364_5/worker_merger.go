@@ -24,7 +24,7 @@ func newFuncWorkerMerger(
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
 	getState getStateFunc,
-	getStateMergers mergerGetStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
 	maxWorkersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
@@ -103,7 +103,7 @@ func newFuncWorkerMerger(
 		wctx,
 		dutil.NewIfErrErrorInFunc(wctxCancel),
 		getStateMergeValues,
-		getStateMergers,
+		getStateValueMergers,
 		newCheckWorkers,
 		newFuncPhaseMergerFunc(newJobWorker, maxOpsSize),
 		minEnoughOps, maxFailedOps,
@@ -125,7 +125,7 @@ func newFuncWorkerMerger(
 		newJobWorker,
 		maxOpsSize,
 		getStateMergeValues,
-		getStateMergers,
+		getStateValueMergers,
 		newCheckWorkers,
 	); {
 	case err != nil:

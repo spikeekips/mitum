@@ -203,13 +203,13 @@ func (s *BaseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 type StateMergeValue interface {
 	Key() string
 	Value() base.StateValue
-	Merger(prev base.StateValue) (StateMerger, error)
+	Merger(prev base.StateValue) (StateValueMerger, error)
 }
 
-type StateMerger interface {
+type StateValueMerger interface {
 	// Key is state key.
 	Key() string
-	// Close sets StateMerger not to get no more Merge or Unmerge.
+	// Close sets StateValueMerger not to get no more Merge or Unmerge.
 	Close() (mergedValue base.StateValue, _ error)
 	// Merge merges new (partial) state value to state. If failed to merge,
 	// *reason* describes the reason why merge(unmerge) opeartion is not merged.

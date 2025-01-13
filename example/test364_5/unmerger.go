@@ -19,7 +19,7 @@ func newFuncUnmerger(
 	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getMergers mergerGetStateMergersFunc,
+	getMergers mergerGetStateValueMergersFunc,
 ) (
 	unmerge dutil.InErrorFunc[uint64],
 	done func(),

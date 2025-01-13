@@ -10,7 +10,7 @@ type (
 	newPhaseMergerFunc = func(
 		_ context.Context,
 		getStateMergeValues opindexGetStateMergeValuesFunc,
-		getStateMergers mergerGetStateMergersFunc,
+		getStateValueMergers mergerGetStateValueMergersFunc,
 	) (
 		merge,
 		unmerge dutil.InErrorFunc[uint64],
@@ -27,7 +27,7 @@ func newFuncWorkerPhaseMerger(
 	ctx context.Context,
 	ctxCancel dutil.InErrorFunc[error],
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getStateMergers mergerGetStateMergersFunc,
+	getStateValueMergers mergerGetStateValueMergersFunc,
 	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	newPhaseMerger newPhaseMergerFunc,
 	minEnough, maxFailed uint64,
@@ -62,7 +62,7 @@ func newFuncWorkerPhaseMerger(
 	switch m, _, d, w, err := newPhaseMerger(
 		ctx,
 		getStateMergeValues,
-		getStateMergers,
+		getStateValueMergers,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -144,7 +144,7 @@ func newFuncPhaseMergerFunc(
 	return func(
 		ctx context.Context,
 		getStateMergeValues opindexGetStateMergeValuesFunc,
-		getStateMergers mergerGetStateMergersFunc,
+		getStateValueMergers mergerGetStateValueMergersFunc,
 	) (
 		dutil.InErrorFunc[uint64],
 		dutil.InErrorFunc[uint64],
@@ -157,7 +157,7 @@ func newFuncPhaseMergerFunc(
 			newJobWorker,
 			maxOpsSize,
 			getStateMergeValues,
-			getStateMergers,
+			getStateValueMergers,
 		)
 	}
 }
