@@ -139,22 +139,24 @@ func NewFuncJobWorkerNewJobFunc(
 	sem *semaphore.Weighted,
 	errf InErrorFunc[error],
 ) JobWorkerNewJobFunc {
+	iferr := NewIfErrErrorInFunc(errf)
+
 	return func(c InErrorFunc[context.Context]) error {
-		iferr := NewIfErrErrorInFunc(errf)
+		if err := context.Cause(newJobCtx); err != nil {
+			return err
+		}
 
-		return ContextCauseError(newJobCtx, iferr, func(context.Context) error {
-			if err := sem.Acquire(newJobCtx, 1); err != nil {
-				return ErrorWithStack(err)
-			}
+		if err := sem.Acquire(newJobCtx, 1); err != nil {
+			return ErrorWithStack(err)
+		}
 
-			go func() {
-				defer sem.Release(1)
+		go func() {
+			defer sem.Release(1)
 
-				_ = iferr(c(ctx))
-			}()
+			_ = iferr(c(ctx))
+		}()
 
-			return nil
-		})
+		return nil
 	}
 }
 

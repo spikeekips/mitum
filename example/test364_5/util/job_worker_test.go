@@ -397,6 +397,32 @@ func (t *testJobWorker) TestDone() {
 
 		t.NoError(wait(nil))
 	})
+
+	t.Run("under async", func() {
+		newJob, jobDone, wait, _ := NewFuncJobWorker(context.Background(), 3)
+
+		jobdonech := make(chan struct{}, 1)
+		t.NoError(newJob(func(context.Context) error {
+			jobdonech <- struct{}{}
+
+			return nil
+		}))
+		<-jobdonech
+
+		go func() {
+			for i := range 3333 {
+				_ = newJob(func(context.Context) error {
+					if i%333 == 0 {
+						jobDone()
+					}
+
+					return nil
+				})
+			}
+		}()
+
+		t.NoError(wait(nil))
+	})
 }
 
 func (t *testJobWorker) TestWait() {
