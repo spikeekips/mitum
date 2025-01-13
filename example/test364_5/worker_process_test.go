@@ -35,7 +35,7 @@ func (t *testWorkerProcess) newf(
 	workerProcessWorkerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	func(
-		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
+		dutil.In3ErrorFunc[context.Context, string, []uint64],
 		workerProcessReportResult,
 	) error,
 	util.LockedMap[uint64, Operation],
@@ -225,7 +225,9 @@ func (t *testWorkerProcess) TestCancel() {
 							func([]string, []string) error { return nil },
 							nil
 					},
-					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) { return nil, false, nil },
+					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
+						return nil, false, "", nil
+					},
 					func(opindexOpHashesFunc) error { return nil },
 					func([]string, map[uint64]string) error { return nil },
 				)
@@ -341,12 +343,12 @@ func (t *testWorkerProcess) TestCancel() {
 }
 
 func (t *testWorkerProcess) newFuncGetOperation(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, error) {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
-			return nil, false, nil
+			return nil, false, "", nil
 		}
 
-		return ops[opindex], true, nil
+		return ops[opindex], true, "", nil
 	}
 }
 

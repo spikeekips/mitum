@@ -10,7 +10,7 @@ import (
 type (
 	opindexOpHashesFunc         = func(opindex uint64, oph, fact util.Hash) error
 	ctxOpindexOpHashesFunc      = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (Operation, bool, error)
+	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ Operation, found bool, reason string, _ error)
 	extractStateMergeValuesFunc = func(context.Context, uint64, util.Hash, util.Hash) (
 		_ Operation,
 		subv StateMergeValue,
@@ -107,11 +107,13 @@ func newFuncExtractStateMergeValue(
 	) {
 		var op Operation
 
-		switch i, found, err := getOperation(ctx, opindex, oph, fact); {
+		switch i, found, reason, err := getOperation(ctx, opindex, oph, fact); {
 		case err != nil:
 			return nil, nil, nil, "", err
 		case !found:
 			return nil, nil, nil, reasonOperationNotFound, nil
+		case reason != "":
+			return nil, nil, nil, reason, nil
 		default:
 			op = i
 		}

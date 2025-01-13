@@ -137,7 +137,6 @@ func newFuncWorker(
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStateOwners workerReportStateOwnersFunc,
 		) error {
-			// FIXME filter invalid ops; already processed, etc
 			return initialInsert(
 				getStateOwners,
 				func(ctx context.Context, worker string) (

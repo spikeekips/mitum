@@ -40,6 +40,16 @@ func (t *baseTestWorkers) randomOphs(n int) [][2]util.Hash {
 	return h
 }
 
+func (t *baseTestWorkers) getOperationFunc(ops []Operation) getOperationFunc {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
+		if opindex >= uint64(len(ops)) {
+			return nil, false, "", nil
+		}
+
+		return ops[opindex], true, "", nil
+	}
+}
+
 type testCheckFailedWorkers struct {
 	suite.Suite
 }

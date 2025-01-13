@@ -163,12 +163,12 @@ func (t *baseTestManager) processOps(
 		) {
 			return nil, nil, nil
 		},
-		func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, error) {
+		func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 			if opindex >= uint64(len(ops)) {
-				return nil, false, nil
+				return nil, false, "", nil
 			}
 
-			return ops[opindex], true, nil
+			return ops[opindex], true, "", nil
 		},
 		mophs,
 		nil,

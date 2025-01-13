@@ -42,16 +42,6 @@ func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) 
 	return ops, ophs
 }
 
-func (t *testManagerWithWorkers) getOperationFunc(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, error) {
-		if opindex >= uint64(len(ops)) {
-			return nil, false, nil
-		}
-
-		return ops[opindex], true, nil
-	}
-}
-
 func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
 	return func(err error) error {
 		t.Println("error: worker=%q err=%w", worker, err)

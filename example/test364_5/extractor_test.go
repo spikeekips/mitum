@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ type testStateMergeValueExtractor struct {
 
 func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation) (
 	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
-	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string /* reason */]],
+	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
 	insert, wait, err := newFuncStateMergeValueExtractor(ctx, t.newJobWorker(), 1<<9)
@@ -207,8 +208,8 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		t.NoError(err)
 
 		t.NoError(insert(
-			func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, error) {
-				return nil, false, errors.Errorf("showme")
+			func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
+				return nil, false, "", errors.Errorf("showme")
 			}, nil, nil,
 		))
 
@@ -235,6 +236,46 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			return nil
 		})
 		t.ErrorContains(err, "showme")
+	})
+
+	t.Run("get operation; reason", func() {
+		ctx, _ := t.Ctx()
+
+		insert, wait, err := t.newf(ctx, nil)
+		t.NoError(err)
+
+		expectedReasons := util.NewSingleLockedMap[uint64, string]()
+
+		t.NoError(insert(
+			func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
+				if opindex < 2 {
+					reason := fmt.Sprintf("reason:%d", opindex)
+					expectedReasons.SetValue(opindex, reason)
+
+					return nil, true, reason, nil
+				}
+
+				return t.randomOp(1), true, "", nil
+			},
+			func(f opindexOpHashesFunc) error {
+				for i := range 3 {
+					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+				}
+
+				return nil
+			},
+			nil))
+
+		var called bool
+
+		t.NoError(wait(func(reasons map[uint64]string) error {
+			t.Equal(expectedReasons.Map(), reasons)
+
+			called = true
+
+			return nil
+		}))
+		t.True(called)
 	})
 
 	t.Run("get operation; not found", func() {
@@ -384,11 +425,11 @@ func TestStateMergeValueExtractor(t *testing.T) {
 }
 
 func newGetOperationFunc(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, error) {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
-			return nil, false, nil
+			return nil, false, "", nil
 		}
 
-		return ops[opindex], ops[opindex] != nil, nil
+		return ops[opindex], ops[opindex] != nil, "", nil
 	}
 }
