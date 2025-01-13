@@ -189,7 +189,7 @@ func (t *baseTestAccountStateMerger) randomAddOps(n int, amount int64) []Operati
 	return m
 }
 
-func (t *baseTestAccountStateMerger) processOps(ops []Operation) [][]StateMergeValue {
+func (t *baseTestAccountStateMerger) extractStateMergeValues(ops []Operation) [][]StateMergeValue {
 	values := make([][]StateMergeValue, len(ops))
 
 	for i := range ops {
