@@ -98,6 +98,148 @@ func (t *baseTestManager) baseGenerateNodesHashFunc() fixedtree.GenerateNodesHas
 	return fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
 }
 
+func (t *baseTestManager) processOps(
+	ctx context.Context,
+	ops []Operation,
+	getState getStateFunc,
+) (opsTree, statesTree *fixedtree.Tree, _ error) {
+	local := "local"
+	height := base.Height(33)
+	workers := []string{local}
+
+	ophs := make([][2]util.Hash, len(ops))
+	for i, op := range slices.All(ops) {
+		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+	}
+
+	mophs := func(yield func(uint64, [2]util.Hash) bool) {
+		for i, v := range slices.All(ophs) {
+			if !yield(uint64(i), v) {
+				return
+			}
+		}
+	}
+
+	newState := func(stateKey string, value base.StateValue, ops []util.Hash) (base.State, error) {
+		return base.NewBaseState(
+			height,
+			stateKey,
+			value,
+			nil,
+			ops,
+		), nil
+	}
+
+	startOpsFixedNodes, unmergedOp, doneOpsTree, err := newFuncGenerateOperationFixedtree(ctx, ophs, func(f dutil.InErrorFunc[context.Context]) error {
+		return f(ctx)
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	startOpsFixedNodes()
+
+	initialInsert, _, _, wait, err := newFuncWorker(
+		ctx,
+		newWorkerOptions(local),
+		getState,
+		newState,
+		util.UUID().String(),
+		workers, workers,
+		1, 1,
+		uint64(len(ops)),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = initialInsert(
+		func(string) []string { return workers },
+		func(context.Context, string, string) (
+			workerProcessInsertStateMergeValuesFunc,
+			dutil.In2ErrorFunc[[]string, []string],
+			error,
+		) {
+			return nil, nil, nil
+		},
+		func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, error) {
+			if opindex >= uint64(len(ops)) {
+				return nil, false, nil
+			}
+
+			return ops[opindex], true, nil
+		},
+		mophs,
+		nil,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = wait(
+		func(context.Context, string, string, string, []uint64) error { return nil },
+		func(
+			ctx context.Context,
+			_, _ string,
+			reasons map[uint64]string,
+			statesSize uint64,
+			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+		) error {
+			if err := dutil.TraverseMap(
+				reasons,
+				func(opindex uint64, reason string) (bool, error) {
+					return true, unmergedOp(opindex, reason)
+				},
+			); err != nil {
+				return err
+			}
+
+			g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
+
+			switch tr, err := doneOpsTree(g); {
+			case err != nil:
+				return err
+			default:
+				opsTree = tr
+			}
+
+			var addStateNode dutil.AppendSliceAddFunc[fixedtree.Node]
+			var doneStateNode dutil.OutFunc[[]fixedtree.Node]
+
+			switch a, d, err := dutil.NewLockUniqueAppendSlice[fixedtree.Node, string](1<<9, 1<<9,
+				func(n fixedtree.Node) string { return n.Key() }); {
+			case err != nil:
+				return err
+			default:
+				addStateNode, doneStateNode = a, d
+			}
+
+			if err := f(func(st base.State) error {
+				addStateNode(NewStateTreeNode(st.Key(), st.Hash()))
+
+				return nil
+			}); err != nil {
+				return err
+			}
+
+			statesNodes := doneStateNode()
+			slices.SortFunc(statesNodes, func(a, b fixedtree.Node) int {
+				return strings.Compare(a.Key(), b.Key())
+			})
+
+			if err := g(ctx, statesNodes, nil); err != nil {
+				return err
+			}
+
+			statesTree = newStatesTree(statesNodes)
+
+			return nil
+		},
+	)
+
+	return opsTree, statesTree, nil
+}
+
 type testManager struct {
 	dutil.BaseSuite
 	baseTestWorkers

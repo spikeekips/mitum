@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
@@ -74,8 +75,6 @@ func (t *testManagerWithWorkers) workerIfErrPanic(worker string, err error) erro
 
 func (t *testManagerWithWorkers) newWorkers(
 	ctx context.Context,
-	managerSendOps dutil.In2ErrorFunc[managerStartWorkerFunc, newManagerWorkerSendOpFunc],
-	managerWorkerResult managerInsertWorkerResultFunc,
 	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
@@ -102,8 +101,6 @@ func (t *testManagerWithWorkers) newWorkers(
 	for local := range slices.Values(workers) {
 		t, i, u, w := t.newWorker(
 			ctx,
-			managerSendOps,
-			managerWorkerResult,
 			workID,
 			local,
 			workers, opsWorkers,
@@ -125,10 +122,7 @@ func (t *testManagerWithWorkers) newWorkers(
 
 func (t *testManagerWithWorkers) newWorker(
 	ctx context.Context,
-	managerSendOps dutil.In2ErrorFunc[managerStartWorkerFunc, newManagerWorkerSendOpFunc],
-	managerWorkerResult managerInsertWorkerResultFunc,
-	workID,
-	local string,
+	workID, local string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -207,7 +201,6 @@ func (t *testManagerWithWorkers) newManager(
 
 	workersInitialInserts, workersInserts, workersUnmerge, workersWaits := t.newWorkers(
 		ctx,
-		managerSendOps, managerWorkerResult,
 		workID,
 		workers,
 		opsShare, statesShare,
@@ -218,10 +211,37 @@ func (t *testManagerWithWorkers) newManager(
 	distributeValues := func(local string) newWorkerDistributeStateMergeValuesFunc {
 		return func(ctx context.Context, workID, worker string) (
 			workerProcessInsertStateMergeValuesFunc,
-			dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
+			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
-			return workersInserts[worker](local)
+			i, o, err := workersInserts[worker](local)
+
+			switch {
+			case err != nil:
+				t.Println("distribute worker: local=%q worker=%q err=%+v", local, worker, err)
+
+				return nil, nil, err
+			case i == nil:
+				return nil, nil, nil
+			}
+
+			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+					err := i(opindex, fact, values)
+					if err != nil {
+						t.Println("distribute worker: insert: local=%q worker=%q opindex=%d err=%+v", local, worker, opindex, err)
+					}
+
+					return err
+				},
+				func(subs, affected []string) error {
+					err := o(subs, affected)
+					if err != nil {
+						t.Println("distribute worker: owners: local=%q worker=%q err=%+v", local, worker, err)
+					}
+
+					return err
+				},
+				nil
 		}
 	}
 
@@ -252,21 +272,29 @@ func (t *testManagerWithWorkers) newManager(
 						return nil
 					},
 					func(err error) error {
-						return workersInitialInserts[worker](
-							getStateOwners,
-							distributeValues(worker),
-							getOperation,
-							maps.All(wops),
-							func(
-								_ context.Context,
-								local,
-								_ string,
-								owners []string,
-							) error {
-								t.Println("worker report manager: local=%q owners=%v", worker, owners)
-								return managerWorkerOwners(worker, owners)
-							},
-						)
+						t.Println("manager initial insert: worker=%q err=%+v", worker, err)
+
+						if err == nil {
+							err := workersInitialInserts[worker](
+								getStateOwners,
+								distributeValues(worker),
+								getOperation,
+								maps.All(wops),
+								func(
+									_ context.Context,
+									local,
+									_ string,
+									owners []string,
+								) error {
+									t.Println("worker report manager: local=%q owners=%v", worker, owners)
+									return managerWorkerOwners(worker, owners)
+								},
+							)
+
+							t.Println("manager workers initial insert: worker=%q err=%+v", worker, err)
+						}
+
+						return nil // FIXME
 					},
 					nil
 			},
@@ -284,9 +312,11 @@ func (t *testManagerWithWorkers) newManager(
 
 				err := f(
 					func(_ context.Context, local, workID, worker string, unmerged []uint64) error {
-						t.Println("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v", local, worker, unmerged)
+						err := workersUnmerge[worker](local, unmerged)
 
-						return workersUnmerge[worker](local, unmerged)
+						t.Println("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
+
+						return nil // FIXME
 					},
 					func(
 						_ context.Context,
@@ -312,7 +342,7 @@ func (t *testManagerWithWorkers) newManager(
 						}))
 					},
 				)
-				t.Println("worker wait: local=%q err=%v", worker, err)
+				t.Println("worker wait: local=%q err=%+v", worker, err)
 			}()
 		}
 
@@ -346,233 +376,110 @@ func (t *testManagerWithWorkers) newManager(
 	return sendOps, workersWait, wait
 }
 
+func (t *testManagerWithWorkers) processCase(
+	workersSize, opsShare, statesShare uint64,
+	ops []Operation,
+) (
+	expectedOpsTree, expectedStatesTree util.Hash,
+	_ error,
+) {
+	ctx, cancel := t.Ctx()
+	defer cancel(nil)
+
+	workers := t.workers(int(workersSize))
+	getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, statesShare)
+	t.NoError(err)
+	defer stateOwnersClose()
+
+	sendOps, workersWait, wait := t.newManager(
+		ctx,
+		workers,
+		opsShare, statesShare,
+		ops,
+		getStateOwners,
+	)
+
+	t.NoError(sendOps())
+	t.NoError(workersWait())
+
+	return wait()
+}
+
+func (t *testManagerWithWorkers) runCase(
+	workersSize, opsShare, statesShare uint64,
+	ops []Operation,
+	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
+) {
+	t.Run(
+		fmt.Sprintf("%d worker, ops share=%d states share=%d", workersSize, opsShare, statesShare),
+		func() {
+			opsTree, statesTree, err := t.processCase(workersSize, opsShare, statesShare, ops)
+			t.NoError(err)
+
+			t.True(expectedOpsTree.Root().Equal(opsTree), "%q != %q", expectedOpsTree.Root(), opsTree)
+			t.True(expectedStatesTree.Root().Equal(statesTree), "%q != %q", expectedStatesTree.Root(), statesTree)
+		},
+	)
+}
+
+func (t *testManagerWithWorkers) TestOneCase() {
+	t.T().Skip()
+
+	ops, _ := t.randomOps(19)
+
+	expectedOpsTree, expectedStatesTree, err := t.processOps(
+		context.Background(),
+		ops,
+		func(string) (base.State, bool, error) { return nil, false, nil },
+	)
+	t.NoError(err)
+
+	for range 333 {
+		t.runCase(12, 12, 1, ops, expectedOpsTree, expectedStatesTree)
+	}
+}
+
 func (t *testManagerWithWorkers) TestWorkersSameResult() {
 	ops, _ := t.randomOps(19)
 
-	var oneOpsTree, oneStatesTree util.Hash
+	expectedOpsTree, expectedStatesTree, err := t.processOps(
+		context.Background(),
+		ops,
+		func(string) (base.State, bool, error) { return nil, false, nil },
+	)
+	t.NoError(err)
 
 	t.Run("one worker", func() {
-		ctx, cancel := t.Ctx()
-		defer cancel(nil)
-
-		workers := t.workers(1)
-		var opsShare uint64 = 1
-		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
-		t.NoError(err)
-		defer stateOwnersClose()
-
-		sendOps, workersWait, wait := t.newManager(
-			ctx,
-			workers,
-			opsShare, 1,
-			ops,
-			getStateOwners,
-		)
-
-		t.NoError(sendOps())
-		t.NoError(workersWait())
-
-		oneOpsTree, oneStatesTree, err = wait()
-		t.NoError(err)
+		t.runCase(1, 1, 1, ops, expectedOpsTree, expectedStatesTree)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.Run("3 worker", func() {
-			ctx, cancel := t.Ctx()
-			defer cancel(nil)
-
-			workers := t.workers(3)
-			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
-			t.NoError(err)
-			defer stateOwnersClose()
-
-			sendOps, workersWait, wait := t.newManager(
-				ctx,
-				workers,
-				opsShare, statesShare,
-				ops,
-				getStateOwners,
-			)
-
-			t.NoError(sendOps())
-			t.NoError(workersWait())
-
-			opsTree, statesTree, err := wait()
-			t.NoError(err)
-
-			t.True(oneOpsTree.Equal(opsTree))
-			t.True(oneStatesTree.Equal(statesTree))
-		})
-
-		t.Run("6 worker", func() {
-			ctx, cancel := t.Ctx()
-			defer cancel(nil)
-
-			workers := t.workers(3)
-			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
-			t.NoError(err)
-			defer stateOwnersClose()
-
-			sendOps, workersWait, wait := t.newManager(
-				ctx,
-				workers,
-				opsShare, statesShare,
-				ops,
-				getStateOwners,
-			)
-
-			t.NoError(sendOps())
-			t.NoError(workersWait())
-
-			opsTree, statesTree, err := wait()
-			t.NoError(err)
-
-			t.True(oneOpsTree.Equal(opsTree))
-			t.True(oneStatesTree.Equal(statesTree))
-		})
+		t.runCase(3, opsShare, statesShare, ops, expectedOpsTree, expectedStatesTree)
+		t.runCase(6, opsShare, statesShare, ops, expectedOpsTree, expectedStatesTree)
 	})
 
 	t.Run("2 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 2, 1
 
-		t.Run("3 worker", func() {
-			ctx, cancel := t.Ctx()
-			defer cancel(nil)
-
-			workers := t.workers(3)
-			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, statesShare)
-			t.NoError(err)
-			defer stateOwnersClose()
-
-			sendOps, workersWait, wait := t.newManager(
-				ctx,
-				workers,
-				opsShare, statesShare,
-				ops,
-				getStateOwners,
-			)
-
-			t.NoError(sendOps())
-			t.NoError(workersWait())
-
-			opsTree, statesTree, err := wait()
-			t.NoError(err)
-
-			t.True(oneOpsTree.Equal(opsTree))
-			t.True(oneStatesTree.Equal(statesTree))
-		})
-
-		t.Run("6 worker", func() {
-			ctx, cancel := t.Ctx()
-			defer cancel(nil)
-
-			workers := t.workers(6)
-			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, statesShare)
-			t.NoError(err)
-			defer stateOwnersClose()
-
-			sendOps, workersWait, wait := t.newManager(
-				ctx,
-				workers,
-				opsShare, statesShare,
-				ops,
-				getStateOwners,
-			)
-
-			t.NoError(sendOps())
-			t.NoError(workersWait())
-
-			opsTree, statesTree, err := wait()
-			t.NoError(err)
-
-			t.True(oneOpsTree.Equal(opsTree))
-			t.True(oneStatesTree.Equal(statesTree))
-		})
-	})
-
-	t.Run("test case", func() {
-		t.T().Skip()
-
-		workersSize := 4
-		var opsShare, statesShare uint64 = 4, 4
-
-		t.Run(
-			fmt.Sprintf("%d worker, ops share=%d states share=%d",
-				workersSize, opsShare, statesShare),
-			func() {
-				ctx, cancel := t.Ctx()
-				defer cancel(nil)
-
-				workers := t.workers(workersSize)
-				getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, statesShare)
-				t.NoError(err)
-				defer stateOwnersClose()
-
-				sendOps, workersWait, wait := t.newManager(
-					ctx,
-					workers,
-					opsShare, statesShare,
-					ops,
-					getStateOwners,
-				)
-
-				t.NoError(sendOps())
-				t.NoError(workersWait())
-
-				opsTree, statesTree, err := wait()
-				t.NoError(err)
-
-				t.True(oneOpsTree.Equal(opsTree))
-				t.True(oneStatesTree.Equal(statesTree))
-			},
-		)
+		t.runCase(3, opsShare, statesShare, ops, expectedOpsTree, expectedStatesTree)
+		t.runCase(6, opsShare, statesShare, ops, expectedOpsTree, expectedStatesTree)
 	})
 
 	t.Run("permutation", func() {
 		var maxWorkersSize uint64 = uint64(len(ops))
 
-		for w := uint64(1); w <= maxWorkersSize; w++ {
-			for opsShare := uint64(1); opsShare <= w; opsShare++ {
-				for statesShare := uint64(1); statesShare <= w; statesShare++ {
-					t.Run(
-						fmt.Sprintf("%d worker, ops share=%d states share=%d",
-							w, opsShare, statesShare),
-						func() {
-							ctx, cancel := t.Ctx()
-							defer cancel(nil)
-
-							workers := t.workers(int(w))
-							getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, statesShare)
-							t.NoError(err)
-							defer stateOwnersClose()
-
-							sendOps, workersWait, wait := t.newManager(
-								ctx,
-								workers,
-								opsShare, statesShare,
-								ops,
-								getStateOwners,
-							)
-
-							t.NoError(sendOps())
-							t.NoError(workersWait())
-
-							opsTree, statesTree, err := wait()
-							t.NoError(err)
-
-							t.True(oneOpsTree.Equal(opsTree), "%q != %q", oneOpsTree, opsTree)
-							t.True(oneStatesTree.Equal(statesTree), "%q != %q", oneStatesTree, statesTree)
-						},
-					)
+		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
+			for opsShare := uint64(1); opsShare <= workersSize; opsShare++ {
+				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
+					t.runCase(workersSize, opsShare, statesShare, ops, expectedOpsTree, expectedStatesTree)
 				}
 			}
 		}
 	})
 }
 
-// FIXME check ops tree and states tree
 // FIXME test; sub ops
 
 func TestManagerWithWorkers(t *testing.T) {

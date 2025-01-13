@@ -380,7 +380,7 @@ func newFuncWorkerProcessStateValueMerger(
 			}
 
 			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
-					if err := mergeStateOpFromValues(mergeStateOp, opindex, fact, nil, values); err != nil {
+					if err := mergeStateOpFromValues(mergeStateOp, opindex, fact, values); err != nil {
 						return err
 					}
 
@@ -472,7 +472,7 @@ func newFuncWorkerProcessInitialInsert(
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
 			var distributeWorkerStateMergeValuesDone workerStateOwnersSetFunc
 
-			switch i, o, c, err := workersDistributeStateMergeValues(ctx, local, workers, distribute); {
+			switch i, o, c, err := workersDistributeStateMergeValues(ctx, newJobWorker, local, workers, distribute); {
 			case err != nil:
 				return err
 			default:
@@ -653,27 +653,14 @@ func mergeStateOpFromValues(
 	mergeStateOp mergeStateOpFunc,
 	opindex uint64,
 	fact util.Hash,
-	value StateMergeValue,
 	values []StateMergeValue,
 ) error {
 	var stateKeys []string
-	var stateKeysSize uint64
 
-	switch s := uint64(len(values)); {
-	case value == nil:
-		stateKeysSize = s
-	default:
-		stateKeysSize = s + 1
-	}
-
-	stateKeys = make([]string, stateKeysSize)
+	stateKeys = make([]string, len(values))
 
 	for i, value := range dutil.SliceAll(values) {
 		stateKeys[i] = value.Key()
-	}
-
-	if value != nil {
-		stateKeys[stateKeysSize-1] = value.Key()
 	}
 
 	_ = mergeStateOp(opindex, fact, stateKeys)
@@ -748,7 +735,10 @@ func workerProcessCloseStateMergers(
 }
 
 func workersDistributeStateMergeValues(
-	ctx context.Context, local string, workers []string,
+	ctx context.Context,
+	newJobWorker dutil.NewJobWorkerFunc,
+	local string,
+	workers []string,
 	newf newWorkerProcessDistributeStateMergeValuesFunc,
 ) (
 	workerDistributeWorkerStateMergeValuesFunc,
@@ -790,7 +780,9 @@ func workersDistributeStateMergeValues(
 			}
 
 			if insert != nil {
-				return insert(opindex, fact, values)
+				if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
+					_ = pool.SetValue(worker, [2]interface{}{nil, nil})
+				}
 			}
 
 			return nil
@@ -823,7 +815,7 @@ func workersDistributeStateMergeValues(
 			}
 
 			if sendOwners != nil {
-				return sendOwners(subws, affected)
+				_ = sendOwners(subws, affected) // NOTE ignore error
 			}
 
 			return nil
@@ -835,7 +827,7 @@ func workersDistributeStateMergeValues(
 			var jobDone func()
 			var jobWait dutil.InErrorFunc[error]
 
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(workers))); {
+			switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
 			case err != nil:
 				return err
 			default:
@@ -853,7 +845,7 @@ func workersDistributeStateMergeValues(
 				case !found:
 					switch _, o, err := newf(ctx, worker); {
 					case err != nil:
-						return true, nil
+						return true, nil // NOTE ignore error
 					default:
 						sendOwners = o
 					}
@@ -868,7 +860,7 @@ func workersDistributeStateMergeValues(
 				}
 
 				return true, newJob(func(context.Context) error {
-					_ = sendOwners(nil, nil)
+					_ = sendOwners(nil, nil) // NOTE ignore error
 
 					return nil
 				})

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -380,16 +381,12 @@ func newFuncSetStateOps(mapSize uint64) (
 		keyPool = i
 	}
 
-	set := func(opindex uint64, fact util.Hash, stateKeys []string, x xMergeFlag) (ok bool) {
+	set := func(opindex uint64, stateKeys []string, x xMergeFlag) (ok bool) {
 		_ = dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
 			_, _, _, _ = m.SetOrRemove(stateKey,
 				func(prev map[uint64]struct{}, _ bool) (map[uint64]struct{}, bool, error) {
 					switch x {
 					case mergeFlag:
-						if fact == nil {
-							return nil, false, errors.Errorf("nil fact hash")
-						}
-
 						if _, found := prev[opindex]; found {
 							return nil, false, util.ErrLockedSetIgnore
 						}
@@ -400,10 +397,6 @@ func newFuncSetStateOps(mapSize uint64) (
 
 						prev[opindex] = struct{}{}
 					case unmergeFlag:
-						if fact != nil {
-							return nil, false, errors.Errorf("not nil fact hash")
-						}
-
 						if _, found := prev[opindex]; !found {
 							return nil, false, util.ErrLockedSetIgnore
 						}
@@ -429,43 +422,35 @@ func newFuncSetStateOps(mapSize uint64) (
 		return ok
 	}
 
-	unmerge := func(opindex uint64) bool {
-		var stateKeys []string
-
+	unmerge := func(opindex uint64) (ok bool) {
 		_, _ = keyPool.Remove(opindex, func(s []string, found bool) error {
 			if !found {
 				return nil
 			}
 
-			stateKeys = s
+			_ = set(opindex, s, unmergeFlag)
+
+			ok = true
 
 			return nil
 		})
 
-		if len(stateKeys) < 1 {
-			return false
-		}
-
-		return set(opindex, nil, stateKeys, unmergeFlag)
+		return ok
 	}
 
 	return func(opindex uint64, fact util.Hash, stateKeys []string) bool {
-			if _, created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
+			_, created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
 				if found {
 					return nil, util.ErrLockedSetIgnore
 				}
 
-				return stateKeys, nil
-			}); !created {
-				return false
-			}
-
-			ok := set(opindex, fact, stateKeys, mergeFlag)
-			if ok {
+				_ = set(opindex, stateKeys, mergeFlag)
 				_ = factPool.SetValue(opindex, fact)
-			}
 
-			return ok
+				return stateKeys, nil
+			})
+
+			return created
 		},
 		func(ops []uint64) bool {
 			var notOk bool
@@ -494,30 +479,19 @@ func newFuncSetStateOps(mapSize uint64) (
 				default:
 					defer dutil.ClearMap(i)
 
-					var addFact dutil.AppendSliceAddFunc[util.Hash]
-					var doneFact dutil.OutFunc[[]util.Hash]
+					facts := make([]util.Hash, len(i))
 
-					switch a, d, err := dutil.NewAppendSlice[util.Hash](uint64(len(i)), 0); {
-					case err != nil:
-						return nil, err
-					default:
-						addFact, doneFact = a, d
-					}
+					var n int
 
-					if err := dutil.TraverseMap(i, func(opindex uint64, _ struct{}) (bool, error) {
+					for opindex := range maps.Keys(i) {
 						switch h, found := factPool.Value(opindex); {
 						case !found:
-							return false, util.ErrNotFound.Errorf("fact not found, %d", opindex)
+							return nil, util.ErrNotFound.Errorf("fact not found, %d", opindex)
 						default:
-							addFact(h)
-
-							return true, nil
+							facts[n] = h
+							n++
 						}
-					}); err != nil {
-						return nil, err
 					}
-
-					facts := doneFact()
 
 					slices.SortFunc(facts, func(a, b util.Hash) int {
 						return strings.Compare(a.String(), b.String())
