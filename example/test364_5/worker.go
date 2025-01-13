@@ -158,8 +158,10 @@ func newFuncWorker(
 					return nil
 				},
 				func(owners []string, _ map[uint64]string) error {
-					if slices.Index(opsWorkers, options.Local) >= 0 {
-						return reportStateOwners(ctx, options.Local, workID, owners)
+					if reportStateOwners != nil {
+						if slices.Index(opsWorkers, options.Local) >= 0 {
+							return reportStateOwners(ctx, options.Local, workID, owners)
+						}
 					}
 
 					return nil
