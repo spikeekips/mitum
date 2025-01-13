@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -269,9 +270,13 @@ func newFuncXMergeCallback(
 							return err
 						}
 
-						return dutil.TraverseSlice(nexts, func(_ int, next uint64) (bool, error) {
-							return true, j(next, nextCallback()(next))
-						})
+						for next := range slices.Values(nexts) {
+							if err := j(next, nextCallback()(next)); err != nil {
+								return err
+							}
+						}
+
+						return nil
 					}
 				},
 			)
@@ -614,25 +619,26 @@ func xMergeOpValues(
 
 	var notCommitted bool
 
-	if err := dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
+end:
+	for value := range slices.Values(values) {
 		var merger StateMerger
 
 		switch i, err := getMerger(value); {
 		case err != nil:
-			return false, err
+			return false, nil, nil, err
 		default:
 			merger = i
 		}
 
 		switch c, nextOp, r, err := xmergeFunc(merger)(opindex, value.Value()); {
 		case err != nil:
-			return false, err
+			return false, nil, nil, err
 		case c == nil:
 			addReason(opindex, r)
 
 			notCommitted = true
 
-			return false, nil
+			break end
 		default:
 			reasonOp := opindex
 
@@ -643,11 +649,7 @@ func xMergeOpValues(
 
 			addReason(reasonOp, r)
 			addCommit(c)
-
-			return true, nil
 		}
-	}); err != nil {
-		return false, nil, nil, err
 	}
 
 	if notCommitted {
@@ -655,13 +657,17 @@ func xMergeOpValues(
 	}
 
 	return committed, doneNext(), reasons, func() error {
-		return dutil.TraverseSlice(doneCommit(), func(i int, f func() error) (bool, error) {
+		for i, f := range slices.All(doneCommit()) {
 			if i == 0 {
 				committed = true
 			}
 
-			return true, f()
-		})
+			if err := f(); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}()
 }
 

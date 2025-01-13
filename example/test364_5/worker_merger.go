@@ -58,11 +58,9 @@ func newFuncWorkerMerger(
 		default:
 			mOpsWorkers = i
 
-			_ = dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				mOpsWorkers.SetValue(worker, struct{}{})
-
-				return true, nil
-			})
+			}
 		}
 
 		if !mOpsWorkers.Exists(local) {

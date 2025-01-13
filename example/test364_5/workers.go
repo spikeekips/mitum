@@ -382,7 +382,7 @@ func newFuncSetStateOps(mapSize uint64) (
 	}
 
 	set := func(opindex uint64, stateKeys []string, x xMergeFlag) (ok bool) {
-		_ = dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+		for stateKey := range slices.Values(stateKeys) {
 			_, _, _, _ = m.SetOrRemove(stateKey,
 				func(prev map[uint64]struct{}, _ bool) (map[uint64]struct{}, bool, error) {
 					switch x {
@@ -415,9 +415,7 @@ func newFuncSetStateOps(mapSize uint64) (
 					return prev, false, nil
 				},
 			)
-
-			return true, nil
-		})
+		}
 
 		return ok
 	}
@@ -455,13 +453,11 @@ func newFuncSetStateOps(mapSize uint64) (
 		func(ops []uint64) bool {
 			var notOk bool
 
-			dutil.TraverseSlice(ops, func(_ int, opindex uint64) (bool, error) {
+			for opindex := range slices.Values(ops) {
 				if !unmerge(opindex) {
 					notOk = true
 				}
-
-				return true, nil
-			})
+			}
 
 			return !notOk
 		},
@@ -589,13 +585,11 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 
 	return func() (opsWorkers []string) {
 			once.Do(func() {
-				_ = dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
+				for i, worker := range slices.All(workers) {
 					if workerMaxItems(uint64(i)) > 0 {
 						add(worker)
 					}
-
-					return true, nil
-				})
+				}
 			})
 
 			return done()

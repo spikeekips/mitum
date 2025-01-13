@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -332,7 +333,7 @@ func (t *testMergeOp) TestMergeValues() {
 		t.NoError(err)
 		t.Equal(len(vs), len(merged))
 
-		dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+		for value := range slices.Values(vs) {
 			var balance int64
 
 			switch value.Key() {
@@ -345,9 +346,7 @@ func (t *testMergeOp) TestMergeValues() {
 			}
 
 			t.Equal(balance, merged[value.Key()])
-
-			return true, nil
-		})
+		}
 	})
 
 	t.Run("multiple reasons", func() {
@@ -419,7 +418,7 @@ func (t *testMergeOp) TestUnmergeValues() {
 		t.Error(err)
 		t.Equal(3, len(merged))
 
-		dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+		for value := range slices.Values(vs) {
 			var balance int64
 
 			switch value.Key() {
@@ -432,9 +431,7 @@ func (t *testMergeOp) TestUnmergeValues() {
 			}
 
 			t.Equal(balance, merged[value.Key()])
-
-			return true, nil
-		})
+		}
 	})
 }
 
@@ -796,9 +793,9 @@ func (t *testPhaseMerger) TestMerge() {
 			vss[i] = t.randomMergeValuesVP(vp, uint64(i), i+1)
 		}
 
-		t.NoError(dutil.TraverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
-			return true, merge(uint64(i))
-		}))
+		for i := range vss {
+			t.NoError(merge(uint64(i)))
+		}
 
 		done()
 		newMerged, newUnmerged, reasons, err := wait()
@@ -811,16 +808,14 @@ func (t *testPhaseMerger) TestMerge() {
 		t.NoError(err)
 		t.Equal(33, len(merged))
 
-		dutil.TraverseSlice(vss, func(_ int, values []StateMergeValue) (bool, error) {
-			return true, dutil.TraverseSlice(values, func(_ int, value StateMergeValue) (bool, error) {
+		for values := range slices.Values(vss) {
+			for value := range slices.Values(values) {
 				i, found := merged[value.Key()]
 				t.True(found)
 
 				t.Equal(value.(*AccountStateMergeValue).Balance, i)
-
-				return true, nil
-			})
-		})
+			}
+		}
 	})
 
 	t.Run("Merge() error", func() {
@@ -984,9 +979,9 @@ func (t *testPhaseMerger) TestUnmerge() {
 		prevst := t.newState(pub, (subed)*-1)
 		states.SetValue(prevst.Key(), prevst)
 
-		t.NoError(dutil.TraverseSlice(vss, func(i int, values []StateMergeValue) (bool, error) {
-			return true, unmerge(uint64(i))
-		}))
+		for i := range vss {
+			t.NoError(unmerge(uint64(i)))
+		}
 
 		done()
 		newMerged, newUnmerged, reasons, err := wait()
@@ -1157,7 +1152,8 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
-	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
+
+	for key, v := range maps.All(merged) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(3), v)
@@ -1166,9 +1162,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 		default:
 			t.Fail("unknown state key, %q", key)
 		}
-
-		return true, nil
-	})
+	}
 
 	t.Empty(newMerged)
 	t.Equal([]uint64{1, 3}, newUnmerged)
@@ -1282,7 +1276,8 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 
 	merged, err := t.closeMergers(mergers)
 	t.NoError(err)
-	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
+
+	for key, v := range maps.All(merged) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(3), v)
@@ -1291,9 +1286,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		default:
 			t.Fail("unknown state key, %q", key)
 		}
-
-		return true, nil
-	})
+	}
 }
 
 func (t *testPhaseMerger) TestMergeUnmerge() {
@@ -1407,7 +1400,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	t.NoError(err)
 	t.Equal(3, len(merged))
 
-	dutil.TraverseMap(merged, func(key string, v int64) (bool, error) {
+	for key, v := range maps.All(merged) {
 		switch key {
 		case sts[0].Key():
 			t.Equal(int64(2), v)
@@ -1418,9 +1411,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 		default:
 			t.Fail("unknown state key, %q", key)
 		}
-
-		return true, nil
-	})
+	}
 
 	t.Empty(newMerged)
 	t.Equal([]uint64{1, 3}, newUnmerged)

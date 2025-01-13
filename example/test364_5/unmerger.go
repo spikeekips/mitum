@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -108,11 +109,9 @@ func newFuncOpindexFilter(
 	default:
 		m = i
 
-		_ = dutil.TraverseSlice(localUnmerged, func(_ int, opindex uint64) (bool, error) {
+		for opindex := range slices.Values(localUnmerged) {
 			_ = m.SetValue(opindex, struct{}{})
-
-			return true, nil
-		})
+		}
 	}
 
 	return func(opindex uint64) (bool, error) {

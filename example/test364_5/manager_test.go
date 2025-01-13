@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -185,13 +186,10 @@ func (t *baseTestManager) processOps(
 			statesSize uint64,
 			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 		) error {
-			if err := dutil.TraverseMap(
-				reasons,
-				func(opindex uint64, reason string) (bool, error) {
-					return true, unmergedOp(opindex, reason)
-				},
-			); err != nil {
-				return err
+			for opindex, reason := range maps.All(reasons) {
+				if err := unmergedOp(opindex, reason); err != nil {
+					return err
+				}
 			}
 
 			g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)

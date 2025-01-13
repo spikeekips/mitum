@@ -159,24 +159,18 @@ func newFuncLocalExtractedStateOwners(
 				}
 			}
 
-			_ = dutil.TraverseSlice(addvs, func(_ int, value StateMergeValue) (bool, error) {
+			for value := range slices.Values(addvs) {
 				adds := getStateOwners(value.Key())
 				addOwners(adds...)
 
-				dutil.TraverseSlice(subws, func(_ int, subw string) (bool, error) {
+				for subw := range slices.Values(subws) {
 					addOwnersSet(subw, adds)
+				}
 
-					return true, nil
-				})
-
-				_ = dutil.TraverseSlice(adds, func(_ int, addw string) (bool, error) {
+				for addw := range slices.Values(adds) {
 					addValue(addw, value)
-
-					return true, nil
-				})
-
-				return true, nil
-			})
+				}
+			}
 
 			return traverseValues
 		},
@@ -212,7 +206,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 		a string, b []string,
 	) {
 		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
-			_ = dutil.TraverseSlice(b, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(b) {
 				switch {
 				case len(prev) < 1:
 					prev = map[string]struct{}{worker: {}}
@@ -221,9 +215,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 						prev[worker] = struct{}{}
 					}
 				}
-
-				return true, nil
-			})
+			}
 
 			return prev, nil
 		})
@@ -236,11 +228,9 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 
 			add(msubs, subw, affected)
 
-			_ = dutil.TraverseSlice(affected, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(affected) {
 				add(maffected, worker, []string{subw})
-
-				return true, nil
-			})
+			}
 
 			return nil
 		},
@@ -287,11 +277,13 @@ func newFuncCollectWorkerStateMergeValues() (
 		func(f workerStateMergeValuesFunc) error {
 			defer dutil.ClearMap(m)
 
-			return dutil.TraverseMap(m, func(worker string, values []StateMergeValue) (bool, error) {
-				err := f(worker, values)
+			for worker, values := range maps.All(m) {
+				if err := f(worker, values); err != nil {
+					return err
+				}
+			}
 
-				return err == nil, err
-			})
+			return nil
 		}
 }
 

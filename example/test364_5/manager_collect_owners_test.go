@@ -144,25 +144,21 @@ func (t *testManagerCollectOwners) TestAdd() {
 		add, done, err := newFuncManagerCollectOwners(ctx, uint64(len(workers)), uint64(len(workers)))
 		t.NoError(err)
 
-		dutil.TraverseSlice(workers, func(i int, worker string) (bool, error) {
-			j := i
-
+		for i, worker := range slices.All(workers) {
 			go func() {
-				e := j + ownersPerWorker
+				e := i + ownersPerWorker
 				if f := len(workers); e > f {
 					e = f
 				}
 
-				owners := workers[j:e]
+				owners := workers[i:e]
 				if len(owners) < ownersPerWorker {
 					owners = append(owners, workers[:ownersPerWorker-len(owners)]...)
 				}
 
 				t.IfErrPanic(add(worker, owners))
 			}()
-
-			return true, nil
-		})
+		}
 
 		s, err := done()
 		t.NoError(err)

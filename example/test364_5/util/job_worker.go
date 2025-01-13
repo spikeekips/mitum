@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -225,9 +226,9 @@ func FuncsJobWorker(ctx context.Context, fs ...InErrorFunc[context.Context]) err
 	go func() {
 		defer jobDone()
 
-		_ = TraverseSlice(fs, func(_ int, f InErrorFunc[context.Context]) (bool, error) {
-			return true, newJob(f)
-		})
+		for f := range slices.Values(fs) {
+			_ = newJob(f)
+		}
 	}()
 
 	return jobWait(nil)

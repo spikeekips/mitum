@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -463,11 +464,9 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(0, l)
 
-			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			for stateKey := range slices.Values(stateKeys) {
 				t.Empty(f(stateKey))
-
-				return true, nil
-			})
+			}
 
 			return nil
 		}))
@@ -504,7 +503,7 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(3, l)
 
-			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			for stateKey := range slices.Values(stateKeys) {
 				facts, err := f(stateKey)
 				t.NoError(err)
 
@@ -513,9 +512,7 @@ func (t *testSetStateOps) Test() {
 				for i := range facts {
 					t.True(expectedFacts[i].Equal(facts[i]))
 				}
-
-				return true, nil
-			})
+			}
 
 			return nil
 		}))
@@ -529,11 +526,10 @@ func (t *testSetStateOps) Test() {
 
 		var nstateKeys uint64 = 30
 		stateKeys := make([]string, nstateKeys)
-		dutil.TraverseSlice(stateKeys, func(i int, _ string) (bool, error) {
-			stateKeys[i] = fmt.Sprintf("s%d", i)
 
-			return true, nil
-		})
+		for i := range stateKeys {
+			stateKeys[i] = fmt.Sprintf("s%d", i)
+		}
 
 		var nops uint64 = 33
 
@@ -554,20 +550,19 @@ func (t *testSetStateOps) Test() {
 		unmergeOps := []uint64{0, 9, 30}
 
 		expectedStateKeyFact := map[string][]util.Hash{}
-		dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
+
+		for opindex, stateKeys := range maps.All(opindexStateKeys) {
 			if slices.Index(unmergeOps, opindex) >= 0 {
-				return true, nil
+				continue
 			}
 
-			return true, dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			for stateKey := range slices.Values(stateKeys) {
 				s := expectedStateKeyFact[stateKey]
 				s = append(s, facts[opindex])
 
 				expectedStateKeyFact[stateKey] = s
-
-				return true, nil
-			})
-		})
+			}
+		}
 
 		newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(context.Background(), nops)
 		t.NoError(err)
@@ -575,15 +570,15 @@ func (t *testSetStateOps) Test() {
 		go func() {
 			defer jobDone()
 
-			t.IfErrPanic(dutil.TraverseMap(opindexStateKeys, func(opindex uint64, stateKeys []string) (bool, error) {
-				return true, newJob(func(context.Context) error {
+			for opindex, stateKeys := range maps.All(opindexStateKeys) {
+				t.IfErrPanic(newJob(func(context.Context) error {
 					if !m(opindex, facts[opindex], stateKeys) {
 						return errors.Errorf("not merged, %d", opindex)
 					}
 
 					return nil
-				})
-			}))
+				}))
+			}
 		}()
 
 		t.NoError(jobWait(nil))
@@ -612,7 +607,7 @@ func (t *testSetStateOps) Test() {
 
 			t.Equal(nstateKeys, uint64(l))
 
-			dutil.TraverseSlice(stateKeys, func(_ int, stateKey string) (bool, error) {
+			for stateKey := range slices.Values(stateKeys) {
 				e := expectedStateKeyFact[stateKey]
 				slices.SortFunc(e, func(a, b util.Hash) int {
 					return strings.Compare(a.String(), b.String())
@@ -622,9 +617,7 @@ func (t *testSetStateOps) Test() {
 				t.NoError(err)
 
 				t.Equal(e, s, "state key=%q expected=%v collected=%v", stateKey, e, s)
-
-				return true, nil
-			})
+			}
 
 			return nil
 		}))

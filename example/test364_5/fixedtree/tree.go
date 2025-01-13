@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"math"
+	"slices"
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -66,18 +67,20 @@ func (t *Tree) Root() util.Hash {
 }
 
 func (t *Tree) Traverse(f func(index uint64, node Node) (bool, error)) error {
-	return dutil.TraverseSlice(t.nodes, func(i int, n Node) (bool, error) {
+	for i, n := range slices.All(t.nodes) {
 		if n == nil {
-			return false, util.ErrFound.Errorf("nil node at %d", i)
+			return util.ErrFound.Errorf("nil node at %d", i)
 		}
 
 		switch keep, err := f(uint64(i), n); {
-		case err != nil, !keep:
-			return false, err
-		default:
-			return true, nil
+		case err != nil:
+			return err
+		case !keep:
+			return nil
 		}
-	})
+	}
+
+	return nil
 }
 
 func childrenNodes(index uint64, nodes []Node) (c [2]Node, err error) {

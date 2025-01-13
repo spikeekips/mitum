@@ -21,33 +21,6 @@ func FilterSlice[T any](s iter.Seq[T], f func(T) bool) iter.Seq[T] {
 	}
 }
 
-func TraverseSlice[T any](s []T, f func(int, T) (bool, error)) error {
-	if len(s) < 1 {
-		return nil
-	}
-
-	for i := range s {
-		switch keep, err := f(i, s[i]); {
-		case err != nil:
-			return err
-		case !keep:
-			return nil
-		}
-	}
-
-	return nil
-}
-
-func TraverseMap[K comparable, V any](m map[K]V, f func(K, V) (bool, error)) error {
-	for k := range m {
-		if keep, err := f(k, m[k]); err != nil || !keep {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type AppendSliceAddFunc[T any] func(...T) (added, left uint64)
 
 func TrueFilter[T any](T) bool { return true }
@@ -278,12 +251,25 @@ func ClearMap[K comparable, V any](m map[K]V) {
 	m = nil
 }
 
-func SliceAll[T any](s []T) iter.Seq2[int, T] {
+func SliceAll[T any](s []T) iter.Seq2[int, T] { // FIXME remove; use slices.All
 	return func(yield func(int, T) bool) {
 		for i := range s {
 			if !yield(i, s[i]) {
 				return
 			}
+		}
+	}
+}
+
+func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {
+	return func(yield func(int, T) bool) {
+		var i int
+
+		for t := range s {
+			if !yield(i, t) {
+				return
+			}
+			i++
 		}
 	}
 }

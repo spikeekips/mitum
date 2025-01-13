@@ -543,10 +543,10 @@ func (t *testAccountStateMerger) TestMerges() {
 				}
 			}
 
-			if err := dutil.TraverseSlice(doneCommits(), func(_ int, f func() error) (bool, error) {
-				return true, f()
-			}); err != nil {
-				return err
+			for f := range slices.Values(doneCommits()) {
+				if err := f(); err != nil {
+					return err
+				}
 			}
 
 			nextname := "unmerge"
@@ -554,10 +554,10 @@ func (t *testAccountStateMerger) TestMerges() {
 				nextname = "merge"
 			}
 
-			if err := dutil.TraverseSlice(doneNextops(), func(_ int, op uint64) (bool, error) {
-				return true, xmerge(nextname, op, ops[op], unmergef, mergef)
-			}); err != nil {
-				return err
+			for op := range slices.Values(doneNextops()) {
+				if err := xmerge(nextname, op, ops[op], unmergef, mergef); err != nil {
+					return err
+				}
 			}
 
 			return nil

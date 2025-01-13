@@ -246,11 +246,11 @@ func isValidWorkerArgs(
 		return util.ErrInvalid.Errorf("empty ops workers")
 	}
 
-	return dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+	for worker := range slices.Values(opsWorkers) {
 		if slices.Index(workers, worker) < 0 {
-			return false, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
+			return util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
 		}
+	}
 
-		return true, nil
-	})
+	return nil
 }

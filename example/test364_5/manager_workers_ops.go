@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -101,8 +102,8 @@ func newFuncManagerWorkersOps(
 		func(newWorkerSendOp newWorkerSendOpFunc) error {
 			defer jobDone()
 
-			return dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
-				return true, newJob(func(ctx context.Context) error {
+			for worker := range slices.Values(opsWorkers) {
+				if err := newJob(func(ctx context.Context) error {
 					l := log.With().Str("worker", worker).Logger()
 
 					gerr := sendWorker(ctx, newWorkerSendOp, worker)
@@ -117,8 +118,12 @@ func newFuncManagerWorkersOps(
 					}
 
 					return nil
-				})
-			})
+				}); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		},
 		func() error {
 			defer checkWorkerClose()

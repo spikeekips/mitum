@@ -39,11 +39,15 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 			}
 
 			inf := func(f opindexOpHashesFunc) error {
-				return dutil.TraverseSlice(ops, func(opindex int, op Operation) (bool, error) {
+				for opindex, op := range slices.All(ops) {
 					t.Println("insert: opindex=%d op=%q", opindex, op.Hash())
 
-					return true, f(uint64(opindex), op.Hash(), op.Fact().Hash())
-				})
+					if err := f(uint64(opindex), op.Hash(), op.Fact().Hash()); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			}
 			if f != nil {
 				inf = f
@@ -162,11 +166,9 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 			})
 
 			t.Equal(len(eaddvs), len(addvs))
-			dutil.TraverseSlice(eaddvs, func(i int, value StateMergeValue) (bool, error) {
+			for i, value := range slices.All(eaddvs) {
 				t.True(IsEqualStateMergeValue(value, addvs[i]))
-
-				return true, nil
-			})
+			}
 
 			collected[opindex] = op
 

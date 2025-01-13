@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 
@@ -201,18 +202,23 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 	unmergeOps := func(worker string, unmerged []uint64, unmergeOp dutil.InErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
 		return checkWorker(worker, func() error {
-			return dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+		end:
+			for opindex := range slices.Values(unmerged) {
 				if filter != nil {
 					switch ok, err := filter(opindex); {
 					case err != nil:
-						return false, err
+						return err
 					case !ok:
-						return true, nil
+						continue end
 					}
 				}
 
-				return true, unmergeOp(opindex)
-			})
+				if err := unmergeOp(opindex); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		})
 	}
 
@@ -344,29 +350,28 @@ func newFuncWorkerUnmergerUnmergedPool() (
 
 			return true
 		},
-		func(filter workerOpindexFilterFunc) (found bool, _ error) {
+		func(filter workerOpindexFilterFunc) (bool, error) {
 			l.RLock()
 			defer l.RUnlock()
 
-			return found, dutil.TraverseMap(pool, func(worker string, unmerged []uint64) (bool, error) {
-				return true, dutil.TraverseSlice(unmerged, func(_ int, opindex uint64) (bool, error) {
+			for worker, unmerged := range maps.All(pool) {
+			end:
+				for opindex := range slices.Values(unmerged) {
 					switch f, err := filter(worker); {
 					case err != nil, f == nil:
-						return true, nil
+						continue end
 					default:
 						switch ok, err := f(opindex); {
 						case err != nil:
 							return false, err
 						case ok:
-							found = true
-
-							return false, nil
-						default:
 							return true, nil
 						}
 					}
-				})
-			})
+				}
+			}
+
+			return false, nil
 		},
 		func(f func(worker string, unmerged []uint64) (bool, error)) error {
 			l.Lock()
@@ -375,7 +380,11 @@ func newFuncWorkerUnmergerUnmergedPool() (
 			defer dutil.ClearMap(pool)
 
 			if f != nil {
-				return dutil.TraverseMap(pool, f)
+				for worker, unmerged := range maps.All(pool) {
+					if ok, err := f(worker, unmerged); err != nil || !ok {
+						return err
+					}
+				}
 			}
 
 			return nil
@@ -471,11 +480,10 @@ func newFuncWorkerOpindexFilter(
 				gerr = err
 			default:
 				m := map[string]struct{}{}
-				dutil.TraverseSlice(subs, func(_ int, owner string) (bool, error) {
-					m[owner] = struct{}{}
 
-					return true, nil
-				})
+				for owner := range slices.Values(subs) {
+					m[owner] = struct{}{}
+				}
 
 				filter = func(worker string) (opindexFilterFunc, error) {
 					ml.Lock()

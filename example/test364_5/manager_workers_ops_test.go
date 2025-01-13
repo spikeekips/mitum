@@ -137,7 +137,7 @@ func (t *testManagerWorkersOps) TestSend() {
 			expectedOpsWorkers = w()
 			slices.Sort(expectedOpsWorkers)
 
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				var ops [][3]interface{}
 
 				d(worker, func(opindex uint64, oph, fact util.Hash) error {
@@ -153,9 +153,7 @@ func (t *testManagerWorkersOps) TestSend() {
 
 					expected[worker] = ops
 				}
-
-				return true, nil
-			})
+			}
 		}
 
 		ctx, _ := t.Ctx()
@@ -228,9 +226,9 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 			expectedOpsWorkers = slices.Collect(dutil.FilterSlice(slices.Values(expectedOpsWorkers), func(a string) bool { return a != failedWorker }))
 
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				if worker == failedWorker {
-					return true, nil
+					continue
 				}
 
 				var ops [][3]interface{}
@@ -248,9 +246,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 					expected[worker] = ops
 				}
-
-				return true, nil
-			})
+			}
 		}
 
 		ctx, _ := t.Ctx()

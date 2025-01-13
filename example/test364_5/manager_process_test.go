@@ -49,22 +49,18 @@ func (t *testManagerProcess) TestCancel() {
 		err = s(nil, nil)
 		t.ErrorIs(err, context.Canceled)
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			err := wo(worker, workers)
 			t.ErrorIs(err, context.Canceled)
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			t.ErrorIs(err, context.Canceled)
 			t.Nil(r)
 			t.Nil(s)
 			t.Nil(d)
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -81,22 +77,18 @@ func (t *testManagerProcess) TestCancel() {
 		err = s(nil, nil)
 		t.ErrorIs(err, context.Canceled)
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			err := wo(worker, workers)
 			t.ErrorIs(err, context.Canceled)
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			t.ErrorIs(err, context.Canceled)
 			t.Nil(r)
 			t.Nil(s)
 			t.Nil(d)
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -124,16 +116,14 @@ func (t *testManagerProcess) TestCancel() {
 			t.ErrorIs(err, context.Canceled)
 		}
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			err := wo(worker, workers)
 			if err != nil {
 				t.ErrorIs(err, context.Canceled)
 			}
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			if err != nil {
 				t.ErrorIs(err, context.Canceled)
@@ -146,9 +136,7 @@ func (t *testManagerProcess) TestCancel() {
 					t.ErrorIs(err, context.Canceled)
 				}
 			}
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -171,22 +159,18 @@ func (t *testManagerProcess) TestCancel() {
 
 		cancel(nil)
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			err := wo(worker, workers)
 			t.ErrorIs(err, context.Canceled)
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			t.ErrorIs(err, context.Canceled)
 			t.Nil(r)
 			t.Nil(s)
 			t.Nil(d)
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -207,7 +191,7 @@ func (t *testManagerProcess) TestCancel() {
 			},
 		))
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			if worker == workers[1] {
 				cancel(nil)
 			}
@@ -216,11 +200,9 @@ func (t *testManagerProcess) TestCancel() {
 			if err != nil {
 				t.ErrorIs(err, context.Canceled)
 			}
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			if err != nil {
 				t.ErrorIs(err, context.Canceled)
@@ -233,9 +215,7 @@ func (t *testManagerProcess) TestCancel() {
 					t.ErrorIs(err, context.Canceled)
 				}
 			}
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -256,23 +236,19 @@ func (t *testManagerProcess) TestCancel() {
 			},
 		))
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			t.NoError(wo(worker, workers))
-
-			return true, nil
-		})
+		}
 
 		cancel(nil)
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			r, s, d, err := wr(worker)
 			t.ErrorIs(err, context.Canceled)
 			t.Nil(r)
 			t.Nil(s)
 			t.Nil(d)
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -293,13 +269,11 @@ func (t *testManagerProcess) TestCancel() {
 			},
 		))
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			t.NoError(wo(worker, workers))
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			if worker == workers[1] {
 				cancel(nil)
 			}
@@ -316,9 +290,7 @@ func (t *testManagerProcess) TestCancel() {
 					t.ErrorIs(err, context.Canceled)
 				}
 			}
-
-			return true, nil
-		})
+		}
 
 		_, _, err = w(nil, nil)
 		t.ErrorIs(err, context.Canceled)
@@ -339,19 +311,15 @@ func (t *testManagerProcess) TestCancel() {
 			},
 		))
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			t.NoError(wo(worker, workers))
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			_, _, d, err := wr(worker)
 			t.NoError(err)
 			t.NoError(d(nil))
-
-			return true, nil
-		})
+		}
 
 		cancel(nil)
 
@@ -378,7 +346,9 @@ func (t *testManagerProcess) TestOpsTree() {
 			t.T().Log("ops workers:", opsWorkers)
 
 			_, f, err := newDistributeSerialNShare(uint64(len(opsWorkers)), uint64(len(workers)), opsShare)
-			dutil.TraverseSlice(opsWorkers, func(i int, worker string) (bool, error) {
+			t.NoError(err)
+
+			for i, worker := range slices.All(opsWorkers) {
 				var owners []string
 				f(uint64(i), func(index uint64) error {
 					owners = append(owners, workers[index])
@@ -390,9 +360,7 @@ func (t *testManagerProcess) TestOpsTree() {
 
 				workersOwners[worker] = owners
 				expectedOwners = append(expectedOwners, owners...)
-
-				return true, nil
-			})
+			}
 
 			slices.Sort(expectedOwners)
 			expectedOwners = slices.Compact(expectedOwners)
@@ -424,21 +392,19 @@ func (t *testManagerProcess) TestOpsTree() {
 				},
 			))
 
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				owners, found := workersOwners[worker]
 				if !found {
-					return true, nil
+					continue
 				}
 
 				go func() {
 					err := wo(worker, owners)
 					t.Println("worker owners: worker=%q, owners=%v err=%v", worker, owners, err)
 				}()
+			}
 
-				return true, nil
-			})
-
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				go func() {
 					_, _, d, err := wr(worker)
 					t.IfErrPanic(err)
@@ -450,9 +416,7 @@ func (t *testManagerProcess) TestOpsTree() {
 						t.Println("worker result: worker=%q nil", worker)
 					}
 				}()
-
-				return true, nil
-			})
+			}
 		}()
 
 		opsTree, statesTree, err := w(

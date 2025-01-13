@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 
@@ -84,9 +85,13 @@ func newFuncManagerCollectResult(
 		maxStatesSize,
 		opsNewJob,
 		func(reasons map[uint64]string) error {
-			return dutil.TraverseMap(reasons, func(opindex uint64, reason string) (bool, error) {
-				return true, unmergedOp(opindex, reason)
-			})
+			for opindex, reason := range maps.All(reasons) {
+				if err := unmergedOp(opindex, reason); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		},
 	); {
 	case err != nil:

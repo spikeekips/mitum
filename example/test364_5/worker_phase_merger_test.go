@@ -243,7 +243,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 		)
 		t.NoError(err)
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			insert, insertDone, err := insertf(worker)
 
 			for i := range 3 {
@@ -259,9 +259,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			err = insertDone(nil)
 
 			t.T().Logf("worker error: worker=%q err=%v", worker, err)
-
-			return true, nil
-		})
+		}
 
 		_, _, err = wait()
 		t.ErrorIs(err, context.Canceled)
@@ -325,16 +323,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			vp.SetValue(uint64(i), vs)
 
-			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			for v := range slices.Values(vs) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
-				if err != nil {
-					return false, err
-				}
+				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
-
-				return true, nil
-			})
+			}
 		}
 		slices.Sort(expectedStateKeys)
 
@@ -417,7 +411,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		t.T().Log("insert values")
 		go func() {
-			_ = dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			for wi, worker := range slices.All(workers) {
 				insert, insertDone, err := insertf(worker)
 				t.IfErrPanic(err)
 
@@ -428,9 +422,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 				if worker == failedWorker {
 					_ = insertDone(errors.Errorf("findme"))
 				}
-
-				return true, nil
-			})
+			}
 		}()
 
 		t.T().Log("wait")
@@ -459,15 +451,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			err := dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				_, insertDone, err := insertf(worker)
-				if err != nil {
-					return false, err
-				}
+				t.IfErrPanic(err)
 
-				return true, insertDone(nil)
-			})
-			t.IfErrPanic(err)
+				t.IfErrPanic(insertDone(nil))
+			}
 		}()
 
 		unmerged, reasons, err := wait()
@@ -502,16 +491,12 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			vp.SetValue(uint64(i), vs)
 
-			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			for v := range slices.Values(vs) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
-				if err != nil {
-					return false, err
-				}
+				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
-
-				return true, nil
-			})
+			}
 		}
 		slices.Sort(expectedStateKeys)
 
@@ -531,20 +516,18 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 		t.NoError(err)
 
 		go func() {
-			t.IfErrPanic(dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			for wi, worker := range slices.All(workers) {
 				insert, insertDone, err := insertf(worker)
-				if err != nil {
-					return false, err
-				}
+				t.IfErrPanic(err)
 
 				for i := valuesPerWorker * wi; i < valuesPerWorker*(wi+1); i++ {
 					if err := insert(uint64(i)); err != nil {
-						return false, insertDone(err)
+						t.IfErrPanic(insertDone(err))
 					}
 				}
 
-				return true, insertDone(nil)
-			}))
+				t.IfErrPanic(insertDone(nil))
+			}
 		}()
 
 		unmerged, reasons, err := wait()
@@ -628,16 +611,12 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			vp.SetValue(uint64(i), vs)
 
-			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			for v := range slices.Values(vs) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
-				if err != nil {
-					return false, err
-				}
+				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
-
-				return true, nil
-			})
+			}
 		}
 		slices.Sort(expectedStateKeys)
 
@@ -707,16 +686,12 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			vp.SetValue(uint64(i), vs)
 
-			dutil.TraverseSlice(vs, func(_ int, v StateMergeValue) (bool, error) {
+			for v := range slices.Values(vs) {
 				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
-				if err != nil {
-					return false, err
-				}
+				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
-
-				return true, nil
-			})
+			}
 		}
 		slices.Sort(expectedStateKeys)
 

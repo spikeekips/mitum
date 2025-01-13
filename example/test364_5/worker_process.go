@@ -834,9 +834,10 @@ func workersDistributeStateMergeValues(
 				newJob, jobDone, jobWait = n, d, w
 			}
 
-			if err := dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		end:
+			for worker := range slices.Values(workers) {
 				if worker == local {
-					return true, nil
+					continue end
 				}
 
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
@@ -845,27 +846,27 @@ func workersDistributeStateMergeValues(
 				case !found:
 					switch _, o, err := newf(ctx, worker); {
 					case err != nil:
-						return true, nil // NOTE ignore error
+						continue end
 					default:
 						sendOwners = o
 					}
 				case i[1] == nil:
-					return true, nil
+					continue end
 				default:
 					sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
 				}
 
 				if sendOwners == nil {
-					return true, nil
+					continue end
 				}
 
-				return true, newJob(func(context.Context) error {
+				if err := newJob(func(context.Context) error {
 					_ = sendOwners(nil, nil) // NOTE ignore error
 
 					return nil
-				})
-			}); err != nil {
-				return jobWait(err)
+				}); err != nil {
+					return err
+				}
 			}
 
 			jobDone()

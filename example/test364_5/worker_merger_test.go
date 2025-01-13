@@ -425,16 +425,14 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				_, insertDone, err := insertf(worker)
 				if err == nil {
 					err = insertDone(err)
 				}
 
 				t.Println("insert worker: worker=%q err=%v", worker, err)
-
-				return true, nil
-			})
+			}
 		}()
 
 		reasons, err := wait(
@@ -497,7 +495,7 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				ops := workerValues[worker]
 
 				insert, insertDone, err := insertf(worker)
@@ -513,22 +511,18 @@ func (t *testWorkerMerger) TestInsert() {
 				}
 
 				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+			}
 
-				return true, nil
-			})
-
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
 				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
-
-				return true, nil
-			})
+			}
 		}()
 
 		reasons, err := wait(
@@ -565,23 +559,19 @@ func (t *testWorkerMerger) TestInsert() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				_, insertDone, err := insertf(worker)
 				if err == nil {
 					err = insertDone(nil)
 				}
 
 				t.Println("insert worker: worker=%q err=%v", worker, err)
+			}
 
-				return true, nil
-			})
-
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				err := unmerge(worker, nil)
 				t.Println("unmerge worker: worker=%q err=%v", worker, err)
-
-				return true, nil
-			})
+			}
 		}()
 
 		reasons, err := wait(
@@ -624,7 +614,7 @@ func (t *testWorkerMerger) TestInsert() {
 		)
 		t.NoError(err)
 
-		dutil.TraverseSlice(unknowns, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(unknowns) {
 			insert, insertDone, err := insertf(worker)
 
 			if insert != nil && err == nil {
@@ -638,9 +628,7 @@ func (t *testWorkerMerger) TestInsert() {
 			}
 
 			t.Println("insert unknown worker: worker=%q err=%v", worker, err)
-
-			return true, nil
-		})
+		}
 
 		{
 			insert, insertDone, err := insertf(local)
@@ -708,21 +696,17 @@ func (t *testWorkerMerger) workerMergers(
 	waits := map[string]workerMergerWaitFunc{}
 	traverseMergers := map[string]traverseStateMergersFunc{}
 
-	if err := dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+	for worker := range slices.Values(workers) {
 		statesPool, insert, unmerge, wait, tr, err := t.workerMerger(
 			wctx,
 			worker,
 			workers, share,
 		)
-		if err != nil {
-			return false, err
-		}
+		t.IfErrPanic(err)
 
-		dutil.TraverseSlice(states, func(_ int, st base.State) (bool, error) {
+		for st := range slices.Values(states) {
 			statesPool.SetValue(st.Key(), st)
-
-			return true, nil
-		})
+		}
 
 		inserts[worker] = insert
 		unmerges[worker] = unmerge
@@ -733,9 +717,9 @@ func (t *testWorkerMerger) workerMergers(
 				func(unmerged []uint64) ([]string, error) {
 					var wg sync.WaitGroup
 
-					if err := dutil.TraverseSlice(workers, func(_ int, other string) (bool, error) {
+					for other := range slices.Values(workers) {
 						if other == worker {
-							return true, nil
+							continue
 						}
 
 						wg.Add(1)
@@ -747,10 +731,6 @@ func (t *testWorkerMerger) workerMergers(
 							t.Println("worker to other unmerge: worker=%q other=%q unemrged=%v err=%v",
 								worker, other, unmerged, err)
 						}()
-
-						return true, nil
-					}); err != nil {
-						return nil, err
 					}
 
 					wg.Wait()
@@ -761,34 +741,26 @@ func (t *testWorkerMerger) workerMergers(
 		}
 
 		traverseMergers[worker] = tr
-
-		return true, nil
-	}); err != nil {
-		return nil, nil, nil, err
 	}
 
 	workersValues, err := t.assignWorkersValues(values, getStateOwners)
 	t.IfErrPanic(err)
 
 	{
-		dutil.TraverseMap(workersValues, func(worker string, vs map[uint64][]StateMergeValue) (bool, error) {
+		for worker, vs := range maps.All(workersValues) {
 			m := map[uint64][]string{}
 
-			dutil.TraverseMap(vs, func(opindex uint64, vs []StateMergeValue) (bool, error) {
+			for opindex, vs := range maps.All(vs) {
 				m[opindex] = extractStateMergeValueKeysFromValues(vs)
-
-				return true, nil
-			})
+			}
 
 			t.T().Logf("worker values: worker=%q values=%v", worker, m)
-
-			return true, nil
-		})
+		}
 	}
 
 	workerStateOwners := map[string][]string{}
 
-	dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+	for worker := range slices.Values(workers) {
 		workerStateOwners[worker] = t.workersStateOwners(
 			values,
 			workersValues[worker],
@@ -796,59 +768,50 @@ func (t *testWorkerMerger) workerMergers(
 		)
 
 		t.T().Logf("worker active states workers: worker=%q workers=%v", worker, workerStateOwners[worker])
-
-		return true, nil
-	})
+	}
 
 	return func() error {
 			var wg sync.WaitGroup
 
-			dutil.TraverseMap(
-				inserts,
-				func(worker string, f workerMergerInsertStateMergeValuesFunc) (bool, error) {
-					wg.Add(1)
+			for worker, f := range maps.All(inserts) {
+				wg.Add(1)
 
-					go func() {
-						defer wg.Done()
+				go func() {
+					defer wg.Done()
 
-						var ops []uint64
+					var ops []uint64
 
-						opValues := workersValues[worker]
+					opValues := workersValues[worker]
+
+					insert, insertDone, err := f(worker)
+					if insert != nil && err == nil {
+						for opindex, vs := range maps.All(opValues) {
+							ops = append(ops, opindex)
+
+							if err = insert(opindex, vs); err != nil {
+								break
+							}
+						}
+
+						err = insertDone(err)
+					}
+
+					t.Println("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
+
+					for other, f := range maps.All(inserts) {
+						if other == worker {
+							continue
+						}
 
 						insert, insertDone, err := f(worker)
 						if insert != nil && err == nil {
-							err = dutil.TraverseMap(opValues, func(opindex uint64, vs []StateMergeValue) (bool, error) {
-								ops = append(ops, opindex)
-
-								return true, insert(opindex, vs)
-							})
-
-							err = insertDone(err)
+							err = insertDone(nil)
 						}
 
-						t.Println("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
-
-						dutil.TraverseMap(
-							inserts,
-							func(other string, f workerMergerInsertStateMergeValuesFunc) (bool, error) {
-								if other == worker {
-									return true, nil
-								}
-
-								insert, insertDone, err := f(worker)
-								if insert != nil && err == nil {
-									err = insertDone(nil)
-								}
-
-								t.Println("worker to other insert: worker=%q other=%q err=%v", worker, other, err)
-
-								return true, err
-							})
-					}()
-
-					return true, nil
-				},
-			)
+						t.Println("worker to other insert: worker=%q other=%q err=%v", worker, other, err)
+					}
+				}()
+			}
 
 			wg.Wait()
 
@@ -859,7 +822,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			var wg sync.WaitGroup
 
-			dutil.TraverseMap(waits, func(worker string, wf workerMergerWaitFunc) (bool, error) {
+			for worker, wf := range maps.All(waits) {
 				wg.Add(1)
 
 				go func() {
@@ -897,9 +860,7 @@ func (t *testWorkerMerger) workerMergers(
 						donech <- worker
 					}
 				}()
-
-				return true, nil
-			})
+			}
 
 			var doneWorkers []string
 
@@ -926,9 +887,13 @@ func (t *testWorkerMerger) workerMergers(
 			return doneWorkers, nil
 		},
 		func(f func(string, traverseStateMergersFunc) error) error {
-			return dutil.TraverseMap(traverseMergers, func(worker string, wf traverseStateMergersFunc) (bool, error) {
-				return true, f(worker, wf)
-			})
+			for worker, wf := range maps.All(traverseMergers) {
+				if err := f(worker, wf); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		},
 		nil
 }
@@ -980,32 +945,29 @@ func (t *testWorkerMerger) assignWorkersValues(
 ) {
 	workersValues := map[string]map[uint64][]StateMergeValue{}
 
-	return workersValues,
-		dutil.TraverseSlice(values, func(i int, vs []StateMergeValue) (bool, error) {
-			opindex := uint64(i)
+	for i, vs := range slices.All(values) {
+		opindex := uint64(i)
 
-			return true, dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
-				owners := getStateOwners(value.Key())
-				if len(owners) < 1 {
-					return false, util.ErrNotFound.Errorf("state owners not found, %q(%d)", value.Key(), opindex)
+		for value := range slices.Values(vs) {
+			owners := getStateOwners(value.Key())
+			if len(owners) < 1 {
+				return nil, util.ErrNotFound.Errorf("state owners not found, %q(%d)", value.Key(), opindex)
+			}
+
+			for owner := range slices.Values(owners) {
+				m, found := workersValues[owner]
+				if !found {
+					m = map[uint64][]StateMergeValue{}
 				}
 
-				dutil.TraverseSlice(owners, func(i int, owner string) (bool, error) {
-					m, found := workersValues[owner]
-					if !found {
-						m = map[uint64][]StateMergeValue{}
-					}
+				m[opindex] = append(m[opindex], value)
 
-					m[opindex] = append(m[opindex], value)
+				workersValues[owner] = m
+			}
+		}
+	}
 
-					workersValues[owner] = m
-
-					return true, nil
-				})
-
-				return true, nil
-			})
-		})
+	return workersValues, nil
 }
 
 func (t *testWorkerMerger) workersUnmerged(
@@ -1015,18 +977,15 @@ func (t *testWorkerMerger) workersUnmerged(
 ) (map[string][]uint64, error) {
 	m := map[string][]uint64{}
 
-	return m, dutil.TraverseSlice(
-		unmerged,
-		func(_ int, opindex uint64) (bool, error) {
-			return true, dutil.TraverseSlice(values[opindex], func(_ int, value StateMergeValue) (bool, error) {
-				return true, dutil.TraverseSlice(getStateOwners(value.Key()), func(_ int, owner string) (bool, error) {
-					m[owner] = append(m[owner], opindex)
+	for opindex := range slices.Values(unmerged) {
+		for value := range slices.Values(values[opindex]) {
+			for owner := range slices.Values(getStateOwners(value.Key())) {
+				m[owner] = append(m[owner], opindex)
+			}
+		}
+	}
 
-					return true, nil
-				})
-			})
-		},
-	)
+	return m, nil
 }
 
 func (t *testWorkerMerger) workersStateOwners(
@@ -1037,19 +996,17 @@ func (t *testWorkerMerger) workersStateOwners(
 	m := map[string]struct{}{}
 	defer dutil.ClearMap(m)
 
-	dutil.TraverseMap(workerValues, func(opindex uint64, _ []StateMergeValue) (bool, error) {
-		return true, dutil.TraverseSlice(values[opindex], func(_ int, value StateMergeValue) (bool, error) {
+	for opindex := range maps.Keys(workerValues) {
+		for value := range slices.Values(values[opindex]) {
 			if !isSubAccountStateMergeValue(value.(*AccountStateMergeValue)) {
-				return true, nil
+				continue
 			}
 
-			return true, dutil.TraverseSlice(getStateOwners(value.Key()), func(_ int, owner string) (bool, error) {
+			for owner := range slices.Values(getStateOwners(value.Key())) {
 				m[owner] = struct{}{}
-
-				return true, nil
-			})
-		})
-	})
+			}
+		}
+	}
 
 	return slices.Collect(maps.Keys(m))
 }
@@ -1104,11 +1061,9 @@ func (t *testWorkerMerger) TestNoSubs() {
 			vs := t.randomMergeValues(3, 3, 3)
 			values[i] = vs
 
-			dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+			for value := range slices.Values(vs) {
 				subs[value.Key()] = getStateOwners(value.Key())
-
-				return true, nil
-			})
+			}
 
 			expectedValues += len(vs)
 		}
@@ -1189,11 +1144,9 @@ func (t *testWorkerMerger) TestNoSubs() {
 			vs := t.randomMergeValues(3, 3, 3)
 			values[i] = vs
 
-			dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+			for value := range slices.Values(vs) {
 				subs[value.Key()] = getStateOwners(value.Key())
-
-				return true, nil
-			})
+			}
 
 			expectedValues += len(vs)
 		}
@@ -1362,11 +1315,9 @@ func (t *testWorkerMerger) TestSubs() {
 			for i := range values {
 				vs := values[i]
 
-				dutil.TraverseSlice(vs, func(_ int, value StateMergeValue) (bool, error) {
+				for value := range slices.Values(vs) {
 					subs[value.Key()] = getStateOwners(value.Key())
-
-					return true, nil
-				})
+				}
 			}
 
 			t.T().Log("sub state owners:", subs)
@@ -1603,7 +1554,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				ops := workerValues[worker]
 
 				insert, insertDone, err := insertf(worker)
@@ -1619,27 +1570,23 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				}
 
 				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
-
-				return true, nil
-			})
+			}
 
 			_, insertDone, err := insertf(managerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))
 
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
 				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
-
-				return true, nil
-			})
+			}
 		}()
 
 		reasons, err := wait(
@@ -1704,7 +1651,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				ops := workerValues[worker]
 
 				insert, insertDone, err := insertf(worker)
@@ -1720,22 +1667,18 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				}
 
 				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+			}
 
-				return true, nil
-			})
-
-			dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(opsWorkers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
 				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
-
-				return true, nil
-			})
+			}
 
 			_, insertDone, err := insertf(managerName)
 			t.IfErrPanic(err)

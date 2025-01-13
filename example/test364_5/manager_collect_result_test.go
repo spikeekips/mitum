@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 
@@ -71,7 +72,7 @@ func (t *testManagerCollectResult) TestCancel() {
 			}
 		}
 
-		_ = dutil.TraverseSlice(t.workers(3), func(i int, worker string) (bool, error) {
+		for i, worker := range slices.All(t.workers(3)) {
 			wg.Add(1)
 
 			go func() {
@@ -97,9 +98,7 @@ func (t *testManagerCollectResult) TestCancel() {
 					checkError(err)
 				}
 			}()
-
-			return true, nil
-		})
+		}
 
 		wg.Wait()
 
@@ -346,11 +345,9 @@ func (t *testManagerCollectResult) TestOpsTree() {
 
 		ophs := t.randomOphs(3)
 		expectedReasons := map[uint64]string{}
-		dutil.TraverseSlice(ophs, func(i int, oph [2]util.Hash) (bool, error) {
+		for i, oph := range slices.All(ophs) {
 			expectedReasons[uint64(i)] = oph[1].String()
-
-			return true, nil
-		})
+		}
 
 		wr, or, w, err := newFuncManagerCollectResult(ctx, 1<<9, ophs)
 		t.NoError(err)
@@ -411,9 +408,9 @@ func (t *testManagerCollectResult) TestStatesTree() {
 		}
 
 		_, s, d, err := wr("w0")
-		t.NoError(dutil.TraverseSlice(expectedStates, func(_ int, i [2]interface{}) (bool, error) {
-			return true, s(i[0].(string), i[1].(util.Hash))
-		}))
+		for i := range slices.Values(expectedStates) {
+			t.NoError(s(i[0].(string), i[1].(util.Hash)))
+		}
 		t.NoError(err)
 		t.NoError(d(nil))
 

@@ -64,10 +64,10 @@ func (s *BaseState) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := dutil.TraverseSlice(s.ops, func(_ int, h util.Hash) (bool, error) {
-		return true, h.IsValid(nil)
-	}); err != nil {
-		return e.Wrap(err)
+	for h := range slices.Values(s.ops) {
+		if err := h.IsValid(nil); err != nil {
+			return e.Wrap(err)
+		}
 	}
 
 	if s.previous != nil {

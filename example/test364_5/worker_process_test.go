@@ -169,9 +169,13 @@ func (t *testWorkerProcess) newf(
 
 func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) dutil.InErrorFunc[opindexOpHashesFunc] {
 	return func(f opindexOpHashesFunc) error {
-		return dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
-			return true, f(uint64(i), op.Hash(), op.Fact().Hash())
-		})
+		for i, op := range slices.All(ops) {
+			if err := f(uint64(i), op.Hash(), op.Fact().Hash()); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 }
 
@@ -227,31 +231,39 @@ func (t *testWorkerProcess) TestCancel() {
 				)
 			},
 			func() error {
-				return dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+				for worker := range slices.Values(workers) {
 					if worker == local {
-						return true, nil
+						continue
 					}
 
 					insert, done, err := insertValues(worker)
 					if err != nil {
-						return false, err
+						return err
 					}
 
 					if err := insert(0, valuehash.RandomSHA256(), t.randomMergeValues(1, 2, 3)); err != nil {
-						return false, err
+						return err
 					}
 
-					return true, done(workers, nil)
-				})
+					if err := done(workers, nil); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			},
 			func() error {
-				return dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+				for worker := range slices.Values(workers) {
 					if worker == local {
-						return true, nil
+						continue
 					}
 
-					return true, unmerged(worker, []uint64{0})
-				})
+					if err := unmerged(worker, []uint64{0}); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			},
 			func() error {
 				_, err := wait(nil, nil)
@@ -402,14 +414,12 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+		for i, op := range slices.All(ops) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
 			base.EqualOperation(t.Assert(), op, s)
-
-			return true, nil
-		})
+		}
 	})
 
 	t.Run("local only; outside ops workers", func() {
@@ -434,13 +444,11 @@ func (t *testWorkerProcess) TestLocal() {
 		var calledBroadcastUnmerged bool
 		var reportedStates atomic.Value
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(workers) {
 			insert, done, err := insertf(worker)
-			if err != nil {
-				return false, err
-			}
+			t.NoError(err)
 
-			if err := dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+			for i, op := range slices.All(ops) {
 				subv, addvs, reason, err := op.StateMergeValues(ctx)
 				t.IfErrPanic(err)
 				t.IfTruePanic(reason != "", "not empty reason, %q", reason)
@@ -453,17 +461,15 @@ func (t *testWorkerProcess) TestLocal() {
 
 				values = append(values, addvs...)
 
-				return true, insert(uint64(i), op.Fact().Hash(), values)
-			}); err != nil {
-				return false, err
+				t.NoError(insert(uint64(i), op.Fact().Hash(), values))
 			}
 
-			return true, done(workers, workers)
-		})
+			t.NoError(done(workers, workers))
+		}
 
-		dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
-			return true, unmerge(worker, nil)
-		})
+		for worker := range slices.Values(workers) {
+			t.NoError(unmerge(worker, nil))
+		}
 
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
@@ -517,26 +523,28 @@ func (t *testWorkerProcess) TestLocal() {
 		)
 
 		expectedReasonsAfterExtracted := map[uint64]string{}
-		dutil.TraverseSlice(make([]int, 3), func(i int, _ int) (bool, error) {
+		for i := range 3 {
 			expectedReasonsAfterExtracted[uint64(i+len(ops))] = reasonOperationNotFound
-
-			return true, nil
-		})
+		}
 		expectedUnmergedAfterExtracted := slices.Collect(maps.Keys(expectedReasonsAfterExtracted))
 		slices.Sort(expectedUnmergedAfterExtracted)
 
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
 			func(f opindexOpHashesFunc) error {
-				if err := dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
-					return true, f(uint64(i), op.Hash(), op.Fact().Hash())
-				}); err != nil {
-					return err
+				for i, op := range slices.All(ops) {
+					if err := f(uint64(i), op.Hash(), op.Fact().Hash()); err != nil {
+						return err
+					}
 				}
 
-				return dutil.TraverseMap(expectedReasonsAfterExtracted, func(opindex uint64, _ string) (bool, error) {
-					return true, f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-				})
+				for opindex := range maps.Keys(expectedReasonsAfterExtracted) {
+					if err := f(opindex, valuehash.RandomSHA256(), valuehash.RandomSHA256()); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			},
 			func(owners []string, reasons map[uint64]string) error {
 				t.Equal([]string{local}, owners)
@@ -578,14 +586,12 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+		for i, op := range slices.All(ops) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
 			base.EqualOperation(t.Assert(), op, s)
-
-			return true, nil
-		})
+		}
 	})
 
 	t.Run("local inside ops workers; empty state merge values", func() {
@@ -659,14 +665,12 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+		for i, op := range slices.All(ops) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
 			base.EqualOperation(t.Assert(), op, s)
-
-			return true, nil
-		})
+		}
 	})
 
 	t.Run("local broadcasts insert done to outside ops workers", func() {
@@ -753,14 +757,12 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.Equal(len(ops), savedStates.Len())
 
-		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+		for i, op := range slices.All(ops) {
 			s, found := savedOps.Value(uint64(i))
 			t.True(found)
 
 			base.EqualOperation(t.Assert(), op, s)
-
-			return true, nil
-		})
+		}
 	})
 }
 
@@ -902,28 +904,24 @@ func (t *testWorkerProcess) newProcessWorkers(
 	opsShare, statesShare uint64,
 	ops []Operation,
 ) {
-	dutil.TraverseSlice(opsWorkers, func(_ int, worker string) (bool, error) {
+	for worker := range slices.Values(opsWorkers) {
 		if slices.Index(workers, worker) < 0 {
 			t.Fail("unknown op worker, %q", worker)
 		}
-
-		return true, nil
-	})
+	}
 
 	initials := map[string]workerProcessInitialInsertFunc{}
 	workerInserts := map[string]workerProcessWorkerInsertStateMergeValuesFunc{}
 	workerUnmerges := map[string]workerUnmergedFunc{}
 	workerWaits := map[string]workerProcessWaitFunc{}
 
-	dutil.TraverseSlice(workers, func(_ int, local string) (bool, error) {
+	for local := range slices.Values(workers) {
 		initials[local], workerInserts[local], workerUnmerges[local], workerWaits[local] = t.newProcessWorker(
 			ctx,
 			local, workers, opsWorkers,
 			opsShare, statesShare,
 		)
-
-		return true, nil
-	})
+	}
 
 	getOperation := t.newFuncGetOperation(ops)
 	getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
@@ -942,18 +940,16 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 	go func() {
 		ophs := make([][2]util.Hash, len(ops))
-		dutil.TraverseSlice(ops, func(i int, op Operation) (bool, error) {
+		for i, op := range slices.All(ops) {
 			ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
-
-			return true, nil
-		})
+		}
 
 		_, opWorkers, err := opsNShareWorkers(opsWorkers, opsShare, ophs)
 		t.IfErrPanic(err)
 
 		var wg sync.WaitGroup
 
-		dutil.TraverseSlice(opsWorkers, func(_ int, local string) (bool, error) {
+		for local := range slices.Values(opsWorkers) {
 			wg.Add(1)
 
 			go func() {
@@ -975,16 +971,14 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 				t.Println("initial: worker=%q err=%v", local, err)
 			}()
-
-			return true, nil
-		})
+		}
 
 		wg.Wait()
 	}()
 
 	var wg sync.WaitGroup
 
-	dutil.TraverseSlice(workers, func(_ int, local string) (bool, error) {
+	for local := range slices.Values(workers) {
 		wg.Add(1)
 
 		go func() {
@@ -1027,9 +1021,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 			t.Println("wait done: worker=%q err=%v", local, err)
 		}()
-
-		return true, nil
-	})
+	}
 
 	wg.Wait()
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -123,9 +124,9 @@ func (t *testWorkerUnmerger) TestCancel() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				err := workerUnmerge(worker, nil)
@@ -138,9 +139,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 				if worker == failedWorker {
 					cancel(nil)
 				}
-
-				return true, nil
-			})
+			}
 		}()
 
 		err = localReady(workers, nil, uint64(len(workers)), 0)
@@ -174,7 +173,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 
 		donech := make(chan struct{}, 1)
 		go func() {
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				var err error
 
 				if worker == local {
@@ -184,9 +183,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 				}
 
 				t.Println("worker phase done: worker=%q err=%v", worker, err)
-
-				return true, nil
-			})
+			}
 
 			cancel(nil)
 			donech <- struct{}{}
@@ -371,16 +368,14 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		t.NoError(err)
 
 		go func() {
-			dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				err := workerUnmerge(worker, nil)
 				t.Println("worker phase done: worker=%q err=%v", worker, err)
-
-				return true, nil
-			})
+			}
 
 			err := localReady(workers, nil, uint64(len(workers)), 0)
 
@@ -427,7 +422,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		var expectedOps []uint64
 
-		dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+		for wi, worker := range slices.All(workers) {
 			wops := ops[wi*opsPerWorker : (wi+1)*opsPerWorker]
 
 			if worker != local {
@@ -435,30 +430,24 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			}
 
 			workerOps[worker] = wops
+		}
 
-			return true, nil
-		})
-
-		dutil.TraverseSlice(unknowns, func(_ int, worker string) (bool, error) {
+		for worker := range slices.Values(unknowns) {
 			err := workerUnmerge(worker, nil)
 			t.Println("unknown worker phase done: worker=%q err=%v", worker, err)
-
-			return true, nil
-		})
+		}
 
 		go func() {
-			dutil.TraverseSlice(workers, func(_ int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				wops := workerOps[worker]
 
 				err := workerUnmerge(worker, wops)
 				t.Println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
-
-				return true, nil
-			})
+			}
 
 			err := localReady(workers, nil, uint64(len(workers)), 0)
 
@@ -505,7 +494,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		var expectedOps []uint64
 
-		dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+		for wi, worker := range slices.All(workers) {
 			wops := ops[wi*opsPerWorker : (wi+1)*opsPerWorker]
 
 			if worker != local {
@@ -513,23 +502,19 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			}
 
 			workerOps[worker] = wops
-
-			return true, nil
-		})
+		}
 
 		go func() {
-			dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+			for worker := range slices.Values(workers) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				wops := workerOps[worker]
 
 				err := workerUnmerge(worker, wops)
 				t.Println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
-
-				return true, nil
-			})
+			}
 
 			err := localReady(workers, nil, uint64(len(workers)), 0)
 
@@ -561,14 +546,12 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		workerOps := map[string][]uint64{}
 
-		dutil.TraverseSlice(workers, func(wi int, worker string) (bool, error) {
+		for wi, worker := range slices.All(workers) {
 			wops := ops[wi*opsPerWorker : (wi+1)*opsPerWorker]
 			workerOps[worker] = wops
 
 			t.T().Logf("worker ops: worker=%q ops=%v", worker, wops)
-
-			return true, nil
-		})
+		}
 
 		getStateMergeValues := func(opindex uint64) ([]StateMergeValue, error) {
 			wi := int(math.Floor(float64(opindex) / float64(opsPerWorker)))
@@ -604,9 +587,9 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				t.Println("local phase done: worker=%q err=%v", local, err)
 			}
 
-			dutil.TraverseMap(workerOps, func(worker string, wops []uint64) (bool, error) {
+			for worker, wops := range maps.All(workerOps) {
 				if worker == local {
-					return true, nil
+					continue
 				}
 
 				go func() {
@@ -623,9 +606,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 						}
 					}
 				}()
-
-				return true, nil
-			})
+			}
 
 			return wait
 		}
@@ -753,13 +734,11 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				slices.Sort(unmerged)
 				t.IfTruePanic(len(ops) != len(unmerged), "ops=%d != unmerged=%d", len(ops), len(unmerged))
 
-				t.IfErrPanic(dutil.TraverseSlice(unmerged, func(i int, v uint64) (bool, error) {
+				for i, v := range slices.All(unmerged) {
 					if ops[i] != v {
-						return false, errors.Errorf("%d: ops=%d != unmerged=%d", i, ops[i], v)
+						t.IfErrPanic(errors.Errorf("%d: ops=%d != unmerged=%d", i, ops[i], v))
 					}
-
-					return true, nil
-				}))
+				}
 			}
 
 			donech <- err
