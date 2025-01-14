@@ -569,15 +569,11 @@ func newFuncorkerProcessExtracted(
 			add(size-1, subv)
 		}
 
-		if err := insertToMerger(opindex, stateMergeValues); err != nil {
-			return err
-		}
-
 		fact := op.Fact().Hash()
 
 		if err := extractStateOwners(opindex, subv, addvs)(func(worker string, values []StateMergeValue) error {
 			if worker == local {
-				return nil
+				return insertToMerger(opindex, values)
 			}
 
 			return distribute(worker, opindex, fact, values)

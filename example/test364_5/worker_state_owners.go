@@ -167,8 +167,8 @@ func newFuncLocalExtractedStateOwners(
 					addOwnersSet(subw, adds)
 				}
 
-				for addw := range slices.Values(adds) {
-					addValue(addw, value)
+				for w := range slices.Values(adds) {
+					addValue(w, value)
 				}
 			}
 

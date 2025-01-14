@@ -1,21 +1,129 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 	"gonum.org/v1/gonum/stat/combin"
 )
+
+var (
+	dummyOpFactHint = hint.MustNewHint("dummy-fact-v0.0.1")
+	dummyOpHint     = hint.MustNewHint("dummy-operation-v0.0.1")
+)
+
+type dummyOpFact struct {
+	base.BaseFact
+	values []*AccountStateMergeValue
+}
+
+func newDummyOpFact(token base.Token, values []*AccountStateMergeValue) *dummyOpFact {
+	fact := &dummyOpFact{
+		BaseFact: base.NewBaseFact(dummyOpFactHint, token),
+		values:   values,
+	}
+
+	fact.SetHash(fact.hash())
+
+	return fact
+}
+
+func (fact *dummyOpFact) IsValid([]byte) error {
+	if err := fact.BaseFact.IsValid(nil); err != nil {
+		return err
+	}
+
+	var foundsub bool
+
+	for value := range slices.Values(fact.values) {
+		switch {
+		case value.Key() == "":
+			return util.ErrInvalid.Errorf("empty key")
+		case foundsub && value.Balance < 0:
+			return util.ErrInvalid.Errorf("multiple sub found")
+		default:
+			if err := value.Value().IsValid(nil); err != nil {
+				return err
+			}
+		}
+	}
+
+	if !fact.Hash().Equal(fact.hash()) {
+		return errors.Errorf("hash does not match")
+	}
+
+	return nil
+}
+
+func (fact *dummyOpFact) hash() util.Hash {
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
+
+	_, _ = buf.Write(fact.Token())
+
+	for value := range slices.Values(fact.values) {
+		_, _ = buf.Write([]byte(value.Key()))
+		_, _ = buf.Write(value.Value().HashBytes())
+	}
+
+	return valuehash.NewSHA256(buf.Bytes())
+}
+
+type dummyOp struct {
+	base.BaseOperation
+}
+
+func newDummyOp(fact *dummyOpFact) *dummyOp {
+	return &dummyOp{
+		BaseOperation: base.NewBaseOperation(OpHint, fact),
+	}
+}
+
+func (op *dummyOp) IsValid(networkID []byte) error {
+	if err := op.BaseOperation.IsValid(networkID); err != nil {
+		return err
+	}
+
+	if _, ok := op.Fact().(*dummyOpFact); !ok {
+		return errors.Errorf("not dummyOpFact, %T", op.Fact())
+	}
+
+	return nil
+}
+
+func (op *dummyOp) StateMergeValues(context.Context) (
+	sub StateMergeValue, addvs []StateMergeValue, reason string, _ error,
+) {
+	var fact *dummyOpFact
+
+	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
+		return nil, nil, "", err
+	}
+
+	for value := range slices.Values(fact.values) {
+		switch {
+		case value.Balance < 0:
+			sub = value
+		default:
+			addvs = append(addvs, value)
+		}
+	}
+
+	return sub, addvs, "", nil
+}
 
 type baseTestAccountStateValueMerger struct {
 	dutil.BaseSuite
@@ -187,6 +295,21 @@ func (t *baseTestAccountStateValueMerger) randomAddOps(n int, amount int64) []Op
 	}
 
 	return m
+}
+
+func (t *baseTestAccountStateValueMerger) newDummyOp(token base.Token, a ...interface{}) *dummyOp {
+	vs := t.newMergeValues(a...)
+
+	values := make([]*AccountStateMergeValue, len(vs))
+	for i, v := range slices.All(vs) {
+		values[i] = v.(*AccountStateMergeValue)
+	}
+
+	op := newDummyOp(newDummyOpFact(token, values))
+
+	t.IfErrPanic(op.Sign(t.rootpriv, t.networkID))
+
+	return op
 }
 
 func (t *baseTestAccountStateValueMerger) extractStateMergeValues(ops []Operation) [][]StateMergeValue {
