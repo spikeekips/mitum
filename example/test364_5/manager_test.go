@@ -103,7 +103,7 @@ func (t *baseTestManager) processOps(
 	ctx context.Context,
 	ops []Operation,
 	getState getStateFunc,
-) (opsTree, statesTree *fixedtree.Tree, _ error) {
+) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ error) {
 	local := "local"
 	height := base.Height(33)
 	workers := []string{local}
@@ -135,7 +135,7 @@ func (t *baseTestManager) processOps(
 		return f(ctx)
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	startOpsFixedNodes()
@@ -151,7 +151,7 @@ func (t *baseTestManager) processOps(
 		uint64(len(ops)),
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	err = initialInsert(
@@ -174,8 +174,21 @@ func (t *baseTestManager) processOps(
 		nil,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+
+	var addState dutil.AppendSliceAddFunc[base.State]
+	var doneState dutil.OutFunc[[]base.State]
+
+	switch a, d, err := dutil.NewLockUniqueAppendSlice[base.State, string](1<<9, 1<<9,
+		func(n base.State) string { return n.Key() }); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		addState, doneState = a, d
+	}
+
+	g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
 
 	err = wait(
 		func(context.Context, string, string, string, []uint64) error { return nil },
@@ -192,8 +205,6 @@ func (t *baseTestManager) processOps(
 				}
 			}
 
-			g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
-
 			switch tr, err := doneOpsTree(g); {
 			case err != nil:
 				return err
@@ -201,41 +212,37 @@ func (t *baseTestManager) processOps(
 				opsTree = tr
 			}
 
-			var addStateNode dutil.AppendSliceAddFunc[fixedtree.Node]
-			var doneStateNode dutil.OutFunc[[]fixedtree.Node]
-
-			switch a, d, err := dutil.NewLockUniqueAppendSlice[fixedtree.Node, string](1<<9, 1<<9,
-				func(n fixedtree.Node) string { return n.Key() }); {
-			case err != nil:
-				return err
-			default:
-				addStateNode, doneStateNode = a, d
-			}
-
 			if err := f(func(st base.State) error {
-				addStateNode(NewStateTreeNode(st.Key(), st.Hash()))
+				addState(st)
 
 				return nil
 			}); err != nil {
 				return err
 			}
 
-			statesNodes := doneStateNode()
-			slices.SortFunc(statesNodes, func(a, b fixedtree.Node) int {
-				return strings.Compare(a.Key(), b.Key())
-			})
-
-			if err := g(ctx, statesNodes, nil); err != nil {
-				return err
-			}
-
-			statesTree = newStatesTree(statesNodes)
-
 			return nil
 		},
 	)
 
-	return opsTree, statesTree, nil
+	states := doneState()
+
+	slices.SortFunc(states, func(a, b base.State) int {
+		return strings.Compare(a.Key(), b.Key())
+	})
+
+	statesNodes := make([]fixedtree.Node, len(states))
+
+	for i, st := range slices.All(states) {
+		statesNodes[i] = NewStateTreeNode(st.Key(), st.Hash())
+	}
+
+	if err := g(ctx, statesNodes, nil); err != nil {
+		return nil, nil, nil, err
+	}
+
+	statesTree = newStatesTree(statesNodes)
+
+	return opsTree, statesTree, states, nil
 }
 
 type testManager struct {
@@ -383,8 +390,8 @@ func (t *testManager) TestStartWorkers() {
 
 				return nil
 			},
-			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
 
 				return nil, nil
 			},
@@ -491,8 +498,8 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil
 			},
-			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
 
 				return nil, nil
 			},
@@ -562,8 +569,8 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil
 			},
-			func(opsTree, statesTree util.Hash) (base.Manifest, error) {
-				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree, statesTree)
+			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
+				t.T().Logf("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
 
 				return nil, nil
 			},

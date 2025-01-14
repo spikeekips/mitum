@@ -23,8 +23,11 @@ type (
 	) error
 	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
 		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
-	newManagerManifestFunc = func(opsTree, statesTree util.Hash) (base.Manifest, error)
-	managerWaitFunc        = dutil.In2ErrorFunc[dutil.InContextErrorFunc[string], newManagerManifestFunc]
+	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
+	managerWaitFunc        = dutil.In2ErrorFunc[
+		dutil.InContextErrorFunc[string],
+		newManagerManifestFunc,
+	]
 )
 
 type managerOptions struct {
@@ -113,7 +116,7 @@ func newFuncManager(
 		workerResult,
 		func(
 			workerInsertDone dutil.InContextErrorFunc[string],
-			mf newManagerManifestFunc,
+			newManifest newManagerManifestFunc,
 		) error {
 			var opsTree, statesTree *fixedtree.Tree
 
@@ -136,15 +139,14 @@ func newFuncManager(
 				opsTree, statesTree = otr, str
 			}
 
-			switch manifest, err := mf(opsTree.Root(), statesTree.Root()); {
+			switch manifest, err := newManifest(opsTree, statesTree); {
 			case err != nil:
 				return err
 			default:
 				_ = manifest
 			}
 
-			// FIXME check workers by ops workers + states workers
-
+			// FIXME save block; check workers by ops workers + states workers
 			// FIXME save,
 			// - block map
 			// - trees
