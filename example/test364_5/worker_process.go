@@ -194,7 +194,7 @@ func newFuncWorkerProcess(
 		},
 		unmerge,
 		func(
-			broacastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
+			broadcastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
 			reportResult workerProcessReportResult,
 		) (
 			workerProcessTraverseOperationsFunc,
@@ -214,7 +214,7 @@ func newFuncWorkerProcess(
 						return nil
 					}
 
-					return workersBroadcastUnmerged(ctx, local, affected, unmerged, broacastUnmerged)
+					return workersBroadcastUnmerged(ctx, local, affected, unmerged, broadcastUnmerged)
 				},
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
@@ -484,7 +484,6 @@ func newFuncWorkerProcessInitialInsert(
 			}
 
 			var insert insertStateMergeValuesFunc
-			var insertDone dutil.InErrorFunc[error]
 
 			switch i, d, err := workerInsertStateValues(local); {
 			case err != nil:
@@ -492,7 +491,7 @@ func newFuncWorkerProcessInitialInsert(
 			default:
 				defer d(nil)
 
-				insert, insertDone = i, d
+				insert = i
 			}
 
 			extracted := newFuncorkerProcessExtracted(
@@ -510,10 +509,6 @@ func newFuncWorkerProcessInitialInsert(
 			}
 
 			return extractorWait(func(reasons map[uint64]string) error {
-				if err := insertDone(nil); err != nil {
-					return err
-				}
-
 				if err := reportDone(localOwners(), reasons); err != nil {
 					return err
 				}
@@ -784,6 +779,10 @@ func workersDistributeStateMergeValues(
 			return nil
 		},
 		func(worker string, subws, affected []string) error {
+			if worker == local {
+				return nil
+			}
+
 			var sendOwners dutil.In2ErrorFunc[[]string, []string]
 
 			if _, _, err := pool.Set(

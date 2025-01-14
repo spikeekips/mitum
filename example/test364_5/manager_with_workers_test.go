@@ -180,12 +180,6 @@ func (t *testManagerWithWorkers) newManager(
 		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 	}
 
-	{
-		w, d, err := opsNShareWorkers(workers, opsShare, ophs)
-		t.NoError(err)
-		opsWorkers = w()
-	}
-
 	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWait, err := newFuncManager(
 		ctx,
 		t.newManagerOptions(),
@@ -232,10 +226,9 @@ func (t *testManagerWithWorkers) newManager(
 					return err
 				},
 				func(subs, affected []string) error {
-					t.Println("> distribute worker: owners: local=%q worker=%q sub=%v affected=%v", local, worker, subs, affected)
 					err := o(subs, affected)
 
-					t.Println("< distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subs, affected, err)
+					t.Println("distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subs, affected, err)
 
 					return err
 				},
@@ -639,8 +632,6 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 	}
 
 	t.Run("one worker", func() {
-		t.T().Skip() // FIXME remove
-
 		var opsShare, statesShare uint64 = 1, 1
 
 		t.runCase(1, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates)
@@ -648,15 +639,15 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 
 	t.Run("1 ops share, 1 states share", func() {
 		/*
-			     opindex   | subs  | affected
-			w0 | 0 2 3 4   | w1 w2 | w1 w2
-			w1 | 0 1 2 3 5 | w0 w1 | w0 w2
-			w2 | 1 4 5     | w1 w2 | w0
+			     related   | ops | subs  | affected
+			w0 | 0 2 3 4   | 0 3 | w1 w2 | w1
+			w1 | 0 1 2 3 5 | 1 4 | w0    | w0 w2
+			w2 | 1 4 5     | 2 5 | w1    | w0
 		*/
 
 		var opsShare, statesShare uint64 = 1, 1
 
-		getStateOwners := func(stateKey string) (owners []string) {
+		getStateOwners := func(stateKey string) (owners []string) { // FIXME remove
 			var owner string
 
 			if _, found := prevStates[stateKey]; found {
