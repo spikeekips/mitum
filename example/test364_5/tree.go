@@ -122,6 +122,7 @@ func (n *OperationTreeNode) SetHash(left, right fixedtree.Node) (util.Hash, duti
 			return slices.Concat(
 				[]byte(n.Key()),
 				n.fact.Bytes(),
+				util.BoolToBytes(n.reason == ""), // NOTE in state
 			), nil
 		}
 	}); {
