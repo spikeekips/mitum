@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -46,6 +49,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
+		// FIXME getStateOwner -> getStateOwners
 		getStateOwner, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
 		t.NoError(err)
 		defer stateOwnersClose()
@@ -689,6 +693,212 @@ func (t *testWorkerStateOwners) TestAdd() {
 
 		slices.Sort(affected)
 		t.Equal(expectedAffected, affected)
+	})
+}
+
+func (t *testWorkerStateOwners) TestCases() {
+	t.Run("sub and adds", func() {
+		/*
+			     related   | ops | subs  | affected
+			w0 | 0 2 3 4   | 0 3 | w1 w2 | w1
+			w1 | 0 1 2 3 5 | 1 4 | w0    | w0 w2
+			w2 | 1 4 5     | 2 5 | w1    | w0
+		*/
+
+		pub0 := base.NewDummyPublickey("p0")
+		pub1 := base.NewDummyPublickey("p1")
+		pub2 := base.NewDummyPublickey("p2")
+
+		valuesSet := [][]StateMergeValue{
+			t.newMergeValues(pub0, 1, pub1, -2), // 0
+			t.newMergeValues(pub1, -2, pub2, 3), // 1: ignored
+			t.newMergeValues(pub0, -1, pub1, 2), // 2
+			t.newMergeValues(pub0, -1, pub1, 2), // 3: ignored
+			t.newMergeValues(pub0, 1, pub2, -3), // 4
+			t.newMergeValues(pub1, 1, pub2, 2),  // 5
+		}
+
+		expectedOwners := map[string][2][]string{
+			"w0": {{"w1", "w2"}, {"w1"}},
+			"w1": {{"w0"}, {"w0", "w2"}},
+			"w2": {{"w1"}, {"w0"}},
+		}
+
+		s := slices.Collect(maps.Keys(expectedOwners))
+		slices.Sort(s)
+
+		for worker := range slices.Values(s) {
+			owners := expectedOwners[worker]
+
+			t.T().Logf("worker owners: worker=%q sub=%v affected=%v",
+				worker, owners[0], owners[1])
+		}
+
+		workers := t.workers(3)
+
+		getStateOwners := func(stateKey string) (owners []string) {
+			var owner string
+
+			switch stateKey {
+			case AccountStateKey(pub0):
+				owner = workers[0]
+			case AccountStateKey(pub1):
+				owner = workers[1]
+			case AccountStateKey(pub2):
+				owner = workers[2]
+			default:
+				panic(fmt.Sprintf("unknown owner, %q", stateKey))
+			}
+
+			return []string{owner}
+		}
+
+		t.Run("insert all local", func() {
+			local := workers[0]
+
+			ctx, _ := t.Ctx()
+
+			insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+			t.NoError(err)
+
+			insert, traverse, localOwners, err := insertf(getStateOwners)
+			t.NoError(err)
+
+			_, _, _ = insert, traverse, localOwners // FIXME remove
+
+			for i, vs := range slices.All(valuesSet) {
+				var sub StateMergeValue
+				var adds []StateMergeValue
+
+				for v := range slices.Values(vs) {
+					if v.(*AccountStateMergeValue).Balance < 0 {
+						sub = v
+					} else {
+						adds = append(adds, v)
+					}
+				}
+
+				opindex := uint64(i)
+				f := insert(opindex, sub, adds)
+				t.NoError(f(func(worker string, values []StateMergeValue) error {
+					stateKeys := extractStateMergeValueKeysFromValues(values)
+
+					t.T().Logf("insert worker: local=%q worker=%q opindex=%d state keys=%v", local, worker, opindex, stateKeys)
+
+					return nil
+				}))
+			}
+
+			t.NoError(traverse(func(worker string, subws, affected []string) error {
+				t.T().Logf("owners: local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
+
+				slices.Sort(subws)
+				slices.Sort(affected)
+
+				t.Equal(expectedOwners[worker][0], subws)
+				t.Equal(expectedOwners[worker][1], affected)
+
+				return nil
+			}))
+			t.Equal(workers, func() []string {
+				s := localOwners()
+				slices.Sort(s)
+
+				return s
+			}())
+		})
+
+		t.Run("insert to workers", func() {
+			ophs := make([][2]util.Hash, len(valuesSet))
+			for i := range valuesSet {
+				ophs[i] = [2]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}
+			}
+
+			var opsWorkers []string
+			var workersOps workerOperationsFunc
+
+			{
+				o, w, err := opsNShareWorkers(workers, 1, ophs)
+				t.NoError(err)
+				opsWorkers = o()
+				workersOps = w
+			}
+
+			ctx, _ := t.Ctx()
+
+			inserts := map[string]extractStateOwnersStateMergeValuesFunc{}
+			traverses := map[string]dutil.InErrorFunc[workerStateOwnersSetFunc]{}
+			localOwners := map[string]dutil.OutFunc[[]string]{}
+
+			for worker := range slices.Values(workers) {
+				insertf, _, _, err := newFuncWorkerStateOwners(ctx, worker, 1<<9)
+				t.NoError(err)
+
+				inserts[worker], traverses[worker], localOwners[worker], err = insertf(getStateOwners)
+				t.NoError(err)
+			}
+
+			for local := range slices.Values(opsWorkers) {
+				t.NoError(workersOps(local, func(opindex uint64, _, _ util.Hash) error {
+					var sub StateMergeValue
+					var adds []StateMergeValue
+
+					for v := range slices.Values(valuesSet[opindex]) {
+						if v.(*AccountStateMergeValue).Balance < 0 {
+							sub = v
+						} else {
+							adds = append(adds, v)
+						}
+					}
+
+					f := inserts[local](opindex, sub, adds)
+
+					return f(func(worker string, values []StateMergeValue) error {
+						stateKeys := extractStateMergeValueKeysFromValues(values)
+
+						t.T().Logf("insert worker: local=%q worker=%q opindex=%d state keys=%v", local, worker, opindex, stateKeys)
+
+						return nil
+					})
+				}))
+			}
+
+			collectedOwners := map[string][2][]string{}
+
+			for local, f := range maps.All(traverses) {
+				t.NoError(f(func(worker string, subws, affected []string) error {
+					t.T().Logf("owners: local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
+
+					j := collectedOwners[worker]
+
+					j[0] = append(j[0], subws...)
+					j[1] = append(j[1], affected...)
+
+					collectedOwners[worker] = j
+
+					return nil
+				}))
+			}
+
+			s := slices.Collect(maps.Keys(collectedOwners))
+			slices.Sort(s)
+
+			for worker := range slices.Values(s) {
+				os := collectedOwners[worker]
+				subws := os[0]
+				affected := os[1]
+
+				slices.Sort(subws)
+				slices.Sort(affected)
+				subws = slices.Compact(subws)
+				affected = slices.Compact(affected)
+
+				t.T().Logf("collected owners: worker=%q sub=%v affected=%v", worker, subws, affected)
+
+				t.Equal(expectedOwners[worker][0], subws)
+				t.Equal(expectedOwners[worker][1], affected)
+			}
+		})
 	})
 }
 

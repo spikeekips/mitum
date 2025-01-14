@@ -184,14 +184,24 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	dutil.InErrorFunc[workerStateOwnersSetFunc],
 	error,
 ) {
-	var msubs util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
+	var addOwners dutil.AppendSliceAddFunc[string]
+	var doneOwners dutil.OutFunc[[]string]
+
+	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](maxWorkersSize, 0); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		addOwners, doneOwners = a, d
+	}
+
+	var msubws util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
 	var maffected util.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
 
 	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
-		msubs = i
+		msubws = i
 	}
 
 	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
@@ -207,6 +217,8 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	) {
 		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
 			for worker := range slices.Values(b) {
+				addOwners(worker)
+
 				switch {
 				case len(prev) < 1:
 					prev = map[string]struct{}{worker: {}}
@@ -222,42 +234,48 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	}
 
 	return func(subw string, affected []string) error {
-			if len(affected) < 1 {
-				return nil
+			if len(affected) > 0 {
+				add(msubws, subw, affected)
 			}
 
-			add(msubs, subw, affected)
-
-			for worker := range slices.Values(affected) {
-				add(maffected, worker, []string{subw})
+			if subw != "" {
+				for worker := range slices.Values(affected) {
+					add(maffected, worker, []string{subw})
+				}
 			}
 
 			return nil
 		},
 		func(f workerStateOwnersSetFunc) error {
 			defer func() {
-				msubs.Close()
+				msubws.Close()
 				maffected.Close()
 			}()
 
 			if f != nil {
-				var gerr error
+				owners := doneOwners()
+				defer dutil.ClearSlice(owners)
 
-				_ = msubs.Traverse(func(worker string, i map[string]struct{}) bool {
-					var affected, subws []string
+				for worker := range slices.Values(owners) {
+					var subws, affected []string
 
-					if len(i) > 0 {
-						affected = slices.Collect(maps.Keys(i))
+					if i, found := msubws.Value(worker); found {
+						affected = append(affected, slices.Collect(maps.Keys(i))...)
 					}
 
-					if i, found := maffected.Value(worker); found && len(i) > 0 {
-						subws = slices.Collect(maps.Keys(i))
+					if i, found := maffected.Value(worker); found {
+						subws = append(subws, slices.Collect(maps.Keys(i))...)
 					}
 
-					gerr = f(worker, subws, affected)
+					slices.Sort(subws)
+					slices.Sort(affected)
 
-					return gerr == nil
-				})
+					if err := f(worker, slices.Compact(subws), slices.Compact(affected)); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			}
 
 			return nil
