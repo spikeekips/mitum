@@ -83,7 +83,9 @@ func newFuncWorkerStateOwners(
 						}
 
 						if f != nil {
-							return f(worker, subws, affected)
+							if err := f(worker, subws, affected); err != nil {
+								return err
+							}
 						}
 
 						return nil
@@ -274,8 +276,6 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 						return err
 					}
 				}
-
-				return nil
 			}
 
 			return nil
