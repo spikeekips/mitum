@@ -123,7 +123,9 @@ func newFuncPhaseMerger(
 	return func(opindex uint64) error {
 			addXMergedOp(basePhase, opindex, mergeFlag)
 
-			return newJob(opindex, mergeCallback(opindex))
+			_ = newJob(opindex, mergeCallback(opindex))
+
+			return nil // NOTE ignore error
 		},
 		func(opindex uint64) error {
 			// NOTE for testing
