@@ -211,11 +211,16 @@ func newFuncManagerWorkerInsertDone(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
+	log := dutil.LoadContextValueLogger(ctx)
+
 	for worker := range dutil.FilterSlice(slices.Values(workers), func(i string) bool {
 		return slices.Index(owners, i) < 0
 	}) {
 		if err := newJob(func(ctx context.Context) error {
-			return workerDone(ctx, worker)
+			err := workerDone(ctx, worker) // ignore worker error
+			log.Debug().Err(err).Str("worker", worker).Msg("worker done; non-owners")
+
+			return nil
 		}); err != nil {
 			return jobWait(err)
 		}
