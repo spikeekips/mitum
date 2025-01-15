@@ -92,9 +92,7 @@ func newFuncManagerWorkersOps(
 		case err != nil:
 			return err
 		default:
-			return d(workerOps(worker, func(opindex uint64, oph, fact util.Hash) error {
-				return s(opindex, oph, fact)
-			}))
+			return d(workerOps(worker, s))
 		}
 	}
 
@@ -115,6 +113,8 @@ func newFuncManagerWorkersOps(
 						return err
 					case err != nil: // NOTE ignore
 						l.Debug().Err(err).Msg("sent")
+					default:
+						l.Debug().Err(gerr).Msg("send op to worker")
 					}
 
 					return nil
