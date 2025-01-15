@@ -363,9 +363,9 @@ func newFuncSetStateOps(mapSize uint64) (
 		factPool = i
 	}
 
-	var m util.LockedMap[string, map[uint64]struct{}]
+	var m util.LockedMap[string, map[uint64]int]
 
-	switch i, err := util.NewLockedMap[string, map[uint64]struct{}](mapSize, nil); {
+	switch i, err := util.NewLockedMap[string, map[uint64]int](mapSize, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -383,57 +383,48 @@ func newFuncSetStateOps(mapSize uint64) (
 
 	set := func(opindex uint64, stateKeys []string, x xMergeFlag) (ok bool) {
 		for stateKey := range slices.Values(stateKeys) {
-			_, _, _, _ = m.SetOrRemove(stateKey,
-				func(prev map[uint64]struct{}, _ bool) (map[uint64]struct{}, bool, error) {
-					switch x {
-					case mergeFlag:
-						if _, found := prev[opindex]; found {
-							return nil, false, util.ErrLockedSetIgnore
-						}
-
-						if prev == nil {
-							prev = map[uint64]struct{}{}
-						}
-
-						prev[opindex] = struct{}{}
-					case unmergeFlag:
-						if _, found := prev[opindex]; !found {
-							return nil, false, util.ErrLockedSetIgnore
-						}
-
-						if len(prev) < 2 {
-							ok = true
-
-							return nil, true, nil
-						}
-
-						delete(prev, opindex)
+			_, _, _ = m.Set(stateKey, func(prev map[uint64]int, _ bool) (map[uint64]int, error) {
+				switch x {
+				case mergeFlag:
+					if i, found := prev[opindex]; found && i < 1 {
+						return nil, util.ErrLockedSetIgnore
 					}
 
-					ok = true
+					if prev == nil {
+						prev = map[uint64]int{}
+					}
 
-					return prev, false, nil
-				},
-			)
+					prev[opindex] = 1
+				case unmergeFlag:
+					if i, found := prev[opindex]; found && i < 1 {
+						return nil, util.ErrLockedSetIgnore
+					}
+
+					if prev == nil {
+						prev = map[uint64]int{}
+					}
+
+					prev[opindex] = 0
+				}
+
+				ok = true
+
+				return prev, nil
+			})
 		}
 
 		return ok
 	}
 
-	unmerge := func(opindex uint64) (ok bool) {
-		_, _ = keyPool.Remove(opindex, func(s []string, found bool) error {
-			if !found {
-				return nil
-			}
-
+	unmerge := func(opindex uint64) bool {
+		switch s, found := keyPool.Value(opindex); {
+		case !found:
+			return false
+		default:
 			_ = set(opindex, s, unmergeFlag)
 
-			ok = true
-
-			return nil
-		})
-
-		return ok
+			return true
+		}
 	}
 
 	return func(opindex uint64, fact util.Hash, stateKeys []string) bool {
@@ -469,32 +460,41 @@ func newFuncSetStateOps(mapSize uint64) (
 			}()
 
 			return f(m.Len(), func(stateKey string) ([]util.Hash, error) {
-				switch i, found := m.Value(stateKey); {
-				case !found, len(i) < 1:
-					return nil, nil
-				default:
-					defer dutil.ClearMap(i)
+				var facts []util.Hash
 
-					facts := make([]util.Hash, len(i))
+				_ = m.Get(stateKey, func(i map[uint64]int, found bool) error {
+					if !found || len(i) < 1 {
+						return nil
+					}
+
+					facts = make([]util.Hash, len(i))
 
 					var n int
 
-					for opindex := range maps.Keys(i) {
+					for opindex, x := range maps.All(i) {
+						if x < 1 {
+							continue
+						}
+
 						switch h, found := factPool.Value(opindex); {
 						case !found:
-							return nil, util.ErrNotFound.Errorf("fact not found, %d", opindex)
+							return util.ErrNotFound.Errorf("fact not found, %d", opindex)
 						default:
 							facts[n] = h
 							n++
 						}
 					}
 
+					facts = facts[:n]
+
 					slices.SortFunc(facts, func(a, b util.Hash) int {
 						return strings.Compare(a.String(), b.String())
 					})
 
-					return facts, nil
-				}
+					return nil
+				})
+
+				return facts, nil
 			})
 		},
 		nil

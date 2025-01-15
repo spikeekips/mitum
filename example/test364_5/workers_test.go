@@ -472,7 +472,7 @@ func (t *testSetStateOps) Test() {
 		t.NoError(tr(func(l int, f getStateOpsFunc) error {
 			called = true
 
-			t.Equal(0, l)
+			t.Equal(3, l)
 
 			for stateKey := range slices.Values(stateKeys) {
 				t.Empty(f(stateKey))
