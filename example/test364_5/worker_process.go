@@ -439,7 +439,9 @@ func newFuncWorkerProcessInitialInsert(
 	var insertOps stateMergeValueExtractorInsertFunc
 	var extractorWait dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]]
 
-	switch i, e, err := newFuncStateMergeValueExtractor(ctx, newJobWorker, maxOpsSize); {
+	switch i, e, err := newFuncStateMergeValueExtractor(
+		context.WithValue(ctx, "local", local),
+		newJobWorker, maxOpsSize); {
 	case err != nil:
 		return nil, err
 	default:
@@ -462,10 +464,6 @@ func newFuncWorkerProcessInitialInsert(
 			case err != nil:
 				return err
 			default:
-				defer func() {
-					_ = s(nil)
-				}()
-
 				extractStateOwnersStateMergeValues, doneExtractStateOwnersStateMergeValues, localOwners = e, s, l
 			}
 
