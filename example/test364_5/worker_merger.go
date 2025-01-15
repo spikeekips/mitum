@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"slices"
+	"sync"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -201,6 +202,8 @@ func newFuncWorkerMergerInsert(
 	setStateMergeValues opindexSetStateMergeValuesFunc,
 	unmerge workerUnmergedFunc,
 ) workerMergerInsertStateMergeValuesFunc {
+	var l sync.Mutex
+
 	return func(worker string) (
 		insertStateMergeValuesFunc,
 		dutil.InErrorFunc[error],
@@ -224,6 +227,9 @@ func newFuncWorkerMergerInsert(
 
 		f := func(opindex uint64, values []StateMergeValue) error {
 			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
+				l.Lock()
+				defer l.Unlock()
+
 				switch added, err := setStateMergeValues(opindex, values); {
 				case err != nil:
 					return err
