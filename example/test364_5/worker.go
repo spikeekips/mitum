@@ -192,11 +192,13 @@ func newFuncWorker(
 					statesSize uint64,
 					reportStates dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					switch i, err := util.NewLockedMap[string, base.State](statesSize, nil); {
-					case err != nil:
-						return err
-					default:
-						savedStates = i
+					if statesSize > 0 {
+						switch i, err := util.NewLockedMap[string, base.State](statesSize, nil); {
+						case err != nil:
+							return err
+						default:
+							savedStates = i
+						}
 					}
 
 					return reportResult(ctx, options.Local, workID, reasons, statesSize,
