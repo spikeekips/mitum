@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
@@ -77,7 +78,12 @@ func newFuncWorkerPhaseMerger(
 
 			return func(opindex uint64) error {
 					return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
-						return phaseMergerMerge(opindex)
+						switch err := phaseMergerMerge(opindex); {
+						case errors.Is(err, context.Canceled): // NOTE ignore error
+							return nil
+						default:
+							return err
+						}
 					})
 				},
 				func(err error) error {
