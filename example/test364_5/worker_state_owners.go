@@ -218,9 +218,10 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 		a string, b []string,
 	) {
 		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
-			for worker := range slices.Values(b) {
-				addOwners(worker)
+			addOwners(a)
+			addOwners(b...)
 
+			for worker := range slices.Values(b) {
 				switch {
 				case len(prev) < 1:
 					prev = map[string]struct{}{worker: {}}
@@ -236,11 +237,11 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	}
 
 	return func(subw string, affected []string) error {
-			if len(affected) > 0 {
-				add(msubws, subw, affected)
-			}
-
 			if subw != "" {
+				if len(affected) > 0 {
+					add(msubws, subw, affected)
+				}
+
 				for worker := range slices.Values(affected) {
 					add(maffected, worker, []string{subw})
 				}
@@ -256,6 +257,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 
 			if f != nil {
 				owners := doneOwners()
+
 				defer dutil.ClearSlice(owners)
 
 				for worker := range slices.Values(owners) {

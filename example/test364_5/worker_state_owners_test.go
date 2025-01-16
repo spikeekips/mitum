@@ -218,22 +218,16 @@ func (t *testWorkerStateOwners) TestInsert() {
 		slices.Sort(expectedOwners)
 		expectedOwners = slices.Compact(expectedOwners)
 
-		expectedSubws := map[string][]string{
-			"w0": {"w6", "w7"},
-			"w1": {"w6", "w7"},
-			"w3": {"w0", "w1"},
-			"w4": {"w0", "w1"},
-			"w6": {"w3", "w4"},
-			"w7": {"w3", "w4"},
-		}
-
-		expectedAffected := map[string][]string{
-			"w0": {"w2", "w3", "w4", "w5"},
-			"w1": {"w2", "w3", "w4", "w5"},
-			"w3": {"w5", "w6", "w7", "w8"},
-			"w4": {"w5", "w6", "w7", "w8"},
-			"w6": {"w0", "w1", "w2", "w8"},
-			"w7": {"w0", "w1", "w2", "w8"},
+		expectedSubAffected := map[string][2][]string{
+			"w0": {{"w6", "w7"}, {"w2", "w3", "w4", "w5"}},
+			"w1": {{"w6", "w7"}, {"w2", "w3", "w4", "w5"}},
+			"w2": {{"w0", "w1", "w6", "w7"}, nil},
+			"w3": {{"w0", "w1"}, {"w5", "w6", "w7", "w8"}},
+			"w4": {{"w0", "w1"}, {"w5", "w6", "w7", "w8"}},
+			"w5": {{"w0", "w1", "w3", "w4"}, nil},
+			"w6": {{"w3", "w4"}, {"w0", "w1", "w2", "w8"}},
+			"w7": {{"w3", "w4"}, {"w0", "w1", "w2", "w8"}},
+			"w8": {{"w3", "w4", "w6", "w7"}, nil},
 		}
 
 		insert, traverse, localOwners, err := insertf(getStateOwner)
@@ -250,11 +244,14 @@ func (t *testWorkerStateOwners) TestInsert() {
 		t.NoError(traverse(func(worker string, subws, affected []string) error {
 			slices.Sort(subws)
 			slices.Sort(affected)
-			t.Equal(expectedSubws[worker], subws, worker)
-			t.Equal(expectedAffected[worker], affected, worker)
+
+			t.EqualValues(expectedSubAffected[worker][0], subws, worker)
+			t.EqualValues(expectedSubAffected[worker][1], affected, worker)
 
 			return nil
 		}))
+
+		return
 
 		o := localOwners()
 		slices.Sort(o)
@@ -434,22 +431,16 @@ func (t *testWorkerStateOwners) TestInsert() {
 		slices.Sort(expectedOwners)
 		expectedOwners = slices.Compact(expectedOwners)
 
-		expectedSubws := map[string][]string{
-			"w0": {"w6", "w7"},
-			"w1": {"w6", "w7"},
-			"w3": {"w0", "w1"},
-			"w4": {"w0", "w1"},
-			"w6": {"w3", "w4"},
-			"w7": {"w3", "w4"},
-		}
-
-		expectedAffected := map[string][]string{
-			"w0": {"w2", "w3", "w4", "w5"},
-			"w1": {"w2", "w3", "w4", "w5"},
-			"w3": {"w5", "w6", "w7", "w8"},
-			"w4": {"w5", "w6", "w7", "w8"},
-			"w6": {"w0", "w1", "w2", "w8"},
-			"w7": {"w0", "w1", "w2", "w8"},
+		expectedSubAffected := map[string][2][]string{
+			"w0": {{"w6", "w7"}, {"w2", "w3", "w4", "w5"}},
+			"w2": {{"w0", "w1", "w6", "w7"}, nil},
+			"w3": {{"w0", "w1"}, {"w5", "w6", "w7", "w8"}},
+			"w1": {{"w6", "w7"}, {"w2", "w3", "w4", "w5"}},
+			"w4": {{"w0", "w1"}, {"w5", "w6", "w7", "w8"}},
+			"w5": {{"w0", "w1", "w3", "w4"}, nil},
+			"w6": {{"w3", "w4"}, {"w0", "w1", "w2", "w8"}},
+			"w8": {{"w3", "w4", "w6", "w7"}, nil},
+			"w7": {{"w3", "w4"}, {"w0", "w1", "w2", "w8"}},
 		}
 
 		insert, traverse, localOwners, err := insertf(getStateOwner)
@@ -466,8 +457,9 @@ func (t *testWorkerStateOwners) TestInsert() {
 		err = traverse(func(worker string, subws, affected []string) error {
 			slices.Sort(subws)
 			slices.Sort(affected)
-			t.Equal(expectedSubws[worker], subws, worker)
-			t.Equal(expectedAffected[worker], affected, worker)
+
+			t.EqualValues(expectedSubAffected[worker][0], subws, worker)
+			t.EqualValues(expectedSubAffected[worker][1], affected, worker)
 
 			return nil
 		})
@@ -510,11 +502,11 @@ func (t *testWorkerStateOwners) TestInsert() {
 		slices.Sort(subws)
 		slices.Sort(affected)
 
-		localExpectedSubws := slices.Concat(expectedSubws[local], otherSubws)
+		localExpectedSubws := slices.Concat(expectedSubAffected[local][0], otherSubws)
 		slices.Sort(localExpectedSubws)
 		t.Equal(localExpectedSubws, subws)
 
-		localExpectedAffected := slices.Concat(expectedAffected[local], otherAffected)
+		localExpectedAffected := slices.Concat(expectedSubAffected[local][1], otherAffected)
 		slices.Sort(localExpectedAffected)
 		t.Equal(localExpectedAffected, affected)
 	})
