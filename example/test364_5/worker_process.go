@@ -320,7 +320,7 @@ func newFuncWorkerProcessStateValueMerger(
 	var workerStateOwnersSet workerStateOwnersSetFunc
 	var doneStateOwnersSet workerStateOwnersDoneFunc
 
-	switch l, w, t, err := newFuncWorkerStateOwners(ctx, local, maxOpsSize); {
+	switch l, w, t, err := newFuncWorkerStateOwners(ctx, local, uint64(len(workers))); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -345,23 +345,7 @@ func newFuncWorkerProcessStateValueMerger(
 		initialInsert = i
 	}
 
-	return func(
-			getStateOwners getStateOwnersFunc,
-			distribute newWorkerProcessDistributeStateMergeValuesFunc,
-			getOperation getOperationFunc,
-			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
-			saveOperation dutil.In2ErrorFunc[uint64, Operation],
-			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
-		) error {
-			return initialInsert(
-				getStateOwners,
-				distribute,
-				getOperation,
-				insertOp,
-				saveOperation,
-				reportDone,
-			)
-		},
+	return initialInsert,
 		func(worker string) (
 			workerProcessInsertStateMergeValuesFunc,
 			dutil.In2ErrorFunc[[]string, []string],
@@ -543,7 +527,7 @@ func newFuncorkerProcessExtracted(
 
 		size := len(addvs)
 		if subv != nil {
-			size = len(addvs) + 1
+			size++
 		}
 
 		stateKeys := make([]string, size)
@@ -745,6 +729,10 @@ func workersDistributeStateMergeValues(
 	}
 
 	return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			if worker == local {
+				return nil
+			}
+
 			var insert dutil.In3ErrorFunc[uint64, util.Hash, []StateMergeValue]
 
 			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
