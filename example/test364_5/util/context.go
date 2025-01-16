@@ -89,7 +89,7 @@ func CheckContextDone(ctx context.Context) (
 	func() (bool, error),
 ) {
 	errDone := errors.New(util.UUID().String())
-	cctx, cctxCancel := context.WithCancelCause(ctx)
+	cctx, cctxCancel := ContextWithCancelCause(ctx)
 
 	var once sync.Once
 
