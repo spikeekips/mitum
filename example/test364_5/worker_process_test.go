@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -651,7 +652,7 @@ func (t *testWorkerProcess) TestLocal() {
 			) error {
 				reportedStates.Store(reasons)
 
-				t.Equal(uint64(len(ops)), statesSize)
+				t.EqualValues(0, statesSize)
 
 				return nil
 			},
@@ -665,7 +666,7 @@ func (t *testWorkerProcess) TestLocal() {
 			t.Empty(reported)
 		}
 
-		t.Equal(len(ops), savedStates.Len())
+		t.EqualValues(0, savedStates.Len())
 
 		for i, op := range slices.All(ops) {
 			s, found := savedOps.Value(uint64(i))
@@ -1062,6 +1063,154 @@ func (t *testWorkerProcess) TestWorkers() {
 			ops,
 		)
 	})
+}
+
+func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
+	for range 333 {
+		t.Run("subs and adds", func() {
+			pub0 := base.NewDummyPublickey("p0")
+			pub1 := base.NewDummyPublickey("p1")
+			pub2 := base.NewDummyPublickey("p2")
+
+			getStateOwners := func(stateKey string) (owners []string) { // FIXME comment
+				var owner string
+
+				switch stateKey {
+				case AccountStateKey(pub0):
+					owner = "w0"
+				case AccountStateKey(pub1):
+					owner = "w1"
+				case AccountStateKey(pub2):
+					owner = "w2"
+				default:
+					panic(fmt.Sprintf("unknown state, %q", stateKey))
+				}
+
+				return []string{owner}
+			}
+
+			ops := []Operation{
+				t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
+				t.newDummyOp([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
+				t.newDummyOp([]byte("2"), pub0, -1, pub1, 2), // 2
+				t.newDummyOp([]byte("3"), pub0, -1, pub1, 2), // 3: ignored
+				t.newDummyOp([]byte("4"), pub0, 1, pub2, -3), // 4
+				t.newDummyOp([]byte("5"), pub1, 1, pub2, 2),  // 5
+			}
+
+			workers := t.workers(3)
+
+			expectedOwners := map[string]map[string][][]string{
+				"w0": {
+					"w1": {
+						{"w0"},
+						{"w0", "w2"},
+					},
+					"w2": {
+						{"w1"},
+						{"w0"},
+					},
+				},
+				"w1": {
+					"w0": {
+						{"w1", "w2"},
+						{"w1"},
+					},
+					"w2": {
+						{"w1"},
+						{"w0"},
+					},
+				},
+				"w2": {
+					"w0": {
+						{"w1", "w2"},
+						{"w1"},
+					},
+					"w1": {
+						{"w0"},
+						{"w0", "w2"},
+					},
+				},
+			}
+
+			for local := range slices.Values(workers) {
+				ctx, cancel := t.Ctx()
+				defer cancel(nil)
+
+				var localExtractedStateOwners localExtractedStateOwnersFunc
+
+				localExtractedStateOwners, _, _, err := newFuncWorkerStateOwners(ctx, local, uint64(len(ops)))
+				t.NoError(err)
+
+				initial, err := newFuncWorkerProcessInitialInsert(
+					ctx,
+					local,
+					dutil.NewFuncNewJobWorkerFunc(1<<9),
+					workers,
+					uint64(len(ops)),
+					localExtractedStateOwners,
+					func(worker string) (insertStateMergeValuesFunc, dutil.InErrorFunc[error], error) {
+						return func(uint64, []StateMergeValue) error { return nil },
+							dutil.DummyErrorInFunc,
+							nil
+					},
+					func(uint64, util.Hash, []string) bool { return true },
+				)
+				t.NoError(err)
+
+				t.NoError(initial(
+					getStateOwners,
+					func(_ context.Context, worker string) (
+						workerProcessInsertStateMergeValuesFunc,
+						dutil.In2ErrorFunc[[]string, []string],
+						error,
+					) {
+						return func(uint64, util.Hash, []StateMergeValue) error { return nil },
+							func(subws, affected []string) error {
+								t.Println("local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
+
+								a := expectedOwners[local][worker]
+								asubws := a[0]
+								aaffected := a[1]
+
+								if !slices.Equal(asubws, subws) {
+									panic(fmt.Sprintf("local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws))
+								}
+
+								if !slices.Equal(aaffected, affected) {
+									panic(fmt.Sprintf("local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected))
+								}
+
+								return nil
+							},
+							nil
+					},
+					t.getOperationFunc(ops),
+					func(f opindexOpHashesFunc) error {
+						for opindex, op := range slices.All(ops) {
+							if err := f(uint64(opindex), op.Hash(), op.Fact().Hash()); err != nil {
+								return err
+							}
+						}
+
+						return nil
+					},
+					func(uint64, Operation) error { return nil },
+					func(owners []string, reasons map[uint64]string) error {
+						t.Println("local=%q owners=%v reasons=%v", local, owners, reasons)
+
+						slices.Sort(owners)
+
+						if !slices.Equal(workers, owners) {
+							panic(fmt.Sprintf("local=%q expected=%v result=%v", local, workers, owners))
+						}
+
+						return nil
+					},
+				))
+			}
+		})
+	}
 }
 
 func TestWorkerProcess(t *testing.T) {
