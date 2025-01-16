@@ -174,7 +174,7 @@ func newFuncWorker(
 		workerInsert,
 		workerUnmerge,
 		func(
-			broacastUnmerged workerBroadcastUnmerged,
+			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
 			var traverseOps workerProcessTraverseOperationsFunc
@@ -188,7 +188,7 @@ func newFuncWorker(
 
 			switch i, err := processWait(
 				func(ctx context.Context, worker string, unmerged []uint64) error {
-					return broacastUnmerged(ctx, options.Local, workID, worker, unmerged)
+					return broadcastUnmerged(ctx, options.Local, workID, worker, unmerged)
 				},
 				func(
 					ctx context.Context,
