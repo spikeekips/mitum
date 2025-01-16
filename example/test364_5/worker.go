@@ -49,6 +49,7 @@ type (
 		workerBroadcastUnmerged,
 		workerReportResultFunc,
 	) error
+	workerCloseFunc = dutil.InErrorFunc[error]
 )
 
 type workerOptions struct {
@@ -79,6 +80,7 @@ func newFuncWorker(
 	workerProcessWorkerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
+	workerCloseFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
@@ -105,8 +107,10 @@ func newFuncWorker(
 		workers, opsWorkers,
 		opsShare, statesShare,
 	); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
+
+	wctx, closeWorker, _, closeWorkerWait := dutil.NewContextDone(ctx)
 
 	var initialInsert workerProcessInitialInsertFunc
 	var workerInsert workerProcessWorkerInsertStateMergeValuesFunc
@@ -114,7 +118,7 @@ func newFuncWorker(
 	var processWait workerProcessWaitFunc
 
 	switch i, w, u, p, err := newFuncWorkerProcess(
-		ctx,
+		wctx,
 		options.Local,
 		dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize),
 		getState,
@@ -125,7 +129,7 @@ func newFuncWorker(
 		maxOpsSize,
 	); {
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
 		initialInsert, workerInsert, workerUnmerge, processWait = i, w, u, p
 	}
@@ -224,7 +228,14 @@ func newFuncWorker(
 			_ = traverseOps // FIXME save ops
 			_ = savedStates // FIXME save states
 
-			return nil
+			return closeWorkerWait(nil)
+		},
+		func(err error) error {
+			defer func() {
+				log.Debug().Err(err).Msg("worker closed")
+			}()
+
+			return closeWorker(err)
 		},
 		nil
 }

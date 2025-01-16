@@ -140,7 +140,7 @@ func (t *baseTestManager) processOps(
 
 	startOpsFixedNodes()
 
-	initialInsert, _, _, wait, err := newFuncWorker(
+	initialInsert, _, _, wait, closeWorker, err := newFuncWorker(
 		ctx,
 		newWorkerOptions(local),
 		getState,
@@ -153,6 +153,7 @@ func (t *baseTestManager) processOps(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	defer closeWorker(nil)
 
 	err = initialInsert(
 		func(string) []string { return workers },
@@ -199,6 +200,8 @@ func (t *baseTestManager) processOps(
 			statesSize uint64,
 			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 		) error {
+			defer closeWorker(nil)
+
 			for opindex, reason := range maps.All(reasons) {
 				if err := unmergedOp(opindex, reason); err != nil {
 					return err
