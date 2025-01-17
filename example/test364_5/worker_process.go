@@ -210,10 +210,6 @@ func newFuncWorkerProcess(
 							Strs("affected", affected),
 						).Msg("state owners")
 
-					if slices.Index(opsWorkers, local) < 0 {
-						return nil
-					}
-
 					return workersBroadcastUnmerged(ctx, local, affected, unmerged, broadcastUnmerged)
 				},
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {

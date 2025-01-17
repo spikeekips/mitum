@@ -76,11 +76,13 @@ func (t *testManagerWithWorkers) newWorkers(
 	workersInserts map[string]workerProcessWorkerInsertStateMergeValuesFunc,
 	workersUnmerge map[string]workerUnmergedFunc,
 	workersWaits map[string]workerWaitFunc,
+	workersCloses map[string]workerCloseFunc,
 ) {
 	workersInitialInserts = map[string]workerInitialInsertFunc{}
 	workersInserts = map[string]workerProcessWorkerInsertStateMergeValuesFunc{}
 	workersUnmerge = map[string]workerUnmergedFunc{}
 	workersWaits = map[string]workerWaitFunc{}
+	workersCloses = map[string]workerCloseFunc{}
 
 	var opsWorkers []string
 
@@ -91,7 +93,7 @@ func (t *testManagerWithWorkers) newWorkers(
 	}
 
 	for local := range slices.Values(workers) {
-		t, i, u, w := t.newWorker(
+		t, i, u, w, c := t.newWorker(
 			ctx,
 			workID,
 			local,
@@ -105,12 +107,14 @@ func (t *testManagerWithWorkers) newWorkers(
 		workersInserts[local] = i
 		workersUnmerge[local] = u
 		workersWaits[local] = w
+		workersCloses[local] = c
 	}
 
 	return workersInitialInserts,
 		workersInserts,
 		workersUnmerge,
-		workersWaits
+		workersWaits,
+		workersCloses
 }
 
 func (t *testManagerWithWorkers) newWorker(
@@ -125,6 +129,7 @@ func (t *testManagerWithWorkers) newWorker(
 	workerProcessWorkerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
+	workerCloseFunc,
 ) {
 	newState := func(stateKey string, value base.StateValue, ops []util.Hash) (base.State, error) {
 		st := base.NewBaseState(
@@ -139,7 +144,7 @@ func (t *testManagerWithWorkers) newWorker(
 		return st, nil
 	}
 
-	initialInsert, workerInsert, workerUnmerge, workerWait, err := newFuncWorker(
+	initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker, err := newFuncWorker(
 		ctx,
 		t.newWorkerOptions(local),
 		getState,
@@ -151,7 +156,7 @@ func (t *testManagerWithWorkers) newWorker(
 	)
 	t.workerIfErrPanic(local, err)
 
-	return initialInsert, workerInsert, workerUnmerge, workerWait
+	return initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker
 }
 
 func (t *testManagerWithWorkers) newManager(
@@ -161,9 +166,10 @@ func (t *testManagerWithWorkers) newManager(
 	ops []Operation,
 	getState getStateFunc,
 	getStateOwners getStateOwnersFunc,
+	expectedWorkersOwners map[string]map[string][][]string,
+	expectedStatesValues map[string]int64,
 ) (
 	sendOps dutil.ErrorFunc,
-	workersWait dutil.ErrorFunc,
 	wait func() (_, _ *fixedtree.Tree, _ []base.State, _ error),
 ) {
 	switch nworkers := uint64(len(workers)); {
@@ -190,7 +196,7 @@ func (t *testManagerWithWorkers) newManager(
 	)
 	t.NoError(err)
 
-	workersInitialInserts, workersInserts, workersUnmerge, workersWaits := t.newWorkers(
+	workersInitialInserts, workersInserts, workersUnmerge, workersWaits, workersCloses := t.newWorkers(
 		ctx,
 		workID,
 		workers,
@@ -225,10 +231,24 @@ func (t *testManagerWithWorkers) newManager(
 
 					return err
 				},
-				func(subs, affected []string) error {
-					err := o(subs, affected)
+				func(subws, affected []string) error {
+					err := o(subws, affected)
 
-					t.Println("distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subs, affected, err)
+					t.Println("distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subws, affected, err)
+
+					if expectedWorkersOwners != nil {
+						a := expectedWorkersOwners[local][worker]
+						asubws := a[0]
+						aaffected := a[1]
+
+						if !slices.Equal(asubws, subws) {
+							panic(fmt.Sprintf("sub: local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws))
+						}
+
+						if !slices.Equal(aaffected, affected) {
+							panic(fmt.Sprintf("affected: local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected))
+						}
+					}
 
 					return err
 				},
@@ -265,8 +285,6 @@ func (t *testManagerWithWorkers) newManager(
 						return nil
 					},
 					func(err error) error {
-						t.Println("manager initial insert done: worker=%q err=%+v", worker, err)
-
 						if err == nil {
 							err := workersInitialInserts[worker](
 								getStateOwners,
@@ -279,15 +297,17 @@ func (t *testManagerWithWorkers) newManager(
 									_ string,
 									owners []string,
 								) error {
-									t.Println("worker report manager: local=%q owners=%v", worker, owners)
-									return managerWorkerOwners(worker, owners)
+									err := managerWorkerOwners(worker, owners)
+									t.Println("worker report manager: owners: local=%q owners=%v err=%v", worker, owners, err)
+
+									return nil
 								},
 							)
 
-							t.Println("manager workers initial insert: worker=%q err=%+v", worker, err)
+							t.Println("manager workers initial insert done: worker=%q err=%+v", worker, err)
 						}
 
-						return nil // FIXME
+						return nil
 					},
 					nil
 			},
@@ -305,7 +325,7 @@ func (t *testManagerWithWorkers) newManager(
 		addState, doneState = a, d
 	}
 
-	workersWait = func() error {
+	workersWait := func() error {
 		var wg sync.WaitGroup
 
 		for worker, f := range maps.All(workersWaits) {
@@ -320,7 +340,7 @@ func (t *testManagerWithWorkers) newManager(
 
 						t.Println("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
 
-						return nil // FIXME
+						return nil
 					},
 					func(
 						_ context.Context,
@@ -330,9 +350,9 @@ func (t *testManagerWithWorkers) newManager(
 						statesSize uint64,
 						f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 					) error {
-						t.Println("worker report result: local=%q reasons=%v states size=%d", local, reasons, statesSize)
-
 						sendReasons, sendState, done, err := managerWorkerResult(local)
+						t.Println("worker report result: local=%q reasons=%v states size=%d sendReasons=%v", local, reasons, statesSize, sendReasons == nil)
+
 						if err != nil || sendReasons == nil {
 							return err
 						}
@@ -342,11 +362,26 @@ func (t *testManagerWithWorkers) newManager(
 						}
 
 						return done(f(func(st base.State) error {
-							t.Println("worker report result: send state: local=%q key=%q %s", local, st.Key(), util.MustMarshalJSONString(st))
-
 							addState(st)
 
-							return sendState(st.Key(), st.Hash())
+							err := sendState(st.Key(), st.Hash())
+							t.Println("worker report result: send state: local=%q key=%q err=%+v %s", local, st.Key(), err, util.MustMarshalJSONString(st))
+
+							if expectedStatesValues != nil {
+								b := st.Value().(*AccountStateValue).Balance
+
+								e, found := expectedStatesValues[st.Key()]
+								t.Println("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
+								switch {
+								case !found:
+									panic(fmt.Sprintf("unknown state: worker=%q state key=%q", local, st.Key()))
+								case b != e:
+									panic(fmt.Sprintf("wrong balance: worker=%q state key=%q expected=%d result=%d",
+										local, st.Key(), e, b))
+								}
+							}
+
+							return err
 						}))
 					},
 				)
@@ -359,17 +394,30 @@ func (t *testManagerWithWorkers) newManager(
 		return nil
 	}
 
-	wait = func() (opsTree, statesTree *fixedtree.Tree, states []base.State, _ error) {
-		return opsTree, statesTree, states, managerWait(
-			func(_ context.Context, worker string) error {
-				t.T().Logf("manager worker insert done: worker=%q", worker)
+	workersClosed := make(chan error, 1)
+	go func() {
+		workersClosed <- workersWait()
+	}()
 
-				_, o, err := workersInserts[worker](managerName)
+	wait = func() (opsTree, statesTree *fixedtree.Tree, states []base.State, _ error) {
+		err := managerWait(
+			func(_ context.Context, worker string) error {
+				var err1 error
+
+				_, o, err0 := workersInserts[worker](managerName)
+
 				if err != nil {
-					return err
+					err1 = o(nil, nil)
 				}
 
-				return o(nil, nil)
+				t.T().Logf("manager worker insert done: worker=%q err0=%+v err1=%v", worker, err0, err1)
+
+				switch {
+				case err0 != nil:
+					return err0
+				default:
+					return err1
+				}
 			},
 			func(o, s *fixedtree.Tree) (base.Manifest, error) {
 				t.T().Logf("wait done: ops tree=%q states tree=%q", o.Root(), s.Root())
@@ -385,9 +433,18 @@ func (t *testManagerWithWorkers) newManager(
 				return nil, nil
 			},
 		)
+		t.Println("manager wait done")
+
+		for f := range maps.Values(workersCloses) {
+			_ = f(err)
+		}
+
+		<-workersClosed
+
+		return opsTree, statesTree, states, err
 	}
 
-	return sendOps, workersWait, wait
+	return sendOps, wait
 }
 
 func (t *testManagerWithWorkers) processCase(
@@ -395,6 +452,8 @@ func (t *testManagerWithWorkers) processCase(
 	ops []Operation,
 	getStateOwners getStateOwnersFunc,
 	getState getStateFunc,
+	expectedWorkersOwners map[string]map[string][][]string,
+	expectedStatesValues map[string]int64,
 ) (
 	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
 	states []base.State,
@@ -419,23 +478,44 @@ func (t *testManagerWithWorkers) processCase(
 		}
 	}
 
-	sendOps, workersWait, wait := t.newManager(
+	stateOwners := map[string][]string{}
+	for op := range slices.Values(ops) {
+		sub, adds, _, err := op.StateMergeValues(ctx)
+		t.NoError(err)
+
+		if sub != nil {
+			stateKey := sub.Key()
+			if _, found := stateOwners[stateKey]; !found {
+				stateOwners[stateKey] = getStateOwners(stateKey)
+			}
+		}
+
+		for value := range slices.Values(adds) {
+			stateKey := value.Key()
+			if _, found := stateOwners[stateKey]; !found {
+				stateOwners[stateKey] = getStateOwners(stateKey)
+			}
+		}
+	}
+
+	stateKeys := slices.Collect(maps.Keys(stateOwners))
+	slices.Sort(stateKeys)
+	for stateKey := range slices.Values(stateKeys) {
+		t.Println("state owners: state key=%q owners=%v", stateKey, stateOwners[stateKey])
+	}
+
+	sendOps, wait := t.newManager(
 		ctx,
 		workers,
 		opsShare, statesShare,
 		ops,
 		getState,
-		func(stateKey string) []string {
-			owners := getStateOwners(stateKey)
-
-			t.Println("state owners: state key=%q owners=%v", stateKey, owners)
-
-			return owners
-		},
+		getStateOwners,
+		expectedWorkersOwners,
+		expectedStatesValues,
 	)
 
 	t.NoError(sendOps())
-	t.NoError(workersWait())
 
 	return wait()
 }
@@ -447,6 +527,8 @@ func (t *testManagerWithWorkers) runCase(
 	ops []Operation,
 	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
 	expectedStates []base.State,
+	expectedWorkersOwners map[string]map[string][][]string,
+	expectedStatesValues map[string]int64,
 ) {
 	t.T().Helper()
 
@@ -459,7 +541,8 @@ func (t *testManagerWithWorkers) runCase(
 	t.Run(
 		fmt.Sprintf("%d worker, ops share=%d states share=%d", workersSize, opsShare, statesShare),
 		func() {
-			opsTree, statesTree, states, err := t.processCase(workersSize, opsShare, statesShare, ops, getStateOwners, getState)
+			opsTree, statesTree, states, err := t.processCase(workersSize, opsShare, statesShare, ops, getStateOwners, getState,
+				expectedWorkersOwners, expectedStatesValues)
 			t.NoError(err)
 
 			t.T().Logf("ops tree root=%q states tree root=%q", opsTree.Root(), statesTree.Root())
@@ -508,7 +591,7 @@ func (t *testManagerWithWorkers) TestOneCase() {
 	t.NoError(err)
 
 	for range 333 {
-		t.runCase(12, 12, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
+		t.runCase(12, 12, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
 	}
 }
 
@@ -525,30 +608,30 @@ func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
 	t.T().Logf("expected: ops tree=%q states tree=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
 
 	t.Run("one worker", func() {
-		t.runCase(1, 1, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, nil)
+		t.runCase(1, 1, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, nil, nil, nil)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
+		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
 	})
 
 	t.Run("2 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 2, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
+		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
 	})
 
 	t.Run("permutation", func() {
-		var maxWorkersSize uint64 = uint64(len(ops))
+		var maxWorkersSize uint64 = uint64(len(ops)) // FIXME  * 2
 
 		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
 			for opsShare := uint64(1); opsShare <= workersSize; opsShare++ {
 				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
-					t.runCase(workersSize, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates)
+					t.runCase(workersSize, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
 				}
 			}
 		}
@@ -631,45 +714,93 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		t.Equal(expectedStatesValues[st.Key()], ac.Balance)
 	}
 
+	var sampleCalled bool
+
+	t.Run("sample", func() {
+		t.T().Skip() // FIXME uncomment for sample
+
+		//      related   | ops | subs  | affected
+		// w0 | 0 2 3 4   | 0 3 | w1 w2 | w1
+		// w1 | 0 1 2 3 5 | 1 4 | w0    | w0 w2
+		// w2 | 1 4 5     | 2 5 | w1    | w0
+
+		// getStateOwners := func(stateKey string) (owners []string) { // FIXME comment
+		//	var owner string
+
+		//	if _, found := prevStates[stateKey]; found {
+		//		switch stateKey {
+		//		case st0.Key():
+		//			owner = "w0"
+		//		case st1.Key():
+		//			owner = "w1"
+		//		case st2.Key():
+		//			owner = "w2"
+		//		}
+		//	}
+
+		//	if owner == "" {
+		//		panic(fmt.Sprintf("unknown state, %q", stateKey))
+		//	}
+
+		//	return []string{owner}
+		//}
+
+		//expectedWorkersOwners := map[string]map[string][][]string{
+		//	"w0": {"w1": {{"w0"}, {"w0", "w2"}}, "w2": {{"w1"}, {"w0"}}},
+		//	"w1": {"w0": {{"w1", "w2"}, {"w1"}}, "w2": {{"w1"}, {"w0"}}},
+		//	"w2": {"w0": {{"w1", "w2"}, {"w1"}}, "w1": {{"w0"}, {"w0", "w2"}}},
+		//}
+
+		for range 333 {
+			t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(7, 1, 5, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(9, 1, 3, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		}
+
+		sampleCalled = true
+	})
+
+	if sampleCalled {
+		return
+	}
+
 	t.Run("one worker", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(1, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates)
+		t.runCase(1, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
-		/*
-			     related   | ops | subs  | affected
-			w0 | 0 2 3 4   | 0 3 | w1 w2 | w1
-			w1 | 0 1 2 3 5 | 1 4 | w0    | w0 w2
-			w2 | 1 4 5     | 2 5 | w1    | w0
-		*/
-
 		var opsShare, statesShare uint64 = 1, 1
 
-		getStateOwners := func(stateKey string) (owners []string) { // FIXME remove
-			var owner string
+		t.runCase(3, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+	})
 
-			if _, found := prevStates[stateKey]; found {
-				switch stateKey {
-				case st0.Key():
-					owner = "w0"
-				case st1.Key():
-					owner = "w1"
-				case st2.Key():
-					owner = "w2"
+	t.Run("2 ops share, 1 states share", func() {
+		var opsShare, statesShare uint64 = 2, 1
+
+		t.runCase(3, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+	})
+
+	t.Run("permutation", func() {
+		var opsSize uint64 = uint64(len(ops))
+		var maxWorkersSize uint64 = uint64(len(ops)) // FIXME  * 2
+
+		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
+			o := opsSize
+			if o > workersSize {
+				o = workersSize
+			}
+
+			for opsShare := uint64(1); opsShare <= o; opsShare++ {
+				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
+					t.runCase(workersSize, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 				}
 			}
-
-			if owner == "" {
-				panic(fmt.Sprintf("unknown state, %q", stateKey))
-			}
-
-			return []string{owner}
 		}
-
-		t.runCase(3, opsShare, statesShare, getStateOwners, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates)
-		// FIXME remove t.runCase(6, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates)
 	})
 }
 

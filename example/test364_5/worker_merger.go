@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -26,7 +27,7 @@ func newFuncWorkerMerger(
 	newJobWorker dutil.NewJobWorkerFunc,
 	getState getStateFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	maxWorkersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
+	workersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	workerMergerInsertStateMergeValuesFunc,
@@ -41,10 +42,8 @@ func newFuncWorkerMerger(
 	var minEnoughOps, maxFailedOps uint64
 
 	switch opsWorkersSize := uint64(len(opsWorkers)); {
-	case maxWorkersSize < opsWorkersSize:
-		maxWorkersSize = opsWorkersSize
-
-		fallthrough
+	case workersSize < opsWorkersSize:
+		return nil, nil, nil, errors.Errorf("invalid workers size; < ops workers")
 	default:
 		switch e, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
 		case err != nil:
@@ -157,6 +156,8 @@ func newFuncWorkerMerger(
 
 	wait := newFuncWorkerMergerWait(
 		wctx,
+		local,
+		workersSize,
 		statesShare,
 		workerPhaseMergerWait,
 		workerUnmergerLocalReady,
@@ -247,7 +248,8 @@ func newFuncWorkerMergerInsert(
 
 func newFuncWorkerMergerWait(
 	ctx context.Context,
-	statesShare uint64,
+	local string,
+	workersSize, statesShare uint64,
 	workerPhaseMergerWait workerPhaseMergerWaitFunc,
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait workerUnmergerWaitFunc,
@@ -284,13 +286,16 @@ func newFuncWorkerMergerWait(
 
 		var minEnough, maxFailed uint64
 
-		if s := len(subws); s > 0 {
-			switch e, f, err := minEnoughMaxFailed(uint64(s), statesShare); {
-			case err != nil:
-				return nil, err
-			default:
-				minEnough, maxFailed = e, f
-			}
+		switch e, f, err := minEnoughMaxFailed(workersSize, statesShare); {
+		case err != nil:
+			return nil, err
+		default:
+			minEnough, maxFailed = e, f
+		}
+
+		if ns := uint64(len(subws)); ns != workersSize {
+			minEnough = ns
+			maxFailed = 1
 		}
 
 		if err := workerUnmergerLocalReady(subws, localUnmerged, minEnough, maxFailed); err != nil {

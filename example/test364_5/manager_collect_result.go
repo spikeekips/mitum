@@ -30,7 +30,7 @@ type (
 
 func newFuncManagerCollectResult(
 	ctx context.Context,
-	maxStatesSize uint64,
+	workersSize, approxStatesSize uint64,
 	ophs [][2]util.Hash,
 ) (
 	managerInsertWorkerResultFunc,
@@ -45,14 +45,15 @@ func newFuncManagerCollectResult(
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-result", nil)
 
 	log.Debug().
-		Uint64("max_states_size", maxStatesSize).
+		Uint64("workers_size", workersSize).
+		Uint64("approx_states_size", approxStatesSize).
 		Msg("new")
 
 	var opsNewJob dutil.JobWorkerNewJobFunc
 	var opsJobDone func()
 	var opsJobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, approxStatesSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -82,7 +83,8 @@ func newFuncManagerCollectResult(
 
 	switch r, o, w, t, err := newFuncManagerWorkersResult(
 		ctx,
-		maxStatesSize,
+		workersSize,
+		approxStatesSize,
 		opsNewJob,
 		func(reasons map[uint64]string) error {
 			for opindex, reason := range maps.All(reasons) {
@@ -236,7 +238,8 @@ func newFuncGenerateOperationFixedtree(
 
 func newFuncManagerWorkersResult(
 	ctx context.Context,
-	maxStatesSize uint64,
+	workersSize,
+	approxStatesSize uint64,
 	opsNewjob dutil.JobWorkerNewJobFunc,
 	workerReasons dutil.InErrorFunc[map[uint64]string],
 ) (
@@ -252,7 +255,7 @@ func newFuncManagerWorkersResult(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxStatesSize); {
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, approxStatesSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -264,7 +267,7 @@ func newFuncManagerWorkersResult(
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
 	var doneState dutil.OutFunc[[]fixedtree.Node]
 
-	switch a, d, err := dutil.NewLockUniqueAppendSlice[fixedtree.Node, string](maxStatesSize, 0,
+	switch a, d, err := dutil.NewLockUniqueAppendSlice[fixedtree.Node, string](approxStatesSize, 0,
 		func(n fixedtree.Node) string { return n.Key() }); {
 	case err != nil:
 		return nil, nil, nil, nil, err
@@ -392,7 +395,7 @@ func newFuncManagerWorkersResult(
 						return nil
 					}
 
-					switch minEnough, maxFailed, err := minEnoughMaxFailed(uint64(len(stateOwners)), statesShare); {
+					switch minEnough, maxFailed, err := minEnoughMaxFailed(workersSize, statesShare); {
 					case err != nil:
 						return err
 					default:
@@ -406,13 +409,7 @@ func newFuncManagerWorkersResult(
 						case err != nil:
 							return err
 						default:
-							checkWorker = func(worker string, f func() error) (bool, bool, bool, error) {
-								if slices.Index(stateOwners, worker) < 0 {
-									return false, false, false, util.ErrNotFound.Errorf("unknown worker, %q", worker)
-								}
-
-								return w(worker, f)
-							}
+							checkWorker = w
 							checkWorkerClose = c
 
 							return nil

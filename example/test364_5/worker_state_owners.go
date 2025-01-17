@@ -31,7 +31,7 @@ type (
 func newFuncWorkerStateOwners(
 	ctx context.Context,
 	local string,
-	maxWorkersSize uint64,
+	workersSize uint64,
 ) (
 	localExtractedStateOwnersFunc,
 	workerStateOwnersSetFunc,
@@ -43,14 +43,14 @@ func newFuncWorkerStateOwners(
 	var addSubStateOwners, addAffectedStateOwners addOwnersFunc
 	var doneSubStateOwners, doneAffectedStateOwners dutil.OutFunc[[]string]
 
-	switch a, d, err := newFuncAddStateOwners(maxWorkersSize); {
+	switch a, d, err := newFuncAddStateOwners(workersSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		addSubStateOwners, doneSubStateOwners = a, d
 	}
 
-	switch a, d, err := newFuncAddStateOwners(maxWorkersSize); {
+	switch a, d, err := newFuncAddStateOwners(workersSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -67,7 +67,7 @@ func newFuncWorkerStateOwners(
 			var traverseOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
 			var localOwners dutil.OutFunc[[]string]
 
-			switch i, t, l, err := newFuncLocalExtractedStateOwners(maxWorkersSize, getStateOwners); {
+			switch i, t, l, err := newFuncLocalExtractedStateOwners(workersSize, getStateOwners); {
 			case err != nil:
 				return nil, nil, nil, err
 			default:
@@ -119,7 +119,7 @@ func newFuncWorkerStateOwners(
 }
 
 func newFuncLocalExtractedStateOwners(
-	maxWorkersSize uint64,
+	workersSize uint64,
 	getStateOwners getStateOwnersFunc,
 ) (
 	extractStateOwnersStateMergeValuesFunc,
@@ -130,7 +130,7 @@ func newFuncLocalExtractedStateOwners(
 	var addOwnersSet insertStateOwnerSetFunc
 	var traverseWorkerOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
 
-	switch a, w, err := newFuncWorkerCollectStateOwnersSet(maxWorkersSize); {
+	switch a, w, err := newFuncWorkerCollectStateOwnersSet(workersSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -140,7 +140,7 @@ func newFuncLocalExtractedStateOwners(
 	var addOwners dutil.AppendSliceAddFunc[string]
 	var doneOwners dutil.OutFunc[[]string]
 
-	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](maxWorkersSize, 0); {
+	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](workersSize, 0); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -181,7 +181,7 @@ func newFuncLocalExtractedStateOwners(
 		nil
 }
 
-func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
+func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 	insertStateOwnerSetFunc,
 	dutil.InErrorFunc[workerStateOwnersSetFunc],
 	error,
@@ -189,7 +189,7 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	var addOwners dutil.AppendSliceAddFunc[string]
 	var doneOwners dutil.OutFunc[[]string]
 
-	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](maxWorkersSize, 0); {
+	switch a, d, err := dutil.NewLockComparableUniqueAppendSlice[string](workersSize, 0); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -199,14 +199,14 @@ func newFuncWorkerCollectStateOwnersSet(maxWorkersSize uint64) (
 	var msubws util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
 	var maffected util.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
+	switch i, err := util.NewLockedMap[string, map[string]struct{}](workersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		msubws = i
 	}
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](maxWorkersSize, nil); {
+	switch i, err := util.NewLockedMap[string, map[string]struct{}](workersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

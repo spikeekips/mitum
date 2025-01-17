@@ -42,20 +42,20 @@ func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ e
 var errWorkersFailed = util.NewIDError("workers failed")
 
 func newFuncCheckFailedWorkers(
-	maxWorkersSize,
+	workersSize,
 	maxFailed uint64,
 ) (
 	checkFailedWorkerFunc,
 	func(),
 	error,
 ) {
-	if maxWorkersSize < 1 {
+	if workersSize < 1 {
 		return nil, nil, errors.Errorf("zero max workers size")
 	}
 
 	var m util.LockedMap[string, struct{}]
 
-	switch i, err := util.NewLockedMap[string, struct{}](maxWorkersSize, nil); {
+	switch i, err := util.NewLockedMap[string, struct{}](workersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

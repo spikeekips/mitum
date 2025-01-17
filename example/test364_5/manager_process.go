@@ -66,7 +66,7 @@ func newFuncManagerProcess(
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var resultWait managerCollectRersultWaitFunc
 
-	switch wr, r, w, err := newFuncManagerCollectResult(ctx, uint64(len(ophs))*2, ophs); { // NOTE approximate states size
+	switch wr, r, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), uint64(len(ophs))*2, ophs); { // NOTE approximate states size
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
