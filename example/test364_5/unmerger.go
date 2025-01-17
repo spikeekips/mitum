@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	opindexFilterFunc = func(opindex uint64) (bool, error)
+	opindexFilterFunc = func(opindex uint64, _ dutil.InErrorFunc[uint64 /* opindex */]) (bool, error)
 	unmergedErrorFunc = func() ([]uint64, error)
 )
 
@@ -93,7 +93,7 @@ func newFuncUnmerger(
 }
 
 func newFuncOpindexFilter(
-	mapSize uint64,
+	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	localUnmerged []uint64,
 ) (
@@ -103,7 +103,7 @@ func newFuncOpindexFilter(
 ) {
 	var m util.LockedMap[uint64, struct{}]
 
-	switch i, err := util.NewLockedMap[uint64, struct{}](mapSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, struct{}](maxOpsSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -114,22 +114,30 @@ func newFuncOpindexFilter(
 		}
 	}
 
-	return func(opindex uint64) (bool, error) {
-			_, created, _ := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+	return func(opindex uint64, f dutil.InErrorFunc[uint64]) (bool, error) {
+			switch _, created, err := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+				switch i, err := getStateMergeValues(opindex); {
+				case err != nil:
+					return v, err
+				case len(i) < 1:
+					return v, util.ErrLockedSetIgnore
+				}
+
 				if found {
 					return v, util.ErrLockedSetIgnore
 				}
 
-				return v, nil
-			})
-
-			if created {
-				if i, err := getStateMergeValues(opindex); err != nil || len(i) < 1 {
-					return false, err
+				if f != nil {
+					return v, f(opindex)
 				}
-			}
 
-			return created, nil
+				return v, nil
+			}); {
+			case err != nil:
+				return false, err
+			default:
+				return created, nil
+			}
 		},
 		m.Close,
 		nil

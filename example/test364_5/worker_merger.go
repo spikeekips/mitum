@@ -293,8 +293,8 @@ func newFuncWorkerMergerWait(
 			minEnough, maxFailed = e, f
 		}
 
-		if ns := uint64(len(subws)); ns != workersSize {
-			minEnough = ns
+		if n := uint64(len(subws)); n != workersSize {
+			minEnough = n
 			maxFailed = 1
 		}
 

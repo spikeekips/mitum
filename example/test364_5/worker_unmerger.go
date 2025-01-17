@@ -200,26 +200,32 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	workerOpindexFilterLocalReady, workerOpindexFilter,
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getStateMergeValues)
 
-	unmergeOps := func(worker string, unmerged []uint64, unmergeOp dutil.InErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
-		return checkWorker(worker, func() error {
-		end:
-			for opindex := range slices.Values(unmerged) {
-				if filter != nil {
-					switch ok, err := filter(opindex); {
-					case err != nil:
-						return err
-					case !ok:
-						continue end
-					}
-				}
+	var l sync.Mutex
 
-				if err := unmergeOp(opindex); err != nil {
+	unmergeOps := func(worker string, unmerged []uint64, unmergeOp dutil.InErrorFunc[uint64], filter opindexFilterFunc) (_, _, _ bool, _ error) {
+		l.Lock()
+		defer l.Unlock()
+
+		if filter == nil {
+			filter = func(opindex uint64, f dutil.InErrorFunc[uint64]) (bool, error) {
+				return true, f(opindex)
+			}
+		}
+
+		ok, enough, failed, err := checkWorker(worker, func() error {
+			for opindex := range slices.Values(unmerged) {
+				if _, err := filter(opindex, unmergeOp); err != nil {
 					return err
 				}
 			}
 
 			return nil
 		})
+		if !failed && err != nil {
+			err = nil // NOTE ignore not failed error
+		}
+
+		return ok, enough, failed, err
 	}
 
 	return func(subws []string, localUnmerged []uint64, minEnough, maxFailed uint64) (_, _, _ bool, _ error) {
@@ -299,11 +305,11 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 				var filter opindexFilterFunc
 
-				switch f, err := workerOpindexFilter(worker); {
+				switch i, err := workerOpindexFilter(worker); {
 				case err != nil || f == nil:
 					return err
 				default:
-					filter = f
+					filter = i
 				}
 
 				var err error
@@ -361,7 +367,7 @@ func newFuncWorkerUnmergerUnmergedPool() (
 					case err != nil, f == nil:
 						continue end
 					default:
-						switch ok, err := f(opindex); {
+						switch ok, err := f(opindex, nil); {
 						case err != nil:
 							return false, err
 						case ok:
@@ -450,75 +456,75 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 }
 
 func newFuncWorkerOpindexFilter(
-	mapSize uint64,
+	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 ) (
 	localReady func(subStateOwners []string, localUnmerged []uint64) error,
 	_ workerOpindexFilterFunc,
 	_ func(),
 ) {
-	var once sync.Once
-	var gerr error
-
-	filter := func(string) (opindexFilterFunc, error) { return nil, nil }
+	filterWorker := func(string) (opindexFilterFunc, error) { return nil, nil }
 	closef := func() {}
 
 	var l sync.RWMutex
 
-	newf := func(subs []string, localUnmerged []uint64) error {
-		once.Do(func() {
-			if len(subs) < 1 {
-				filter = func(string) (opindexFilterFunc, error) { return nil, nil }
+	newf := func(subws []string, localUnmerged []uint64) error {
+		if len(subws) < 1 {
+			filterWorker = func(string) (opindexFilterFunc, error) { return nil, nil }
 
-				return
+			return nil
+		}
+
+		var ml sync.RWMutex
+
+		var filterOpindex opindexFilterFunc
+		var filterOpindexClose func()
+
+		switch f, c, err := newFuncOpindexFilter(maxOpsSize, getStateMergeValues, localUnmerged); {
+		case err != nil:
+			return err
+		default:
+			filterOpindex, filterOpindexClose = f, c
+		}
+
+		msubws := map[string]struct{}{}
+		for owner := range slices.Values(subws) {
+			msubws[owner] = struct{}{}
+		}
+
+		filterWorker = func(worker string) (opindexFilterFunc, error) {
+			ml.RLock()
+			defer ml.RUnlock()
+
+			if _, found := msubws[worker]; !found {
+				return nil, util.ErrInvalid.Errorf("unknown sub state owner, %q", worker)
 			}
 
-			var ml sync.Mutex
+			return filterOpindex, nil
+		}
 
-			switch f, c, err := newFuncOpindexFilter(mapSize, getStateMergeValues, localUnmerged); {
-			case err != nil:
-				gerr = err
-			default:
-				m := map[string]struct{}{}
+		closef = func() {
+			ml.Lock()
+			defer ml.Unlock()
 
-				for owner := range slices.Values(subs) {
-					m[owner] = struct{}{}
-				}
+			dutil.ClearMap(msubws)
+			filterOpindexClose()
+		}
 
-				filter = func(worker string) (opindexFilterFunc, error) {
-					ml.Lock()
-					defer ml.Unlock()
-
-					if _, found := m[worker]; !found {
-						return nil, util.ErrInvalid.Errorf("unknown sub state owner, %q", worker)
-					}
-
-					m[worker] = struct{}{}
-
-					return f, nil
-				}
-
-				closef = func() {
-					ml.Lock()
-					defer ml.Unlock()
-
-					dutil.ClearMap(m)
-					c()
-				}
-			}
-		})
-
-		return gerr
+		return nil
 	}
 
-	return func(subs []string, localUnmerged []uint64) error {
-			return newf(subs, localUnmerged)
+	return func(subws []string, localUnmerged []uint64) error {
+			l.Lock()
+			defer l.Unlock()
+
+			return newf(subws, localUnmerged)
 		},
 		func(worker string) (opindexFilterFunc, error) {
 			l.RLock()
 			defer l.RUnlock()
 
-			return filter(worker)
+			return filterWorker(worker)
 		},
 		func() {
 			l.RLock()

@@ -103,7 +103,7 @@ func (t *baseTestManager) processOps(
 	ctx context.Context,
 	ops []Operation,
 	getState getStateFunc,
-) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ error) {
+) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ map[string]int64, _ error) {
 	local := "local"
 	height := base.Height(33)
 	workers := []string{local}
@@ -135,7 +135,7 @@ func (t *baseTestManager) processOps(
 		return f(ctx)
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	startOpsFixedNodes()
@@ -151,7 +151,7 @@ func (t *baseTestManager) processOps(
 		uint64(len(ops)),
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	defer closeWorker(nil)
 
@@ -175,7 +175,7 @@ func (t *baseTestManager) processOps(
 		nil,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	var addState dutil.AppendSliceAddFunc[base.State]
@@ -184,7 +184,7 @@ func (t *baseTestManager) processOps(
 	switch a, d, err := dutil.NewLockUniqueAppendSlice[base.State, string](1<<9, 1<<9,
 		func(n base.State) string { return n.Key() }); {
 	case err != nil:
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	default:
 		addState, doneState = a, d
 	}
@@ -240,12 +240,18 @@ func (t *baseTestManager) processOps(
 	}
 
 	if err := g(ctx, statesNodes, nil); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	statesTree = newStatesTree(statesNodes)
 
-	return opsTree, statesTree, states, nil
+	values := map[string]int64{}
+
+	for st := range slices.Values(states) {
+		values[st.Key()] = st.Value().(*AccountStateValue).Balance
+	}
+
+	return opsTree, statesTree, states, values, nil
 }
 
 type testManager struct {

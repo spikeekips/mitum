@@ -583,7 +583,7 @@ func (t *testManagerWithWorkers) TestOneCase() {
 
 	ops, _ := t.randomOps(19)
 
-	expectedOpsTree, expectedStatesTree, expectedStates, err := t.processOps(
+	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(
 		context.Background(),
 		ops,
 		func(string) (base.State, bool, error) { return nil, false, nil },
@@ -591,14 +591,15 @@ func (t *testManagerWithWorkers) TestOneCase() {
 	t.NoError(err)
 
 	for range 333 {
-		t.runCase(12, 12, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+		t.runCase(12, 12, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	}
 }
 
 func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
-	ops, _ := t.randomOps(19)
+	var opsSize uint64 = 9
+	ops, _ := t.randomOps(int(opsSize))
 
-	expectedOpsTree, expectedStatesTree, expectedStates, err := t.processOps(
+	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(
 		context.Background(),
 		ops,
 		func(string) (base.State, bool, error) { return nil, false, nil },
@@ -608,30 +609,35 @@ func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
 	t.T().Logf("expected: ops tree=%q states tree=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
 
 	t.Run("one worker", func() {
-		t.runCase(1, 1, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, nil, nil, nil)
+		t.runCase(1, 1, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, nil, nil, expectedStatesValues)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("2 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 2, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("permutation", func() {
-		var maxWorkersSize uint64 = uint64(len(ops)) // FIXME  * 2
+		var maxWorkersSize uint64 = opsSize * 2
 
 		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
-			for opsShare := uint64(1); opsShare <= workersSize; opsShare++ {
+			o := opsSize
+			if o > workersSize {
+				o = workersSize
+			}
+
+			for opsShare := uint64(1); opsShare <= o; opsShare++ {
 				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
-					t.runCase(workersSize, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, nil)
+					t.runCase(workersSize, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 				}
 			}
 		}
@@ -687,7 +693,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		return nil, false, nil
 	}
 
-	expectedOpsTree, expectedStatesTree, expectedStates, err := t.processOps(context.Background(), ops, getState)
+	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(context.Background(), ops, getState)
 	t.NoError(err)
 
 	t.T().Logf("expected: ops tree root=%q states tree root=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
@@ -717,14 +723,14 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 	var sampleCalled bool
 
 	t.Run("sample", func() {
-		t.T().Skip() // FIXME uncomment for sample
+		t.T().Skip() // NOTE uncomment for sample
 
 		//      related   | ops | subs  | affected
 		// w0 | 0 2 3 4   | 0 3 | w1 w2 | w1
 		// w1 | 0 1 2 3 5 | 1 4 | w0    | w0 w2
 		// w2 | 1 4 5     | 2 5 | w1    | w0
 
-		// getStateOwners := func(stateKey string) (owners []string) { // FIXME comment
+		// getStateOwners := func(stateKey string) (owners []string) { // NOTE comment
 		//	var owner string
 
 		//	if _, found := prevStates[stateKey]; found {
@@ -752,10 +758,11 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		//}
 
 		for range 333 {
-			t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(7, 1, 5, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(9, 1, 3, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(7, 1, 5, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(9, 1, 3, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(11, 6, 9, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 		}
 
 		sampleCalled = true
@@ -787,7 +794,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 
 	t.Run("permutation", func() {
 		var opsSize uint64 = uint64(len(ops))
-		var maxWorkersSize uint64 = uint64(len(ops)) // FIXME  * 2
+		var maxWorkersSize uint64 = opsSize * 2
 
 		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
 			o := opsSize

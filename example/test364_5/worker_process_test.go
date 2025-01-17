@@ -1072,22 +1072,28 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 			pub1 := base.NewDummyPublickey("p1")
 			pub2 := base.NewDummyPublickey("p2")
 
-			getStateOwners := func(stateKey string) (owners []string) { // FIXME comment
-				var owner string
+			// getStateOwners := func(stateKey string) (owners []string) { // NOTE comment
+			//	var owner string
 
-				switch stateKey {
-				case AccountStateKey(pub0):
-					owner = "w0"
-				case AccountStateKey(pub1):
-					owner = "w1"
-				case AccountStateKey(pub2):
-					owner = "w2"
-				default:
-					panic(fmt.Sprintf("unknown state, %q", stateKey))
-				}
+			//	switch stateKey {
+			//	case AccountStateKey(pub0):
+			//		owner = "w0"
+			//	case AccountStateKey(pub1):
+			//		owner = "w1"
+			//	case AccountStateKey(pub2):
+			//		owner = "w2"
+			//	default:
+			//		panic(fmt.Sprintf("unknown state, %q", stateKey))
+			//	}
 
-				return []string{owner}
-			}
+			//	return []string{owner}
+			//}
+
+			workers := t.workers(3)
+
+			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
+			t.NoError(err)
+			defer stateOwnersClose()
 
 			ops := []Operation{
 				t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
@@ -1097,8 +1103,6 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 				t.newDummyOp([]byte("4"), pub0, 1, pub2, -3), // 4
 				t.newDummyOp([]byte("5"), pub1, 1, pub2, 2),  // 5
 			}
-
-			workers := t.workers(3)
 
 			expectedOwners := map[string]map[string][][]string{
 				"w0": {
