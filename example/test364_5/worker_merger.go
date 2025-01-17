@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -41,35 +40,32 @@ func newFuncWorkerMerger(
 	var mOpsWorkers util.LockedMap[string, struct{}]
 	var minEnoughOps, maxFailedOps uint64
 
-	switch opsWorkersSize := uint64(len(opsWorkers)); {
-	case workersSize < opsWorkersSize:
-		return nil, nil, nil, errors.Errorf("invalid workers size; < ops workers")
+	opsWorkersSize := uint64(len(opsWorkers))
+
+	switch e, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
+	case err != nil:
+		return nil, nil, nil, err
 	default:
-		switch e, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			minEnoughOps, maxFailedOps = e, f
+		minEnoughOps, maxFailedOps = e, f
+	}
+
+	switch i, err := util.NewLockedMap[string, struct{}](opsWorkersSize, nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		mOpsWorkers = i
+
+		for worker := range slices.Values(opsWorkers) {
+			mOpsWorkers.SetValue(worker, struct{}{})
 		}
+	}
 
-		switch i, err := util.NewLockedMap[string, struct{}](opsWorkersSize, nil); {
-		case err != nil:
-			return nil, nil, nil, err
-		default:
-			mOpsWorkers = i
+	if !mOpsWorkers.Exists(local) {
+		localInOpsWorkers = false
 
-			for worker := range slices.Values(opsWorkers) {
-				mOpsWorkers.SetValue(worker, struct{}{})
-			}
-		}
-
-		if !mOpsWorkers.Exists(local) {
-			localInOpsWorkers = false
-
-			// NOTE if local is not in ops workers, to finish phase merger,
-			// increase min enough
-			minEnoughOps++
-		}
+		// NOTE if local is not in ops workers, to finish phase merger,
+		// increase min enough
+		minEnoughOps++
 	}
 
 	log.Debug().

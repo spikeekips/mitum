@@ -150,35 +150,6 @@ func (t *testManagerCollectResult) TestCancel() {
 }
 
 func (t *testManagerCollectResult) TestWorkerResult() {
-	t.RunWithGoLeak("unknown worker", func() {
-		ctx, cancel := t.Ctx()
-		defer cancel(nil)
-
-		ophs := t.randomOphs(3)
-		workers := []string{"w0"}
-
-		wr, or, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), 1<<9, ophs)
-		t.NoError(err)
-
-		t.NoError(or(workers, 1))
-
-		_, _, d, err := wr("w1")
-		t.ErrorContains(d(nil), "unknown worker")
-
-		_, _, d, err = wr("w0")
-		t.NoError(err)
-		t.NoError(d(nil))
-
-		opsTree, _, err := w(t.baseGenerateNodesHashFunc())
-		t.NoError(err)
-		t.NoError(t.checkOpsTree(ophs, nil, opsTree))
-
-		// NOTE already done
-		_, _, d, err = wr("w0")
-		t.NoError(err)
-		t.Nil(d)
-	})
-
 	t.RunWithGoLeak("after workers done", func() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)

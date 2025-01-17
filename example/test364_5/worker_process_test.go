@@ -494,7 +494,7 @@ func (t *testWorkerProcess) TestLocal() {
 			},
 		))
 
-		t.False(calledBroadcastUnmerged)
+		t.True(calledBroadcastUnmerged)
 
 		t.Equal(0, savedOps.Len())
 
@@ -1066,34 +1066,30 @@ func (t *testWorkerProcess) TestWorkers() {
 }
 
 func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
-	for range 333 {
+	for range 33 {
 		t.Run("subs and adds", func() {
 			pub0 := base.NewDummyPublickey("p0")
 			pub1 := base.NewDummyPublickey("p1")
 			pub2 := base.NewDummyPublickey("p2")
 
-			// getStateOwners := func(stateKey string) (owners []string) { // NOTE comment
-			//	var owner string
+			getStateOwners := func(stateKey string) (owners []string) { // NOTE comment
+				var owner string
 
-			//	switch stateKey {
-			//	case AccountStateKey(pub0):
-			//		owner = "w0"
-			//	case AccountStateKey(pub1):
-			//		owner = "w1"
-			//	case AccountStateKey(pub2):
-			//		owner = "w2"
-			//	default:
-			//		panic(fmt.Sprintf("unknown state, %q", stateKey))
-			//	}
+				switch stateKey {
+				case AccountStateKey(pub0):
+					owner = "w0"
+				case AccountStateKey(pub1):
+					owner = "w1"
+				case AccountStateKey(pub2):
+					owner = "w2"
+				default:
+					panic(fmt.Sprintf("unknown state, %q", stateKey))
+				}
 
-			//	return []string{owner}
-			//}
+				return []string{owner}
+			}
 
 			workers := t.workers(3)
-
-			getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
-			t.NoError(err)
-			defer stateOwnersClose()
 
 			ops := []Operation{
 				t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0

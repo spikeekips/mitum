@@ -256,6 +256,8 @@ func isValidWorkerArgs(
 		return util.ErrInvalid.Errorf("empty workers")
 	case len(opsWorkers) < 1:
 		return util.ErrInvalid.Errorf("empty ops workers")
+	case len(workers) < len(opsWorkers):
+		return util.ErrInvalid.Errorf("invalid workers size; < ops workers")
 	}
 
 	for worker := range slices.Values(opsWorkers) {
