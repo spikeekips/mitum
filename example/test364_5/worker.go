@@ -178,7 +178,7 @@ func newFuncWorker(
 			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
-			var traverseOps workerProcessTraverseOperationsFunc
+			var traverseOps iter.Seq2[uint64, Operation]
 			var savedStates util.LockedMap[string, base.State]
 
 			defer func() {

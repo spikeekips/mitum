@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"sync"
@@ -56,14 +57,10 @@ type (
 		statesSize uint64,
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error
-	workerProcessTraverseOperationsFunc dutil.InErrorFunc[func(uint64, Operation) (bool, error)]
-	workerProcessWaitFunc               = func(
+	workerProcessWaitFunc = func(
 		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		workerProcessReportResult,
-	) (
-		workerProcessTraverseOperationsFunc,
-		error,
-	)
+	) (iter.Seq2[uint64, Operation], error)
 )
 
 func newFuncWorkerProcess(
@@ -101,7 +98,7 @@ func newFuncWorkerProcess(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
 	var getStateValueMergers mergerGetStateValueMergersFunc
-	var traverseStateValueMergersf func() (uint64, traverseStateValueMergersFunc)
+	var traverseStateValueMergersf func() (uint64, iter.Seq2[string, StateValueMerger])
 
 	switch g, t, err := newFuncStateValueMergers(
 		maxOpsSize*2, // NOTE approximate states size
@@ -196,10 +193,7 @@ func newFuncWorkerProcess(
 		func(
 			broadcastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
 			reportResult workerProcessReportResult,
-		) (
-			workerProcessTraverseOperationsFunc,
-			error,
-		) {
+		) (iter.Seq2[uint64, Operation], error) {
 			defer extractStateKeyClose()
 
 			if err := wait(
@@ -235,27 +229,14 @@ func newFuncWorkerProcess(
 
 			log.Debug().Msg("wait done")
 
-			return func(f func(uint64, Operation) (bool, error)) (gerr error) {
+			return func(yield func(uint64, Operation) bool) {
 					defer savedOps.Close()
 
-					if f == nil {
-						return nil
+					if yield == nil {
+						return
 					}
 
-					_ = savedOps.Traverse(func(opindex uint64, op Operation) bool {
-						switch ok, err := f(opindex, op); {
-						case !ok:
-							return false
-						case err != nil:
-							gerr = err
-
-							return false
-						default:
-							return true
-						}
-					})
-
-					return gerr
+					_ = savedOps.Traverse(yield)
 				},
 				nil
 		},
@@ -640,7 +621,7 @@ func mergeStateOpFromValues(
 func workerProcessCloseStateValueMergers(
 	ctx context.Context,
 	newState newStateFunc,
-	traverseStateValueMergers traverseStateValueMergersFunc,
+	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 	traverseStateOps traverseStateOpsFunc,
 	h dutil.InErrorFunc[base.State],
 ) error {
@@ -660,8 +641,8 @@ func workerProcessCloseStateValueMergers(
 			newJob, jobDone, jobWait = n, d, w
 		}
 
-		if err := traverseStateValueMergers(func(stateKey string, merger StateValueMerger) (bool, error) {
-			return true, newJob(func(context.Context) error {
+		for stateKey, merger := range traverseStateValueMergers {
+			if err := newJob(func(context.Context) error {
 				var facts []util.Hash
 
 				switch i, err := getStateOps(stateKey); {
@@ -692,9 +673,9 @@ func workerProcessCloseStateValueMergers(
 				default:
 					return h(st)
 				}
-			})
-		}); err != nil {
-			return jobWait(err)
+			}); err != nil {
+				return jobWait(err)
+			}
 		}
 
 		jobDone()

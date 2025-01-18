@@ -68,6 +68,10 @@ func (t *Tree) Root() util.Hash {
 
 func (t *Tree) Traverse() iter.Seq2[uint64, Node] {
 	return func(yield func(uint64, Node) bool) {
+		if yield == nil {
+			return
+		}
+
 		for i, n := range slices.All(t.nodes) {
 			if !yield(uint64(i), n) {
 				return
@@ -129,6 +133,10 @@ func indicesInHeight(size, height uint64) iter.Seq[uint64] {
 	}
 
 	return func(yield func(uint64) bool) {
+		if yield == nil {
+			return
+		}
+
 		for i := range n {
 			if !yield(cf + uint64(i)) {
 				return
@@ -185,6 +193,10 @@ func baseTraverseByHeight(
 	last := indexHeight(size - 1)
 
 	return func(yield func(uint64, iter.Seq[uint64]) bool) {
+			if yield == nil {
+				return
+			}
+
 			for i := range last + 1 {
 				height := h(last, i)
 				if !yield(height, indicesInHeight(size, height)) {

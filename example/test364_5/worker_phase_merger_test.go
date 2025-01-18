@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -28,7 +29,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 	_ opindexGetStateMergeValuesFunc,
 	newPhaseMergerf newPhaseMergerFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers traverseStateValueMergersFunc,
+	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 ) {
 	t.T().Helper()
 
@@ -78,28 +79,33 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 }
 
 func (t *testWorkerPhaseMerger) closeStateValueMergers(
-	traverseStateValueMergers traverseStateValueMergersFunc,
+	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 	f func(stateKey string, _ *AccountStateValue) bool,
 ) error {
-	return traverseStateValueMergers(func(stateKey string, merger StateValueMerger) (bool, error) {
+end:
+	for stateKey, merger := range traverseStateValueMergers {
 		var st base.StateValue
 
 		switch s, err := merger.Close(); {
 		case err != nil:
-			return false, err
+			return err
 		case s == nil:
-			return false, errors.Errorf("nil State")
+			return errors.Errorf("nil State")
 		default:
 			st = s
 		}
 
 		switch v, err := util.AssertInterfaceValue[*AccountStateValue](st); {
 		case err != nil:
-			return false, err
+			return err
 		default:
-			return f(stateKey, v), nil
+			if !f(stateKey, v) {
+				break end
+			}
 		}
-	})
+	}
+
+	return nil
 }
 
 func (t *testWorkerPhaseMerger) TestCancel() {

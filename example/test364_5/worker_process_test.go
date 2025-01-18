@@ -158,11 +158,11 @@ func (t *testWorkerProcess) newf(
 				return err
 			}
 
-			return traverseOps(func(opindex uint64, op Operation) (bool, error) {
+			for opindex, op := range traverseOps {
 				_ = savedOps.SetValue(opindex, op)
+			}
 
-				return true, nil
-			})
+			return nil
 		},
 		savedOps,
 		savedStates
@@ -1010,16 +1010,18 @@ func (t *testWorkerProcess) newProcessWorkers(
 			)
 
 			if err == nil {
-				err = traverseOps(func(opindex uint64, op Operation) (bool, error) {
+				for opindex, op := range traverseOps {
 					switch {
 					case opindex >= uint64(len(ops)):
-						return false, errors.Errorf("unknown opindex=%d", opindex)
+						err = errors.Errorf("unknown opindex=%d", opindex)
 					case !op.Hash().Equal(ops[opindex].Hash()):
-						return false, errors.Errorf("hash mismatch, %d", opindex)
-					default:
-						return true, nil
+						err = errors.Errorf("hash mismatch, %d", opindex)
 					}
-				})
+
+					if err != nil {
+						break
+					}
+				}
 			}
 
 			t.Println("wait done: worker=%q err=%v", local, err)

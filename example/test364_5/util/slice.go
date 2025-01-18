@@ -9,6 +9,10 @@ import (
 
 func FilterSlice[T any](s iter.Seq[T], f func(T) bool) iter.Seq[T] {
 	return func(yield func(T) bool) {
+		if yield == nil {
+			return
+		}
+
 	end:
 		for i := range s {
 			switch {
@@ -253,6 +257,10 @@ func ClearMap[K comparable, V any](m map[K]V) {
 
 func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
+		if yield == nil {
+			return
+		}
+
 		var i int
 
 		for t := range s {

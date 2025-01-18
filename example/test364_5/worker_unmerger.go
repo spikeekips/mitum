@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"sync"
@@ -263,33 +264,32 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, false, err
 			}
 
-			if ok, enough, failed, err := unmergeOps(local, nil, unmergeOp, nil); failed || err != nil || enough {
-				return ok, enough, failed, err
+			var localOk bool
+
+			switch o, e, f, err := unmergeOps(local, nil, unmergeOp, nil); {
+			case f || err != nil || e:
+				return o, e, f, err
+			default:
+				localOk = o
 			}
 
-			var ok, enough, failed bool
-			var gerr error
-
-			_ = traversePool(func(worker string, unmerged []uint64) (bool, error) {
+		end:
+			for worker, unmerged := range traversePool {
 				var filter opindexFilterFunc
 
 				switch f, err := workerOpindexFilter(worker); {
 				case err != nil || f == nil:
-					return true, nil
+					continue end
 				default:
 					filter = f
 				}
 
-				if o, e, f, err := unmergeOps(worker, unmerged, unmergeOp, filter); f || err != nil || e {
-					ok, enough, failed, gerr = o, e, f, err
-
-					return false, err
+				if _, e, f, err := unmergeOps(worker, unmerged, unmergeOp, filter); f || err != nil || e {
+					return localOk, e, f, err
 				}
+			}
 
-				return true, nil
-			})
-
-			return ok, enough, failed, gerr
+			return localOk, false, false, nil
 		},
 		func(worker string, unmerged []uint64) (ok, enough, failed bool, _ error) {
 			if worker == local {
@@ -338,7 +338,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 func newFuncWorkerUnmergerUnmergedPool() (
 	addPool func(worker string, unmerged []uint64) (added bool),
 	isNotEmpty func(filter workerOpindexFilterFunc) (bool, error),
-	traverse func(func(worker string, unmerged []uint64) (bool, error)) error,
+	traverse iter.Seq2[string, []uint64],
 ) {
 	pool := map[string] /* worker */ []uint64 /* unmerged */ {}
 
@@ -379,21 +379,21 @@ func newFuncWorkerUnmergerUnmergedPool() (
 
 			return false, nil
 		},
-		func(f func(worker string, unmerged []uint64) (bool, error)) error {
+		func(yield func(string, []uint64) bool) {
 			l.Lock()
 			defer l.Unlock()
 
 			defer dutil.ClearMap(pool)
 
-			if f != nil {
-				for worker, unmerged := range maps.All(pool) {
-					if ok, err := f(worker, unmerged); err != nil || !ok {
-						return err
-					}
-				}
+			if yield == nil {
+				return
 			}
 
-			return nil
+			for worker, unmerged := range maps.All(pool) {
+				if !yield(worker, unmerged) {
+					return
+				}
+			}
 		}
 }
 

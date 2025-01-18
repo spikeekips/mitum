@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"sync"
@@ -27,7 +28,7 @@ func (t *testWorkerMerger) newFuncs() (
 	states util.LockedMap[string, base.State],
 	getState getStateFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers traverseStateValueMergersFunc,
+	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 ) {
 	t.T().Helper()
 
@@ -664,7 +665,7 @@ type (
 	testWorkerMergeReasonsFunc func(reasons map[uint64]string) error
 	testWorkerMergerWaitsFunc  func(func(string) (workerMergerLocalPhaseMergerDoneFunc, testWorkerMergeReasonsFunc)) ([]string, error)
 
-	testWorkerMergerTraverseMergersFunc func(func(string, traverseStateValueMergersFunc) error) error
+	testWorkerMergerTraverseMergersFunc func(func(string, iter.Seq2[string, StateValueMerger]) error) error
 )
 
 func (t *testWorkerMerger) workerMergers(
@@ -694,7 +695,7 @@ func (t *testWorkerMerger) workerMergers(
 	inserts := map[string]workerMergerInsertStateMergeValuesFunc{}
 	unmerges := map[string]workerUnmergedFunc{}
 	waits := map[string]workerMergerWaitFunc{}
-	traverseMergers := map[string]traverseStateValueMergersFunc{}
+	traverseMergers := map[string]iter.Seq2[string, StateValueMerger]{}
 
 	for worker := range slices.Values(workers) {
 		statesPool, insert, unmerge, wait, tr, err := t.workerMerger(
@@ -886,7 +887,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			return doneWorkers, nil
 		},
-		func(f func(string, traverseStateValueMergersFunc) error) error {
+		func(f func(string, iter.Seq2[string, StateValueMerger]) error) error {
 			for worker, wf := range maps.All(traverseMergers) {
 				if err := f(worker, wf); err != nil {
 					return err
@@ -907,7 +908,7 @@ func (t *testWorkerMerger) workerMerger(
 	workerMergerInsertStateMergeValuesFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
-	traverseStateValueMergersFunc,
+	iter.Seq2[string, StateValueMerger],
 	error,
 ) {
 	_, statesPool, getState, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
@@ -1035,12 +1036,12 @@ func (t *testWorkerMerger) TestNoSubs() {
 		t.Equal(workers, doneWorkers)
 
 		var called int
-		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
-			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
+		t.NoError(traverse(func(worker string, f iter.Seq2[string, StateValueMerger]) error {
+			for range f {
 				called++
+			}
 
-				return true, nil
-			})
+			return nil
 		}))
 
 		t.Equal(0, called)
@@ -1088,15 +1089,15 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
+		t.NoError(traverse(func(worker string, f iter.Seq2[string, StateValueMerger]) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
+			for stateKey, merger := range f {
 				stv, err := merger.Close()
 				if err != nil {
-					return false, errors.WithMessage(err, worker)
+					return errors.WithMessage(err, worker)
 				}
 
 				var problem string
@@ -1119,11 +1120,11 @@ func (t *testWorkerMerger) TestNoSubs() {
 					worker, stateKey, t.printStateMergeValue(stv), problem)
 
 				if problem != "" {
-					return false, errors.Errorf("%s: worker=%q", problem, worker)
+					return errors.Errorf("%s: worker=%q", problem, worker)
 				}
+			}
 
-				return true, nil
-			})
+			return nil
 		}))
 
 		t.Equal(expectedValues, len(collectedStates))
@@ -1170,15 +1171,15 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
+		t.NoError(traverse(func(worker string, f iter.Seq2[string, StateValueMerger]) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
+			for stateKey, merger := range f {
 				stv, err := merger.Close()
 				if err != nil {
-					return false, errors.WithMessage(err, worker)
+					return errors.WithMessage(err, worker)
 				}
 
 				var problem string
@@ -1195,9 +1196,9 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 				t.Println("worker states: worker=%q state=%q value=%v problem=%q",
 					worker, stateKey, t.printStateMergeValue(stv), problem)
+			}
 
-				return true, nil
-			})
+			return nil
 		}))
 
 		t.Equal(expectedValues, len(collectedStates))
@@ -1262,15 +1263,15 @@ func (t *testWorkerMerger) TestSubs() {
 	checkMerged := func(doneWorkers []string, traverse testWorkerMergerTraverseMergersFunc) {
 		collectedStates := map[string]int64{}
 
-		t.NoError(traverse(func(worker string, f traverseStateValueMergersFunc) error {
+		t.NoError(traverse(func(worker string, f iter.Seq2[string, StateValueMerger]) error {
 			if slices.Index(doneWorkers, worker) < 0 {
 				return nil
 			}
 
-			return f(func(stateKey string, merger StateValueMerger) (bool, error) {
+			for stateKey, merger := range f {
 				stv, err := merger.Close()
 				if err != nil {
-					return false, errors.WithMessage(err, worker)
+					return errors.WithMessage(err, worker)
 				}
 
 				var problem string
@@ -1293,11 +1294,11 @@ func (t *testWorkerMerger) TestSubs() {
 					worker, stateKey, t.printStateMergeValue(stv), stv == nil, problem)
 
 				if problem != "" {
-					return false, errors.Errorf("%s: worker=%q", problem, worker)
+					return errors.Errorf("%s: worker=%q", problem, worker)
 				}
+			}
 
-				return true, nil
-			})
+			return nil
 		}))
 
 		t.Equal(expectedMergedStatesValues, collectedStates)

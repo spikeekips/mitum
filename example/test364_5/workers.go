@@ -1,6 +1,7 @@
 package main
 
 import (
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -302,15 +303,13 @@ func newFuncLocalCheckEnoughFailedWorkers(local string) newCheckEnoughFailedWork
 	}
 }
 
-type traverseStateValueMergersFunc = func(func(stateKey string, merger StateValueMerger) (bool, error)) error
-
 func newFuncStateValueMergers(
 	poolSize uint64,
 	getState getStateFunc,
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	mergerGetStateValueMergersFunc,
-	func() (size uint64, _ traverseStateValueMergersFunc),
+	func() (size uint64, _ iter.Seq2[string /* state key */, StateValueMerger]),
 	error,
 ) {
 	var pool util.LockedMap[string, StateValueMerger]
@@ -328,21 +327,19 @@ func newFuncStateValueMergers(
 		extractStateMergeValueKeys,
 	)
 	return g,
-		func() (uint64, traverseStateValueMergersFunc) {
+		func() (uint64, iter.Seq2[string, StateValueMerger]) {
 			return uint64(pool.Len()),
-				func(f func(string, StateValueMerger) (bool, error)) (gerr error) {
+				func(yield func(string, StateValueMerger) bool) {
 					defer func() {
 						c()
 						pool.Close()
 					}()
 
-					_ = pool.Traverse(func(stateKey string, merger StateValueMerger) (ok bool) {
-						ok, gerr = f(stateKey, merger)
-
-						return ok && gerr == nil
-					})
-
-					return gerr
+					if yield != nil {
+						_ = pool.Traverse(func(stateKey string, merger StateValueMerger) bool {
+							return yield(stateKey, merger)
+						})
+					}
 				}
 		},
 		nil

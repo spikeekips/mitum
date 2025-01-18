@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -32,7 +33,7 @@ func (t *testWorkerUnmerger) newFuncs() (
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers traverseStateValueMergersFunc,
+	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 ) {
 	t.T().Helper()
 
