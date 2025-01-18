@@ -533,16 +533,12 @@ func (t *testManagerWithWorkers) runCase(
 
 			t.T().Logf("ops tree root=%q states tree root=%q", opsTree.Root(), statesTree.Root())
 
-			opsTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+			for index, n := range opsTree.Traverse() {
 				t.T().Logf("ops tree: index=%d key=%q %s", index, n.Key(), util.MustMarshalJSONString(n))
-
-				return true, nil
-			})
-			statesTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+			}
+			for index, n := range statesTree.Traverse() {
 				t.T().Logf("states tree: index=%d key=%q %s", index, n.Key(), util.MustMarshalJSONString(n))
-
-				return true, nil
-			})
+			}
 
 			for i, st := range slices.All(states) {
 				t.T().Logf("state: index=%d key=%q %s", i, st.Key(), util.MustMarshalJSONString(st))
@@ -684,16 +680,12 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 
 	t.T().Logf("expected: ops tree root=%q states tree root=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
 
-	expectedOpsTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+	for index, n := range expectedOpsTree.Traverse() {
 		t.T().Logf("expected ops tree: index=%d key=%q %s", index, n.Key(), util.MustMarshalJSONString(n))
-
-		return true, nil
-	})
-	expectedStatesTree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
+	}
+	for index, n := range expectedStatesTree.Traverse() {
 		t.T().Logf("expected states tree: index=%d key=%q %s", index, n.Key(), util.MustMarshalJSONString(n))
-
-		return true, nil
-	})
+	}
 
 	for i, st := range slices.All(expectedStates) {
 		t.T().Logf("expected state: index=%d key=%q %s", i, st.Key(), util.MustMarshalJSONString(st))

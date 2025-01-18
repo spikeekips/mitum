@@ -50,13 +50,11 @@ func (t *testTree) TestNew() {
 	t.NoError(tr.IsValid(nil))
 	t.Equal(len(nodes), tr.Len())
 
-	tr.Traverse(func(index uint64, b Node) (bool, error) {
+	for index, b := range tr.Traverse() {
 		a := nodes[index]
 
 		t.True(a.Equal(b))
-
-		return true, nil
-	})
+	}
 }
 
 func (t *testTree) TestInvalid() {

@@ -57,11 +57,9 @@ func (t *testWrite) TestWriteNodes() {
 	tr := NewTree(treeHint, written)
 	t.NoError(tr.IsValid(nil))
 
-	tr.Traverse(func(index uint64, a Node) (bool, error) {
+	for index, a := range tr.Traverse() {
 		t.True(a.Equal(nodes[index]))
-
-		return true, nil
-	})
+	}
 }
 
 func (t *testWrite) TestError() {

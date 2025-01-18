@@ -66,21 +66,14 @@ func (t *Tree) Root() util.Hash {
 	}
 }
 
-func (t *Tree) Traverse(f func(index uint64, node Node) (bool, error)) error {
-	for i, n := range slices.All(t.nodes) {
-		if n == nil {
-			return util.ErrFound.Errorf("nil node at %d", i)
-		}
-
-		switch keep, err := f(uint64(i), n); {
-		case err != nil:
-			return err
-		case !keep:
-			return nil
+func (t *Tree) Traverse() iter.Seq2[uint64, Node] {
+	return func(yield func(uint64, Node) bool) {
+		for i, n := range slices.All(t.nodes) {
+			if !yield(uint64(i), n) {
+				return
+			}
 		}
 	}
-
-	return nil
 }
 
 func childrenNodes(index uint64, nodes []Node) (c [2]Node, err error) {
