@@ -117,12 +117,12 @@ func (t *testManagerWithWorkers) newWorker(
 	workerWaitFunc,
 	workerCloseFunc,
 ) {
-	newState := func(stateKey string, value base.StateValue, ops []util.Hash) (base.State, error) {
+	createState := func(stateKey string, value base.StateValue, prev util.Hash, ops []util.Hash) (base.State, error) {
 		st := base.NewBaseState(
 			33,
 			stateKey,
 			value,
-			nil,
+			prev,
 			ops,
 		)
 		// t.Println("new state: key=%q hash=%q ops=%v value=%s", st.Key(), st.Hash(), ops, util.MustMarshalJSONString(value))
@@ -134,7 +134,7 @@ func (t *testManagerWithWorkers) newWorker(
 		ctx,
 		t.newWorkerOptions(local),
 		getState,
-		newState,
+		createState,
 		workID,
 		workers, opsWorkers,
 		opsShare, statesShare,

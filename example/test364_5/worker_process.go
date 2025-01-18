@@ -16,7 +16,11 @@ import (
 )
 
 type (
-	newStateFunc = func(string /* state key */, base.StateValue, []util.Hash /* op fact hashes */) (
+	createStateFunc = func(string /* state key */, base.StateValue, util.Hash /* previous hash */, []util.Hash /* op fact hashes */) (
+		base.State,
+		error,
+	)
+	createStateFunc2 = func(string /* state key */, base.StateValue, []util.Hash /* op fact hashes */) (
 		base.State,
 		error,
 	)
@@ -67,8 +71,8 @@ func newFuncWorkerProcess(
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getState getStateFunc,
-	newState newStateFunc,
+	getStatef getStateFunc,
+	createStatef createStateFunc,
 	maxExtractStateKeyCacheSize int,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
@@ -97,6 +101,17 @@ func newFuncWorkerProcess(
 	extractStateMergeValueKeys, extractStateKeyClose := newFuncExtractStateMergeValueKeys(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
+	var getState getStateFunc
+	var createState createStateFunc2
+	var closeState func()
+
+	switch g, s, c, err := newGetCreateStateFunc(maxOpsSize, getStatef, createStatef); {
+	case err != nil:
+		return nil, nil, nil, nil, err
+	default:
+		getState, createState, closeState = g, s, c
+	}
+
 	var getStateValueMergers mergerGetStateValueMergersFunc
 	var traverseStateValueMergersf func() (uint64, iter.Seq2[string, StateValueMerger])
 
@@ -124,7 +139,7 @@ func newFuncWorkerProcess(
 		local,
 		newJobWorker,
 		getState,
-		newState,
+		createState,
 		workers,
 		opsWorkers,
 		opsShare, statesShare, maxOpsSize,
@@ -194,7 +209,10 @@ func newFuncWorkerProcess(
 			broadcastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
 			reportResult workerProcessReportResult,
 		) (iter.Seq2[uint64, Operation], error) {
-			defer extractStateKeyClose()
+			defer func() {
+				extractStateKeyClose()
+				closeState()
+			}()
 
 			if err := wait(
 				func(unmerged []uint64, subws, affected []string) error {
@@ -214,7 +232,7 @@ func newFuncWorkerProcess(
 					return reportResult(ctx, reasons, statesSize, func(f dutil.InErrorFunc[base.State]) error {
 						return workerProcessCloseStateValueMergers(
 							ctx,
-							newState,
+							createState,
 							traverseStateValueMergers,
 							traverseStateOps,
 							func(st base.State) error { return f(st) },
@@ -248,7 +266,7 @@ func newFuncWorkerProcessStateValueMerger(
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
 	getState getStateFunc,
-	newState newStateFunc,
+	createState createStateFunc2,
 	workers []string,
 	opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
@@ -620,7 +638,7 @@ func mergeStateOpFromValues(
 
 func workerProcessCloseStateValueMergers(
 	ctx context.Context,
-	newState newStateFunc,
+	createState createStateFunc2,
 	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
 	traverseStateOps traverseStateOpsFunc,
 	h dutil.InErrorFunc[base.State],
@@ -665,7 +683,7 @@ func workerProcessCloseStateValueMergers(
 					stv = v
 				}
 
-				switch st, err := newState(stateKey, stv, facts); {
+				switch st, err := createState(stateKey, stv, facts); {
 				case err != nil:
 					return err
 				case st == nil:
@@ -855,4 +873,49 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 	}
 
 	return reasons
+}
+
+func newGetCreateStateFunc(size uint64, get getStateFunc, create createStateFunc) (getStateFunc, createStateFunc2, func(), error) {
+	var pool util.LockedMap[string, base.State]
+
+	switch i, err := util.NewLockedMap[string, base.State](size, nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		pool = i
+	}
+
+	return func(stateKey string) (base.State, bool, error) {
+			var st base.State
+
+			err := pool.GetOrCreate(
+				stateKey,
+				func(i base.State, _ bool) error {
+					st = i
+
+					return nil
+				},
+				func() (base.State, error) {
+					st, _, err := get(stateKey)
+
+					return st, err
+				},
+			)
+
+			return st, st != nil, err
+		},
+		func(stateKey string, value base.StateValue, ops []util.Hash) (base.State, error) {
+			var prev util.Hash
+
+			switch i, found := pool.Value(stateKey); {
+			case !found:
+				return nil, util.ErrNotFound.Errorf("state, %q", stateKey)
+			case i != nil:
+				prev = i.Hash()
+			}
+
+			return create(stateKey, value, prev, ops)
+		},
+		pool.Close,
+		nil
 }

@@ -28,7 +28,7 @@ func (t *testWorkerProcess) newf(
 	ctx context.Context,
 	local string,
 	getState getStateFunc,
-	newState newStateFunc,
+	createState createStateFunc,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 ) (
@@ -47,7 +47,7 @@ func (t *testWorkerProcess) newf(
 		local,
 		dutil.NewFuncNewJobWorkerFunc(1<<9),
 		getState,
-		newState,
+		createState,
 		1<<9,
 		workers, opsWorkers, opsShare, statesShare,
 		1<<9,
@@ -180,13 +180,13 @@ func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) dutil.InErrorFu
 	}
 }
 
-func (t *testWorkerProcess) newStateFunc() newStateFunc {
-	return func(stateKey string, v base.StateValue, ops []util.Hash) (base.State, error) {
+func (t *testWorkerProcess) createStateFunc() createStateFunc {
+	return func(stateKey string, v base.StateValue, prev util.Hash, ops []util.Hash) (base.State, error) {
 		return base.NewBaseState(
 			3,
 			stateKey,
 			v,
-			valuehash.NewBytes(v.HashBytes()),
+			prev,
 			ops,
 		), nil
 	}
@@ -209,7 +209,7 @@ func (t *testWorkerProcess) TestCancel() {
 			local,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			func(string, base.StateValue, []util.Hash) (base.State, error) { return nil, nil },
+			func(string, base.StateValue, util.Hash, []util.Hash) (base.State, error) { return nil, nil },
 			1<<9,
 			workers, workers, 1, 1, 1<<9,
 		)
@@ -369,7 +369,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -440,7 +440,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -521,7 +521,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -613,7 +613,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -692,7 +692,7 @@ func (t *testWorkerProcess) TestLocal() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, opsWorkers, 1, 1,
 		)
 
@@ -780,7 +780,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -828,7 +828,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 			ctx,
 			local,
 			func(string) (base.State, bool, error) { return nil, false, nil },
-			t.newStateFunc(),
+			t.createStateFunc(),
 			workers, workers, 1, 1,
 		)
 
@@ -891,7 +891,7 @@ func (t *testWorkerProcess) newProcessWorker(
 		local,
 		dutil.NewFuncNewJobWorkerFunc(1<<9),
 		func(string) (base.State, bool, error) { return nil, false, nil },
-		t.newStateFunc(),
+		t.createStateFunc(),
 		1<<9,
 		workers, opsWorkers, opsShare, statesShare,
 		1<<9,

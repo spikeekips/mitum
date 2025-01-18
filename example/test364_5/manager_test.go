@@ -121,14 +121,8 @@ func (t *baseTestManager) processOps(
 		}
 	}
 
-	newState := func(stateKey string, value base.StateValue, ops []util.Hash) (base.State, error) {
-		return base.NewBaseState(
-			height,
-			stateKey,
-			value,
-			nil,
-			ops,
-		), nil
+	createState := func(stateKey string, value base.StateValue, prev util.Hash, ops []util.Hash) (base.State, error) {
+		return base.NewBaseState(height, stateKey, value, prev, ops), nil
 	}
 
 	startOpsFixedNodes, unmergedOp, doneOpsTree, err := newFuncGenerateOperationFixedtree(ctx, ophs, func(f dutil.InErrorFunc[context.Context]) error {
@@ -144,7 +138,7 @@ func (t *baseTestManager) processOps(
 		ctx,
 		newWorkerOptions(local),
 		getState,
-		newState,
+		createState,
 		util.UUID().String(),
 		workers, workers,
 		1, 1,
