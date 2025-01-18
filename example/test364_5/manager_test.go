@@ -230,7 +230,12 @@ func (t *baseTestManager) processOps(
 	statesNodes := make([]fixedtree.Node, len(states))
 
 	for i, st := range slices.All(states) {
-		statesNodes[i] = NewStateTreeNode(st.Key(), st.Hash())
+		n, err := NewStateTreeNode(st.Key(), st.Hash())
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+
+		statesNodes[i] = n
 	}
 
 	if err := g(ctx, statesNodes, nil); err != nil {

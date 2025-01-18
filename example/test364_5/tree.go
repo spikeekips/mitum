@@ -24,15 +24,22 @@ func newStatesTree(nodes []fixedtree.Node) *fixedtree.Tree {
 }
 
 type StateTreeNode struct {
-	*fixedtree.BaseNode // NOTE state key is key
-	h                   util.Hash
+	*fixedtree.BaseNode           // NOTE state key is key
+	h                   util.Hash // NOTE state hash
+	b                   []byte
 }
 
-func NewStateTreeNode(stateKey string, h util.Hash) *StateTreeNode {
-	return &StateTreeNode{
-		BaseNode: fixedtree.NewBaseNode(stateKey),
-		h:        h,
+func NewStateTreeNode(stateKey string, h util.Hash) (*StateTreeNode, error) {
+	if h == nil {
+		return nil, errors.Errorf("nil state hash")
 	}
+
+	return &StateTreeNode{
+			BaseNode: fixedtree.NewBaseNode(stateKey),
+			h:        h,
+			b:        slices.Concat([]byte(stateKey), h.Bytes()),
+		},
+		nil
 }
 
 func (n *StateTreeNode) StateHash() util.Hash {
@@ -53,12 +60,7 @@ func (n *StateTreeNode) IsValid(b []byte) error {
 
 func (n *StateTreeNode) SetHash(left, right fixedtree.Node) (util.Hash, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
-		switch {
-		case n.h == nil:
-			return nil, errors.Errorf("nil state hash")
-		default:
-			return slices.Concat([]byte(n.Key()), n.h.Bytes()), nil
-		}
+		return n.b, nil
 	}); {
 	case err != nil:
 		return nil, nil, err
@@ -71,9 +73,14 @@ type OperationTreeNode struct {
 	*fixedtree.BaseNode // NOTE Operation Hash is key
 	fact                util.Hash
 	reason              string
+	b                   []byte
 }
 
-func NewOperationTreeNode(oph, fact util.Hash, reason string) *OperationTreeNode {
+func NewOperationTreeNode(oph, fact util.Hash, reason string) (*OperationTreeNode, error) {
+	if fact == nil {
+		return nil, errors.Errorf("nil fact")
+	}
+
 	var key string
 
 	if oph != nil {
@@ -81,10 +88,16 @@ func NewOperationTreeNode(oph, fact util.Hash, reason string) *OperationTreeNode
 	}
 
 	return &OperationTreeNode{
-		BaseNode: fixedtree.NewBaseNode(key),
-		fact:     fact,
-		reason:   reason,
-	}
+			BaseNode: fixedtree.NewBaseNode(key),
+			fact:     fact,
+			reason:   reason,
+			b: slices.Concat(
+				[]byte(key),
+				fact.Bytes(),
+				util.BoolToBytes(reason == ""), // NOTE in state
+			),
+		},
+		nil
 }
 
 func (n *OperationTreeNode) Fact() util.Hash {
@@ -115,16 +128,7 @@ func (n *OperationTreeNode) IsValid(b []byte) error {
 
 func (n *OperationTreeNode) SetHash(left, right fixedtree.Node) (util.Hash, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
-		switch {
-		case n.fact == nil:
-			return nil, errors.Errorf("nil fact")
-		default:
-			return slices.Concat(
-				[]byte(n.Key()),
-				n.fact.Bytes(),
-				util.BoolToBytes(n.reason == ""), // NOTE in state
-			), nil
-		}
+		return n.b, nil
 	}); {
 	case err != nil:
 		return nil, nil, err

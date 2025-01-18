@@ -179,7 +179,7 @@ func newFuncGenerateOperationFixedtree(
 							return nil, util.ErrLockedSetIgnore
 						}
 
-						return NewOperationTreeNode(hs[0], hs[1], ""), nil
+						return NewOperationTreeNode(hs[0], hs[1], "")
 					})
 
 					return nil
@@ -200,7 +200,7 @@ func newFuncGenerateOperationFixedtree(
 				case !found:
 					hs := ophs[opindex]
 
-					return NewOperationTreeNode(hs[0], hs[1], reason), nil
+					return NewOperationTreeNode(hs[0], hs[1], reason)
 				default:
 					n.SetReason(reason)
 				}
@@ -367,9 +367,14 @@ func newFuncManagerWorkersResult(
 
 					return dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
 						return newJob(func(context.Context) error {
-							_, _ = addState(NewStateTreeNode(stateKey, stateHash))
+							switch n, err := NewStateTreeNode(stateKey, stateHash); {
+							case err != nil:
+								return err
+							default:
+								_, _ = addState(n)
 
-							return nil
+								return nil
+							}
 						})
 					})
 				},
