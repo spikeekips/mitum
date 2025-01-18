@@ -110,7 +110,8 @@ func newFuncWorker(
 		return nil, nil, nil, nil, nil, err
 	}
 
-	wctx, closeWorker, _, closeWorkerWait := dutil.NewContextDone(ctx)
+	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
+	_, closeWorker, _, closeWorkerWait := dutil.NewContextDone(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
 	var workerInsert workerProcessWorkerInsertStateMergeValuesFunc
@@ -228,14 +229,23 @@ func newFuncWorker(
 			_ = traverseOps // FIXME save ops
 			_ = savedStates // FIXME save states
 
-			return closeWorkerWait(nil)
+			switch err := closeWorkerWait(nil); {
+			case err != nil:
+				log.Error().Err(err).Msg("worker canceled")
+
+				return err
+			default:
+				log.Debug().Msg("worker closed")
+
+				return nil
+			}
 		},
 		func(err error) error {
-			defer func() {
-				log.Debug().Err(err).Msg("worker closed")
-			}()
+			if err != nil {
+				return wctxCancel(err)
+			}
 
-			return closeWorker(err)
+			return closeWorker(nil)
 		},
 		nil
 }
