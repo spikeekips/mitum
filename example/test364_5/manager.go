@@ -33,10 +33,15 @@ type (
 type managerOptions struct {
 	JobWorkerMaxSemSize   uint64
 	GenerateNodesHashFunc fixedtree.GenerateNodesHashFunc
+	WorkersSizeMultiplier uint64
 }
 
 func newManagerOptions() *managerOptions {
 	return &managerOptions{
+		// WorkersSizeMultiplier estimates the acting workers size by operations
+		// size. The acting workers size will be <workers size> *
+		// <WorkerSizeMultiplier>. 0 will workers will be acting workers
+		WorkersSizeMultiplier: 0,
 		JobWorkerMaxSemSize:   1 << 9,
 		GenerateNodesHashFunc: fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9),
 	}
@@ -56,11 +61,13 @@ func newFuncManager(
 	wait managerWaitFunc,
 	_ error,
 ) {
-	switch o, s, err := isValidManagerArgs(workID, workers, opsShare, statesShare, ophs); {
+	var actingWorkers []string
+
+	switch a, o, s, err := isValidManagerArgs(options, workID, workers, opsShare, statesShare, ophs); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		opsShare, statesShare = o, s
+		actingWorkers, opsShare, statesShare = a, o, s
 	}
 
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager", nil)
@@ -68,6 +75,7 @@ func newFuncManager(
 	log.Debug().
 		Interface("options", options).
 		Strs("workers", workers).
+		Strs("acting_workers", actingWorkers).
 		Uint64("ops_share", opsShare).
 		Uint64("states_share", statesShare).
 		Msg("new")
@@ -81,7 +89,7 @@ func newFuncManager(
 	switch s, o, r, w, err := newFuncManagerProcess(
 		ctx,
 		newJobWorker,
-		workers,
+		actingWorkers,
 		opsShare, statesShare,
 		ophs,
 	); {
@@ -101,7 +109,7 @@ func newFuncManager(
 						ctx,
 						newJobWorker,
 						workID,
-						workers, opsWorkers,
+						actingWorkers, opsWorkers,
 						opsShare, statesShare,
 						uint64(len(ophs)),
 						startWorker,
@@ -127,7 +135,7 @@ func newFuncManager(
 					return newFuncManagerWorkerInsertDone(
 						ctx,
 						newJobWorker,
-						workers,
+						actingWorkers,
 						owners,
 						workerInsertDone,
 					)
@@ -157,11 +165,12 @@ func newFuncManager(
 }
 
 func isValidManagerArgs(
+	options *managerOptions,
 	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
-) (uint64, uint64, error) {
+) ([]string, uint64, uint64, error) {
 	nworkers := uint64(len(workers))
 
 	var err error
@@ -180,7 +189,7 @@ func isValidManagerArgs(
 	}
 
 	if err != nil {
-		return 0, 0, err
+		return nil, 0, 0, err
 	}
 
 	if opsShare >= nworkers {
@@ -191,7 +200,16 @@ func isValidManagerArgs(
 		statesShare = nworkers
 	}
 
-	return opsShare, statesShare, nil
+	actingWorkers := workers
+
+	if options.WorkersSizeMultiplier > 1 {
+		n := uint64(len(ophs)) * options.WorkersSizeMultiplier
+		if n < nworkers {
+			actingWorkers = workers[:n]
+		}
+	}
+
+	return actingWorkers, opsShare, statesShare, nil
 }
 
 func newFuncManagerWorkerInsertDone(
