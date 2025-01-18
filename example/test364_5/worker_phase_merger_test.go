@@ -631,7 +631,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			getStateValueMergers,
 			newFuncCheckEnoughFailedWorkers,
 			newPhaseMerger,
-			1, 0,
+			2, 0,
 		)
 		t.NoError(err)
 

@@ -28,10 +28,6 @@ func (t *testManagerWithWorkers) newManagerOptions() *managerOptions {
 	return newManagerOptions()
 }
 
-func (t *testManagerWithWorkers) newWorkerOptions(local string) *workerOptions {
-	return newWorkerOptions(local)
-}
-
 func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) {
 	ops := t.baseTestAccountStateValueMerger.randomAddOps(n, 1)
 
@@ -52,16 +48,6 @@ func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.I
 
 		return nil
 	}
-}
-
-func (t *testManagerWithWorkers) workerIfErrPanic(worker string, err error) error {
-	if err != nil {
-		err = fmt.Errorf("panic: worker=%q err=%w", worker, err)
-	}
-
-	t.IfErrPanic(err)
-
-	return nil
 }
 
 func (t *testManagerWithWorkers) newWorkers(
@@ -154,7 +140,7 @@ func (t *testManagerWithWorkers) newWorker(
 		opsShare, statesShare,
 		maxOpsSize,
 	)
-	t.workerIfErrPanic(local, err)
+	t.WorkerIfErrPanic(local, err)
 
 	return initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker
 }

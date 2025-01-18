@@ -45,6 +45,16 @@ func (t *BaseSuite) IfTruePanic(ok bool, a string, b ...interface{}) {
 	}
 }
 
+func (t *BaseSuite) WorkerIfErrPanic(worker string, err error) error {
+	if err != nil {
+		err = fmt.Errorf("panic: worker=%q err=%w", worker, err)
+	}
+
+	t.IfErrPanic(err)
+
+	return nil
+}
+
 func (t *BaseSuite) RunWithGoLeak(name string, f func()) {
 	t.Run(name, func() {
 		defer goleak.VerifyNone(t.T())

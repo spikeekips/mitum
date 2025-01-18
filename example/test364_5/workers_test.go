@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strings"
@@ -47,6 +48,40 @@ func (t *baseTestWorkers) getOperationFunc(ops []Operation) getOperationFunc {
 		}
 
 		return ops[opindex], true, "", nil
+	}
+}
+
+func (t *baseTestWorkers) newWorkerOptions(local string) *workerOptions {
+	return newWorkerOptions(local)
+}
+
+func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeStateMergeValuesFunc {
+	return func(_ context.Context, _, worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		dutil.In2ErrorFunc[[]string, []string],
+		error,
+	) {
+		return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				fmt.Printf("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d\n", local, worker, opindex, fact, len(values))
+
+				return nil
+			},
+			func(subws []string, affected []string) error {
+				fmt.Printf("worker distribute: local=%q worker=%q subs=%v affected=%v\n", local, worker, subws, affected)
+
+				return nil
+			},
+			nil
+	}
+}
+
+func (t *baseTestWorkers) ophsSeq2(ops []Operation) iter.Seq2[uint64, [2]util.Hash] {
+	return func(yield func(uint64, [2]util.Hash) bool) {
+		for i, op := range slices.All(ops) {
+			if !yield(uint64(i), [2]util.Hash{op.Hash(), op.Fact().Hash()}) {
+				return
+			}
+		}
 	}
 }
 
