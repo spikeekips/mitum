@@ -755,8 +755,6 @@ func (t *testWorkerStateOwners) TestCases() {
 			insert, traverse, localOwners, err := insertf(getStateOwners)
 			t.NoError(err)
 
-			_, _, _ = insert, traverse, localOwners // FIXME remove
-
 			for i, vs := range slices.All(valuesSet) {
 				var sub StateMergeValue
 				var adds []StateMergeValue
