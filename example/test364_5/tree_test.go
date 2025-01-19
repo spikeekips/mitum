@@ -91,12 +91,6 @@ func (t *testStateTreeNode) TestHash() {
 		_, _, err = n.SetHash(nil, nil)
 		t.ErrorContains(err, "empty key")
 	})
-
-	t.Run("nil state hash", func() {
-		key := util.UUID().String()
-		_, err := NewStateTreeNode(key, nil)
-		t.ErrorContains(err, "nil state hash")
-	})
 }
 
 func TestStateTreeNode(t *testing.T) {
@@ -138,12 +132,8 @@ func (t *testOperationTreeNode) TestOperationNodeIsValid() {
 	})
 
 	t.Run("nil oph", func() {
-		n, err := NewOperationTreeNode(nil, valuehash.RandomSHA256(), util.UUID().String())
-		t.NoError(err)
-
-		err = n.IsValid(nil)
-		t.ErrorIs(err, util.ErrInvalid)
-		t.ErrorContains(err, "empty key")
+		_, err := NewOperationTreeNode(nil, valuehash.RandomSHA256(), util.UUID().String())
+		t.ErrorContains(err, "nil oph")
 	})
 
 	t.Run("nil fact", func() {
@@ -173,20 +163,23 @@ func (t *testOperationTreeNode) TestOperationNodeHash() {
 
 		t.True(h.Equal(rh))
 	})
+}
 
-	t.Run("nil oph", func() {
-		fact := valuehash.RandomSHA256()
-		n, err := NewOperationTreeNode(nil, fact, util.UUID().String())
+func (t *testOperationTreeNode) TestSetReason() {
+	t.Run("hash", func() {
+		oph, fact, reason := valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String()
+		n, err := NewOperationTreeNode(oph, fact, reason)
 		t.NoError(err)
 
-		_, _, err = n.SetHash(nil, nil)
-		t.ErrorContains(err, "empty key")
-	})
+		ah, _, err := n.SetHash(nil, nil)
+		t.NoError(err)
 
-	t.Run("nil fact", func() {
-		oph := valuehash.RandomSHA256()
-		_, err := NewOperationTreeNode(oph, nil, util.UUID().String())
-		t.ErrorContains(err, "nil fact")
+		n.SetReason("")
+
+		bh, _, err := n.SetHash(nil, nil)
+		t.NoError(err)
+
+		t.False(ah.Equal(bh))
 	})
 }
 

@@ -77,15 +77,14 @@ type OperationTreeNode struct {
 }
 
 func NewOperationTreeNode(oph, fact util.Hash, reason string) (*OperationTreeNode, error) {
-	if fact == nil {
+	switch {
+	case oph == nil:
+		return nil, errors.Errorf("nil oph")
+	case fact == nil:
 		return nil, errors.Errorf("nil fact")
 	}
 
-	var key string
-
-	if oph != nil {
-		key = oph.String()
-	}
+	key := oph.String()
 
 	return &OperationTreeNode{
 			BaseNode: fixedtree.NewBaseNode(key),
@@ -109,9 +108,17 @@ func (n *OperationTreeNode) Reason() string {
 }
 
 func (n *OperationTreeNode) SetReason(s string) {
-	if n.reason != s {
-		n.reason = s
+	if n.reason == s {
+		return
 	}
+
+	n.reason = s
+
+	n.b = slices.Concat(
+		[]byte(n.Key()),
+		n.fact.Bytes(),
+		util.BoolToBytes(n.reason == ""),
+	)
 }
 
 func (n *OperationTreeNode) IsValid(b []byte) error {
