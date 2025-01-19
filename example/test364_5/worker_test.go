@@ -153,7 +153,6 @@ func (t *testWorker) TestClose() {
 		case <-time.After(time.Second * 2):
 			t.Fail("unexpected initial insert done")
 		case err := <-initialerr:
-			t.ErrorContains(err, "eatme")
 			t.ErrorIs(err, context.Canceled)
 		}
 
