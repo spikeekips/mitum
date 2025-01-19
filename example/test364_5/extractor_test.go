@@ -22,7 +22,7 @@ type testStateMergeValueExtractor struct {
 	baseTestMergeOp
 }
 
-func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation) (
+func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []operation) (
 	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
@@ -57,7 +57,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []Operation
 			return insert(
 				of,
 				inf,
-				func(opindex uint64, op Operation, subv StateMergeValue, addvs []StateMergeValue) error {
+				func(opindex uint64, op operation, subv stateMergeValue, addvs []stateMergeValue) error {
 					t.Println("extracted: opindex=%d op=%v subv=%v addvs=%v", opindex, op == nil, subv == nil, len(addvs))
 
 					if extracted == nil {
@@ -86,7 +86,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -103,7 +103,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("after insert", func() {
 		ctx, cancel := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -119,7 +119,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	t.Run("after wait", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -139,36 +139,36 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("ok", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
-		collected := make([]Operation, len(ops))
+		collected := make([]operation, len(ops))
 
 		t.NoError(insert(nil, nil, func(
 			opindex uint64,
-			op Operation,
-			subv StateMergeValue,
-			addvs []StateMergeValue,
+			op operation,
+			subv stateMergeValue,
+			addvs []stateMergeValue,
 		) error {
 			esubv, eaddvs, reason, err := op.StateMergeValues(context.Background())
 			t.NoError(err)
 			t.Empty(reason)
 
-			t.True(IsEqualStateMergeValue(esubv, subv))
+			t.True(isEqualStateMergeValue(esubv, subv))
 
-			slices.SortFunc(eaddvs, func(a, b StateMergeValue) int {
+			slices.SortFunc(eaddvs, func(a, b stateMergeValue) int {
 				return cmp.Compare(a.Key(), b.Key())
 			})
 
-			slices.SortFunc(addvs, func(a, b StateMergeValue) int {
+			slices.SortFunc(addvs, func(a, b stateMergeValue) int {
 				return cmp.Compare(a.Key(), b.Key())
 			})
 
 			t.Equal(len(eaddvs), len(addvs))
 			for i, value := range slices.All(eaddvs) {
-				t.True(IsEqualStateMergeValue(value, addvs[i]))
+				t.True(isEqualStateMergeValue(value, addvs[i]))
 			}
 
 			collected[opindex] = op
@@ -186,7 +186,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("insert op error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -202,13 +202,13 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("get operation error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
 		t.NoError(insert(
-			func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
+			func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
 				return nil, false, "", errors.Errorf("showme")
 			}, nil, nil,
 		))
@@ -222,13 +222,13 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	t.Run("extracted error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []Operation{t.randomOp(2)}
+		ops := []operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
 		t.NoError(insert(nil, nil,
-			func(uint64, Operation, StateMergeValue, []StateMergeValue) error {
+			func(uint64, operation, stateMergeValue, []stateMergeValue) error {
 				return errors.Errorf("showme")
 			}))
 
@@ -247,7 +247,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		expectedReasons := util.NewSingleLockedMap[uint64, string]()
 
 		t.NoError(insert(
-			func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
+			func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
 				if opindex < 2 {
 					reason := fmt.Sprintf("reason:%d", opindex)
 					expectedReasons.SetValue(opindex, reason)
@@ -321,7 +321,7 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		var called int
 
 		t.NoError(insert(nil, nil,
-			func(uint64, Operation, StateMergeValue, []StateMergeValue) error {
+			func(uint64, operation, stateMergeValue, []stateMergeValue) error {
 				called++
 
 				return errors.Errorf("showme")
@@ -342,15 +342,15 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		return func() {
 			ctx, _ := t.Ctx()
 
-			ops := make([]Operation, n)
-			opsValues := make([][2][]StateMergeValue, len(ops))
+			ops := make([]operation, n)
+			opsValues := make([][2][]stateMergeValue, len(ops))
 
 			for i := range ops {
 				ops[i] = t.randomOp(int64(i + 1))
 
 				subv, addvs, _, err := ops[i].StateMergeValues(ctx)
 				t.NoError(err)
-				opsValues[i] = [2][]StateMergeValue{{subv}, addvs}
+				opsValues[i] = [2][]stateMergeValue{{subv}, addvs}
 			}
 
 			extracted := util.NewSingleLockedMap[uint64, [3]interface{}]()
@@ -361,9 +361,9 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 			t.NoError(insert(nil, nil,
 				func(
 					opindex uint64,
-					op Operation,
-					subv StateMergeValue,
-					addvs []StateMergeValue,
+					op operation,
+					subv stateMergeValue,
+					addvs []stateMergeValue,
 				) error {
 					extracted.SetValue(opindex, [3]interface{}{
 						op,
@@ -394,21 +394,21 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 				v, found := extracted.Value(uint64(i))
 				t.True(found)
 
-				base.EqualOperation(t.Assert(), ops[i], v[0].(Operation))
+				base.EqualOperation(t.Assert(), ops[i], v[0].(operation))
 
 				asubv := opsValues[i][0][0]
-				bsubv := v[1].(StateMergeValue)
-				t.True(IsEqualStateMergeValue(asubv, bsubv))
+				bsubv := v[1].(stateMergeValue)
+				t.True(isEqualStateMergeValue(asubv, bsubv))
 
 				aaddvs := opsValues[i][1]
-				baddvs := v[2].([]StateMergeValue)
+				baddvs := v[2].([]stateMergeValue)
 				t.Equal(len(aaddvs), len(baddvs))
 
-				slices.SortFunc(aaddvs, func(a, b StateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
-				slices.SortFunc(baddvs, func(a, b StateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
+				slices.SortFunc(aaddvs, func(a, b stateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
+				slices.SortFunc(baddvs, func(a, b stateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
 
 				for i := range aaddvs {
-					t.True(IsEqualStateMergeValue(aaddvs[i], baddvs[i]))
+					t.True(isEqualStateMergeValue(aaddvs[i], baddvs[i]))
 				}
 			}
 		}
@@ -424,8 +424,8 @@ func TestStateMergeValueExtractor(t *testing.T) {
 	suite.Run(t, new(testStateMergeValueExtractor))
 }
 
-func newGetOperationFunc(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
+func newGetOperationFunc(ops []operation) getOperationFunc {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, "", nil
 		}

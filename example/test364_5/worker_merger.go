@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	insertStateMergeValuesFunc             = func(opindex uint64, _ []StateMergeValue) error
+	insertStateMergeValuesFunc             = func(opindex uint64, _ []stateMergeValue) error
 	workerMergerInsertStateMergeValuesFunc = func(worker string) (
 		insertStateMergeValuesFunc,
 		dutil.InErrorFunc[error],
@@ -222,7 +222,7 @@ func newFuncWorkerMergerInsert(
 			insert, done = i, d
 		}
 
-		f := func(opindex uint64, values []StateMergeValue) error {
+		f := func(opindex uint64, values []stateMergeValue) error {
 			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				l.Lock()
 				defer l.Unlock()

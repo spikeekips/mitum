@@ -75,7 +75,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("nil sub value", func() {
 		workers := t.workers(9)
 
-		var values [][]StateMergeValue
+		var values [][]stateMergeValue
 		for range 3 {
 			values = append(values, t.randomMergeValues(1, 2))
 		}
@@ -131,7 +131,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 	t.Run("nil add value", func() {
 		workers := t.workers(9)
 
-		var values []StateMergeValue
+		var values []stateMergeValue
 		for range 3 {
 			_, v := t.randomMergeValue(1)
 			values = append(values, v)
@@ -205,10 +205,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 		var expectedOwners []string
 
 		for v := range slices.Values(values) {
-			o := getStateOwners(v[0].(StateMergeValue).Key())
+			o := getStateOwners(v[0].(stateMergeValue).Key())
 			expectedOwners = append(expectedOwners, o...)
 
-			for value := range slices.Values(v[1].([]StateMergeValue)) {
+			for value := range slices.Values(v[1].([]stateMergeValue)) {
 				o := getStateOwners(value.Key())
 				expectedOwners = append(expectedOwners, o...)
 			}
@@ -235,8 +235,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 		for i, v := range slices.All(values) {
 			_ = insert(
 				uint64(i),
-				v[0].(StateMergeValue),
-				v[1].([]StateMergeValue),
+				v[0].(stateMergeValue),
+				v[1].([]stateMergeValue),
 			)
 		}
 
@@ -279,7 +279,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		expectedSubs := map[string][]string{}
 		expectedAffected := map[string][]string{}
 
-		p := func(opindex int, sub StateMergeValue, adds []StateMergeValue) {
+		p := func(opindex int, sub stateMergeValue, adds []stateMergeValue) {
 			var subs, affected []string
 
 			for owner := range slices.Values(getStateOwners(sub.Key())) {
@@ -314,24 +314,24 @@ func (t *testWorkerStateOwners) TestInsert() {
 			}
 		}
 
-		values := make([][2][]StateMergeValue, len(pubs)*2)
+		values := make([][2][]stateMergeValue, len(pubs)*2)
 
 		for i, pub := range slices.All(pubs) {
 			sub0 := t.newMergeValue(pub, -1)
-			affected0 := []StateMergeValue{
+			affected0 := []stateMergeValue{
 				t.newMergeValue(pubs[(i+1)%len(pubs)], 1),
 				t.newMergeValue(pubs[(i+2)%len(pubs)], 1),
 			}
-			values[i*2] = [2][]StateMergeValue{{sub0}, affected0}
+			values[i*2] = [2][]stateMergeValue{{sub0}, affected0}
 
 			p(i*2, sub0, affected0)
 
 			sub1 := t.newMergeValue(pubs[(i+1)%len(pubs)], -1)
-			affected1 := []StateMergeValue{
+			affected1 := []stateMergeValue{
 				t.newMergeValue(pubs[(i+2)%len(pubs)], 1),
 				t.newMergeValue(pubs[(i+3)%len(pubs)], 1),
 			}
-			values[(i*2)+1] = [2][]StateMergeValue{{sub1}, affected1}
+			values[(i*2)+1] = [2][]stateMergeValue{{sub1}, affected1}
 
 			p((i*2)+1, sub1, affected1)
 		}
@@ -418,10 +418,10 @@ func (t *testWorkerStateOwners) TestInsert() {
 		var expectedOwners []string
 
 		for v := range slices.Values(values) {
-			o := getStateOwners(v[0].(StateMergeValue).Key())
+			o := getStateOwners(v[0].(stateMergeValue).Key())
 			expectedOwners = append(expectedOwners, o...)
 
-			for value := range slices.Values(v[1].([]StateMergeValue)) {
+			for value := range slices.Values(v[1].([]stateMergeValue)) {
 				o := getStateOwners(value.Key())
 				expectedOwners = append(expectedOwners, o...)
 			}
@@ -448,8 +448,8 @@ func (t *testWorkerStateOwners) TestInsert() {
 		for i, v := range slices.All(values) {
 			_ = insert(
 				uint64(i),
-				v[0].(StateMergeValue),
-				v[1].([]StateMergeValue),
+				v[0].(stateMergeValue),
+				v[1].([]stateMergeValue),
 			)
 		}
 
@@ -515,7 +515,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 		local = workers[0]
 
 		subs := t.randomMergeValues(1, 2)
-		addvs := make([][]StateMergeValue, len(subs))
+		addvs := make([][]stateMergeValue, len(subs))
 
 		for i := range subs {
 			addvs[i] = t.randomMergeValues(1)
@@ -700,7 +700,7 @@ func (t *testWorkerStateOwners) TestCases() {
 		pub1 := base.NewDummyPublickey("p1")
 		pub2 := base.NewDummyPublickey("p2")
 
-		valuesSet := [][]StateMergeValue{
+		valuesSet := [][]stateMergeValue{
 			t.newMergeValues(pub0, 1, pub1, -2), // 0
 			t.newMergeValues(pub1, -2, pub2, 3), // 1: ignored
 			t.newMergeValues(pub0, -1, pub1, 2), // 2
@@ -731,11 +731,11 @@ func (t *testWorkerStateOwners) TestCases() {
 			var owner string
 
 			switch stateKey {
-			case AccountStateKey(pub0):
+			case accountStateKey(pub0):
 				owner = workers[0]
-			case AccountStateKey(pub1):
+			case accountStateKey(pub1):
 				owner = workers[1]
-			case AccountStateKey(pub2):
+			case accountStateKey(pub2):
 				owner = workers[2]
 			default:
 				panic(fmt.Sprintf("unknown owner, %q", stateKey))
@@ -756,11 +756,11 @@ func (t *testWorkerStateOwners) TestCases() {
 			t.NoError(err)
 
 			for i, vs := range slices.All(valuesSet) {
-				var sub StateMergeValue
-				var adds []StateMergeValue
+				var sub stateMergeValue
+				var adds []stateMergeValue
 
 				for v := range slices.Values(vs) {
-					if v.(*AccountStateMergeValue).Balance < 0 {
+					if v.(*accountStateMergeValue).Balance < 0 {
 						sub = v
 					} else {
 						adds = append(adds, v)
@@ -769,7 +769,7 @@ func (t *testWorkerStateOwners) TestCases() {
 
 				opindex := uint64(i)
 				f := insert(opindex, sub, adds)
-				t.NoError(f(func(worker string, values []StateMergeValue) error {
+				t.NoError(f(func(worker string, values []stateMergeValue) error {
 					stateKeys := extractStateMergeValueKeysFromValues(values)
 
 					t.T().Logf("insert worker: local=%q worker=%q opindex=%d state keys=%v", local, worker, opindex, stateKeys)
@@ -829,11 +829,11 @@ func (t *testWorkerStateOwners) TestCases() {
 
 			for local := range slices.Values(opsWorkers) {
 				t.NoError(workersOps(local, func(opindex uint64, _, _ util.Hash) error {
-					var sub StateMergeValue
-					var adds []StateMergeValue
+					var sub stateMergeValue
+					var adds []stateMergeValue
 
 					for v := range slices.Values(valuesSet[opindex]) {
-						if v.(*AccountStateMergeValue).Balance < 0 {
+						if v.(*accountStateMergeValue).Balance < 0 {
 							sub = v
 						} else {
 							adds = append(adds, v)
@@ -842,7 +842,7 @@ func (t *testWorkerStateOwners) TestCases() {
 
 					f := inserts[local](opindex, sub, adds)
 
-					return f(func(worker string, values []StateMergeValue) error {
+					return f(func(worker string, values []stateMergeValue) error {
 						stateKeys := extractStateMergeValueKeysFromValues(values)
 
 						t.T().Logf("insert worker: local=%q worker=%q opindex=%d state keys=%v", local, worker, opindex, stateKeys)

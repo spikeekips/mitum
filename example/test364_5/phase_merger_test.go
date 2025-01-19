@@ -20,19 +20,19 @@ type baseTestMergeOp struct {
 	baseTestAccountStateValueMerger
 }
 
-func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateValueMerger]) (map[string]int64, error) {
+func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, stateValueMerger]) (map[string]int64, error) {
 	m := map[string]int64{}
 
 	var gerr error
 
-	mergers.Traverse(func(stateKey string, merger StateValueMerger) bool {
+	mergers.Traverse(func(stateKey string, merger stateValueMerger) bool {
 		st, err := merger.Close()
 		if err != nil {
 			gerr = err
 		}
 
 		if st != nil {
-			if v := st.(*AccountStateValue); v != nil {
+			if v := st.(*accountStateValue); v != nil {
 				m[stateKey] = v.Balance
 			}
 		}
@@ -44,32 +44,32 @@ func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, StateValue
 }
 
 func (t *baseTestMergeOp) getFuncs() (
-	_ util.LockedMap[uint64, []StateMergeValue],
-	_ util.LockedMap[string, StateValueMerger],
+	_ util.LockedMap[uint64, []stateMergeValue],
+	_ util.LockedMap[string, stateValueMerger],
 	_ util.LockedMap[string, base.State],
-	getMerger func(StateMergeValue) (StateValueMerger, error),
-	getValues func(uint64) ([]StateMergeValue, error),
+	getMerger func(stateMergeValue) (stateValueMerger, error),
+	getValues func(uint64) ([]stateMergeValue, error),
 ) {
-	vp, err := util.NewShardedMap[uint64, []StateMergeValue](1<<9, nil)
+	vp, err := util.NewShardedMap[uint64, []stateMergeValue](1<<9, nil)
 	t.IfErrPanic(err)
 
-	mergers, err := util.NewShardedMap[string, StateValueMerger](1<<9, nil)
+	mergers, err := util.NewShardedMap[string, stateValueMerger](1<<9, nil)
 	t.IfErrPanic(err)
 
 	states, err := util.NewShardedMap[string, base.State](1<<9, nil)
 	t.IfErrPanic(err)
 
-	return vp, mergers, states, func(value StateMergeValue) (StateValueMerger, error) {
-			var merger StateValueMerger
+	return vp, mergers, states, func(value stateMergeValue) (stateValueMerger, error) {
+			var merger stateValueMerger
 
 			err := mergers.GetOrCreate(
 				value.Key(),
-				func(i StateValueMerger, _ bool) error {
+				func(i stateValueMerger, _ bool) error {
 					merger = i
 
 					return nil
 				},
-				func() (StateValueMerger, error) {
+				func() (stateValueMerger, error) {
 					var stv base.StateValue
 
 					if i, found := states.Value(value.Key()); found {
@@ -179,7 +179,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
-		getMerger := func(value StateMergeValue) (StateValueMerger, error) {
+		getMerger := func(value stateMergeValue) (stateValueMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
@@ -272,7 +272,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 
 		vs := t.randomMergeValuesVP(vp, 1, 1)
 
-		getMerger := func(value StateMergeValue) (StateValueMerger, error) {
+		getMerger := func(value stateMergeValue) (stateValueMerger, error) {
 			return nil, errors.Errorf("showme")
 		}
 
@@ -640,8 +640,8 @@ type testPhaseMerger struct {
 }
 
 func (t *testPhaseMerger) newFuncs() (
-	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateValueMerger],
+	vp util.LockedMap[uint64, []stateMergeValue],
+	mergers util.LockedMap[string, stateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
@@ -788,7 +788,7 @@ func (t *testPhaseMerger) TestMerge() {
 		merge, _, done, wait, err := newFuncPhaseMerger(ctx, dutil.NewFuncNewJobWorkerFunc(1<<9), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
-		vss := make([][]StateMergeValue, 33)
+		vss := make([][]stateMergeValue, 33)
 		for i := range vss {
 			vss[i] = t.randomMergeValuesVP(vp, uint64(i), i+1)
 		}
@@ -813,7 +813,7 @@ func (t *testPhaseMerger) TestMerge() {
 				i, found := merged[value.Key()]
 				t.True(found)
 
-				t.Equal(value.(*AccountStateMergeValue).Balance, i)
+				t.Equal(value.(*accountStateMergeValue).Balance, i)
 			}
 		}
 	})
@@ -838,8 +838,8 @@ func (t *testPhaseMerger) TestMerge() {
 
 		getMergers := func(
 			opindex uint64,
-			values []StateMergeValue,
-			f func(func(StateMergeValue) (StateValueMerger, error)) error,
+			values []stateMergeValue,
+			f func(func(stateMergeValue) (stateValueMerger, error)) error,
 		) error {
 			stateKeys, err := extractKeys(opindex, values)
 			if err != nil {
@@ -952,7 +952,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		vp, mergers, states, getValues, getState := t.newFuncs()
 
-		vss := make([][]StateMergeValue, 33)
+		vss := make([][]stateMergeValue, 33)
 
 		pub := base.NewDummyPublickey(util.UUID().String())
 
@@ -996,7 +996,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		m, found := merged[vss[0][0].Key()]
 		t.True(found)
-		t.Equal(subed+prevst.Value().(*AccountStateValue).Balance, m)
+		t.Equal(subed+prevst.Value().(*accountStateValue).Balance, m)
 	})
 
 	t.Run("Merge() error", func() {
@@ -1027,8 +1027,8 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		getMergers := func(
 			opindex uint64,
-			values []StateMergeValue,
-			f func(func(StateMergeValue) (StateValueMerger, error)) error,
+			values []stateMergeValue,
+			f func(func(stateMergeValue) (stateValueMerger, error)) error,
 		) error {
 			stateKeys, err := extractKeys(opindex, values)
 			if err != nil {
@@ -1061,7 +1061,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 func (t *testPhaseMerger) baseTestMergeUnmerge() (
 	pubs []base.Publickey,
 	states []base.State,
-	ops [][]StateMergeValue,
+	ops [][]stateMergeValue,
 ) {
 	pub0 := base.NewDummyPublickey("0")
 	pub1 := base.NewDummyPublickey("1")
@@ -1069,7 +1069,7 @@ func (t *testPhaseMerger) baseTestMergeUnmerge() (
 	st0 := t.newState(pub0, 2)
 	st1 := t.newState(pub1, 2)
 
-	ops = [][]StateMergeValue{
+	ops = [][]stateMergeValue{
 		{ // 0
 			t.newMergeValue(pub0, 1),
 			t.newMergeValue(pub1, -2),
@@ -1199,7 +1199,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 	merge := func(opindex uint64) error {
 		t.T().Logf("> merge: opindex=%d", opindex)
 
-		var values []StateMergeValue
+		var values []stateMergeValue
 
 		switch i, found := vp.Value(opindex); {
 		case !found:
@@ -1225,7 +1225,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 	unmerge := func(opindex uint64) error {
 		t.T().Logf("> unmerge: opindex=%d", opindex)
 
-		var values []StateMergeValue
+		var values []stateMergeValue
 
 		switch i, found := vp.Value(opindex); {
 		case !found:
@@ -1323,7 +1323,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	sts[1] = t.newState(pub1, 2)
 	sts[2] = t.newState(pub2, 3)
 
-	ops := [][]StateMergeValue{
+	ops := [][]stateMergeValue{
 		{ // 0
 			t.newMergeValue(pub0, 1),
 			t.newMergeValue(pub1, -2),

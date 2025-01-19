@@ -14,7 +14,7 @@ import (
 
 var BaseStateHint = hint.MustNewHint("test-base-state-v0.0.1")
 
-type BaseState struct {
+type baseState struct {
 	h        util.Hash
 	previous util.Hash
 	v        base.StateValue
@@ -30,8 +30,8 @@ func newBaseState(
 	v base.StateValue,
 	previous util.Hash,
 	ops []util.Hash,
-) *BaseState {
-	s := &BaseState{
+) *baseState {
+	s := &baseState{
 		BaseHinter: hint.NewBaseHinter(BaseStateHint),
 		height:     height,
 		k:          k,
@@ -45,7 +45,7 @@ func newBaseState(
 	return s
 }
 
-func (s *BaseState) IsValid([]byte) error {
+func (s *baseState) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid base state")
 
 	if err := util.CheckIsValiders(nil, false,
@@ -83,31 +83,31 @@ func (s *BaseState) IsValid([]byte) error {
 	return nil
 }
 
-func (s *BaseState) Hash() util.Hash {
+func (s *baseState) Hash() util.Hash {
 	return s.h
 }
 
-func (s *BaseState) Previous() util.Hash {
+func (s *baseState) Previous() util.Hash {
 	return s.previous
 }
 
-func (s *BaseState) Key() string {
+func (s *baseState) Key() string {
 	return s.k
 }
 
-func (s *BaseState) Value() base.StateValue {
+func (s *baseState) Value() base.StateValue {
 	return s.v
 }
 
-func (s *BaseState) Height() base.Height {
+func (s *baseState) Height() base.Height {
 	return s.height
 }
 
-func (s *BaseState) Operations() []util.Hash {
+func (s *baseState) Operations() []util.Hash {
 	return s.ops
 }
 
-func (s *BaseState) generateHash() util.Hash {
+func (s *baseState) generateHash() util.Hash {
 	var bs [][]byte
 	var bsSize int
 
@@ -150,7 +150,7 @@ type baseStateJSONMarshaler struct {
 	Height base.Height `json:"height"`
 }
 
-func (s *BaseState) MarshalJSON() ([]byte, error) {
+func (s *baseState) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseStateJSONMarshaler{
 		BaseHinter: s.BaseHinter,
 		Hash:       s.h,
@@ -171,7 +171,7 @@ type baseStateJSONUnmarshaler struct {
 	Height     base.HeightDecoder      `json:"height"`
 }
 
-func (s *BaseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
+func (s *baseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	e := util.StringError("decode BaseState")
 
 	var u baseStateJSONUnmarshaler
@@ -200,13 +200,13 @@ func (s *BaseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	return nil
 }
 
-type StateMergeValue interface {
+type stateMergeValue interface {
 	Key() string
 	Value() base.StateValue
-	Merger(prev base.StateValue) (StateValueMerger, error)
+	Merger(prev base.StateValue) (stateValueMerger, error)
 }
 
-type StateValueMerger interface {
+type stateValueMerger interface {
 	// Key is state key.
 	Key() string
 	// Close sets StateValueMerger not to get no more Merge or Unmerge.
@@ -239,7 +239,7 @@ type StateValueMerger interface {
 	)
 }
 
-func IsEqualStateMergeValue(a, b StateMergeValue) bool {
+func isEqualStateMergeValue(a, b stateMergeValue) bool {
 	switch {
 	case a == nil && b == nil,
 		a == nil, b == nil:

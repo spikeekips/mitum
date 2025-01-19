@@ -39,7 +39,7 @@ func (t *testWorkerProcess) newf(
 		dutil.In3ErrorFunc[context.Context, string, []uint64],
 		workerProcessReportResult,
 	) error,
-	util.LockedMap[uint64, Operation],
+	util.LockedMap[uint64, operation],
 	util.LockedMap[string, base.State],
 ) {
 	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
@@ -58,7 +58,7 @@ func (t *testWorkerProcess) newf(
 	t.NoError(err)
 
 	defaultDistribute := func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
-		return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+		return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
 				t.Println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
 				return nil
@@ -71,7 +71,7 @@ func (t *testWorkerProcess) newf(
 			nil
 	}
 
-	savedOps := util.NewSingleLockedMap[uint64, Operation]()
+	savedOps := util.NewSingleLockedMap[uint64, operation]()
 	savedStates := util.NewSingleLockedMap[string, base.State]()
 
 	return func(
@@ -168,7 +168,7 @@ func (t *testWorkerProcess) newf(
 		savedStates
 }
 
-func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) dutil.InErrorFunc[opindexOpHashesFunc] {
+func (t *testWorkerProcess) defaultFuncInsertOp(ops []operation) dutil.InErrorFunc[opindexOpHashesFunc] {
 	return func(f opindexOpHashesFunc) error {
 		for i, op := range slices.All(ops) {
 			if err := f(uint64(i), op.Hash(), op.Fact().Hash()); err != nil {
@@ -222,11 +222,11 @@ func (t *testWorkerProcess) TestCancel() {
 						dutil.In2ErrorFunc[[]string, []string],
 						error,
 					) {
-						return func(uint64, util.Hash, []StateMergeValue) error { return nil },
+						return func(uint64, util.Hash, []stateMergeValue) error { return nil },
 							func([]string, []string) error { return nil },
 							nil
 					},
-					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
+					func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
 						return nil, false, "", nil
 					},
 					func(opindexOpHashesFunc) error { return nil },
@@ -343,8 +343,8 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 }
 
-func (t *testWorkerProcess) newFuncGetOperation(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
+func (t *testWorkerProcess) newFuncGetOperation(ops []operation) getOperationFunc {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, "", nil
 		}
@@ -358,7 +358,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := []string{local}
 
-		ops := make([]Operation, 33)
+		ops := make([]operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -429,7 +429,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := t.workers(1)
 
-		ops := make([]Operation, 33)
+		ops := make([]operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -456,7 +456,7 @@ func (t *testWorkerProcess) TestLocal() {
 				t.IfErrPanic(err)
 				t.IfTruePanic(reason != "", "not empty reason, %q", reason)
 
-				var values []StateMergeValue
+				var values []stateMergeValue
 
 				if subv != nil {
 					values = append(values, subv)
@@ -510,7 +510,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := []string{local}
 
-		ops := make([]Operation, 33)
+		ops := make([]operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -602,7 +602,7 @@ func (t *testWorkerProcess) TestLocal() {
 		other := "w0"
 		workers := []string{local, other}
 
-		ops := make([]Operation, 3)
+		ops := make([]operation, 3)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -681,7 +681,7 @@ func (t *testWorkerProcess) TestLocal() {
 		opsWorkers := []string{local}
 		workers := []string{local, "w0"}
 
-		ops := make([]Operation, 3)
+		ops := make([]operation, 3)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -701,7 +701,7 @@ func (t *testWorkerProcess) TestLocal() {
 		t.NoError(initial(
 			func(string) []string { return []string{local} },
 			func(_ context.Context, worker string) (workerProcessInsertStateMergeValuesFunc, dutil.In2ErrorFunc[[]string, []string], error) {
-				return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+				return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
 						otherInserted = true
 
 						return nil
@@ -905,7 +905,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 	ctx context.Context,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
-	ops []Operation,
+	ops []operation,
 ) {
 	for worker := range slices.Values(opsWorkers) {
 		if slices.Index(workers, worker) < 0 {
@@ -1036,7 +1036,7 @@ func (t *testWorkerProcess) TestWorkers() {
 		ctx, _ := t.Ctx()
 
 		workers := t.workers(1)
-		ops := make([]Operation, 33)
+		ops := make([]operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -1053,7 +1053,7 @@ func (t *testWorkerProcess) TestWorkers() {
 		ctx, _ := t.Ctx()
 
 		workers := t.workers(2)
-		ops := make([]Operation, 33)
+		ops := make([]operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -1078,11 +1078,11 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 				var owner string
 
 				switch stateKey {
-				case AccountStateKey(pub0):
+				case accountStateKey(pub0):
 					owner = "w0"
-				case AccountStateKey(pub1):
+				case accountStateKey(pub1):
 					owner = "w1"
-				case AccountStateKey(pub2):
+				case accountStateKey(pub2):
 					owner = "w2"
 				default:
 					panic(fmt.Sprintf("unknown state, %q", stateKey))
@@ -1093,7 +1093,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 
 			workers := t.workers(3)
 
-			ops := []Operation{
+			ops := []operation{
 				t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
 				t.newDummyOp([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
 				t.newDummyOp([]byte("2"), pub0, -1, pub1, 2), // 2
@@ -1152,7 +1152,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 					uint64(len(ops)),
 					localExtractedStateOwners,
 					func(worker string) (insertStateMergeValuesFunc, dutil.InErrorFunc[error], error) {
-						return func(uint64, []StateMergeValue) error { return nil },
+						return func(uint64, []stateMergeValue) error { return nil },
 							dutil.DummyErrorInFunc,
 							nil
 					},
@@ -1167,7 +1167,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 						dutil.In2ErrorFunc[[]string, []string],
 						error,
 					) {
-						return func(uint64, util.Hash, []StateMergeValue) error { return nil },
+						return func(uint64, util.Hash, []stateMergeValue) error { return nil },
 							func(subws, affected []string) error {
 								t.Println("local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
 
@@ -1197,7 +1197,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 
 						return nil
 					},
-					func(uint64, Operation) error { return nil },
+					func(uint64, operation) error { return nil },
 					func(owners []string, reasons map[uint64]string) error {
 						t.Println("local=%q owners=%v reasons=%v", local, owners, reasons)
 

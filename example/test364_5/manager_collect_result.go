@@ -162,9 +162,9 @@ func newFuncGenerateOperationFixedtree(
 	_ generateFixedTreeFunc,
 	_ error,
 ) {
-	var pool util.LockedMap[uint64, *OperationTreeNode]
+	var pool util.LockedMap[uint64, *operationTreeNode]
 
-	switch i, err := util.NewLockedMap[uint64, *OperationTreeNode](uint64(len(ophs)), nil); {
+	switch i, err := util.NewLockedMap[uint64, *operationTreeNode](uint64(len(ophs)), nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -174,12 +174,12 @@ func newFuncGenerateOperationFixedtree(
 	return func() error {
 			for i, hs := range slices.All(ophs) {
 				if err := newJob(func(context.Context) error {
-					_, _, _ = pool.Set(uint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
+					_, _, _ = pool.Set(uint64(i), func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
 						if found {
 							return nil, util.ErrLockedSetIgnore
 						}
 
-						return NewOperationTreeNode(hs[0], hs[1], "")
+						return newOperationTreeNode(hs[0], hs[1], "")
 					})
 
 					return nil
@@ -195,12 +195,12 @@ func newFuncGenerateOperationFixedtree(
 				return nil
 			}
 
-			_, _, _ = pool.Set(opindex, func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
+			_, _, _ = pool.Set(opindex, func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
 				switch {
 				case !found:
 					hs := ophs[opindex]
 
-					return NewOperationTreeNode(hs[0], hs[1], reason)
+					return newOperationTreeNode(hs[0], hs[1], reason)
 				default:
 					n.SetReason(reason)
 				}
@@ -221,7 +221,7 @@ func newFuncGenerateOperationFixedtree(
 
 			nodes := make([]fixedtree.Node, nnodes)
 
-			_ = pool.Traverse(func(opindex uint64, n *OperationTreeNode) bool {
+			_ = pool.Traverse(func(opindex uint64, n *operationTreeNode) bool {
 				nodes[opindex] = n
 
 				return true
@@ -367,7 +367,7 @@ func newFuncManagerWorkersResult(
 
 					return dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
 						return newJob(func(context.Context) error {
-							switch n, err := NewStateTreeNode(stateKey, stateHash); {
+							switch n, err := newStateTreeNode(stateKey, stateHash); {
 							case err != nil:
 								return err
 							default:

@@ -27,13 +27,13 @@ type testWorkerUnmerger struct {
 }
 
 func (t *testWorkerUnmerger) newFuncs() (
-	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateValueMerger],
+	vp util.LockedMap[uint64, []stateMergeValue],
+	mergers util.LockedMap[string, stateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
+	traverseStateValueMergers iter.Seq2[string, stateValueMerger],
 ) {
 	t.T().Helper()
 
@@ -62,12 +62,12 @@ func (t *testWorkerUnmerger) newFuncs() (
 	return vp, mergers, states, getStateMergeValues, getState, getStateValueMergers, traverseStateValueMergers
 }
 
-func (t *testWorkerUnmerger) randomGetStateMergeValues(uint64) ([]StateMergeValue, error) {
+func (t *testWorkerUnmerger) randomGetStateMergeValues(uint64) ([]stateMergeValue, error) {
 	return t.randomMergeValues(2), nil
 }
 
 func (t *testWorkerUnmerger) TestCancel() {
-	getStateMergeValues := func(uint64) ([]StateMergeValue, error) {
+	getStateMergeValues := func(uint64) ([]stateMergeValue, error) {
 		return t.randomMergeValues(2), nil
 	}
 
@@ -554,7 +554,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.T().Logf("worker ops: worker=%q ops=%v", worker, wops)
 		}
 
-		getStateMergeValues := func(opindex uint64) ([]StateMergeValue, error) {
+		getStateMergeValues := func(opindex uint64) ([]stateMergeValue, error) {
 			wi := int(math.Floor(float64(opindex) / float64(opsPerWorker)))
 
 			if slices.Index(failedWorkers, workers[wi]) >= 0 {

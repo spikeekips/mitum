@@ -17,7 +17,7 @@ func TestBaseStateEncode(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		sv := NewAccountStateValue(base.NewDummyPublickey(util.UUID().String()), 1)
+		sv := newAccountStateValue(base.NewDummyPublickey(util.UUID().String()), 1)
 		st := newBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
 
 		b, err := enc.Marshal(st)
@@ -27,13 +27,13 @@ func TestBaseStateEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: &AccountStateValue{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseStateHint, Instance: &BaseState{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountStateValueHint, Instance: &accountStateValue{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseStateHint, Instance: &baseState{}}))
 
 		hinter, err := enc.Decode(b)
 		t.NoError(err)
 
-		return hinter.(*BaseState)
+		return hinter.(*baseState)
 	}
 	t.Compare = func(a interface{}, b interface{}) {
 		as := a.(base.State)

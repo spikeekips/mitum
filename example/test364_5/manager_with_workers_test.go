@@ -28,7 +28,7 @@ func (t *testManagerWithWorkers) newManagerOptions() *managerOptions {
 	return newManagerOptions()
 }
 
-func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) {
+func (t *testManagerWithWorkers) randomOps(n int) ([]operation, [][2]util.Hash) {
 	ops := t.baseTestAccountStateValueMerger.randomAddOps(n, 1)
 
 	ophs := make([][2]util.Hash, len(ops))
@@ -149,7 +149,7 @@ func (t *testManagerWithWorkers) newManager(
 	ctx context.Context,
 	workers []string,
 	opsShare, statesShare uint64,
-	ops []Operation,
+	ops []operation,
 	getState getStateFunc,
 	getStateOwners getStateOwnersFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -209,7 +209,7 @@ func (t *testManagerWithWorkers) newManager(
 				return nil, nil, nil
 			}
 
-			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
 					stateKeys := extractStateMergeValueKeysFromValues(values)
 
 					err := i(opindex, fact, values)
@@ -354,7 +354,7 @@ func (t *testManagerWithWorkers) newManager(
 							t.Println("worker report result: send state: local=%q key=%q err=%+v %s", local, st.Key(), err, util.MustMarshalJSONString(st))
 
 							if expectedStatesValues != nil {
-								b := st.Value().(*AccountStateValue).Balance
+								b := st.Value().(*accountStateValue).Balance
 
 								e, found := expectedStatesValues[st.Key()]
 								t.Println("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
@@ -435,7 +435,7 @@ func (t *testManagerWithWorkers) newManager(
 
 func (t *testManagerWithWorkers) processCase(
 	workersSize, opsShare, statesShare uint64,
-	ops []Operation,
+	ops []operation,
 	getStateOwners getStateOwnersFunc,
 	getState getStateFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -510,7 +510,7 @@ func (t *testManagerWithWorkers) runCase(
 	workersSize, opsShare, statesShare uint64,
 	getStateOwners getStateOwnersFunc,
 	getState getStateFunc,
-	ops []Operation,
+	ops []operation,
 	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
 	expectedStates []base.State,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -652,7 +652,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		}
 	}
 
-	ops := []Operation{
+	ops := []operation{
 		t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
 		t.newDummyOp([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
 		t.newDummyOp([]byte("2"), pub0, -1, pub1, 2), // 2
@@ -692,7 +692,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 	}
 
 	for st := range slices.Values(expectedStates) {
-		ac, ok := st.Value().(*AccountStateValue)
+		ac, ok := st.Value().(*accountStateValue)
 		t.True(ok)
 
 		t.Equal(expectedStatesValues[st.Key()], ac.Balance)

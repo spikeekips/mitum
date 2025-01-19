@@ -10,7 +10,7 @@ type stateTreeNodeJSONMarshaler struct {
 	H valuehash.HashDecoder `json:"state_hash,omitempty"`
 }
 
-func (n *StateTreeNode) MarshalJSON() ([]byte, error) {
+func (n *stateTreeNode) MarshalJSON() ([]byte, error) {
 	if n == nil {
 		return nil, nil
 	}
@@ -26,7 +26,7 @@ func (n *StateTreeNode) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (n *StateTreeNode) UnmarshalJSON(b []byte) error {
+func (n *stateTreeNode) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &n.BaseNode); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ type operationTreeNodeJSONMarshaler struct {
 	Reason string                `json:"reason,omitempty"`
 }
 
-func (n *OperationTreeNode) MarshalJSON() ([]byte, error) {
+func (n *operationTreeNode) MarshalJSON() ([]byte, error) {
 	if n == nil {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func (n *OperationTreeNode) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (n *OperationTreeNode) UnmarshalJSON(b []byte) error {
+func (n *operationTreeNode) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &n.BaseNode); err != nil {
 		return err
 	}

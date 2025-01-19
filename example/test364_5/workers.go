@@ -309,12 +309,12 @@ func newFuncStateValueMergers(
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	mergerGetStateValueMergersFunc,
-	func() (size uint64, _ iter.Seq2[string /* state key */, StateValueMerger]),
+	func() (size uint64, _ iter.Seq2[string /* state key */, stateValueMerger]),
 	error,
 ) {
-	var pool util.LockedMap[string, StateValueMerger]
+	var pool util.LockedMap[string, stateValueMerger]
 
-	switch i, err := util.NewLockedMap[string, StateValueMerger](poolSize, nil); {
+	switch i, err := util.NewLockedMap[string, stateValueMerger](poolSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -327,16 +327,16 @@ func newFuncStateValueMergers(
 		extractStateMergeValueKeys,
 	)
 	return g,
-		func() (uint64, iter.Seq2[string, StateValueMerger]) {
+		func() (uint64, iter.Seq2[string, stateValueMerger]) {
 			return uint64(pool.Len()),
-				func(yield func(string, StateValueMerger) bool) {
+				func(yield func(string, stateValueMerger) bool) {
 					defer func() {
 						c()
 						pool.Close()
 					}()
 
 					if yield != nil {
-						_ = pool.Traverse(func(stateKey string, merger StateValueMerger) bool {
+						_ = pool.Traverse(func(stateKey string, merger stateValueMerger) bool {
 							return yield(stateKey, merger)
 						})
 					}
@@ -503,9 +503,9 @@ func newStateMergeValuesPool(poolSize uint64) (
 	closef func(),
 	_ error,
 ) {
-	var pool util.LockedMap[uint64, []StateMergeValue]
+	var pool util.LockedMap[uint64, []stateMergeValue]
 
-	switch i, err := util.NewLockedMap[uint64, []StateMergeValue](poolSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, []stateMergeValue](poolSize, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -513,8 +513,8 @@ func newStateMergeValuesPool(poolSize uint64) (
 	}
 
 	return newFuncGetStateMergeValuesFromPool(pool),
-		func(opindex uint64, values []StateMergeValue) (bool, error) {
-			_, created, _ := pool.Set(opindex, func(_ []StateMergeValue, found bool) ([]StateMergeValue, error) {
+		func(opindex uint64, values []stateMergeValue) (bool, error) {
+			_, created, _ := pool.Set(opindex, func(_ []stateMergeValue, found bool) ([]stateMergeValue, error) {
 				if found {
 					return nil, util.ErrLockedSetIgnore
 				}

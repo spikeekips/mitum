@@ -23,13 +23,13 @@ type testWorkerPhaseMerger struct {
 }
 
 func (t *testWorkerPhaseMerger) newFuncs() (
-	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateValueMerger],
+	vp util.LockedMap[uint64, []stateMergeValue],
+	mergers util.LockedMap[string, stateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	newPhaseMergerf newPhaseMergerFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
+	traverseStateValueMergers iter.Seq2[string, stateValueMerger],
 ) {
 	t.T().Helper()
 
@@ -79,8 +79,8 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 }
 
 func (t *testWorkerPhaseMerger) closeStateValueMergers(
-	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
-	f func(stateKey string, _ *AccountStateValue) bool,
+	traverseStateValueMergers iter.Seq2[string, stateValueMerger],
+	f func(stateKey string, _ *accountStateValue) bool,
 ) error {
 end:
 	for stateKey, merger := range traverseStateValueMergers {
@@ -95,7 +95,7 @@ end:
 			st = s
 		}
 
-		switch v, err := util.AssertInterfaceValue[*AccountStateValue](st); {
+		switch v, err := util.AssertInterfaceValue[*accountStateValue](st); {
 		case err != nil:
 			return err
 		default:
@@ -109,7 +109,7 @@ end:
 }
 
 func (t *testWorkerPhaseMerger) TestCancel() {
-	getStateMergeValues := func(uint64) ([]StateMergeValue, error) {
+	getStateMergeValues := func(uint64) ([]stateMergeValue, error) {
 		return t.randomMergeValues(2), nil
 	}
 
@@ -307,7 +307,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -320,7 +320,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 	t.Run("1 worker; enough", func() {
 		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
-		values := make([][]StateMergeValue, 33)
+		values := make([][]stateMergeValue, 33)
 		var expectedStateKeys []string
 
 		for i := range values {
@@ -330,10 +330,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				a, err := util.AssertInterfaceValue[*accountStateMergeValue](v)
 				t.NoError(err)
 
-				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
 			}
 		}
 		slices.Sort(expectedStateKeys)
@@ -357,7 +357,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+			vp.Traverse(func(opindex uint64, vs []stateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
@@ -373,7 +373,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -474,7 +474,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -498,10 +498,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				a, err := util.AssertInterfaceValue[*accountStateMergeValue](v)
 				t.NoError(err)
 
-				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
 			}
 		}
 		slices.Sort(expectedStateKeys)
@@ -545,7 +545,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -595,7 +595,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var called int64
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -608,7 +608,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	t.Run("1 worker enough and then manager", func() {
 		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
-		values := make([][]StateMergeValue, 33)
+		values := make([][]stateMergeValue, 33)
 		var expectedStateKeys []string
 
 		for i := range values {
@@ -618,10 +618,10 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				a, err := util.AssertInterfaceValue[*accountStateMergeValue](v)
 				t.NoError(err)
 
-				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
 			}
 		}
 		slices.Sort(expectedStateKeys)
@@ -645,7 +645,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+			vp.Traverse(func(opindex uint64, vs []stateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
@@ -666,7 +666,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -683,7 +683,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 	t.Run("1 worker not enough and then manager", func() {
 		vp, _, _, getStateMergeValues, newPhaseMerger, getStateValueMergers, traverseStateValueMergers := t.newFuncs()
 
-		values := make([][]StateMergeValue, 33)
+		values := make([][]stateMergeValue, 33)
 		var expectedStateKeys []string
 
 		for i := range values {
@@ -693,10 +693,10 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*AccountStateMergeValue](v)
+				a, err := util.AssertInterfaceValue[*accountStateMergeValue](v)
 				t.NoError(err)
 
-				expectedStateKeys = append(expectedStateKeys, AccountStateKey(a.Address))
+				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
 			}
 		}
 		slices.Sort(expectedStateKeys)
@@ -720,7 +720,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []StateMergeValue) bool {
+			vp.Traverse(func(opindex uint64, vs []stateMergeValue) bool {
 				return insert(opindex) == nil
 			})
 
@@ -741,7 +741,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *AccountStateValue) bool {
+			t.NoError(t.closeStateValueMergers(traverseStateValueMergers, func(stateKey string, v *accountStateValue) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)

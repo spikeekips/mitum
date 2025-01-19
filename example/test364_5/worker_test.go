@@ -48,7 +48,7 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (operation, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()
@@ -121,7 +121,7 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (operation, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()

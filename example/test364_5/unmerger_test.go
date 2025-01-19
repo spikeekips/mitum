@@ -18,8 +18,8 @@ type testUnmerger struct {
 }
 
 func (t *testUnmerger) newFuncs() (
-	vp util.LockedMap[uint64, []StateMergeValue],
-	mergers util.LockedMap[string, StateValueMerger],
+	vp util.LockedMap[uint64, []stateMergeValue],
+	mergers util.LockedMap[string, stateValueMerger],
 	states util.LockedMap[string, base.State],
 	_ opindexGetStateMergeValuesFunc,
 	getState getStateFunc,
@@ -59,7 +59,7 @@ func (t *testUnmerger) TestUnmerge() {
 		unmerge, done, wait, err := newFuncUnmerger(ctx, t.newJobWorker(), 1<<9, getValues, getMergers)
 		t.NoError(err)
 
-		ops := make([][]StateMergeValue, 33)
+		ops := make([][]stateMergeValue, 33)
 		for i := range ops {
 			vs := t.randomMergeValues(1, 2)
 			vp.SetValue(uint64(i), vs)
@@ -111,7 +111,7 @@ func (t *testUnmerger) TestUnmerge() {
 
 		vp, mergers, _, getValues, _, getMergers := t.newFuncs()
 
-		ops := make([][]StateMergeValue, 33)
+		ops := make([][]stateMergeValue, 33)
 
 		for i := range ops {
 			vs := t.randomMergeValues(1, 2)

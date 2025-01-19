@@ -12,8 +12,8 @@ import (
 
 type (
 	addOwnersFunc                          = func(owners []string)
-	workerStateMergeValuesFunc             = func(worker string, _ []StateMergeValue) error
-	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error
+	workerStateMergeValuesFunc             = func(worker string, _ []stateMergeValue) error
+	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv stateMergeValue, addvs []stateMergeValue) func(workerStateMergeValuesFunc) error
 
 	insertStateOwnerSetFunc       = func(subw string, affected []string) error
 	insertStateOwnersSetFunc      = func(subws, affected []string) error
@@ -147,7 +147,7 @@ func newFuncLocalExtractedStateOwners(
 		addOwners, doneOwners = a, d
 	}
 
-	return func(opindex uint64, subv StateMergeValue, addvs []StateMergeValue) func(workerStateMergeValuesFunc) error {
+	return func(opindex uint64, subv stateMergeValue, addvs []stateMergeValue) func(workerStateMergeValuesFunc) error {
 			addValue, traverseValues := newFuncCollectWorkerStateMergeValues()
 
 			var subws []string
@@ -286,12 +286,12 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 }
 
 func newFuncCollectWorkerStateMergeValues() (
-	func(worker string, _ StateMergeValue),
+	func(worker string, _ stateMergeValue),
 	func(workerStateMergeValuesFunc) error,
 ) {
-	m := map[string][]StateMergeValue{}
+	m := map[string][]stateMergeValue{}
 
-	return func(worker string, value StateMergeValue) {
+	return func(worker string, value stateMergeValue) {
 			m[worker] = append(m[worker], value)
 		},
 		func(f workerStateMergeValuesFunc) error {

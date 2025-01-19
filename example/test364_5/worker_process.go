@@ -24,7 +24,7 @@ type (
 		base.State,
 		error,
 	)
-	workerDistributeWorkerStateMergeValuesFunc     = func(worker string, opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	workerDistributeWorkerStateMergeValuesFunc     = func(worker string, opindex uint64, fact util.Hash, _ []stateMergeValue) error
 	newWorkerProcessDistributeStateMergeValuesFunc func(_ context.Context, worker string) (
 		workerProcessInsertStateMergeValuesFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
@@ -42,10 +42,10 @@ type (
 		newWorkerProcessDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		dutil.InErrorFunc[opindexOpHashesFunc],
-		dutil.In2ErrorFunc[uint64, Operation],
+		dutil.In2ErrorFunc[uint64, operation],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
-	workerProcessInsertStateMergeValuesFunc     = func(opindex uint64, fact util.Hash, _ []StateMergeValue) error
+	workerProcessInsertStateMergeValuesFunc     = func(opindex uint64, fact util.Hash, _ []stateMergeValue) error
 	workerProcessInsertStateMergeValuesCallback = func(
 		workerProcessInsertStateMergeValuesFunc,
 		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
@@ -64,7 +64,7 @@ type (
 	workerProcessWaitFunc = func(
 		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		workerProcessReportResult,
-	) (iter.Seq2[uint64, Operation], error)
+	) (iter.Seq2[uint64, operation], error)
 )
 
 func newFuncWorkerProcess(
@@ -113,7 +113,7 @@ func newFuncWorkerProcess(
 	}
 
 	var getStateValueMergers mergerGetStateValueMergersFunc
-	var traverseStateValueMergersf func() (uint64, iter.Seq2[string, StateValueMerger])
+	var traverseStateValueMergersf func() (uint64, iter.Seq2[string, stateValueMerger])
 
 	switch g, t, err := newFuncStateValueMergers(
 		maxOpsSize*2, // NOTE approximate states size
@@ -151,9 +151,9 @@ func newFuncWorkerProcess(
 		initialInsert, workerInsertStateValues, unmerge, wait = i, s, u, w
 	}
 
-	var savedOps util.LockedMap[uint64, Operation]
+	var savedOps util.LockedMap[uint64, operation]
 
-	switch i, err := util.NewLockedMap[uint64, Operation](maxOpsSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, operation](maxOpsSize, nil); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -174,7 +174,7 @@ func newFuncWorkerProcess(
 				distribute,
 				getOperation,
 				insertOp,
-				func(opindex uint64, op Operation) error {
+				func(opindex uint64, op operation) error {
 					_ = savedOps.SetValue(opindex, op)
 
 					return nil
@@ -208,7 +208,7 @@ func newFuncWorkerProcess(
 		func(
 			broadcastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
 			reportResult workerProcessReportResult,
-		) (iter.Seq2[uint64, Operation], error) {
+		) (iter.Seq2[uint64, operation], error) {
 			defer func() {
 				extractStateKeyClose()
 				closeState()
@@ -247,7 +247,7 @@ func newFuncWorkerProcess(
 
 			log.Debug().Msg("wait done")
 
-			return func(yield func(uint64, Operation) bool) {
+			return func(yield func(uint64, operation) bool) {
 					defer savedOps.Close()
 
 					if yield == nil {
@@ -358,7 +358,7 @@ func newFuncWorkerProcessStateValueMerger(
 				insert, done = i, d
 			}
 
-			return func(opindex uint64, fact util.Hash, values []StateMergeValue) error {
+			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
 					if err := mergeStateOpFromValues(mergeStateOp, opindex, fact, values); err != nil {
 						return err
 					}
@@ -432,7 +432,7 @@ func newFuncWorkerProcessInitialInsert(
 			distribute newWorkerProcessDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
-			saveOperation dutil.In2ErrorFunc[uint64, Operation],
+			saveOperation dutil.In2ErrorFunc[uint64, operation],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			var extractStateOwnersStateMergeValues extractStateOwnersStateMergeValuesFunc
@@ -499,7 +499,7 @@ func newFuncWorkerProcessInitialInsert(
 func newFuncorkerProcessExtracted(
 	ctx context.Context,
 	local string,
-	saveOperation dutil.In2ErrorFunc[uint64, Operation],
+	saveOperation dutil.In2ErrorFunc[uint64, operation],
 	extractStateOwners extractStateOwnersStateMergeValuesFunc,
 	distribute workerDistributeWorkerStateMergeValuesFunc,
 	mergeStateOp mergeStateOpFunc,
@@ -507,7 +507,7 @@ func newFuncorkerProcessExtracted(
 ) stateMergeValueExtractorExtractedFunc {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	return func(opindex uint64, op Operation, subv StateMergeValue, addvs []StateMergeValue) error {
+	return func(opindex uint64, op operation, subv stateMergeValue, addvs []stateMergeValue) error {
 		log.Trace().
 			Dict("operation", zerolog.Dict().
 				Uint64("opindex", opindex).
@@ -526,9 +526,9 @@ func newFuncorkerProcessExtracted(
 		}
 
 		stateKeys := make([]string, size)
-		stateMergeValues := make([]StateMergeValue, size)
+		stateMergeValues := make([]stateMergeValue, size)
 
-		add := func(i int, value StateMergeValue) {
+		add := func(i int, value stateMergeValue) {
 			stateKeys[i] = value.Key()
 			stateMergeValues[i] = value
 		}
@@ -543,7 +543,7 @@ func newFuncorkerProcessExtracted(
 
 		fact := op.Fact().Hash()
 
-		if err := extractStateOwners(opindex, subv, addvs)(func(worker string, values []StateMergeValue) error {
+		if err := extractStateOwners(opindex, subv, addvs)(func(worker string, values []stateMergeValue) error {
 			if worker == local {
 				return insertToMerger(opindex, values)
 			}
@@ -621,7 +621,7 @@ func mergeStateOpFromValues(
 	mergeStateOp mergeStateOpFunc,
 	opindex uint64,
 	fact util.Hash,
-	values []StateMergeValue,
+	values []stateMergeValue,
 ) error {
 	var stateKeys []string
 
@@ -639,7 +639,7 @@ func mergeStateOpFromValues(
 func workerProcessCloseStateValueMergers(
 	ctx context.Context,
 	createState createStateFunc2,
-	traverseStateValueMergers iter.Seq2[string, StateValueMerger],
+	traverseStateValueMergers iter.Seq2[string, stateValueMerger],
 	traverseStateOps traverseStateOpsFunc,
 	h dutil.InErrorFunc[base.State],
 ) error {
@@ -723,12 +723,12 @@ func workersDistributeStateMergeValues(
 		pool = i
 	}
 
-	return func(worker string, opindex uint64, fact util.Hash, values []StateMergeValue) error {
+	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
 			if worker == local {
 				return nil
 			}
 
-			var insert dutil.In3ErrorFunc[uint64, util.Hash, []StateMergeValue]
+			var insert dutil.In3ErrorFunc[uint64, util.Hash, []stateMergeValue]
 
 			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
 				if found {

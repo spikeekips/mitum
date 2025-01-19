@@ -10,11 +10,11 @@ import (
 type (
 	opindexOpHashesFunc         = func(opindex uint64, oph, fact util.Hash) error
 	ctxOpindexOpHashesFunc      = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ Operation, found bool, reason string, _ error)
+	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ operation, found bool, reason string, _ error)
 	extractStateMergeValuesFunc = func(context.Context, uint64, util.Hash, util.Hash) (
-		_ Operation,
-		subv StateMergeValue,
-		addvs []StateMergeValue,
+		_ operation,
+		subv stateMergeValue,
+		addvs []stateMergeValue,
 		reason string,
 		_ error,
 	)
@@ -22,9 +22,9 @@ type (
 		getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc]
 	stateMergeValueExtractorExtractedFunc = func(
 		opindex uint64,
-		_ Operation,
-		subv StateMergeValue,
-		addvs []StateMergeValue,
+		_ operation,
+		subv stateMergeValue,
+		addvs []stateMergeValue,
 	) error
 )
 
@@ -99,13 +99,13 @@ func newFuncExtractStateMergeValue(
 	getOperation getOperationFunc,
 ) extractStateMergeValuesFunc {
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) (
-		Operation,
-		StateMergeValue,
-		[]StateMergeValue,
+		operation,
+		stateMergeValue,
+		[]stateMergeValue,
 		string,
 		error,
 	) {
-		var op Operation
+		var op operation
 
 		switch i, found, reason, err := getOperation(ctx, opindex, oph, fact); {
 		case err != nil:
