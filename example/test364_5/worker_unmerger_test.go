@@ -89,7 +89,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 			1<<9,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -120,7 +120,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 			1<<9,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -168,7 +168,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 			1<<9,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -211,7 +211,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -241,7 +241,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -269,7 +269,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -299,7 +299,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -328,7 +328,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -364,7 +364,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -409,7 +409,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -481,7 +481,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -579,7 +579,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				1<<9,
 				getStateMergeValues,
 				getStateValueMergers,
-				newFuncLocalCheckEnoughFailedWorkers(local),
+				newFuncLocalCheckFailedWorkers(local),
 			)
 			t.NoError(err)
 
@@ -662,7 +662,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -709,7 +709,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -768,7 +768,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 
@@ -801,7 +801,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			1<<9,
 			t.randomGetStateMergeValues,
 			getStateValueMergers,
-			newFuncLocalCheckEnoughFailedWorkers(local),
+			newFuncLocalCheckFailedWorkers(local),
 		)
 		t.NoError(err)
 

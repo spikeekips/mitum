@@ -29,7 +29,7 @@ func newFuncWorkerPhaseMerger(
 	ctxCancel dutil.InErrorFunc[error],
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
+	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	newPhaseMerger newPhaseMergerFunc,
 	minEnough, maxFailed uint64,
 ) (
@@ -46,14 +46,13 @@ func newFuncWorkerPhaseMerger(
 
 	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
 
-	var checkWorker checkEnoughFailedWorkerFunc
-	var checkWorkerClose func()
+	var checkWorker checkFailedWorkersFunc
 
-	switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
+	switch w, err := newCheckWorkers(minEnough, maxFailed, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
-		checkWorker, checkWorkerClose = w, c
+		checkWorker = w
 	}
 
 	var phaseMergerMerge dutil.InErrorFunc[uint64]
@@ -94,7 +93,7 @@ func newFuncWorkerPhaseMerger(
 							return dutil.NewIfErrErrorInFunc(ctxCancel)(workerInsertDone(err))
 						}
 
-						switch ok, enough, failed, err := checkWorker(worker, func() error { return err }); {
+						switch ok, enough, failed, err := checkWorker(worker, err); {
 						case failed:
 							l.Error().Err(err).Msg("insert; check workers: failed")
 
@@ -120,7 +119,6 @@ func newFuncWorkerPhaseMerger(
 			defer func() {
 				_, _, _, _ = phaseMergerWait()
 				_ = workerInsertWait(nil)
-				checkWorkerClose()
 			}()
 
 			return unmerged, reasons, dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {

@@ -21,14 +21,13 @@ func newFuncManagerCollectOwners(
 		Uint64("min_enough", minEnough).
 		Msg("new")
 
-	var checkWorker checkEnoughFailedWorkerFunc
-	var checkWorkerClose func()
+	var checkWorker checkFailedWorkersFunc
 
-	switch w, c, err := newFuncCheckEnoughFailedWorkers(minEnough, workersSize); {
+	switch w, err := newFuncCheckFailedWorkers(minEnough, workersSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
-		checkWorker, checkWorkerClose = w, c
+		checkWorker = w
 	}
 
 	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextDone(ctx)
@@ -53,15 +52,9 @@ func newFuncManagerCollectOwners(
 			return dutil.ContextCauseError(octx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Logger()
 
-				switch ok, enough, _, err := checkWorker(worker, func() error {
-					if len(owners) < 1 {
-						return nil
-					}
+				_, _ = add(owners...)
 
-					_, _ = add(owners...)
-
-					return nil
-				}); {
+				switch ok, enough, _, err := checkWorker(worker, nil); {
 				case err != nil:
 					l.Error().Err(err).Msg("worker state owners: failed")
 
@@ -77,8 +70,6 @@ func newFuncManagerCollectOwners(
 			})
 		},
 		func() ([]string, error) {
-			defer checkWorkerClose()
-
 			if err := ownersWait(nil); err != nil {
 				return nil, err
 			}

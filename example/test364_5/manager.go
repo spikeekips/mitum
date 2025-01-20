@@ -258,18 +258,16 @@ func managerStartWorkers(
 	maxOpsSize uint64,
 	f managerStartWorkerFunc,
 ) error {
-	var checkWorker checkEnoughFailedWorkerFunc
+	var checkWorker checkFailedWorkersFunc
 
 	switch _, f, err := minEnoughMaxFailed(uint64(len(opsWorkers)), opsShare); {
 	case err != nil:
 		return err
 	default:
-		switch w, c, err := newFuncCheckEnoughFailedWorkers(uint64(len(workers)), f); {
+		switch w, err := newFuncCheckFailedWorkers(uint64(len(workers)), f, nil); {
 		case err != nil:
 			return err
 		default:
-			defer c()
-
 			checkWorker = w
 		}
 	}
@@ -293,7 +291,7 @@ func managerStartWorkers(
 			gerr = err
 		}
 
-		if _, _, failed, err := checkWorker(worker, func() error { return gerr }); failed {
+		if _, _, failed, err := checkWorker(worker, gerr); failed {
 			return err
 		}
 

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -14,17 +15,20 @@ import (
 )
 
 type (
-	workerOperationsFunc            = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
-	minEnoughMaxFailedFunc          = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
-	checkFailedWorkerFunc           = func(worker string, _ func() error) (ok, failed bool, _ error)
-	checkEnoughFailedWorkerFunc     = func(worker string, _ func() error) (ok, enough, failed bool, _ error)
-	newCheckEnoughFailedWorkersFunc = func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error)
-	getStateOwnersFunc              = func(stateKey string) []string
-	getOperationOwnersFunc          = func(opindex uint64) []string
-	mergeStateOpFunc                = func(opindex uint64, fact util.Hash, stateKeys []string) bool
-	unmergeStateOpFunc              = func(ops []uint64) bool
-	getStateOpsFunc                 = func(stateKey string) ([]util.Hash, error)
-	traverseStateOpsFunc            = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
+	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
+	minEnoughMaxFailedFunc       = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
+	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough, failed bool, _ error)
+	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error)
+	newCheckFailedWorkersFunc    = func(minEnough, maxFailed uint64, blockUntil func(string) bool) (
+		checkFailedWorkersFunc,
+		error,
+	)
+	getStateOwnersFunc     = func(stateKey string) []string
+	getOperationOwnersFunc = func(opindex uint64) []string
+	mergeStateOpFunc       = func(opindex uint64, fact util.Hash, stateKeys []string) bool
+	unmergeStateOpFunc     = func(ops []uint64) bool
+	getStateOpsFunc        = func(stateKey string) ([]util.Hash, error)
+	traverseStateOpsFunc   = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
@@ -42,264 +46,119 @@ func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ e
 
 var errWorkersFailed = util.NewIDError("workers failed")
 
-func newFuncCheckFailedWorkers(
-	workersSize,
-	maxFailed uint64,
-) (
-	checkFailedWorkerFunc,
-	func(),
-	error,
-) {
-	if workersSize < 1 {
-		return nil, nil, errors.Errorf("zero max workers size")
-	}
-
-	var m util.LockedMap[string, struct{}]
-
-	switch i, err := util.NewLockedMap[string, struct{}](workersSize, nil); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		m = i
-	}
-
-	count := func() func(string, error) (_, _ bool) {
-		var gIsClosed bool
-		var failedCount *uint64
-		var l sync.RWMutex
-
-		f := func() bool {
-			return failedCount != nil && *failedCount >= maxFailed
-		}
-
-		c := func() (_, _ bool) {
-			l.RLock()
-			defer l.RUnlock()
-
-			return gIsClosed, f()
-		}
-
-		return func(worker string, err error) (isClosed, failed bool) {
-			if isClosed, failed = c(); isClosed {
-				return isClosed, failed
-			}
-
-			l.Lock()
-			defer l.Unlock()
-
-			if err != nil {
-				if failedCount == nil {
-					failedCount = new(uint64)
-				}
-
-				*failedCount++
-			}
-
-			failed = f()
-
-			if failed {
-				gIsClosed = true
-			}
-
-			return false, failed
-		}
-	}()
-
-	return func(worker string, f func() error) (ok, failed bool, gerr error) {
-			var isClosed bool
-
-			switch _, _, err := m.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
-				if found {
-					return struct{}{}, util.ErrLockedSetIgnore
-				}
-
-				if f != nil {
-					gerr = f()
-				}
-
-				switch isClosed, failed = count(worker, gerr); {
-				case isClosed:
-					return struct{}{}, util.ErrLockedSetIgnore
-				default:
-					ok = true
-
-					return struct{}{}, nil
-				}
-			}); {
-			case errors.Is(err, util.ErrLockedMapClosed):
-				ok = false
-			default:
-				if isClosed {
-					m.Close()
-				}
-			}
-
-			if failed {
-				switch {
-				case gerr != nil:
-					gerr = errWorkersFailed.Wrap(gerr)
-				default:
-					gerr = errWorkersFailed
-				}
-			}
-
-			return ok, failed, gerr
-		},
-		m.Close,
-		nil
-}
-
-func newFuncBaseCheckEnoughFailedWorkers(
+func newFuncCheckWeightFailedWorkers(
 	minEnough, maxFailed uint64,
-	// notEnoughUntil suspends enough until true, enough will not be reached
-	// even though over minEnough.
-	notEnoughUntil func(worker string) bool,
+	blockUntil func(worker string) bool,
 ) (
-	checkEnoughFailedWorkerFunc,
-	func(),
+	checkWeightFailedWorkersFunc,
 	error,
 ) {
 	if minEnough < 1 {
-		return nil, nil, errors.Errorf("zero min enough")
+		return nil, errors.Errorf("zero min enough")
 	}
 
-	var m util.LockedMap[string, struct{}]
-
-	switch i, err := util.NewLockedMap[string, struct{}](minEnough+maxFailed, nil); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		m = i
+	if blockUntil == nil {
+		blockUntil = func(string) bool { return true }
 	}
 
-	count := func() func(string, error) (_, _, _ bool) {
-		var readyEnough, gIsClosed bool
-		var enoughCount *uint64
-		var failedCount *uint64
-		var l sync.RWMutex
+	var l sync.Mutex
 
-		f := func() (_, _ bool) {
-			var enough, failed bool
+	var ready bool
+	var enoughCount, failedCount uint64
+	var doneEnough, doneFailed atomic.Value
 
-			if readyEnough && enoughCount != nil {
-				enough = *enoughCount >= minEnough
+	workers := map[string]struct{}{}
+
+	return func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error) {
+			if i := doneEnough.Load(); i != nil && i.(bool) {
+				return false, false, false, nil
 			}
 
-			if failedCount != nil {
-				failed = *failedCount >= maxFailed
-			}
-
-			return !failed && enough, failed
-		}
-
-		c := func() (_, _, _ bool) {
-			l.RLock()
-			defer l.RUnlock()
-
-			enough, failed := f()
-
-			return gIsClosed, enough, failed
-		}
-
-		return func(worker string, err error) (isClosed, enough, failed bool) {
-			if isClosed, enough, failed = c(); isClosed {
-				return isClosed, enough, failed
+			if i := doneFailed.Load(); i != nil {
+				return false, false, true, i.(error)
 			}
 
 			l.Lock()
 			defer l.Unlock()
 
-			if !readyEnough {
-				readyEnough = notEnoughUntil(worker)
+			if _, found := workers[worker]; found {
+				return false, false, false, nil
+			}
+
+			workers[worker] = struct{}{}
+			if !ready && blockUntil(worker) {
+				ready = true
 			}
 
 			switch {
 			case err != nil:
-				if failedCount == nil {
-					failedCount = new(uint64)
-				}
+				failedCount += weight
+				if failedCount >= maxFailed {
+					dutil.ClearMap(workers)
 
-				*failedCount++
+					nerr := errWorkersFailed.Wrap(err)
+					doneFailed.Store(nerr)
+
+					return true, false, true, nerr
+				}
 			default:
-				if enoughCount == nil {
-					enoughCount = new(uint64)
-				}
+				enoughCount += weight
+				if enoughCount >= minEnough && ready {
+					dutil.ClearMap(workers)
 
-				*enoughCount++
-			}
+					doneEnough.Store(true)
 
-			enough, failed = f()
-
-			if enough || failed {
-				gIsClosed = true
-			}
-
-			return false, enough, failed
-		}
-	}()
-
-	return func(worker string, f func() error) (ok, enough, failed bool, gerr error) {
-			var isClosed bool
-
-			switch _, _, err := m.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
-				if found {
-					return struct{}{}, util.ErrLockedSetIgnore
-				}
-
-				if f != nil {
-					gerr = f()
-				}
-
-				switch isClosed, enough, failed = count(worker, gerr); {
-				case isClosed:
-					return struct{}{}, util.ErrLockedSetIgnore
-				default:
-					ok = true
-
-					return struct{}{}, nil
-				}
-			}); {
-			case errors.Is(err, util.ErrLockedMapClosed):
-				ok = false
-			default:
-				if isClosed {
-					m.Close()
+					return true, true, false, nil
 				}
 			}
 
-			if failed {
-				switch {
-				case gerr != nil:
-					gerr = errWorkersFailed.Wrap(gerr)
-				default:
-					gerr = errWorkersFailed
-				}
-			}
-
-			return ok, enough, failed, gerr
+			return true, false, false, nil
 		},
-		m.Close,
 		nil
 }
 
-func newFuncCheckEnoughFailedWorkers(minEnough, maxFailed uint64) (
-	checkEnoughFailedWorkerFunc,
-	func(),
+func newFuncCheckFailedWorkers(
+	minEnough, maxFailed uint64,
+	blockUntil func(worker string) bool,
+) (
+	checkFailedWorkersFunc,
 	error,
 ) {
-	return newFuncBaseCheckEnoughFailedWorkers(
-		minEnough,
-		maxFailed,
-		func(string) bool { return true },
-	)
+	var check checkWeightFailedWorkersFunc
+
+	switch c, err := newFuncCheckWeightFailedWorkers(minEnough, maxFailed, blockUntil); {
+	case err != nil:
+		return nil, err
+	default:
+		check = c
+	}
+
+	return func(worker string, err error) (bool, bool, bool, error) {
+			return check(worker, 1, err)
+		},
+		nil
 }
 
-func newFuncLocalCheckEnoughFailedWorkers(local string) newCheckEnoughFailedWorkersFunc {
-	return func(minEnough, maxFailed uint64) (checkEnoughFailedWorkerFunc, func(), error) {
-		return newFuncBaseCheckEnoughFailedWorkers(
-			minEnough, maxFailed,
-			func(worker string) bool { return worker == local },
-		)
+func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc {
+	return func(minEnough, maxFailed uint64, blockUntil func(string) bool) (
+		checkFailedWorkersFunc,
+		error,
+	) {
+		var check checkWeightFailedWorkersFunc
+
+		switch c, err := newFuncCheckWeightFailedWorkers(minEnough, maxFailed, func(worker string) bool {
+			return worker == local
+		}); {
+		case err != nil:
+			return nil, err
+		default:
+			check = c
+		}
+
+		return func(worker string, err error) (bool, bool, bool, error) {
+				return check(worker, 1, err)
+			},
+			nil
 	}
 }
 

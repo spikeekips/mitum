@@ -125,7 +125,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 0,
 		)
@@ -153,7 +153,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 0,
 		)
@@ -182,7 +182,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 				cancel,
 				getStateMergeValues,
 				getStateValueMergers,
-				newFuncCheckEnoughFailedWorkers,
+				newFuncCheckFailedWorkers,
 				newPhaseMerger,
 				1, 0,
 			)
@@ -212,7 +212,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 				cancel,
 				getStateMergeValues,
 				getStateValueMergers,
-				newFuncCheckEnoughFailedWorkers,
+				newFuncCheckFailedWorkers,
 				newPhaseMerger,
 				1, 0,
 			)
@@ -243,7 +243,7 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 0,
 		)
@@ -285,7 +285,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 0,
 		)
@@ -347,7 +347,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 0,
 		)
@@ -409,7 +409,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 0,
 		)
@@ -450,7 +450,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 0,
 		)
@@ -515,7 +515,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 0,
 		)
@@ -573,7 +573,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 0,
 		)
@@ -635,7 +635,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 0,
 		)
@@ -710,7 +710,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckEnoughFailedWorkers,
+			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 0,
 		)

@@ -34,7 +34,7 @@ func newFuncWorkerUnmerger(
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	newCheckWorkers newCheckEnoughFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
+	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 ) (
 	workerUnmergedFunc, // NOTE from state owners, excluding local
 	workerUnmergerLocalReadyFunc,
@@ -165,7 +165,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	local string,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	newCheckWorkers newCheckEnoughFailedWorkersFunc,
+	newCheckWorkers newCheckFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
 	localReady func(subStateOwners []string, localUnmerged []uint64, minEnough, maxFailed uint64) (ok, enough, failed bool, _ error),
@@ -175,8 +175,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 ) {
 	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
-	var checkWorker checkEnoughFailedWorkerFunc
-	var checkWorkerClose func()
+	var checkWorker checkFailedWorkersFunc
 
 	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(ctx, newFuncUnmergerFunc)
 
@@ -185,11 +184,11 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 
 	newUnmerger := func(minEnough, maxFailed uint64) error {
 		once.Do(func() {
-			switch w, c, err := newCheckWorkers(minEnough, maxFailed); {
+			switch w, err := newCheckWorkers(minEnough, maxFailed, nil); {
 			case err != nil:
 				newUnmergerErr = err
 			default:
-				checkWorker, checkWorkerClose = w, c
+				checkWorker = w
 			}
 
 			newUnmergerErr = newUnmergerf()
@@ -213,15 +212,16 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			}
 		}
 
-		ok, enough, failed, err := checkWorker(worker, func() error {
-			for opindex := range slices.Values(unmerged) {
-				if _, err := filter(opindex, unmergeOp); err != nil {
-					return err
-				}
-			}
+		var gerr error
 
-			return nil
-		})
+		for opindex := range slices.Values(unmerged) {
+			if _, err := filter(opindex, unmergeOp); err != nil {
+				gerr = err
+				break
+			}
+		}
+
+		ok, enough, failed, err := checkWorker(worker, gerr)
 		if !failed && err != nil {
 			err = nil // NOTE ignore not failed error
 		}
@@ -322,10 +322,6 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		donef,
 		func() ([]uint64, error) {
 			defer func() {
-				if checkWorkerClose != nil {
-					checkWorkerClose()
-				}
-
 				newWorkerOpindexFilterClose()
 
 				traversePool(nil)

@@ -90,7 +90,7 @@ func newFuncWorkerMerger(
 		getStateMergeValues, setStateMergeValues, stateMergeValuesPoolClose = g, s, c
 	}
 
-	newCheckWorkers := newFuncLocalCheckEnoughFailedWorkers(local)
+	newCheckWorkers := newFuncLocalCheckFailedWorkers(local)
 
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
 	var workerPhaseMergerWait workerPhaseMergerWaitFunc

@@ -275,15 +275,14 @@ func newFuncManagerWorkersResult(
 		addState, doneState = a, d
 	}
 
-	var checkWorker checkEnoughFailedWorkerFunc
-	var checkWorkerClose func()
+	var checkWorker checkFailedWorkersFunc
 
 	workerErrPool := util.NewSingleLockedMap[string, error]()
 
-	checkWorkerDone := func(ctx context.Context, cw checkEnoughFailedWorkerFunc, worker string, err error) (bool, error) {
+	checkWorkerDone := func(ctx context.Context, cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
 		l := log.With().Str("worker", worker).Logger()
 
-		switch ok, enough, failed, err := cw(worker, func() error { return err }); {
+		switch ok, enough, failed, err := cw(worker, err); {
 		case failed:
 			l.Error().Err(err).Msg("failed")
 
@@ -309,7 +308,7 @@ func newFuncManagerWorkersResult(
 	workerDone := func(ctx context.Context, worker string, err error) error {
 		l := log.With().Str("worker", worker).Logger()
 
-		var cw checkEnoughFailedWorkerFunc
+		var cw checkFailedWorkersFunc
 
 		switch _, created, _ := workerErrPool.Set(worker, func(_ error, found bool) (error, error) {
 			switch {
@@ -410,12 +409,11 @@ func newFuncManagerWorkersResult(
 							Uint64("max_failed", maxFailed).
 							Msg("ready")
 
-						switch w, c, err := newFuncCheckEnoughFailedWorkers(minEnough, maxFailed); {
+						switch w, err := newFuncCheckFailedWorkers(minEnough, maxFailed, nil); {
 						case err != nil:
 							return err
 						default:
 							checkWorker = w
-							checkWorkerClose = c
 
 							return nil
 						}
@@ -449,13 +447,6 @@ func newFuncManagerWorkersResult(
 		},
 		func(g fixedtree.GenerateNodesHashFunc) (tr *fixedtree.Tree, _ error) {
 			defer func() {
-				_ = workerErrPool.Get(util.UUID().String(), func(error, bool) error {
-					if checkWorkerClose != nil {
-						checkWorkerClose()
-					}
-
-					return nil
-				})
 				_ = jobWait(context.Canceled)
 			}()
 

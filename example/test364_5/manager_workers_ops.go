@@ -54,8 +54,7 @@ func newFuncManagerWorkersOps(
 
 	l = l.Uint64("ops_workers_size", opsWorkersSize)
 
-	var checkWorker checkFailedWorkerFunc
-	var checkWorkerClose func()
+	var checkWorker checkFailedWorkersFunc
 
 	switch me, mf, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
 	case err != nil:
@@ -63,11 +62,11 @@ func newFuncManagerWorkersOps(
 	default:
 		l = l.Uint64("max_failed", maxFailed)
 
-		switch w, c, err := newFuncCheckFailedWorkers(opsWorkersSize, mf); {
+		switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, mf, nil); {
 		case err != nil:
 			return nil, 0, 0, nil, nil, err
 		default:
-			checkWorker, checkWorkerClose = w, c
+			checkWorker = w
 		}
 
 		minEnough = me
@@ -106,7 +105,7 @@ func newFuncManagerWorkersOps(
 
 					gerr := sendWorker(ctx, newWorkerSendOp, worker)
 
-					switch _, failed, err := checkWorker(worker, func() error { return gerr }); {
+					switch _, _, failed, err := checkWorker(worker, gerr); {
 					case failed:
 						l.Error().Err(err).Msg("sent; check workers: failed")
 
@@ -126,8 +125,6 @@ func newFuncManagerWorkersOps(
 			return nil
 		},
 		func() error {
-			defer checkWorkerClose()
-
 			return jobWait(nil)
 		},
 		nil

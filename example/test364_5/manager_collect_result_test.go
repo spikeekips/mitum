@@ -205,8 +205,7 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 		t.NoError(err)
 
 		err = d(errors.Errorf("showme"))
-		t.NotErrorIs(err, errWorkersFailed)
-		t.ErrorContains(err, "showme")
+		t.NoError(err)
 
 		_, _, d, err = wr("w2") // NOTE w2 ok
 		t.NoError(err)
