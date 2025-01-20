@@ -281,7 +281,7 @@ func (t *testPhaseJobWorker) TestNewJob() {
 		}()
 
 		err = wait()
-		t.ErrorContains(err, "showme")
+		t.ErrorIs(err, context.Canceled)
 
 		ncalled := atomic.LoadUint64(&called)
 		expected := uint64(njobs * (endPhase + 1))
