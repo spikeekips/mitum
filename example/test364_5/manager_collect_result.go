@@ -399,24 +399,17 @@ func newFuncManagerWorkersResult(
 						return nil
 					}
 
-					switch minEnough, maxFailed, err := minEnoughMaxFailed(workersSize, statesShare); {
+					log.Debug().
+						Uint64("states_share", statesShare).
+						Msg("ready")
+
+					switch w, err := newFuncCheckFailedWorkers(workersSize, statesShare, nil); {
 					case err != nil:
 						return err
 					default:
-						log.Debug().
-							Uint64("states_share", statesShare).
-							Uint64("min_enough", minEnough).
-							Uint64("max_failed", maxFailed).
-							Msg("ready")
+						checkWorker = w
 
-						switch w, err := newFuncCheckFailedWorkers(minEnough, maxFailed, nil); {
-						case err != nil:
-							return err
-						default:
-							checkWorker = w
-
-							return nil
-						}
+						return nil
 					}
 				}); err != nil {
 					return err

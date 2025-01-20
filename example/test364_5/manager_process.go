@@ -35,14 +35,13 @@ func newFuncManagerProcess(
 
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var opsWorkers []string
-	var opsMinEnough uint64
 	var opsWait dutil.ErrorFunc
 
-	switch ow, me, _, f, w, err := newFuncManagerWorkersOps(ctx, newJobWorker, workers, opsShare, ophs); {
+	switch ow, f, w, err := newFuncManagerWorkersOps(ctx, newJobWorker, workers, opsShare, ophs); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		opsWorkers, opsMinEnough, sendOps, opsWait = ow, me, f, w
+		opsWorkers, sendOps, opsWait = ow, f, w
 	}
 
 	log.Debug().
@@ -55,7 +54,7 @@ func newFuncManagerProcess(
 	var workerOwnersf dutil.In2ErrorFunc[string, []string]
 	var workerOwnersWait dutil.OutErrorFunc[[]string]
 
-	switch o, w, err := newFuncManagerCollectOwners(ctx, uint64(len(opsWorkers)), opsMinEnough); {
+	switch o, w, err := newFuncManagerCollectOwners(ctx, uint64(len(opsWorkers)), opsShare); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:

@@ -79,14 +79,14 @@ func (t *testManagerCollectOwners) TestAdd() {
 	t.Run("duplicated worker", func() {
 		ctx, _ := t.Ctx()
 
-		add, done, err := newFuncManagerCollectOwners(ctx, 4, 2)
+		add, done, err := newFuncManagerCollectOwners(ctx, 5, 4)
 		t.NoError(err)
 
-		expectedOwners := []string{"w3", "w4", "w5"}
-		t.NoError(add("w1", []string{"w4", "w5"}))
-		t.NoError(add("w0", []string{"w3", "w4"}))
+		expectedOwners := []string{"w3", "w4", "w5", "w6", "w7"}
 
+		t.NoError(add("w1", []string{"w4", "w5"}))
 		t.NoError(add("w1", []string{"w6", "w7"}))
+		t.NoError(add("w0", []string{"w3", "w4"}))
 
 		s, err := done()
 		t.NoError(err)
@@ -98,7 +98,7 @@ func (t *testManagerCollectOwners) TestAdd() {
 	t.Run("duplicated owners", func() {
 		ctx, _ := t.Ctx()
 
-		add, done, err := newFuncManagerCollectOwners(ctx, 4, 2)
+		add, done, err := newFuncManagerCollectOwners(ctx, 5, 4)
 		t.NoError(err)
 
 		expectedOwners := []string{"w3", "w4", "w5"}
@@ -118,7 +118,7 @@ func (t *testManagerCollectOwners) TestAdd() {
 		add, done, err := newFuncManagerCollectOwners(ctx, 4, 2)
 		t.NoError(err)
 
-		expectedOwners := []string{"w3", "w4", "w5"}
+		expectedOwners := []string{"w3", "w4", "w5", "w6"}
 		t.NoError(add("w1", []string{"w4", "w5"}))
 		t.NoError(add("w0", []string{"w3", "w4"}))
 		t.NoError(add("w2", []string{"w5", "w6"}))
@@ -141,7 +141,7 @@ func (t *testManagerCollectOwners) TestAdd() {
 
 		ownersPerWorker := 9
 
-		add, done, err := newFuncManagerCollectOwners(ctx, uint64(len(workers)), uint64(len(workers)))
+		add, done, err := newFuncManagerCollectOwners(ctx, uint64(len(workers)), 1)
 		t.NoError(err)
 
 		for i, worker := range slices.All(workers) {

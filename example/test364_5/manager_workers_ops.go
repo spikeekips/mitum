@@ -20,13 +20,12 @@ func newFuncManagerWorkersOps(
 	ophs [][2]util.Hash,
 ) (
 	opsWorkers []string,
-	minEnough, maxFailed uint64,
 	_ dutil.InErrorFunc[newWorkerSendOpFunc],
 	_ dutil.ErrorFunc,
 	_ error,
 ) {
 	if len(ophs) < 1 {
-		return nil, 0, 0, nil, nil, util.ErrInvalid.Errorf("empty ophs")
+		return nil, nil, nil, util.ErrInvalid.Errorf("empty ophs")
 	}
 
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-wokers-ops", nil)
@@ -43,7 +42,7 @@ func newFuncManagerWorkersOps(
 
 	switch w, d, err := opsNShareWorkers(workers, opsShare, ophs); {
 	case err != nil:
-		return nil, 0, 0, nil, nil, err
+		return nil, nil, nil, err
 	default:
 		opsWorkers, workerOps = w(), d
 
@@ -56,21 +55,11 @@ func newFuncManagerWorkersOps(
 
 	var checkWorker checkFailedWorkersFunc
 
-	switch me, mf, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
+	switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, opsShare, nil); {
 	case err != nil:
-		return nil, 0, 0, nil, nil, err
+		return nil, nil, nil, err
 	default:
-		l = l.Uint64("max_failed", maxFailed)
-
-		switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, mf, nil); {
-		case err != nil:
-			return nil, 0, 0, nil, nil, err
-		default:
-			checkWorker = w
-		}
-
-		minEnough = me
-		maxFailed = mf
+		checkWorker = w
 	}
 
 	l.Msg("send ops to workers")
@@ -81,7 +70,7 @@ func newFuncManagerWorkersOps(
 
 	switch n, d, w, err := newJobWorker(ctx, opsWorkersSize); {
 	case err != nil:
-		return nil, 0, 0, nil, nil, err
+		return nil, nil, nil, err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
@@ -95,7 +84,7 @@ func newFuncManagerWorkersOps(
 		}
 	}
 
-	return opsWorkers, minEnough, maxFailed,
+	return opsWorkers,
 		func(newWorkerSendOp newWorkerSendOpFunc) error {
 			defer jobDone()
 

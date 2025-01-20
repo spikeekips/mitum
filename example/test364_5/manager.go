@@ -260,16 +260,11 @@ func managerStartWorkers(
 ) error {
 	var checkWorker checkFailedWorkersFunc
 
-	switch _, f, err := minEnoughMaxFailed(uint64(len(opsWorkers)), opsShare); {
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(workers)), opsShare, nil); {
 	case err != nil:
 		return err
 	default:
-		switch w, err := newFuncCheckFailedWorkers(uint64(len(workers)), f, nil); {
-		case err != nil:
-			return err
-		default:
-			checkWorker = w
-		}
+		checkWorker = w
 	}
 
 	var newJob dutil.JobWorkerNewJobFunc

@@ -90,20 +90,20 @@ type testCheckEnoughFailedWorkers struct {
 }
 
 func (t *testCheckEnoughFailedWorkers) TestNew() {
-	t.Run("1 min enough + 0 max failed", func() {
-		_, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+	t.Run("1 workers, 1 share", func() {
+		_, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 	})
 
-	t.Run("0 min enough + 0 max failed", func() {
+	t.Run("0 workers, 0 share", func() {
 		_, err := newFuncCheckWeightFailedWorkers(0, 0, nil)
-		t.ErrorContains(err, "zero min enough")
+		t.ErrorContains(err, "zero workers")
 	})
 }
 
 func (t *testCheckEnoughFailedWorkers) TestEnough() {
 	t.Run("enough", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -114,7 +114,7 @@ func (t *testCheckEnoughFailedWorkers) TestEnough() {
 	})
 
 	t.Run("enough; weight", func() {
-		w, err := newFuncCheckWeightFailedWorkers(3, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(3, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -131,7 +131,7 @@ func (t *testCheckEnoughFailedWorkers) TestEnough() {
 	})
 
 	t.Run("same worker", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -146,7 +146,7 @@ func (t *testCheckEnoughFailedWorkers) TestEnough() {
 	})
 
 	t.Run("ok, but after closed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -161,7 +161,7 @@ func (t *testCheckEnoughFailedWorkers) TestEnough() {
 	})
 
 	t.Run("error, but after closed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -180,7 +180,7 @@ func (t *testCheckEnoughFailedWorkers) TestEnough() {
 
 func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 	t.Run("enough, but not ready", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, func(worker string) bool { return worker == "w1" })
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -196,8 +196,8 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 		t.False(failed)
 	})
 
-	t.Run("enough, not ready", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, func(worker string) bool { return worker == "w0" })
+	t.Run("enough, ready", func() {
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, func(worker string) bool { return worker == "w0" })
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -208,7 +208,7 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 	})
 
 	t.Run("failed and ready", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, func(worker string) bool { return worker == "w1" })
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))
@@ -225,7 +225,7 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 	})
 
 	t.Run("ready, but failed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, func(worker string) bool { return worker == "w1" })
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, func(worker string) bool { return worker == "w1" })
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, nil)
@@ -244,7 +244,7 @@ func (t *testCheckEnoughFailedWorkers) TestBlockUntil() {
 
 func (t *testCheckEnoughFailedWorkers) TestFailed() {
 	t.Run("failed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))
@@ -272,13 +272,14 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 	})
 
 	t.Run("error after failed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))
 		t.True(ok)
 		t.False(enough)
 		t.True(failed)
+		t.ErrorIs(err, errWorkersFailed)
 		t.ErrorContains(err, "showme")
 
 		ok, enough, failed, err = w("w1", 1, nil)
@@ -288,18 +289,8 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 		t.ErrorIs(err, errWorkersFailed)
 	})
 
-	t.Run("failed, over zero", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
-		t.NoError(err)
-
-		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))
-		t.True(ok)
-		t.False(enough)
-		t.True(failed)
-	})
-
 	t.Run("error, but under max failed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 2, nil)
+		w, err := newFuncCheckWeightFailedWorkers(2, 2, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))
@@ -314,7 +305,7 @@ func (t *testCheckEnoughFailedWorkers) TestFailed() {
 	})
 
 	t.Run("ok, but after closed", func() {
-		w, err := newFuncCheckWeightFailedWorkers(1, 0, nil)
+		w, err := newFuncCheckWeightFailedWorkers(1, 1, nil)
 		t.NoError(err)
 
 		ok, enough, failed, err := w("w0", 1, errors.Errorf("showme"))

@@ -38,16 +38,8 @@ func newFuncWorkerMerger(
 
 	localInOpsWorkers := true
 	var mOpsWorkers util.LockedMap[string, struct{}]
-	var minEnoughOps, maxFailedOps uint64
 
 	opsWorkersSize := uint64(len(opsWorkers))
-
-	switch e, f, err := minEnoughMaxFailed(opsWorkersSize, opsShare); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		minEnoughOps, maxFailedOps = e, f
-	}
 
 	switch i, err := util.NewLockedMap[string, struct{}](opsWorkersSize, nil); {
 	case err != nil:
@@ -65,7 +57,7 @@ func newFuncWorkerMerger(
 
 		// NOTE if local is not in ops workers, to finish phase merger,
 		// increase min enough
-		minEnoughOps++
+		opsWorkersSize++
 	}
 
 	log.Debug().
@@ -73,8 +65,6 @@ func newFuncWorkerMerger(
 		Strs("ops_workers", opsWorkers).
 		Uint64("ops_share", opsShare).
 		Uint64("states_share", statesShare).
-		Uint64("min_enough_ops", minEnoughOps).
-		Uint64("max_failed_ops", maxFailedOps).
 		Msg("new")
 
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
@@ -102,7 +92,7 @@ func newFuncWorkerMerger(
 		getStateValueMergers,
 		newCheckWorkers,
 		newFuncPhaseMergerFunc(newJobWorker, maxOpsSize),
-		minEnoughOps, maxFailedOps,
+		opsWorkersSize, opsShare,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
@@ -153,7 +143,7 @@ func newFuncWorkerMerger(
 	wait := newFuncWorkerMergerWait(
 		wctx,
 		local,
-		workersSize,
+		opsWorkersSize,
 		statesShare,
 		workerPhaseMergerWait,
 		workerUnmergerLocalReady,
@@ -280,21 +270,13 @@ func newFuncWorkerMergerWait(
 			Strs("sub_states_owners", subws).
 			Msg("phase merger wait done")
 
-		var minEnough, maxFailed uint64
-
-		switch e, f, err := minEnoughMaxFailed(workersSize, statesShare); {
-		case err != nil:
-			return nil, err
-		default:
-			minEnough, maxFailed = e, f
-		}
-
+		workersSize, share := workersSize, statesShare
 		if n := uint64(len(subws)); n != workersSize {
-			minEnough = n
-			maxFailed = 1
+			workersSize = n
+			share = 1
 		}
 
-		if err := workerUnmergerLocalReady(subws, localUnmerged, minEnough, maxFailed); err != nil {
+		if err := workerUnmergerLocalReady(subws, localUnmerged, workersSize, share); err != nil {
 			return nil, err
 		}
 

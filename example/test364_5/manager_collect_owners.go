@@ -8,7 +8,7 @@ import (
 
 func newFuncManagerCollectOwners(
 	ctx context.Context,
-	workersSize, minEnough uint64,
+	workersSize, opsShare uint64,
 ) (
 	dutil.In2ErrorFunc[string /* worker */, []string /* owners */],
 	dutil.OutErrorFunc[[]string /* owners */],
@@ -18,12 +18,12 @@ func newFuncManagerCollectOwners(
 
 	log.Debug().
 		Uint64("workers", workersSize).
-		Uint64("min_enough", minEnough).
+		Uint64("ops_share", opsShare).
 		Msg("new")
 
 	var checkWorker checkFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(minEnough, workersSize, nil); {
+	switch w, err := newFuncCheckFailedWorkers(workersSize, opsShare, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:

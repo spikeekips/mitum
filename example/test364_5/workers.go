@@ -16,10 +16,9 @@ import (
 
 type (
 	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
-	minEnoughMaxFailedFunc       = func(workers, share uint64) (minEnough, maxFailed uint64, _ error)
 	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough, failed bool, _ error)
 	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error)
-	newCheckFailedWorkersFunc    = func(minEnough, maxFailed uint64, blockUntil func(string) bool) (
+	newCheckFailedWorkersFunc    = func(worker, share uint64, blockUntil func(string) bool) (
 		checkFailedWorkersFunc,
 		error,
 	)
@@ -30,6 +29,8 @@ type (
 	getStateOpsFunc        = func(stateKey string) ([]util.Hash, error)
 	traverseStateOpsFunc   = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
 )
+
+var errWorkersFailed = util.NewIDError("workers failed")
 
 func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ error) {
 	switch {
@@ -44,17 +45,20 @@ func minEnoughMaxFailed(workers, share uint64) (minEnough, maxFailed uint64, _ e
 	return workers - share + 1, share, nil
 }
 
-var errWorkersFailed = util.NewIDError("workers failed")
-
 func newFuncCheckWeightFailedWorkers(
-	minEnough, maxFailed uint64,
+	workers, share uint64,
 	blockUntil func(worker string) bool,
 ) (
 	checkWeightFailedWorkersFunc,
 	error,
 ) {
-	if minEnough < 1 {
-		return nil, errors.Errorf("zero min enough")
+	var minEnough, maxFailed uint64
+
+	switch e, f, err := minEnoughMaxFailed(workers, share); {
+	case err != nil:
+		return nil, err
+	default:
+		minEnough, maxFailed = e, f
 	}
 
 	if blockUntil == nil {
@@ -67,7 +71,7 @@ func newFuncCheckWeightFailedWorkers(
 	var enoughCount, failedCount uint64
 	var doneEnough, doneFailed atomic.Value
 
-	workers := map[string]struct{}{}
+	pool := map[string]struct{}{}
 
 	return func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error) {
 			if i := doneEnough.Load(); i != nil && i.(bool) {
@@ -81,11 +85,11 @@ func newFuncCheckWeightFailedWorkers(
 			l.Lock()
 			defer l.Unlock()
 
-			if _, found := workers[worker]; found {
+			if _, found := pool[worker]; found {
 				return false, false, false, nil
 			}
 
-			workers[worker] = struct{}{}
+			pool[worker] = struct{}{}
 			if !ready && blockUntil(worker) {
 				ready = true
 			}
@@ -94,7 +98,7 @@ func newFuncCheckWeightFailedWorkers(
 			case err != nil:
 				failedCount += weight
 				if failedCount >= maxFailed {
-					dutil.ClearMap(workers)
+					dutil.ClearMap(pool)
 
 					nerr := errWorkersFailed.Wrap(err)
 					doneFailed.Store(nerr)
@@ -104,7 +108,7 @@ func newFuncCheckWeightFailedWorkers(
 			default:
 				enoughCount += weight
 				if enoughCount >= minEnough && ready {
-					dutil.ClearMap(workers)
+					dutil.ClearMap(pool)
 
 					doneEnough.Store(true)
 
@@ -118,7 +122,7 @@ func newFuncCheckWeightFailedWorkers(
 }
 
 func newFuncCheckFailedWorkers(
-	minEnough, maxFailed uint64,
+	workers, share uint64,
 	blockUntil func(worker string) bool,
 ) (
 	checkFailedWorkersFunc,
@@ -126,7 +130,7 @@ func newFuncCheckFailedWorkers(
 ) {
 	var check checkWeightFailedWorkersFunc
 
-	switch c, err := newFuncCheckWeightFailedWorkers(minEnough, maxFailed, blockUntil); {
+	switch c, err := newFuncCheckWeightFailedWorkers(workers, share, blockUntil); {
 	case err != nil:
 		return nil, err
 	default:
@@ -140,13 +144,13 @@ func newFuncCheckFailedWorkers(
 }
 
 func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc {
-	return func(minEnough, maxFailed uint64, blockUntil func(string) bool) (
+	return func(workers, share uint64, blockUntil func(string) bool) (
 		checkFailedWorkersFunc,
 		error,
 	) {
 		var check checkWeightFailedWorkersFunc
 
-		switch c, err := newFuncCheckWeightFailedWorkers(minEnough, maxFailed, func(worker string) bool {
+		switch c, err := newFuncCheckWeightFailedWorkers(workers, share, func(worker string) bool {
 			return worker == local
 		}); {
 		case err != nil:

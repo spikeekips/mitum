@@ -237,7 +237,7 @@ func (t *testWorkerMerger) TestError() {
 			1<<9, 1<<9, 1<<9,
 			nil, 1, 1,
 		)
-		t.ErrorContains(err, "zero workers")
+		t.ErrorContains(err, "empty size")
 	})
 
 	t.Run("zero ops share", func() {
