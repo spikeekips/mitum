@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -16,8 +15,8 @@ import (
 
 type (
 	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
-	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough, failed bool, _ error)
-	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error)
+	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough bool, failed error)
+	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough bool, failed error)
 	newCheckFailedWorkersFunc    = func(worker, share uint64, blockUntil func(string) bool) (
 		checkFailedWorkersFunc,
 		error,
@@ -69,54 +68,60 @@ func newFuncCheckWeightFailedWorkers(
 
 	var ready bool
 	var enoughCount, failedCount uint64
-	var doneEnough, doneFailed atomic.Value
+	var doneEnough bool
+	var doneFailed error
+	var lastError error
 
 	pool := map[string]struct{}{}
 
-	return func(worker string, weight uint64, err error) (ok, enough, failed bool, _ error) {
-			if i := doneEnough.Load(); i != nil && i.(bool) {
-				return false, false, false, nil
-			}
-
-			if i := doneFailed.Load(); i != nil {
-				return false, false, true, i.(error)
-			}
-
+	return func(worker string, weight uint64, err error) (ok, enough bool, failed error) {
 			l.Lock()
 			defer l.Unlock()
 
-			if _, found := pool[worker]; found {
-				return false, false, false, nil
+			if doneEnough || doneFailed != nil {
+				return false, false, doneFailed
 			}
 
-			pool[worker] = struct{}{}
+			if _, found := pool[worker]; found {
+				return false, false, nil
+			}
+
 			if !ready && blockUntil(worker) {
 				ready = true
 			}
 
+			pool[worker] = struct{}{}
+
 			switch {
 			case err != nil:
+				lastError = err
 				failedCount += weight
-				if failedCount >= maxFailed {
-					dutil.ClearMap(pool)
-
-					nerr := errWorkersFailed.Wrap(err)
-					doneFailed.Store(nerr)
-
-					return true, false, true, nerr
-				}
 			default:
 				enoughCount += weight
-				if enoughCount >= minEnough && ready {
-					dutil.ClearMap(pool)
-
-					doneEnough.Store(true)
-
-					return true, true, false, nil
-				}
 			}
 
-			return true, false, false, nil
+			if ready && failedCount >= maxFailed {
+				var gerr error = errWorkersFailed
+				if lastError != nil {
+					gerr = errWorkersFailed.Wrap(lastError)
+				}
+
+				doneFailed = gerr
+			}
+
+			if ready && doneFailed == nil && enoughCount >= minEnough {
+				doneEnough = true
+			}
+
+			if doneEnough || doneFailed != nil {
+				dutil.ClearMap(pool)
+			}
+
+			if !ready {
+				return true, false, nil
+			}
+
+			return true, doneEnough, doneFailed
 		},
 		nil
 }
@@ -137,7 +142,7 @@ func newFuncCheckFailedWorkers(
 		check = c
 	}
 
-	return func(worker string, err error) (bool, bool, bool, error) {
+	return func(worker string, err error) (bool, bool, error) {
 			return check(worker, 1, err)
 		},
 		nil
@@ -159,7 +164,7 @@ func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc {
 			check = c
 		}
 
-		return func(worker string, err error) (bool, bool, bool, error) {
+		return func(worker string, err error) (bool, bool, error) {
 				return check(worker, 1, err)
 			},
 			nil
@@ -172,7 +177,7 @@ func newFuncStateValueMergers(
 	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
 ) (
 	mergerGetStateValueMergersFunc,
-	func() (size uint64, _ iter.Seq2[string /* state key */, stateValueMerger]),
+	func() (size uint64 /* approximate size */, _ iter.Seq2[string /* state key */, stateValueMerger]),
 	error,
 ) {
 	var pool util.LockedMap[string, stateValueMerger]

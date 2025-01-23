@@ -93,15 +93,11 @@ func newFuncWorkerPhaseMerger(
 							return dutil.NewIfErrErrorInFunc(ctxCancel)(workerInsertDone(err))
 						}
 
-						switch ok, enough, failed, err := checkWorker(worker, err); {
-						case failed:
-							l.Error().Err(err).Msg("insert; check workers: failed")
+						switch ok, enough, failed := checkWorker(worker, err); {
+						case failed != nil:
+							l.Error().Err(failed).Msg("insert; check workers: failed")
 
-							return ctxCancel(workerInsertDone(err))
-						case err != nil: // NOTE ignore
-							l.Debug().Err(err).Msg("insert")
-
-							return err
+							return ctxCancel(workerInsertDone(failed))
 						case !ok:
 							l.Debug().Msg("insert; check workers: not ok")
 						case enough:
@@ -110,7 +106,7 @@ func newFuncWorkerPhaseMerger(
 							_ = workerInsertDone(nil)
 						}
 
-						return nil
+						return err
 					})
 				},
 				nil

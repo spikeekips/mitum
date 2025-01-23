@@ -332,8 +332,8 @@ func managerStartWorkers(
 			gerr = err
 		}
 
-		if _, _, failed, err := checkWorker(worker, gerr); failed {
-			return err
+		if _, _, failed := checkWorker(worker, gerr); failed != nil {
+			return failed
 		}
 
 		return nil
@@ -445,18 +445,18 @@ func managerDoneWorkers(
 			l := log.With().Str("worker", worker).Err(err).Logger()
 
 			if slices.Index(opsWorkers, worker) >= 0 {
-				if _, _, failed, gerr := checkWorkerOps(worker, err); failed {
+				if _, _, failed := checkWorkerOps(worker, err); failed != nil {
 					l.Error().Msg("ops worker done failed")
 
-					return gerr
+					return failed
 				}
 			}
 
 			if slices.Index(statesWorkers, worker) >= 0 {
-				if _, _, failed, gerr := checkWorkerStates(worker, err); failed {
+				if _, _, failed := checkWorkerStates(worker, err); failed != nil {
 					l.Error().Msg("state owner done failed")
 
-					return gerr
+					return failed
 				}
 			}
 

@@ -282,15 +282,11 @@ func newFuncManagerWorkersResult(
 	checkWorkerDone := func(ctx context.Context, cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
 		l := log.With().Str("worker", worker).Logger()
 
-		switch ok, enough, failed, err := cw(worker, err); {
-		case failed:
-			l.Error().Err(err).Msg("failed")
+		switch ok, enough, failed := cw(worker, err); {
+		case failed != nil:
+			l.Error().Err(failed).Msg("failed")
 
-			return true, workersDone(err)
-		case err != nil:
-			l.Error().Err(err).Msg("err")
-
-			return false, err
+			return true, workersDone(failed)
 		case !ok:
 		case enough:
 			l.Debug().Msg("enough")
@@ -408,9 +404,9 @@ func newFuncManagerWorkersResult(
 					case err != nil:
 						return err
 					default:
-						checkWorker = func(worker string, err error) (ok, enough, failed bool, _ error) {
+						checkWorker = func(worker string, err error) (ok, enough bool, failed error) {
 							if slices.Index(stateOwners, worker) < 0 {
-								return false, false, false, nil
+								return false, false, nil
 							}
 
 							return w(worker, err)
@@ -424,11 +420,9 @@ func newFuncManagerWorkersResult(
 
 				var gerr error
 
-				// NOTE exhaust  errors in pool
+				// NOTE exhaust errors in pool
 				_ = workerErrPool.Traverse(func(worker string, err error) bool {
-					if failed, err := checkWorkerDone(ctx, checkWorker, worker, err); failed {
-						gerr = err
-					}
+					_, gerr = checkWorkerDone(ctx, checkWorker, worker, err)
 
 					return gerr == nil
 				})

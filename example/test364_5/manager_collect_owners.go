@@ -62,11 +62,11 @@ func newFuncManagerCollectOwners(
 
 				_, _ = add(owners...)
 
-				switch ok, enough, _, err := checkWorker(worker, nil); {
-				case err != nil:
-					l.Error().Err(err).Msg("worker state owners: failed")
+				switch ok, enough, failed := checkWorker(worker, nil); {
+				case failed != nil:
+					l.Error().Err(failed).Msg("worker state owners: failed")
 
-					return ownersDone(err)
+					return ownersDone(failed)
 				case !ok:
 				case enough:
 					l.Debug().Msg("worker state owners; enough")

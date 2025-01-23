@@ -92,17 +92,15 @@ func newFuncManagerWorkersOps(
 				if err := newJob(func(ctx context.Context) error {
 					l := log.With().Str("worker", worker).Logger()
 
-					gerr := sendWorker(ctx, newWorkerSendOp, worker)
+					err := sendWorker(ctx, newWorkerSendOp, worker)
 
-					switch _, _, failed, err := checkWorker(worker, gerr); {
-					case failed:
-						l.Error().Err(err).Msg("sent; check workers: failed")
+					switch _, _, failed := checkWorker(worker, err); {
+					case failed != nil:
+						l.Error().Err(failed).Msg("sent; check workers: failed")
 
-						return err
-					case err != nil: // NOTE ignore
-						l.Debug().Err(err).Msg("sent")
+						return failed
 					default:
-						l.Debug().Err(gerr).Msg("send op to worker")
+						l.Debug().Err(err).Msg("send op to worker")
 					}
 
 					return nil
