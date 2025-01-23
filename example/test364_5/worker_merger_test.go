@@ -688,7 +688,7 @@ func (t *testWorkerMerger) workerMergers(
 		return nil, nil, nil, err
 	}
 	t.T().Logf("min enough ops=%d max failed ops=%d", minEnough, maxFailed)
-	t.T().Log("sub state owners:", t.MarshalIndent(subs))
+	t.T().Log("sub states owners:", t.MarshalIndent(subs))
 
 	getStateOwners := t.stateOwnersFunc(subs)
 
@@ -759,16 +759,16 @@ func (t *testWorkerMerger) workerMergers(
 		}
 	}
 
-	workerStateOwners := map[string][]string{}
+	workerStatesOwners := map[string][]string{}
 
 	for worker := range slices.Values(workers) {
-		workerStateOwners[worker] = t.workersStateOwners(
+		workerStatesOwners[worker] = t.workersStatesOwners(
 			values,
 			workersValues[worker],
 			getStateOwners,
 		)
 
-		t.T().Logf("worker active states workers: worker=%q workers=%v", worker, workerStateOwners[worker])
+		t.T().Logf("worker active states owners: worker=%q workers=%v", worker, workerStatesOwners[worker])
 	}
 
 	return func() error {
@@ -839,9 +839,9 @@ func (t *testWorkerMerger) workerMergers(
 
 					reasons, err := wf(
 						func(unmerged []uint64) ([]string, error) {
-							subws := workerStateOwners[worker]
+							subws := workerStatesOwners[worker]
 
-							t.Println("worker local phase done: worker=%q unmerged=%v sub state owners=%v", worker, unmerged, subws)
+							t.Println("worker local phase done: worker=%q unmerged=%v sub states owners=%v", worker, unmerged, subws)
 
 							if l != nil {
 								return l(unmerged)
@@ -989,7 +989,7 @@ func (t *testWorkerMerger) workersUnmerged(
 	return m, nil
 }
 
-func (t *testWorkerMerger) workersStateOwners(
+func (t *testWorkerMerger) workersStatesOwners(
 	values [][]stateMergeValue,
 	workerValues map[uint64][]stateMergeValue,
 	getStateOwners getStateOwnersFunc,
@@ -1321,7 +1321,7 @@ func (t *testWorkerMerger) TestSubs() {
 				}
 			}
 
-			t.T().Log("sub state owners:", subs)
+			t.T().Log("sub states owners:", subs)
 
 			ctx, _ := t.Ctx()
 

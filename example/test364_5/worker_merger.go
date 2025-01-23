@@ -16,7 +16,7 @@ type (
 		dutil.InErrorFunc[error],
 		error,
 	)
-	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStateOwners []string, _ error)
+	workerMergerLocalPhaseMergerDoneFunc = func(unmerged []uint64) (subStatesOwners []string, _ error)
 	workerMergerWaitFunc                 = func(workerMergerLocalPhaseMergerDoneFunc) (map[uint64]string, error)
 )
 

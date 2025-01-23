@@ -22,7 +22,7 @@ type (
 		newWorkerDistributeStateMergeValuesFunc,
 		getOperationFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
-		workerReportStateOwnersFunc,
+		workerReportStatesOwnersFunc,
 	) error
 	workerBroadcastUnmerged = func(
 		_ context.Context,
@@ -31,7 +31,7 @@ type (
 		worker string,
 		unmerged []uint64,
 	) error
-	workerReportStateOwnersFunc = func(
+	workerReportStatesOwnersFunc = func(
 		_ context.Context,
 		local,
 		workID string,
@@ -140,7 +140,7 @@ func newFuncWorker(
 			distribute newWorkerDistributeStateMergeValuesFunc,
 			getOperation getOperationFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
-			reportStateOwners workerReportStateOwnersFunc,
+			reportStatesOwners workerReportStatesOwnersFunc,
 		) error {
 			return initialInsert(
 				getStateOwners,
@@ -162,9 +162,9 @@ func newFuncWorker(
 					return nil
 				},
 				func(owners []string, _ map[uint64]string) error {
-					if reportStateOwners != nil {
+					if reportStatesOwners != nil {
 						if slices.Index(opsWorkers, options.Local) >= 0 {
-							return reportStateOwners(ctx, options.Local, workID, owners)
+							return reportStatesOwners(ctx, options.Local, workID, owners)
 						}
 					}
 

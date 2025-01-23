@@ -15,27 +15,27 @@ type (
 	workerStateMergeValuesFunc             = func(worker string, _ []stateMergeValue) error
 	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv stateMergeValue, addvs []stateMergeValue) func(workerStateMergeValuesFunc) error
 
-	insertStateOwnerSetFunc       = func(subw string, affected []string) error
-	insertStateOwnersSetFunc      = func(subws, affected []string) error
-	workerStateOwnersSetFunc      = func(worker string, subws, affected []string) error
-	localExtractedStateOwnersFunc = func(getStateOwnersFunc) (
+	insertStateOwnerSetFunc        = func(subw string, affected []string) error
+	insertStateOwnersSetFunc       = func(subws, affected []string) error
+	workerStatesOwnersSetFunc      = func(worker string, subws, affected []string) error
+	localExtractedStatesOwnersFunc = func(getStateOwnersFunc) (
 		extractStateOwnersStateMergeValuesFunc,
-		dutil.InErrorFunc[workerStateOwnersSetFunc],
+		dutil.InErrorFunc[workerStatesOwnersSetFunc],
 		dutil.OutFunc[[]string],
 		error,
 	)
-	workerInsertStateOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
-	workerStateOwnersDoneFunc      = func() (subws, affected []string, _ error)
+	workerInsertStatesOwnersSetFunc = func(worker string, _ insertStateOwnersSetFunc) error
+	workerStatesOwnersDoneFunc      = func() (subws, affected []string, _ error)
 )
 
-func newFuncWorkerStateOwners(
+func newFuncWorkerStatesOwners(
 	ctx context.Context,
 	local string,
 	workersSize uint64,
 ) (
-	localExtractedStateOwnersFunc,
-	workerStateOwnersSetFunc,
-	workerStateOwnersDoneFunc,
+	localExtractedStatesOwnersFunc,
+	workerStatesOwnersSetFunc,
+	workerStatesOwnersDoneFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-state-owners", nil)
@@ -59,12 +59,12 @@ func newFuncWorkerStateOwners(
 
 	return func(getStateOwners getStateOwnersFunc) (
 			extractStateOwnersStateMergeValuesFunc,
-			dutil.InErrorFunc[workerStateOwnersSetFunc],
+			dutil.InErrorFunc[workerStatesOwnersSetFunc],
 			dutil.OutFunc[[]string],
 			error,
 		) {
 			var localInsertValues extractStateOwnersStateMergeValuesFunc
-			var traverseOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
+			var traverseOwnersSet dutil.InErrorFunc[workerStatesOwnersSetFunc]
 			var localOwners dutil.OutFunc[[]string]
 
 			switch i, t, l, err := newFuncLocalExtractedStateOwners(workersSize, getStateOwners); {
@@ -75,7 +75,7 @@ func newFuncWorkerStateOwners(
 			}
 
 			return localInsertValues,
-				func(f workerStateOwnersSetFunc) error {
+				func(f workerStatesOwnersSetFunc) error {
 					return traverseOwnersSet(func(worker string, subws, affected []string) error {
 						if worker == local {
 							addSubStateOwners(subws)
@@ -123,12 +123,12 @@ func newFuncLocalExtractedStateOwners(
 	getStateOwners getStateOwnersFunc,
 ) (
 	extractStateOwnersStateMergeValuesFunc,
-	dutil.InErrorFunc[workerStateOwnersSetFunc],
+	dutil.InErrorFunc[workerStatesOwnersSetFunc],
 	dutil.OutFunc[[]string],
 	error,
 ) {
 	var addOwnersSet insertStateOwnerSetFunc
-	var traverseWorkerOwnersSet dutil.InErrorFunc[workerStateOwnersSetFunc]
+	var traverseWorkerOwnersSet dutil.InErrorFunc[workerStatesOwnersSetFunc]
 
 	switch a, w, err := newFuncWorkerCollectStateOwnersSet(workersSize); {
 	case err != nil:
@@ -183,7 +183,7 @@ func newFuncLocalExtractedStateOwners(
 
 func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 	insertStateOwnerSetFunc,
-	dutil.InErrorFunc[workerStateOwnersSetFunc],
+	dutil.InErrorFunc[workerStatesOwnersSetFunc],
 	error,
 ) {
 	var addOwners dutil.AppendSliceAddFunc[string]
@@ -249,7 +249,7 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 
 			return nil
 		},
-		func(f workerStateOwnersSetFunc) error {
+		func(f workerStatesOwnersSetFunc) error {
 			defer func() {
 				msubws.Close()
 				maffected.Close()

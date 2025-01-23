@@ -687,7 +687,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 func (t *testManager) TestDoneWorkers() {
 	run := func(
-		workers, statesWorkers []string,
+		workers, statesOwners []string,
 		doneWorkerf managerDoneWorkerFunc,
 	) error {
 		ctx, cancel := t.Ctx()
@@ -718,9 +718,9 @@ func (t *testManager) TestDoneWorkers() {
 		))
 
 		for worker := range slices.Values(workers) {
-			t.T().Logf("worker owners: worker=%q owners=%v", worker, statesWorkers)
+			t.T().Logf("worker owners: worker=%q owners=%v", worker, statesOwners)
 
-			t.NoError(workerOwners(worker, statesWorkers))
+			t.NoError(workerOwners(worker, statesOwners))
 		}
 
 		for worker := range slices.Values(workers) {
@@ -758,7 +758,7 @@ func (t *testManager) TestDoneWorkers() {
 		))
 	})
 
-	t.Run("ops worker, not in state owners failed; under max failed", func() {
+	t.Run("ops worker, not in states owners failed; under max failed", func() {
 		workers := t.workers(6)
 
 		t.NoError(run(
@@ -774,7 +774,7 @@ func (t *testManager) TestDoneWorkers() {
 		))
 	})
 
-	t.Run("ops worker, not in state owners failed; over max failed", func() {
+	t.Run("ops worker, not in states owners failed; over max failed", func() {
 		workers := t.workers(6)
 
 		err := run(

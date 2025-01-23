@@ -257,8 +257,8 @@ func (t *testManagerCollectResult) TestMaxFailed() {
 	})
 }
 
-func (t *testManagerCollectResult) TestStateOwners() {
-	t.RunWithGoLeak("empty state owners", func() {
+func (t *testManagerCollectResult) TestStatesOwners() {
+	t.RunWithGoLeak("empty states owners", func() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 

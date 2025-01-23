@@ -1192,9 +1192,9 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 				ctx, cancel := t.Ctx()
 				defer cancel(nil)
 
-				var localExtractedStateOwners localExtractedStateOwnersFunc
+				var localExtractedStatesOwners localExtractedStatesOwnersFunc
 
-				localExtractedStateOwners, _, _, err := newFuncWorkerStateOwners(ctx, local, uint64(len(ops)))
+				localExtractedStatesOwners, _, _, err := newFuncWorkerStatesOwners(ctx, local, uint64(len(ops)))
 				t.NoError(err)
 
 				initial, err := newFuncWorkerProcessInitialInsert(
@@ -1203,7 +1203,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 					dutil.NewFuncNewJobWorkerFunc(1<<9),
 					workers,
 					uint64(len(ops)),
-					localExtractedStateOwners,
+					localExtractedStatesOwners,
 					func(worker string) (insertStateMergeValuesFunc, dutil.InErrorFunc[error], error) {
 						return func(uint64, []stateMergeValue) error { return nil },
 							dutil.DummyErrorInFunc,

@@ -238,7 +238,7 @@ func newFuncWorkerProcess(
 						Dict("owners", zerolog.Dict().
 							Strs("sub", subws).
 							Strs("affected", affected),
-						).Msg("state owners")
+						).Msg("states owners")
 
 					return workersBroadcastUnmerged(ctx, local, affected, unmerged, broadcastUnmerged)
 				},
@@ -336,15 +336,15 @@ func newFuncWorkerProcessStateValueMerger(
 		workerInsertStateValues, workerUnmerged, workerMergerWait = i, u, w
 	}
 
-	var localExtractedStateOwners localExtractedStateOwnersFunc
-	var workerStateOwnersSet workerStateOwnersSetFunc
-	var doneStateOwnersSet workerStateOwnersDoneFunc
+	var localExtractedStatesOwners localExtractedStatesOwnersFunc
+	var workerStatesOwnersSet workerStatesOwnersSetFunc
+	var doneStatesOwnersSet workerStatesOwnersDoneFunc
 
-	switch l, w, t, err := newFuncWorkerStateOwners(ctx, local, uint64(len(workers))); {
+	switch l, w, t, err := newFuncWorkerStatesOwners(ctx, local, uint64(len(workers))); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
-		localExtractedStateOwners, workerStateOwnersSet, doneStateOwnersSet = l, w, t
+		localExtractedStatesOwners, workerStatesOwnersSet, doneStatesOwnersSet = l, w, t
 	}
 
 	var initialInsert workerProcessInitialInsertFunc2
@@ -355,7 +355,7 @@ func newFuncWorkerProcessStateValueMerger(
 		newJobWorker,
 		workers,
 		maxOpsSize,
-		localExtractedStateOwners,
+		localExtractedStatesOwners,
 		workerInsertStateValues,
 		mergeStateOp,
 	); {
@@ -391,7 +391,7 @@ func newFuncWorkerProcessStateValueMerger(
 					return insert(opindex, values)
 				},
 				func(subws, affected []string) error {
-					return done(workerStateOwnersSet(worker, subws, affected))
+					return done(workerStatesOwnersSet(worker, subws, affected))
 				},
 				nil
 		},
@@ -401,14 +401,14 @@ func newFuncWorkerProcessStateValueMerger(
 			f dutil.In2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
 		) error {
 			defer func() {
-				_, _, _ = doneStateOwnersSet()
+				_, _, _ = doneStatesOwnersSet()
 			}()
 
 			switch reasons, err := workerMergerWait(
 				func(unmerged []uint64) ([]string, error) {
 					_ = unmergeStateOp(unmerged)
 
-					switch subws, affected, err := doneStateOwnersSet(); {
+					switch subws, affected, err := doneStatesOwnersSet(); {
 					case err != nil:
 						return nil, err
 					default:
@@ -433,7 +433,7 @@ func newFuncWorkerProcessInitialInsert(
 	newJobWorker dutil.NewJobWorkerFunc,
 	workers []string,
 	maxOpsSize uint64,
-	localExtractedStateOwners localExtractedStateOwnersFunc,
+	localExtractedStatesOwners localExtractedStatesOwnersFunc,
 	workerInsertStateValues workerMergerInsertStateMergeValuesFunc,
 	mergeStateOp mergeStateOpFunc,
 ) (
@@ -461,18 +461,18 @@ func newFuncWorkerProcessInitialInsert(
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			var extractStateOwnersStateMergeValues extractStateOwnersStateMergeValuesFunc
-			var doneExtractStateOwnersStateMergeValues dutil.InErrorFunc[workerStateOwnersSetFunc]
+			var doneExtractStatesOwnersStateMergeValues dutil.InErrorFunc[workerStatesOwnersSetFunc]
 			var localOwners dutil.OutFunc[[]string]
 
-			switch e, s, l, err := localExtractedStateOwners(getStateOwners); {
+			switch e, s, l, err := localExtractedStatesOwners(getStateOwners); {
 			case err != nil:
 				return err
 			default:
-				extractStateOwnersStateMergeValues, doneExtractStateOwnersStateMergeValues, localOwners = e, s, l
+				extractStateOwnersStateMergeValues, doneExtractStatesOwnersStateMergeValues, localOwners = e, s, l
 			}
 
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
-			var distributeWorkerStateMergeValuesDone workerStateOwnersSetFunc
+			var distributeWorkerStateMergeValuesDone workerStatesOwnersSetFunc
 
 			switch i, o, c, err := workersDistributeStateMergeValues(ctx, newJobWorker, local, workers, distribute); {
 			case err != nil:
@@ -515,7 +515,7 @@ func newFuncWorkerProcessInitialInsert(
 					return err
 				}
 
-				return doneExtractStateOwnersStateMergeValues(distributeWorkerStateMergeValuesDone)
+				return doneExtractStatesOwnersStateMergeValues(distributeWorkerStateMergeValuesDone)
 			})
 		},
 		nil
@@ -735,7 +735,7 @@ func workersDistributeStateMergeValues(
 	newf newWorkerProcessDistributeStateMergeValuesFunc,
 ) (
 	workerDistributeWorkerStateMergeValuesFunc,
-	workerStateOwnersSetFunc,
+	workerStatesOwnersSetFunc,
 	dutil.ErrorFunc,
 	error,
 ) {

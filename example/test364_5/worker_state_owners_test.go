@@ -46,7 +46,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
@@ -82,7 +82,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
@@ -139,7 +139,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 2)
@@ -189,7 +189,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		values := make([][2]interface{}, len(workers))
@@ -365,7 +365,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		insert, traverse, localOwners, err := insertf(getStateOwners)
@@ -402,7 +402,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, add, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		values := make([][2]interface{}, len(workers))
@@ -543,7 +543,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 
 		ctx, _ := t.Ctx()
 
-		insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		insertf, _, _, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		insert, traverse, localOwners, err := insertf(getStateOwners)
@@ -573,7 +573,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 	t.Run("empty", func() {
 		ctx, _ := t.Ctx()
 
-		_, _, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		_, _, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		subws, affected, err := done()
@@ -588,7 +588,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 
 		ctx, _ := t.Ctx()
 
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		_, add, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -624,7 +624,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 
 		ctx, _ := t.Ctx()
 
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1)
+		_, add, done, err := newFuncWorkerStatesOwners(ctx, local, 1)
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -660,7 +660,7 @@ func (t *testWorkerStateOwners) TestAdd() {
 
 		ctx, _ := t.Ctx()
 
-		_, add, done, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+		_, add, done, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -749,7 +749,7 @@ func (t *testWorkerStateOwners) TestCases() {
 
 			ctx, _ := t.Ctx()
 
-			insertf, _, _, err := newFuncWorkerStateOwners(ctx, local, 1<<9)
+			insertf, _, _, err := newFuncWorkerStatesOwners(ctx, local, 1<<9)
 			t.NoError(err)
 
 			insert, traverse, localOwners, err := insertf(getStateOwners)
@@ -816,11 +816,11 @@ func (t *testWorkerStateOwners) TestCases() {
 			ctx, _ := t.Ctx()
 
 			inserts := map[string]extractStateOwnersStateMergeValuesFunc{}
-			traverses := map[string]dutil.InErrorFunc[workerStateOwnersSetFunc]{}
+			traverses := map[string]dutil.InErrorFunc[workerStatesOwnersSetFunc]{}
 			localOwners := map[string]dutil.OutFunc[[]string]{}
 
 			for worker := range slices.Values(workers) {
-				insertf, _, _, err := newFuncWorkerStateOwners(ctx, worker, 1<<9)
+				insertf, _, _, err := newFuncWorkerStatesOwners(ctx, worker, 1<<9)
 				t.NoError(err)
 
 				inserts[worker], traverses[worker], localOwners[worker], err = insertf(getStateOwners)

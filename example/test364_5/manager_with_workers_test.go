@@ -472,30 +472,30 @@ func (t *testManagerWithWorkers) processCase(
 		}
 	}
 
-	stateOwners := map[string][]string{}
+	statesOwners := map[string][]string{}
 	for op := range slices.Values(ops) {
 		sub, adds, _, err := op.StateMergeValues(ctx)
 		t.NoError(err)
 
 		if sub != nil {
 			stateKey := sub.Key()
-			if _, found := stateOwners[stateKey]; !found {
-				stateOwners[stateKey] = getStateOwners(stateKey)
+			if _, found := statesOwners[stateKey]; !found {
+				statesOwners[stateKey] = getStateOwners(stateKey)
 			}
 		}
 
 		for value := range slices.Values(adds) {
 			stateKey := value.Key()
-			if _, found := stateOwners[stateKey]; !found {
-				stateOwners[stateKey] = getStateOwners(stateKey)
+			if _, found := statesOwners[stateKey]; !found {
+				statesOwners[stateKey] = getStateOwners(stateKey)
 			}
 		}
 	}
 
-	stateKeys := slices.Collect(maps.Keys(stateOwners))
+	stateKeys := slices.Collect(maps.Keys(statesOwners))
 	slices.Sort(stateKeys)
 	for stateKey := range slices.Values(stateKeys) {
-		t.Println("state owners: state key=%q owners=%v", stateKey, stateOwners[stateKey])
+		t.Println("state owners: state key=%q owners=%v", stateKey, statesOwners[stateKey])
 	}
 
 	sendOps, wait := t.newManager(

@@ -25,7 +25,7 @@ type (
 		error,
 	)
 	generateFixedTreeFunc               = func(fixedtree.GenerateNodesHashFunc) (*fixedtree.Tree, error)
-	managerCollectResultOwnersReadyFunc = dutil.In2ErrorFunc[[]string /* stateOwners */, uint64 /* statesShare */]
+	managerCollectResultOwnersReadyFunc = dutil.In2ErrorFunc[[]string /* states owners */, uint64 /* states share */]
 )
 
 func newFuncManagerCollectResult(
@@ -384,8 +384,8 @@ func newFuncManagerWorkersResult(
 				},
 				nil
 		},
-		func(stateOwners []string, statesShare uint64) error {
-			if len(stateOwners) < 1 {
+		func(statesOwners []string, statesShare uint64) error {
+			if len(statesOwners) < 1 {
 				return workersDone(nil)
 			}
 
@@ -396,16 +396,16 @@ func newFuncManagerWorkersResult(
 					}
 
 					log.Debug().
-						Strs("state_owners", stateOwners).
+						Strs("state_owners", statesOwners).
 						Uint64("states_share", statesShare).
 						Msg("ready")
 
-					switch w, err := newFuncCheckFailedWorkers(uint64(len(stateOwners)), statesShare, nil); {
+					switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
 					case err != nil:
 						return err
 					default:
 						checkWorker = func(worker string, err error) (ok, enough bool, failed error) {
-							if slices.Index(stateOwners, worker) < 0 {
+							if slices.Index(statesOwners, worker) < 0 {
 								return false, false, nil
 							}
 

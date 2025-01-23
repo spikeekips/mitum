@@ -19,7 +19,7 @@ type (
 		unmergedErrorFunc,
 		error,
 	)
-	workerUnmergerLocalReadyFunc = func(subStateOwners []string, localUnmerged []uint64, workers, share uint64) error
+	workerUnmergerLocalReadyFunc = func(subStatesOwners []string, localUnmerged []uint64, workers, share uint64) error
 	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
 	workerOpindexFilterFunc      = func(worker string) (opindexFilterFunc, error)
 	workerUnmergerWaitFunc       = unmergedErrorFunc
@@ -36,7 +36,7 @@ func newFuncWorkerUnmerger(
 	getStateValueMergers mergerGetStateValueMergersFunc,
 	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 ) (
-	workerUnmergedFunc, // NOTE from state owners, excluding local
+	workerUnmergedFunc, // NOTE from states owners, excluding local
 	workerUnmergerLocalReadyFunc,
 	workerUnmergerWaitFunc,
 	error,
@@ -168,7 +168,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	newCheckWorkers newCheckFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	localReady func(subStateOwners []string, localUnmerged []uint64, workersSize, share uint64) (ok, enough bool, failed error, _ error),
+	localReady func(subStatesOwners []string, localUnmerged []uint64, workersSize, share uint64) (ok, enough bool, failed error, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error),
 	unmergerDone func(),
 	_ workerUnmergerWaitFunc,
@@ -453,7 +453,7 @@ func newFuncWorkerOpindexFilter(
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 ) (
-	localReady func(subStateOwners []string, localUnmerged []uint64) error,
+	localReady func(subStatesOwners []string, localUnmerged []uint64) error,
 	_ workerOpindexFilterFunc,
 	_ func(),
 ) {

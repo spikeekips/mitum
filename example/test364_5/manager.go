@@ -156,13 +156,13 @@ func newFuncManager(
 				_ = wctxCancel(nil)
 			}()
 
-			var statesWorkers []string
+			var statesOwners []string
 			var opsTree, statesTree *fixedtree.Tree
 
 			switch otr, str, err := processWait(
 				options.GenerateNodesHashFunc,
 				func(owners []string) error {
-					statesWorkers = owners
+					statesOwners = owners
 
 					// NOTE manager done to workers outside owners
 					return newFuncManagerWorkerInsertDone(
@@ -199,7 +199,7 @@ func newFuncManager(
 					wctx,
 					newJobWorker,
 					workID,
-					workers, opsWorkers, statesWorkers,
+					workers, opsWorkers, statesOwners,
 					opsShare, statesShare,
 					doneWorkerf,
 				)
@@ -405,7 +405,7 @@ func managerDoneWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workID string,
-	workers, opsWorkers, statesWorkers []string,
+	workers, opsWorkers, statesOwners []string,
 	opsShare, statesShare uint64,
 	f managerDoneWorkerFunc,
 ) error {
@@ -420,7 +420,7 @@ func managerDoneWorkers(
 		checkWorkerOps = w
 	}
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(statesWorkers)), statesShare, nil); {
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(statesOwners)), statesShare, nil); {
 	case err != nil:
 		return err
 	default:
@@ -452,7 +452,7 @@ func managerDoneWorkers(
 				}
 			}
 
-			if slices.Index(statesWorkers, worker) >= 0 {
+			if slices.Index(statesOwners, worker) >= 0 {
 				if _, _, failed := checkWorkerStates(worker, err); failed != nil {
 					l.Error().Msg("state owner done failed")
 
