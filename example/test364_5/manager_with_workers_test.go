@@ -175,6 +175,11 @@ func (t *testManagerWithWorkers) newManager(
 	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWait, err := newFuncManager(
 		ctx,
 		t.newManagerOptions(),
+		func(_ context.Context, _, worker string, err error) error {
+			panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+
+			return nil
+		},
 		workID,
 		workers,
 		opsShare, statesShare,
@@ -418,14 +423,17 @@ func (t *testManagerWithWorkers) newManager(
 
 				return nil, nil
 			},
+			func(_ context.Context, _, worker string) error {
+				t.T().Logf("done worker: worker=%q", worker)
+
+				return workersCloses[worker](nil)
+			},
 		)
 		t.Println("manager wait done")
 
-		for f := range maps.Values(workersCloses) {
-			_ = f(err)
+		if err == nil {
+			err = <-workersClosed
 		}
-
-		<-workersClosed
 
 		return opsTree, statesTree, states, err
 	}

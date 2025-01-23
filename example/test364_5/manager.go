@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -21,12 +22,15 @@ type (
 		opsShare, statesShare uint64,
 		maxOpsSize uint64,
 	) error
+	managerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
+	managerDoneWorkerFunc      = func(_ context.Context, workID, worker string) error
 	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
 		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
-	managerWaitFunc        = dutil.In2ErrorFunc[
+	managerWaitFunc        = dutil.In3ErrorFunc[
 		dutil.InContextErrorFunc[string],
 		newManagerManifestFunc,
+		managerDoneWorkerFunc,
 	]
 )
 
@@ -50,6 +54,7 @@ func newManagerOptions() *managerOptions {
 func newFuncManager(
 	ctx context.Context,
 	options *managerOptions,
+	cancelWorkerf managerCancelWorkerFunc,
 	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
@@ -61,6 +66,8 @@ func newFuncManager(
 	wait managerWaitFunc,
 	_ error,
 ) {
+	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
+
 	var actingWorkers []string
 
 	switch a, o, s, err := isValidManagerArgs(options, workID, workers, opsShare, statesShare, ophs); {
@@ -70,7 +77,9 @@ func newFuncManager(
 		actingWorkers, opsShare, statesShare = a, o, s
 	}
 
-	log := dutil.NewModuleLoggerFromContext(ctx, "manager", nil)
+	log := dutil.NewModuleLoggerFromContext(wctx, "manager", func(zctx zerolog.Context) zerolog.Context {
+		return zctx.Str("work_id", workID)
+	})
 
 	log.Debug().
 		Interface("options", options).
@@ -87,7 +96,7 @@ func newFuncManager(
 	var processWait managerProcessWaitFunc
 
 	switch s, o, r, w, err := newFuncManagerProcess(
-		ctx,
+		wctx,
 		newJobWorker,
 		actingWorkers,
 		opsShare, statesShare,
@@ -99,17 +108,33 @@ func newFuncManager(
 		sendOps, workerOwners, workerResult, processWait = s, o, r, w
 	}
 
+	cancelWork := func(err error) error {
+		if err != nil {
+			if cancelWorkerf != nil {
+				err = managerCancelWorkers(wctx, newJobWorker, workID, workers, cancelWorkerf, err)
+			}
+
+			return wctxCancel(err)
+		}
+
+		return wctxCancel(err)
+	}
+
+	var opsWorkers []string
+
 	return func(
 			startWorker managerStartWorkerFunc,
 			f newManagerWorkerSendOpFunc,
 		) error {
-			return sendOps(
-				func(opsWorkers []string) error {
+			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
+				func(w []string) error {
+					opsWorkers = w
+
 					return managerStartWorkers(
-						ctx,
+						wctx,
 						newJobWorker,
 						workID,
-						actingWorkers, opsWorkers,
+						actingWorkers, w,
 						opsShare, statesShare,
 						uint64(len(ophs)),
 						startWorker,
@@ -118,22 +143,30 @@ func newFuncManager(
 				func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return f(ctx, workID, worker)
 				},
-			)
+			))
 		},
 		workerOwners,
 		workerResult,
 		func(
 			workerInsertDone dutil.InContextErrorFunc[string],
 			newManifest newManagerManifestFunc,
+			doneWorkerf managerDoneWorkerFunc,
 		) error {
+			defer func() {
+				_ = wctxCancel(nil)
+			}()
+
+			var statesWorkers []string
 			var opsTree, statesTree *fixedtree.Tree
 
 			switch otr, str, err := processWait(
 				options.GenerateNodesHashFunc,
 				func(owners []string) error {
+					statesWorkers = owners
+
 					// NOTE manager done to workers outside owners
 					return newFuncManagerWorkerInsertDone(
-						ctx,
+						wctx,
 						newJobWorker,
 						actingWorkers,
 						owners,
@@ -142,22 +175,35 @@ func newFuncManager(
 				},
 			); {
 			case err != nil:
-				return err
+				return cancelWork(err)
 			default:
 				opsTree, statesTree = otr, str
 			}
 
 			switch manifest, err := newManifest(opsTree, statesTree); {
 			case err != nil:
-				return err
+				return cancelWork(err)
 			default:
 				_ = manifest
 			}
 
-			// FIXME save block; check workers by ops workers + states workers
 			// FIXME save,
 			// - block map
 			// - trees
+
+			if doneWorkerf != nil {
+				// NOTE if failed done workers, canceling workers is
+				// meaningless. Some workers finish, but others not. If it
+				// happened, manager cancels work.
+				return managerDoneWorkers(
+					wctx,
+					newJobWorker,
+					workID,
+					workers, opsWorkers, statesWorkers,
+					opsShare, statesShare,
+					doneWorkerf,
+				)
+			}
 
 			return nil
 		},
@@ -305,6 +351,120 @@ func managerStartWorkers(
 			))
 		}); err != nil {
 			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func managerCancelWorkers(
+	ctx context.Context,
+	newJobWorker dutil.NewJobWorkerFunc,
+	workID string,
+	workers []string,
+	f managerCancelWorkerFunc,
+	gerr error,
+) error {
+	log := dutil.LoadContextValueLogger(ctx)
+	log.Debug().Msg("cancel workers")
+
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for worker := range slices.Values(workers) {
+		if err := newJob(func(ctx context.Context) error {
+			err := f(ctx, workID, worker, gerr)
+			log.Debug().Err(err).Str("worker", worker).Msg("cancel worker")
+
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return err
+	}
+
+	return gerr
+}
+
+func managerDoneWorkers(
+	ctx context.Context,
+	newJobWorker dutil.NewJobWorkerFunc,
+	workID string,
+	workers, opsWorkers, statesWorkers []string,
+	opsShare, statesShare uint64,
+	f managerDoneWorkerFunc,
+) error {
+	log := dutil.LoadContextValueLogger(ctx)
+
+	var checkWorkerOps, checkWorkerStates checkFailedWorkersFunc
+
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
+	case err != nil:
+		return err
+	default:
+		checkWorkerOps = w
+	}
+
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(statesWorkers)), statesShare, nil); {
+	case err != nil:
+		return err
+	default:
+		checkWorkerStates = w
+	}
+
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for worker := range slices.Values(workers) {
+		if err := newJob(func(ctx context.Context) error {
+			err := f(ctx, workID, worker)
+
+			l := log.With().Str("worker", worker).Err(err).Logger()
+
+			if slices.Index(opsWorkers, worker) >= 0 {
+				if _, _, failed, gerr := checkWorkerOps(worker, err); failed {
+					l.Error().Msg("ops worker done failed")
+
+					return gerr
+				}
+			}
+
+			if slices.Index(statesWorkers, worker) >= 0 {
+				if _, _, failed, gerr := checkWorkerStates(worker, err); failed {
+					l.Error().Msg("state owner done failed")
+
+					return gerr
+				}
+			}
+
+			l.Debug().Msg("worker done")
+
+			return nil
+		}); err != nil {
+			return err
 		}
 	}
 

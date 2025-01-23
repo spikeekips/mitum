@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -268,6 +270,7 @@ func (t *testManager) TestNew() {
 		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
+			nil,
 			"",
 			t.workers(3),
 			1, 1,
@@ -280,6 +283,7 @@ func (t *testManager) TestNew() {
 		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			t.workers(3),
 			1, 1,
@@ -292,6 +296,7 @@ func (t *testManager) TestNew() {
 		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			nil,
 			1, 1,
@@ -304,6 +309,7 @@ func (t *testManager) TestNew() {
 		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			t.workers(3),
 			0, 1,
@@ -316,6 +322,7 @@ func (t *testManager) TestNew() {
 		_, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			t.workers(3),
 			1, 0,
@@ -338,6 +345,8 @@ func (t *testManager) TestStartWorkers() {
 		opsShare, statesShare uint64,
 		ophs [][2]util.Hash,
 		failedWorkers []string,
+		cancelWorkerf managerCancelWorkerFunc,
+		doneWorkerf managerDoneWorkerFunc,
 	) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -348,6 +357,11 @@ func (t *testManager) TestStartWorkers() {
 		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
+			func(ctx context.Context, workID, worker string, err error) error {
+				t.Println("worker canceled: worker=%q err=%+v", worker, err)
+
+				return cancelWorkerf(ctx, workID, worker, err)
+			},
 			util.UUID().String(),
 			workers,
 			opsShare, statesShare,
@@ -403,44 +417,114 @@ func (t *testManager) TestStartWorkers() {
 
 				return nil, nil
 			},
+			func(ctx context.Context, workID, worker string) error {
+				t.T().Logf("worker done: worker=%q", worker)
+
+				return doneWorkerf(ctx, workID, worker)
+			},
 		)
 	}
 
 	t.Run("no failed", func() {
+		workers := t.workers(9)
+
+		var addDone dutil.AppendSliceAddFunc[string]
+		var doneDone dutil.OutFunc[[]string]
+
+		addDone, doneDone, err := dutil.NewLockComparableUniqueAppendSlice[string](uint64(len(workers)), 0)
+		t.NoError(err)
+
 		t.NoError(run(
-			t.workers(9),
+			workers,
 			1, 1,
 			t.randomOphs(3),
 			nil,
+			func(_ context.Context, _, worker string, err error) error {
+				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+
+				return nil
+			},
+			func(_ context.Context, _, worker string) error {
+				addDone(worker)
+
+				return nil
+			},
 		))
+
+		collected := doneDone()
+		slices.Sort(collected)
+
+		t.Equal(workers, collected)
 	})
 
 	t.Run("failed ops worker; under max failed", func() {
+		var called int64
+
 		t.NoError(run(
 			t.workers(9),
 			2, 1,
 			t.randomOphs(3),
 			[]string{"w0"},
+			func(_ context.Context, _, worker string, err error) error {
+				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+
+				return nil
+			},
+			func(_ context.Context, _, worker string) error {
+				atomic.AddInt64(&called, 1)
+
+				return nil
+			},
 		))
+
+		t.True(called > 0)
 	})
 
 	t.Run("failed ops worker; over max failed", func() {
+		var cancelCalled, doneCalled int64
+
 		err := run(
 			t.workers(9),
 			1, 1,
 			t.randomOphs(3),
 			[]string{"w0", "w1"},
+			func(_ context.Context, _, worker string, err error) error {
+				atomic.AddInt64(&cancelCalled, 1)
+
+				return nil
+			},
+			func(_ context.Context, _, worker string) error {
+				atomic.AddInt64(&doneCalled, 1)
+
+				return nil
+			},
 		)
 		t.ErrorIs(err, errWorkersFailed)
+		t.True(cancelCalled > 0)
+		t.True(doneCalled < 1)
 	})
 
 	t.Run("failed non-ops worker; over max failed", func() {
+		var doneCalled int64
+
 		t.NoError(run(
 			t.workers(9),
 			1, 1,
 			t.randomOphs(3),
 			[]string{"w6", "w7", "w8"},
+			func(_ context.Context, _, worker string, err error) error {
+				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+
+				return nil
+			},
+			func(_ context.Context, _, worker string) error {
+				atomic.AddInt64(&doneCalled, 1)
+
+				return nil
+			},
 		))
+
+		t.True(doneCalled > 0)
 	})
 }
 
@@ -454,6 +538,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			workers,
 			1, 1,
@@ -511,6 +596,11 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil, nil
 			},
+			func(_ context.Context, _, worker string) error {
+				t.T().Logf("done worker: worker=%q", worker)
+
+				return nil
+			},
 		))
 
 		t.Empty(nonOwners)
@@ -525,6 +615,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
+			nil,
 			util.UUID().String(),
 			workers,
 			1, 1,
@@ -582,10 +673,141 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil, nil
 			},
+			func(_ context.Context, _, worker string) error {
+				t.T().Logf("done worker: worker=%q", worker)
+
+				return nil
+			},
 		))
 
 		slices.Sort(nonOwners)
 		t.Equal(workers[2:], nonOwners)
+	})
+}
+
+func (t *testManager) TestDoneWorkers() {
+	run := func(
+		workers, statesWorkers []string,
+		doneWorkerf managerDoneWorkerFunc,
+	) error {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+			ctx,
+			t.newOptions(),
+			func(_ context.Context, _, worker string, err error) error {
+				panic(fmt.Sprintf("worker canceled: worker=%q err=%+v", worker, err))
+
+				return err
+			},
+			util.UUID().String(),
+			workers,
+			2, 2,
+			t.randomOphs(3),
+		)
+
+		t.NoError(err)
+		t.NoError(sendOps(
+			func(context.Context, string, string, []string, []string, uint64, uint64, uint64) error { return nil },
+			func(context.Context, string, string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				return func(uint64, util.Hash, util.Hash) error { return nil },
+					func(err error) error { return err },
+					nil
+			},
+		))
+
+		for worker := range slices.Values(workers) {
+			t.T().Logf("worker owners: worker=%q owners=%v", worker, statesWorkers)
+
+			t.NoError(workerOwners(worker, statesWorkers))
+		}
+
+		for worker := range slices.Values(workers) {
+			t.T().Logf("worker result: worker=%q", worker)
+
+			_, _, done, err := workerResult(worker)
+			t.NoError(err)
+			t.NoError(done(nil))
+		}
+
+		return wait(
+			func(_ context.Context, worker string) error {
+				t.Println("non state owner: worker=%q", worker)
+
+				return nil
+			},
+			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
+				t.Println("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+
+				return nil, nil
+			},
+			func(ctx context.Context, workID, worker string) error {
+				t.Println("done worker: worker=%q", worker)
+
+				return doneWorkerf(ctx, workID, worker)
+			},
+		)
+	}
+
+	t.Run("ok", func() {
+		workers := t.workers(3)
+		t.NoError(run(
+			workers, workers,
+			func(context.Context, string, string) error { return nil },
+		))
+	})
+
+	t.Run("ops worker, not in state owners failed; under max failed", func() {
+		workers := t.workers(6)
+
+		t.NoError(run(
+			workers,
+			workers[3:],
+			func(_ context.Context, _, worker string) error {
+				if worker == workers[0] {
+					return errors.Errorf("showme")
+				}
+
+				return nil
+			},
+		))
+	})
+
+	t.Run("ops worker, not in state owners failed; over max failed", func() {
+		workers := t.workers(6)
+
+		err := run(
+			workers,
+			workers[3:],
+			func(_ context.Context, _, worker string) error {
+				switch {
+				case worker == workers[0],
+					worker == workers[1]:
+					return errors.Errorf("showme")
+				}
+
+				return nil
+			},
+		)
+		t.ErrorIs(err, errWorkersFailed)
+	})
+
+	t.Run("states owner, not in ops owners failed; under max failed", func() {
+		workers := t.workers(6)
+
+		t.NoError(run(
+			workers,
+			workers[3:],
+			func(_ context.Context, _, worker string) error {
+				switch {
+				case worker == workers[3]:
+					return errors.Errorf("showme")
+				}
+
+				return nil
+			},
+		))
 	})
 }
 
