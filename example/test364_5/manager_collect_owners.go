@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"slices"
 
+	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
 
 func newFuncManagerCollectOwners(
 	ctx context.Context,
+	opsWorkers []string,
 	workersSize, opsShare uint64,
 ) (
 	dutil.In2ErrorFunc[string /* worker */, []string /* owners */],
@@ -17,13 +20,14 @@ func newFuncManagerCollectOwners(
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-collect-owners", nil)
 
 	log.Debug().
-		Uint64("workers", workersSize).
+		Strs("ops_workers", opsWorkers).
+		Uint64("workers_size", workersSize).
 		Uint64("ops_share", opsShare).
 		Msg("new")
 
 	var checkWorker checkFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(workersSize, opsShare, nil); {
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(opsWorkers)), opsShare, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -47,6 +51,10 @@ func newFuncManagerCollectOwners(
 	return func(worker string, owners []string) error {
 			if ok, err := checkParentContextError(); err != nil || !ok {
 				return err
+			}
+
+			if slices.Index(opsWorkers, worker) < 0 {
+				return errors.Errorf("worker, %q not ops worker", worker)
 			}
 
 			return dutil.ContextCauseError(octx, nil, func(context.Context) error {

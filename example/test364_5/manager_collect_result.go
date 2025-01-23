@@ -400,14 +400,21 @@ func newFuncManagerWorkersResult(
 					}
 
 					log.Debug().
+						Strs("state_owners", stateOwners).
 						Uint64("states_share", statesShare).
 						Msg("ready")
 
-					switch w, err := newFuncCheckFailedWorkers(workersSize, statesShare, nil); {
+					switch w, err := newFuncCheckFailedWorkers(uint64(len(stateOwners)), statesShare, nil); {
 					case err != nil:
 						return err
 					default:
-						checkWorker = w
+						checkWorker = func(worker string, err error) (ok, enough, failed bool, _ error) {
+							if slices.Index(stateOwners, worker) < 0 {
+								return false, false, false, nil
+							}
+
+							return w(worker, err)
+						}
 
 						return nil
 					}

@@ -635,8 +635,7 @@ func (t *testWorkerProcess) TestLocal() {
 			t.IfErrPanic(insertDone(nil, nil))
 		}()
 
-		var calledBroadcastUnmerged bool
-		var reportedStates atomic.Value
+		var calledBroadcastUnmerged, calledReportStates bool
 
 		t.NoError(wait(
 			func(_ context.Context, worker string, unmerged []uint64) error {
@@ -650,21 +649,14 @@ func (t *testWorkerProcess) TestLocal() {
 				statesSize uint64,
 				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 			) error {
-				reportedStates.Store(reasons)
-
-				t.EqualValues(0, statesSize)
+				calledReportStates = true
 
 				return nil
 			},
 		))
 
 		t.False(calledBroadcastUnmerged)
-		t.Equal(len(ops), savedOps.Len())
-
-		{
-			reported := reportedStates.Load().(map[uint64]string)
-			t.Empty(reported)
-		}
+		t.True(calledReportStates)
 
 		t.EqualValues(0, savedStates.Len())
 
@@ -766,6 +758,67 @@ func (t *testWorkerProcess) TestLocal() {
 
 			base.EqualOperation(t.Assert(), op, s)
 		}
+	})
+
+	t.Run("not inserted; don't report result", func() {
+		workers := t.workers(3)
+		local := workers[0]
+
+		ctx, _ := t.Ctx()
+
+		initial, insertf, _, wait, savedOps, savedStates := t.newf(
+			ctx,
+			local,
+			func(string) (base.State, bool, error) { return nil, false, nil },
+			t.createStateFunc(),
+			workers, workers, 1, 1,
+		)
+
+		t.NoError(initial(
+			func(string) []string { return workers },
+			nil,
+			nil,
+			t.defaultFuncInsertOp(nil),
+			func([]string, map[uint64]string) error { return nil },
+		))
+
+		go func() {
+			for worker := range slices.Values(workers) {
+				if worker == local {
+					continue
+				}
+
+				_, insertDone, err := insertf(worker)
+				t.IfErrPanic(err)
+				t.IfErrPanic(insertDone(nil, nil))
+			}
+		}()
+
+		var calledBroadcastUnmerged, calledReportStates bool
+
+		t.NoError(wait(
+			func(_ context.Context, worker string, unmerged []uint64) error {
+				calledBroadcastUnmerged = true
+
+				return nil
+			},
+			func(
+				_ context.Context,
+				reasons map[uint64]string,
+				statesSize uint64,
+				states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+			) error {
+				calledReportStates = true
+
+				return nil
+			},
+		))
+
+		t.False(calledBroadcastUnmerged)
+		t.False(calledReportStates)
+
+		t.EqualValues(0, savedStates.Len())
+		t.EqualValues(0, savedOps.Len())
 	})
 }
 

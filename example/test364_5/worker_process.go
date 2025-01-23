@@ -160,6 +160,8 @@ func newFuncWorkerProcess(
 		savedOps = i
 	}
 
+	var stateValueInserted int64
+
 	unusedOps := new(atomic.Value)
 
 	return func(
@@ -175,6 +177,8 @@ func newFuncWorkerProcess(
 				getOperation,
 				insertOp,
 				func(opindex uint64, op operation) error {
+					_ = atomic.CompareAndSwapInt64(&stateValueInserted, 0, 1)
+
 					_ = savedOps.SetValue(opindex, op)
 
 					return nil
@@ -202,7 +206,20 @@ func newFuncWorkerProcess(
 				return nil, nil, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
 			}
 
-			return workerInsertStateValues(worker)
+			switch wi, wd, err := workerInsertStateValues(worker); {
+			case err != nil:
+				return nil, nil, err
+			case wi == nil:
+				return nil, nil, nil
+			default:
+				return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+						_ = atomic.CompareAndSwapInt64(&stateValueInserted, 0, 1)
+
+						return wi(opindex, fact, values)
+					},
+					wd,
+					nil
+			}
 		},
 		unmerge,
 		func(
@@ -211,6 +228,7 @@ func newFuncWorkerProcess(
 		) (iter.Seq2[uint64, operation], error) {
 			defer func() {
 				extractStateKeyClose()
+
 				closeState()
 			}()
 
@@ -227,9 +245,16 @@ func newFuncWorkerProcess(
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
 
-					statesSize, traverseStateValueMergers := traverseStateValueMergersf()
+					approxStatesSize, traverseStateValueMergers := traverseStateValueMergersf()
+					defer func() {
+						traverseStateValueMergers(nil)
+					}()
 
-					return reportResult(ctx, reasons, statesSize, func(f dutil.InErrorFunc[base.State]) error {
+					if atomic.LoadInt64(&stateValueInserted) < 1 {
+						return nil
+					}
+
+					return reportResult(ctx, reasons, approxStatesSize, func(f dutil.InErrorFunc[base.State]) error {
 						return workerProcessCloseStateValueMergers(
 							ctx,
 							createState,

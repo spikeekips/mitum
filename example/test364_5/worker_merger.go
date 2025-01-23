@@ -143,7 +143,7 @@ func newFuncWorkerMerger(
 	wait := newFuncWorkerMergerWait(
 		wctx,
 		local,
-		opsWorkersSize,
+		workersSize,
 		statesShare,
 		workerPhaseMergerWait,
 		workerUnmergerLocalReady,

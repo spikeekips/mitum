@@ -748,7 +748,8 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 			// t.runCase(3, 3, 1, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(7, 1, 5, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(9, 1, 3, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(11, 6, 9, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(11, 6, 9, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(13, 1, 10, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 		}
 
 		sampleCalled = true

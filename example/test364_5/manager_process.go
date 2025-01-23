@@ -33,6 +33,8 @@ func newFuncManagerProcess(
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "manager-process", nil)
 
+	workersSize := uint64(len(workers))
+
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var opsWorkers []string
 	var opsWait dutil.ErrorFunc
@@ -54,7 +56,7 @@ func newFuncManagerProcess(
 	var workerOwnersf dutil.In2ErrorFunc[string, []string]
 	var workerOwnersWait dutil.OutErrorFunc[[]string]
 
-	switch o, w, err := newFuncManagerCollectOwners(ctx, uint64(len(opsWorkers)), opsShare); {
+	switch o, w, err := newFuncManagerCollectOwners(ctx, opsWorkers, workersSize, opsShare); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -65,7 +67,7 @@ func newFuncManagerProcess(
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var resultWait managerCollectRersultWaitFunc
 
-	switch wr, r, w, err := newFuncManagerCollectResult(ctx, uint64(len(workers)), uint64(len(ophs))*2, ophs); { // NOTE approximate states size
+	switch wr, r, w, err := newFuncManagerCollectResult(ctx, workersSize, uint64(len(ophs))*2, ophs); { // NOTE approximate states size
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
