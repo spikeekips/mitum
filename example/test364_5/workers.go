@@ -148,7 +148,7 @@ func newFuncCheckFailedWorkers(
 		nil
 }
 
-func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc {
+func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc { // FIXME remove
 	return func(workers, share uint64, blockUntil func(string) bool) (
 		checkFailedWorkersFunc,
 		error,

@@ -19,7 +19,7 @@ type (
 		unmergedErrorFunc,
 		error,
 	)
-	workerUnmergerLocalReadyFunc = func(subStatesOwners []string, localUnmerged []uint64, workers, share uint64) error
+	workerUnmergerLocalReadyFunc = func(subStatesOwners []string, localUnmerged []uint64) error
 	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
 	workerOpindexFilterFunc      = func(worker string) (opindexFilterFunc, error)
 	workerUnmergerWaitFunc       = unmergedErrorFunc
@@ -31,7 +31,7 @@ func newFuncWorkerUnmerger(
 	ctxCancel dutil.InErrorFunc[error],
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	maxOpsSize uint64,
+	statesShare, maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
 	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
@@ -45,6 +45,7 @@ func newFuncWorkerUnmerger(
 
 	log.Debug().
 		Str("local", local).
+		Uint64("states_share", statesShare).
 		Msg("new")
 
 	localReady, workerUnmerge, unmergerDone, unmergerWait := newFuncWorkerUnmergerWorkerUnmergedPool(
@@ -85,7 +86,7 @@ func newFuncWorkerUnmerger(
 					l.Error().Err(failed).Msg("worker phase done; failed")
 
 					return ctxCancel(workerPhaseDone(failed))
-				case err != nil: // NOTE ignore
+				case err != nil:
 					l.Debug().Err(err).Msg("worker phase done")
 
 					return err
@@ -100,24 +101,16 @@ func newFuncWorkerUnmerger(
 				return nil
 			})
 		},
-		func(subws []string, localUnmerged []uint64, workersSize, share uint64) error {
+		func(subws []string, localUnmerged []uint64) error {
 			return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
-				if slices.Index(subws, local) < 0 {
-					workersSize++
-				}
+				l := log.With().Strs("sub_states_owners", subws).Logger()
 
-				l := log.With().
-					Strs("sub_states_owners", subws).
-					Uint64("workers_size", workersSize).
-					Uint64("share", share).
-					Logger()
-
-				switch ok, enough, failed, err := localReady(subws, localUnmerged, workersSize, share); {
+				switch ok, enough, failed, err := localReady(subws, localUnmerged, statesShare); {
 				case failed != nil:
 					l.Error().Err(failed).Msg("local phase done; failed")
 
 					return ctxCancel(workerPhaseDone(failed))
-				case err != nil: // NOTE ignore
+				case err != nil:
 					l.Debug().Err(err).Msg("local phase done")
 
 					return err
@@ -168,39 +161,44 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	newCheckWorkers newCheckFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
-	localReady func(subStatesOwners []string, localUnmerged []uint64, workersSize, share uint64) (ok, enough bool, failed error, _ error),
+	localReady func(subStatesOwners []string, localUnmerged []uint64, statesShare uint64) (ok, enough bool, failed error, _ error),
 	unmergerUnmerge func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error),
 	unmergerDone func(),
 	_ workerUnmergerWaitFunc,
 ) {
-	addPool, poolIsNotEmpty, traversePool := newFuncWorkerUnmergerUnmergedPool()
+	addPool, _, traversePool := newFuncWorkerUnmergerUnmergedPool()
 
 	var checkWorker checkFailedWorkersFunc
 
-	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(ctx, newFuncUnmergerFunc)
-
-	var once sync.Once
-	var newUnmergerErr error
-
-	newUnmerger := func(workersSize, share uint64) error {
-		once.Do(func() {
-			switch w, err := newCheckWorkers(workersSize, share, nil); {
-			case err != nil:
-				newUnmergerErr = err
-
-				return
-			default:
-				checkWorker = w
-			}
-
-			newUnmergerErr = newUnmergerf()
-		})
-
-		return newUnmergerErr
-	}
-
 	workerOpindexFilterLocalReady, workerOpindexFilter,
 		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getStateMergeValues)
+
+	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(
+		context.WithValue(ctx, "local", local),
+		newFuncUnmergerFunc,
+	)
+
+	newUnmerger := func(subws []string, localUnmerged []uint64, statesShare uint64) error {
+		if err := workerOpindexFilterLocalReady(subws, localUnmerged); err != nil {
+			return err
+		}
+
+		nsubws := uint64(len(subws))
+		if slices.Index(subws, local) < 0 {
+			nsubws++
+		}
+
+		switch w, err := newCheckWorkers(nsubws, statesShare, func(worker string) bool {
+			return worker == local
+		}); {
+		case err != nil:
+			return err
+		default:
+			checkWorker = w
+		}
+
+		return newUnmergerf()
+	}
 
 	var l sync.Mutex
 
@@ -217,7 +215,8 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		var gerr error
 
 		for opindex := range slices.Values(unmerged) {
-			if _, err := filter(opindex, unmergeOp); err != nil {
+			_, err := filter(opindex, unmergeOp)
+			if err != nil {
 				gerr = err
 
 				break
@@ -227,24 +226,8 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 		return checkWorker(worker, gerr)
 	}
 
-	return func(subws []string, localUnmerged []uint64, workersSize, share uint64) (bool, bool, error, error) {
-			if err := workerOpindexFilterLocalReady(subws, localUnmerged); err != nil {
-				return false, false, nil, err
-			}
-
-			switch {
-			case workersSize < 1: // NOTE zero workers means, empty state merge values
-				return true, true, nil, nil
-			case workersSize < 2:
-				switch notEmpty, err := poolIsNotEmpty(workerOpindexFilter); { // non-empty pool; failed
-				case err != nil:
-					return false, false, nil, err
-				case notEmpty:
-					return true, false, errors.Errorf("unmerged found in pool, but min enough is 1"), nil
-				}
-			}
-
-			if err := newUnmerger(workersSize, share); err != nil {
+	return func(subws []string, localUnmerged []uint64, statesShare uint64) (bool, bool, error, error) {
+			if err := newUnmerger(subws, localUnmerged, statesShare); err != nil {
 				return false, false, nil, err
 			}
 
@@ -262,15 +245,6 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 				return false, false, nil, err
 			}
 
-			var localOk bool
-
-			switch o, e, f := unmergeOps(local, nil, unmergeOp, nil); {
-			case e || f != nil:
-				return o, e, f, nil
-			default:
-				localOk = o
-			}
-
 		end:
 			for worker, unmerged := range traversePool {
 				var filter opindexFilterFunc
@@ -282,12 +256,14 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 					filter = f
 				}
 
-				if _, e, f := unmergeOps(worker, unmerged, unmergeOp, filter); e || f != nil {
-					return localOk, e, f, nil
+				if o, e, f := unmergeOps(worker, unmerged, unmergeOp, filter); f != nil {
+					return o, e, f, nil
 				}
 			}
 
-			return localOk, false, nil, nil
+			o, e, f := unmergeOps(local, nil, unmergeOp, nil)
+
+			return o, e, f, nil
 		},
 		func(worker string, unmerged []uint64) (ok, enough bool, failed error, _ error) {
 			if worker == local {

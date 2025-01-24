@@ -116,14 +116,14 @@ func newFuncOpindexFilter(
 
 	return func(opindex uint64, f dutil.InErrorFunc[uint64]) (bool, error) {
 			switch _, created, err := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+				if found {
+					return v, util.ErrLockedSetIgnore
+				}
+
 				switch i, err := getStateMergeValues(opindex); {
 				case err != nil:
 					return v, err
 				case len(i) < 1:
-					return v, util.ErrLockedSetIgnore
-				}
-
-				if found {
 					return v, util.ErrLockedSetIgnore
 				}
 

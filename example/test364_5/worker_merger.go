@@ -109,7 +109,7 @@ func newFuncWorkerMerger(
 		dutil.NewIfErrErrorInFunc(wctxCancel),
 		local,
 		newJobWorker,
-		maxOpsSize,
+		statesShare, maxOpsSize,
 		getStateMergeValues,
 		getStateValueMergers,
 		newCheckWorkers,
@@ -143,8 +143,6 @@ func newFuncWorkerMerger(
 	wait := newFuncWorkerMergerWait(
 		wctx,
 		local,
-		workersSize,
-		statesShare,
 		workerPhaseMergerWait,
 		workerUnmergerLocalReady,
 		workerUnmergerWait,
@@ -235,7 +233,6 @@ func newFuncWorkerMergerInsert(
 func newFuncWorkerMergerWait(
 	ctx context.Context,
 	local string,
-	workersSize, statesShare uint64,
 	workerPhaseMergerWait workerPhaseMergerWaitFunc,
 	workerUnmergerLocalReady workerUnmergerLocalReadyFunc,
 	workerUnmergerWait workerUnmergerWaitFunc,
@@ -270,13 +267,7 @@ func newFuncWorkerMergerWait(
 			Strs("sub_states_owners", subws).
 			Msg("phase merger wait done")
 
-		workersSize, share := workersSize, statesShare
-		if n := uint64(len(subws)); n != workersSize {
-			workersSize = n
-			share = 1
-		}
-
-		if err := workerUnmergerLocalReady(subws, localUnmerged, workersSize, share); err != nil {
+		if err := workerUnmergerLocalReady(subws, localUnmerged); err != nil {
 			return nil, err
 		}
 

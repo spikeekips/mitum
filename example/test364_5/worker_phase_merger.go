@@ -31,7 +31,7 @@ func newFuncWorkerPhaseMerger(
 	getStateValueMergers mergerGetStateValueMergersFunc,
 	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	newPhaseMerger newPhaseMergerFunc,
-	workersSize, opsShare uint64,
+	opsWorkersSize, opsShare uint64,
 ) (
 	insertWorkerStateMergeValuesFunc,
 	workerPhaseMergerWaitFunc,
@@ -40,7 +40,7 @@ func newFuncWorkerPhaseMerger(
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-phase-merger", nil)
 
 	log.Debug().
-		Uint64("workers", workersSize).
+		Uint64("workers", opsWorkersSize).
 		Uint64("ops_share", opsShare).
 		Msg("new")
 
@@ -48,7 +48,7 @@ func newFuncWorkerPhaseMerger(
 
 	var checkWorker checkFailedWorkersFunc
 
-	switch w, err := newCheckWorkers(workersSize, opsShare, nil); {
+	switch w, err := newCheckWorkers(opsWorkersSize, opsShare, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
