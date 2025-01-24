@@ -122,10 +122,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"local",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 1,
 		)
@@ -150,10 +150,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"local",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 1,
 		)
@@ -179,10 +179,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
+				"local",
 				cancel,
 				getStateMergeValues,
 				getStateValueMergers,
-				newFuncCheckFailedWorkers,
 				newPhaseMerger,
 				1, 1,
 			)
@@ -209,10 +209,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 			insertf, wait, err := newFuncWorkerPhaseMerger(
 				ctx,
+				"local",
 				cancel,
 				getStateMergeValues,
 				getStateValueMergers,
-				newFuncCheckFailedWorkers,
 				newPhaseMerger,
 				1, 1,
 			)
@@ -240,10 +240,10 @@ func (t *testWorkerPhaseMerger) TestCancel() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"local",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 1,
 		)
@@ -282,10 +282,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"w0",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 1,
 		)
@@ -344,10 +344,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"w0",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 1,
 		)
@@ -406,10 +406,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			workers[0],
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 1,
 		)
@@ -427,6 +427,8 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 				if worker == failedWorker {
 					_ = insertDone(errors.Errorf("findme"))
+				} else {
+					_ = insertDone(nil)
 				}
 			}
 		}()
@@ -447,10 +449,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			workers[0],
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 1,
 		)
@@ -512,10 +514,10 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			workers[0],
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			3, 1,
 		)
@@ -570,10 +572,10 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"local",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			1, 1,
 		)
@@ -632,10 +634,10 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"w0",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 1,
 		)
@@ -707,10 +709,10 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 		insertf, wait, err := newFuncWorkerPhaseMerger(
 			ctx,
+			"w0",
 			cancel,
 			getStateMergeValues,
 			getStateValueMergers,
-			newFuncCheckFailedWorkers,
 			newPhaseMerger,
 			2, 1,
 		)

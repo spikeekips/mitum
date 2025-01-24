@@ -148,29 +148,6 @@ func newFuncCheckFailedWorkers(
 		nil
 }
 
-func newFuncLocalCheckFailedWorkers(local string) newCheckFailedWorkersFunc { // FIXME remove
-	return func(workers, share uint64, blockUntil func(string) bool) (
-		checkFailedWorkersFunc,
-		error,
-	) {
-		var check checkWeightFailedWorkersFunc
-
-		switch c, err := newFuncCheckWeightFailedWorkers(workers, share, func(worker string) bool {
-			return worker == local
-		}); {
-		case err != nil:
-			return nil, err
-		default:
-			check = c
-		}
-
-		return func(worker string, err error) (bool, bool, error) {
-				return check(worker, 1, err)
-			},
-			nil
-	}
-}
-
 func newFuncStateValueMergers(
 	poolSize uint64,
 	getState getStateFunc,

@@ -28,13 +28,12 @@ type (
 // newFuncWorkerUnmerger finishes to merge operations after phase merger.
 func newFuncWorkerUnmerger(
 	ctx context.Context,
-	ctxCancel dutil.InErrorFunc[error],
 	local string,
+	ctxCancel dutil.InErrorFunc[error],
 	newJobWorker dutil.NewJobWorkerFunc,
 	statesShare, maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 ) (
 	workerUnmergedFunc, // NOTE from states owners, excluding local
 	workerUnmergerLocalReadyFunc,
@@ -53,7 +52,6 @@ func newFuncWorkerUnmerger(
 		local,
 		maxOpsSize,
 		getStateMergeValues,
-		newCheckWorkers,
 		func(ctx context.Context) (dutil.InErrorFunc[uint64], func(), unmergedErrorFunc, error) {
 			return newFuncUnmerger(
 				ctx,
@@ -158,7 +156,6 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	local string,
 	maxOpsSize uint64,
 	getStateMergeValues opindexGetStateMergeValuesFunc,
-	newCheckWorkers newCheckFailedWorkersFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
 	localReady func(subStatesOwners []string, localUnmerged []uint64, statesShare uint64) (ok, enough bool, failed error, _ error),
@@ -188,7 +185,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 			nsubws++
 		}
 
-		switch w, err := newCheckWorkers(nsubws, statesShare, func(worker string) bool {
+		switch w, err := newFuncCheckFailedWorkers(nsubws, statesShare, func(worker string) bool {
 			return worker == local
 		}); {
 		case err != nil:

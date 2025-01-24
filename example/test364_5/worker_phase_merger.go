@@ -26,10 +26,10 @@ type (
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
 func newFuncWorkerPhaseMerger(
 	ctx context.Context,
+	local string,
 	ctxCancel dutil.InErrorFunc[error],
 	getStateMergeValues opindexGetStateMergeValuesFunc,
 	getStateValueMergers mergerGetStateValueMergersFunc,
-	newCheckWorkers newCheckFailedWorkersFunc, // NOTE newLocalCheckEnoughFailedWorkersFunc
 	newPhaseMerger newPhaseMergerFunc,
 	opsWorkersSize, opsShare uint64,
 ) (
@@ -48,7 +48,9 @@ func newFuncWorkerPhaseMerger(
 
 	var checkWorker checkFailedWorkersFunc
 
-	switch w, err := newCheckWorkers(opsWorkersSize, opsShare, nil); {
+	switch w, err := newFuncCheckFailedWorkers(opsWorkersSize, opsShare, func(worker string) bool {
+		return worker == local
+	}); {
 	case err != nil:
 		return nil, nil, err
 	default:

@@ -80,17 +80,15 @@ func newFuncWorkerMerger(
 		getStateMergeValues, setStateMergeValues, stateMergeValuesPoolClose = g, s, c
 	}
 
-	newCheckWorkers := newFuncLocalCheckFailedWorkers(local)
-
 	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
 	var workerPhaseMergerWait workerPhaseMergerWaitFunc
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
+		local,
 		dutil.NewIfErrErrorInFunc(wctxCancel),
 		getStateMergeValues,
 		getStateValueMergers,
-		newCheckWorkers,
 		newFuncPhaseMergerFunc(newJobWorker, maxOpsSize),
 		opsWorkersSize, opsShare,
 	); {
@@ -106,13 +104,12 @@ func newFuncWorkerMerger(
 
 	switch u, s, w, err := newFuncWorkerUnmerger(
 		wctx,
-		dutil.NewIfErrErrorInFunc(wctxCancel),
 		local,
+		dutil.NewIfErrErrorInFunc(wctxCancel),
 		newJobWorker,
 		statesShare, maxOpsSize,
 		getStateMergeValues,
 		getStateValueMergers,
-		newCheckWorkers,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
