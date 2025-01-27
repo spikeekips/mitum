@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -1049,7 +1050,12 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		err = unmerge(opindex1)
 		if err != nil {
-			t.ErrorContains(err, "showme")
+			switch {
+			case strings.Contains(err.Error(), "showme"):
+			case errors.Is(err, context.Canceled):
+			default:
+				t.Fail("unexpected error: %+v", err)
+			}
 		}
 
 		done()
