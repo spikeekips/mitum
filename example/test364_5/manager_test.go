@@ -141,6 +141,7 @@ func (t *baseTestManager) processOps(
 		newWorkerOptions(local),
 		getState,
 		createState,
+		nil,
 		util.UUID().String(),
 		workers, workers,
 		1, 1,

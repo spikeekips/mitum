@@ -135,6 +135,7 @@ func (t *testManagerWithWorkers) newWorker(
 		t.newWorkerOptions(local),
 		getState,
 		createState,
+		nil,
 		workID,
 		workers, opsWorkers,
 		opsShare, statesShare,

@@ -4,12 +4,15 @@ import (
 	"context"
 	"iter"
 	"slices"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
+
+// FIXME use go routine for broadcast to others
 
 type (
 	newWorkerDistributeStateMergeValuesFunc func(_ context.Context, workID, worker string) (
@@ -71,6 +74,7 @@ func newFuncWorker(
 	options *workerOptions,
 	getState getStateFunc,
 	createState createStateFunc,
+	reportCancelWork dutil.InErrorFunc[error],
 	workID string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
@@ -111,6 +115,13 @@ func newFuncWorker(
 	}
 
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
+
+	cancelWork := newFuncWorkerCancelWork(wctxCancel, reportCancelWork)
+
+	ifErrorCancelWork := dutil.NewIfErrErrorInFunc(func(err error) error {
+		return cancelWork(err, true)
+	})
+
 	_, closeWorker, _, closeWorkerWait := dutil.NewContextDone(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
@@ -142,7 +153,7 @@ func newFuncWorker(
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners workerReportStatesOwnersFunc,
 		) error {
-			return initialInsert(
+			return ifErrorCancelWork(initialInsert(
 				getStateOwners,
 				func(ctx context.Context, worker string) (
 					workerProcessInsertStateMergeValuesFunc,
@@ -170,7 +181,7 @@ func newFuncWorker(
 
 					return nil
 				},
-			)
+			))
 		},
 		workerInsert,
 		workerUnmerge,
@@ -217,7 +228,7 @@ func newFuncWorker(
 				},
 			); {
 			case err != nil:
-				return err
+				return cancelWork(err, true)
 			default:
 				defer i(nil)
 
@@ -233,7 +244,7 @@ func newFuncWorker(
 			case err != nil:
 				log.Error().Err(err).Msg("worker canceled")
 
-				return err
+				return cancelWork(err, true)
 			default:
 				log.Debug().Msg("worker closed")
 
@@ -242,7 +253,7 @@ func newFuncWorker(
 		},
 		func(err error) error {
 			if err != nil {
-				return wctxCancel(err)
+				return cancelWork(err, false)
 			}
 
 			return closeWorker(nil)
@@ -277,4 +288,23 @@ func isValidWorkerArgs(
 	}
 
 	return nil
+}
+
+func newFuncWorkerCancelWork(
+	cancel dutil.InErrorFunc[error],
+	reportCancelWork dutil.InErrorFunc[error],
+) dutil.In2ErrorFunc[error, bool] {
+	var once sync.Once
+
+	return func(err error, isInternal bool) error {
+		once.Do(func() {
+			_ = cancel(err)
+
+			if isInternal && reportCancelWork != nil { // NOTE report error to manager
+				_ = reportCancelWork(err)
+			}
+		})
+
+		return err
+	}
 }

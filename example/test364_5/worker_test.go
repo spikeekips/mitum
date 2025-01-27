@@ -19,6 +19,164 @@ type testWorker struct {
 	baseTestWorkers
 }
 
+func (t *testWorker) TestCancelWork() {
+	t.Run("initial insert error", func() {
+		local := "local"
+		workers := []string{local}
+
+		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+
+		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
+		t.NoError(err)
+		defer stateOwnersClose()
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workCanceled := make(chan error, 1)
+
+		initialInsert, _, _, wait, _, err := newFuncWorker(
+			ctx,
+			t.newWorkerOptions(local),
+			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
+			nil,
+			func(err error) error {
+				workCanceled <- err
+
+				return err
+			},
+			util.UUID().String(),
+			workers, workers,
+			1, 1, 1,
+		)
+		t.NoError(err)
+
+		initialerr := make(chan error, 1)
+		go func() {
+			initialerr <- initialInsert(
+				getStateOwners,
+				t.defaultDistributeValuesFunc(local),
+				func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
+					return nil, false, "", errors.Errorf("showme")
+				},
+				t.ophsSeq2(ops),
+				nil,
+			)
+		}()
+
+		waiterr := make(chan error, 1)
+		go func() {
+			waiterr <- wait(
+				func(context.Context, string, string, string, []uint64) error { return nil },
+				func(context.Context, string, string, map[uint64]string, uint64,
+					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+				) error {
+					return nil
+				},
+			)
+		}()
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait initial insert")
+		case err := <-initialerr:
+			t.ErrorContains(err, "showme")
+		}
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait")
+		case err := <-waiterr:
+			t.ErrorContains(err, "showme")
+		}
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait cancel work")
+		case err := <-workCanceled:
+			t.ErrorContains(err, "showme")
+		}
+	})
+
+	t.Run("process error", func() {
+		local := "local"
+		workers := []string{local}
+
+		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+
+		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
+		t.NoError(err)
+		defer stateOwnersClose()
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		workCanceled := make(chan error, 1)
+
+		initialInsert, _, _, wait, _, err := newFuncWorker(
+			ctx,
+			t.newWorkerOptions(local),
+			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
+			nil,
+			func(err error) error {
+				workCanceled <- err
+
+				return err
+			},
+			util.UUID().String(),
+			workers, workers,
+			1, 1, 1,
+		)
+		t.NoError(err)
+
+		initialerr := make(chan error, 1)
+		go func() {
+			initialerr <- initialInsert(
+				getStateOwners,
+				t.defaultDistributeValuesFunc(local),
+				func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+					if opindex >= uint64(len(ops)) {
+						return nil, false, "", nil
+					}
+
+					return ops[opindex], true, "", nil
+				},
+				t.ophsSeq2(ops),
+				nil,
+			)
+		}()
+
+		waiterr := make(chan error, 1)
+		go func() {
+			waiterr <- wait(
+				func(context.Context, string, string, string, []uint64) error { return nil },
+				func(context.Context, string, string, map[uint64]string, uint64,
+					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+				) error {
+					return errors.Errorf("findme")
+				},
+			)
+		}()
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait initial insert")
+		case err := <-initialerr:
+			t.NoError(err)
+		}
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait")
+		case err := <-waiterr:
+			t.ErrorContains(err, "findme")
+		}
+		select {
+		case <-time.After(time.Second * 2):
+			t.Fail("failed to wait cancel work")
+		case err := <-workCanceled:
+			t.ErrorContains(err, "findme")
+		}
+	})
+}
+
 func (t *testWorker) TestClose() {
 	t.Run("ok", func() {
 		local := "local"
@@ -37,11 +195,12 @@ func (t *testWorker) TestClose() {
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
 			nil,
+			func(err error) error { panic(err) },
 			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
-		t.WorkerIfErrPanic(local, err)
+		t.NoError(err)
 
 		initialerr := make(chan error, 1)
 		go func() {
@@ -110,11 +269,12 @@ func (t *testWorker) TestClose() {
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
 			nil,
+			func(err error) error { panic(err) },
 			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
-		t.WorkerIfErrPanic(local, err)
+		t.NoError(err)
 
 		initialerr := make(chan error, 1)
 		go func() {
