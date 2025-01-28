@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strings"
@@ -268,7 +269,7 @@ func (t *testManager) newOptions() *managerOptions {
 
 func (t *testManager) TestNew() {
 	t.Run("empty work id", func() {
-		_, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -281,7 +282,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty ophs", func() {
-		_, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -294,7 +295,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty workers", func() {
-		_, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -307,7 +308,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero ops share", func() {
-		_, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -320,7 +321,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero states share", func() {
-		_, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := newFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -347,7 +348,7 @@ func (t *testManager) TestStartWorkers() {
 		ophs [][2]util.Hash,
 		failedWorkers []string,
 		cancelWorkerf managerCancelWorkerFunc,
-		doneWorkerf managerDoneWorkerFunc,
+		closeWorkerf managerCloseWorkerFunc,
 	) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -355,7 +356,7 @@ func (t *testManager) TestStartWorkers() {
 		opsWorkers := getOpsWorkers(workers, opsShare, ophs)
 		t.T().Logf("ops share=%d ops workers=%v", opsShare, opsWorkers)
 
-		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
 			func(ctx context.Context, workID, worker string, err error) error {
@@ -421,7 +422,7 @@ func (t *testManager) TestStartWorkers() {
 			func(ctx context.Context, workID, worker string) error {
 				t.T().Logf("worker done: worker=%q", worker)
 
-				return doneWorkerf(ctx, workID, worker)
+				return closeWorkerf(ctx, workID, worker)
 			},
 		)
 	}
@@ -536,7 +537,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 		workers := t.workers(9)
 
-		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
 			nil,
@@ -613,7 +614,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 		workers := t.workers(9)
 
-		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
 			nil,
@@ -686,15 +687,15 @@ func (t *testManager) TestBroadcastManagerDone() {
 	})
 }
 
-func (t *testManager) TestDoneWorkers() {
+func (t *testManager) TestCloseWorkers() {
 	run := func(
 		workers, statesOwners []string,
-		doneWorkerf managerDoneWorkerFunc,
+		closeWorkerf managerCloseWorkerFunc,
 	) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		sendOps, workerOwners, workerResult, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
 			ctx,
 			t.newOptions(),
 			func(_ context.Context, _, worker string, err error) error {
@@ -746,7 +747,7 @@ func (t *testManager) TestDoneWorkers() {
 			func(ctx context.Context, workID, worker string) error {
 				t.Println("done worker: worker=%q", worker)
 
-				return doneWorkerf(ctx, workID, worker)
+				return closeWorkerf(ctx, workID, worker)
 			},
 		)
 	}
@@ -816,4 +817,331 @@ func TestManager(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testManager))
+}
+
+type testFailedWorkerPool struct {
+	dutil.BaseSuite
+	baseTestWorkers
+}
+
+func (t *testFailedWorkerPool) TestWorkerError() {
+	t.Run("unknown worker", func() {
+		workers := t.workers(3)
+
+		pool := newFailedWorkerPool(
+			workers,
+			workers[:2],
+			1, 1,
+		)
+
+		added, failed, err := pool.workerError(util.UUID().String(), t.RandomError())
+		t.ErrorContains(err, "unknown worker")
+		t.False(added)
+		t.False(failed)
+	})
+
+	t.Run("nil error", func() {
+		workers := t.workers(3)
+
+		pool := newFailedWorkerPool(
+			workers,
+			workers[:2],
+			1, 1,
+		)
+
+		added, failed, err := pool.workerError(workers[0], nil)
+		t.ErrorContains(err, "nil error")
+		t.False(added)
+		t.False(failed)
+	})
+
+	t.Run("failed; ops workers", func() {
+		workers := t.workers(3)
+		opsWorkers := workers[:2]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			uint64(len(opsWorkers)),
+			1,
+		)
+
+		added, failed, err := pool.workerError(opsWorkers[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.False(failed)
+		added, failed, err = pool.workerError(opsWorkers[1], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.True(failed)
+	})
+}
+
+func (t *testFailedWorkerPool) TestSubosReady() {
+	t.Run("not failed; not yet ready", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			1,
+			uint64(len(subOwners)),
+		)
+
+		t.False(pool.statesOwnersReady(subOwners))
+	})
+
+	t.Run("failed; not yet ready", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			1,
+			uint64(len(subOwners)),
+		)
+
+		added, failed, err := pool.workerError(opsWorkers[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.True(failed)
+
+		t.True(pool.statesOwnersReady(subOwners))
+	})
+
+	t.Run("sub owners worker error; not yet ready", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			1,
+			uint64(len(subOwners)),
+		)
+
+		for worker := range slices.Values(subOwners) {
+			added, failed, err := pool.workerError(worker, t.RandomError())
+			t.NoError(err)
+			t.True(added)
+			t.False(failed)
+		}
+
+		t.True(pool.statesOwnersReady(subOwners))
+	})
+}
+
+func (t *testFailedWorkerPool) TestActiveWorkers() {
+	t.Run("before failed", func() {
+		workers := t.workers(3)
+
+		pool := newFailedWorkerPool(
+			workers,
+			workers,
+			1, 1,
+		)
+
+		var actives []string
+		failed, seq := pool.activeWorkers()
+		t.False(failed)
+
+		for worker := range seq {
+			actives = append(actives, worker)
+		}
+		t.Equal(workers, actives)
+	})
+
+	t.Run("worker error", func() {
+		workers := t.workers(3)
+
+		pool := newFailedWorkerPool(
+			workers,
+			workers,
+			2, 1,
+		)
+
+		added, failed, err := pool.workerError(workers[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.False(failed)
+
+		failed, seq := pool.activeWorkers()
+		t.False(failed)
+
+		var actives []string
+		for worker := range seq {
+			actives = append(actives, worker)
+		}
+		t.Equal(workers[1:], actives)
+	})
+}
+
+func (t *testFailedWorkerPool) TestActiveOpsWorkers() {
+	t.Run("before failed", func() {
+		workers := t.workers(3)
+		opsWorkers := workers[1:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			uint64(len(opsWorkers)),
+			1,
+		)
+
+		var actives []string
+		t.False(pool.activeOpsWorkers(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		}))
+		t.Equal(opsWorkers, actives)
+
+		added, failed, err := pool.workerError(opsWorkers[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.False(failed)
+
+		actives = actives[:0]
+		t.False(pool.activeOpsWorkers(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		}))
+		t.Equal(opsWorkers[1:], actives)
+	})
+
+	t.Run("after failed", func() {
+		workers := t.workers(3)
+		opsWorkers := workers[:2]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			uint64(len(opsWorkers)),
+			1,
+		)
+
+		for worker := range slices.Values(pool.opsWorkers()) {
+			pool.workerError(worker, t.RandomError())
+		}
+
+		var actives []string
+		t.True(pool.activeOpsWorkers(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		}))
+
+		t.Empty(actives)
+	})
+}
+
+func (t *testFailedWorkerPool) TestActiveSubOwners() {
+	t.Run("before ready", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			uint64(len(opsWorkers)),
+			uint64(len(subOwners)),
+		)
+
+		var actives []string
+		failed, err := pool.activeStatesOwners(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		})
+		t.ErrorContains(err, "not ready")
+		t.False(failed)
+		t.Empty(actives)
+	})
+
+	t.Run("after ready", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			uint64(len(opsWorkers)),
+			uint64(len(subOwners)),
+		)
+
+		t.False(pool.statesOwnersReady(subOwners))
+
+		var actives []string
+		failed, err := pool.activeStatesOwners(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		})
+		t.NoError(err)
+		t.False(failed)
+
+		t.Equal(subOwners, actives)
+
+		added, failed, err := pool.workerError(subOwners[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.False(failed)
+
+		actives = actives[:0]
+
+		failed, err = pool.activeStatesOwners(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		})
+		t.NoError(err)
+		t.False(failed)
+
+		t.Equal(subOwners[1:], actives)
+	})
+
+	t.Run("after ready, but failed", func() {
+		workers := t.workers(6)
+		opsWorkers := workers[:3]
+		subOwners := workers[3:]
+
+		pool := newFailedWorkerPool(
+			workers,
+			opsWorkers,
+			1,
+			uint64(len(subOwners)),
+		)
+
+		t.False(pool.statesOwnersReady(subOwners))
+
+		added, failed, err := pool.workerError(opsWorkers[0], t.RandomError())
+		t.NoError(err)
+		t.True(added)
+		t.True(failed)
+
+		var actives []string
+		failed, err = pool.activeStatesOwners(func(seq iter.Seq[string]) {
+			for worker := range seq {
+				actives = append(actives, worker)
+			}
+		})
+		t.NoError(err)
+		t.True(failed)
+
+		t.Empty(actives)
+	})
+}
+
+func TestFailedWorkerPool(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testFailedWorkerPool))
 }

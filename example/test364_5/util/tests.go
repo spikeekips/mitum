@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
@@ -69,4 +70,8 @@ func (t *BaseSuite) Marshal(i interface{}) string {
 
 func (t *BaseSuite) MarshalIndent(i interface{}) string {
 	return util.MustMarshalJSONIndentString(i)
+}
+
+func (t *BaseSuite) RandomError() error {
+	return errors.Errorf(util.UUID().String())
 }

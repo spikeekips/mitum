@@ -57,6 +57,7 @@ func (t *testManagerWithWorkers) newWorkers(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 	getState getStateFunc,
+	reportWorkerCancelWork dutil.In2ErrorFunc[string, error],
 ) (
 	workersInitialInserts map[string]workerInitialInsertFunc,
 	workersInserts map[string]workerProcessWorkerInsertStateMergeValuesFunc,
@@ -87,6 +88,9 @@ func (t *testManagerWithWorkers) newWorkers(
 			opsShare, statesShare,
 			uint64(len(ophs)),
 			getState,
+			func(err error) error {
+				return reportWorkerCancelWork(local, err)
+			},
 		)
 
 		workersInitialInserts[local] = t
@@ -110,6 +114,7 @@ func (t *testManagerWithWorkers) newWorker(
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 	getState getStateFunc,
+	reportCancelWork dutil.InErrorFunc[error],
 ) (
 	workerInitialInsertFunc,
 	workerProcessWorkerInsertStateMergeValuesFunc,
@@ -135,7 +140,7 @@ func (t *testManagerWithWorkers) newWorker(
 		t.newWorkerOptions(local),
 		getState,
 		createState,
-		nil,
+		reportCancelWork,
 		workID,
 		workers, opsWorkers,
 		opsShare, statesShare,
@@ -173,7 +178,7 @@ func (t *testManagerWithWorkers) newManager(
 		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 	}
 
-	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWait, err := newFuncManager(
+	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWorkerErr, managerWait, err := newFuncManager(
 		ctx,
 		t.newManagerOptions(),
 		func(_ context.Context, _, worker string, err error) error {
@@ -195,6 +200,7 @@ func (t *testManagerWithWorkers) newManager(
 		opsShare, statesShare,
 		ophs,
 		getState,
+		managerWorkerErr,
 	)
 
 	getOperation := t.getOperationFunc(ops)
@@ -350,6 +356,8 @@ func (t *testManagerWithWorkers) newManager(
 						}
 
 						if err := sendReasons(reasons); err != nil {
+							t.Println("worker report result: send reasons: local=%q err=%+v", local, err)
+
 							return err
 						}
 
@@ -751,7 +759,8 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 			// t.runCase(9, 1, 3, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(11, 6, 9, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(13, 1, 10, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(11, 4, 8, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			// t.runCase(11, 4, 8, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(14, 3, 8, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 		}
 
 		sampleCalled = true

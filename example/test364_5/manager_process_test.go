@@ -19,8 +19,9 @@ type testManagerProcess struct {
 
 func (t *testManagerProcess) TestCancel() {
 	newf := func(ctx context.Context) (
+		*failedWorkerPool,
 		[]string,
-		dutil.In2ErrorFunc[dutil.InErrorFunc[[]string], newWorkerSendOpFunc],
+		dutil.InErrorFunc[newWorkerSendOpFunc],
 		dutil.In2ErrorFunc[string, []string],
 		managerInsertWorkerResultFunc,
 		managerProcessWaitFunc,
@@ -28,7 +29,7 @@ func (t *testManagerProcess) TestCancel() {
 	) {
 		workers := t.workers(3)
 
-		s, wo, wr, w, err := newFuncManagerProcess(
+		workerPool, s, wo, wr, w, err := newFuncManagerProcess(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers,
@@ -36,17 +37,17 @@ func (t *testManagerProcess) TestCancel() {
 			t.randomOphs(33),
 		)
 
-		return workers, s, wo, wr, w, err
+		return workerPool, workers, s, wo, wr, w, err
 	}
 
 	t.Run("before new", func() {
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
-		err = s(nil, nil)
+		err = s(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		for worker := range slices.Values(workers) {
@@ -69,12 +70,12 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("before send", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		cancel(nil)
 
-		err = s(nil, nil)
+		err = s(nil)
 		t.ErrorIs(err, context.Canceled)
 
 		for worker := range slices.Values(workers) {
@@ -97,11 +98,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("during send", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		err = s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == workers[1] {
 					cancel(nil)
@@ -145,11 +145,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("before worker owners", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		t.NoError(s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -179,11 +178,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("during worker owners", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		t.NoError(s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -224,11 +222,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("before worker result", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		t.NoError(s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -257,11 +254,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("during worker result", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		t.NoError(s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -299,11 +295,10 @@ func (t *testManagerProcess) TestCancel() {
 	t.Run("before wait", func() {
 		ctx, cancel := t.Ctx()
 
-		workers, s, wo, wr, w, err := newf(ctx)
+		_, workers, s, wo, wr, w, err := newf(ctx)
 		t.NoError(err)
 
 		t.NoError(s(
-			func([]string) error { return nil },
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -367,7 +362,7 @@ func (t *testManagerProcess) TestOpsTree() {
 		}
 		t.T().Log("expected owners:", expectedOwners)
 
-		s, wo, wr, w, err := newFuncManagerProcess(
+		p, s, wo, wr, w, err := newFuncManagerProcess(
 			ctx,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			workers,
@@ -375,12 +370,11 @@ func (t *testManagerProcess) TestOpsTree() {
 			ophs,
 		)
 
-		t.T().Logf("workers=%d ophs=%d ops share=%d states share=%d",
-			len(workers), len(ophs), opsShare, 3)
+		t.T().Logf("workers=%d ophs=%d ops workers=%v ops share=%d states share=%d",
+			len(workers), len(ophs), p, opsShare, 3)
 
 		go func() {
 			t.IfErrPanic(s(
-				func([]string) error { return nil },
 				func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return func(uint64, util.Hash, util.Hash) error { return nil },
 						func(err error) error {

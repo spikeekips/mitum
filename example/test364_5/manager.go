@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"iter"
 	"slices"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -23,14 +26,14 @@ type (
 		maxOpsSize uint64,
 	) error
 	managerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
-	managerDoneWorkerFunc      = func(_ context.Context, workID, worker string) error
+	managerCloseWorkerFunc     = func(_ context.Context, workID, worker string) error
 	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
 		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
 	managerWaitFunc        = dutil.In3ErrorFunc[
 		dutil.InContextErrorFunc[string],
 		newManagerManifestFunc,
-		managerDoneWorkerFunc,
+		managerCloseWorkerFunc,
 	]
 )
 
@@ -63,6 +66,7 @@ func newFuncManager(
 	_ dutil.In2ErrorFunc[managerStartWorkerFunc, newManagerWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
 	_ managerInsertWorkerResultFunc,
+	workerErr dutil.In2ErrorFunc[string, error],
 	wait managerWaitFunc,
 	_ error,
 ) {
@@ -72,7 +76,7 @@ func newFuncManager(
 
 	switch a, o, s, err := isValidManagerArgs(options, workID, workers, opsShare, statesShare, ophs); {
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
 		actingWorkers, opsShare, statesShare = a, o, s
 	}
@@ -91,11 +95,12 @@ func newFuncManager(
 
 	newJobWorker := dutil.NewFuncNewJobWorkerFunc(options.JobWorkerMaxSemSize)
 
-	var sendOps dutil.In2ErrorFunc[dutil.InErrorFunc[[]string], newWorkerSendOpFunc]
+	var workerPool *failedWorkerPool
+	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var workerResult managerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
-	switch s, o, r, w, err := newFuncManagerProcess(
+	switch p, s, o, r, w, err := newFuncManagerProcess(
 		wctx,
 		newJobWorker,
 		actingWorkers,
@@ -103,15 +108,15 @@ func newFuncManager(
 		ophs,
 	); {
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
-		sendOps, workerOwners, workerResult, processWait = s, o, r, w
+		workerPool, sendOps, workerOwners, workerResult, processWait = p, s, o, r, w
 	}
 
 	cancelWork := func(err error) error {
 		if err != nil {
 			if cancelWorkerf != nil {
-				err = managerCancelWorkers(wctx, newJobWorker, workID, workers, cancelWorkerf, err)
+				err = managerCancelWorkers(wctx, newJobWorker, workID, workerPool, cancelWorkerf, err)
 			}
 
 			return wctxCancel(err)
@@ -120,26 +125,23 @@ func newFuncManager(
 		return wctxCancel(err)
 	}
 
-	var opsWorkers []string
-
 	return func(
 			startWorker managerStartWorkerFunc,
 			f newManagerWorkerSendOpFunc,
 		) error {
-			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
-				func(w []string) error {
-					opsWorkers = w
+			if err := managerStartWorkers(
+				wctx,
+				newJobWorker,
+				workID,
+				workerPool,
+				opsShare, statesShare,
+				uint64(len(ophs)),
+				startWorker,
+			); err != nil {
+				return cancelWork(err)
+			}
 
-					return managerStartWorkers(
-						wctx,
-						newJobWorker,
-						workID,
-						actingWorkers, w,
-						opsShare, statesShare,
-						uint64(len(ophs)),
-						startWorker,
-					)
-				},
+			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
 				func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return f(ctx, workID, worker)
 				},
@@ -147,13 +149,24 @@ func newFuncManager(
 		},
 		workerOwners,
 		workerResult,
+		func(worker string, gerr error) error {
+			switch _, failed, err := workerPool.workerError(worker, gerr); {
+			case err != nil:
+				return err
+			case failed:
+				return cancelWork(errWorkersFailed.Errorf("worker error; worker=%q err=%v", worker, gerr))
+			default:
+				return nil
+			}
+		},
 		func(
 			workerInsertDone dutil.InContextErrorFunc[string],
 			newManifest newManagerManifestFunc,
-			doneWorkerf managerDoneWorkerFunc,
+			closeWorkerf managerCloseWorkerFunc,
 		) error {
 			defer func() {
 				_ = wctxCancel(nil)
+				workerPool.Close()
 			}()
 
 			var statesOwners []string
@@ -164,12 +177,18 @@ func newFuncManager(
 				func(owners []string) error {
 					statesOwners = owners
 
+					switch failed, err := workerPool.statesOwnersReady(statesOwners); {
+					case err != nil:
+						return cancelWork(err)
+					case failed:
+						return cancelWork(errWorkersFailed.Errorf("process weait"))
+					}
+
 					// NOTE manager done to workers outside owners
 					return newFuncManagerWorkerInsertDone(
 						wctx,
 						newJobWorker,
-						actingWorkers,
-						owners,
+						workerPool,
 						workerInsertDone,
 					)
 				},
@@ -191,17 +210,17 @@ func newFuncManager(
 			// - block map
 			// - trees
 
-			if doneWorkerf != nil {
-				// NOTE if failed done workers, canceling workers is
-				// meaningless. Some workers finish, but others not. If it
-				// happened, manager cancels work.
-				return managerDoneWorkers(
+			if closeWorkerf != nil {
+				// NOTE if done workers fails, canceling workers is meaningless.
+				// some workers ok, but others not. If it happened, manager
+				// cancels work.
+				return managerCloseWorkers(
 					wctx,
 					newJobWorker,
 					workID,
-					workers, opsWorkers, statesOwners,
+					workerPool,
 					opsShare, statesShare,
-					doneWorkerf,
+					closeWorkerf,
 				)
 			}
 
@@ -261,14 +280,14 @@ func isValidManagerArgs(
 func newFuncManagerWorkerInsertDone(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
-	workers, owners []string,
+	workerPool *failedWorkerPool,
 	workerDone dutil.InContextErrorFunc[string],
 ) error {
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
@@ -277,17 +296,30 @@ func newFuncManagerWorkerInsertDone(
 
 	log := dutil.LoadContextValueLogger(ctx)
 
-	for worker := range dutil.FilterSlice(slices.Values(workers), func(i string) bool {
-		return slices.Index(owners, i) < 0
-	}) {
-		if err := newJob(func(ctx context.Context) error {
-			err := workerDone(ctx, worker) // ignore worker error
-			log.Debug().Err(err).Str("worker", worker).Msg("worker done; non-owners")
+	var gerr error
 
-			return nil
-		}); err != nil {
-			return jobWait(err)
+	switch failed, err := workerPool.activeNonStatesOwners(func(seq iter.Seq[string]) {
+		for worker := range seq {
+			if err := newJob(func(ctx context.Context) error {
+				err := workerDone(ctx, worker) // ignore worker error
+				log.Debug().Err(err).Str("worker", worker).Msg("worker done; non-owners")
+
+				return nil
+			}); err != nil {
+				gerr = err
+
+				break
+			}
 		}
+	}); {
+	case err != nil:
+		return err
+	case failed:
+		return errWorkersFailed.Errorf("insert done")
+	}
+
+	if gerr != nil {
+		return jobWait(gerr)
 	}
 
 	jobDone()
@@ -299,14 +331,17 @@ func managerStartWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workID string,
-	workers, opsWorkers []string,
+	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 	f managerStartWorkerFunc,
 ) error {
+	workers := workerPool.workers()
+	opsWorkers := workerPool.opsWorkers()
+
 	var checkWorker checkFailedWorkersFunc
 
-	switch w, err := newFuncCheckFailedWorkers(uint64(len(workers)), opsShare, nil); {
+	switch w, err := newFuncCheckFailedWorkers(uint64(len(workerPool.opsWorkers())), opsShare, nil); {
 	case err != nil:
 		return err
 	default:
@@ -317,40 +352,37 @@ func managerStartWorkers(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	check := func(worker string, err error) error {
-		var gerr error
+	switch failed, seq := workerPool.activeWorkers(); {
+	case failed:
+		return jobWait(errWorkersFailed.Errorf("start workers"))
+	default:
+		for worker := range seq {
+			if err := newJob(func(ctx context.Context) error {
+				switch err := f(
+					ctx,
+					workID,
+					worker,
+					workers, opsWorkers,
+					opsShare, statesShare,
+					maxOpsSize,
+				); {
+				case slices.Index(opsWorkers, worker) >= 0:
+					if _, _, failed := checkWorker(worker, err); failed != nil {
+						return failed
+					}
+				}
 
-		// NOTE check failed ops workers
-		if err != nil && slices.Index(opsWorkers, worker) >= 0 {
-			gerr = err
-		}
-
-		if _, _, failed := checkWorker(worker, gerr); failed != nil {
-			return failed
-		}
-
-		return nil
-	}
-
-	for worker := range slices.Values(workers) {
-		if err := newJob(func(ctx context.Context) error {
-			return check(worker, f(
-				ctx,
-				workID,
-				worker,
-				workers, opsWorkers,
-				opsShare, statesShare,
-				maxOpsSize,
-			))
-		}); err != nil {
-			return jobWait(err)
+				return nil
+			}); err != nil {
+				break
+			}
 		}
 	}
 
@@ -363,7 +395,7 @@ func managerCancelWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workID string,
-	workers []string,
+	workerPool *failedWorkerPool,
 	f managerCancelWorkerFunc,
 	gerr error,
 ) error {
@@ -374,22 +406,29 @@ func managerCancelWorkers(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	for worker := range slices.Values(workers) {
-		if err := newJob(func(ctx context.Context) error {
+	_, seq := workerPool.activeWorkers()
+	var werr error
+
+	for worker := range seq {
+		if werr = newJob(func(ctx context.Context) error {
 			err := f(ctx, workID, worker, gerr)
 			log.Debug().Err(err).Str("worker", worker).Msg("cancel worker")
 
 			return nil
-		}); err != nil {
-			return err
+		}); werr != nil {
+			break
 		}
+	}
+
+	if werr != nil {
+		return jobWait(gerr)
 	}
 
 	jobDone()
@@ -401,15 +440,26 @@ func managerCancelWorkers(
 	return gerr
 }
 
-func managerDoneWorkers(
+func managerCloseWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workID string,
-	workers, opsWorkers, statesOwners []string,
+	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
-	f managerDoneWorkerFunc,
+	f managerCloseWorkerFunc,
 ) error {
 	log := dutil.LoadContextValueLogger(ctx)
+
+	opsWorkers := workerPool.opsWorkers()
+
+	var statesOwners []string
+
+	switch i, err := workerPool.statesOwners(); {
+	case err != nil:
+		return err
+	default:
+		statesOwners = i
+	}
 
 	var checkWorkerOps, checkWorkerStates checkFailedWorkersFunc
 
@@ -431,44 +481,290 @@ func managerDoneWorkers(
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
 
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workerPool.workers()))); {
 	case err != nil:
 		return err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	for worker := range slices.Values(workers) {
-		if err := newJob(func(ctx context.Context) error {
-			err := f(ctx, workID, worker)
+	var gerr error
 
-			l := log.With().Str("worker", worker).Err(err).Logger()
+	switch failed, seq := workerPool.activeWorkers(); {
+	case failed:
+		return jobWait(errWorkersFailed.Errorf("manager done workers"))
+	default:
+		for worker := range seq {
+			if gerr = newJob(func(ctx context.Context) error {
+				err := f(ctx, workID, worker)
 
-			if slices.Index(opsWorkers, worker) >= 0 {
-				if _, _, failed := checkWorkerOps(worker, err); failed != nil {
-					l.Error().Msg("ops worker done failed")
+				l := log.With().Str("worker", worker).Err(err).Logger()
 
-					return failed
+				if slices.Index(opsWorkers, worker) >= 0 {
+					if _, _, failed := checkWorkerOps(worker, err); failed != nil {
+						l.Error().Msg("ops worker done failed")
+
+						return failed
+					}
 				}
-			}
 
-			if slices.Index(statesOwners, worker) >= 0 {
-				if _, _, failed := checkWorkerStates(worker, err); failed != nil {
-					l.Error().Msg("state owner done failed")
+				if slices.Index(statesOwners, worker) >= 0 {
+					if _, _, failed := checkWorkerStates(worker, err); failed != nil {
+						l.Error().Msg("state owner done failed")
 
-					return failed
+						return failed
+					}
 				}
+
+				l.Debug().Msg("worker done")
+
+				return nil
+			}); gerr != nil {
+				break
 			}
+		}
 
-			l.Debug().Msg("worker done")
-
-			return nil
-		}); err != nil {
-			return err
+		if gerr != nil {
+			return jobWait(gerr)
 		}
 	}
 
 	jobDone()
 
 	return jobWait(nil)
+}
+
+type failedWorkerPool struct {
+	pool             map[string]error
+	opsShare         uint64
+	statesShare      uint64
+	ws               []string
+	opsws            []string
+	sos              []string
+	failedOpsWorkers uint64
+	failedSos        uint64
+	isSosReady       bool
+	failed           bool
+	l                sync.RWMutex
+}
+
+func newFailedWorkerPool(workers, opsWorkers []string, opsShare, statesShare uint64) *failedWorkerPool {
+	pool := map[string]error{}
+
+	for worker := range slices.Values(workers) {
+		pool[worker] = nil
+	}
+
+	return &failedWorkerPool{
+		pool:        pool,
+		ws:          workers,
+		opsws:       opsWorkers,
+		opsShare:    opsShare,
+		statesShare: statesShare,
+	}
+}
+
+func (p *failedWorkerPool) Close() {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	p.failed = true
+
+	dutil.ClearMap(p.pool)
+}
+
+func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) {
+	if err == nil {
+		return false, false, errors.Errorf("nil error")
+	}
+
+	fmt.Printf("worker error: worker=%q err=%+v\n", worker, err)
+
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	if p.failed {
+		return false, true, nil
+	}
+
+	switch prev, found := p.pool[worker]; {
+	case !found:
+		return false, false, util.ErrNotFound.Errorf("unknown worker, %q", worker)
+	case prev != nil:
+		return false, false, nil
+	}
+
+	p.pool[worker] = err
+
+	if slices.Index(p.opsws, worker) >= 0 {
+		p.failedOpsWorkers++
+		if p.failedOpsWorkers >= p.opsShare {
+			p.failed = true
+			dutil.ClearMap(p.pool)
+
+			return true, true, nil
+		}
+	}
+
+	if p.isSosReady {
+		if p.subOwnerError(worker, err) {
+			return true, true, nil
+		}
+	}
+
+	return true, false, nil
+}
+
+func (p *failedWorkerPool) subOwnerError(worker string, err error) (failed bool) {
+	if slices.Index(p.sos, worker) < 0 {
+		return false
+	}
+
+	p.failedSos++
+
+	if p.failedSos >= p.statesShare {
+		p.failed = true
+		dutil.ClearMap(p.pool)
+
+		return true
+	}
+
+	return false
+}
+
+func (p *failedWorkerPool) statesOwnersReady(sos []string) (failed bool, _ error) {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	for worker := range slices.Values(sos) {
+		if _, found := p.pool[worker]; !found {
+			return false, util.ErrNotFound.Errorf("unknown sub owners, %q", worker)
+		}
+	}
+
+	p.sos = sos
+	p.isSosReady = true
+
+	for worker := range slices.Values(sos) {
+		if err := p.pool[worker]; err != nil && p.subOwnerError(worker, err) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (p *failedWorkerPool) workers() []string {
+	return p.ws
+}
+
+func (p *failedWorkerPool) opsWorkers() []string {
+	return p.opsws
+}
+
+func (p *failedWorkerPool) statesOwners() ([]string, error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.isSosReady {
+		return nil, errors.Errorf("not ready")
+	}
+
+	return p.sos, nil
+}
+
+func (p *failedWorkerPool) activeWorkers() (failed bool, _ iter.Seq[string]) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	return p.failed,
+		func(yield func(string) bool) {
+			p.l.RLock()
+			defer p.l.RUnlock()
+
+			slices.Values(p.ws)(func(worker string) bool {
+				if p.pool[worker] != nil {
+					return true
+				}
+
+				return yield(worker)
+			})
+		}
+}
+
+func (p *failedWorkerPool) activeOpsWorkers(f func(iter.Seq[string])) (failed bool) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.opsws)(func(worker string) bool {
+			if p.pool[worker] != nil {
+				return true
+			}
+
+			return yield(worker)
+		})
+	})
+
+	return false
+}
+
+func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	if !p.isSosReady {
+		return false, errors.Errorf("not ready")
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.sos)(func(worker string) bool {
+			if p.pool[worker] != nil {
+				return true
+			}
+
+			return yield(worker)
+		})
+	})
+
+	return false, nil
+}
+
+func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	if !p.isSosReady {
+		return false, errors.Errorf("not ready")
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.ws)(func(worker string) bool {
+			switch {
+			case p.pool[worker] != nil,
+				slices.Index(p.sos, worker) >= 0:
+				return true
+			default:
+				return yield(worker)
+			}
+		})
+	})
+
+	return false, nil
 }

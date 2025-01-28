@@ -12,8 +12,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// FIXME use go routine for broadcast to others
-
 type (
 	newWorkerDistributeStateMergeValuesFunc func(_ context.Context, workID, worker string) (
 		workerProcessInsertStateMergeValuesFunc,

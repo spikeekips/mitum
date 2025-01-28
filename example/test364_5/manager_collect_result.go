@@ -118,26 +118,28 @@ func newFuncManagerCollectResult(
 				return nil, nil, err
 			}
 
-			return opsTree, statesTree, dutil.FuncsJobWorker(ctx, func(context.Context) error {
-				if err := baseOpsWait(nil); err != nil {
-					return err
-				}
+			err := dutil.FuncsJobWorker(
+				ctx,
+				func(context.Context) error {
+					if err := baseOpsWait(nil); err != nil {
+						return err
+					}
 
-				opsJobDone()
+					opsJobDone()
 
-				if err := opsJobWait(nil); err != nil {
-					return err
-				}
+					if err := opsJobWait(nil); err != nil {
+						return err
+					}
 
-				switch tr, err := doneOpsTree(g); {
-				case err != nil:
-					return err
-				default:
-					opsTree = tr
+					switch tr, err := doneOpsTree(g); {
+					case err != nil:
+						return err
+					default:
+						opsTree = tr
 
-					return nil
-				}
-			},
+						return nil
+					}
+				},
 				func(context.Context) error {
 					switch tr, err := workerStatesTree(g); {
 					case err != nil:
@@ -147,7 +149,10 @@ func newFuncManagerCollectResult(
 
 						return nil
 					}
-				})
+				},
+			)
+
+			return opsTree, statesTree, err
 		},
 		nil
 }
@@ -349,18 +354,24 @@ func newFuncManagerWorkersResult(
 						return err
 					}
 
-					return dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
+					switch err := dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
 						return opsNewjob(func(context.Context) error {
 							return workerReasons(reasons)
 						})
-					})
+					}); {
+					case errors.Is(err, dutil.ErrJobWorkerDone),
+						errors.Is(err, context.Canceled):
+						return nil // ignore error
+					default:
+						return err
+					}
 				},
 				func(stateKey string, stateHash util.Hash) error {
 					if ok, err := checkParentContextError(); err != nil || !ok {
 						return err
 					}
 
-					return dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
+					switch err := dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
 						return newJob(func(context.Context) error {
 							switch n, err := newStateTreeNode(stateKey, stateHash); {
 							case err != nil:
@@ -371,7 +382,13 @@ func newFuncManagerWorkersResult(
 								return nil
 							}
 						})
-					})
+					}); {
+					case errors.Is(err, dutil.ErrJobWorkerDone),
+						errors.Is(err, context.Canceled):
+						return nil // ignore error
+					default:
+						return err
+					}
 				},
 				func(err error) error {
 					defer cancel(nil)
@@ -380,7 +397,13 @@ func newFuncManagerWorkersResult(
 						return err
 					}
 
-					return workerDone(wctx, worker, err)
+					switch err := workerDone(wctx, worker, err); {
+					case errors.Is(err, dutil.ErrJobWorkerDone),
+						errors.Is(err, context.Canceled):
+						return nil // ignore error
+					default:
+						return err
+					}
 				},
 				nil
 		},

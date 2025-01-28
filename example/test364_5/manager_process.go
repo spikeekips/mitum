@@ -25,7 +25,8 @@ func newFuncManagerProcess(
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	_ dutil.In2ErrorFunc[dutil.InErrorFunc[[]string /* ops workers */], newWorkerSendOpFunc],
+	workerPool *failedWorkerPool,
+	_ dutil.InErrorFunc[newWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
 	_ managerInsertWorkerResultFunc,
 	_ managerProcessWaitFunc,
@@ -35,16 +36,18 @@ func newFuncManagerProcess(
 
 	workersSize := uint64(len(workers))
 
-	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var opsWorkers []string
+	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
 	var opsWait dutil.ErrorFunc
 
 	switch ow, f, w, err := newFuncManagerWorkersOps(ctx, newJobWorker, workers, opsShare, ophs); {
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
 		opsWorkers, sendOps, opsWait = ow, f, w
 	}
+
+	workerPool = newFailedWorkerPool(workers, opsWorkers, opsShare, statesShare)
 
 	log.Debug().
 		Strs("workers", workers).
@@ -58,7 +61,7 @@ func newFuncManagerProcess(
 
 	switch o, w, err := newFuncManagerCollectOwners(ctx, opsWorkers, workersSize, opsShare); {
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
 		workerOwnersf, workerOwnersWait = o, w
 	}
@@ -69,21 +72,12 @@ func newFuncManagerProcess(
 
 	switch wr, r, w, err := newFuncManagerCollectResult(ctx, workersSize, uint64(len(ophs))*2, ophs); { // NOTE approximate states size
 	case err != nil:
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	default:
 		workerResult, ownersReady, resultWait = wr, r, w
 	}
 
-	return func(
-			opsWorkersf dutil.InErrorFunc[[]string],
-			sendOpsf newWorkerSendOpFunc,
-		) error {
-			if opsWorkersf != nil {
-				if err := opsWorkersf(opsWorkers); err != nil {
-					return err
-				}
-			}
-
+	return workerPool, func(sendOpsf newWorkerSendOpFunc) error {
 			return sendOps(sendOpsf)
 		},
 		func(worker string, owners []string) error {
