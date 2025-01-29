@@ -73,11 +73,11 @@ func newFuncStateMergeValueExtractor(
 				_ = reasons.SetValue(opindex, reason)
 			})
 
-			return f(func(opindex uint64, oph, fact util.Hash) error {
+			return dutil.NewIfErrErrorInFunc(jobWait)(f(func(opindex uint64, oph, fact util.Hash) error {
 				return newJob(func(ctx context.Context) error {
 					return extractf(ctx, opindex, oph, fact)
 				})
-			})
+			}))
 		},
 		func(f dutil.InErrorFunc[map[uint64]string]) error {
 			defer reasons.Close()

@@ -196,7 +196,8 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		}, nil)
 		t.ErrorContains(err, "findme")
 
-		t.NoError(wait(func(map[uint64]string) error { return nil }))
+		err = wait(func(map[uint64]string) error { return nil })
+		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("get operation error", func() {
