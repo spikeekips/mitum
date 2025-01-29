@@ -218,7 +218,7 @@ func newFuncWorker(
 				if savedStates != nil {
 					savedStates.Close()
 				}
-				_ = bgJobWait(nil)
+				_ = bgJobWait(context.Canceled)
 			}()
 
 			switch i, err := processWait(
