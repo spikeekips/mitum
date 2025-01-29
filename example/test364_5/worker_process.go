@@ -850,7 +850,7 @@ func workersDistributeStateMergeValues(
 
 					return nil
 				}); err != nil {
-					return err
+					return cjobWait(err)
 				}
 			}
 

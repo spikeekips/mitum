@@ -500,14 +500,12 @@ func managerCloseWorkers(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	var gerr error
-
 	switch failed, seq := workerPool.activeWorkers(); {
 	case failed:
 		return jobWait(errWorkersFailed.Errorf("manager done workers"))
 	default:
 		for worker := range seq {
-			if gerr = newJob(func(ctx context.Context) error {
+			if err := newJob(func(ctx context.Context) error {
 				err := f(ctx, workID, worker)
 
 				l := log.With().Str("worker", worker).Err(err).Logger()
@@ -531,13 +529,11 @@ func managerCloseWorkers(
 				l.Debug().Msg("worker done")
 
 				return nil
-			}); gerr != nil {
+			}); err != nil {
+				_ = jobWait(err)
+
 				break
 			}
-		}
-
-		if gerr != nil {
-			return jobWait(gerr)
 		}
 	}
 
