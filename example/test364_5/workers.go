@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"iter"
 	"maps"
 	"math"
@@ -518,4 +519,239 @@ func newFuncDistributeWorkerMaxItems(workers, items, share uint64) dutil.InFunc[
 
 		return i + 1
 	}
+}
+
+type failedWorkerPool struct {
+	pool             map[string]error
+	opsShare         uint64
+	statesShare      uint64
+	ws               []string
+	opsws            []string
+	sos              []string
+	failedOpsWorkers uint64
+	failedSos        uint64
+	isSosReady       bool
+	failed           bool
+	l                sync.RWMutex
+}
+
+func newFailedWorkerPool(workers, opsWorkers []string, opsShare, statesShare uint64) *failedWorkerPool {
+	pool := map[string]error{}
+
+	for worker := range slices.Values(workers) {
+		pool[worker] = nil
+	}
+
+	return &failedWorkerPool{
+		pool:        pool,
+		ws:          workers,
+		opsws:       opsWorkers,
+		opsShare:    opsShare,
+		statesShare: statesShare,
+	}
+}
+
+func (p *failedWorkerPool) Close() {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	p.failed = true
+
+	dutil.ClearMap(p.pool)
+}
+
+func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) {
+	if err == nil {
+		return false, false, errors.Errorf("nil error")
+	}
+
+	fmt.Printf("worker error: worker=%q err=%+v\n", worker, err)
+
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	if p.failed {
+		return false, true, nil
+	}
+
+	switch prev, found := p.pool[worker]; {
+	case !found:
+		return false, false, util.ErrNotFound.Errorf("unknown worker, %q", worker)
+	case prev != nil:
+		return false, false, nil
+	}
+
+	p.pool[worker] = err
+
+	if slices.Index(p.opsws, worker) >= 0 {
+		p.failedOpsWorkers++
+		if p.failedOpsWorkers >= p.opsShare {
+			p.failed = true
+			dutil.ClearMap(p.pool)
+
+			return true, true, nil
+		}
+	}
+
+	if p.isSosReady {
+		if p.subOwnerError(worker, err) {
+			return true, true, nil
+		}
+	}
+
+	return true, false, nil
+}
+
+func (p *failedWorkerPool) subOwnerError(worker string, err error) (failed bool) {
+	if slices.Index(p.sos, worker) < 0 {
+		return false
+	}
+
+	p.failedSos++
+
+	if p.failedSos >= p.statesShare {
+		p.failed = true
+		dutil.ClearMap(p.pool)
+
+		return true
+	}
+
+	return false
+}
+
+func (p *failedWorkerPool) statesOwnersReady(sos []string) (failed bool, _ error) {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	for worker := range slices.Values(sos) {
+		if _, found := p.pool[worker]; !found {
+			return false, util.ErrNotFound.Errorf("unknown sub owners, %q", worker)
+		}
+	}
+
+	p.sos = sos
+	p.isSosReady = true
+
+	for worker := range slices.Values(sos) {
+		if err := p.pool[worker]; err != nil && p.subOwnerError(worker, err) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (p *failedWorkerPool) workers() []string {
+	return p.ws
+}
+
+func (p *failedWorkerPool) opsWorkers() []string {
+	return p.opsws
+}
+
+func (p *failedWorkerPool) statesOwners() ([]string, error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.isSosReady {
+		return nil, errors.Errorf("not ready")
+	}
+
+	return p.sos, nil
+}
+
+func (p *failedWorkerPool) activeWorkers() (failed bool, _ iter.Seq[string]) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	return p.failed,
+		func(yield func(string) bool) {
+			p.l.RLock()
+			defer p.l.RUnlock()
+
+			slices.Values(p.ws)(func(worker string) bool {
+				if p.pool[worker] != nil {
+					return true
+				}
+
+				return yield(worker)
+			})
+		}
+}
+
+func (p *failedWorkerPool) activeOpsWorkers(f func(iter.Seq[string])) (failed bool) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.opsws)(func(worker string) bool {
+			if p.pool[worker] != nil {
+				return true
+			}
+
+			return yield(worker)
+		})
+	})
+
+	return false
+}
+
+func (p *failedWorkerPool) activeStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	if !p.isSosReady {
+		return false, errors.Errorf("not ready")
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.sos)(func(worker string) bool {
+			if p.pool[worker] != nil {
+				return true
+			}
+
+			return yield(worker)
+		})
+	})
+
+	return false, nil
+}
+
+func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (failed bool, _ error) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if p.failed {
+		return true, nil
+	}
+
+	if !p.isSosReady {
+		return false, errors.Errorf("not ready")
+	}
+
+	f(func(yield func(string) bool) {
+		slices.Values(p.ws)(func(worker string) bool {
+			switch {
+			case p.pool[worker] != nil,
+				slices.Index(p.sos, worker) >= 0:
+				return true
+			default:
+				return yield(worker)
+			}
+		})
+	})
+
+	return false, nil
 }
