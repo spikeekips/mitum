@@ -55,7 +55,8 @@ type (
 		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
 		error,
 	)
-	workerProcessReportResult func(
+	workerProcessBroadcastUnmerged = dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */]
+	workerProcessReportResult      func(
 		_ context.Context,
 		reasons map[uint64]string,
 		statesSize uint64,
@@ -223,7 +224,7 @@ func newFuncWorkerProcess(
 		},
 		unmerge,
 		func(
-			broadcastUnmerged dutil.In3ErrorFunc[context.Context, string, []uint64],
+			broadcastUnmerged workerProcessBroadcastUnmerged,
 			reportResult workerProcessReportResult,
 		) (iter.Seq2[uint64, operation], error) {
 			defer func() {
@@ -240,7 +241,15 @@ func newFuncWorkerProcess(
 							Strs("affected", affected),
 						).Msg("states owners")
 
-					return workersBroadcastUnmerged(ctx, local, affected, unmerged, broadcastUnmerged)
+					for worker := range dutil.FilterSlice(slices.Values(affected), func(worker string) bool {
+						return worker != local
+					}) {
+						if err := broadcastUnmerged(ctx, worker, unmerged); err != nil {
+							log.Debug().Err(err).Msg("failed to broadcast unmerged")
+						}
+					}
+
+					return nil
 				},
 				func(reasons map[uint64]string, traverseStateOps traverseStateOpsFunc) error {
 					reasons = mergeUnusedReasons(reasons, unusedOps)
@@ -584,64 +593,6 @@ func newFuncorkerProcessExtracted(
 	}
 }
 
-func workersBroadcastUnmerged(
-	ctx context.Context,
-	local string,
-	affected []string,
-	unmerged []uint64,
-	f dutil.In3ErrorFunc[context.Context, string, []uint64],
-) error {
-	if len(affected) < 1 {
-		return nil
-	}
-
-	log := dutil.LoadContextValueLogger(ctx)
-
-	var newJob dutil.JobWorkerNewJobFunc
-	var jobDone func()
-	var jobWait dutil.InErrorFunc[error]
-
-	it := dutil.FilterSlice(slices.Values(affected), func(worker string) bool {
-		return worker != local
-	})
-
-	var once sync.Once
-
-	for worker := range it {
-		var gerr error
-
-		once.Do(func() {
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(affected))); {
-			case err != nil:
-				gerr = err
-			default:
-				newJob, jobDone, jobWait = n, d, w
-			}
-		})
-		if gerr != nil {
-			return gerr
-		}
-
-		if err := newJob(func(ctx context.Context) error {
-			if err := f(ctx, worker, unmerged); err != nil {
-				log.Debug().Err(err).Msg("failed to broadcast unmerged")
-			}
-
-			return nil
-		}); err != nil {
-			return jobWait(err)
-		}
-	}
-
-	if jobDone == nil {
-		return nil
-	}
-
-	jobDone()
-
-	return jobWait(nil)
-}
-
 func mergeStateOpFromValues(
 	mergeStateOp mergeStateOpFunc,
 	opindex uint64,
@@ -748,6 +699,25 @@ func workersDistributeStateMergeValues(
 		pool = i
 	}
 
+	var inewJob dutil.JobWorkerNewJobFunc
+	var ijobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		var once sync.Once
+		inewJob, ijobWait = n, func(err error) (gerr error) {
+			once.Do(func() {
+				d()
+
+				gerr = w(err)
+			})
+
+			return gerr
+		}
+	}
+
 	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
 			if worker == local {
 				return nil
@@ -777,8 +747,14 @@ func workersDistributeStateMergeValues(
 			}
 
 			if insert != nil {
-				if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
-					_ = pool.SetValue(worker, [2]interface{}{nil, nil})
+				if err := inewJob(func(context.Context) error {
+					if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
+						_ = pool.SetValue(worker, [2]interface{}{nil, nil})
+					}
+
+					return nil
+				}); err != nil {
+					return err
 				}
 			}
 
@@ -787,6 +763,10 @@ func workersDistributeStateMergeValues(
 		func(worker string, subws, affected []string) error {
 			if worker == local {
 				return nil
+			}
+
+			if err := ijobWait(nil); err != nil {
+				return err
 			}
 
 			var sendOwners dutil.In2ErrorFunc[[]string, []string]
@@ -824,15 +804,19 @@ func workersDistributeStateMergeValues(
 		func() error {
 			defer pool.Close()
 
-			var newJob dutil.JobWorkerNewJobFunc
-			var jobDone func()
-			var jobWait dutil.InErrorFunc[error]
+			if err := ijobWait(nil); err != nil {
+				return err
+			}
+
+			var cnewJob dutil.JobWorkerNewJobFunc
+			var cjobDone func()
+			var cjobWait dutil.InErrorFunc[error]
 
 			switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
 			case err != nil:
 				return err
 			default:
-				newJob, jobDone, jobWait = n, d, w
+				cnewJob, cjobDone, cjobWait = n, d, w
 			}
 
 		end:
@@ -861,7 +845,7 @@ func workersDistributeStateMergeValues(
 					continue end
 				}
 
-				if err := newJob(func(context.Context) error {
+				if err := cnewJob(func(context.Context) error {
 					_ = sendOwners(nil, nil) // NOTE ignore error
 
 					return nil
@@ -870,9 +854,9 @@ func workersDistributeStateMergeValues(
 				}
 			}
 
-			jobDone()
+			cjobDone()
 
-			return jobWait(nil)
+			return cjobWait(nil)
 		},
 		nil
 }

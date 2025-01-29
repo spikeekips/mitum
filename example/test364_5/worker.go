@@ -144,6 +144,26 @@ func newFuncWorker(
 		initialInsert, workerInsert, workerUnmerge, processWait = i, w, u, p
 	}
 
+	var bgNewJob dutil.JobWorkerNewJobFunc
+	var bgJobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := dutil.NewFuncJobWorker(wctx, uint64(len(workers))); {
+	case err != nil:
+		return nil, nil, nil, nil, nil, err
+	default:
+		var bgJobDoneOnce sync.Once
+
+		bgNewJob, bgJobWait = n, func(err error) (gerr error) {
+			bgJobDoneOnce.Do(func() {
+				d()
+
+				gerr = w(err)
+			})
+
+			return gerr
+		}
+	}
+
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerDistributeStateMergeValuesFunc,
@@ -173,7 +193,9 @@ func newFuncWorker(
 				func(owners []string, _ map[uint64]string) error {
 					if reportStatesOwners != nil {
 						if slices.Index(opsWorkers, options.Local) >= 0 {
-							return reportStatesOwners(ctx, options.Local, workID, owners)
+							return bgNewJob(func(ctx context.Context) error {
+								return reportStatesOwners(ctx, options.Local, workID, owners)
+							})
 						}
 					}
 
@@ -191,14 +213,19 @@ func newFuncWorker(
 			var savedStates util.LockedMap[string, base.State]
 
 			defer func() {
+				_ = wctxCancel(nil)
+
 				if savedStates != nil {
 					savedStates.Close()
 				}
+				_ = bgJobWait(nil)
 			}()
 
 			switch i, err := processWait(
-				func(ctx context.Context, worker string, unmerged []uint64) error {
-					return broadcastUnmerged(ctx, options.Local, workID, worker, unmerged)
+				func(_ context.Context, worker string, unmerged []uint64) error {
+					return bgNewJob(func(ctx context.Context) error {
+						return broadcastUnmerged(ctx, options.Local, workID, worker, unmerged)
+					})
 				},
 				func(
 					ctx context.Context,
@@ -233,8 +260,6 @@ func newFuncWorker(
 				traverseOps = i
 			}
 
-			// FIXME save
-
 			_ = traverseOps // FIXME save ops
 			_ = savedStates // FIXME save states
 
@@ -245,6 +270,8 @@ func newFuncWorker(
 				return cancelWork(err, true)
 			default:
 				log.Debug().Msg("worker closed")
+
+				_ = bgJobWait(nil) // NOTE ignore background jobs error
 
 				return nil
 			}
