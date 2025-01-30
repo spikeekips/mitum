@@ -34,7 +34,7 @@ func newFuncManagerCollectOwners(
 		checkWorker = w
 	}
 
-	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextDone(ctx)
+	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextWait(ctx)
 
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.OutFunc[[]string]

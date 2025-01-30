@@ -123,7 +123,7 @@ func newFuncManager(
 		return wctxCancel(err)
 	}
 
-	_, bgJobDone, _, bgJobWait := dutil.NewContextDone(wctx)
+	_, bgJobDone, _, bgJobWait := dutil.NewContextWait(wctx)
 
 	return func(
 			startWorker managerStartWorkerFunc,

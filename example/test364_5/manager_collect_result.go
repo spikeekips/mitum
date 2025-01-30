@@ -60,7 +60,7 @@ func newFuncManagerCollectResult(
 		opsNewJob, opsJobDone, opsJobWait = n, d, w
 	}
 
-	_, baseOpsDone, _, baseOpsWait := dutil.NewContextDone(ctx)
+	_, baseOpsDone, _, baseOpsWait := dutil.NewContextWait(ctx)
 
 	var unmergedOp dutil.In2ErrorFunc[uint64, string]
 	var doneOpsTree generateFixedTreeFunc
@@ -267,7 +267,7 @@ func newFuncManagerWorkersResult(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	wsctx, workersDone, parentContextError, workersWait := dutil.NewContextDone(ctx)
+	wsctx, workersDone, parentContextError, workersWait := dutil.NewContextWait(ctx)
 
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
 	var doneState dutil.OutFunc[[]fixedtree.Node]

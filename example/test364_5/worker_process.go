@@ -678,7 +678,7 @@ func workerProcessCloseStateValueMergers(
 	})
 }
 
-func workersDistributeStateMergeValues(
+func workersDistributeStateMergeValues( // FIXME review job worker
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	local string,

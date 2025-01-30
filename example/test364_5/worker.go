@@ -120,7 +120,7 @@ func newFuncWorker(
 		return cancelWork(err, true)
 	})
 
-	_, closeWorker, _, closeWorkerWait := dutil.NewContextDone(wctx)
+	_, closeWorker, _, closeWorkerWait := dutil.NewContextWait(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
 	var workerInsert workerProcessWorkerInsertStateMergeValuesFunc

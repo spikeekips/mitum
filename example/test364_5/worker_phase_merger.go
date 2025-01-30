@@ -72,7 +72,7 @@ func newFuncWorkerPhaseMerger(
 		phaseMergerMerge, phaseMergerDone, phaseMergerWait = m, d, w
 	}
 
-	_, workerInsertDone, _, workerInsertWait := dutil.NewContextDone(ctx)
+	_, workerInsertDone, _, workerInsertWait := dutil.NewContextWait(ctx)
 
 	return func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error) {
 			l := log.With().Str("worker", worker).Logger()

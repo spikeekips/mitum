@@ -53,13 +53,13 @@ func ContextCauseError(ctx context.Context, ef InErrorFunc[error], f InErrorFunc
 	return ef(f(ctx))
 }
 
-func NewContextDone(ctx context.Context) (
+func NewContextWait(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
 	func() (bool, error),
 	InErrorFunc[error],
 ) {
-	cctx, cctxCancel, check := CheckContextDone(ctx)
+	cctx, cctxCancel, check := CheckContextWait(ctx)
 
 	return cctx, cctxCancel, check, func(err error) error {
 		if err != nil {
@@ -74,7 +74,7 @@ func NewContextDone(ctx context.Context) (
 	}
 }
 
-func CheckContextDone(ctx context.Context) (
+func CheckContextWait(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
 	func() (bool, error),
