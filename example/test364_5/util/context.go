@@ -12,14 +12,11 @@ import (
 func ContextWithCancelCause(ctx context.Context) (context.Context, InErrorFunc[error]) {
 	cctx, cancel := context.WithCancelCause(ctx)
 
-	var called bool
 	var gerr error
 	var once sync.Once
 
 	return cctx, func(err error) error {
-		if cerr := context.Cause(cctx); cerr != nil {
-			return ErrorWithStack(cerr)
-		}
+		var called bool
 
 		once.Do(func() {
 			switch {
@@ -66,13 +63,7 @@ func NewContextDone(ctx context.Context) (
 
 	return cctx, cctxCancel, check, func(err error) error {
 		if err != nil {
-			if err := context.Cause(ctx); err != nil {
-				return ErrorWithStack(err)
-			}
-
-			_ = cctxCancel(err)
-
-			return err
+			return cctxCancel(err)
 		}
 
 		<-cctx.Done()
@@ -108,8 +99,6 @@ func CheckContextDone(ctx context.Context) (
 		},
 		func() (bool, error) {
 			if err := context.Cause(ctx); err != nil {
-				defer cctxCancel(nil)
-
 				return false, err
 			}
 
