@@ -5,7 +5,6 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -699,25 +698,6 @@ func workersDistributeStateMergeValues( // FIXME review job worker
 		pool = i
 	}
 
-	var inewJob dutil.JobWorkerNewJobFunc
-	var ijobWait dutil.InErrorFunc[error]
-
-	switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		var once sync.Once
-		inewJob, ijobWait = n, func(err error) (gerr error) {
-			once.Do(func() {
-				d()
-
-				gerr = w(err)
-			})
-
-			return gerr
-		}
-	}
-
 	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
 			if worker == local {
 				return nil
@@ -747,14 +727,8 @@ func workersDistributeStateMergeValues( // FIXME review job worker
 			}
 
 			if insert != nil {
-				if err := inewJob(func(context.Context) error {
-					if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
-						_ = pool.SetValue(worker, [2]interface{}{nil, nil})
-					}
-
-					return nil
-				}); err != nil {
-					return err
+				if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
+					_ = pool.SetValue(worker, [2]interface{}{nil, nil})
 				}
 			}
 
@@ -763,10 +737,6 @@ func workersDistributeStateMergeValues( // FIXME review job worker
 		func(worker string, subws, affected []string) error {
 			if worker == local {
 				return nil
-			}
-
-			if err := ijobWait(nil); err != nil {
-				return err
 			}
 
 			var sendOwners dutil.In2ErrorFunc[[]string, []string]
@@ -804,11 +774,7 @@ func workersDistributeStateMergeValues( // FIXME review job worker
 		func() error {
 			defer pool.Close()
 
-			if err := ijobWait(nil); err != nil {
-				return err
-			}
-
-			var cnewJob dutil.JobWorkerNewJobFunc
+			var cnewJob dutil.JobWorkerNewJobFunc // FIXME remove job worker
 			var cjobDone func()
 			var cjobWait dutil.InErrorFunc[error]
 

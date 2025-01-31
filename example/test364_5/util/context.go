@@ -123,3 +123,30 @@ func NewFuncCheckParentContextError(f func() (bool, error), cancel InErrorFunc[e
 		return ok, err
 	}
 }
+
+func NewContextDone(ctx context.Context) (
+	InErrorFunc[error],
+	ErrorFunc,
+) {
+	done := make(chan struct{})
+
+	var gerr error
+	var once sync.Once
+
+	return func(err error) error {
+			once.Do(func() {
+				close(done)
+				gerr = err
+			})
+
+			return err
+		},
+		func() error {
+			select {
+			case <-ctx.Done():
+				return context.Cause(ctx)
+			case <-done:
+				return gerr
+			}
+		}
+}
