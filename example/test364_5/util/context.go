@@ -147,7 +147,7 @@ func NewContextDone(ctx context.Context) (
 			case <-ctx.Done():
 				return context.Cause(ctx)
 			case <-done:
-				if i, isempty := gerr.Value(); isempty {
+				if i, isempty := gerr.Value(); !isempty {
 					return i
 				}
 

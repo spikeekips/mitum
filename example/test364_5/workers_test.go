@@ -86,7 +86,7 @@ func (t *baseTestWorkers) ophsSeq2(ops []operation) iter.Seq2[uint64, [2]util.Ha
 }
 
 type testCheckEnoughFailedWorkers struct {
-	suite.Suite
+	dutil.BaseSuite
 }
 
 func (t *testCheckEnoughFailedWorkers) TestNew() {

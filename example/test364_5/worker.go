@@ -153,14 +153,12 @@ func newFuncWorker(
 	default:
 		var bgJobDoneOnce sync.Once
 
-		bgNewJob, bgJobWait = n, func(err error) (gerr error) {
+		bgNewJob, bgJobWait = n, func(err error) error {
 			bgJobDoneOnce.Do(func() {
 				d()
-
-				gerr = w(err)
 			})
 
-			return gerr
+			return w(err)
 		}
 	}
 

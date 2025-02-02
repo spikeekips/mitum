@@ -600,10 +600,8 @@ func xMergeOpValues(
 	}
 
 	addReason := func() func(uint64, string) {
-		c := sync.OnceValue(func() error {
+		c := sync.OnceFunc(func() {
 			reasons = map[uint64]string{}
-
-			return nil
 		})
 
 		return func(o uint64, r string) {
@@ -611,7 +609,7 @@ func xMergeOpValues(
 				return
 			}
 
-			_ = c()
+			c()
 
 			reasons[o] = r
 		}
