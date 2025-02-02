@@ -263,7 +263,7 @@ func newFuncWorker(
 			_ = traverseOps // FIXME save ops
 			_ = savedStates // FIXME save states
 
-			switch err := closeWorkerWait(nil); {
+			switch err := closeWorkerWait(); {
 			case err != nil:
 				log.Error().Err(err).Msg("worker canceled")
 

@@ -166,7 +166,7 @@ func newFuncManager(
 		) error {
 			defer func() {
 				_ = wctxCancel(nil)
-				_ = bgJobWait(context.Canceled)
+				_ = bgJobDone(nil)
 				workerPool.Close()
 			}()
 
@@ -236,7 +236,7 @@ func newFuncManager(
 				}
 			}
 
-			_ = bgJobWait(nil) // NOTE wait error of background job worker ignored
+			_ = bgJobWait() // NOTE wait error of background job worker ignored
 
 			return nil
 		},

@@ -107,7 +107,7 @@ func newFuncManagerCollectResult(
 		func(g fixedtree.GenerateNodesHashFunc) (opsTree, statesTree *fixedtree.Tree, _ error) {
 			defer func() {
 				_ = opsJobWait(context.Canceled)
-				_ = baseOpsWait(context.Canceled)
+				_ = baseOpsDone(nil)
 			}()
 
 			if g == nil {
@@ -121,7 +121,7 @@ func newFuncManagerCollectResult(
 			err := dutil.FuncsJobWorker(
 				ctx,
 				func(context.Context) error {
-					if err := baseOpsWait(nil); err != nil {
+					if err := baseOpsWait(); err != nil {
 						return err
 					}
 
@@ -267,7 +267,7 @@ func newFuncManagerWorkersResult(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	wsctx, workersDone, parentContextError, workersWait := dutil.NewContextWait(ctx)
+	wsctx, workersDone, workersDoneContextError, workersWait := dutil.NewContextWait(ctx)
 
 	var addState dutil.AppendSliceAddFunc[fixedtree.Node]
 	var doneState dutil.OutFunc[[]fixedtree.Node]
@@ -342,15 +342,15 @@ func newFuncManagerWorkersResult(
 			dutil.InErrorFunc[error],
 			error,
 		) {
-			if ok, err := parentContextError(); err != nil || !ok {
+			if ok, err := workersDoneContextError(); err != nil || !ok {
 				return nil, nil, nil, err
 			}
 
 			wctx, cancel := dutil.ContextWithCancelCause(wsctx)
-			checkParentContextError := dutil.NewFuncCheckParentContextError(parentContextError, cancel)
+			checkContextError := dutil.NewFuncCheckContextError(workersDoneContextError, cancel)
 
 			return func(reasons map[uint64]string) error {
-					if ok, err := checkParentContextError(); err != nil || !ok {
+					if ok, err := checkContextError(); err != nil || !ok {
 						return err
 					}
 
@@ -367,7 +367,7 @@ func newFuncManagerWorkersResult(
 					}
 				},
 				func(stateKey string, stateHash util.Hash) error {
-					if ok, err := checkParentContextError(); err != nil || !ok {
+					if ok, err := checkContextError(); err != nil || !ok {
 						return err
 					}
 
@@ -393,7 +393,7 @@ func newFuncManagerWorkersResult(
 				func(err error) error {
 					defer cancel(nil)
 
-					if ok, err := checkParentContextError(); err != nil || !ok {
+					if ok, err := checkContextError(); err != nil || !ok {
 						return err
 					}
 
@@ -460,7 +460,7 @@ func newFuncManagerWorkersResult(
 				workerErrPool.Close()
 			}()
 
-			return workersWait(nil)
+			return workersWait()
 		},
 		func(g fixedtree.GenerateNodesHashFunc) (tr *fixedtree.Tree, _ error) {
 			defer func() {

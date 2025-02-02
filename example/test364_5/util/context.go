@@ -57,18 +57,14 @@ func NewContextWait(ctx context.Context) (
 	context.Context,
 	InErrorFunc[error],
 	func() (bool, error),
-	InErrorFunc[error],
+	ErrorFunc,
 ) {
 	cctx, cctxCancel, check := CheckContextWait(ctx)
 
-	return cctx, cctxCancel, check, func(err error) error {
-		if err != nil {
-			return cctxCancel(err)
-		}
-
+	return cctx, cctxCancel, check, func() error {
 		<-cctx.Done()
 
-		_, err = check()
+		_, err := check()
 
 		return err
 	}
@@ -113,7 +109,7 @@ func CheckContextWait(ctx context.Context) (
 		}
 }
 
-func NewFuncCheckParentContextError(f func() (bool, error), cancel InErrorFunc[error]) func() (bool, error) {
+func NewFuncCheckContextError(f func() (bool, error), cancel InErrorFunc[error]) func() (bool, error) {
 	return func() (bool, error) {
 		ok, err := f()
 		if err != nil || !ok {
@@ -130,14 +126,19 @@ func NewContextDone(ctx context.Context) (
 ) {
 	done := make(chan struct{})
 
-	var gerr error
+	gerr := util.EmptyLocked[error]()
 	var once sync.Once
 
 	return func(err error) error {
 			once.Do(func() {
 				close(done)
-				gerr = err
+
+				gerr.SetValue(err)
 			})
+
+			if i, isempty := gerr.Value(); !isempty {
+				return i
+			}
 
 			return err
 		},
@@ -146,7 +147,11 @@ func NewContextDone(ctx context.Context) (
 			case <-ctx.Done():
 				return context.Cause(ctx)
 			case <-done:
-				return gerr
+				if i, isempty := gerr.Value(); isempty {
+					return i
+				}
+
+				return nil
 			}
 		}
 }

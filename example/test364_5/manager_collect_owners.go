@@ -34,7 +34,7 @@ func newFuncManagerCollectOwners(
 		checkWorker = w
 	}
 
-	octx, ownersDone, parentContextError, ownersWait := dutil.NewContextWait(ctx)
+	octx, ownersDone, ownersDoneContextError, ownersWait := dutil.NewContextWait(ctx)
 
 	var add dutil.AppendSliceAddFunc[string]
 	var done dutil.OutFunc[[]string]
@@ -46,10 +46,10 @@ func newFuncManagerCollectOwners(
 		add, done = a, d
 	}
 
-	checkParentContextError := dutil.NewFuncCheckParentContextError(parentContextError, dutil.DummyErrorInFunc)
+	checkContextError := dutil.NewFuncCheckContextError(ownersDoneContextError, dutil.DummyErrorInFunc)
 
 	return func(worker string, owners []string) error {
-			if ok, err := checkParentContextError(); err != nil || !ok {
+			if ok, err := checkContextError(); err != nil || !ok {
 				return err
 			}
 
@@ -78,7 +78,7 @@ func newFuncManagerCollectOwners(
 			})
 		},
 		func() ([]string, error) {
-			if err := ownersWait(nil); err != nil {
+			if err := ownersWait(); err != nil {
 				return nil, err
 			}
 

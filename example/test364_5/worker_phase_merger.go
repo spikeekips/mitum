@@ -116,11 +116,11 @@ func newFuncWorkerPhaseMerger(
 		func() (unmerged []uint64, reasons map[uint64]string, _ error) {
 			defer func() {
 				_, _, _, _ = phaseMergerWait()
-				_ = workerInsertWait(nil)
+				_ = workerInsertDone(nil)
 			}()
 
 			return unmerged, reasons, dutil.ContextCauseError(ctx, ctxCancel, func(context.Context) error {
-				if err := workerInsertWait(nil); err != nil {
+				if err := workerInsertWait(); err != nil {
 					return err
 				}
 
