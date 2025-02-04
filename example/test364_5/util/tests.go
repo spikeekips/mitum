@@ -40,6 +40,12 @@ func (t *BaseSuite) IfErrPanic(err error) {
 	}
 }
 
+func (t *BaseSuite) IfErrPanicf(err error, a string, b ...interface{}) {
+	if err != nil {
+		panic(errors.WithMessagef(err, a, b...))
+	}
+}
+
 func (t *BaseSuite) IfTruePanic(ok bool, a string, b ...interface{}) {
 	if ok {
 		panic(fmt.Sprintf(a, b...))
