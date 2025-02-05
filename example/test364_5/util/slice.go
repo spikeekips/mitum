@@ -247,10 +247,6 @@ func ClearSlice[T any](s []T) {
 }
 
 func ClearMap[K comparable, V any](m map[K]V) {
-	if len(m) < 1 {
-		return
-	}
-
 	clear(m)
 	m = nil
 }

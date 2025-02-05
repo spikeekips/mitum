@@ -136,7 +136,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 	newWorkerProcessDistributeSMVsFunc,
 	iter.Seq2[string, dutil.OutFunc[[]interface{}]],
 ) {
-	pool, err := util.NewLockedMap[string, [2]interface{}](1<<9, nil)
+	pool, err := dutil.NewLockedMap[string, [2]interface{}](nil, 1<<9, 1<<9)
 	if err != nil {
 		panic(err)
 	}
@@ -148,11 +148,11 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 		) {
 			var add dutil.AppendSliceAddFunc[interface{}]
 
-			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
+			if _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
 				if found {
 					add = i[0].(dutil.AppendSliceAddFunc[interface{}])
 
-					return v, util.ErrLockedSetIgnore
+					return v, dutil.ErrLockedSetIgnore
 				}
 
 				a, done, err := dutil.NewLockAppendSlice[interface{}](1<<9, 1<<9)
@@ -180,9 +180,11 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 				pool.Close()
 			}()
 
-			pool.Traverse(func(worker string, i [2]interface{}) bool {
-				return yield(worker, i[1].(dutil.OutFunc[[]interface{}]))
-			})
+			for worker, i := range pool.Seq2 {
+				if !yield(worker, i[1].(dutil.OutFunc[[]interface{}])) {
+					break
+				}
+			}
 		}
 }
 

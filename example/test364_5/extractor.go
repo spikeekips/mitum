@@ -53,9 +53,9 @@ func newFuncSMVExtractor(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	var reasons util.LockedMap[uint64, string]
+	var reasons dutil.LockedMap[uint64, string]
 
-	switch i, err := util.NewLockedMap[uint64, string](maxOpsSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, string](nil, maxOpsSize, maxOpsSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

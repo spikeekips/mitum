@@ -159,9 +159,9 @@ func newFuncSVMs(
 	func() (size uint64 /* approximate size */, _ iter.Seq2[string /* state key */, SVM]),
 	error,
 ) {
-	var pool util.LockedMap[string, SVM]
+	var pool dutil.LockedMap[string, SVM]
 
-	switch i, err := util.NewLockedMap[string, SVM](poolSize, nil); {
+	switch i, err := dutil.NewLockedMap[string, SVM](nil, poolSize, poolSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -183,9 +183,11 @@ func newFuncSVMs(
 					}()
 
 					if yield != nil {
-						_ = pool.Traverse(func(stateKey string, merger SVM) bool {
-							return yield(stateKey, merger)
-						})
+						for stateKey, merger := range pool.Seq2 {
+							if !yield(stateKey, merger) {
+								return
+							}
+						}
 					}
 				}
 		},
@@ -198,27 +200,27 @@ func newFuncSetStateOps(mapSize uint64) (
 	traverseStateOpsFunc,
 	error,
 ) {
-	var factPool util.LockedMap[uint64, util.Hash]
+	var factPool dutil.LockedMap[uint64, util.Hash]
 
-	switch i, err := util.NewLockedMap[uint64, util.Hash](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, util.Hash](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		factPool = i
 	}
 
-	var m util.LockedMap[string, map[uint64]int]
+	var m dutil.LockedMap[string, map[uint64]int]
 
-	switch i, err := util.NewLockedMap[string, map[uint64]int](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[string, map[uint64]int](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		m = i
 	}
 
-	var keyPool util.LockedMap[uint64, []string]
+	var keyPool dutil.LockedMap[uint64, []string]
 
-	switch i, err := util.NewLockedMap[uint64, []string](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, []string](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -227,11 +229,11 @@ func newFuncSetStateOps(mapSize uint64) (
 
 	set := func(opindex uint64, stateKeys []string, x xMergeFlag) (ok bool) {
 		for stateKey := range slices.Values(stateKeys) {
-			_, _, _ = m.Set(stateKey, func(prev map[uint64]int, _ bool) (map[uint64]int, error) {
+			_, _ = m.Set(stateKey, func(prev map[uint64]int, _ bool) (map[uint64]int, error) {
 				switch x {
 				case mergeFlag:
 					if i, found := prev[opindex]; found && i < 1 {
-						return nil, util.ErrLockedSetIgnore
+						return nil, dutil.ErrLockedSetIgnore
 					}
 
 					if prev == nil {
@@ -241,7 +243,7 @@ func newFuncSetStateOps(mapSize uint64) (
 					prev[opindex] = 1
 				case unmergeFlag:
 					if i, found := prev[opindex]; found && i < 1 {
-						return nil, util.ErrLockedSetIgnore
+						return nil, dutil.ErrLockedSetIgnore
 					}
 
 					if prev == nil {
@@ -272,9 +274,9 @@ func newFuncSetStateOps(mapSize uint64) (
 	}
 
 	return func(opindex uint64, fact util.Hash, stateKeys []string) bool {
-			_, created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
+			created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
 				if found {
-					return nil, util.ErrLockedSetIgnore
+					return nil, dutil.ErrLockedSetIgnore
 				}
 
 				_ = set(opindex, stateKeys, mergeFlag)
@@ -350,9 +352,9 @@ func newSMVsPool(poolSize uint64) (
 	closef func(),
 	_ error,
 ) {
-	var pool util.LockedMap[uint64, []SMV]
+	var pool dutil.LockedMap[uint64, []SMV]
 
-	switch i, err := util.NewLockedMap[uint64, []SMV](poolSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, []SMV](nil, poolSize, poolSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -361,9 +363,9 @@ func newSMVsPool(poolSize uint64) (
 
 	return newFuncGetSMVsFromPool(pool),
 		func(opindex uint64, values []SMV) (bool, error) {
-			_, created, _ := pool.Set(opindex, func(_ []SMV, found bool) ([]SMV, error) {
+			created, _ := pool.Set(opindex, func(_ []SMV, found bool) ([]SMV, error) {
 				if found {
-					return nil, util.ErrLockedSetIgnore
+					return nil, dutil.ErrLockedSetIgnore
 				}
 
 				return values, nil
@@ -861,18 +863,20 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 ) {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	var pool util.LockedMap[string, [2]interface{}]
+	var pool dutil.LockedMap[string, [2]interface{}]
 
-	switch i, err := util.NewLockedMap[string, [2]interface{}](uint64(len(workers)), nil); {
+	nworkers := uint64(len(workers))
+
+	switch i, err := dutil.NewLockedMap[string, [2]interface{}](nil, nworkers, nworkers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		pool = i
 	}
 
-	var created util.LockedMap[string, struct{}]
+	var created dutil.LockedMap[string, struct{}]
 
-	switch i, err := util.NewLockedMap[string, struct{}](uint64(len(workers)), nil); {
+	switch i, err := dutil.NewLockedMap[string, struct{}](nil, nworkers, nworkers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -905,7 +909,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 				var sendOp workerProcessInsertSMVsFunc
 				var gerr error
 
-				_, _, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
 					if !found {
 						switch p, o, err := newf(ctx, worker); {
 						case err != nil:
@@ -920,18 +924,18 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 							return [2]interface{}{sendOp, o}, nil
 						}
 					} else if f[0] == nil {
-						return v, util.ErrLockedSetIgnore
+						return v, dutil.ErrLockedSetIgnore
 					}
 
 					if err, ok := f[0].(error); ok {
 						gerr = err
 
-						return v, util.ErrLockedSetIgnore
+						return v, dutil.ErrLockedSetIgnore
 					}
 
 					sendOp = f[0].(workerProcessInsertSMVsFunc)
 
-					return v, util.ErrLockedSetIgnore
+					return v, dutil.ErrLockedSetIgnore
 				})
 
 				if gerr == nil && sendOp != nil {
@@ -950,7 +954,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
 				var gerr error
 
-				_, _, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
 					if !found {
 						switch _, o, err := newf(ctx, worker); {
 						case err != nil:
@@ -963,13 +967,13 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 							return v, nil
 						}
 					} else if f[1] == nil {
-						return v, util.ErrLockedSetIgnore
+						return v, dutil.ErrLockedSetIgnore
 					}
 
 					if err, ok := f[0].(error); ok {
 						gerr = err
 
-						return v, util.ErrLockedSetIgnore
+						return v, dutil.ErrLockedSetIgnore
 					}
 
 					sendOwners = f[1].(dutil.In2ErrorFunc[[]string, []string])
@@ -1014,7 +1018,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 
 			created.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
 				if found {
-					return struct{}{}, util.ErrLockedSetIgnore
+					return struct{}{}, dutil.ErrLockedSetIgnore
 				}
 
 				return struct{}{}, nil

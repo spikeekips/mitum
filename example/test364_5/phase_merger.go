@@ -395,14 +395,14 @@ func newFuncExtractSMVKeys(maxSize, size int) (
 }
 
 func newFuncGetSVMs(
-	m util.LockedMap[string, SVM],
+	m dutil.LockedMap[string, SVM],
 	getState getStateFunc,
 	extractSMVKeys extractSMVKeysFunc,
 ) (
 	mergerGetSVMsFunc,
 	func(),
 ) {
-	mmergers := util.NewMultiKeysLockedMap[string, SVM](m)
+	mmergers := dutil.NewMultiKeysLockedMap[string, SVM](m)
 
 	return func(
 			opindex uint64,
@@ -417,7 +417,7 @@ func newFuncGetSVMs(
 			default:
 				return mmergers.LockFunc(
 					i,
-					func(m util.LockedMap[string, SVM]) error {
+					func(m dutil.LockedMap[string, SVM]) error {
 						return f(newFuncGetOrCreateMerger(m, getState))
 					},
 				)
@@ -433,18 +433,18 @@ func newFuncCollectXmergedOps(
 	func() (merged, unmerged []uint64, _ error),
 	error,
 ) {
-	var baseMergedOps util.LockedMap[uint64, xMergeFlag]
+	var baseMergedOps dutil.LockedMap[uint64, xMergeFlag]
 
-	switch i, err := util.NewLockedMap[uint64, xMergeFlag](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, xMergeFlag](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		baseMergedOps = i
 	}
 
-	var ops util.LockedMap[uint64 /* opindex */, int /* count */]
+	var ops dutil.LockedMap[uint64 /* opindex */, int /* count */]
 
-	switch i, err := util.NewLockedMap[uint64, int](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -463,7 +463,7 @@ func newFuncCollectXmergedOps(
 				}
 			}
 
-			_, _, _ = ops.Set(opindex, func(prev int, _ bool) (int, error) {
+			_, _ = ops.Set(opindex, func(prev int, _ bool) (int, error) {
 				i := 1
 
 				if x == unmergeFlag {
@@ -498,7 +498,7 @@ func newFuncCollectXmergedOps(
 				addU, doneU = a, d
 			}
 
-			_ = ops.Traverse(func(opindex uint64, i int) bool {
+			for opindex, i := range ops.Seq2 {
 				switch {
 				case i == 0:
 				case i > 0:
@@ -510,9 +510,7 @@ func newFuncCollectXmergedOps(
 						addU(opindex)
 					}
 				}
-
-				return true
-			})
+			}
 
 			return doneM(), doneU(), nil
 		},
@@ -524,9 +522,9 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 	done func() (reasons map[uint64]string, _ error),
 	_ error,
 ) {
-	var m util.LockedMap[uint64, string]
+	var m dutil.LockedMap[uint64, string]
 
-	switch i, err := util.NewLockedMap[uint64, string](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, string](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -541,10 +539,10 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 			for i := range reasons {
 				r := reasons[i]
 
-				_, _, _ = m.Set(i, func(prev string, _ bool) (string, error) {
+				_, _ = m.Set(i, func(prev string, _ bool) (string, error) {
 					switch {
 					case prev == r:
-						return "", util.ErrLockedSetIgnore
+						return "", dutil.ErrLockedSetIgnore
 					default:
 						return r, nil
 					}
@@ -721,17 +719,12 @@ func unmergeOpValues(
 }
 
 func newFuncGetOrCreateMerger(
-	m util.LockedMap[string, SVM],
+	m dutil.LockedMap[string, SVM],
 	getState getStateFunc,
 ) func(SMV) (SVM, error) {
 	return func(value SMV) (merger SVM, _ error) {
 		return merger, m.GetOrCreate(
 			value.Key(),
-			func(i SVM, _ bool) error {
-				merger = i
-
-				return nil
-			},
 			func() (SVM, error) {
 				var stv base.StateValue
 
@@ -744,11 +737,16 @@ func newFuncGetOrCreateMerger(
 
 				return value.Merger(stv)
 			},
+			func(i SVM, _ bool) error {
+				merger = i
+
+				return nil
+			},
 		)
 	}
 }
 
-func newFuncGetSMVsFromPool(vp util.LockedMap[uint64, []SMV]) opindexGetSMVsFunc {
+func newFuncGetSMVsFromPool(vp dutil.LockedMap[uint64, []SMV]) opindexGetSMVsFunc {
 	return func(opindex uint64) ([]SMV, error) {
 		switch i, found := vp.Value(opindex); {
 		case !found:

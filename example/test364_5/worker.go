@@ -232,7 +232,7 @@ func newFuncWorker(
 			reportResult workerReportResultFunc,
 		) error {
 			var traverseOps iter.Seq2[uint64, operation]
-			var savedStates util.LockedMap[string, base.State]
+			var savedStates dutil.LockedMap[string, base.State]
 
 			defer func() {
 				_ = wctxCancel(nil)
@@ -256,7 +256,7 @@ func newFuncWorker(
 					reportStates dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					if statesSize > 0 {
-						switch i, err := util.NewLockedMap[string, base.State](statesSize, nil); {
+						switch i, err := dutil.NewLockedMap[string, base.State](nil, statesSize, statesSize); {
 						case err != nil:
 							return err
 						default:

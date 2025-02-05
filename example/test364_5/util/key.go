@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 func DistributeByCount[K comparable](total, share uint64) (
@@ -50,9 +49,9 @@ func DistributeByCount[K comparable](total, share uint64) (
 		return pos
 	}
 
-	var cache util.LockedMap[K, []uint64]
+	var cache LockedMap[K, []uint64]
 
-	switch i, err := util.NewLockedMap[K, []uint64](total, nil); {
+	switch i, err := NewLockedMap[K, []uint64](nil, total, total); {
 	case err != nil:
 		return nil, nil, err
 	default:

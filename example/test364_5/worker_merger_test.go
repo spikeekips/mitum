@@ -24,8 +24,8 @@ type testWorkerMerger struct {
 }
 
 func (t *testWorkerMerger) newFuncs() (
-	mergers util.LockedMap[string, SVM],
-	states util.LockedMap[string, base.State],
+	mergers dutil.LockedMap[string, SVM],
+	states dutil.LockedMap[string, base.State],
 	getState getStateFunc,
 	getSVMs mergerGetSVMsFunc,
 	traverseSVMs iter.Seq2[string, SVM],
@@ -904,7 +904,7 @@ func (t *testWorkerMerger) workerMerger(
 	local string,
 	opsWorkers []string, share uint64,
 ) (
-	util.LockedMap[string, base.State],
+	dutil.LockedMap[string, base.State],
 	workerMergerInsertSMVsFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,

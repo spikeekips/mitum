@@ -39,8 +39,8 @@ func (t *testWorkerProcess) newf(
 		dutil.In3ErrorFunc[context.Context, string, []uint64],
 		workerProcessReportResult,
 	) error,
-	util.LockedMap[uint64, operation],
-	util.LockedMap[string, base.State],
+	dutil.LockedMap[uint64, operation],
+	dutil.LockedMap[string, base.State],
 ) {
 	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
 		ctx,
@@ -71,8 +71,8 @@ func (t *testWorkerProcess) newf(
 			nil
 	}
 
-	savedOps := util.NewSingleLockedMap[uint64, operation]()
-	savedStates := util.NewSingleLockedMap[string, base.State]()
+	savedOps := dutil.NewSingleLockedMap[uint64, operation]()
+	savedStates := dutil.NewSingleLockedMap[string, base.State]()
 
 	return func(
 			getStateOwners getStateOwnersFunc,

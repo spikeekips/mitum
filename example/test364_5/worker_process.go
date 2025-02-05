@@ -151,9 +151,9 @@ func newFuncWorkerProcess(
 		initialInsert, workerInsertSVs, unmerge, wait = i, s, u, w
 	}
 
-	var savedOps util.LockedMap[uint64, operation]
+	var savedOps dutil.LockedMap[uint64, operation]
 
-	switch i, err := util.NewLockedMap[uint64, operation](maxOpsSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, operation](nil, maxOpsSize, maxOpsSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -287,7 +287,7 @@ func newFuncWorkerProcess(
 						return
 					}
 
-					_ = savedOps.Traverse(yield)
+					savedOps.Seq2(yield)
 				},
 				nil
 		},
@@ -711,9 +711,9 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 }
 
 func newGetCreateStateFunc(size uint64, get getStateFunc, create createStateFunc) (getStateFunc, createStateFunc2, func(), error) {
-	var pool util.LockedMap[string, base.State]
+	var pool dutil.LockedMap[string, base.State]
 
-	switch i, err := util.NewLockedMap[string, base.State](size, nil); {
+	switch i, err := dutil.NewLockedMap[string, base.State](nil, size, size); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -725,15 +725,15 @@ func newGetCreateStateFunc(size uint64, get getStateFunc, create createStateFunc
 
 			err := pool.GetOrCreate(
 				stateKey,
-				func(i base.State, _ bool) error {
-					st = i
-
-					return nil
-				},
 				func() (base.State, error) {
 					st, _, err := get(stateKey)
 
 					return st, err
+				},
+				func(i base.State, _ bool) error {
+					st = i
+
+					return nil
 				},
 			)
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/rs/zerolog"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 )
 
 type (
@@ -153,9 +152,9 @@ func newFuncJobID(mapSize uint64) (
 	closef func(),
 	_ error,
 ) {
-	var m util.LockedMap[uint64, int]
+	var m dutil.LockedMap[uint64, int]
 
-	switch i, err := util.NewLockedMap[uint64, int](mapSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -163,9 +162,9 @@ func newFuncJobID(mapSize uint64) (
 	}
 
 	return func(jobID uint64, phase int) (ok bool) {
-			_, _, _ = m.Set(jobID, func(prev int, found bool) (int, error) {
+			_, _ = m.Set(jobID, func(prev int, found bool) (int, error) {
 				if found && phase == prev {
-					return 0, util.ErrLockedSetIgnore
+					return 0, dutil.ErrLockedSetIgnore
 				}
 
 				ok = true

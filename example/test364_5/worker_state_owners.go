@@ -196,17 +196,17 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 		addOwners, doneOwners = a, d
 	}
 
-	var msubws util.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
-	var maffected util.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
+	var msubws dutil.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
+	var maffected dutil.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](workersSize, nil); {
+	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize, workersSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		msubws = i
 	}
 
-	switch i, err := util.NewLockedMap[string, map[string]struct{}](workersSize, nil); {
+	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize, workersSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -214,10 +214,10 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 	}
 
 	add := func(
-		m util.LockedMap[string, map[string]struct{}],
+		m dutil.LockedMap[string, map[string]struct{}],
 		a string, b []string,
 	) {
-		m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
+		_, _ = m.Set(a, func(prev map[string]struct{}, _ bool) (map[string]struct{}, error) {
 			addOwners(a)
 			addOwners(b...)
 

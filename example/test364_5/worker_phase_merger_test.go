@@ -23,9 +23,9 @@ type testWorkerPhaseMerger struct {
 }
 
 func (t *testWorkerPhaseMerger) newFuncs() (
-	vp util.LockedMap[uint64, []SMV],
-	mergers util.LockedMap[string, SVM],
-	states util.LockedMap[string, base.State],
+	vp dutil.LockedMap[uint64, []SMV],
+	mergers dutil.LockedMap[string, SVM],
+	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
 	newPhaseMergerf newPhaseMergerFunc,
 	getSVMs mergerGetSVMsFunc,
@@ -357,9 +357,11 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []SMV) bool {
-				return insert(opindex) == nil
-			})
+			for opindex := range vp.Seq2 {
+				if insert(opindex) != nil {
+					break
+				}
+			}
 
 			t.IfErrPanic(insertDone(nil))
 		}()
@@ -647,9 +649,11 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []SMV) bool {
-				return insert(opindex) == nil
-			})
+			for opindex := range vp.Seq2 {
+				if insert(opindex) != nil {
+					break
+				}
+			}
 
 			t.IfErrPanic(insertDone(nil))
 
@@ -722,9 +726,11 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			insert, insertDone, err := insertf("w0")
 			t.IfErrPanic(err)
 
-			vp.Traverse(func(opindex uint64, vs []SMV) bool {
-				return insert(opindex) == nil
-			})
+			for opindex := range vp.Seq2 {
+				if insert(opindex) != nil {
+					break
+				}
+			}
 
 			t.IfErrPanic(insertDone(nil))
 

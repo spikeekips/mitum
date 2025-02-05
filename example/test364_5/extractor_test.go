@@ -245,7 +245,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		insert, wait, err := t.newf(ctx, nil)
 		t.NoError(err)
 
-		expectedReasons := util.NewSingleLockedMap[uint64, string]()
+		expectedReasons := dutil.NewSingleLockedMap[uint64, string]()
 
 		t.NoError(insert(
 			func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
@@ -354,7 +354,7 @@ func (t *testSMVExtractor) TestExtract() {
 				opsValues[i] = [2][]SMV{{subv}, addvs}
 			}
 
-			extracted := util.NewSingleLockedMap[uint64, [3]interface{}]()
+			extracted := dutil.NewSingleLockedMap[uint64, [3]interface{}]()
 
 			insert, wait, err := t.newf(ctx, ops)
 			t.NoError(err)

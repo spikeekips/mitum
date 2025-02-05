@@ -21,12 +21,12 @@ type baseTestMergeOp struct {
 	baseTestAccountSVM
 }
 
-func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, SVM]) (map[string]int64, error) {
+func (t *baseTestMergeOp) closeMergersWithError(mergers dutil.LockedMap[string, SVM]) (map[string]int64, error) {
 	m := map[string]int64{}
 
 	var gerr error
 
-	mergers.Traverse(func(stateKey string, merger SVM) bool {
+	for stateKey, merger := range mergers.Seq2 {
 		st, err := merger.Close()
 		if err != nil {
 			gerr = err
@@ -37,27 +37,25 @@ func (t *baseTestMergeOp) closeMergers(mergers util.LockedMap[string, SVM]) (map
 				m[stateKey] = v.Balance
 			}
 		}
-
-		return true
-	})
+	}
 
 	return m, gerr
 }
 
 func (t *baseTestMergeOp) getFuncs() (
-	_ util.LockedMap[uint64, []SMV],
-	_ util.LockedMap[string, SVM],
-	_ util.LockedMap[string, base.State],
+	_ dutil.LockedMap[uint64, []SMV],
+	_ dutil.LockedMap[string, SVM],
+	_ dutil.LockedMap[string, base.State],
 	getMerger func(SMV) (SVM, error),
 	getValues func(uint64) ([]SMV, error),
 ) {
-	vp, err := util.NewShardedMap[uint64, []SMV](1<<9, nil)
+	vp, err := dutil.NewShardedLockedMap[uint64, []SMV](nil, 1<<9, 1<<9)
 	t.IfErrPanic(err)
 
-	mergers, err := util.NewShardedMap[string, SVM](1<<9, nil)
+	mergers, err := dutil.NewShardedLockedMap[string, SVM](nil, 1<<9, 1<<9)
 	t.IfErrPanic(err)
 
-	states, err := util.NewShardedMap[string, base.State](1<<9, nil)
+	states, err := dutil.NewShardedLockedMap[string, base.State](nil, 1<<9, 1<<9)
 	t.IfErrPanic(err)
 
 	return vp, mergers, states, func(value SMV) (SVM, error) {
@@ -65,11 +63,6 @@ func (t *baseTestMergeOp) getFuncs() (
 
 			err := mergers.GetOrCreate(
 				value.Key(),
-				func(i SVM, _ bool) error {
-					merger = i
-
-					return nil
-				},
 				func() (SVM, error) {
 					var stv base.StateValue
 
@@ -78,6 +71,11 @@ func (t *baseTestMergeOp) getFuncs() (
 					}
 
 					return value.Merger(stv)
+				},
+				func(i SVM, _ bool) error {
+					merger = i
+
+					return nil
 				},
 			)
 
@@ -116,7 +114,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(1), merged[vs[0].Key()])
@@ -141,7 +139,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(2), merged[vs[0].Key()])
@@ -169,7 +167,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(0), merged[vs[0].Key()])
@@ -191,7 +189,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Empty(reason)
 		t.ErrorContains(err, "showme")
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
@@ -209,7 +207,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.NotEmpty(reason)
 		t.Empty(nexts)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
@@ -242,7 +240,7 @@ func (t *testMergeOp) TestMergeSingleValue() {
 		t.Equal("previous issuer found", reason)
 		t.Equal([]uint64{opindex4}, nexts)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.Error(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(-1), merged[vs3[0].Key()])
@@ -262,7 +260,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.Error(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(-1), merged[vs[0].Key()])
@@ -282,7 +280,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.False(isUnmerged)
 		t.ErrorContains(err, "showme")
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
@@ -309,7 +307,7 @@ func (t *testMergeOp) TestUnmergeSingleValue() {
 		t.True(isUnmerged)
 		t.Equal([]uint64{opindex4}, nexts)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 		t.Equal(int64(3), merged[vs3[0].Key()])
@@ -330,7 +328,7 @@ func (t *testMergeOp) TestMergeValues() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(len(vs), len(merged))
 
@@ -396,7 +394,7 @@ func (t *testMergeOp) TestMergeValues() {
 		t.T().Logf("reason: %q", reason)
 		t.Contains(reason, "previous issuer found")
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.Error(err)
 		t.Equal(len(vs0), len(merged))
 	})
@@ -415,7 +413,7 @@ func (t *testMergeOp) TestUnmergeValues() {
 		t.True(isUnmerged)
 		t.Empty(nexts)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.Error(err)
 		t.Equal(3, len(merged))
 
@@ -470,7 +468,7 @@ func (t *testMergeOp) TestNotCommit() {
 		t.Empty(nexts)
 		t.Empty(reason)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 
@@ -495,7 +493,7 @@ func (t *testMergeOp) TestNotCommit() {
 		t.True(found)
 		t.Contains(reason, "insufficient balance")
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(0, len(merged))
 	})
@@ -641,9 +639,9 @@ type testPhaseMerger struct {
 }
 
 func (t *testPhaseMerger) newFuncs() (
-	vp util.LockedMap[uint64, []SMV],
-	mergers util.LockedMap[string, SVM],
-	states util.LockedMap[string, base.State],
+	vp dutil.LockedMap[uint64, []SMV],
+	mergers dutil.LockedMap[string, SVM],
+	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
 	getState getStateFunc,
 ) {
@@ -767,7 +765,7 @@ func (t *testPhaseMerger) TestMerge() {
 		t.Empty(newUnmerged)
 		t.Empty(reasons)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 
 		m, found := merged[vs[0].Key()]
@@ -805,7 +803,7 @@ func (t *testPhaseMerger) TestMerge() {
 		t.Empty(newUnmerged)
 		t.Empty(reasons)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(33, len(merged))
 
@@ -899,7 +897,7 @@ func (t *testPhaseMerger) TestMerge() {
 		t.Equal([]uint64{1}, newUnmerged)
 		t.Equal(map[uint64]string{1: "insufficient balance"}, reasons)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 
 		m, found := merged[vs[0].Key()]
@@ -940,7 +938,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		t.Equal([]uint64{1}, newUnmerged)
 		t.Empty(reasons)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 
 		m, found := merged[vs[0].Key()]
@@ -991,7 +989,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 		t.Equal(expectedUnmerged, newUnmerged)
 		t.Empty(reasons)
 
-		merged, err := t.closeMergers(mergers)
+		merged, err := t.closeMergersWithError(mergers)
 		t.NoError(err)
 		t.Equal(1, len(merged))
 
@@ -1156,7 +1154,7 @@ func (t *testPhaseMerger) testMergeUnmerge(semSize int64, seq []int) {
 	t.True(found)
 	t.Equal("previous issuer found", reason)
 
-	merged, err := t.closeMergers(mergers)
+	merged, err := t.closeMergersWithError(mergers)
 	t.NoError(err)
 
 	for key, v := range maps.All(merged) {
@@ -1280,7 +1278,7 @@ func (t *testPhaseMerger) TestMergeUnmergeReplay() {
 		}
 	}
 
-	merged, err := t.closeMergers(mergers)
+	merged, err := t.closeMergersWithError(mergers)
 	t.NoError(err)
 
 	for key, v := range maps.All(merged) {
@@ -1402,7 +1400,7 @@ func (t *testPhaseMerger) testMerges3Accounts(semSize int64, seq []int) {
 	t.True(found)
 	t.Equal("previous issuer found", reason)
 
-	merged, err := t.closeMergers(mergers)
+	merged, err := t.closeMergersWithError(mergers)
 	t.NoError(err)
 	t.Equal(3, len(merged))
 

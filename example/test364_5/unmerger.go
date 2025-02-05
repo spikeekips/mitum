@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 )
 
 type (
@@ -101,9 +100,9 @@ func newFuncOpindexFilter(
 	closef func(),
 	_ error,
 ) {
-	var m util.LockedMap[uint64, struct{}]
+	var m dutil.LockedMap[uint64, struct{}]
 
-	switch i, err := util.NewLockedMap[uint64, struct{}](maxOpsSize, nil); {
+	switch i, err := dutil.NewLockedMap[uint64, struct{}](nil, maxOpsSize, maxOpsSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -115,16 +114,16 @@ func newFuncOpindexFilter(
 	}
 
 	return func(opindex uint64, f dutil.InErrorFunc[uint64]) (bool, error) {
-			switch _, created, err := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
+			switch created, err := m.Set(opindex, func(_ struct{}, found bool) (v struct{}, _ error) {
 				if found {
-					return v, util.ErrLockedSetIgnore
+					return v, dutil.ErrLockedSetIgnore
 				}
 
 				switch i, err := getSMVs(opindex); {
 				case err != nil:
 					return v, err
 				case len(i) < 1:
-					return v, util.ErrLockedSetIgnore
+					return v, dutil.ErrLockedSetIgnore
 				}
 
 				if f != nil {

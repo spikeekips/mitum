@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 )
 
 type (
@@ -37,11 +36,11 @@ func newFuncWorkerMerger(
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker-merger", nil)
 
 	localInOpsWorkers := true
-	var mOpsWorkers util.LockedMap[string, struct{}]
+	var mOpsWorkers dutil.LockedMap[string, struct{}]
 
 	opsWorkersSize := uint64(len(opsWorkers))
 
-	switch i, err := util.NewLockedMap[string, struct{}](opsWorkersSize, nil); {
+	switch i, err := dutil.NewLockedMap[string, struct{}](nil, opsWorkersSize, opsWorkersSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

@@ -27,9 +27,9 @@ type testWorkerUnmerger struct {
 }
 
 func (t *testWorkerUnmerger) newFuncs() (
-	vp util.LockedMap[uint64, []SMV],
-	mergers util.LockedMap[string, SVM],
-	states util.LockedMap[string, base.State],
+	vp dutil.LockedMap[uint64, []SMV],
+	mergers dutil.LockedMap[string, SVM],
+	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
 	getState getStateFunc,
 	getSVMs mergerGetSVMsFunc,

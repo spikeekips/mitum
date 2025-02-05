@@ -198,7 +198,7 @@ func (t *baseTestAccountSVM) newMergeValues(
 }
 
 func (t *baseTestAccountSVM) randomMergeValuesVP(
-	vp util.LockedMap[uint64, []SMV],
+	vp dutil.LockedMap[uint64, []SMV],
 	opindex uint64,
 	a ...interface{},
 ) []SMV {
@@ -210,7 +210,7 @@ func (t *baseTestAccountSVM) randomMergeValuesVP(
 }
 
 func (t *baseTestAccountSVM) newMergeValuesVP(
-	vp util.LockedMap[uint64, []SMV],
+	vp dutil.LockedMap[uint64, []SMV],
 	opindex uint64,
 	a ...interface{},
 ) []SMV {

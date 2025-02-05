@@ -7,7 +7,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -18,9 +17,9 @@ type testUnmerger struct {
 }
 
 func (t *testUnmerger) newFuncs() (
-	vp util.LockedMap[uint64, []SMV],
-	mergers util.LockedMap[string, SVM],
-	states util.LockedMap[string, base.State],
+	vp dutil.LockedMap[uint64, []SMV],
+	mergers dutil.LockedMap[string, SVM],
+	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
 	getState getStateFunc,
 	getMergers mergerGetSVMsFunc,
@@ -100,7 +99,7 @@ func (t *testUnmerger) TestUnmerge() {
 		t.Equal(uint64(0), unmerged[0])
 		t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
-		_, err = t.closeMergers(mergers)
+		_, err = t.closeMergersWithError(mergers)
 		t.ErrorContains(err, "under zero balance")
 	})
 
@@ -156,7 +155,7 @@ func (t *testUnmerger) TestUnmerge() {
 		t.Equal(uint64(0), unmerged[0])
 		t.Equal(uint64(len(ops)-1), unmerged[len(unmerged)-1])
 
-		_, err = t.closeMergers(mergers)
+		_, err = t.closeMergersWithError(mergers)
 		t.ErrorContains(err, "under zero balance")
 	})
 }

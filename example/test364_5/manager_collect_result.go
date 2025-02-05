@@ -167,9 +167,9 @@ func newFuncGenerateOperationFixedtree(
 	_ generateFixedTreeFunc,
 	_ error,
 ) {
-	var pool util.LockedMap[uint64, *operationTreeNode]
+	var pool dutil.LockedMap[uint64, *operationTreeNode]
 
-	switch i, err := util.NewLockedMap[uint64, *operationTreeNode](uint64(len(ophs)), nil); {
+	switch i, err := dutil.NewLockedMap[uint64, *operationTreeNode](nil, uint64(len(ophs)), uint64(len(ophs))); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -179,9 +179,9 @@ func newFuncGenerateOperationFixedtree(
 	return func() error {
 			for i, hs := range slices.All(ophs) {
 				if err := newJob(func(context.Context) error {
-					_, _, _ = pool.Set(uint64(i), func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
+					_, _ = pool.Set(uint64(i), func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
 						if found {
-							return nil, util.ErrLockedSetIgnore
+							return nil, dutil.ErrLockedSetIgnore
 						}
 
 						return newOperationTreeNode(hs[0], hs[1], "")
@@ -200,7 +200,7 @@ func newFuncGenerateOperationFixedtree(
 				return nil
 			}
 
-			_, _, _ = pool.Set(opindex, func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
+			_, _ = pool.Set(opindex, func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
 				switch {
 				case !found:
 					hs := ophs[opindex]
@@ -210,7 +210,7 @@ func newFuncGenerateOperationFixedtree(
 					n.SetReason(reason)
 				}
 
-				return nil, util.ErrLockedSetIgnore
+				return nil, dutil.ErrLockedSetIgnore
 			})
 
 			return nil
@@ -226,11 +226,9 @@ func newFuncGenerateOperationFixedtree(
 
 			nodes := make([]fixedtree.Node, nnodes)
 
-			_ = pool.Traverse(func(opindex uint64, n *operationTreeNode) bool {
+			for opindex, n := range pool.Seq2 {
 				nodes[opindex] = n
-
-				return true
-			})
+			}
 
 			if err := g(ctx, nodes, nil); err != nil {
 				return nil, err
@@ -282,7 +280,7 @@ func newFuncManagerWorkersResult(
 
 	var checkWorker checkFailedWorkersFunc
 
-	workerErrPool := util.NewSingleLockedMap[string, error]()
+	workerErrPool := dutil.NewSingleLockedMap[string, error]()
 
 	checkWorkerDone := func(ctx context.Context, cw checkFailedWorkersFunc, worker string, err error) (bool, error) {
 		l := log.With().Str("worker", worker).Logger()
@@ -311,14 +309,14 @@ func newFuncManagerWorkersResult(
 
 		var cw checkFailedWorkersFunc
 
-		switch _, created, _ := workerErrPool.Set(worker, func(_ error, found bool) (error, error) {
+		switch created, _ := workerErrPool.Set(worker, func(_ error, found bool) (error, error) {
 			switch {
 			case checkWorker != nil:
 				cw = checkWorker
 
-				return nil, util.ErrLockedSetIgnore
+				return nil, dutil.ErrLockedSetIgnore
 			case found:
-				return nil, util.ErrLockedSetIgnore
+				return nil, dutil.ErrLockedSetIgnore
 			default:
 				return err, nil
 			}
@@ -441,16 +439,14 @@ func newFuncManagerWorkersResult(
 					return err
 				}
 
-				var gerr error
-
 				// NOTE exhaust errors in pool
-				_ = workerErrPool.Traverse(func(worker string, err error) bool {
-					_, gerr = checkWorkerDone(ctx, checkWorker, worker, err)
+				for worker, err := range workerErrPool.Seq2 {
+					if _, gerr := checkWorkerDone(ctx, checkWorker, worker, err); gerr != nil {
+						return gerr
+					}
+				}
 
-					return gerr == nil
-				})
-
-				return gerr
+				return nil
 			})
 		},
 		func() error {
