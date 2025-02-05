@@ -182,7 +182,7 @@ func newFuncManager(
 					case err != nil:
 						return cancelWork(err)
 					case failed:
-						return cancelWork(errWorkersFailed.Errorf("process weait"))
+						return cancelWork(errWorkersFailed.Errorf("process wait"))
 					}
 
 					// NOTE manager done to workers outside owners
