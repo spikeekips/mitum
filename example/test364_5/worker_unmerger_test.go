@@ -27,17 +27,17 @@ type testWorkerUnmerger struct {
 }
 
 func (t *testWorkerUnmerger) newFuncs() (
-	vp util.LockedMap[uint64, []stateMergeValue],
-	mergers util.LockedMap[string, stateValueMerger],
+	vp util.LockedMap[uint64, []SMV],
+	mergers util.LockedMap[string, SVM],
 	states util.LockedMap[string, base.State],
-	_ opindexGetStateMergeValuesFunc,
+	_ opindexGetSMVsFunc,
 	getState getStateFunc,
-	getStateValueMergers mergerGetStateValueMergersFunc,
-	traverseStateValueMergers iter.Seq2[string, stateValueMerger],
+	getSVMs mergerGetSVMsFunc,
+	traverseSVMs iter.Seq2[string, SVM],
 ) {
 	t.T().Helper()
 
-	vp, mergers, states, _, getStateMergeValues := t.baseTestMergeOp.getFuncs()
+	vp, mergers, states, _, getSMVs := t.baseTestMergeOp.getFuncs()
 
 	getState = func(stateKey string) (base.State, bool, error) {
 		i, found := states.Value(stateKey)
@@ -45,9 +45,9 @@ func (t *testWorkerUnmerger) newFuncs() (
 		return i, found, nil
 	}
 
-	extractKeys, _ := t.extractStateMergeValueKeys()
+	extractKeys, _ := t.extractSMVKeys()
 
-	switch g, t, err := newFuncStateValueMergers(
+	switch g, t, err := newFuncSVMs(
 		1<<9,
 		getState,
 		extractKeys,
@@ -55,26 +55,26 @@ func (t *testWorkerUnmerger) newFuncs() (
 	case err != nil:
 		panic(err)
 	default:
-		getStateValueMergers = g
-		_, traverseStateValueMergers = t()
+		getSVMs = g
+		_, traverseSVMs = t()
 	}
 
-	return vp, mergers, states, getStateMergeValues, getState, getStateValueMergers, traverseStateValueMergers
+	return vp, mergers, states, getSMVs, getState, getSVMs, traverseSVMs
 }
 
-func (t *testWorkerUnmerger) randomGetStateMergeValues(uint64) ([]stateMergeValue, error) {
+func (t *testWorkerUnmerger) randomGetSMVs(uint64) ([]SMV, error) {
 	return t.randomMergeValues(2), nil
 }
 
 func (t *testWorkerUnmerger) TestCancel() {
-	getStateMergeValues := func(uint64) ([]stateMergeValue, error) {
+	getSMVs := func(uint64) ([]SMV, error) {
 		return t.randomMergeValues(2), nil
 	}
 
 	t.Run("cancel before new", func() {
 		local := "w0"
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 		ctx = dutil.SetContextValueLogger(ctx, logging.TestNilLogging.Log())
@@ -87,8 +87,8 @@ func (t *testWorkerUnmerger) TestCancel() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			getStateMergeValues,
-			getStateValueMergers,
+			getSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -107,7 +107,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 		local := workers[0]
 		failedWorker := workers[1]
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -117,8 +117,8 @@ func (t *testWorkerUnmerger) TestCancel() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			getStateMergeValues,
-			getStateValueMergers,
+			getSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -154,7 +154,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 		workers := t.workers(3)
 		local := workers[0]
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -164,8 +164,8 @@ func (t *testWorkerUnmerger) TestCancel() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			uint64(len(workers)), 1<<9,
-			getStateMergeValues,
-			getStateValueMergers,
+			getSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -196,7 +196,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 	t.Run("worker unmerge, but local", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -206,8 +206,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -225,7 +225,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 	t.Run("local: empty unmerged and 1 min enough", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -235,8 +235,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -252,7 +252,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 	t.Run("local: ok", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -262,8 +262,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -280,7 +280,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 	t.Run("local: enough", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -290,8 +290,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -313,7 +313,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 	t.Run("3 workers: empty", func() {
 		workers := t.workers(3)
 		local := workers[2]
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -325,8 +325,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -357,7 +357,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		local := workers[2]
 		unknowns := []string{"u0", "u1", "u2", "u3"}
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -369,8 +369,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -428,7 +428,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 	t.Run("3 workers: ok", func() {
 		workers := t.workers(3)
 		local := workers[2]
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -440,8 +440,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -514,7 +514,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			t.T().Logf("worker ops: worker=%q ops=%v", worker, wops)
 		}
 
-		getStateMergeValues := func(opindex uint64) ([]stateMergeValue, error) {
+		getSMVs := func(opindex uint64) ([]SMV, error) {
 			wi := int(math.Floor(float64(opindex) / float64(share)))
 
 			if slices.Index(failedWorkers, workers[wi]) >= 0 {
@@ -529,7 +529,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel dutil.InErrorFunc[error],
 			workersSize, share uint64,
 		) workerUnmergerWaitFunc {
-			_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+			_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 			workerUnmerge, localReady, wait, err := newFuncWorkerUnmerger(
 				ctx,
@@ -537,8 +537,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				cancel,
 				dutil.NewFuncNewJobWorkerFunc(1<<9),
 				share, 1<<9,
-				getStateMergeValues,
-				getStateValueMergers,
+				getSMVs,
+				getSVMs,
 			)
 			t.NoError(err)
 
@@ -605,7 +605,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		worker := "w0"
 		workers := []string{worker}
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -617,8 +617,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -651,7 +651,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		worker := "w0"
 		workers := []string{worker}
 
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -663,8 +663,8 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -711,7 +711,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 func (t *testWorkerUnmerger) TestWorkerManager() {
 	t.Run("local enough and then manager", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -721,8 +721,8 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 
@@ -743,7 +743,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 	t.Run("manager before local enough", func() {
 		local := "w0"
-		_, _, _, _, _, getStateValueMergers, _ := t.newFuncs()
+		_, _, _, _, _, getSVMs, _ := t.newFuncs()
 
 		ctx, cancel := t.Ctx()
 
@@ -753,8 +753,8 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			cancel,
 			dutil.NewFuncNewJobWorkerFunc(1<<9),
 			1, 1<<9,
-			t.randomGetStateMergeValues,
-			getStateValueMergers,
+			t.randomGetSMVs,
+			getSVMs,
 		)
 		t.NoError(err)
 

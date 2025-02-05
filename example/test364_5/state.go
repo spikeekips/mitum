@@ -200,16 +200,16 @@ func (s *baseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	return nil
 }
 
-type stateMergeValue interface {
+type SMV interface { // State Merge Value
 	Key() string
 	Value() base.StateValue
-	Merger(prev base.StateValue) (stateValueMerger, error)
+	Merger(prev base.StateValue) (SVM, error)
 }
 
-type stateValueMerger interface {
+type SVM interface { // state Value Merger
 	// Key is state key.
 	Key() string
-	// Close sets StateValueMerger not to get no more Merge or Unmerge.
+	// Close sets SVM not to get no more Merge or Unmerge.
 	Close() (mergedValue base.StateValue, _ error)
 	// Merge merges new (partial) state value to state. If failed to merge,
 	// *reason* describes the reason why merge(unmerge) opeartion is not merged.
@@ -239,7 +239,7 @@ type stateValueMerger interface {
 	)
 }
 
-func isEqualStateMergeValue(a, b stateMergeValue) bool {
+func isEqualSMV(a, b SMV) bool {
 	switch {
 	case a == nil && b == nil,
 		a == nil, b == nil:

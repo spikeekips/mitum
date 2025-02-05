@@ -57,13 +57,13 @@ func (t *baseTestWorkers) newWorkerOptions(local string) *workerOptions {
 	return newWorkerOptions(local)
 }
 
-func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeStateMergeValuesFunc {
+func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeSMVsFunc {
 	return func(_ context.Context, _, worker string) (
-		workerProcessInsertStateMergeValuesFunc,
+		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		error,
 	) {
-		return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+		return func(opindex uint64, fact util.Hash, values []SMV) error {
 				fmt.Printf("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d\n", local, worker, opindex, fact, len(values))
 
 				return nil
@@ -87,8 +87,8 @@ func (t *baseTestWorkers) ophsSeq2(ops []operation) iter.Seq2[uint64, [2]util.Ha
 	}
 }
 
-func (t *baseTestWorkers) newWorkerProcessDistributeStateMergeValuesFunc() (
-	newWorkerProcessDistributeStateMergeValuesFunc,
+func (t *baseTestWorkers) newWorkerProcessDistributeSMVsFunc() (
+	newWorkerProcessDistributeSMVsFunc,
 	dutil.OutFunc[[]interface{}],
 ) {
 	add, done, err := dutil.NewLockAppendSlice[interface{}](1<<9, 1<<9)
@@ -97,11 +97,11 @@ func (t *baseTestWorkers) newWorkerProcessDistributeStateMergeValuesFunc() (
 	}
 
 	return func(_ context.Context, worker string) (
-			workerProcessInsertStateMergeValuesFunc,
+			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
-			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+			return func(opindex uint64, fact util.Hash, values []SMV) error {
 					add([3]interface{}{opindex, fact, values})
 
 					return nil
@@ -116,14 +116,14 @@ func (t *baseTestWorkers) newWorkerProcessDistributeStateMergeValuesFunc() (
 		done
 }
 
-func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesFunc() (
-	newWorkerDistributeStateMergeValuesFunc,
+func (t *baseTestWorkers) newWorkerDistributeSMVsFunc() (
+	newWorkerDistributeSMVsFunc,
 	dutil.OutFunc[[]interface{}],
 ) {
-	d, o := t.newWorkerProcessDistributeStateMergeValuesFunc()
+	d, o := t.newWorkerProcessDistributeSMVsFunc()
 
 	return func(ctx context.Context, workID, worker string) (
-			workerProcessInsertStateMergeValuesFunc,
+			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -132,8 +132,8 @@ func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesFunc() (
 		o
 }
 
-func (t *baseTestWorkers) newWorkersProcessDistributeStateMergeValuesFunc() (
-	newWorkerProcessDistributeStateMergeValuesFunc,
+func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
+	newWorkerProcessDistributeSMVsFunc,
 	iter.Seq2[string, dutil.OutFunc[[]interface{}]],
 ) {
 	pool, err := util.NewLockedMap[string, [2]interface{}](1<<9, nil)
@@ -142,7 +142,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeStateMergeValuesFunc() (
 	}
 
 	return func(_ context.Context, worker string) (
-			workerProcessInsertStateMergeValuesFunc,
+			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -163,7 +163,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeStateMergeValuesFunc() (
 				return nil, nil, err
 			}
 
-			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+			return func(opindex uint64, fact util.Hash, values []SMV) error {
 					add([3]interface{}{opindex, fact, values})
 
 					return nil
@@ -186,7 +186,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeStateMergeValuesFunc() (
 		}
 }
 
-func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesContextChans(ctx context.Context) (
+func (t *baseTestWorkers) newWorkerDistributeSMVsContextChans(ctx context.Context) (
 	dutil.InErrorFunc[interface{}],
 	func(),
 	iter.Seq[interface{}],
@@ -194,7 +194,7 @@ func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesContextChans(ctx co
 	return dutil.NewContextUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
 }
 
-func (t *baseTestWorkers) newWorkersDistributeStateMergeValuesContextChans(ctx context.Context) (
+func (t *baseTestWorkers) newWorkersDistributeSMVsContextChans(ctx context.Context) (
 	dutil.InErrorFunc[interface{}],
 	func(),
 	iter.Seq[interface{}],
@@ -706,17 +706,17 @@ func TestSetStateOps(t *testing.T) {
 	suite.Run(t, new(testSetStateOps))
 }
 
-type testDelayedWorkerDistributeStateMergeValues struct {
-	baseTestAccountStateValueMerger
+type testDelayedWorkerDistributeSMVs struct {
+	baseTestAccountSVM
 	baseTestWorkers
 }
 
-func (t *testDelayedWorkerDistributeStateMergeValues) TestCtxCanceled() {
+func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 	t.Run("before new", func() {
-		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
-		f := newFuncDelayedWorkerDistributeStateMergeValues(
+		newf, insertedDone := t.newWorkerDistributeSMVsFunc()
+		f := newFuncDelayedWorkerDistributeSMVs(
 			newf,
-			t.newWorkerDistributeStateMergeValuesContextChans,
+			t.newWorkerDistributeSMVsContextChans,
 		)
 
 		ctx, cancel := t.Ctx()
@@ -741,10 +741,10 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestCtxCanceled() {
 	})
 
 	t.Run("during send op", func() {
-		newf, _ := t.newWorkerDistributeStateMergeValuesFunc()
-		f := newFuncDelayedWorkerDistributeStateMergeValues(
+		newf, _ := t.newWorkerDistributeSMVsFunc()
+		f := newFuncDelayedWorkerDistributeSMVs(
 			newf,
-			t.newWorkerDistributeStateMergeValuesContextChans,
+			t.newWorkerDistributeSMVsContextChans,
 		)
 
 		ctx, cancel := t.Ctx()
@@ -779,12 +779,12 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestCtxCanceled() {
 	})
 }
 
-func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
+func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 	t.Run("ops and owners", func() {
-		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
-		f := newFuncDelayedWorkerDistributeStateMergeValues(
+		newf, insertedDone := t.newWorkerDistributeSMVsFunc()
+		f := newFuncDelayedWorkerDistributeSMVs(
 			newf,
-			t.newWorkerDistributeStateMergeValuesContextChans,
+			t.newWorkerDistributeSMVsContextChans,
 		)
 
 		ctx, cancel := t.Ctx()
@@ -815,7 +815,7 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
 			go func() {
 				defer wg.Done()
 
-				err := sendOp(i[0].(uint64), i[1].(util.Hash), i[2].([]stateMergeValue))
+				err := sendOp(i[0].(uint64), i[1].(util.Hash), i[2].([]SMV))
 				t.Println("send op: opindex=%d err=%v", i[0], err)
 			}()
 		}
@@ -848,10 +848,10 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
 	})
 
 	t.Run("no ops and owners", func() {
-		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
-		f := newFuncDelayedWorkerDistributeStateMergeValues(
+		newf, insertedDone := t.newWorkerDistributeSMVsFunc()
+		f := newFuncDelayedWorkerDistributeSMVs(
 			newf,
-			t.newWorkerDistributeStateMergeValuesContextChans,
+			t.newWorkerDistributeSMVsContextChans,
 		)
 
 		ctx, cancel := t.Ctx()
@@ -877,10 +877,10 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
 	})
 
 	t.Run("send ops after sending owners", func() {
-		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
-		f := newFuncDelayedWorkerDistributeStateMergeValues(
+		newf, insertedDone := t.newWorkerDistributeSMVsFunc()
+		f := newFuncDelayedWorkerDistributeSMVs(
 			newf,
-			t.newWorkerDistributeStateMergeValuesContextChans,
+			t.newWorkerDistributeSMVsContextChans,
 		)
 
 		ctx, cancel := t.Ctx()
@@ -918,18 +918,18 @@ func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
 	})
 }
 
-func TestDelayedWorkerDistributeStateMergeValues(t *testing.T) {
+func TestDelayedWorkerDistributeSMVs(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testDelayedWorkerDistributeStateMergeValues))
+	suite.Run(t, new(testDelayedWorkerDistributeSMVs))
 }
 
-type testWorkerProcessWorkersDistributeStateMergeValues struct {
-	baseTestAccountStateValueMerger
+type testWorkerProcessWorkersDistributeSMVs struct {
+	baseTestAccountSVM
 	baseTestWorkers
 }
 
-func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
+func (t *testWorkerProcessWorkersDistributeSMVs) TestCancel() {
 	workers := t.workers(3)
 	local := workers[0]
 
@@ -955,12 +955,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, insertedDone := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -975,7 +975,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 
 					worker := workers[i]
 
-					switch err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue)); {
+					switch err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV)); {
 					case errors.Is(err, context.Canceled),
 						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
 					default:
@@ -1025,12 +1025,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 	t.Run("during send op", func() {
 		ctx, cancel := t.Ctx()
 
-		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, _ := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1045,7 +1045,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 
 					worker := workers[i]
 
-					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV))
 					if i == 2 {
 						cancel(nil)
 					}
@@ -1096,12 +1096,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 	t.Run("during send owners", func() {
 		ctx, cancel := t.Ctx()
 
-		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, _ := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1116,7 +1116,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 
 					worker := workers[i]
 
-					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV))
 					t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
 				}()
 			}
@@ -1164,12 +1164,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 	t.Run("after send owners", func() {
 		ctx, cancel := t.Ctx()
 
-		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, _ := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1184,7 +1184,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 
 					worker := workers[i]
 
-					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV))
 					t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
 				}()
 			}
@@ -1222,7 +1222,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
 	})
 }
 
-func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
+func (t *testWorkerProcessWorkersDistributeSMVs) TestNew() {
 	workers := t.workers(3)
 	local := workers[0]
 
@@ -1248,12 +1248,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, insertedDone := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1268,7 +1268,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 
 					worker := workers[i]
 
-					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV))
 					t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
 				}()
 			}
@@ -1314,12 +1314,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, insertedDone := t.newWorkersProcessDistributeSMVsFunc()
 
-		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1339,7 +1339,7 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 						return
 					}
 
-					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]SMV))
 					t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
 				}()
 			}
@@ -1389,12 +1389,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, insertedDone := t.newWorkersProcessDistributeSMVsFunc()
 
-		_, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		_, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1434,12 +1434,12 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+		newf, insertedDone := t.newWorkersProcessDistributeSMVsFunc()
 
-		_, _, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+		_, _, c, err := newFuncWorkerProcessWorkersDistributeSMVs(
 			ctx, local, workers,
 			newf,
-			t.newWorkersDistributeStateMergeValuesContextChans,
+			t.newWorkersDistributeSMVsContextChans,
 		)
 		t.NoError(err)
 
@@ -1454,8 +1454,8 @@ func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
 	})
 }
 
-func TestWorkerProcessWorkersDistributeStateMergeValues(t *testing.T) {
+func TestWorkerProcessWorkersDistributeSMVs(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testWorkerProcessWorkersDistributeStateMergeValues))
+	suite.Run(t, new(testWorkerProcessWorkersDistributeSMVs))
 }

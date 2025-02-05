@@ -150,40 +150,40 @@ func newFuncCheckFailedWorkers(
 		nil
 }
 
-func newFuncStateValueMergers(
+func newFuncSVMs(
 	poolSize uint64,
 	getState getStateFunc,
-	extractStateMergeValueKeys extractStateMergeValueKeysFunc,
+	extractSMVKeys extractSMVKeysFunc,
 ) (
-	mergerGetStateValueMergersFunc,
-	func() (size uint64 /* approximate size */, _ iter.Seq2[string /* state key */, stateValueMerger]),
+	mergerGetSVMsFunc,
+	func() (size uint64 /* approximate size */, _ iter.Seq2[string /* state key */, SVM]),
 	error,
 ) {
-	var pool util.LockedMap[string, stateValueMerger]
+	var pool util.LockedMap[string, SVM]
 
-	switch i, err := util.NewLockedMap[string, stateValueMerger](poolSize, nil); {
+	switch i, err := util.NewLockedMap[string, SVM](poolSize, nil); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		pool = i
 	}
 
-	g, c := newFuncGetStateValueMergers(
+	g, c := newFuncGetSVMs(
 		pool,
 		getState,
-		extractStateMergeValueKeys,
+		extractSMVKeys,
 	)
 	return g,
-		func() (uint64, iter.Seq2[string, stateValueMerger]) {
+		func() (uint64, iter.Seq2[string, SVM]) {
 			return uint64(pool.Len()),
-				func(yield func(string, stateValueMerger) bool) {
+				func(yield func(string, SVM) bool) {
 					defer func() {
 						c()
 						pool.Close()
 					}()
 
 					if yield != nil {
-						_ = pool.Traverse(func(stateKey string, merger stateValueMerger) bool {
+						_ = pool.Traverse(func(stateKey string, merger SVM) bool {
 							return yield(stateKey, merger)
 						})
 					}
@@ -344,24 +344,24 @@ func newFuncSetStateOps(mapSize uint64) (
 		nil
 }
 
-func newStateMergeValuesPool(poolSize uint64) (
-	_ opindexGetStateMergeValuesFunc,
-	_ opindexSetStateMergeValuesFunc,
+func newSMVsPool(poolSize uint64) (
+	_ opindexGetSMVsFunc,
+	_ opindexSetSMVsFunc,
 	closef func(),
 	_ error,
 ) {
-	var pool util.LockedMap[uint64, []stateMergeValue]
+	var pool util.LockedMap[uint64, []SMV]
 
-	switch i, err := util.NewLockedMap[uint64, []stateMergeValue](poolSize, nil); {
+	switch i, err := util.NewLockedMap[uint64, []SMV](poolSize, nil); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
 		pool = i
 	}
 
-	return newFuncGetStateMergeValuesFromPool(pool),
-		func(opindex uint64, values []stateMergeValue) (bool, error) {
-			_, created, _ := pool.Set(opindex, func(_ []stateMergeValue, found bool) ([]stateMergeValue, error) {
+	return newFuncGetSMVsFromPool(pool),
+		func(opindex uint64, values []SMV) (bool, error) {
+			_, created, _ := pool.Set(opindex, func(_ []SMV, found bool) ([]SMV, error) {
 				if found {
 					return nil, util.ErrLockedSetIgnore
 				}
@@ -757,23 +757,23 @@ func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (fail
 	return false, nil
 }
 
-type newWorkerDistributeStateMergeValuesContextChansFunc = func(context.Context) (
+type newWorkerDistributeSMVsContextChansFunc = func(context.Context) (
 	dutil.InErrorFunc[interface{}],
 	func(),
 	iter.Seq[interface{}],
 )
 
-func newFuncDelayedWorkerDistributeStateMergeValues(
-	newf newWorkerDistributeStateMergeValuesFunc,
-	newChans newWorkerDistributeStateMergeValuesContextChansFunc,
+func newFuncDelayedWorkerDistributeSMVs(
+	newf newWorkerDistributeSMVsFunc,
+	newChans newWorkerDistributeSMVsContextChansFunc,
 ) func(context.Context, string, string) (
-	workerProcessInsertStateMergeValuesFunc,
+	workerProcessInsertSMVsFunc,
 	dutil.In2ErrorFunc[[]string, []string],
 	dutil.ErrorFunc,
 	error,
 ) {
 	return func(ctx context.Context, workID, worker string) (
-		workerProcessInsertStateMergeValuesFunc,
+		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		dutil.ErrorFunc,
 		error,
@@ -784,7 +784,7 @@ func newFuncDelayedWorkerDistributeStateMergeValues(
 
 		insert, insertDone, seq := newChans(wctx)
 
-		return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+		return func(opindex uint64, fact util.Hash, values []SMV) error {
 				return ifErrWctxCancel(insert([3]interface{}{opindex, fact, values}))
 			},
 			func(subws, affected []string) error {
@@ -797,7 +797,7 @@ func newFuncDelayedWorkerDistributeStateMergeValues(
 					_ = wctxCancel(nil)
 				}()
 
-				var sendOp workerProcessInsertStateMergeValuesFunc
+				var sendOp workerProcessInsertSMVsFunc
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
 
 				var once sync.Once
@@ -823,7 +823,7 @@ func newFuncDelayedWorkerDistributeStateMergeValues(
 
 					switch t := i.(type) {
 					case [3]interface{}:
-						if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]stateMergeValue)); err != nil {
+						if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]SMV)); err != nil {
 							return err
 						}
 					case [2][]string:
@@ -841,20 +841,20 @@ func newFuncDelayedWorkerDistributeStateMergeValues(
 	}
 }
 
-type newWorkersDistributeStateMergeValuesContextChansFunc = func(context.Context) (
+type newWorkersDistributeSMVsContextChansFunc = func(context.Context) (
 	dutil.InErrorFunc[interface{}],
 	func(),
 	iter.Seq[interface{}],
 )
 
-func newFuncWorkerProcessWorkersDistributeStateMergeValues(
+func newFuncWorkerProcessWorkersDistributeSMVs(
 	ctx context.Context,
 	local string,
 	workers []string,
-	newf newWorkerProcessDistributeStateMergeValuesFunc,
-	newChans newWorkersDistributeStateMergeValuesContextChansFunc,
+	newf newWorkerProcessDistributeSMVsFunc,
+	newChans newWorkersDistributeSMVsContextChansFunc,
 ) (
-	workerDistributeWorkerStateMergeValuesFunc,
+	workerDistributeWorkerSMVsFunc,
 	workerStatesOwnersSetFunc,
 	dutil.ErrorFunc,
 	error,
@@ -902,7 +902,7 @@ func newFuncWorkerProcessWorkersDistributeStateMergeValues(
 			case [4]interface{}: // op
 				worker := t[0].(string)
 
-				var sendOp workerProcessInsertStateMergeValuesFunc
+				var sendOp workerProcessInsertSMVsFunc
 				var gerr error
 
 				_, _, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
@@ -929,13 +929,13 @@ func newFuncWorkerProcessWorkersDistributeStateMergeValues(
 						return v, util.ErrLockedSetIgnore
 					}
 
-					sendOp = f[0].(workerProcessInsertStateMergeValuesFunc)
+					sendOp = f[0].(workerProcessInsertSMVsFunc)
 
 					return v, util.ErrLockedSetIgnore
 				})
 
 				if gerr == nil && sendOp != nil {
-					gerr = sendOp(t[1].(uint64), t[2].(util.Hash), t[3].([]stateMergeValue))
+					gerr = sendOp(t[1].(uint64), t[2].(util.Hash), t[3].([]SMV))
 				}
 
 				if gerr != nil {
@@ -1000,7 +1000,7 @@ func newFuncWorkerProcessWorkersDistributeStateMergeValues(
 		}
 	}()
 
-	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
+	return func(worker string, opindex uint64, fact util.Hash, values []SMV) error {
 			if worker == local {
 				return nil
 			}

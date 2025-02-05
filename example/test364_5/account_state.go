@@ -13,46 +13,46 @@ import (
 )
 
 var (
-	AccountStateValueHint      = hint.MustNewHint("test-account-state-value-v0.0.1")
-	AccountStateMergeValueHint = hint.MustNewHint("test-account-state-merge-value-v0.0.1")
+	AccountSVHint  = hint.MustNewHint("test-account-state-value-v0.0.1")
+	AccountSMVHint = hint.MustNewHint("test-account-state-merge-value-v0.0.1")
 )
 
-type accountStateValue struct {
+type accountSV struct {
 	Address base.Publickey `json:"address"`
 	hint.BaseHinter
 	Balance int64 `json:"balance"`
 }
 
-func newAccountStateValue(address base.Publickey, balance int64) *accountStateValue {
-	return &accountStateValue{
-		BaseHinter: hint.NewBaseHinter(AccountStateValueHint),
+func newAccountSV(address base.Publickey, balance int64) *accountSV {
+	return &accountSV{
+		BaseHinter: hint.NewBaseHinter(AccountSVHint),
 		Address:    address,
 		Balance:    balance,
 	}
 }
 
-func (s *accountStateValue) HashBytes() []byte {
+func (s *accountSV) HashBytes() []byte {
 	return slices.Concat(
 		s.Address.Bytes(),
 		util.Int64ToBytes(s.Balance),
 	)
 }
 
-func (s *accountStateValue) IsValid([]byte) error {
-	if err := s.BaseHinter.IsValid(AccountStateValueHint.Type().Bytes()); err != nil {
+func (s *accountSV) IsValid([]byte) error {
+	if err := s.BaseHinter.IsValid(AccountSVHint.Type().Bytes()); err != nil {
 		return err
 	}
 
 	return util.CheckIsValiders(nil, false, s.Address)
 }
 
-type accountStateValueJSONUnmarshaler struct {
+type accountSVJSONUnmarshaler struct {
 	Address string `json:"address"`
 	Balance int64  `json:"balance"`
 }
 
-func (s *accountStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountStateValueJSONUnmarshaler
+func (s *accountSV) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u accountSVJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (s *accountStateValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	}
 
 	s.Balance = u.Balance
-	s.BaseHinter = hint.NewBaseHinter(AccountStateValueHint)
+	s.BaseHinter = hint.NewBaseHinter(AccountSVHint)
 
 	return nil
 }
@@ -78,40 +78,40 @@ func accountStateKey(address base.Publickey) string {
 	return "ta-" + address.String()
 }
 
-type accountStateMergeValue struct {
-	*accountStateValue
+type accountSMV struct {
+	*accountSV
 	key string
 	hint.BaseHinter
 }
 
-func newAccountStateMergeValue(address base.Publickey, balance int64) (v *accountStateMergeValue, _ error) {
+func newAccountSMV(address base.Publickey, balance int64) (v *accountSMV, _ error) {
 	switch {
 	case address == nil:
 		return v, errors.Errorf("empty address")
 	case balance == 0:
 		return v, errors.Errorf("zero balance")
 	default:
-		return &accountStateMergeValue{
-			BaseHinter:        hint.NewBaseHinter(AccountStateMergeValueHint),
-			key:               accountStateKey(address),
-			accountStateValue: newAccountStateValue(address, balance),
+		return &accountSMV{
+			BaseHinter: hint.NewBaseHinter(AccountSMVHint),
+			key:        accountStateKey(address),
+			accountSV:  newAccountSV(address, balance),
 		}, nil
 	}
 }
 
-func (v *accountStateMergeValue) Key() string {
+func (v *accountSMV) Key() string {
 	return v.key
 }
 
-func (v *accountStateMergeValue) Value() base.StateValue {
-	return v.accountStateValue
+func (v *accountSMV) Value() base.StateValue {
+	return v.accountSV
 }
 
-func (v *accountStateMergeValue) Merger(prev base.StateValue) (stateValueMerger, error) {
-	var av *accountStateValue
+func (v *accountSMV) Merger(prev base.StateValue) (SVM, error) {
+	var av *accountSV
 
 	if prev != nil {
-		switch i, err := util.AssertInterfaceValue[*accountStateValue](prev); {
+		switch i, err := util.AssertInterfaceValue[*accountSV](prev); {
 		case err != nil:
 			return nil, err
 		default:
@@ -119,41 +119,41 @@ func (v *accountStateMergeValue) Merger(prev base.StateValue) (stateValueMerger,
 		}
 	}
 
-	return newAccountStateValueMerger(v.key, av), nil
+	return newAccountSVM(v.key, av), nil
 }
 
-type accountStateMergeValueJSONMarshaler struct {
-	Value *accountStateValue
+type accountSMVJSONMarshaler struct {
+	Value *accountSV
 	Key   string
 }
 
-func (v *accountStateMergeValue) MarshalJSON() ([]byte, error) {
+func (v *accountSMV) MarshalJSON() ([]byte, error) {
 	b, err := util.MarshalJSON(struct {
-		accountStateMergeValueJSONMarshaler
+		accountSMVJSONMarshaler
 		hint.BaseHinter
 	}{
 		BaseHinter: v.BaseHinter,
-		accountStateMergeValueJSONMarshaler: accountStateMergeValueJSONMarshaler{
+		accountSMVJSONMarshaler: accountSMVJSONMarshaler{
 			Key:   v.key,
-			Value: v.accountStateValue,
+			Value: v.accountSV,
 		},
 	})
 
 	return b, err
 }
 
-type accountStateMergeValueJSONUnmarshaler struct {
+type accountSMVJSONUnmarshaler struct {
 	Key   string
 	Value json.RawMessage
 }
 
-func (v *accountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountStateMergeValueJSONUnmarshaler
+func (v *accountSMV) DecodeJSON(b []byte, enc encoder.Encoder) error {
+	var u accountSMVJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
 	}
 
-	if err := v.accountStateValue.DecodeJSON(u.Value, enc); err != nil {
+	if err := v.accountSV.DecodeJSON(u.Value, enc); err != nil {
 		return err
 	}
 
@@ -162,34 +162,34 @@ func (v *accountStateMergeValue) DecodeJSON(b []byte, enc encoder.Encoder) error
 	return nil
 }
 
-type accountStateValueMerger struct {
+type accountSVM struct {
 	address base.Publickey
-	prev    *accountStateValue
+	prev    *accountSV
 	prepops []uint64
 	key     string
 	sum     int64
 	lastop  *uint64
 }
 
-func newAccountStateValueMerger(key string, prev *accountStateValue) *accountStateValueMerger {
+func newAccountSVM(key string, prev *accountSV) *accountSVM {
 	var address base.Publickey
 
 	if prev != nil && prev.Address != nil {
 		address = prev.Address
 	}
 
-	return &accountStateValueMerger{
+	return &accountSVM{
 		key:     key,
 		address: address,
 		prev:    prev,
 	}
 }
 
-func (m *accountStateValueMerger) Key() string {
+func (m *accountSVM) Key() string {
 	return m.key
 }
 
-func (m *accountStateValueMerger) Close() (base.StateValue, error) {
+func (m *accountSVM) Close() (base.StateValue, error) {
 	defer func() {
 		m.lastop = nil
 
@@ -200,13 +200,13 @@ func (m *accountStateValueMerger) Close() (base.StateValue, error) {
 		return nil, nil
 	}
 
-	var merged *accountStateValue
+	var merged *accountSV
 
 	switch {
 	case m.prev != nil:
-		merged = newAccountStateValue(m.prev.Address, m.prev.Balance+m.sum)
+		merged = newAccountSV(m.prev.Address, m.prev.Balance+m.sum)
 	default:
-		merged = newAccountStateValue(m.address, m.sum)
+		merged = newAccountSV(m.address, m.sum)
 	}
 
 	if merged.Balance < 0 {
@@ -216,13 +216,13 @@ func (m *accountStateValueMerger) Close() (base.StateValue, error) {
 	return merged, nil
 }
 
-func (m *accountStateValueMerger) Merge(op uint64, value base.StateValue) (
+func (m *accountSVM) Merge(op uint64, value base.StateValue) (
 	commit func() error,
 	unmergeOp uint64,
 	reason string,
 	_ error,
 ) {
-	var ac *accountStateValue
+	var ac *accountSV
 
 	switch i, err := m.assertValue(value); {
 	case err != nil:
@@ -278,12 +278,12 @@ func (m *accountStateValueMerger) Merge(op uint64, value base.StateValue) (
 	}, unmergeOp, reason, nil
 }
 
-func (m *accountStateValueMerger) Unmerge(op uint64, value base.StateValue) (
+func (m *accountSVM) Unmerge(op uint64, value base.StateValue) (
 	commit func() error,
 	mergeOp uint64,
 	_ error,
 ) {
-	var ac *accountStateValue
+	var ac *accountSV
 
 	switch i, err := m.assertValue(value); {
 	case err != nil:
@@ -327,8 +327,8 @@ func (m *accountStateValueMerger) Unmerge(op uint64, value base.StateValue) (
 	}, mergeOp, nil
 }
 
-func (m *accountStateValueMerger) assertValue(value base.StateValue) (ac *accountStateValue, _ error) {
-	switch i, err := util.AssertInterfaceValue[*accountStateValue](value); {
+func (m *accountSVM) assertValue(value base.StateValue) (ac *accountSV, _ error) {
+	switch i, err := util.AssertInterfaceValue[*accountSV](value); {
 	case err != nil:
 		return ac, err
 	case i.Balance == 0:
@@ -340,7 +340,7 @@ func (m *accountStateValueMerger) assertValue(value base.StateValue) (ac *accoun
 	}
 }
 
-func (m *accountStateValueMerger) addPrepOps(op uint64) {
+func (m *accountSVM) addPrepOps(op uint64) {
 	if slices.Index(m.prepops, op) >= 0 {
 		return
 	}
@@ -350,6 +350,6 @@ func (m *accountStateValueMerger) addPrepOps(op uint64) {
 	slices.Sort(m.prepops)
 }
 
-func isSubAccountStateMergeValue(v *accountStateMergeValue) bool {
+func isSubAccountSMV(v *accountSMV) bool {
 	return v.Balance < 0
 }

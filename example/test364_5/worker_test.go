@@ -15,7 +15,7 @@ import (
 
 type testWorker struct {
 	dutil.BaseSuite
-	baseTestAccountStateValueMerger
+	baseTestAccountSVM
 	baseTestWorkers
 }
 
@@ -24,7 +24,7 @@ func (t *testWorker) TestCancelWork() {
 		local := "local"
 		workers := []string{local}
 
-		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -100,7 +100,7 @@ func (t *testWorker) TestCancelWork() {
 		local := "local"
 		workers := []string{local}
 
-		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -181,7 +181,7 @@ func (t *testWorker) TestClose() {
 	t.Run("ok", func() {
 		local := "local"
 		workers := []string{local}
-		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -255,7 +255,7 @@ func (t *testWorker) TestClose() {
 	t.Run("close with error", func() {
 		workers := t.workers(3)
 		local := workers[0]
-		ops := t.baseTestAccountStateValueMerger.randomAddOps(1, 1)
+		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)

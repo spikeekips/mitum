@@ -19,7 +19,7 @@ import (
 
 type testManagerWithWorkers struct {
 	dutil.BaseSuite
-	baseTestAccountStateValueMerger
+	baseTestAccountSVM
 	baseTestWorkers
 	baseTestManager
 }
@@ -29,7 +29,7 @@ func (t *testManagerWithWorkers) newManagerOptions() *managerOptions {
 }
 
 func (t *testManagerWithWorkers) randomOps(n int) ([]operation, [][2]util.Hash) {
-	ops := t.baseTestAccountStateValueMerger.randomAddOps(n, 1)
+	ops := t.baseTestAccountSVM.randomAddOps(n, 1)
 
 	ophs := make([][2]util.Hash, len(ops))
 	for i, op := range slices.All(ops) {
@@ -60,13 +60,13 @@ func (t *testManagerWithWorkers) newWorkers(
 	reportWorkerCancelWork dutil.In2ErrorFunc[string, error],
 ) (
 	workersInitialInserts map[string]workerInitialInsertFunc,
-	workersInserts map[string]workerProcessWorkerInsertStateMergeValuesFunc,
+	workersInserts map[string]workerProcessWorkerInsertSMVsFunc,
 	workersUnmerge map[string]workerUnmergedFunc,
 	workersWaits map[string]workerWaitFunc,
 	workersCloses map[string]workerCloseFunc,
 ) {
 	workersInitialInserts = map[string]workerInitialInsertFunc{}
-	workersInserts = map[string]workerProcessWorkerInsertStateMergeValuesFunc{}
+	workersInserts = map[string]workerProcessWorkerInsertSMVsFunc{}
 	workersUnmerge = map[string]workerUnmergedFunc{}
 	workersWaits = map[string]workerWaitFunc{}
 	workersCloses = map[string]workerCloseFunc{}
@@ -117,7 +117,7 @@ func (t *testManagerWithWorkers) newWorker(
 	reportCancelWork dutil.InErrorFunc[error],
 ) (
 	workerInitialInsertFunc,
-	workerProcessWorkerInsertStateMergeValuesFunc,
+	workerProcessWorkerInsertSMVsFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
 	workerCloseFunc,
@@ -204,9 +204,9 @@ func (t *testManagerWithWorkers) newManager(
 	)
 
 	getOperation := t.getOperationFunc(ops)
-	distributeValues := func(local string) newWorkerDistributeStateMergeValuesFunc {
+	distributeValues := func(local string) newWorkerDistributeSMVsFunc {
 		return func(ctx context.Context, workID, worker string) (
-			workerProcessInsertStateMergeValuesFunc,
+			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -221,8 +221,8 @@ func (t *testManagerWithWorkers) newManager(
 				return nil, nil, nil
 			}
 
-			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
-					stateKeys := extractStateMergeValueKeysFromValues(values)
+			return func(opindex uint64, fact util.Hash, values []SMV) error {
+					stateKeys := extractSMVKeysFromValues(values)
 
 					err := i(opindex, fact, values)
 					t.Println("distribute worker: insert: local=%q worker=%q opindex=%d fact=%q state keys=%v err=%+v", local, worker, opindex, fact, stateKeys, err)
@@ -368,7 +368,7 @@ func (t *testManagerWithWorkers) newManager(
 							t.Println("worker report result: send state: local=%q key=%q err=%+v %s", local, st.Key(), err, util.MustMarshalJSONString(st))
 
 							if expectedStatesValues != nil {
-								b := st.Value().(*accountStateValue).Balance
+								b := st.Value().(*accountSV).Balance
 
 								e, found := expectedStatesValues[st.Key()]
 								t.Println("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
@@ -483,7 +483,7 @@ func (t *testManagerWithWorkers) processCase(
 
 	statesOwners := map[string][]string{}
 	for op := range slices.Values(ops) {
-		sub, adds, _, err := op.StateMergeValues(ctx)
+		sub, adds, _, err := op.SMVs(ctx)
 		t.NoError(err)
 
 		if sub != nil {
@@ -709,7 +709,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 	}
 
 	for st := range slices.Values(expectedStates) {
-		ac, ok := st.Value().(*accountStateValue)
+		ac, ok := st.Value().(*accountSV)
 		t.True(ok)
 
 		t.Equal(expectedStatesValues[st.Key()], ac.Balance)

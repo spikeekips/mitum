@@ -32,8 +32,8 @@ func newFuncWorkerUnmerger(
 	ctxCancel dutil.InErrorFunc[error],
 	newJobWorker dutil.NewJobWorkerFunc,
 	statesShare, maxOpsSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getStateValueMergers mergerGetStateValueMergersFunc,
+	getSMVs opindexGetSMVsFunc,
+	getSVMs mergerGetSVMsFunc,
 ) (
 	workerUnmergedFunc, // NOTE from states owners, excluding local
 	workerUnmergerLocalReadyFunc,
@@ -51,14 +51,14 @@ func newFuncWorkerUnmerger(
 		ctx,
 		local,
 		maxOpsSize,
-		getStateMergeValues,
+		getSMVs,
 		func(ctx context.Context) (dutil.InErrorFunc[uint64], func(), unmergedErrorFunc, error) {
 			return newFuncUnmerger(
 				ctx,
 				newJobWorker,
 				maxOpsSize,
-				getStateMergeValues,
-				getStateValueMergers,
+				getSMVs,
+				getSVMs,
 			)
 		},
 	)
@@ -155,7 +155,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	ctx context.Context,
 	local string,
 	maxOpsSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
+	getSMVs opindexGetSMVsFunc,
 	newFuncUnmergerFunc workerUnmergerNewFuncUnmergerFunc,
 ) (
 	localReady func(subStatesOwners []string, localUnmerged []uint64, statesShare uint64) (ok, enough bool, failed error, _ error),
@@ -168,7 +168,7 @@ func newFuncWorkerUnmergerWorkerUnmergedPool(
 	var checkWorker checkFailedWorkersFunc
 
 	workerOpindexFilterLocalReady, workerOpindexFilter,
-		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getStateMergeValues)
+		newWorkerOpindexFilterClose := newFuncWorkerOpindexFilter(maxOpsSize, getSMVs)
 
 	newUnmergerf, unmergef, donef, waitf := newFuncWorkerUnmergerNewUnmergerFunc(
 		context.WithValue(ctx, "local", local),
@@ -424,7 +424,7 @@ func newFuncWorkerUnmergerNewUnmergerFunc(
 
 func newFuncWorkerOpindexFilter(
 	maxOpsSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
+	getSMVs opindexGetSMVsFunc,
 ) (
 	localReady func(subStatesOwners []string, localUnmerged []uint64) error,
 	_ workerOpindexFilterFunc,
@@ -447,7 +447,7 @@ func newFuncWorkerOpindexFilter(
 		var filterOpindex opindexFilterFunc
 		var filterOpindexClose func()
 
-		switch f, c, err := newFuncOpindexFilter(maxOpsSize, getStateMergeValues, localUnmerged); {
+		switch f, c, err := newFuncOpindexFilter(maxOpsSize, getSMVs, localUnmerged); {
 		case err != nil:
 			return err
 		default:

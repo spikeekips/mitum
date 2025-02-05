@@ -156,7 +156,7 @@ func (t *baseTestManager) processOps(
 	err = initialInsert(
 		func(string) []string { return workers },
 		func(context.Context, string, string) (
-			workerProcessInsertStateMergeValuesFunc,
+			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -251,7 +251,7 @@ func (t *baseTestManager) processOps(
 	values := map[string]int64{}
 
 	for st := range slices.Values(states) {
-		values[st.Key()] = st.Value().(*accountStateValue).Balance
+		values[st.Key()] = st.Value().(*accountSV).Balance
 	}
 
 	return opsTree, statesTree, states, values, nil

@@ -10,9 +10,9 @@ import (
 )
 
 type (
-	insertStateMergeValuesFunc             = func(opindex uint64, _ []stateMergeValue) error
-	workerMergerInsertStateMergeValuesFunc = func(worker string) (
-		insertStateMergeValuesFunc,
+	insertSMVsFunc             = func(opindex uint64, _ []SMV) error
+	workerMergerInsertSMVsFunc = func(worker string) (
+		insertSMVsFunc,
 		dutil.InErrorFunc[error],
 		error,
 	)
@@ -25,11 +25,11 @@ func newFuncWorkerMerger(
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
 	getState getStateFunc,
-	getStateValueMergers mergerGetStateValueMergersFunc,
-	workersSize, maxOpsSize, stateMergeValuesPoolSize uint64,
+	getSVMs mergerGetSVMsFunc,
+	workersSize, maxOpsSize, smvsPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
-	workerMergerInsertStateMergeValuesFunc,
+	workerMergerInsertSMVsFunc,
 	workerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
@@ -69,26 +69,26 @@ func newFuncWorkerMerger(
 
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
 
-	var getStateMergeValues opindexGetStateMergeValuesFunc
-	var setStateMergeValues opindexSetStateMergeValuesFunc
-	var stateMergeValuesPoolClose func()
+	var getSMVs opindexGetSMVsFunc
+	var setSMVs opindexSetSMVsFunc
+	var smvsPoolClose func()
 
-	switch g, s, c, err := newStateMergeValuesPool(stateMergeValuesPoolSize); {
+	switch g, s, c, err := newSMVsPool(smvsPoolSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		getStateMergeValues, setStateMergeValues, stateMergeValuesPoolClose = g, s, c
+		getSMVs, setSMVs, smvsPoolClose = g, s, c
 	}
 
-	var workerPhaseMergerWorkerInsert insertWorkerStateMergeValuesFunc
+	var workerPhaseMergerWorkerInsert insertWorkerSMVsFunc
 	var workerPhaseMergerWait workerPhaseMergerWaitFunc
 
 	switch i, w, err := newFuncWorkerPhaseMerger(
 		wctx,
 		local,
 		dutil.NewIfErrErrorInFunc(wctxCancel),
-		getStateMergeValues,
-		getStateValueMergers,
+		getSMVs,
+		getSVMs,
 		newFuncPhaseMergerFunc(newJobWorker, maxOpsSize),
 		opsWorkersSize, opsShare,
 	); {
@@ -108,8 +108,8 @@ func newFuncWorkerMerger(
 		dutil.NewIfErrErrorInFunc(wctxCancel),
 		newJobWorker,
 		statesShare, maxOpsSize,
-		getStateMergeValues,
-		getStateValueMergers,
+		getSMVs,
+		getSVMs,
 	); {
 	case err != nil:
 		return nil, nil, nil, err
@@ -133,7 +133,7 @@ func newFuncWorkerMerger(
 			return mOpsWorkers.Exists(worker)
 		},
 		workerPhaseMergerWorkerInsert,
-		setStateMergeValues,
+		setSMVs,
 		unmerge,
 	)
 
@@ -159,7 +159,7 @@ func newFuncWorkerMerger(
 	return insert, unmerge,
 		func(localDone workerMergerLocalPhaseMergerDoneFunc) (reasons map[uint64]string, _ error) {
 			defer func() {
-				stateMergeValuesPoolClose()
+				smvsPoolClose()
 				mOpsWorkers.Close()
 			}()
 
@@ -180,14 +180,14 @@ func newFuncWorkerMerger(
 func newFuncWorkerMergerInsert(
 	ctx context.Context,
 	isOpsWorker func(worker string) bool,
-	workerInsert insertWorkerStateMergeValuesFunc,
-	setStateMergeValues opindexSetStateMergeValuesFunc,
+	workerInsert insertWorkerSMVsFunc,
+	setSMVs opindexSetSMVsFunc,
 	unmerge workerUnmergedFunc,
-) workerMergerInsertStateMergeValuesFunc {
+) workerMergerInsertSMVsFunc {
 	var l sync.Mutex
 
 	return func(worker string) (
-		insertStateMergeValuesFunc,
+		insertSMVsFunc,
 		dutil.InErrorFunc[error],
 		error,
 	) {
@@ -207,12 +207,12 @@ func newFuncWorkerMergerInsert(
 			insert, done = i, d
 		}
 
-		f := func(opindex uint64, values []stateMergeValue) error {
+		f := func(opindex uint64, values []SMV) error {
 			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
 				l.Lock()
 				defer l.Unlock()
 
-				switch added, err := setStateMergeValues(opindex, values); {
+				switch added, err := setSMVs(opindex, values); {
 				case err != nil:
 					return err
 				case added:

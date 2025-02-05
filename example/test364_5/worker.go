@@ -13,14 +13,14 @@ import (
 )
 
 type (
-	newWorkerDistributeStateMergeValuesFunc func(_ context.Context, workID, worker string) (
-		workerProcessInsertStateMergeValuesFunc,
+	newWorkerDistributeSMVsFunc func(_ context.Context, workID, worker string) (
+		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
 	workerInitialInsertFunc = func(
 		getStateOwnersFunc,
-		newWorkerDistributeStateMergeValuesFunc,
+		newWorkerDistributeSMVsFunc,
 		getOperationFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		workerReportStatesOwnersFunc,
@@ -79,7 +79,7 @@ func newFuncWorker(
 	maxOpsSize uint64,
 ) (
 	workerInitialInsertFunc,
-	workerProcessWorkerInsertStateMergeValuesFunc,
+	workerProcessWorkerInsertSMVsFunc,
 	workerUnmergedFunc,
 	workerWaitFunc,
 	workerCloseFunc,
@@ -123,7 +123,7 @@ func newFuncWorker(
 	_, closeWorker, _, closeWorkerWait := dutil.NewContextWait(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
-	var workerInsert workerProcessWorkerInsertStateMergeValuesFunc
+	var workerInsert workerProcessWorkerInsertSMVsFunc
 	var workerUnmerge workerUnmergedFunc
 	var processWait workerProcessWaitFunc
 
@@ -164,12 +164,12 @@ func newFuncWorker(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute newWorkerDistributeStateMergeValuesFunc,
+			distribute newWorkerDistributeSMVsFunc,
 			getOperation getOperationFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners workerReportStatesOwnersFunc,
 		) error {
-			delayedDistribute := newFuncDelayedWorkerDistributeStateMergeValues(
+			delayedDistribute := newFuncDelayedWorkerDistributeSMVs(
 				distribute,
 				func(ctx context.Context) (
 					dutil.InErrorFunc[interface{}],
@@ -183,7 +183,7 @@ func newFuncWorker(
 			return ifErrorCancelWork(initialInsert(
 				getStateOwners,
 				func(ctx context.Context, worker string) (
-					workerProcessInsertStateMergeValuesFunc,
+					workerProcessInsertSMVsFunc,
 					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {

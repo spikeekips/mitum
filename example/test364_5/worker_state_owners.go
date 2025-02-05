@@ -11,15 +11,15 @@ import (
 )
 
 type (
-	addOwnersFunc                          = func(owners []string)
-	workerStateMergeValuesFunc             = func(worker string, _ []stateMergeValue) error
-	extractStateOwnersStateMergeValuesFunc = func(opindex uint64, subv stateMergeValue, addvs []stateMergeValue) func(workerStateMergeValuesFunc) error
+	addOwnersFunc              = func(owners []string)
+	workerSMVsFunc             = func(worker string, _ []SMV) error
+	extractStateOwnersSMVsFunc = func(opindex uint64, subv SMV, addvs []SMV) func(workerSMVsFunc) error
 
 	insertStateOwnerSetFunc        = func(subw string, affected []string) error
 	insertStateOwnersSetFunc       = func(subws, affected []string) error
 	workerStatesOwnersSetFunc      = func(worker string, subws, affected []string) error
 	localExtractedStatesOwnersFunc = func(getStateOwnersFunc) (
-		extractStateOwnersStateMergeValuesFunc,
+		extractStateOwnersSMVsFunc,
 		dutil.InErrorFunc[workerStatesOwnersSetFunc],
 		dutil.OutFunc[[]string],
 		error,
@@ -58,12 +58,12 @@ func newFuncWorkerStatesOwners(
 	}
 
 	return func(getStateOwners getStateOwnersFunc) (
-			extractStateOwnersStateMergeValuesFunc,
+			extractStateOwnersSMVsFunc,
 			dutil.InErrorFunc[workerStatesOwnersSetFunc],
 			dutil.OutFunc[[]string],
 			error,
 		) {
-			var localInsertValues extractStateOwnersStateMergeValuesFunc
+			var localInsertValues extractStateOwnersSMVsFunc
 			var traverseOwnersSet dutil.InErrorFunc[workerStatesOwnersSetFunc]
 			var localOwners dutil.OutFunc[[]string]
 
@@ -122,7 +122,7 @@ func newFuncLocalExtractedStateOwners(
 	workersSize uint64,
 	getStateOwners getStateOwnersFunc,
 ) (
-	extractStateOwnersStateMergeValuesFunc,
+	extractStateOwnersSMVsFunc,
 	dutil.InErrorFunc[workerStatesOwnersSetFunc],
 	dutil.OutFunc[[]string],
 	error,
@@ -147,8 +147,8 @@ func newFuncLocalExtractedStateOwners(
 		addOwners, doneOwners = a, d
 	}
 
-	return func(opindex uint64, subv stateMergeValue, addvs []stateMergeValue) func(workerStateMergeValuesFunc) error {
-			addValue, traverseValues := newFuncCollectWorkerStateMergeValues()
+	return func(opindex uint64, subv SMV, addvs []SMV) func(workerSMVsFunc) error {
+			addValue, traverseValues := newFuncCollectWorkerSMVs()
 
 			var subws []string
 
@@ -285,16 +285,16 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 		nil
 }
 
-func newFuncCollectWorkerStateMergeValues() (
-	func(worker string, _ stateMergeValue),
-	func(workerStateMergeValuesFunc) error,
+func newFuncCollectWorkerSMVs() (
+	func(worker string, _ SMV),
+	func(workerSMVsFunc) error,
 ) {
-	m := map[string][]stateMergeValue{}
+	m := map[string][]SMV{}
 
-	return func(worker string, value stateMergeValue) {
+	return func(worker string, value SMV) {
 			m[worker] = append(m[worker], value)
 		},
-		func(f workerStateMergeValuesFunc) error {
+		func(f workerSMVsFunc) error {
 			defer dutil.ClearMap(m)
 
 			for worker, values := range maps.All(m) {

@@ -18,8 +18,8 @@ func newFuncUnmerger(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getMergers mergerGetStateValueMergersFunc,
+	getSMVs opindexGetSMVsFunc,
+	getMergers mergerGetSVMsFunc,
 ) (
 	unmerge dutil.InErrorFunc[uint64],
 	done func(),
@@ -50,7 +50,7 @@ func newFuncUnmerger(
 	}
 
 	unmergef := func(opindex uint64) (committed bool, _ error) {
-		switch c, nextMergeOps, err := unmergeValues(getStateMergeValues, getMergers, opindex); {
+		switch c, nextMergeOps, err := unmergeValues(getSMVs, getMergers, opindex); {
 		case err != nil:
 			return false, err
 		case len(nextMergeOps) > 0:
@@ -94,7 +94,7 @@ func newFuncUnmerger(
 
 func newFuncOpindexFilter(
 	maxOpsSize uint64,
-	getStateMergeValues opindexGetStateMergeValuesFunc,
+	getSMVs opindexGetSMVsFunc,
 	localUnmerged []uint64,
 ) (
 	_ opindexFilterFunc,
@@ -120,7 +120,7 @@ func newFuncOpindexFilter(
 					return v, util.ErrLockedSetIgnore
 				}
 
-				switch i, err := getStateMergeValues(opindex); {
+				switch i, err := getSMVs(opindex); {
 				case err != nil:
 					return v, err
 				case len(i) < 1:

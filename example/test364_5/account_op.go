@@ -19,8 +19,8 @@ var (
 
 type operation interface {
 	base.Operation
-	StateMergeValues(context.Context) (
-		stateMergeValue, []stateMergeValue, string, error,
+	SMVs(context.Context) (
+		SMV, []SMV, string, error,
 	)
 }
 
@@ -158,8 +158,8 @@ func (op *accountOp) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op *accountOp) StateMergeValues(context.Context) (
-	stateMergeValue, []stateMergeValue, string, error,
+func (op *accountOp) SMVs(context.Context) (
+	SMV, []SMV, string, error,
 ) {
 	var fact *accountOpFact
 
@@ -167,11 +167,11 @@ func (op *accountOp) StateMergeValues(context.Context) (
 		return nil, nil, "", err
 	}
 
-	var subv stateMergeValue
-	var addvs []stateMergeValue
+	var subv SMV
+	var addvs []SMV
 
 	if fact.Issuer != nil {
-		switch i, err := newAccountStateMergeValue(fact.Issuer, fact.Amount*-1); {
+		switch i, err := newAccountSMV(fact.Issuer, fact.Amount*-1); {
 		case err != nil:
 			return nil, nil, "", err
 		default:
@@ -179,11 +179,11 @@ func (op *accountOp) StateMergeValues(context.Context) (
 		}
 	}
 
-	switch i, err := newAccountStateMergeValue(fact.Receiver, fact.Amount); {
+	switch i, err := newAccountSMV(fact.Receiver, fact.Amount); {
 	case err != nil:
 		return nil, nil, "", err
 	default:
-		addvs = []stateMergeValue{i}
+		addvs = []SMV{i}
 	}
 
 	return subv, addvs, "", nil

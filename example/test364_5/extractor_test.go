@@ -17,22 +17,22 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testStateMergeValueExtractor struct {
+type testSMVExtractor struct {
 	dutil.BaseSuite
 	baseTestMergeOp
 }
 
-func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []operation) (
-	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc],
+func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
+	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], smvExtractorExtractedFunc],
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
-	insert, wait, err := newFuncStateMergeValueExtractor(ctx, t.newJobWorker(), 1<<9)
+	insert, wait, err := newFuncSMVExtractor(ctx, t.newJobWorker(), 1<<9)
 
 	return func(
 			getOperation getOperationFunc,
 			f dutil.InErrorFunc[opindexOpHashesFunc],
-			extracted stateMergeValueExtractorExtractedFunc,
+			extracted smvExtractorExtractedFunc,
 		) error {
 			of := newGetOperationFunc(ops)
 			if getOperation != nil {
@@ -57,7 +57,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []operation
 			return insert(
 				of,
 				inf,
-				func(opindex uint64, op operation, subv stateMergeValue, addvs []stateMergeValue) error {
+				func(opindex uint64, op operation, subv SMV, addvs []SMV) error {
 					t.Println("extracted: opindex=%d op=%v subv=%v addvs=%v", opindex, op == nil, subv == nil, len(addvs))
 
 					if extracted == nil {
@@ -82,7 +82,7 @@ func (t *testStateMergeValueExtractor) newf(ctx context.Context, ops []operation
 		err
 }
 
-func (t *testStateMergeValueExtractor) TestCancel() {
+func (t *testSMVExtractor) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := t.Ctx()
 
@@ -135,7 +135,7 @@ func (t *testStateMergeValueExtractor) TestCancel() {
 	})
 }
 
-func (t *testStateMergeValueExtractor) TestGetOperation() {
+func (t *testSMVExtractor) TestGetOperation() {
 	t.Run("ok", func() {
 		ctx, _ := t.Ctx()
 
@@ -149,26 +149,26 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		t.NoError(insert(nil, nil, func(
 			opindex uint64,
 			op operation,
-			subv stateMergeValue,
-			addvs []stateMergeValue,
+			subv SMV,
+			addvs []SMV,
 		) error {
-			esubv, eaddvs, reason, err := op.StateMergeValues(context.Background())
+			esubv, eaddvs, reason, err := op.SMVs(context.Background())
 			t.NoError(err)
 			t.Empty(reason)
 
-			t.True(isEqualStateMergeValue(esubv, subv))
+			t.True(isEqualSMV(esubv, subv))
 
-			slices.SortFunc(eaddvs, func(a, b stateMergeValue) int {
+			slices.SortFunc(eaddvs, func(a, b SMV) int {
 				return cmp.Compare(a.Key(), b.Key())
 			})
 
-			slices.SortFunc(addvs, func(a, b stateMergeValue) int {
+			slices.SortFunc(addvs, func(a, b SMV) int {
 				return cmp.Compare(a.Key(), b.Key())
 			})
 
 			t.Equal(len(eaddvs), len(addvs))
 			for i, value := range slices.All(eaddvs) {
-				t.True(isEqualStateMergeValue(value, addvs[i]))
+				t.True(isEqualSMV(value, addvs[i]))
 			}
 
 			collected[opindex] = op
@@ -229,7 +229,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 		t.NoError(err)
 
 		t.NoError(insert(nil, nil,
-			func(uint64, operation, stateMergeValue, []stateMergeValue) error {
+			func(uint64, operation, SMV, []SMV) error {
 				return errors.Errorf("showme")
 			}))
 
@@ -312,7 +312,7 @@ func (t *testStateMergeValueExtractor) TestGetOperation() {
 	})
 }
 
-func (t *testStateMergeValueExtractor) TestExtract() {
+func (t *testSMVExtractor) TestExtract() {
 	t.Run("empty operation", func() {
 		ctx, _ := t.Ctx()
 
@@ -322,7 +322,7 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 		var called int
 
 		t.NoError(insert(nil, nil,
-			func(uint64, operation, stateMergeValue, []stateMergeValue) error {
+			func(uint64, operation, SMV, []SMV) error {
 				called++
 
 				return errors.Errorf("showme")
@@ -344,14 +344,14 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 			ctx, _ := t.Ctx()
 
 			ops := make([]operation, n)
-			opsValues := make([][2][]stateMergeValue, len(ops))
+			opsValues := make([][2][]SMV, len(ops))
 
 			for i := range ops {
 				ops[i] = t.randomOp(int64(i + 1))
 
-				subv, addvs, _, err := ops[i].StateMergeValues(ctx)
+				subv, addvs, _, err := ops[i].SMVs(ctx)
 				t.NoError(err)
-				opsValues[i] = [2][]stateMergeValue{{subv}, addvs}
+				opsValues[i] = [2][]SMV{{subv}, addvs}
 			}
 
 			extracted := util.NewSingleLockedMap[uint64, [3]interface{}]()
@@ -363,8 +363,8 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 				func(
 					opindex uint64,
 					op operation,
-					subv stateMergeValue,
-					addvs []stateMergeValue,
+					subv SMV,
+					addvs []SMV,
 				) error {
 					extracted.SetValue(opindex, [3]interface{}{
 						op,
@@ -398,18 +398,18 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 				base.EqualOperation(t.Assert(), ops[i], v[0].(operation))
 
 				asubv := opsValues[i][0][0]
-				bsubv := v[1].(stateMergeValue)
-				t.True(isEqualStateMergeValue(asubv, bsubv))
+				bsubv := v[1].(SMV)
+				t.True(isEqualSMV(asubv, bsubv))
 
 				aaddvs := opsValues[i][1]
-				baddvs := v[2].([]stateMergeValue)
+				baddvs := v[2].([]SMV)
 				t.Equal(len(aaddvs), len(baddvs))
 
-				slices.SortFunc(aaddvs, func(a, b stateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
-				slices.SortFunc(baddvs, func(a, b stateMergeValue) int { return cmp.Compare(a.Key(), b.Key()) })
+				slices.SortFunc(aaddvs, func(a, b SMV) int { return cmp.Compare(a.Key(), b.Key()) })
+				slices.SortFunc(baddvs, func(a, b SMV) int { return cmp.Compare(a.Key(), b.Key()) })
 
 				for i := range aaddvs {
-					t.True(isEqualStateMergeValue(aaddvs[i], baddvs[i]))
+					t.True(isEqualSMV(aaddvs[i], baddvs[i]))
 				}
 			}
 		}
@@ -419,10 +419,10 @@ func (t *testStateMergeValueExtractor) TestExtract() {
 	t.Run("over 1 operation", nOps(33))
 }
 
-func TestStateMergeValueExtractor(t *testing.T) {
+func TestSMVExtractor(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testStateMergeValueExtractor))
+	suite.Run(t, new(testSMVExtractor))
 }
 
 func newGetOperationFunc(ops []operation) getOperationFunc {

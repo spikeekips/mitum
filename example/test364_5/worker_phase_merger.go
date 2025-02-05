@@ -10,8 +10,8 @@ import (
 type (
 	newPhaseMergerFunc = func(
 		_ context.Context,
-		getStateMergeValues opindexGetStateMergeValuesFunc,
-		getStateValueMergers mergerGetStateValueMergersFunc,
+		getSMVs opindexGetSMVsFunc,
+		getSVMs mergerGetSVMsFunc,
 	) (
 		merge,
 		unmerge dutil.InErrorFunc[uint64],
@@ -19,8 +19,8 @@ type (
 		_ phaseMergerWaitFunc,
 		_ error,
 	)
-	insertWorkerStateMergeValuesFunc = func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error)
-	workerPhaseMergerWaitFunc        = func() (unmerged []uint64, reasons map[uint64]string, _ error)
+	insertWorkerSMVsFunc      = func(worker string) (dutil.InErrorFunc[uint64], dutil.InErrorFunc[error], error)
+	workerPhaseMergerWaitFunc = func() (unmerged []uint64, reasons map[uint64]string, _ error)
 )
 
 // newFuncWorkerPhaseMerger merges operations and collects the phase done from workers.
@@ -28,12 +28,12 @@ func newFuncWorkerPhaseMerger(
 	ctx context.Context,
 	local string,
 	ctxCancel dutil.InErrorFunc[error],
-	getStateMergeValues opindexGetStateMergeValuesFunc,
-	getStateValueMergers mergerGetStateValueMergersFunc,
+	getSMVs opindexGetSMVsFunc,
+	getSVMs mergerGetSVMsFunc,
 	newPhaseMerger newPhaseMergerFunc,
 	opsWorkersSize, opsShare uint64,
 ) (
-	insertWorkerStateMergeValuesFunc,
+	insertWorkerSMVsFunc,
 	workerPhaseMergerWaitFunc,
 	error,
 ) {
@@ -44,7 +44,7 @@ func newFuncWorkerPhaseMerger(
 		Uint64("ops_share", opsShare).
 		Msg("new")
 
-	getStateMergeValues = mustFuncGetStateMergeValues(getStateMergeValues)
+	getSMVs = mustFuncGetSMVs(getSMVs)
 
 	var checkWorker checkFailedWorkersFunc
 
@@ -63,8 +63,8 @@ func newFuncWorkerPhaseMerger(
 
 	switch m, _, d, w, err := newPhaseMerger(
 		ctx,
-		getStateMergeValues,
-		getStateValueMergers,
+		getSMVs,
+		getSVMs,
 	); {
 	case err != nil:
 		return nil, nil, err
@@ -145,8 +145,8 @@ func newFuncPhaseMergerFunc(
 ) newPhaseMergerFunc {
 	return func(
 		ctx context.Context,
-		getStateMergeValues opindexGetStateMergeValuesFunc,
-		getStateValueMergers mergerGetStateValueMergersFunc,
+		getSMVs opindexGetSMVsFunc,
+		getSVMs mergerGetSVMsFunc,
 	) (
 		dutil.InErrorFunc[uint64],
 		dutil.InErrorFunc[uint64],
@@ -158,8 +158,8 @@ func newFuncPhaseMergerFunc(
 			ctx,
 			newJobWorker,
 			maxOpsSize,
-			getStateMergeValues,
-			getStateValueMergers,
+			getSMVs,
+			getSVMs,
 		)
 	}
 }

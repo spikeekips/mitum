@@ -8,37 +8,37 @@ import (
 )
 
 type (
-	opindexOpHashesFunc         = func(opindex uint64, oph, fact util.Hash) error
-	ctxOpindexOpHashesFunc      = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc            = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ operation, found bool, reason string, _ error)
-	extractStateMergeValuesFunc = func(context.Context, uint64, util.Hash, util.Hash) (
+	opindexOpHashesFunc    = func(opindex uint64, oph, fact util.Hash) error
+	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
+	getOperationFunc       = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ operation, found bool, reason string, _ error)
+	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
 		_ operation,
-		subv stateMergeValue,
-		addvs []stateMergeValue,
+		subv SMV,
+		addvs []SMV,
 		reason string,
 		_ error,
 	)
-	stateMergeValueExtractorInsertFunc = dutil.In3ErrorFunc[
-		getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], stateMergeValueExtractorExtractedFunc]
-	stateMergeValueExtractorExtractedFunc = func(
+	smvExtractorInsertFunc = dutil.In3ErrorFunc[
+		getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], smvExtractorExtractedFunc]
+	smvExtractorExtractedFunc = func(
 		opindex uint64,
 		_ operation,
-		subv stateMergeValue,
-		addvs []stateMergeValue,
+		subv SMV,
+		addvs []SMV,
 	) error
 )
 
 var (
-	reasonOperationNotFound     = "operation not found"
-	reasonEmptyStateMergeValues = "empty state merge values"
+	reasonOperationNotFound = "operation not found"
+	reasonEmptySMVs         = "empty state merge values"
 )
 
-func newFuncStateMergeValueExtractor(
+func newFuncSMVExtractor(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	maxOpsSize uint64,
 ) (
-	stateMergeValueExtractorInsertFunc,
+	smvExtractorInsertFunc,
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
@@ -65,11 +65,11 @@ func newFuncStateMergeValueExtractor(
 	return func(
 			getOperation getOperationFunc,
 			f dutil.InErrorFunc[opindexOpHashesFunc],
-			extracted stateMergeValueExtractorExtractedFunc,
+			extracted smvExtractorExtractedFunc,
 		) error {
 			defer jobDone()
 
-			extractf := newFuncExtractorStateMergeValues(getOperation, extracted, func(opindex uint64, reason string) {
+			extractf := newFuncExtractorSMVs(getOperation, extracted, func(opindex uint64, reason string) {
 				_ = reasons.SetValue(opindex, reason)
 			})
 
@@ -95,13 +95,13 @@ func newFuncStateMergeValueExtractor(
 		nil
 }
 
-func newFuncExtractStateMergeValue(
+func newFuncExtractSMV(
 	getOperation getOperationFunc,
-) extractStateMergeValuesFunc {
+) extractSMVsFunc {
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) (
 		operation,
-		stateMergeValue,
-		[]stateMergeValue,
+		SMV,
+		[]SMV,
 		string,
 		error,
 	) {
@@ -118,25 +118,25 @@ func newFuncExtractStateMergeValue(
 			op = i
 		}
 
-		switch subv, addvs, reason, err := op.StateMergeValues(ctx); {
+		switch subv, addvs, reason, err := op.SMVs(ctx); {
 		case err != nil:
 			return nil, nil, nil, "", err
 		case reason != "":
 			return nil, nil, nil, reason, nil
 		case subv == nil && len(addvs) < 1:
-			return nil, nil, nil, reasonEmptyStateMergeValues, nil
+			return nil, nil, nil, reasonEmptySMVs, nil
 		default:
 			return op, subv, addvs, "", nil
 		}
 	}
 }
 
-func newFuncExtractorStateMergeValues(
+func newFuncExtractorSMVs(
 	getOperation getOperationFunc,
-	extracted stateMergeValueExtractorExtractedFunc,
+	extracted smvExtractorExtractedFunc,
 	setReason func(opindex uint64, reason string),
 ) ctxOpindexOpHashesFunc {
-	extractf := newFuncExtractStateMergeValue(getOperation)
+	extractf := newFuncExtractSMV(getOperation)
 
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) error {
 		switch op, subv, addvs, reason, err := extractf(ctx, opindex, oph, fact); {
