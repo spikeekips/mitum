@@ -169,6 +169,17 @@ func newFuncWorker(
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners workerReportStatesOwnersFunc,
 		) error {
+			delayedDistribute := newFuncDelayedWorkerDistributeStateMergeValues(
+				distribute,
+				func(ctx context.Context) (
+					dutil.InErrorFunc[interface{}],
+					func(),
+					iter.Seq[interface{}],
+				) {
+					return dutil.NewContextUnlimitedChans[interface{}](ctx, maxOpsSize*2, maxOpsSize*2)
+				},
+			)
+
 			return ifErrorCancelWork(initialInsert(
 				getStateOwners,
 				func(ctx context.Context, worker string) (
@@ -176,7 +187,20 @@ func newFuncWorker(
 					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {
-					return distribute(ctx, workID, worker)
+					switch p, o, w, err := delayedDistribute(ctx, workID, worker); {
+					case err != nil, p == nil:
+						return nil, nil, err
+					default:
+						if err := bgNewJob(func(context.Context) error {
+							_ = w() // NOTE ignore error
+
+							return nil
+						}); err != nil {
+							return nil, nil, err
+						}
+
+						return p, o, err
+					}
 				},
 				getOperation,
 				func(f opindexOpHashesFunc) error {

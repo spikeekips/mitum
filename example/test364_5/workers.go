@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"maps"
@@ -754,4 +755,287 @@ func (p *failedWorkerPool) activeNonStatesOwners(f func(iter.Seq[string])) (fail
 	})
 
 	return false, nil
+}
+
+type newWorkerDistributeStateMergeValuesContextChansFunc = func(context.Context) (
+	dutil.InErrorFunc[interface{}],
+	func(),
+	iter.Seq[interface{}],
+)
+
+func newFuncDelayedWorkerDistributeStateMergeValues(
+	newf newWorkerDistributeStateMergeValuesFunc,
+	newChans newWorkerDistributeStateMergeValuesContextChansFunc,
+) func(context.Context, string, string) (
+	workerProcessInsertStateMergeValuesFunc,
+	dutil.In2ErrorFunc[[]string, []string],
+	dutil.ErrorFunc,
+	error,
+) {
+	return func(ctx context.Context, workID, worker string) (
+		workerProcessInsertStateMergeValuesFunc,
+		dutil.In2ErrorFunc[[]string, []string],
+		dutil.ErrorFunc,
+		error,
+	) {
+		wctx, wctxCancel, _, wait := dutil.NewContextWait(ctx)
+
+		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChansInsertDone)
+
+		insert, insertDone, seq := newChans(wctx)
+
+		return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+				return ifErrWctxCancel(insert([3]interface{}{opindex, fact, values}))
+			},
+			func(subws, affected []string) error {
+				defer insertDone()
+
+				return ifErrWctxCancel(insert([2][]string{subws, affected}))
+			},
+			func() error {
+				defer func() {
+					_ = wctxCancel(nil)
+				}()
+
+				var sendOp workerProcessInsertStateMergeValuesFunc
+				var sendOwners dutil.In2ErrorFunc[[]string, []string]
+
+				var once sync.Once
+
+			end:
+				for i := range seq {
+					var gerr error
+
+					once.Do(func() {
+						switch p, o, err := newf(wctx, workID, worker); {
+						case err != nil:
+							gerr = err
+						default:
+							sendOp, sendOwners = p, o
+						}
+					})
+					switch {
+					case gerr != nil:
+						return gerr
+					case sendOp == nil:
+						continue end
+					}
+
+					switch t := i.(type) {
+					case [3]interface{}:
+						if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]stateMergeValue)); err != nil {
+							return err
+						}
+					case [2][]string:
+						if err := sendOwners(t[0], t[1]); err != nil {
+							return err
+						}
+					}
+				}
+
+				_ = wctxCancel(nil)
+
+				return wait()
+			},
+			nil
+	}
+}
+
+type newWorkersDistributeStateMergeValuesContextChansFunc = func(context.Context) (
+	dutil.InErrorFunc[interface{}],
+	func(),
+	iter.Seq[interface{}],
+)
+
+func newFuncWorkerProcessWorkersDistributeStateMergeValues(
+	ctx context.Context,
+	local string,
+	workers []string,
+	newf newWorkerProcessDistributeStateMergeValuesFunc,
+	newChans newWorkersDistributeStateMergeValuesContextChansFunc,
+) (
+	workerDistributeWorkerStateMergeValuesFunc,
+	workerStatesOwnersSetFunc,
+	dutil.ErrorFunc,
+	error,
+) {
+	log := dutil.LoadContextValueLogger(ctx)
+
+	var pool util.LockedMap[string, [2]interface{}]
+
+	switch i, err := util.NewLockedMap[string, [2]interface{}](uint64(len(workers)), nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		pool = i
+	}
+
+	var created util.LockedMap[string, struct{}]
+
+	switch i, err := util.NewLockedMap[string, struct{}](uint64(len(workers)), nil); {
+	case err != nil:
+		return nil, nil, nil, err
+	default:
+		created = i
+	}
+
+	wctx, wctxCancel, _, wait := dutil.NewContextWait(ctx)
+
+	insertf, insertDone, seq := newChans(wctx)
+	insert := func(v interface{}) error {
+		if err := insertf(v); err != nil {
+			return wctxCancel(err)
+		}
+
+		return nil
+	}
+
+	go func() {
+		defer func() {
+			wctxCancel(nil)
+			pool.Close()
+			created.Close()
+		}()
+
+		for i := range seq {
+			switch t := i.(type) {
+			case [4]interface{}: // op
+				worker := t[0].(string)
+
+				var sendOp workerProcessInsertStateMergeValuesFunc
+				var gerr error
+
+				_, _, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+					if !found {
+						switch p, o, err := newf(ctx, worker); {
+						case err != nil:
+							gerr = err
+
+							return [2]interface{}{err, nil}, nil
+						case p == nil:
+							return v, nil
+						default:
+							sendOp = p
+
+							return [2]interface{}{sendOp, o}, nil
+						}
+					} else if f[0] == nil {
+						return v, util.ErrLockedSetIgnore
+					}
+
+					if err, ok := f[0].(error); ok {
+						gerr = err
+
+						return v, util.ErrLockedSetIgnore
+					}
+
+					sendOp = f[0].(workerProcessInsertStateMergeValuesFunc)
+
+					return v, util.ErrLockedSetIgnore
+				})
+
+				if gerr == nil && sendOp != nil {
+					gerr = sendOp(t[1].(uint64), t[2].(util.Hash), t[3].([]stateMergeValue))
+				}
+
+				if gerr != nil {
+					log.Error().Err(gerr).
+						Str("worker", worker).
+						Uint64("opindex", t[1].(uint64)).
+						Msg("failed to send op")
+				}
+			case [3]interface{}: // owners
+				worker := t[0].(string)
+
+				var sendOwners dutil.In2ErrorFunc[[]string, []string]
+				var gerr error
+
+				_, _, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
+					if !found {
+						switch _, o, err := newf(ctx, worker); {
+						case err != nil:
+							gerr = err
+
+							return [2]interface{}{err, nil}, nil
+						default:
+							sendOwners = o
+
+							return v, nil
+						}
+					} else if f[1] == nil {
+						return v, util.ErrLockedSetIgnore
+					}
+
+					if err, ok := f[0].(error); ok {
+						gerr = err
+
+						return v, util.ErrLockedSetIgnore
+					}
+
+					sendOwners = f[1].(dutil.In2ErrorFunc[[]string, []string])
+
+					return v, nil
+				})
+
+				if gerr == nil && sendOwners != nil {
+					var subws, affected []string
+					if t[1] != nil {
+						subws = t[1].([]string)
+					}
+					if t[2] != nil {
+						affected = t[2].([]string)
+					}
+
+					gerr = sendOwners(subws, affected)
+				}
+
+				if gerr != nil {
+					log.Error().Err(gerr).
+						Str("worker", worker).
+						Msg("failed to send owners")
+				}
+			default:
+				_ = wctxCancel(errors.Errorf("unexpected input, %T", t))
+			}
+		}
+	}()
+
+	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
+			if worker == local {
+				return nil
+			}
+
+			return insert([4]interface{}{worker, opindex, fact, values})
+		},
+		func(worker string, subws, affected []string) error {
+			if worker == local {
+				return nil
+			}
+
+			created.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
+				if found {
+					return struct{}{}, util.ErrLockedSetIgnore
+				}
+
+				return struct{}{}, nil
+			})
+
+			return insert([3]interface{}{worker, subws, affected})
+		},
+		func() error {
+			for worker := range slices.Values(workers) {
+				if worker == local || created.Exists(worker) {
+					continue
+				}
+
+				if err := insert([3]interface{}{worker, nil, nil}); err != nil {
+					return err
+				}
+			}
+
+			insertDone()
+
+			return wait()
+		},
+		nil
 }

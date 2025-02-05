@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -83,6 +85,121 @@ func (t *baseTestWorkers) ophsSeq2(ops []operation) iter.Seq2[uint64, [2]util.Ha
 			}
 		}
 	}
+}
+
+func (t *baseTestWorkers) newWorkerProcessDistributeStateMergeValuesFunc() (
+	newWorkerProcessDistributeStateMergeValuesFunc,
+	dutil.OutFunc[[]interface{}],
+) {
+	add, done, err := dutil.NewLockAppendSlice[interface{}](1<<9, 1<<9)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(_ context.Context, worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			dutil.In2ErrorFunc[[]string, []string],
+			error,
+		) {
+			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+					add([3]interface{}{opindex, fact, values})
+
+					return nil
+				},
+				func(subws, affected []string) error {
+					add([2][]string{subws, affected})
+
+					return nil
+				},
+				nil
+		},
+		done
+}
+
+func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesFunc() (
+	newWorkerDistributeStateMergeValuesFunc,
+	dutil.OutFunc[[]interface{}],
+) {
+	d, o := t.newWorkerProcessDistributeStateMergeValuesFunc()
+
+	return func(ctx context.Context, workID, worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			dutil.In2ErrorFunc[[]string, []string],
+			error,
+		) {
+			return d(ctx, worker)
+		},
+		o
+}
+
+func (t *baseTestWorkers) newWorkersProcessDistributeStateMergeValuesFunc() (
+	newWorkerProcessDistributeStateMergeValuesFunc,
+	iter.Seq2[string, dutil.OutFunc[[]interface{}]],
+) {
+	pool, err := util.NewLockedMap[string, [2]interface{}](1<<9, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(_ context.Context, worker string) (
+			workerProcessInsertStateMergeValuesFunc,
+			dutil.In2ErrorFunc[[]string, []string],
+			error,
+		) {
+			var add dutil.AppendSliceAddFunc[interface{}]
+
+			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
+				if found {
+					add = i[0].(dutil.AppendSliceAddFunc[interface{}])
+
+					return v, util.ErrLockedSetIgnore
+				}
+
+				a, done, err := dutil.NewLockAppendSlice[interface{}](1<<9, 1<<9)
+				add = a
+
+				return [2]interface{}{add, done}, err
+			}); err != nil {
+				return nil, nil, err
+			}
+
+			return func(opindex uint64, fact util.Hash, values []stateMergeValue) error {
+					add([3]interface{}{opindex, fact, values})
+
+					return nil
+				},
+				func(subws, affected []string) error {
+					add([2][]string{subws, affected})
+
+					return nil
+				},
+				nil
+		},
+		func(yield func(string, dutil.OutFunc[[]interface{}]) bool) {
+			defer func() {
+				pool.Close()
+			}()
+
+			pool.Traverse(func(worker string, i [2]interface{}) bool {
+				return yield(worker, i[1].(dutil.OutFunc[[]interface{}]))
+			})
+		}
+}
+
+func (t *baseTestWorkers) newWorkerDistributeStateMergeValuesContextChans(ctx context.Context) (
+	dutil.InErrorFunc[interface{}],
+	func(),
+	iter.Seq[interface{}],
+) {
+	return dutil.NewContextUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
+}
+
+func (t *baseTestWorkers) newWorkersDistributeStateMergeValuesContextChans(ctx context.Context) (
+	dutil.InErrorFunc[interface{}],
+	func(),
+	iter.Seq[interface{}],
+) {
+	return dutil.NewContextUnlimitedChans[interface{}](ctx, 1<<9, 1<<9)
 }
 
 type testCheckEnoughFailedWorkers struct {
@@ -587,4 +704,758 @@ func TestSetStateOps(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testSetStateOps))
+}
+
+type testDelayedWorkerDistributeStateMergeValues struct {
+	baseTestAccountStateValueMerger
+	baseTestWorkers
+}
+
+func (t *testDelayedWorkerDistributeStateMergeValues) TestCtxCanceled() {
+	t.Run("before new", func() {
+		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
+		f := newFuncDelayedWorkerDistributeStateMergeValues(
+			newf,
+			t.newWorkerDistributeStateMergeValuesContextChans,
+		)
+
+		ctx, cancel := t.Ctx()
+		cancel(nil)
+
+		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		t.NoError(err)
+
+		err = sendOp(3, valuehash.RandomSHA256(), t.randomMergeValues(3))
+		t.Error(err, context.Canceled)
+
+		err = sendOwners(
+			[]string{util.UUID().String(), util.UUID().String()},
+			[]string{util.UUID().String(), util.UUID().String()},
+		)
+		t.Error(err, context.Canceled)
+
+		err = wait()
+		t.Error(err, context.Canceled)
+
+		t.Empty(insertedDone())
+	})
+
+	t.Run("during send op", func() {
+		newf, _ := t.newWorkerDistributeStateMergeValuesFunc()
+		f := newFuncDelayedWorkerDistributeStateMergeValues(
+			newf,
+			t.newWorkerDistributeStateMergeValuesContextChans,
+		)
+
+		ctx, cancel := t.Ctx()
+
+		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		t.NoError(err)
+
+		for i := range 3 {
+			err = sendOp(uint64(i), valuehash.RandomSHA256(), t.randomMergeValues(3))
+			if i == 2 {
+				cancel(nil)
+			}
+
+			switch {
+			case i < 2:
+				t.NoError(err)
+			case i > 2:
+				if !errors.Is(err, context.Canceled) && !errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone) {
+					t.Fail("unexpected error, %+v", err)
+				}
+			}
+		}
+
+		err = sendOwners(
+			[]string{util.UUID().String(), util.UUID().String()},
+			[]string{util.UUID().String(), util.UUID().String()},
+		)
+		t.Error(err, context.Canceled)
+
+		err = wait()
+		t.Error(err, context.Canceled)
+	})
+}
+
+func (t *testDelayedWorkerDistributeStateMergeValues) TestNew() {
+	t.Run("ops and owners", func() {
+		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
+		f := newFuncDelayedWorkerDistributeStateMergeValues(
+			newf,
+			t.newWorkerDistributeStateMergeValuesContextChans,
+		)
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		ops := make([][3]interface{}, 3)
+		for i := range ops {
+			ops[i] = [3]interface{}{
+				uint64(i),
+				valuehash.RandomSHA256(),
+				t.randomMergeValues(3),
+			}
+		}
+
+		owners := [2][]string{
+			{util.UUID().String(), util.UUID().String()},
+			{util.UUID().String(), util.UUID().String()},
+		}
+
+		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		t.NoError(err)
+
+		var wg sync.WaitGroup
+
+		for i := range slices.Values(ops) {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				err := sendOp(i[0].(uint64), i[1].(util.Hash), i[2].([]stateMergeValue))
+				t.Println("send op: opindex=%d err=%v", i[0], err)
+			}()
+		}
+
+		wg.Wait()
+
+		err = sendOwners(owners[0], owners[1])
+		t.NoError(err)
+		t.Println("send owners: err=%v", err)
+
+		t.NoError(wait())
+
+		inserted := insertedDone()
+		insertedOps := inserted[:len(inserted)-1]
+		insertedOwners := inserted[len(inserted)-1].([2][]string)
+
+		t.Equal(len(ops), len(insertedOps))
+
+		for i := range ops {
+			slices.SortFunc(insertedOps, func(a, b interface{}) int {
+				return cmp.Compare(
+					a.([3]interface{})[0].(uint64),
+					b.([3]interface{})[0].(uint64),
+				)
+			})
+			t.Equal(ops[i], insertedOps[i])
+		}
+
+		t.Equal(owners, insertedOwners)
+	})
+
+	t.Run("no ops and owners", func() {
+		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
+		f := newFuncDelayedWorkerDistributeStateMergeValues(
+			newf,
+			t.newWorkerDistributeStateMergeValuesContextChans,
+		)
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		owners := [2][]string{
+			{util.UUID().String(), util.UUID().String()},
+			{util.UUID().String(), util.UUID().String()},
+		}
+
+		_, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		t.NoError(err)
+
+		err = sendOwners(owners[0], owners[1])
+		t.NoError(err)
+		t.Println("send owners: err=%v", err)
+
+		t.NoError(wait())
+
+		insertedOwners := insertedDone()
+
+		t.Equal(owners, insertedOwners[0])
+	})
+
+	t.Run("send ops after sending owners", func() {
+		newf, insertedDone := t.newWorkerDistributeStateMergeValuesFunc()
+		f := newFuncDelayedWorkerDistributeStateMergeValues(
+			newf,
+			t.newWorkerDistributeStateMergeValuesContextChans,
+		)
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		owners := [2][]string{
+			{util.UUID().String(), util.UUID().String()},
+			{util.UUID().String(), util.UUID().String()},
+		}
+
+		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		t.NoError(err)
+
+		err = sendOwners(owners[0], owners[1])
+		t.NoError(err)
+		t.Println("send owners: err=%v", err)
+
+		err = sendOp(
+			3,
+			valuehash.RandomSHA256(),
+			t.randomMergeValues(3),
+		)
+		switch {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+		default:
+			t.Fail("unexpected error, %+v", err)
+		}
+
+		t.NoError(wait())
+
+		insertedOwners := insertedDone()
+
+		t.Equal(owners, insertedOwners[0])
+	})
+}
+
+func TestDelayedWorkerDistributeStateMergeValues(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testDelayedWorkerDistributeStateMergeValues))
+}
+
+type testWorkerProcessWorkersDistributeStateMergeValues struct {
+	baseTestAccountStateValueMerger
+	baseTestWorkers
+}
+
+func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestCancel() {
+	workers := t.workers(3)
+	local := workers[0]
+
+	ops := make([][3]interface{}, len(workers))
+	for i := range ops {
+		ops[i] = [3]interface{}{
+			uint64(i),
+			valuehash.RandomSHA256(),
+			t.randomMergeValues(3),
+		}
+	}
+
+	owners := make([][2][]string, len(workers))
+
+	for i := range owners {
+		owners[i] = [2][]string{
+			{util.UUID().String(), util.UUID().String()},
+			{util.UUID().String(), util.UUID().String()},
+		}
+	}
+
+	t.Run("before new", func() {
+		ctx, cancel := t.Ctx()
+		cancel(nil)
+
+		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					switch err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue)); {
+					case errors.Is(err, context.Canceled),
+						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+					default:
+						t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
+					}
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					switch err := sendOwners(worker, j[0], j[1]); {
+					case errors.Is(err, context.Canceled),
+						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+					default:
+						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+					}
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		switch err = c(); {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+		default:
+			t.IfErrPanicf(err, "c")
+		}
+
+		for worker, done := range insertedDone {
+			t.Empty(done(), worker)
+		}
+	})
+
+	t.Run("during send op", func() {
+		ctx, cancel := t.Ctx()
+
+		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					if i == 2 {
+						cancel(nil)
+					}
+
+					switch {
+					case errors.Is(err, context.Canceled),
+						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+					default:
+						t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
+					}
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					switch err := sendOwners(worker, j[0], j[1]); {
+					case errors.Is(err, context.Canceled),
+						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+					default:
+						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+					}
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		switch err = c(); {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+		default:
+			t.IfErrPanicf(err, "c")
+		}
+	})
+
+	t.Run("during send owners", func() {
+		ctx, cancel := t.Ctx()
+
+		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOwners(worker, j[0], j[1])
+
+					if i == 2 {
+						cancel(nil)
+					}
+
+					switch {
+					case errors.Is(err, context.Canceled),
+						errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+					default:
+						t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+					}
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		switch err = c(); {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+		default:
+			t.IfErrPanicf(err, "c")
+		}
+	})
+
+	t.Run("after send owners", func() {
+		ctx, cancel := t.Ctx()
+
+		newf, _ := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					t.IfErrPanicf(err, "send op: unexpected error: worker=%q", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOwners(worker, j[0], j[1])
+					t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		cancel(nil)
+
+		switch err = c(); {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+		default:
+			t.IfErrPanicf(err, "c")
+		}
+	})
+}
+
+func (t *testWorkerProcessWorkersDistributeStateMergeValues) TestNew() {
+	workers := t.workers(3)
+	local := workers[0]
+
+	ops := make([][3]interface{}, len(workers))
+	for i := range ops {
+		ops[i] = [3]interface{}{
+			uint64(i),
+			valuehash.RandomSHA256(),
+			t.randomMergeValues(3),
+		}
+	}
+
+	owners := make([][2][]string, len(workers))
+
+	for i := range owners {
+		owners[i] = [2][]string{
+			{util.UUID().String(), util.UUID().String()},
+			{util.UUID().String(), util.UUID().String()},
+		}
+	}
+
+	t.Run("ops and owners", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOwners(worker, j[0], j[1])
+					t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		t.NoError(c())
+
+		for worker, done := range insertedDone {
+			inserted := done()
+			insertedOps := inserted[:len(inserted)-1]
+			insertedOwners := inserted[len(inserted)-1].([2][]string)
+
+			i := slices.Index(workers, worker)
+			t.Equal(ops[i], insertedOps[0], worker)
+			t.Equal(owners[i], insertedOwners, worker)
+		}
+	})
+
+	t.Run("some worker has empty ops and owners", func() {
+		emptyOpsWorker := workers[1]
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		sendOp, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(ops)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+					if worker == emptyOpsWorker {
+						t.Println("worker empty ops: worker=%q", worker)
+
+						return
+					}
+
+					err := sendOp(worker, j[0].(uint64), j[1].(util.Hash), j[2].([]stateMergeValue))
+					t.IfErrPanicf(err, "send op: worker=%q opindex=%d", worker, j[0])
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOwners(worker, j[0], j[1])
+					t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		t.NoError(c())
+
+		for worker, done := range insertedDone {
+			inserted := done()
+			insertedOps := inserted[:len(inserted)-1]
+			insertedOwners := inserted[len(inserted)-1].([2][]string)
+
+			i := slices.Index(workers, worker)
+
+			if worker == emptyOpsWorker {
+				t.Empty(insertedOps, worker)
+			} else {
+				t.Equal(ops[i], insertedOps[0], worker)
+			}
+
+			t.Equal(owners[i], insertedOwners, worker)
+		}
+	})
+
+	t.Run("empty ops and owners", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		_, sendOwners, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		{
+			var wg sync.WaitGroup
+
+			for i, j := range dutil.SeqAll(slices.Values(owners)) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					worker := workers[i]
+
+					err := sendOwners(worker, j[0], j[1])
+					t.IfErrPanicf(err, "send owners: worker=%qv", worker)
+				}()
+			}
+
+			wg.Wait()
+		}
+
+		t.NoError(c())
+
+		for worker, done := range insertedDone {
+			inserted := done()
+			insertedOps := inserted[:len(inserted)-1]
+			insertedOwners := inserted[len(inserted)-1].([2][]string)
+
+			i := slices.Index(workers, worker)
+			t.Empty(insertedOps, worker)
+			t.Equal(owners[i], insertedOwners, worker)
+		}
+	})
+
+	t.Run("empty ops and empty owners", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		newf, insertedDone := t.newWorkersProcessDistributeStateMergeValuesFunc()
+
+		_, _, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(
+			ctx, local, workers,
+			newf,
+			t.newWorkersDistributeStateMergeValuesContextChans,
+		)
+		t.NoError(err)
+
+		t.NoError(c())
+
+		for worker, done := range insertedDone {
+			inserted := done()
+			insertedOwners := inserted[len(inserted)-1].([2][]string)
+
+			t.Equal([2][]string{nil, nil}, insertedOwners, worker)
+		}
+	})
+}
+
+func TestWorkerProcessWorkersDistributeStateMergeValues(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testWorkerProcessWorkersDistributeStateMergeValues))
 }

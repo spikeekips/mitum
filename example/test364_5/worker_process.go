@@ -482,7 +482,17 @@ func newFuncWorkerProcessInitialInsert(
 			var distributeWorkerStateMergeValues workerDistributeWorkerStateMergeValuesFunc
 			var distributeWorkerStateMergeValuesDone workerStatesOwnersSetFunc
 
-			switch i, o, c, err := workersDistributeStateMergeValues(ctx, newJobWorker, local, workers, distribute); {
+			switch i, o, c, err := newFuncWorkerProcessWorkersDistributeStateMergeValues(ctx, local, workers, distribute,
+				func(ctx context.Context) (
+					dutil.InErrorFunc[interface{}],
+					func(),
+					iter.Seq[interface{}],
+				) {
+					return dutil.NewContextUnlimitedChans[interface{}](
+						ctx,
+						maxOpsSize*2, maxOpsSize*2, // NOTE approximate states size
+					)
+				}); {
 			case err != nil:
 				return err
 			default:
@@ -675,156 +685,6 @@ func workerProcessCloseStateValueMergers(
 
 		return jobWait(nil)
 	})
-}
-
-func workersDistributeStateMergeValues( // FIXME review job worker
-	ctx context.Context,
-	newJobWorker dutil.NewJobWorkerFunc,
-	local string,
-	workers []string,
-	newf newWorkerProcessDistributeStateMergeValuesFunc,
-) (
-	workerDistributeWorkerStateMergeValuesFunc,
-	workerStatesOwnersSetFunc,
-	dutil.ErrorFunc,
-	error,
-) {
-	var pool util.LockedMap[string, [2]interface{}]
-
-	switch i, err := util.NewLockedMap[string, [2]interface{}](uint64(len(workers)), nil); {
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		pool = i
-	}
-
-	return func(worker string, opindex uint64, fact util.Hash, values []stateMergeValue) error {
-			if worker == local {
-				return nil
-			}
-
-			var insert dutil.In3ErrorFunc[uint64, util.Hash, []stateMergeValue]
-
-			if _, _, err := pool.Set(worker, func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
-				if found {
-					if i[0] != nil {
-						insert = i[0].(workerProcessInsertStateMergeValuesFunc)
-					}
-
-					return v, util.ErrLockedSetIgnore
-				}
-
-				switch s, o, err := newf(ctx, worker); {
-				case err != nil:
-					return v, err
-				default:
-					insert = s
-
-					return [2]interface{}{s, o}, nil
-				}
-			}); err != nil {
-				return err
-			}
-
-			if insert != nil {
-				if err := insert(opindex, fact, values); err != nil { // NOTE ignore error
-					_ = pool.SetValue(worker, [2]interface{}{nil, nil})
-				}
-			}
-
-			return nil
-		},
-		func(worker string, subws, affected []string) error {
-			if worker == local {
-				return nil
-			}
-
-			var sendOwners dutil.In2ErrorFunc[[]string, []string]
-
-			if _, _, err := pool.Set(
-				worker,
-				func(i [2]interface{}, found bool) (v [2]interface{}, _ error) {
-					if found {
-						if i[1] != nil {
-							sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
-						}
-
-						return v, nil
-					}
-
-					switch _, o, err := newf(ctx, worker); {
-					case err != nil:
-						return v, err
-					default:
-						sendOwners = o
-
-						return v, nil
-					}
-				},
-			); err != nil {
-				return err
-			}
-
-			if sendOwners != nil {
-				_ = sendOwners(subws, affected) // NOTE ignore error
-			}
-
-			return nil
-		},
-		func() error {
-			defer pool.Close()
-
-			var cnewJob dutil.JobWorkerNewJobFunc // FIXME remove job worker
-			var cjobDone func()
-			var cjobWait dutil.InErrorFunc[error]
-
-			switch n, d, w, err := newJobWorker(ctx, uint64(len(workers))); {
-			case err != nil:
-				return err
-			default:
-				cnewJob, cjobDone, cjobWait = n, d, w
-			}
-
-		end:
-			for worker := range slices.Values(workers) {
-				if worker == local {
-					continue end
-				}
-
-				var sendOwners dutil.In2ErrorFunc[[]string, []string]
-
-				switch i, found := pool.Value(worker); {
-				case !found:
-					switch _, o, err := newf(ctx, worker); {
-					case err != nil:
-						continue end
-					default:
-						sendOwners = o
-					}
-				case i[1] == nil:
-					continue end
-				default:
-					sendOwners = i[1].(dutil.In2ErrorFunc[[]string, []string])
-				}
-
-				if sendOwners == nil {
-					continue end
-				}
-
-				if err := cnewJob(func(context.Context) error {
-					_ = sendOwners(nil, nil) // NOTE ignore error
-
-					return nil
-				}); err != nil {
-					return cjobWait(err)
-				}
-			}
-
-			cjobDone()
-
-			return cjobWait(nil)
-		},
-		nil
 }
 
 func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[uint64]string {
