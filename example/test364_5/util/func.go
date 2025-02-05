@@ -1,6 +1,11 @@
 package util
 
-import "context"
+import (
+	"context"
+	"slices"
+
+	"github.com/pkg/errors"
+)
 
 type (
 	InFunc[T, Y any]             func(T) Y
@@ -19,10 +24,24 @@ func DummyErrorInFunc(err error) error {
 	return err
 }
 
-func NewIfErrErrorInFunc(f InErrorFunc[error]) InErrorFunc[error] {
+func NewIfErrErrorInFunc(f InErrorFunc[error], ignores ...error) InErrorFunc[error] {
 	return func(err error) error {
 		if err != nil {
-			return f(err)
+			var found bool
+
+			for e := range slices.Values(ignores) {
+				if errors.Is(err, e) {
+					found = true
+
+					break
+				}
+			}
+
+			if !found {
+				return f(err)
+			}
+
+			return err
 		}
 
 		return nil
