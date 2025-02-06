@@ -345,7 +345,7 @@ func NewShardedLockedMap[K comparable, V any](
 		}
 	}
 
-	seed := NewDjb2Seed()
+	seed := NewHashSeed()
 
 	return &ShardedLockedMap[K, V]{
 		sharded: make([]LockedMap[K, V], size, grow),
@@ -1054,7 +1054,7 @@ func defaultLockedMapIndex[K comparable](k K, stringIndexer func(s string) uint6
 
 func defaultLockedMapHashFunc[K comparable](seed uint64, k K, size uint64) uint64 {
 	return defaultLockedMapIndex(k, func(s string) uint64 {
-		return Murmur2(seed, []byte(s))
+		return Murmur3(seed, s)
 	}) % size
 }
 

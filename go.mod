@@ -27,6 +27,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+	github.com/twmb/murmur3 v1.1.8
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.28.0

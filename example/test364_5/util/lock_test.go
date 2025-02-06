@@ -1307,7 +1307,14 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 		case <-time.After(time.Second):
 			t.Fail("after unlock(), not unlocked")
 		case <-locked12ch:
+			t.Println("locked12ch released")
+		}
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("after unlock(), not unlocked")
 		case <-locked13ch:
+			t.Println("locked13ch released")
 		}
 	})
 }
