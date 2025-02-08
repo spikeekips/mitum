@@ -26,7 +26,9 @@ func NewContextUnlimitedChans[T any](ctx context.Context, bufSize, outBufSize ui
 
 	go func() {
 		buf := make([]T, 0, bufSize)
-		defer ClearSlice(buf)
+		defer func() {
+			buf = ClearSlice(buf)
+		}()
 
 	end:
 		for {

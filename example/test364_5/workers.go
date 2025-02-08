@@ -116,7 +116,7 @@ func newFuncCheckWeightFailedWorkers(
 			}
 
 			if doneEnough || doneFailed != nil {
-				dutil.ClearMap(pool)
+				clear(pool)
 			}
 
 			if !ready {
@@ -560,7 +560,7 @@ func (p *failedWorkerPool) Close() {
 
 	p.failed = true
 
-	dutil.ClearMap(p.pool)
+	clear(p.pool)
 }
 
 func (p *failedWorkerPool) workerError(worker string, err error) (added, failed bool, _ error) {
@@ -590,7 +590,7 @@ func (p *failedWorkerPool) workerError(worker string, err error) (added, failed 
 		p.failedOpsWorkers++
 		if p.failedOpsWorkers >= p.opsShare {
 			p.failed = true
-			dutil.ClearMap(p.pool)
+			clear(p.pool)
 
 			return true, true, nil
 		}
@@ -614,7 +614,7 @@ func (p *failedWorkerPool) subOwnerError(worker string, err error) (failed bool)
 
 	if p.failedSos >= p.statesShare {
 		p.failed = true
-		dutil.ClearMap(p.pool)
+		clear(p.pool)
 
 		return true
 	}

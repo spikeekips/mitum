@@ -192,8 +192,7 @@ func (m *accountSVM) Key() string {
 func (m *accountSVM) Close() (base.StateValue, error) {
 	defer func() {
 		m.lastop = nil
-
-		dutil.ClearSlice(m.prepops)
+		m.prepops = dutil.ClearSlice(m.prepops)
 	}()
 
 	if m.sum == 0 {

@@ -350,7 +350,7 @@ func newFuncWorkerUnmergerUnmergedPool() (
 			l.Lock()
 			defer l.Unlock()
 
-			defer dutil.ClearMap(pool)
+			defer clear(pool)
 
 			if yield == nil {
 				return
@@ -474,7 +474,7 @@ func newFuncWorkerOpindexFilter(
 			ml.Lock()
 			defer ml.Unlock()
 
-			dutil.ClearMap(msubws)
+			clear(msubws)
 			filterOpindexClose()
 		}
 

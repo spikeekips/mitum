@@ -164,7 +164,7 @@ func NewUniqueAppendSlice[T any, K comparable](size, grow uint64, keyf func(T) K
 
 	return add,
 		func() []T {
-			defer ClearMap(m)
+			defer clear(m)
 
 			return done()
 		},
@@ -241,14 +241,9 @@ func NewLockComparableUniqueAppendSlice[T comparable](size, grow uint64) (
 	return NewLockUniqueAppendSlice[T, T](size, grow, func(i T) T { return i })
 }
 
-func ClearSlice[T any](s []T) {
+func ClearSlice[T any](s []T) []T {
 	clear(s)
-	s = s[:0]
-}
-
-func ClearMap[K comparable, V any](m map[K]V) {
-	clear(m)
-	m = nil
+	return s[:0]
 }
 
 func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {

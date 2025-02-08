@@ -258,7 +258,9 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 			if f != nil {
 				owners := doneOwners()
 
-				defer dutil.ClearSlice(owners)
+				defer func() {
+					owners = dutil.ClearSlice(owners)
+				}()
 
 				for worker := range slices.Values(owners) {
 					var subws, affected []string
@@ -295,7 +297,7 @@ func newFuncCollectWorkerSMVs() (
 			m[worker] = append(m[worker], value)
 		},
 		func(f workerSMVsFunc) error {
-			defer dutil.ClearMap(m)
+			defer clear(m)
 
 			for worker, values := range maps.All(m) {
 				if err := f(worker, values); err != nil {

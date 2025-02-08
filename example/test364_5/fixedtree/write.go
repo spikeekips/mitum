@@ -196,7 +196,9 @@ func AsyncGenerateNodesHashByFollowingParent(
 		}
 
 		cc = make([]uint32, ncc)
-		defer dutil.ClearSlice(cc)
+		defer func() {
+			cc = dutil.ClearSlice(cc)
+		}()
 	}
 
 	wctx, cancel := dutil.ContextWithCancelCause(ctx)

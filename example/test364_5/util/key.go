@@ -78,7 +78,7 @@ func DistributeByCount[K comparable](total, share uint64) (
 			return poses
 		},
 		func() {
-			ClearMap(c)
+			clear(c)
 			cache.Close()
 		},
 		nil

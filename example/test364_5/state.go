@@ -119,7 +119,9 @@ func (s *baseState) generateHash() util.Hash {
 	}
 
 	bs = make([][]byte, bsSize)
-	defer dutil.ClearSlice(bs)
+	defer func() {
+		bs = dutil.ClearSlice(bs)
+	}()
 
 	if s.previous != nil {
 		bs[0] = s.previous.Bytes()

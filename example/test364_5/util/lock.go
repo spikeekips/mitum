@@ -76,7 +76,7 @@ func (l *SingleLockedMap[K, V]) Close() {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	ClearMap(l.m)
+	clear(l.m)
 	l.m = nil
 }
 
@@ -815,7 +815,7 @@ func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock fun
 			close(chs[i])
 		}
 
-		ClearSlice(chs)
+		chs = ClearSlice(chs)
 	}, nil
 }
 
@@ -1060,9 +1060,7 @@ func defaultLockedMapHashFunc[K comparable](seed uint64, k K, size uint64) uint6
 
 func compactLockedMapKeys[K comparable](ks []K) []K {
 	var m map[K]struct{}
-	defer func() {
-		ClearMap(m)
-	}()
+	defer clear(m)
 
 	for k := range slices.Values(ks) {
 		if _, found := m[k]; !found {

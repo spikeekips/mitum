@@ -995,7 +995,7 @@ func (t *testWorkerMerger) workersStatesOwners(
 	getStateOwners getStateOwnersFunc,
 ) []string {
 	m := map[string]struct{}{}
-	defer dutil.ClearMap(m)
+	defer clear(m)
 
 	for opindex := range maps.Keys(workerValues) {
 		for value := range slices.Values(values[opindex]) {
