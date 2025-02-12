@@ -6,10 +6,14 @@ package util
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -31,7 +35,41 @@ func (t *BaseSuite) Ctx() (context.Context, InErrorFunc[error]) {
 }
 
 func (t *BaseSuite) Println(a string, b ...any) {
-	fmt.Printf(a+"\n", b...)
+	t.PrintlnCaller(2, a, b...)
+}
+
+func (t *BaseSuite) PrintlnErr(err error, a string, b ...any) {
+	switch {
+	case err != nil:
+		a = a + "; err=(%T)%v"
+		b = append(b, err, err)
+	default:
+		a = a + "; err=nil"
+	}
+
+	t.PrintlnCaller(2, a, b...)
+}
+
+func (t *BaseSuite) PrintlnCaller(skip int, a string, b ...any) {
+	_, file, no, _ := runtime.Caller(skip)
+	f := fmt.Sprintf("    %s:%d: ", filepath.Base(file), no) + a + "\n"
+
+	fmt.Printf(f, b...)
+}
+
+func (t *BaseSuite) PrintlnErrCaller(err error, skip int, a string, b ...any) {
+	switch {
+	case err != nil:
+		a = a + "; err=(%T)%v"
+		b = append(b, err, err)
+	default:
+		a = a + "; err=nil"
+	}
+
+	_, file, no, _ := runtime.Caller(skip)
+	f := fmt.Sprintf("    %s:%d: ", filepath.Base(file), no) + a + "\n"
+
+	fmt.Printf(f, b...)
 }
 
 func (t *BaseSuite) IfErrPanic(err error) {
@@ -42,14 +80,34 @@ func (t *BaseSuite) IfErrPanic(err error) {
 
 func (t *BaseSuite) IfErrPanicf(err error, a string, b ...interface{}) {
 	if err != nil {
-		panic(errors.WithMessagef(err, a, b...))
+		_, file, no, _ := runtime.Caller(2)
+		f := fmt.Sprintf("%s:%d: ", filepath.Base(file), no) + a
+
+		panic(errors.WithMessagef(err, f, b...))
 	}
 }
 
 func (t *BaseSuite) IfTruePanic(ok bool, a string, b ...interface{}) {
 	if ok {
-		panic(fmt.Sprintf(a, b...))
+		_, file, no, _ := runtime.Caller(2)
+		f := fmt.Sprintf("%s:%d: ", filepath.Base(file), no) + a
+
+		panic(fmt.Sprintf(f, b...))
 	}
+}
+
+func (t *BaseSuite) PrintIfErrPanic(err error, a string, b ...interface{}) {
+	if err != nil {
+		_, file, no, _ := runtime.Caller(2)
+		f := fmt.Sprintf("%s:%d: ", filepath.Base(file), no) + a
+
+		panic(errors.WithMessagef(err, f, b...))
+	}
+
+	a = a + " err=%T"
+	b = append(b, err)
+
+	t.PrintlnCaller(2, a, b...)
 }
 
 func (t *BaseSuite) WorkerIfErrPanic(worker string, err error) error {
@@ -80,4 +138,24 @@ func (t *BaseSuite) MarshalIndent(i interface{}) string {
 
 func (t *BaseSuite) RandomError() error {
 	return errors.Errorf(util.UUID().String())
+}
+
+func AssertWaitChan[T any](t *assert.Assertions, timeout time.Duration, f func() T) func() T {
+	ch := make(chan T, 1)
+
+	go func() {
+		ch <- f()
+	}()
+
+	return func() T {
+		select {
+		case <-time.After(timeout):
+			t.Fail("timeout")
+
+			var i T
+			return i
+		case i := <-ch:
+			return i
+		}
+	}
 }
