@@ -818,7 +818,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 				defer wg.Done()
 
 				err := sendOp(i[0].(uint64), i[1].(util.Hash), i[2].([]SMV))
-				t.Println("send op: opindex=%d err=%v", i[0], err)
+				t.Print("send op: opindex=%d err=%v", i[0], err)
 			}()
 		}
 
@@ -826,7 +826,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 
 		err = sendOwners(owners[0], owners[1])
 		t.NoError(err)
-		t.Println("send owners: err=%v", err)
+		t.Print("send owners: err=%v", err)
 
 		t.NoError(wait())
 
@@ -869,7 +869,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 
 		err = sendOwners(owners[0], owners[1])
 		t.NoError(err)
-		t.Println("send owners: err=%v", err)
+		t.Print("send owners: err=%v", err)
 
 		t.NoError(wait())
 
@@ -898,7 +898,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 
 		err = sendOwners(owners[0], owners[1])
 		t.NoError(err)
-		t.Println("send owners: err=%v", err)
+		t.Print("send owners: err=%v", err)
 
 		err = sendOp(
 			3,
@@ -1336,7 +1336,7 @@ func (t *testWorkerProcessWorkersDistributeSMVs) TestNew() {
 
 					worker := workers[i]
 					if worker == emptyOpsWorker {
-						t.Println("worker empty ops: worker=%q", worker)
+						t.Print("worker empty ops: worker=%q", worker)
 
 						return
 					}

@@ -432,7 +432,7 @@ func (t *testWorkerMerger) TestInsert() {
 					err = insertDone(err)
 				}
 
-				t.Println("insert worker: worker=%q err=%v", worker, err)
+				t.Print("insert worker: worker=%q err=%v", worker, err)
 			}
 		}()
 
@@ -511,7 +511,7 @@ func (t *testWorkerMerger) TestInsert() {
 					err = insertDone(err)
 				}
 
-				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
 			for worker := range slices.Values(opsWorkers) {
@@ -522,7 +522,7 @@ func (t *testWorkerMerger) TestInsert() {
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
-				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 		}()
 
@@ -566,12 +566,12 @@ func (t *testWorkerMerger) TestInsert() {
 					err = insertDone(nil)
 				}
 
-				t.Println("insert worker: worker=%q err=%v", worker, err)
+				t.Print("insert worker: worker=%q err=%v", worker, err)
 			}
 
 			for worker := range slices.Values(opsWorkers) {
 				err := unmerge(worker, nil)
-				t.Println("unmerge worker: worker=%q err=%v", worker, err)
+				t.Print("unmerge worker: worker=%q err=%v", worker, err)
 			}
 		}()
 
@@ -628,7 +628,7 @@ func (t *testWorkerMerger) TestInsert() {
 				err = insertDone(err)
 			}
 
-			t.Println("insert unknown worker: worker=%q err=%v", worker, err)
+			t.Print("insert unknown worker: worker=%q err=%v", worker, err)
 		}
 
 		{
@@ -729,7 +729,7 @@ func (t *testWorkerMerger) workerMergers(
 							defer wg.Done()
 
 							err := unmerges[other](worker, unmerged)
-							t.Println("worker to other unmerge: worker=%q other=%q unemrged=%v err=%v",
+							t.Print("worker to other unmerge: worker=%q other=%q unemrged=%v err=%v",
 								worker, other, unmerged, err)
 						}()
 					}
@@ -797,7 +797,7 @@ func (t *testWorkerMerger) workerMergers(
 						err = insertDone(err)
 					}
 
-					t.Println("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
+					t.Print("worker insert: worker=%q ops=%v err=%v", worker, ops, err)
 
 					for other, f := range maps.All(inserts) {
 						if other == worker {
@@ -809,7 +809,7 @@ func (t *testWorkerMerger) workerMergers(
 							err = insertDone(nil)
 						}
 
-						t.Println("worker to other insert: worker=%q other=%q err=%v", worker, other, err)
+						t.Print("worker to other insert: worker=%q other=%q err=%v", worker, other, err)
 					}
 				}()
 			}
@@ -841,7 +841,7 @@ func (t *testWorkerMerger) workerMergers(
 						func(unmerged []uint64) ([]string, error) {
 							subws := workerStatesOwners[worker]
 
-							t.Println("worker local phase done: worker=%q unmerged=%v sub states owners=%v", worker, unmerged, subws)
+							t.Print("worker local phase done: worker=%q unmerged=%v sub states owners=%v", worker, unmerged, subws)
 
 							if l != nil {
 								return l(unmerged)
@@ -851,7 +851,7 @@ func (t *testWorkerMerger) workerMergers(
 						},
 					)
 
-					t.Println("worker wait done: worker=%q reasons=%v, err=%v", worker, reasons, err)
+					t.Print("worker wait done: worker=%q reasons=%v, err=%v", worker, reasons, err)
 
 					if err == nil && c != nil {
 						err = c(reasons)
@@ -883,7 +883,7 @@ func (t *testWorkerMerger) workerMergers(
 
 			slices.Sort(doneWorkers)
 
-			t.Println("all wait: done workers=%v", doneWorkers)
+			t.Print("all wait: done workers=%v", doneWorkers)
 
 			return doneWorkers, nil
 		},
@@ -1027,7 +1027,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 		go func() {
 			err := insert()
 
-			t.Println("insert workers: err=%v", err)
+			t.Print("insert workers: err=%v", err)
 			t.IfErrPanic(err)
 		}()
 
@@ -1079,7 +1079,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 		go func() {
 			err := insert()
 
-			t.Println("insert workers: err=%v", err)
+			t.Print("insert workers: err=%v", err)
 			t.IfErrPanic(err)
 		}()
 
@@ -1116,7 +1116,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 					}
 				}
 
-				t.Println("worker states: worker=%q state=%q value=%v problem=%q",
+				t.Print("worker states: worker=%q state=%q value=%v problem=%q",
 					worker, stateKey, t.printSMV(stv), problem)
 
 				if problem != "" {
@@ -1162,7 +1162,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 		go func() {
 			err := insert()
 
-			t.Println("insert workers: err=%v", err)
+			t.Print("insert workers: err=%v", err)
 			t.IfErrPanic(err)
 		}()
 
@@ -1194,7 +1194,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 					collectedStates[stateKey] = b
 				}
 
-				t.Println("worker states: worker=%q state=%q value=%v problem=%q",
+				t.Print("worker states: worker=%q state=%q value=%v problem=%q",
 					worker, stateKey, t.printSMV(stv), problem)
 			}
 
@@ -1290,7 +1290,7 @@ func (t *testWorkerMerger) TestSubs() {
 					}
 				}
 
-				t.Println("worker states: worker=%q state=%q value=%v nil=%v problem=%q",
+				t.Print("worker states: worker=%q state=%q value=%v nil=%v problem=%q",
 					worker, stateKey, t.printSMV(stv), stv == nil, problem)
 
 				if problem != "" {
@@ -1333,7 +1333,7 @@ func (t *testWorkerMerger) TestSubs() {
 			go func() {
 				err := insert()
 
-				t.Println("insert workers: err=%v", err)
+				t.Print("insert workers: err=%v", err)
 				t.IfErrPanic(err)
 			}()
 
@@ -1570,7 +1570,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 					err = insertDone(err)
 				}
 
-				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
 			_, insertDone, err := insertf(managerName)
@@ -1586,7 +1586,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
-				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 		}()
 
@@ -1667,7 +1667,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 					err = insertDone(err)
 				}
 
-				t.Println("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
 			for worker := range slices.Values(opsWorkers) {
@@ -1678,7 +1678,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				ops := workerValues[worker]
 
 				err := unmerge(worker, ops)
-				t.Println("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
+				t.Print("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
 			_, insertDone, err := insertf(managerName)

@@ -360,7 +360,7 @@ func (t *testManager) TestStartWorkers() {
 			ctx,
 			t.newOptions(),
 			func(ctx context.Context, workID, worker string, err error) error {
-				t.Println("worker canceled: worker=%q err=%+v", worker, err)
+				t.Print("worker canceled: worker=%q err=%+v", worker, err)
 
 				return cancelWorkerf(ctx, workID, worker, err)
 			},
@@ -735,17 +735,17 @@ func (t *testManager) TestCloseWorkers() {
 
 		return wait(
 			func(_ context.Context, worker string) error {
-				t.Println("non state owner: worker=%q", worker)
+				t.Print("non state owner: worker=%q", worker)
 
 				return nil
 			},
 			func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-				t.Println("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
+				t.Print("manifest: ops tree=%v states tree=%v", opsTree.Root(), statesTree.Root())
 
 				return nil, nil
 			},
 			func(ctx context.Context, workID, worker string) error {
-				t.Println("done worker: worker=%q", worker)
+				t.Print("done worker: worker=%q", worker)
 
 				return closeWorkerf(ctx, workID, worker)
 			},

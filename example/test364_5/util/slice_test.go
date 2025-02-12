@@ -384,14 +384,14 @@ func (t *testLockAppendSlice) TestAdd() {
 					panic(fmt.Sprintf("not added, %d", i))
 				}
 
-				t.Println("add: %d owners=%v added=%d left=%d", i, v, added, left)
+				t.Print("add: %d owners=%v added=%d left=%d", i, v, added, left)
 			}()
 		}
 
 		wg.Wait()
 
 		s := done()
-		t.Println("done: %v", s)
+		t.Print("done: %v", s)
 
 		slices.Sort(s)
 		s = slices.Compact(s)
@@ -595,14 +595,14 @@ func (t *testLockUniqueAppendSlice) TestAdd() {
 				v := owners[i]
 
 				added, left := add(v...)
-				t.Println("add: %d owners=%v added=%d left=%d", i, v, added, left)
+				t.Print("add: %d owners=%v added=%d left=%d", i, v, added, left)
 			}()
 		}
 
 		wg.Wait()
 
 		s := done()
-		t.Println("done: %v", s)
+		t.Print("done: %v", s)
 
 		slices.Sort(s)
 		s = slices.Compact(s)
@@ -610,7 +610,7 @@ func (t *testLockUniqueAppendSlice) TestAdd() {
 		t.True(equalStringSlice(expected, s), "expected=%v actual=%v", expected, s)
 
 		s = done()
-		t.Println("done: %v", s)
+		t.Print("done: %v", s)
 
 		slices.Sort(s)
 		s = slices.Compact(s)

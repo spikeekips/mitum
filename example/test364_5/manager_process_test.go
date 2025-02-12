@@ -394,7 +394,7 @@ func (t *testManagerProcess) TestOpsTree() {
 
 				go func() {
 					err := wo(worker, owners)
-					t.Println("worker owners: worker=%q, owners=%v err=%v", worker, owners, err)
+					t.Print("worker owners: worker=%q, owners=%v err=%v", worker, owners, err)
 				}()
 			}
 
@@ -405,9 +405,9 @@ func (t *testManagerProcess) TestOpsTree() {
 
 					if d != nil {
 						err := d(nil)
-						t.Println("worker result: worker=%q err=%v", worker, err)
+						t.Print("worker result: worker=%q err=%v", worker, err)
 					} else {
-						t.Println("worker result: worker=%q nil", worker)
+						t.Print("worker result: worker=%q nil", worker)
 					}
 				}()
 			}

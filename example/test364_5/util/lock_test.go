@@ -1230,17 +1230,17 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 		locked13ch := make(chan bool)
 
 		go func() {
-			t.Println("trying to lock 0, 1")
+			t.Print("trying to lock 0, 1")
 
 			err := mk.LockFunc(
 				[]string{"0", "1"},
 				func(l LockedMap[string, int]) error {
 					close(called01ch)
 
-					t.Println("locked 0, 1")
+					t.Print("locked 0, 1")
 
 					<-unlock01ch
-					t.Println("unlocked 0, 1")
+					t.Print("unlocked 0, 1")
 
 					return nil
 				},
@@ -1253,12 +1253,12 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 		go func() {
 			<-called01ch
 
-			t.Println("trying to lock 1, 2")
+			t.Print("trying to lock 1, 2")
 
 			err := mk.LockFunc(
 				[]string{"1", "2"},
 				func(l LockedMap[string, int]) error {
-					t.Println("locked 1, 2")
+					t.Print("locked 1, 2")
 
 					close(locked12ch)
 
@@ -1273,12 +1273,12 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 		go func() {
 			<-called01ch
 
-			t.Println("trying to lock 1, 3")
+			t.Print("trying to lock 1, 3")
 
 			err := mk.LockFunc(
 				[]string{"1", "3"},
 				func(l LockedMap[string, int]) error {
-					t.Println("locked 1, 3")
+					t.Print("locked 1, 3")
 
 					close(locked13ch)
 
@@ -1307,14 +1307,14 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 		case <-time.After(time.Second):
 			t.Fail("after unlock(), not unlocked")
 		case <-locked12ch:
-			t.Println("locked12ch released")
+			t.Print("locked12ch released")
 		}
 
 		select {
 		case <-time.After(time.Second):
 			t.Fail("after unlock(), not unlocked")
 		case <-locked13ch:
-			t.Println("locked13ch released")
+			t.Print("locked13ch released")
 		}
 	})
 }
@@ -1344,8 +1344,8 @@ func (t *testMultiKeysLockedMap) TestAsyncLockFunc() {
 			keys = append(keys, 0)
 		}
 
-		t.Println("> %d: locked: %v", i, keys)
-		defer t.Println("< %d: unlocked: %v", i, keys)
+		t.Print("> %d: locked: %v", i, keys)
+		defer t.Print("< %d: unlocked: %v", i, keys)
 
 		return mk.LockFunc(keys, func(m LockedMap[int, int]) error {
 			for k := range keys {
@@ -1416,7 +1416,7 @@ func (t *testMultiKeysLockedMap) TestDataRace() {
 	defer mk.Close()
 
 	run := func(i int, keys []int) error {
-		t.Println("locked: %d %v", i, keys)
+		t.Print("locked: %d %v", i, keys)
 
 		return mk.LockFunc(keys, func(m LockedMap[int, *ptr]) error {
 			for k := range keys {

@@ -22,12 +22,12 @@ type testManagerWorkersOps struct {
 func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {
 	return func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 		return func(opindex uint64, oph, fact util.Hash) error {
-				t.Println("send op: worker=%q opindex=%d", worker, opindex)
+				t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 				return nil
 			},
 			func(err error) error {
-				t.Println("send ops done: worker=%q err=%v", worker, err)
+				t.Print("send ops done: worker=%q err=%v", worker, err)
 
 				return err
 			},
@@ -82,7 +82,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 
 				return func(opindex uint64, oph, fact util.Hash) error {
 						if opindex == 1 {
-							t.Println("send op cancel: worker=%q opindex=%d", worker, opindex)
+							t.Print("send op cancel: worker=%q opindex=%d", worker, opindex)
 
 							cancel(nil)
 						}
@@ -329,12 +329,12 @@ func (t *testManagerWorkersOps) TestFailed() {
 				}
 
 				return func(opindex uint64, oph, fact util.Hash) error {
-						t.Println("send op: worker=%q opindex=%d", worker, opindex)
+						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 						return nil
 					},
 					func(err error) error {
-						t.Println("send ops done: worker=%q err=%v", worker, err)
+						t.Print("send ops done: worker=%q err=%v", worker, err)
 
 						return err
 					},
@@ -403,12 +403,12 @@ func (t *testManagerWorkersOps) TestFailed() {
 							return err
 						}
 
-						t.Println("send op: worker=%q opindex=%d", worker, opindex)
+						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 						return nil
 					},
 					func(err error) error {
-						t.Println("send ops done: worker=%q err=%v", worker, err)
+						t.Print("send ops done: worker=%q err=%v", worker, err)
 
 						return err
 					},
@@ -464,7 +464,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			ophs,
 			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(opindex uint64, oph, fact util.Hash) error {
-						t.Println("send op: worker=%q opindex=%d", worker, opindex)
+						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 						return nil
 					},
@@ -473,7 +473,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 							err = errors.Errorf("showme")
 						}
 
-						t.Println("send ops done: worker=%q err=%v", worker, err)
+						t.Print("send ops done: worker=%q err=%v", worker, err)
 
 						return err
 					},

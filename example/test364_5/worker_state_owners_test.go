@@ -297,7 +297,7 @@ func (t *testWorkerStateOwners) TestInsert() {
 			slices.Sort(affected)
 			affected = slices.Compact(affected)
 
-			t.Println("op owners: opindex=%d subs=%v affected=%v", opindex, subs, affected)
+			t.Print("op owners: opindex=%d subs=%v affected=%v", opindex, subs, affected)
 
 			for worker := range slices.Values(subs) {
 				a := expectedAffected[worker]

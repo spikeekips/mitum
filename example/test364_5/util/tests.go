@@ -34,11 +34,11 @@ func (t *BaseSuite) Ctx() (context.Context, InErrorFunc[error]) {
 	return ctx, cancel
 }
 
-func (t *BaseSuite) Println(a string, b ...any) {
-	t.PrintlnCaller(2, a, b...)
+func (t *BaseSuite) Print(a string, b ...any) {
+	t.PrintCaller(2, a, b...)
 }
 
-func (t *BaseSuite) PrintlnErr(err error, a string, b ...any) {
+func (t *BaseSuite) PrintErr(err error, a string, b ...any) {
 	switch {
 	case err != nil:
 		a = a + "; err=(%T)%v"
@@ -47,17 +47,17 @@ func (t *BaseSuite) PrintlnErr(err error, a string, b ...any) {
 		a = a + "; err=nil"
 	}
 
-	t.PrintlnCaller(2, a, b...)
+	t.PrintCaller(2, a, b...)
 }
 
-func (t *BaseSuite) PrintlnCaller(skip int, a string, b ...any) {
+func (t *BaseSuite) PrintCaller(skip int, a string, b ...any) {
 	_, file, no, _ := runtime.Caller(skip)
 	f := fmt.Sprintf("    %s:%d: ", filepath.Base(file), no) + a + "\n"
 
 	fmt.Printf(f, b...)
 }
 
-func (t *BaseSuite) PrintlnErrCaller(err error, skip int, a string, b ...any) {
+func (t *BaseSuite) PrintErrCaller(err error, skip int, a string, b ...any) {
 	switch {
 	case err != nil:
 		a = a + "; err=(%T)%v"
@@ -107,17 +107,7 @@ func (t *BaseSuite) PrintIfErrPanic(err error, a string, b ...interface{}) {
 	a = a + " err=%T"
 	b = append(b, err)
 
-	t.PrintlnCaller(2, a, b...)
-}
-
-func (t *BaseSuite) WorkerIfErrPanic(worker string, err error) error {
-	if err != nil {
-		err = fmt.Errorf("panic: worker=%q err=%w", worker, err)
-	}
-
-	t.IfErrPanic(err)
-
-	return nil
+	t.PrintCaller(2, a, b...)
 }
 
 func (t *BaseSuite) RunWithGoLeak(name string, f func()) {

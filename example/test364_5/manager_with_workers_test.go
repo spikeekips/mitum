@@ -41,7 +41,7 @@ func (t *testManagerWithWorkers) randomOps(n int) ([]operation, [][2]util.Hash) 
 
 func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
 	return func(err error) error {
-		t.Println("error: worker=%q err=%w", worker, err)
+		t.Print("error: worker=%q err=%w", worker, err)
 		if err != nil {
 			return cancel(err)
 		}
@@ -146,7 +146,7 @@ func (t *testManagerWithWorkers) newWorker(
 		opsShare, statesShare,
 		maxOpsSize,
 	)
-	t.WorkerIfErrPanic(local, err)
+	t.PrintIfErrPanic(err, "worker=%q", local)
 
 	return initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker
 }
@@ -214,7 +214,7 @@ func (t *testManagerWithWorkers) newManager(
 
 			switch {
 			case err != nil:
-				t.Println("distribute worker: local=%q worker=%q err=%+v", local, worker, err)
+				t.Print("distribute worker: local=%q worker=%q err=%+v", local, worker, err)
 
 				return nil, nil, err
 			case i == nil:
@@ -225,14 +225,14 @@ func (t *testManagerWithWorkers) newManager(
 					stateKeys := extractSMVKeysFromValues(values)
 
 					err := i(opindex, fact, values)
-					t.Println("distribute worker: insert: local=%q worker=%q opindex=%d fact=%q state keys=%v err=%+v", local, worker, opindex, fact, stateKeys, err)
+					t.Print("distribute worker: insert: local=%q worker=%q opindex=%d fact=%q state keys=%v err=%+v", local, worker, opindex, fact, stateKeys, err)
 
 					return err
 				},
 				func(subws, affected []string) error {
 					err := o(subws, affected)
 
-					t.Println("distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subws, affected, err)
+					t.Print("distribute worker: owners: local=%q worker=%q sub=%v affected=%v err=%+v", local, worker, subws, affected, err)
 
 					if expectedWorkersOwners != nil {
 						a := expectedWorkersOwners[local][worker]
@@ -276,7 +276,7 @@ func (t *testManagerWithWorkers) newManager(
 				wops := map[uint64][2]util.Hash{}
 
 				return func(opindex uint64, oph, fact util.Hash) error {
-						t.Println("manager initial insert: worker=%q opindex=%d fact=%q", worker, opindex, fact)
+						t.Print("manager initial insert: worker=%q opindex=%d fact=%q", worker, opindex, fact)
 
 						wops[opindex] = [2]util.Hash{oph, fact}
 
@@ -296,13 +296,13 @@ func (t *testManagerWithWorkers) newManager(
 									owners []string,
 								) error {
 									err := managerWorkerOwners(worker, owners)
-									t.Println("worker report manager: owners: local=%q owners=%v err=%v", worker, owners, err)
+									t.Print("worker report manager: owners: local=%q owners=%v err=%v", worker, owners, err)
 
 									return nil
 								},
 							)
 
-							t.Println("manager workers initial insert done: worker=%q err=%+v", worker, err)
+							t.Print("manager workers initial insert done: worker=%q err=%+v", worker, err)
 						}
 
 						return nil
@@ -336,7 +336,7 @@ func (t *testManagerWithWorkers) newManager(
 					func(_ context.Context, local, workID, worker string, unmerged []uint64) error {
 						err := workersUnmerge[worker](local, unmerged)
 
-						t.Println("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
+						t.Print("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
 
 						return nil
 					},
@@ -349,14 +349,14 @@ func (t *testManagerWithWorkers) newManager(
 						f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 					) error {
 						sendReasons, sendState, done, err := managerWorkerResult(local)
-						t.Println("worker report result: local=%q reasons=%v states size=%d sendReasons=%v", local, reasons, statesSize, sendReasons == nil)
+						t.Print("worker report result: local=%q reasons=%v states size=%d sendReasons=%v", local, reasons, statesSize, sendReasons == nil)
 
 						if err != nil || sendReasons == nil {
 							return err
 						}
 
 						if err := sendReasons(reasons); err != nil {
-							t.Println("worker report result: send reasons: local=%q err=%+v", local, err)
+							t.Print("worker report result: send reasons: local=%q err=%+v", local, err)
 
 							return err
 						}
@@ -365,13 +365,13 @@ func (t *testManagerWithWorkers) newManager(
 							addState(st)
 
 							err := sendState(st.Key(), st.Hash())
-							t.Println("worker report result: send state: local=%q key=%q err=%+v %s", local, st.Key(), err, util.MustMarshalJSONString(st))
+							t.Print("worker report result: send state: local=%q key=%q err=%+v %s", local, st.Key(), err, util.MustMarshalJSONString(st))
 
 							if expectedStatesValues != nil {
 								b := st.Value().(*accountSV).Balance
 
 								e, found := expectedStatesValues[st.Key()]
-								t.Println("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
+								t.Print("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
 								switch {
 								case !found:
 									panic(fmt.Sprintf("unknown state: worker=%q state key=%q", local, st.Key()))
@@ -385,7 +385,7 @@ func (t *testManagerWithWorkers) newManager(
 						}))
 					},
 				)
-				t.Println("worker wait: local=%q err=%+v", worker, err)
+				t.Print("worker wait: local=%q err=%+v", worker, err)
 			}()
 		}
 
@@ -438,7 +438,7 @@ func (t *testManagerWithWorkers) newManager(
 				return workersCloses[worker](nil)
 			},
 		)
-		t.Println("manager wait done")
+		t.Print("manager wait done")
 
 		if err == nil {
 			err = <-workersClosed
@@ -504,7 +504,7 @@ func (t *testManagerWithWorkers) processCase(
 	stateKeys := slices.Collect(maps.Keys(statesOwners))
 	slices.Sort(stateKeys)
 	for stateKey := range slices.Values(stateKeys) {
-		t.Println("state owners: state key=%q owners=%v", stateKey, statesOwners[stateKey])
+		t.Print("state owners: state key=%q owners=%v", stateKey, statesOwners[stateKey])
 	}
 
 	sendOps, wait := t.newManager(

@@ -59,12 +59,12 @@ func (t *testWorkerProcess) newf(
 
 	defaultDistribute := func(_ context.Context, worker string) (workerProcessInsertSMVsFunc, dutil.In2ErrorFunc[[]string, []string], error) {
 		return func(opindex uint64, fact util.Hash, values []SMV) error {
-				t.Println("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
+				t.Print("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, fact, len(values))
 
 				return nil
 			},
 			func(subws []string, affected []string) error {
-				t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+				t.Print("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
 				return nil
 			},
@@ -109,7 +109,7 @@ func (t *testWorkerProcess) newf(
 
 			traverseOps, err := wait(
 				func(ctx context.Context, worker string, unmerged []uint64) error {
-					t.Println("wait: broadcast unmerged: worker=%q unmerged=%v", worker, unmerged)
+					t.Print("wait: broadcast unmerged: worker=%q unmerged=%v", worker, unmerged)
 
 					if b != nil {
 						return b(ctx, worker, unmerged)
@@ -123,7 +123,7 @@ func (t *testWorkerProcess) newf(
 					statesSize uint64,
 					states dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					t.Println("wait: report result: reasons=%v states=%d", reasons, statesSize)
+					t.Print("wait: report result: reasons=%v states=%d", reasons, statesSize)
 
 					var called bool
 
@@ -701,7 +701,7 @@ func (t *testWorkerProcess) TestLocal() {
 					func(subws []string, affected []string) error {
 						otherInsertedDone = true
 
-						t.Println("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
+						t.Print("worker distribute: local=%q worker=%q subs=%v affected=%v", local, worker, subws, affected)
 
 						return nil
 					},
@@ -1019,13 +1019,13 @@ func (t *testWorkerProcess) newProcessWorkers(
 						return opWorkers(local, f)
 					},
 					func(owners []string, reasons map[uint64]string) error {
-						t.Println("local done: local=%q owners=%v reasons=%v", local, owners, reasons)
+						t.Print("local done: local=%q owners=%v reasons=%v", local, owners, reasons)
 
 						return nil
 					},
 				)
 
-				t.Println("initial: worker=%q err=%v", local, err)
+				t.Print("initial: worker=%q err=%v", local, err)
 			}()
 		}
 
@@ -1042,7 +1042,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 			traverseOps, err := workerWaits[local](
 				func(ctx context.Context, worker string, unmerged []uint64) error {
-					t.Println("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
+					t.Print("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
 
 					return workerUnmerges[worker](local, unmerged)
 				},
@@ -1052,10 +1052,10 @@ func (t *testWorkerProcess) newProcessWorkers(
 					statesSize uint64,
 					f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					t.Println("wait states: local=%q reasons=%v states=%d", local, reasons, statesSize)
+					t.Print("wait states: local=%q reasons=%v states=%d", local, reasons, statesSize)
 
 					return f(func(st base.State) error {
-						t.Println("\tstate: local=%q st=%q", local, st.Key())
+						t.Print("\tstate: local=%q st=%q", local, st.Key())
 
 						return nil
 					})
@@ -1077,7 +1077,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 				}
 			}
 
-			t.Println("wait done: worker=%q err=%v", local, err)
+			t.Print("wait done: worker=%q err=%v", local, err)
 		}()
 	}
 
@@ -1222,7 +1222,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 					) {
 						return func(uint64, util.Hash, []SMV) error { return nil },
 							func(subws, affected []string) error {
-								t.Println("local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
+								t.Print("local=%q worker=%q sub=%v affected=%v", local, worker, subws, affected)
 
 								a := expectedOwners[local][worker]
 								asubws := a[0]
@@ -1252,7 +1252,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 					},
 					func(uint64, operation) error { return nil },
 					func(owners []string, reasons map[uint64]string) error {
-						t.Println("local=%q owners=%v reasons=%v", local, owners, reasons)
+						t.Print("local=%q owners=%v reasons=%v", local, owners, reasons)
 
 						slices.Sort(owners)
 

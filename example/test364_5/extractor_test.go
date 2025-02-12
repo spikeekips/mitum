@@ -41,7 +41,7 @@ func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
 
 			inf := func(f opindexOpHashesFunc) error {
 				for opindex, op := range slices.All(ops) {
-					t.Println("insert: opindex=%d op=%q", opindex, op.Hash())
+					t.Print("insert: opindex=%d op=%q", opindex, op.Hash())
 
 					if err := f(uint64(opindex), op.Hash(), op.Fact().Hash()); err != nil {
 						return err
@@ -58,7 +58,7 @@ func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
 				of,
 				inf,
 				func(opindex uint64, op operation, subv SMV, addvs []SMV) error {
-					t.Println("extracted: opindex=%d op=%v subv=%v addvs=%v", opindex, op == nil, subv == nil, len(addvs))
+					t.Print("extracted: opindex=%d op=%v subv=%v addvs=%v", opindex, op == nil, subv == nil, len(addvs))
 
 					if extracted == nil {
 						return nil

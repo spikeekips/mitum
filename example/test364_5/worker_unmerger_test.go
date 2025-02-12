@@ -129,7 +129,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 				}
 
 				err := workerUnmerge(worker, nil)
-				t.Println("worker phase done: worker=%q err=%v", worker, err)
+				t.Print("worker phase done: worker=%q err=%v", worker, err)
 
 				if slices.Index(workers, worker) > slices.Index(workers, failedWorker) {
 					t.IfTruePanic(!errors.Is(err, context.Canceled), "unexpected error, %+v", err)
@@ -180,7 +180,7 @@ func (t *testWorkerUnmerger) TestCancel() {
 					err = workerUnmerge(worker, nil)
 				}
 
-				t.Println("worker phase done: worker=%q err=%v", worker, err)
+				t.Print("worker phase done: worker=%q err=%v", worker, err)
 			}
 
 			cancel(nil)
@@ -242,7 +242,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		go func() {
 			err := localReady([]string{local}, nil)
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -269,7 +269,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		go func() {
 			err := localReady([]string{local}, nil)
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -297,10 +297,10 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		go func() {
 			err := workerUnmerge("w1", []uint64{0, 1, 2, 3, 4})
-			t.Println(`worker phase done: worker="w1" err=%v`, err)
+			t.Print(`worker phase done: worker="w1" err=%v`, err)
 
 			err = localReady([]string{local}, []uint64{0, 1, 2, 3, 4})
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -337,12 +337,12 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				}
 
 				err := workerUnmerge(worker, nil)
-				t.Println("worker phase done: worker=%q err=%v", worker, err)
+				t.Print("worker phase done: worker=%q err=%v", worker, err)
 			}
 
 			err := localReady(workers, nil)
 
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -396,7 +396,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		for worker := range slices.Values(unknowns) {
 			err := workerUnmerge(worker, nil)
-			t.Println("unknown worker phase done: worker=%q err=%v", worker, err)
+			t.Print("unknown worker phase done: worker=%q err=%v", worker, err)
 		}
 
 		go func() {
@@ -408,12 +408,12 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				wops := workerOps[worker]
 
 				err := workerUnmerge(worker, wops)
-				t.Println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
+				t.Print("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 			}
 
 			err := localReady(workers, nil)
 
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -474,12 +474,12 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 				wops := workerOps[worker]
 
 				err := workerUnmerge(worker, wops)
-				t.Println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
+				t.Print("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 			}
 
 			err := localReady(workers, nil)
 
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -544,7 +544,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 			{
 				err := localReady(workers, nil)
-				t.Println("local phase done: worker=%q err=%v", local, err)
+				t.Print("local phase done: worker=%q err=%v", local, err)
 			}
 
 			for worker, wops := range maps.All(workerOps) {
@@ -554,7 +554,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 				go func() {
 					err := workerUnmerge(worker, wops)
-					t.Println("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
+					t.Print("worker phase done: worker=%q ops=%v err=%v", worker, wops, err)
 
 					if slices.Index(failedWorkers, worker) >= 0 {
 						switch {
@@ -630,11 +630,11 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 
 		go func() {
 			err := workerUnmerge(worker, ops)
-			t.Println("worker phase done: worker=%q ops=%v err=%v", worker, ops, err)
+			t.Print("worker phase done: worker=%q ops=%v err=%v", worker, ops, err)
 
 			err = localReady(workers, nil)
 
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		unmerged, err := wait()
@@ -677,14 +677,14 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 		go func() {
 			err = localReady(workers, nil)
 
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 		}()
 
 		donech := make(chan error, 1)
 
 		go func() {
 			unmerged, err := wait()
-			t.Println("wait: unmerged=%v err=%v", unmerged, err)
+			t.Print("wait: unmerged=%v err=%v", unmerged, err)
 
 			if err == nil {
 				slices.Sort(unmerged)
@@ -728,10 +728,10 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 		go func() {
 			err := localReady([]string{local}, []uint64{0, 1, 2, 3, 4})
-			t.Println("local phase done: worker=%q err=%v", local, err)
+			t.Print("local phase done: worker=%q err=%v", local, err)
 
 			err = workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
-			t.Println("worker phase done: worker=%q err=%v", managerName, err)
+			t.Print("worker phase done: worker=%q err=%v", managerName, err)
 		}()
 
 		unmerged, err := wait()
@@ -760,7 +760,7 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 
 		go func() {
 			err := workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
-			t.Println("worker phase done: worker=%q err=%v", managerName, err)
+			t.Print("worker phase done: worker=%q err=%v", managerName, err)
 		}()
 
 		unmerged, err := wait()
