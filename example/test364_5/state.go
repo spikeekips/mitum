@@ -108,27 +108,14 @@ func (s *baseState) Operations() []util.Hash {
 }
 
 func (s *baseState) generateHash() util.Hash {
-	var bs [][]byte
-	var bsSize int
-
-	switch {
-	case len(s.ops) < 1:
-		bsSize = 2
-	default:
-		bsSize = len(s.ops) + 2
-	}
-
-	bs = make([][]byte, bsSize)
-	defer func() {
-		bs = dutil.ClearSlice(bs)
-	}()
+	w, sum := dutil.NewSHA256HashWriter()
 
 	if s.previous != nil {
-		bs[0] = s.previous.Bytes()
+		w(s.previous.Bytes())
 	}
 
 	if s.v != nil {
-		bs[1] = s.v.HashBytes()
+		w(s.v.HashBytes())
 	}
 
 	for i := range s.ops {
@@ -136,10 +123,10 @@ func (s *baseState) generateHash() util.Hash {
 			continue
 		}
 
-		bs[i+2] = s.ops[i].Bytes()
+		w(s.ops[i].Bytes())
 	}
 
-	return valuehash.NewSHA256(slices.Concat(bs...))
+	return sum()
 }
 
 type baseStateJSONMarshaler struct {

@@ -1,8 +1,6 @@
 package fixedtree
 
 import (
-	"slices"
-
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -138,36 +136,35 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 		return nil, errors.Errorf("empty key")
 	}
 
-	var b []byte
+	w, sum := dutil.NewSHA256HashWriter()
+	defer sum()
 
-	switch i, err := nodeHashBytes(); {
+	switch b, err := nodeHashBytes(); {
 	case err != nil:
 		return nil, err
 	default:
-		b = i
+		w(b)
 	}
-
-	var lh, rh []byte
 
 	switch {
 	case left == nil:
-		lh = emptyNodeBytes
+		w(emptyNodeBytes)
 	case left.Hash() == nil:
 		return nil, errors.Errorf("nil left hash")
 	default:
-		lh = left.Hash().Bytes()
+		w(left.Hash().Bytes())
 	}
 
 	switch {
 	case right == nil:
-		lh = emptyNodeBytes
+		w(emptyNodeBytes)
 	case right.Hash() == nil:
 		return nil, errors.Errorf("nil right hash")
 	default:
-		rh = right.Hash().Bytes()
+		w(right.Hash().Bytes())
 	}
 
-	return valuehash.NewSHA256(slices.Concat(b, lh, rh)), nil
+	return sum(), nil
 }
 
 func IsEqualNode(a, b Node) bool {

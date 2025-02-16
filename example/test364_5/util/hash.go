@@ -6,7 +6,10 @@ import (
 	"math/big"
 	mathrand "math/rand"
 
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/twmb/murmur3"
+	"golang.org/x/crypto/sha3"
 )
 
 func NewHashSeed() uint64 {
@@ -57,4 +60,30 @@ func StringDjb2(seed uint64, k string) uint64 {
 
 func Murmur3(seed uint64, s string) uint64 {
 	return murmur3.SeedStringSum64(seed, s)
+}
+
+const (
+	SHA256Size int = 32
+	SHA512Size int = 64
+)
+
+func NewSHA256Hash(b []byte) util.Hash {
+	return valuehash.NewSHA256(b)
+}
+
+func NewSHA256HashWriter() (func([]byte), func() util.Hash) {
+	h := sha3.New256()
+
+	return func(b []byte) {
+			_, _ = h.Write(b)
+		},
+		func() util.Hash {
+			defer h.Reset()
+
+			var n [32]byte
+
+			h.Sum(n[:0])
+
+			return valuehash.L32(n)
+		}
 }

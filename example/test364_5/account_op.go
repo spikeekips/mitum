@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
@@ -71,17 +70,18 @@ func (fact *accountOpFact) IsValid([]byte) error {
 }
 
 func (fact *accountOpFact) hash() util.Hash {
-	var ib []byte
+	w, sum := dutil.NewSHA256HashWriter()
+
+	w(fact.Token())
+
 	if fact.Issuer != nil {
-		ib = fact.Issuer.Bytes()
+		w(fact.Issuer.Bytes())
 	}
 
-	return valuehash.NewSHA256(slices.Concat(
-		fact.Token(),
-		ib,
-		fact.Receiver.Bytes(),
-		util.Int64ToBytes(fact.Amount),
-	))
+	w(fact.Receiver.Bytes())
+	w(util.Int64ToBytes(fact.Amount))
+
+	return sum()
 }
 
 type accountOpFactJSONMarshaler struct {
