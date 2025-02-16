@@ -304,7 +304,7 @@ func (t *testLockAppendSlice) TestAdd() {
 
 				added, _ := add(i)
 				if added < 1 {
-					panic(fmt.Sprintf("not added, %d", i))
+					t.Panicf(nil, "not added, %d", i)
 				}
 			}()
 		}
@@ -336,7 +336,7 @@ func (t *testLockAppendSlice) TestAdd() {
 
 				added, _ := add(i)
 				if added < 1 {
-					panic(fmt.Sprintf("not added, %d", i))
+					t.Panicf(nil, "not added, %d", i)
 				}
 			}()
 		}
@@ -381,7 +381,7 @@ func (t *testLockAppendSlice) TestAdd() {
 
 				added, left := add(v...)
 				if added < 1 {
-					panic(fmt.Sprintf("not added, %d", i))
+					t.Panicf(nil, "not added, %d", i)
 				}
 
 				t.Print("add: %d owners=%v added=%d left=%d", i, v, added, left)
@@ -551,7 +551,7 @@ func (t *testLockUniqueAppendSlice) TestAdd() {
 
 				added, _ := add(i)
 				if added < 1 {
-					panic(fmt.Sprintf("not added, %d", i))
+					t.Panicf(nil, "not added, %d", i)
 				}
 			}()
 		}

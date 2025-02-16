@@ -42,17 +42,13 @@ func (t *testWorkerMerger) newFuncs() (
 
 	extractKeys, _ := t.extractSMVKeys()
 
-	switch g, t, err := newFuncSVMs(
+	getSVMs, tr, err := newFuncSVMs(
 		1<<9,
 		getState,
 		extractKeys,
-	); {
-	case err != nil:
-		panic(err)
-	default:
-		getSVMs = g
-		_, traverseSVMs = t()
-	}
+	)
+	t.IfErrPanic(err)
+	_, traverseSVMs = tr()
 
 	return mergers, states, getState, getSVMs, traverseSVMs
 }

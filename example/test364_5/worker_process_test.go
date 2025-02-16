@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -1138,7 +1137,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 				case accountStateKey(pub2):
 					owner = "w2"
 				default:
-					panic(fmt.Sprintf("unknown state, %q", stateKey))
+					t.Panicf(nil, "unknown state, %q", stateKey)
 				}
 
 				return []string{owner}
@@ -1229,11 +1228,11 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 								aaffected := a[1]
 
 								if !slices.Equal(asubws, subws) {
-									panic(fmt.Sprintf("local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws))
+									t.Panicf(nil, "local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws)
 								}
 
 								if !slices.Equal(aaffected, affected) {
-									panic(fmt.Sprintf("local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected))
+									t.Panicf(nil, "local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected)
 								}
 
 								return nil
@@ -1257,7 +1256,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 						slices.Sort(owners)
 
 						if !slices.Equal(workers, owners) {
-							panic(fmt.Sprintf("local=%q expected=%v result=%v", local, workers, owners))
+							t.Panicf(nil, "local=%q expected=%v result=%v", local, workers, owners)
 						}
 
 						return nil

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"maps"
 	"slices"
@@ -442,7 +441,7 @@ func (t *testManager) TestStartWorkers() {
 			t.randomOphs(3),
 			nil,
 			func(_ context.Context, _, worker string, err error) error {
-				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
@@ -468,7 +467,7 @@ func (t *testManager) TestStartWorkers() {
 			t.randomOphs(3),
 			[]string{"w0"},
 			func(_ context.Context, _, worker string, err error) error {
-				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
@@ -515,7 +514,7 @@ func (t *testManager) TestStartWorkers() {
 			t.randomOphs(3),
 			[]string{"w6", "w7", "w8"},
 			func(_ context.Context, _, worker string, err error) error {
-				panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
@@ -699,7 +698,7 @@ func (t *testManager) TestCloseWorkers() {
 			ctx,
 			t.newOptions(),
 			func(_ context.Context, _, worker string, err error) error {
-				panic(fmt.Sprintf("worker canceled: worker=%q err=%+v", worker, err))
+				t.IfErrPanicf(err, "worker canceled: worker=%q", worker)
 
 				return err
 			},

@@ -738,7 +738,7 @@ func (t *testWorkerStateOwners) TestCases() {
 			case accountStateKey(pub2):
 				owner = workers[2]
 			default:
-				panic(fmt.Sprintf("unknown owner, %q", stateKey))
+				t.Panicf(nil, "unknown owner, %q", stateKey)
 			}
 
 			return []string{owner}

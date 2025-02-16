@@ -166,9 +166,9 @@ func (t *testManagerWithWorkers) newManager(
 ) {
 	switch nworkers := uint64(len(workers)); {
 	case opsShare > nworkers:
-		panic(fmt.Sprintf("opsShare=%d > workers=%d", opsShare, nworkers))
+		t.Panicf(nil, "opsShare=%d > workers=%d", opsShare, nworkers)
 	case statesShare > nworkers:
-		panic(fmt.Sprintf("statesShare=%d > workers=%d", statesShare, nworkers))
+		t.Panicf(nil, "statesShare=%d > workers=%d", statesShare, nworkers)
 	}
 
 	workID := util.UUID().String()
@@ -182,7 +182,7 @@ func (t *testManagerWithWorkers) newManager(
 		ctx,
 		t.newManagerOptions(),
 		func(_ context.Context, _, worker string, err error) error {
-			panic(fmt.Sprintf("worker canceled by manager: err=%+v", err))
+			t.IfErrPanicf(err, "worker canceled by manager")
 
 			return nil
 		},
@@ -240,11 +240,11 @@ func (t *testManagerWithWorkers) newManager(
 						aaffected := a[1]
 
 						if !slices.Equal(asubws, subws) {
-							panic(fmt.Sprintf("sub: local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws))
+							t.Panicf(nil, "sub: local=%q worker=%q expected=%v result=%v", local, worker, asubws, subws)
 						}
 
 						if !slices.Equal(aaffected, affected) {
-							panic(fmt.Sprintf("affected: local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected))
+							t.Panicf(nil, "affected: local=%q worker=%q expected=%v result=%v", local, worker, aaffected, affected)
 						}
 					}
 
@@ -318,7 +318,7 @@ func (t *testManagerWithWorkers) newManager(
 	switch a, d, err := dutil.NewLockUniqueAppendSlice[base.State, string](1<<9, 1<<9,
 		func(n base.State) string { return n.Key() }); {
 	case err != nil:
-		panic(err)
+		t.IfErrPanicf(err, "append base.State")
 	default:
 		addState, doneState = a, d
 	}
@@ -374,10 +374,10 @@ func (t *testManagerWithWorkers) newManager(
 								t.Print("worker report result: state: local=%q key=%q expected=%v result=%v found=%v", local, st.Key(), e, b, found)
 								switch {
 								case !found:
-									panic(fmt.Sprintf("unknown state: worker=%q state key=%q", local, st.Key()))
+									t.Panicf(nil, "unknown state: worker=%q state key=%q", local, st.Key())
 								case b != e:
-									panic(fmt.Sprintf("wrong balance: worker=%q state key=%q expected=%d result=%d",
-										local, st.Key(), e, b))
+									t.Panicf(nil, "wrong balance: worker=%q state key=%q expected=%d result=%d",
+										local, st.Key(), e, b)
 								}
 							}
 
@@ -687,7 +687,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 			return st, true, nil
 		}
 
-		panic(fmt.Sprintf("unknown state, %q", stateKey))
+		t.Panicf(nil, "unknown state, %q", stateKey)
 
 		return nil, false, nil
 	}
@@ -740,7 +740,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		//	}
 
 		//	if owner == "" {
-		//		panic(fmt.Sprintf("unknown state, %q", stateKey))
+		//		t.Panicf(nil, "unknown state, %q", stateKey)
 		//	}
 
 		//	return []string{owner}

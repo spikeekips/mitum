@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"maps"
 	"math"
@@ -47,17 +46,13 @@ func (t *testWorkerUnmerger) newFuncs() (
 
 	extractKeys, _ := t.extractSMVKeys()
 
-	switch g, t, err := newFuncSVMs(
+	getSVMs, tr, err := newFuncSVMs(
 		1<<9,
 		getState,
 		extractKeys,
-	); {
-	case err != nil:
-		panic(err)
-	default:
-		getSVMs = g
-		_, traverseSVMs = t()
-	}
+	)
+	t.IfErrPanic(err)
+	_, traverseSVMs = tr()
 
 	return vp, mergers, states, getSMVs, getState, getSVMs, traverseSVMs
 }
@@ -561,8 +556,7 @@ func (t *testWorkerUnmerger) TestWorkerUnmerge() {
 						case err == nil:
 						case strings.Contains(err.Error(), "findme"), errors.Is(err, context.Canceled):
 						default:
-							panic(fmt.Sprintf(
-								"unexpected error for failed worker=%q err=%+v", worker, err))
+							t.IfErrPanicf(err, "unexpected error for failed worker=%q", worker)
 						}
 					}
 				}()

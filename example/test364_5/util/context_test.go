@@ -34,7 +34,7 @@ func (t *testContext) TestContextDone() {
 
 				err := done()
 				if !strings.Contains(err.Error(), "findme") {
-					panic(err)
+					t.Panic(err)
 				}
 			}()
 		}
@@ -58,9 +58,7 @@ func (t *testContext) TestContextDone() {
 				_ = cancel(t.RandomError())
 
 				err := done()
-				if err != nil {
-					panic(err)
-				}
+				t.IfErrPanic(err)
 			}()
 		}
 

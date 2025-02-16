@@ -19,7 +19,9 @@ import (
 	"go.uber.org/goleak"
 )
 
-type baseTestWorkers struct{}
+type baseTestWorkers struct {
+	base dutil.BaseTest
+}
 
 func (t *baseTestWorkers) workers(n int) []string {
 	w := make([]string, n)
@@ -92,9 +94,7 @@ func (t *baseTestWorkers) newWorkerProcessDistributeSMVsFunc() (
 	dutil.OutFunc[[]interface{}],
 ) {
 	add, done, err := dutil.NewLockAppendSlice[interface{}](1<<9, 1<<9)
-	if err != nil {
-		panic(err)
-	}
+	t.base.IfErrPanic(err)
 
 	return func(_ context.Context, worker string) (
 			workerProcessInsertSMVsFunc,
@@ -137,9 +137,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 	iter.Seq2[string, dutil.OutFunc[[]interface{}]],
 ) {
 	pool, err := dutil.NewLockedMap[string, [2]interface{}](nil, 1<<9, 1<<9)
-	if err != nil {
-		panic(err)
-	}
+	t.base.IfErrPanic(err)
 
 	return func(_ context.Context, worker string) (
 			workerProcessInsertSMVsFunc,

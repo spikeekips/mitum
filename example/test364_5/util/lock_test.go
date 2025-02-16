@@ -1107,7 +1107,7 @@ func (t *testMultiKeysLockedMap) TestLock() {
 		go func() {
 			_, unlock, err := mk.Lock([]string{"1", "2"})
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 
 			defer unlock()
@@ -1147,7 +1147,7 @@ func (t *testMultiKeysLockedMap) TestLock() {
 		go func() {
 			l2, unlock, err := mk.Lock([]string{"9"})
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 			defer unlock()
 
@@ -1246,7 +1246,7 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 				},
 			)
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}()
 
@@ -1266,7 +1266,7 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 				},
 			)
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}()
 
@@ -1286,7 +1286,7 @@ func (t *testMultiKeysLockedMap) TestLockFunc() {
 				},
 			)
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}()
 
@@ -1371,11 +1371,11 @@ func (t *testMultiKeysLockedMap) TestAsyncLockFunc() {
 
 			keys, err := util.RandomChoiceSlice(allkeys, 3)
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 
 			if err := run(i, keys); err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}()
 	}
@@ -1444,11 +1444,11 @@ func (t *testMultiKeysLockedMap) TestDataRace() {
 
 			keys, err := util.RandomChoiceSlice(allkeys, 3)
 			if err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 
 			if err := run(i, keys); err != nil {
-				panic(err)
+				t.IfErrPanic(err)
 			}
 		}()
 	}

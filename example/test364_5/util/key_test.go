@@ -110,7 +110,7 @@ func (t *testDistributeByCount) TestCases() {
 							b = slices.Compact(b)
 
 							if len(a) != len(b) {
-								panic(fmt.Sprintf("a=%v b=%v", a, b))
+								t.Panicf(nil, "a=%v b=%v", a, b)
 							}
 						}()
 					}
