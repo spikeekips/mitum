@@ -93,9 +93,9 @@ func StreamHandlerOpenSubStreams(ctx context.Context, id []byte, size uint8) (
 }
 
 func loadQuicConnectionFromContext(ctx context.Context) (quic.Connection, error) {
-	switch i := ctx.Value(ContextKeyQuicConnectionKey); {
+	switch i := ctx.Value(QuicConnectionContextKey); {
 	case i == nil:
-		return nil, util.ErrNotFound.Errorf("context key, %q not found", ContextKeyQuicConnectionKey)
+		return nil, util.ErrNotFound.Errorf("context key, %q not found", QuicConnectionContextKey)
 	default:
 		conn, ok := i.(quic.Connection)
 		if !ok {

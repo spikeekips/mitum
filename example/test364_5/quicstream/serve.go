@@ -23,10 +23,10 @@ const (
 )
 
 var (
-	ContextKeyQuicConnectionKey    util.ContextKey = "quic_connection"
-	ContextKeyQuicConnectionUIDKey util.ContextKey = "quic_connection_uid"
-	ContextKeyRemoteAddrKey        util.ContextKey = "remote_addr"
-	ContextKeyStreamIDKey          util.ContextKey = "stream_id"
+	QuicConnectionContextKey    util.ContextKey = "quic_connection"
+	QuicConnectionUIDContextKey util.ContextKey = "quic_connection_uid"
+	RemoteAddrContextKey        util.ContextKey = "remote_addr"
+	StreamIDContextKey          util.ContextKey = "stream_id"
 )
 
 func Serve(
@@ -83,7 +83,7 @@ func serveListener(
 			return errors.Wrap(err, "listener.Accept")
 		default:
 			go func() {
-				cctx := context.WithValue(ctx, ContextKeyQuicConnectionUIDKey, util.ULID().String())
+				cctx := context.WithValue(ctx, QuicConnectionUIDContextKey, util.ULID().String())
 
 				if err := serveConnection(cctx, conn, f); err != nil {
 					_ = conn.CloseWithError(connErrorCodeUnknown, "")
@@ -100,19 +100,18 @@ func serveConnection(
 	conn quic.Connection,
 	f StreamHandler,
 ) error {
+	bctx := context.WithValue(ctx, QuicConnectionContextKey, conn)
+	bctx = context.WithValue(bctx, RemoteAddrContextKey, conn.RemoteAddr())
+
 	for {
 		switch stream, err := conn.AcceptStream(ctx); {
 		case err != nil:
 			return errors.Wrap(err, "connection.AcceptStream")
 		default:
-			go func() {
-				cctx := context.WithValue(
-					context.WithValue(
-						context.WithValue(ctx, ContextKeyQuicConnectionKey, conn),
-						ContextKeyRemoteAddrKey, conn.RemoteAddr()),
-					ContextKeyStreamIDKey, stream.StreamID())
+			sctx := context.WithValue(bctx, StreamIDContextKey, stream.StreamID())
 
-				_, err := f(cctx, stream)
+			go func() {
+				_, err := f(sctx, stream)
 				_ = closeStreamWithError(stream, err)
 			}()
 		}

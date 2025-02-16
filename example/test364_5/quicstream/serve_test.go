@@ -155,7 +155,7 @@ func (t *testServe) TestHandleStream() {
 		done := make(chan struct{})
 
 		await := wait(func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-			connUID := ctx.Value(ContextKeyQuicConnectionUIDKey).(string)
+			connUID := ctx.Value(QuicConnectionUIDContextKey).(string)
 			t.Print("stream accepted: ConnectionID=%q", connUID)
 
 			_, err := stream.Write(b)
@@ -210,7 +210,7 @@ func (t *testServe) TestHandleStream() {
 		await := wait(func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 			defer localWg.Done()
 
-			i := ctx.Value(ContextKeyQuicConnectionUIDKey).(string)
+			i := ctx.Value(QuicConnectionUIDContextKey).(string)
 			old := connUID.Swap(i)
 			t.IfTruePanic(old != nil && old != i, "local stream: unexpected new connection: %v", old)
 
