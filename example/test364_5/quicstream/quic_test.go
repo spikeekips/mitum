@@ -530,15 +530,38 @@ func (t *testQuic) TestRemoteConnection() {
 
 func (t *testQuic) TestLocalStream() {
 	t.RunWithGoLeak("accept stream after context canceled", func() {
-		_, _, localConn, _, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
 		_, err := localConn.AcceptStream(ctx)
-		t.PrintErr(err, "local conn: AcceptStream")
+		t.PrintErr(err, "local conn: AcceptStream; expected canceled")
 		t.ErrorIs(err, context.Canceled)
+
+		nctx, ncancel := t.Ctx()
+		defer ncancel(nil)
+
+		accepted := make(chan struct{})
+		go func() {
+			_, err := localConn.AcceptStream(nctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream; expected ok")
+			close(accepted)
+		}()
+
+		t.T().Log("remote conn: OpenStream")
+		remoteStream, err := remoteConn.OpenStream()
+		t.NoError(err)
+		_, err = remoteStream.Write(util.UUID().Bytes())
+		t.NoError(err)
+		remoteStream.Close()
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait accept stream")
+		case <-accepted:
+		}
 	})
 
 	t.RunWithGoLeak("local stream read after context canceled", func() {
