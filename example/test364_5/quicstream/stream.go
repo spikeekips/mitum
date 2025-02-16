@@ -68,7 +68,7 @@ func StreamHandlerOpenSubStreams(ctx context.Context, id []byte, size uint8) (
 				return nil
 			}
 		}); err != nil {
-			return nil, nil, err
+			return nil, nil, jobWait(err)
 		}
 	}
 
