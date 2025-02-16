@@ -161,11 +161,9 @@ type baseStateJSONUnmarshaler struct {
 }
 
 func (s *baseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	e := util.StringError("decode BaseState")
-
 	var u baseStateJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e.Wrap(err)
+		return err
 	}
 
 	s.h = u.Hash.Hash()
@@ -181,7 +179,7 @@ func (s *baseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
 
 	switch i, err := base.DecodeStateValue(u.Value, enc); {
 	case err != nil:
-		return e.Wrap(err)
+		return err
 	default:
 		s.v = i
 	}
