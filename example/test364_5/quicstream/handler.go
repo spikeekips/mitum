@@ -4,28 +4,86 @@ import (
 	"context"
 	"io"
 
-	"github.com/spikeekips/mitum/util"
+	"github.com/pkg/errors"
+	"github.com/quic-go/quic-go"
+	"github.com/spikeekips/mitum/example/test364_5/frame"
+	"golang.org/x/crypto/sha3"
 )
-
-var ConnectionContextKey = util.ContextKey("connection")
 
 type (
-	Handler func(context.Context, io.Reader, io.WriteCloser) (context.Context, error)
+	StreamHandler func(context.Context, quic.Stream) (context.Context, error)
 )
 
-func (h Handler) Next(i Handler) Handler {
-	return func(ctx context.Context, r io.Reader, w io.WriteCloser) (context.Context, error) {
-		switch nctx, err := h(ctx, r, w); {
+func (h StreamHandler) Next(i StreamHandler) StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		switch nctx, err := h(ctx, stream); {
 		case err != nil:
 			return nctx, err
 		default:
-			return i(nctx, r, w)
+			return i(nctx, stream)
 		}
 	}
 }
 
-func DummyHandler(ctx context.Context, _ io.Reader, _ io.WriteCloser) (context.Context, error) {
+func NilStreamHandler(ctx context.Context, _ quic.Stream) (context.Context, error) {
 	return ctx, nil
 }
 
-// FIXME streams bonding
+func NewFuncPrefixStreamHandler() (
+	func([]byte, StreamHandler) bool,
+	StreamHandler,
+	func(),
+) {
+	pool := map[string]StreamHandler{}
+
+	return func(b []byte, h StreamHandler) bool {
+			k := string(encodeStreamHandlerPrefix(b))
+			if _, found := pool[k]; found {
+				return false
+			}
+
+			pool[k] = h
+
+			return true
+		},
+		func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			switch p, err := readStreamHandlerPrefix(stream); {
+			case err != nil:
+				return ctx, err
+			default:
+				h, found := pool[string(p)]
+				if !found {
+					stream.CancelRead(streamErrorCodeNoStreamHandler)
+					stream.CancelWrite(streamErrorCodeNoStreamHandler)
+
+					return ctx, stream.Close()
+				}
+
+				return h(ctx, stream)
+			}
+		},
+		func() {
+			clear(pool)
+		}
+}
+
+func encodeStreamHandlerPrefix(b []byte) []byte {
+	s := sha3.Sum224(b)
+
+	return s[:]
+}
+
+func readStreamHandlerPrefix(r io.Reader) ([]byte, error) {
+	switch b, err := frame.ReadFixed(r); {
+	case err != nil:
+		return nil, err
+	case len(b) != 28:
+		return nil, errors.Errorf("invalid handler prefix length")
+	default:
+		return b, nil
+	}
+}
+
+func writeStreamHandlerPrefix(w io.Writer, b []byte) error {
+	return frame.WriteFixed(w, encodeStreamHandlerPrefix(b))
+}

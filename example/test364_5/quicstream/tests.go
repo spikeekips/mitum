@@ -16,7 +16,6 @@ import (
 	quiclogging "github.com/quic-go/quic-go/logging"
 	"github.com/quic-go/quic-go/qlog"
 	"github.com/spikeekips/mitum/util"
-	"golang.org/x/crypto/sha3"
 )
 
 type BaseTest struct {
@@ -46,6 +45,25 @@ func (t *BaseTest) NewTLSConfig() (*testcerts.KeyPair, *tls.Config) {
 	t.tlsUsed = append(t.tlsUsed, i)
 
 	return i[0].(*testcerts.KeyPair), i[1].(*tls.Config)
+}
+
+func (t *BaseTest) NewDial(ctx context.Context, addr net.Addr, quicConfig *quic.Config) (quic.Connection, error) {
+	pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		return nil, err
+	}
+
+	return t.Dial(ctx, pconn, addr, quicConfig)
+}
+
+func (t *BaseTest) Dial(ctx context.Context, pconn net.PacketConn, addr net.Addr, quicConfig *quic.Config) (quic.Connection, error) {
+	_, tlsConfig := t.NewTLSConfig()
+
+	if quicConfig == nil {
+		quicConfig = DefaultQuicConfig()
+	}
+
+	return Dial(ctx, pconn, addr, tlsConfig, quicConfig)
 }
 
 func NewTestTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config) {
@@ -83,8 +101,8 @@ func TestNewDail(
 	}
 }
 
-func RandomStatelessResetKey() quic.StatelessResetKey {
-	return quic.StatelessResetKey(sha3.Sum256(util.UUID().Bytes()))
+func RandomStatelessResetKey() *quic.StatelessResetKey {
+	return NewStatelessResetKey(util.UUID().Bytes())
 }
 
 func DebugQLogTracer(out io.WriteCloser) func(context.Context, quiclogging.Perspective, quic.ConnectionID) *quiclogging.ConnectionTracer {

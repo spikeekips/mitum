@@ -45,7 +45,7 @@ func (t *testQuic) listener(
 	}
 
 	statelessResetKey := NewStatelessResetKey(tlsConfig.Certificates[0].Certificate[0])
-	t.Println("stateless reset key: %v", statelessResetKey)
+	t.Print("stateless reset key: %v", statelessResetKey)
 
 	tp := quic.Transport{
 		Conn:              pconn,
@@ -59,25 +59,6 @@ func (t *testQuic) listener(
 	l, err := tp.ListenEarly(tlsConfig, quicConfig)
 
 	return l, err
-}
-
-func (t *testQuic) newDial(ctx context.Context, addr net.Addr, quicConfig *quic.Config) (quic.Connection, error) {
-	pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
-	if err != nil {
-		return nil, err
-	}
-
-	return t.dial(ctx, pconn, addr, quicConfig)
-}
-
-func (t *testQuic) dial(ctx context.Context, pconn net.PacketConn, addr net.Addr, quicConfig *quic.Config) (quic.Connection, error) {
-	_, tlsConfig := t.NewTLSConfig()
-
-	if quicConfig == nil {
-		quicConfig = DefaultQuicConfig()
-	}
-
-	return Dial(ctx, pconn, addr, tlsConfig, quicConfig)
 }
 
 func (t *testQuic) openConnections(
@@ -102,21 +83,16 @@ func (t *testQuic) openConnections(
 		remoteQuicConfig = DefaultQuicConfig()
 	}
 
-	remoteConn, err := t.dial(remoteCtx, rpconn, lpconn.LocalAddr(), remoteQuicConfig)
+	remoteConn, err := t.Dial(remoteCtx, rpconn, lpconn.LocalAddr(), remoteQuicConfig)
 	t.PrintIfErrPanic(err, "remote dial")
 
 	localConn := <-localConnCh
 
 	closef := func() {
 		err := lpconn.Close()
-		t.PrintlnErrCaller(err, 2, "local: PacketConn closed")
+		t.PrintErrCaller(err, 2, "local: PacketConn closed")
 		err = rpconn.Close()
-		t.PrintlnErrCaller(err, 2, "remote: PacketConn closed")
-
-		err = localConn.CloseWithError(0, "")
-		t.PrintlnErrCaller(err, 2, "local conn: closed")
-		err = remoteConn.CloseWithError(0, "")
-		t.PrintlnErrCaller(err, 2, "remote conn: closed")
+		t.PrintErrCaller(err, 2, "remote: PacketConn closed")
 	}
 
 	t.T().Cleanup(closef)
@@ -127,7 +103,7 @@ func (t *testQuic) openConnections(
 func (t *testQuic) newListenerAccept(ctx context.Context, l *quic.EarlyListener, f func(quic.Stream) error) {
 	for {
 		conn, err := l.Accept(ctx)
-		t.PrintlnErr(err, "%p: local PacketConn: accept", l)
+		t.PrintErr(err, "%p: local PacketConn: accept", l)
 		if err != nil {
 			return
 		}
@@ -139,13 +115,13 @@ func (t *testQuic) newListenerAccept(ctx context.Context, l *quic.EarlyListener,
 func (t *testQuic) newAcceptStream(ctx context.Context, l *quic.EarlyListener, conn quic.Connection, f func(quic.Stream) error) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
-		t.PrintlnErr(err, "%p: AcceptStream", l)
+		t.PrintErr(err, "%p: AcceptStream", l)
 		if err != nil {
 			return
 		}
 
 		err = f(stream)
-		t.PrintlnErr(err, "%p: stream", l)
+		t.PrintErr(err, "%p: stream", l)
 	}
 }
 
@@ -171,7 +147,7 @@ func (t *testQuic) TestPacketConn() {
 
 		wait := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
 			_, err := l.Accept(context.Background())
-			t.PrintlnErr(err, "local listener: Accept")
+			t.PrintErr(err, "local listener: Accept")
 
 			return err
 		})
@@ -180,8 +156,8 @@ func (t *testQuic) TestPacketConn() {
 		remoteQuicConfig.HandshakeIdleTimeout = time.Millisecond * 333
 		remoteQuicConfig.MaxIdleTimeout = time.Millisecond * 3
 
-		_, err = t.newDial(context.Background(), pconn.LocalAddr(), remoteQuicConfig)
-		t.PrintlnErr(err, "remote dial")
+		_, err = t.NewDial(context.Background(), pconn.LocalAddr(), remoteQuicConfig)
+		t.PrintErr(err, "remote dial")
 
 		var ierr *quic.IdleTimeoutError
 		t.ErrorAs(err, &ierr)
@@ -201,7 +177,7 @@ func (t *testQuic) TestPacketConn() {
 			return conn
 		})
 
-		remoteConn, err := t.newDial(context.Background(), pconn.LocalAddr(), DefaultQuicConfig())
+		remoteConn, err := t.NewDial(context.Background(), pconn.LocalAddr(), DefaultQuicConfig())
 		t.NoError(err, "remote dial")
 		defer remoteConn.CloseWithError(0, "")
 
@@ -233,7 +209,7 @@ func (t *testQuic) TestPacketConn() {
 
 		waitLocalConn := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
 			_, err := localConn.AcceptStream(context.Background())
-			t.PrintlnErr(err, "local conn: accept stream")
+			t.PrintErr(err, "local conn: accept stream")
 
 			return err
 		})
@@ -253,11 +229,11 @@ func (t *testQuic) TestPacketConn() {
 		}
 
 		_, err = remoteStream.Write([]byte{0})
-		t.PrintlnErr(err, "remote stream: write")
+		t.PrintErr(err, "remote stream: write")
 		t.NoError(err)
 
 		_, err = io.ReadAll(remoteStream)
-		t.PrintlnErr(err, "remote stream: read all")
+		t.PrintErr(err, "remote stream: read all")
 
 		var ierr *quic.IdleTimeoutError
 		t.ErrorAs(err, &ierr)
@@ -277,11 +253,11 @@ func (t *testQuic) TestPacketConn() {
 
 			{
 				err := lpconn.Close()
-				t.PrintlnErr(err, "local PacketConn: closed")
+				t.PrintErr(err, "local PacketConn: closed")
 			}
 
 			_, err = io.ReadAll(stream)
-			t.PrintlnErr(err, "local stream: read all")
+			t.PrintErr(err, "local stream: read all")
 
 			return err
 		})
@@ -308,7 +284,7 @@ func (t *testQuic) TestPacketConn() {
 		t.T().Log("remote stream: trying to read all")
 
 		_, err = io.ReadAll(remoteStream)
-		t.PrintlnErr(err, "remote stream: read all")
+		t.PrintErr(err, "remote stream: read all")
 
 		var ierr *quic.IdleTimeoutError
 		t.ErrorAs(err, &ierr)
@@ -327,11 +303,11 @@ func (t *testQuic) TestPacketConn() {
 
 			{
 				err := lpconn.Close()
-				t.PrintlnErr(err, "local PacketConn: closed")
+				t.PrintErr(err, "local PacketConn: closed")
 			}
 
 			_, err = io.ReadAll(stream)
-			t.PrintlnErr(err, "local stream: read all")
+			t.PrintErr(err, "local stream: read all")
 
 			return err
 		})
@@ -355,7 +331,7 @@ func (t *testQuic) TestPacketConn() {
 
 		wait := dutil.AssertWaitChan(t.Assert(), remoteQuicConfig.MaxIdleTimeout*3, func() error {
 			_, err := io.ReadAll(remoteStream)
-			t.PrintlnErr(err, "remote stream: read all")
+			t.PrintErr(err, "remote stream: read all")
 
 			return err
 		})
@@ -390,7 +366,7 @@ func (t *testQuic) TestLocalConnection() {
 		t.T().Log("local conn: CloseWithError")
 
 		_, err := localConn.AcceptStream(context.Background())
-		t.PrintlnErr(err, "local conn: AcceptStream")
+		t.PrintErr(err, "local conn: AcceptStream")
 
 		var aerr *quic.ApplicationError
 		switch {
@@ -425,7 +401,7 @@ func (t *testQuic) TestLocalConnection() {
 		t.T().Log("local conn: CloseWithError")
 
 		_, err = io.ReadAll(localStream)
-		t.PrintlnErr(err, "local stream: read all")
+		t.PrintErr(err, "local stream: read all")
 
 		var aerr *quic.ApplicationError
 		t.ErrorAs(err, &aerr)
@@ -475,11 +451,15 @@ func (t *testQuic) TestLocalConnection() {
 
 func (t *testQuic) TestRemoteConnection() {
 	t.RunWithGoLeak("dial after context canceled", func() {
+		pconn, _, err := t.newListener(nil, nil)
+		t.NoError(err)
+		defer pconn.Close()
+
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		_, err := t.newDial(ctx, &net.UDPAddr{}, nil)
-		t.PrintlnErr(err, "remote dial")
+		_, err = t.NewDial(ctx, pconn.LocalAddr(), nil)
+		t.PrintErr(err, "remote dial")
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -497,17 +477,17 @@ func (t *testQuic) TestRemoteConnection() {
 		remoteStream, err := remoteConn.OpenStream()
 		t.NoError(err)
 		_, err = remoteStream.Write([]byte{0})
-		t.PrintlnErr(err, "remote stream: write")
+		t.PrintErr(err, "remote stream: write")
 		t.NoError(err)
 
 		localStream := waitLocalStream()
 
 		err = remoteConn.CloseWithError(9, "findme")
-		t.PrintlnErr(err, "remote conn: closed")
+		t.PrintErr(err, "remote conn: closed")
 
 		waitReadAll := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
 			_, err := io.ReadAll(localStream)
-			t.PrintlnErr(err, "local stream: read all")
+			t.PrintErr(err, "local stream: read all")
 
 			return err
 		})
@@ -541,7 +521,7 @@ func (t *testQuic) TestRemoteConnection() {
 
 		remoteStream := waitRemoteStream()
 		rb, err := io.ReadAll(remoteStream)
-		t.PrintlnErr(err, "remote stream: read all")
+		t.PrintErr(err, "remote stream: read all")
 
 		t.NoError(err)
 		t.Equal(b, rb)
@@ -557,7 +537,7 @@ func (t *testQuic) TestLocalStream() {
 		cancel(nil)
 
 		_, err := localConn.AcceptStream(ctx)
-		t.PrintlnErr(err, "local conn: AcceptStream")
+		t.PrintErr(err, "local conn: AcceptStream")
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -570,7 +550,7 @@ func (t *testQuic) TestLocalStream() {
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
 			stream, err := localConn.AcceptStream(ctx)
-			t.PrintlnErr(err, "local conn: AcceptStream")
+			t.PrintErr(err, "local conn: AcceptStream")
 
 			return stream
 		})
@@ -600,7 +580,7 @@ func (t *testQuic) TestLocalStream() {
 
 		go func() {
 			stream, err := localConn.AcceptStream(context.Background())
-			t.PrintlnErr(err, "local conn: AcceptStream")
+			t.PrintErr(err, "local conn: AcceptStream")
 
 			var aerr *quic.ApplicationError
 			switch {
@@ -609,7 +589,7 @@ func (t *testQuic) TestLocalStream() {
 			case errors.Is(err, quic.ErrTransportClosed),
 				errors.As(err, &aerr):
 			default:
-				t.PrintlnErr(err, "local conn: AcceptStream")
+				t.PrintErr(err, "local conn: AcceptStream")
 			}
 		}()
 
@@ -633,7 +613,7 @@ func (t *testQuic) TestLocalStream() {
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second*2, func() error {
 			_, err := localConn.AcceptStream(context.Background())
-			t.PrintlnErr(err, "local conn: AcceptStream")
+			t.PrintErr(err, "local conn: AcceptStream")
 
 			return err
 		})
@@ -686,12 +666,90 @@ func (t *testQuic) TestLocalStream() {
 		t.NoError(err)
 
 		_, err = io.ReadAll(localStream)
-		t.PrintlnErr(err, "local stream: read all")
+		t.PrintErr(err, "local stream: read all")
 		var ierr *quic.IdleTimeoutError
 		t.ErrorAs(err, &ierr)
 
 		_, err = localConn.AcceptStream(context.Background())
 		t.ErrorAs(err, &ierr)
+	})
+
+	t.RunWithGoLeak("remote stream: CancelRead()", func() {
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		go func() {
+			remoteStream, err := remoteConn.OpenStream()
+			t.PrintIfErrPanic(err, "remote OpenStream")
+
+			remoteStream.CancelRead(9)
+		}()
+
+		localStream, err := localConn.AcceptStream(context.Background())
+		t.NoError(err)
+
+		for i := range 333 {
+			_, err = localStream.Write([]byte{0})
+			t.PrintErr(err, "local stream: write: %d", i)
+			if err != nil {
+				break
+			}
+
+			<-time.After(time.Millisecond * 33)
+		}
+
+		var serr *quic.StreamError
+		t.ErrorAs(err, &serr)
+		t.EqualValues(serr.ErrorCode, 9)
+		t.True(serr.Remote)
+	})
+
+	t.RunWithGoLeak("remote stream: CancelWrite()", func() {
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		go func() {
+			remoteStream, err := remoteConn.OpenStream()
+			t.PrintIfErrPanic(err, "remote OpenStream")
+
+			remoteStream.CancelWrite(9)
+		}()
+
+		localStream, err := localConn.AcceptStream(context.Background())
+		t.NoError(err)
+
+		_, err = io.ReadAll(localStream)
+		t.PrintErr(err, "local stream: read all")
+
+		var serr *quic.StreamError
+		t.ErrorAs(err, &serr)
+		t.EqualValues(serr.ErrorCode, 9)
+		t.True(serr.Remote)
+	})
+
+	t.RunWithGoLeak("remote OpenStreamSync", func() {
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		opened := make(chan struct{})
+		go func() {
+			stream, err := remoteConn.OpenStreamSync(context.Background())
+			t.PrintIfErrPanic(err, "remote OpenStream")
+
+			_, err = stream.Write([]byte{0}) // NOTE without stream write, other side stream will not be opened.
+			t.PrintIfErrPanic(err, "remote stream: write")
+
+			close(opened)
+		}()
+
+		_, err := localConn.AcceptStream(context.Background())
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("failed AcceptStream")
+		case <-opened:
+		}
 	})
 }
 
@@ -704,7 +762,7 @@ func (t *testQuic) TestRemoteStream() {
 		cancel(nil)
 
 		_, err := remoteConn.OpenStreamSync(ctx)
-		t.PrintlnErr(err, "remote conn: OpenStreamSync")
+		t.PrintErr(err, "remote conn: OpenStreamSync")
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -721,13 +779,68 @@ func (t *testQuic) TestRemoteStream() {
 		t.NoError(err)
 
 		_, err = io.ReadAll(remoteStream)
-		t.PrintlnErr(err, "remote stream: read all")
+		t.PrintErr(err, "remote stream: read all")
 
 		var ierr *quic.IdleTimeoutError
 		t.ErrorAs(err, &ierr)
 
 		_, err = remoteConn.OpenStream()
 		t.ErrorAs(err, &ierr)
+	})
+
+	t.RunWithGoLeak("local stream: CancelRead()", func() {
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		go func() {
+			localStream, err := localConn.AcceptStream(context.Background())
+			t.PrintIfErrPanic(err, "local AcceptStream")
+
+			localStream.CancelRead(9)
+		}()
+
+		remoteStream, err := remoteConn.OpenStream()
+		t.NoError(err)
+
+		for i := range 333 {
+			_, err = remoteStream.Write([]byte{0})
+			t.PrintErr(err, "remote stream: write: %d", i)
+			if err != nil {
+				break
+			}
+
+			<-time.After(time.Millisecond * 33)
+		}
+
+		var serr *quic.StreamError
+		t.ErrorAs(err, &serr)
+		t.EqualValues(serr.ErrorCode, 9)
+		t.True(serr.Remote)
+	})
+
+	t.RunWithGoLeak("local stream: CancelWrite()", func() {
+		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		defer closef()
+
+		go func() {
+			localStream, err := localConn.AcceptStream(context.Background())
+			t.PrintIfErrPanic(err, "local AcceptStream")
+
+			localStream.CancelWrite(9)
+		}()
+
+		remoteStream, err := remoteConn.OpenStream()
+		t.NoError(err)
+		_, err = remoteStream.Write([]byte{0})
+		t.PrintErr(err, "remote stream: write")
+
+		_, err = io.ReadAll(remoteStream)
+		t.PrintErr(err, "remote stream: read all")
+
+		var serr *quic.StreamError
+		t.ErrorAs(err, &serr)
+		t.EqualValues(serr.ErrorCode, 9)
+		t.True(serr.Remote)
 	})
 }
 
@@ -821,7 +934,7 @@ func (t *testQuic) TestRemoteReboot() {
 		defer rpconn.Close()
 
 		t.Run("remote connect", func() {
-			remoteConn, err := t.dial(context.Background(), rpconn, localAddr, remoteQuicConfig)
+			remoteConn, err := t.Dial(context.Background(), rpconn, localAddr, remoteQuicConfig)
 			t.PrintIfErrPanic(err, "remote dial")
 
 			t.NoError(remoteWrite(remoteConn))
@@ -832,7 +945,7 @@ func (t *testQuic) TestRemoteReboot() {
 		t.Run("remote reboot", func() {
 			t.T().Log("dial with new tls config")
 
-			remoteConn, err := t.dial(context.Background(), rpconn, localAddr, remoteQuicConfig)
+			remoteConn, err := t.Dial(context.Background(), rpconn, localAddr, remoteQuicConfig)
 			t.NoError(err)
 			defer remoteConn.CloseWithError(0, "")
 
@@ -860,14 +973,14 @@ func (t *testQuic) TestLocalReboot() {
 			t.PrintIfErrPanic(err, "%p: local stream: close", l)
 
 			_, err = io.ReadAll(stream)
-			t.PrintlnErr(err, "%p: local stream: read", l)
+			t.PrintErr(err, "%p: local stream: read", l)
 
 			return nil
 		}
 	}
 
 	remoteWrite := func(remoteConn quic.Connection) error {
-		t.Println("> remote write")
+		t.Print("> remote write")
 
 		remoteStream, err := remoteConn.OpenStream()
 		if err != nil {
@@ -904,7 +1017,7 @@ func (t *testQuic) TestLocalReboot() {
 			t.NoError(err, "remote: new PacketConn")
 
 			t.T().Log("remote connect")
-			remoteConn, err := t.dial(context.Background(), rpconn, lpconn.LocalAddr(), remoteQuicConfig)
+			remoteConn, err := t.Dial(context.Background(), rpconn, lpconn.LocalAddr(), remoteQuicConfig)
 			t.NoError(err)
 			defer remoteConn.CloseWithError(0, "")
 
@@ -943,12 +1056,12 @@ func (t *testQuic) TestLocalReboot() {
 			t.NoError(err, "remote: new PacketConn")
 
 			t.T().Log("remote connect")
-			remoteConn, err := t.dial(context.Background(), rpconn, lpconn.LocalAddr(), remoteQuicConfig)
+			remoteConn, err := t.Dial(context.Background(), rpconn, lpconn.LocalAddr(), remoteQuicConfig)
 			t.NoError(err)
 			defer remoteConn.CloseWithError(0, "")
 
 			t.NoError(remoteWrite(remoteConn))
-			t.PrintlnErr(err, "< remote write")
+			t.PrintErr(err, "< remote write")
 
 			t.T().Log("> local reboot")
 			t.NoError(lpconn.Close())
@@ -957,7 +1070,7 @@ func (t *testQuic) TestLocalReboot() {
 			t.NoError(err, "local new PacketConn")
 			defer newlpconn.Close()
 
-			t.Println("local new PacketConn: addr=%q", newlpconn.LocalAddr())
+			t.Print("local new PacketConn: addr=%q", newlpconn.LocalAddr())
 
 			newl, err := t.listener(newlpconn, localTLSConfig, localQuicConfig)
 			t.NoError(err, "local reboot: new listener: %q", newlpconn.LocalAddr())
@@ -965,7 +1078,7 @@ func (t *testQuic) TestLocalReboot() {
 			go t.newListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
 
 			err = remoteWrite(remoteConn)
-			t.PrintlnErr(err, "< remote write")
+			t.PrintErr(err, "< remote write")
 
 			var ierr *quic.IdleTimeoutError
 			t.ErrorAs(err, &ierr)

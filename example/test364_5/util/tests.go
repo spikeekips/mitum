@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -38,11 +40,42 @@ func (t *BaseSuite) Print(a string, b ...any) {
 	t.PrintCaller(2, a, b...)
 }
 
+func (t *BaseSuite) unwrapError(err error) (es []error) {
+	if err == nil {
+		return nil
+	}
+
+	uerr := err
+	for {
+		uerr = errors.Unwrap(uerr)
+		if uerr == nil {
+			break
+		}
+		es = append(es, uerr)
+	}
+
+	return es
+}
+
+func (t *BaseSuite) printUnwrapError(err error) string {
+	es := t.unwrapError(err)
+	if len(es) < 1 {
+		return "nil"
+	}
+
+	ses := make([]string, len(es))
+	for i, err := range slices.All(es) {
+		ses[i] = fmt.Sprintf("%T", err)
+	}
+
+	return strings.Join(ses, "|")
+}
+
 func (t *BaseSuite) PrintErr(err error, a string, b ...any) {
 	switch {
 	case err != nil:
-		a = a + "; err=(%T)%v"
-		b = append(b, err, err)
+		a = a + "; err=(%s)%v"
+		b = append(b, t.printUnwrapError(err), err)
 	default:
 		a = a + "; err=nil"
 	}
@@ -61,7 +94,7 @@ func (t *BaseSuite) PrintErrCaller(err error, skip int, a string, b ...any) {
 	switch {
 	case err != nil:
 		a = a + "; err=(%T)%v"
-		b = append(b, err, err)
+		b = append(b, t.printUnwrapError(err), err)
 	default:
 		a = a + "; err=nil"
 	}
@@ -105,7 +138,15 @@ func (t *BaseSuite) PrintIfErrPanic(err error, a string, b ...interface{}) {
 	}
 
 	a = a + " err=%T"
-	b = append(b, err)
+	b = append(b, t.printUnwrapError(err))
+
+	t.PrintCaller(2, a, b...)
+}
+
+func (t *BaseSuite) PrintIfTruePanic(ok bool, a string, b ...interface{}) {
+	if ok {
+		t.IfTruePanic(ok, a, b...)
+	}
 
 	t.PrintCaller(2, a, b...)
 }
