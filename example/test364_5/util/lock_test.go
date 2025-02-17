@@ -1,6 +1,8 @@
 package util
 
 import (
+	"iter"
+	"maps"
 	"math"
 	"sort"
 	"sync"
@@ -444,6 +446,7 @@ func (t *testSingleLockedMap) TestLock() {
 					get func(int) (int, bool),
 					set func(int, int) bool,
 					remove func(int) bool,
+					traverse iter.Seq2[int, int],
 				) error {
 					_, found := get(3)
 					t.False(found)
@@ -456,6 +459,8 @@ func (t *testSingleLockedMap) TestLock() {
 
 					removed := remove(3)
 					t.True(removed)
+
+					t.Empty(maps.Collect(traverse))
 
 					return nil
 				}))
@@ -474,6 +479,7 @@ func (t *testSingleLockedMap) TestLock() {
 			get func(int) (int, bool),
 			_ func(int, int) bool,
 			remove func(int) bool,
+			_ iter.Seq2[int, int],
 		) error {
 			return errors.Errorf("showme")
 		})
@@ -974,6 +980,7 @@ func (t *testShardedLockedMap) TestLock() {
 					get func(int) (int, bool),
 					set func(int, int) bool,
 					remove func(int) bool,
+					traverse iter.Seq2[int, int],
 				) error {
 					_, found := get(3)
 					t.False(found)
@@ -986,6 +993,8 @@ func (t *testShardedLockedMap) TestLock() {
 
 					removed := remove(3)
 					t.True(removed)
+
+					t.Empty(maps.Collect(traverse))
 
 					return nil
 				}))
@@ -1004,6 +1013,7 @@ func (t *testShardedLockedMap) TestLock() {
 			get func(int) (int, bool),
 			_ func(int, int) bool,
 			remove func(int) bool,
+			_ iter.Seq2[int, int],
 		) error {
 			return errors.Errorf("showme")
 		})

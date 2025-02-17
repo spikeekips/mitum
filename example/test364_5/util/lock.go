@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -36,8 +37,10 @@ type LockedMap[K comparable /* key */, V any /* value */] interface { //nolint:i
 		get func(K) (_ V, found bool),
 		set func(K, V) (created bool),
 		remove func(K) (removed bool),
+		traverse iter.Seq2[K, V],
 	) error) error
 	Seq2(yield func(K, V) bool)
+	LenFunc(func(int) error) error
 }
 
 type SingleLockedMap[K comparable, V any] struct {
@@ -277,6 +280,7 @@ func (l *SingleLockedMap[K, V]) Lock(
 		get func(K) (_ V, found bool),
 		set func(K, V) (created bool),
 		remove func(K) (removed bool),
+		traverse iter.Seq2[K, V],
 	) error,
 ) error {
 	l.l.Lock()
@@ -304,6 +308,13 @@ func (l *SingleLockedMap[K, V]) Lock(
 
 			return true
 		},
+		func(yield func(K, V) bool) {
+			for k, v := range maps.All(l.m) {
+				if !yield(k, v) {
+					return
+				}
+			}
+		},
 	)
 }
 
@@ -316,6 +327,13 @@ func (l *SingleLockedMap[K, V]) Seq2(yield func(K, V) bool) {
 			return
 		}
 	}
+}
+
+func (l *SingleLockedMap[K, V]) LenFunc(f func(int) error) error {
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	return f(len(l.m))
 }
 
 type ShardedLockedMap[K comparable, V any] struct {
@@ -662,6 +680,7 @@ func (l *ShardedLockedMap[K, V]) Lock(
 		get func(K) (_ V, found bool),
 		set func(K, V) (created bool),
 		remove func(K) (removed bool),
+		traverse iter.Seq2[K, V],
 	) error,
 ) error {
 	l.l.Lock()
@@ -692,6 +711,9 @@ func (l *ShardedLockedMap[K, V]) Lock(
 
 			return i.RemoveValue(k)
 		},
+		func(yield func(K, V) bool) {
+			l.seq2(yield)
+		},
 	)
 }
 
@@ -699,6 +721,10 @@ func (l *ShardedLockedMap[K, V]) Seq2(yield func(K, V) bool) {
 	l.l.RLock()
 	defer l.l.RUnlock()
 
+	l.seq2(yield)
+}
+
+func (l *ShardedLockedMap[K, V]) seq2(yield func(K, V) bool) {
 	if l.sharded == nil {
 		return
 	}
@@ -714,6 +740,13 @@ func (l *ShardedLockedMap[K, V]) Seq2(yield func(K, V) bool) {
 			}
 		}
 	}
+}
+
+func (l *ShardedLockedMap[K, V]) LenFunc(f func(int) error) error {
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	return f(int(atomic.LoadInt64(&l.length)))
 }
 
 func NewLockedMap[K comparable, V any](
