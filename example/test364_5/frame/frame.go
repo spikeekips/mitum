@@ -113,7 +113,7 @@ func readType(r io.Reader) (t frameType, _ error) {
 	return t, err
 }
 
-func readSize(r io.Reader, i *uint32) (int, error) {
+func ReadSize(r io.Reader, i *uint32) (int, error) {
 	switch p, n, err := ensureRead(r, 4); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return n, err
@@ -132,7 +132,7 @@ func sizeToBytes(i uint32) ([]byte, error) {
 	return b, errors.WithStack(err)
 }
 
-func writeSize(w io.Writer, i uint32) error {
+func WriteSize(w io.Writer, i uint32) error {
 	return binary.Write(w, binary.BigEndian, i)
 }
 
@@ -160,7 +160,7 @@ func ensureRead(r io.Reader, size uint32) ([]byte, int, error) {
 func readFixedBytes(r io.Reader) ([]byte, error) {
 	var size uint32
 
-	if _, err := readSize(r, &size); err != nil {
+	if _, err := ReadSize(r, &size); err != nil {
 		return nil, errors.Wrap(err, "read frame size")
 	}
 

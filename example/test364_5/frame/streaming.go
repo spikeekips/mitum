@@ -14,7 +14,7 @@ func NewStreamingReader(r io.Reader) (
 	var chunkSize int
 	var c uint32
 
-	switch _, err := readSize(r, &c); {
+	switch _, err := ReadSize(r, &c); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, err
 	case errors.Is(err, io.EOF) && c != 0:

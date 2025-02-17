@@ -14,13 +14,13 @@ func TestReadWriteSize(tt *testing.T) {
 	buf := bytes.NewBuffer(nil)
 
 	t.Run("Write", func() {
-		t.NoError(writeSize(buf, 33))
+		t.NoError(WriteSize(buf, 33))
 		t.T().Logf("len=%d bytes=%v", buf.Len(), buf.Bytes())
 	})
 
 	t.Run("Read", func() {
 		var i uint32
-		n, err := readSize(buf, &i)
+		n, err := ReadSize(buf, &i)
 		t.NoError(err)
 		t.Equal(uint32(33), i)
 		t.Equal(4, n)
@@ -30,7 +30,7 @@ func TestReadWriteSize(tt *testing.T) {
 		buf := bytes.NewBuffer([]byte{0, 9})
 
 		var i uint32
-		n, err := readSize(buf, &i)
+		n, err := ReadSize(buf, &i)
 		t.ErrorContains(err, "insufficient read")
 		t.Equal(uint32(0), i, "%d", i)
 		t.Equal(2, n)

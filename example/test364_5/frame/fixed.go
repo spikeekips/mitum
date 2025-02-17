@@ -14,7 +14,7 @@ func ReadFixed(r io.Reader) ([]byte, error) {
 func NewFixedReader(r io.Reader) (io.Reader, error) {
 	var size uint32
 
-	if _, err := readSize(r, &size); err != nil {
+	if _, err := ReadSize(r, &size); err != nil {
 		return nil, errors.Wrap(err, "read frame size")
 	}
 
