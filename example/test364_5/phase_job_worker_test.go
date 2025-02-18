@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"math/rand"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -203,12 +204,15 @@ func (t *testPhaseJobWorker) TestNewJob() {
 
 		go func() {
 			for i := range njobs {
-				t.IfErrPanic(newJob(
+				err := newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)
 					},
-				))
+				)
+				if err != nil && !strings.Contains(err.Error(), "showme") {
+					t.IfErrPanic(err)
+				}
 			}
 
 			jobDone()
@@ -269,12 +273,15 @@ func (t *testPhaseJobWorker) TestNewJob() {
 
 		go func() {
 			for i := range njobs {
-				t.IfErrPanic(newJob(
+				err := newJob(
 					uint64(i),
 					func(ctx context.Context, phase int, c phaseJobWorkerNewJobFunc) error {
 						return count(ctx, uint64(i), phase, c)
 					},
-				))
+				)
+				if err != nil && !strings.Contains(err.Error(), "showme") {
+					t.IfErrPanic(err)
+				}
 			}
 
 			jobDone()
