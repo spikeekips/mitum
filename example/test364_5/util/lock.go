@@ -41,6 +41,7 @@ type LockedMap[K comparable /* key */, V any /* value */] interface { //nolint:i
 	) error) error
 	Seq2(yield func(K, V) bool)
 	LenFunc(func(int) error) error
+	CloseFunc(func())
 }
 
 type SingleLockedMap[K comparable, V any] struct {
@@ -79,6 +80,10 @@ func (l *SingleLockedMap[K, V]) Close() {
 	l.l.Lock()
 	defer l.l.Unlock()
 
+	l.closef()
+}
+
+func (l *SingleLockedMap[K, V]) closef() {
 	clear(l.m)
 	l.m = nil
 }
@@ -336,6 +341,19 @@ func (l *SingleLockedMap[K, V]) LenFunc(f func(int) error) error {
 	return f(len(l.m))
 }
 
+func (l *SingleLockedMap[K, V]) CloseFunc(f func()) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.m == nil {
+		return
+	}
+
+	f()
+
+	l.closef()
+}
+
 type ShardedLockedMap[K comparable, V any] struct {
 	hashf   func(K) uint64
 	newMapf func() (LockedMap[K, V], error)
@@ -419,7 +437,7 @@ func (l *ShardedLockedMap[K, V]) unlockedGetOrCreateChild(k K) (_ LockedMap[K, V
 	if item == nil {
 		i, err := l.newMapf()
 		if err != nil {
-			l.close()
+			l.closef()
 
 			return nil, true
 		}
@@ -479,10 +497,10 @@ func (l *ShardedLockedMap[K, V]) Close() {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	l.close()
+	l.closef()
 }
 
-func (l *ShardedLockedMap[K, V]) close() {
+func (l *ShardedLockedMap[K, V]) closef() {
 	for s := range slices.Values(l.sharded) {
 		if s == nil {
 			continue
@@ -747,6 +765,17 @@ func (l *ShardedLockedMap[K, V]) LenFunc(f func(int) error) error {
 	defer l.l.RUnlock()
 
 	return f(int(atomic.LoadInt64(&l.length)))
+}
+
+func (l *ShardedLockedMap[K, V]) CloseFunc(f func()) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.sharded == nil {
+		return
+	}
+
+	l.closef()
 }
 
 func NewLockedMap[K comparable, V any](

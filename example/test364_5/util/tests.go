@@ -72,7 +72,7 @@ func (t BaseTest) printUnwrapError(err error) string {
 	return strings.Join(ses, "|")
 }
 
-func (t BaseTest) PrintErr(err error, a string, b ...any) {
+func (t BaseTest) printErr(err error, a string, b ...any) {
 	switch {
 	case err != nil:
 		a = a + "; err=(%s)%v"
@@ -81,7 +81,19 @@ func (t BaseTest) PrintErr(err error, a string, b ...any) {
 		a = a + "; err=nil"
 	}
 
-	t.PrintCaller(2, a, b...)
+	t.PrintCaller(3, a, b...)
+}
+
+func (t BaseTest) PrintErr(err error, a string, b ...any) {
+	t.printErr(err, a, b...)
+}
+
+func (t BaseTest) PrintIfErr(err error, a string, b ...any) {
+	if err == nil {
+		return
+	}
+
+	t.printErr(err, a, b...)
 }
 
 func (t BaseTest) PrintCaller(skip int, a string, b ...any) {
@@ -91,7 +103,7 @@ func (t BaseTest) PrintCaller(skip int, a string, b ...any) {
 	fmt.Printf(f, b...)
 }
 
-func (t BaseTest) PrintErrCaller(err error, skip int, a string, b ...any) {
+func (t BaseTest) printErrCaller(err error, skip int, a string, b ...any) {
 	switch {
 	case err != nil:
 		a = a + "; err=(%s)%v"
@@ -104,6 +116,18 @@ func (t BaseTest) PrintErrCaller(err error, skip int, a string, b ...any) {
 	f := fmt.Sprintf("    %s:%d: ", filepath.Base(file), no) + a + "\n"
 
 	fmt.Printf(f, b...)
+}
+
+func (t BaseTest) PrintErrCaller(err error, skip int, a string, b ...any) {
+	t.printErrCaller(err, skip+1, a, b...)
+}
+
+func (t BaseTest) PrintIfErrCaller(err error, skip int, a string, b ...any) {
+	if err == nil {
+		return
+	}
+
+	t.printErrCaller(err, skip, a, b...)
 }
 
 func (t BaseTest) IfErrPanic(err error) {
@@ -153,19 +177,16 @@ func (t BaseTest) IfTruePanic(ok bool, a string, b ...interface{}) {
 }
 
 func (t BaseTest) PrintIfErrPanic(err error, a string, b ...interface{}) {
-	if err != nil {
-		_, file, no, _ := runtime.Caller(2)
-		f := fmt.Sprintf("%s:%d: ", filepath.Base(file), no) + a + "; err=(%s)%v"
-
-		b = append(b, t.printUnwrapError(err), err)
-
-		panic(errors.WithMessagef(err, f, b...))
+	if err == nil {
+		return
 	}
 
-	a = a + " err=%s"
-	b = append(b, t.printUnwrapError(err))
+	_, file, no, _ := runtime.Caller(2)
+	f := fmt.Sprintf("%s:%d: ", filepath.Base(file), no) + a + "; err=(%s)%v"
 
-	t.PrintCaller(2, a, b...)
+	b = append(b, t.printUnwrapError(err), err)
+
+	panic(errors.WithMessagef(err, f, b...))
 }
 
 func (t BaseTest) PrintIfTruePanic(ok bool, a string, b ...interface{}) {

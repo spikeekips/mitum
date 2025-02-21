@@ -2,7 +2,6 @@ package quicstream
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"net"
@@ -17,117 +16,12 @@ import (
 )
 
 type testQuic struct {
-	dutil.BaseSuite
 	BaseTest
-}
-
-func (t *testQuic) newListener(
-	tlsConfig *tls.Config,
-	quicConfig *quic.Config,
-) (net.PacketConn, *quic.EarlyListener, error) {
-	pconn, err := NewTestPacketConn(0)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	l, err := t.listener(pconn, tlsConfig, quicConfig)
-
-	return pconn, l, err
-}
-
-func (t *testQuic) listener(
-	pconn net.PacketConn,
-	tlsConfig *tls.Config,
-	quicConfig *quic.Config,
-) (*quic.EarlyListener, error) {
-	if tlsConfig == nil {
-		_, tlsConfig = t.NewTLSConfig()
-	}
-
-	statelessResetKey := NewStatelessResetKey(tlsConfig.Certificates[0].Certificate[0])
-	t.Print("stateless reset key: %v", statelessResetKey)
-
-	tp := quic.Transport{
-		Conn:              pconn,
-		StatelessResetKey: statelessResetKey,
-	}
-
-	if quicConfig == nil {
-		quicConfig = DefaultQuicConfig()
-	}
-
-	l, err := tp.ListenEarly(tlsConfig, quicConfig)
-
-	return l, err
-}
-
-func (t *testQuic) openConnections(
-	localCtx, remoteCtx context.Context,
-	localQuicConfig, remoteQuicConfig *quic.Config,
-) (net.PacketConn, net.PacketConn, quic.Connection, quic.Connection, func()) {
-	lpconn, l, err := t.newListener(nil, localQuicConfig)
-	t.PrintIfErrPanic(err, "local: new listener: %q", lpconn.LocalAddr())
-
-	rpconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
-	t.PrintIfErrPanic(err, "remote: new PacketConn")
-
-	localConnCh := make(chan quic.Connection, 1)
-	go func() {
-		conn, err := l.Accept(localCtx)
-		t.PrintIfErrPanic(err, "accept")
-
-		localConnCh <- conn
-	}()
-
-	if remoteQuicConfig == nil {
-		remoteQuicConfig = DefaultQuicConfig()
-	}
-
-	remoteConn, err := t.Dial(remoteCtx, rpconn, lpconn.LocalAddr(), remoteQuicConfig)
-	t.PrintIfErrPanic(err, "remote dial")
-
-	localConn := <-localConnCh
-
-	closef := func() {
-		err := lpconn.Close()
-		t.PrintErrCaller(err, 2, "local: PacketConn closed")
-		err = rpconn.Close()
-		t.PrintErrCaller(err, 2, "remote: PacketConn closed")
-	}
-
-	t.T().Cleanup(closef)
-
-	return lpconn, rpconn, localConn, remoteConn, closef
-}
-
-func (t *testQuic) newListenerAccept(ctx context.Context, l *quic.EarlyListener, f func(quic.Stream) error) {
-	for {
-		conn, err := l.Accept(ctx)
-		t.PrintErr(err, "%p: local PacketConn: accept", l)
-		if err != nil {
-			return
-		}
-
-		go t.newAcceptStream(ctx, l, conn, f)
-	}
-}
-
-func (t *testQuic) newAcceptStream(ctx context.Context, l *quic.EarlyListener, conn quic.Connection, f func(quic.Stream) error) {
-	for {
-		stream, err := conn.AcceptStream(ctx)
-		t.PrintErr(err, "%p: AcceptStream", l)
-		if err != nil {
-			return
-		}
-
-		err = f(stream)
-		t.PrintErr(err, "%p: stream", l)
-	}
 }
 
 func (t *testQuic) TestPacketConn() {
 	t.RunWithGoLeak("PacketConn closed; before listener accept", func() {
-		pconn, l, err := t.newListener(nil, nil)
+		pconn, l, err := t.RandomListener(nil, nil)
 		t.NoError(err)
 
 		t.NoError(pconn.Close())
@@ -140,7 +34,7 @@ func (t *testQuic) TestPacketConn() {
 	})
 
 	t.RunWithGoLeak("PacketConn closed; before remote dial", func() {
-		pconn, l, err := t.newListener(nil, nil)
+		pconn, l, err := t.RandomListener(nil, nil)
 		t.NoError(err)
 
 		t.NoError(pconn.Close())
@@ -167,7 +61,7 @@ func (t *testQuic) TestPacketConn() {
 	})
 
 	t.RunWithGoLeak("PacketConn closed; before accept stream", func() {
-		pconn, l, err := t.newListener(nil, nil)
+		pconn, l, err := t.RandomListener(nil, nil)
 		t.NoError(err)
 
 		wait := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Connection {
@@ -204,7 +98,7 @@ func (t *testQuic) TestPacketConn() {
 		remoteQuicConfig.MaxIdleTimeout = time.Millisecond * 33
 		remoteQuicConfig.KeepAlivePeriod = 0
 
-		lpconn, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
+		lpconn, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
 		defer closef()
 
 		waitLocalConn := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
@@ -244,7 +138,7 @@ func (t *testQuic) TestPacketConn() {
 		remoteQuicConfig.MaxIdleTimeout = time.Second * 3
 		remoteQuicConfig.KeepAlivePeriod = 0
 
-		lpconn, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
+		lpconn, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
@@ -294,7 +188,7 @@ func (t *testQuic) TestPacketConn() {
 		remoteQuicConfig := DefaultQuicConfig()
 		remoteQuicConfig.MaxIdleTimeout = time.Millisecond * 333
 
-		lpconn, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
+		lpconn, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
@@ -343,7 +237,7 @@ func (t *testQuic) TestPacketConn() {
 
 func (t *testQuic) TestListener() {
 	t.RunWithGoLeak("context canceled", func() {
-		pconn, l, err := t.newListener(nil, nil)
+		pconn, l, err := t.RandomListener(nil, nil)
 		t.NoError(err)
 		defer pconn.Close()
 
@@ -359,7 +253,7 @@ func (t *testQuic) TestListener() {
 
 func (t *testQuic) TestLocalConnection() {
 	t.RunWithGoLeak("conn closed; accept stream", func() {
-		_, _, localConn, _, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, _, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		t.NoError(localConn.CloseWithError(0, ""))
@@ -377,7 +271,7 @@ func (t *testQuic) TestLocalConnection() {
 	})
 
 	t.RunWithGoLeak("conn closed; local stream read", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
@@ -411,7 +305,7 @@ func (t *testQuic) TestLocalConnection() {
 	})
 
 	t.RunWithGoLeak("conn closed; remote stream read", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
@@ -451,7 +345,7 @@ func (t *testQuic) TestLocalConnection() {
 
 func (t *testQuic) TestRemoteConnection() {
 	t.RunWithGoLeak("dial after context canceled", func() {
-		pconn, _, err := t.newListener(nil, nil)
+		pconn, _, err := t.RandomListener(nil, nil)
 		t.NoError(err)
 		defer pconn.Close()
 
@@ -464,7 +358,7 @@ func (t *testQuic) TestRemoteConnection() {
 	})
 
 	t.RunWithGoLeak("conn closed; during local stream read", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
@@ -501,7 +395,7 @@ func (t *testQuic) TestRemoteConnection() {
 	})
 
 	t.RunWithGoLeak("accept stream from remote dialed conn", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitRemoteStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
@@ -530,7 +424,7 @@ func (t *testQuic) TestRemoteConnection() {
 
 func (t *testQuic) TestLocalStream() {
 	t.RunWithGoLeak("accept stream after context canceled", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		ctx, cancel := t.Ctx()
@@ -566,7 +460,7 @@ func (t *testQuic) TestLocalStream() {
 
 	t.RunWithGoLeak("local stream read after context canceled", func() {
 		// NOTE context for AcceptStream does not work after AcceptStream.
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		ctx, cancel := t.Ctx()
@@ -596,7 +490,7 @@ func (t *testQuic) TestLocalStream() {
 	})
 
 	t.RunWithGoLeak("AcceptStream: before remote stream write", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitch := make(chan quic.Stream)
@@ -631,7 +525,7 @@ func (t *testQuic) TestLocalStream() {
 		localQuicConfig.MaxIdleTimeout = time.Millisecond * 3
 		localQuicConfig.KeepAlivePeriod = 0
 
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), localQuicConfig, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), localQuicConfig, nil)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second*2, func() error {
@@ -651,7 +545,7 @@ func (t *testQuic) TestLocalStream() {
 	})
 
 	t.RunWithGoLeak("AcceptStream: remote stream write", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() error {
@@ -674,7 +568,7 @@ func (t *testQuic) TestLocalStream() {
 		localQuicConfig.MaxIdleTimeout = time.Millisecond * 3
 		localQuicConfig.KeepAlivePeriod = 0
 
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), localQuicConfig, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), localQuicConfig, nil)
 		defer closef()
 
 		go func() {
@@ -698,7 +592,7 @@ func (t *testQuic) TestLocalStream() {
 	})
 
 	t.RunWithGoLeak("remote stream: CancelRead()", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		go func() {
@@ -728,7 +622,7 @@ func (t *testQuic) TestLocalStream() {
 	})
 
 	t.RunWithGoLeak("remote stream: CancelWrite()", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		go func() {
@@ -751,7 +645,7 @@ func (t *testQuic) TestLocalStream() {
 	})
 
 	t.RunWithGoLeak("remote OpenStreamSync", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		opened := make(chan struct{})
@@ -778,7 +672,7 @@ func (t *testQuic) TestLocalStream() {
 
 func (t *testQuic) TestRemoteStream() {
 	t.RunWithGoLeak("OpenStreamSync after context canceled", func() {
-		_, _, _, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, _, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		ctx, cancel := t.Ctx()
@@ -795,7 +689,7 @@ func (t *testQuic) TestRemoteStream() {
 		remoteQuicConfig.MaxIdleTimeout = time.Millisecond * 3
 		remoteQuicConfig.KeepAlivePeriod = 0
 
-		_, _, _, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
+		_, _, _, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, remoteQuicConfig)
 		defer closef()
 
 		remoteStream, err := remoteConn.OpenStream()
@@ -812,7 +706,7 @@ func (t *testQuic) TestRemoteStream() {
 	})
 
 	t.RunWithGoLeak("local stream: CancelRead()", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		go func() {
@@ -842,7 +736,7 @@ func (t *testQuic) TestRemoteStream() {
 	})
 
 	t.RunWithGoLeak("local stream: CancelWrite()", func() {
-		_, _, localConn, remoteConn, closef := t.openConnections(context.Background(), context.Background(), nil, nil)
+		_, _, localConn, remoteConn, closef := t.OpenConnections(context.Background(), context.Background(), nil, nil)
 		defer closef()
 
 		go func() {
@@ -874,10 +768,10 @@ func (t *testQuic) TestRemoteReboot() {
 	b := util.UUID().Bytes()
 
 	localReady := func() (net.Addr, func()) {
-		lpconn, l, err := t.newListener(nil, nil)
+		lpconn, l, err := t.RandomListener(nil, nil)
 		t.PrintIfErrPanic(err, "local: new listener: %q", lpconn.LocalAddr())
 
-		go t.newListenerAccept(context.Background(), l, func(stream quic.Stream) error {
+		go t.ListenerAccept(context.Background(), l, func(stream quic.Stream) error {
 			_, err := stream.Write(b)
 			t.PrintIfErrPanic(err, "local stream: write")
 			err = stream.Close()
@@ -1026,15 +920,15 @@ func (t *testQuic) TestLocalReboot() {
 	}
 
 	t.Run("remote send to new local listener", func() {
-		t.Run("reboot listener", func() {
+		t.RunWithGoLeak("reboot listener", func() {
 			lpconn, err := NewTestPacketConn(0)
 			t.NoError(err, "local PacketConn: addr=%q", lpconn.LocalAddr())
 
-			l, err := t.listener(lpconn, nil, localQuicConfig)
+			l, err := t.NewListener(lpconn, nil, localQuicConfig)
 			t.NoError(err, "local: new listener")
 			defer lpconn.Close()
 
-			go t.newListenerAccept(context.Background(), l, listenerAcceptStream(l))
+			go t.ListenerAccept(context.Background(), l, listenerAcceptStream(l))
 
 			rpconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 			t.NoError(err, "remote: new PacketConn")
@@ -1049,10 +943,10 @@ func (t *testQuic) TestLocalReboot() {
 			t.T().Log("> local reboot")
 			t.NoError(l.Close()) // NOTE after listener Close(), listener stil keeps the existing remote connections.
 
-			newl, err := t.listener(lpconn, nil, nil)
+			newl, err := t.NewListener(lpconn, nil, nil)
 			t.NoError(err, "local reboot: new listener: %q", lpconn.LocalAddr())
 
-			go t.newListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
+			go t.ListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
 
 			err = remoteWrite(remoteConn)
 			if err != nil { // NOTE after listener closed, remote write may success or fail
@@ -1061,7 +955,7 @@ func (t *testQuic) TestLocalReboot() {
 			}
 		})
 
-		t.Run("reboot PacketConn; same tls key", func() {
+		t.RunWithGoLeak("reboot PacketConn; same tls key", func() {
 			// localQuicConfig.Tracer = DebugQLogTracer(os.Stderr)
 
 			_, localTLSConfig := t.NewTLSConfig()
@@ -1069,11 +963,11 @@ func (t *testQuic) TestLocalReboot() {
 			lpconn, err := NewTestPacketConn(0)
 			t.NoError(err, "local PacketConn: addr=%q", lpconn.LocalAddr())
 
-			l, err := t.listener(lpconn, localTLSConfig, localQuicConfig)
+			l, err := t.NewListener(lpconn, localTLSConfig, localQuicConfig)
 			t.NoError(err, "local: new listener")
 			defer lpconn.Close()
 
-			go t.newListenerAccept(context.Background(), l, listenerAcceptStream(l))
+			go t.ListenerAccept(context.Background(), l, listenerAcceptStream(l))
 
 			rpconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 			t.NoError(err, "remote: new PacketConn")
@@ -1095,10 +989,10 @@ func (t *testQuic) TestLocalReboot() {
 
 			t.Print("local new PacketConn: addr=%q", newlpconn.LocalAddr())
 
-			newl, err := t.listener(newlpconn, localTLSConfig, localQuicConfig)
+			newl, err := t.NewListener(newlpconn, localTLSConfig, localQuicConfig)
 			t.NoError(err, "local reboot: new listener: %q", newlpconn.LocalAddr())
 
-			go t.newListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
+			go t.ListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
 
 			err = remoteWrite(remoteConn)
 			t.PrintErr(err, "< remote write")

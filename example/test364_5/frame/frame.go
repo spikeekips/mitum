@@ -85,13 +85,9 @@ func LoadReader(r io.Reader) (t frameType, _ io.Reader, _ error) {
 }
 
 func readTypeByte(r io.Reader) (t byte, _ error) {
-	p, n, err := ensureRead(r, 1)
-
-	switch {
+	switch p, _, err := ensureRead(r, 1); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return t, err
-	case n < 1:
-		return t, errors.Errorf("insufficient type byte")
 	default:
 		return p[0], err
 	}
@@ -143,12 +139,14 @@ func (f ioReadFunc) Read(p []byte) (int, error) {
 }
 
 func ensureRead(r io.Reader, size uint32) ([]byte, int, error) {
+	if size < 1 {
+		return nil, 0, nil
+	}
+
 	p := make([]byte, size)
 
 	switch n, err := r.Read(p); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return p, n, err
-	case n < 1 && errors.Is(err, io.EOF):
 		return p, n, err
 	case n != len(p):
 		return p, n, errors.Errorf("insufficient read")

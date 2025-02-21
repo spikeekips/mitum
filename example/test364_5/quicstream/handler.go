@@ -7,11 +7,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"golang.org/x/crypto/sha3"
 )
 
 type (
-	StreamHandler func(context.Context, quic.Stream) (context.Context, error)
+	StreamHandler     func(context.Context, quic.Stream) (context.Context, error)
+	SubStreamsHandler func(
+		context.Context,
+		quic.Stream,
+		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
+	) (context.Context, error)
 )
 
 func (h StreamHandler) Next(i StreamHandler) StreamHandler {
@@ -65,6 +71,30 @@ func NewFuncPrefixStreamHandler() (
 		func() {
 			clear(pool)
 		}
+}
+
+func (h SubStreamsHandler) StreamHandler(maxSize uint8) StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var conn quic.Connection
+
+		switch c, err := loadQuicConnectionFromContext(ctx); {
+		case err != nil:
+			return ctx, err
+		default:
+			conn = c
+		}
+
+		switch w, err := HandleOpenSubStreams(ctx, conn, stream, maxSize); {
+		case err != nil:
+			return ctx, err
+		default:
+			defer func() {
+				_ = w(nil)
+			}()
+
+			return h(ctx, stream, w)
+		}
+	}
 }
 
 func encodeStreamHandlerPrefix(b []byte) []byte {
