@@ -95,18 +95,16 @@ func CheckContextWait(ctx context.Context) (
 			return err
 		},
 		func() (bool, error) {
+			gerr := context.Cause(ctx)
+
 			switch err := context.Cause(cctx); {
 			case errors.Is(err, errDone):
-				return false, nil
+				return false, gerr
 			case err != nil:
 				return false, err
+			default:
+				return true, gerr
 			}
-
-			if err := context.Cause(ctx); err != nil {
-				return false, err
-			}
-
-			return true, nil
 		}
 }
 
