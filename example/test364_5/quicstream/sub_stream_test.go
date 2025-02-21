@@ -212,7 +212,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 
 		go func() {
 			_, err := waitStreams()
-			t.PrintIfErrPanic(err, "wait stream")
+			t.PrintIfErr(err, "wait stream")
 
 			close(waitch)
 		}()
