@@ -6,7 +6,6 @@ import (
 	"io"
 	"iter"
 	"math"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -134,11 +133,7 @@ func HandleOpenSubStreams(
 				gerr = f(streams)
 			}
 
-			for stream := range slices.Values(streams) {
-				_ = closeStreamWithError(stream, gerr)
-			}
-
-			return gerr
+			return closeStreamsWithError(streams, gerr)
 		},
 		nil
 }
@@ -387,19 +382,7 @@ func newConnAcceptSubStreams(
 					defer l.Unlock()
 
 					closeStreamsOnce.Do(func() {
-						var errcode quic.StreamErrorCode
-
-						switch {
-						case err != nil:
-							errcode = streamErrorCodeUnknown
-						default:
-							errcode = streamErrorCodeOK
-						}
-
-						for stream := range slices.Values(doneStream()) {
-							stream.CancelRead(errcode)
-							stream.CancelWrite(errcode)
-						}
+						_ = closeStreamsWithError(doneStream(), err)
 					})
 
 					if _, found := ids[id]; found {

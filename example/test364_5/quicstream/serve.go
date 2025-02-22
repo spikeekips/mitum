@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -118,15 +119,37 @@ func serveConnection(
 	}
 }
 
-func closeStreamWithError(stream quic.Stream, err error) error {
+func newFuncCloseStreamWithError(err error) func(quic.Stream) error {
 	switch {
 	case err != nil:
-		stream.CancelRead(streamErrorCodeUnknown)
-		stream.CancelWrite(streamErrorCodeUnknown)
+		return func(stream quic.Stream) error {
+			stream.CancelRead(streamErrorCodeUnknown)
+			stream.CancelWrite(streamErrorCodeUnknown)
+
+			return err
+		}
 	default:
-		stream.CancelRead(streamErrorCodeOK)
-		_ = stream.Close()
+		return func(stream quic.Stream) error {
+			stream.CancelRead(streamErrorCodeOK)
+			_ = stream.Close()
+
+			return err
+		}
 	}
+}
+
+func closeStreamWithError(stream quic.Stream, err error) error {
+	return newFuncCloseStreamWithError(err)(stream)
+}
+
+func closeStreamsWithError(streams []quic.Stream, err error) error {
+	f := newFuncCloseStreamWithError(err)
+
+	slices.Values(streams)(func(stream quic.Stream) bool {
+		_ = f(stream)
+
+		return true
+	})
 
 	return err
 }
