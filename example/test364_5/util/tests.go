@@ -193,8 +193,6 @@ func (t BaseTest) PrintIfTruePanic(ok bool, a string, b ...interface{}) {
 	if ok {
 		t.IfTruePanic(ok, a, b...)
 	}
-
-	t.PrintCaller(2, a, b...)
 }
 
 func (t BaseTest) Marshal(i interface{}) string {
