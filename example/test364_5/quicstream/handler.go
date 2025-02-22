@@ -73,7 +73,7 @@ func NewFuncPrefixStreamHandler() (
 		}
 }
 
-func (h SubStreamsHandler) StreamHandler(maxSize uint8) StreamHandler {
+func (h SubStreamsHandler) StreamHandler(maxSize uint16) StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var conn quic.Connection
 

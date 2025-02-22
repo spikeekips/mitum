@@ -21,7 +21,7 @@ func HandleOpenSubStreams(
 	ctx context.Context,
 	conn quic.Connection,
 	stream quic.Stream,
-	maxSize uint8,
+	maxSize uint16,
 ) (
 	dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 	error,
@@ -45,7 +45,7 @@ func HandleOpenSubStreams(
 		id = string(b)
 	}
 
-	var size uint8
+	var size uint16
 
 	switch i, err := readSubStreamsSize(stream, maxSize); {
 	case err != nil:
@@ -144,7 +144,7 @@ func RequestOpenSubStreams(
 	conn quic.Connection,
 	stream quic.Stream,
 	id string,
-	size uint8,
+	size uint16,
 ) (
 	dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 	error,
@@ -176,7 +176,7 @@ func waitRequestOpenSubStreams(
 	stream quic.Stream,
 	waitStreams func() ([]quic.Stream, error),
 	id string,
-	size uint8,
+	size uint16,
 ) ([]quic.Stream, error) {
 	if err := frame.WriteFixed(stream, []byte(id)); err != nil {
 		return nil, err
@@ -218,12 +218,12 @@ func loadQuicConnectionFromContext(ctx context.Context) (quic.Connection, error)
 }
 
 type (
-	openConnSubStreamsFunc = func(_ context.Context, _ quic.Connection, id string, size uint8) (
+	openConnSubStreamsFunc = func(_ context.Context, _ quic.Connection, id string, size uint16) (
 		func() ([]quic.Stream, error),
 		dutil.InErrorFunc[error],
 		error,
 	)
-	openSubStreamsFunc = func(_ context.Context, id string, size uint8) (
+	openSubStreamsFunc = func(_ context.Context, id string, size uint16) (
 		func() ([]quic.Stream, error),
 		dutil.InErrorFunc[error],
 		error,
@@ -278,7 +278,7 @@ func newConnAcceptSubStreams(
 		}
 	}()
 
-	return func(ctx context.Context, id string, size uint8) (
+	return func(ctx context.Context, id string, size uint16) (
 			func() ([]quic.Stream, error),
 			dutil.InErrorFunc[error],
 			error,
@@ -348,7 +348,7 @@ func newConnAcceptSubStreams(
 						return nil, streamsDone(err)
 					}
 
-					var nsize uint8
+					var nsize uint16
 
 					switch i, err := readSubStreamsSize(controlStream, size); {
 					case err != nil:
@@ -474,7 +474,7 @@ func newConnsAcceptSubStreams(
 		}
 	}()
 
-	return func(ctx context.Context, conn quic.Connection, id string, size uint8) (
+	return func(ctx context.Context, conn quic.Connection, id string, size uint16) (
 			func() ([]quic.Stream, error),
 			dutil.InErrorFunc[error],
 			error,
@@ -525,7 +525,7 @@ func newConnsAcceptSubStreams(
 		pool
 }
 
-func readSubStreamsSize(stream quic.Stream, size uint8) (uint8, error) {
+func readSubStreamsSize(stream quic.Stream, size uint16) (uint16, error) {
 	var nrsize uint32
 
 	switch _, err := frame.ReadSize(stream, &nrsize); {
@@ -533,9 +533,9 @@ func readSubStreamsSize(stream quic.Stream, size uint8) (uint8, error) {
 		return 0, errors.Errorf("received size")
 	case nrsize < 1:
 		return 0, errors.Errorf("zero received size")
-	case nrsize > math.MaxUint8:
-		return 0, errors.Errorf("received size > max uint8")
+	case nrsize > math.MaxUint16:
+		return 0, errors.Errorf("received size > max uint16")
 	default:
-		return min(size, uint8(nrsize)), nil
+		return min(size, uint16(nrsize)), nil
 	}
 }

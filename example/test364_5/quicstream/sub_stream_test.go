@@ -21,7 +21,7 @@ type baseTestConnAcceptSubStreams struct {
 	BaseTest
 }
 
-func (t *baseTestConnAcceptSubStreams) newFuncNewID(ctx context.Context, size uint8) (
+func (t *baseTestConnAcceptSubStreams) newFuncNewID(ctx context.Context, size uint16) (
 	func() ([]quic.Stream, error),
 	dutil.InErrorFunc[error],
 	dutil.OutFunc[bool],
@@ -185,7 +185,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		t.NoError(err)
 		defer sclose()
 
-		var size uint8 = 5
+		var size uint16 = 5
 		id := util.UUID().String()
 
 		ctx, cancel := t.Ctx()
@@ -235,7 +235,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 		t.NoError(err)
 		defer sclose()
 
-		var size uint8 = 3
+		var size uint16 = 3
 		id := util.UUID().String()
 
 		ctx, cancel := t.Ctx()
@@ -287,7 +287,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 			util.UUID().String(),
 		}
 
-		var size uint8 = 3
+		var size uint16 = 3
 
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -357,7 +357,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 	})
 
 	t.RunWithGoLeak("async", func() {
-		var size uint8 = 3
+		var size uint16 = 3
 
 		ids := make([]string, 33)
 		for i := range len(ids) {
@@ -447,7 +447,7 @@ func (t *testConnAcceptSubStreams) TestWaitStream() {
 
 func (t *testConnAcceptSubStreams) TestDoneStream() {
 	done := func(gerr error) (quic.Stream, func()) {
-		var size uint8 = 3
+		var size uint16 = 3
 
 		waitStreams, doneStreams, sclose, closef, err := t.newFuncNewID(context.Background(), size)
 		t.NoError(err)
@@ -678,7 +678,7 @@ func (t *testRequestSubStreams) TestError() {
 		)
 		defer closef()
 
-		var size uint8 = 3
+		var size uint16 = 3
 
 		localStreamCh := make(chan quic.Stream)
 
@@ -725,7 +725,7 @@ func (t *testRequestSubStreams) TestError() {
 		)
 		defer closef()
 
-		var size uint8 = 3
+		var size uint16 = 3
 
 		localStreamCh := make(chan struct{})
 
@@ -771,7 +771,7 @@ func (t *testRequestSubStreams) TestError() {
 		)
 		defer closef()
 
-		var size uint8 = 3
+		var size uint16 = 3
 
 		localStreamCh := make(chan struct{})
 
@@ -824,7 +824,7 @@ func (t *testRequestSubStreams) TestError() {
 
 func (t *testRequestSubStreams) openSubStreams(
 	ctx context.Context,
-	size, maxSize uint8,
+	size, maxSize uint16,
 	inLocal dutil.InErrorFunc[[]quic.Stream],
 	inRemote dutil.InErrorFunc[[]quic.Stream],
 ) {
