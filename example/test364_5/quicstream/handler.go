@@ -3,6 +3,7 @@ package quicstream
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -12,12 +13,17 @@ import (
 )
 
 type (
-	StreamHandler     func(context.Context, quic.Stream) (context.Context, error)
-	SubStreamsHandler func(
+	StreamHandler             func(context.Context, quic.Stream) (context.Context, error)
+	handlerOpenSubStreamsFunc = func(context.Context) (dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]], error)
+	SubStreamsHandler         func(
 		context.Context,
 		quic.Stream,
-		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
+		handlerOpenSubStreamsFunc,
 	) (context.Context, error)
+	newHandleOpenSubStreamsFunc = func(context.Context, quic.Connection, quic.Stream) (
+		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
+		error,
+	)
 )
 
 func (h StreamHandler) Next(i StreamHandler) StreamHandler {
@@ -73,27 +79,31 @@ func NewFuncPrefixStreamHandler() (
 		}
 }
 
-func (h SubStreamsHandler) StreamHandler(maxSize uint16) StreamHandler {
+func (h SubStreamsHandler) StreamHandler(n newHandleOpenSubStreamsFunc) StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var conn quic.Connection
 
-		switch c, err := loadQuicConnectionFromContext(ctx); {
-		case err != nil:
-			return ctx, err
-		default:
-			conn = c
-		}
+		connOnce := sync.OnceValue(func() error {
+			switch c, err := loadQuicConnectionFromContext(ctx); {
+			case err != nil:
+				return err
+			default:
+				conn = c
 
-		switch w, err := HandleOpenSubStreams(ctx, conn, stream, maxSize); {
-		case err != nil:
-			return ctx, err
-		default:
-			defer func() {
-				_ = w(nil)
-			}()
+				return nil
+			}
+		})
 
-			return h(ctx, stream, w)
-		}
+		return h(ctx, stream, func(ctx context.Context) (
+			dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
+			error,
+		) {
+			if err := connOnce(); err != nil {
+				return nil, err
+			}
+
+			return n(ctx, conn, stream)
+		})
 	}
 }
 
@@ -116,4 +126,13 @@ func readStreamHandlerPrefix(r io.Reader) ([]byte, error) {
 
 func writeStreamHandlerPrefix(w io.Writer, b []byte) error {
 	return frame.WriteFixed(w, encodeStreamHandlerPrefix(b))
+}
+
+func newFuncHandleOpenSubStreams(maxSize uint16) newHandleOpenSubStreamsFunc {
+	return func(ctx context.Context, conn quic.Connection, stream quic.Stream) (
+		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
+		error,
+	) {
+		return HandleOpenSubStreams(ctx, conn, stream, maxSize)
+	}
 }

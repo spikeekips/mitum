@@ -223,7 +223,7 @@ type (
 		dutil.InErrorFunc[error],
 		error,
 	)
-	openSubStreamsFunc = func(_ context.Context, id string, size uint16) (
+	requestSubStreamsFunc = func(_ context.Context, id string, size uint16) (
 		func() ([]quic.Stream, error),
 		dutil.InErrorFunc[error],
 		error,
@@ -236,7 +236,7 @@ var errConnAcceptSubStreamsClosed = errors.New("ConnAcceptSubStreamsClosed")
 func newConnAcceptSubStreams(
 	ctx context.Context,
 	conn quic.Connection,
-) (openSubStreamsFunc, dutil.OutFunc[bool], error) {
+) (requestSubStreamsFunc, dutil.OutFunc[bool], error) {
 	var l sync.Mutex
 	ids := map[string]addSubStreamFunc{}
 
@@ -259,7 +259,7 @@ func newConnAcceptSubStreams(
 
 		switch add, found := ids[id]; {
 		case !found:
-			_ = closeStreamWithError(stream, errors.Errorf("unknown id"))
+			_ = closeStreamWithError(stream, errors.Errorf("unknown id, %q", id))
 		case add(stream):
 			delete(ids, id)
 		}
@@ -484,7 +484,7 @@ func newConnsAcceptSubStreams(
 
 			connID := conn.LocalAddr().String() + "," + conn.RemoteAddr().String()
 			if _, err := pool.Set(connID, func(v [2]interface{}, _ bool) ([2]interface{}, error) {
-				if newID, ok := v[1].(openSubStreamsFunc); ok {
+				if newID, ok := v[0].(requestSubStreamsFunc); ok {
 					switch w, d, err := newID(ctx, id, size); {
 					case err == nil:
 						waitStreams, doneStream = w, d
@@ -496,7 +496,7 @@ func newConnsAcceptSubStreams(
 					}
 				}
 
-				var newID openSubStreamsFunc
+				var newID requestSubStreamsFunc
 				var closef dutil.OutFunc[bool]
 
 				switch n, c, err := newConnAcceptSubStreams(gctx, conn); {
