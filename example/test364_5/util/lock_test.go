@@ -4,7 +4,9 @@ import (
 	"iter"
 	"maps"
 	"math"
+	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -50,24 +52,44 @@ func (t *testSingleLockedMap) TestSetValue() {
 	t.Equal(2, l.Len())
 }
 
-func (t *testSingleLockedMap) TestRemoveValue() {
+func (t *testSingleLockedMap) TestRemoveValues() {
 	l := NewSingleLockedMap[string, int]()
 
-	l.SetValue("showme", 1)
+	t.Run("ok", func() {
+		l.SetValue("showme", 1)
 
-	i, found := l.Value("showme")
-	t.True(found)
-	t.Equal(1, i)
+		i, found := l.Value("showme")
+		t.True(found)
+		t.Equal(1, i)
 
-	removed := l.RemoveValue("showme")
-	t.True(removed)
+		removed := l.RemoveValues("showme")
+		t.Equal(1, removed)
 
-	i, found = l.Value("showme")
-	t.False(found)
-	t.Zero(i)
+		i, found = l.Value("showme")
+		t.False(found)
+		t.Zero(i)
 
-	removed = l.RemoveValue("showme")
-	t.False(removed)
+		removed = l.RemoveValues("showme")
+		t.Equal(0, removed)
+	})
+
+	t.Run("multiple keys", func() {
+		l.SetValue("a", 1)
+		l.SetValue("b", 2)
+		l.SetValue("c", 3)
+
+		t.Equal(2, l.RemoveValues("a", "b"))
+
+		i, found := l.Value("a")
+		t.Zero(i)
+		t.False(found)
+		i, found = l.Value("b")
+		t.Zero(i)
+		t.False(found)
+		i, found = l.Value("c")
+		t.Equal(3, i)
+		t.True(found)
+	})
 }
 
 func (t *testSingleLockedMap) TestGet() {
@@ -561,27 +583,64 @@ func (t *testShardedLockedMap) TestSetValue() {
 	})
 }
 
-func (t *testShardedLockedMap) TestRemoveValue() {
+func (t *testShardedLockedMap) TestRemoveValues() {
 	t.Run("unknown", func() {
 		m, err := NewShardedLockedMap[string, string](nil, 3, 3)
 		t.NoError(err)
 
 		t.Equal(0, m.Len())
 
-		t.False(m.RemoveValue(util.UUID().String()))
+		t.Equal(0, m.RemoveValues(util.UUID().String()))
 	})
 
 	t.Run("known", func() {
 		m, err := NewShardedLockedMap[string, string](nil, 3, 3)
 		t.NoError(err)
 
-		t.False(m.RemoveValue(util.UUID().String()))
+		t.Equal(0, m.RemoveValues(util.UUID().String()))
 
 		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
-		t.True(m.RemoveValue("showme"))
+		t.Equal(1, m.RemoveValues("showme"))
 		t.Equal(0, m.Len())
+	})
+
+	t.Run("multiple keys", func() {
+		m, err := NewShardedLockedMap[string, string](nil, 3, 3)
+		t.NoError(err)
+
+		t.True(m.SetValue("a", "a"))
+		t.True(m.SetValue("b", "b"))
+		t.True(m.SetValue("c", "c"))
+
+		t.T().Log("index:", func() string {
+			var s []string
+
+			for i := range slices.Values(m.sharded) {
+				if i == nil {
+					s = append(s, "x")
+				} else {
+					s = append(s, "o")
+				}
+			}
+
+			return "{" + strings.Join(s, " ") + "}"
+		}())
+
+		t.Equal(0, m.RemoveValues(util.UUID().String()))
+
+		t.Equal(2, m.RemoveValues("a", "b"))
+
+		i, found := m.Value("a")
+		t.Zero(i)
+		t.False(found)
+		i, found = m.Value("b")
+		t.Zero(i)
+		t.False(found)
+		i, found = m.Value("c")
+		t.Equal("c", i)
+		t.True(found)
 	})
 }
 

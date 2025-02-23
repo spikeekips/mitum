@@ -26,7 +26,7 @@ type LockedMap[K comparable /* key */, V any /* value */] interface { //nolint:i
 	Exists(K) (found bool)
 	Value(K) (_ V, found bool)
 	SetValue(K, V) (created bool)
-	RemoveValue(K) (removed bool)
+	RemoveValues(...K) (removed int)
 	Get(K, func(_ V, found bool) error) error
 	GetOrCreate(_ K, create func() (V, error), get func(_ V, created bool) error) error
 	GetOrRemove(K, func(_ V, found bool) (remove bool, _ error)) error
@@ -121,16 +121,20 @@ func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (created bool) {
 	return !found
 }
 
-func (l *SingleLockedMap[K, V]) RemoveValue(k K) bool {
+func (l *SingleLockedMap[K, V]) RemoveValues(ks ...K) (removed int) {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	_, found := l.m[k]
-	if found {
-		delete(l.m, k)
+	for k := range slices.Values(ks) {
+		_, found := l.m[k]
+		if found {
+			delete(l.m, k)
+
+			removed++
+		}
 	}
 
-	return found
+	return removed
 }
 
 func (l *SingleLockedMap[K, V]) Get(k K, f func(value V, found bool) error) error {
@@ -282,9 +286,9 @@ func (l *SingleLockedMap[K, V]) Remove(
 
 func (l *SingleLockedMap[K, V]) Lock(
 	f func(
-		get func(K) (_ V, found bool),
-		set func(K, V) (created bool),
-		remove func(K) (removed bool),
+		get func(K) (V, bool),
+		set func(K, V) bool,
+		remove func(K) bool,
 		traverse iter.Seq2[K, V],
 	) error,
 ) error {
@@ -292,19 +296,19 @@ func (l *SingleLockedMap[K, V]) Lock(
 	defer l.l.Unlock()
 
 	return f(
-		func(k K) (_ V, found bool) {
+		func(k K) (V, bool) {
 			v, found := l.m[k]
 
 			return v, found
 		},
-		func(k K, v V) (created bool) {
+		func(k K, v V) bool {
 			_, found := l.m[k]
 
 			l.m[k] = v
 
 			return !found
 		},
-		func(k K) (removed bool) {
+		func(k K) bool {
 			if _, found := l.m[k]; !found {
 				return false
 			}
@@ -404,15 +408,22 @@ func (l *ShardedLockedMap[K, V]) unlockedloadChild(k K) (_ LockedMap[K, V], foun
 		return nil, false, true
 	}
 
-	index := l.hashf(k)
-
-	item := l.sharded[index]
-	if item == nil {
+	item, found, iscloed := l.unlockedloadChildByIndex(l.hashf(k))
+	if !found || iscloed {
 		return nil, false, false
 	}
 
 	if m, ok := item.(*ShardedLockedMap[K, V]); ok {
 		return m.loadChild(k)
+	}
+
+	return item, true, false
+}
+
+func (l *ShardedLockedMap[K, V]) unlockedloadChildByIndex(index uint64) (_ LockedMap[K, V], found, iscloed bool) {
+	item := l.sharded[index]
+	if item == nil {
+		return nil, false, false
 	}
 
 	return item, true, false
@@ -546,18 +557,29 @@ func (l *ShardedLockedMap[K, V]) SetValue(k K, v V) (created bool) {
 	}
 }
 
-func (l *ShardedLockedMap[K, V]) RemoveValue(k K) bool {
-	switch i, found, isclosed := l.loadChild(k); {
-	case isclosed, !found:
-		return false
-	default:
-		removed := i.RemoveValue(k)
-		if removed {
-			atomic.AddInt64(&l.length, -1)
-		}
+func (l *ShardedLockedMap[K, V]) RemoveValues(ks ...K) (removed int) {
+	l.l.Lock()
+	defer l.l.Unlock()
 
-		return removed
+	m := map[uint64][]K{}
+	defer clear(m)
+
+	for k := range slices.Values(ks) {
+		index := l.hashf(k)
+		m[index] = append(m[index], k)
 	}
+
+	for index, iks := range maps.All(m) {
+		if i, found, isclosed := l.unlockedloadChildByIndex(index); !isclosed && found {
+			removed += i.RemoveValues(iks...)
+		}
+	}
+
+	if removed > 0 {
+		atomic.AddInt64(&l.length, int64(removed*-1))
+	}
+
+	return removed
 }
 
 func (l *ShardedLockedMap[K, V]) Get(k K, f func(V, bool) error) error {
@@ -599,7 +621,7 @@ func (l *ShardedLockedMap[K, V]) GetOrRemove(
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	switch i, found, isclosed := l.loadChild(k); {
+	switch i, found, isclosed := l.unlockedloadChild(k); {
 	case isclosed:
 		return ErrLockedMapClosed.WithStack()
 	case !found:
@@ -695,9 +717,9 @@ func (l *ShardedLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error
 
 func (l *ShardedLockedMap[K, V]) Lock(
 	f func(
-		get func(K) (_ V, found bool),
-		set func(K, V) (created bool),
-		remove func(K) (removed bool),
+		get func(K) (V, bool),
+		set func(K, V) bool,
+		remove func(K) bool,
 		traverse iter.Seq2[K, V],
 	) error,
 ) error {
@@ -705,7 +727,7 @@ func (l *ShardedLockedMap[K, V]) Lock(
 	defer l.l.Unlock()
 
 	return f(
-		func(k K) (v V, found bool) {
+		func(k K) (v V, _ bool) {
 			i, found, isclosed := l.unlockedloadChild(k)
 			if isclosed || !found {
 				return v, false
@@ -713,7 +735,7 @@ func (l *ShardedLockedMap[K, V]) Lock(
 
 			return i.Value(k)
 		},
-		func(k K, v V) (created bool) {
+		func(k K, v V) bool {
 			i, isclosed := l.unlockedGetOrCreateChild(k)
 			if isclosed {
 				return false
@@ -721,13 +743,13 @@ func (l *ShardedLockedMap[K, V]) Lock(
 
 			return i.SetValue(k, v)
 		},
-		func(k K) (removed bool) {
+		func(k K) bool {
 			i, found, isclosed := l.unlockedloadChild(k)
 			if isclosed || !found {
 				return false
 			}
 
-			return i.RemoveValue(k)
+			return i.RemoveValues(k) > 0
 		},
 		func(yield func(K, V) bool) {
 			l.seq2(yield)
@@ -942,12 +964,16 @@ func (l *LimitedLockedMap[K, V]) SetValue(k K, v V) bool {
 	return l.LockedMap.SetValue(k, v)
 }
 
-func (l *LimitedLockedMap[K, V]) RemoveValue(k K) bool {
-	if ok, _ := l.allowKey(k); !ok {
-		return false
+func (l *LimitedLockedMap[K, V]) RemoveValues(ks ...K) int {
+	nks := make([]K, 0, len(ks))
+
+	for k := range slices.Values(ks) {
+		if ok, _ := l.allowKey(k); ok {
+			nks = append(nks, k)
+		}
 	}
 
-	return l.LockedMap.RemoveValue(k)
+	return l.LockedMap.RemoveValues(nks...)
 }
 
 func (l *LimitedLockedMap[K, V]) Get(k K, f func(V, bool) error) error {
