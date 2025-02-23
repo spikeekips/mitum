@@ -496,11 +496,7 @@ func (t *testConnAcceptSubStreams) TestDoneStream() {
 
 		_, err := stream.Write([]byte{0})
 		t.PrintErr(err, "stream: write")
-
-		var serr *quic.StreamError
-		t.ErrorAs(err, &serr)
-		t.Equal(streamErrorCodeOK, serr.ErrorCode)
-		t.False(serr.Remote)
+		t.ErrorContains(err, "write on closed stream")
 	})
 
 	t.RunWithGoLeak("stream.Write after done stream with error", func() {
