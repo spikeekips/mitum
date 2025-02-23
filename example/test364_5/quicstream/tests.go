@@ -49,6 +49,13 @@ func (t *BaseTest) NewTLSConfig() (*testcerts.KeyPair, *tls.Config) {
 	return i[0].(*testcerts.KeyPair), i[1].(*tls.Config)
 }
 
+func (t *BaseTest) NewPacketConn() net.PacketConn {
+	pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	t.PrintIfErrPanic(err, "new net.PacketConn")
+
+	return pconn
+}
+
 func (t *BaseTest) NewDial(ctx context.Context, addr net.Addr, quicConfig *quic.Config) (quic.Connection, error) {
 	pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
@@ -65,28 +72,24 @@ func (t *BaseTest) Dial(ctx context.Context, pconn net.PacketConn, addr net.Addr
 		quicConfig = DefaultQuicConfig()
 	}
 
-	return Dial(ctx, pconn, addr, tlsConfig, quicConfig)
+	return DialWithPacketConn(ctx, pconn, addr, tlsConfig, quicConfig)
 }
 
 func (t *BaseTest) RandomListener(
 	tlsConfig *tls.Config,
 	quicConfig *quic.Config,
-) (net.PacketConn, *quic.EarlyListener, error) {
-	pconn, err := NewTestPacketConn(0)
-	if err != nil {
-		return nil, nil, err
-	}
+) (net.PacketConn, *quic.EarlyListener) {
+	pconn, err := NewPacketConn(0)
+	t.PrintIfErrPanic(err, "new net.PacketConn")
 
-	l, err := t.NewListener(pconn, tlsConfig, quicConfig)
-
-	return pconn, l, err
+	return pconn, t.NewListener(pconn, tlsConfig, quicConfig)
 }
 
 func (t *BaseTest) NewListener(
 	pconn net.PacketConn,
 	tlsConfig *tls.Config,
 	quicConfig *quic.Config,
-) (*quic.EarlyListener, error) {
+) *quic.EarlyListener {
 	if tlsConfig == nil {
 		_, tlsConfig = t.NewTLSConfig()
 	}
@@ -103,16 +106,16 @@ func (t *BaseTest) NewListener(
 	}
 
 	l, err := tp.ListenEarly(tlsConfig, quicConfig)
+	t.PrintIfErrPanic(err, "new listener")
 
-	return l, err
+	return l
 }
 
 func (t *BaseTest) OpenConnections(
 	localCtx, remoteCtx context.Context,
 	localQuicConfig, remoteQuicConfig *quic.Config,
 ) (net.PacketConn, net.PacketConn, quic.Connection, quic.Connection, func()) {
-	lpconn, l, err := t.RandomListener(nil, localQuicConfig)
-	t.PrintIfErrPanic(err, "local: new listener: %q", lpconn.LocalAddr())
+	lpconn, l := t.RandomListener(nil, localQuicConfig)
 
 	rpconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	t.PrintIfErrPanic(err, "remote: new PacketConn")
@@ -188,10 +191,6 @@ func NewTestTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config) {
 	return kp, tlsConfig
 }
 
-func NewTestPacketConn(port int) (net.PacketConn, error) {
-	return net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: port})
-}
-
 func TestNewDail(
 	ctx context.Context,
 	addr net.Addr,
@@ -202,7 +201,7 @@ func TestNewDail(
 	case err != nil:
 		return nil, err
 	default:
-		return Dial(ctx, c, addr, tlsConfig, quicConfig)
+		return DialWithPacketConn(ctx, c, addr, tlsConfig, quicConfig)
 	}
 }
 

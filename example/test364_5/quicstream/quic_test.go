@@ -21,8 +21,7 @@ type testQuic struct {
 
 func (t *testQuic) TestPacketConn() {
 	t.RunWithGoLeak("PacketConn closed; before listener accept", func() {
-		pconn, l, err := t.RandomListener(nil, nil)
-		t.NoError(err)
+		pconn, l := t.RandomListener(nil, nil)
 
 		t.NoError(pconn.Close())
 		t.T().Log("PacketConn closed")
@@ -34,8 +33,7 @@ func (t *testQuic) TestPacketConn() {
 	})
 
 	t.RunWithGoLeak("PacketConn closed; before remote dial", func() {
-		pconn, l, err := t.RandomListener(nil, nil)
-		t.NoError(err)
+		pconn, l := t.RandomListener(nil, nil)
 
 		t.NoError(pconn.Close())
 
@@ -50,7 +48,7 @@ func (t *testQuic) TestPacketConn() {
 		remoteQuicConfig.HandshakeIdleTimeout = time.Millisecond * 333
 		remoteQuicConfig.MaxIdleTimeout = time.Millisecond * 3
 
-		_, err = t.NewDial(context.Background(), pconn.LocalAddr(), remoteQuicConfig)
+		_, err := t.NewDial(context.Background(), pconn.LocalAddr(), remoteQuicConfig)
 		t.PrintErr(err, "remote dial")
 
 		var ierr *quic.IdleTimeoutError
@@ -61,8 +59,7 @@ func (t *testQuic) TestPacketConn() {
 	})
 
 	t.RunWithGoLeak("PacketConn closed; before accept stream", func() {
-		pconn, l, err := t.RandomListener(nil, nil)
-		t.NoError(err)
+		pconn, l := t.RandomListener(nil, nil)
 
 		wait := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Connection {
 			conn, err := l.Accept(context.Background())
@@ -237,8 +234,7 @@ func (t *testQuic) TestPacketConn() {
 
 func (t *testQuic) TestListener() {
 	t.RunWithGoLeak("context canceled", func() {
-		pconn, l, err := t.RandomListener(nil, nil)
-		t.NoError(err)
+		pconn, l := t.RandomListener(nil, nil)
 		defer pconn.Close()
 
 		ctx, cancel := t.Ctx()
@@ -345,14 +341,13 @@ func (t *testQuic) TestLocalConnection() {
 
 func (t *testQuic) TestRemoteConnection() {
 	t.RunWithGoLeak("dial after context canceled", func() {
-		pconn, _, err := t.RandomListener(nil, nil)
-		t.NoError(err)
+		pconn, _ := t.RandomListener(nil, nil)
 		defer pconn.Close()
 
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		_, err = t.NewDial(ctx, pconn.LocalAddr(), nil)
+		_, err := t.NewDial(ctx, pconn.LocalAddr(), nil)
 		t.PrintErr(err, "remote dial")
 		t.ErrorIs(err, context.Canceled)
 	})
@@ -768,8 +763,7 @@ func (t *testQuic) TestRemoteReboot() {
 	b := util.UUID().Bytes()
 
 	localReady := func() (net.Addr, func()) {
-		lpconn, l, err := t.RandomListener(nil, nil)
-		t.PrintIfErrPanic(err, "local: new listener: %q", lpconn.LocalAddr())
+		lpconn, l := t.RandomListener(nil, nil)
 
 		go t.ListenerAccept(context.Background(), l, func(stream quic.Stream) error {
 			_, err := stream.Write(b)
@@ -824,7 +818,7 @@ func (t *testQuic) TestRemoteReboot() {
 		_, remoteTLSConfig := t.NewTLSConfig()
 
 		t.Run("remote connect", func() {
-			remoteConn, err := Dial(context.Background(), rpconn, localAddr, remoteTLSConfig, remoteQuicConfig)
+			remoteConn, err := DialWithPacketConn(context.Background(), rpconn, localAddr, remoteTLSConfig, remoteQuicConfig)
 			t.PrintIfErrPanic(err, "remote dial")
 
 			t.NoError(remoteWrite(remoteConn))
@@ -835,7 +829,7 @@ func (t *testQuic) TestRemoteReboot() {
 		t.Run("remote reboot", func() {
 			t.T().Log("dial with new tls config")
 
-			remoteConn, err := Dial(context.Background(), rpconn, localAddr, remoteTLSConfig, remoteQuicConfig)
+			remoteConn, err := DialWithPacketConn(context.Background(), rpconn, localAddr, remoteTLSConfig, remoteQuicConfig)
 			t.NoError(err)
 			defer remoteConn.CloseWithError(0, "")
 
@@ -921,12 +915,11 @@ func (t *testQuic) TestLocalReboot() {
 
 	t.Run("remote send to new local listener", func() {
 		t.RunWithGoLeak("reboot listener", func() {
-			lpconn, err := NewTestPacketConn(0)
+			lpconn, err := NewPacketConn(0)
 			t.NoError(err, "local PacketConn: addr=%q", lpconn.LocalAddr())
-
-			l, err := t.NewListener(lpconn, nil, localQuicConfig)
-			t.NoError(err, "local: new listener")
 			defer lpconn.Close()
+
+			l := t.NewListener(lpconn, nil, localQuicConfig)
 
 			go t.ListenerAccept(context.Background(), l, listenerAcceptStream(l))
 
@@ -943,8 +936,7 @@ func (t *testQuic) TestLocalReboot() {
 			t.T().Log("> local reboot")
 			t.NoError(l.Close()) // NOTE after listener Close(), listener stil keeps the existing remote connections.
 
-			newl, err := t.NewListener(lpconn, nil, nil)
-			t.NoError(err, "local reboot: new listener: %q", lpconn.LocalAddr())
+			newl := t.NewListener(lpconn, nil, nil)
 
 			go t.ListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
 
@@ -960,12 +952,11 @@ func (t *testQuic) TestLocalReboot() {
 
 			_, localTLSConfig := t.NewTLSConfig()
 
-			lpconn, err := NewTestPacketConn(0)
+			lpconn, err := NewPacketConn(0)
 			t.NoError(err, "local PacketConn: addr=%q", lpconn.LocalAddr())
-
-			l, err := t.NewListener(lpconn, localTLSConfig, localQuicConfig)
-			t.NoError(err, "local: new listener")
 			defer lpconn.Close()
+
+			l := t.NewListener(lpconn, localTLSConfig, localQuicConfig)
 
 			go t.ListenerAccept(context.Background(), l, listenerAcceptStream(l))
 
@@ -983,14 +974,13 @@ func (t *testQuic) TestLocalReboot() {
 			t.T().Log("> local reboot")
 			t.NoError(lpconn.Close())
 
-			newlpconn, err := NewTestPacketConn(lpconn.LocalAddr().(*net.UDPAddr).Port)
+			newlpconn, err := NewPacketConn(lpconn.LocalAddr().(*net.UDPAddr).Port)
 			t.NoError(err, "local new PacketConn")
 			defer newlpconn.Close()
 
 			t.Print("local new PacketConn: addr=%q", newlpconn.LocalAddr())
 
-			newl, err := t.NewListener(newlpconn, localTLSConfig, localQuicConfig)
-			t.NoError(err, "local reboot: new listener: %q", newlpconn.LocalAddr())
+			newl := t.NewListener(newlpconn, localTLSConfig, localQuicConfig)
 
 			go t.ListenerAccept(context.Background(), newl, listenerAcceptStream(newl))
 

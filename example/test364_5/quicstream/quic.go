@@ -1,6 +1,7 @@
 package quicstream
 
 import (
+	"net"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -20,4 +21,8 @@ func DefaultQuicConfig() *quic.Config {
 		KeepAlivePeriod:       time.Second,
 		Allow0RTT:             true,
 	}
+}
+
+func NewPacketConn(port int) (net.PacketConn, error) {
+	return net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: port})
 }

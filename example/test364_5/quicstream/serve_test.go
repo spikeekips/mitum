@@ -30,7 +30,7 @@ func (t *testServe) newServe(
 	func(context.Context, *quic.Config) (quic.Connection, error),
 	dutil.ErrorFunc,
 ) {
-	pconn, err := NewTestPacketConn(0)
+	pconn, err := NewPacketConn(0)
 	t.PrintIfErrPanic(err, "NewTestPacketConn: %q", pconn.LocalAddr())
 
 	_, tlsConfig := t.NewTLSConfig()
@@ -70,7 +70,7 @@ func (t *testServe) newServe(
 
 func (t *testServe) TestError() {
 	t.Run("already context canceled", func() {
-		pconn, err := NewTestPacketConn(0)
+		pconn, err := NewPacketConn(0)
 		t.NoError(err)
 		defer pconn.Close()
 
@@ -95,7 +95,7 @@ func (t *testServe) TestError() {
 	})
 
 	t.Run("already closed PacketConn", func() {
-		pconn, err := NewTestPacketConn(0)
+		pconn, err := NewPacketConn(0)
 		t.NoError(err)
 
 		t.PrintIfErrPanic(pconn.Close(), "PacketConn closed")
@@ -118,7 +118,7 @@ func (t *testServe) TestError() {
 
 func (t *testServe) TestClose() {
 	t.Run("wait after close", func() {
-		pconn, err := NewTestPacketConn(0)
+		pconn, err := NewPacketConn(0)
 		t.NoError(err)
 		defer pconn.Close()
 
