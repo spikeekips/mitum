@@ -1,8 +1,7 @@
 module github.com/spikeekips/mitum
 
 go 1.22
-
-toolchain go1.22.1
+toolchain go1.22.5
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -25,14 +24,14 @@ require (
 	github.com/quic-go/quic-go v0.48.0
 	github.com/redis/go-redis/v9 v9.6.2
 	github.com/rs/zerolog v1.33.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/goleak v1.3.0
-	golang.org/x/crypto v0.28.0
+	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/time v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -50,7 +49,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
@@ -88,8 +87,8 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/arch v0.11.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 )
 
