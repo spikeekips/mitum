@@ -4,23 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-)
-
-const (
-	connErrorCodeOK quic.ApplicationErrorCode = iota
-	connErrorCodeUnknown
-)
-
-const (
-	streamErrorCodeOK quic.StreamErrorCode = iota
-	streamErrorCodeNoStreamHandler
-	streamErrorCodeUnknown
 )
 
 var (
@@ -87,7 +75,7 @@ func serveListener(
 				cctx := context.WithValue(ctx, QuicConnectionUIDContextKey, util.ULID().String())
 
 				if err := serveConnection(cctx, conn, f); err != nil {
-					_ = conn.CloseWithError(connErrorCodeUnknown, "")
+					closeConnection(conn, err)
 				}
 			}()
 		}
@@ -117,39 +105,4 @@ func serveConnection(
 			}()
 		}
 	}
-}
-
-func newFuncCloseStreamWithError(err error) func(quic.Stream) error {
-	switch {
-	case err != nil:
-		return func(stream quic.Stream) error {
-			stream.CancelRead(streamErrorCodeUnknown)
-			stream.CancelWrite(streamErrorCodeUnknown)
-
-			return err
-		}
-	default:
-		return func(stream quic.Stream) error {
-			stream.CancelRead(streamErrorCodeOK)
-			_ = stream.Close()
-
-			return err
-		}
-	}
-}
-
-func closeStreamWithError(stream quic.Stream, err error) error {
-	return newFuncCloseStreamWithError(err)(stream)
-}
-
-func closeStreamsWithError(streams []quic.Stream, err error) error {
-	f := newFuncCloseStreamWithError(err)
-
-	slices.Values(streams)(func(stream quic.Stream) bool {
-		_ = f(stream)
-
-		return true
-	})
-
-	return err
 }

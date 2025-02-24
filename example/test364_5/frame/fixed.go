@@ -18,9 +18,9 @@ func NewFixedReader(r io.Reader) (io.Reader, error) {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, errors.Wrap(err, "read frame size")
 	case size < 1:
-		return nil, err
+		return nil, errors.WithStack(err)
 	default:
-		return io.LimitReader(r, int64(size)), err
+		return io.LimitReader(r, int64(size)), errors.WithStack(err)
 	}
 }
 
@@ -42,7 +42,7 @@ func WriteFixed(w io.Writer, b []byte) error {
 
 		_, err = w.Write(i)
 
-		return err
+		return errors.WithStack(err)
 	default:
 		return nil
 	}

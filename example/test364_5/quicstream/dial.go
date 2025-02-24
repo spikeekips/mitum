@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,13 +28,8 @@ func DefaultDial(
 		return nil, nil, err
 	default:
 		c, err := quic.DialEarly(ctx, pconn, addr, tlsConfig, quicConfig)
-		if err != nil {
-			_ = pconn.Close()
 
-			return nil, c, nil
-		}
-
-		return pconn, c, nil
+		return pconn, c, errors.WithStack(err)
 	}
 }
 
@@ -44,7 +40,9 @@ func DialWithPacketConn(
 	tlsConfig *tls.Config,
 	quicConfig *quic.Config,
 ) (quic.Connection, error) {
-	return quic.DialEarly(ctx, pconn, addr, tlsConfig, quicConfig)
+	c, err := quic.DialEarly(ctx, pconn, addr, tlsConfig, quicConfig)
+
+	return c, errors.WithStack(err)
 }
 
 func NewDialPool(
@@ -53,12 +51,14 @@ func NewDialPool(
 	cleanInterval time.Duration,
 ) (
 	DialFromPoolFunc,
-	func(),
+	dutil.ErrorFunc,
 	error,
 ) {
-	var tr *quic.Transport
+	var closef []dutil.ErrorFunc
 
 	if dial == nil {
+		var tr *quic.Transport
+
 		switch c, err := NewPacketConn(0); {
 		case err != nil:
 			return nil, nil, err
@@ -71,6 +71,8 @@ func NewDialPool(
 
 			return c, errors.WithStack(err)
 		}
+
+		closef = append(closef, tr.Close)
 	}
 
 	if cleanInterval < time.Millisecond {
@@ -78,6 +80,8 @@ func NewDialPool(
 	}
 
 	gctx, gctxCancel := context.WithCancel(context.Background())
+
+	closef = append(closef, func() error { gctxCancel(); return nil })
 
 	go func() {
 		ticker := time.NewTicker(cleanInterval)
@@ -100,18 +104,7 @@ func NewDialPool(
 					return false, nil
 				}
 
-				var errcode quic.ApplicationErrorCode
-				var errmsg string
-
-				switch {
-				case err != nil:
-					errcode = connErrorCodeUnknown
-					errmsg = err.Error()
-				default:
-					errcode = connErrorCodeOK
-				}
-
-				gerr = conn.CloseWithError(errcode, errmsg)
+				gerr = closeConnection(conn, err)
 
 				return true, nil
 			})
@@ -148,12 +141,14 @@ func NewDialPool(
 
 			return conn, newCloseConnf(saddr), nil
 		},
-		func() {
-			if tr != nil {
-				tr.Close()
+		func() (gerr error) {
+			for f := range slices.Values(closef) {
+				if err := f(); err != nil && gerr == nil {
+					gerr = err
+				}
 			}
 
-			gctxCancel()
+			return gerr
 		},
 		nil
 }

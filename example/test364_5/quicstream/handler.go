@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	"github.com/spikeekips/mitum/util"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -51,10 +52,7 @@ func NewFuncPrefixStreamHandler() (
 			default:
 				h, found := pool[string(p)]
 				if !found {
-					stream.CancelRead(streamErrorCodeNoStreamHandler)
-					stream.CancelWrite(streamErrorCodeNoStreamHandler)
-
-					return ctx, stream.Close()
+					return ctx, util.ErrNotFound.Errorf("unknown handler prefix, %v", p)
 				}
 
 				return h(ctx, stream)

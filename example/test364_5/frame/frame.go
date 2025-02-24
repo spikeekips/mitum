@@ -106,7 +106,7 @@ func readType(r io.Reader) (t frameType, _ error) {
 		return t, err
 	}
 
-	return t, err
+	return t, errors.WithStack(err)
 }
 
 func ReadSize(r io.Reader, i *uint32) (int, error) {
@@ -114,11 +114,9 @@ func ReadSize(r io.Reader, i *uint32) (int, error) {
 	case err != nil && !errors.Is(err, io.EOF):
 		return n, err
 	default:
-		if _, err := binary.Decode(p, binary.BigEndian, i); err != nil {
-			return n, err
-		}
+		_, err := binary.Decode(p, binary.BigEndian, i)
 
-		return n, err
+		return n, errors.WithStack(err)
 	}
 }
 
@@ -129,7 +127,7 @@ func sizeToBytes(i uint32) ([]byte, error) {
 }
 
 func WriteSize(w io.Writer, i uint32) error {
-	return binary.Write(w, binary.BigEndian, i)
+	return errors.WithStack(binary.Write(w, binary.BigEndian, i))
 }
 
 type ioReadFunc func([]byte) (int, error)
@@ -147,11 +145,11 @@ func ensureRead(r io.Reader, size uint32) ([]byte, int, error) {
 
 	switch n, err := r.Read(p); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return p, n, err
+		return p, n, errors.WithStack(err)
 	case n != len(p):
 		return p, n, errors.Errorf("insufficient read")
 	default:
-		return p, n, err
+		return p, n, errors.WithStack(err)
 	}
 }
 

@@ -192,7 +192,7 @@ func waitOpenSubStreams(
 func openSubStreamSync(ctx context.Context, conn quic.Connection, id string) (quic.Stream, error) {
 	switch stream, err := conn.OpenStreamSync(ctx); {
 	case err != nil:
-		return nil, err
+		return nil, errors.WithStack(err)
 	default:
 		// NOTE send id for streams bonding first
 		if err := frame.WriteFixed(stream, []byte(id)); err != nil {
@@ -269,7 +269,7 @@ func newConnAcceptSubStreams(
 		for {
 			switch stream, err := conn.AcceptStream(gctx); {
 			case err != nil:
-				gctxCancel(err)
+				gctxCancel(errors.WithStack(err))
 
 				return
 			default:
