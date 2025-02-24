@@ -20,7 +20,7 @@ type (
 		quic.Stream,
 		handlerOpenSubStreamsFunc,
 	) (context.Context, error)
-	newHandleOpenSubStreamsFunc = func(context.Context, quic.Connection, quic.Stream) (
+	newHandlerOpenSubStreamsFunc = func(context.Context, quic.Connection, quic.Stream) (
 		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 		error,
 	)
@@ -79,7 +79,7 @@ func NewFuncPrefixStreamHandler() (
 		}
 }
 
-func (h SubStreamsHandler) StreamHandler(n newHandleOpenSubStreamsFunc) StreamHandler {
+func (h SubStreamsHandler) StreamHandler(n newHandlerOpenSubStreamsFunc) StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var conn quic.Connection
 
@@ -128,11 +128,11 @@ func writeStreamHandlerPrefix(w io.Writer, b []byte) error {
 	return frame.WriteFixed(w, encodeStreamHandlerPrefix(b))
 }
 
-func newFuncHandleOpenSubStreams(maxSize uint16) newHandleOpenSubStreamsFunc {
+func newFuncAcceptSubStreams(maxSize uint16) newHandlerOpenSubStreamsFunc {
 	return func(ctx context.Context, conn quic.Connection, stream quic.Stream) (
 		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 		error,
 	) {
-		return HandleOpenSubStreams(ctx, conn, stream, maxSize)
+		return AcceptSubStreams(ctx, conn, stream, maxSize)
 	}
 }

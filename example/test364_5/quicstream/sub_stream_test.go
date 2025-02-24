@@ -655,12 +655,12 @@ type testRequestSubStreams struct {
 
 func (t *testRequestSubStreams) TestError() {
 	t.RunWithGoLeak("empty id", func() {
-		_, err := RequestOpenSubStreams(context.Background(), nil, nil, nil, "", 1)
+		_, err := OpenSubStreams(context.Background(), nil, nil, nil, "", 1)
 		t.ErrorContains(err, "empty id")
 	})
 
 	t.RunWithGoLeak("zero size", func() {
-		_, err := RequestOpenSubStreams(context.Background(), nil, nil, nil, util.UUID().String(), 0)
+		_, err := OpenSubStreams(context.Background(), nil, nil, nil, util.UUID().String(), 0)
 		t.ErrorContains(err, "zero size")
 	})
 
@@ -707,7 +707,7 @@ func (t *testRequestSubStreams) TestError() {
 		cctx, scancel := t.Ctx()
 		scancel(nil)
 
-		_, err = RequestOpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+		_, err = OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
 		t.ErrorIs(err, context.Canceled)
 	})
 
@@ -752,7 +752,7 @@ func (t *testRequestSubStreams) TestError() {
 		cctx, scancel := t.Ctx()
 		scancel(nil)
 
-		_, err = RequestOpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+		_, err = OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "failed to wait requested sub stream")
 	})
@@ -813,7 +813,7 @@ func (t *testRequestSubStreams) TestError() {
 		cctx, scancel := t.Ctx()
 		defer scancel(nil)
 
-		_, err = RequestOpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+		_, err = OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
 		t.ErrorContains(err, "zero received size")
 	})
 }
@@ -847,7 +847,7 @@ func (t *testRequestSubStreams) openSubStreams(
 
 		close(localStreamCh)
 
-		f, err := HandleOpenSubStreams(ctx, localConn, stream, maxSize)
+		f, err := AcceptSubStreams(ctx, localConn, stream, maxSize)
 		t.IfErrPanicf(err, "local stream: open")
 
 		t.IfErrPanicf(f(func(streams []quic.Stream) error {
@@ -873,7 +873,7 @@ func (t *testRequestSubStreams) openSubStreams(
 	cctx, scancel := t.Ctx()
 	defer scancel(nil)
 
-	f, err := RequestOpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+	f, err := OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
 
 	t.NoError(f(func(streams []quic.Stream) error {
 		t.EqualValues(rsize, len(streams))
@@ -924,11 +924,11 @@ func TestRequestSubStreams(t *testing.T) {
 	suite.Run(t, new(testRequestSubStreams))
 }
 
-type testHandleOpenSubStreams struct {
+type testAcceptOpenSubStreams struct {
 	baseTestConnAcceptSubStreams
 }
 
-func (t *testHandleOpenSubStreams) TestZeroMaxSize() {
+func (t *testAcceptOpenSubStreams) TestZeroMaxSize() {
 	ctx, cancel := t.Ctx()
 	defer cancel(nil)
 
@@ -961,7 +961,7 @@ func (t *testHandleOpenSubStreams) TestZeroMaxSize() {
 	case <-localStreamCh:
 	}
 
-	f, err := HandleOpenSubStreams(context.Background(), nil, remoteStream, 0)
+	f, err := AcceptSubStreams(context.Background(), nil, remoteStream, 0)
 	t.NoError(err)
 
 	var called bool
@@ -974,8 +974,8 @@ func (t *testHandleOpenSubStreams) TestZeroMaxSize() {
 	t.False(called)
 }
 
-func TestHandleOpenSubStreams(t *testing.T) {
+func TestAcceptOpenSubStreams(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testHandleOpenSubStreams))
+	suite.Run(t, new(testAcceptOpenSubStreams))
 }

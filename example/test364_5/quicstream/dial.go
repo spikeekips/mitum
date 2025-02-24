@@ -175,5 +175,4 @@ func cleanDialPool(pool dutil.LockedMap[string, quic.Connection]) {
 	}
 
 	_ = pool.RemoveValues(saddrs...)
-	// FIXME keep alive?
 }

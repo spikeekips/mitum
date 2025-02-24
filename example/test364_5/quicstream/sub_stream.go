@@ -17,7 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func HandleOpenSubStreams(
+func AcceptSubStreams(
 	ctx context.Context,
 	conn quic.Connection,
 	stream quic.Stream,
@@ -138,7 +138,7 @@ func HandleOpenSubStreams(
 		nil
 }
 
-func RequestOpenSubStreams(
+func OpenSubStreams(
 	ctx context.Context,
 	open openConnSubStreamsFunc,
 	conn quic.Connection,
@@ -160,7 +160,7 @@ func RequestOpenSubStreams(
 	case err != nil:
 		return nil, err
 	default:
-		switch streams, err := waitRequestOpenSubStreams(stream, w, id, size); {
+		switch streams, err := waitOpenSubStreams(stream, w, id, size); {
 		case err != nil:
 			return nil, d(errors.WithMessagef(err, "failed to wait requested sub streams"))
 		default:
@@ -172,7 +172,7 @@ func RequestOpenSubStreams(
 	}
 }
 
-func waitRequestOpenSubStreams(
+func waitOpenSubStreams(
 	stream quic.Stream,
 	waitStreams func() ([]quic.Stream, error),
 	id string,

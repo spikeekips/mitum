@@ -68,7 +68,7 @@ func TestBenchmarkSubStreamsHandler(tt *testing.T) {
 		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
-		subStreams, err := RequestOpenSubStreams(
+		subStreams, err := OpenSubStreams(
 			ctx,
 			o,
 			conn,
@@ -205,7 +205,7 @@ func TestBenchmarkSubStreamsHandler(tt *testing.T) {
 
 			handlerCtx := context.WithValue(ctx, QuicConnectionContextKey, localConn)
 
-			_, err := handler(size).StreamHandler(newFuncHandleOpenSubStreams(math.MaxUint16))(handlerCtx, localStream)
+			_, err := handler(size).StreamHandler(newFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
 			t.PrintIfErrPanic(err, "handler")
 
 			d := time.Since(started)
@@ -328,7 +328,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 		go func() {
 			handlerCtx := context.WithValue(ctx, QuicConnectionContextKey, localConn)
 
-			_, err := handler().StreamHandler(newFuncHandleOpenSubStreams(math.MaxUint16))(handlerCtx, localStream)
+			_, err := handler().StreamHandler(newFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
 			t.PrintIfErrPanic(err, "handler")
 
 			close(handlerdone)
@@ -339,7 +339,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
-		subStreams, err := RequestOpenSubStreams(
+		subStreams, err := OpenSubStreams(
 			requestCtx,
 			o,
 			remoteConn,
@@ -354,7 +354,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 		_, err = frame.ReadFixed(remoteStream)
 		t.NoError(err)
 
-		subStreams, err = RequestOpenSubStreams(
+		subStreams, err = OpenSubStreams(
 			ctx,
 			o,
 			remoteConn,
