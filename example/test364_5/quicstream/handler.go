@@ -3,28 +3,14 @@ package quicstream
 import (
 	"context"
 	"io"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
-	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"golang.org/x/crypto/sha3"
 )
 
-type (
-	StreamHandler             func(context.Context, quic.Stream) (context.Context, error)
-	handlerOpenSubStreamsFunc = func(context.Context) (dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]], error)
-	SubStreamsHandler         func(
-		context.Context,
-		quic.Stream,
-		handlerOpenSubStreamsFunc,
-	) (context.Context, error)
-	newHandlerOpenSubStreamsFunc = func(context.Context, quic.Connection, quic.Stream) (
-		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
-		error,
-	)
-)
+type StreamHandler func(context.Context, quic.Stream) (context.Context, error)
 
 func (h StreamHandler) Next(i StreamHandler) StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
@@ -79,34 +65,6 @@ func NewFuncPrefixStreamHandler() (
 		}
 }
 
-func (h SubStreamsHandler) StreamHandler(n newHandlerOpenSubStreamsFunc) StreamHandler {
-	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		var conn quic.Connection
-
-		connOnce := sync.OnceValue(func() error {
-			switch c, err := loadQuicConnectionFromContext(ctx); {
-			case err != nil:
-				return err
-			default:
-				conn = c
-
-				return nil
-			}
-		})
-
-		return h(ctx, stream, func(ctx context.Context) (
-			dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
-			error,
-		) {
-			if err := connOnce(); err != nil {
-				return nil, err
-			}
-
-			return n(ctx, conn, stream)
-		})
-	}
-}
-
 func encodeStreamHandlerPrefix(b []byte) []byte {
 	s := sha3.Sum224(b)
 
@@ -126,13 +84,4 @@ func readStreamHandlerPrefix(r io.Reader) ([]byte, error) {
 
 func writeStreamHandlerPrefix(w io.Writer, b []byte) error {
 	return frame.WriteFixed(w, encodeStreamHandlerPrefix(b))
-}
-
-func newFuncAcceptSubStreams(maxSize uint16) newHandlerOpenSubStreamsFunc {
-	return func(ctx context.Context, conn quic.Connection, stream quic.Stream) (
-		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
-		error,
-	) {
-		return AcceptSubStreams(ctx, conn, stream, maxSize)
-	}
 }
