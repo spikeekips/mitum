@@ -1,4 +1,4 @@
-package main
+package dop5
 
 import (
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"

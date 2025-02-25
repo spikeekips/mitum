@@ -1,4 +1,4 @@
-package main
+package dop5
 
 import (
 	"cmp"
