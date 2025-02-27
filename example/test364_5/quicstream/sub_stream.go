@@ -26,14 +26,6 @@ func AcceptSubStreams(
 	dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 	error,
 ) {
-	if maxSize < 1 {
-		if err := frame.WriteSize(stream, 0); err != nil {
-			return nil, err
-		}
-
-		return func(dutil.InErrorFunc[[]quic.Stream]) error { return nil }, nil
-	}
-
 	var id string
 
 	switch b, err := frame.ReadFixed(stream); {
@@ -52,6 +44,14 @@ func AcceptSubStreams(
 		return nil, err
 	default:
 		size = i
+	}
+
+	if size < 1 {
+		if err := frame.WriteSize(stream, 0); err != nil {
+			return nil, err
+		}
+
+		return func(f dutil.InErrorFunc[[]quic.Stream]) error { return f(nil) }, nil
 	}
 
 	var controlStream quic.Stream
@@ -149,26 +149,42 @@ func OpenSubStreams(
 	dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 	error,
 ) {
-	switch {
-	case id == "":
+	if id == "" {
 		return nil, errors.Errorf("empty id")
-	case size < 1:
-		return nil, errors.Errorf("zero size")
 	}
 
-	switch w, d, err := open(ctx, conn, id, size); {
-	case err != nil:
-		return nil, err
-	default:
-		switch streams, err := waitOpenSubStreams(stream, w, id, size); {
-		case err != nil:
-			return nil, d(errors.WithMessagef(err, "failed to wait requested sub streams"))
-		default:
-			return func(f dutil.InErrorFunc[[]quic.Stream]) error {
-					return d(f(streams))
-				},
-				nil
+	var wait func() ([]quic.Stream, error)
+	var closef dutil.InErrorFunc[error]
+
+	if size < 1 {
+		wait = func() ([]quic.Stream, error) {
+			switch rsize, err := readSubStreamsSize(stream, 1); {
+			case err != nil:
+				return nil, err
+			case rsize > 0:
+				return nil, errors.Errorf("zero size requested, but %d", rsize)
+			default:
+				return nil, nil
+			}
 		}
+		closef = func(err error) error { return err }
+	} else {
+		switch w, c, err := open(ctx, conn, id, size); {
+		case err != nil:
+			return nil, err
+		default:
+			wait, closef = w, c
+		}
+	}
+
+	switch streams, err := waitOpenSubStreams(stream, wait, id, size); {
+	case err != nil:
+		return nil, closef(errors.WithMessagef(err, "failed to wait requested sub streams"))
+	default:
+		return func(f dutil.InErrorFunc[[]quic.Stream]) error {
+				return closef(f(streams))
+			},
+			nil
 	}
 }
 
@@ -531,8 +547,8 @@ func readSubStreamsSize(stream quic.Stream, size uint16) (uint16, error) {
 	switch _, err := frame.ReadSize(stream, &nrsize); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return 0, errors.Errorf("received size")
-	case nrsize < 1:
-		return 0, errors.Errorf("zero received size")
+	case size < 1, nrsize < 1:
+		return 0, nil
 	case nrsize > math.MaxUint16:
 		return 0, errors.Errorf("received size > max uint16")
 	default:

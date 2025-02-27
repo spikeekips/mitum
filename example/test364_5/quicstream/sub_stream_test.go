@@ -659,11 +659,6 @@ func (t *testRequestSubStreams) TestError() {
 		t.ErrorContains(err, "empty id")
 	})
 
-	t.RunWithGoLeak("zero size", func() {
-		_, err := OpenSubStreams(context.Background(), nil, nil, nil, util.UUID().String(), 0)
-		t.ErrorContains(err, "zero size")
-	})
-
 	t.RunWithGoLeak("canceled context", func() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -755,66 +750,6 @@ func (t *testRequestSubStreams) TestError() {
 		_, err = OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
 		t.ErrorIs(err, context.Canceled)
 		t.ErrorContains(err, "failed to wait requested sub stream")
-	})
-
-	t.RunWithGoLeak("zero received size", func() {
-		ctx, cancel := t.Ctx()
-		defer cancel(nil)
-
-		_, _, localConn, remoteConn, closef := t.OpenConnections(
-			ctx, context.Background(),
-			nil, nil,
-		)
-		defer closef()
-
-		var size uint16 = 3
-
-		localStreamCh := make(chan struct{})
-
-		go func() {
-			stream, err := localConn.AcceptStream(ctx)
-			t.PrintIfErrPanic(err, "local conn: AcceptStream")
-
-			_, err = frame.ReadFixed(stream)
-			t.IfErrPanicf(err, "local stream: read")
-
-			close(localStreamCh)
-
-			b, err := frame.ReadFixed(stream)
-			t.IfErrPanicf(err, "local stream: read id")
-			id := string(b)
-
-			var rsize uint32
-			_, err = frame.ReadSize(stream, &rsize)
-			t.PrintIfErrPanic(err, "local stream: read size, %d")
-			t.IfTruePanic(int(rsize) != int(size), "local stream: rsize, %d != size, %d", rsize, size)
-
-			controlStream, err := openSubStreamSync(ctx, localConn, id)
-			t.IfErrPanicf(err, "local control stream: OpenStream")
-
-			t.Print("local stream: send zero size, rsize=%d", rsize)
-			err = frame.WriteSize(controlStream, 0)
-			t.IfErrPanicf(err, "local stream: write zero size")
-		}()
-
-		remoteStream, err := remoteConn.OpenStreamSync(ctx)
-		t.NoError(err)
-		t.NoError(frame.WriteFixed(remoteStream, util.UUID().Bytes()))
-
-		select {
-		case <-time.After(time.Second):
-			t.Fail("wait local stream")
-		case <-localStreamCh:
-		}
-
-		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
-		defer c()
-
-		cctx, scancel := t.Ctx()
-		defer scancel(nil)
-
-		_, err = OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
-		t.ErrorContains(err, "zero received size")
 	})
 }
 
@@ -916,6 +851,88 @@ func (t *testRequestSubStreams) TestOpenSubStreams() {
 			},
 		)
 	})
+
+	t.RunWithGoLeak("zero request size", func() {
+		t.openSubStreams(
+			context.Background(),
+			0, 3,
+			func(streams []quic.Stream) error {
+				t.Print("local stream: sub streams")
+
+				return nil
+			},
+			func(streams []quic.Stream) error {
+				t.Print("remote stream: sub streams")
+
+				return nil
+			},
+		)
+	})
+
+	t.RunWithGoLeak("zero received size", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		_, _, localConn, remoteConn, closef := t.OpenConnections(
+			ctx, context.Background(),
+			nil, nil,
+		)
+		defer closef()
+
+		var size uint16 = 3
+
+		localStreamCh := make(chan struct{})
+
+		go func() {
+			stream, err := localConn.AcceptStream(ctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream")
+
+			_, err = frame.ReadFixed(stream)
+			t.IfErrPanicf(err, "local stream: read")
+
+			close(localStreamCh)
+
+			b, err := frame.ReadFixed(stream)
+			t.IfErrPanicf(err, "local stream: read id")
+			id := string(b)
+
+			var rsize uint32
+			_, err = frame.ReadSize(stream, &rsize)
+			t.PrintIfErrPanic(err, "local stream: read size, %d")
+			t.IfTruePanic(int(rsize) != int(size), "local stream: rsize, %d != size, %d", rsize, size)
+
+			controlStream, err := openSubStreamSync(ctx, localConn, id)
+			t.IfErrPanicf(err, "local control stream: OpenStream")
+
+			t.Print("local stream: send zero size, rsize=%d", rsize)
+			err = frame.WriteSize(controlStream, 0)
+			t.IfErrPanicf(err, "local stream: write zero size")
+		}()
+
+		remoteStream, err := remoteConn.OpenStreamSync(ctx)
+		t.NoError(err)
+		t.NoError(frame.WriteFixed(remoteStream, util.UUID().Bytes()))
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait local stream")
+		case <-localStreamCh:
+		}
+
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
+		defer c()
+
+		cctx, scancel := t.Ctx()
+		defer scancel(nil)
+
+		f, err := OpenSubStreams(cctx, o, remoteConn, remoteStream, util.UUID().String(), size)
+		t.NoError(err)
+		t.NoError(f(func(streams []quic.Stream) error {
+			t.Equal(1, len(streams)) // NOTE control stream
+
+			return nil
+		}))
+	})
 }
 
 func TestRequestSubStreams(t *testing.T) {
@@ -949,6 +966,12 @@ func (t *testAcceptOpenSubStreams) TestZeroMaxSize() {
 		t.IfErrPanicf(err, "local stream: read")
 
 		close(localStreamCh)
+
+		err = frame.WriteFixed(stream, util.UUID().Bytes())
+		t.IfErrPanicf(err, "local stream: write id")
+
+		err = frame.WriteSize(stream, 1)
+		t.IfErrPanicf(err, "local stream: write size")
 	}()
 
 	remoteStream, err := remoteConn.OpenStreamSync(ctx)
@@ -971,7 +994,7 @@ func (t *testAcceptOpenSubStreams) TestZeroMaxSize() {
 
 		return nil
 	}))
-	t.False(called)
+	t.True(called)
 }
 
 func TestAcceptOpenSubStreams(t *testing.T) {
