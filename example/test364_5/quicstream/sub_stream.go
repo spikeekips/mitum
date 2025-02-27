@@ -417,7 +417,7 @@ func newConnAcceptSubStreams(
 		nil
 }
 
-func newConnsAcceptSubStreams(
+func NewConnsAcceptSubStreams(
 	ctx context.Context,
 	removeInactiveAfter time.Duration,
 ) (

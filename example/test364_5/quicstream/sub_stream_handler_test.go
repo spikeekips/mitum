@@ -186,9 +186,9 @@ func TestBenchmarkSubStreamsHandler(tt *testing.T) {
 			data[i] = util.UUID().String()
 		}
 
-		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
 
-		request := requestHandler(size, data).StreamHandler(newFuncOpenSubStreams(o))
+		request := requestHandler(size, data).StreamHandler(NewFuncOpenSubStreams(o))
 
 		return func() {
 			defer localStream.Close()
@@ -357,12 +357,12 @@ func (t *testSubStreamsHandler) TestOpen() {
 			return ctx, nil
 		})
 
-		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
 		requestCtx := context.WithValue(ctx, QuicConnectionContextKey, remoteConn)
 
-		requestHandler.StreamHandler(newFuncOpenSubStreams(o))(requestCtx, remoteStream)
+		requestHandler.StreamHandler(NewFuncOpenSubStreams(o))(requestCtx, remoteStream)
 
 		select {
 		case <-time.After(time.Second):

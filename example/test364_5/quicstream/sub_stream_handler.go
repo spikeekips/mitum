@@ -99,7 +99,7 @@ func (h OpenSubStreamsHandler) StreamHandler(f NewOpenSubStreamsFunc) StreamHand
 	}
 }
 
-func newFuncOpenSubStreams(open openConnSubStreamsFunc) NewOpenSubStreamsFunc {
+func NewFuncOpenSubStreams(open openConnSubStreamsFunc) NewOpenSubStreamsFunc {
 	return func(ctx context.Context, conn quic.Connection, stream quic.Stream, size uint16) (
 		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 		error,

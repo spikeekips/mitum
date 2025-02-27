@@ -561,7 +561,7 @@ type testConnsAcceptSubStreams struct {
 
 func (t *testConnsAcceptSubStreams) TestError() {
 	t.RunWithGoLeak("after closed", func() {
-		o, c, _ := newConnsAcceptSubStreams(context.Background(), time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(context.Background(), time.Minute)
 
 		c()
 
@@ -578,7 +578,7 @@ func (t *testConnsAcceptSubStreams) TestError() {
 
 func (t *testConnsAcceptSubStreams) TestNewID() {
 	t.RunWithGoLeak("ok", func() {
-		o, c, _ := newConnsAcceptSubStreams(context.Background(), time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(context.Background(), time.Minute)
 		defer c()
 
 		_, _, _, remoteConn, closef := t.OpenConnections(
@@ -600,7 +600,7 @@ func (t *testConnsAcceptSubStreams) TestNewID() {
 func (t *testConnsAcceptSubStreams) TestRemoveAfter() {
 	t.RunWithGoLeak("ok", func() {
 		removeAfter := time.Second * 2
-		o, c, pool := newConnsAcceptSubStreams(context.Background(), removeAfter)
+		o, c, pool := NewConnsAcceptSubStreams(context.Background(), removeAfter)
 		defer c()
 
 		_, _, _, remoteConn, closef := t.OpenConnections(
@@ -622,7 +622,7 @@ func (t *testConnsAcceptSubStreams) TestRemoveAfter() {
 
 	t.RunWithGoLeak("expired, but not empty", func() {
 		removeAfter := time.Second * 2
-		o, c, pool := newConnsAcceptSubStreams(context.Background(), removeAfter)
+		o, c, pool := NewConnsAcceptSubStreams(context.Background(), removeAfter)
 		defer c()
 
 		_, _, _, remoteConn, closef := t.OpenConnections(
@@ -701,7 +701,7 @@ func (t *testRequestSubStreams) TestError() {
 		case <-localStreamCh:
 		}
 
-		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
 		cctx, scancel := t.Ctx()
@@ -746,7 +746,7 @@ func (t *testRequestSubStreams) TestError() {
 		case <-localStreamCh:
 		}
 
-		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
 		cctx, scancel := t.Ctx()
@@ -807,7 +807,7 @@ func (t *testRequestSubStreams) TestError() {
 		case <-localStreamCh:
 		}
 
-		o, c, _ := newConnsAcceptSubStreams(ctx, time.Minute)
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
 		defer c()
 
 		cctx, scancel := t.Ctx()
@@ -867,7 +867,7 @@ func (t *testRequestSubStreams) openSubStreams(
 	case <-localStreamCh:
 	}
 
-	o, c, _ := newConnsAcceptSubStreams(context.Background(), time.Minute)
+	o, c, _ := NewConnsAcceptSubStreams(context.Background(), time.Minute)
 	defer c()
 
 	cctx, scancel := t.Ctx()
