@@ -16,33 +16,33 @@ import (
 var managerName = "manager"
 
 type (
-	managerStartWorkerFunc = func(
+	ManagerStartWorkerFunc = func(
 		_ context.Context,
 		workID, worker string,
 		workers, opsWorkers []string,
 		opsShare, statesShare uint64,
 		maxOpsSize uint64,
 	) error
-	managerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
+	ManagerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
 	managerCloseWorkerFunc     = func(_ context.Context, workID, worker string) error
-	newManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
-		opindexOpHashesFunc, dutil.InErrorFunc[error], error)
+	NewManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
+		OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
-	managerWaitFunc        = dutil.In3ErrorFunc[
+	ManagerWaitFunc        = dutil.In3ErrorFunc[
 		dutil.InContextErrorFunc[string],
 		newManagerManifestFunc,
 		managerCloseWorkerFunc,
 	]
 )
 
-type managerOptions struct {
+type ManagerOptions struct {
 	JobWorkerMaxSemSize   uint64
 	GenerateNodesHashFunc fixedtree.GenerateNodesHashFunc
 	WorkersSizeMultiplier uint64
 }
 
-func newManagerOptions() *managerOptions {
-	return &managerOptions{
+func NewManagerOptions() *ManagerOptions {
+	return &ManagerOptions{
 		// WorkersSizeMultiplier estimates the acting workers size by operations
 		// size. The acting workers size will be <workers size> *
 		// <WorkerSizeMultiplier>. 0 will workers will be acting workers
@@ -52,20 +52,20 @@ func newManagerOptions() *managerOptions {
 	}
 }
 
-func newFuncManager(
+func NewFuncManager(
 	ctx context.Context,
-	options *managerOptions,
-	cancelWorkerf managerCancelWorkerFunc,
+	options *ManagerOptions,
+	cancelWorkerf ManagerCancelWorkerFunc,
 	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
 ) (
-	_ dutil.In2ErrorFunc[managerStartWorkerFunc, newManagerWorkerSendOpFunc],
+	_ dutil.In2ErrorFunc[ManagerStartWorkerFunc, NewManagerWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
-	_ managerInsertWorkerResultFunc,
+	_ ManagerInsertWorkerResultFunc,
 	workerErr dutil.In2ErrorFunc[string, error],
-	wait managerWaitFunc,
+	wait ManagerWaitFunc,
 	_ error,
 ) {
 	wctx, wctxCancel := dutil.ContextWithCancelCause(ctx)
@@ -95,7 +95,7 @@ func newFuncManager(
 
 	var workerPool *failedWorkerPool
 	var sendOps dutil.InErrorFunc[newWorkerSendOpFunc]
-	var workerResult managerInsertWorkerResultFunc
+	var workerResult ManagerInsertWorkerResultFunc
 	var processWait managerProcessWaitFunc
 
 	switch p, s, o, r, w, err := newFuncManagerProcess(
@@ -126,8 +126,8 @@ func newFuncManager(
 	_, bgJobDone, _, bgJobWait := dutil.NewContextWait(wctx)
 
 	return func(
-			startWorker managerStartWorkerFunc,
-			f newManagerWorkerSendOpFunc,
+			startWorker ManagerStartWorkerFunc,
+			f NewManagerWorkerSendOpFunc,
 		) error {
 			if err := managerStartWorkers(
 				wctx,
@@ -142,7 +142,7 @@ func newFuncManager(
 			}
 
 			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
-				func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return f(ctx, workID, worker)
 				},
 			))
@@ -244,7 +244,7 @@ func newFuncManager(
 }
 
 func isValidManagerArgs(
-	options *managerOptions,
+	options *ManagerOptions,
 	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
@@ -346,7 +346,7 @@ func managerStartWorkers(
 	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
-	f managerStartWorkerFunc,
+	f ManagerStartWorkerFunc,
 ) error {
 	workers := workerPool.workers()
 	opsWorkers := workerPool.opsWorkers()
@@ -408,7 +408,7 @@ func managerCancelWorkers(
 	newJobWorker dutil.NewJobWorkerFunc,
 	workID string,
 	workerPool *failedWorkerPool,
-	f managerCancelWorkerFunc,
+	f ManagerCancelWorkerFunc,
 	gerr error,
 ) error {
 	log := dutil.LoadContextValueLogger(ctx)

@@ -8,21 +8,21 @@ import (
 )
 
 type (
-	opindexOpHashesFunc    = func(opindex uint64, oph, fact util.Hash) error
+	OpindexOpHashesFunc    = func(opindex uint64, oph, fact util.Hash) error
 	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc       = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ operation, found bool, reason string, _ error)
+	getOperationFunc       = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ Operation, found bool, reason string, _ error)
 	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
-		_ operation,
+		_ Operation,
 		subv SMV,
 		addvs []SMV,
 		reason string,
 		_ error,
 	)
 	smvExtractorInsertFunc = dutil.In3ErrorFunc[
-		getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], smvExtractorExtractedFunc]
+		getOperationFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
 	smvExtractorExtractedFunc = func(
 		opindex uint64,
-		_ operation,
+		_ Operation,
 		subv SMV,
 		addvs []SMV,
 	) error
@@ -64,7 +64,7 @@ func newFuncSMVExtractor(
 
 	return func(
 			getOperation getOperationFunc,
-			f dutil.InErrorFunc[opindexOpHashesFunc],
+			f dutil.InErrorFunc[OpindexOpHashesFunc],
 			extracted smvExtractorExtractedFunc,
 		) error {
 			defer jobDone()
@@ -99,13 +99,13 @@ func newFuncExtractSMV(
 	getOperation getOperationFunc,
 ) extractSMVsFunc {
 	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) (
-		operation,
+		Operation,
 		SMV,
 		[]SMV,
 		string,
 		error,
 	) {
-		var op operation
+		var op Operation
 
 		switch i, found, reason, err := getOperation(ctx, opindex, oph, fact); {
 		case err != nil:

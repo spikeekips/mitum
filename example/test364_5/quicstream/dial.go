@@ -218,7 +218,7 @@ func cleanDialPool(pool dutil.LockedMap[string, quic.Connection]) {
 	_ = pool.RemoveValues(saddrs...)
 }
 
-func newFuncConnClosingStreamError(closef dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
+func NewFuncConnClosingStreamError(closef dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
 	return func(err error) error {
 		var operr *net.OpError
 
@@ -232,7 +232,7 @@ func newFuncConnClosingStreamError(closef dutil.InErrorFunc[error]) dutil.InErro
 	}
 }
 
-func newDialWithCloseFunc(
+func NewDialWithCloseFunc(
 	dial DialCloseFunc,
 	closef dutil.InFunc[dutil.InErrorFunc[error], dutil.InErrorFunc[error]],
 ) DialCloseFunc {

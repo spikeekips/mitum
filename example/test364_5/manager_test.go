@@ -103,7 +103,7 @@ func (t *baseTestManager) baseGenerateNodesHashFunc() fixedtree.GenerateNodesHas
 
 func (t *baseTestManager) processOps(
 	ctx context.Context,
-	ops []operation,
+	ops []Operation,
 	getState getStateFunc,
 ) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ map[string]int64, _ error) {
 	local := "local"
@@ -161,7 +161,7 @@ func (t *baseTestManager) processOps(
 		) {
 			return nil, nil, nil
 		},
-		func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+		func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 			if opindex >= uint64(len(ops)) {
 				return nil, false, "", nil
 			}
@@ -250,7 +250,7 @@ func (t *baseTestManager) processOps(
 	values := map[string]int64{}
 
 	for st := range slices.Values(states) {
-		values[st.Key()] = st.Value().(*accountSV).Balance
+		values[st.Key()] = st.Value().(*AccountSV).Balance
 	}
 
 	return opsTree, statesTree, states, values, nil
@@ -262,13 +262,13 @@ type testManager struct {
 	baseTestManager
 }
 
-func (t *testManager) newOptions() *managerOptions {
-	return newManagerOptions()
+func (t *testManager) newOptions() *ManagerOptions {
+	return NewManagerOptions()
 }
 
 func (t *testManager) TestNew() {
 	t.Run("empty work id", func() {
-		_, _, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -281,7 +281,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty ophs", func() {
-		_, _, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -294,7 +294,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("empty workers", func() {
-		_, _, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -307,7 +307,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero ops share", func() {
-		_, _, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -320,7 +320,7 @@ func (t *testManager) TestNew() {
 	})
 
 	t.Run("zero states share", func() {
-		_, _, _, _, _, err := newFuncManager(
+		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
@@ -346,7 +346,7 @@ func (t *testManager) TestStartWorkers() {
 		opsShare, statesShare uint64,
 		ophs [][2]util.Hash,
 		failedWorkers []string,
-		cancelWorkerf managerCancelWorkerFunc,
+		cancelWorkerf ManagerCancelWorkerFunc,
 		closeWorkerf managerCloseWorkerFunc,
 	) error {
 		ctx, cancel := t.Ctx()
@@ -355,7 +355,7 @@ func (t *testManager) TestStartWorkers() {
 		opsWorkers := getOpsWorkers(workers, opsShare, ophs)
 		t.T().Logf("ops share=%d ops workers=%v", opsShare, opsWorkers)
 
-		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
 			func(ctx context.Context, workID, worker string, err error) error {
@@ -382,7 +382,7 @@ func (t *testManager) TestStartWorkers() {
 				return errors.Errorf("failed, worker=%q", worker)
 			},
 			func(context.Context, string, string) (
-				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -536,7 +536,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 		workers := t.workers(9)
 
-		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
 			nil,
@@ -555,7 +555,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 				return nil
 			},
 			func(context.Context, string, string) (
-				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -613,7 +613,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 		workers := t.workers(9)
 
-		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
 			nil,
@@ -632,7 +632,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 				return nil
 			},
 			func(context.Context, string, string) (
-				opindexOpHashesFunc, dutil.InErrorFunc[error], error,
+				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
@@ -694,7 +694,7 @@ func (t *testManager) TestCloseWorkers() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		sendOps, workerOwners, workerResult, _, wait, err := newFuncManager(
+		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
 			func(_ context.Context, _, worker string, err error) error {
@@ -711,7 +711,7 @@ func (t *testManager) TestCloseWorkers() {
 		t.NoError(err)
 		t.NoError(sendOps(
 			func(context.Context, string, string, []string, []string, uint64, uint64, uint64) error { return nil },
-			func(context.Context, string, string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil

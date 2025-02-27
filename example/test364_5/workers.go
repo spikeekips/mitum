@@ -16,7 +16,7 @@ import (
 )
 
 type (
-	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, opindexOpHashesFunc]
+	workerOperationsFunc         = dutil.In2ErrorFunc[string /* worker */, OpindexOpHashesFunc]
 	checkFailedWorkersFunc       = func(worker string, err error) (ok, enough bool, failed error)
 	checkWeightFailedWorkersFunc = func(worker string, weight uint64, err error) (ok, enough bool, failed error)
 	newCheckFailedWorkersFunc    = func(worker, share uint64, blockUntil func(string) bool) (
@@ -440,7 +440,7 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 
 			return done()
 		},
-		func(worker string, f opindexOpHashesFunc) error {
+		func(worker string, f OpindexOpHashesFunc) error {
 			workerIndex := slices.Index(workers, worker)
 			if workerIndex < 0 {
 				return util.ErrNotFound.Errorf("unknown worker=%q", worker)

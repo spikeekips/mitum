@@ -995,7 +995,7 @@ func (t *testWorkerMerger) workersStatesOwners(
 
 	for opindex := range maps.Keys(workerValues) {
 		for value := range slices.Values(values[opindex]) {
-			if !isSubAccountSMV(value.(*accountSMV)) {
+			if !isSubAccountSMV(value.(*AccountSMV)) {
 				continue
 			}
 
@@ -1101,7 +1101,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 				if stv == nil {
 					collectedStates[stateKey] = 0
 				} else {
-					v := stv.(*accountSV)
+					v := stv.(*AccountSV)
 					switch b, found := collectedStates[stateKey]; {
 					case found:
 						if v.Balance != b {
@@ -1180,7 +1180,7 @@ func (t *testWorkerMerger) TestNoSubs() {
 
 				var problem string
 
-				v := stv.(*accountSV)
+				v := stv.(*AccountSV)
 				switch b, found := collectedStates[stateKey]; {
 				case found:
 					if v.Balance != b {
@@ -1275,7 +1275,7 @@ func (t *testWorkerMerger) TestSubs() {
 				if stv == nil {
 					collectedStates[stateKey] = 0
 				} else {
-					v := stv.(*accountSV)
+					v := stv.(*AccountSV)
 					switch b, found := collectedStates[stateKey]; {
 					case found:
 						if v.Balance != b {

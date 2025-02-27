@@ -33,7 +33,7 @@ func (t *baseTestMergeOp) closeMergersWithError(mergers dutil.LockedMap[string, 
 		}
 
 		if st != nil {
-			if v := st.(*accountSV); v != nil {
+			if v := st.(*AccountSV); v != nil {
 				m[stateKey] = v.Balance
 			}
 		}
@@ -812,7 +812,7 @@ func (t *testPhaseMerger) TestMerge() {
 				i, found := merged[value.Key()]
 				t.True(found)
 
-				t.Equal(value.(*accountSMV).Balance, i)
+				t.Equal(value.(*AccountSMV).Balance, i)
 			}
 		}
 	})
@@ -995,7 +995,7 @@ func (t *testPhaseMerger) TestUnmerge() {
 
 		m, found := merged[vss[0][0].Key()]
 		t.True(found)
-		t.Equal(subed+prevst.Value().(*accountSV).Balance, m)
+		t.Equal(subed+prevst.Value().(*AccountSV).Balance, m)
 	})
 
 	t.Run("Merge() error", func() {

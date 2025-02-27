@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	newWorkerSendOpFunc func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error)
+	newWorkerSendOpFunc func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 )
 
 func newFuncManagerWorkersOps(

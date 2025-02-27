@@ -346,7 +346,7 @@ func (t *testRequest) TestRequest() {
 		t.NoError(err)
 		defer poolClose()
 
-		f, err := NewFuncRequest(newDialWithCloseFunc(dial, newFuncConnClosingStreamError), tlsConfig, quicConfig)
+		f, err := NewFuncRequest(NewDialWithCloseFunc(dial, NewFuncConnClosingStreamError), tlsConfig, quicConfig)
 		t.NoError(err)
 
 		var called bool

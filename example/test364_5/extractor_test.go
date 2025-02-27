@@ -22,8 +22,8 @@ type testSMVExtractor struct {
 	baseTestMergeOp
 }
 
-func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
-	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[opindexOpHashesFunc], smvExtractorExtractedFunc],
+func (t *testSMVExtractor) newf(ctx context.Context, ops []Operation) (
+	dutil.In3ErrorFunc[getOperationFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc],
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
@@ -31,7 +31,7 @@ func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
 
 	return func(
 			getOperation getOperationFunc,
-			f dutil.InErrorFunc[opindexOpHashesFunc],
+			f dutil.InErrorFunc[OpindexOpHashesFunc],
 			extracted smvExtractorExtractedFunc,
 		) error {
 			of := newGetOperationFunc(ops)
@@ -39,7 +39,7 @@ func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
 				of = getOperation
 			}
 
-			inf := func(f opindexOpHashesFunc) error {
+			inf := func(f OpindexOpHashesFunc) error {
 				for opindex, op := range slices.All(ops) {
 					t.Print("insert: opindex=%d op=%q", opindex, op.Hash())
 
@@ -57,7 +57,7 @@ func (t *testSMVExtractor) newf(ctx context.Context, ops []operation) (
 			return insert(
 				of,
 				inf,
-				func(opindex uint64, op operation, subv SMV, addvs []SMV) error {
+				func(opindex uint64, op Operation, subv SMV, addvs []SMV) error {
 					t.Print("extracted: opindex=%d op=%v subv=%v addvs=%v", opindex, op == nil, subv == nil, len(addvs))
 
 					if extracted == nil {
@@ -86,7 +86,7 @@ func (t *testSMVExtractor) TestCancel() {
 	t.Run("before insert", func() {
 		ctx, cancel := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -103,7 +103,7 @@ func (t *testSMVExtractor) TestCancel() {
 	t.Run("after insert", func() {
 		ctx, cancel := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -119,7 +119,7 @@ func (t *testSMVExtractor) TestCancel() {
 	t.Run("after wait", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
@@ -139,16 +139,16 @@ func (t *testSMVExtractor) TestGetOperation() {
 	t.Run("ok", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
-		collected := make([]operation, len(ops))
+		collected := make([]Operation, len(ops))
 
 		t.NoError(insert(nil, nil, func(
 			opindex uint64,
-			op operation,
+			op Operation,
 			subv SMV,
 			addvs []SMV,
 		) error {
@@ -186,12 +186,12 @@ func (t *testSMVExtractor) TestGetOperation() {
 	t.Run("insert op error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
-		err = insert(nil, func(f opindexOpHashesFunc) error {
+		err = insert(nil, func(f OpindexOpHashesFunc) error {
 			return errors.Errorf("findme")
 		}, nil)
 		t.ErrorContains(err, "findme")
@@ -203,13 +203,13 @@ func (t *testSMVExtractor) TestGetOperation() {
 	t.Run("get operation error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
 		t.NoError(insert(
-			func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
+			func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
 				return nil, false, "", errors.Errorf("showme")
 			}, nil, nil,
 		))
@@ -223,13 +223,13 @@ func (t *testSMVExtractor) TestGetOperation() {
 	t.Run("extracted error", func() {
 		ctx, _ := t.Ctx()
 
-		ops := []operation{t.randomOp(2)}
+		ops := []Operation{t.randomOp(2)}
 
 		insert, wait, err := t.newf(ctx, ops)
 		t.NoError(err)
 
 		t.NoError(insert(nil, nil,
-			func(uint64, operation, SMV, []SMV) error {
+			func(uint64, Operation, SMV, []SMV) error {
 				return errors.Errorf("showme")
 			}))
 
@@ -248,7 +248,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		expectedReasons := dutil.NewSingleLockedMap[uint64, string]()
 
 		t.NoError(insert(
-			func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+			func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 				if opindex < 2 {
 					reason := fmt.Sprintf("reason:%d", opindex)
 					expectedReasons.SetValue(opindex, reason)
@@ -258,7 +258,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 
 				return t.randomOp(1), true, "", nil
 			},
-			func(f opindexOpHashesFunc) error {
+			func(f OpindexOpHashesFunc) error {
 				for i := range 3 {
 					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 				}
@@ -288,7 +288,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		expectedReasons := map[uint64]string{}
 
 		t.NoError(insert(nil,
-			func(f opindexOpHashesFunc) error {
+			func(f OpindexOpHashesFunc) error {
 				for i := range 3 {
 					_ = f(uint64(i), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
@@ -322,7 +322,7 @@ func (t *testSMVExtractor) TestExtract() {
 		var called int
 
 		t.NoError(insert(nil, nil,
-			func(uint64, operation, SMV, []SMV) error {
+			func(uint64, Operation, SMV, []SMV) error {
 				called++
 
 				return errors.Errorf("showme")
@@ -343,7 +343,7 @@ func (t *testSMVExtractor) TestExtract() {
 		return func() {
 			ctx, _ := t.Ctx()
 
-			ops := make([]operation, n)
+			ops := make([]Operation, n)
 			opsValues := make([][2][]SMV, len(ops))
 
 			for i := range ops {
@@ -362,7 +362,7 @@ func (t *testSMVExtractor) TestExtract() {
 			t.NoError(insert(nil, nil,
 				func(
 					opindex uint64,
-					op operation,
+					op Operation,
 					subv SMV,
 					addvs []SMV,
 				) error {
@@ -395,7 +395,7 @@ func (t *testSMVExtractor) TestExtract() {
 				v, found := extracted.Value(uint64(i))
 				t.True(found)
 
-				base.EqualOperation(t.Assert(), ops[i], v[0].(operation))
+				base.EqualOperation(t.Assert(), ops[i], v[0].(Operation))
 
 				asubv := opsValues[i][0][0]
 				bsubv := v[1].(SMV)
@@ -425,8 +425,8 @@ func TestSMVExtractor(t *testing.T) {
 	suite.Run(t, new(testSMVExtractor))
 }
 
-func newGetOperationFunc(ops []operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+func newGetOperationFunc(ops []Operation) getOperationFunc {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, "", nil
 		}

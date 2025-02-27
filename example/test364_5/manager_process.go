@@ -28,7 +28,7 @@ func newFuncManagerProcess(
 	workerPool *failedWorkerPool,
 	_ dutil.InErrorFunc[newWorkerSendOpFunc],
 	workerOwners dutil.In2ErrorFunc[string, []string],
-	_ managerInsertWorkerResultFunc,
+	_ ManagerInsertWorkerResultFunc,
 	_ managerProcessWaitFunc,
 	_ error,
 ) {
@@ -66,7 +66,7 @@ func newFuncManagerProcess(
 		workerOwnersf, workerOwnersWait = o, w
 	}
 
-	var workerResult managerInsertWorkerResultFunc
+	var workerResult ManagerInsertWorkerResultFunc
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var resultWait managerCollectRersultWaitFunc
 

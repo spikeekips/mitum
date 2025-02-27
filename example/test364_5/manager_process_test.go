@@ -23,7 +23,7 @@ func (t *testManagerProcess) TestCancel() {
 		[]string,
 		dutil.InErrorFunc[newWorkerSendOpFunc],
 		dutil.In2ErrorFunc[string, []string],
-		managerInsertWorkerResultFunc,
+		ManagerInsertWorkerResultFunc,
 		managerProcessWaitFunc,
 		error,
 	) {
@@ -102,7 +102,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		err = s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == workers[1] {
 					cancel(nil)
 				}
@@ -149,7 +149,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -182,7 +182,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -226,7 +226,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -258,7 +258,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -299,7 +299,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -375,7 +375,7 @@ func (t *testManagerProcess) TestOpsTree() {
 
 		go func() {
 			t.IfErrPanic(s(
-				func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return func(uint64, util.Hash, util.Hash) error { return nil },
 						func(err error) error {
 							t.IfErrPanic(err)

@@ -760,7 +760,7 @@ func (t *testWorkerStateOwners) TestCases() {
 				var adds []SMV
 
 				for v := range slices.Values(vs) {
-					if v.(*accountSMV).Balance < 0 {
+					if v.(*AccountSMV).Balance < 0 {
 						sub = v
 					} else {
 						adds = append(adds, v)
@@ -833,7 +833,7 @@ func (t *testWorkerStateOwners) TestCases() {
 					var adds []SMV
 
 					for v := range slices.Values(valuesSet[opindex]) {
-						if v.(*accountSMV).Balance < 0 {
+						if v.(*AccountSMV).Balance < 0 {
 							sub = v
 						} else {
 							adds = append(adds, v)

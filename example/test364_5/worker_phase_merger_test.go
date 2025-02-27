@@ -76,7 +76,7 @@ func (t *testWorkerPhaseMerger) newFuncs() (
 
 func (t *testWorkerPhaseMerger) closeSVMs(
 	traverseSVMs iter.Seq2[string, SVM],
-	f func(stateKey string, _ *accountSV) bool,
+	f func(stateKey string, _ *AccountSV) bool,
 ) error {
 end:
 	for stateKey, merger := range traverseSVMs {
@@ -91,7 +91,7 @@ end:
 			st = s
 		}
 
-		switch v, err := util.AssertInterfaceValue[*accountSV](st); {
+		switch v, err := util.AssertInterfaceValue[*AccountSV](st); {
 		case err != nil:
 			return err
 		default:
@@ -303,7 +303,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -326,7 +326,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*accountSMV](v)
+				a, err := util.AssertInterfaceValue[*AccountSMV](v)
 				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
@@ -371,7 +371,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -474,7 +474,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var called int64
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -498,7 +498,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*accountSMV](v)
+				a, err := util.AssertInterfaceValue[*AccountSMV](v)
 				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
@@ -545,7 +545,7 @@ func (t *testWorkerPhaseMerger) TestEnoughFailed() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -595,7 +595,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var called int64
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				atomic.AddInt64(&called, 1)
 
 				return true
@@ -618,7 +618,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*accountSMV](v)
+				a, err := util.AssertInterfaceValue[*AccountSMV](v)
 				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
@@ -668,7 +668,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)
@@ -695,7 +695,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 			vp.SetValue(uint64(i), vs)
 
 			for v := range slices.Values(vs) {
-				a, err := util.AssertInterfaceValue[*accountSMV](v)
+				a, err := util.AssertInterfaceValue[*AccountSMV](v)
 				t.NoError(err)
 
 				expectedStateKeys = append(expectedStateKeys, accountStateKey(a.Address))
@@ -745,7 +745,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			var stateKeys []string
 
-			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *accountSV) bool {
+			t.NoError(t.closeSVMs(traverseSVMs, func(stateKey string, v *AccountSV) bool {
 				stateKeys = append(stateKeys, stateKey)
 
 				t.Equal(int64(3), v.Balance)

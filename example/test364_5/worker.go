@@ -203,7 +203,7 @@ func newFuncWorker(
 					}
 				},
 				getOperation,
-				func(f opindexOpHashesFunc) error {
+				func(f OpindexOpHashesFunc) error {
 					for opindex, hs := range ophs {
 						if err := f(opindex, hs[0], hs[1]); err != nil {
 							return err
@@ -231,7 +231,7 @@ func newFuncWorker(
 			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
-			var traverseOps iter.Seq2[uint64, operation]
+			var traverseOps iter.Seq2[uint64, Operation]
 			var savedStates dutil.LockedMap[string, base.State]
 
 			defer func() {

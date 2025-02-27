@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	managerInsertWorkerResultFunc = func(worker string) (
+	ManagerInsertWorkerResultFunc = func(worker string) (
 		dutil.InErrorFunc[map[uint64]string /* reasons  */],
 		dutil.In2ErrorFunc[string /* state key */, util.Hash /* state hash */],
 		dutil.InErrorFunc[error],
@@ -33,7 +33,7 @@ func newFuncManagerCollectResult(
 	workersSize, approxStatesSize uint64,
 	ophs [][2]util.Hash,
 ) (
-	managerInsertWorkerResultFunc,
+	ManagerInsertWorkerResultFunc,
 	managerCollectResultOwnersReadyFunc,
 	managerCollectRersultWaitFunc,
 	error,
@@ -76,7 +76,7 @@ func newFuncManagerCollectResult(
 		}()
 	}
 
-	var workerResult managerInsertWorkerResultFunc
+	var workerResult ManagerInsertWorkerResultFunc
 	var ownersReady managerCollectResultOwnersReadyFunc
 	var workersWait dutil.ErrorFunc
 	var workerStatesTree generateFixedTreeFunc
@@ -246,7 +246,7 @@ func newFuncManagerWorkersResult(
 	opsNewjob dutil.JobWorkerNewJobFunc,
 	workerReasons dutil.InErrorFunc[map[uint64]string],
 ) (
-	_ managerInsertWorkerResultFunc,
+	_ ManagerInsertWorkerResultFunc,
 	ready managerCollectResultOwnersReadyFunc,
 	insertDone dutil.ErrorFunc,
 	_ generateFixedTreeFunc,

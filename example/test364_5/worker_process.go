@@ -33,15 +33,15 @@ type (
 		getStateOwnersFunc,
 		newWorkerProcessDistributeSMVsFunc,
 		getOperationFunc,
-		dutil.InErrorFunc[opindexOpHashesFunc],
+		dutil.InErrorFunc[OpindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
 		newWorkerProcessDistributeSMVsFunc,
 		getOperationFunc,
-		dutil.InErrorFunc[opindexOpHashesFunc],
-		dutil.In2ErrorFunc[uint64, operation],
+		dutil.InErrorFunc[OpindexOpHashesFunc],
+		dutil.In2ErrorFunc[uint64, Operation],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
 	workerProcessInsertSMVsFunc     = func(opindex uint64, fact util.Hash, _ []SMV) error
@@ -64,7 +64,7 @@ type (
 	workerProcessWaitFunc = func(
 		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		workerProcessReportResult,
-	) (iter.Seq2[uint64, operation], error)
+	) (iter.Seq2[uint64, Operation], error)
 )
 
 func newFuncWorkerProcess(
@@ -151,9 +151,9 @@ func newFuncWorkerProcess(
 		initialInsert, workerInsertSVs, unmerge, wait = i, s, u, w
 	}
 
-	var savedOps dutil.LockedMap[uint64, operation]
+	var savedOps dutil.LockedMap[uint64, Operation]
 
-	switch i, err := dutil.NewLockedMap[uint64, operation](nil, maxOpsSize, maxOpsSize); {
+	switch i, err := dutil.NewLockedMap[uint64, Operation](nil, maxOpsSize, maxOpsSize); {
 	case err != nil:
 		return nil, nil, nil, nil, err
 	default:
@@ -168,7 +168,7 @@ func newFuncWorkerProcess(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
 			getOperation getOperationFunc,
-			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
+			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			return initialInsert(
@@ -176,7 +176,7 @@ func newFuncWorkerProcess(
 				distribute,
 				getOperation,
 				insertOp,
-				func(opindex uint64, op operation) error {
+				func(opindex uint64, op Operation) error {
 					_ = atomic.CompareAndSwapInt64(&svInserted, 0, 1)
 
 					_ = savedOps.SetValue(opindex, op)
@@ -225,7 +225,7 @@ func newFuncWorkerProcess(
 		func(
 			broadcastUnmerged workerProcessBroadcastUnmerged,
 			reportResult workerProcessReportResult,
-		) (iter.Seq2[uint64, operation], error) {
+		) (iter.Seq2[uint64, Operation], error) {
 			defer func() {
 				extractStateKeyClose()
 
@@ -280,7 +280,7 @@ func newFuncWorkerProcess(
 
 			log.Debug().Msg("wait done")
 
-			return func(yield func(uint64, operation) bool) {
+			return func(yield func(uint64, Operation) bool) {
 					defer savedOps.Close()
 
 					if yield == nil {
@@ -464,8 +464,8 @@ func newFuncWorkerProcessInitialInsert(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
 			getOperation getOperationFunc,
-			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
-			saveOperation dutil.In2ErrorFunc[uint64, operation],
+			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
+			saveOperation dutil.In2ErrorFunc[uint64, Operation],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			var extractStateOwnersSMVs extractStateOwnersSMVsFunc
@@ -542,7 +542,7 @@ func newFuncWorkerProcessInitialInsert(
 func newFuncorkerProcessExtracted(
 	ctx context.Context,
 	local string,
-	saveOperation dutil.In2ErrorFunc[uint64, operation],
+	saveOperation dutil.In2ErrorFunc[uint64, Operation],
 	extractStateOwners extractStateOwnersSMVsFunc,
 	distribute workerDistributeWorkerSMVsFunc,
 	mergeStateOp mergeStateOpFunc,
@@ -550,7 +550,7 @@ func newFuncorkerProcessExtracted(
 ) smvExtractorExtractedFunc {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	return func(opindex uint64, op operation, subv SMV, addvs []SMV) error {
+	return func(opindex uint64, op Operation, subv SMV, addvs []SMV) error {
 		log.Trace().
 			Dict("operation", zerolog.Dict().
 				Uint64("opindex", opindex).

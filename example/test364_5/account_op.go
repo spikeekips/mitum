@@ -16,22 +16,22 @@ var (
 	accountOpHint     = hint.MustNewHint("test-operation-v0.0.1")
 )
 
-type operation interface {
+type Operation interface {
 	base.Operation
 	SMVs(context.Context) (
 		SMV, []SMV, string, error,
 	)
 }
 
-type accountOpFact struct {
+type AccountOpFact struct {
 	Issuer   base.Publickey
 	Receiver base.Publickey
 	base.BaseFact
 	Amount int64
 }
 
-func newAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *accountOpFact {
-	fact := &accountOpFact{
+func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *AccountOpFact {
+	fact := &AccountOpFact{
 		BaseFact: base.NewBaseFact(accountOpFactHint, token),
 		Issuer:   issuer,
 		Receiver: receiver,
@@ -43,7 +43,7 @@ func newAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publ
 	return fact
 }
 
-func (fact *accountOpFact) IsValid([]byte) error {
+func (fact *AccountOpFact) IsValid([]byte) error {
 	if err := fact.BaseFact.IsValid(nil); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (fact *accountOpFact) IsValid([]byte) error {
 	return nil
 }
 
-func (fact *accountOpFact) hash() util.Hash {
+func (fact *AccountOpFact) hash() util.Hash {
 	w, sum := dutil.NewSHA256HashWriter()
 
 	w(fact.Token())
@@ -91,7 +91,7 @@ type accountOpFactJSONMarshaler struct {
 	Amount int64 `json:"amount"`
 }
 
-func (fact *accountOpFact) MarshalJSON() ([]byte, error) {
+func (fact *AccountOpFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(accountOpFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Issuer:                fact.Issuer,
@@ -107,7 +107,7 @@ type accountOpFactJSONUnmarshaler struct {
 	Amount int64 `json:"amount"`
 }
 
-func (fact *accountOpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
+func (fact *AccountOpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	var u accountOpFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
@@ -136,32 +136,32 @@ func (fact *accountOpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	return nil
 }
 
-type accountOp struct {
+type AccountOp struct {
 	base.BaseOperation
 }
 
-func newAccountOp(fact *accountOpFact) *accountOp {
-	return &accountOp{
+func NewAccountOp(fact *AccountOpFact) *AccountOp {
+	return &AccountOp{
 		BaseOperation: base.NewBaseOperation(accountOpHint, fact),
 	}
 }
 
-func (op *accountOp) IsValid(networkID []byte) error {
+func (op *AccountOp) IsValid(networkID []byte) error {
 	if err := op.BaseOperation.IsValid(networkID); err != nil {
 		return err
 	}
 
-	if _, ok := op.Fact().(*accountOpFact); !ok {
+	if _, ok := op.Fact().(*AccountOpFact); !ok {
 		return errors.Errorf("not Fact, %T", op.Fact())
 	}
 
 	return nil
 }
 
-func (op *accountOp) SMVs(context.Context) (
+func (op *AccountOp) SMVs(context.Context) (
 	SMV, []SMV, string, error,
 ) {
-	var fact *accountOpFact
+	var fact *AccountOpFact
 
 	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
 		return nil, nil, "", err
@@ -171,7 +171,7 @@ func (op *accountOp) SMVs(context.Context) (
 	var addvs []SMV
 
 	if fact.Issuer != nil {
-		switch i, err := newAccountSMV(fact.Issuer, fact.Amount*-1); {
+		switch i, err := NewAccountSMV(fact.Issuer, fact.Amount*-1); {
 		case err != nil:
 			return nil, nil, "", err
 		default:
@@ -179,7 +179,7 @@ func (op *accountOp) SMVs(context.Context) (
 		}
 	}
 
-	switch i, err := newAccountSMV(fact.Receiver, fact.Amount); {
+	switch i, err := NewAccountSMV(fact.Receiver, fact.Amount); {
 	case err != nil:
 		return nil, nil, "", err
 	default:

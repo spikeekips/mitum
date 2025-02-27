@@ -56,7 +56,7 @@ func (t *testWorker) TestCancelWork() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
+				func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
 					return nil, false, "", errors.Errorf("showme")
 				},
 				t.ophsSeq2(ops),
@@ -132,7 +132,7 @@ func (t *testWorker) TestCancelWork() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+				func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 					if opindex >= uint64(len(ops)) {
 						return nil, false, "", nil
 					}
@@ -207,7 +207,7 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()
@@ -281,7 +281,7 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()

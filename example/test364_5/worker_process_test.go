@@ -38,7 +38,7 @@ func (t *testWorkerProcess) newf(
 		dutil.In3ErrorFunc[context.Context, string, []uint64],
 		workerProcessReportResult,
 	) error,
-	dutil.LockedMap[uint64, operation],
+	dutil.LockedMap[uint64, Operation],
 	dutil.LockedMap[string, base.State],
 ) {
 	initial, insert, unmerged, wait, err := newFuncWorkerProcess(
@@ -70,14 +70,14 @@ func (t *testWorkerProcess) newf(
 			nil
 	}
 
-	savedOps := dutil.NewSingleLockedMap[uint64, operation]()
+	savedOps := dutil.NewSingleLockedMap[uint64, Operation]()
 	savedStates := dutil.NewSingleLockedMap[string, base.State]()
 
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
 			getOperation getOperationFunc,
-			insertOp dutil.InErrorFunc[opindexOpHashesFunc],
+			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			if getStateOwners == nil {
@@ -167,8 +167,8 @@ func (t *testWorkerProcess) newf(
 		savedStates
 }
 
-func (t *testWorkerProcess) defaultFuncInsertOp(ops []operation) dutil.InErrorFunc[opindexOpHashesFunc] {
-	return func(f opindexOpHashesFunc) error {
+func (t *testWorkerProcess) defaultFuncInsertOp(ops []Operation) dutil.InErrorFunc[OpindexOpHashesFunc] {
+	return func(f OpindexOpHashesFunc) error {
 		for i, op := range slices.All(ops) {
 			if err := f(uint64(i), op.Hash(), op.Fact().Hash()); err != nil {
 				return err
@@ -225,10 +225,10 @@ func (t *testWorkerProcess) TestCancel() {
 							func([]string, []string) error { return nil },
 							nil
 					},
-					func(context.Context, uint64, util.Hash, util.Hash) (operation, bool, string, error) {
+					func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
 						return nil, false, "", nil
 					},
-					func(opindexOpHashesFunc) error { return nil },
+					func(OpindexOpHashesFunc) error { return nil },
 					func([]string, map[uint64]string) error { return nil },
 				)
 			},
@@ -342,8 +342,8 @@ func (t *testWorkerProcess) TestCancel() {
 	})
 }
 
-func (t *testWorkerProcess) newFuncGetOperation(ops []operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (operation, bool, string, error) {
+func (t *testWorkerProcess) newFuncGetOperation(ops []Operation) getOperationFunc {
+	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
 		if opindex >= uint64(len(ops)) {
 			return nil, false, "", nil
 		}
@@ -357,7 +357,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := []string{local}
 
-		ops := make([]operation, 33)
+		ops := make([]Operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -428,7 +428,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := t.workers(1)
 
-		ops := make([]operation, 33)
+		ops := make([]Operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -509,7 +509,7 @@ func (t *testWorkerProcess) TestLocal() {
 		local := "local"
 		workers := []string{local}
 
-		ops := make([]operation, 33)
+		ops := make([]Operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -533,7 +533,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.NoError(initial(nil, nil,
 			t.newFuncGetOperation(ops),
-			func(f opindexOpHashesFunc) error {
+			func(f OpindexOpHashesFunc) error {
 				for i, op := range slices.All(ops) {
 					if err := f(uint64(i), op.Hash(), op.Fact().Hash()); err != nil {
 						return err
@@ -601,7 +601,7 @@ func (t *testWorkerProcess) TestLocal() {
 		other := "w0"
 		workers := []string{local, other}
 
-		ops := make([]operation, 3)
+		ops := make([]Operation, 3)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -672,7 +672,7 @@ func (t *testWorkerProcess) TestLocal() {
 		opsWorkers := []string{local}
 		workers := []string{local, "w0"}
 
-		ops := make([]operation, 3)
+		ops := make([]Operation, 3)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -957,7 +957,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 	ctx context.Context,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
-	ops []operation,
+	ops []Operation,
 ) {
 	for worker := range slices.Values(opsWorkers) {
 		if slices.Index(workers, worker) < 0 {
@@ -1014,7 +1014,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 					getStateOwners,
 					distributeValues(local),
 					getOperation,
-					func(f opindexOpHashesFunc) error {
+					func(f OpindexOpHashesFunc) error {
 						return opWorkers(local, f)
 					},
 					func(owners []string, reasons map[uint64]string) error {
@@ -1088,7 +1088,7 @@ func (t *testWorkerProcess) TestWorkers() {
 		ctx, _ := t.Ctx()
 
 		workers := t.workers(1)
-		ops := make([]operation, 33)
+		ops := make([]Operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -1105,7 +1105,7 @@ func (t *testWorkerProcess) TestWorkers() {
 		ctx, _ := t.Ctx()
 
 		workers := t.workers(2)
-		ops := make([]operation, 33)
+		ops := make([]Operation, 33)
 		for i := range ops {
 			ops[i] = t.randomAddOp(1)
 		}
@@ -1145,7 +1145,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 
 			workers := t.workers(3)
 
-			ops := []operation{
+			ops := []Operation{
 				t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
 				t.newDummyOp([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
 				t.newDummyOp([]byte("2"), pub0, -1, pub1, 2), // 2
@@ -1240,7 +1240,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 							nil
 					},
 					t.getOperationFunc(ops),
-					func(f opindexOpHashesFunc) error {
+					func(f OpindexOpHashesFunc) error {
 						for opindex, op := range slices.All(ops) {
 							if err := f(uint64(opindex), op.Hash(), op.Fact().Hash()); err != nil {
 								return err
@@ -1249,7 +1249,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 
 						return nil
 					},
-					func(uint64, operation) error { return nil },
+					func(uint64, Operation) error { return nil },
 					func(owners []string, reasons map[uint64]string) error {
 						t.Print("local=%q owners=%v reasons=%v", local, owners, reasons)
 

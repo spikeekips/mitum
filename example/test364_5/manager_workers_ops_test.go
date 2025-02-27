@@ -20,7 +20,7 @@ type testManagerWorkersOps struct {
 }
 
 func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {
-	return func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+	return func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 		return func(opindex uint64, oph, fact util.Hash) error {
 				t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
@@ -74,7 +74,7 @@ func (t *testManagerWorkersOps) TestCancel() {
 		)
 
 		err = send(
-			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
 					return nil, nil, err
@@ -171,7 +171,7 @@ func (t *testManagerWorkersOps) TestSend() {
 		)
 
 		t.NoError(send(
-			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
 					return nil, nil, err
@@ -265,7 +265,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 		}
 
 		if err := send(
-			func(ctx context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				o, d, err := sendf(ctx, worker)
 				if err != nil {
 					return nil, nil, err
@@ -323,7 +323,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == failedWorker {
 					return nil, nil, errors.Errorf("showme")
 				}
@@ -388,7 +388,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				var once sync.Once
 
 				return func(opindex uint64, oph, fact util.Hash) error {
@@ -462,7 +462,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(opindex uint64, oph, fact util.Hash) error {
 						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
