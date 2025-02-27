@@ -20,7 +20,7 @@ type testManagerWorkersOps struct {
 }
 
 func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {
-	return func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+	return func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 		return func(opindex uint64, oph, fact util.Hash) error {
 				t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
@@ -74,8 +74,8 @@ func (t *testManagerWorkersOps) TestCancel() {
 		)
 
 		err = send(
-			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				o, d, err := sendf(ctx, worker)
+			func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				o, d, err := sendf(ctx, worker, maxItems)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -134,7 +134,7 @@ func (t *testManagerWorkersOps) TestSend() {
 			w, d, err := opsNShareWorkers(workers, opsShare, ophs)
 			t.NoError(err)
 
-			expectedOpsWorkers = w()
+			expectedOpsWorkers = opsWorkersFromSeq(w)
 			slices.Sort(expectedOpsWorkers)
 
 			for worker := range slices.Values(workers) {
@@ -171,8 +171,8 @@ func (t *testManagerWorkersOps) TestSend() {
 		)
 
 		t.NoError(send(
-			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				o, d, err := sendf(ctx, worker)
+			func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				o, d, err := sendf(ctx, worker, maxItems)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -221,7 +221,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			w, d, err := opsNShareWorkers(workers, opsShare, ophs)
 			t.NoError(err)
 
-			expectedOpsWorkers = w()
+			expectedOpsWorkers = opsWorkersFromSeq(w)
 			slices.Sort(expectedOpsWorkers)
 
 			expectedOpsWorkers = slices.Collect(dutil.FilterSlice(slices.Values(expectedOpsWorkers), func(a string) bool { return a != failedWorker }))
@@ -265,8 +265,8 @@ func (t *testManagerWorkersOps) TestFailed() {
 		}
 
 		if err := send(
-			func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				o, d, err := sendf(ctx, worker)
+			func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				o, d, err := sendf(ctx, worker, maxItems)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -323,7 +323,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == failedWorker {
 					return nil, nil, errors.Errorf("showme")
 				}
@@ -388,7 +388,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				var once sync.Once
 
 				return func(opindex uint64, oph, fact util.Hash) error {
@@ -462,7 +462,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			failedWorker,
 			opsShare,
 			ophs,
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(opindex uint64, oph, fact util.Hash) error {
 						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 

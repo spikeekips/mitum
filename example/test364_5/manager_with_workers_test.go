@@ -76,7 +76,7 @@ func (t *testManagerWithWorkers) newWorkers(
 	{
 		w, _, err := opsNShareWorkers(workers, opsShare, ophs)
 		t.NoError(err)
-		opsWorkers = w()
+		opsWorkers = opsWorkersFromSeq(w)
 	}
 
 	for local := range slices.Values(workers) {
@@ -272,7 +272,7 @@ func (t *testManagerWithWorkers) newManager(
 
 				return nil
 			},
-			func(_ context.Context, _, worker string) (opindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, _, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				wops := map[uint64][2]util.Hash{}
 
 				return func(opindex uint64, oph, fact util.Hash) error {

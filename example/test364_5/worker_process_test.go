@@ -999,7 +999,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 			ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
 		}
 
-		_, opWorkers, err := opsNShareWorkers(opsWorkers, opsShare, ophs)
+		_, workerOps, err := opsNShareWorkers(opsWorkers, opsShare, ophs)
 		t.IfErrPanic(err)
 
 		var wg sync.WaitGroup
@@ -1015,7 +1015,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 					distributeValues(local),
 					getOperation,
 					func(f OpindexOpHashesFunc) error {
-						return opWorkers(local, f)
+						return workerOps(local, f)
 					},
 					func(owners []string, reasons map[uint64]string) error {
 						t.Print("local done: local=%q owners=%v reasons=%v", local, owners, reasons)

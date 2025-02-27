@@ -403,7 +403,7 @@ func stateOwnersFuncByCount(workers []string, share uint64) (getStateOwnersFunc,
 }
 
 func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
-	func() (opsWorkers []string),
+	iter.Seq2[string /* worker */, uint64 /* max items */],
 	workerOperationsFunc,
 	error,
 ) {
@@ -417,28 +417,14 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 		workerMaxItems, distribute = w, i
 	}
 
-	var add dutil.AppendSliceAddFunc[string]
-	var done dutil.OutFunc[[]string]
-
-	switch a, d, err := dutil.NewLockAppendSlice[string](uint64(len(workers)), 0); {
-	case err != nil:
-		return nil, nil, err
-	default:
-		add, done = a, d
-	}
-
-	var once sync.Once
-
-	return func() (opsWorkers []string) {
-			once.Do(func() {
-				for i, worker := range slices.All(workers) {
-					if workerMaxItems(uint64(i)) > 0 {
-						add(worker)
+	return func(yield func(string, uint64) bool) {
+			for i, worker := range slices.All(workers) {
+				if n := workerMaxItems(uint64(i)); n > 0 {
+					if !yield(worker, n) {
+						return
 					}
 				}
-			})
-
-			return done()
+			}
 		},
 		func(worker string, f OpindexOpHashesFunc) error {
 			workerIndex := slices.Index(workers, worker)

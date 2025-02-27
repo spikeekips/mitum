@@ -338,7 +338,7 @@ func (t *testManager) TestStartWorkers() {
 		w, _, err := opsNShareWorkers(workers, opsShare, ophs)
 		t.IfErrPanic(err)
 
-		return w()
+		return opsWorkersFromSeq(w)
 	}
 
 	run := func(
@@ -381,7 +381,7 @@ func (t *testManager) TestStartWorkers() {
 
 				return errors.Errorf("failed, worker=%q", worker)
 			},
-			func(context.Context, string, string) (
+			func(context.Context, string, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -554,7 +554,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 			) error {
 				return nil
 			},
-			func(context.Context, string, string) (
+			func(context.Context, string, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -631,7 +631,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 			) error {
 				return nil
 			},
-			func(context.Context, string, string) (
+			func(context.Context, string, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -711,7 +711,7 @@ func (t *testManager) TestCloseWorkers() {
 		t.NoError(err)
 		t.NoError(sendOps(
 			func(context.Context, string, string, []string, []string, uint64, uint64, uint64) error { return nil },
-			func(context.Context, string, string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil

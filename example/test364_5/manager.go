@@ -25,7 +25,7 @@ type (
 	) error
 	ManagerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
 	managerCloseWorkerFunc     = func(_ context.Context, workID, worker string) error
-	NewManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string) (
+	NewManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string, maxItems uint64) (
 		OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
 	ManagerWaitFunc        = dutil.In3ErrorFunc[
@@ -142,8 +142,8 @@ func NewFuncManager(
 			}
 
 			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
-				func(ctx context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-					return f(ctx, workID, worker)
+				func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+					return f(ctx, workID, worker, maxItems)
 				},
 			))
 		},

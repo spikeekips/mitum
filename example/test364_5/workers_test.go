@@ -1459,3 +1459,12 @@ func TestWorkerProcessWorkersDistributeSMVs(t *testing.T) {
 
 	suite.Run(t, new(testWorkerProcessWorkersDistributeSMVs))
 }
+
+func opsWorkersFromSeq(seq iter.Seq2[string, uint64]) []string {
+	opsWorkers := make([]string, 0, 1<<9)
+	for worker := range seq {
+		opsWorkers = append(opsWorkers, worker)
+	}
+
+	return opsWorkers
+}

@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	newWorkerSendOpFunc func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
+	newWorkerSendOpFunc func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 )
 
 func newFuncManagerWorkersOps(
@@ -39,14 +39,22 @@ func newFuncManagerWorkersOps(
 	l := log.Debug()
 
 	var workerOps workerOperationsFunc
+	var opsWorkerMaxItems map[string]uint64
 
 	switch w, d, err := opsNShareWorkers(workers, opsShare, ophs); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
-		opsWorkers, workerOps = w(), d
+		opsWorkers = make([]string, 0, len(workers))
+		opsWorkerMaxItems = map[string]uint64{}
+		for worker, maxItems := range w {
+			opsWorkers = append(opsWorkers, worker)
+			opsWorkerMaxItems[worker] = maxItems
+		}
 
-		l = l.Strs("ops_workers", opsWorkers)
+		workerOps = d
+
+		l = l.Strs("ops_workers", opsWorkers).Interface("max_items", opsWorkerMaxItems)
 	}
 
 	opsWorkersSize := uint64(len(opsWorkers))
@@ -75,8 +83,8 @@ func newFuncManagerWorkersOps(
 		newJob, jobDone, jobWait = n, d, w
 	}
 
-	sendWorker := func(ctx context.Context, newWorkerSendOp newWorkerSendOpFunc, worker string) error {
-		switch s, d, err := newWorkerSendOp(ctx, worker); {
+	sendWorker := func(ctx context.Context, newWorkerSendOp newWorkerSendOpFunc, worker string, maxItems uint64) error {
+		switch s, d, err := newWorkerSendOp(ctx, worker, maxItems); {
 		case err != nil:
 			return err
 		default:
@@ -92,7 +100,7 @@ func newFuncManagerWorkersOps(
 				if err := newJob(func(ctx context.Context) error {
 					l := log.With().Str("worker", worker).Logger()
 
-					err := sendWorker(ctx, newWorkerSendOp, worker)
+					err := sendWorker(ctx, newWorkerSendOp, worker, opsWorkerMaxItems[worker])
 
 					switch _, _, failed := checkWorker(worker, err); {
 					case failed != nil:

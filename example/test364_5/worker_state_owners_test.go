@@ -809,7 +809,7 @@ func (t *testWorkerStateOwners) TestCases() {
 			{
 				o, w, err := opsNShareWorkers(workers, 1, ophs)
 				t.NoError(err)
-				opsWorkers = o()
+				opsWorkers = opsWorkersFromSeq(o)
 				workersOps = w
 			}
 

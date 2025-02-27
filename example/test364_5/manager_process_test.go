@@ -102,7 +102,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		err = s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string, _ uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				if worker == workers[1] {
 					cancel(nil)
 				}
@@ -149,7 +149,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -182,7 +182,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -226,7 +226,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -258,7 +258,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -299,7 +299,7 @@ func (t *testManagerProcess) TestCancel() {
 		t.NoError(err)
 
 		t.NoError(s(
-			func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -337,7 +337,7 @@ func (t *testManagerProcess) TestOpsTree() {
 		{
 			w, _, err := opsNShareWorkers(workers, opsShare, ophs)
 			t.NoError(err)
-			opsWorkers := w()
+			opsWorkers := opsWorkersFromSeq(w)
 			t.T().Log("ops workers:", opsWorkers)
 
 			_, f, err := newDistributeSerialNShare(uint64(len(opsWorkers)), uint64(len(workers)), opsShare)
@@ -375,7 +375,7 @@ func (t *testManagerProcess) TestOpsTree() {
 
 		go func() {
 			t.IfErrPanic(s(
-				func(_ context.Context, worker string) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+				func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 					return func(uint64, util.Hash, util.Hash) error { return nil },
 						func(err error) error {
 							t.IfErrPanic(err)
