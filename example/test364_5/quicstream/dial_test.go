@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/stretchr/testify/suite"
@@ -20,27 +21,12 @@ type testDialPool struct {
 	BaseTest
 }
 
-func (t *testDialPool) newPool() dutil.LockedMap[string, quic.Connection] {
-	p, err := dutil.NewShardedLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
-
-	t.PrintIfErrPanic(err, "new pool")
-
-	return p
-}
-
-func (t *testDialPool) newRemoteListener() *quic.EarlyListener {
+func (t *testDialPool) TestGetConnection() {
 	remotePconn, remoteListener := t.RandomListener(nil, nil)
-
-	t.T().Cleanup(func() {
+	defer func() {
 		remoteListener.Close()
 		remotePconn.Close()
-	})
-
-	return remoteListener
-}
-
-func (t *testDialPool) TestGetConnection() {
-	remoteListener := t.newRemoteListener()
+	}()
 
 	_, tlsConfig := t.NewTLSConfig()
 	quicConfig := DefaultQuicConfig()
@@ -49,7 +35,7 @@ func (t *testDialPool) TestGetConnection() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		pool := t.newPool()
+		pool := t.NewDialPool()
 		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
@@ -90,7 +76,7 @@ func (t *testDialPool) TestGetConnection() {
 	t.Run("global context canceled", func() {
 		ctx, cancel := t.Ctx()
 
-		pool := t.newPool()
+		pool := t.NewDialPool()
 		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
@@ -116,7 +102,7 @@ func (t *testDialPool) TestGetConnection() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		pool := t.newPool()
+		pool := t.NewDialPool()
 		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
 		t.NoError(err)
 		defer poolClose()
@@ -138,7 +124,11 @@ func (t *testDialPool) TestGetConnection() {
 }
 
 func (t *testDialPool) TestClean() {
-	remoteListener := t.newRemoteListener()
+	remotePconn, remoteListener := t.RandomListener(nil, nil)
+	defer func() {
+		remoteListener.Close()
+		remotePconn.Close()
+	}()
 
 	_, tlsConfig := t.NewTLSConfig()
 	quicConfig := DefaultQuicConfig()
@@ -149,7 +139,7 @@ func (t *testDialPool) TestClean() {
 
 		interval := time.Millisecond * 33
 
-		pool := t.newPool()
+		pool := t.NewDialPool()
 		dial, poolClose, err := NewDialPool(pool, nil, interval)
 		t.NoError(err)
 		defer poolClose()
@@ -173,7 +163,7 @@ func (t *testDialPool) TestClean() {
 
 		interval := time.Millisecond * 33
 
-		pool := t.newPool()
+		pool := t.NewDialPool()
 
 		dial, poolClose, err := NewDialPool(pool, nil, interval)
 		t.NoError(err)
@@ -213,7 +203,7 @@ func (t *testDialPool) TestAsync() {
 	_, tlsConfig := t.NewTLSConfig()
 	quicConfig := DefaultQuicConfig()
 
-	pool := t.newPool()
+	pool := t.NewDialPool()
 
 	counts := dutil.NewSingleLockedMap[string, int]()
 
@@ -279,4 +269,103 @@ func TestDialPool(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testDialPool))
+}
+
+type testRequest struct {
+	BaseTest
+}
+
+func (t *testRequest) TestRequest() {
+	remotePconn, remoteListener := t.RandomListener(nil, nil)
+	defer func() {
+		remoteListener.Close()
+		remotePconn.Close()
+	}()
+
+	_, tlsConfig := t.NewTLSConfig()
+	quicConfig := DefaultQuicConfig()
+
+	t.Run("ok", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		pool := t.NewDialPool()
+		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		t.NoError(err)
+		defer poolClose()
+
+		f, err := NewFuncRequest(dial, tlsConfig, quicConfig)
+		t.NoError(err)
+
+		var called bool
+
+		nctx, err := f(ctx, remoteListener.Addr(), nil, nil, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			called = true
+
+			return ctx, nil
+		})
+		t.NoError(err)
+		t.NotNil(nctx)
+		t.True(called)
+	})
+
+	t.Run("handler net.OpError", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		pool := t.NewDialPool()
+		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		t.NoError(err)
+		defer poolClose()
+
+		f, err := NewFuncRequest(dial, tlsConfig, quicConfig)
+		t.NoError(err)
+
+		var called bool
+
+		nctx, err := f(ctx, remoteListener.Addr(), nil, nil, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			called = true
+
+			return ctx, &net.OpError{Err: errors.Errorf("showme")}
+		})
+
+		var oerr *net.OpError
+		t.ErrorAs(err, &oerr)
+		t.ErrorContains(oerr, "showme")
+		t.NotNil(nctx)
+		t.True(called)
+		t.Equal(0, pool.Len())
+	})
+
+	t.Run("handler inside error", func() {
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		pool := t.NewDialPool()
+		dial, poolClose, err := NewDialPool(pool, nil, time.Minute)
+		t.NoError(err)
+		defer poolClose()
+
+		f, err := NewFuncRequest(newDialWithCloseFunc(dial, newFuncConnClosingStreamError), tlsConfig, quicConfig)
+		t.NoError(err)
+
+		var called bool
+
+		nctx, err := f(ctx, remoteListener.Addr(), nil, nil, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			called = true
+
+			return ctx, errors.Errorf("showme")
+		})
+
+		t.ErrorContains(err, "showme")
+		t.NotNil(nctx)
+		t.True(called)
+		t.Equal(1, pool.Len())
+	})
+}
+
+func TestRequest(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testRequest))
 }

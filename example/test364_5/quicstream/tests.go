@@ -174,6 +174,14 @@ func (t *BaseTest) StreamsAccept(ctx context.Context, conn quic.Connection, f fu
 	}
 }
 
+func (t *BaseTest) NewDialPool() dutil.LockedMap[string, quic.Connection] {
+	p, err := dutil.NewShardedLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
+
+	t.PrintIfErrPanic(err, "new pool")
+
+	return p
+}
+
 func NewTestTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config) {
 	ca := testcerts.NewCA()
 

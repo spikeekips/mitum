@@ -79,7 +79,7 @@ func newFuncCloseStreamWithError(err error) func(quic.Stream) error {
 		return func(stream quic.Stream) error {
 			_ = cancelStream(stream, streamErrorCodeOK)
 
-			return err
+			return nil
 		}
 	}
 }

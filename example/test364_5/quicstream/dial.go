@@ -13,8 +13,9 @@ import (
 )
 
 type (
-	DialFunc         = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, error)
-	DialFromPoolFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, dutil.InErrorFunc[error], error)
+	DialFunc      = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, error)
+	DialCloseFunc = func(context.Context, net.Addr, *tls.Config, *quic.Config) (quic.Connection, dutil.InErrorFunc[error], error)
+	RequestFunc   = func(context.Context, net.Addr, *tls.Config, *quic.Config, StreamHandler) (context.Context, error)
 )
 
 func DefaultDial(
@@ -50,7 +51,7 @@ func NewDialPool(
 	dial DialFunc,
 	cleanInterval time.Duration,
 ) (
-	DialFromPoolFunc,
+	DialCloseFunc,
 	dutil.ErrorFunc,
 	error,
 ) {
@@ -99,12 +100,16 @@ func NewDialPool(
 
 	newCloseConnf := func(saddr string) dutil.InErrorFunc[error] {
 		return func(err error) (gerr error) {
+			gerr = err
+
 			_ = pool.GetOrRemove(saddr, func(conn quic.Connection, found bool) (bool, error) {
 				if conn == nil {
 					return false, nil
 				}
 
-				gerr = closeConnection(conn, err)
+				if cerr := closeConnection(conn, err); cerr != nil {
+					gerr = cerr
+				}
 
 				return true, nil
 			})
@@ -120,20 +125,20 @@ func NewDialPool(
 		) (conn quic.Connection, _ dutil.InErrorFunc[error], _ error) {
 			saddr := addr.String()
 
-			if _, err := pool.Set(saddr, func(prev quic.Connection, found bool) (quic.Connection, error) {
+			if _, _, err := pool.SetOrRemove(saddr, func(prev quic.Connection, found bool) (quic.Connection, bool, error) {
 				if prev != nil && prev.Context().Err() == nil {
 					conn = prev
 
-					return nil, dutil.ErrLockedSetIgnore
+					return nil, false, dutil.ErrLockedSetIgnore
 				}
 
 				switch c, err := dial(ctx, addr, tlsConfig, quicConfig); {
 				case err != nil:
-					return nil, err
+					return nil, true, err
 				default:
 					conn = c
 
-					return c, nil
+					return c, false, nil
 				}
 			}); err != nil {
 				return nil, nil, err
@@ -149,6 +154,47 @@ func NewDialPool(
 			}
 
 			return gerr
+		},
+		nil
+}
+
+func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQuicConfig *quic.Config) (RequestFunc, error) {
+	if defaultTLSConfig == nil {
+		return nil, errors.Errorf("nil tls config")
+	}
+
+	if defaultQuicConfig == nil {
+		return nil, errors.Errorf("nil quic config")
+	}
+
+	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (context.Context, error) {
+			if tlsConfig == nil {
+				tlsConfig = defaultTLSConfig
+			}
+
+			if quicConfig == nil {
+				quicConfig = defaultQuicConfig.Clone()
+			}
+
+			var conn quic.Connection
+			var closef dutil.InErrorFunc[error]
+
+			switch o, c, err := dial(ctx, addr, tlsConfig, quicConfig); {
+			case err != nil:
+				return nil, err
+			default:
+				conn = o
+				closef = c
+			}
+
+			switch s, err := conn.OpenStreamSync(ctx); {
+			case err != nil:
+				return nil, closef(err)
+			default:
+				nctx, err := h(ctx, s)
+
+				return nctx, closef(closeStreamWithError(s, err))
+			}
 		},
 		nil
 }
@@ -170,4 +216,40 @@ func cleanDialPool(pool dutil.LockedMap[string, quic.Connection]) {
 	}
 
 	_ = pool.RemoveValues(saddrs...)
+}
+
+func newFuncConnClosingStreamError(closef dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
+	return func(err error) error {
+		var operr *net.OpError
+
+		switch {
+		case errors.Is(err, quic.ErrTransportClosed),
+			errors.As(err, &operr):
+			return closef(err)
+		default:
+			return err
+		}
+	}
+}
+
+func newDialWithCloseFunc(
+	dial DialCloseFunc,
+	closef dutil.InFunc[dutil.InErrorFunc[error], dutil.InErrorFunc[error]],
+) DialCloseFunc {
+	if closef == nil {
+		return dial
+	}
+
+	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config) (
+		quic.Connection,
+		dutil.InErrorFunc[error],
+		error,
+	) {
+		switch c, f, err := dial(ctx, addr, tlsConfig, quicConfig); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			return c, closef(f), nil
+		}
+	}
 }

@@ -11,7 +11,10 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-type StreamHandler func(context.Context, quic.Stream) (context.Context, error)
+type (
+	HandlerPrefix = [28]byte
+	StreamHandler func(context.Context, quic.Stream) (context.Context, error)
+)
 
 func (h StreamHandler) Next(i StreamHandler) StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
@@ -33,10 +36,10 @@ func NewFuncPrefixStreamHandler() (
 	StreamHandler,
 	func(),
 ) {
-	pool := map[string]StreamHandler{}
+	pool := map[HandlerPrefix]StreamHandler{}
 
 	return func(b []byte, h StreamHandler) bool {
-			k := string(encodeStreamHandlerPrefix(b))
+			k := EncodeStreamHandlerPrefix(b)
 			if _, found := pool[k]; found {
 				return false
 			}
@@ -50,7 +53,7 @@ func NewFuncPrefixStreamHandler() (
 			case err != nil:
 				return ctx, err
 			default:
-				h, found := pool[string(p)]
+				h, found := pool[p]
 				if !found {
 					return ctx, util.ErrNotFound.Errorf("unknown handler prefix, %v", p)
 				}
@@ -63,23 +66,23 @@ func NewFuncPrefixStreamHandler() (
 		}
 }
 
-func encodeStreamHandlerPrefix(b []byte) []byte {
-	s := sha3.Sum224(b)
-
-	return s[:]
+func EncodeStreamHandlerPrefix(b []byte) HandlerPrefix {
+	return sha3.Sum224(b)
 }
 
-func readStreamHandlerPrefix(r io.Reader) ([]byte, error) {
+func readStreamHandlerPrefix(r io.Reader) (v HandlerPrefix, _ error) {
 	switch b, err := frame.ReadFixed(r); {
 	case err != nil:
-		return nil, err
+		return v, err
 	case len(b) != 28:
-		return nil, errors.Errorf("invalid handler prefix length")
+		return v, errors.Errorf("invalid handler prefix length")
 	default:
-		return b, nil
+		copy(v[:], b)
+
+		return v, nil
 	}
 }
 
-func writeStreamHandlerPrefix(w io.Writer, b []byte) error {
-	return frame.WriteFixed(w, encodeStreamHandlerPrefix(b))
+func writeStreamHandlerPrefix(w io.Writer, v HandlerPrefix) error {
+	return frame.WriteFixed(w, v[:])
 }
