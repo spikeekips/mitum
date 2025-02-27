@@ -10,11 +10,14 @@ import (
 	"net"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/madflojo/testcerts"
+	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	quiclogging "github.com/quic-go/quic-go/logging"
 	"github.com/quic-go/quic-go/qlog"
+	"github.com/spikeekips/mitum/example/test364_5/frame"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
@@ -174,6 +177,32 @@ func (t *BaseTest) StreamsAccept(ctx context.Context, conn quic.Connection, f fu
 	}
 }
 
+func (t *BaseTest) OpenStreams(
+	ctx context.Context,
+) (
+	net.PacketConn, net.PacketConn, quic.Connection, quic.Connection,
+	quic.Stream, quic.Stream,
+	func(),
+) {
+	lpconn, rpconn, localConn, remoteConn, closef := t.OpenConnections(ctx, ctx, nil, nil)
+
+	waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
+		stream, err := localConn.AcceptStream(ctx)
+		t.PrintIfErrPanic(err, "local conn: AcceptStream")
+
+		_, err = frame.ReadFixed(stream)
+		t.IfErrPanicf(err, "local stream: read")
+
+		return stream
+	})
+
+	remoteStream, err := remoteConn.OpenStream()
+	t.PrintIfErrPanic(err, "remote conn: OpenStream")
+	t.IfErrPanicf(frame.WriteFixed(remoteStream, []byte{0}), "remote stream: write")
+
+	return lpconn, rpconn, localConn, remoteConn, waitLocalStream(), remoteStream, closef
+}
+
 func (t *BaseTest) NewDialPool() dutil.LockedMap[string, quic.Connection] {
 	p, err := dutil.NewShardedLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
 
@@ -221,4 +250,54 @@ func DebugQLogTracer(out io.WriteCloser) func(context.Context, quiclogging.Persp
 	return func(_ context.Context, p quiclogging.Perspective, connID quiclogging.ConnectionID) *quiclogging.ConnectionTracer {
 		return qlog.NewConnectionTracer(out, p, connID)
 	}
+}
+
+var (
+	CloseStreamWithError  = closeStreamWithError
+	CloseStreamsWithError = closeStreamsWithError
+)
+
+type DummyStream struct {
+	*io.PipeReader
+	*io.PipeWriter
+}
+
+func (DummyStream) StreamID() quic.StreamID {
+	return 0
+}
+
+func (s DummyStream) Close() error {
+	return s.PipeWriter.Close()
+}
+
+func (s DummyStream) CancelRead(c quic.StreamErrorCode) {
+	s.PipeReader.CloseWithError(errors.Errorf("cancel read error: %d", c))
+}
+
+func (s DummyStream) CancelWrite(c quic.StreamErrorCode) {
+	s.PipeReader.CloseWithError(errors.Errorf("cancel write error: %d", c))
+}
+
+func (s DummyStream) Context() context.Context {
+	return nil
+}
+
+func (s DummyStream) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (s DummyStream) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (s DummyStream) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+func NewDummyStreams() (DummyStream, DummyStream) {
+	ar, bw := io.Pipe()
+	br, aw := io.Pipe()
+
+	return DummyStream{PipeReader: ar, PipeWriter: aw},
+		DummyStream{PipeReader: br, PipeWriter: bw}
 }

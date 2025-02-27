@@ -206,7 +206,7 @@ func TestBenchmarkSubStreamsHandler(tt *testing.T) {
 
 			handlerCtx := context.WithValue(ctx, QuicConnectionContextKey, localConn)
 
-			_, err := handler(size).StreamHandler(newFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
+			_, err := handler(size).StreamHandler(NewFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
 			t.PrintIfErrPanic(err, "handler")
 
 			d := time.Since(started)
@@ -329,7 +329,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 		go func() {
 			handlerCtx := context.WithValue(ctx, QuicConnectionContextKey, localConn)
 
-			_, err := handler().StreamHandler(newFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
+			_, err := handler().StreamHandler(NewFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
 			t.PrintIfErrPanic(err, "handler")
 
 			close(handlerdone)

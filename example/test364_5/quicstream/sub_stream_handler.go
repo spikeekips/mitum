@@ -62,7 +62,7 @@ func (h AcceptSubStreamHandler) StreamHandler(f NewAcceptSubStreamsFunc) StreamH
 	}
 }
 
-func newFuncAcceptSubStreams(maxSize uint16) NewAcceptSubStreamsFunc {
+func NewFuncAcceptSubStreams(maxSize uint16) NewAcceptSubStreamsFunc {
 	return func(ctx context.Context, conn quic.Connection, stream quic.Stream) (
 		dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]],
 		error,
