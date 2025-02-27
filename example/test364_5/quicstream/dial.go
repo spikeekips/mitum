@@ -191,7 +191,9 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 			case err != nil:
 				return nil, closef(err)
 			default:
-				nctx, err := h(ctx, s)
+				nctx := context.WithValue(ctx, QuicConnectionContextKey, conn)
+				nctx = context.WithValue(nctx, RemoteAddrContextKey, conn.RemoteAddr())
+				nctx, err := h(nctx, s)
 
 				return nctx, closef(closeStreamWithError(s, err))
 			}
