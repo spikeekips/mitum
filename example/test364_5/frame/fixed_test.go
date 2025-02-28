@@ -65,14 +65,14 @@ func (f *eofBuffer) Read(p []byte) (int, error) {
 	return b, nil
 }
 
-func TestFixeds(tt *testing.T) {
+func TestFixedSlice(tt *testing.T) {
 	t := new(suite.Suite)
 	t.SetT(tt)
 
 	checkRead := func(buf *bytes.Buffer, expected [][]byte) {
 		r := &eofBuffer{Buffer: buf}
 
-		size, seq, err := ReadFixeds(r)
+		size, seq, err := ReadFixedSlice(r)
 		t.NoError(err)
 		t.EqualValues(len(expected), size)
 
@@ -100,7 +100,7 @@ func TestFixeds(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		t.NoError(WriteFixeds(buf, 2, slices.Values(expected)))
+		t.NoError(WriteFixedSlice(buf, 2, slices.Values(expected)))
 
 		checkRead(buf, expected)
 	})
@@ -108,7 +108,7 @@ func TestFixeds(tt *testing.T) {
 	t.Run("empty", func() {
 		buf := bytes.NewBuffer(nil)
 
-		t.NoError(WriteFixeds(buf, 0, slices.Values(([][]byte)(nil))))
+		t.NoError(WriteFixedSlice(buf, 0, slices.Values(([][]byte)(nil))))
 
 		checkRead(buf, nil)
 	})
@@ -121,10 +121,10 @@ func TestFixeds(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixeds(buf, 3, slices.Values(expected))
+		err := WriteFixedSlice(buf, 3, slices.Values(expected))
 		t.ErrorContains(err, "less size")
 
-		size, seq, err := ReadFixeds(&eofBuffer{Buffer: buf})
+		size, seq, err := ReadFixedSlice(&eofBuffer{Buffer: buf})
 		t.EqualValues(3, size)
 
 		var i int
@@ -149,7 +149,7 @@ func TestFixeds(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixeds(buf, 1, slices.Values(bs))
+		err := WriteFixedSlice(buf, 1, slices.Values(bs))
 		t.ErrorContains(err, "over size")
 	})
 
@@ -161,7 +161,7 @@ func TestFixeds(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixeds(buf, 3, slices.Values(bs))
+		err := WriteFixedSlice(buf, 3, slices.Values(bs))
 		t.ErrorContains(err, "less size")
 	})
 }
