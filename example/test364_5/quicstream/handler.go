@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
-	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/crypto/sha3"
 )
@@ -33,27 +33,34 @@ func NilStreamHandler(ctx context.Context, _ quic.Stream) (context.Context, erro
 
 func NewFuncPrefixStreamHandler() (
 	func([]byte, StreamHandler) bool,
+	func([]byte) bool,
 	StreamHandler,
 	func(),
 ) {
-	pool := map[HandlerPrefix]StreamHandler{}
+	pool := dutil.NewSingleLockedMap[HandlerPrefix, StreamHandler]()
 
 	return func(b []byte, h StreamHandler) bool {
-			k := EncodeStreamHandlerPrefix(b)
-			if _, found := pool[k]; found {
-				return false
-			}
+			created, _ := pool.Set(NewStreamHandlerPrefix(b), func(_ StreamHandler, found bool) (StreamHandler, error) {
+				if found {
+					return nil, dutil.ErrLockedSetIgnore
+				}
 
-			pool[k] = h
+				return h, nil
+			})
 
-			return true
+			return created
+		},
+		func(b []byte) bool {
+			n := pool.RemoveValues(NewStreamHandlerPrefix(b))
+
+			return n > 0
 		},
 		func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 			switch p, err := readStreamHandlerPrefix(stream); {
 			case err != nil:
 				return ctx, err
 			default:
-				h, found := pool[p]
+				h, found := pool.Value(p)
 				if !found {
 					return ctx, util.ErrNotFound.Errorf("unknown handler prefix, %v", p)
 				}
@@ -61,28 +68,39 @@ func NewFuncPrefixStreamHandler() (
 				return h(ctx, stream)
 			}
 		},
-		func() {
-			clear(pool)
-		}
+		pool.Close
 }
 
-func EncodeStreamHandlerPrefix(b []byte) HandlerPrefix {
+func NewStreamHandlerPrefix(b []byte) HandlerPrefix {
 	return sha3.Sum224(b)
 }
 
+func encodeStreamHandlerPrefix(b []byte) []byte {
+	p := make([]byte, 28)
+	h := sha3.New224()
+	defer h.Reset()
+
+	h.Write(b)
+	h.Sum(p)
+
+	return p
+}
+
 func readStreamHandlerPrefix(r io.Reader) (v HandlerPrefix, _ error) {
-	switch b, err := frame.ReadFixed(r); {
-	case err != nil:
+	var p HandlerPrefix
+
+	switch n, err := r.Read(p[:]); {
+	case err != nil && errors.Is(err, io.EOF):
 		return v, err
-	case len(b) != 28:
+	case n != len(p):
 		return v, errors.Errorf("invalid handler prefix length")
 	default:
-		copy(v[:], b)
-
-		return v, nil
+		return p, err
 	}
 }
 
-func writeStreamHandlerPrefix(w io.Writer, v HandlerPrefix) error {
-	return frame.WriteFixed(w, v[:])
+func WriteStreamHandlerPrefix(w io.Writer, b []byte) error {
+	_, err := w.Write(encodeStreamHandlerPrefix(b))
+
+	return err
 }
