@@ -338,23 +338,23 @@ func newConnAcceptSubStreams(
 			rsize := uint64(size)
 			var left uint64 = uint64(size)
 
-			ids[id] = func(stream quic.Stream) bool {
+			ids[id] = func(stream quic.Stream) (ok bool) {
+				switch _, l := addStream(stream); {
+				case l < 1, uint64(size)-l >= atomic.LoadUint64(&rsize):
+					streamsDone(nil)
+
+					ok = true
+				default:
+					_ = atomic.SwapUint64(&left, l)
+				}
+
 				controlOnce.Do(func() {
 					controlStream = stream
 
 					_ = controlDone(nil)
 				})
 
-				switch _, l := addStream(stream); {
-				case l < 1, uint64(size)-l >= atomic.LoadUint64(&rsize):
-					streamsDone(nil)
-
-					return true
-				default:
-					_ = atomic.SwapUint64(&left, l)
-				}
-
-				return false
+				return ok
 			}
 
 			var closeStreamsOnce sync.Once
