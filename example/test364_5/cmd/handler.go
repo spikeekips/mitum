@@ -111,11 +111,13 @@ func requestHandlerSendOps(
 			switch n := uint64(math.Ceil(float64(maxItems) / float64(s))); {
 			case n > math.MaxUint16:
 				nsub = math.MaxUint16
-			case n > uint64(maxSubStreamItems):
+			case maxSubStreamItems > 0 && n > uint64(maxSubStreamItems):
 				nsub = maxSubStreamItems
 			default:
 				nsub = uint16(n)
 			}
+
+			nsub--
 		}
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
@@ -132,12 +134,14 @@ func requestHandlerSendOps(
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			for i, v := range dutil.SeqAll(seq) {
-				if len(streams) < 1 {
-					return errors.Errorf("empty streams")
-				}
+			defer stream.Close()
 
-				cur := streams[i%len(streams)]
+			for i, v := range dutil.SeqAll(seq) {
+				nstreams := make([]quic.Stream, len(streams)+1)
+				copy(nstreams, streams)
+				nstreams[len(streams)] = stream
+
+				cur := nstreams[i%len(nstreams)]
 
 				if err := writeUint64(cur, v[0].(uint64)); err != nil {
 					return err
@@ -207,22 +211,22 @@ func acceptHandlerSendOps(
 
 		go func() {
 			_ = done(subStreams(func(streams []quic.Stream) error {
-				if len(streams) < 1 {
-					return errors.Errorf("empty streams")
-				}
+				nstreams := make([]quic.Stream, len(streams)+1)
+				copy(nstreams, streams)
+				nstreams[len(streams)] = stream
 
 				var newJob dutil.JobWorkerNewJobFunc
 				var jobDone func()
 				var jobWait dutil.InErrorFunc[error]
 
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(streams))); {
+				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(nstreams))); {
 				case err != nil:
 					return err
 				default:
 					newJob, jobDone, jobWait = n, d, w
 				}
 
-				for sub := range slices.Values(streams) {
+				for sub := range slices.Values(nstreams) {
 					if err := newJob(func(context.Context) error {
 						return readSendOpStream(sub, func(opindex uint64, oph, fact util.Hash) error {
 							add([3]interface{}{opindex, oph, fact})
