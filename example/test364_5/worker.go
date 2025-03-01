@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	newWorkerDistributeSMVsFunc func(_ context.Context, workID, worker string) (
+	newWorkerDistributeSMVsFunc func(_ context.Context, worker string) (
 		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
@@ -28,20 +28,17 @@ type (
 	workerBroadcastUnmerged = func(
 		_ context.Context,
 		local,
-		workID,
 		worker string,
 		unmerged []uint64,
 	) error
 	workerReportStatesOwnersFunc = func(
 		_ context.Context,
-		local,
-		workID string,
+		local string,
 		owners []string,
 	) error
 	workerReportResultFunc func(
 		_ context.Context,
-		local,
-		workID string,
+		local string,
 		reasons map[uint64]string,
 		statesSize uint64,
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -73,7 +70,6 @@ func newFuncWorker(
 	getState getStateFunc,
 	createState createStateFunc,
 	reportCancelWork dutil.InErrorFunc[error],
-	workID string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -87,7 +83,6 @@ func newFuncWorker(
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
 		return zctx.
-			Str("work_id", workID).
 			Str("local", options.Local)
 	})
 
@@ -187,7 +182,7 @@ func newFuncWorker(
 					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {
-					switch p, o, w, err := delayedDistribute(ctx, workID, worker); {
+					switch p, o, w, err := delayedDistribute(ctx, worker); {
 					case err != nil, p == nil:
 						return nil, nil, err
 					default:
@@ -216,7 +211,7 @@ func newFuncWorker(
 					if reportStatesOwners != nil {
 						if slices.Index(opsWorkers, options.Local) >= 0 {
 							return bgNewJob(func(ctx context.Context) error {
-								return reportStatesOwners(ctx, options.Local, workID, owners)
+								return reportStatesOwners(ctx, options.Local, owners)
 							})
 						}
 					}
@@ -246,7 +241,7 @@ func newFuncWorker(
 			switch i, err := processWait(
 				func(_ context.Context, worker string, unmerged []uint64) error {
 					return bgNewJob(func(ctx context.Context) error {
-						return broadcastUnmerged(ctx, options.Local, workID, worker, unmerged)
+						return broadcastUnmerged(ctx, options.Local, worker, unmerged)
 					})
 				},
 				func(
@@ -264,7 +259,7 @@ func newFuncWorker(
 						}
 					}
 
-					return reportResult(ctx, options.Local, workID, reasons, statesSize,
+					return reportResult(ctx, options.Local, reasons, statesSize,
 						func(f dutil.InErrorFunc[base.State]) error {
 							return reportStates(func(st base.State) error {
 								_ = savedStates.SetValue(st.Key(), st)

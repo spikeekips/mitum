@@ -45,7 +45,6 @@ func (t *testWorker) TestCancelWork() {
 
 				return err
 			},
-			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
@@ -67,8 +66,8 @@ func (t *testWorker) TestCancelWork() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, string, []uint64) error { return nil },
-				func(context.Context, string, string, map[uint64]string, uint64,
+				func(context.Context, string, string, []uint64) error { return nil },
+				func(context.Context, string, map[uint64]string, uint64,
 					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					return nil
@@ -121,7 +120,6 @@ func (t *testWorker) TestCancelWork() {
 
 				return err
 			},
-			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
@@ -147,8 +145,8 @@ func (t *testWorker) TestCancelWork() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, string, []uint64) error { return nil },
-				func(context.Context, string, string, map[uint64]string, uint64,
+				func(context.Context, string, string, []uint64) error { return nil },
+				func(context.Context, string, map[uint64]string, uint64,
 					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					return errors.Errorf("findme")
@@ -196,7 +194,6 @@ func (t *testWorker) TestClose() {
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
 			nil,
 			func(err error) error { t.Panic(err); return err },
-			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
@@ -223,8 +220,8 @@ func (t *testWorker) TestClose() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, string, []uint64) error { return nil },
-				func(context.Context, string, string, map[uint64]string, uint64,
+				func(context.Context, string, string, []uint64) error { return nil },
+				func(context.Context, string, map[uint64]string, uint64,
 					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					return nil
@@ -270,7 +267,6 @@ func (t *testWorker) TestClose() {
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
 			nil,
 			func(err error) error { t.Panic(err); return err },
-			util.UUID().String(),
 			workers, workers,
 			1, 1, 1,
 		)
@@ -297,8 +293,8 @@ func (t *testWorker) TestClose() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, string, []uint64) error { return nil },
-				func(context.Context, string, string, map[uint64]string, uint64,
+				func(context.Context, string, string, []uint64) error { return nil },
+				func(context.Context, string, map[uint64]string, uint64,
 					dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
 					return nil

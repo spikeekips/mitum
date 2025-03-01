@@ -60,7 +60,7 @@ func (t *baseTestWorkers) newWorkerOptions(local string) *workerOptions {
 }
 
 func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeSMVsFunc {
-	return func(_ context.Context, _, worker string) (
+	return func(_ context.Context, worker string) (
 		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		error,
@@ -122,7 +122,7 @@ func (t *baseTestWorkers) newWorkerDistributeSMVsFunc() (
 ) {
 	d, o := t.newWorkerProcessDistributeSMVsFunc()
 
-	return func(ctx context.Context, workID, worker string) (
+	return func(ctx context.Context, worker string) (
 			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
@@ -722,7 +722,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 		ctx, cancel := t.Ctx()
 		cancel(nil)
 
-		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		sendOp, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
 		err = sendOp(3, valuehash.RandomSHA256(), t.randomMergeValues(3))
@@ -749,7 +749,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestCtxCanceled() {
 
 		ctx, cancel := t.Ctx()
 
-		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		sendOp, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
 		for i := range 3 {
@@ -804,7 +804,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 			{util.UUID().String(), util.UUID().String()},
 		}
 
-		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		sendOp, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
 		var wg sync.WaitGroup
@@ -862,7 +862,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 			{util.UUID().String(), util.UUID().String()},
 		}
 
-		_, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		_, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
 		err = sendOwners(owners[0], owners[1])
@@ -891,7 +891,7 @@ func (t *testDelayedWorkerDistributeSMVs) TestNew() {
 			{util.UUID().String(), util.UUID().String()},
 		}
 
-		sendOp, sendOwners, wait, err := f(ctx, util.UUID().String(), "w0")
+		sendOp, sendOwners, wait, err := f(ctx, "w0")
 		t.NoError(err)
 
 		err = sendOwners(owners[0], owners[1])

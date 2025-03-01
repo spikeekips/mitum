@@ -142,7 +142,6 @@ func (t *baseTestManager) processOps(
 		getState,
 		createState,
 		nil,
-		util.UUID().String(),
 		workers, workers,
 		1, 1,
 		uint64(len(ops)),
@@ -154,7 +153,7 @@ func (t *baseTestManager) processOps(
 
 	err = initialInsert(
 		func(string) []string { return workers },
-		func(context.Context, string, string) (
+		func(context.Context, string) (
 			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
@@ -189,10 +188,10 @@ func (t *baseTestManager) processOps(
 	g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
 
 	err = wait(
-		func(context.Context, string, string, string, []uint64) error { return nil },
+		func(context.Context, string, string, []uint64) error { return nil },
 		func(
 			ctx context.Context,
-			_, _ string,
+			_ string,
 			reasons map[uint64]string,
 			statesSize uint64,
 			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -267,25 +266,11 @@ func (t *testManager) newOptions() *ManagerOptions {
 }
 
 func (t *testManager) TestNew() {
-	t.Run("empty work id", func() {
-		_, _, _, _, _, err := NewFuncManager(
-			context.Background(),
-			t.newOptions(),
-			nil,
-			"",
-			t.workers(3),
-			1, 1,
-			t.randomOphs(3),
-		)
-		t.ErrorContains(err, "empty work id")
-	})
-
 	t.Run("empty ophs", func() {
 		_, _, _, _, _, err := NewFuncManager(
 			context.Background(),
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			t.workers(3),
 			1, 1,
 			nil,
@@ -298,7 +283,6 @@ func (t *testManager) TestNew() {
 			context.Background(),
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			nil,
 			1, 1,
 			t.randomOphs(33),
@@ -311,7 +295,6 @@ func (t *testManager) TestNew() {
 			context.Background(),
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			t.workers(3),
 			0, 1,
 			t.randomOphs(33),
@@ -324,7 +307,6 @@ func (t *testManager) TestNew() {
 			context.Background(),
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			t.workers(3),
 			1, 0,
 			t.randomOphs(33),
@@ -358,12 +340,11 @@ func (t *testManager) TestStartWorkers() {
 		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
-			func(ctx context.Context, workID, worker string, err error) error {
+			func(ctx context.Context, worker string, err error) error {
 				t.Print("worker canceled: worker=%q err=%+v", worker, err)
 
-				return cancelWorkerf(ctx, workID, worker, err)
+				return cancelWorkerf(ctx, worker, err)
 			},
-			util.UUID().String(),
 			workers,
 			opsShare, statesShare,
 			ophs,
@@ -371,7 +352,7 @@ func (t *testManager) TestStartWorkers() {
 		t.IfErrPanic(err)
 		err = sendOps(
 			func(_ context.Context,
-				_ string, worker string,
+				worker string,
 				_, _ []string,
 				_, _, _ uint64,
 			) error {
@@ -381,7 +362,7 @@ func (t *testManager) TestStartWorkers() {
 
 				return errors.Errorf("failed, worker=%q", worker)
 			},
-			func(context.Context, string, string, uint64) (
+			func(context.Context, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -418,10 +399,10 @@ func (t *testManager) TestStartWorkers() {
 
 				return nil, nil
 			},
-			func(ctx context.Context, workID, worker string) error {
+			func(ctx context.Context, worker string) error {
 				t.T().Logf("worker done: worker=%q", worker)
 
-				return closeWorkerf(ctx, workID, worker)
+				return closeWorkerf(ctx, worker)
 			},
 		)
 	}
@@ -440,12 +421,12 @@ func (t *testManager) TestStartWorkers() {
 			1, 1,
 			t.randomOphs(3),
 			nil,
-			func(_ context.Context, _, worker string, err error) error {
+			func(_ context.Context, worker string, err error) error {
 				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				addDone(worker)
 
 				return nil
@@ -466,12 +447,12 @@ func (t *testManager) TestStartWorkers() {
 			2, 1,
 			t.randomOphs(3),
 			[]string{"w0"},
-			func(_ context.Context, _, worker string, err error) error {
+			func(_ context.Context, worker string, err error) error {
 				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				atomic.AddInt64(&called, 1)
 
 				return nil
@@ -489,12 +470,12 @@ func (t *testManager) TestStartWorkers() {
 			1, 1,
 			t.randomOphs(3),
 			[]string{"w0", "w1"},
-			func(_ context.Context, _, worker string, err error) error {
+			func(_ context.Context, worker string, err error) error {
 				atomic.AddInt64(&cancelCalled, 1)
 
 				return nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				atomic.AddInt64(&doneCalled, 1)
 
 				return nil
@@ -513,12 +494,12 @@ func (t *testManager) TestStartWorkers() {
 			1, 1,
 			t.randomOphs(3),
 			[]string{"w6", "w7", "w8"},
-			func(_ context.Context, _, worker string, err error) error {
+			func(_ context.Context, worker string, err error) error {
 				t.IfErrPanicf(err, "worker canceled by manager")
 
 				return nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				atomic.AddInt64(&doneCalled, 1)
 
 				return nil
@@ -540,7 +521,6 @@ func (t *testManager) TestBroadcastManagerDone() {
 			ctx,
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			workers,
 			1, 1,
 			t.randomOphs(33),
@@ -548,13 +528,13 @@ func (t *testManager) TestBroadcastManagerDone() {
 		t.NoError(err)
 		t.NoError(sendOps(
 			func(context.Context,
-				string, string,
+				string,
 				[]string, []string,
 				uint64, uint64, uint64,
 			) error {
 				return nil
 			},
-			func(context.Context, string, string, uint64) (
+			func(context.Context, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -597,7 +577,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil, nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				t.T().Logf("done worker: worker=%q", worker)
 
 				return nil
@@ -617,7 +597,6 @@ func (t *testManager) TestBroadcastManagerDone() {
 			ctx,
 			t.newOptions(),
 			nil,
-			util.UUID().String(),
 			workers,
 			1, 1,
 			t.randomOphs(33),
@@ -625,13 +604,13 @@ func (t *testManager) TestBroadcastManagerDone() {
 		t.NoError(err)
 		t.NoError(sendOps(
 			func(context.Context,
-				string, string,
+				string,
 				[]string, []string,
 				uint64, uint64, uint64,
 			) error {
 				return nil
 			},
-			func(context.Context, string, string, uint64) (
+			func(context.Context, string, uint64) (
 				OpindexOpHashesFunc, dutil.InErrorFunc[error], error,
 			) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
@@ -674,7 +653,7 @@ func (t *testManager) TestBroadcastManagerDone() {
 
 				return nil, nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				t.T().Logf("done worker: worker=%q", worker)
 
 				return nil
@@ -697,12 +676,11 @@ func (t *testManager) TestCloseWorkers() {
 		sendOps, workerOwners, workerResult, _, wait, err := NewFuncManager(
 			ctx,
 			t.newOptions(),
-			func(_ context.Context, _, worker string, err error) error {
+			func(_ context.Context, worker string, err error) error {
 				t.IfErrPanicf(err, "worker canceled: worker=%q", worker)
 
 				return err
 			},
-			util.UUID().String(),
 			workers,
 			2, 2,
 			t.randomOphs(3),
@@ -710,8 +688,8 @@ func (t *testManager) TestCloseWorkers() {
 
 		t.NoError(err)
 		t.NoError(sendOps(
-			func(context.Context, string, string, []string, []string, uint64, uint64, uint64) error { return nil },
-			func(context.Context, string, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(context.Context, string, []string, []string, uint64, uint64, uint64) error { return nil },
+			func(context.Context, string, uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				return func(uint64, util.Hash, util.Hash) error { return nil },
 					func(err error) error { return err },
 					nil
@@ -743,10 +721,10 @@ func (t *testManager) TestCloseWorkers() {
 
 				return nil, nil
 			},
-			func(ctx context.Context, workID, worker string) error {
+			func(ctx context.Context, worker string) error {
 				t.Print("done worker: worker=%q", worker)
 
-				return closeWorkerf(ctx, workID, worker)
+				return closeWorkerf(ctx, worker)
 			},
 		)
 	}
@@ -755,7 +733,7 @@ func (t *testManager) TestCloseWorkers() {
 		workers := t.workers(3)
 		t.NoError(run(
 			workers, workers,
-			func(context.Context, string, string) error { return nil },
+			func(context.Context, string) error { return nil },
 		))
 	})
 
@@ -765,7 +743,7 @@ func (t *testManager) TestCloseWorkers() {
 		t.NoError(run(
 			workers,
 			workers[3:],
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				if worker == workers[0] {
 					return errors.Errorf("showme")
 				}
@@ -781,7 +759,7 @@ func (t *testManager) TestCloseWorkers() {
 		err := run(
 			workers,
 			workers[3:],
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				switch {
 				case worker == workers[0],
 					worker == workers[1]:
@@ -800,7 +778,7 @@ func (t *testManager) TestCloseWorkers() {
 		t.NoError(run(
 			workers,
 			workers[3:],
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				switch {
 				case worker == workers[3]:
 					return errors.Errorf("showme")

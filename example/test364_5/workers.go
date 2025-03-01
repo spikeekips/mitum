@@ -754,13 +754,13 @@ type newWorkerDistributeSMVsContextChansFunc = func(context.Context) (
 func newFuncDelayedWorkerDistributeSMVs(
 	newf newWorkerDistributeSMVsFunc,
 	newChans newWorkerDistributeSMVsContextChansFunc,
-) func(context.Context, string, string) (
+) func(context.Context, string) (
 	workerProcessInsertSMVsFunc,
 	dutil.In2ErrorFunc[[]string, []string],
 	dutil.ErrorFunc,
 	error,
 ) {
-	return func(ctx context.Context, workID, worker string) (
+	return func(ctx context.Context, worker string) (
 		workerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		dutil.ErrorFunc,
@@ -795,7 +795,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 					var gerr error
 
 					once.Do(func() {
-						switch p, o, err := newf(wctx, workID, worker); {
+						switch p, o, err := newf(wctx, worker); {
 						case err != nil:
 							gerr = err
 						default:

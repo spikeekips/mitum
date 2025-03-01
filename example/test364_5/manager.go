@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -18,14 +17,14 @@ var managerName = "manager"
 type (
 	ManagerStartWorkerFunc = func(
 		_ context.Context,
-		workID, worker string,
+		worker string,
 		workers, opsWorkers []string,
 		opsShare, statesShare uint64,
 		maxOpsSize uint64,
 	) error
-	ManagerCancelWorkerFunc    = func(_ context.Context, workID, worker string, err error) error
-	managerCloseWorkerFunc     = func(_ context.Context, workID, worker string) error
-	NewManagerWorkerSendOpFunc = func(_ context.Context, workID, worker string, maxItems uint64) (
+	ManagerCancelWorkerFunc    = func(_ context.Context, worker string, err error) error
+	managerCloseWorkerFunc     = func(_ context.Context, worker string) error
+	NewManagerWorkerSendOpFunc = func(_ context.Context, worker string, maxItems uint64) (
 		OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
 	ManagerWaitFunc        = dutil.In3ErrorFunc[
@@ -56,7 +55,6 @@ func NewFuncManager(
 	ctx context.Context,
 	options *ManagerOptions,
 	cancelWorkerf ManagerCancelWorkerFunc,
-	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
@@ -72,16 +70,14 @@ func NewFuncManager(
 
 	var actingWorkers []string
 
-	switch a, o, s, err := isValidManagerArgs(options, workID, workers, opsShare, statesShare, ophs); {
+	switch a, o, s, err := isValidManagerArgs(options, workers, opsShare, statesShare, ophs); {
 	case err != nil:
 		return nil, nil, nil, nil, nil, err
 	default:
 		actingWorkers, opsShare, statesShare = a, o, s
 	}
 
-	log := dutil.NewModuleLoggerFromContext(wctx, "manager", func(zctx zerolog.Context) zerolog.Context {
-		return zctx.Str("work_id", workID)
-	})
+	log := dutil.NewModuleLoggerFromContext(wctx, "manager", nil)
 
 	log.Debug().
 		Interface("options", options).
@@ -114,7 +110,7 @@ func NewFuncManager(
 	cancelWork := func(err error) error {
 		if err != nil {
 			if cancelWorkerf != nil {
-				err = managerCancelWorkers(wctx, newJobWorker, workID, workerPool, cancelWorkerf, err)
+				err = managerCancelWorkers(wctx, newJobWorker, workerPool, cancelWorkerf, err)
 			}
 
 			return wctxCancel(err)
@@ -132,7 +128,6 @@ func NewFuncManager(
 			if err := managerStartWorkers(
 				wctx,
 				newJobWorker,
-				workID,
 				workerPool,
 				opsShare, statesShare,
 				uint64(len(ophs)),
@@ -141,11 +136,7 @@ func NewFuncManager(
 				return cancelWork(err)
 			}
 
-			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(
-				func(ctx context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-					return f(ctx, workID, worker, maxItems)
-				},
-			))
+			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(f))
 		},
 		workerOwners,
 		workerResult,
@@ -227,7 +218,6 @@ func NewFuncManager(
 				if err := managerCloseWorkers(
 					wctx,
 					newJobWorker,
-					workID,
 					workerPool,
 					opsShare, statesShare,
 					closeWorkerf,
@@ -245,7 +235,6 @@ func NewFuncManager(
 
 func isValidManagerArgs(
 	options *ManagerOptions,
-	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
@@ -255,8 +244,6 @@ func isValidManagerArgs(
 	var err error
 
 	switch {
-	case workID == "":
-		err = errors.Errorf("empty work id")
 	case len(ophs) < 1:
 		err = errors.Errorf("empty ophs")
 	case nworkers < 1:
@@ -342,7 +329,6 @@ func newFuncManagerWorkerInsertDone(
 func managerStartWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
-	workID string,
 	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -379,7 +365,6 @@ func managerStartWorkers(
 			if err := newJob(func(ctx context.Context) error {
 				switch err := f(
 					ctx,
-					workID,
 					worker,
 					workers, opsWorkers,
 					opsShare, statesShare,
@@ -406,7 +391,6 @@ func managerStartWorkers(
 func managerCancelWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
-	workID string,
 	workerPool *failedWorkerPool,
 	f ManagerCancelWorkerFunc,
 	gerr error,
@@ -430,7 +414,7 @@ func managerCancelWorkers(
 
 	for worker := range seq {
 		if werr = newJob(func(ctx context.Context) error {
-			err := f(ctx, workID, worker, gerr)
+			err := f(ctx, worker, gerr)
 			log.Debug().Err(err).Str("worker", worker).Msg("cancel worker")
 
 			return nil
@@ -455,7 +439,6 @@ func managerCancelWorkers(
 func managerCloseWorkers(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
-	workID string,
 	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
 	f managerCloseWorkerFunc,
@@ -506,7 +489,7 @@ func managerCloseWorkers(
 	default:
 		for worker := range seq {
 			if err := newJob(func(ctx context.Context) error {
-				err := f(ctx, workID, worker)
+				err := f(ctx, worker)
 
 				l := log.With().Str("worker", worker).Err(err).Logger()
 

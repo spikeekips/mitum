@@ -52,7 +52,6 @@ func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.I
 
 func (t *testManagerWithWorkers) newWorkers(
 	ctx context.Context,
-	workID string,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
@@ -82,7 +81,6 @@ func (t *testManagerWithWorkers) newWorkers(
 	for local := range slices.Values(workers) {
 		t, i, u, w, c := t.newWorker(
 			ctx,
-			workID,
 			local,
 			workers, opsWorkers,
 			opsShare, statesShare,
@@ -109,7 +107,7 @@ func (t *testManagerWithWorkers) newWorkers(
 
 func (t *testManagerWithWorkers) newWorker(
 	ctx context.Context,
-	workID, local string,
+	local string,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
@@ -141,7 +139,6 @@ func (t *testManagerWithWorkers) newWorker(
 		getState,
 		createState,
 		reportCancelWork,
-		workID,
 		workers, opsWorkers,
 		opsShare, statesShare,
 		maxOpsSize,
@@ -171,8 +168,6 @@ func (t *testManagerWithWorkers) newManager(
 		t.Panicf(nil, "statesShare=%d > workers=%d", statesShare, nworkers)
 	}
 
-	workID := util.UUID().String()
-
 	ophs := make([][2]util.Hash, len(ops))
 	for i, op := range slices.All(ops) {
 		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
@@ -181,12 +176,11 @@ func (t *testManagerWithWorkers) newManager(
 	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWorkerErr, managerWait, err := NewFuncManager(
 		ctx,
 		t.newManagerOptions(),
-		func(_ context.Context, _, worker string, err error) error {
+		func(_ context.Context, worker string, err error) error {
 			t.IfErrPanicf(err, "worker canceled by manager")
 
 			return nil
 		},
-		workID,
 		workers,
 		opsShare, statesShare,
 		ophs,
@@ -195,7 +189,6 @@ func (t *testManagerWithWorkers) newManager(
 
 	workersInitialInserts, workersInserts, workersUnmerge, workersWaits, workersCloses := t.newWorkers(
 		ctx,
-		workID,
 		workers,
 		opsShare, statesShare,
 		ophs,
@@ -205,7 +198,7 @@ func (t *testManagerWithWorkers) newManager(
 
 	getOperation := t.getOperationFunc(ops)
 	distributeValues := func(local string) newWorkerDistributeSMVsFunc {
-		return func(ctx context.Context, workID, worker string) (
+		return func(ctx context.Context, worker string) (
 			workerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
@@ -258,13 +251,13 @@ func (t *testManagerWithWorkers) newManager(
 		return managerSendOps(
 			func(
 				_ context.Context,
-				workID, worker string,
+				worker string,
 				workers, opsWorkers []string,
 				opsShare, statesShare uint64,
 				maxOpsSize uint64,
 			) error {
 				//t.Println("start worker: work id=%q worker=%q workers=%v opsWorkers=%v ops share=%d states share=%d max ops size=%d",
-				//	workID, worker,
+				//	worker,
 				//	workers, opsWorkers,
 				//	opsShare, statesShare,
 				//	maxOpsSize,
@@ -272,7 +265,7 @@ func (t *testManagerWithWorkers) newManager(
 
 				return nil
 			},
-			func(_ context.Context, _, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
+			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				wops := map[uint64][2]util.Hash{}
 
 				return func(opindex uint64, oph, fact util.Hash) error {
@@ -291,8 +284,7 @@ func (t *testManagerWithWorkers) newManager(
 								maps.All(wops),
 								func(
 									_ context.Context,
-									local,
-									_ string,
+									local string,
 									owners []string,
 								) error {
 									err := managerWorkerOwners(worker, owners)
@@ -333,7 +325,7 @@ func (t *testManagerWithWorkers) newManager(
 				defer wg.Done()
 
 				err := f(
-					func(_ context.Context, local, workID, worker string, unmerged []uint64) error {
+					func(_ context.Context, local, worker string, unmerged []uint64) error {
 						err := workersUnmerge[worker](local, unmerged)
 
 						t.Print("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
@@ -342,8 +334,7 @@ func (t *testManagerWithWorkers) newManager(
 					},
 					func(
 						_ context.Context,
-						local,
-						workID string,
+						local string,
 						reasons map[uint64]string,
 						statesSize uint64,
 						f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -432,7 +423,7 @@ func (t *testManagerWithWorkers) newManager(
 
 				return nil, nil
 			},
-			func(_ context.Context, _, worker string) error {
+			func(_ context.Context, worker string) error {
 				t.T().Logf("done worker: worker=%q", worker)
 
 				return workersCloses[worker](nil)
