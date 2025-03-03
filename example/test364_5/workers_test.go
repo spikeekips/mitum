@@ -45,16 +45,6 @@ func (t *baseTestWorkers) randomOphs(n int) [][2]util.Hash {
 	return h
 }
 
-func (t *baseTestWorkers) getOperationFunc(ops []Operation) getOperationFunc {
-	return func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
-		if opindex >= uint64(len(ops)) {
-			return nil, false, "", nil
-		}
-
-		return ops[opindex], true, "", nil
-	}
-}
-
 func (t *baseTestWorkers) newWorkerOptions(local string) *workerOptions {
 	return newWorkerOptions(local)
 }
@@ -65,8 +55,8 @@ func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDis
 		dutil.In2ErrorFunc[[]string, []string],
 		error,
 	) {
-		return func(opindex uint64, fact util.Hash, values []SMV) error {
-				fmt.Printf("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d\n", local, worker, opindex, fact, len(values))
+		return func(opindex uint64, facth util.Hash, values []SMV) error {
+				fmt.Printf("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d\n", local, worker, opindex, facth, len(values))
 
 				return nil
 			},
@@ -79,10 +69,10 @@ func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDis
 	}
 }
 
-func (t *baseTestWorkers) ophsSeq2(ops []Operation) iter.Seq2[uint64, [2]util.Hash] {
+func (t *baseTestWorkers) ophsSeq2(facts []OperationFact) iter.Seq2[uint64, [2]util.Hash] {
 	return func(yield func(uint64, [2]util.Hash) bool) {
-		for i, op := range slices.All(ops) {
-			if !yield(uint64(i), [2]util.Hash{op.Hash(), op.Fact().Hash()}) {
+		for i, fact := range slices.All(facts) {
+			if !yield(uint64(i), [2]util.Hash{fact.Hash(), fact.Hash()}) {
 				return
 			}
 		}
@@ -101,8 +91,8 @@ func (t *baseTestWorkers) newWorkerProcessDistributeSMVsFunc() (
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
-			return func(opindex uint64, fact util.Hash, values []SMV) error {
-					add([3]interface{}{opindex, fact, values})
+			return func(opindex uint64, facth util.Hash, values []SMV) error {
+					add([3]interface{}{opindex, facth, values})
 
 					return nil
 				},
@@ -161,8 +151,8 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 				return nil, nil, err
 			}
 
-			return func(opindex uint64, fact util.Hash, values []SMV) error {
-					add([3]interface{}{opindex, fact, values})
+			return func(opindex uint64, facth util.Hash, values []SMV) error {
+					add([3]interface{}{opindex, facth, values})
 
 					return nil
 				},

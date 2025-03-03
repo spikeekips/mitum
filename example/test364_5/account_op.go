@@ -16,11 +16,9 @@ var (
 	accountOpHint     = hint.MustNewHint("test-operation-v0.0.1")
 )
 
-type Operation interface {
-	base.Operation
-	SMVs(context.Context) (
-		SMV, []SMV, string, error,
-	)
+type OperationFact interface {
+	base.Fact
+	SMVs(context.Context) (SMV, []SMV, string, error)
 }
 
 type AccountOpFact struct {
@@ -29,6 +27,8 @@ type AccountOpFact struct {
 	base.BaseFact
 	Amount int64
 }
+
+var _ = interface{}(new(AccountOpFact)).(OperationFact)
 
 func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *AccountOpFact {
 	fact := &AccountOpFact{
@@ -41,6 +41,29 @@ func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publ
 	fact.SetHash(fact.hash())
 
 	return fact
+}
+
+func (fact *AccountOpFact) SMVs(context.Context) (SMV, []SMV, string, error) {
+	var subv SMV
+	var addvs []SMV
+
+	if fact.Issuer != nil {
+		switch i, err := NewAccountSMV(fact.Issuer, fact.Amount*-1); {
+		case err != nil:
+			return nil, nil, "", err
+		default:
+			subv = i
+		}
+	}
+
+	switch i, err := NewAccountSMV(fact.Receiver, fact.Amount); {
+	case err != nil:
+		return nil, nil, "", err
+	default:
+		addvs = []SMV{i}
+	}
+
+	return subv, addvs, "", nil
 }
 
 func (fact *AccountOpFact) IsValid([]byte) error {
@@ -134,57 +157,4 @@ func (fact *AccountOpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
 	fact.Amount = u.Amount
 
 	return nil
-}
-
-type AccountOp struct {
-	base.BaseOperation
-}
-
-func NewAccountOp(fact *AccountOpFact) *AccountOp {
-	return &AccountOp{
-		BaseOperation: base.NewBaseOperation(accountOpHint, fact),
-	}
-}
-
-func (op *AccountOp) IsValid(networkID []byte) error {
-	if err := op.BaseOperation.IsValid(networkID); err != nil {
-		return err
-	}
-
-	if _, ok := op.Fact().(*AccountOpFact); !ok {
-		return errors.Errorf("not Fact, %T", op.Fact())
-	}
-
-	return nil
-}
-
-func (op *AccountOp) SMVs(context.Context) (
-	SMV, []SMV, string, error,
-) {
-	var fact *AccountOpFact
-
-	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
-		return nil, nil, "", err
-	}
-
-	var subv SMV
-	var addvs []SMV
-
-	if fact.Issuer != nil {
-		switch i, err := NewAccountSMV(fact.Issuer, fact.Amount*-1); {
-		case err != nil:
-			return nil, nil, "", err
-		default:
-			subv = i
-		}
-	}
-
-	switch i, err := NewAccountSMV(fact.Receiver, fact.Amount); {
-	case err != nil:
-		return nil, nil, "", err
-	default:
-		addvs = []SMV{i}
-	}
-
-	return subv, addvs, "", nil
 }

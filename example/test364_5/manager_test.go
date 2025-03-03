@@ -103,16 +103,16 @@ func (t *baseTestManager) baseGenerateNodesHashFunc() fixedtree.GenerateNodesHas
 
 func (t *baseTestManager) processOps(
 	ctx context.Context,
-	ops []Operation,
+	facts []OperationFact,
 	getState getStateFunc,
 ) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ map[string]int64, _ error) {
 	local := "local"
 	height := base.Height(33)
 	workers := []string{local}
 
-	ophs := make([][2]util.Hash, len(ops))
-	for i, op := range slices.All(ops) {
-		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+	ophs := make([][2]util.Hash, len(facts))
+	for i, fact := range slices.All(facts) {
+		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
 
 	mophs := func(yield func(uint64, [2]util.Hash) bool) {
@@ -144,7 +144,7 @@ func (t *baseTestManager) processOps(
 		nil,
 		workers, workers,
 		1, 1,
-		uint64(len(ops)),
+		uint64(len(facts)),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -160,12 +160,12 @@ func (t *baseTestManager) processOps(
 		) {
 			return nil, nil, nil
 		},
-		func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
-			if opindex >= uint64(len(ops)) {
+		func(_ context.Context, opindex uint64, _, _ util.Hash) (OperationFact, bool, string, error) {
+			if opindex >= uint64(len(facts)) {
 				return nil, false, "", nil
 			}
 
-			return ops[opindex], true, "", nil
+			return facts[opindex], true, "", nil
 		},
 		mophs,
 		nil,

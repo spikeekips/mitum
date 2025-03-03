@@ -8,21 +8,21 @@ import (
 )
 
 type (
-	OpindexOpHashesFunc    = func(opindex uint64, oph, fact util.Hash) error
-	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, fact util.Hash) error
-	getOperationFunc       = func(_ context.Context, opindex uint64, oph, fact util.Hash) (_ Operation, found bool, reason string, _ error)
+	OpindexOpHashesFunc    = func(opindex uint64, oph, facth util.Hash) error
+	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, facth util.Hash) error
+	getOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (_ OperationFact, found bool, reason string, _ error)
 	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
-		_ Operation,
+		_ OperationFact,
 		subv SMV,
 		addvs []SMV,
 		reason string,
 		_ error,
 	)
 	smvExtractorInsertFunc = dutil.In3ErrorFunc[
-		getOperationFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
+		getOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
 	smvExtractorExtractedFunc = func(
 		opindex uint64,
-		_ Operation,
+		_ OperationFact,
 		subv SMV,
 		addvs []SMV,
 	) error
@@ -63,19 +63,19 @@ func newFuncSMVExtractor(
 	}
 
 	return func(
-			getOperation getOperationFunc,
+			getOperationFact getOperationFactFunc,
 			f dutil.InErrorFunc[OpindexOpHashesFunc],
 			extracted smvExtractorExtractedFunc,
 		) error {
 			defer jobDone()
 
-			extractf := newFuncExtractorSMVs(getOperation, extracted, func(opindex uint64, reason string) {
+			extractf := newFuncExtractorSMVs(getOperationFact, extracted, func(opindex uint64, reason string) {
 				_ = reasons.SetValue(opindex, reason)
 			})
 
-			return dutil.NewIfErrErrorInFunc(jobWait)(f(func(opindex uint64, oph, fact util.Hash) error {
+			return dutil.NewIfErrErrorInFunc(jobWait)(f(func(opindex uint64, oph, facth util.Hash) error {
 				return newJob(func(ctx context.Context) error {
-					return extractf(ctx, opindex, oph, fact)
+					return extractf(ctx, opindex, oph, facth)
 				})
 			}))
 		},
@@ -96,18 +96,18 @@ func newFuncSMVExtractor(
 }
 
 func newFuncExtractSMV(
-	getOperation getOperationFunc,
+	getOperationFact getOperationFactFunc,
 ) extractSMVsFunc {
-	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) (
-		Operation,
+	return func(ctx context.Context, opindex uint64, oph, facth util.Hash) (
+		OperationFact,
 		SMV,
 		[]SMV,
 		string,
 		error,
 	) {
-		var op Operation
+		var fact OperationFact
 
-		switch i, found, reason, err := getOperation(ctx, opindex, oph, fact); {
+		switch i, found, reason, err := getOperationFact(ctx, opindex, oph, facth); {
 		case err != nil:
 			return nil, nil, nil, "", err
 		case !found:
@@ -115,10 +115,10 @@ func newFuncExtractSMV(
 		case reason != "":
 			return nil, nil, nil, reason, nil
 		default:
-			op = i
+			fact = i
 		}
 
-		switch subv, addvs, reason, err := op.SMVs(ctx); {
+		switch subv, addvs, reason, err := fact.SMVs(ctx); {
 		case err != nil:
 			return nil, nil, nil, "", err
 		case reason != "":
@@ -126,20 +126,20 @@ func newFuncExtractSMV(
 		case subv == nil && len(addvs) < 1:
 			return nil, nil, nil, reasonEmptySMVs, nil
 		default:
-			return op, subv, addvs, "", nil
+			return fact, subv, addvs, "", nil
 		}
 	}
 }
 
 func newFuncExtractorSMVs(
-	getOperation getOperationFunc,
+	getOperationFact getOperationFactFunc,
 	extracted smvExtractorExtractedFunc,
 	setReason func(opindex uint64, reason string),
 ) ctxOpindexOpHashesFunc {
-	extractf := newFuncExtractSMV(getOperation)
+	extractf := newFuncExtractSMV(getOperationFact)
 
-	return func(ctx context.Context, opindex uint64, oph, fact util.Hash) error {
-		switch op, subv, addvs, reason, err := extractf(ctx, opindex, oph, fact); {
+	return func(ctx context.Context, opindex uint64, oph, facth util.Hash) error {
+		switch fact, subv, addvs, reason, err := extractf(ctx, opindex, oph, facth); {
 		case err != nil:
 			return err
 		case reason != "":
@@ -147,7 +147,7 @@ func newFuncExtractorSMVs(
 
 			return nil
 		default:
-			return extracted(opindex, op, subv, addvs)
+			return extracted(opindex, fact, subv, addvs)
 		}
 	}
 }

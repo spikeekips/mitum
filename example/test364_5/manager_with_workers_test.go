@@ -28,15 +28,15 @@ func (t *testManagerWithWorkers) newManagerOptions() *ManagerOptions {
 	return NewManagerOptions()
 }
 
-func (t *testManagerWithWorkers) randomOps(n int) ([]Operation, [][2]util.Hash) {
-	ops := t.baseTestAccountSVM.randomAddOps(n, 1)
+func (t *testManagerWithWorkers) randomFacts(n int) ([]OperationFact, [][2]util.Hash) {
+	facts := t.baseTestAccountSVM.randomAddFacts(n, 1)
 
-	ophs := make([][2]util.Hash, len(ops))
-	for i, op := range slices.All(ops) {
-		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+	ophs := make([][2]util.Hash, len(facts))
+	for i, fact := range slices.All(facts) {
+		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
 
-	return ops, ophs
+	return facts, ophs
 }
 
 func (t *testManagerWithWorkers) workerIfErrCancel(worker string, cancel dutil.InErrorFunc[error]) dutil.InErrorFunc[error] {
@@ -152,7 +152,7 @@ func (t *testManagerWithWorkers) newManager(
 	ctx context.Context,
 	workers []string,
 	opsShare, statesShare uint64,
-	ops []Operation,
+	facts []OperationFact,
 	getState getStateFunc,
 	getStateOwners getStateOwnersFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -168,9 +168,9 @@ func (t *testManagerWithWorkers) newManager(
 		t.Panicf(nil, "statesShare=%d > workers=%d", statesShare, nworkers)
 	}
 
-	ophs := make([][2]util.Hash, len(ops))
-	for i, op := range slices.All(ops) {
-		ophs[i] = [2]util.Hash{op.Hash(), op.Fact().Hash()}
+	ophs := make([][2]util.Hash, len(facts))
+	for i, fact := range slices.All(facts) {
+		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
 
 	managerSendOps, managerWorkerOwners, managerWorkerResult, managerWorkerErr, managerWait, err := NewFuncManager(
@@ -196,7 +196,7 @@ func (t *testManagerWithWorkers) newManager(
 		managerWorkerErr,
 	)
 
-	getOperation := t.getOperationFunc(ops)
+	getOperationFact := newFuncGetOperationFact(facts)
 	distributeValues := func(local string) newWorkerDistributeSMVsFunc {
 		return func(ctx context.Context, worker string) (
 			workerProcessInsertSMVsFunc,
@@ -214,11 +214,11 @@ func (t *testManagerWithWorkers) newManager(
 				return nil, nil, nil
 			}
 
-			return func(opindex uint64, fact util.Hash, values []SMV) error {
+			return func(opindex uint64, facth util.Hash, values []SMV) error {
 					stateKeys := extractSMVKeysFromValues(values)
 
-					err := i(opindex, fact, values)
-					t.Print("distribute worker: insert: local=%q worker=%q opindex=%d fact=%q state keys=%v err=%+v", local, worker, opindex, fact, stateKeys, err)
+					err := i(opindex, facth, values)
+					t.Print("distribute worker: insert: local=%q worker=%q opindex=%d fact=%q state keys=%v err=%+v", local, worker, opindex, facth, stateKeys, err)
 
 					return err
 				},
@@ -268,10 +268,10 @@ func (t *testManagerWithWorkers) newManager(
 			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				wops := map[uint64][2]util.Hash{}
 
-				return func(opindex uint64, oph, fact util.Hash) error {
-						t.Print("manager initial insert: worker=%q opindex=%d fact=%q", worker, opindex, fact)
+				return func(opindex uint64, oph, facth util.Hash) error {
+						t.Print("manager initial insert: worker=%q opindex=%d fact=%q", worker, opindex, facth)
 
-						wops[opindex] = [2]util.Hash{oph, fact}
+						wops[opindex] = [2]util.Hash{oph, facth}
 
 						return nil
 					},
@@ -280,7 +280,7 @@ func (t *testManagerWithWorkers) newManager(
 							err := workersInitialInserts[worker](
 								getStateOwners,
 								distributeValues(worker),
-								getOperation,
+								getOperationFact,
 								maps.All(wops),
 								func(
 									_ context.Context,
@@ -443,7 +443,7 @@ func (t *testManagerWithWorkers) newManager(
 
 func (t *testManagerWithWorkers) processCase(
 	workersSize, opsShare, statesShare uint64,
-	ops []Operation,
+	facts []OperationFact,
 	getStateOwners getStateOwnersFunc,
 	getState getStateFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -473,8 +473,8 @@ func (t *testManagerWithWorkers) processCase(
 	}
 
 	statesOwners := map[string][]string{}
-	for op := range slices.Values(ops) {
-		sub, adds, _, err := op.SMVs(ctx)
+	for fact := range slices.Values(facts) {
+		sub, adds, _, err := fact.SMVs(ctx)
 		t.NoError(err)
 
 		if sub != nil {
@@ -502,7 +502,7 @@ func (t *testManagerWithWorkers) processCase(
 		ctx,
 		workers,
 		opsShare, statesShare,
-		ops,
+		facts,
 		getState,
 		getStateOwners,
 		expectedWorkersOwners,
@@ -518,7 +518,7 @@ func (t *testManagerWithWorkers) runCase(
 	workersSize, opsShare, statesShare uint64,
 	getStateOwners getStateOwnersFunc,
 	getState getStateFunc,
-	ops []Operation,
+	facts []OperationFact,
 	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
 	expectedStates []base.State,
 	expectedWorkersOwners map[string]map[string][][]string,
@@ -535,7 +535,7 @@ func (t *testManagerWithWorkers) runCase(
 	t.Run(
 		fmt.Sprintf("%d worker, ops share=%d states share=%d", workersSize, opsShare, statesShare),
 		func() {
-			opsTree, statesTree, states, err := t.processCase(workersSize, opsShare, statesShare, ops, getStateOwners, getState,
+			opsTree, statesTree, states, err := t.processCase(workersSize, opsShare, statesShare, facts, getStateOwners, getState,
 				expectedWorkersOwners, expectedStatesValues)
 			t.NoError(err)
 
@@ -571,27 +571,27 @@ func (t *testManagerWithWorkers) runCase(
 func (t *testManagerWithWorkers) TestOneCase() {
 	t.T().Skip()
 
-	ops, _ := t.randomOps(19)
+	facts, _ := t.randomFacts(19)
 
 	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(
 		context.Background(),
-		ops,
+		facts,
 		func(string) (base.State, bool, error) { return nil, false, nil },
 	)
 	t.NoError(err)
 
 	for range 333 {
-		t.runCase(12, 12, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(12, 12, 1, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	}
 }
 
 func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
 	var opsSize uint64 = 9
-	ops, _ := t.randomOps(int(opsSize))
+	facts, _ := t.randomFacts(int(opsSize))
 
 	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(
 		context.Background(),
-		ops,
+		facts,
 		func(string) (base.State, bool, error) { return nil, false, nil },
 	)
 	t.NoError(err)
@@ -599,21 +599,21 @@ func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
 	t.T().Logf("expected: ops tree=%q states tree=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
 
 	t.Run("one worker", func() {
-		t.runCase(1, 1, 1, nil, nil, ops, expectedOpsTree, expectedStatesTree, nil, nil, expectedStatesValues)
+		t.runCase(1, 1, 1, nil, nil, facts, expectedOpsTree, expectedStatesTree, nil, nil, expectedStatesValues)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(3, opsShare, statesShare, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("2 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 2, 1
 
-		t.runCase(3, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-		t.runCase(6, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(3, opsShare, statesShare, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("permutation", func() {
@@ -627,7 +627,7 @@ func (t *testManagerWithWorkers) TestWorkersOnlyAddValues() {
 
 			for opsShare := uint64(1); opsShare <= o; opsShare++ {
 				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
-					t.runCase(workersSize, opsShare, statesShare, nil, nil, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+					t.runCase(workersSize, opsShare, statesShare, nil, nil, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 				}
 			}
 		}
@@ -660,17 +660,17 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		}
 	}
 
-	ops := []Operation{
-		t.newDummyOp([]byte("0"), pub0, 1, pub1, -2), // 0
-		t.newDummyOp([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
-		t.newDummyOp([]byte("2"), pub0, -1, pub1, 2), // 2
-		t.newDummyOp([]byte("3"), pub0, -1, pub1, 2), // 3: ignored
-		t.newDummyOp([]byte("4"), pub0, 1, pub2, -3), // 4
-		t.newDummyOp([]byte("5"), pub1, 1, pub2, 2),  // 5
+	facts := []OperationFact{
+		t.newDummyFact([]byte("0"), pub0, 1, pub1, -2), // 0
+		t.newDummyFact([]byte("1"), pub1, -2, pub2, 3), // 1: ignored
+		t.newDummyFact([]byte("2"), pub0, -1, pub1, 2), // 2
+		t.newDummyFact([]byte("3"), pub0, -1, pub1, 2), // 3: ignored
+		t.newDummyFact([]byte("4"), pub0, 1, pub2, -3), // 4
+		t.newDummyFact([]byte("5"), pub1, 1, pub2, 2),  // 5
 	}
 
-	for opindex, op := range slices.All(ops) {
-		t.T().Logf("op: opindex=%d hash=%q fact=%q", opindex, op.Hash(), op.Fact().Hash())
+	for opindex, fact := range slices.All(facts) {
+		t.T().Logf("op: opindex=%d hash=%q fact=%q", opindex, fact.Hash(), fact.Hash())
 	}
 
 	getState := func(stateKey string) (base.State, bool, error) {
@@ -683,7 +683,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 		return nil, false, nil
 	}
 
-	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(context.Background(), ops, getState)
+	expectedOpsTree, expectedStatesTree, expectedStates, expectedStatesValues, err := t.processOps(context.Background(), facts, getState)
 	t.NoError(err)
 
 	t.T().Logf("expected: ops tree root=%q states tree root=%q", expectedOpsTree.Root(), expectedStatesTree.Root())
@@ -751,7 +751,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 			// t.runCase(11, 6, 9, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(13, 1, 10, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 			// t.runCase(11, 4, 8, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-			t.runCase(14, 3, 8, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+			t.runCase(14, 3, 8, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 		}
 
 		sampleCalled = true
@@ -764,25 +764,25 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 	t.Run("one worker", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(1, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(1, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("1 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 1, 1
 
-		t.runCase(3, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-		t.runCase(6, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(3, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("2 ops share, 1 states share", func() {
 		var opsShare, statesShare uint64 = 2, 1
 
-		t.runCase(3, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
-		t.runCase(6, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(3, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+		t.runCase(6, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 	})
 
 	t.Run("permutation", func() {
-		var opsSize uint64 = uint64(len(ops))
+		var opsSize uint64 = uint64(len(facts))
 		var maxWorkersSize uint64 = opsSize * 2
 
 		for workersSize := uint64(1); workersSize <= maxWorkersSize; workersSize++ {
@@ -793,7 +793,7 @@ func (t *testManagerWithWorkers) TestWorkersWithSubValues() {
 
 			for opsShare := uint64(1); opsShare <= o; opsShare++ {
 				for statesShare := uint64(1); statesShare <= workersSize; statesShare++ {
-					t.runCase(workersSize, opsShare, statesShare, nil, getState, ops, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
+					t.runCase(workersSize, opsShare, statesShare, nil, getState, facts, expectedOpsTree, expectedStatesTree, expectedStates, nil, expectedStatesValues)
 				}
 			}
 		}

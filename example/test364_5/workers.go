@@ -25,7 +25,7 @@ type (
 	)
 	getStateOwnersFunc     = func(stateKey string) []string
 	getOperationOwnersFunc = func(opindex uint64) []string
-	mergeStateOpFunc       = func(opindex uint64, fact util.Hash, stateKeys []string) bool
+	mergeStateOpFunc       = func(opindex uint64, facth util.Hash, stateKeys []string) bool
 	unmergeStateOpFunc     = func(ops []uint64) bool
 	getStateOpsFunc        = func(stateKey string) ([]util.Hash, error)
 	traverseStateOpsFunc   = func(dutil.In2ErrorFunc[int, getStateOpsFunc]) error
@@ -273,14 +273,14 @@ func newFuncSetStateOps(mapSize uint64) (
 		}
 	}
 
-	return func(opindex uint64, fact util.Hash, stateKeys []string) bool {
+	return func(opindex uint64, facth util.Hash, stateKeys []string) bool {
 			created, _ := keyPool.Set(opindex, func(_ []string, found bool) ([]string, error) {
 				if found {
 					return nil, dutil.ErrLockedSetIgnore
 				}
 
 				_ = set(opindex, stateKeys, mergeFlag)
-				_ = factPool.SetValue(opindex, fact)
+				_ = factPool.SetValue(opindex, facth)
 
 				return stateKeys, nil
 			})
@@ -772,8 +772,8 @@ func newFuncDelayedWorkerDistributeSMVs(
 
 		insert, insertDone, seq := newChans(wctx)
 
-		return func(opindex uint64, fact util.Hash, values []SMV) error {
-				return ifErrWctxCancel(insert([3]interface{}{opindex, fact, values}))
+		return func(opindex uint64, facth util.Hash, values []SMV) error {
+				return ifErrWctxCancel(insert([3]interface{}{opindex, facth, values}))
 			},
 			func(subws, affected []string) error {
 				defer insertDone()
@@ -990,12 +990,12 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 		}
 	}()
 
-	return func(worker string, opindex uint64, fact util.Hash, values []SMV) error {
+	return func(worker string, opindex uint64, facth util.Hash, values []SMV) error {
 			if worker == local {
 				return nil
 			}
 
-			return insert([4]interface{}{worker, opindex, fact, values})
+			return insert([4]interface{}{worker, opindex, facth, values})
 		},
 		func(worker string, subws, affected []string) error {
 			if worker == local {

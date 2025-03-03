@@ -76,11 +76,11 @@ type operationTreeNode struct {
 	b                   []byte
 }
 
-func newOperationTreeNode(oph, fact util.Hash, reason string) (*operationTreeNode, error) {
+func newOperationTreeNode(oph, facth util.Hash, reason string) (*operationTreeNode, error) {
 	switch {
 	case oph == nil:
 		return nil, errors.Errorf("nil oph")
-	case fact == nil:
+	case facth == nil:
 		return nil, errors.Errorf("nil fact")
 	}
 
@@ -88,11 +88,11 @@ func newOperationTreeNode(oph, fact util.Hash, reason string) (*operationTreeNod
 
 	return &operationTreeNode{
 			BaseNode: fixedtree.NewBaseNode(key),
-			fact:     fact,
+			fact:     facth,
 			reason:   reason,
 			b: slices.Concat(
 				[]byte(key),
-				fact.Bytes(),
+				facth.Bytes(),
 				util.BoolToBytes(reason == ""), // NOTE in state
 			),
 		},

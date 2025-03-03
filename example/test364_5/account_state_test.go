@@ -41,6 +41,19 @@ func newDummyOpFact(token base.Token, values []*AccountSMV) *dummyOpFact {
 	return fact
 }
 
+func (fact *dummyOpFact) SMVs(context.Context) (sub SMV, addvs []SMV, reason string, _ error) {
+	for value := range slices.Values(fact.values) {
+		switch {
+		case value.Balance < 0:
+			sub = value
+		default:
+			addvs = append(addvs, value)
+		}
+	}
+
+	return sub, addvs, "", nil
+}
+
 func (fact *dummyOpFact) IsValid([]byte) error {
 	if err := fact.BaseFact.IsValid(nil); err != nil {
 		return err
@@ -82,58 +95,8 @@ func (fact *dummyOpFact) hash() util.Hash {
 	return valuehash.NewSHA256(buf.Bytes())
 }
 
-type dummyOp struct {
-	base.BaseOperation
-}
-
-func newDummyOp(fact *dummyOpFact) *dummyOp {
-	return &dummyOp{
-		BaseOperation: base.NewBaseOperation(accountOpHint, fact),
-	}
-}
-
-func (op *dummyOp) IsValid(networkID []byte) error {
-	if err := op.BaseOperation.IsValid(networkID); err != nil {
-		return err
-	}
-
-	if _, ok := op.Fact().(*dummyOpFact); !ok {
-		return errors.Errorf("not dummyOpFact, %T", op.Fact())
-	}
-
-	return nil
-}
-
-func (op *dummyOp) SMVs(context.Context) (
-	sub SMV, addvs []SMV, reason string, _ error,
-) {
-	var fact *dummyOpFact
-
-	if err := util.SetInterfaceValue(op.Fact(), &fact); err != nil {
-		return nil, nil, "", err
-	}
-
-	for value := range slices.Values(fact.values) {
-		switch {
-		case value.Balance < 0:
-			sub = value
-		default:
-			addvs = append(addvs, value)
-		}
-	}
-
-	return sub, addvs, "", nil
-}
-
 type baseTestAccountSVM struct {
 	dutil.BaseSuite
-	networkID base.NetworkID
-	rootpriv  base.Privatekey
-}
-
-func (t *baseTestAccountSVM) SetupSuite() {
-	t.networkID = util.UUID().Bytes()
-	t.rootpriv = base.NewMPrivatekey()
 }
 
 func (t *baseTestAccountSVM) printSMV(v base.StateValue) string {
@@ -237,67 +200,58 @@ func (t *baseTestAccountSVM) randomState() base.State {
 	return t.newState(pub, 1)
 }
 
-func (t *baseTestAccountSVM) newOp(issuer base.Privatekey, receiver base.Publickey, balance int64) *AccountOp {
+func (t *baseTestAccountSVM) newOpFact(issuer base.Privatekey, receiver base.Publickey, balance int64) *AccountOpFact {
 	var issuerPub base.Publickey
 
 	if issuer != nil {
 		issuerPub = issuer.Publickey()
 	}
 
-	op := NewAccountOp(NewAccountOpFact(
+	return NewAccountOpFact(
 		util.UUID().Bytes(),
 		balance,
 		issuerPub,
 		receiver,
-	))
-
-	signer := t.rootpriv
-	if issuer != nil {
-		signer = issuer
-	}
-
-	t.IfErrPanic(op.Sign(signer, t.networkID))
-
-	return op
+	)
 }
 
-func (t *baseTestAccountSVM) randomOp(balance int64) *AccountOp {
-	return t.newOp(
+func (t *baseTestAccountSVM) randomFact(balance int64) *AccountOpFact {
+	return t.newOpFact(
 		base.NewDummyPrivatekey(util.UUID().String()),
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
 }
 
-func (t *baseTestAccountSVM) randomAddOp(balance int64) *AccountOp {
-	return t.newOp(
+func (t *baseTestAccountSVM) randomAddFact(balance int64) *AccountOpFact {
+	return t.newOpFact(
 		nil,
 		base.NewDummyPublickey(util.UUID().String()),
 		balance,
 	)
 }
 
-func (t *baseTestAccountSVM) randomOps(n int, amount int64) []Operation {
-	m := make([]Operation, n)
+func (t *baseTestAccountSVM) randomFacts(n int, amount int64) []OperationFact {
+	m := make([]OperationFact, n)
 
 	for i := 0; i < n; i++ {
-		m[i] = t.randomOp(amount)
+		m[i] = t.randomFact(amount)
 	}
 
 	return m
 }
 
-func (t *baseTestAccountSVM) randomAddOps(n int, amount int64) []Operation {
-	m := make([]Operation, n)
+func (t *baseTestAccountSVM) randomAddFacts(n int, amount int64) []OperationFact {
+	m := make([]OperationFact, n)
 
 	for i := 0; i < n; i++ {
-		m[i] = t.randomAddOp(amount)
+		m[i] = t.randomAddFact(amount)
 	}
 
 	return m
 }
 
-func (t *baseTestAccountSVM) newDummyOp(token base.Token, a ...interface{}) *dummyOp {
+func (t *baseTestAccountSVM) newDummyFact(token base.Token, a ...interface{}) *dummyOpFact {
 	vs := t.newMergeValues(a...)
 
 	values := make([]*AccountSMV, len(vs))
@@ -305,25 +259,7 @@ func (t *baseTestAccountSVM) newDummyOp(token base.Token, a ...interface{}) *dum
 		values[i] = v.(*AccountSMV)
 	}
 
-	op := newDummyOp(newDummyOpFact(token, values))
-
-	t.IfErrPanic(op.Sign(t.rootpriv, t.networkID))
-
-	return op
-}
-
-func (t *baseTestAccountSVM) extractSMVs(ops []Operation) [][]SMV {
-	values := make([][]SMV, len(ops))
-
-	for i := range ops {
-		subv, addvs, r, err := ops[i].SMVs(context.Background())
-		t.IfErrPanic(err)
-		t.IfTruePanic(r == "", `r == ""`)
-
-		values[i] = slices.Concat([]SMV{subv}, addvs)
-	}
-
-	return values
+	return newDummyOpFact(token, values)
 }
 
 type testAccountSVM struct {

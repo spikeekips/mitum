@@ -24,7 +24,7 @@ func (t *testWorker) TestCancelWork() {
 		local := "local"
 		workers := []string{local}
 
-		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
+		facts := t.baseTestAccountSVM.randomAddFacts(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -55,10 +55,10 @@ func (t *testWorker) TestCancelWork() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(context.Context, uint64, util.Hash, util.Hash) (Operation, bool, string, error) {
+				func(context.Context, uint64, util.Hash, util.Hash) (OperationFact, bool, string, error) {
 					return nil, false, "", errors.Errorf("showme")
 				},
-				t.ophsSeq2(ops),
+				t.ophsSeq2(facts),
 				nil,
 			)
 		}()
@@ -99,7 +99,7 @@ func (t *testWorker) TestCancelWork() {
 		local := "local"
 		workers := []string{local}
 
-		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
+		facts := t.baseTestAccountSVM.randomAddFacts(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -130,14 +130,8 @@ func (t *testWorker) TestCancelWork() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(_ context.Context, opindex uint64, _, _ util.Hash) (Operation, bool, string, error) {
-					if opindex >= uint64(len(ops)) {
-						return nil, false, "", nil
-					}
-
-					return ops[opindex], true, "", nil
-				},
-				t.ophsSeq2(ops),
+				newFuncGetOperationFact(facts),
+				t.ophsSeq2(facts),
 				nil,
 			)
 		}()
@@ -179,7 +173,7 @@ func (t *testWorker) TestClose() {
 	t.Run("ok", func() {
 		local := "local"
 		workers := []string{local}
-		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
+		facts := t.baseTestAccountSVM.randomAddFacts(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -204,15 +198,15 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (OperationFact, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()
 					case <-time.After(time.Second * 3):
-						return ops[0], true, "", nil
+						return facts[0], true, "", nil
 					}
 				},
-				t.ophsSeq2(ops),
+				t.ophsSeq2(facts),
 				nil,
 			)
 		}()
@@ -252,7 +246,7 @@ func (t *testWorker) TestClose() {
 	t.Run("close with error", func() {
 		workers := t.workers(3)
 		local := workers[0]
-		ops := t.baseTestAccountSVM.randomAddOps(1, 1)
+		facts := t.baseTestAccountSVM.randomAddFacts(1, 1)
 
 		getStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, 1)
 		t.NoError(err)
@@ -277,7 +271,7 @@ func (t *testWorker) TestClose() {
 			initialerr <- initialInsert(
 				getStateOwners,
 				t.defaultDistributeValuesFunc(local),
-				func(ctx context.Context, _ uint64, _, _ util.Hash) (Operation, bool, string, error) {
+				func(ctx context.Context, _ uint64, _, _ util.Hash) (OperationFact, bool, string, error) {
 					select {
 					case <-ctx.Done():
 						return nil, false, "", ctx.Err()
@@ -285,7 +279,7 @@ func (t *testWorker) TestClose() {
 						return nil, true, "", nil
 					}
 				},
-				t.ophsSeq2(ops),
+				t.ophsSeq2(facts),
 				nil,
 			)
 		}()

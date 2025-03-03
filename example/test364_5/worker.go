@@ -21,7 +21,7 @@ type (
 	workerInitialInsertFunc = func(
 		getStateOwnersFunc,
 		newWorkerDistributeSMVsFunc,
-		getOperationFunc,
+		getOperationFactFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		workerReportStatesOwnersFunc,
 	) error
@@ -160,7 +160,7 @@ func newFuncWorker(
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerDistributeSMVsFunc,
-			getOperation getOperationFunc,
+			getOperationFact getOperationFactFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners workerReportStatesOwnersFunc,
 		) error {
@@ -197,7 +197,7 @@ func newFuncWorker(
 						return p, o, err
 					}
 				},
-				getOperation,
+				getOperationFact,
 				func(f OpindexOpHashesFunc) error {
 					for opindex, hs := range ophs {
 						if err := f(opindex, hs[0], hs[1]); err != nil {
@@ -226,7 +226,7 @@ func newFuncWorker(
 			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
-			var traverseOps iter.Seq2[uint64, Operation]
+			var traverseOps iter.Seq2[uint64, OperationFact]
 			var savedStates dutil.LockedMap[string, base.State]
 
 			defer func() {

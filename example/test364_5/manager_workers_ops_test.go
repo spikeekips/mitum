@@ -21,7 +21,7 @@ type testManagerWorkersOps struct {
 
 func (t *testManagerWorkersOps) workerSendOpFunc() newWorkerSendOpFunc {
 	return func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-		return func(opindex uint64, oph, fact util.Hash) error {
+		return func(opindex uint64, oph, facth util.Hash) error {
 				t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 				return nil
@@ -80,14 +80,14 @@ func (t *testManagerWorkersOps) TestCancel() {
 					return nil, nil, err
 				}
 
-				return func(opindex uint64, oph, fact util.Hash) error {
+				return func(opindex uint64, oph, facth util.Hash) error {
 						if opindex == 1 {
 							t.Print("send op cancel: worker=%q opindex=%d", worker, opindex)
 
 							cancel(nil)
 						}
 
-						return o(opindex, oph, fact)
+						return o(opindex, oph, facth)
 					},
 					func(err error) error {
 						return d(err)
@@ -140,8 +140,8 @@ func (t *testManagerWorkersOps) TestSend() {
 			for worker := range slices.Values(workers) {
 				var ops [][3]interface{}
 
-				d(worker, func(opindex uint64, oph, fact util.Hash) error {
-					ops = append(ops, [3]interface{}{opindex, oph.String(), fact.String()})
+				d(worker, func(opindex uint64, oph, facth util.Hash) error {
+					ops = append(ops, [3]interface{}{opindex, oph.String(), facth.String()})
 
 					return nil
 				})
@@ -179,10 +179,10 @@ func (t *testManagerWorkersOps) TestSend() {
 
 				var ops [][3]interface{}
 
-				return func(opindex uint64, oph, fact util.Hash) error {
-						ops = append(ops, [3]interface{}{opindex, oph.String(), fact.String()})
+				return func(opindex uint64, oph, facth util.Hash) error {
+						ops = append(ops, [3]interface{}{opindex, oph.String(), facth.String()})
 
-						return o(opindex, oph, fact)
+						return o(opindex, oph, facth)
 					},
 					func(err error) error {
 						if err != nil {
@@ -233,8 +233,8 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 				var ops [][3]interface{}
 
-				d(worker, func(opindex uint64, oph, fact util.Hash) error {
-					ops = append(ops, [3]interface{}{opindex, oph.String(), fact.String()})
+				d(worker, func(opindex uint64, oph, facth util.Hash) error {
+					ops = append(ops, [3]interface{}{opindex, oph.String(), facth.String()})
 
 					return nil
 				})
@@ -273,10 +273,10 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 				var ops [][3]interface{}
 
-				return func(opindex uint64, oph, fact util.Hash) error {
-						ops = append(ops, [3]interface{}{opindex, oph.String(), fact.String()})
+				return func(opindex uint64, oph, facth util.Hash) error {
+						ops = append(ops, [3]interface{}{opindex, oph.String(), facth.String()})
 
-						return o(opindex, oph, fact)
+						return o(opindex, oph, facth)
 					},
 					func(err error) error {
 						if err != nil {
@@ -328,7 +328,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 					return nil, nil, errors.Errorf("showme")
 				}
 
-				return func(opindex uint64, oph, fact util.Hash) error {
+				return func(opindex uint64, oph, facth util.Hash) error {
 						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 						return nil
@@ -391,7 +391,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
 				var once sync.Once
 
-				return func(opindex uint64, oph, fact util.Hash) error {
+				return func(opindex uint64, oph, facth util.Hash) error {
 						var err error
 
 						once.Do(func() {
@@ -463,7 +463,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 			opsShare,
 			ophs,
 			func(_ context.Context, worker string, maxItems uint64) (OpindexOpHashesFunc, dutil.InErrorFunc[error], error) {
-				return func(opindex uint64, oph, fact util.Hash) error {
+				return func(opindex uint64, oph, facth util.Hash) error {
 						t.Print("send op: worker=%q opindex=%d", worker, opindex)
 
 						return nil
