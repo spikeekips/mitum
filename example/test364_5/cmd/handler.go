@@ -473,9 +473,10 @@ func readSubStreamWorkResult(
 	var delm byte
 
 	switch b, n, err := frame.ReadFixed(stream); {
-	case err != nil && !errors.Is(err, io.EOF),
-		n < 1 && errors.Is(err, io.EOF):
+	case err != nil && !errors.Is(err, io.EOF):
 		return err
+	case n < 1 && errors.Is(err, io.EOF):
+		return nil
 	case len(b) < 1:
 		return errors.Errorf("empty delm")
 	default:
@@ -549,6 +550,100 @@ end1:
 	}
 
 	return nil
+}
+
+func requestHandlerWorkerErr(worker string, err error) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+			return ctx, err
+		}
+
+		var errb []byte
+		if err != nil {
+			errb = []byte(err.Error())
+		}
+
+		return ctx, frame.WriteFixed(stream, errb)
+	}
+}
+
+func acceptHandlerWorkerErr(f dutil.In2ErrorFunc[string, error]) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		var errs string
+		if _, err := ensureReadFixedFrameString(stream, &errs); err != nil {
+			return ctx, err
+		}
+
+		return ctx, f(worker, errors.Errorf(errs))
+	}
+}
+
+func requestHandlerWorkerInsertDone() quicstream.StreamHandler {
+	return func(ctx context.Context, _ quic.Stream) (context.Context, error) {
+		return ctx, nil
+	}
+}
+
+func acceptHandlerWorkerInsertDone() quicstream.StreamHandler {
+	return func(ctx context.Context, _ quic.Stream) (context.Context, error) {
+		return ctx, nil
+	}
+}
+
+func requestHandlerWorkerClose() quicstream.StreamHandler {
+	return func(ctx context.Context, _ quic.Stream) (context.Context, error) {
+		return ctx, nil
+	}
+}
+
+func acceptHandlerWorkerClose() quicstream.StreamHandler {
+	return func(ctx context.Context, _ quic.Stream) (context.Context, error) {
+		return ctx, nil
+	}
+}
+
+func requestHandlerCancelWorker(err error) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var errb []byte
+		if err != nil {
+			errb = []byte(err.Error())
+		}
+
+		return ctx, frame.WriteFixed(stream, errb)
+	}
+}
+
+func acceptHandlerCancelWorker(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var errs string
+		if _, err := ensureReadFixedFrameString(stream, &errs); err != nil {
+			return ctx, err
+		}
+
+		return ctx, f(errors.Errorf(errs))
+	}
+}
+
+func requestHandlerWorkerDone(worker string) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		return ctx, frame.WriteFixed(stream, []byte(worker))
+	}
+}
+
+func acceptHandlerWorkerDone(f dutil.InErrorFunc[string]) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		return ctx, f(worker)
+	}
 }
 
 func subStreamSize(n, maxPerStream uint64, nmax uint16) (nsub uint16) {

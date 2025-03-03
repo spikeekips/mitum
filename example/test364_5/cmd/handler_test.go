@@ -325,17 +325,12 @@ func (t *testHandlerWorkerResult) newState() base.State {
 	return dop5.NewBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
 }
 
-func (t *testHandlerWorkerResult) TestOK() {
+func (t *testHandlerWorkerResult) doHandlers(
+	ctx context.Context,
+	reasons map[uint64]string,
+	states []base.State,
+) {
 	worker := util.UUID().String()
-	reasons := map[uint64]string{
-		1: util.UUID().String(),
-		2: util.UUID().String(),
-		3: util.UUID().String(),
-	}
-	states := make([]base.State, 33)
-	for i := range states {
-		states[i] = t.newState()
-	}
 
 	request := requestHandlerWorkerResult(
 		worker,
@@ -354,18 +349,21 @@ func (t *testHandlerWorkerResult) TestOK() {
 		1<<9,
 	)
 
+	var rreasons map[uint64]string
 	rstates := util.NewSingleLockedMap[string, util.Hash]()
 
-	handler := acceptHandlerWorkerResult(func(worker string) (
+	handler := acceptHandlerWorkerResult(func(rworker string) (
 		dutil.InErrorFunc[map[uint64]string],
 		dutil.In2ErrorFunc[string, util.Hash],
 		dutil.InErrorFunc[error],
 		error,
 	) {
-		return func(rreasons map[uint64]string) error {
-				t.Print("reasons: %v", rreasons)
+		t.PrintIfTruePanic(worker != rworker, "worker")
 
-				t.PrintIfTruePanic(!maps.Equal(reasons, reasons), "reasons")
+		return func(m map[uint64]string) error {
+				t.Print("reasons: %v", m)
+
+				rreasons = maps.Clone(m)
 
 				return nil
 			},
@@ -406,11 +404,7 @@ func (t *testHandlerWorkerResult) TestOK() {
 	_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
 	t.PrintIfErrPanic(err, "handler")
 
-	select {
-	case <-time.After(time.Second):
-		t.Fail("wait request done")
-	case <-requestDone:
-	}
+	t.PrintIfTruePanic(!maps.Equal(reasons, rreasons), "reasons: %v != %v", reasons, rreasons)
 
 	t.Equal(len(states), rstates.Len())
 	for st := range slices.Values(states) {
@@ -418,12 +412,125 @@ func (t *testHandlerWorkerResult) TestOK() {
 		t.True(found)
 		t.True(st.Hash().Equal(h))
 	}
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait request done")
+	case <-requestDone:
+	}
+}
+
+func (t *testHandlerWorkerResult) TestOK() {
+	t.Run("ok", func() {
+		reasons := map[uint64]string{
+			1: util.UUID().String(),
+			2: util.UUID().String(),
+			3: util.UUID().String(),
+		}
+		states := make([]base.State, 33)
+		for i := range states {
+			states[i] = t.newState()
+		}
+
+		t.doHandlers(context.Background(), reasons, states)
+	})
+
+	t.Run("empty reasons", func() {
+		states := make([]base.State, 33)
+		for i := range states {
+			states[i] = t.newState()
+		}
+
+		t.doHandlers(context.Background(), nil, states)
+	})
+
+	t.Run("empty states", func() {
+		reasons := map[uint64]string{
+			1: util.UUID().String(),
+			2: util.UUID().String(),
+			3: util.UUID().String(),
+		}
+
+		t.doHandlers(context.Background(), reasons, nil)
+	})
+
+	t.Run("empty", func() {
+		t.doHandlers(context.Background(), nil, nil)
+	})
 }
 
 func TestHandlerWorkerResult(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testHandlerWorkerResult))
+}
+
+type testHandlerWorkerErr struct {
+	quicstream.BaseTest
+}
+
+func (t *testHandlerWorkerErr) doHandlers(
+	worker, werrstring string,
+) {
+	var werr error
+	if werrstring != "" {
+		werr = errors.Errorf(werrstring)
+	}
+
+	request := requestHandlerWorkerErr(worker, werr)
+
+	handler := acceptHandlerWorkerErr(func(rworker string, rerr error) error {
+		t.PrintIfTruePanic(worker != rworker, "worker")
+
+		var berr string
+
+		if rerr != nil {
+			berr = rerr.Error()
+		}
+
+		t.PrintIfTruePanic(werrstring != berr, "err")
+
+		return nil
+	})
+
+	rstream, hstream := quicstream.NewDummyStreams()
+
+	requestDone := make(chan error)
+	go func() {
+		_, err := request(context.Background(), rstream)
+
+		requestDone <- err
+	}()
+
+	_, err := handler(context.Background(), hstream)
+	t.NoError(err)
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait request done")
+	case err := <-requestDone:
+		t.NoError(err)
+	}
+}
+
+func (t *testHandlerWorkerErr) TestOK() {
+	t.Run("ok", func() {
+		t.doHandlers(util.UUID().String(), "showme")
+	})
+
+	t.Run("nil error", func() {
+		t.doHandlers(util.UUID().String(), "")
+	})
+
+	t.Run("empty worker", func() {
+		t.doHandlers("", "showme")
+	})
+}
+
+func TestHandlerWorkerErr(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testHandlerWorkerErr))
 }
 
 func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandler) (context.Context, error) {
