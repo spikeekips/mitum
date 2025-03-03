@@ -11,10 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var (
-	accountOpFactHint = hint.MustNewHint("test-fact-v0.0.1")
-	accountOpHint     = hint.MustNewHint("test-operation-v0.0.1")
-)
+var AccountOpFactHint = hint.MustNewHint("test-fact-v0.0.1")
 
 type OperationFact interface {
 	base.Fact
@@ -32,7 +29,7 @@ var _ = interface{}(new(AccountOpFact)).(OperationFact)
 
 func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *AccountOpFact {
 	fact := &AccountOpFact{
-		BaseFact: base.NewBaseFact(accountOpFactHint, token),
+		BaseFact: base.NewBaseFact(AccountOpFactHint, token),
 		Issuer:   issuer,
 		Receiver: receiver,
 		Amount:   amount,
