@@ -222,7 +222,7 @@ func (t *baseTestAccountSVM) newMergeValuesVP(
 }
 
 func (t *baseTestAccountSVM) newState(pub base.Publickey, balance int64) base.State {
-	return newBaseState(
+	return NewBaseState(
 		33,
 		accountStateKey(pub),
 		NewAccountSV(pub, balance),

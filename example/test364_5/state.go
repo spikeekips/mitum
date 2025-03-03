@@ -24,7 +24,7 @@ type baseState struct {
 	height base.Height
 }
 
-func newBaseState(
+func NewBaseState(
 	height base.Height,
 	k string,
 	v base.StateValue,

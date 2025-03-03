@@ -18,7 +18,7 @@ func TestBaseStateEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		sv := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
-		st := newBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
+		st := NewBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
 
 		b, err := enc.Marshal(st)
 		t.NoError(err)
