@@ -41,7 +41,6 @@ type (
 		newWorkerProcessDistributeSMVsFunc,
 		getOperationFactFunc,
 		dutil.InErrorFunc[OpindexOpHashesFunc],
-		dutil.In2ErrorFunc[uint64, OperationFact],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
 	workerProcessInsertSMVsFunc     = func(opindex uint64, facth util.Hash, _ []SMV) error
@@ -64,7 +63,7 @@ type (
 	workerProcessWaitFunc = func(
 		dutil.In3ErrorFunc[context.Context, string /* worker */, []uint64 /* unmerged */],
 		workerProcessReportResult,
-	) (iter.Seq2[uint64, OperationFact], error)
+	) error
 )
 
 func newFuncWorkerProcess(
@@ -151,17 +150,6 @@ func newFuncWorkerProcess(
 		initialInsert, workerInsertSVs, unmerge, wait = i, s, u, w
 	}
 
-	var savedOps dutil.LockedMap[uint64, OperationFact] // FIXME remove
-
-	switch i, err := dutil.NewLockedMap[uint64, OperationFact](nil, maxOpsSize, maxOpsSize); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		savedOps = i
-	}
-
-	var svInserted int64
-
 	unusedOps := new(atomic.Value)
 
 	return func(
@@ -176,13 +164,6 @@ func newFuncWorkerProcess(
 				distribute,
 				getOperationFact,
 				insertOp,
-				func(opindex uint64, fact OperationFact) error {
-					_ = atomic.CompareAndSwapInt64(&svInserted, 0, 1)
-
-					_ = savedOps.SetValue(opindex, fact)
-
-					return nil
-				},
 				func(owners []string, reasons map[uint64]string) error {
 					unusedOps.Store(reasons)
 
@@ -213,8 +194,6 @@ func newFuncWorkerProcess(
 				return nil, nil, nil
 			default:
 				return func(opindex uint64, facth util.Hash, values []SMV) error {
-						_ = atomic.CompareAndSwapInt64(&svInserted, 0, 1)
-
 						return wi(opindex, facth, values)
 					},
 					wd,
@@ -225,7 +204,7 @@ func newFuncWorkerProcess(
 		func(
 			broadcastUnmerged workerProcessBroadcastUnmerged,
 			reportResult workerProcessReportResult,
-		) (iter.Seq2[uint64, OperationFact], error) {
+		) error {
 			defer func() {
 				extractStateKeyClose()
 
@@ -258,10 +237,6 @@ func newFuncWorkerProcess(
 						traverseSVMs(nil)
 					}()
 
-					if atomic.LoadInt64(&svInserted) < 1 {
-						return nil
-					}
-
 					return reportResult(ctx, reasons, approxStatesSize, func(f dutil.InErrorFunc[base.State]) error {
 						return workerProcessCloseSVMs(
 							ctx,
@@ -275,21 +250,12 @@ func newFuncWorkerProcess(
 			); err != nil {
 				log.Error().Err(err).Msg("wait done")
 
-				return nil, err
+				return err
 			}
 
 			log.Debug().Msg("wait done")
 
-			return func(yield func(uint64, OperationFact) bool) {
-					defer savedOps.Close()
-
-					if yield == nil {
-						return
-					}
-
-					savedOps.Seq2(yield)
-				},
-				nil
+			return nil
 		},
 		nil
 }
@@ -465,7 +431,6 @@ func newFuncWorkerProcessInitialInsert(
 			distribute newWorkerProcessDistributeSMVsFunc,
 			getOperationFact getOperationFactFunc,
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
-			saveOperation dutil.In2ErrorFunc[uint64, OperationFact],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
 			var extractStateOwnersSMVs extractStateOwnersSMVsFunc
@@ -517,7 +482,6 @@ func newFuncWorkerProcessInitialInsert(
 			extracted := newFuncorkerProcessExtracted(
 				ctx,
 				local,
-				saveOperation,
 				extractStateOwnersSMVs,
 				distributeWorkerSMVs,
 				mergeStateOp,
@@ -542,7 +506,6 @@ func newFuncWorkerProcessInitialInsert(
 func newFuncorkerProcessExtracted(
 	ctx context.Context,
 	local string,
-	saveOperation dutil.In2ErrorFunc[uint64, OperationFact], // FIXME use fact hash
 	extractStateOwners extractStateOwnersSMVsFunc,
 	distribute workerDistributeWorkerSMVsFunc,
 	mergeStateOp mergeStateOpFunc,
@@ -550,17 +513,13 @@ func newFuncorkerProcessExtracted(
 ) smvExtractorExtractedFunc {
 	log := dutil.LoadContextValueLogger(ctx)
 
-	return func(opindex uint64, fact OperationFact, subv SMV, addvs []SMV) error {
+	return func(opindex uint64, facth util.Hash, subv SMV, addvs []SMV) error {
 		log.Trace().
 			Dict("operation", zerolog.Dict().
 				Uint64("opindex", opindex).
-				Stringer("fact", fact.Hash()),
+				Stringer("fact", facth),
 			).
 			Msg("insert operation")
-
-		if err := saveOperation(opindex, fact); err != nil {
-			return err
-		}
 
 		size := len(addvs)
 		if subv != nil {
@@ -588,12 +547,12 @@ func newFuncorkerProcessExtracted(
 				return insertToMerger(opindex, values)
 			}
 
-			return distribute(worker, opindex, fact.Hash(), values)
+			return distribute(worker, opindex, facth, values)
 		}); err != nil {
 			return err
 		}
 
-		_ = mergeStateOp(opindex, fact.Hash(), stateKeys)
+		_ = mergeStateOp(opindex, facth, stateKeys)
 
 		return nil
 	}

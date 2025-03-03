@@ -91,7 +91,14 @@ func (t *testWorkerProcess) newf(
 			return initial(
 				getStateOwners,
 				distribute,
-				getOperationFact,
+				func(ctx context.Context, opindex uint64, oph, facth util.Hash) (OperationFact, bool, string, error) {
+					fact, found, reason, err := getOperationFact(ctx, opindex, oph, facth)
+					if err == nil && found {
+						_ = savedOps.SetValue(opindex, fact)
+					}
+
+					return fact, found, reason, err
+				},
 				insertOp,
 				reportDone,
 			)
@@ -106,7 +113,7 @@ func (t *testWorkerProcess) newf(
 				stateOwnersClose()
 			}()
 
-			traverseOps, err := wait(
+			err := wait(
 				func(ctx context.Context, worker string, unmerged []uint64) error {
 					t.Print("wait: broadcast unmerged: worker=%q unmerged=%v", worker, unmerged)
 
@@ -155,10 +162,6 @@ func (t *testWorkerProcess) newf(
 			)
 			if err != nil {
 				return err
-			}
-
-			for opindex, fact := range traverseOps {
-				_ = savedOps.SetValue(opindex, fact)
 			}
 
 			return nil
@@ -268,9 +271,7 @@ func (t *testWorkerProcess) TestCancel() {
 				return nil
 			},
 			func() error {
-				_, err := wait(nil, nil)
-
-				return err
+				return wait(nil, nil)
 			},
 			err
 	}
@@ -804,7 +805,7 @@ func (t *testWorkerProcess) TestLocal() {
 		))
 
 		t.False(calledBroadcastUnmerged)
-		t.False(calledReportStates)
+		t.True(calledReportStates)
 
 		t.EqualValues(0, savedStates.Len())
 		t.EqualValues(0, savedOps.Len())
@@ -1029,7 +1030,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 		go func() {
 			defer wg.Done()
 
-			traverseOps, err := workerWaits[local](
+			err := workerWaits[local](
 				func(ctx context.Context, worker string, unmerged []uint64) error {
 					t.Print("worker unmerge: local=%q worker=%q unmerged=%v", local, worker, unmerged)
 
@@ -1050,21 +1051,6 @@ func (t *testWorkerProcess) newProcessWorkers(
 					})
 				},
 			)
-
-			if err == nil {
-				for opindex, fact := range traverseOps {
-					switch {
-					case opindex >= uint64(len(facts)):
-						err = errors.Errorf("unknown opindex=%d", opindex)
-					case !fact.Hash().Equal(facts[opindex].Hash()):
-						err = errors.Errorf("hash mismatch, %d", opindex)
-					}
-
-					if err != nil {
-						break
-					}
-				}
-			}
 
 			t.Print("wait done: worker=%q err=%v", local, err)
 		}()
@@ -1239,7 +1225,6 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 
 						return nil
 					},
-					func(uint64, OperationFact) error { return nil },
 					func(owners []string, reasons map[uint64]string) error {
 						t.Print("local=%q owners=%v reasons=%v", local, owners, reasons)
 

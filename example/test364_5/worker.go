@@ -226,7 +226,6 @@ func newFuncWorker(
 			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
-			var traverseOps iter.Seq2[uint64, OperationFact]
 			var savedStates dutil.LockedMap[string, base.State]
 
 			defer func() {
@@ -238,7 +237,7 @@ func newFuncWorker(
 				_ = bgJobWait(context.Canceled)
 			}()
 
-			switch i, err := processWait(
+			if err := processWait(
 				func(_ context.Context, worker string, unmerged []uint64) error {
 					return bgNewJob(func(ctx context.Context) error {
 						return broadcastUnmerged(ctx, options.Local, worker, unmerged)
@@ -268,16 +267,12 @@ func newFuncWorker(
 							})
 						})
 				},
-			); {
-			case err != nil:
+			); err != nil {
 				return cancelWork(err, true)
-			default:
-				defer i(nil)
-
-				traverseOps = i
 			}
 
-			_ = traverseOps // FIXME save ops
+			// NOTE operation should be saved in outisde newFuncWorker
+
 			_ = savedStates // FIXME save states
 
 			switch err := closeWorkerWait(); {

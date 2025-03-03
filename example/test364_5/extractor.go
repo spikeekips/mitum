@@ -12,7 +12,6 @@ type (
 	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, facth util.Hash) error
 	getOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (_ OperationFact, found bool, reason string, _ error)
 	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
-		_ OperationFact,
 		subv SMV,
 		addvs []SMV,
 		reason string,
@@ -22,7 +21,7 @@ type (
 		getOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
 	smvExtractorExtractedFunc = func(
 		opindex uint64,
-		_ OperationFact,
+		facth util.Hash,
 		subv SMV,
 		addvs []SMV,
 	) error
@@ -99,7 +98,6 @@ func newFuncExtractSMV(
 	getOperationFact getOperationFactFunc,
 ) extractSMVsFunc {
 	return func(ctx context.Context, opindex uint64, oph, facth util.Hash) (
-		OperationFact,
 		SMV,
 		[]SMV,
 		string,
@@ -109,24 +107,24 @@ func newFuncExtractSMV(
 
 		switch i, found, reason, err := getOperationFact(ctx, opindex, oph, facth); {
 		case err != nil:
-			return nil, nil, nil, "", err
+			return nil, nil, "", err
 		case !found:
-			return nil, nil, nil, reasonOperationNotFound, nil
+			return nil, nil, reasonOperationNotFound, nil
 		case reason != "":
-			return nil, nil, nil, reason, nil
+			return nil, nil, reason, nil
 		default:
 			fact = i
 		}
 
 		switch subv, addvs, reason, err := fact.SMVs(ctx); {
 		case err != nil:
-			return nil, nil, nil, "", err
+			return nil, nil, "", err
 		case reason != "":
-			return nil, nil, nil, reason, nil
+			return nil, nil, reason, nil
 		case subv == nil && len(addvs) < 1:
-			return nil, nil, nil, reasonEmptySMVs, nil
+			return nil, nil, reasonEmptySMVs, nil
 		default:
-			return fact, subv, addvs, "", nil
+			return subv, addvs, "", nil
 		}
 	}
 }
@@ -139,7 +137,7 @@ func newFuncExtractorSMVs(
 	extractf := newFuncExtractSMV(getOperationFact)
 
 	return func(ctx context.Context, opindex uint64, oph, facth util.Hash) error {
-		switch fact, subv, addvs, reason, err := extractf(ctx, opindex, oph, facth); {
+		switch subv, addvs, reason, err := extractf(ctx, opindex, oph, facth); {
 		case err != nil:
 			return err
 		case reason != "":
@@ -147,7 +145,7 @@ func newFuncExtractorSMVs(
 
 			return nil
 		default:
-			return extracted(opindex, fact, subv, addvs)
+			return extracted(opindex, facth, subv, addvs)
 		}
 	}
 }

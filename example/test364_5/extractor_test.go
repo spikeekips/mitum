@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -57,14 +56,14 @@ func (t *testSMVExtractor) newf(ctx context.Context, facts []OperationFact) (
 			return insert(
 				of,
 				inf,
-				func(opindex uint64, fact OperationFact, subv SMV, addvs []SMV) error {
-					t.Print("extracted: opindex=%d fact=%v subv=%v addvs=%v", opindex, fact == nil, subv == nil, len(addvs))
+				func(opindex uint64, facth util.Hash, subv SMV, addvs []SMV) error {
+					t.Print("extracted: opindex=%d fact=%v subv=%v addvs=%v", opindex, facth == nil, subv == nil, len(addvs))
 
 					if extracted == nil {
 						return nil
 					}
 
-					return extracted(opindex, fact, subv, addvs)
+					return extracted(opindex, facth, subv, addvs)
 				},
 			)
 		},
@@ -144,15 +143,15 @@ func (t *testSMVExtractor) TestGetOperation() {
 		insert, wait, err := t.newf(ctx, facts)
 		t.NoError(err)
 
-		collected := make([]OperationFact, len(facts))
+		collected := make([]util.Hash, len(facts))
 
 		t.NoError(insert(nil, nil, func(
 			opindex uint64,
-			fact OperationFact,
+			facth util.Hash,
 			subv SMV,
 			addvs []SMV,
 		) error {
-			esubv, eaddvs, reason, err := fact.SMVs(context.Background())
+			esubv, eaddvs, reason, err := facts[opindex].SMVs(context.Background())
 			t.NoError(err)
 			t.Empty(reason)
 
@@ -171,7 +170,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 				t.True(isEqualSMV(value, addvs[i]))
 			}
 
-			collected[opindex] = fact
+			collected[opindex] = facth
 
 			return nil
 		}))
@@ -180,7 +179,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 			t.Empty(reasons)
 
 			for i, fact := range slices.All(facts) {
-				base.EqualFact(t.Assert(), fact, collected[i])
+				t.True(fact.Hash().Equal(collected[i]))
 			}
 
 			return nil
@@ -233,7 +232,7 @@ func (t *testSMVExtractor) TestGetOperation() {
 		t.NoError(err)
 
 		t.NoError(insert(nil, nil,
-			func(uint64, OperationFact, SMV, []SMV) error {
+			func(uint64, util.Hash, SMV, []SMV) error {
 				return errors.Errorf("showme")
 			}))
 
@@ -326,7 +325,7 @@ func (t *testSMVExtractor) TestExtract() {
 		var called int
 
 		t.NoError(insert(nil, nil,
-			func(uint64, OperationFact, SMV, []SMV) error {
+			func(uint64, util.Hash, SMV, []SMV) error {
 				called++
 
 				return errors.Errorf("showme")
@@ -366,12 +365,12 @@ func (t *testSMVExtractor) TestExtract() {
 			t.NoError(insert(nil, nil,
 				func(
 					opindex uint64,
-					fact OperationFact,
+					facth util.Hash,
 					subv SMV,
 					addvs []SMV,
 				) error {
 					extracted.SetValue(opindex, [3]interface{}{
-						fact,
+						facth,
 						subv,
 						addvs,
 					})
@@ -399,7 +398,7 @@ func (t *testSMVExtractor) TestExtract() {
 				v, found := extracted.Value(uint64(i))
 				t.True(found)
 
-				base.EqualFact(t.Assert(), facts[i], v[0].(OperationFact))
+				t.True(facts[i].Hash().Equal(v[0].(util.Hash)))
 
 				asubv := factsValues[i][0][0]
 				bsubv := v[1].(SMV)
