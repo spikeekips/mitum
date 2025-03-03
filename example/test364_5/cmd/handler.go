@@ -629,13 +629,13 @@ func acceptHandlerCancelWorker(f dutil.InErrorFunc[error]) quicstream.StreamHand
 	}
 }
 
-func requestHandlerWorkerDone(worker string) quicstream.StreamHandler {
+func requestHandlerWorkerClosed(worker string) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		return ctx, frame.WriteFixed(stream, []byte(worker))
 	}
 }
 
-func acceptHandlerWorkerDone(f dutil.InErrorFunc[string]) quicstream.StreamHandler {
+func acceptHandlerWorkerClosed(f dutil.InErrorFunc[string]) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var worker string
 		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	stderrors "errors"
 	"fmt"
 	"net"
 	"slices"
@@ -33,6 +34,7 @@ var workHandlerPrefixesString = map[string]struct{}{
 	"manager_worker_insert_done": {},
 	"manager_worker_close":       {},
 	"manager_cancel_worker":      {},
+	"manager_worker_closed":      {},
 }
 
 var (
@@ -85,15 +87,24 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 
 	var prevHash util.Hash
 
-	switch h, err := cmd.processHeight(cmd.ctx, 33, nil, nil); {
+	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, nil); {
 	case err != nil:
 		return err
 	default:
+		if err := w(); err != nil {
+			return err
+		}
+
 		prevHash = h
 	}
 
-	if _, err := cmd.processHeight(cmd.ctx, 34, prevHash, nil); err != nil {
+	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, nil); {
+	case err != nil:
 		return err
+	default:
+		if err := w(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -104,27 +115,16 @@ func (cmd *managerCommand) processHeight(
 	height base.Height,
 	prevManiest util.Hash,
 	ophs [][2]util.Hash,
-) (util.Hash, error) {
+) (util.Hash, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s-%s", height, util.UUID())
 
-	var manifestHash util.Hash
-
-	switch i, err := cmd.startManager(
+	return cmd.startManager(
 		ctx,
 		height,
 		prevManiest,
 		workID,
 		ophs,
-	); {
-	case err != nil:
-		return err
-	default:
-		manifestHash = i
-	}
-
-	// FIXME collect finished from worker; acceptHandlerWorkerDone
-
-	return manifestHash, nil
+	)
 }
 
 func (cmd *managerCommand) startManager(
@@ -133,7 +133,7 @@ func (cmd *managerCommand) startManager(
 	prevManiest util.Hash,
 	workID string,
 	ophs [][2]util.Hash,
-) (util.Hash, error) {
+) (util.Hash, dutil.ErrorFunc, error) {
 	var start dutil.In2ErrorFunc[dop5.ManagerStartWorkerFunc, dop5.NewManagerWorkerSendOpFunc]
 	var workerOwners dutil.In2ErrorFunc[string, []string]
 	var workerResult dop5.ManagerInsertWorkerResultFunc
@@ -150,16 +150,13 @@ func (cmd *managerCommand) startManager(
 		ophs,
 	); {
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		start, workerOwners, workerResult, workerErr, wait = s, o, r, e, w
 	}
 
 	addHandler, _, handler, closef := quicstream.NewFuncPrefixStreamHandler()
-	defer func() {
-		cmd.removeHandler([]byte(workID))
-		closef()
-	}()
+
 	cmd.mustAddHandler(workID, handler)
 
 	mustaddHandler := func(prefix string, h quicstream.StreamHandler) {
@@ -177,11 +174,35 @@ func (cmd *managerCommand) startManager(
 
 	mustaddHandler("manager_worker_error", acceptHandlerWorkerErr(workerErr))
 
+	workersClosedDone, workersClosedWait := dutil.NewContextDone(ctx)
+	closedWorkers := dutil.NewSingleLockedMap[string, struct{}]()
+
+	mustaddHandler("manager_worker_closed", acceptHandlerWorkerClosed(func(worker string) error {
+		if closedWorkers.SetValue(worker, struct{}{}) {
+			if closedWorkers.Len() == len(cmd.Workers) {
+				_ = workersClosedDone(nil)
+			}
+		}
+
+		return nil
+	}))
+
+	closeManager := func() error {
+		cmd.removeHandler([]byte(workID))
+		closef()
+		closedWorkers.Close()
+		workersClosedDone(context.Canceled)
+
+		return nil
+	}
+
 	if err := start(
 		cmd.newFuncStartWorkers(workID),
 		cmd.newFuncSendOp(workID),
 	); err != nil {
-		return nil, err
+		_ = closeManager()
+
+		return nil, nil, err
 	}
 
 	requestWorkerInsertDone := cmd.requestWorkWorker(workID, "manager_worker_insert_done")
@@ -189,7 +210,7 @@ func (cmd *managerCommand) startManager(
 
 	var manifestHash util.Hash
 
-	return manifestHash, wait(
+	if err := wait(
 		func(ctx context.Context, worker string) error {
 			_, err := requestWorkerInsertDone(ctx, worker, nil, nil, requestHandlerWorkerInsertDone())
 
@@ -221,7 +242,20 @@ func (cmd *managerCommand) startManager(
 
 			return err
 		},
-	)
+	); err != nil {
+		_ = closeManager()
+
+		return nil, nil, err
+	}
+
+	return manifestHash,
+		func() error {
+			// NOTE collect finished from workers
+			gerr := workersClosedWait()
+
+			return stderrors.Join(gerr, closeManager())
+		},
+		nil
 }
 
 func (cmd *managerCommand) newQuicStream(
