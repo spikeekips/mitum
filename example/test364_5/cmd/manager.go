@@ -32,8 +32,8 @@ var workHandlerPrefixesString = map[string]struct{}{
 }
 
 var (
-	defaultSubStreamItems uint64 = 1 << 9
-	maxSubStreamItems     uint16 = 1 << 8
+	defaultSubStreamItems    uint64 = 1 << 9
+	defaultMaxSubStreamsSize uint16 = 1 << 8
 )
 
 type managerCommand struct {
@@ -381,7 +381,7 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 		}
 
 		sendOp, sendDone, handler := requestHandlerSendOps(
-			ctx, maxItems, defaultSubStreamItems, maxSubStreamItems)
+			ctx, maxItems, defaultSubStreamItems, defaultMaxSubStreamsSize)
 
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 

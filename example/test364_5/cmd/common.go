@@ -32,10 +32,9 @@ func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
 }
 
 func readUint64(r io.Reader, i *uint64) (int, error) {
-	switch p, n, err := ensureRead(r, 8); {
-	case err != nil && !errors.Is(err, io.EOF):
-		return n, err
-	case n < 1 && errors.Is(err, io.EOF):
+	switch p, n, err := frame.ReadSized(r, 8); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
 		return n, err
 	default:
 		_, err := binary.Decode(p, binary.BigEndian, i)
@@ -68,27 +67,14 @@ func writeUint64s(w io.Writer, u ...uint64) error {
 	return nil
 }
 
-func ensureRead(r io.Reader, size uint32) ([]byte, int, error) {
-	if size < 1 {
-		return nil, 0, nil
-	}
-
-	p := make([]byte, size)
-
-	switch n, err := r.Read(p); {
-	case err != nil && !errors.Is(err, io.EOF):
-		return p, n, errors.WithStack(err)
-	case n < 1 && errors.Is(err, io.EOF):
-		return p, n, err
-	case n != len(p):
-		return p, n, errors.Errorf("insufficient read")
-	default:
-		return p, n, errors.WithStack(err)
-	}
+func readFixedFrameString(r io.Reader, i *string) (int, error) {
+	return frame.ReadFixedValue(r, i, func(b []byte) (string, error) {
+		return string(b), nil
+	})
 }
 
-func readFixedFrameString(r io.Reader, i *string) error {
-	return frame.ReadFixedValue(r, i, func(b []byte) (string, error) {
+func ensureReadFixedFrameString(r io.Reader, i *string) (int, error) {
+	return frame.EnsureReadFixedValue(r, i, func(b []byte) (string, error) {
 		return string(b), nil
 	})
 }
@@ -107,11 +93,15 @@ func writeFixedFrameStringSlice(w io.Writer, i []string) error {
 	})
 }
 
-func readFixedFrameHash(r io.Reader, i *util.Hash) error {
+func readFixedFrameHash(r io.Reader, i *util.Hash) (int, error) {
 	return frame.ReadFixedValue(r, i, func(b []byte) (util.Hash, error) {
-		h := valuehash.NewBytes(b)
+		return valuehash.NewBytes(b), nil
+	})
+}
 
-		return h, h.IsValid(nil)
+func ensureReadFixedFrameHash(r io.Reader, i *util.Hash) (int, error) {
+	return frame.EnsureReadFixedValue(r, i, func(b []byte) (util.Hash, error) {
+		return valuehash.NewBytes(b), nil
 	})
 }
 

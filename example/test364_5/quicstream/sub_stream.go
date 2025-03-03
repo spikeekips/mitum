@@ -28,7 +28,7 @@ func AcceptSubStreams(
 ) {
 	var id string
 
-	switch b, err := frame.ReadFixed(stream); {
+	switch b, _, err := frame.ReadFixed(stream); {
 	case err != nil:
 		return nil, err
 	case len(b) < 1:
@@ -261,8 +261,9 @@ func newConnAcceptSubStreams(
 	handleStream := func(stream quic.Stream) {
 		var id string
 
-		switch b, err := frame.ReadFixed(stream); {
-		case err != nil && !errors.Is(err, io.EOF):
+		switch b, n, err := frame.ReadFixed(stream); {
+		case err != nil && !errors.Is(err, io.EOF),
+			n < 1 && errors.Is(err, io.EOF):
 			_ = closeStreamWithError(stream, errors.Wrap(err, "emtpy id"))
 
 			return

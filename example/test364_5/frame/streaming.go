@@ -100,8 +100,9 @@ func NewStreamingReader(r io.Reader) (
 func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 	var t streamingChunkType
 
-	switch i, err := readStreamingChunkType(r); {
-	case err != nil:
+	switch i, n, err := readStreamingChunkType(r); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
 		return nil, err
 	default:
 		t = i
@@ -109,7 +110,7 @@ func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 
 	switch t {
 	case bodyStreamingChunkType:
-		switch p, _, err := ensureRead(r, uint32(chunkSize)); {
+		switch p, _, err := ReadSized(r, uint32(chunkSize)); {
 		case err != nil:
 			return nil, errors.Errorf("insufficient body chunk")
 		default:
@@ -120,7 +121,7 @@ func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 		return nil, errors.Errorf("unexpected chunk type, %d", t)
 	}
 
-	switch p, err := readFixedBytes(r); {
+	switch p, _, err := readFixedBytes(r); {
 	case err != nil && !errors.Is(err, io.EOF):
 		return nil, err
 	default:
@@ -128,20 +129,15 @@ func readStreamingChunk(r io.Reader, chunkSize int) ([]byte, error) {
 	}
 }
 
-func readStreamingChunkType(r io.Reader) (t streamingChunkType, _ error) {
-	i, err := readTypeByte(r)
-	switch {
+func readStreamingChunkType(r io.Reader) (t streamingChunkType, _ int, _ error) {
+	switch i, n, err := readFrameTypeByte(r); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return t, errors.Wrap(err, "read chunk type")
+		return t, n, errors.Wrap(err, "read chunk type")
+	case n < 1 && errors.Is(err, io.EOF):
+		return t, n, err
 	default:
-		t = streamingChunkType(i)
+		return streamingChunkType(i), n, err
 	}
-
-	if err := t.IsValid(nil); err != nil {
-		return t, err
-	}
-
-	return t, err
 }
 
 func NewStreamingWriter(w io.Writer, chunkSize int) (

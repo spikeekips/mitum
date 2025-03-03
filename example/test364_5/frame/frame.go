@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var ErrInsufficientRead = errors.New("insufficient read")
+
 type frameType byte
 
 const (
@@ -63,8 +65,9 @@ func (t streamingChunkType) String() string {
 }
 
 func LoadReader(r io.Reader) (t frameType, _ io.Reader, _ error) {
-	switch i, err := readType(r); {
-	case err != nil:
+	switch i, n, err := readFrameType(r); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
 		return t, nil, err
 	default:
 		t = i
@@ -84,39 +87,44 @@ func LoadReader(r io.Reader) (t frameType, _ io.Reader, _ error) {
 	}
 }
 
-func readTypeByte(r io.Reader) (t byte, _ error) {
-	switch p, _, err := ensureRead(r, 1); {
-	case err != nil && !errors.Is(err, io.EOF):
-		return t, err
+func readFrameTypeByte(r io.Reader) (t byte, _ int, _ error) {
+	switch p, n, err := ReadSized(r, 1); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
+		return t, n, err
 	default:
-		return p[0], err
+		return p[0], n, err
 	}
 }
 
-func readType(r io.Reader) (t frameType, _ error) {
-	i, err := readTypeByte(r)
-	switch {
-	case err != nil && !errors.Is(err, io.EOF):
-		return t, errors.Wrap(err, "read frame type")
+func readFrameType(r io.Reader) (t frameType, _ int, _ error) {
+	switch i, n, err := readFrameTypeByte(r); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
+		return t, n, err
 	default:
-		t = frameType(i)
+		return frameType(i), n, err
 	}
-
-	if err := t.IsValid(nil); err != nil {
-		return t, err
-	}
-
-	return t, errors.WithStack(err)
 }
 
 func ReadSize(r io.Reader, i *uint32) (int, error) {
-	switch p, n, err := ensureRead(r, 4); {
-	case err != nil && !errors.Is(err, io.EOF):
+	switch p, n, err := ReadSized(r, 4); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
 		return n, err
 	default:
 		_, err := binary.Decode(p, binary.BigEndian, i)
 
 		return n, errors.WithStack(err)
+	}
+}
+
+func EnsureReadSize(r io.Reader, i *uint32) (int, error) {
+	switch n, err := ReadSize(r, i); {
+	case n < 1 && errors.Is(err, io.EOF):
+		return n, ErrInsufficientRead
+	default:
+		return n, err
 	}
 }
 
@@ -136,37 +144,82 @@ func (f ioReadFunc) Read(p []byte) (int, error) {
 	return f(p)
 }
 
-func ensureRead(r io.Reader, size uint32) ([]byte, int, error) {
+func ReadSized(r io.Reader, size uint32) ([]byte, int, error) {
 	if size < 1 {
 		return nil, 0, nil
 	}
 
 	p := make([]byte, size)
 
-	switch n, err := r.Read(p); {
-	case err != nil && !errors.Is(err, io.EOF):
-		return p, n, errors.WithStack(err)
-	case n != len(p):
-		return p, n, errors.Errorf("insufficient read")
+	n, err := ensureRead(r, p)
+
+	return p, n, err
+}
+
+func ensureRead(r io.Reader, p []byte) (int, error) {
+	var n int
+	var gerr error
+	var b []byte
+
+	switch {
+	case len(p) > 512:
+		b = make([]byte, 512)
 	default:
-		return p, n, errors.WithStack(err)
+		b = make([]byte, len(p))
+	}
+
+end:
+	for {
+		switch i, err := r.Read(b); {
+		case err != nil && !errors.Is(err, io.EOF):
+			return n + i, errors.WithStack(err)
+		default:
+			gerr = err
+
+			if i > 0 {
+				copy(p[n:], b)
+
+				n += i
+			}
+		}
+
+		if n == len(p) || errors.Is(gerr, io.EOF) {
+			break end
+		}
+
+		b = make([]byte, len(p)-n)
+	}
+
+	switch {
+	case gerr != nil && !errors.Is(gerr, io.EOF),
+		n < 1 && errors.Is(gerr, io.EOF):
+		return n, gerr
+	case n != len(p):
+		return n, ErrInsufficientRead
+	default:
+		return n, gerr
 	}
 }
 
-func readFixedBytes(r io.Reader) ([]byte, error) {
+func readFixedBytes(r io.Reader) ([]byte, int, error) {
 	var size uint32
 
-	if _, err := ReadSize(r, &size); err != nil {
-		return nil, errors.Wrap(err, "read frame size")
+	switch n, err := ReadSize(r, &size); {
+	case err != nil && !errors.Is(err, io.EOF):
+		return nil, n, errors.Wrap(err, "read frame size")
+	case n < 1 && errors.Is(err, io.EOF):
+		return nil, n, err
+	case size > 0:
+		if errors.Is(err, io.EOF) {
+			return nil, n, errors.Wrap(ErrInsufficientRead, "read frame")
+		}
+
+		p, m, err := ReadSized(r, size)
+
+		return p, n + m, err
+	default:
+		return nil, n, err
 	}
-
-	if size > 0 {
-		p, _, err := ensureRead(r, size)
-
-		return p, err
-	}
-
-	return nil, nil
 }
 
 func clearSlice[T any](s []T) {

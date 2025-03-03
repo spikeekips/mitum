@@ -117,7 +117,7 @@ func TestBenchmarkSubStreamsHandler(tt *testing.T) {
 			stream, err := localConn.AcceptStream(ctx)
 			t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-			_, err = frame.ReadFixed(stream)
+			_, _, err = frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read")
 
 			return stream
@@ -291,7 +291,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 			stream, err := localConn.AcceptStream(ctx)
 			t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-			_, err = frame.ReadFixed(stream)
+			_, _, err = frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read")
 
 			return stream
@@ -345,7 +345,7 @@ func (t *testSubStreamsHandler) TestOpen() {
 
 			t.PrintIfErrPanic(subStreams(requestExhaustSubStreams), "request: 1st sub streams")
 
-			_, err = frame.ReadFixed(remoteStream)
+			_, _, err = frame.ReadFixed(remoteStream)
 			t.NoError(err)
 
 			subStreams, err = open(ctx, size)

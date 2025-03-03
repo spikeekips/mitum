@@ -4,11 +4,14 @@ import (
 	"context"
 	"io"
 	"iter"
+	"maps"
 	"math"
 	"slices"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
+	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
@@ -50,7 +53,7 @@ type startWorkerFunc = func(
 func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var workID string
-		if err := readFixedFrameString(stream, &workID); err != nil {
+		if _, err := ensureReadFixedFrameString(stream, &workID); err != nil {
 			return ctx, err
 		}
 
@@ -66,7 +69,7 @@ func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 
 		var opsShare, statesShare, maxOpsSize uint64
 
-		if err := readUint64s(stream, &opsShare, &statesShare, &maxOpsSize); err != nil {
+		if err := readUint64s(stream, &opsShare, &statesShare, &maxOpsSize); err != nil && !errors.Is(err, io.EOF) {
 			return ctx, err
 		}
 
@@ -76,8 +79,8 @@ func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 
 func requestHandlerSendOps(
 	ctx context.Context,
-	maxItems, subStreamItems uint64,
-	maxSubStreams uint16,
+	maxItems, maxSubStreamItems uint64,
+	maxSubStreamsSize uint16,
 ) (
 	dop5.OpindexOpHashesFunc,
 	dutil.InErrorFunc[error],
@@ -105,20 +108,8 @@ func requestHandlerSendOps(
 			return ctx, nil
 		}
 
-		var nsub uint16
-
-		if s := uint64(subStreamItems); maxItems > s {
-			switch n := uint64(math.Ceil(float64(maxItems) / float64(s))); {
-			case n > math.MaxUint16:
-				nsub = math.MaxUint16
-			case maxSubStreamItems > 0 && n > uint64(maxSubStreamItems):
-				nsub = maxSubStreamItems
-			default:
-				nsub = uint16(n)
-			}
-
-			nsub--
-		}
+		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
+		nsub--
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
 
@@ -126,9 +117,7 @@ func requestHandlerSendOps(
 		case err != nil:
 			return ctx, err
 		case nsub < 1:
-			subStreams = func(f dutil.InErrorFunc[[]quic.Stream]) error {
-				return f(nil)
-			}
+			subStreams = func(f dutil.InErrorFunc[[]quic.Stream]) error { return f(nil) }
 		default:
 			subStreams = f
 		}
@@ -136,18 +125,18 @@ func requestHandlerSendOps(
 		return ctx, subStreams(func(streams []quic.Stream) error {
 			defer stream.Close()
 
+			nstreams := make([]quic.Stream, len(streams)+1)
+			copy(nstreams, streams)
+			nstreams[len(streams)] = stream
+
 			for i, v := range dutil.SeqAll(seq) {
-				nstreams := make([]quic.Stream, len(streams)+1)
-				copy(nstreams, streams)
-				nstreams[len(streams)] = stream
+				sub := nstreams[i%len(nstreams)]
 
-				cur := nstreams[i%len(nstreams)]
-
-				if err := writeUint64(cur, v[0].(uint64)); err != nil {
+				if err := writeUint64(sub, v[0].(uint64)); err != nil {
 					return err
 				}
 
-				if err := writeFixedFrameHashes(cur, v[1].(util.Hash), v[2].(util.Hash)); err != nil {
+				if err := writeFixedFrameHashes(sub, v[1].(util.Hash), v[2].(util.Hash)); err != nil {
 					return err
 				}
 			}
@@ -215,32 +204,13 @@ func acceptHandlerSendOps(
 				copy(nstreams, streams)
 				nstreams[len(streams)] = stream
 
-				var newJob dutil.JobWorkerNewJobFunc
-				var jobDone func()
-				var jobWait dutil.InErrorFunc[error]
+				return jobsSubStreams(ctx, nstreams, func(_ context.Context, sub quic.Stream) error {
+					return readSendOpStream(sub, func(opindex uint64, oph, fact util.Hash) error {
+						add([3]interface{}{opindex, oph, fact})
 
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(nstreams))); {
-				case err != nil:
-					return err
-				default:
-					newJob, jobDone, jobWait = n, d, w
-				}
-
-				for sub := range slices.Values(nstreams) {
-					if err := newJob(func(context.Context) error {
-						return readSendOpStream(sub, func(opindex uint64, oph, fact util.Hash) error {
-							add([3]interface{}{opindex, oph, fact})
-
-							return nil
-						})
-					}); err != nil {
-						return jobWait(err)
-					}
-				}
-
-				jobDone()
-
-				return jobWait(nil)
+						return nil
+					})
+				})
 			}))
 
 			addDone()
@@ -273,13 +243,13 @@ func readSendOpStream(r io.Reader, f dop5.OpindexOpHashesFunc) error {
 
 		var oph util.Hash
 
-		if err := readFixedFrameHash(r, &oph); err != nil {
+		if _, err := ensureReadFixedFrameHash(r, &oph); err != nil {
 			return err
 		}
 
 		var fact util.Hash
 
-		switch err := readFixedFrameHash(r, &fact); {
+		switch _, err := ensureReadFixedFrameHash(r, &fact); {
 		case err != nil && !errors.Is(err, io.EOF):
 			return err
 		default:
@@ -307,15 +277,318 @@ func requestHandlerWorkerOwners(worker string, owners []string) quicstream.Strea
 func acceptHandlerWorkerOwners(f func(string, []string) error) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var worker string
-		if err := readFixedFrameString(stream, &worker); err != nil {
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
 			return ctx, err
 		}
 
 		var owners []string
-		if err := readFixedFrameStringSlice(stream, &owners); err != nil {
+		if err := readFixedFrameStringSlice(stream, &owners); err != nil && !errors.Is(err, io.EOF) {
 			return ctx, err
 		}
 
 		return ctx, f(worker, owners)
 	}
+}
+
+func requestHandlerWorkerResult(
+	worker string,
+	reasons map[uint64]string,
+	statesSize uint64,
+	statesf dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+	maxSubStreamItems uint64,
+	maxSubStreamsSize uint16,
+) quicstream.OpenSubStreamsHandler {
+	return func(
+		ctx context.Context,
+		stream quic.Stream,
+		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+			return ctx, err
+		}
+
+		if err := writeUint64(stream, statesSize); err != nil {
+			return ctx, err
+		}
+
+		nsub := subStreamSize(
+			max(statesSize, uint64(len(reasons))),
+			maxSubStreamItems,
+			maxSubStreamsSize,
+		)
+		nsub--
+
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch f, err := openSubStreams(ctx, nsub); {
+		case err != nil:
+			return ctx, err
+		case nsub < 1:
+			subStreams = func(f dutil.InErrorFunc[[]quic.Stream]) error { return f(nil) }
+		default:
+			subStreams = f
+		}
+
+		return ctx, subStreams(func(streams []quic.Stream) error {
+			defer stream.Close()
+
+			nstreams := make([]quic.Stream, len(streams)+1)
+			copy(nstreams, streams)
+			nstreams[len(streams)] = stream
+
+			seq := maps.All(reasons)
+
+			rn := int(math.Ceil(float64(len(reasons)) / float64(len(nstreams))))
+
+			iterNext, iterStop := iter.Pull2(seq)
+			defer iterStop()
+
+		end:
+			for sub := range slices.Values(nstreams) {
+				writehead := sync.OnceValue(func() error {
+					return frame.WriteFixed(sub, []byte{0x01}) // start reason
+				})
+
+				for range rn {
+					opindex, reason, ok := iterNext()
+					if !ok {
+						break end
+					}
+
+					if err := writehead(); err != nil {
+						return err
+					}
+
+					if err := frame.WriteFixed(sub, []byte(reason)); err != nil {
+						return err
+					}
+
+					if err := writeUint64(sub, opindex); err != nil {
+						return err
+					}
+				}
+			}
+
+			if statesSize < 1 {
+				return nil
+			}
+
+			var sn int
+
+			headWritten := dutil.NewSingleLockedMap[int, struct{}]()
+			defer headWritten.Close()
+
+			return statesf(func(st base.State) error {
+				p := sn % len(nstreams)
+				sub := nstreams[p]
+
+				if _, err := headWritten.Set(p, func(_ struct{}, found bool) (struct{}, error) {
+					if found {
+						return struct{}{}, dutil.ErrLockedSetIgnore
+					}
+
+					return struct{}{}, frame.WriteFixed(sub, []byte{0x02}) // start states
+				}); err != nil {
+					return err
+				}
+
+				if err := frame.WriteFixed(sub, []byte(st.Key())); err != nil {
+					return err
+				}
+
+				if err := frame.WriteFixed(sub, st.Hash().Bytes()); err != nil {
+					return err
+				}
+
+				sn++
+
+				return nil
+			})
+		})
+	}
+}
+
+func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.AcceptSubStreamHandler {
+	return func(
+		ctx context.Context,
+		stream quic.Stream,
+		accept quicstream.AcceptSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		var statesSize uint64
+		if _, err := readUint64(stream, &statesSize); err != nil {
+			return ctx, err
+		}
+
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch s, err := accept(ctx); {
+		case err != nil:
+			return ctx, err
+		default:
+			subStreams = s
+		}
+
+		var setReasons dutil.InErrorFunc[map[uint64]string]
+		var setState dutil.In2ErrorFunc[string, util.Hash]
+		var setDone dutil.InErrorFunc[error]
+
+		switch r, s, d, err := f(worker); {
+		case err != nil:
+			return ctx, err
+		default:
+			setReasons, setState, setDone = r, s, d
+		}
+
+		return ctx, subStreams(func(streams []quic.Stream) error {
+			defer setDone(nil)
+
+			nstreams := make([]quic.Stream, len(streams)+1)
+			copy(nstreams, streams)
+			nstreams[len(streams)] = stream
+
+			reasons := dutil.NewSingleLockedMap[uint64, string]()
+			defer reasons.Close()
+
+			if err := jobsSubStreams(ctx, nstreams, func(_ context.Context, sub quic.Stream) error {
+				return readSubStreamWorkResult(sub, reasons.SetValue, setState)
+			}); err != nil {
+				return err
+			}
+
+			return setReasons(reasons.Map())
+		})
+	}
+}
+
+func readSubStreamWorkResult(
+	stream quic.Stream,
+	setReason func(uint64, string) bool,
+	setState dutil.In2ErrorFunc[string, util.Hash],
+) error {
+	var delm byte
+
+	switch b, n, err := frame.ReadFixed(stream); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
+		return err
+	case len(b) < 1:
+		return errors.Errorf("empty delm")
+	default:
+		delm = b[0]
+
+		if delm != 0x01 && delm != 0x02 {
+			return errors.Errorf("wrong delm")
+		}
+
+		if errors.Is(err, io.EOF) {
+			return err
+		}
+	}
+
+	if delm == 0x01 {
+	end0:
+		for {
+			var reason string
+
+			switch b, n, err := frame.ReadFixed(stream); {
+			case err != nil && !errors.Is(err, io.EOF):
+				return err
+			case n < 1 && errors.Is(err, io.EOF):
+				return nil
+			case len(b) < 1:
+				return errors.Errorf("empty delm")
+			case len(b) == 1:
+				if b[0] != 0x02 {
+					return errors.Errorf("wrong delm; states")
+				}
+
+				break end0
+			default:
+				reason = string(b)
+			}
+
+			var opindex uint64
+			if _, err := readUint64(stream, &opindex); err != nil {
+				return err
+			}
+
+			if !setReason(opindex, reason) {
+				return errors.Errorf("failed to set reason")
+			}
+		}
+	}
+
+end1:
+	for {
+		var key string
+		switch n, err := readFixedFrameString(stream, &key); {
+		case err != nil && !errors.Is(err, io.EOF):
+			return err
+		case n < 1 && errors.Is(err, io.EOF):
+			break end1
+		}
+
+		var h util.Hash
+		switch _, err := ensureReadFixedFrameHash(stream, &h); {
+		case err != nil && !errors.Is(err, io.EOF):
+			return err
+		default:
+			if err := setState(key, h); err != nil {
+				return err
+			}
+
+			if errors.Is(err, io.EOF) {
+				break end1
+			}
+		}
+	}
+
+	return nil
+}
+
+func subStreamSize(n, maxPerStream uint64, nmax uint16) (nsub uint16) {
+	if s := uint64(maxPerStream); n <= s {
+		return 1
+	}
+
+	switch i := uint64(math.Ceil(float64(n) / float64(maxPerStream))); {
+	case i > math.MaxUint16:
+		nsub = math.MaxUint16
+	case nmax > 0 && i > uint64(nmax):
+		nsub = nmax
+	default:
+		nsub = uint16(i)
+	}
+
+	return nsub
+}
+
+func jobsSubStreams(ctx context.Context, streams []quic.Stream, f dutil.In2ErrorFunc[context.Context, quic.Stream]) error {
+	var newJob dutil.JobWorkerNewJobFunc
+	var jobDone func()
+	var jobWait dutil.InErrorFunc[error]
+
+	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(len(streams))); {
+	case err != nil:
+		return err
+	default:
+		newJob, jobDone, jobWait = n, d, w
+	}
+
+	for sub := range slices.Values(streams) {
+		if err := newJob(func(ctx context.Context) error {
+			return f(ctx, sub)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
 }

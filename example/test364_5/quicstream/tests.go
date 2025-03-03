@@ -190,7 +190,7 @@ func (t *BaseTest) OpenStreams(
 		stream, err := localConn.AcceptStream(ctx)
 		t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-		_, err = frame.ReadFixed(stream)
+		_, _, err = frame.ReadFixed(stream)
 		t.IfErrPanicf(err, "local stream: read")
 
 		return stream

@@ -16,9 +16,10 @@ func TestFixed(tt *testing.T) {
 	t.SetT(tt)
 
 	checkRead := func(r io.Reader, expected []byte) {
-		b, err := ReadFixed(r)
+		b, n, err := ReadFixed(r)
 		t.NoError(err)
 		t.Equal(expected, b)
+		t.Equal(len(expected), n-4)
 	}
 
 	t.Run("ok", func() {

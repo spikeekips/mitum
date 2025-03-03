@@ -271,7 +271,7 @@ func (t *testStreaming) TestWrite() {
 		t.Empty(out[i+5:])
 
 		t.T().Log("read")
-		ft, err := readType(w)
+		ft, _, err := readFrameType(w)
 		t.NoError(err)
 		t.T().Log("frame type:", ft)
 
@@ -331,7 +331,7 @@ func (t *testStreaming) writeForRead(b []byte, chunkSize int) io.Reader {
 
 	t.T().Log("wrote:", w.Bytes())
 
-	ft, err := readType(w)
+	ft, _, err := readFrameType(w)
 	t.NoError(err)
 
 	t.T().Log("frame type:", ft)

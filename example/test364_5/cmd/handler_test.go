@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"iter"
+	"maps"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
+	"github.com/spikeekips/mitum/base"
+	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
@@ -52,11 +55,11 @@ func (t *testHandlerStartWorker) TestOK() {
 
 		rstream, hstream := quicstream.NewDummyStreams()
 
-		requestdone := make(chan error)
+		requestDone := make(chan error)
 		go func() {
 			_, err := doHandler(ctx, rstream, request)
 
-			requestdone <- err
+			requestDone <- err
 		}()
 
 		_, err := doHandler(ctx, hstream, handler)
@@ -67,7 +70,7 @@ func (t *testHandlerStartWorker) TestOK() {
 		select {
 		case <-time.After(time.Second):
 			t.Fail("wait request done")
-		case err := <-requestdone:
+		case err := <-requestDone:
 			t.NoError(err)
 		}
 	}
@@ -108,19 +111,19 @@ func (t *testHandlerStartWorker) TestAccept() {
 		rstream.Close()
 
 		_, err := handler(context.Background(), hstream)
-		t.ErrorContains(err, "insufficient read")
+		t.ErrorIs(err, frame.ErrInsufficientRead)
 	})
 
 	t.Run("missing work id", func() {
 		rstream, hstream := quicstream.NewDummyStreams()
 
-		requestdone := make(chan struct{})
+		requestDone := make(chan struct{})
 		go func() {
 			err := frame.WriteFixedSlice(rstream, 1, slices.Values([][]byte{util.UUID().Bytes()}))
 			t.PrintErr(err, "write workers")
 			rstream.Close()
 
-			close(requestdone)
+			close(requestDone)
 		}()
 
 		handler := acceptHandlerStartWorker(func(string, []string, []string, uint64, uint64, uint64) error { return nil })
@@ -131,7 +134,7 @@ func (t *testHandlerStartWorker) TestAccept() {
 		select {
 		case <-time.After(time.Second):
 			t.Fail("wait request done")
-		case <-requestdone:
+		case <-requestDone:
 		}
 	})
 }
@@ -311,6 +314,116 @@ func TestHandlerWorkerOwners(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testHandlerWorkerOwners))
+}
+
+type testHandlerWorkerResult struct {
+	quicstream.BaseTest
+}
+
+func (t *testHandlerWorkerResult) newState() base.State {
+	sv := dop5.NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
+	return dop5.NewBaseState(base.Height(33), util.UUID().String(), sv, valuehash.RandomSHA256(), nil)
+}
+
+func (t *testHandlerWorkerResult) TestOK() {
+	worker := util.UUID().String()
+	reasons := map[uint64]string{
+		1: util.UUID().String(),
+		2: util.UUID().String(),
+		3: util.UUID().String(),
+	}
+	states := make([]base.State, 33)
+	for i := range states {
+		states[i] = t.newState()
+	}
+
+	request := requestHandlerWorkerResult(
+		worker,
+		reasons,
+		uint64(len(states)),
+		func(f dutil.InErrorFunc[base.State]) error {
+			for st := range slices.Values(states) {
+				if err := f(st); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+		3,
+		1<<9,
+	)
+
+	rstates := util.NewSingleLockedMap[string, util.Hash]()
+
+	handler := acceptHandlerWorkerResult(func(worker string) (
+		dutil.InErrorFunc[map[uint64]string],
+		dutil.In2ErrorFunc[string, util.Hash],
+		dutil.InErrorFunc[error],
+		error,
+	) {
+		return func(rreasons map[uint64]string) error {
+				t.Print("reasons: %v", rreasons)
+
+				t.PrintIfTruePanic(!maps.Equal(reasons, reasons), "reasons")
+
+				return nil
+			},
+			func(stateKey string, h util.Hash) error {
+				t.Print("state key=%q state hash=%q", stateKey, h)
+
+				t.PrintIfTruePanic(!rstates.SetValue(stateKey, h), "set state")
+
+				return nil
+			},
+			func(err error) error {
+				t.Print("err: %v", err)
+
+				return err
+			},
+			nil
+	})
+
+	_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(context.Background())
+	defer closef()
+
+	rctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, rConn)
+	hctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, hConn)
+
+	requestDone := make(chan struct{})
+
+	go func() {
+		openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(context.Background(), time.Minute)
+		defer openConnSubStreamsClose()
+		openSubStreams := quicstream.NewFuncOpenSubStreams(openConnSubStreams)
+
+		_, err := request.StreamHandler(openSubStreams)(rctx, rstream)
+		t.PrintIfErrPanic(err, "request")
+
+		close(requestDone)
+	}()
+
+	_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
+	t.PrintIfErrPanic(err, "handler")
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait request done")
+	case <-requestDone:
+	}
+
+	t.Equal(len(states), rstates.Len())
+	for st := range slices.Values(states) {
+		h, found := rstates.Value(st.Key())
+		t.True(found)
+		t.True(st.Hash().Equal(h))
+	}
+}
+
+func TestHandlerWorkerResult(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testHandlerWorkerResult))
 }
 
 func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandler) (context.Context, error) {

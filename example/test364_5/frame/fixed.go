@@ -1,6 +1,7 @@
 package frame
 
 import (
+	stderrors "errors"
 	"io"
 	"iter"
 	"math"
@@ -9,8 +10,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ReadFixed(r io.Reader) ([]byte, error) {
+func ReadFixed(r io.Reader) ([]byte, int, error) {
 	return readFixedBytes(r)
+}
+
+func EnsureReadFixed(r io.Reader) ([]byte, int, error) {
+	switch b, n, err := readFixedBytes(r); {
+	case n < 1 && errors.Is(err, io.EOF):
+		return b, n, ErrInsufficientRead
+	default:
+		return b, n, err
+	}
 }
 
 func NewFixedReader(r io.Reader) (io.Reader, error) {
@@ -47,19 +57,26 @@ func WriteFixed(w io.Writer, b []byte) error {
 }
 
 func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {
-	var n uint32
+	var size uint32
 
-	switch size, err := ReadSize(r, &n); {
-	case err != nil:
+	switch n, err := ReadSize(r, &size); {
+	case err != nil && !errors.Is(err, io.EOF):
 		return 0, nil, err
-	case size < 1, n < 1:
-		return 0, func(func([]byte, error) bool) {}, nil
+	case n < 1 && errors.Is(err, io.EOF):
+		return 0, nil, err
+	case size < 1:
+		return 0, func(func([]byte, error) bool) {}, err
 	}
 
-	return n, func(yield func([]byte, error) bool) {
-			for i := uint32(0); i < n; i++ {
-				b, err := ReadFixed(r)
-				if !yield(b, err) {
+	return size, func(yield func([]byte, error) bool) {
+			for i := uint32(0); i < size; i++ {
+				b, n, err := ReadFixed(r)
+
+				if n < 1 && errors.Is(err, io.EOF) {
+					err = ErrInsufficientRead
+				}
+
+				if !yield(b, err) || err != nil {
 					return
 				}
 			}
@@ -93,35 +110,44 @@ func WriteFixedSlice(w io.Writer, n uint32, seq iter.Seq[[]byte]) error {
 	return nil
 }
 
-func ReadFixedValue[T any](r io.Reader, i *T, f func([]byte) (T, error)) error {
-	b, err := ReadFixed(r)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
-
-	switch v, ferr := f(b); {
-	case ferr != nil:
-		return ferr
+func ReadFixedValue[T any](r io.Reader, i *T, f func([]byte) (T, error)) (int, error) {
+	switch b, n, err := ReadFixed(r); {
+	case err != nil && !errors.Is(err, io.EOF),
+		n < 1 && errors.Is(err, io.EOF):
+		return n, err
 	default:
-		if serr := setValue(v, i); serr != nil {
-			return serr
+		switch v, ferr := f(b); {
+		case ferr != nil:
+			return n, stderrors.Join(err, ferr)
+		default:
+			return n, stderrors.Join(err, setValue(v, i))
 		}
+	}
+}
 
-		return err
+func EnsureReadFixedValue[T any](r io.Reader, i *T, f func([]byte) (T, error)) (int, error) {
+	switch b, n, err := EnsureReadFixed(r); {
+	case err != nil && !errors.Is(err, io.EOF):
+		return n, err
+	default:
+		switch v, ferr := f(b); {
+		case ferr != nil:
+			return n, stderrors.Join(err, ferr)
+		default:
+			return n, stderrors.Join(err, setValue(v, i))
+		}
 	}
 }
 
 func ReadFixedSliceValue[T any](r io.Reader, i *[]T, f func([]byte) (T, error)) error {
-	switch n, seq, err := ReadFixedSlice(r); {
-	case err != nil:
+	switch size, seq, err := ReadFixedSlice(r); {
+	case err != nil, size < 1:
 		return err
-	case n < 1:
-		return nil
 	default:
-		l := make([]T, 0, n)
+		l := make([]T, 0, size)
 
 		for b, err := range seq {
-			if err != nil {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}
 

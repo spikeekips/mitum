@@ -677,7 +677,7 @@ func (t *testRequestSubStreams) TestError() {
 			stream, err := localConn.AcceptStream(ctx)
 			t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-			_, err = frame.ReadFixed(stream)
+			_, _, err = frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read")
 
 			err = frame.WriteSize(stream, uint32(size))
@@ -724,7 +724,7 @@ func (t *testRequestSubStreams) TestError() {
 			stream, err := localConn.AcceptStream(ctx)
 			t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-			_, err = frame.ReadFixed(stream)
+			_, _, err = frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read")
 			t.IfErrPanicf(stream.Close(), "local stream: close")
 
@@ -777,7 +777,7 @@ func (t *testRequestSubStreams) openSubStreams(
 			stream.CancelRead(0)
 		}()
 
-		_, err = frame.ReadFixed(stream)
+		_, _, err = frame.ReadFixed(stream)
 		t.IfErrPanicf(err, "local stream: read")
 
 		close(localStreamCh)
@@ -887,12 +887,12 @@ func (t *testRequestSubStreams) TestOpenSubStreams() {
 			stream, err := localConn.AcceptStream(ctx)
 			t.PrintIfErrPanic(err, "local conn: AcceptStream")
 
-			_, err = frame.ReadFixed(stream)
+			_, _, err = frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read")
 
 			close(localStreamCh)
 
-			b, err := frame.ReadFixed(stream)
+			b, _, err := frame.ReadFixed(stream)
 			t.IfErrPanicf(err, "local stream: read id")
 			id := string(b)
 
@@ -962,7 +962,7 @@ func (t *testAcceptOpenSubStreams) TestZeroMaxSize() {
 		t.PrintIfErrPanic(err, "local conn: AcceptStream")
 		defer stream.Close()
 
-		_, err = frame.ReadFixed(stream)
+		_, _, err = frame.ReadFixed(stream)
 		t.IfErrPanicf(err, "local stream: read")
 
 		close(localStreamCh)
