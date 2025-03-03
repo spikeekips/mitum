@@ -481,38 +481,23 @@ func newFuncCollectXmergedOps(
 				ops.Close()
 			}()
 
-			var addM, addU dutil.AppendSliceAddFunc[uint64]
-			var doneM, doneU dutil.OutFunc[[]uint64]
-
-			switch a, d, err := dutil.NewAppendSlice[uint64](mapSize, mapSize); {
-			case err != nil:
-				return nil, nil, err
-			default:
-				addM, doneM = a, d
-			}
-
-			switch a, d, err := dutil.NewAppendSlice[uint64](mapSize, mapSize); {
-			case err != nil:
-				return nil, nil, err
-			default:
-				addU, doneU = a, d
-			}
+			merged, unmerged := make([]uint64, 0, mapSize), make([]uint64, 0, mapSize)
 
 			for opindex, i := range ops.Seq2 {
 				switch {
 				case i == 0:
 				case i > 0:
 					if x, _ := baseMergedOps.Value(opindex); x != mergeFlag {
-						addM(opindex)
+						merged = append(merged, opindex)
 					}
 				default:
 					if x, _ := baseMergedOps.Value(opindex); x != unmergeFlag {
-						addU(opindex)
+						unmerged = append(unmerged, opindex)
 					}
 				}
 			}
 
-			return doneM(), doneU(), nil
+			return merged, unmerged, nil
 		},
 		nil
 }
