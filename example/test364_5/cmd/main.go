@@ -29,8 +29,6 @@ var flagDefaults = kong.Vars{
 	"log_force_color": "false",
 	"manager_bind":    "0.0.0.0:5555",
 	"worker_bind":     "0.0.0.0:5600",
-	"ops_share":       "1",
-	"states_share":    "1",
 }
 
 func main() {

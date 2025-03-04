@@ -21,6 +21,7 @@ import (
 
 var handlerPrefixesString = map[string]struct{}{
 	"manager_start_worker": {},
+	"manager_stop_worker":  {},
 }
 
 var workHandlerPrefixesString = map[string]struct{}{
@@ -33,7 +34,6 @@ var workHandlerPrefixesString = map[string]struct{}{
 	"manager_worker_close":       {},
 	"manager_cancel_worker":      {},
 	"manager_wait_worker_closed": {},
-	"manager_stop_worker":        {},
 }
 
 func requestHandlerStartWorker(

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -26,13 +27,17 @@ var (
 	defaultMaxSubStreamsSize uint16 = 1 << 8
 )
 
-type requestWorkerFunc = func(context.Context, string /* worker */, *tls.Config, *quic.Config, quicstream.StreamHandler) (context.Context, error)
+type requestWorkerFunc = func(context.Context,
+	string, /* worker */
+	*tls.Config, *quic.Config, quicstream.StreamHandler) (context.Context, error)
 
 type managerCommand struct {
-	Bind              string   `default:"${manager_bind}" help:"by default, ${manager_bind}"`
-	Workers           []string `placeholder:"UDPAddr"`
-	OpsShare          uint64   `default:"${ops_share}" help:"by default, ${ops_share}"`
-	StatesShare       uint64   `default:"${states_share}" help:"by default, ${states_share}"`
+	Bind        string   `default:"${manager_bind}" help:"by default, ${manager_bind}"`
+	Ops         uint64   `arg:"" help:"number of operations"`
+	OpsShare    uint64   `arg:"" help:"ops share"`
+	StatesShare uint64   `arg:"" help:"states share"`
+	Workers     []string `arg:"" default:""`
+
 	ctx               context.Context
 	log               *zerolog.Logger
 	closefs           []dutil.ErrorFunc
@@ -48,6 +53,8 @@ type managerCommand struct {
 	managerOptions    *dop5.ManagerOptions
 	workers           map[string]*net.UDPAddr
 	openSubStreams    quicstream.NewOpenSubStreamsFunc
+	privs             []base.Privatekey
+	pubs              []base.Publickey
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -64,6 +71,10 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 
 	cmd.ctx = ctx
 
+	if err := cmd.prepare(); err != nil {
+		return err
+	}
+
 	if err := cmd.newQuicStream(cmd.ctx); err != nil {
 		return err
 	}
@@ -71,6 +82,110 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 	cmd.managerOptions = dop5.NewManagerOptions()
 
 	return cmd.process()
+}
+
+func (cmd *managerCommand) prepare() error {
+	switch {
+	case cmd.Ops < 1:
+		return errors.Errorf("zero <ops>")
+	case len(cmd.Workers) < 1:
+		return errors.Errorf("empty workers")
+	}
+
+	switch {
+	case cmd.OpsShare < 1:
+		return errors.Errorf("zero <ops share>")
+	case cmd.OpsShare < uint64(len(cmd.Workers)):
+		cmd.OpsShare = uint64(len(cmd.Workers))
+	}
+
+	switch {
+	case cmd.StatesShare < 1:
+		return errors.Errorf("zero <states share>")
+	case cmd.StatesShare < uint64(len(cmd.Workers)):
+		cmd.StatesShare = uint64(len(cmd.Workers))
+	}
+
+	cmd.workers = map[string]*net.UDPAddr{}
+
+	for s := range slices.Values(cmd.Workers) {
+		switch addr, err := net.ResolveUDPAddr("udp", s); {
+		case err != nil:
+			return err
+		case addr.Port < 1:
+			return errors.Errorf("invalid worker addr, %q", s)
+		default:
+			cmd.workers[s] = addr
+		}
+	}
+
+	cmd.log.Debug().
+		Interface("addrs", cmd.workers).
+		Msg("workers")
+
+	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
+	defer cancel()
+
+	if err := cmd.preparePrivs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cmd *managerCommand) preparePrivs() error {
+	cmd.privs = make([]base.Privatekey, cmd.Ops)
+	cmd.pubs = make([]base.Publickey, cmd.Ops)
+
+	for i := range cmd.Ops {
+		priv, err := base.NewMPrivatekeyFromSeed(
+			valuehash.NewSHA256([]byte(fmt.Sprintf("%d", i))).String(),
+		)
+		if err != nil {
+			return err
+		}
+
+		cmd.privs[i] = priv
+		cmd.pubs[i] = priv.Publickey()
+	}
+
+	return nil
+}
+
+func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash) {
+	facts := make([]dop5.OperationFact, cmd.Ops)
+	ophs := make([][2]util.Hash, cmd.Ops)
+
+	for i := range cmd.Ops {
+		fact := dop5.NewAccountOpFact(
+			[]byte("c"),
+			1,
+			nil,
+			cmd.pubs[i],
+		)
+		facts[i] = fact
+		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+	}
+
+	return facts, ophs
+}
+
+func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash) {
+	facts := make([]dop5.OperationFact, cmd.Ops)
+	ophs := make([][2]util.Hash, cmd.Ops)
+
+	for i := range cmd.Ops {
+		fact := dop5.NewAccountOpFact(
+			[]byte("d"),
+			1,
+			cmd.pubs[i],
+			cmd.pubs[cmd.Ops%uint64(i+1)],
+		)
+		facts[i] = fact
+		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+	}
+
+	return facts, ophs
 }
 
 func (cmd *managerCommand) process() error {
@@ -86,27 +201,50 @@ func (cmd *managerCommand) process() error {
 
 	var prevHash util.Hash
 
-	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, nil); {
+	switch h, err := cmd.process1st(); {
 	case err != nil:
 		return err
 	default:
-		if err := w(); err != nil {
-			return err
-		}
-
 		prevHash = h
 	}
 
-	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, nil); {
-	case err != nil:
+	if err := cmd.process2nd(prevHash); err != nil {
 		return err
-	default:
-		if err := w(); err != nil {
-			return err
-		}
 	}
 
 	return nil
+}
+
+func (cmd *managerCommand) process1st() (util.Hash, error) {
+	facts, ophs := cmd.prepareCreateOps()
+
+	// FIXME save facts
+	_ = facts
+
+	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, ophs); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := w(); err != nil {
+			return nil, err
+		}
+
+		return h, nil
+	}
+}
+
+func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
+	facts, ophs := cmd.prepareTransferOps()
+
+	// FIXME save facts
+	_ = facts
+
+	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, ophs); {
+	case err != nil:
+		return err
+	default:
+		return w()
+	}
 }
 
 func (cmd *managerCommand) processHeight(
@@ -257,17 +395,6 @@ func (cmd *managerCommand) startManager(
 func (cmd *managerCommand) newQuicStream(
 	ctx context.Context,
 ) error {
-	cmd.workers = map[string]*net.UDPAddr{}
-
-	for s := range slices.Values(cmd.Workers) {
-		switch addr, err := net.ResolveUDPAddr("udp", s); {
-		case err != nil:
-			return err
-		default:
-			cmd.workers[s] = addr
-		}
-	}
-
 	var pconn net.PacketConn
 
 	switch bind, err := net.ResolveUDPAddr("udp", cmd.Bind); {

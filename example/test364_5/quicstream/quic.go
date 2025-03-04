@@ -31,6 +31,7 @@ func DefaultQuicConfig() *quic.Config {
 	return &quic.Config{
 		MaxIncomingStreams:    1 << 14,
 		MaxIncomingUniStreams: 1 << 14,
+		MaxIdleTimeout:        time.Second,
 		KeepAlivePeriod:       time.Second,
 		Allow0RTT:             true,
 	}
