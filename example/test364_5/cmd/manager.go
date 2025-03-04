@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
@@ -33,6 +34,7 @@ type requestWorkerFunc = func(context.Context,
 
 type managerCommand struct {
 	Bind        string   `default:"${manager_bind}" help:"by default, ${manager_bind}"`
+	Redis       string   `default:"127.0.0.1:6379"`
 	Ops         uint64   `arg:"" help:"number of operations"`
 	OpsShare    uint64   `arg:"" help:"ops share"`
 	StatesShare uint64   `arg:"" help:"states share"`
@@ -55,6 +57,7 @@ type managerCommand struct {
 	openSubStreams    quicstream.NewOpenSubStreamsFunc
 	privs             []base.Privatekey
 	pubs              []base.Publickey
+	redis             *redis.Client
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -123,8 +126,16 @@ func (cmd *managerCommand) prepare() error {
 		Interface("addrs", cmd.workers).
 		Msg("workers")
 
+	cmd.redis = redis.NewClient(&redis.Options{
+		Addr: cmd.Redis,
+	})
+
 	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
 	defer cancel()
+
+	if _, err := cmd.redis.Ping(ctx).Result(); err != nil {
+		return errors.WithMessage(err, "redis")
+	}
 
 	if err := cmd.preparePrivs(); err != nil {
 		return err
