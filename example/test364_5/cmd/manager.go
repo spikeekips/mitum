@@ -21,22 +21,6 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var handlerPrefixesString = map[string]struct{}{
-	"manager_start_worker": {},
-}
-
-var workHandlerPrefixesString = map[string]struct{}{
-	"manager_start_worker":       {},
-	"manager_send_ops":           {},
-	"manager_worker_owners":      {},
-	"manager_worker_result":      {},
-	"manager_worker_error":       {},
-	"manager_worker_insert_done": {},
-	"manager_worker_close":       {},
-	"manager_cancel_worker":      {},
-	"manager_worker_closed":      {},
-}
-
 var (
 	defaultSubStreamItems    uint64 = 1 << 9
 	defaultMaxSubStreamsSize uint16 = 1 << 8
@@ -56,6 +40,7 @@ type managerCommand struct {
 	quicConfig        *quic.Config
 	dialf             quicstream.DialCloseFunc
 	request           func(prefix string) quicstream.RequestFunc
+	requestWorker     func(prefix string) requestWorkerFunc
 	requestWork       func(workID, prefix string) quicstream.RequestFunc
 	requestWorkWorker func(workID, prefix string) requestWorkerFunc
 	mustAddHandler    func(string, quicstream.StreamHandler)
@@ -84,6 +69,20 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 	}
 
 	cmd.managerOptions = dop5.NewManagerOptions()
+
+	return cmd.process()
+}
+
+func (cmd *managerCommand) process() error {
+	defer func() {
+		requestStopWorker := cmd.requestWorker("manager_stop_worker")
+
+		cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
+			_, err := requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
+
+			return err
+		})
+	}()
 
 	var prevHash util.Hash
 
@@ -174,24 +173,9 @@ func (cmd *managerCommand) startManager(
 
 	mustaddHandler("manager_worker_error", acceptHandlerWorkerErr(workerErr))
 
-	workersClosedDone, workersClosedWait := dutil.NewContextDone(ctx)
-	closedWorkers := dutil.NewSingleLockedMap[string, struct{}]()
-
-	mustaddHandler("manager_worker_closed", acceptHandlerWorkerClosed(func(worker string) error {
-		if closedWorkers.SetValue(worker, struct{}{}) {
-			if closedWorkers.Len() == len(cmd.Workers) {
-				_ = workersClosedDone(nil)
-			}
-		}
-
-		return nil
-	}))
-
 	closeManager := func() error {
 		cmd.removeHandler([]byte(workID))
 		closef()
-		closedWorkers.Close()
-		workersClosedDone(context.Canceled)
 
 		return nil
 	}
@@ -238,9 +222,15 @@ func (cmd *managerCommand) startManager(
 			return manifest, nil
 		},
 		func(ctx context.Context, worker string) error {
-			_, err := requestWorkerClose(ctx, worker, nil, nil, requestHandlerWorkerClose())
+			var cerr error
 
-			return err
+			_, err := requestWorkerClose(ctx, worker, nil, nil, requestHandlerWorkerClose(func(err error) error {
+				cerr = err
+
+				return nil
+			}))
+
+			return stderrors.Join(cerr, err)
 		},
 	); err != nil {
 		_ = closeManager()
@@ -248,12 +238,18 @@ func (cmd *managerCommand) startManager(
 		return nil, nil, err
 	}
 
+	requestWaitWorkerClosed := cmd.requestWorkWorker(workID, "manager_wait_worker_closed")
+
 	return manifestHash,
 		func() error {
-			// NOTE collect finished from workers
-			gerr := workersClosedWait()
+			return stderrors.Join(
+				cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
+					_, err := requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
 
-			return stderrors.Join(gerr, closeManager())
+					return err
+				}),
+				closeManager(),
+			)
 		},
 		nil
 }
@@ -422,6 +418,19 @@ func (cmd *managerCommand) newDialFunc() error {
 		}
 	}
 
+	cmd.requestWorker = func(prefix string) requestWorkerFunc {
+		request := cmd.request(prefix)
+
+		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+			addr, err := cmd.workerAddr(worker)
+			if err != nil {
+				return ctx, err
+			}
+
+			return request(ctx, addr, tlsConfig, quicConfig, h)
+		}
+	}
+
 	cmd.requestWorkWorker = func(workID, prefix string) requestWorkerFunc {
 		request := cmd.requestWork(workID, prefix)
 
@@ -525,4 +534,23 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 			return requestWait()
 		}, nil
 	}
+}
+
+func (cmd *managerCommand) requestWorkers(
+	ctx context.Context,
+	job dutil.In2ErrorFunc[context.Context, string],
+) error {
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(ctx, uint64(len(cmd.Workers)))
+
+	for worker := range slices.Values(cmd.Workers) {
+		if err := newJob(func(ctx context.Context) error {
+			return job(ctx, worker)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
 }
