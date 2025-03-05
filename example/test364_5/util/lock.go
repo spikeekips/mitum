@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	ErrLockedSetIgnore = util.NewIDError("locked ignore")
-	ErrLockedMapClosed = util.NewIDError("locked map closed")
+	ErrLockedSetIgnore            = util.NewIDError("locked ignore")
+	ErrLockedMapClosed            = util.NewIDError("locked map closed")
+	ErrSetOnlyLockedMapNotAllowed = util.NewIDError("set only locked map")
 )
 
 type LockedMap[K comparable /* key */, V any /* value */] interface { //nolint:interfacebloat //...
@@ -520,7 +521,7 @@ func (l *ShardedLockedMap[K, V]) closef() {
 		s.Close()
 	}
 
-	ClearSlice(l.sharded)
+	ClearSlice(&l.sharded)
 	l.sharded = nil
 	atomic.StoreInt64(&l.length, 0)
 }
@@ -899,7 +900,7 @@ func (l *MultiKeysLockedMap[K, V]) lock(keys []K) (_ LockedMap[K, V], unlock fun
 			close(chs[i])
 		}
 
-		chs = ClearSlice(chs)
+		ClearSlice(&chs)
 	}, nil
 }
 
@@ -1099,6 +1100,235 @@ func (l *LimitedLockedMap[K, V]) allowKey(k K) (bool, error) {
 	}
 
 	return l.allowKeyf(k), nil
+}
+
+type SetOnlyLockedMap[K comparable, V any] struct {
+	LockedMap[K, V]
+	keys []K
+	grow uint64
+	l    sync.RWMutex
+}
+
+func NewSetOnlyLockedMap[K comparable, V any](l LockedMap[K, V], grow uint64) *SetOnlyLockedMap[K, V] {
+	return &SetOnlyLockedMap[K, V]{
+		LockedMap: l,
+		keys:      make([]K, 0, grow),
+		grow:      grow,
+	}
+}
+
+func (l *SetOnlyLockedMap[K, V]) ResetKeys() {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	switch {
+	case l.Len() < 1 && len(l.keys) < 1:
+		return
+	case l.Len() < 1:
+		l.keys = make([]K, 0, l.grow)
+
+		return
+	}
+
+	l.keys = make([]K, l.Len(), uint64(l.Len())+l.grow)
+
+	var i int
+	for k := range l.LockedMap.Seq2 {
+		l.keys[i] = k
+		i++
+	}
+}
+
+func (l *SetOnlyLockedMap[K, V]) Empty() {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	l.LockedMap.Empty()
+	l.keys = make([]K, 0, l.grow)
+}
+
+func (l *SetOnlyLockedMap[K, V]) Close() {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	l.LockedMap.Close()
+	ClearSlice(&l.keys)
+}
+
+func (l *SetOnlyLockedMap[K, V]) CloseFunc(f func()) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	l.LockedMap.CloseFunc(f)
+	ClearSlice(&l.keys)
+}
+
+func (l *SetOnlyLockedMap[K, V]) SetValue(k K, v V) (created bool) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if created = l.LockedMap.SetValue(k, v); created {
+		l.setKey(k)
+	}
+
+	return created
+}
+
+func (l *SetOnlyLockedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (bool, error) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	created, err := l.LockedMap.Set(k, f)
+	if err == nil && created {
+		l.setKey(k)
+	}
+
+	return created, err
+}
+
+func (l *SetOnlyLockedMap[K, V]) GetOrCreate(k K, create func() (V, error), get func(V, bool) error) error {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.LockedMap.GetOrCreate(k, create,
+		func(v V, created bool) error {
+			if created {
+				l.setKey(k)
+			}
+
+			return get(v, created)
+		})
+}
+
+func (l *SetOnlyLockedMap[K, V]) RemoveValues(...K) int {
+	return 0
+}
+
+func (l *SetOnlyLockedMap[K, V]) GetOrRemove(k K, f func(V, bool) (bool, error)) error {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.LockedMap.GetOrRemove(
+		k,
+		func(prev V, found bool) (bool, error) {
+			if found {
+				return false, ErrSetOnlyLockedMapNotAllowed
+			}
+
+			return f(prev, found)
+		},
+	)
+}
+
+func (l *SetOnlyLockedMap[K, V]) SetOrRemove(k K, f func(V, bool) (V, bool, error)) (bool, bool, error) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.LockedMap.SetOrRemove(
+		k,
+		func(prev V, found bool) (V, bool, error) {
+			if found {
+				return prev, false, ErrSetOnlyLockedMapNotAllowed
+			}
+
+			return f(prev, found)
+		},
+	)
+}
+
+func (l *SetOnlyLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	return l.LockedMap.Remove(
+		k,
+		func(prev V, found bool) error {
+			if found {
+				return ErrSetOnlyLockedMapNotAllowed
+			}
+
+			return f(prev, found)
+		},
+	)
+}
+
+func (l *SetOnlyLockedMap[K, V]) Lock(f func(
+	get func(K) (V, bool),
+	set func(K, V) bool,
+	remove func(K) bool,
+	traverse iter.Seq2[K, V],
+) error,
+) error {
+	return l.LockedMap.Lock(func(
+		get func(K) (V, bool),
+		set func(K, V) bool,
+		remove func(K) bool,
+		traverse iter.Seq2[K, V],
+	) error {
+		l.l.Lock()
+		defer l.l.Unlock()
+
+		return f(
+			get,
+			func(k K, v V) bool {
+				created := set(k, v)
+				if created {
+					l.setKey(k)
+				}
+
+				return created
+			},
+			func(K) bool { return false },
+			traverse,
+		)
+	})
+}
+
+func (l *SetOnlyLockedMap[K, V]) NSeq2(n uint64) iter.Seq[iter.Seq2[K, V]] {
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	size := uint64(len(l.keys))
+
+	return func(yield func(iter.Seq2[K, V]) bool) {
+		if n < 1 || size < 1 {
+			return
+		}
+
+		var s uint64
+
+		for {
+			e := s + n
+			if e > size {
+				e = size
+			}
+
+			if !yield(func(yield2 func(K, V) bool) {
+				for k := range slices.Values(l.keys[s:e]) {
+					v, found := l.LockedMap.Value(k)
+					if !found {
+						continue
+					}
+
+					if !yield2(k, v) {
+						return
+					}
+				}
+			}) {
+				return
+			}
+
+			if e == size {
+				return
+			}
+
+			s = e
+		}
+	}
+}
+
+func (l *SetOnlyLockedMap[K, V]) setKey(k K) {
+	l.keys = append(l.keys, k)
 }
 
 func defaultLockedMapIndex[K comparable](k K, stringIndexer func(s string) uint64) uint64 {

@@ -1528,3 +1528,486 @@ func (t *testMultiKeysLockedMap) TestDataRace() {
 func TestMultiKeysLockedMap(t *testing.T) {
 	suite.Run(t, new(testMultiKeysLockedMap))
 }
+
+type testSetOnlyLockedMap struct {
+	BaseSuite
+}
+
+func (t *testSetOnlyLockedMap) newMap(grow uint64) *SetOnlyLockedMap[int, int] {
+	l := NewSingleLockedMap[int, int]()
+
+	return NewSetOnlyLockedMap(l, grow)
+}
+
+func (t *testSetOnlyLockedMap) TestClose() {
+	t.Run("Close()", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		l.Close()
+		t.Empty(l.keys)
+	})
+
+	t.Run("CloseFunc()", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		l.CloseFunc(func() {})
+		t.Empty(l.keys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestEmpty() {
+	l := t.newMap(1)
+	for i := range 3 {
+		l.SetValue(i, i)
+	}
+
+	l.Empty()
+	t.Empty(l.keys)
+}
+
+func (t *testSetOnlyLockedMap) TestSetValue() {
+	t.Run("ok", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("duplicate", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+		for i := range l.Len() {
+			l.SetValue(i, i)
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestSet() {
+	t.Run("ok", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.Set(i, func(int, bool) (int, error) { return i, nil })
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("duplicate", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.Set(i, func(int, bool) (int, error) { return i, nil })
+		}
+		for i := range l.Len() {
+			l.Set(i, func(int, bool) (int, error) { return i, nil })
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestGetOrCreate() {
+	l := t.newMap(1)
+	for i := range 3 {
+		l.SetValue(i, i)
+	}
+
+	t.Run("get", func() {
+		for i := range 3 {
+			l.GetOrCreate(
+				i,
+				func() (int, error) { return i + 1, nil },
+				func(j int, created bool) error {
+					t.False(created)
+					t.Equal(i, j)
+
+					return nil
+				},
+			)
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("create", func() {
+		for i := range 3 {
+			l.GetOrCreate(
+				i+3,
+				func() (int, error) { return i + 3, nil },
+				func(j int, created bool) error {
+					t.True(created)
+					t.Equal(i+3, j)
+
+					return nil
+				},
+			)
+		}
+
+		t.Equal([]int{0, 1, 2, 3, 4, 5}, l.keys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestRemoveValues() {
+	l := t.newMap(1)
+	for i := range 3 {
+		l.SetValue(i, i)
+	}
+
+	t.Equal(0, l.RemoveValues(0, 1, 2))
+	t.Equal([]int{0, 1, 2}, l.keys)
+}
+
+func (t *testSetOnlyLockedMap) TestRemove() {
+	t.Run("ok", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		for i := range l.Len() {
+			removed, err := l.Remove(i, func(int, bool) error {
+				return nil
+			})
+			t.ErrorIs(err, ErrSetOnlyLockedMapNotAllowed)
+			t.False(removed)
+		}
+	})
+
+	t.Run("unknown key", func() {
+		l := t.newMap(1)
+
+		for i := range 3 {
+			removed, err := l.Remove(i, func(int, bool) error {
+				return nil
+			})
+			t.NoError(err)
+			t.False(removed)
+		}
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestLock() {
+	l := t.newMap(1)
+	for i := range 3 {
+		l.SetValue(i, i)
+	}
+
+	t.Run("get", func() {
+		for i := range l.Len() {
+			l.Lock(func(
+				get func(int) (int, bool),
+				_ func(int, int) bool,
+				_ func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				v, found := get(i)
+				t.True(found)
+				t.Equal(i, v)
+
+				return nil
+			})
+		}
+
+		for i := range l.Len() {
+			l.Lock(func(
+				get func(int) (int, bool),
+				_ func(int, int) bool,
+				_ func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				v, found := get(i + 3)
+				t.False(found)
+				t.Zero(v)
+
+				return nil
+			})
+		}
+	})
+
+	t.Run("set; duplicate", func() {
+		for i := range l.Len() {
+			l.Lock(func(
+				_ func(int) (int, bool),
+				set func(int, int) bool,
+				_ func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				created := set(i, i+3)
+				t.False(created)
+
+				return nil
+			})
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("set; new", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		for i := range l.Len() {
+			l.Lock(func(
+				_ func(int) (int, bool),
+				set func(int, int) bool,
+				_ func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				created := set(i+3, i+3)
+				t.True(created)
+
+				return nil
+			})
+		}
+
+		t.Equal([]int{0, 1, 2, 3, 4, 5}, l.keys)
+	})
+
+	t.Run("remove", func() {
+		for i := range l.Len() {
+			l.Lock(func(
+				_ func(int) (int, bool),
+				_ func(int, int) bool,
+				remove func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				removed := remove(i)
+				t.False(removed)
+
+				return nil
+			})
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("remove unknown", func() {
+		for i := range l.Len() {
+			l.Lock(func(
+				_ func(int) (int, bool),
+				_ func(int, int) bool,
+				remove func(int) bool,
+				_ iter.Seq2[int, int],
+			) error {
+				removed := remove(i + 3)
+				t.False(removed)
+
+				return nil
+			})
+		}
+
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestNSeq2() {
+	t.Run("emty map", func() {
+		l := t.newMap(1)
+
+		var called bool
+		for range l.NSeq2(3) {
+			called = true
+		}
+
+		t.False(called)
+	})
+
+	t.Run("zero n", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		var called bool
+		for range l.NSeq2(0) {
+			called = true
+		}
+
+		t.False(called)
+	})
+
+	t.Run("n == 1", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		var nseq int
+		for range l.NSeq2(1) {
+			nseq++
+		}
+		t.Equal(l.Len(), nseq)
+
+		keys := slices.Collect(maps.Keys(l.Map()))
+		rkeys := make([]int, 0, l.Len())
+
+		for seq := range l.NSeq2(1) {
+			for k, v := range seq {
+				j, found := l.Value(k)
+				t.True(found)
+				t.Equal(j, v)
+
+				rkeys = append(rkeys, k)
+			}
+		}
+
+		slices.Sort(keys)
+		slices.Sort(rkeys)
+		t.Equal(keys, rkeys)
+	})
+
+	t.Run("n == len", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		var nseq int
+		for range l.NSeq2(uint64(l.Len())) {
+			nseq++
+		}
+		t.Equal(1, nseq)
+
+		keys := slices.Collect(maps.Keys(l.Map()))
+		rkeys := make([]int, 0, l.Len())
+
+		for seq := range l.NSeq2(uint64(l.Len())) {
+			for k, v := range seq {
+				j, found := l.Value(k)
+				t.True(found)
+				t.Equal(j, v)
+
+				rkeys = append(rkeys, k)
+			}
+		}
+
+		slices.Sort(keys)
+		slices.Sort(rkeys)
+		t.Equal(keys, rkeys)
+	})
+
+	t.Run("n > len", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		var nseq int
+		for range l.NSeq2(uint64(l.Len() + 1)) {
+			nseq++
+		}
+		t.Equal(1, nseq)
+
+		keys := slices.Collect(maps.Keys(l.Map()))
+		rkeys := make([]int, 0, l.Len())
+
+		for seq := range l.NSeq2(uint64(l.Len() + 1)) {
+			for k, v := range seq {
+				j, found := l.Value(k)
+				t.True(found)
+				t.Equal(j, v)
+
+				rkeys = append(rkeys, k)
+			}
+		}
+
+		slices.Sort(keys)
+		slices.Sort(rkeys)
+		t.Equal(keys, rkeys)
+	})
+
+	t.Run("value not found", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		t.Equal(1, l.LockedMap.RemoveValues(1))
+		t.Equal([]int{0, 1, 2}, l.keys)
+
+		keys := slices.Collect(maps.Keys(l.Map()))
+		rkeys := make([]int, 0, l.Len())
+
+		for seq := range l.NSeq2(1) {
+			for k, v := range seq {
+				j, found := l.Value(k)
+				t.True(found)
+				t.Equal(j, v)
+
+				rkeys = append(rkeys, k)
+			}
+		}
+
+		slices.Sort(keys)
+		slices.Sort(rkeys)
+		t.Equal(keys, rkeys)
+	})
+}
+
+func (t *testSetOnlyLockedMap) TestResetKeys() {
+	t.Run("empty", func() {
+		l := t.newMap(1)
+
+		l.ResetKeys()
+		t.Empty(l.keys)
+	})
+
+	t.Run("not empty; exact keys", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		l.ResetKeys()
+
+		slices.Sort(l.keys)
+		t.Equal([]int{0, 1, 2}, l.keys)
+	})
+
+	t.Run("keys missing", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		t.Equal(2, l.LockedMap.RemoveValues(1, 0))
+		t.Equal([]int{0, 1, 2}, l.keys)
+
+		l.ResetKeys()
+
+		t.Equal([]int{2}, l.keys)
+	})
+
+	t.Run("keys added", func() {
+		l := t.newMap(1)
+		for i := range 3 {
+			l.SetValue(i, i)
+		}
+
+		l.LockedMap.SetValue(3, 3)
+		l.LockedMap.SetValue(4, 4)
+		l.LockedMap.SetValue(5, 5)
+		t.Equal([]int{0, 1, 2}, l.keys)
+
+		l.ResetKeys()
+
+		t.Equal([]int{0, 1, 2, 3, 4, 5}, l.keys)
+	})
+}
+
+func TestSetOnlyLockedMap(t *testing.T) {
+	suite.Run(t, new(testSetOnlyLockedMap))
+}
