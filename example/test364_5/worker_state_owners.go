@@ -258,9 +258,7 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 			if f != nil {
 				owners := doneOwners()
 
-				defer func() {
-					owners = dutil.ClearSlice(owners)
-				}()
+				defer dutil.ClearSlice(&owners)
 
 				for worker := range slices.Values(owners) {
 					var subws, affected []string

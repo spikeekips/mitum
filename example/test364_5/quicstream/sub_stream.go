@@ -121,7 +121,7 @@ func AcceptSubStreams(
 			_ = jobWait(nil)
 
 			streams := done()
-			defer dutil.ClearSlice(streams)
+			defer dutil.ClearSlice(&streams)
 
 			if err := frame.WriteSize(controlStream, uint32(len(streams))); err != nil {
 				return err

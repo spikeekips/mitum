@@ -241,9 +241,15 @@ func NewLockComparableUniqueAppendSlice[T comparable](size, grow uint64) (
 	return NewLockUniqueAppendSlice[T, T](size, grow, func(i T) T { return i })
 }
 
-func ClearSlice[T any](s []T) []T {
-	clear(s)
-	return s[:0]
+func ClearSlice[T any](s *[]T) {
+	if s == nil {
+		return
+	}
+
+	i := *s
+	clear(i)
+
+	*s = make([]T, 0, 0)
 }
 
 func SeqAll[T any](s iter.Seq[T]) iter.Seq2[int, T] {

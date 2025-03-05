@@ -209,7 +209,7 @@ func cleanDialPool(pool dutil.LockedMap[string, quic.Connection]) {
 	}
 
 	saddrs := make([]string, 0, pool.Len())
-	defer dutil.ClearSlice(saddrs)
+	defer dutil.ClearSlice(&saddrs)
 
 	for saddr, conn := range pool.Seq2 {
 		if conn.Context().Err() != nil {

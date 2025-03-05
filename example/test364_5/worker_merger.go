@@ -278,8 +278,8 @@ func newFuncWorkerMergerWait(
 
 			s := slices.Concat(localUnmerged, unmerged)
 			defer func() {
-				unmerged = dutil.ClearSlice(unmerged)
-				s = dutil.ClearSlice(s)
+				dutil.ClearSlice(&unmerged)
+				dutil.ClearSlice(&s)
 			}()
 
 			slices.Sort(s)
