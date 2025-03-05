@@ -226,7 +226,7 @@ func newFuncWorker(
 			broadcastUnmerged workerBroadcastUnmerged,
 			reportResult workerReportResultFunc,
 		) error {
-			var savedStates dutil.LockedMap[string, base.State]
+			var savedStates *dutil.SetOnlyLockedMap[string, base.State]
 
 			defer func() {
 				_ = wctxCancel(nil)
@@ -254,7 +254,7 @@ func newFuncWorker(
 						case err != nil:
 							return err
 						default:
-							savedStates = i
+							savedStates = dutil.NewSetOnlyLockedMap(i, 1<<9)
 						}
 					}
 
