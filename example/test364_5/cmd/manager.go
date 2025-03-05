@@ -190,6 +190,8 @@ func (cmd *managerCommand) preparePrivs() error {
 }
 
 func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash) {
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create ops created")()
+
 	facts := make([]dop5.OperationFact, cmd.Ops)
 	ophs := make([][2]util.Hash, cmd.Ops)
 
@@ -204,12 +206,12 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
 
-	cmd.log.Debug().Int("n", len(facts)).Msg("create ops created")
-
 	return facts, ophs
 }
 
 func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash) {
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "transfer ops created")()
+
 	facts := make([]dop5.OperationFact, cmd.Ops)
 	ophs := make([][2]util.Hash, cmd.Ops)
 
@@ -223,8 +225,6 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 		facts[i] = fact
 		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
-
-	cmd.log.Debug().Int("n", len(facts)).Msg("transfer ops created")
 
 	return facts, ophs
 }
@@ -259,8 +259,7 @@ func (cmd *managerCommand) process() error {
 }
 
 func (cmd *managerCommand) process1st() (util.Hash, error) {
-	cmd.log.Debug().Msg("> process 1st")
-	defer cmd.log.Debug().Msg("< processed 1st")
+	defer logging.TimeElapsedMsg(cmd.log.Debug, "process 1st")()
 
 	facts, ophs := cmd.prepareCreateOps()
 	if err := cmd.saveOps(facts); err != nil {
@@ -280,8 +279,7 @@ func (cmd *managerCommand) process1st() (util.Hash, error) {
 }
 
 func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
-	cmd.log.Debug().Msg("> process 2nd")
-	defer cmd.log.Debug().Msg("< process 2nd")
+	defer logging.TimeElapsedMsg(cmd.log.Debug, "process 2nd")()
 
 	facts, ophs := cmd.prepareTransferOps()
 	if err := cmd.saveOps(facts); err != nil {
@@ -316,8 +314,10 @@ func (cmd *managerCommand) processHeight(
 ) (util.Hash, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s-%s", height, util.UUID())
 
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Str("work_id", workID) }, "process height")()
+
 	return cmd.startManager(
-		ctx,
+		dutil.SetContextValueLogger(ctx, cmd.log),
 		height,
 		prevManiest,
 		workID,
@@ -332,6 +332,14 @@ func (cmd *managerCommand) startManager(
 	workID string,
 	ophs [][2]util.Hash,
 ) (util.Hash, dutil.ErrorFunc, error) {
+	defer logging.TimeElapsedMsg(func() *zerolog.Event {
+		return cmd.log.Debug().
+			Str("work_id", workID).
+			Interface("height", height).
+			Stringer("prev_hash", prevManiest).
+			Int("ophs", len(ophs))
+	}, "start manager")()
+
 	var start dutil.In2ErrorFunc[dop5.ManagerStartWorkerFunc, dop5.NewManagerWorkerSendOpFunc]
 	var workerOwners dutil.In2ErrorFunc[string, []string]
 	var workerResult dop5.ManagerInsertWorkerResultFunc
@@ -378,6 +386,8 @@ func (cmd *managerCommand) startManager(
 
 		return nil
 	}
+
+	defer logging.TimeElapsedMsg(cmd.log.Debug, "manager: start")()
 
 	if err := start(
 		cmd.newFuncStartWorkers(workID),
