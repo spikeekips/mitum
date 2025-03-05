@@ -7,7 +7,7 @@ toolchain go1.23.2
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/alecthomas/kong v1.7.0
-	github.com/alicebob/miniredis/v2 v2.33.0
+	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/arl/statsviz v0.6.0
 	github.com/beevik/ntp v1.4.3
 	github.com/bluele/gcache v0.0.2

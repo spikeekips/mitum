@@ -100,6 +100,7 @@ func NewFuncJobWorker(ctx context.Context, semSize uint64) (
 		return nil, nil, nil, err
 	}
 
+	// FIXME newjob error -> wait(err)
 	return newJob, jobDone,
 		func(err error) error {
 			return wctxCancel(wait(err))

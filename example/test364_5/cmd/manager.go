@@ -20,6 +20,9 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -27,6 +30,11 @@ var (
 	defaultSubStreamItems    uint64 = 1 << 9
 	defaultMaxSubStreamsSize uint16 = 1 << 8
 )
+
+var encDetails = []encoder.DecodeDetail{
+	{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}},
+	{Hint: dop5.AccountOpFactHint, Instance: &dop5.AccountOpFact{}},
+}
 
 type requestWorkerFunc = func(context.Context,
 	string, /* worker */
@@ -57,7 +65,8 @@ type managerCommand struct {
 	openSubStreams    quicstream.NewOpenSubStreamsFunc
 	privs             []base.Privatekey
 	pubs              []base.Publickey
-	redis             *redis.Client
+	rdb               *redis.Client
+	enc               encoder.Encoder
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -78,9 +87,12 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 		return err
 	}
 
+	cmd.log.Debug().Msg("prepared")
+
 	if err := cmd.newQuicStream(cmd.ctx); err != nil {
 		return err
 	}
+	cmd.log.Debug().Msg("quicstream")
 
 	cmd.managerOptions = dop5.NewManagerOptions()
 
@@ -126,14 +138,24 @@ func (cmd *managerCommand) prepare() error {
 		Interface("addrs", cmd.workers).
 		Msg("workers")
 
-	cmd.redis = redis.NewClient(&redis.Options{
+	cmd.enc = jsonenc.NewEncoder()
+	for hinter := range slices.Values(encDetails) {
+		if err := cmd.enc.Add(hinter); err != nil {
+			return err
+		}
+	}
+
+	cmd.rdb = redis.NewClient(&redis.Options{
 		Addr: cmd.Redis,
 	})
+	if err := cmd.rdb.FlushAll(cmd.ctx).Err(); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
 	defer cancel()
 
-	if _, err := cmd.redis.Ping(ctx).Result(); err != nil {
+	if _, err := cmd.rdb.Ping(ctx).Result(); err != nil {
 		return errors.WithMessage(err, "redis")
 	}
 
@@ -145,6 +167,8 @@ func (cmd *managerCommand) prepare() error {
 }
 
 func (cmd *managerCommand) preparePrivs() error {
+	cmd.log.Debug().Uint64("n", cmd.Ops).Msg("> privs")
+
 	cmd.privs = make([]base.Privatekey, cmd.Ops)
 	cmd.pubs = make([]base.Publickey, cmd.Ops)
 
@@ -159,6 +183,8 @@ func (cmd *managerCommand) preparePrivs() error {
 		cmd.privs[i] = priv
 		cmd.pubs[i] = priv.Publickey()
 	}
+
+	cmd.log.Debug().Int("n", len(cmd.privs)).Msg("< privs")
 
 	return nil
 }
@@ -178,6 +204,8 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
 
+	cmd.log.Debug().Int("n", len(facts)).Msg("create ops created")
+
 	return facts, ophs
 }
 
@@ -195,6 +223,8 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 		facts[i] = fact
 		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 	}
+
+	cmd.log.Debug().Int("n", len(facts)).Msg("transfer ops created")
 
 	return facts, ophs
 }
@@ -223,14 +253,19 @@ func (cmd *managerCommand) process() error {
 		return err
 	}
 
+	cmd.log.Debug().Msg("processed")
+
 	return nil
 }
 
 func (cmd *managerCommand) process1st() (util.Hash, error) {
-	facts, ophs := cmd.prepareCreateOps()
+	cmd.log.Debug().Msg("> process 1st")
+	defer cmd.log.Debug().Msg("< processed 1st")
 
-	// FIXME save facts
-	_ = facts
+	facts, ophs := cmd.prepareCreateOps()
+	if err := cmd.saveOps(facts); err != nil {
+		return nil, err
+	}
 
 	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, ophs); {
 	case err != nil:
@@ -245,10 +280,13 @@ func (cmd *managerCommand) process1st() (util.Hash, error) {
 }
 
 func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
-	facts, ophs := cmd.prepareTransferOps()
+	cmd.log.Debug().Msg("> process 2nd")
+	defer cmd.log.Debug().Msg("< process 2nd")
 
-	// FIXME save facts
-	_ = facts
+	facts, ophs := cmd.prepareTransferOps()
+	if err := cmd.saveOps(facts); err != nil {
+		return err
+	}
 
 	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, ophs); {
 	case err != nil:
@@ -256,6 +294,18 @@ func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
 	default:
 		return w()
 	}
+}
+
+func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Int("n", len(facts)) }, "save fact")()
+
+	return saveOperationFacts(
+		cmd.ctx,
+		cmd.enc,
+		cmd.rdb,
+		facts,
+		1<<9, 1<<9,
+	)
 }
 
 func (cmd *managerCommand) processHeight(
