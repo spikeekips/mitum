@@ -2004,6 +2004,7 @@ func (t *testSetOnlyLockedMap) TestResetKeys() {
 
 		l.ResetKeys()
 
+		slices.Sort(l.keys)
 		t.Equal([]int{0, 1, 2, 3, 4, 5}, l.keys)
 	})
 }
