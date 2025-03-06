@@ -56,7 +56,7 @@ func (t *testRedisOperationFact) randomFacts(n int) []dop5.OperationFact {
 	for i := range n {
 		f[i] = dop5.NewAccountOpFact(
 			util.UUID().Bytes(),
-			33,
+			int64(i),
 			base.NewDummyPublickey(util.UUID().String()),
 			base.NewDummyPublickey(util.UUID().String()),
 		)
