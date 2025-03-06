@@ -18,8 +18,8 @@ import (
 var CLI struct { //nolint:govet //...
 	launch.BaseFlags
 	Manager managerCommand `cmd:"" help:"manager"`
-	// Worker  WorkerCommand  `cmd:"" help:"worker"`
-	Version struct{} `cmd:"" help:"version"`
+	Worker  workerCommand  `cmd:"" help:"worker"`
+	Version struct{}       `cmd:"" help:"version"`
 }
 
 var flagDefaults = kong.Vars{
@@ -27,8 +27,7 @@ var flagDefaults = kong.Vars{
 	"log_format":      "terminal",
 	"log_level":       "debug",
 	"log_force_color": "false",
-	"manager_bind":    "0.0.0.0:5555",
-	"worker_bind":     "0.0.0.0:5600",
+	"bind":            "0.0.0.0:5555",
 }
 
 func main() {

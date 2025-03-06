@@ -18,17 +18,16 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testOperationFact struct {
+type baseTestRedis struct {
 	dutil.BaseSuite
 	enc  encoder.Encoder
 	mini *miniredis.Miniredis
 	rdb  *redis.Client
 }
 
-func (t *testOperationFact) SetupSuite() {
+func (t *baseTestRedis) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountOpFactHint, Instance: &dop5.AccountOpFact{}}))
 
 	t.mini = miniredis.RunT(t.T())
 	t.rdb = redis.NewClient(&redis.Options{
@@ -36,35 +35,41 @@ func (t *testOperationFact) SetupSuite() {
 	})
 }
 
-func (t *testOperationFact) TearDownSuite() {
+func (t *baseTestRedis) TearDownSuite() {
 	t.rdb.Close()
 	t.mini.Close()
 }
 
-func (t *testOperationFact) randomFact() *dop5.AccountOpFact {
-	return dop5.NewAccountOpFact(
-		util.UUID().Bytes(),
-		33,
-		base.NewDummyPublickey(util.UUID().String()),
-		base.NewDummyPublickey(util.UUID().String()),
-	)
+type testRedisOperationFact struct {
+	baseTestRedis
 }
 
-func (t *testOperationFact) randomFacts(n int) []dop5.OperationFact {
+func (t *testRedisOperationFact) SetupSuite() {
+	t.baseTestRedis.SetupSuite()
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountOpFactHint, Instance: &dop5.AccountOpFact{}}))
+}
+
+func (t *testRedisOperationFact) randomFacts(n int) []dop5.OperationFact {
 	f := make([]dop5.OperationFact, n)
 
 	for i := range n {
-		f[i] = t.randomFact()
+		f[i] = dop5.NewAccountOpFact(
+			util.UUID().Bytes(),
+			33,
+			base.NewDummyPublickey(util.UUID().String()),
+			base.NewDummyPublickey(util.UUID().String()),
+		)
 	}
 
 	return f
 }
 
-func (t *testOperationFact) TestGet() {
+func (t *testRedisOperationFact) TestGet() {
 	t.Run("not found", func() {
 		var fact dop5.OperationFact
 
-		found, err := getOperationFact(
+		found, err := redisGetOperationFact(
 			context.Background(),
 			t.enc,
 			t.rdb,
@@ -76,11 +81,11 @@ func (t *testOperationFact) TestGet() {
 	})
 }
 
-func (t *testOperationFact) TestSet() {
+func (t *testRedisOperationFact) TestSave() {
 	t.Run("one", func() {
 		facts := t.randomFacts(1)
 
-		t.NoError(saveOperationFacts(
+		t.NoError(redisSaveOperationFacts(
 			context.Background(),
 			t.enc,
 			t.rdb,
@@ -90,7 +95,7 @@ func (t *testOperationFact) TestSet() {
 
 		var rfact dop5.OperationFact
 
-		found, err := getOperationFact(
+		found, err := redisGetOperationFact(
 			context.Background(),
 			t.enc,
 			t.rdb,
@@ -106,7 +111,7 @@ func (t *testOperationFact) TestSet() {
 	t.Run("multiple", func() {
 		facts := t.randomFacts(33)
 
-		t.NoError(saveOperationFacts(
+		t.NoError(redisSaveOperationFacts(
 			context.Background(),
 			t.enc,
 			t.rdb,
@@ -117,7 +122,7 @@ func (t *testOperationFact) TestSet() {
 		for fact := range slices.Values(facts) {
 			var rfact dop5.OperationFact
 
-			found, err := getOperationFact(
+			found, err := redisGetOperationFact(
 				context.Background(),
 				t.enc,
 				t.rdb,
@@ -132,8 +137,120 @@ func (t *testOperationFact) TestSet() {
 	})
 }
 
-func TestOperationFact(t *testing.T) {
+func TestRedisOperationFact(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testOperationFact))
+	suite.Run(t, new(testRedisOperationFact))
+}
+
+type testRedisState struct {
+	baseTestRedis
+}
+
+func (t *testRedisState) SetupSuite() {
+	t.baseTestRedis.SetupSuite()
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSVHint, Instance: &dop5.AccountSV{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: &base.BaseState{}}))
+}
+
+func (t *testRedisState) randomStates(n int) []base.State {
+	f := make([]base.State, n)
+
+	for i := range n {
+		sv := dop5.NewAccountSV(
+			base.NewDummyPublickey(util.UUID().String()),
+			33,
+		)
+
+		f[i] = base.NewBaseState(
+			33,
+			util.UUID().String(),
+			sv,
+			valuehash.RandomSHA256(),
+			[]util.Hash{
+				valuehash.RandomSHA256(),
+				valuehash.RandomSHA256(),
+				valuehash.RandomSHA256(),
+			},
+		)
+	}
+
+	return f
+}
+
+func (t *testRedisState) TestGet() {
+	t.Run("not found", func() {
+		var st base.State
+
+		found, err := redisGetState(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			util.UUID().String(),
+			&st,
+		)
+		t.NoError(err)
+		t.False(found)
+	})
+}
+
+func (t *testRedisState) TestSave() {
+	t.Run("one", func() {
+		sts := t.randomStates(1)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			slices.Values(sts),
+		))
+
+		var rst base.State
+
+		found, err := redisGetState(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			sts[0].Key(),
+			&rst,
+		)
+		t.NoError(err)
+		t.True(found)
+
+		t.True(base.IsEqualState(sts[0], rst))
+	})
+
+	t.Run("multiple", func() {
+		sts := t.randomStates(33)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			slices.Values(sts),
+		))
+
+		for i := range len(sts) {
+			var rst base.State
+
+			found, err := redisGetState(
+				context.Background(),
+				t.enc,
+				t.rdb,
+				sts[i].Key(),
+				&rst,
+			)
+			t.NoError(err)
+			t.True(found)
+
+			t.True(base.IsEqualState(sts[i], rst))
+		}
+	})
+}
+
+func TestRedisState(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testRedisState))
 }

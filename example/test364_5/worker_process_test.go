@@ -27,13 +27,13 @@ func (t *testWorkerProcess) newf(
 	ctx context.Context,
 	local string,
 	getState getStateFunc,
-	createState createStateFunc,
+	createState CreateStateFunc,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 ) (
 	workerProcessInitialInsertFunc,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
 	func(
 		dutil.In3ErrorFunc[context.Context, string, []uint64],
 		workerProcessReportResult,
@@ -56,7 +56,7 @@ func (t *testWorkerProcess) newf(
 	defaultGetStateOwners, stateOwnersClose, err := stateOwnersFuncByCount(workers, opsShare)
 	t.NoError(err)
 
-	defaultDistribute := func(_ context.Context, worker string) (workerProcessInsertSMVsFunc, dutil.In2ErrorFunc[[]string, []string], error) {
+	defaultDistribute := func(_ context.Context, worker string) (WorkerProcessInsertSMVsFunc, dutil.In2ErrorFunc[[]string, []string], error) {
 		return func(opindex uint64, facth util.Hash, values []SMV) error {
 				t.Print("worker distribute: local=%q worker=%q opindex=%d fact=%q values=%d", local, worker, opindex, facth, len(values))
 
@@ -182,7 +182,7 @@ func (t *testWorkerProcess) defaultFuncInsertOp(facts []OperationFact) dutil.InE
 	}
 }
 
-func (t *testWorkerProcess) createStateFunc() createStateFunc {
+func (t *testWorkerProcess) createStateFunc() CreateStateFunc {
 	return func(stateKey string, v base.StateValue, prev util.Hash, ops []util.Hash) (base.State, error) {
 		return base.NewBaseState(
 			3,
@@ -220,7 +220,7 @@ func (t *testWorkerProcess) TestCancel() {
 				return insertOps(
 					func(string) []string { return workers },
 					func(context.Context, string) (
-						workerProcessInsertSMVsFunc,
+						WorkerProcessInsertSMVsFunc,
 						dutil.In2ErrorFunc[[]string, []string],
 						error,
 					) {
@@ -682,7 +682,7 @@ func (t *testWorkerProcess) TestLocal() {
 
 		t.NoError(initial(
 			func(string) []string { return []string{local} },
-			func(_ context.Context, worker string) (workerProcessInsertSMVsFunc, dutil.In2ErrorFunc[[]string, []string], error) {
+			func(_ context.Context, worker string) (WorkerProcessInsertSMVsFunc, dutil.In2ErrorFunc[[]string, []string], error) {
 				return func(opindex uint64, facth util.Hash, values []SMV) error {
 						otherInserted = true
 
@@ -921,8 +921,8 @@ func (t *testWorkerProcess) newProcessWorker(
 	opsShare, statesShare uint64,
 ) (
 	workerProcessInitialInsertFunc,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
 	workerProcessWaitFunc,
 ) {
 	if slices.Index(workers, local) < 0 {
@@ -957,8 +957,8 @@ func (t *testWorkerProcess) newProcessWorkers(
 	}
 
 	initials := map[string]workerProcessInitialInsertFunc{}
-	workerInserts := map[string]workerProcessWorkerInsertSMVsFunc{}
-	workerUnmerges := map[string]workerUnmergedFunc{}
+	workerInserts := map[string]WorkerProcessWorkerInsertSMVsFunc{}
+	workerUnmerges := map[string]WorkerUnmergedFunc{}
 	workerWaits := map[string]workerProcessWaitFunc{}
 
 	for local := range slices.Values(workers) {
@@ -976,7 +976,7 @@ func (t *testWorkerProcess) newProcessWorkers(
 
 	distributeValues := func(local string) newWorkerProcessDistributeSMVsFunc {
 		return func(_ context.Context, worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -1191,7 +1191,7 @@ func (t *testWorkerProcess) TestWorkerProcessInitialInsert() {
 				t.NoError(initial(
 					getStateOwners,
 					func(_ context.Context, worker string) (
-						workerProcessInsertSMVsFunc,
+						WorkerProcessInsertSMVsFunc,
 						dutil.In2ErrorFunc[[]string, []string],
 						error,
 					) {

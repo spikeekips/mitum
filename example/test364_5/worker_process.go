@@ -15,7 +15,7 @@ import (
 )
 
 type (
-	createStateFunc = func(string /* state key */, base.StateValue, util.Hash /* previous hash */, []util.Hash /* op fact hashes */) (
+	CreateStateFunc = func(string /* state key */, base.StateValue, util.Hash /* previous hash */, []util.Hash /* op fact hashes */) (
 		base.State,
 		error,
 	)
@@ -25,7 +25,7 @@ type (
 	)
 	workerDistributeWorkerSMVsFunc     = func(worker string, opindex uint64, facth util.Hash, _ []SMV) error
 	newWorkerProcessDistributeSMVsFunc func(_ context.Context, worker string) (
-		workerProcessInsertSMVsFunc,
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
@@ -43,13 +43,13 @@ type (
 		dutil.InErrorFunc[OpindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
-	workerProcessInsertSMVsFunc     = func(opindex uint64, facth util.Hash, _ []SMV) error
+	WorkerProcessInsertSMVsFunc     = func(opindex uint64, facth util.Hash, _ []SMV) error
 	workerProcessInsertSMVsCallback = func(
-		workerProcessInsertSMVsFunc,
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
 	) error
-	workerProcessWorkerInsertSMVsFunc = func(worker string) (
-		workerProcessInsertSMVsFunc,
+	WorkerProcessWorkerInsertSMVsFunc = func(worker string) (
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* sub */, []string /* affected */],
 		error,
 	)
@@ -71,15 +71,15 @@ func newFuncWorkerProcess(
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
 	getStatef getStateFunc,
-	createStatef createStateFunc,
+	createStatef CreateStateFunc,
 	maxExtractStateKeyCacheSize int,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) (
 	workerProcessInitialInsertFunc,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
 	workerProcessWaitFunc,
 	error,
 ) {
@@ -126,8 +126,8 @@ func newFuncWorkerProcess(
 	}
 
 	var initialInsert workerProcessInitialInsertFunc2
-	var workerInsertSVs workerProcessWorkerInsertSMVsFunc
-	var unmerge workerUnmergedFunc
+	var workerInsertSVs WorkerProcessWorkerInsertSMVsFunc
+	var unmerge WorkerUnmergedFunc
 	var wait dutil.In2ErrorFunc[
 		dutil.In3ErrorFunc[[]uint64, []string, []string],
 		dutil.In2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
@@ -176,7 +176,7 @@ func newFuncWorkerProcess(
 			)
 		},
 		func(worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -272,8 +272,8 @@ func newFuncWorkerProcessSVM(
 	getSVMs mergerGetSVMsFunc,
 ) (
 	workerProcessInitialInsertFunc2,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
 	dutil.In2ErrorFunc[
 		dutil.In3ErrorFunc[[]uint64, []string, []string],
 		dutil.In2ErrorFunc[map[uint64]string, traverseStateOpsFunc],
@@ -292,7 +292,7 @@ func newFuncWorkerProcessSVM(
 	}
 
 	var workerInsertSVs workerMergerInsertSMVsFunc
-	var workerUnmerged workerUnmergedFunc
+	var workerUnmerged WorkerUnmergedFunc
 	var workerMergerWait workerMergerWaitFunc
 
 	switch i, u, w, err := newFuncWorkerMerger(
@@ -341,7 +341,7 @@ func newFuncWorkerProcessSVM(
 
 	return initialInsert,
 		func(worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -666,7 +666,7 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 	return reasons
 }
 
-func newGetCreateStateFunc(size uint64, get getStateFunc, create createStateFunc) (getStateFunc, createStateFunc2, func(), error) {
+func newGetCreateStateFunc(size uint64, get getStateFunc, create CreateStateFunc) (getStateFunc, createStateFunc2, func(), error) {
 	var pool dutil.LockedMap[string, base.State]
 
 	switch i, err := dutil.NewLockedMap[string, base.State](nil, size, size); {

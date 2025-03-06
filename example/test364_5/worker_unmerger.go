@@ -20,7 +20,7 @@ type (
 		error,
 	)
 	workerUnmergerLocalReadyFunc = func(subStatesOwners []string, localUnmerged []uint64) error
-	workerUnmergedFunc           = func(worker string, unmerged []uint64) error
+	WorkerUnmergedFunc           = func(worker string, unmerged []uint64) error
 	workerOpindexFilterFunc      = func(worker string) (opindexFilterFunc, error)
 	workerUnmergerWaitFunc       = unmergedErrorFunc
 )
@@ -35,7 +35,7 @@ func newFuncWorkerUnmerger(
 	getSMVs opindexGetSMVsFunc,
 	getSVMs mergerGetSVMsFunc,
 ) (
-	workerUnmergedFunc, // NOTE from states owners, excluding local
+	WorkerUnmergedFunc, // NOTE from states owners, excluding local
 	workerUnmergerLocalReadyFunc,
 	workerUnmergerWaitFunc,
 	error,

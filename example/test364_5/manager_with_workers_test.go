@@ -58,17 +58,17 @@ func (t *testManagerWithWorkers) newWorkers(
 	getState getStateFunc,
 	reportWorkerCancelWork dutil.In2ErrorFunc[string, error],
 ) (
-	workersInitialInserts map[string]workerInitialInsertFunc,
-	workersInserts map[string]workerProcessWorkerInsertSMVsFunc,
-	workersUnmerge map[string]workerUnmergedFunc,
-	workersWaits map[string]workerWaitFunc,
-	workersCloses map[string]workerCloseFunc,
+	workersInitialInserts map[string]WorkerInitialInsertFunc,
+	workersInserts map[string]WorkerProcessWorkerInsertSMVsFunc,
+	workersUnmerge map[string]WorkerUnmergedFunc,
+	workersWaits map[string]WorkerWaitFunc,
+	workersCloses map[string]WorkerCloseFunc,
 ) {
-	workersInitialInserts = map[string]workerInitialInsertFunc{}
-	workersInserts = map[string]workerProcessWorkerInsertSMVsFunc{}
-	workersUnmerge = map[string]workerUnmergedFunc{}
-	workersWaits = map[string]workerWaitFunc{}
-	workersCloses = map[string]workerCloseFunc{}
+	workersInitialInserts = map[string]WorkerInitialInsertFunc{}
+	workersInserts = map[string]WorkerProcessWorkerInsertSMVsFunc{}
+	workersUnmerge = map[string]WorkerUnmergedFunc{}
+	workersWaits = map[string]WorkerWaitFunc{}
+	workersCloses = map[string]WorkerCloseFunc{}
 
 	var opsWorkers []string
 
@@ -114,11 +114,11 @@ func (t *testManagerWithWorkers) newWorker(
 	getState getStateFunc,
 	reportCancelWork dutil.InErrorFunc[error],
 ) (
-	workerInitialInsertFunc,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
-	workerWaitFunc,
-	workerCloseFunc,
+	WorkerInitialInsertFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
+	WorkerWaitFunc,
+	WorkerCloseFunc,
 ) {
 	createState := func(stateKey string, value base.StateValue, prev util.Hash, ops []util.Hash) (base.State, error) {
 		st := base.NewBaseState(
@@ -133,7 +133,7 @@ func (t *testManagerWithWorkers) newWorker(
 		return st, nil
 	}
 
-	initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker, err := newFuncWorker(
+	initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker, err := NewFuncWorker(
 		ctx,
 		t.newWorkerOptions(local),
 		getState,
@@ -199,7 +199,7 @@ func (t *testManagerWithWorkers) newManager(
 	getOperationFact := newFuncGetOperationFact(facts)
 	distributeValues := func(local string) newWorkerDistributeSMVsFunc {
 		return func(ctx context.Context, worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {

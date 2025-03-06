@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"iter"
 	"maps"
@@ -745,4 +746,12 @@ func jobsSubStreams(ctx context.Context, streams []quic.Stream, f dutil.In2Error
 	jobDone()
 
 	return jobWait(nil)
+}
+
+func newFuncMustAddHandler(addHandler func([]byte, quicstream.StreamHandler) bool) func(string, quicstream.StreamHandler) {
+	return func(prefix string, h quicstream.StreamHandler) {
+		if !addHandler([]byte(prefix), h) {
+			panic(fmt.Sprintf("failed to add handler, %q", prefix))
+		}
+	}
 }

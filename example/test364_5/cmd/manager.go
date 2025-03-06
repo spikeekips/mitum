@@ -11,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
@@ -21,7 +20,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -41,60 +39,28 @@ type requestWorkerFunc = func(context.Context,
 	*tls.Config, *quic.Config, quicstream.StreamHandler) (context.Context, error)
 
 type managerCommand struct {
-	Bind        string   `default:"${manager_bind}" help:"by default, ${manager_bind}"`
-	Redis       string   `default:"127.0.0.1:6379"`
+	baseCommand `cmd:""`
 	Ops         uint64   `arg:"" help:"number of operations"`
 	OpsShare    uint64   `arg:"" help:"ops share"`
 	StatesShare uint64   `arg:"" help:"states share"`
 	Workers     []string `arg:"" default:""`
 
-	ctx               context.Context
-	log               *zerolog.Logger
-	closefs           []dutil.ErrorFunc
-	tlsConfig         *tls.Config
-	quicConfig        *quic.Config
-	dialf             quicstream.DialCloseFunc
-	request           func(prefix string) quicstream.RequestFunc
-	requestWorker     func(prefix string) requestWorkerFunc
-	requestWork       func(workID, prefix string) quicstream.RequestFunc
-	requestWorkWorker func(workID, prefix string) requestWorkerFunc
-	mustAddHandler    func(string, quicstream.StreamHandler)
-	removeHandler     func([]byte) bool
-	managerOptions    *dop5.ManagerOptions
-	workers           map[string]*net.UDPAddr
-	openSubStreams    quicstream.NewOpenSubStreamsFunc
-	privs             []base.Privatekey
-	pubs              []base.Publickey
-	rdb               *redis.Client
-	enc               encoder.Encoder
+	managerOptions *dop5.ManagerOptions
+	privs          []base.Privatekey
+	pubs           []base.Publickey
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
-	cmd.log = log
-
-	ctx, ctxCancel := dutil.ContextWithCancelCause(context.Background())
-	defer func() {
-		for _, f := range slices.Backward(cmd.closefs) {
-			_ = f()
-		}
-
-		ctxCancel(nil)
-	}()
-
-	cmd.ctx = ctx
+	if err := cmd.baseCommand.prepare("manager", log); err != nil {
+		return err
+	}
+	defer cmd.baseCommand.closef()
 
 	if err := cmd.prepare(); err != nil {
 		return err
 	}
 
 	cmd.log.Debug().Msg("prepared")
-
-	if err := cmd.newQuicStream(cmd.ctx); err != nil {
-		return err
-	}
-	cmd.log.Debug().Msg("quicstream")
-
-	cmd.managerOptions = dop5.NewManagerOptions()
 
 	return cmd.process()
 }
@@ -121,8 +87,6 @@ func (cmd *managerCommand) prepare() error {
 		cmd.StatesShare = uint64(len(cmd.Workers))
 	}
 
-	cmd.workers = map[string]*net.UDPAddr{}
-
 	for s := range slices.Values(cmd.Workers) {
 		switch addr, err := net.ResolveUDPAddr("udp", s); {
 		case err != nil:
@@ -130,38 +94,19 @@ func (cmd *managerCommand) prepare() error {
 		case addr.Port < 1:
 			return errors.Errorf("invalid worker addr, %q", s)
 		default:
-			cmd.workers[s] = addr
+			cmd.workerAddrs.SetValue(s, addr)
 		}
 	}
 
 	cmd.log.Debug().
-		Interface("addrs", cmd.workers).
+		Interface("addrs", cmd.workerAddrs.Map()).
 		Msg("workers")
-
-	cmd.enc = jsonenc.NewEncoder()
-	for hinter := range slices.Values(encDetails) {
-		if err := cmd.enc.Add(hinter); err != nil {
-			return err
-		}
-	}
-
-	cmd.rdb = redis.NewClient(&redis.Options{
-		Addr: cmd.Redis,
-	})
-	if err := cmd.rdb.FlushAll(cmd.ctx).Err(); err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
-	defer cancel()
-
-	if _, err := cmd.rdb.Ping(ctx).Result(); err != nil {
-		return errors.WithMessage(err, "redis")
-	}
 
 	if err := cmd.preparePrivs(); err != nil {
 		return err
 	}
+
+	cmd.managerOptions = dop5.NewManagerOptions()
 
 	return nil
 }
@@ -297,7 +242,7 @@ func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
 func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Int("n", len(facts)) }, "save fact")()
 
-	return saveOperationFacts(
+	return redisSaveOperationFacts(
 		cmd.ctx,
 		cmd.enc,
 		cmd.rdb,
@@ -365,20 +310,16 @@ func (cmd *managerCommand) startManager(
 
 	cmd.mustAddHandler(workID, handler)
 
-	mustaddHandler := func(prefix string, h quicstream.StreamHandler) {
-		if !addHandler([]byte(prefix), h) {
-			panic(fmt.Sprintf("failed to add handler, %q", prefix))
-		}
-	}
+	mustAddHandler := newFuncMustAddHandler(addHandler)
 
-	mustaddHandler("manager_worker_owners", acceptHandlerWorkerOwners(func(worker string, owners []string) error {
+	mustAddHandler("manager_worker_owners", acceptHandlerWorkerOwners(func(worker string, owners []string) error {
 		return workerOwners(worker, owners)
 	}))
 
-	mustaddHandler("manager_worker_result", acceptHandlerWorkerResult(workerResult).
-		StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9)))
+	mustAddHandler("manager_worker_result", acceptHandlerWorkerResult(workerResult).
+		StreamHandler(cmd.newAcceptSubStream))
 
-	mustaddHandler("manager_worker_error", acceptHandlerWorkerErr(workerErr))
+	mustAddHandler("manager_worker_error", acceptHandlerWorkerErr(workerErr))
 
 	closeManager := func() error {
 		cmd.removeHandler([]byte(workID))
@@ -463,194 +404,6 @@ func (cmd *managerCommand) startManager(
 		nil
 }
 
-func (cmd *managerCommand) newQuicStream(
-	ctx context.Context,
-) error {
-	var pconn net.PacketConn
-
-	switch bind, err := net.ResolveUDPAddr("udp", cmd.Bind); {
-	case err != nil:
-		return err
-	default:
-		switch c, err := net.ListenUDP("udp", bind); {
-		case err != nil:
-			return err
-		default:
-			pconn = c
-		}
-	}
-
-	var statelessResetKey *quic.StatelessResetKey
-
-	switch kp, c, err := newTLSConfig("manager"); {
-	case err != nil:
-		return err
-	default:
-		cmd.tlsConfig = c
-		statelessResetKey = quicstream.NewStatelessResetKey(kp.PrivateKey())
-	}
-
-	cmd.quicConfig = quicstream.DefaultQuicConfig()
-
-	listen, closef, err := quicstream.Serve(
-		ctx,
-		pconn,
-		cmd.tlsConfig,
-		cmd.quicConfig,
-		statelessResetKey,
-	)
-	if err != nil {
-		return err
-	}
-
-	cmd.log.Debug().
-		Str("bind", cmd.Bind).
-		Bool("tls_insecure", cmd.tlsConfig.InsecureSkipVerify).
-		Dict("quic_config", zerolog.Dict().
-			Dur("HandshakeIdleTimeout", cmd.quicConfig.HandshakeIdleTimeout).
-			Dur("MaxIdleTimeout", cmd.quicConfig.MaxIdleTimeout).
-			Int64("MaxIncomingStreams", cmd.quicConfig.MaxIncomingStreams).
-			Dur("KeepAlivePeriod", cmd.quicConfig.KeepAlivePeriod).
-			Bool("Allow0RTT", cmd.quicConfig.Allow0RTT),
-		).
-		Msg("flags")
-
-	addHandler, removeHandler, handler, handlerClosef := quicstream.NewFuncPrefixStreamHandler()
-	cmd.mustAddHandler = func(prefix string, h quicstream.StreamHandler) {
-		if !addHandler([]byte(prefix), h) {
-			panic(fmt.Sprintf("failed to add handler, %q", prefix))
-		}
-	}
-
-	cmd.removeHandler = removeHandler
-
-	listench := make(chan error)
-	go func() {
-		listench <- listen(handler)
-	}()
-
-	cmd.closefs = append(cmd.closefs, func() error {
-		closef()
-		handlerClosef()
-
-		cmd.log.Debug().Err(<-listench).Msg("quicstream listen stopped")
-
-		return nil
-	})
-
-	if err := cmd.newDialFunc(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (cmd *managerCommand) newDialFunc() error {
-	pool, err := dutil.NewLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
-	if err != nil {
-		return err
-	}
-
-	dial, closef, err := quicstream.NewDialPool(pool, nil, time.Minute)
-	if err != nil {
-		return err
-	}
-
-	cmd.dialf = dial
-	cmd.closefs = append(cmd.closefs, closef)
-
-	openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(cmd.ctx, time.Minute)
-	cmd.openSubStreams = quicstream.NewFuncOpenSubStreams(openConnSubStreams)
-
-	cmd.closefs = append(cmd.closefs, func() error { openConnSubStreamsClose(); return nil })
-
-	var request quicstream.RequestFunc
-
-	switch r, err := quicstream.NewFuncRequest(
-		quicstream.NewDialWithCloseFunc(cmd.dialf, quicstream.NewFuncConnClosingStreamError),
-		cmd.tlsConfig, cmd.quicConfig,
-	); {
-	case err != nil:
-		return err
-	default:
-		request = r
-	}
-
-	cmd.request = func(prefix string) quicstream.RequestFunc {
-		if _, found := handlerPrefixesString[prefix]; !found {
-			panic(fmt.Sprintf("unknown prefix, %q", prefix))
-		}
-
-		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			return request(ctx, addr, tlsConfig, quicConfig, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-				if err := quicstream.WriteStreamHandlerPrefix(stream, []byte(prefix)); err != nil {
-					return ctx, err
-				}
-
-				return h(ctx, stream)
-			})
-		}
-	}
-
-	cmd.requestWork = func(workID, prefix string) quicstream.RequestFunc {
-		if workID == "" {
-			panic("empty work id")
-		}
-
-		if _, found := workHandlerPrefixesString[prefix]; !found {
-			panic(fmt.Sprintf("unknown prefix, %q", prefix))
-		}
-
-		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			return request(ctx, addr, tlsConfig, quicConfig, func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-				if err := quicstream.WriteStreamHandlerPrefix(stream, []byte(workID)); err != nil {
-					return ctx, err
-				}
-
-				if err := quicstream.WriteStreamHandlerPrefix(stream, []byte(prefix)); err != nil {
-					return ctx, err
-				}
-
-				return h(ctx, stream)
-			})
-		}
-	}
-
-	cmd.requestWorker = func(prefix string) requestWorkerFunc {
-		request := cmd.request(prefix)
-
-		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			addr, err := cmd.workerAddr(worker)
-			if err != nil {
-				return ctx, err
-			}
-
-			return request(ctx, addr, tlsConfig, quicConfig, h)
-		}
-	}
-
-	cmd.requestWorkWorker = func(workID, prefix string) requestWorkerFunc {
-		request := cmd.requestWork(workID, prefix)
-
-		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			addr, err := cmd.workerAddr(worker)
-			if err != nil {
-				return ctx, err
-			}
-
-			return request(ctx, addr, tlsConfig, quicConfig, h)
-		}
-	}
-
-	return nil
-}
-
-func (cmd *managerCommand) dial(ctx context.Context, addr net.Addr) (quic.Connection, error) {
-	c, _, err := cmd.dialf(ctx, addr, cmd.tlsConfig, cmd.quicConfig)
-
-	return c, err
-}
-
 func (cmd *managerCommand) newFuncCancelWorker(workID string) dop5.ManagerCancelWorkerFunc {
 	request := cmd.requestWorkWorker(workID, "manager_cancel_worker")
 
@@ -659,15 +412,6 @@ func (cmd *managerCommand) newFuncCancelWorker(workID string) dop5.ManagerCancel
 
 		return err
 	}
-}
-
-func (cmd *managerCommand) workerAddr(worker string) (*net.UDPAddr, error) {
-	addr, found := cmd.workers[worker]
-	if !found {
-		return nil, util.ErrNotFound.Errorf("unknown worker, %q", worker)
-	}
-
-	return addr, nil
 }
 
 func (cmd *managerCommand) newFuncStartWorkers(workID string) dop5.ManagerStartWorkerFunc {

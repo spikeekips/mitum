@@ -689,7 +689,7 @@ func (t *testWorkerMerger) workerMergers(
 	getStateOwners := t.stateOwnersFunc(subs)
 
 	inserts := map[string]workerMergerInsertSMVsFunc{}
-	unmerges := map[string]workerUnmergedFunc{}
+	unmerges := map[string]WorkerUnmergedFunc{}
 	waits := map[string]workerMergerWaitFunc{}
 	traverseMergers := map[string]iter.Seq2[string, SVM]{}
 
@@ -902,7 +902,7 @@ func (t *testWorkerMerger) workerMerger(
 ) (
 	dutil.LockedMap[string, base.State],
 	workerMergerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerUnmergedFunc,
 	workerMergerWaitFunc,
 	iter.Seq2[string, SVM],
 	error,

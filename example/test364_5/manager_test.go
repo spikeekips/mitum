@@ -136,9 +136,9 @@ func (t *baseTestManager) processOps(
 
 	startOpsFixedNodes()
 
-	initialInsert, _, _, wait, closeWorker, err := newFuncWorker(
+	initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
 		ctx,
-		newWorkerOptions(local),
+		NewWorkerOptions(local),
 		getState,
 		createState,
 		nil,
@@ -154,7 +154,7 @@ func (t *baseTestManager) processOps(
 	err = initialInsert(
 		func(string) []string { return workers },
 		func(context.Context, string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {

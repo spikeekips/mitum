@@ -755,13 +755,13 @@ func newFuncDelayedWorkerDistributeSMVs(
 	newf newWorkerDistributeSMVsFunc,
 	newChans newWorkerDistributeSMVsContextChansFunc,
 ) func(context.Context, string) (
-	workerProcessInsertSMVsFunc,
+	WorkerProcessInsertSMVsFunc,
 	dutil.In2ErrorFunc[[]string, []string],
 	dutil.ErrorFunc,
 	error,
 ) {
 	return func(ctx context.Context, worker string) (
-		workerProcessInsertSMVsFunc,
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		dutil.ErrorFunc,
 		error,
@@ -785,7 +785,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 					_ = wctxCancel(nil)
 				}()
 
-				var sendOp workerProcessInsertSMVsFunc
+				var sendOp WorkerProcessInsertSMVsFunc
 				var sendOwners dutil.In2ErrorFunc[[]string, []string]
 
 				var once sync.Once
@@ -892,7 +892,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 			case [4]interface{}: // op
 				worker := t[0].(string)
 
-				var sendOp workerProcessInsertSMVsFunc
+				var sendOp WorkerProcessInsertSMVsFunc
 				var gerr error
 
 				_, _ = pool.Set(worker, func(f [2]interface{}, found bool) (v [2]interface{}, _ error) {
@@ -919,7 +919,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 						return v, dutil.ErrLockedSetIgnore
 					}
 
-					sendOp = f[0].(workerProcessInsertSMVsFunc)
+					sendOp = f[0].(WorkerProcessInsertSMVsFunc)
 
 					return v, dutil.ErrLockedSetIgnore
 				})

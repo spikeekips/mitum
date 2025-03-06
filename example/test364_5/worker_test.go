@@ -35,7 +35,7 @@ func (t *testWorker) TestCancelWork() {
 
 		workCanceled := make(chan error, 1)
 
-		initialInsert, _, _, wait, _, err := newFuncWorker(
+		initialInsert, _, _, wait, _, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
@@ -110,7 +110,7 @@ func (t *testWorker) TestCancelWork() {
 
 		workCanceled := make(chan error, 1)
 
-		initialInsert, _, _, wait, _, err := newFuncWorker(
+		initialInsert, _, _, wait, _, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
@@ -182,7 +182,7 @@ func (t *testWorker) TestClose() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		initialInsert, _, _, wait, closeWorker, err := newFuncWorker(
+		initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
@@ -255,7 +255,7 @@ func (t *testWorker) TestClose() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		initialInsert, _, _, wait, closeWorker, err := newFuncWorker(
+		initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },

@@ -14,16 +14,16 @@ import (
 
 type (
 	newWorkerDistributeSMVsFunc func(_ context.Context, worker string) (
-		workerProcessInsertSMVsFunc,
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
-	workerInitialInsertFunc = func(
+	WorkerInitialInsertFunc = func(
 		getStateOwnersFunc,
 		newWorkerDistributeSMVsFunc,
 		getOperationFactFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
-		workerReportStatesOwnersFunc,
+		WorkerReportStatesOwnersFunc,
 	) error
 	workerBroadcastUnmerged = func(
 		_ context.Context,
@@ -31,9 +31,9 @@ type (
 		worker string,
 		unmerged []uint64,
 	) error
-	workerReportStatesOwnersFunc = func(
+	WorkerReportStatesOwnersFunc = func(
 		_ context.Context,
-		local string,
+		local string, // FIXME remove
 		owners []string,
 	) error
 	workerReportResultFunc func(
@@ -43,42 +43,42 @@ type (
 		statesSize uint64,
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error
-	workerWaitFunc = func(
+	WorkerWaitFunc = func(
 		workerBroadcastUnmerged,
 		workerReportResultFunc,
 	) error
-	workerCloseFunc = dutil.InErrorFunc[error]
+	WorkerCloseFunc = dutil.InErrorFunc[error]
 )
 
-type workerOptions struct {
+type WorkerOptions struct {
 	Local                       string
 	JobWorkerMaxSemSize         uint64
 	MaxExtractStateKeyCacheSize int
 }
 
-func newWorkerOptions(local string) *workerOptions {
-	return &workerOptions{
+func NewWorkerOptions(local string) *WorkerOptions {
+	return &WorkerOptions{
 		Local:                       local,
 		JobWorkerMaxSemSize:         1 << 9,
 		MaxExtractStateKeyCacheSize: 1 << 13,
 	}
 }
 
-func newFuncWorker(
+func NewFuncWorker(
 	ctx context.Context,
-	options *workerOptions,
+	options *WorkerOptions,
 	getState getStateFunc,
-	createState createStateFunc,
+	createState CreateStateFunc,
 	reportCancelWork dutil.InErrorFunc[error],
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) (
-	workerInitialInsertFunc,
-	workerProcessWorkerInsertSMVsFunc,
-	workerUnmergedFunc,
-	workerWaitFunc,
-	workerCloseFunc,
+	WorkerInitialInsertFunc,
+	WorkerProcessWorkerInsertSMVsFunc,
+	WorkerUnmergedFunc,
+	WorkerWaitFunc,
+	WorkerCloseFunc,
 	error,
 ) {
 	log := dutil.NewModuleLoggerFromContext(ctx, "worker", func(zctx zerolog.Context) zerolog.Context {
@@ -118,8 +118,8 @@ func newFuncWorker(
 	_, closeWorker, _, closeWorkerWait := dutil.NewContextWait(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
-	var workerInsert workerProcessWorkerInsertSMVsFunc
-	var workerUnmerge workerUnmergedFunc
+	var workerInsert WorkerProcessWorkerInsertSMVsFunc
+	var workerUnmerge WorkerUnmergedFunc
 	var processWait workerProcessWaitFunc
 
 	switch i, w, u, p, err := newFuncWorkerProcess(
@@ -162,7 +162,7 @@ func newFuncWorker(
 			distribute newWorkerDistributeSMVsFunc,
 			getOperationFact getOperationFactFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
-			reportStatesOwners workerReportStatesOwnersFunc,
+			reportStatesOwners WorkerReportStatesOwnersFunc,
 		) error {
 			delayedDistribute := newFuncDelayedWorkerDistributeSMVs(
 				distribute,
@@ -178,7 +178,7 @@ func newFuncWorker(
 			return ifErrorCancelWork(initialInsert(
 				getStateOwners,
 				func(ctx context.Context, worker string) (
-					workerProcessInsertSMVsFunc,
+					WorkerProcessInsertSMVsFunc,
 					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {

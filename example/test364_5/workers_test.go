@@ -45,13 +45,13 @@ func (t *baseTestWorkers) randomOphs(n int) [][2]util.Hash {
 	return h
 }
 
-func (t *baseTestWorkers) newWorkerOptions(local string) *workerOptions {
-	return newWorkerOptions(local)
+func (t *baseTestWorkers) newWorkerOptions(local string) *WorkerOptions {
+	return NewWorkerOptions(local)
 }
 
 func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeSMVsFunc {
 	return func(_ context.Context, worker string) (
-		workerProcessInsertSMVsFunc,
+		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
 		error,
 	) {
@@ -87,7 +87,7 @@ func (t *baseTestWorkers) newWorkerProcessDistributeSMVsFunc() (
 	t.base.IfErrPanic(err)
 
 	return func(_ context.Context, worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -113,7 +113,7 @@ func (t *baseTestWorkers) newWorkerDistributeSMVsFunc() (
 	d, o := t.newWorkerProcessDistributeSMVsFunc()
 
 	return func(ctx context.Context, worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
@@ -130,7 +130,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 	t.base.IfErrPanic(err)
 
 	return func(_ context.Context, worker string) (
-			workerProcessInsertSMVsFunc,
+			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {

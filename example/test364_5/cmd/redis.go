@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-func saveOperationFacts(
+func redisOperationFactKey(h util.Hash) string {
+	return "op-" + h.String()
+}
+
+func redisSaveOperationFacts(
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
@@ -45,7 +51,7 @@ func saveOperationFacts(
 					case err != nil:
 						return err
 					default:
-						_ = pipe.SetNX(ctx, fact.Hash().String(), b, 0)
+						_ = pipe.Set(ctx, redisOperationFactKey(fact.Hash()), b, 0)
 					}
 				}
 
@@ -63,14 +69,14 @@ func saveOperationFacts(
 	return jobWait(nil)
 }
 
-func getOperationFact(
+func redisGetOperationFact(
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
 	h util.Hash,
 	fact *dop5.OperationFact,
 ) (bool, error) {
-	c := rdb.Get(ctx, h.String())
+	c := rdb.Get(ctx, redisOperationFactKey(h))
 
 	switch err := c.Err(); {
 	case err != nil && errors.Is(err, redis.Nil):
@@ -79,5 +85,50 @@ func getOperationFact(
 		return false, err
 	default:
 		return true, encoder.Decode(enc, []byte(c.Val()), fact)
+	}
+}
+
+func redisStateKey(k string) string {
+	return "st-" + k
+}
+
+func redisSaveStates(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	seq iter.Seq[base.State],
+) error {
+	_, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for st := range seq {
+			switch b, err := enc.Marshal(st); {
+			case err != nil:
+				return err
+			default:
+				_ = pipe.Set(ctx, redisStateKey(st.Key()), b, 0)
+			}
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+func redisGetState(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	stateKey string,
+	st *base.State,
+) (bool, error) {
+	c := rdb.Get(ctx, redisStateKey(stateKey))
+
+	switch err := c.Err(); {
+	case err != nil && errors.Is(err, redis.Nil):
+		return false, nil
+	case err != nil:
+		return false, err
+	default:
+		return true, encoder.Decode(enc, []byte(c.Val()), st)
 	}
 }

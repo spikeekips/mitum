@@ -29,7 +29,7 @@ func newFuncWorkerMerger(
 	opsWorkers []string, opsShare, statesShare uint64,
 ) (
 	workerMergerInsertSMVsFunc,
-	workerUnmergedFunc,
+	WorkerUnmergedFunc,
 	workerMergerWaitFunc,
 	error,
 ) {
@@ -97,7 +97,7 @@ func newFuncWorkerMerger(
 		workerPhaseMergerWorkerInsert, workerPhaseMergerWait = i, w
 	}
 
-	var workerUnmergerUnmerged workerUnmergedFunc
+	var workerUnmergerUnmerged WorkerUnmergedFunc
 	var workerUnmergerLocalReady workerUnmergerLocalReadyFunc
 	var workerUnmergerWait workerUnmergerWaitFunc
 
@@ -181,7 +181,7 @@ func newFuncWorkerMergerInsert(
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerSMVsFunc,
 	setSMVs opindexSetSMVsFunc,
-	unmerge workerUnmergedFunc,
+	unmerge WorkerUnmergedFunc,
 ) workerMergerInsertSMVsFunc {
 	var l sync.Mutex
 
