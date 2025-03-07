@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -18,6 +19,7 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 )
 
 var handlerPrefixesString = map[string]struct{}{
@@ -35,6 +37,7 @@ var workHandlerPrefixesString = map[string]struct{}{
 	"manager_worker_close":       {},
 	"manager_cancel_worker":      {},
 	"manager_wait_worker_closed": {},
+	"worker_distribute_smvs":     {},
 }
 
 func requestHandlerStartWorker(
@@ -706,6 +709,168 @@ func acceptHandlerStopWorker() quicstream.StreamHandler {
 	}
 }
 
+func requestHandlerWorkerDistributeSMVs(
+	ctx context.Context,
+	enc encoder.Encoder,
+	maxItems, maxSubStreamItems uint64,
+	maxSubStreamsSize uint16,
+) (
+	dop5.WorkerProcessInsertSMVsFunc,
+	dutil.In2ErrorFunc[[]string, []string],
+	quicstream.OpenSubStreamsHandler,
+) {
+	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
+
+	handler := func(
+		ctx context.Context,
+		stream quic.Stream,
+		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
+
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch f, err := openSubStreams(ctx, nsub); {
+		case err != nil:
+			return ctx, err
+		case nsub < 1:
+			subStreams = func(f dutil.InErrorFunc[[]quic.Stream]) error { return f(nil) }
+		default:
+			subStreams = f
+		}
+
+		if err := subStreams(func(streams []quic.Stream) error {
+			newJob := func(f dutil.InErrorFunc[context.Context]) error { return f(ctx) }
+			jobDone := func() {}
+			jobWait := func(err error) error { return err }
+
+			if len(streams) > 1 {
+				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxItems); {
+				case err != nil:
+					return err
+				default:
+					newJob, jobDone, jobWait = n, d, w
+				}
+			}
+
+			encs := make([]dutil.InErrorFunc[any], len(streams))
+
+			for i, v := range dutil.SeqAll(seq) {
+				p := i % len(streams)
+				encode := encs[p]
+
+				if encode == nil {
+					encode = enc.StreamEncoder(streams[p]).Encode
+					encs[p] = encode
+				}
+
+				if err := newJob(func(context.Context) error {
+					return encode(newWorkerSMVsBundleMarshaller(v))
+				}); err != nil {
+					return err
+				}
+			}
+
+			jobDone()
+
+			return jobWait(nil)
+		}); err != nil {
+			return ctx, err
+		}
+
+		return ctx, nil
+	}
+
+	var subs, affected []string
+
+	return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
+			return addValues([3]interface{}{opindex, facth, values})
+		},
+		func(rsubs, raffected []string) error {
+			subs, affected = rsubs, raffected
+
+			addValuesDone()
+
+			return nil
+		},
+		func(
+			ctx context.Context,
+			stream quic.Stream,
+			openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
+		) (context.Context, error) {
+			if _, err := handler(ctx, stream, openSubStreams); err != nil {
+				return ctx, err
+			}
+
+			if err := writeFixedFrameStringSlice(stream, subs); err != nil {
+				return ctx, err
+			}
+
+			return ctx, writeFixedFrameStringSlice(stream, affected)
+		}
+}
+
+func acceptHandlerWorkerDistributeSMVs(
+	enc encoder.Encoder,
+	insertValues dop5.WorkerProcessInsertSMVsFunc,
+	insertOwners dutil.In2ErrorFunc[[]string, []string],
+) quicstream.AcceptSubStreamHandler {
+	return func(
+		ctx context.Context,
+		stream quic.Stream,
+		accept quicstream.AcceptSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch s, err := accept(ctx); {
+		case err != nil:
+			return ctx, err
+		default:
+			subStreams = s
+		}
+
+		if err := subStreams(func(streams []quic.Stream) error {
+			return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
+				decode := enc.StreamDecoder(sub).Decode
+
+				for {
+					var bundle WorkerSMVsBundle
+					var b json.RawMessage
+
+					switch err := decode(&b); {
+					case errors.Is(err, io.EOF):
+						return nil
+					case err != nil:
+						return err
+					default:
+						if err := encoder.Decode(enc, b, &bundle); err != nil {
+							return err
+						}
+					}
+
+					if err := insertValues(bundle.O, bundle.F, bundle.V); err != nil {
+						return err
+					}
+				}
+			})
+		}); err != nil {
+			return ctx, err
+		}
+
+		var subs []string
+		if err := readFixedFrameStringSlice(stream, &subs); err != nil {
+			return ctx, err
+		}
+
+		var affected []string
+		if err := readFixedFrameStringSlice(stream, &affected); err != nil {
+			return ctx, err
+		}
+
+		return ctx, insertOwners(subs, affected)
+	}
+}
+
 func subStreamSize(n, maxPerStream uint64, nmax uint16) (nsub uint16) {
 	if s := uint64(maxPerStream); n <= s {
 		return 1
@@ -739,7 +904,7 @@ func jobsSubStreams(ctx context.Context, streams []quic.Stream, f dutil.In2Error
 		if err := newJob(func(ctx context.Context) error {
 			return f(ctx, sub)
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 

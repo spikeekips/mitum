@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -531,6 +534,247 @@ func TestHandlerWorkerErr(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testHandlerWorkerErr))
+}
+
+type testHandlerWorkerDistributeSMVs struct {
+	quicstream.BaseTest
+	enc encoder.Encoder
+}
+
+func (t *testHandlerWorkerDistributeSMVs) SetupSuite() {
+	t.BaseTest.SetupSuite()
+
+	t.enc = jsonenc.NewEncoder()
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSVHint, Instance: &dop5.AccountSV{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSMVHint, Instance: &dop5.AccountSMV{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: WorkerSMVsBundleHint, Instance: WorkerSMVsBundle{}}))
+}
+
+func (t *testHandlerWorkerDistributeSMVs) randomMergeValues(n int) []dop5.SMV {
+	if n < 1 {
+		return nil
+	}
+
+	s := make([]dop5.SMV, n)
+
+	for i := range n {
+		v, err := dop5.NewAccountSMV(base.NewDummyPublickey(util.UUID().String()), 33)
+		t.IfErrPanic(err)
+
+		s[i] = v
+	}
+
+	return s
+}
+
+func (t *testHandlerWorkerDistributeSMVs) randomOwners(n int) []string {
+	if n < 1 {
+		return nil
+	}
+
+	s := make([]string, n)
+	for i := range n {
+		s[i] = util.UUID().String()
+	}
+
+	return s
+}
+
+func (t *testHandlerWorkerDistributeSMVs) doHandler(
+	nops, nsubs, naffected int,
+	maxItems, subStreamItems uint64,
+	maxSubStreams uint16,
+) {
+	ops := make([][2]interface{}, nops)
+	for i := range ops {
+		ops[i] = [2]interface{}{
+			valuehash.RandomSHA256(),
+			t.randomMergeValues(3),
+		}
+	}
+
+	subs, affected := t.randomOwners(nsubs), t.randomOwners(naffected)
+
+	var addOp dutil.AppendSliceAddFunc[[3]interface{}]
+	doneOp := func() [][3]interface{} { return nil }
+
+	add, done, err := dutil.NewLockAppendSlice[[3]interface{}](1<<9, 1<<9)
+	t.NoError(err)
+	addOp, doneOp = add, done
+
+	handler := acceptHandlerWorkerDistributeSMVs(
+		t.enc,
+		func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
+			if added, _ := addOp([3]interface{}{opindex, facth, values}); added < 1 {
+				return errors.Errorf("not added")
+			}
+
+			return nil
+		},
+		func(subs, affected []string) error {
+			if added, _ := addOp([3]interface{}{subs, affected, nil}); added < 1 {
+				return errors.Errorf("not added; owners")
+			}
+
+			return nil
+		},
+	)
+
+	_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(context.Background())
+	defer closef()
+
+	rctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, rConn)
+	hctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, hConn)
+
+	handlerdone := make(chan error)
+
+	go func() {
+		_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
+		handlerdone <- err
+	}()
+
+	sendOp, sendOwners, requestHandler := requestHandlerWorkerDistributeSMVs(
+		context.Background(),
+		t.enc,
+		maxItems, subStreamItems, maxSubStreams,
+	)
+
+	requestDone, requestWait := dutil.NewContextDone(context.Background())
+
+	go func() {
+		openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(context.Background(), time.Minute)
+		defer openConnSubStreamsClose()
+		openSubStreams := quicstream.NewFuncOpenSubStreams(openConnSubStreams)
+
+		_, err := requestHandler.StreamHandler(openSubStreams)(rctx, rstream)
+		_ = requestDone(err)
+	}()
+
+	var wg sync.WaitGroup
+
+	for i, v := range slices.All(ops) {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := sendOp(uint64(i), v[0].(util.Hash), v[1].([]dop5.SMV))
+			t.PrintIfErrPanic(err, "send op")
+		}()
+	}
+
+	wg.Wait()
+
+	t.NoError(sendOwners(subs, affected))
+	t.NoError(requestWait())
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait handler done")
+	case err := <-handlerdone:
+		t.NoError(err)
+	}
+
+	r := doneOp()
+	t.Equal(len(ops)+1, len(r))
+
+	var rsubs, raffected []string
+	rops := make([][2]interface{}, len(r)-1)
+	for i, v := range slices.All(r) {
+		if i == len(r)-1 {
+			rsubs, raffected = v[0].([]string), v[1].([]string)
+		} else {
+			rops[v[0].(uint64)] = [2]interface{}{
+				v[1],
+				v[2],
+			}
+		}
+	}
+
+	for i, a := range slices.All(ops) {
+		b := rops[i]
+
+		t.True(a[0].(util.Hash).Equal(b[0].(util.Hash)))
+		avs := a[1].([]dop5.SMV)
+		bvs := b[1].([]dop5.SMV)
+
+		t.Equal(len(avs), len(bvs))
+
+		for j, av := range slices.All(avs) {
+			bv := bvs[j]
+
+			t.True(base.IsEqualStateValue(av.Value(), bv.Value()))
+			t.Equal(av.Key(), bv.Key())
+		}
+	}
+
+	t.EqualValues(subs, rsubs)
+	t.EqualValues(affected, raffected)
+}
+
+func (t *testHandlerWorkerDistributeSMVs) TestOK() {
+	t.Run("ok", func() {
+		t.doHandler(
+			3333, 3, 3,
+			3333, 1<<9, 1<<9,
+		)
+	})
+
+	t.Run("empty ops", func() {
+		t.doHandler(
+			0, 3, 3,
+			2, 3, 3,
+		)
+	})
+
+	t.Run("empty subs", func() {
+		t.doHandler(
+			3, 0, 3,
+			2, 3, 3,
+		)
+	})
+
+	t.Run("empty affected", func() {
+		t.doHandler(
+			3, 3, 0,
+			2, 3, 3,
+		)
+	})
+
+	t.Run("empty all", func() {
+		t.doHandler(
+			0, 0, 0,
+			2, 3, 3,
+		)
+	})
+
+	t.Run("zero max items", func() {
+		t.doHandler(
+			3333, 3, 3,
+			0, 1<<9, 1<<9,
+		)
+	})
+
+	t.Run("zero max sub streams items", func() {
+		t.doHandler(
+			3333, 3, 3,
+			333, 0, 1<<9,
+		)
+	})
+
+	t.Run("zero max sub streams size", func() {
+		t.doHandler(
+			3333, 3, 3,
+			333, 1<<9, 0,
+		)
+	})
+}
+
+func TestHandlerWorkerDistributeSMVs(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testHandlerWorkerDistributeSMVs))
 }
 
 func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandler) (context.Context, error) {
