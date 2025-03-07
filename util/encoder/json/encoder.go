@@ -69,22 +69,7 @@ func (*Encoder) StreamEncoder(w io.Writer) util.StreamEncoder {
 }
 
 func (enc *Encoder) StreamDecoder(r io.Reader) util.StreamDecoder {
-	d := util.NewJSONStreamDecoder(r)
-
-	return streamDecoderFunc(func(i interface{}) error {
-		var b json.RawMessage
-
-		if err := d.Decode(&b); err != nil {
-			return err
-		}
-
-		switch hinter, err := enc.Decode(b); {
-		case err != nil:
-			return err
-		default:
-			return util.ReflectSetInterfaceValue(hinter, i)
-		}
-	})
+	return util.NewJSONStreamDecoder(r)
 }
 
 func (enc *Encoder) Decode(b []byte) (interface{}, error) {
@@ -372,10 +357,4 @@ func (*Encoder) analyzeExtensible(d encoder.DecodeDetail, ptr reflect.Value) enc
 	}
 
 	return d
-}
-
-type streamDecoderFunc func(interface{}) error
-
-func (s streamDecoderFunc) Decode(i interface{}) error {
-	return s(i)
 }

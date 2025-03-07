@@ -6,6 +6,7 @@ package util
 import (
 	"encoding/json"
 	"io"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -27,9 +28,21 @@ func marshalJSONIndent(i interface{}) ([]byte, error) {
 }
 
 func newJSONStreamEncoder(w io.Writer) StreamEncoder {
-	return json.NewEncoder(w)
+	return &lockedEncode{f: json.NewEncoder(w).Encode}
 }
 
 func newJSONStreamDecoder(r io.Reader) StreamDecoder {
 	return json.NewDecoder(r)
+}
+
+type lockedEncode struct {
+	f func(interface{}) error
+	sync.Mutex
+}
+
+func (l *lockedEncode) Encode(i interface{}) error {
+	l.Lock()
+	defer l.Unlock()
+
+	return l.f(i)
 }
