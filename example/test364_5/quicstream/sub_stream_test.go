@@ -835,6 +835,23 @@ func (t *testRequestSubStreams) TestOpenSubStreams() {
 		)
 	})
 
+	t.RunWithGoLeak("ok; size = 1", func() {
+		t.openSubStreams(
+			context.Background(),
+			1, 2,
+			func(streams []quic.Stream) error {
+				t.Print("local stream: sub streams")
+
+				return nil
+			},
+			func(streams []quic.Stream) error {
+				t.Print("remote stream: sub streams")
+
+				return nil
+			},
+		)
+	})
+
 	t.RunWithGoLeak("ok; max size == size - 1", func() {
 		t.openSubStreams(
 			context.Background(),

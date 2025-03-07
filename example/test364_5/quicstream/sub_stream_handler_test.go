@@ -235,6 +235,142 @@ type testSubStreamsHandler struct {
 }
 
 func (t *testSubStreamsHandler) TestOpen() {
+	t.Run("size = 1", func() {
+		var size uint16 = 1
+
+		handlerExhaustSubStreams := func(streams []quic.Stream) error {
+			t.PrintIfTruePanic(len(streams) != int(size), "handler: wrong size: len(streams)%d != int(size)%d", len(streams), int(size))
+
+			var wg sync.WaitGroup
+
+			for stream := range slices.Values(streams) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					b, err := io.ReadAll(stream)
+					t.PrintIfErrPanic(err, "handler: stream read: b=%d", len(b))
+				}()
+			}
+
+			wg.Wait()
+
+			return nil
+		}
+
+		requestExhaustSubStreams := func(streams []quic.Stream) error {
+			t.PrintIfTruePanic(len(streams) != int(size), "request: wrong size: len(streams)%d != int(size)%d", len(streams), int(size))
+
+			var wg sync.WaitGroup
+
+			for stream := range slices.Values(streams) {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					n, err := stream.Write([]byte{1, 2, 3})
+					t.PrintIfErrPanic(err, "request: stream write: n=%d", n)
+					stream.Close()
+				}()
+			}
+
+			wg.Wait()
+
+			return nil
+		}
+
+		ctx, cancel := t.Ctx()
+		defer cancel(nil)
+
+		_, _, localConn, remoteConn, closef := t.OpenConnections(ctx, ctx, nil, nil)
+		defer closef()
+
+		waitLocalStream := dutil.AssertWaitChan(t.Assert(), time.Second, func() quic.Stream {
+			stream, err := localConn.AcceptStream(ctx)
+			t.PrintIfErrPanic(err, "local conn: AcceptStream")
+
+			_, _, err = frame.ReadFixed(stream)
+			t.IfErrPanicf(err, "local stream: read")
+
+			return stream
+		})
+
+		remoteStream, err := remoteConn.OpenStream()
+		t.PrintIfErrPanic(err, "remote conn: OpenStream")
+		t.IfErrPanicf(frame.WriteFixed(remoteStream, []byte{0}), "remote stream: write")
+
+		localStream := waitLocalStream()
+
+		handler := func() AcceptSubStreamHandler {
+			return AcceptSubStreamHandler(func(
+				ctx context.Context,
+				stream quic.Stream,
+				openSubStreams AcceptSubStreamsHandlerOpenSubStreamsFunc,
+			) (context.Context, error) {
+				w, err := openSubStreams(ctx)
+				t.PrintIfErrPanic(err, "handler: open sub streams")
+
+				t.PrintIfErrPanic(w(handlerExhaustSubStreams), "handler: 1st sub streams")
+
+				t.PrintIfErrPanic(frame.WriteFixed(stream, []byte{0}), "handler: stream write")
+
+				w, err = openSubStreams(ctx)
+				t.PrintIfErrPanic(err, "handler: open sub streams")
+
+				t.PrintIfErrPanic(w(handlerExhaustSubStreams), "handler: 2nd sub streams")
+
+				return ctx, nil
+			})
+		}
+
+		handlerdone := make(chan struct{})
+		go func() {
+			handlerCtx := context.WithValue(ctx, QuicConnectionContextKey, localConn)
+
+			_, err := handler().StreamHandler(NewFuncAcceptSubStreams(math.MaxUint16))(handlerCtx, localStream)
+			t.PrintIfErrPanic(err, "handler")
+
+			close(handlerdone)
+		}()
+
+		requestHandler := OpenSubStreamsHandler(func(
+			ctx context.Context,
+			stream quic.Stream,
+			open OpenSubStreamsHandlerOpenSubStreamsFunc,
+		) (context.Context, error) {
+			subStreams, err := open(ctx, size)
+			t.PrintIfErrPanic(err, "request: 1st open")
+
+			t.PrintIfErrPanic(subStreams(requestExhaustSubStreams), "request: 1st sub streams")
+
+			_, _, err = frame.ReadFixed(remoteStream)
+			t.NoError(err)
+
+			subStreams, err = open(ctx, size)
+			t.PrintIfErrPanic(err, "request: 2nd open")
+
+			t.PrintIfErrPanic(subStreams(requestExhaustSubStreams), "request: 2nd sub streams")
+			t.T().Log("done")
+
+			return ctx, nil
+		})
+
+		o, c, _ := NewConnsAcceptSubStreams(ctx, time.Minute)
+		defer c()
+
+		requestCtx := context.WithValue(ctx, QuicConnectionContextKey, remoteConn)
+
+		requestHandler.StreamHandler(NewFuncOpenSubStreams(o))(requestCtx, remoteStream)
+
+		select {
+		case <-time.After(time.Second):
+			t.Fail("wait handler done")
+		case <-handlerdone:
+		}
+	})
+
 	t.Run("multiple", func() {
 		var size uint16 = 3
 

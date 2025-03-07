@@ -65,7 +65,7 @@ func AcceptSubStreams(
 
 	if size < 2 {
 		return func(f dutil.InErrorFunc[[]quic.Stream]) error {
-				err := frame.WriteSize(stream, 1)
+				err := frame.WriteSize(controlStream, 1)
 				if err == nil {
 					err = f([]quic.Stream{controlStream})
 				}
