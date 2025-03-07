@@ -171,7 +171,9 @@ func (t *testHandlerSendOps) doHandler(
 	}
 
 	handler := acceptHandlerSendOps(
-		func(seq iter.Seq2[uint64, [2]util.Hash]) error {
+		func(rmaxItems uint64, seq iter.Seq2[uint64, [2]util.Hash]) error {
+			t.PrintIfTruePanic(maxItems != rmaxItems, "max items")
+
 			for opindex, hs := range seq {
 				if added, _ := addOp([3]interface{}{opindex, hs[0], hs[1]}); added < 1 {
 					return errors.Errorf("not added")

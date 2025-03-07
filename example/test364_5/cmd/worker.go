@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"net"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -100,11 +101,17 @@ func (cmd *workerCommand) startWorker(
 
 	mustAddHandler := newFuncMustAddHandler(addHandler)
 
-	mustAddHandler("manager_send_ops", cmd.newHandlerInitialInsert(
-		workID, workers, statesShare, initialInsert).
-		StreamHandler(cmd.newAcceptSubStream))
+	var maxItems uint64
 
-	_, _, _, _ = workerInsertSMVs, workerUnmerged, wait, workerClose
+	mustAddHandler("manager_send_ops", cmd.newHandlerInitialInsert(
+		workID, workers, statesShare,
+		func(i uint64) {
+			atomic.AddUint64(&maxItems, i)
+		},
+		initialInsert,
+	).StreamHandler(cmd.newAcceptSubStream))
+
+	_, _, _, _, _ = workerInsertSMVs, workerUnmerged, wait, workerClose, maxItems
 
 	_ = workerClose(nil) // FIXME add handler
 
@@ -151,10 +158,13 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 	workID string,
 	workers []string,
 	statesShare uint64,
+	maxItemsf func(uint64),
 	initialInsert dop5.WorkerInitialInsertFunc,
 ) quicstream.AcceptSubStreamHandler {
 	return acceptHandlerSendOps(
-		func(seq iter.Seq2[uint64, [2]util.Hash]) error {
+		func(maxItems uint64, seq iter.Seq2[uint64, [2]util.Hash]) error {
+			maxItemsf(maxItems)
+
 			return initialInsert(
 				newFuncGetStateOwnersMurmur3(workers, statesShare),
 				cmd.newWorkerDistributeSMVs,

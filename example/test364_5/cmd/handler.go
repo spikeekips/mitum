@@ -190,7 +190,7 @@ func requestHandlerSendOps(
 }
 
 func acceptHandlerSendOps(
-	w func(iter.Seq2[uint64, [2]util.Hash]) error,
+	w func(uint64, iter.Seq2[uint64, [2]util.Hash]) error,
 ) quicstream.AcceptSubStreamHandler {
 	return func(
 		ctx context.Context,
@@ -203,7 +203,7 @@ func acceptHandlerSendOps(
 		case err != nil:
 			return ctx, err
 		case maxItems < 1:
-			return ctx, w(func(yield func(uint64, [2]util.Hash) bool) {})
+			return ctx, w(maxItems, func(yield func(uint64, [2]util.Hash) bool) {})
 		}
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
@@ -237,7 +237,7 @@ func acceptHandlerSendOps(
 			addDone()
 		}()
 
-		if err := w(func(yield func(uint64, [2]util.Hash) bool) {
+		if err := w(maxItems, func(yield func(uint64, [2]util.Hash) bool) {
 			for v := range seq {
 				if !yield(v[0].(uint64), [2]util.Hash{v[1].(util.Hash), v[2].(util.Hash)}) {
 					return
