@@ -47,10 +47,14 @@ func WriteFixed(w io.Writer, b []byte) error {
 	case err != nil:
 		return err
 	default:
-		_, err := w.Write(s)
+		p := make([]byte, len(s)+len(b))
+		copy(p, s)
+
 		if err == nil && size > 0 {
-			_, err = w.Write(b)
+			copy(p[len(s):], b)
 		}
+
+		_, err = w.Write(p)
 
 		return errors.WithStack(err)
 	}
