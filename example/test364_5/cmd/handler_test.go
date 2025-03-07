@@ -596,6 +596,8 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 		}
 	}
 
+	worker := util.UUID().String()
+
 	subs, affected := t.randomOwners(nsubs), t.randomOwners(naffected)
 
 	var addOp dutil.AppendSliceAddFunc[[3]interface{}]
@@ -605,23 +607,31 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 	t.NoError(err)
 	addOp, doneOp = add, done
 
-	handler := acceptHandlerWorkerDistributeSMVs(
-		t.enc,
-		func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
-			if added, _ := addOp([3]interface{}{opindex, facth, values}); added < 1 {
-				return errors.Errorf("not added")
-			}
+	distribute := func(rworker string) (
+		dop5.WorkerProcessInsertSMVsFunc,
+		dutil.In2ErrorFunc[[]string, []string],
+		error,
+	) {
+		t.PrintIfTruePanic(worker != rworker, "worker")
 
-			return nil
-		},
-		func(subs, affected []string) error {
-			if added, _ := addOp([3]interface{}{subs, affected, nil}); added < 1 {
-				return errors.Errorf("not added; owners")
-			}
+		return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
+				if added, _ := addOp([3]interface{}{opindex, facth, values}); added < 1 {
+					return errors.Errorf("not added")
+				}
 
-			return nil
-		},
-	)
+				return nil
+			},
+			func(subs, affected []string) error {
+				if added, _ := addOp([3]interface{}{subs, affected, nil}); added < 1 {
+					return errors.Errorf("not added; owners")
+				}
+
+				return nil
+			},
+			nil
+	}
+
+	handler := acceptHandlerWorkerDistributeSMVs(t.enc, distribute)
 
 	_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(context.Background())
 	defer closef()
@@ -639,6 +649,7 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 	sendOp, sendOwners, requestHandler := requestHandlerWorkerDistributeSMVs(
 		context.Background(),
 		t.enc,
+		worker,
 		maxItems, subStreamItems, maxSubStreams,
 	)
 

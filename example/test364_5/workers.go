@@ -752,7 +752,7 @@ type newWorkerDistributeSMVsContextChansFunc = func(context.Context) (
 )
 
 func newFuncDelayedWorkerDistributeSMVs(
-	newf newWorkerDistributeSMVsFunc,
+	newf NewWorkerDistributeSMVsFunc,
 	newChans newWorkerDistributeSMVsContextChansFunc,
 ) func(context.Context, string) (
 	WorkerProcessInsertSMVsFunc,

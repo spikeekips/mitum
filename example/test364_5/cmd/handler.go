@@ -712,6 +712,7 @@ func acceptHandlerStopWorker() quicstream.StreamHandler {
 func requestHandlerWorkerDistributeSMVs(
 	ctx context.Context,
 	enc encoder.Encoder,
+	worker string,
 	maxItems, maxSubStreamItems uint64,
 	maxSubStreamsSize uint16,
 ) (
@@ -726,6 +727,10 @@ func requestHandlerWorkerDistributeSMVs(
 		stream quic.Stream,
 		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 	) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+			return ctx, err
+		}
+
 		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
@@ -812,14 +817,28 @@ func requestHandlerWorkerDistributeSMVs(
 
 func acceptHandlerWorkerDistributeSMVs(
 	enc encoder.Encoder,
-	insertValues dop5.WorkerProcessInsertSMVsFunc,
-	insertOwners dutil.In2ErrorFunc[[]string, []string],
+	w dop5.WorkerProcessWorkerInsertSMVsFunc,
 ) quicstream.AcceptSubStreamHandler {
 	return func(
 		ctx context.Context,
 		stream quic.Stream,
 		accept quicstream.AcceptSubStreamsHandlerOpenSubStreamsFunc,
 	) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		var insertValues dop5.WorkerProcessInsertSMVsFunc
+		var insertOwners dutil.In2ErrorFunc[[]string, []string]
+
+		switch v, o, err := w(worker); {
+		case err != nil:
+			return ctx, err
+		default:
+			insertValues, insertOwners = v, o
+		}
+
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
 
 		switch s, err := accept(ctx); {

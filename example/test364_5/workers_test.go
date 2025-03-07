@@ -49,7 +49,7 @@ func (t *baseTestWorkers) newWorkerOptions(local string) *WorkerOptions {
 	return NewWorkerOptions(local)
 }
 
-func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) newWorkerDistributeSMVsFunc {
+func (t *baseTestWorkers) defaultDistributeValuesFunc(local string) NewWorkerDistributeSMVsFunc {
 	return func(_ context.Context, worker string) (
 		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string, []string],
@@ -107,7 +107,7 @@ func (t *baseTestWorkers) newWorkerProcessDistributeSMVsFunc() (
 }
 
 func (t *baseTestWorkers) newWorkerDistributeSMVsFunc() (
-	newWorkerDistributeSMVsFunc,
+	NewWorkerDistributeSMVsFunc,
 	dutil.OutFunc[[]interface{}],
 ) {
 	d, o := t.newWorkerProcessDistributeSMVsFunc()

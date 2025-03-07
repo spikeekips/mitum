@@ -197,7 +197,7 @@ func (t *testManagerWithWorkers) newManager(
 	)
 
 	getOperationFact := newFuncGetOperationFact(facts)
-	distributeValues := func(local string) newWorkerDistributeSMVsFunc {
+	distributeValues := func(local string) NewWorkerDistributeSMVsFunc {
 		return func(ctx context.Context, worker string) (
 			WorkerProcessInsertSMVsFunc,
 			dutil.In2ErrorFunc[[]string, []string],

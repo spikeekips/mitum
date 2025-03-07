@@ -13,14 +13,14 @@ import (
 )
 
 type (
-	newWorkerDistributeSMVsFunc func(_ context.Context, worker string) (
+	NewWorkerDistributeSMVsFunc func(_ context.Context, worker string) (
 		WorkerProcessInsertSMVsFunc,
 		dutil.In2ErrorFunc[[]string /* subs */, []string /* affected */],
 		error,
 	)
 	WorkerInitialInsertFunc = func(
 		getStateOwnersFunc,
-		newWorkerDistributeSMVsFunc,
+		NewWorkerDistributeSMVsFunc,
 		getOperationFactFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		WorkerReportStatesOwnersFunc,
@@ -159,7 +159,7 @@ func NewFuncWorker(
 
 	return func(
 			getStateOwners getStateOwnersFunc,
-			distribute newWorkerDistributeSMVsFunc,
+			distribute NewWorkerDistributeSMVsFunc,
 			getOperationFact getOperationFactFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners WorkerReportStatesOwnersFunc,

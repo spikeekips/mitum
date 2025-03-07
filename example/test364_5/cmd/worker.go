@@ -111,7 +111,12 @@ func (cmd *workerCommand) startWorker(
 		initialInsert,
 	).StreamHandler(cmd.newAcceptSubStream))
 
-	_, _, _, _, _ = workerInsertSMVs, workerUnmerged, wait, workerClose, maxItems
+	mustAddHandler("worker_distribute_smvs", acceptHandlerWorkerDistributeSMVs(
+		cmd.enc,
+		workerInsertSMVs,
+	).StreamHandler(cmd.newAcceptSubStream))
+
+	_, _, _, _ = workerUnmerged, wait, workerClose, maxItems
 
 	_ = workerClose(nil) // FIXME add handler
 
@@ -165,9 +170,11 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 		func(maxItems uint64, seq iter.Seq2[uint64, [2]util.Hash]) error {
 			maxItemsf(maxItems)
 
+			maxItemsPerWorker := maxItems / uint64(len(workers))
+
 			return initialInsert(
 				newFuncGetStateOwnersMurmur3(workers, statesShare),
-				cmd.newWorkerDistributeSMVs,
+				cmd.newFuncWorkerDistributeSMVs(workID, maxItemsPerWorker),
 				cmd.getOperationFact,
 				seq,
 				cmd.newFuncReportStatesOwners(workID),
@@ -176,19 +183,33 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 	)
 }
 
-func (cmd *workerCommand) newWorkerDistributeSMVs(ctx context.Context, worker string) (
-	dop5.WorkerProcessInsertSMVsFunc,
-	dutil.In2ErrorFunc[[]string, []string],
-	error,
-) {
-	// FIXME
-	return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
-			return nil
-		},
-		func(subs, affected []string) error {
-			return nil
-		},
-		nil
+func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItems uint64) dop5.NewWorkerDistributeSMVsFunc {
+	request := cmd.requestWorkWorker(workID, "worker_distribute_smvs")
+
+	return func(ctx context.Context, worker string) (
+		dop5.WorkerProcessInsertSMVsFunc,
+		dutil.In2ErrorFunc[[]string, []string],
+		error,
+	) {
+		insert, owners, handler := requestHandlerWorkerDistributeSMVs(ctx, cmd.enc,
+			worker, maxItems, defaultSubStreamItems, defaultMaxSubStreamsSize)
+
+		requestDone, requestWait := dutil.NewContextDone(ctx)
+
+		go func() {
+			_, err := request(ctx, worker, nil, nil,
+				handler.StreamHandler(cmd.openSubStreams))
+			_ = requestDone(err)
+		}()
+
+		return insert, func(subs, affected []string) error {
+			if err := owners(subs, affected); err != nil {
+				return err
+			}
+
+			return requestWait()
+		}, nil
+	}
 }
 
 func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, oph, facth util.Hash) (
