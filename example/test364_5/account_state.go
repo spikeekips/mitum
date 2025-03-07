@@ -153,6 +153,7 @@ func (v *AccountSMV) DecodeJSON(b []byte, enc encoder.Encoder) error {
 		return err
 	}
 
+	v.AccountSV = new(AccountSV)
 	if err := v.AccountSV.DecodeJSON(u.Value, enc); err != nil {
 		return err
 	}
