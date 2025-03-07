@@ -60,7 +60,7 @@ func redisSaveOperationFacts(
 
 			return err
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 

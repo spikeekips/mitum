@@ -244,7 +244,7 @@ func AsyncIsValidNodesHash(ctx context.Context, semSize uint64, b []byte, nodes 
 		if err := newJob(func(context.Context) error {
 			return isValidNodeHash(b, index, nodes)
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 

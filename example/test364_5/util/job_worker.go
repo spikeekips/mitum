@@ -43,12 +43,15 @@ func NewFuncBaseJobWorker(
 	newJobf := NewFuncJobWorkerNewJobFunc(wctx, jctx, sem, errf)
 	waitf, errNewJobDone := NewFuncJobWorkerWaitFunc(wctx, jctx, sem, semSize)
 
+	iferr := NewIfErrErrorInFunc(errf)
+
 	return func(c InErrorFunc[context.Context]) error {
-			switch err := newJobf(c); {
+			err := newJobf(c)
+			switch {
 			case errors.Is(err, errNewJobDone):
 				return ErrJobWorkerDone.WithStack()
 			default:
-				return err
+				return iferr(err)
 			}
 		},
 		func() {
@@ -149,7 +152,7 @@ func NewFuncJobWorkerNewJobFunc(
 		}
 
 		if err := sem.Acquire(newJobCtx, 1); err != nil {
-			return ErrorWithStack(err)
+			return context.Cause(newJobCtx)
 		}
 
 		go func() {

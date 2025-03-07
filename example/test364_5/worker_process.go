@@ -633,7 +633,7 @@ func workerProcessCloseSVMs(
 					return h(st)
 				}
 			}); err != nil {
-				return jobWait(err)
+				return err
 			}
 		}
 

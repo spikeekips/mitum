@@ -74,7 +74,7 @@ func baseWriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWri
 		if err := newJob(func(context.Context) error {
 			return w(uint64(i), n)
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 
@@ -262,7 +262,7 @@ func AsyncGenerateNodesHashByFollowingParent(
 		}
 
 		if err := gen(index); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 
@@ -332,7 +332,7 @@ func generateNodesHash(ctx context.Context, nodes []Node, w NodeWriteFunc, is it
 		if err := newJob(func(context.Context) error {
 			return GenerateNodeHash(i, nodes, w)
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 

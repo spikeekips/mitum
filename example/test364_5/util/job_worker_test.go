@@ -355,9 +355,7 @@ func (t *testJobWorker) TestCancelBeforeRun() {
 				enoughch <- true
 			}
 
-			if err := newJob(callback); err != nil {
-				return
-			}
+			newJob(callback)
 		}
 
 		jobDone()

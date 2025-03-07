@@ -437,7 +437,7 @@ func (cmd *managerCommand) newFuncStartWorkers(workID string) dop5.ManagerStartW
 
 				return err
 			}); err != nil {
-				return jobWait(err)
+				return err
 			}
 		}
 
@@ -488,7 +488,7 @@ func (cmd *managerCommand) requestWorkers(
 		if err := newJob(func(ctx context.Context) error {
 			return job(ctx, worker)
 		}); err != nil {
-			return jobWait(err)
+			return err
 		}
 	}
 

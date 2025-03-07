@@ -110,7 +110,7 @@ func NewFuncManager(
 	cancelWork := func(err error) error {
 		if err != nil {
 			if cancelWorkerf != nil {
-				err = managerCancelWorkers(wctx, newJobWorker, workerPool, cancelWorkerf, err)
+				_ = managerCancelWorkers(wctx, newJobWorker, workerPool, cancelWorkerf, err)
 			}
 
 			return wctxCancel(err)
@@ -410,30 +410,21 @@ func managerCancelWorkers(
 	}
 
 	_, seq := workerPool.activeWorkers()
-	var werr error
 
 	for worker := range seq {
-		if werr = newJob(func(ctx context.Context) error {
+		if err := newJob(func(ctx context.Context) error {
 			err := f(ctx, worker, gerr)
 			log.Debug().Err(err).Str("worker", worker).Msg("cancel worker")
 
 			return nil
-		}); werr != nil {
-			break
+		}); err != nil {
+			return err
 		}
-	}
-
-	if werr != nil {
-		return jobWait(gerr)
 	}
 
 	jobDone()
 
-	if err := jobWait(nil); err != nil {
-		return err
-	}
-
-	return gerr
+	return jobWait(nil)
 }
 
 func managerCloseWorkers(
@@ -513,8 +504,6 @@ func managerCloseWorkers(
 
 				return nil
 			}); err != nil {
-				_ = jobWait(err)
-
 				break
 			}
 		}
