@@ -848,48 +848,51 @@ func acceptHandlerWorkerDistributeSMVs(
 			subStreams = s
 		}
 
-		done, wait := dutil.NewContextDone(ctx)
-		addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
+		var newJob dutil.JobWorkerNewJobFunc
+		var jobDone func()
+		var jobWait dutil.InErrorFunc[error]
 
-		go func() {
-			done(subStreams(func(streams []quic.Stream) error {
-				defer addValuesDone()
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
+		case err != nil:
+			return ctx, err
+		default:
+			newJob, jobDone, jobWait = n, d, w
+		}
 
-				return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
-					decode := enc.StreamDecoder(sub).Decode
+		if err := subStreams(func(streams []quic.Stream) error {
+			defer jobDone()
 
-					for {
-						var bundle WorkerSMVsBundle
-						var b json.RawMessage
+			return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
+				decode := enc.StreamDecoder(sub).Decode
 
-						switch err := decode(&b); {
-						case errors.Is(err, io.EOF):
-							return nil
-						case err != nil:
-							return err
-						default:
+				for {
+					var b json.RawMessage
+
+					switch err := decode(&b); {
+					case errors.Is(err, io.EOF):
+						return nil
+					case err != nil:
+						return err
+					default:
+						if err := newJob(func(context.Context) error {
+							var bundle WorkerSMVsBundle
+
 							if err := encoder.Decode(enc, b, &bundle); err != nil {
 								return err
 							}
 
-							addValues([3]interface{}{bundle.O, bundle.F, bundle.V})
+							return insertValues(bundle.O, bundle.F, bundle.V)
+						}); err != nil {
+							return err
 						}
 					}
-				})
-			}))
-		}()
-
-		for v := range seq {
-			if err := insertValues(
-				v[0].(uint64),
-				v[1].(util.Hash),
-				v[2].([]dop5.SMV),
-			); err != nil {
-				return ctx, err
-			}
+				}
+			})
+		}); err != nil {
+			return ctx, jobWait(err)
 		}
 
-		if err := wait(); err != nil {
+		if err := jobWait(nil); err != nil {
 			return ctx, err
 		}
 

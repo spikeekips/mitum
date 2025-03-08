@@ -600,12 +600,8 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 
 	subs, affected := t.randomOwners(nsubs), t.randomOwners(naffected)
 
-	var addOp dutil.AppendSliceAddFunc[[3]interface{}]
-	doneOp := func() [][3]interface{} { return nil }
-
-	add, done, err := dutil.NewLockAppendSlice[[3]interface{}](1<<9, 1<<9)
+	addOp, doneOp, err := dutil.NewLockAppendSlice[[3]interface{}](1<<9, 1<<9)
 	t.NoError(err)
-	addOp, doneOp = add, done
 
 	distribute := func(rworker string) (
 		dop5.WorkerProcessInsertSMVsFunc,
