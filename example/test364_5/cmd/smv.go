@@ -26,8 +26,8 @@ type workerSMVsBundleMarshaler struct {
 	V interface{}
 }
 
-func newWorkerSMVsBundleMarshaller(v [3]interface{}) workerSMVsBundleMarshaler {
-	return workerSMVsBundleMarshaler{
+func newWorkerSMVsBundleMarshaller(v [3]interface{}) *workerSMVsBundleMarshaler {
+	return &workerSMVsBundleMarshaler{
 		BaseHinter: hint.NewBaseHinter(WorkerSMVsBundleHint),
 		O:          v[0], F: v[1], V: v[2],
 	}

@@ -848,31 +848,48 @@ func acceptHandlerWorkerDistributeSMVs(
 			subStreams = s
 		}
 
-		if err := subStreams(func(streams []quic.Stream) error {
-			return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
-				decode := enc.StreamDecoder(sub).Decode
+		done, wait := dutil.NewContextDone(ctx)
+		addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
 
-				for {
-					var bundle WorkerSMVsBundle
-					var b json.RawMessage
+		go func() {
+			done(subStreams(func(streams []quic.Stream) error {
+				defer addValuesDone()
 
-					switch err := decode(&b); {
-					case errors.Is(err, io.EOF):
-						return nil
-					case err != nil:
-						return err
-					default:
-						if err := encoder.Decode(enc, b, &bundle); err != nil {
+				return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
+					decode := enc.StreamDecoder(sub).Decode
+
+					for {
+						var bundle WorkerSMVsBundle
+						var b json.RawMessage
+
+						switch err := decode(&b); {
+						case errors.Is(err, io.EOF):
+							return nil
+						case err != nil:
 							return err
+						default:
+							if err := encoder.Decode(enc, b, &bundle); err != nil {
+								return err
+							}
+
+							addValues([3]interface{}{bundle.O, bundle.F, bundle.V})
 						}
 					}
+				})
+			}))
+		}()
 
-					if err := insertValues(bundle.O, bundle.F, bundle.V); err != nil {
-						return err
-					}
-				}
-			})
-		}); err != nil {
+		for v := range seq {
+			if err := insertValues(
+				v[0].(uint64),
+				v[1].(util.Hash),
+				v[2].([]dop5.SMV),
+			); err != nil {
+				return ctx, err
+			}
+		}
+
+		if err := wait(); err != nil {
 			return ctx, err
 		}
 
