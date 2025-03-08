@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -731,6 +730,10 @@ func requestHandlerWorkerDistributeSMVs(
 			return ctx, err
 		}
 
+		if err := writeUint64(stream, maxItems); err != nil {
+			return ctx, err
+		}
+
 		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
@@ -744,46 +747,35 @@ func requestHandlerWorkerDistributeSMVs(
 			subStreams = f
 		}
 
-		if err := subStreams(func(streams []quic.Stream) error {
-			newJob := func(f dutil.InErrorFunc[context.Context]) error { return f(ctx) }
-			jobDone := func() {}
-			jobWait := func(err error) error { return err }
+		return ctx, subStreams(func(streams []quic.Stream) error {
+			var newJob dutil.JobWorkerNewJobFunc
+			var jobDone func()
+			var jobWait dutil.InErrorFunc[error]
 
-			if len(streams) > 1 {
-				switch n, d, w, err := dutil.NewFuncJobWorker(ctx, maxItems); {
-				case err != nil:
-					return err
-				default:
-					newJob, jobDone, jobWait = n, d, w
-				}
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
+			case err != nil:
+				return err
+			default:
+				newJob, jobDone, jobWait = n, d, w
 			}
 
-			encs := make([]dutil.InErrorFunc[any], len(streams))
-
 			for i, v := range dutil.SeqAll(seq) {
-				p := i % len(streams)
-				encode := encs[p]
-
-				if encode == nil {
-					encode = enc.StreamEncoder(streams[p]).Encode
-					encs[p] = encode
-				}
-
 				if err := newJob(func(context.Context) error {
-					return encode(newWorkerSMVsBundleMarshaller(v))
+					switch b, err := enc.Marshal(newWorkerSMVsBundleMarshaller(v)); {
+					case err != nil:
+						return err
+					default:
+						return frame.WriteFixed(streams[i%len(streams)], b)
+					}
 				}); err != nil {
-					return err
+					return jobWait(err)
 				}
 			}
 
 			jobDone()
 
 			return jobWait(nil)
-		}); err != nil {
-			return ctx, err
-		}
-
-		return ctx, nil
+		})
 	}
 
 	var subs, affected []string
@@ -829,6 +821,11 @@ func acceptHandlerWorkerDistributeSMVs(
 			return ctx, err
 		}
 
+		var maxItems uint64
+		if _, err := readUint64(stream, &maxItems); err != nil {
+			return ctx, err
+		}
+
 		var insertValues dop5.WorkerProcessInsertSMVsFunc
 		var insertOwners dutil.In2ErrorFunc[[]string, []string]
 
@@ -852,7 +849,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, 1<<9); {
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
 		case err != nil:
 			return ctx, err
 		default:
@@ -863,20 +860,15 @@ func acceptHandlerWorkerDistributeSMVs(
 			defer jobDone()
 
 			return jobsSubStreams(ctx, streams, func(_ context.Context, sub quic.Stream) error {
-				decode := enc.StreamDecoder(sub).Decode
-
 				for {
-					var b json.RawMessage
-
-					switch err := decode(&b); {
-					case errors.Is(err, io.EOF):
-						return nil
-					case err != nil:
+					switch b, n, err := frame.ReadFixed(sub); {
+					case err != nil && !errors.Is(err, io.EOF):
 						return err
+					case n < 1 && errors.Is(err, io.EOF):
+						return nil
 					default:
 						if err := newJob(func(context.Context) error {
 							var bundle WorkerSMVsBundle
-
 							if err := encoder.Decode(enc, b, &bundle); err != nil {
 								return err
 							}

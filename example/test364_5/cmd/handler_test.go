@@ -726,7 +726,7 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 	t.Run("ok", func() {
 		t.doHandler(
 			3333, 3, 3,
-			3333, 1<<9, 1<<9,
+			3333, 1<<7, 1<<9,
 		)
 	})
 
