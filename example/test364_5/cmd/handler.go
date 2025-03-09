@@ -877,6 +877,10 @@ func acceptHandlerWorkerDistributeSMVs(
 						}); err != nil {
 							return err
 						}
+
+						if errors.Is(err, io.EOF) {
+							return nil
+						}
 					}
 				}
 			})
