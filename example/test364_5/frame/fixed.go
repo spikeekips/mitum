@@ -38,7 +38,6 @@ func NewFixedReader(r io.Reader) (io.Reader, error) {
 
 func WriteFixed(w io.Writer, b []byte) error {
 	size := len(b)
-
 	if size > math.MaxUint32 {
 		return errors.Errorf("size too large; <= uint32")
 	}
@@ -46,13 +45,14 @@ func WriteFixed(w io.Writer, b []byte) error {
 	switch s, err := sizeToBytes(uint32(size)); {
 	case err != nil:
 		return err
+	case size < 1:
+		_, err = w.Write(s)
+
+		return errors.WithStack(err)
 	default:
 		p := make([]byte, len(s)+len(b))
 		copy(p, s)
-
-		if err == nil && size > 0 {
-			copy(p[len(s):], b)
-		}
+		copy(p[len(s):], b)
 
 		_, err = w.Write(p)
 
