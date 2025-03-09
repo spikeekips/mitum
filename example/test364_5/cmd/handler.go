@@ -9,6 +9,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -721,19 +722,10 @@ func requestHandlerWorkerDistributeSMVs(
 ) {
 	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
 
-	handler := func(
+	seqHandler := func(
 		ctx context.Context,
-		stream quic.Stream,
 		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 	) (context.Context, error) {
-		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
-			return ctx, err
-		}
-
-		if err := writeUint64(stream, maxItems); err != nil {
-			return ctx, err
-		}
-
 		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
@@ -758,6 +750,11 @@ func requestHandlerWorkerDistributeSMVs(
 			default:
 				newJob, jobDone, jobWait = n, d, w
 			}
+
+			started := time.Now()
+			defer func() {
+				fmt.Println("r>", time.Since(started))
+			}()
 
 			for i, v := range dutil.SeqAll(seq) {
 				if err := newJob(func(context.Context) error {
@@ -795,7 +792,15 @@ func requestHandlerWorkerDistributeSMVs(
 			stream quic.Stream,
 			openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 		) (context.Context, error) {
-			if _, err := handler(ctx, stream, openSubStreams); err != nil {
+			if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+				return ctx, err
+			}
+
+			if err := writeUint64(stream, maxItems); err != nil {
+				return ctx, err
+			}
+
+			if _, err := seqHandler(ctx, openSubStreams); err != nil {
 				return ctx, err
 			}
 
@@ -856,6 +861,7 @@ func acceptHandlerWorkerDistributeSMVs(
 			newJob, jobDone, jobWait = n, d, w
 		}
 
+		started := time.Now()
 		if err := subStreams(func(streams []quic.Stream) error {
 			defer jobDone()
 
@@ -891,6 +897,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		if err := jobWait(nil); err != nil {
 			return ctx, err
 		}
+		fmt.Println("a>", time.Since(started))
 
 		var subs []string
 		if err := readFixedFrameStringSlice(stream, &subs); err != nil {
