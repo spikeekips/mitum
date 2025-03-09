@@ -3,6 +3,7 @@ package quicstream
 import (
 	"net"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -90,6 +91,22 @@ func closeStreamWithError(stream quic.Stream, err error) error {
 }
 
 func closeStreamsWithError(streams []quic.Stream, err error) error {
+	if err == nil {
+		var wg sync.WaitGroup
+
+		for stream := range slices.Values(streams) {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				_ = stream.Close()
+			}()
+		}
+
+		wg.Wait()
+	}
+
 	f := newFuncCloseStreamWithError(err)
 
 	slices.Values(streams)(func(stream quic.Stream) bool {
