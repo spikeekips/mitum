@@ -174,7 +174,7 @@ func setValue[T any](v interface{}, t *T) error {
 
 	i, ok := v.(T)
 	if !ok {
-		return errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem(), v) //nolint:gocritic //...
+		return errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem().Elem(), v)
 	}
 
 	*t = i
