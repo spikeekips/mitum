@@ -8,17 +8,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/stretchr/testify/suite"
 )
 
 type testWrite struct {
 	baseTestTree
-	enc *jsonenc.Encoder
-}
-
-func (t *testWrite) TestSuite() {
-	t.enc = jsonenc.NewEncoder()
 }
 
 func (t *testWrite) TestWriteNodes() {

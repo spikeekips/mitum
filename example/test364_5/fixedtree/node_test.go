@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	mencoder "github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -175,9 +174,7 @@ func TestNode(t *testing.T) {
 }
 
 func TestNodeEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n := NewBaseNode(util.UUID().String())
@@ -185,14 +182,14 @@ func TestNodeEncode(tt *testing.T) {
 		t.NoError(err)
 		c()
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		return n, b
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *BaseNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}
@@ -210,14 +207,12 @@ func TestNodeEncode(tt *testing.T) {
 }
 
 func TestEmptyNodeEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n := emptyBaseNode()
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 		t.T().Log("marshaled:", string(b))
 
@@ -225,7 +220,7 @@ func TestEmptyNodeEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *BaseNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		t.Nil(u)
 
@@ -244,22 +239,20 @@ func TestEmptyNodeEncode(tt *testing.T) {
 }
 
 func TestNodeEncodeEmptyKey(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n := NewBaseNode("")
 		n.h = valuehash.RandomSHA256()
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		return n, b
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *BaseNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}
@@ -277,22 +270,20 @@ func TestNodeEncodeEmptyKey(tt *testing.T) {
 }
 
 func TestNodeEncodeEmptyHash(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n := NewBaseNode(util.UUID().String())
 		n.h = nil
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		return n, b
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *BaseNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}

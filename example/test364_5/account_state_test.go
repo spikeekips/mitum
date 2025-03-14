@@ -9,10 +9,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	mencoder "github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -761,13 +762,13 @@ func TestAccountSVM(t *testing.T) {
 }
 
 func TestEncodeAccountSV(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
+	t := new(mencoder.BaseTestEncode)
 	t.SetT(tt)
 
-	enc := jsonenc.NewEncoder()
+	enc := jsonenc.NewEncoder(1 << 9)
 
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountSVHint, Instance: &AccountSV{}}))
+	t.NoError(jsonenc.AddDecode(enc, base.DummyPublickeyHint, base.DummyPublickey{}, DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(enc, AccountSVHint, &AccountSV{}, AccountSVDecodeJSON))
 
 	t.Encode = func() (interface{}, []byte) {
 		v := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
@@ -781,7 +782,7 @@ func TestEncodeAccountSV(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *AccountSV
-		t.NoError(encoder.Decode(enc, b, &u))
+		t.NoError(encoder.Unmarshal(enc, b, &u))
 
 		return u
 	}

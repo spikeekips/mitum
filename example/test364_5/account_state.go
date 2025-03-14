@@ -1,14 +1,16 @@
+//go:generate go run -v -race tool/set_base_hinter.go - $GOFILE
+
 package dop5
 
 import (
-	"encoding/json"
 	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -32,6 +34,10 @@ func NewAccountSV(address base.Publickey, balance int64) *AccountSV {
 }
 
 func (s *AccountSV) HashBytes() []byte {
+	if s.Address == nil {
+		return nil
+	}
+
 	return slices.Concat(
 		s.Address.Bytes(),
 		util.Int64ToBytes(s.Balance),
@@ -46,28 +52,13 @@ func (s *AccountSV) IsValid([]byte) error {
 	return util.CheckIsValiders(nil, false, s.Address)
 }
 
-type accountSVJSONUnmarshaler struct {
-	Address string `json:"address"`
-	Balance int64  `json:"balance"`
-}
+func AccountSVDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
+	u := new(AccountSV)
 
-func (s *AccountSV) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountSVJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
-	}
-
-	switch i, err := base.DecodePublickeyFromString(u.Address, enc); {
-	case err != nil:
-		return err
-	default:
-		s.Address = i
-	}
-
-	s.Balance = u.Balance
-	s.BaseHinter = hint.NewBaseHinter(AccountSVHint)
-
-	return nil
+	return u, dutil.FuncChain(
+		AssignJSONPublickey(m["address"], &u.Address, enc),
+		dutil.AssignJSONInts(m["balance"], &u.Balance),
+	)
 }
 
 func accountStateKey(address base.Publickey) string {
@@ -142,25 +133,13 @@ func (v *AccountSMV) MarshalJSON() ([]byte, error) {
 	return b, err
 }
 
-type accountSMVJSONUnmarshaler struct {
-	Key   string
-	Value json.RawMessage
-}
+func AccountSMVDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
+	v := new(AccountSMV)
 
-func (v *AccountSMV) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountSMVJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
-	}
-
-	v.AccountSV = new(AccountSV)
-	if err := v.AccountSV.DecodeJSON(u.Value, enc); err != nil {
-		return err
-	}
-
-	v.key = u.Key
-
-	return nil
+	return v, dutil.FuncChain(
+		encoder.Decode(enc, m["Value"], &v.AccountSV),
+		dutil.AssignJSON(m["Key"], &v.key),
+	)
 }
 
 type AccountSVM struct {

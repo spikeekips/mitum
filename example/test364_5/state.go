@@ -1,20 +1,21 @@
+//go:generate go run -v -race tool/set_base_hinter.go - $GOFILE
+
 package dop5
 
 import (
-	"encoding/json"
 	"slices"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var BaseStateHint = hint.MustNewHint("test-base-state-v0.0.1")
 
-type baseState struct {
+type BaseState struct {
 	h        util.Hash
 	previous util.Hash
 	v        base.StateValue
@@ -30,8 +31,8 @@ func NewBaseState(
 	v base.StateValue,
 	previous util.Hash,
 	ops []util.Hash,
-) *baseState {
-	s := &baseState{
+) *BaseState {
+	s := &BaseState{
 		BaseHinter: hint.NewBaseHinter(BaseStateHint),
 		height:     height,
 		k:          k,
@@ -45,7 +46,7 @@ func NewBaseState(
 	return s
 }
 
-func (s *baseState) IsValid([]byte) error {
+func (s *BaseState) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid base state")
 
 	if err := util.CheckIsValiders(nil, false,
@@ -83,31 +84,31 @@ func (s *baseState) IsValid([]byte) error {
 	return nil
 }
 
-func (s *baseState) Hash() util.Hash {
+func (s *BaseState) Hash() util.Hash {
 	return s.h
 }
 
-func (s *baseState) Previous() util.Hash {
+func (s *BaseState) Previous() util.Hash {
 	return s.previous
 }
 
-func (s *baseState) Key() string {
+func (s *BaseState) Key() string {
 	return s.k
 }
 
-func (s *baseState) Value() base.StateValue {
+func (s *BaseState) Value() base.StateValue {
 	return s.v
 }
 
-func (s *baseState) Height() base.Height {
+func (s *BaseState) Height() base.Height {
 	return s.height
 }
 
-func (s *baseState) Operations() []util.Hash {
+func (s *BaseState) Operations() []util.Hash {
 	return s.ops
 }
 
-func (s *baseState) generateHash() util.Hash {
+func (s *BaseState) generateHash() util.Hash {
 	w, sum := dutil.NewSHA256HashWriter()
 
 	if s.previous != nil {
@@ -139,7 +140,7 @@ type baseStateJSONMarshaler struct {
 	Height base.Height `json:"height"`
 }
 
-func (s *baseState) MarshalJSON() ([]byte, error) {
+func (s *BaseState) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseStateJSONMarshaler{
 		BaseHinter: s.BaseHinter,
 		Hash:       s.h,
@@ -151,40 +152,25 @@ func (s *baseState) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type baseStateJSONUnmarshaler struct {
-	Hash       valuehash.HashDecoder   `json:"hash"`
-	Previous   valuehash.HashDecoder   `json:"previous"`
-	Key        string                  `json:"key"`
-	Value      json.RawMessage         `json:"value"`
-	Operations []valuehash.HashDecoder `json:"operations"`
-	Height     base.HeightDecoder      `json:"height"`
-}
+func BaseStateDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
+	s := new(BaseState)
 
-func (s *baseState) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u baseStateJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
-	}
+	return s, dutil.FuncChain(
+		dutil.AssignJSONHash(m["hash"], &s.h),
+		dutil.AssignJSONHash(m["previous"], &s.previous),
+		dutil.AssignJSONFunc(m["height"], &s.height, func(i any) (base.Height, error) {
+			var height int64
 
-	s.h = u.Hash.Hash()
-	s.previous = u.Previous.Hash()
-	s.height = u.Height.Height()
-	s.k = u.Key
+			return base.Height(height), dutil.AssignJSONInts(i, &height)()
+		}),
+		dutil.AssignJSON(m["key"], &s.k),
+		dutil.AssignJSONSlice(m["operations"], &s.ops, func(i any) (util.Hash, error) {
+			var h util.Hash
 
-	s.ops = make([]util.Hash, len(u.Operations))
-
-	for i := range u.Operations {
-		s.ops[i] = u.Operations[i].Hash()
-	}
-
-	switch i, err := base.DecodeStateValue(u.Value, enc); {
-	case err != nil:
-		return err
-	default:
-		s.v = i
-	}
-
-	return nil
+			return h, dutil.AssignJSONHash(i, &h)()
+		}),
+		encoder.Decode(enc, m["value"], &s.v),
+	)
 }
 
 type SMV interface { // State Merge Value

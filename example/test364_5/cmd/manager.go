@@ -19,7 +19,6 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -28,11 +27,6 @@ var (
 	defaultSubStreamItems    uint64 = 1 << 9
 	defaultMaxSubStreamsSize uint16 = 1 << 8
 )
-
-var encDetails = []encoder.DecodeDetail{
-	{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}},
-	{Hint: dop5.AccountOpFactHint, Instance: &dop5.AccountOpFact{}},
-}
 
 type requestWorkerFunc = func(context.Context,
 	string, /* worker */

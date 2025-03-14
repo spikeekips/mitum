@@ -47,3 +47,13 @@ func NewIfErrErrorInFunc(f InErrorFunc[error], ignores ...error) InErrorFunc[err
 		return nil
 	}
 }
+
+func FuncChain(fs ...ErrorFunc) error {
+	for f := range slices.Values(fs) {
+		if err := f(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

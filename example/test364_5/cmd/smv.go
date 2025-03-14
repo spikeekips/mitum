@@ -1,14 +1,14 @@
+//go:generate go run -v -race ../tool/set_base_hinter.go - $GOFILE
+
 package main
 
 import (
-	"encoding/json"
-	"slices"
-
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var WorkerSMVsBundleHint = hint.MustNewHint("worker-smvs-bundle-v0.0.1")
@@ -33,29 +33,12 @@ func newWorkerSMVsBundleMarshaller(v [3]interface{}) *workerSMVsBundleMarshaler 
 	}
 }
 
-type workerSMVsBundleJSONUnmarshaler struct {
-	O uint64
-	F valuehash.HashDecoder
-	V []json.RawMessage
-}
+func WorkerSMVsBundleDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
+	var w WorkerSMVsBundle
 
-func (w *WorkerSMVsBundle) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u workerSMVsBundleJSONUnmarshaler
-
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
-	}
-
-	w.V = make([]dop5.SMV, len(u.V))
-
-	for i, v := range slices.All(u.V) {
-		if err := encoder.Decode(enc, v, &w.V[i]); err != nil {
-			return err
-		}
-	}
-
-	w.O = u.O
-	w.F = u.F.Hash()
-
-	return nil
+	return w, dutil.FuncChain(
+		dutil.AssignJSONInts(m["O"], &w.O),
+		dutil.AssignJSONHash(m["F"], &w.F),
+		encoder.DecodeSlice(enc, m["V"], &w.V),
+	)
 }

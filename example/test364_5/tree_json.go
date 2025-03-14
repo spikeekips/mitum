@@ -2,6 +2,7 @@ package dop5
 
 import (
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -27,18 +28,19 @@ func (n *stateTreeNode) MarshalJSON() ([]byte, error) {
 }
 
 func (n *stateTreeNode) UnmarshalJSON(b []byte) error {
-	if err := util.UnmarshalJSON(b, &n.BaseNode); err != nil {
+	var m map[string]any
+	if err := util.UnmarshalJSON(b, &m); err != nil {
 		return err
 	}
 
-	var u stateTreeNodeJSONMarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+	switch i, err := fixedtree.BaseNodeDecodeJSON(m); {
+	case err != nil:
 		return err
+	default:
+		n.BaseNode = i
 	}
 
-	n.h = u.H.Hash()
-
-	return nil
+	return dutil.AssignJSONHash(m["state_hash"], &n.h)()
 }
 
 type operationTreeNodeJSONMarshaler struct {
@@ -64,17 +66,20 @@ func (n *operationTreeNode) MarshalJSON() ([]byte, error) {
 }
 
 func (n *operationTreeNode) UnmarshalJSON(b []byte) error {
-	if err := util.UnmarshalJSON(b, &n.BaseNode); err != nil {
+	var m map[string]any
+	if err := util.UnmarshalJSON(b, &m); err != nil {
 		return err
 	}
 
-	var u operationTreeNodeJSONMarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+	switch i, err := fixedtree.BaseNodeDecodeJSON(m); {
+	case err != nil:
 		return err
+	default:
+		n.BaseNode = i
 	}
 
-	n.fact = u.Fact.Hash()
-	n.reason = u.Reason
-
-	return nil
+	return dutil.FuncChain(
+		dutil.AssignJSONHash(m["fact"], &n.fact),
+		dutil.AssignJSON(m["reason"], &n.reason),
+	)
 }

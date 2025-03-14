@@ -4,17 +4,17 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	mencoder "github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
 func TestBaseStateEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
+	t := new(mencoder.BaseTestEncode)
 
-	enc := jsonenc.NewEncoder()
+	enc := jsonenc.NewEncoder(1 << 9)
 
 	t.Encode = func() (interface{}, []byte) {
 		sv := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
@@ -26,14 +26,14 @@ func TestBaseStateEncode(tt *testing.T) {
 		return st, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: AccountSVHint, Instance: &AccountSV{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseStateHint, Instance: &baseState{}}))
+		t.NoError(jsonenc.AddDecode(enc, base.DummyPublickeyHint, base.DummyPublickey{}, DecodeJSONDummyPublickey))
+		t.NoError(jsonenc.AddDecode(enc, AccountSVHint, &AccountSV{}, AccountSVDecodeJSON))
+		t.NoError(jsonenc.AddDecode(enc, BaseStateHint, &BaseState{}, BaseStateDecodeJSON))
 
-		hinter, err := enc.Decode(b)
+		hinter, err := enc.Unmarshal(b)
 		t.NoError(err)
 
-		return hinter.(*baseState)
+		return hinter.(*BaseState)
 	}
 	t.Compare = func(a interface{}, b interface{}) {
 		as := a.(base.State)

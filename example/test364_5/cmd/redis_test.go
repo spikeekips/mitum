@@ -9,10 +9,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -20,14 +19,14 @@ import (
 
 type baseTestRedis struct {
 	dutil.BaseSuite
-	enc  encoder.Encoder
+	enc  *jsonenc.Encoder
 	mini *miniredis.Miniredis
 	rdb  *redis.Client
 }
 
 func (t *baseTestRedis) SetupSuite() {
-	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
+	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
 
 	t.mini = miniredis.RunT(t.T())
 	t.rdb = redis.NewClient(&redis.Options{
@@ -47,7 +46,7 @@ type testRedisOperationFact struct {
 func (t *testRedisOperationFact) SetupSuite() {
 	t.baseTestRedis.SetupSuite()
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountOpFactHint, Instance: &dop5.AccountOpFact{}}))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
 }
 
 func (t *testRedisOperationFact) randomFacts(n int) []dop5.OperationFact {
@@ -150,8 +149,8 @@ type testRedisState struct {
 func (t *testRedisState) SetupSuite() {
 	t.baseTestRedis.SetupSuite()
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSVHint, Instance: &dop5.AccountSV{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: &base.BaseState{}}))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.BaseStateHint, &dop5.BaseState{}, dop5.BaseStateDecodeJSON))
 }
 
 func (t *testRedisState) randomStates(n int) []base.State {
@@ -163,7 +162,7 @@ func (t *testRedisState) randomStates(n int) []base.State {
 			33,
 		)
 
-		f[i] = base.NewBaseState(
+		f[i] = dop5.NewBaseState(
 			33,
 			util.UUID().String(),
 			sv,

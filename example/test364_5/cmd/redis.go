@@ -9,9 +9,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 func redisOperationFactKey(h util.Hash) string {
@@ -84,7 +84,7 @@ func redisGetOperationFact(
 	case err != nil:
 		return false, err
 	default:
-		return true, encoder.Decode(enc, []byte(c.Val()), fact)
+		return true, encoder.Unmarshal(enc, []byte(c.Val()), fact)
 	}
 }
 
@@ -129,6 +129,6 @@ func redisGetState(
 	case err != nil:
 		return false, err
 	default:
-		return true, encoder.Decode(enc, []byte(c.Val()), st)
+		return true, encoder.Unmarshal(enc, []byte(c.Val()), st)
 	}
 }

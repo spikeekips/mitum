@@ -7,8 +7,7 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	mencoder "github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -188,9 +187,7 @@ func TestOperationTreeNode(t *testing.T) {
 }
 
 func TestStateTreeNodeEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n, err := newStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
@@ -198,7 +195,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(f())
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -207,7 +204,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *stateTreeNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}
@@ -228,9 +225,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 }
 
 func TestOperationTreeNodeEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
+	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		n, err := newOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
@@ -238,7 +233,7 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(f())
 
-		b, err := enc.Marshal(n)
+		b, err := util.MarshalJSON(n)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -247,7 +242,7 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u *operationTreeNode
-		t.NoError(enc.Unmarshal(b, &u))
+		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}

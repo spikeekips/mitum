@@ -15,11 +15,11 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 var handlerPrefixesString = map[string]struct{}{
@@ -875,7 +875,7 @@ func acceptHandlerWorkerDistributeSMVs(
 					default:
 						if err := newJob(func(context.Context) error {
 							var bundle WorkerSMVsBundle
-							if err := encoder.Decode(enc, b, &bundle); err != nil {
+							if err := encoder.Unmarshal(enc, b, &bundle); err != nil {
 								return err
 							}
 

@@ -15,13 +15,14 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -45,7 +46,7 @@ type baseCommand struct {
 	workerOptions      *dop5.WorkerOptions
 	openSubStreams     quicstream.NewOpenSubStreamsFunc
 	rdb                *redis.Client
-	enc                encoder.Encoder
+	enc                *jsonenc.Encoder
 	workerAddrs        dutil.LockedMap[string, *net.UDPAddr]
 	newAcceptSubStream quicstream.NewAcceptSubStreamsFunc
 }
@@ -59,11 +60,9 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		return err
 	}
 
-	cmd.enc = jsonenc.NewEncoder()
-	for hinter := range slices.Values(encDetails) {
-		if err := cmd.enc.Add(hinter); err != nil {
-			return err
-		}
+	cmd.enc = jsonenc.NewEncoder(1 << 9)
+	if err := cmd.addHinters(); err != nil {
+		return err
 	}
 
 	cmd.rdb = redis.NewClient(&redis.Options{
@@ -81,7 +80,13 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 	}
 
 	cmd.workerAddrs = dutil.NewSingleLockedMap[string, *net.UDPAddr]()
-	println("0000000")
+
+	return nil
+}
+
+func (cmd *baseCommand) addHinters() error {
+	mustAddDecode(cmd.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey)
+	mustAddDecode(cmd.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, nil)
 
 	return nil
 }
@@ -403,5 +408,12 @@ func newFuncGetStateOwnersMurmur3(owners []string, share uint64) func(string) []
 		}
 
 		return owners
+	}
+}
+
+func mustAddDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode any) {
+	err := jsonenc.AddDecode(enc, ht, sample, decode)
+	if err != nil {
+		panic(err)
 	}
 }

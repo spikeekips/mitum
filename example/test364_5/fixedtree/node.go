@@ -99,21 +99,36 @@ type baseNodeJSONUnmarshaler struct {
 }
 
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
-	var u baseNodeJSONUnmarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "unmarshal BaseNode")
+	var m map[string]any
+	if err := util.UnmarshalJSON(b, &m); err != nil {
+		return err
 	}
 
-	if u.Key == "" && u.Hash.Hash() == nil {
-		n = nil
+	switch i, err := BaseNodeDecodeJSON(m); {
+	case err != nil:
+		return err
+	default:
+		*n = *i
 
 		return nil
 	}
+}
 
-	n.key = u.Key
-	n.h = u.Hash.Hash()
+func BaseNodeDecodeJSON(m map[string]any) (*BaseNode, error) {
+	n := new(BaseNode)
 
-	return nil
+	if err := dutil.FuncChain(
+		dutil.AssignJSONHash(m["hash"], &n.h),
+		dutil.AssignJSON(m["key"], &n.key),
+	); err != nil {
+		return nil, err
+	}
+
+	if n.key == "" && n.h == nil {
+		return nil, nil
+	}
+
+	return n, nil
 }
 
 func IsValidNode(n Node, b []byte) error {

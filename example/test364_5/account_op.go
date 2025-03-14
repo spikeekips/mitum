@@ -1,3 +1,5 @@
+//go:generate go run -v -race tool/set_base_hinter.go - $GOFILE
+
 package dop5
 
 import (
@@ -5,9 +7,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -19,25 +21,36 @@ type OperationFact interface {
 }
 
 type AccountOpFact struct {
+	hint.BaseHinter
+	h        util.Hash
+	token    base.Token
 	Issuer   base.Publickey
 	Receiver base.Publickey
-	base.BaseFact
-	Amount int64
+	Amount   int64
 }
 
 var _ = interface{}(new(AccountOpFact)).(OperationFact)
 
 func NewAccountOpFact(token base.Token, amount int64, issuer, receiver base.Publickey) *AccountOpFact {
 	fact := &AccountOpFact{
-		BaseFact: base.NewBaseFact(AccountOpFactHint, token),
-		Issuer:   issuer,
-		Receiver: receiver,
-		Amount:   amount,
+		BaseHinter: hint.NewBaseHinter(AccountOpFactHint),
+		token:      token,
+		Issuer:     issuer,
+		Receiver:   receiver,
+		Amount:     amount,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.h = fact.hash()
 
 	return fact
+}
+
+func (fact *AccountOpFact) Hash() util.Hash {
+	return fact.h
+}
+
+func (fact *AccountOpFact) Token() base.Token {
+	return fact.token
 }
 
 func (fact *AccountOpFact) SMVs(context.Context) (SMV, []SMV, string, error) {
@@ -64,7 +77,11 @@ func (fact *AccountOpFact) SMVs(context.Context) (SMV, []SMV, string, error) {
 }
 
 func (fact *AccountOpFact) IsValid([]byte) error {
-	if err := fact.BaseFact.IsValid(nil); err != nil {
+	if err := fact.BaseHinter.IsValid(fact.Hint().Type().Bytes()); err != nil {
+		return err
+	}
+
+	if err := base.IsValidFact(fact, nil); err != nil {
 		return err
 	}
 
@@ -105,53 +122,41 @@ func (fact *AccountOpFact) hash() util.Hash {
 }
 
 type accountOpFactJSONMarshaler struct {
+	hint.BaseHinter
+	Hash     util.Hash      `json:"hash"`
+	Token    base.Token     `json:"token"`
 	Issuer   base.Publickey `json:"issuer"`
 	Receiver base.Publickey `json:"receiver"`
-	base.BaseFactJSONMarshaler
-	Amount int64 `json:"amount"`
+	Amount   int64          `json:"amount"`
 }
 
 func (fact *AccountOpFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(accountOpFactJSONMarshaler{
-		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
-		Issuer:                fact.Issuer,
-		Receiver:              fact.Receiver,
-		Amount:                fact.Amount,
+		BaseHinter: fact.BaseHinter,
+		Hash:       fact.h,
+		Token:      fact.token,
+		Issuer:     fact.Issuer,
+		Receiver:   fact.Receiver,
+		Amount:     fact.Amount,
 	})
 }
 
-type accountOpFactJSONUnmarshaler struct {
-	Issuer   string `json:"issuer"`
-	Receiver string `json:"receiver"`
-	base.BaseFactJSONUnmarshaler
-	Amount int64 `json:"amount"`
-}
+func AccountOpFactDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
+	fact := &AccountOpFact{}
 
-func (fact *AccountOpFact) DecodeJSON(b []byte, enc encoder.Encoder) error {
-	var u accountOpFactJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
+	var token []byte
+
+	if err := dutil.FuncChain(
+		dutil.AssignJSONHash(m["hash"], &fact.h),
+		dutil.AssignJSONBytes(m["token"], &token),
+		AssignJSONPublickey(m["issuer"], &fact.Issuer, enc),
+		AssignJSONPublickey(m["receiver"], &fact.Receiver, enc),
+		dutil.AssignJSONInts(m["amount"], &fact.Amount),
+	); err != nil {
+		return nil, err
 	}
 
-	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
+	fact.token = token
 
-	if u.Issuer != "" {
-		switch i, err := base.DecodePublickeyFromString(u.Issuer, enc); {
-		case err != nil:
-			return err
-		default:
-			fact.Issuer = i
-		}
-	}
-
-	switch i, err := base.DecodePublickeyFromString(u.Receiver, enc); {
-	case err != nil:
-		return err
-	default:
-		fact.Receiver = i
-	}
-
-	fact.Amount = u.Amount
-
-	return nil
+	return fact, nil
 }

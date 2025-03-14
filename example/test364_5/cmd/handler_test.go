@@ -13,12 +13,11 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -540,17 +539,17 @@ func TestHandlerWorkerErr(t *testing.T) {
 
 type testHandlerWorkerDistributeSMVs struct {
 	quicstream.BaseTest
-	enc encoder.Encoder
+	enc *jsonenc.Encoder
 }
 
 func (t *testHandlerWorkerDistributeSMVs) SetupSuite() {
 	t.BaseTest.SetupSuite()
 
-	t.enc = jsonenc.NewEncoder()
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyPublickeyHint, Instance: base.DummyPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSVHint, Instance: &dop5.AccountSV{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dop5.AccountSMVHint, Instance: &dop5.AccountSMV{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: WorkerSMVsBundleHint, Instance: WorkerSMVsBundle{}}))
+	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))
+	t.NoError(jsonenc.AddDecode(t.enc, WorkerSMVsBundleHint, WorkerSMVsBundle{}, WorkerSMVsBundleDecodeJSON))
 }
 
 func (t *testHandlerWorkerDistributeSMVs) randomMergeValues(n int) []dop5.SMV {
