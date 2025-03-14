@@ -1,10 +1,12 @@
 package fixedtree
 
 import (
+	"encoding/hex"
+
 	"github.com/pkg/errors"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
+	"golang.org/x/crypto/sha3"
 )
 
 var emptyNodeBytes = []byte{0x0}
@@ -12,13 +14,13 @@ var emptyNodeBytes = []byte{0x0}
 type Node interface {
 	util.IsValider
 	Key() string
-	Hash() util.Hash
+	Hash() string
 	Equal(Node) bool
-	SetHash(left, right Node) (util.Hash, dutil.ErrorFunc, error)
+	SetHash(left, right Node) (string, dutil.ErrorFunc, error)
 }
 
 type BaseNode struct {
-	h   util.Hash
+	h   string
 	key string
 }
 
@@ -34,17 +36,17 @@ func (n *BaseNode) Key() string {
 	return n.key
 }
 
-func (n *BaseNode) Hash() util.Hash {
+func (n *BaseNode) Hash() string {
 	if n == nil {
-		return nil
+		return ""
 	}
 
 	return n.h
 }
 
-func (n *BaseNode) UpdateHashFunc(h util.Hash) dutil.ErrorFunc {
+func (n *BaseNode) UpdateHashFunc(h string) dutil.ErrorFunc {
 	return func() error {
-		if n.h != nil {
+		if n.h != "" {
 			return errors.Errorf("already hashed")
 		}
 
@@ -54,12 +56,12 @@ func (n *BaseNode) UpdateHashFunc(h util.Hash) dutil.ErrorFunc {
 	}
 }
 
-func (n *BaseNode) SetHash(left, right Node) (util.Hash, dutil.ErrorFunc, error) {
+func (n *BaseNode) SetHash(left, right Node) (string, dutil.ErrorFunc, error) {
 	switch h, err := MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
 		return []byte(n.key), nil
 	}); {
 	case err != nil:
-		return nil, nil, err
+		return "", nil, err
 	default:
 		return h, n.UpdateHashFunc(h), nil
 	}
@@ -74,8 +76,8 @@ func (n *BaseNode) IsValid(b []byte) error {
 }
 
 type BaseNodeJSONMarshaler struct {
-	Hash util.Hash `json:"hash,omitempty"`
-	Key  string    `json:"key,omitempty"`
+	Hash string `json:"hash,omitempty"`
+	Key  string `json:"key,omitempty"`
 }
 
 func (n *BaseNode) JSONMarshaler() BaseNodeJSONMarshaler {
@@ -94,8 +96,8 @@ func (n *BaseNode) MarshalJSON() ([]byte, error) {
 }
 
 type baseNodeJSONUnmarshaler struct {
-	Hash valuehash.HashDecoder `json:"hash"`
-	Key  string                `json:"key"`
+	Hash string `json:"hash"`
+	Key  string `json:"key"`
 }
 
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
@@ -118,13 +120,13 @@ func BaseNodeDecodeJSON(m map[string]any) (*BaseNode, error) {
 	n := new(BaseNode)
 
 	if err := dutil.FuncChain(
-		dutil.AssignJSONHash(m["hash"], &n.h),
+		dutil.AssignJSON(m["hash"], &n.h),
 		dutil.AssignJSON(m["key"], &n.key),
 	); err != nil {
 		return nil, err
 	}
 
-	if n.key == "" && n.h == nil {
+	if n.key == "" && n.h == "" {
 		return nil, nil
 	}
 
@@ -135,28 +137,24 @@ func IsValidNode(n Node, b []byte) error {
 	switch {
 	case len(n.Key()) < 1:
 		return util.ErrInvalid.Errorf("empty key")
-	case n.Hash() == nil:
-		return util.ErrInvalid.Errorf("nil node hash")
+	case n.Hash() == "":
+		return util.ErrInvalid.Errorf("empty node hash")
 	default:
-		if err := n.Hash().IsValid(nil); err != nil {
-			return util.ErrInvalid.WithMessage(err, "node")
-		}
+		return nil
 	}
-
-	return nil
 }
 
-func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, error)) (util.Hash, error) {
+func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, error)) (string, error) {
 	if self.Key() == "" {
-		return nil, errors.Errorf("empty key")
+		return "", errors.Errorf("empty key")
 	}
 
-	w, sum := dutil.NewSHA256HashWriter()
+	w, sum := sha256HashWriter()
 	defer sum()
 
 	switch b, err := nodeHashBytes(); {
 	case err != nil:
-		return nil, err
+		return "", err
 	default:
 		w(b)
 	}
@@ -164,22 +162,22 @@ func MakeBaseNodeHash(self, left, right Node, nodeHashBytes func() ([]byte, erro
 	switch {
 	case left == nil:
 		w(emptyNodeBytes)
-	case left.Hash() == nil:
-		return nil, errors.Errorf("nil left hash")
+	case left.Hash() == "":
+		return "", errors.Errorf("empty left hash")
 	default:
-		w(left.Hash().Bytes())
+		w([]byte(left.Hash()))
 	}
 
 	switch {
 	case right == nil:
 		w(emptyNodeBytes)
-	case right.Hash() == nil:
-		return nil, errors.Errorf("nil right hash")
+	case right.Hash() == "":
+		return "", errors.Errorf("empty right hash")
 	default:
-		w(right.Hash().Bytes())
+		w([]byte(right.Hash()))
 	}
 
-	return sum(), nil
+	return hex.EncodeToString(sum()), nil
 }
 
 func IsEqualNode(a, b Node) bool {
@@ -193,11 +191,20 @@ func IsEqualNode(a, b Node) bool {
 	switch {
 	case a.Key() != b.Key():
 		return false
-	case a.Hash() == nil || b.Hash() == nil:
-		return a.Hash() == nil && b.Hash() == nil
-	case !a.Hash().Equal(b.Hash()):
-		return false
+	default:
+		return a.Hash() == b.Hash()
 	}
+}
 
-	return true
+func sha256HashWriter() (func([]byte), func() []byte) {
+	h := sha3.New256()
+
+	return func(b []byte) {
+			_, _ = h.Write(b)
+		},
+		func() []byte {
+			defer h.Reset()
+
+			return h.Sum(nil)
+		}
 }

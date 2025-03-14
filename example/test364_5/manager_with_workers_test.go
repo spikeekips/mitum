@@ -552,8 +552,8 @@ func (t *testManagerWithWorkers) runCase(
 				t.T().Logf("state: index=%d key=%q %s", i, st.Key(), util.MustMarshalJSONString(st))
 			}
 
-			t.True(expectedOpsTree.Root().Equal(opsTree.Root()), "%q != %q", expectedOpsTree.Root(), opsTree.Root())
-			t.True(expectedStatesTree.Root().Equal(statesTree.Root()), "%q != %q", expectedStatesTree.Root(), statesTree.Root())
+			t.Equal(expectedOpsTree.Root(), opsTree.Root(), "%q != %q", expectedOpsTree.Root(), opsTree.Root())
+			t.Equal(expectedStatesTree.Root(), statesTree.Root(), "%q != %q", expectedStatesTree.Root(), statesTree.Root())
 
 			if expectedStates != nil {
 				t.Equal(len(expectedStates), len(states))

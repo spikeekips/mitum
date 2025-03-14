@@ -41,7 +41,7 @@ func (t *baseTestManager) checkOpsTree(ophs [][2]util.Hash, expectedReasons map[
 			return errors.Errorf("expected *OperationTreeNode, but %T", n)
 		}
 
-		if b.Hash() == nil {
+		if b.Hash() == "" {
 			return errors.Errorf("nil node hash")
 		}
 

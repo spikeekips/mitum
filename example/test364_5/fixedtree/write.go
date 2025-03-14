@@ -39,7 +39,7 @@ func WriteNodes(ctx context.Context, semSize uint64, nodes []Node, w NodeWriteFu
 		return nil
 	case nodes[0] == nil:
 		return errors.Errorf("nil root")
-	case nodes[0].Hash() == nil:
+	case nodes[0].Hash() == "":
 		if g == nil {
 			return nil
 		}

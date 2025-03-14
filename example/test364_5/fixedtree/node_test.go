@@ -5,7 +5,6 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	mencoder "github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -48,26 +47,18 @@ func (t *testNode) TestInvalid() {
 		t.ErrorContains(err, "empty key")
 	})
 
-	t.Run("nil hash", func() {
+	t.Run("empty hash", func() {
 		n := NewBaseNode(util.UUID().String())
-		n.h = nil
+		n.h = ""
 
 		err := n.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
-		t.ErrorContains(err, "nil node hash")
-	})
-
-	t.Run("invalid hash", func() {
-		n := NewBaseNode(util.UUID().String())
-		n.h = valuehash.NewBytes(make([]byte, 300))
-
-		err := n.IsValid(nil)
-		t.ErrorIs(err, util.ErrInvalid)
+		t.ErrorContains(err, "empty node hash")
 	})
 }
 
 func (t *testNode) TestHash() {
-	t.Run("nil left, right", func() {
+	t.Run("empty left, right", func() {
 		key := util.UUID().String()
 
 		a := NewBaseNode(key)
@@ -134,15 +125,15 @@ func (t *testNode) TestEqual() {
 		t.False(n.Equal(b))
 	})
 
-	t.Run("nil hash", func() {
+	t.Run("empty hash", func() {
 		b := NewBaseNode(n.key)
 
 		t.False(n.Equal(b))
 	})
 
-	t.Run("nil not match", func() {
+	t.Run("hash not match", func() {
 		b := NewBaseNode(n.key)
-		b.h = valuehash.RandomSHA256()
+		b.h = util.UUID().String()
 
 		t.False(n.Equal(b))
 	})
@@ -163,7 +154,7 @@ func (t *testNode) TestEqual() {
 	t.Run("empty with none-empty", func() {
 		a := emptyBaseNode()
 		b := NewBaseNode(n.key)
-		b.h = valuehash.RandomSHA256()
+		b.h = util.UUID().String()
 
 		t.False(a.Equal(b))
 	})
@@ -243,7 +234,7 @@ func TestNodeEncodeEmptyKey(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		n := NewBaseNode("")
-		n.h = valuehash.RandomSHA256()
+		n.h = util.UUID().String()
 
 		b, err := util.MarshalJSON(n)
 		t.NoError(err)
@@ -274,7 +265,7 @@ func TestNodeEncodeEmptyHash(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		n := NewBaseNode(util.UUID().String())
-		n.h = nil
+		n.h = ""
 
 		b, err := util.MarshalJSON(n)
 		t.NoError(err)

@@ -83,7 +83,7 @@ func (t *testWrite) TestError() {
 		t.ErrorContains(err, "nil node")
 	})
 
-	t.Run("nil root hash, nil node", func() {
+	t.Run("empty root hash, nil node", func() {
 		nodes := t.nodesWithoutHash(9)
 		nodes[1] = nil
 
@@ -96,7 +96,7 @@ func (t *testWrite) TestError() {
 		t.ErrorContains(err, "nil node")
 	})
 
-	t.Run("nil root hash, empty key", func() {
+	t.Run("empty root hash, empty key", func() {
 		nodes := t.nodesWithoutHash(9)
 		nodes[1] = NewBaseNode("")
 

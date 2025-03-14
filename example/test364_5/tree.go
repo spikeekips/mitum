@@ -58,12 +58,12 @@ func (n *stateTreeNode) IsValid(b []byte) error {
 	return n.h.IsValid(nil)
 }
 
-func (n *stateTreeNode) SetHash(left, right fixedtree.Node) (util.Hash, dutil.ErrorFunc, error) {
+func (n *stateTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
 		return n.b, nil
 	}); {
 	case err != nil:
-		return nil, nil, err
+		return "", nil, err
 	default:
 		return h, n.BaseNode.UpdateHashFunc(h), nil
 	}
@@ -133,12 +133,12 @@ func (n *operationTreeNode) IsValid(b []byte) error {
 	return n.fact.IsValid(nil)
 }
 
-func (n *operationTreeNode) SetHash(left, right fixedtree.Node) (util.Hash, dutil.ErrorFunc, error) {
+func (n *operationTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
 		return n.b, nil
 	}); {
 	case err != nil:
-		return nil, nil, err
+		return "", nil, err
 	default:
 		return h, n.BaseNode.UpdateHashFunc(h), nil
 	}

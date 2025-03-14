@@ -38,12 +38,12 @@ func (t *testStateTreeNode) TestIsValid() {
 		t.NoError(n.IsValid(nil))
 	})
 
-	t.Run("nil node hash", func() {
+	t.Run("empty node hash", func() {
 		n := t.nodeWithoutHash()
 
 		err := n.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
-		t.ErrorContains(err, "nil node hash")
+		t.ErrorContains(err, "empty node hash")
 	})
 
 	t.Run("empty state key", func() {
@@ -79,7 +79,7 @@ func (t *testStateTreeNode) TestHash() {
 		})
 		t.NoError(err)
 
-		t.True(h.Equal(rh))
+		t.Equal(h, rh)
 	})
 
 	t.Run("empty state key", func() {
@@ -122,12 +122,12 @@ func (t *testOperationTreeNode) TestOperationNodeIsValid() {
 		t.NoError(n.IsValid(nil))
 	})
 
-	t.Run("nil node hash", func() {
+	t.Run("empty node hash", func() {
 		n := t.nodeWithoutHash()
 
 		err := n.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
-		t.ErrorContains(err, "nil node hash")
+		t.ErrorContains(err, "empty node hash")
 	})
 
 	t.Run("nil oph", func() {
@@ -160,7 +160,7 @@ func (t *testOperationTreeNode) TestOperationNodeHash() {
 		})
 		t.NoError(err)
 
-		t.True(h.Equal(rh))
+		t.Equal(h, rh)
 	})
 }
 
@@ -178,7 +178,7 @@ func (t *testOperationTreeNode) TestSetReason() {
 		bh, _, err := n.SetHash(nil, nil)
 		t.NoError(err)
 
-		t.False(ah.Equal(bh))
+		t.NotEqual(ah, bh)
 	})
 }
 

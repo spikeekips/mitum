@@ -10,6 +10,7 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type Tree struct {
@@ -57,12 +58,10 @@ func (t *Tree) Node(index uint64) Node {
 
 func (t *Tree) Root() util.Hash {
 	switch {
-	case len(t.nodes) < 1:
-		return nil
-	case t.nodes[0] == nil:
+	case len(t.nodes) < 1, t.nodes[0] == nil:
 		return nil
 	default:
-		return t.nodes[0].Hash()
+		return valuehash.NewBytes([]byte(t.nodes[0].Hash()))
 	}
 }
 
@@ -276,7 +275,7 @@ func isValidNodeHash(b []byte, index uint64, nodes []Node) error {
 	switch h, _, err := n.SetHash(children[0], children[1]); {
 	case err != nil:
 		return err
-	case !n.Hash().Equal(h):
+	case n.Hash() != h:
 		return errors.Errorf("hash does not match")
 	default:
 		return nil

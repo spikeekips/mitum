@@ -7,7 +7,6 @@ import (
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -62,13 +61,13 @@ func (t *testTree) TestInvalid() {
 		nodes := t.nodes(3)
 
 		n := nodes[0].(*BaseNode)
-		n.h = nil
+		n.h = ""
 		nodes[0] = n
 
 		tr := NewTree(treeHint, nodes)
 		err := tr.IsValid(nil)
 		t.ErrorIs(err, util.ErrInvalid)
-		t.ErrorContains(err, "nil node hash")
+		t.ErrorContains(err, "empty node hash")
 	})
 
 	t.Run("nil node", func() {
@@ -86,7 +85,7 @@ func (t *testTree) TestInvalid() {
 		nodes := t.nodes(3)
 
 		n := nodes[2].(*BaseNode)
-		n.h = valuehash.RandomSHA256()
+		n.h = util.UUID().String()
 		nodes[2] = n
 
 		tr := NewTree(treeHint, nodes)
