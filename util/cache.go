@@ -1,14 +1,13 @@
 package util
 
 import (
-	"cmp"
 	"time"
 
 	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 )
 
-type GCache[K cmp.Ordered, V any] interface {
+type GCache[K comparable, V any] interface {
 	Exists(K) bool
 	Get(K) (_ V, found bool)
 	Set(_ K, _ V, expire time.Duration)
@@ -18,17 +17,17 @@ type GCache[K cmp.Ordered, V any] interface {
 	Traverse(func(K, V) bool)
 }
 
-type BaseGCache[K cmp.Ordered, V any] struct {
+type BaseGCache[K comparable, V any] struct {
 	c gcache.Cache
 }
 
-func NewLRUGCache[K cmp.Ordered, V any](size int) *BaseGCache[K, V] {
+func NewLRUGCache[K comparable, V any](size int) *BaseGCache[K, V] {
 	return &BaseGCache[K, V]{
 		c: gcache.New(size).LRU().Build(),
 	}
 }
 
-func NewLFUGCache[K cmp.Ordered, V any](size int) *BaseGCache[K, V] {
+func NewLFUGCache[K comparable, V any](size int) *BaseGCache[K, V] {
 	return &BaseGCache[K, V]{
 		c: gcache.New(size).LFU().Build(),
 	}
@@ -88,12 +87,12 @@ func (c *BaseGCache[K, V]) Traverse(f func(K, V) bool) {
 	}
 }
 
-type PurgeFuncGCache[K cmp.Ordered, V any] struct {
+type PurgeFuncGCache[K comparable, V any] struct {
 	GCache[K, V]
 	purgef func() bool
 }
 
-func NewPurgeFuncGCache[K cmp.Ordered, V any](
+func NewPurgeFuncGCache[K comparable, V any](
 	b GCache[K, V],
 	purgef func() bool,
 ) *PurgeFuncGCache[K, V] {
