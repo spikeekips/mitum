@@ -253,8 +253,8 @@ func DebugQLogTracer(out io.WriteCloser) func(context.Context, quiclogging.Persp
 }
 
 var (
-	CloseStreamWithError  = closeStreamWithError
-	CloseStreamsWithError = closeStreamsWithError
+	CloseStreamWithError  = closeStream
+	CloseStreamsWithError = closeStreams
 )
 
 type DummyStream struct {

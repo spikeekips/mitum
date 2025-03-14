@@ -70,7 +70,7 @@ func AcceptSubStreams(
 					err = f([]quic.Stream{controlStream})
 				}
 
-				_ = closeStreamWithError(controlStream, err)
+				_ = closeStream(controlStream, err)
 
 				return err
 			},
@@ -82,7 +82,7 @@ func AcceptSubStreams(
 
 	switch a, d, err := dutil.NewLockAppendSlice[quic.Stream](uint64(size), 0); {
 	case err != nil:
-		return nil, closeStreamWithError(controlStream, err)
+		return nil, closeStream(controlStream, err)
 	default:
 		add, done = a, d
 	}
@@ -95,7 +95,7 @@ func AcceptSubStreams(
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(size-1)); {
 	case err != nil:
-		return nil, closeStreamWithError(controlStream, err)
+		return nil, closeStream(controlStream, err)
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
@@ -133,7 +133,7 @@ func AcceptSubStreams(
 				gerr = f(streams)
 			}
 
-			return closeStreamsWithError(streams, gerr)
+			return closeStreams(streams, gerr)
 		},
 		nil
 }
@@ -212,7 +212,7 @@ func openSubStreamSync(ctx context.Context, conn quic.Connection, id string) (qu
 	default:
 		// NOTE send id for streams bonding first
 		if err := frame.WriteFixed(stream, []byte(id)); err != nil {
-			return nil, closeStreamWithError(stream, err)
+			return nil, closeStream(stream, err)
 		}
 
 		return stream, nil
@@ -264,7 +264,7 @@ func newConnAcceptSubStreams(
 		switch b, n, err := frame.ReadFixed(stream); {
 		case err != nil && !errors.Is(err, io.EOF),
 			n < 1 && errors.Is(err, io.EOF):
-			_ = closeStreamWithError(stream, errors.Wrap(err, "emtpy id"))
+			_ = closeStream(stream, errors.Wrap(err, "emtpy id"))
 
 			return
 		default:
@@ -276,7 +276,7 @@ func newConnAcceptSubStreams(
 
 		switch add, found := ids[id]; {
 		case !found:
-			_ = closeStreamWithError(stream, errors.Errorf("unknown id, %q", id))
+			_ = closeStream(stream, errors.Errorf("unknown id, %q", id))
 		case add(stream):
 			delete(ids, id)
 		}
@@ -399,7 +399,7 @@ func newConnAcceptSubStreams(
 					defer l.Unlock()
 
 					closeStreamsOnce.Do(func() {
-						_ = closeStreamsWithError(doneStream(), err)
+						_ = closeStreams(doneStream(), err)
 					})
 
 					if _, found := ids[id]; found {

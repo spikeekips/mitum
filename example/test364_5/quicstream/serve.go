@@ -101,7 +101,7 @@ func serveConnection(
 
 			go func() {
 				_, err := f(sctx, stream)
-				_ = closeStreamWithError(stream, err)
+				_ = closeStream(stream, err)
 			}()
 		}
 	}

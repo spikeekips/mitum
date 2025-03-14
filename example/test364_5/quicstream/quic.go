@@ -69,7 +69,7 @@ func cancelStream(stream quic.Stream, code quic.StreamErrorCode) error {
 	return errors.WithStack(stream.Close())
 }
 
-func newFuncCloseStreamWithError(err error) func(quic.Stream) error {
+func newFuncCloseStream(err error) func(quic.Stream) error {
 	switch {
 	case err != nil:
 		return func(stream quic.Stream) error {
@@ -86,14 +86,24 @@ func newFuncCloseStreamWithError(err error) func(quic.Stream) error {
 	}
 }
 
-func closeStreamWithError(stream quic.Stream, err error) error {
-	return newFuncCloseStreamWithError(err)(stream)
+func closeStream(stream quic.Stream, err error) error {
+	if err == nil {
+		_ = stream.Close()
+
+		return nil
+	}
+
+	return newFuncCloseStream(err)(stream)
 }
 
-func closeStreamsWithError(streams []quic.Stream, err error) error {
-	if err == nil {
-		var wg sync.WaitGroup
+func closeStreams(streams []quic.Stream, err error) error {
+	if len(streams) < 1 {
+		return nil
+	}
 
+	var wg sync.WaitGroup
+
+	if err == nil {
 		for stream := range slices.Values(streams) {
 			wg.Add(1)
 
@@ -105,15 +115,23 @@ func closeStreamsWithError(streams []quic.Stream, err error) error {
 		}
 
 		wg.Wait()
+
+		return nil
 	}
 
-	f := newFuncCloseStreamWithError(err)
+	f := newFuncCloseStream(err)
 
-	slices.Values(streams)(func(stream quic.Stream) bool {
-		_ = f(stream)
+	for stream := range slices.Values(streams) {
+		wg.Add(1)
 
-		return true
-	})
+		go func() {
+			defer wg.Done()
+
+			_ = f(stream)
+		}()
+	}
+
+	wg.Wait()
 
 	return err
 }

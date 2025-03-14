@@ -195,7 +195,7 @@ func NewFuncRequest(dial DialCloseFunc, defaultTLSConfig *tls.Config, defaultQui
 				nctx = context.WithValue(nctx, RemoteAddrContextKey, conn.RemoteAddr())
 				nctx, err := h(nctx, s)
 
-				return nctx, closef(closeStreamWithError(s, err))
+				return nctx, closef(closeStream(s, err))
 			}
 		},
 		nil

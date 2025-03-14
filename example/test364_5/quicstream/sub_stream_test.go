@@ -464,19 +464,6 @@ func (t *testConnAcceptSubStreams) TestDoneStream() {
 		}
 	}
 
-	t.RunWithGoLeak("stream.Read after done stream", func() {
-		stream, closef := done(nil)
-		defer closef()
-
-		_, err := io.ReadAll(stream)
-		t.PrintErr(err, "stream: read all")
-
-		var serr *quic.StreamError
-		t.ErrorAs(err, &serr)
-		t.Equal(streamErrorCodeOK, serr.ErrorCode)
-		t.False(serr.Remote)
-	})
-
 	t.RunWithGoLeak("stream.Read after done stream with error", func() {
 		stream, closef := done(errors.Errorf("showme"))
 		defer closef()
