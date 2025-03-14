@@ -5,7 +5,6 @@ import (
 	"io"
 	"iter"
 	"math"
-	"reflect"
 
 	"github.com/pkg/errors"
 )
@@ -174,7 +173,9 @@ func setValue[T any](v interface{}, t *T) error {
 
 	i, ok := v.(T)
 	if !ok {
-		return errors.Errorf("expected %v, but %T", reflect.TypeOf(&t).Elem().Elem(), v)
+		var o T
+
+		return errors.Errorf("expected %v, but %T", o, v)
 	}
 
 	*t = i
