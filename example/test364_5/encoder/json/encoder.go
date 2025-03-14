@@ -1,8 +1,9 @@
 package jsonenc
 
 import (
-	"fmt"
 	"reflect"
+	"strconv"
+	"unique"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
@@ -19,19 +20,21 @@ type (
 	decodeJSONString interface {
 		DecodeJSON(*Encoder, string) (any, error)
 	}
+
+	hintStringType = unique.Handle[string]
 )
 
 type Encoder struct {
-	set       map[hint.Type]map[uint64]any
-	cache     util.GCache[string, [2]any /* {decode func, error} */]
-	hintCache util.GCache[string, [2]any /* {hint.Hint, error} }*/]
+	set       map[hintStringType]any
+	cache     util.GCache[hintStringType, [2]any /* {decode func, error} */]
+	hintCache util.GCache[hintStringType, [2]any /* {*hint.Hint, error} }*/]
 }
 
 func NewEncoder(cacheSize int) *Encoder {
 	return &Encoder{
-		set:       map[hint.Type]map[uint64]any{},
-		cache:     util.NewLRUGCache[string, [2]any](cacheSize),
-		hintCache: util.NewLRUGCache[string, [2]any](cacheSize),
+		set:       map[hintStringType]any{},
+		cache:     util.NewLRUGCache[hintStringType, [2]any](cacheSize),
+		hintCache: util.NewLRUGCache[hintStringType, [2]any](cacheSize),
 	}
 }
 
@@ -48,32 +51,17 @@ func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 		return errors.Errorf("nil sample")
 	}
 
-	decode = hinterDecodeFunc(ht, sample, decode)
-
-	return enc.AddDecode(ht, sample, decode)
+	return enc.addDecode(ht, sample, hinterDecodeFunc(ht, sample, decode))
 }
 
-func (enc *Encoder) AddDecode(ht hint.Hint, sample any, decode any) error {
-	major := ht.Version().Major()
-	if _, ok := decode.(decodeStringFunc); ok {
-		major = 0
+func (enc *Encoder) addDecode(ht hint.Hint, sample any, decode any) error {
+	decodeKey := enc.decodeKeyWithHint(ht, decode)
+
+	if _, found := enc.set[decodeKey]; found {
+		return errors.Errorf("already added, %q(%q)", ht, decodeKey.Value())
 	}
 
-	var m map[uint64]any
-
-	switch i, found := enc.set[ht.Type()]; {
-	case !found:
-		m = map[uint64]any{}
-		enc.set[ht.Type()] = m
-	default:
-		if _, found := i[major]; found {
-			return errors.Errorf("already added, %q(major=%d)", ht, major)
-		}
-
-		m = i
-	}
-
-	m[major] = decode
+	enc.set[decodeKey] = decode
 
 	return nil
 }
@@ -137,7 +125,7 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 			return nil, errors.Errorf("expected hint string, but %T", i)
 		}
 
-		switch h, err := enc.getHint(s); {
+		switch h, err := enc.getHint(unique.Make(s)); {
 		case err != nil:
 			return nil, err
 		default:
@@ -157,24 +145,24 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 	return decode(enc, m)
 }
 
-func (enc *Encoder) getHint(s string) (hint.Hint, error) {
+func (enc *Encoder) getHint(s hintStringType) (hint.Hint, error) {
 	if i, found := enc.hintCache.Get(s); found {
 		if i[1] != nil {
 			return hint.Hint{}, i[1].(error)
 		}
 
-		return i[0].(hint.Hint), nil
+		return *(i[0].(*hint.Hint)), nil
 	}
 
-	ht, err := hint.ParseHint(s)
-	enc.hintCache.Set(s, [2]any{ht, err}, 0)
+	ht, err := hint.ParseHint(s.Value())
+	enc.hintCache.Set(s, [2]any{&ht, err}, 0)
 
 	return ht, err
 }
 
 func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
-	cachekey := fmt.Sprintf("%s-%d", t, v)
-	if i, found := enc.cache.Get(cachekey); found {
+	decodeKey := enc.decodeKey(t, v)
+	if i, found := enc.cache.Get(decodeKey); found {
 		if i[1] != nil {
 			return nil, i[1].(error)
 		}
@@ -185,23 +173,29 @@ func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
 	var f any
 	var err error
 
-	switch m, found := enc.set[t]; {
+	switch i, found := enc.set[decodeKey]; {
 	case !found:
 		err = errors.Errorf("decode func not found, %q", t)
 	default:
-		i, found := m[v]
-		if !found {
-			err = errors.Errorf("no compatible version, %d", v)
-
-			break
-		}
-
 		f = i
 	}
 
-	enc.cache.Set(cachekey, [2]any{f, err}, 0)
+	enc.cache.Set(decodeKey, [2]any{f, err}, 0)
 
 	return f, err
+}
+
+func (*Encoder) decodeKey(t hint.Type, v uint64) hintStringType {
+	return unique.Make(t.String() + "-" + strconv.FormatUint(v, 10))
+}
+
+func (enc *Encoder) decodeKeyWithHint(ht hint.Hint, decode any) hintStringType {
+	major := ht.Version().Major()
+	if _, ok := decode.(decodeStringFunc); ok {
+		major = 0
+	}
+
+	return enc.decodeKey(ht.Type(), major)
 }
 
 func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
@@ -210,14 +204,9 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 		return decode
 	}
 
-	isptr := reflect.TypeOf(sample).Kind() == reflect.Ptr
 	var indirect bool
 
 	if _, ok := any(sample).(hint.SetHinter); !ok {
-		if isptr {
-			return decode
-		}
-
 		if _, ok := any(new(T)).(hint.SetHinter); !ok {
 			return decode
 		}
@@ -225,9 +214,30 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 		indirect = true
 	}
 
-	return func(enc *Encoder, m map[string]any) (any, error) {
-		var t T
+	var sethint func(T) (any, error)
 
+	switch {
+	case indirect:
+		sethint = func(t T) (any, error) {
+			n := new(T)
+			*n = t
+
+			_ = any(n).(hint.SetHinter).SetHint(ht)
+
+			return *n, nil
+		}
+	default:
+		sethint = func(t T) (any, error) {
+			n := any(t).(hint.SetHinter).SetHint(ht)
+			if _, ok := n.(T); !ok {
+				return nil, errors.Errorf("SetHint; expected %T, but %T", sample, n)
+			}
+
+			return n, nil
+		}
+	}
+
+	return func(enc *Encoder, m map[string]any) (any, error) {
 		switch i, err := d(enc, m); {
 		case err != nil, i == nil:
 			return i, err
@@ -237,28 +247,7 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 				return nil, errors.Errorf("decoded; expected %T, but %T", sample, i)
 			}
 
-			t = k
-		}
-
-		switch {
-		case indirect:
-			n := new(T)
-			*n = t
-
-			_ = any(n).(hint.SetHinter).SetHint(ht)
-
-			return *n, nil
-		case isptr:
-			_ = any(t).(hint.SetHinter).SetHint(ht)
-
-			return t, nil
-		default:
-			n := any(t).(hint.SetHinter).SetHint(ht)
-			if _, ok := n.(T); !ok {
-				return nil, errors.Errorf("SetHint; expected %T, but %T", sample, n)
-			}
-
-			return n, nil
+			return sethint(k)
 		}
 	}
 }
