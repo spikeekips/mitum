@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"golang.org/x/crypto/sha3"
@@ -95,42 +96,36 @@ func (n *BaseNode) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(n.JSONMarshaler())
 }
 
-type baseNodeJSONUnmarshaler struct {
-	Hash string `json:"hash"`
-	Key  string `json:"key"`
-}
-
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
 	var m map[string]any
 	if err := util.UnmarshalJSON(b, &m); err != nil {
 		return err
 	}
 
-	switch i, err := BaseNodeDecodeJSON(m); {
-	case err != nil:
+	var u *BaseNode
+	if err := BaseNodeDecodeJSON(m, &u); err != nil {
 		return err
-	default:
-		*n = *i
-
-		return nil
 	}
+
+	*n = *u
+	return nil
 }
 
-func BaseNodeDecodeJSON(m map[string]any) (*BaseNode, error) {
+func BaseNodeDecodeJSON(m map[string]any, t **BaseNode) error {
 	n := new(BaseNode)
 
 	if err := dutil.FuncChain(
 		dutil.AssignJSON(m["hash"], &n.h),
 		dutil.AssignJSON(m["key"], &n.key),
 	); err != nil {
-		return nil, err
+		return err
 	}
 
 	if n.key == "" && n.h == "" {
-		return nil, nil
+		return nil
 	}
 
-	return n, nil
+	return encoder.Assign(n, t)
 }
 
 func IsValidNode(n Node, b []byte) error {

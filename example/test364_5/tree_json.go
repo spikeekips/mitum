@@ -33,11 +33,8 @@ func (n *stateTreeNode) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	switch i, err := fixedtree.BaseNodeDecodeJSON(m); {
-	case err != nil:
+	if err := fixedtree.BaseNodeDecodeJSON(m, &n.BaseNode); err != nil {
 		return err
-	default:
-		n.BaseNode = i
 	}
 
 	return dutil.AssignJSONHash(m["state_hash"], &n.h)()
@@ -71,11 +68,8 @@ func (n *operationTreeNode) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	switch i, err := fixedtree.BaseNodeDecodeJSON(m); {
-	case err != nil:
+	if err := fixedtree.BaseNodeDecodeJSON(m, &n.BaseNode); err != nil {
 		return err
-	default:
-		n.BaseNode = i
 	}
 
 	return dutil.FuncChain(
