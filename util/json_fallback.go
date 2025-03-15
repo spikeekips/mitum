@@ -7,20 +7,28 @@ import (
 	"encoding/json"
 	"io"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
 
+var jsoniterconfiged = jsoniter.Config{
+	MarshalFloatWith6Digits:       true,
+	ObjectFieldMustBeSimpleString: true,
+	EscapeHTML:                    false,
+}.Froze()
+
 func marshalJSON(v interface{}) ([]byte, error) {
-	b, err := json.Marshal(v)
+	b, err := jsoniterconfiged.Marshal(v)
 
 	return b, errors.WithStack(err)
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
-	return errors.WithStack(json.Unmarshal(b, v))
+	return errors.WithStack(jsoniterconfiged.Unmarshal(b, v))
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
+	// NOTE jsoniter.MarshalIndent, v1.1.12 does not work ;(
 	b, err := json.MarshalIndent(i, "", "  ")
 
 	return b, errors.WithStack(err)
@@ -31,5 +39,6 @@ func newJSONStreamEncoder(w io.Writer) StreamEncoder {
 }
 
 func newJSONStreamDecoder(r io.Reader) StreamDecoder {
+	// NOTE jsoniter has problem to handle io.EOF
 	return json.NewDecoder(r)
 }
