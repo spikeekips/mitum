@@ -758,12 +758,13 @@ func requestHandlerWorkerDistributeSMVs(
 
 			for i, v := range dutil.SeqAll(seq) {
 				if err := newJob(func(context.Context) error {
-					switch b, err := enc.Marshal(newWorkerSMVsBundleMarshaller(v)); {
-					case err != nil:
-						return err
-					default:
-						return frame.WriteFixed(streams[i%len(streams)], b)
-					}
+					return writeSMVBundle(
+						streams[i%len(streams)],
+						enc,
+						v[0].(uint64),
+						v[1].(util.Hash),
+						v[2].([]dop5.SMV),
+					)
 				}); err != nil {
 					return jobWait(err)
 				}
@@ -874,12 +875,12 @@ func acceptHandlerWorkerDistributeSMVs(
 						return nil
 					default:
 						if err := newJob(func(context.Context) error {
-							var bundle WorkerSMVsBundle
-							if err := encoder.Unmarshal(enc, b, &bundle); err != nil {
+							switch opindex, fact, values, err := decodeSMVBundle(b, enc); {
+							case err != nil:
 								return err
+							default:
+								return insertValues(opindex, fact, values)
 							}
-
-							return insertValues(bundle.O, bundle.F, bundle.V)
 						}); err != nil {
 							return err
 						}

@@ -1,44 +1,93 @@
-//go:generate go run -v -race ../tool/set_base_hinter.go - $GOFILE
-
 package main
 
 import (
+	"bytes"
+	"io"
+	"slices"
+
+	"github.com/pkg/errors"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
-	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
-	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
-var WorkerSMVsBundleHint = hint.MustNewHint("worker-smvs-bundle-v0.0.1")
+func writeSMVBundle(w io.Writer, enc encoder.Encoder, opindex uint64, fact util.Hash, values []dop5.SMV) error {
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
 
-type WorkerSMVsBundle struct {
-	O uint64
-	F util.Hash
-	V []dop5.SMV
-}
-
-type workerSMVsBundleMarshaler struct {
-	hint.BaseHinter
-	O interface{}
-	F interface{}
-	V interface{}
-}
-
-func newWorkerSMVsBundleMarshaller(v [3]interface{}) *workerSMVsBundleMarshaler {
-	return &workerSMVsBundleMarshaler{
-		BaseHinter: hint.NewBaseHinter(WorkerSMVsBundleHint),
-		O:          v[0], F: v[1], V: v[2],
+	if err := writeUint64(buf, opindex); err != nil {
+		return err
 	}
+
+	if err := frame.WriteFixed(buf, fact.Bytes()); err != nil {
+		return err
+	}
+
+	seq := func(yield func([]byte) bool) {
+		for i := range slices.Values(values) {
+			b, _ := enc.Marshal(i)
+
+			if !yield(b) {
+				return
+			}
+		}
+	}
+
+	if err := frame.WriteFixedSlice(buf, uint32(len(values)), seq); err != nil {
+		return err
+	}
+
+	return frame.WriteFixed(w, buf.Bytes())
 }
 
-func WorkerSMVsBundleDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
-	var w WorkerSMVsBundle
+func decodeSMVBundle(b []byte, enc encoder.Encoder) (uint64, util.Hash, []dop5.SMV, error) {
+	buf := bytes.NewBuffer(b)
+	defer buf.Reset()
 
-	return w, dutil.FuncChain(
-		dutil.AssignJSONInts(m["O"], &w.O),
-		dutil.AssignJSONHash(m["F"], &w.F),
-		encoder.DecodeSlice(enc, m["V"], &w.V),
-	)
+	var opindex uint64
+	if _, err := readUint64(buf, &opindex); err != nil {
+		return 0, nil, nil, err
+	}
+
+	var fact util.Hash
+	if _, err := readFixedFrameHash(buf, &fact); err != nil {
+		return 0, nil, nil, err
+	}
+
+	n, seq, err := frame.ReadFixedSlice(buf)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	values := make([]dop5.SMV, n)
+	var i int
+
+end:
+	for b, err := range seq {
+		var iseof bool
+		switch {
+		case err == nil:
+		case errors.Is(err, io.EOF):
+			if len(b) < 1 {
+				break end
+			}
+
+			iseof = true
+		default:
+			return 0, nil, nil, err
+		}
+
+		if err := encoder.Unmarshal(enc, b, &values[i]); err != nil {
+			return 0, nil, nil, err
+		}
+
+		if iseof {
+			break end
+		}
+
+		i++
+	}
+
+	return opindex, fact, values, nil
 }

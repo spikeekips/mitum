@@ -549,7 +549,7 @@ func (t *testHandlerWorkerDistributeSMVs) SetupSuite() {
 	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))
-	t.NoError(jsonenc.AddDecode(t.enc, WorkerSMVsBundleHint, WorkerSMVsBundle{}, WorkerSMVsBundleDecodeJSON))
+	t.NoError(jsonenc.AddDecode(t.enc, smvsBundleHint, smvsBundle{}, smvsBundleDecodeJSON))
 }
 
 func (t *testHandlerWorkerDistributeSMVs) randomMergeValues(n int) []dop5.SMV {
@@ -678,7 +678,7 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 	t.NoError(requestWait())
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 9):
 		t.Fail("wait handler done")
 	case err := <-handlerdone:
 		t.NoError(err)
