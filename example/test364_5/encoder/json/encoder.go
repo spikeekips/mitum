@@ -3,7 +3,6 @@ package jsonenc
 import (
 	"reflect"
 	"strconv"
-	"unique"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
@@ -20,21 +19,19 @@ type (
 	decodeJSONString interface {
 		DecodeJSON(*Encoder, string) (any, error)
 	}
-
-	hintStringType = unique.Handle[string]
 )
 
 type Encoder struct {
-	set       map[hintStringType]any
-	cache     util.GCache[hintStringType, [2]any /* {decode func, error} */]
-	hintCache util.GCache[hintStringType, [2]any /* {*hint.Hint, error} }*/]
+	set       map[string]any
+	cache     util.GCache[string, [2]any /* {decode func, error} */]
+	hintCache util.GCache[string, [2]any /* {*hint.Hint, error} }*/]
 }
 
 func NewEncoder(cacheSize int) *Encoder {
 	return &Encoder{
-		set:       map[hintStringType]any{},
-		cache:     util.NewLRUGCache[hintStringType, [2]any](cacheSize),
-		hintCache: util.NewLRUGCache[hintStringType, [2]any](cacheSize),
+		set:       map[string]any{},
+		cache:     util.NewLRUGCache[string, [2]any](cacheSize),
+		hintCache: util.NewLRUGCache[string, [2]any](cacheSize),
 	}
 }
 
@@ -58,7 +55,7 @@ func (enc *Encoder) addDecode(ht hint.Hint, sample any, decode any) error {
 	decodeKey := enc.decodeKeyWithHint(ht, decode)
 
 	if _, found := enc.set[decodeKey]; found {
-		return errors.Errorf("already added, %q(%q)", ht, decodeKey.Value())
+		return errors.Errorf("already added, %q(%q)", ht, decodeKey)
 	}
 
 	enc.set[decodeKey] = decode
@@ -125,7 +122,7 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 			return nil, errors.Errorf("expected hint string, but %T", i)
 		}
 
-		switch h, err := enc.getHint(unique.Make(s)); {
+		switch h, err := enc.getHint(s); {
 		case err != nil:
 			return nil, err
 		default:
@@ -145,7 +142,7 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 	return decode(enc, m)
 }
 
-func (enc *Encoder) getHint(s hintStringType) (hint.Hint, error) {
+func (enc *Encoder) getHint(s string) (hint.Hint, error) {
 	if i, found := enc.hintCache.Get(s); found {
 		if i[1] != nil {
 			return hint.Hint{}, i[1].(error)
@@ -154,7 +151,7 @@ func (enc *Encoder) getHint(s hintStringType) (hint.Hint, error) {
 		return *(i[0].(*hint.Hint)), nil
 	}
 
-	ht, err := hint.ParseHint(s.Value())
+	ht, err := hint.ParseHint(s)
 	enc.hintCache.Set(s, [2]any{&ht, err}, 0)
 
 	return ht, err
@@ -185,11 +182,11 @@ func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
 	return f, err
 }
 
-func (*Encoder) decodeKey(t hint.Type, v uint64) hintStringType {
-	return unique.Make(t.String() + "-" + strconv.FormatUint(v, 10))
+func (*Encoder) decodeKey(t hint.Type, v uint64) string {
+	return t.String() + "-" + strconv.FormatUint(v, 10)
 }
 
-func (enc *Encoder) decodeKeyWithHint(ht hint.Hint, decode any) hintStringType {
+func (enc *Encoder) decodeKeyWithHint(ht hint.Hint, decode any) string {
 	major := ht.Version().Major()
 	if _, ok := decode.(decodeStringFunc); ok {
 		major = 0
