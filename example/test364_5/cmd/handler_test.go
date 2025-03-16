@@ -30,20 +30,23 @@ type testHandlerStartWorker struct {
 func (t *testHandlerStartWorker) TestOK() {
 	doHandlers := func(
 		workID string,
+		height base.Height,
 		workers, opsWorkers []string,
 		opsShare, statesShare, maxOpsSize uint64,
 	) {
 		ctx := context.Background()
 
-		request := requestHandlerStartWorker(workID, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
+		request := requestHandlerStartWorker(workID, height, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
 
 		var handlerCalled bool
 		handler := acceptHandlerStartWorker(func(
 			rworkID string,
+			rheight base.Height,
 			rworkers, ropsWorkers []string,
 			ropsShare, rstatesShare, rmaxOpsSize uint64,
 		) error {
 			t.IfTruePanic(workID != rworkID, "work id")
+			t.IfTruePanic(height != rheight, "height")
 			t.IfTruePanic(!slices.Equal(workers, rworkers), "workers")
 			t.IfTruePanic(!slices.Equal(opsWorkers, ropsWorkers), "ops workers")
 			t.IfTruePanic(opsShare != ropsShare, "ops share")
@@ -80,6 +83,7 @@ func (t *testHandlerStartWorker) TestOK() {
 	t.RunWithGoLeak("ok", func() {
 		doHandlers(
 			util.UUID().String(),
+			33,
 			[]string{"w0", "w1", "w2"},
 			[]string{"w3", "w4"},
 			3, 4, 5,
@@ -89,6 +93,7 @@ func (t *testHandlerStartWorker) TestOK() {
 	t.RunWithGoLeak("empty workers", func() {
 		doHandlers(
 			util.UUID().String(),
+			33,
 			nil,
 			[]string{"w3", "w4"},
 			3, 4, 5,
@@ -98,6 +103,7 @@ func (t *testHandlerStartWorker) TestOK() {
 	t.RunWithGoLeak("empty ops workers", func() {
 		doHandlers(
 			util.UUID().String(),
+			33,
 			[]string{"w3", "w4"},
 			nil,
 			3, 4, 5,
@@ -107,7 +113,7 @@ func (t *testHandlerStartWorker) TestOK() {
 
 func (t *testHandlerStartWorker) TestAccept() {
 	t.Run("eof", func() {
-		handler := acceptHandlerStartWorker(func(string, []string, []string, uint64, uint64, uint64) error { return nil })
+		handler := acceptHandlerStartWorker(func(string, base.Height, []string, []string, uint64, uint64, uint64) error { return nil })
 
 		rstream, hstream := quicstream.NewDummyStreams()
 		rstream.Close()
@@ -128,7 +134,7 @@ func (t *testHandlerStartWorker) TestAccept() {
 			close(requestDone)
 		}()
 
-		handler := acceptHandlerStartWorker(func(string, []string, []string, uint64, uint64, uint64) error { return nil })
+		handler := acceptHandlerStartWorker(func(string, base.Height, []string, []string, uint64, uint64, uint64) error { return nil })
 
 		_, err := doHandler(context.Background(), hstream, handler)
 		t.ErrorContains(err, "insufficient read")
@@ -783,6 +789,55 @@ func TestHandlerWorkerDistributeSMVs(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testHandlerWorkerDistributeSMVs))
+}
+
+type testHandlerWorkerUnmerged struct {
+	dutil.BaseSuite
+}
+
+func (t *testHandlerWorkerUnmerged) TestOK() {
+	worker := util.UUID().String()
+	unmerged := []uint64{3, 4, 5}
+
+	request := requestHandlerWorkerUnmerged(worker, unmerged)
+
+	var called bool
+	handler := acceptHandlerWorkerUnmerged(func(rworker string, runmerged []uint64) error {
+		t.IfTruePanic(worker != rworker, "worker")
+		t.IfTruePanic(!slices.Equal(unmerged, runmerged), "unmerged")
+
+		called = true
+
+		return nil
+	})
+
+	ctx := context.Background()
+	rstream, hstream := quicstream.NewDummyStreams()
+
+	handlerdone := make(chan error)
+	go func() {
+		_, err := handler(ctx, hstream)
+		t.PrintIfErrPanic(err, "handler")
+
+		handlerdone <- err
+	}()
+
+	_, err := request(ctx, rstream)
+	t.NoError(err)
+
+	select {
+	case <-time.After(time.Second):
+		t.Fail("wait request done")
+	case err := <-handlerdone:
+		t.NoError(err)
+		t.True(called)
+	}
+}
+
+func TestHandlerWorkerUnmerged(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testHandlerWorkerUnmerged))
 }
 
 func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandler) (context.Context, error) {

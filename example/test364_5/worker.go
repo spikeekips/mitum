@@ -25,7 +25,7 @@ type (
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		WorkerReportStatesOwnersFunc,
 	) error
-	workerBroadcastUnmerged = func(
+	WorkerBroadcastUnmerged = func(
 		_ context.Context,
 		local,
 		worker string,
@@ -36,7 +36,7 @@ type (
 		local string, // FIXME remove
 		owners []string,
 	) error
-	workerReportResultFunc func(
+	WorkerReportResultFunc func(
 		_ context.Context,
 		local string,
 		reasons map[uint64]string,
@@ -44,8 +44,8 @@ type (
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error
 	WorkerWaitFunc = func(
-		workerBroadcastUnmerged,
-		workerReportResultFunc,
+		WorkerBroadcastUnmerged,
+		WorkerReportResultFunc,
 	) error
 	WorkerCloseFunc = dutil.InErrorFunc[error]
 )
@@ -223,8 +223,8 @@ func NewFuncWorker(
 		workerInsert,
 		workerUnmerge,
 		func(
-			broadcastUnmerged workerBroadcastUnmerged,
-			reportResult workerReportResultFunc,
+			broadcastUnmerged WorkerBroadcastUnmerged,
+			reportResult WorkerReportResultFunc,
 		) error {
 			var savedStates *dutil.SetOnlyLockedMap[string, base.State]
 

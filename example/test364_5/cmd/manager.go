@@ -325,7 +325,7 @@ func (cmd *managerCommand) startManager(
 	defer logging.TimeElapsedMsg(cmd.log.Debug, "manager: start")()
 
 	if err := start(
-		cmd.newFuncStartWorkers(workID),
+		cmd.newFuncStartWorkers(workID, height),
 		cmd.newFuncSendOp(workID),
 	); err != nil {
 		_ = closeManager()
@@ -368,7 +368,7 @@ func (cmd *managerCommand) startManager(
 		func(ctx context.Context, worker string) error {
 			var cerr error
 
-			_, err := requestWorkerClose(ctx, worker, nil, nil, requestHandlerWorkerClose(func(err error) error {
+			_, err := requestWorkerClose(ctx, worker, nil, nil, requestHandlerCloseWorker(func(err error) error {
 				cerr = err
 
 				return nil
@@ -408,7 +408,7 @@ func (cmd *managerCommand) newFuncCancelWorker(workID string) dop5.ManagerCancel
 	}
 }
 
-func (cmd *managerCommand) newFuncStartWorkers(workID string) dop5.ManagerStartWorkerFunc {
+func (cmd *managerCommand) newFuncStartWorkers(workID string, height base.Height) dop5.ManagerStartWorkerFunc {
 	return func(
 		ctx context.Context,
 		worker string,
@@ -418,7 +418,7 @@ func (cmd *managerCommand) newFuncStartWorkers(workID string) dop5.ManagerStartW
 	) error {
 		newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(ctx, uint64(len(workers)))
 
-		handler := requestHandlerStartWorker(workID, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
+		handler := requestHandlerStartWorker(workID, height, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
 
 		for worker := range slices.Values(workers) {
 			addr, err := cmd.workerAddr(worker)

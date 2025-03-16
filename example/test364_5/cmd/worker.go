@@ -57,6 +57,21 @@ func (cmd *workerCommand) prepare() error {
 }
 
 func (cmd *workerCommand) ready() error {
+	cmd.mustAddHandler("manager_start_worker", acceptHandlerStartWorker(func(
+		workID string,
+		height base.Height,
+		workers, opsWorkers []string,
+		opsShare, statesShare, maxOpsSize uint64,
+	) error {
+		return cmd.startWorker(
+			cmd.ctx,
+			workID,
+			height,
+			workers, opsWorkers,
+			opsShare, statesShare, maxOpsSize,
+		)
+	}))
+
 	return nil
 }
 
@@ -68,6 +83,8 @@ func (cmd *workerCommand) startWorker(
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) error {
+	workCanceled := cmd.newFuncReportCancelWork(workID)
+
 	defer cmd.removeHandler([]byte(workID))
 
 	var initialInsert dop5.WorkerInitialInsertFunc
@@ -81,7 +98,7 @@ func (cmd *workerCommand) startWorker(
 		cmd.workerOptions,
 		cmd.getState,
 		cmd.newFuncCreateState(height),
-		cmd.newFuncReportCancelWork(workID),
+		workCanceled,
 		workers, opsWorkers,
 		opsShare, statesShare,
 		maxOpsSize,
@@ -99,11 +116,11 @@ func (cmd *workerCommand) startWorker(
 
 	cmd.mustAddHandler(workID, handler)
 
-	mustAddHandler := newFuncMustAddHandler(addHandler)
+	mustAddWorkHandler := newFuncMustAddHandler(addHandler)
 
 	var maxItems uint64
 
-	mustAddHandler("manager_send_ops", cmd.newHandlerInitialInsert(
+	mustAddWorkHandler("manager_send_ops", cmd.newHandlerInitialInsert(
 		workID, workers, statesShare,
 		func(i uint64) {
 			atomic.AddUint64(&maxItems, i)
@@ -111,16 +128,20 @@ func (cmd *workerCommand) startWorker(
 		initialInsert,
 	).StreamHandler(cmd.newAcceptSubStream))
 
-	mustAddHandler("worker_distribute_smvs", acceptHandlerWorkerDistributeSMVs(
+	mustAddWorkHandler("worker_distribute_smvs", acceptHandlerWorkerDistributeSMVs(
 		cmd.enc,
 		workerInsertSMVs,
 	).StreamHandler(cmd.newAcceptSubStream))
 
-	_, _, _, _ = workerUnmerged, wait, workerClose, maxItems
+	// FIXME mustAddWorkHandler("manager_worker_close", acceptHandlerCloseWorker(workerClose))
+	_ = workerClose
 
-	_ = workerClose(nil) // FIXME add handler
+	mustAddWorkHandler("worker_unmerged", acceptHandlerWorkerUnmerged(workerUnmerged))
 
-	return nil
+	return wait(
+		cmd.newFuncBroadcastUnmerged(workID),
+		cmd.newFuncReportResult(workID),
+	)
 }
 
 func (cmd *workerCommand) getState(stateKey string) (st base.State, _ bool, _ error) {
@@ -152,8 +173,10 @@ func (cmd *workerCommand) newFuncCreateState(height base.Height) dop5.CreateStat
 }
 
 func (cmd *workerCommand) newFuncReportCancelWork(workID string) dutil.InErrorFunc[error] {
+	request := cmd.requestWork(workID, "manager_worker_error")
+
 	return func(err error) error {
-		_, rerr := cmd.requestWork(workID, "manager_worker_error")(cmd.ctx, cmd.manager, nil, nil, requestHandlerWorkerErr(cmd.local, err))
+		_, rerr := request(cmd.ctx, cmd.manager, nil, nil, requestHandlerWorkerErr(cmd.local, err))
 
 		return rerr
 	}
@@ -238,6 +261,44 @@ func (cmd *workerCommand) newFuncReportStatesOwners(workID string) dop5.WorkerRe
 		owners []string,
 	) error {
 		_, err := request(ctx, cmd.manager, nil, nil, requestHandlerWorkerOwners(cmd.local, owners))
+
+		return err
+	}
+}
+
+func (cmd *workerCommand) newFuncBroadcastUnmerged(workID string) dop5.WorkerBroadcastUnmerged {
+	request := cmd.requestWorkWorker(workID, "worker_unmerged")
+
+	return func(
+		ctx context.Context,
+		_, worker string,
+		unmerged []uint64,
+	) error {
+		_, err := request(ctx, worker, nil, nil, requestHandlerWorkerUnmerged(cmd.local, unmerged))
+
+		return err
+	}
+}
+
+func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportResultFunc {
+	request := cmd.requestWork(workID, "manager_worker_result")
+
+	return func(
+		ctx context.Context,
+		_ string,
+		reasons map[uint64]string,
+		statesSize uint64,
+		seq dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
+	) error {
+		handler := requestHandlerWorkerResult(
+			cmd.local,
+			reasons,
+			statesSize,
+			seq,
+			defaultSubStreamItems, defaultMaxSubStreamsSize,
+		).StreamHandler(cmd.openSubStreams)
+
+		_, err := request(ctx, cmd.manager, nil, nil, handler)
 
 		return err
 	}

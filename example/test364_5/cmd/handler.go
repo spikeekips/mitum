@@ -38,14 +38,19 @@ var workHandlerPrefixesString = map[string]struct{}{
 	"manager_cancel_worker":      {},
 	"manager_wait_worker_closed": {},
 	"worker_distribute_smvs":     {},
+	"worker_unmerged":            {},
 }
 
 func requestHandlerStartWorker(
-	workID string, workers, opsWorkers []string,
+	workID string, height base.Height, workers, opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
 ) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		if err := frame.WriteFixed(stream, []byte(workID)); err != nil {
+			return ctx, err
+		}
+
+		if err := frame.WriteFixed(stream, height.Bytes()); err != nil {
 			return ctx, err
 		}
 
@@ -67,6 +72,7 @@ func requestHandlerStartWorker(
 
 type startWorkerFunc = func(
 	workID string,
+	height base.Height,
 	workers, opsWorkers []string,
 	opsShare, statesShare, maxOpsSize uint64,
 ) error
@@ -75,6 +81,11 @@ func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var workID string
 		if _, err := ensureReadFixedFrameString(stream, &workID); err != nil {
+			return ctx, err
+		}
+
+		var height base.Height
+		if _, err := frame.EnsureReadFixedValue(stream, &height, base.ParseHeightBytes); err != nil {
 			return ctx, err
 		}
 
@@ -94,7 +105,7 @@ func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 			return ctx, err
 		}
 
-		return ctx, f(workID, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
+		return ctx, f(workID, height, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
 	}
 }
 
@@ -285,9 +296,9 @@ func readSendOpStream(r io.Reader, f dop5.OpindexOpHashesFunc) error {
 	}
 }
 
-func requestHandlerWorkerOwners(worker string, owners []string) quicstream.StreamHandler {
+func requestHandlerWorkerOwners(local string, owners []string) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
 			return ctx, err
 		}
 
@@ -312,7 +323,7 @@ func acceptHandlerWorkerOwners(f func(string, []string) error) quicstream.Stream
 }
 
 func requestHandlerWorkerResult(
-	worker string,
+	local string,
 	reasons map[uint64]string,
 	statesSize uint64,
 	statesf dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -324,7 +335,7 @@ func requestHandlerWorkerResult(
 		stream quic.Stream,
 		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 	) (context.Context, error) {
-		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
 			return ctx, err
 		}
 
@@ -573,9 +584,9 @@ end1:
 	return nil
 }
 
-func requestHandlerWorkerErr(worker string, err error) quicstream.StreamHandler {
+func requestHandlerWorkerErr(local string, err error) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
 			return ctx, err
 		}
 
@@ -616,7 +627,7 @@ func acceptHandlerWorkerInsertDone() quicstream.StreamHandler {
 	}
 }
 
-func requestHandlerWorkerClose(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
+func requestHandlerCloseWorker(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var err error
 
@@ -632,7 +643,7 @@ func requestHandlerWorkerClose(f dutil.InErrorFunc[error]) quicstream.StreamHand
 	}
 }
 
-func acceptHandlerWorkerClose(f dutil.ErrorFunc) quicstream.StreamHandler {
+func acceptHandlerCloseWorker(f dutil.ErrorFunc) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var errb []byte
 		if err := f(); err != nil {
@@ -712,7 +723,7 @@ func acceptHandlerStopWorker() quicstream.StreamHandler {
 func requestHandlerWorkerDistributeSMVs(
 	ctx context.Context,
 	enc encoder.Encoder,
-	worker string,
+	local string,
 	maxItems, maxSubStreamItems uint64,
 	maxSubStreamsSize uint16,
 ) (
@@ -793,7 +804,7 @@ func requestHandlerWorkerDistributeSMVs(
 			stream quic.Stream,
 			openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 		) (context.Context, error) {
-			if err := frame.WriteFixed(stream, []byte(worker)); err != nil {
+			if err := frame.WriteFixed(stream, []byte(local)); err != nil {
 				return ctx, err
 			}
 
@@ -911,6 +922,60 @@ func acceptHandlerWorkerDistributeSMVs(
 		}
 
 		return ctx, insertOwners(subs, affected)
+	}
+}
+
+func requestHandlerWorkerUnmerged(local string, unmerged []uint64) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
+			return ctx, err
+		}
+
+		return ctx, frame.WriteFixedSlice(stream, uint32(len(unmerged)), func(yield func([]byte, error) bool) {
+			for opindex := range slices.Values(unmerged) {
+				b, err := encodeUint64(opindex)
+				if !yield(b, err) {
+					return
+				}
+			}
+		})
+	}
+}
+
+func acceptHandlerWorkerUnmerged(f func(string, []uint64) error) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		switch n, seq, err := frame.ReadFixedSlice(stream); {
+		case err != nil:
+			return ctx, err
+		case n < 1:
+			return ctx, f(worker, nil)
+		default:
+			unmerged := make([]uint64, n)
+
+			var i int
+			for b, err := range seq {
+				if err != nil && errors.Is(err, io.EOF) {
+					return ctx, err
+				}
+
+				if err := decodeUint64(b, &unmerged[i]); err != nil {
+					return ctx, err
+				}
+
+				i++
+			}
+
+			if i < int(n) {
+				return ctx, errors.Wrap(frame.ErrInsufficientRead, "unmerged")
+			}
+
+			return ctx, f(worker, unmerged)
+		}
 	}
 }
 
