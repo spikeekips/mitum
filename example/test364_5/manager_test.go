@@ -136,7 +136,7 @@ func (t *baseTestManager) processOps(
 
 	startOpsFixedNodes()
 
-	initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
+	initialInsert, _, _, wait, closeWork, err := NewFuncWorker(
 		ctx,
 		NewWorkerOptions(local),
 		getState,
@@ -149,7 +149,7 @@ func (t *baseTestManager) processOps(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	defer closeWorker(nil)
+	defer closeWork(nil)
 
 	err = initialInsert(
 		func(string) []string { return workers },
@@ -196,7 +196,7 @@ func (t *baseTestManager) processOps(
 			statesSize uint64,
 			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 		) error {
-			defer closeWorker(nil)
+			defer closeWork(nil)
 
 			for opindex, reason := range maps.All(reasons) {
 				if err := unmergedOp(opindex, reason); err != nil {
@@ -328,8 +328,8 @@ func (t *testManager) TestStartWorkers() {
 		opsShare, statesShare uint64,
 		ophs [][2]util.Hash,
 		failedWorkers []string,
-		cancelWorkerf ManagerCancelWorkerFunc,
-		closeWorkerf managerCloseWorkerFunc,
+		cancelWorkf ManagerCancelWorkFunc,
+		closeWorkf managerCloseWorkFunc,
 	) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -343,7 +343,7 @@ func (t *testManager) TestStartWorkers() {
 			func(ctx context.Context, worker string, err error) error {
 				t.Print("worker canceled: worker=%q err=%+v", worker, err)
 
-				return cancelWorkerf(ctx, worker, err)
+				return cancelWorkf(ctx, worker, err)
 			},
 			workers,
 			opsShare, statesShare,
@@ -402,7 +402,7 @@ func (t *testManager) TestStartWorkers() {
 			func(ctx context.Context, worker string) error {
 				t.T().Logf("worker done: worker=%q", worker)
 
-				return closeWorkerf(ctx, worker)
+				return closeWorkf(ctx, worker)
 			},
 		)
 	}
@@ -665,10 +665,10 @@ func (t *testManager) TestBroadcastManagerDone() {
 	})
 }
 
-func (t *testManager) TestCloseWorkers() {
+func (t *testManager) TestCloseWork() {
 	run := func(
 		workers, statesOwners []string,
-		closeWorkerf managerCloseWorkerFunc,
+		closeWorkf managerCloseWorkFunc,
 	) error {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
@@ -724,7 +724,7 @@ func (t *testManager) TestCloseWorkers() {
 			func(ctx context.Context, worker string) error {
 				t.Print("done worker: worker=%q", worker)
 
-				return closeWorkerf(ctx, worker)
+				return closeWorkf(ctx, worker)
 			},
 		)
 	}

@@ -22,15 +22,15 @@ type (
 		opsShare, statesShare uint64,
 		maxOpsSize uint64,
 	) error
-	ManagerCancelWorkerFunc    = func(_ context.Context, worker string, err error) error
-	managerCloseWorkerFunc     = func(_ context.Context, worker string) error
+	ManagerCancelWorkFunc      = func(_ context.Context, worker string, err error) error
+	managerCloseWorkFunc       = func(_ context.Context, worker string) error
 	NewManagerWorkerSendOpFunc = func(_ context.Context, worker string, maxItems uint64) (
 		OpindexOpHashesFunc, dutil.InErrorFunc[error], error)
 	newManagerManifestFunc = func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error)
 	ManagerWaitFunc        = dutil.In3ErrorFunc[
 		dutil.InContextErrorFunc[string],
 		newManagerManifestFunc,
-		managerCloseWorkerFunc,
+		managerCloseWorkFunc,
 	]
 )
 
@@ -54,7 +54,7 @@ func NewManagerOptions() *ManagerOptions {
 func NewFuncManager(
 	ctx context.Context,
 	options *ManagerOptions,
-	cancelWorkerf ManagerCancelWorkerFunc,
+	cancelWorkf ManagerCancelWorkFunc,
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
@@ -109,8 +109,8 @@ func NewFuncManager(
 
 	cancelWork := func(err error) error {
 		if err != nil {
-			if cancelWorkerf != nil {
-				_ = managerCancelWorkers(wctx, newJobWorker, workerPool, cancelWorkerf, err)
+			if cancelWorkf != nil {
+				_ = managerCancelWorks(wctx, newJobWorker, workerPool, cancelWorkf, err)
 			}
 
 			return wctxCancel(err)
@@ -153,7 +153,7 @@ func NewFuncManager(
 		func(
 			workerInsertDone dutil.InContextErrorFunc[string],
 			newManifest newManagerManifestFunc,
-			closeWorkerf managerCloseWorkerFunc,
+			closeWorkf managerCloseWorkFunc,
 		) error {
 			defer func() {
 				_ = wctxCancel(nil)
@@ -211,16 +211,16 @@ func NewFuncManager(
 			// - block map
 			// - trees
 
-			if closeWorkerf != nil {
+			if closeWorkf != nil {
 				// NOTE if done workers fails, canceling workers is meaningless.
 				// some workers ok, but others not. If it happened, manager
 				// cancels work.
-				if err := managerCloseWorkers(
+				if err := managerCloseWork(
 					wctx,
 					newJobWorker,
 					workerPool,
 					opsShare, statesShare,
-					closeWorkerf,
+					closeWorkf,
 				); err != nil {
 					return err
 				}
@@ -388,11 +388,11 @@ func managerStartWorkers(
 	return jobWait(nil)
 }
 
-func managerCancelWorkers(
+func managerCancelWorks(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workerPool *failedWorkerPool,
-	f ManagerCancelWorkerFunc,
+	f ManagerCancelWorkFunc,
 	gerr error,
 ) error {
 	log := dutil.LoadContextValueLogger(ctx)
@@ -427,12 +427,12 @@ func managerCancelWorkers(
 	return jobWait(nil)
 }
 
-func managerCloseWorkers(
+func managerCloseWork(
 	ctx context.Context,
 	newJobWorker dutil.NewJobWorkerFunc,
 	workerPool *failedWorkerPool,
 	opsShare, statesShare uint64,
-	f managerCloseWorkerFunc,
+	f managerCloseWorkFunc,
 ) error {
 	log := dutil.LoadContextValueLogger(ctx)
 

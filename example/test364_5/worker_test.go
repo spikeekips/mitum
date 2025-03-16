@@ -182,7 +182,7 @@ func (t *testWorker) TestClose() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
+		initialInsert, _, _, wait, closeWork, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
@@ -223,7 +223,7 @@ func (t *testWorker) TestClose() {
 			)
 		}()
 
-		closeWorker(nil)
+		closeWork(nil)
 		t.T().Log("close worker")
 
 		t.T().Log("wait: initial insert")
@@ -255,7 +255,7 @@ func (t *testWorker) TestClose() {
 		ctx, cancel := t.Ctx()
 		defer cancel(nil)
 
-		initialInsert, _, _, wait, closeWorker, err := NewFuncWorker(
+		initialInsert, _, _, wait, closeWork, err := NewFuncWorker(
 			ctx,
 			t.newWorkerOptions(local),
 			func(stateKey string) (base.State, bool, error) { return nil, false, nil },
@@ -296,7 +296,7 @@ func (t *testWorker) TestClose() {
 			)
 		}()
 
-		closeWorker(errors.Errorf("eatme"))
+		closeWork(errors.Errorf("eatme"))
 
 		t.T().Log("wait: initial insert")
 		select {

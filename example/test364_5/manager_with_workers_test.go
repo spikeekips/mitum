@@ -133,7 +133,7 @@ func (t *testManagerWithWorkers) newWorker(
 		return st, nil
 	}
 
-	initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker, err := NewFuncWorker(
+	initialInsert, workerInsert, workerUnmerge, workerWait, closeWork, err := NewFuncWorker(
 		ctx,
 		t.newWorkerOptions(local),
 		getState,
@@ -145,7 +145,7 @@ func (t *testManagerWithWorkers) newWorker(
 	)
 	t.PrintIfErrPanic(err, "worker=%q", local)
 
-	return initialInsert, workerInsert, workerUnmerge, workerWait, closeWorker
+	return initialInsert, workerInsert, workerUnmerge, workerWait, closeWork
 }
 
 func (t *testManagerWithWorkers) newManager(

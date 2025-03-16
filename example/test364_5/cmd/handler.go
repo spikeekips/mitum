@@ -34,8 +34,8 @@ var workHandlerPrefixesString = map[string]struct{}{
 	"manager_worker_result":      {},
 	"manager_worker_error":       {},
 	"manager_worker_insert_done": {},
-	"manager_worker_close":       {},
-	"manager_cancel_worker":      {},
+	"manager_close_work":         {},
+	"manager_cancel_work":        {},
 	"manager_wait_worker_closed": {},
 	"worker_distribute_smvs":     {},
 	"worker_unmerged":            {},
@@ -627,7 +627,7 @@ func acceptHandlerWorkerInsertDone() quicstream.StreamHandler {
 	}
 }
 
-func requestHandlerCloseWorker(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
+func requestHandlerCloseWork(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var err error
 
@@ -643,7 +643,7 @@ func requestHandlerCloseWorker(f dutil.InErrorFunc[error]) quicstream.StreamHand
 	}
 }
 
-func acceptHandlerCloseWorker(f dutil.ErrorFunc) quicstream.StreamHandler {
+func acceptHandlerCloseWork(f dutil.ErrorFunc) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var errb []byte
 		if err := f(); err != nil {
@@ -654,7 +654,7 @@ func acceptHandlerCloseWorker(f dutil.ErrorFunc) quicstream.StreamHandler {
 	}
 }
 
-func requestHandlerCancelWorker(err error) quicstream.StreamHandler {
+func requestHandlerCancelWork(err error) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var errb []byte
 		if err != nil {
@@ -665,7 +665,7 @@ func requestHandlerCancelWorker(err error) quicstream.StreamHandler {
 	}
 }
 
-func acceptHandlerCancelWorker(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
+func acceptHandlerCancelWork(f dutil.InErrorFunc[error]) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var err error
 		var errs string

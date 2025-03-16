@@ -288,7 +288,7 @@ func (cmd *managerCommand) startManager(
 	switch s, o, r, e, w, err := dop5.NewFuncManager(
 		ctx,
 		cmd.managerOptions,
-		cmd.newFuncCancelWorker(workID),
+		cmd.newFuncCancelWork(workID),
 		cmd.Workers,
 		cmd.OpsShare,
 		cmd.StatesShare,
@@ -334,7 +334,7 @@ func (cmd *managerCommand) startManager(
 	}
 
 	requestWorkerInsertDone := cmd.requestWorkWorker(workID, "manager_worker_insert_done")
-	requestWorkerClose := cmd.requestWorkWorker(workID, "manager_worker_close")
+	requestCloseWork := cmd.requestWorkWorker(workID, "manager_close_work")
 
 	var manifestHash util.Hash
 
@@ -368,7 +368,7 @@ func (cmd *managerCommand) startManager(
 		func(ctx context.Context, worker string) error {
 			var cerr error
 
-			_, err := requestWorkerClose(ctx, worker, nil, nil, requestHandlerCloseWorker(func(err error) error {
+			_, err := requestCloseWork(ctx, worker, nil, nil, requestHandlerCloseWork(func(err error) error {
 				cerr = err
 
 				return nil
@@ -386,6 +386,7 @@ func (cmd *managerCommand) startManager(
 
 	return manifestHash,
 		func() error {
+			// NOTE check all worker closes work.
 			return stderrors.Join(
 				cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
 					_, err := requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
@@ -398,11 +399,11 @@ func (cmd *managerCommand) startManager(
 		nil
 }
 
-func (cmd *managerCommand) newFuncCancelWorker(workID string) dop5.ManagerCancelWorkerFunc {
-	request := cmd.requestWorkWorker(workID, "manager_cancel_worker")
+func (cmd *managerCommand) newFuncCancelWork(workID string) dop5.ManagerCancelWorkFunc {
+	request := cmd.requestWorkWorker(workID, "manager_cancel_work")
 
 	return func(ctx context.Context, worker string, merr error) error {
-		_, err := request(ctx, worker, nil, nil, requestHandlerCancelWorker(merr))
+		_, err := request(ctx, worker, nil, nil, requestHandlerCancelWork(merr))
 
 		return err
 	}

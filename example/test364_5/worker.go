@@ -115,7 +115,7 @@ func NewFuncWorker(
 		return cancelWork(err, true)
 	})
 
-	_, closeWorker, _, closeWorkerWait := dutil.NewContextWait(wctx)
+	_, closeWork, _, closeWorkWait := dutil.NewContextWait(wctx)
 
 	var initialInsert workerProcessInitialInsertFunc
 	var workerInsert WorkerProcessWorkerInsertSMVsFunc
@@ -275,7 +275,7 @@ func NewFuncWorker(
 
 			_ = savedStates // FIXME save states
 
-			switch err := closeWorkerWait(); {
+			switch err := closeWorkWait(); {
 			case err != nil:
 				log.Error().Err(err).Msg("worker canceled")
 
@@ -293,7 +293,7 @@ func NewFuncWorker(
 				return cancelWork(err, false)
 			}
 
-			return closeWorker(nil)
+			return closeWork(nil)
 		},
 		nil
 }

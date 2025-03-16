@@ -133,15 +133,26 @@ func (cmd *workerCommand) startWorker(
 		workerInsertSMVs,
 	).StreamHandler(cmd.newAcceptSubStream))
 
-	// FIXME mustAddWorkHandler("manager_worker_close", acceptHandlerCloseWorker(workerClose))
-	_ = workerClose
-
 	mustAddWorkHandler("worker_unmerged", acceptHandlerWorkerUnmerged(workerUnmerged))
 
-	return wait(
+	workClosedDone, workClosedWait := dutil.NewContextDone(ctx)
+	mustAddWorkHandler("manager_close_work", acceptHandlerCloseWork(func() error {
+		if err := workClosedDone(workerClose(nil)); err != nil {
+			return err
+		}
+
+		return workClosedWait()
+	}))
+
+	mustAddWorkHandler("manager_wait_worker_closed", acceptHandlerWaitWorkerClosed(workClosedWait))
+	mustAddWorkHandler("manager_cancel_work", acceptHandlerCancelWork(func(err error) error {
+		return workClosedDone(workerClose(err))
+	}))
+
+	return workClosedDone(wait(
 		cmd.newFuncBroadcastUnmerged(workID),
 		cmd.newFuncReportResult(workID),
-	)
+	))
 }
 
 func (cmd *workerCommand) getState(stateKey string) (st base.State, _ bool, _ error) {
