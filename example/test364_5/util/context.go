@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -125,18 +126,20 @@ func NewContextDone(ctx context.Context) (
 ) {
 	done := make(chan struct{})
 
-	gerr := util.EmptyLocked[error]()
+	var gerr atomic.Value
 	var once sync.Once
 
 	return func(err error) error {
 			once.Do(func() {
 				close(done)
 
-				gerr.SetValue(err)
+				if err != nil {
+					gerr.Store(err)
+				}
 			})
 
-			if i, isempty := gerr.Value(); !isempty {
-				return i
+			if e, ok := gerr.Load().(error); ok && e != nil {
+				return e
 			}
 
 			return err
@@ -146,8 +149,8 @@ func NewContextDone(ctx context.Context) (
 			case <-ctx.Done():
 				return context.Cause(ctx)
 			case <-done:
-				if i, isempty := gerr.Value(); !isempty {
-					return i
+				if e, ok := gerr.Load().(error); ok && e != nil {
+					return e
 				}
 
 				return nil
