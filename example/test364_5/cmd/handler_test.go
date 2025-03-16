@@ -121,7 +121,7 @@ func (t *testHandlerStartWorker) TestAccept() {
 
 		requestDone := make(chan struct{})
 		go func() {
-			err := frame.WriteFixedSlice(rstream, 1, slices.Values([][]byte{util.UUID().Bytes()}))
+			err := frame.WriteFixedSlice(rstream, 1, frame.SimpleWriteFixedSliceSeq([][]byte{util.UUID().Bytes()}))
 			t.PrintErr(err, "write workers")
 			rstream.Close()
 

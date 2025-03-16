@@ -24,11 +24,11 @@ func writeSMVBundle(w io.Writer, enc encoder.Encoder, opindex uint64, fact util.
 		return err
 	}
 
-	seq := func(yield func([]byte) bool) {
+	seq := func(yield func([]byte, error) bool) {
 		for i := range slices.Values(values) {
-			b, _ := enc.Marshal(i)
+			b, err := enc.Marshal(i)
 
-			if !yield(b) {
+			if !yield(b, err) {
 				return
 			}
 		}

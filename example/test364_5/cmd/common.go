@@ -308,15 +308,23 @@ func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
 	return kp, tlsConfig, nil
 }
 
+func encodeUint64(i uint64) ([]byte, error) {
+	return binary.Append(nil, binary.BigEndian, i)
+}
+
+func decodeUint64(b []byte, i *uint64) error {
+	_, err := binary.Decode(b, binary.BigEndian, i)
+
+	return errors.WithStack(err)
+}
+
 func readUint64(r io.Reader, i *uint64) (int, error) {
 	switch p, n, err := frame.ReadSized(r, 8); {
 	case err != nil && !errors.Is(err, io.EOF),
 		n < 1 && errors.Is(err, io.EOF):
 		return n, err
 	default:
-		_, err := binary.Decode(p, binary.BigEndian, i)
-
-		return n, errors.WithStack(err)
+		return n, decodeUint64(p, i)
 	}
 }
 
@@ -363,10 +371,12 @@ func readFixedFrameStringSlice(r io.Reader, i *[]string) error {
 }
 
 func writeFixedFrameStringSlice(w io.Writer, i []string) error {
-	return frame.WriteFixedSlice(w, uint32(len(i)), func(yield func([]byte) bool) {
-		slices.Values(i)(func(s string) bool {
-			return yield([]byte(s))
-		})
+	return frame.WriteFixedSlice(w, uint32(len(i)), func(yield func([]byte, error) bool) {
+		for s := range slices.Values(i) {
+			if !yield([]byte(s), nil) {
+				return
+			}
+		}
 	})
 }
 

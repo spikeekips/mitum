@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -101,7 +102,7 @@ func TestFixedSlice(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		t.NoError(WriteFixedSlice(buf, 2, slices.Values(expected)))
+		t.NoError(WriteFixedSlice(buf, 2, SimpleWriteFixedSliceSeq(expected)))
 
 		checkRead(buf, expected)
 	})
@@ -109,7 +110,7 @@ func TestFixedSlice(tt *testing.T) {
 	t.Run("empty", func() {
 		buf := bytes.NewBuffer(nil)
 
-		t.NoError(WriteFixedSlice(buf, 0, slices.Values(([][]byte)(nil))))
+		t.NoError(WriteFixedSlice(buf, 0, SimpleWriteFixedSliceSeq(([][]byte)(nil))))
 
 		checkRead(buf, nil)
 	})
@@ -122,7 +123,7 @@ func TestFixedSlice(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixedSlice(buf, 3, slices.Values(expected))
+		err := WriteFixedSlice(buf, 3, SimpleWriteFixedSliceSeq(expected))
 		t.ErrorContains(err, "less size")
 
 		size, seq, err := ReadFixedSlice(&eofBuffer{Buffer: buf})
@@ -150,7 +151,7 @@ func TestFixedSlice(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixedSlice(buf, 1, slices.Values(bs))
+		err := WriteFixedSlice(buf, 1, SimpleWriteFixedSliceSeq(bs))
 		t.ErrorContains(err, "over size")
 	})
 
@@ -162,7 +163,33 @@ func TestFixedSlice(tt *testing.T) {
 
 		buf := bytes.NewBuffer(nil)
 
-		err := WriteFixedSlice(buf, 3, slices.Values(bs))
+		err := WriteFixedSlice(buf, 3, SimpleWriteFixedSliceSeq(bs))
 		t.ErrorContains(err, "less size")
+	})
+
+	t.Run("iter error", func() {
+		bs := [][]byte{
+			util.UUID().Bytes(),
+			util.UUID().Bytes(),
+		}
+
+		buf := bytes.NewBuffer(nil)
+
+		err := WriteFixedSlice(buf, uint32(len(bs)),
+			func(yield func([]byte, error) bool) {
+				for i, b := range slices.All(bs) {
+					var err error
+					if i == len(bs)-1 {
+						err = errors.Errorf("showme")
+					}
+
+					if !yield(b, err) {
+						return
+					}
+				}
+			},
+		)
+
+		t.ErrorContains(err, "showme")
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"iter"
 	"math"
+	"slices"
 
 	"github.com/pkg/errors"
 )
@@ -87,16 +88,19 @@ func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {
 		nil
 }
 
-func WriteFixedSlice(w io.Writer, n uint32, seq iter.Seq[[]byte]) error {
+func WriteFixedSlice(w io.Writer, n uint32, seq iter.Seq2[[]byte, error]) error {
 	if err := WriteSize(w, n); err != nil {
 		return err
 	}
 
 	var i uint32
 
-	for b := range seq {
-		if i == n {
+	for b, err := range seq {
+		switch {
+		case i == n:
 			return errors.Errorf("over size")
+		case err != nil:
+			return err
 		}
 
 		if err := WriteFixed(w, b); err != nil {
@@ -111,6 +115,16 @@ func WriteFixedSlice(w io.Writer, n uint32, seq iter.Seq[[]byte]) error {
 	}
 
 	return nil
+}
+
+func SimpleWriteFixedSliceSeq(bs [][]byte) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		for b := range slices.Values(bs) {
+			if !yield(b, nil) {
+				return
+			}
+		}
+	}
 }
 
 func ReadFixedValue[T any](r io.Reader, i *T, f func([]byte) (T, error)) (int, error) {
