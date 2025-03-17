@@ -15,7 +15,6 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
@@ -84,9 +83,19 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 	return nil
 }
 
+func addDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode any) dutil.ErrorFunc {
+	return func() error {
+		return jsonenc.AddDecode(enc, ht, sample, decode)
+	}
+}
+
 func (cmd *baseCommand) addHinters() error {
-	mustAddDecode(cmd.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey)
-	mustAddDecode(cmd.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, nil)
+	return dutil.FuncChain(
+		addDecode(cmd.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON),
+		addDecode(cmd.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON),
+		addDecode(cmd.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON),
+		addDecode(cmd.enc, dop5.BaseStateHint, &dop5.BaseState{}, dop5.BaseStateDecodeJSON),
+	)
 
 	return nil
 }
