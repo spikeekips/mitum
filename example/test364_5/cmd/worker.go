@@ -353,11 +353,12 @@ func (cmd *workerCommand) pingManager() error {
 
 	connected := make(chan error)
 
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
 	go func() {
 		for range ticker.C {
+			ticker.Reset(time.Second * 2)
 			_, err := cmd.request("_worker_ping_manager")(
 				cmd.ctx,
 				cmd.manager,
