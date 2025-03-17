@@ -2,7 +2,10 @@ package quicstream
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
+	"net"
+	"slices"
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
@@ -71,19 +74,31 @@ func NewFuncPrefixStreamHandler() (
 		pool.Close
 }
 
-func NewStreamHandlerPrefix(b []byte) HandlerPrefix {
-	return sha3.Sum224(b)
+func NewFuncPrefixRequest(request RequestFunc, p ...[]byte) RequestFunc {
+	prefix := make([]byte, len(HandlerPrefix{})*len(p))
+	for i, b := range slices.All(p) {
+		j := NewStreamHandlerPrefix(b)
+
+		copy(prefix[i*len(HandlerPrefix{}):], j[:])
+	}
+
+	return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h StreamHandler) (
+		context.Context, error,
+	) {
+		return request(ctx, addr, tlsConfig, quicConfig,
+			func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+				if _, err := stream.Write(prefix); err != nil {
+					return ctx, err
+				}
+
+				return h(ctx, stream)
+			},
+		)
+	}
 }
 
-func encodeStreamHandlerPrefix(b []byte) []byte {
-	p := make([]byte, 28)
-	h := sha3.New224()
-	defer h.Reset()
-
-	h.Write(b)
-	h.Sum(p)
-
-	return p
+func NewStreamHandlerPrefix(b []byte) HandlerPrefix {
+	return sha3.Sum224(b)
 }
 
 func readStreamHandlerPrefix(r io.Reader) (v HandlerPrefix, _ error) {
@@ -97,10 +112,4 @@ func readStreamHandlerPrefix(r io.Reader) (v HandlerPrefix, _ error) {
 	default:
 		return p, err
 	}
-}
-
-func WriteStreamHandlerPrefix(w io.Writer, b []byte) error {
-	_, err := w.Write(encodeStreamHandlerPrefix(b))
-
-	return err
 }
