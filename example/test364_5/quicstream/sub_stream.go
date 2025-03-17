@@ -547,7 +547,7 @@ func readSubStreamsSize(stream quic.Stream, size uint16) (uint16, error) {
 
 	switch _, err := frame.ReadSize(stream, &nrsize); {
 	case err != nil && !errors.Is(err, io.EOF):
-		return 0, errors.Errorf("received size")
+		return 0, errors.Wrap(err, "received size")
 	case size < 1, nrsize < 1:
 		return 0, nil
 	case nrsize > math.MaxUint16:
