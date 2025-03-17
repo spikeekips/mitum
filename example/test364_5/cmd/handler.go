@@ -24,21 +24,22 @@ import (
 
 var handlerPrefixesString = map[string]struct{}{
 	"manager_start_worker": {},
-	"manager_stop_worker":  {},
+	"_manager_stop_worker": {},
+	"_worker_ping_manager": {},
 }
 
 var workHandlerPrefixesString = map[string]struct{}{
-	"manager_start_worker":       {},
-	"manager_send_ops":           {},
-	"manager_worker_owners":      {},
-	"manager_worker_result":      {},
-	"manager_worker_error":       {},
-	"manager_worker_insert_done": {},
-	"manager_close_work":         {},
-	"manager_cancel_work":        {},
-	"manager_wait_worker_closed": {},
-	"worker_distribute_smvs":     {},
-	"worker_unmerged":            {},
+	"manager_start_worker":        {},
+	"manager_send_ops":            {},
+	"manager_worker_owners":       {},
+	"manager_worker_result":       {},
+	"manager_worker_error":        {},
+	"manager_worker_insert_done":  {},
+	"manager_close_work":          {},
+	"manager_cancel_work":         {},
+	"worker_distribute_smvs":      {},
+	"worker_unmerged":             {},
+	"_manager_wait_worker_closed": {},
 }
 
 func requestHandlerStartWorker(
@@ -714,9 +715,9 @@ func requestHandlerStopWorker() quicstream.StreamHandler {
 	}
 }
 
-func acceptHandlerStopWorker() quicstream.StreamHandler {
+func acceptHandlerStopWorker(f func() error) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		return ctx, nil
+		return ctx, f()
 	}
 }
 
@@ -976,6 +977,56 @@ func acceptHandlerWorkerUnmerged(f func(string, []uint64) error) quicstream.Stre
 
 			return ctx, f(worker, unmerged)
 		}
+	}
+}
+
+func requestHandlerWorkerPingManager(local string, interval time.Duration) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
+			return ctx, err
+		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		var i uint64
+
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx, ctx.Err()
+			case <-ticker.C:
+				if err := writeUint64(stream, i); err != nil {
+					return ctx, err
+				}
+			}
+
+			i++
+		}
+
+		return ctx, nil
+	}
+}
+
+func acceptHandlerWorkerPingManager(f dutil.In2ErrorFunc[string, uint64]) quicstream.StreamHandler {
+	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+		var worker string
+		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
+			return ctx, err
+		}
+
+		for {
+			var i uint64
+			if _, err := readUint64(stream, &i); err != nil {
+				return ctx, err
+			}
+
+			if err := f(worker, i); err != nil {
+				return ctx, err
+			}
+		}
+
+		return ctx, nil
 	}
 }
 

@@ -5,8 +5,10 @@ import (
 	"iter"
 	"net"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
@@ -38,7 +40,13 @@ func (cmd *workerCommand) Run(log *zerolog.Logger) error {
 
 	cmd.log.Debug().Msg("prepared")
 
-	return cmd.ready()
+	if err := cmd.ready(); err != nil {
+		return err
+	}
+
+	<-cmd.ctx.Done()
+
+	return cmd.ctx.Err()
 }
 
 func (cmd *workerCommand) prepare() error {
@@ -57,6 +65,12 @@ func (cmd *workerCommand) prepare() error {
 }
 
 func (cmd *workerCommand) ready() error {
+	cmd.mustAddHandler("_manager_stop_worker", acceptHandlerStopWorker(func() error {
+		cmd.ctxCancel(nil)
+
+		return nil
+	}))
+
 	cmd.mustAddHandler("manager_start_worker", acceptHandlerStartWorker(func(
 		workID string,
 		height base.Height,
@@ -84,7 +98,7 @@ func (cmd *workerCommand) ready() error {
 		return nil
 	}))
 
-	return nil
+	return cmd.pingManager()
 }
 
 func (cmd *workerCommand) startWorker(
@@ -156,7 +170,7 @@ func (cmd *workerCommand) startWorker(
 		return workClosedWait()
 	}))
 
-	mustAddWorkHandler("manager_wait_worker_closed", acceptHandlerWaitWorkerClosed(workClosedWait))
+	mustAddWorkHandler("_manager_wait_worker_closed", acceptHandlerWaitWorkerClosed(workClosedWait))
 	mustAddWorkHandler("manager_cancel_work", acceptHandlerCancelWork(func(err error) error {
 		return workClosedDone(workerClose(err))
 	}))
@@ -328,4 +342,36 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 
 		return err
 	}
+}
+
+func (cmd *workerCommand) pingManager() error {
+	quicConfig := quicstream.DefaultQuicConfig()
+	quicConfig.HandshakeIdleTimeout = time.Millisecond * 333
+	quicConfig.KeepAlivePeriod = time.Second
+
+	handler := requestHandlerWorkerPingManager(cmd.local, time.Second)
+
+	connected := make(chan error)
+
+	ticker := time.NewTicker(time.Second * 2)
+	defer ticker.Stop()
+
+	go func() {
+		for range ticker.C {
+			_, err := cmd.request("_worker_ping_manager")(
+				cmd.ctx,
+				cmd.manager,
+				nil,
+				quicConfig,
+				func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+					close(connected)
+
+					return handler(ctx, stream)
+				},
+			)
+			cmd.log.Debug().Err(err).Msg("ping manager")
+		}
+	}()
+
+	return <-connected
 }

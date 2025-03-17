@@ -56,6 +56,10 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 
 	cmd.log.Debug().Msg("prepared")
 
+	if err := cmd.waitWorkers(); err != nil {
+		return err
+	}
+
 	return cmd.process()
 }
 
@@ -95,10 +99,6 @@ func (cmd *managerCommand) prepare() error {
 	cmd.log.Debug().
 		Interface("addrs", cmd.workerAddrs.Map()).
 		Msg("workers")
-
-	if err := cmd.preparePrivs(); err != nil {
-		return err
-	}
 
 	cmd.managerOptions = dop5.NewManagerOptions()
 
@@ -169,8 +169,12 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 }
 
 func (cmd *managerCommand) process() error {
+	if err := cmd.preparePrivs(); err != nil {
+		return err
+	}
+
 	defer func() {
-		requestStopWorker := cmd.requestWorker("manager_stop_worker")
+		requestStopWorker := cmd.requestWorker("_manager_stop_worker")
 
 		cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
 			_, err := requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
@@ -382,7 +386,7 @@ func (cmd *managerCommand) startManager(
 		return nil, nil, err
 	}
 
-	requestWaitWorkerClosed := cmd.requestWorkWorker(workID, "manager_wait_worker_closed")
+	requestWaitWorkerClosed := cmd.requestWorkWorker(workID, "_manager_wait_worker_closed")
 
 	return manifestHash,
 		func() error {
@@ -490,4 +494,36 @@ func (cmd *managerCommand) requestWorkers(
 	jobDone()
 
 	return jobWait(nil)
+}
+
+func (cmd *managerCommand) waitWorkers() error {
+	cmd.log.Debug().Msg("waits workers")
+
+	done, wait := dutil.NewContextDone(cmd.ctx)
+
+	pinged := dutil.NewSingleLockedMap[string, struct{}]()
+	cmd.mustAddHandler("_worker_ping_manager", acceptHandlerWorkerPingManager(func(worker string, i uint64) error {
+		if slices.Index(cmd.Workers, worker) < 0 {
+			return errors.Errorf("unknown worker, %q", worker)
+		}
+
+		if created, _ := pinged.Set(worker, func(_ struct{}, found bool) (struct{}, error) {
+			if found {
+				return struct{}{}, dutil.ErrLockedSetIgnore
+			}
+
+			return struct{}{}, nil
+		}); created {
+			cmd.log.Debug().Str("worker", worker).Msg("worker ping")
+		}
+
+		if pinged.Len() == len(cmd.Workers) {
+			done(nil)
+			cmd.log.Debug().Msg("all worker ping")
+		}
+
+		return nil
+	}))
+
+	return wait()
 }
