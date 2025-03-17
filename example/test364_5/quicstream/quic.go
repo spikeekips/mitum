@@ -30,6 +30,7 @@ func NewStatelessResetKey(b []byte) *quic.StatelessResetKey {
 
 func DefaultQuicConfig() *quic.Config {
 	return &quic.Config{
+		HandshakeIdleTimeout:  time.Second,
 		MaxIncomingStreams:    1 << 14,
 		MaxIncomingUniStreams: 1 << 14,
 		MaxIdleTimeout:        time.Second,
