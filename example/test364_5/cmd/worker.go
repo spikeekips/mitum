@@ -63,13 +63,25 @@ func (cmd *workerCommand) ready() error {
 		workers, opsWorkers []string,
 		opsShare, statesShare, maxOpsSize uint64,
 	) error {
-		return cmd.startWorker(
+		wait, err := cmd.startWorker(
 			cmd.ctx,
 			workID,
 			height,
 			workers, opsWorkers,
 			opsShare, statesShare, maxOpsSize,
 		)
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			err := wait()
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		return nil
 	}))
 
 	return nil
@@ -82,7 +94,7 @@ func (cmd *workerCommand) startWorker(
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
-) error {
+) (dutil.ErrorFunc, error) {
 	workCanceled := cmd.newFuncReportCancelWork(workID)
 
 	defer cmd.removeHandler([]byte(workID))
@@ -104,7 +116,7 @@ func (cmd *workerCommand) startWorker(
 		maxOpsSize,
 	); {
 	case err != nil:
-		return err
+		return nil, err
 	default:
 		defer c(nil)
 
@@ -149,10 +161,13 @@ func (cmd *workerCommand) startWorker(
 		return workClosedDone(workerClose(err))
 	}))
 
-	return workClosedDone(wait(
-		cmd.newFuncBroadcastUnmerged(workID),
-		cmd.newFuncReportResult(workID),
-	))
+	return func() error {
+			return workClosedDone(wait(
+				cmd.newFuncBroadcastUnmerged(workID),
+				cmd.newFuncReportResult(workID),
+			))
+		},
+		nil
 }
 
 func (cmd *workerCommand) getState(stateKey string) (st base.State, _ bool, _ error) {
