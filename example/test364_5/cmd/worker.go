@@ -40,13 +40,16 @@ func (cmd *workerCommand) Run(log *zerolog.Logger) error {
 
 	cmd.log.Debug().Msg("prepared")
 
-	if err := cmd.ready(); err != nil {
+	var wait dutil.ErrorFunc
+
+	switch w, err := cmd.ready(); {
+	case err != nil:
 		return err
+	default:
+		wait = w
 	}
 
-	<-cmd.ctx.Done()
-
-	return cmd.ctx.Err()
+	return wait()
 }
 
 func (cmd *workerCommand) prepare() error {
@@ -64,11 +67,11 @@ func (cmd *workerCommand) prepare() error {
 	return nil
 }
 
-func (cmd *workerCommand) ready() error {
-	cmd.mustAddHandler("_manager_stop_worker", acceptHandlerStopWorker(func() error {
-		cmd.ctxCancel(nil)
+func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
+	done, wait := dutil.NewContextDone(cmd.ctx)
 
-		return nil
+	cmd.mustAddHandler("_manager_stop_worker", acceptHandlerStopWorker(func() error {
+		return done(nil)
 	}))
 
 	cmd.mustAddHandler("manager_start_worker", acceptHandlerStartWorker(func(
@@ -98,7 +101,7 @@ func (cmd *workerCommand) ready() error {
 		return nil
 	}))
 
-	return cmd.pingManager()
+	return wait, cmd.pingManager()
 }
 
 func (cmd *workerCommand) startWorker(
