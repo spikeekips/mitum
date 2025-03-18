@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	stderrors "errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
+	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/isaac"
@@ -109,21 +111,88 @@ func (cmd *managerCommand) prepare() error {
 		return err
 	}
 
+	if err := cmd.preparePKs(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (cmd *managerCommand) preparePrivs() error {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create privs")()
+func (cmd *managerCommand) preparePKs() error {
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create pks")()
 
 	cmd.pubs = make([]base.Publickey, cmd.Ops)
 
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, cmd.Ops)
+	rem := cmd.Ops
 
-	for i := range cmd.Ops {
+	var prev *os.File
+
+	pubfile := "pubs.b"
+	switch f, err := os.Open(pubfile); {
+	case err != nil && !os.IsNotExist(err):
+		return err
+	case os.IsNotExist(err):
+	default:
+		defer f.Close()
+		prev = f
+
+		p, err := cmd.loadPubsFromFile(f, cmd.Ops)
+
+		switch {
+		case err != nil:
+			return err
+		case len(p) > 0:
+			copy(cmd.pubs, p)
+
+			rem = cmd.Ops - uint64(len(p))
+		}
+	}
+
+	if rem < 1 {
+		return nil
+	}
+
+	var w *os.File
+
+	switch f, err := os.Create(pubfile + ".tmp"); {
+	case err != nil:
+		return err
+	default:
+		if err := writeUint64(f, cmd.Ops); err != nil {
+			return err
+		}
+
+		if prev != nil {
+			if _, err := prev.Seek(0, 0); err != nil {
+				return err
+			}
+
+			var size uint64
+			if _, err := readUint64(prev, &size); err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(f, prev); err != nil {
+				return err
+			}
+
+			_ = prev.Close()
+		}
+
+		w = f
+	}
+
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, rem)
+
+	for i := range rem {
 		if err := newJob(func(context.Context) error {
 			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
 
-			cmd.pubs[i] = base.NewMPublickey(k)
+			if err := frame.WriteFixed(w, k.SerializeCompressed()); err != nil {
+				return err
+			}
+
+			cmd.pubs[cmd.Ops-rem+i] = base.NewMPublickey(k)
 
 			return nil
 		}); err != nil {
@@ -133,7 +202,15 @@ func (cmd *managerCommand) preparePrivs() error {
 
 	jobDone()
 
-	return jobWait(nil)
+	if err := jobWait(nil); err != nil {
+		return err
+	}
+
+	cmd.log.Debug().Uint64("rem", rem).Msg("remaining created")
+
+	_ = w.Close()
+
+	return os.Rename("pubs.b.tmp", "pubs.b")
 }
 
 func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash) {
@@ -177,12 +254,6 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 }
 
 func (cmd *managerCommand) process() error {
-	if err := cmd.preparePrivs(); err != nil {
-		return err
-	}
-
-	os.Exit(1)
-
 	var prevHash util.Hash
 
 	switch h, err := cmd.process1st(); {
@@ -524,4 +595,53 @@ func (cmd *managerCommand) stopWorkers() error {
 
 		return err
 	})
+}
+
+func (cmd *managerCommand) loadPubsFromFile(r io.Reader, limit uint64) ([]base.Publickey, error) {
+	cmd.log.Debug().Uint64("limit", limit).Msg("trying to load pubs from file")
+
+	var size uint64
+	if _, err := readUint64(r, &size); err != nil {
+		return nil, err
+	}
+
+	nsize := size
+	if size > limit {
+		nsize = limit
+	}
+
+	pubs := make([]base.Publickey, nsize)
+
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, nsize)
+
+	for i := uint64(0); i < nsize; i++ {
+		switch b, n, err := frame.ReadFixed(r); {
+		case err != nil && !errors.Is(err, io.EOF),
+			n < 1 && errors.Is(err, io.EOF):
+			return nil, jobWait(err)
+		default:
+			if err := newJob(func(context.Context) error {
+				k, err := btcec.ParsePubKey(b)
+				if err != nil {
+					return err
+				}
+
+				pubs[i] = base.NewMPublickey(k)
+
+				return nil
+			}); err != nil {
+				return nil, jobWait(err)
+			}
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return nil, err
+	}
+
+	cmd.log.Debug().Uint64("size", size).Uint64("read_size", nsize).Msg("pubs loaded from file")
+
+	return pubs, nil
 }
