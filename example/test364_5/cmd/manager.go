@@ -335,7 +335,7 @@ func (cmd *managerCommand) startManager(
 	requestWorkerInsertDone := cmd.requestWorkWorker(workID, "manager_worker_insert_done")
 	requestCloseWork := cmd.requestWorkWorker(workID, "manager_close_work")
 
-	var manifestHash util.Hash
+	var manifest base.Manifest
 
 	if err := wait(
 		func(ctx context.Context, worker string) error {
@@ -352,7 +352,7 @@ func (cmd *managerCommand) startManager(
 				statesr = statesTree.Root()
 			}
 
-			manifest := isaac.NewManifest(
+			manifest = isaac.NewManifest(
 				height,
 				prevManiest,
 				valuehash.RandomSHA256(),
@@ -383,7 +383,7 @@ func (cmd *managerCommand) startManager(
 
 	requestWaitWorkerClosed := cmd.requestWorkWorker(workID, "_manager_wait_worker_closed")
 
-	return manifestHash,
+	return manifest.Hash(),
 		func() error {
 			// NOTE check all worker closes work.
 			return stderrors.Join(
