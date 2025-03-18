@@ -218,19 +218,30 @@ func (cmd *baseCommand) prepareDialFunc() error {
 		request = r
 	}
 
+	prefixRequest := func(p ...string) quicstream.RequestFunc {
+		b := make([][]byte, len(p))
+		for i, j := range slices.All(p) {
+			b[i] = []byte(j)
+		}
+
+		r := quicstream.NewFuncPrefixRequest(request, b...)
+
+		l := cmd.log.With().Strs("prefix", p).Logger()
+
+		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+			ctx, err := r(ctx, addr, tlsConfig, quicConfig, h)
+			l.Trace().Err(err).Msg("request")
+
+			return ctx, err
+		}
+	}
+
 	cmd.request = func(prefix string) quicstream.RequestFunc {
 		if _, found := handlerPrefixesString[prefix]; !found {
 			panic(fmt.Sprintf("unknown prefix, %q", prefix))
 		}
 
-		request := quicstream.NewFuncPrefixRequest(request, []byte(prefix))
-
-		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
-			cmd.log.Debug().Err(err).Str("prefix", prefix).Msg("request")
-
-			return nctx, err
-		}
+		return prefixRequest(prefix)
 	}
 
 	cmd.requestWork = func(workID, prefix string) quicstream.RequestFunc {
@@ -242,18 +253,11 @@ func (cmd *baseCommand) prepareDialFunc() error {
 			panic(fmt.Sprintf("unknown prefix, %q", prefix))
 		}
 
-		request := quicstream.NewFuncPrefixRequest(request, []byte(workID), []byte(prefix))
-
-		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
-			cmd.log.Debug().Err(err).Str("prefix", prefix).Str("work_id", workID).Msg("request")
-
-			return nctx, err
-		}
+		return prefixRequest(workID, prefix)
 	}
 
 	cmd.requestWorker = func(prefix string) requestWorkerFunc {
-		request := quicstream.NewFuncPrefixRequest(request, []byte(prefix))
+		r := prefixRequest(prefix)
 
 		return func(ctx context.Context, worker string, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
 			addr, err := cmd.workerAddr(worker)
@@ -261,8 +265,8 @@ func (cmd *baseCommand) prepareDialFunc() error {
 				return ctx, err
 			}
 
-			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
-			cmd.log.Debug().Str("prefix", prefix).Str("worker", worker).Err(err).Msg("request")
+			nctx, err := r(ctx, addr, tlsConfig, quicConfig, h)
+			cmd.log.Trace().Err(err).Str("prefix", prefix).Str("worker", worker).Msg("request")
 
 			return nctx, err
 		}
@@ -278,7 +282,7 @@ func (cmd *baseCommand) prepareDialFunc() error {
 			}
 
 			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
-			cmd.log.Debug().Str("prefix", prefix).Str("work_id", workID).Str("worker", worker).Err(err).Msg("request")
+			cmd.log.Trace().Err(err).Str("prefix", prefix).Str("work_id", workID).Str("worker", worker).Msg("request")
 
 			return nctx, err
 		}
