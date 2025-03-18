@@ -692,13 +692,18 @@ func acceptHandlerWaitWorkerClosed(f dutil.ErrorFunc) quicstream.StreamHandler {
 
 func requestHandlerStopWorker() quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		return ctx, nil
+		var rerr error
+		if _, err := readError(stream, &rerr); err != nil {
+			return ctx, err
+		}
+
+		return ctx, rerr
 	}
 }
 
 func acceptHandlerStopWorker(f func() error) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-		return ctx, f()
+		return ctx, writeError(stream, f())
 	}
 }
 

@@ -178,16 +178,6 @@ func (cmd *managerCommand) process() error {
 		return err
 	}
 
-	defer func() {
-		requestStopWorker := cmd.requestWorker("_manager_stop_worker")
-
-		cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
-			_, err := requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
-
-			return err
-		})
-	}()
-
 	var prevHash util.Hash
 
 	switch h, err := cmd.process1st(); {
@@ -203,7 +193,7 @@ func (cmd *managerCommand) process() error {
 
 	cmd.log.Debug().Msg("processed")
 
-	return nil
+	return cmd.stopWorkers()
 }
 
 func (cmd *managerCommand) process1st() (util.Hash, error) {
@@ -519,4 +509,14 @@ func (cmd *managerCommand) waitWorkers() error {
 	}))
 
 	return wait()
+}
+
+func (cmd *managerCommand) stopWorkers() error {
+	requestStopWorker := cmd.requestWorker("_manager_stop_worker")
+
+	return cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
+		_, err := requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
+
+		return err
+	})
 }
