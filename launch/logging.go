@@ -7,13 +7,14 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 func init() { //nolint:gochecknoinits //...
 	zerolog.TimeFieldFormat = time.RFC3339Nano
-	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack //nolint:reassign //...
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 }
 
 type LoggingFlags struct {
