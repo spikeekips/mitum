@@ -82,7 +82,9 @@ func AcceptSubStreams(
 
 	switch a, d, err := dutil.NewLockAppendSlice[quic.Stream](uint64(size), 0); {
 	case err != nil:
-		return nil, closeStream(controlStream, err)
+		_ = closeStream(controlStream, err)
+
+		return nil, err
 	default:
 		add, done = a, d
 	}
@@ -95,7 +97,9 @@ func AcceptSubStreams(
 
 	switch n, d, w, err := dutil.NewFuncJobWorker(ctx, uint64(size-1)); {
 	case err != nil:
-		return nil, closeStream(controlStream, err)
+		_ = closeStream(controlStream, err)
+
+		return nil, err
 	default:
 		newJob, jobDone, jobWait = n, d, w
 	}
@@ -133,7 +137,9 @@ func AcceptSubStreams(
 				gerr = f(streams)
 			}
 
-			return closeStreams(streams, gerr)
+			_ = closeStreams(streams, gerr)
+
+			return gerr
 		},
 		nil
 }
@@ -212,7 +218,9 @@ func openSubStreamSync(ctx context.Context, conn quic.Connection, id string) (qu
 	default:
 		// NOTE send id for streams bonding first
 		if err := frame.WriteFixed(stream, []byte(id)); err != nil {
-			return nil, closeStream(stream, err)
+			_ = closeStream(stream, err)
+
+			return nil, err
 		}
 
 		return stream, nil

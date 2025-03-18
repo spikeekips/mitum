@@ -74,26 +74,21 @@ func newFuncCloseStream(err error) func(quic.Stream) error {
 	switch {
 	case err != nil:
 		return func(stream quic.Stream) error {
-			_ = cancelStream(stream, streamErrorCodeUnknown)
+			stream.CancelRead(streamErrorCodeUnknown)
+			stream.CancelWrite(streamErrorCodeUnknown)
 
-			return err
+			return nil
 		}
 	default:
 		return func(stream quic.Stream) error {
-			_ = cancelStream(stream, streamErrorCodeOK)
+			stream.CancelRead(streamErrorCodeOK)
 
-			return nil
+			return stream.Close()
 		}
 	}
 }
 
 func closeStream(stream quic.Stream, err error) error {
-	if err == nil {
-		_ = stream.Close()
-
-		return nil
-	}
-
 	return newFuncCloseStream(err)(stream)
 }
 
@@ -102,26 +97,9 @@ func closeStreams(streams []quic.Stream, err error) error {
 		return nil
 	}
 
-	var wg sync.WaitGroup
-
-	if err == nil {
-		for stream := range slices.Values(streams) {
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-
-				_ = stream.Close()
-			}()
-		}
-
-		wg.Wait()
-
-		return nil
-	}
-
 	f := newFuncCloseStream(err)
 
+	var wg sync.WaitGroup
 	for stream := range slices.Values(streams) {
 		wg.Add(1)
 
@@ -134,5 +112,5 @@ func closeStreams(streams []quic.Stream, err error) error {
 
 	wg.Wait()
 
-	return err
+	return nil
 }

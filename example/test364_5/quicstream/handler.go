@@ -43,7 +43,7 @@ func NewFuncPrefixStreamHandler() (
 	pool := dutil.NewSingleLockedMap[HandlerPrefix, StreamHandler]()
 
 	return func(b []byte, h StreamHandler) bool {
-			created, _ := pool.Set(NewStreamHandlerPrefix(b), func(_ StreamHandler, found bool) (StreamHandler, error) {
+			created, _ := pool.Set(newStreamHandlerPrefix(b), func(_ StreamHandler, found bool) (StreamHandler, error) {
 				if found {
 					return nil, dutil.ErrLockedSetIgnore
 				}
@@ -54,7 +54,7 @@ func NewFuncPrefixStreamHandler() (
 			return created
 		},
 		func(b []byte) bool {
-			n := pool.RemoveValues(NewStreamHandlerPrefix(b))
+			n := pool.RemoveValues(newStreamHandlerPrefix(b))
 
 			return n > 0
 		},
@@ -77,7 +77,7 @@ func NewFuncPrefixStreamHandler() (
 func NewFuncPrefixRequest(request RequestFunc, p ...[]byte) RequestFunc {
 	prefix := make([]byte, len(HandlerPrefix{})*len(p))
 	for i, b := range slices.All(p) {
-		j := NewStreamHandlerPrefix(b)
+		j := newStreamHandlerPrefix(b)
 
 		copy(prefix[i*len(HandlerPrefix{}):], j[:])
 	}
@@ -97,7 +97,7 @@ func NewFuncPrefixRequest(request RequestFunc, p ...[]byte) RequestFunc {
 	}
 }
 
-func NewStreamHandlerPrefix(b []byte) HandlerPrefix {
+func newStreamHandlerPrefix(b []byte) HandlerPrefix {
 	return sha3.Sum224(b)
 }
 
