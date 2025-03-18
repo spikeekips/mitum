@@ -111,8 +111,6 @@ func (cmd *workerCommand) startWorker(
 ) (dutil.ErrorFunc, error) {
 	workCanceled := cmd.newFuncReportCancelWork(workID)
 
-	defer cmd.removeHandler([]byte(workID))
-
 	var initialInsert dop5.WorkerInitialInsertFunc
 	var workerInsertSMVs dop5.WorkerProcessWorkerInsertSMVsFunc
 	var workerUnmerged dop5.WorkerUnmergedFunc
@@ -138,7 +136,6 @@ func (cmd *workerCommand) startWorker(
 	}
 
 	addHandler, _, handler, closeHandler := quicstream.NewFuncPrefixStreamHandler()
-	defer closeHandler()
 
 	cmd.mustAddHandler(workID, handler)
 
@@ -176,6 +173,9 @@ func (cmd *workerCommand) startWorker(
 	}))
 
 	return func() error {
+			defer cmd.removeHandler([]byte(workID))
+			defer closeHandler()
+
 			return workClosedDone(wait(
 				cmd.newFuncBroadcastUnmerged(workID),
 				cmd.newFuncReportResult(workID),

@@ -843,5 +843,7 @@ func TestHandlerWorkerUnmerged(t *testing.T) {
 func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandler) (context.Context, error) {
 	ctx, err := h(ctx, stream)
 
-	return ctx, quicstream.CloseStreamWithError(stream, err)
+	_ = quicstream.CloseStreamWithError(stream, err)
+
+	return ctx, err
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
@@ -67,9 +68,6 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 	cmd.rdb = redis.NewClient(&redis.Options{
 		Addr: cmd.Redis,
 	})
-	if err := cmd.rdb.FlushAll(cmd.ctx).Err(); err != nil {
-		return err
-	}
 
 	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
 	defer cancel()
@@ -91,6 +89,7 @@ func addDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode any) 
 
 func (cmd *baseCommand) addHinters() error {
 	return dutil.FuncChain(
+		addDecode(cmd.enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey),
 		addDecode(cmd.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON),
 		addDecode(cmd.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON),
 		addDecode(cmd.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON),
@@ -224,7 +223,14 @@ func (cmd *baseCommand) prepareDialFunc() error {
 			panic(fmt.Sprintf("unknown prefix, %q", prefix))
 		}
 
-		return quicstream.NewFuncPrefixRequest(request, []byte(prefix))
+		request := quicstream.NewFuncPrefixRequest(request, []byte(prefix))
+
+		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
+			cmd.log.Debug().Err(err).Str("prefix", prefix).Msg("request")
+
+			return nctx, err
+		}
 	}
 
 	cmd.requestWork = func(workID, prefix string) quicstream.RequestFunc {
@@ -236,7 +242,14 @@ func (cmd *baseCommand) prepareDialFunc() error {
 			panic(fmt.Sprintf("unknown prefix, %q", prefix))
 		}
 
-		return quicstream.NewFuncPrefixRequest(request, []byte(workID), []byte(prefix))
+		request := quicstream.NewFuncPrefixRequest(request, []byte(workID), []byte(prefix))
+
+		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
+			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
+			cmd.log.Debug().Err(err).Str("prefix", prefix).Str("work_id", workID).Msg("request")
+
+			return nctx, err
+		}
 	}
 
 	cmd.requestWorker = func(prefix string) requestWorkerFunc {
@@ -248,7 +261,10 @@ func (cmd *baseCommand) prepareDialFunc() error {
 				return ctx, err
 			}
 
-			return request(ctx, addr, tlsConfig, quicConfig, h)
+			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
+			cmd.log.Debug().Str("prefix", prefix).Str("worker", worker).Err(err).Msg("request")
+
+			return nctx, err
 		}
 	}
 
@@ -261,7 +277,10 @@ func (cmd *baseCommand) prepareDialFunc() error {
 				return ctx, err
 			}
 
-			return request(ctx, addr, tlsConfig, quicConfig, h)
+			nctx, err := request(ctx, addr, tlsConfig, quicConfig, h)
+			cmd.log.Debug().Str("prefix", prefix).Str("work_id", workID).Str("worker", worker).Err(err).Msg("request")
+
+			return nctx, err
 		}
 	}
 
@@ -395,15 +414,15 @@ func writeFixedFrameHashes(w io.Writer, u ...util.Hash) error {
 	return nil
 }
 
-func newFuncGetStateOwnersMurmur3(owners []string, share uint64) func(string) []string {
-	o := uint64(len(owners))
+func newFuncGetStateOwnersMurmur3(workers []string, share uint64) func(string) []string {
+	o := uint64(len(workers))
 
 	return func(stateKey string) []string {
 		p := dutil.Murmur3(0, stateKey)
 
 		owners := make([]string, 0, share)
 		for i := range share {
-			owners = append(owners, owners[(p+i)%o])
+			owners = append(owners, workers[(p+i)%o])
 		}
 
 		return owners
@@ -415,4 +434,24 @@ func mustAddDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode a
 	if err != nil {
 		panic(err)
 	}
+}
+
+func writeError(w io.Writer, err error) error {
+	var s []byte
+	if err != nil {
+		s = []byte(err.Error())
+	}
+
+	return frame.WriteFixed(w, s)
+}
+
+func readError(r io.Reader, err *error) (int, error) {
+	b, n, rerr := frame.ReadFixed(r)
+	switch {
+	case rerr != nil:
+	case len(b) > 0:
+		*err = errors.Errorf(string(b))
+	}
+
+	return n, rerr
 }

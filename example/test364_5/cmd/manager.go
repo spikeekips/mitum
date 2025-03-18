@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -102,6 +103,10 @@ func (cmd *managerCommand) prepare() error {
 
 	cmd.managerOptions = dop5.NewManagerOptions()
 
+	if err := cmd.rdb.FlushAll(cmd.ctx).Err(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -113,7 +118,7 @@ func (cmd *managerCommand) preparePrivs() error {
 
 	for i := range cmd.Ops {
 		priv, err := base.NewMPrivatekeyFromSeed(
-			valuehash.NewSHA256([]byte(fmt.Sprintf("%d", i))).String(),
+			valuehash.NewSHA256([]byte(strconv.FormatInt(int64(i), 10))).String(),
 		)
 		if err != nil {
 			return err
@@ -255,7 +260,7 @@ func (cmd *managerCommand) processHeight(
 	prevManiest util.Hash,
 	ophs [][2]util.Hash,
 ) (util.Hash, dutil.ErrorFunc, error) {
-	workID := fmt.Sprintf("%s-%s", height, util.UUID())
+	workID := fmt.Sprintf("%s", height)
 
 	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Str("work_id", workID) }, "process height")()
 
@@ -372,13 +377,13 @@ func (cmd *managerCommand) startManager(
 		func(ctx context.Context, worker string) error {
 			var cerr error
 
-			_, err := requestCloseWork(ctx, worker, nil, nil, requestHandlerCloseWork(func(err error) error {
+			_, _ = requestCloseWork(ctx, worker, nil, nil, requestHandlerCloseWork(func(err error) error {
 				cerr = err
 
 				return nil
 			}))
 
-			return stderrors.Join(cerr, err)
+			return cerr
 		},
 	); err != nil {
 		_ = closeManager()
@@ -393,9 +398,9 @@ func (cmd *managerCommand) startManager(
 			// NOTE check all worker closes work.
 			return stderrors.Join(
 				cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
-					_, err := requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
+					_, _ = requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
 
-					return err
+					return nil
 				}),
 				closeManager(),
 			)
@@ -421,28 +426,16 @@ func (cmd *managerCommand) newFuncStartWorkers(workID string, height base.Height
 		opsShare, statesShare uint64,
 		maxOpsSize uint64,
 	) error {
-		newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(ctx, uint64(len(workers)))
-
-		handler := requestHandlerStartWorker(workID, height, workers, opsWorkers, opsShare, statesShare, maxOpsSize)
-
-		for worker := range slices.Values(workers) {
-			addr, err := cmd.workerAddr(worker)
-			if err != nil {
-				return err
-			}
-
-			if err := newJob(func(ctx context.Context) error {
-				_, err := cmd.request("manager_start_worker")(ctx, addr, nil, nil, handler)
-
-				return err
-			}); err != nil {
-				return err
-			}
+		addr, err := cmd.workerAddr(worker)
+		if err != nil {
+			return err
 		}
 
-		jobDone()
+		_, err = cmd.request("manager_start_worker")(ctx, addr, nil, nil,
+			requestHandlerStartWorker(workID, height, workers, opsWorkers, opsShare, statesShare, maxOpsSize),
+		)
 
-		return jobWait(nil)
+		return err
 	}
 }
 
