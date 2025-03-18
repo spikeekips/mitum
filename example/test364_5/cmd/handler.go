@@ -9,6 +9,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -414,13 +415,14 @@ func requestHandlerWorkerResult(
 				return nil
 			}
 
-			var sn int
+			var sn uint64
 
-			headWritten := dutil.NewSingleLockedMap[int, struct{}]()
+			headWritten := dutil.NewSingleLockedMap[uint64, struct{}]()
 			defer headWritten.Close()
 
 			return statesf(func(st base.State) error {
-				p := sn % len(nstreams)
+				i := atomic.AddUint64(&sn, 1)
+				p := i % uint64(len(nstreams))
 				sub := nstreams[p]
 
 				if _, err := headWritten.Set(p, func(_ struct{}, found bool) (struct{}, error) {
@@ -440,8 +442,6 @@ func requestHandlerWorkerResult(
 				if err := frame.WriteFixed(sub, st.Hash().Bytes()); err != nil {
 					return err
 				}
-
-				sn++
 
 				return nil
 			})
