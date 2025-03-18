@@ -6,10 +6,12 @@ import (
 	stderrors "errors"
 	"fmt"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
@@ -111,26 +113,27 @@ func (cmd *managerCommand) prepare() error {
 }
 
 func (cmd *managerCommand) preparePrivs() error {
-	cmd.log.Debug().Uint64("n", cmd.Ops).Msg("> privs")
+	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create privs")()
 
-	cmd.privs = make([]base.Privatekey, cmd.Ops)
 	cmd.pubs = make([]base.Publickey, cmd.Ops)
 
-	for i := range cmd.Ops {
-		priv, err := base.NewMPrivatekeyFromSeed(
-			valuehash.NewSHA256([]byte(strconv.FormatInt(int64(i), 10))).String(),
-		)
-		if err != nil {
-			return err
-		}
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, cmd.Ops)
 
-		cmd.privs[i] = priv
-		cmd.pubs[i] = priv.Publickey()
+	for i := range cmd.Ops {
+		if err := newJob(func(context.Context) error {
+			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
+
+			cmd.pubs[i] = base.NewMPublickey(k)
+
+			return nil
+		}); err != nil {
+			return jobWait(err)
+		}
 	}
 
-	cmd.log.Debug().Int("n", len(cmd.privs)).Msg("< privs")
+	jobDone()
 
-	return nil
+	return jobWait(nil)
 }
 
 func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash) {
@@ -177,6 +180,8 @@ func (cmd *managerCommand) process() error {
 	if err := cmd.preparePrivs(); err != nil {
 		return err
 	}
+
+	os.Exit(1)
 
 	var prevHash util.Hash
 
