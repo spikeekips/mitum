@@ -126,11 +126,18 @@ func (cmd *managerCommand) prepare() error {
 	}
 	cmd.createFacts, cmd.createOphs = cfacts, cophs
 
+	if err := cmd.saveOps(cmd.createFacts); err != nil {
+		return err
+	}
+
 	tfacts, tophs, err := cmd.prepareTransferOps()
 	if err != nil {
 		return err
 	}
 	cmd.transferFacts, cmd.transferOphs = tfacts, tophs
+	if err := cmd.saveOps(cmd.transferFacts); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -282,10 +289,6 @@ func (cmd *managerCommand) process() error {
 func (cmd *managerCommand) process1st() (util.Hash, error) {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 1st")()
 
-	if err := cmd.saveOps(cmd.createFacts); err != nil {
-		return nil, err
-	}
-
 	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, cmd.createOphs); {
 	case err != nil:
 		return nil, err
@@ -300,10 +303,6 @@ func (cmd *managerCommand) process1st() (util.Hash, error) {
 
 func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 2nd")()
-
-	if err := cmd.saveOps(cmd.transferFacts); err != nil {
-		return err
-	}
 
 	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, cmd.transferOphs); {
 	case err != nil:
@@ -320,8 +319,8 @@ func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 		cmd.ctx,
 		cmd.enc,
 		cmd.rdb,
-		facts,
 		1<<9, 1<<9,
+		facts,
 	)
 }
 

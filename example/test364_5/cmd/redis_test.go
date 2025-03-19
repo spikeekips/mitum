@@ -88,8 +88,8 @@ func (t *testRedisOperationFact) TestSave() {
 			context.Background(),
 			t.enc,
 			t.rdb,
-			facts,
 			2, 2,
+			facts,
 		))
 
 		var rfact dop5.OperationFact
@@ -114,8 +114,8 @@ func (t *testRedisOperationFact) TestSave() {
 			context.Background(),
 			t.enc,
 			t.rdb,
-			facts,
 			2, 2,
+			facts,
 		))
 
 		for fact := range slices.Values(facts) {
@@ -202,7 +202,8 @@ func (t *testRedisState) TestSave() {
 			context.Background(),
 			t.enc,
 			t.rdb,
-			slices.Values(sts),
+			1<<9, 1<<9,
+			sts,
 		))
 
 		var rst base.State
@@ -227,7 +228,8 @@ func (t *testRedisState) TestSave() {
 			context.Background(),
 			t.enc,
 			t.rdb,
-			slices.Values(sts),
+			1<<9, 1<<9,
+			sts,
 		))
 
 		for i := range len(sts) {
@@ -244,6 +246,47 @@ func (t *testRedisState) TestSave() {
 			t.True(found)
 
 			t.True(base.IsEqualState(sts[i], rst))
+		}
+	})
+
+	t.Run("duplicated", func() {
+		sts := t.randomStates(3)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			1<<9, 1<<9,
+			sts,
+		))
+
+		asts := t.randomStates(3)
+		nsts := make([]base.State, len(sts)+len(asts))
+		copy(nsts, sts) // duplicated
+		copy(nsts[len(sts):], asts)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			1<<9, 1<<9,
+			nsts,
+		))
+
+		for i := range len(nsts) {
+			var rst base.State
+
+			found, err := redisGetState(
+				context.Background(),
+				t.enc,
+				t.rdb,
+				nsts[i].Key(),
+				&rst,
+			)
+			t.NoError(err)
+			t.True(found)
+
+			t.True(base.IsEqualState(nsts[i], rst))
 		}
 	})
 }

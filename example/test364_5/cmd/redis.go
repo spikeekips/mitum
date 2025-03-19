@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"iter"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -14,18 +13,79 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func redisOperationFactKey(h util.Hash) string {
-	return "op-" + h.String()
+func redisOperationFactKey(fact dop5.OperationFact) string {
+	return "op-" + fact.Hash().String()
 }
 
 func redisSaveOperationFacts(
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
-	ops []dop5.OperationFact,
 	semSize, bulkSize uint64,
+	ops []dop5.OperationFact,
+) error {
+	return redisBulkSave(
+		ctx,
+		enc,
+		rdb,
+		semSize, bulkSize,
+		ops,
+		redisOperationFactKey,
+	)
+}
+
+func redisGetOperationFact(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	h util.Hash,
+	fact *dop5.OperationFact,
+) (bool, error) {
+	return redisGet(ctx, enc, rdb, "op-"+h.String(), fact)
+}
+
+func redisStateKey(st base.State) string {
+	return "st-" + st.Key()
+}
+
+func redisSaveStates(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	semSize, bulkSize uint64,
+	states []base.State,
+) error {
+	return redisBulkSave(
+		ctx,
+		enc,
+		rdb,
+		semSize, bulkSize,
+		states,
+		redisStateKey,
+	)
+}
+
+func redisGetState(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	stateKey string,
+	st *base.State,
+) (bool, error) {
+	return redisGet(ctx, enc, rdb, "st-"+stateKey, st)
+}
+
+func redisBulkSave[T any](
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+	semSize, bulkSize uint64,
+	items []T,
+	keyf func(T) string,
 ) error {
 	switch {
+	case len(items) < 1:
+		return nil
 	case semSize < 1:
 		return errors.Errorf("zero sem size")
 	case bulkSize < 1:
@@ -37,21 +97,22 @@ func redisSaveOperationFacts(
 		return err
 	}
 
-	size := uint64(len(ops))
-	for i := uint64(0); i < size; i += bulkSize {
-		e := i + bulkSize
-		if e > size {
-			e = size
-		}
+	size := uint64(len(items))
 
+	for i := uint64(0); i < size; i += bulkSize {
 		if err := newJob(func(ctx context.Context) error {
 			_, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for fact := range slices.Values(ops[i:e]) {
-					switch b, err := enc.Marshal(fact); {
+				e := i + bulkSize
+				if e > size {
+					e = size
+				}
+
+				for item := range slices.Values(items[i:e]) {
+					switch b, err := enc.Marshal(item); {
 					case err != nil:
 						return err
 					default:
-						_ = pipe.Set(ctx, redisOperationFactKey(fact.Hash()), b, 0)
+						_ = pipe.SetNX(ctx, keyf(item), b, 0)
 					}
 				}
 
@@ -60,7 +121,7 @@ func redisSaveOperationFacts(
 
 			return err
 		}); err != nil {
-			return err
+			return jobWait(err)
 		}
 	}
 
@@ -69,14 +130,14 @@ func redisSaveOperationFacts(
 	return jobWait(nil)
 }
 
-func redisGetOperationFact(
+func redisGet[T any](
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
-	h util.Hash,
-	fact *dop5.OperationFact,
+	key string,
+	t *T,
 ) (bool, error) {
-	c := rdb.Get(ctx, redisOperationFactKey(h))
+	c := rdb.Get(ctx, key)
 
 	switch err := c.Err(); {
 	case err != nil && errors.Is(err, redis.Nil):
@@ -84,51 +145,6 @@ func redisGetOperationFact(
 	case err != nil:
 		return false, err
 	default:
-		return true, encoder.Unmarshal(enc, []byte(c.Val()), fact)
-	}
-}
-
-func redisStateKey(k string) string {
-	return "st-" + k
-}
-
-func redisSaveStates(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	seq iter.Seq[base.State],
-) error {
-	_, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		for st := range seq {
-			switch b, err := enc.Marshal(st); {
-			case err != nil:
-				return err
-			default:
-				_ = pipe.Set(ctx, redisStateKey(st.Key()), b, 0)
-			}
-		}
-
-		return nil
-	})
-
-	return err
-}
-
-func redisGetState(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	stateKey string,
-	st *base.State,
-) (bool, error) {
-	c := rdb.Get(ctx, redisStateKey(stateKey))
-
-	switch err := c.Err(); {
-	case err != nil && errors.Is(err, redis.Nil):
-		return false, nil
-	case err != nil:
-		return false, err
-	default:
-		return true, encoder.Unmarshal(enc, []byte(c.Val()), st)
+		return true, encoder.Unmarshal(enc, []byte(c.Val()), t)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"iter"
 	"net"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -379,35 +378,12 @@ func (cmd *workerCommand) pingManager() error {
 
 func (cmd *workerCommand) newFuncSaveStates(size uint64) dop5.WorkerSaveStatesFunc {
 	return func(sts []base.State) error {
-		if len(sts) < 1 {
-			return nil
-		}
-
-		semSize := max(uint64(len(sts))/size, 1<<9)
-		newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, semSize)
-
-		total := uint64(len(sts))
-
-		for i := uint64(0); i < total; i += size {
-			if err := newJob(func(ctx context.Context) error {
-				e := i + size
-				if e > total {
-					e = total
-				}
-
-				return redisSaveStates(
-					ctx,
-					cmd.enc,
-					cmd.rdb,
-					slices.Values(sts[i:e]),
-				)
-			}); err != nil {
-				return jobWait(err)
-			}
-		}
-
-		jobDone()
-
-		return jobWait(nil)
+		return redisSaveStates(
+			cmd.ctx,
+			cmd.enc,
+			cmd.rdb,
+			1<<9, 1<<9,
+			sts,
+		)
 	}
 }
