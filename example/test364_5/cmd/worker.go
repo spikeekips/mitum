@@ -300,11 +300,7 @@ func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, 
 func (cmd *workerCommand) newFuncReportStatesOwners(workID string) dop5.WorkerReportStatesOwnersFunc {
 	request := cmd.requestWork(workID, "manager_worker_owners")
 
-	return func(
-		ctx context.Context,
-		_ string,
-		owners []string,
-	) error {
+	return func(ctx context.Context, owners []string) error {
 		_, err := request(ctx, cmd.manager, nil, nil, requestHandlerWorkerOwners(cmd.local, owners))
 
 		return err
@@ -316,7 +312,7 @@ func (cmd *workerCommand) newFuncBroadcastUnmerged(workID string) dop5.WorkerBro
 
 	return func(
 		ctx context.Context,
-		_, worker string,
+		worker string,
 		unmerged []uint64,
 	) error {
 		_, err := request(ctx, worker, nil, nil, requestHandlerWorkerUnmerged(cmd.local, unmerged))
@@ -330,7 +326,6 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 
 	return func(
 		ctx context.Context,
-		_ string,
 		reasons map[uint64]string,
 		statesSize uint64,
 		seq dutil.InErrorFunc[dutil.InErrorFunc[base.State]],

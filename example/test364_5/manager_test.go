@@ -179,10 +179,9 @@ func (t *baseTestManager) processOps(
 	var states []base.State
 
 	err = wait(
-		func(context.Context, string, string, []uint64) error { return nil },
+		func(context.Context, string, []uint64) error { return nil },
 		func(
 			ctx context.Context,
-			_ string,
 			reasons map[uint64]string,
 			statesSize uint64,
 			f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],

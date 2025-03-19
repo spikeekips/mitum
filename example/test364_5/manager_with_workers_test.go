@@ -284,7 +284,6 @@ func (t *testManagerWithWorkers) newManager(
 								maps.All(wops),
 								func(
 									_ context.Context,
-									local string,
 									owners []string,
 								) error {
 									err := managerWorkerOwners(worker, owners)
@@ -318,14 +317,14 @@ func (t *testManagerWithWorkers) newManager(
 	workersWait := func() error {
 		var wg sync.WaitGroup
 
-		for worker, f := range maps.All(workersWaits) {
+		for local, f := range maps.All(workersWaits) {
 			wg.Add(1)
 
 			go func() {
 				defer wg.Done()
 
 				err := f(
-					func(_ context.Context, local, worker string, unmerged []uint64) error {
+					func(_ context.Context, worker string, unmerged []uint64) error {
 						err := workersUnmerge[worker](local, unmerged)
 
 						t.Print("worker broadcast unmerged to worker: local=%q worker=%q unmerged=%v err=%+v", local, worker, unmerged, err)
@@ -334,7 +333,6 @@ func (t *testManagerWithWorkers) newManager(
 					},
 					func(
 						_ context.Context,
-						local string,
 						reasons map[uint64]string,
 						statesSize uint64,
 						f dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -379,7 +377,7 @@ func (t *testManagerWithWorkers) newManager(
 						return nil
 					},
 				)
-				t.Print("worker wait: local=%q err=%+v", worker, err)
+				t.Print("worker wait: local=%q err=%+v", local, err)
 			}()
 		}
 

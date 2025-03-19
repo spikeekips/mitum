@@ -66,8 +66,8 @@ func (t *testWorker) TestCancelWork() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, []uint64) error { return nil },
-				func(context.Context, string, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
+				func(context.Context, string, []uint64) error { return nil },
+				func(context.Context, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
 					return nil
 				},
 				func([]base.State) error { return nil },
@@ -138,8 +138,8 @@ func (t *testWorker) TestCancelWork() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, []uint64) error { return nil },
-				func(context.Context, string, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
+				func(context.Context, string, []uint64) error { return nil },
+				func(context.Context, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
 					return errors.Errorf("findme")
 				},
 				func([]base.State) error { return nil },
@@ -212,8 +212,8 @@ func (t *testWorker) TestClose() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, []uint64) error { return nil },
-				func(context.Context, string, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
+				func(context.Context, string, []uint64) error { return nil },
+				func(context.Context, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
 					return nil
 				},
 				func([]base.State) error { return nil },
@@ -284,8 +284,8 @@ func (t *testWorker) TestClose() {
 		waiterr := make(chan error, 1)
 		go func() {
 			waiterr <- wait(
-				func(context.Context, string, string, []uint64) error { return nil },
-				func(context.Context, string, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
+				func(context.Context, string, []uint64) error { return nil },
+				func(context.Context, map[uint64]string, uint64, dutil.InErrorFunc[dutil.InErrorFunc[base.State]]) error {
 					return nil
 				},
 				func([]base.State) error { return nil },

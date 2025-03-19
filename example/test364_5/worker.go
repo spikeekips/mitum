@@ -27,18 +27,15 @@ type (
 	) error
 	WorkerBroadcastUnmerged = func(
 		_ context.Context,
-		local,
 		worker string,
 		unmerged []uint64,
 	) error
 	WorkerReportStatesOwnersFunc = func(
 		_ context.Context,
-		local string, // FIXME remove
 		owners []string,
 	) error
 	WorkerReportResultFunc func(
 		_ context.Context,
-		local string,
 		reasons map[uint64]string,
 		statesSize uint64,
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
@@ -213,7 +210,7 @@ func NewFuncWorker(
 					if reportStatesOwners != nil {
 						if slices.Index(opsWorkers, options.Local) >= 0 {
 							return bgNewJob(func(ctx context.Context) error {
-								return reportStatesOwners(ctx, options.Local, owners)
+								return reportStatesOwners(ctx, owners)
 							})
 						}
 					}
@@ -240,7 +237,7 @@ func NewFuncWorker(
 			if err := processWait(
 				func(_ context.Context, worker string, unmerged []uint64) error {
 					return bgNewJob(func(ctx context.Context) error {
-						return broadcastUnmerged(ctx, options.Local, worker, unmerged)
+						return broadcastUnmerged(ctx, worker, unmerged)
 					})
 				},
 				func(
@@ -260,7 +257,7 @@ func NewFuncWorker(
 						}
 					}
 
-					return reportResult(ctx, options.Local, reasons, statesSize,
+					return reportResult(ctx, reasons, statesSize,
 						func(f dutil.InErrorFunc[base.State]) error {
 							return reportStates(func(st base.State) error {
 								_, _ = addStates(st)
