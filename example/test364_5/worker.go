@@ -226,14 +226,8 @@ func NewFuncWorker(
 			broadcastUnmerged WorkerBroadcastUnmerged,
 			reportResult WorkerReportResultFunc,
 		) error {
-			var savedStates *dutil.SetOnlyLockedMap[string, base.State]
-
 			defer func() {
 				_ = wctxCancel(nil)
-
-				if savedStates != nil {
-					savedStates.Close()
-				}
 				_ = bgJobWait(context.Canceled)
 			}()
 
@@ -249,22 +243,9 @@ func NewFuncWorker(
 					statesSize uint64,
 					reportStates dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
-					if statesSize > 0 {
-						switch i, err := dutil.NewLockedMap[string, base.State](nil, statesSize, statesSize); {
-						case err != nil:
-							return err
-						default:
-							savedStates = dutil.NewSetOnlyLockedMap(i, 1<<9)
-						}
-					}
-
 					return reportResult(ctx, options.Local, reasons, statesSize,
 						func(f dutil.InErrorFunc[base.State]) error {
-							return reportStates(func(st base.State) error {
-								_ = savedStates.SetValue(st.Key(), st)
-
-								return f(st)
-							})
+							return reportStates(f)
 						})
 				},
 			); err != nil {
@@ -272,8 +253,6 @@ func NewFuncWorker(
 			}
 
 			// NOTE operation should be saved in outisde newFuncWorker
-
-			_ = savedStates // FIXME save states
 
 			switch err := closeWorkWait(); {
 			case err != nil:
