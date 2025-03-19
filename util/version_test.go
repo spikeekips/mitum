@@ -67,6 +67,8 @@ func (t *testVersion) TestParse() {
 		{name: "+numeric prerelease", s: "v1.2.3-4", major: 1, minor: 2, patch: 3, prerelease: "4"},
 		{name: "+prerelease+hypen+version", s: "v1.2.3-alpha-4", major: 1, minor: 2, patch: 3, prerelease: "alpha-4"},
 		{name: "not numeric", s: "va.2.3", err: "invalid"},
+		{name: "0 padded", s: "v0.02.3", err: "invalid"},
+		{name: "0 padded", s: "v0.2.03", err: "invalid"},
 	}
 
 	for i, c := range cases {

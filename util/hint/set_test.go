@@ -253,7 +253,7 @@ func (t *testCompatibleSet) TestFindByTypeHigerMajor() {
 
 	hr0 := newHinter("showme", "v2019.10")
 	t.NoError(hs.Add(hr0.Hint(), hr0))
-	hr1 := newHinter("showme", "v2020.01")
+	hr1 := newHinter("showme", "v2020.1")
 	t.NoError(hs.Add(hr1.Hint(), hr1))
 
 	uht, v, found := hs.FindBytType(hr0.Hint().Type())

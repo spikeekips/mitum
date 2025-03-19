@@ -792,11 +792,36 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	t.NoError(rstartf1())
 	defer rstopf1()
 
-	<-time.After(time.Second)
-	t.NoError(rsrv1.Join([]quicstream.ConnInfo{lci}))
+	var i int
+	for {
+		<-time.After(time.Second)
 
-	<-time.After(time.Second * 3)
-	t.Equal(2, lsrv.MembersLen())
+		err := rsrv1.Join([]quicstream.ConnInfo{lci})
+		if err == nil {
+			t.T().Log("joined")
+			break
+		}
+
+		i++
+		if i > 3 {
+			t.Fail("failed to wait join")
+		}
+	}
+
+	i = 0
+	for {
+		<-time.After(time.Second)
+		if l := lsrv.MembersLen(); l == 2 {
+			t.T().Logf("members len == %d", l)
+
+			break
+		}
+
+		i++
+		if i > 3 {
+			t.Fail("failed to wait join")
+		}
+	}
 
 	n, others, found := lsrv.members.MembersLenOthers(rnode, rci0.UDPAddr())
 	t.True(found)

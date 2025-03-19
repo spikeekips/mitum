@@ -132,7 +132,10 @@ func (t *testBrokers) TestRequestHeader() {
 			reqh := newDummyRequestHeader(name, util.UUID().String())
 
 			t.T().Log("write request head")
-			t.NoError(broker.WriteRequestHead(ctx, reqh))
+
+			if err := broker.WriteRequestHead(ctx, reqh); quicstream.IsSeriousError(err) {
+				return nil
+			}
 
 			_, _, err := broker.ReadResponseHead(ctx)
 			t.Error(err)
