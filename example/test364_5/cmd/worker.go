@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"net"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -182,6 +183,7 @@ func (cmd *workerCommand) startWorker(
 			return workClosedDone(wait(
 				cmd.newFuncBroadcastUnmerged(workID),
 				cmd.newFuncReportResult(workID),
+				cmd.newFuncSaveStates(1<<9),
 			))
 		},
 		nil
@@ -204,7 +206,7 @@ func (cmd *workerCommand) newFuncCreateState(height base.Height) dop5.CreateStat
 		base.State,
 		error,
 	) {
-		return base.NewBaseState(
+		return dop5.NewBaseState(
 				height,
 				stateKey,
 				value,
@@ -378,4 +380,39 @@ func (cmd *workerCommand) pingManager() error {
 	}()
 
 	return <-connected
+}
+
+func (cmd *workerCommand) newFuncSaveStates(size uint64) dop5.WorkerSaveStatesFunc {
+	return func(sts []base.State) error {
+		if len(sts) < 1 {
+			return nil
+		}
+
+		semSize := max(uint64(len(sts))/size, 1<<9)
+		newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, semSize)
+
+		total := uint64(len(sts))
+
+		for i := uint64(0); i < total; i += size {
+			if err := newJob(func(ctx context.Context) error {
+				e := i + size
+				if e > total {
+					e = total
+				}
+
+				return redisSaveStates(
+					ctx,
+					cmd.enc,
+					cmd.rdb,
+					slices.Values(sts[i:e]),
+				)
+			}); err != nil {
+				return jobWait(err)
+			}
+		}
+
+		jobDone()
+
+		return jobWait(nil)
+	}
 }

@@ -375,6 +375,9 @@ func (t *testManagerWithWorkers) newManager(
 							return err
 						}))
 					},
+					func(sts []base.State) error {
+						return nil
+					},
 				)
 				t.Print("worker wait: local=%q err=%+v", worker, err)
 			}()

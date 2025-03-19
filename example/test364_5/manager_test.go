@@ -174,18 +174,9 @@ func (t *baseTestManager) processOps(
 		return nil, nil, nil, nil, err
 	}
 
-	var addState dutil.AppendSliceAddFunc[base.State]
-	var doneState dutil.OutFunc[[]base.State]
-
-	switch a, d, err := dutil.NewLockUniqueAppendSlice[base.State, string](1<<9, 1<<9,
-		func(n base.State) string { return n.Key() }); {
-	case err != nil:
-		return nil, nil, nil, nil, err
-	default:
-		addState, doneState = a, d
-	}
-
 	g := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
+
+	var states []base.State
 
 	err = wait(
 		func(context.Context, string, string, []uint64) error { return nil },
@@ -211,19 +202,14 @@ func (t *baseTestManager) processOps(
 				opsTree = tr
 			}
 
-			if err := f(func(st base.State) error {
-				addState(st)
-
-				return nil
-			}); err != nil {
-				return err
-			}
+			return f(func(st base.State) error { return nil })
+		},
+		func(sts []base.State) error {
+			states = sts
 
 			return nil
 		},
 	)
-
-	states := doneState()
 
 	slices.SortFunc(states, func(a, b base.State) int {
 		return strings.Compare(a.Key(), b.Key())

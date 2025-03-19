@@ -43,9 +43,11 @@ type (
 		statesSize uint64,
 		_ dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error
-	WorkerWaitFunc = func(
+	WorkerSaveStatesFunc = dutil.InErrorFunc[[]base.State]
+	WorkerWaitFunc       = func(
 		WorkerBroadcastUnmerged,
 		WorkerReportResultFunc,
+		WorkerSaveStatesFunc,
 	) error
 	WorkerCloseFunc = dutil.InErrorFunc[error]
 )
@@ -225,10 +227,14 @@ func NewFuncWorker(
 		func(
 			broadcastUnmerged WorkerBroadcastUnmerged,
 			reportResult WorkerReportResultFunc,
+			saveStates WorkerSaveStatesFunc,
 		) error {
+			doneStates := func() []base.State { return nil }
+
 			defer func() {
 				_ = wctxCancel(nil)
 				_ = bgJobWait(context.Canceled)
+				_ = doneStates()
 			}()
 
 			if err := processWait(
@@ -243,9 +249,24 @@ func NewFuncWorker(
 					statesSize uint64,
 					reportStates dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 				) error {
+					var addStates dutil.AppendSliceAddFunc[base.State]
+
+					if statesSize > 0 {
+						switch a, d, err := dutil.NewLockAppendSlice[base.State](statesSize, 0); {
+						case err != nil:
+							return err
+						default:
+							addStates, doneStates = a, d
+						}
+					}
+
 					return reportResult(ctx, options.Local, reasons, statesSize,
 						func(f dutil.InErrorFunc[base.State]) error {
-							return reportStates(f)
+							return reportStates(func(st base.State) error {
+								_, _ = addStates(st)
+
+								return f(st)
+							})
 						})
 				},
 			); err != nil {
@@ -253,6 +274,12 @@ func NewFuncWorker(
 			}
 
 			// NOTE operation should be saved in outisde newFuncWorker
+
+			if saveStates != nil {
+				if err := saveStates(doneStates()); err != nil {
+					return err
+				}
+			}
 
 			switch err := closeWorkWait(); {
 			case err != nil:

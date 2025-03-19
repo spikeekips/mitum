@@ -95,8 +95,6 @@ func (cmd *baseCommand) addHinters() error {
 		addDecode(cmd.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON),
 		addDecode(cmd.enc, dop5.BaseStateHint, &dop5.BaseState{}, dop5.BaseStateDecodeJSON),
 	)
-
-	return nil
 }
 
 func (cmd *baseCommand) closef() {
