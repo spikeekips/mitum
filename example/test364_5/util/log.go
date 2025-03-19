@@ -94,3 +94,13 @@ func ElapsedLogger(l zerolog.Logger, format string, a ...any) InErrorFunc[error]
 		return err
 	}
 }
+
+func ElapsedLogEvent(e *zerolog.Event, msg string) func() {
+	started := time.Now()
+
+	return func() {
+		e.Func(func(e *zerolog.Event) {
+			e.CallerSkipFrame(1).Stringer("elapsed", time.Since(started)).Msg(msg)
+		})
+	}
+}

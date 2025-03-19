@@ -19,13 +19,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -48,6 +48,10 @@ type managerCommand struct {
 	managerOptions *dop5.ManagerOptions
 	privs          []base.Privatekey
 	pubs           []base.Publickey
+	createFacts    []dop5.OperationFact
+	createOphs     [][2]util.Hash
+	transferFacts  []dop5.OperationFact
+	transferOphs   [][2]util.Hash
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -116,142 +120,144 @@ func (cmd *managerCommand) prepare() error {
 		return err
 	}
 
+	cfacts, cophs, err := cmd.prepareCreateOps()
+	if err != nil {
+		return err
+	}
+	cmd.createFacts, cmd.createOphs = cfacts, cophs
+
+	tfacts, tophs, err := cmd.prepareTransferOps()
+	if err != nil {
+		return err
+	}
+	cmd.transferFacts, cmd.transferOphs = tfacts, tophs
+
 	return nil
 }
 
 func (cmd *managerCommand) preparePKs() error {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create pks")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "pks created")()
 
-	cmd.pubs = make([]base.Publickey, cmd.Ops)
-
-	rem := cmd.Ops
-
-	var prev *os.File
-
-	pubfile := "pubs.b"
-	switch f, err := os.Open(pubfile); {
-	case err != nil && !os.IsNotExist(err):
-		return err
-	case os.IsNotExist(err):
-	default:
-		defer f.Close()
-		prev = f
-
-		p, err := cmd.loadPubsFromFile(f, cmd.Ops)
-
-		switch {
-		case err != nil:
-			return err
-		case len(p) > 0:
-			copy(cmd.pubs, p)
-
-			rem = cmd.Ops - uint64(len(p))
-		}
-	}
-
-	if rem < 1 {
-		return nil
-	}
-
-	var w *os.File
-
-	switch f, err := os.Create(pubfile + ".tmp"); {
-	case err != nil:
-		return err
-	default:
-		if err := writeUint64(f, cmd.Ops); err != nil {
-			return err
-		}
-
-		if prev != nil {
-			if _, err := prev.Seek(0, 0); err != nil {
-				return err
-			}
-
-			var size uint64
-			if _, err := readUint64(prev, &size); err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(f, prev); err != nil {
-				return err
-			}
-
-			_ = prev.Close()
-		}
-
-		w = f
-	}
-
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, rem)
-
-	for i := range rem {
-		if err := newJob(func(context.Context) error {
+	pubs, err := prepareItems(
+		"pubs.b",
+		cmd.Ops,
+		func(w io.Writer, i uint64) (base.Publickey, error) {
 			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
 
 			if err := frame.WriteFixed(w, k.SerializeCompressed()); err != nil {
-				return err
+				return nil, err
 			}
 
-			cmd.pubs[cmd.Ops-rem+i] = base.NewMPublickey(k)
+			return base.NewMPublickey(k), nil
+		},
+		func(b []byte, _ uint64) (base.Publickey, error) {
+			k, err := btcec.ParsePubKey(b)
+			if err != nil {
+				return nil, err
+			}
 
-			return nil
-		}); err != nil {
-			return jobWait(err)
-		}
-	}
-
-	jobDone()
-
-	if err := jobWait(nil); err != nil {
+			return base.NewMPublickey(k), nil
+		},
+	)
+	if err != nil {
 		return err
 	}
 
-	cmd.log.Debug().Uint64("rem", rem).Msg("remaining created")
+	cmd.pubs = pubs
 
-	_ = w.Close()
-
-	return os.Rename("pubs.b.tmp", "pubs.b")
+	return nil
 }
 
-func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash) {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "create ops created")()
+func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "create ops created")()
 
-	facts := make([]dop5.OperationFact, cmd.Ops)
 	ophs := make([][2]util.Hash, cmd.Ops)
 
-	for i := range cmd.Ops {
-		fact := dop5.NewAccountOpFact(
-			[]byte("c"),
-			1,
-			nil,
-			cmd.pubs[i],
-		)
-		facts[i] = fact
-		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+	facts, err := prepareItems(
+		"create-ops.b",
+		cmd.Ops,
+		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
+			fact := dop5.NewAccountOpFact(
+				[]byte("c"),
+				1,
+				nil,
+				cmd.pubs[i],
+			)
+
+			switch b, err := cmd.enc.Marshal(fact); {
+			case err != nil:
+				return nil, err
+			default:
+				if err := frame.WriteFixed(w, b); err != nil {
+					return nil, err
+				}
+
+				ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+
+				return fact, nil
+			}
+		},
+		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
+			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
+				return nil, err
+			}
+
+			ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+
+			return fact, nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return facts, ophs
+	return facts, ophs, nil
 }
 
-func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash) {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Uint64("n", cmd.Ops) }, "transfer ops created")()
+func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "transfer ops created")()
 
-	facts := make([]dop5.OperationFact, cmd.Ops)
 	ophs := make([][2]util.Hash, cmd.Ops)
 
-	for i := range cmd.Ops {
-		fact := dop5.NewAccountOpFact(
-			[]byte("d"),
-			1,
-			cmd.pubs[i],
-			cmd.pubs[cmd.Ops%uint64(i+1)],
-		)
-		facts[i] = fact
-		ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+	facts, err := prepareItems(
+		"transfer-ops.b",
+		cmd.Ops,
+		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
+			fact := dop5.NewAccountOpFact(
+				[]byte("d"),
+				1,
+				cmd.pubs[i],
+				cmd.pubs[cmd.Ops%uint64(i+1)],
+			)
+
+			switch b, err := cmd.enc.Marshal(fact); {
+			case err != nil:
+				return nil, err
+			default:
+				if err := frame.WriteFixed(w, b); err != nil {
+					return nil, err
+				}
+
+				ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+
+				return fact, nil
+			}
+		},
+		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
+			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
+				return nil, err
+			}
+
+			ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+
+			return fact, nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return facts, ophs
+	return facts, ophs, nil
 }
 
 func (cmd *managerCommand) process() error {
@@ -274,14 +280,13 @@ func (cmd *managerCommand) process() error {
 }
 
 func (cmd *managerCommand) process1st() (util.Hash, error) {
-	defer logging.TimeElapsedMsg(cmd.log.Debug, "process 1st")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 1st")()
 
-	facts, ophs := cmd.prepareCreateOps()
-	if err := cmd.saveOps(facts); err != nil {
+	if err := cmd.saveOps(cmd.createFacts); err != nil {
 		return nil, err
 	}
 
-	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, ophs); {
+	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, cmd.createOphs); {
 	case err != nil:
 		return nil, err
 	default:
@@ -294,14 +299,13 @@ func (cmd *managerCommand) process1st() (util.Hash, error) {
 }
 
 func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
-	defer logging.TimeElapsedMsg(cmd.log.Debug, "process 2nd")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 2nd")()
 
-	facts, ophs := cmd.prepareTransferOps()
-	if err := cmd.saveOps(facts); err != nil {
+	if err := cmd.saveOps(cmd.transferFacts); err != nil {
 		return err
 	}
 
-	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, ophs); {
+	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, cmd.transferOphs); {
 	case err != nil:
 		return err
 	default:
@@ -310,7 +314,7 @@ func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
 }
 
 func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Int("n", len(facts)) }, "save fact")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().Int("n", len(facts)), "save facts")()
 
 	return redisSaveOperationFacts(
 		cmd.ctx,
@@ -329,7 +333,7 @@ func (cmd *managerCommand) processHeight(
 ) (util.Hash, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s", height)
 
-	defer logging.TimeElapsedMsg(func() *zerolog.Event { return cmd.log.Debug().Str("work_id", workID) }, "process height")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().Str("work_id", workID).Interface("height", height), "process height")()
 
 	return cmd.startManager(
 		dutil.SetContextValueLogger(ctx, cmd.log),
@@ -347,13 +351,11 @@ func (cmd *managerCommand) startManager(
 	workID string,
 	ophs [][2]util.Hash,
 ) (util.Hash, dutil.ErrorFunc, error) {
-	defer logging.TimeElapsedMsg(func() *zerolog.Event {
-		return cmd.log.Debug().
-			Str("work_id", workID).
-			Interface("height", height).
-			Stringer("prev_hash", prevManiest).
-			Int("ophs", len(ophs))
-	}, "start manager")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug().
+		Str("work_id", workID).
+		Interface("height", height).
+		Stringer("prev_hash", prevManiest).
+		Int("ophs", len(ophs)), "start manager")()
 
 	var start dutil.In2ErrorFunc[dop5.ManagerStartWorkerFunc, dop5.NewManagerWorkerSendOpFunc]
 	var workerOwners dutil.In2ErrorFunc[string, []string]
@@ -398,7 +400,7 @@ func (cmd *managerCommand) startManager(
 		return nil
 	}
 
-	defer logging.TimeElapsedMsg(cmd.log.Debug, "manager: start")()
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "manager start")()
 
 	if err := start(
 		cmd.newFuncStartWorkers(workID, height),
@@ -598,9 +600,109 @@ func (cmd *managerCommand) stopWorkers() error {
 	})
 }
 
-func (cmd *managerCommand) loadPubsFromFile(r io.Reader, limit uint64) ([]base.Publickey, error) {
-	cmd.log.Debug().Uint64("limit", limit).Msg("trying to load pubs from file")
+func prepareItems[T any](
+	filename string,
+	size uint64,
+	create func(io.Writer, uint64) (T, error),
+	load func([]byte, uint64) (T, error),
+) ([]T, error) {
+	items := make([]T, size)
+	rem := size
 
+	var prev *os.File
+
+	switch f, err := os.Open(filename); {
+	case err != nil && !os.IsNotExist(err):
+		return nil, err
+	case os.IsNotExist(err):
+	default:
+		defer f.Close()
+		prev = f
+
+		p, err := loadFromFile(f, size, load)
+
+		switch {
+		case err != nil:
+			return nil, err
+		case len(p) > 0:
+			copy(items, p)
+
+			rem = size - uint64(len(p))
+		}
+	}
+
+	if rem < 1 {
+		return items, nil
+	}
+
+	var w *os.File
+
+	switch f, err := os.Create(filename + ".tmp"); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := writeUint64(f, size); err != nil {
+			return nil, err
+		}
+
+		if prev != nil {
+			if _, err := prev.Seek(0, 0); err != nil {
+				return nil, err
+			}
+
+			var nsize uint64
+			if _, err := readUint64(prev, &nsize); err != nil {
+				return nil, err
+			}
+
+			if _, err := io.Copy(f, prev); err != nil {
+				return nil, err
+			}
+
+			_ = prev.Close()
+		}
+
+		w = f
+	}
+
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), rem)
+
+	for i := range rem {
+		if err := newJob(func(context.Context) error {
+			index := size - rem + i
+			switch v, err := create(w, index); {
+			case err != nil:
+				return err
+			default:
+				items[index] = v
+
+				return nil
+			}
+		}); err != nil {
+			return nil, jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return nil, err
+	}
+
+	_ = w.Close()
+
+	if err := os.Rename(filename+".tmp", filename); err != nil {
+		return nil, err
+	}
+
+	return items, nil
+}
+
+func loadFromFile[T any](
+	r io.Reader,
+	limit uint64,
+	load func([]byte, uint64) (T, error),
+) ([]T, error) {
 	var size uint64
 	if _, err := readUint64(r, &size); err != nil {
 		return nil, err
@@ -611,9 +713,9 @@ func (cmd *managerCommand) loadPubsFromFile(r io.Reader, limit uint64) ([]base.P
 		nsize = limit
 	}
 
-	pubs := make([]base.Publickey, nsize)
+	items := make([]T, nsize)
 
-	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, nsize)
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), nsize)
 
 	for i := uint64(0); i < nsize; i++ {
 		switch b, n, err := frame.ReadFixed(r); {
@@ -622,14 +724,14 @@ func (cmd *managerCommand) loadPubsFromFile(r io.Reader, limit uint64) ([]base.P
 			return nil, jobWait(err)
 		default:
 			if err := newJob(func(context.Context) error {
-				k, err := btcec.ParsePubKey(b)
-				if err != nil {
+				switch v, err := load(b, i); {
+				case err != nil:
 					return err
+				default:
+					items[i] = v
+
+					return nil
 				}
-
-				pubs[i] = base.NewMPublickey(k)
-
-				return nil
 			}); err != nil {
 				return nil, jobWait(err)
 			}
@@ -642,7 +744,5 @@ func (cmd *managerCommand) loadPubsFromFile(r io.Reader, limit uint64) ([]base.P
 		return nil, err
 	}
 
-	cmd.log.Debug().Uint64("size", size).Uint64("read_size", nsize).Msg("pubs loaded from file")
-
-	return pubs, nil
+	return items, nil
 }
