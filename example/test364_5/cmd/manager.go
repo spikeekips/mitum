@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"slices"
@@ -102,7 +103,7 @@ func (cmd *managerCommand) prepare() error {
 	}
 
 	cmd.log.Debug().
-		Interface("addrs", cmd.workerAddrs.Map()).
+		Interface("addrs", slices.Collect(maps.Keys(cmd.workerAddrs.Map()))).
 		Msg("workers")
 
 	cmd.managerOptions = dop5.NewManagerOptions()
