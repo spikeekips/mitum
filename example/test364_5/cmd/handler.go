@@ -972,47 +972,23 @@ func requestHandlerWorkerPingManager(local string, interval time.Duration) quics
 			return ctx, err
 		}
 
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		var i uint64
-
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx, ctx.Err()
-			case <-ticker.C:
-				if err := writeUint64(stream, i); err != nil {
-					return ctx, err
-				}
-			}
-
-			i++
+		var gerr error
+		if _, err := readError(stream, &gerr); err != nil {
+			return ctx, err
 		}
 
-		return ctx, nil
+		return ctx, gerr
 	}
 }
 
-func acceptHandlerWorkerPingManager(f dutil.In2ErrorFunc[string, uint64]) quicstream.StreamHandler {
+func acceptHandlerWorkerPingManager(f dutil.InErrorFunc[string]) quicstream.StreamHandler {
 	return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
 		var worker string
 		if _, err := ensureReadFixedFrameString(stream, &worker); err != nil {
 			return ctx, err
 		}
 
-		for {
-			var i uint64
-			if _, err := readUint64(stream, &i); err != nil {
-				return ctx, err
-			}
-
-			if err := f(worker, i); err != nil {
-				return ctx, err
-			}
-		}
-
-		return ctx, nil
+		return ctx, writeError(stream, f(worker))
 	}
 }
 

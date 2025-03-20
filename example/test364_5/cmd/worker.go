@@ -4,11 +4,11 @@ import (
 	"context"
 	"iter"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
@@ -103,7 +103,11 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 		return nil
 	}))
 
-	return wait, cmd.pingManager()
+	if err := cmd.pingManager(); err != nil {
+		return nil, err
+	}
+
+	return wait, nil
 }
 
 func (cmd *workerCommand) startWorker(
@@ -351,10 +355,6 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 }
 
 func (cmd *workerCommand) pingManager() error {
-	quicConfig := quicstream.DefaultQuicConfig()
-	quicConfig.HandshakeIdleTimeout = time.Millisecond * 333
-	quicConfig.KeepAlivePeriod = time.Second
-
 	handler := requestHandlerWorkerPingManager(cmd.local, time.Second)
 
 	connected := make(chan error)
@@ -362,21 +362,28 @@ func (cmd *workerCommand) pingManager() error {
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
+	reset := sync.OnceFunc(func() {
+		ticker.Reset(time.Millisecond * 333)
+	})
+
 	go func() {
 		for range ticker.C {
-			ticker.Reset(time.Second * 2)
 			_, err := cmd.request("_worker_ping_manager")(
 				cmd.ctx,
 				cmd.manager,
 				nil,
-				quicConfig,
-				func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-					close(connected)
-
-					return handler(ctx, stream)
-				},
+				defaultQuicConfig(),
+				handler,
 			)
 			cmd.log.Debug().Err(err).Msg("ping manager")
+
+			if err == nil {
+				close(connected)
+
+				return
+			}
+
+			reset()
 		}
 	}()
 

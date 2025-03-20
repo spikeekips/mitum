@@ -567,7 +567,7 @@ func (cmd *managerCommand) waitWorkers() error {
 	done, wait := dutil.NewContextDone(cmd.ctx)
 
 	pinged := dutil.NewSingleLockedMap[string, struct{}]()
-	cmd.mustAddHandler("_worker_ping_manager", acceptHandlerWorkerPingManager(func(worker string, i uint64) error {
+	cmd.mustAddHandler("_worker_ping_manager", acceptHandlerWorkerPingManager(func(worker string) error {
 		if slices.Index(cmd.Workers, worker) < 0 {
 			return errors.Errorf("unknown worker, %q", worker)
 		}
