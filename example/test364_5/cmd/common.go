@@ -130,7 +130,7 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 		statelessResetKey = quicstream.NewStatelessResetKey(kp.PrivateKey())
 	}
 
-	cmd.quicConfig = quicstream.DefaultQuicConfig()
+	cmd.quicConfig = defaultQuicConfig()
 
 	listen, closef, err := quicstream.Serve(
 		cmd.ctx,
@@ -456,4 +456,12 @@ func readError(r io.Reader, err *error) (int, error) {
 	}
 
 	return n, rerr
+}
+
+func defaultQuicConfig() *quic.Config {
+	config := quicstream.DefaultQuicConfig()
+	config.HandshakeIdleTimeout = time.Millisecond * 333
+	config.KeepAlivePeriod = time.Second
+
+	return config
 }
