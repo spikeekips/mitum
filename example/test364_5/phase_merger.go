@@ -242,7 +242,7 @@ func newFuncXMergeCallback(
 				values,
 				func(getMerger func(SMV) (SVM, error)) error {
 					ll := l.With().Int("phase", phase).Logger()
-					ll.Debug().Msgf("> %s", x)
+					ll.Trace().Msgf("> %s", x)
 
 					switch committed, nexts, reasons, err := xMergeOpValues(
 						opindex,
@@ -252,7 +252,7 @@ func newFuncXMergeCallback(
 					case err != nil:
 						return err
 					default:
-						ll.Debug().
+						ll.Trace().
 							Uints64("nexts", nexts).
 							Interface("reasons", reasons).
 							Bool("is_committed", committed).
