@@ -1,8 +1,7 @@
 module github.com/spikeekips/mitum
 
 go 1.22
-
-toolchain go1.22.1
+toolchain go1.24.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -23,7 +22,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/quic-go/quic-go v0.48.0
-	github.com/redis/go-redis/v9 v9.6.2
+	github.com/redis/go-redis/v9 v9.6.3
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
