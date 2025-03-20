@@ -100,7 +100,7 @@ func ElapsedLogEvent(e *zerolog.Event, msg string) func() {
 
 	return func() {
 		e.Func(func(e *zerolog.Event) {
-			e.CallerSkipFrame(1).Stringer("elapsed", time.Since(started)).Msg(msg)
+			e.CallerSkipFrame(3).Stringer("elapsed", time.Since(started)).Msg(msg)
 		})
 	}
 }
