@@ -1,6 +1,7 @@
 package encoder
 
 import (
+	"reflect"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -23,9 +24,7 @@ func Assign[T any](v any, t *T) error {
 
 	i, ok := v.(T)
 	if !ok {
-		var o T
-
-		return errors.Errorf("expected %T, but %T", o, v)
+		return errors.Errorf("expected %s, but %T", reflect.TypeOf(t).Elem(), v)
 	}
 
 	*t = i
