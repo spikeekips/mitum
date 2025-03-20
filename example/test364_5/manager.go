@@ -136,6 +136,7 @@ func NewFuncManager(
 				return cancelWork(err)
 			}
 
+			defer dutil.ElapsedLogEvent(log.Info(), "send ops")()
 			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(f))
 		},
 		workerOwners,
@@ -334,6 +335,8 @@ func managerStartWorkers(
 	maxOpsSize uint64,
 	f ManagerStartWorkerFunc,
 ) error {
+	defer dutil.ElapsedLogEvent(dutil.LoadContextValueLogger(ctx).Info(), "start workers")()
+
 	workers := workerPool.workers()
 	opsWorkers := workerPool.opsWorkers()
 

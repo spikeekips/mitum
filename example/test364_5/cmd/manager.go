@@ -234,7 +234,7 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 				[]byte("d"),
 				1,
 				cmd.pubs[i],
-				cmd.pubs[cmd.Ops%uint64(i+1)],
+				cmd.pubs[uint64(i+1)%cmd.Ops],
 			)
 
 			switch b, err := cmd.enc.Marshal(fact); {
@@ -401,6 +401,8 @@ func (cmd *managerCommand) startManager(
 
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "manager start")()
 
+	manifestElapsedLog := dutil.ElapsedLogEvent(cmd.log.Info().Interface("height", height), "manifest")
+
 	if err := start(
 		cmd.newFuncStartWorkers(workID, height),
 		cmd.newFuncSendOp(workID),
@@ -440,6 +442,8 @@ func (cmd *managerCommand) startManager(
 				time.Now(),
 			)
 
+			manifestElapsedLog()
+
 			return manifest, nil
 		},
 		func(ctx context.Context, worker string) error {
@@ -465,7 +469,7 @@ func (cmd *managerCommand) startManager(
 		func() error {
 			// NOTE check all worker closes work.
 			return stderrors.Join(
-				cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
+				cmd.requestWorkers(ctx, func(ctx context.Context, worker string) error {
 					_, _ = requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
 
 					return nil

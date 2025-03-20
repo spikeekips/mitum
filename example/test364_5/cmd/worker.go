@@ -21,9 +21,10 @@ type workerCommand struct {
 	baseCommand
 	Manager string `arg:""`
 
-	local         string
-	workerOptions *dop5.WorkerOptions
-	manager       *net.UDPAddr
+	local            string
+	workerOptions    *dop5.WorkerOptions
+	manager          *net.UDPAddr
+	processStartedAt *atomic.Value
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
@@ -63,6 +64,7 @@ func (cmd *workerCommand) prepare() error {
 	}
 
 	cmd.workerOptions = dop5.NewWorkerOptions(cmd.local)
+	cmd.processStartedAt = new(atomic.Value)
 
 	return nil
 }
@@ -81,7 +83,7 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 		opsShare, statesShare, maxOpsSize uint64,
 	) error {
 		wait, err := cmd.startWorker(
-			cmd.ctx,
+			dutil.SetContextValueLogger(cmd.ctx, cmd.log),
 			workID,
 			height,
 			workers, opsWorkers,
@@ -235,6 +237,8 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 ) quicstream.AcceptSubStreamHandler {
 	return acceptHandlerSendOps(
 		func(maxItems uint64, seq iter.Seq2[uint64, [2]util.Hash]) error {
+			cmd.processStartedAt.Store(time.Now())
+
 			maxItemsf(maxItems)
 
 			maxItemsPerWorker := maxItems / uint64(len(workers))
@@ -329,6 +333,9 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 		statesSize uint64,
 		seq dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error {
+		cmd.log.Info().Stringer("elapsed", time.Since(cmd.processStartedAt.Load().(time.Time))).Msg("processed")
+		defer dutil.ElapsedLogEvent(cmd.log.Info(), "report result")()
+
 		handler := requestHandlerWorkerResult(
 			cmd.local,
 			reasons,
