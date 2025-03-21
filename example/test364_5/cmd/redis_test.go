@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -27,6 +28,7 @@ type baseTestRedis struct {
 func (t *baseTestRedis) SetupSuite() {
 	t.enc = jsonenc.NewEncoder(1 << 9)
 	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
 
 	t.mini = miniredis.RunT(t.T())
 	t.rdb = redis.NewClient(&redis.Options{
@@ -39,17 +41,11 @@ func (t *baseTestRedis) TearDownSuite() {
 	t.mini.Close()
 }
 
-type testRedisOperationFact struct {
-	baseTestRedis
+func (t *baseTestRedis) TearDownTest() {
+	_ = t.rdb.FlushAll(context.Background())
 }
 
-func (t *testRedisOperationFact) SetupSuite() {
-	t.baseTestRedis.SetupSuite()
-
-	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
-}
-
-func (t *testRedisOperationFact) randomFacts(n int) []dop5.OperationFact {
+func (t *baseTestRedis) randomFacts(n int) []dop5.OperationFact {
 	f := make([]dop5.OperationFact, n)
 
 	for i := range n {
@@ -62,6 +58,10 @@ func (t *testRedisOperationFact) randomFacts(n int) []dop5.OperationFact {
 	}
 
 	return f
+}
+
+type testRedisOperationFact struct {
+	baseTestRedis
 }
 
 func (t *testRedisOperationFact) TestGet() {
@@ -288,6 +288,80 @@ func (t *testRedisState) TestSave() {
 
 			t.True(base.IsEqualState(nsts[i], rst))
 		}
+	})
+}
+
+func (t *testRedisState) TestScan() {
+	t.Run("get all", func() {
+		sts := t.randomStates(1 << 10)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			1<<9, 1<<9,
+			sts,
+		))
+
+		seq := redisGetStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+		)
+
+		rsts := make([]base.State, 0, 1<<9)
+
+		for st, err := range seq {
+			t.NoError(err)
+			rsts = append(rsts, st)
+		}
+
+		t.Equal(len(sts), len(rsts))
+
+		slices.SortFunc(sts, func(a, b base.State) int {
+			return strings.Compare(a.Key(), b.Key())
+		})
+		slices.SortFunc(rsts, func(a, b base.State) int {
+			return strings.Compare(a.Key(), b.Key())
+		})
+
+		for i := range sts {
+			t.True(base.IsEqualState(sts[i], rsts[i]))
+		}
+	})
+
+	t.Run("reading error", func() {
+		sts := t.randomStates(1 << 10)
+
+		t.NoError(redisSaveStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+			1<<9, 1<<9,
+			sts,
+		))
+
+		facts := t.randomFacts(3)
+		for fact := range slices.Values(facts) {
+			b, err := t.enc.Marshal(fact)
+			t.NoError(err)
+			t.NoError(t.rdb.Set(context.Background(), "st-"+fact.Hash().String(), b, 0).Err())
+		}
+
+		seq := redisGetStates(
+			context.Background(),
+			t.enc,
+			t.rdb,
+		)
+
+		var errcount int
+		for _, err := range seq {
+			if err != nil {
+				t.ErrorContains(err, "expected")
+				errcount++
+			}
+		}
+		t.Equal(len(facts), errcount)
 	})
 }
 

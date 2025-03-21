@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -30,7 +31,9 @@ func redisSaveOperationFacts(
 		rdb,
 		semSize, bulkSize,
 		ops,
-		redisOperationFactKey,
+		func(ctx context.Context, pipe redis.Pipeliner, item dop5.OperationFact, b []byte) {
+			_ = pipe.SetNX(ctx, redisOperationFactKey(item), b, 0)
+		},
 	)
 }
 
@@ -42,10 +45,6 @@ func redisGetOperationFact(
 	fact *dop5.OperationFact,
 ) (bool, error) {
 	return redisGet(ctx, enc, rdb, "op-"+h.String(), fact)
-}
-
-func redisStateKey(st base.State) string {
-	return "st-" + st.Key()
 }
 
 func redisSaveStates(
@@ -61,7 +60,9 @@ func redisSaveStates(
 		rdb,
 		semSize, bulkSize,
 		states,
-		redisStateKey,
+		func(ctx context.Context, pipe redis.Pipeliner, st base.State, b []byte) {
+			_ = pipe.SetNX(ctx, "st-"+st.Key(), b, 0)
+		},
 	)
 }
 
@@ -75,13 +76,65 @@ func redisGetState(
 	return redisGet(ctx, enc, rdb, "st-"+stateKey, st)
 }
 
+func redisGetStates(
+	ctx context.Context,
+	enc encoder.Encoder,
+	rdb *redis.Client,
+) iter.Seq2[base.State, error] {
+	limit := 1 << 9
+
+	return func(yield func(base.State, error) bool) {
+		cmd := rdb.Scan(ctx, 0, "st-*", 1<<9)
+		if _, _, err := cmd.Result(); err != nil {
+			yield(nil, err)
+
+			return
+		}
+
+		it := cmd.Iterator()
+
+		for {
+			switch l, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+				for i := 0; i < limit; i++ {
+					if !it.Next(ctx) {
+						return nil
+					}
+
+					_ = pipe.Get(ctx, it.Val())
+				}
+
+				return nil
+			}); {
+			case err != nil:
+				yield(nil, err)
+
+				return
+			case len(l) < 1:
+				return
+			default:
+				for cmd := range slices.Values(l) {
+					strcmd, ok := cmd.(*redis.StringCmd)
+					if !ok {
+						yield(nil, errors.Errorf("expected *redis.StringCmd, but %T", cmd))
+					}
+
+					var st base.State
+					if !yield(st, encoder.Unmarshal(enc, []byte(strcmd.Val()), &st)) {
+						return
+					}
+				}
+			}
+		}
+	}
+}
+
 func redisBulkSave[T any](
 	ctx context.Context,
 	enc encoder.Encoder,
 	rdb *redis.Client,
 	semSize, bulkSize uint64,
 	items []T,
-	keyf func(T) string,
+	setPipe func(context.Context, redis.Pipeliner, T, []byte),
 ) error {
 	switch {
 	case len(items) < 1:
@@ -112,7 +165,7 @@ func redisBulkSave[T any](
 					case err != nil:
 						return err
 					default:
-						_ = pipe.SetNX(ctx, keyf(item), b, 0)
+						setPipe(ctx, pipe, item, b)
 					}
 				}
 
