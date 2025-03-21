@@ -15,26 +15,26 @@ var (
 	StatesTreeHint     = hint.MustNewHint("states-tree-v0.0.1")
 )
 
-func newOperationsTree(nodes []fixedtree.Node) *fixedtree.Tree {
+func NewOperationsTree(nodes []fixedtree.Node) *fixedtree.Tree {
 	return fixedtree.NewTree(OperationsTreeHint, nodes)
 }
 
-func newStatesTree(nodes []fixedtree.Node) *fixedtree.Tree {
+func NewStatesTree(nodes []fixedtree.Node) *fixedtree.Tree {
 	return fixedtree.NewTree(StatesTreeHint, nodes)
 }
 
-type stateTreeNode struct {
+type StateTreeNode struct {
 	*fixedtree.BaseNode           // NOTE state key is key
 	h                   util.Hash // NOTE state hash
 	b                   []byte
 }
 
-func newStateTreeNode(stateKey string, h util.Hash) (*stateTreeNode, error) {
+func NewStateTreeNode(stateKey string, h util.Hash) (*StateTreeNode, error) {
 	if h == nil {
 		return nil, errors.Errorf("nil state hash")
 	}
 
-	return &stateTreeNode{
+	return &StateTreeNode{
 			BaseNode: fixedtree.NewBaseNode(stateKey),
 			h:        h,
 			b:        slices.Concat([]byte(stateKey), h.Bytes()),
@@ -42,11 +42,11 @@ func newStateTreeNode(stateKey string, h util.Hash) (*stateTreeNode, error) {
 		nil
 }
 
-func (n *stateTreeNode) StateHash() util.Hash {
+func (n *StateTreeNode) StateHash() util.Hash {
 	return n.h
 }
 
-func (n *stateTreeNode) IsValid(b []byte) error {
+func (n *StateTreeNode) IsValid(b []byte) error {
 	if n.h == nil {
 		return util.ErrInvalid.Errorf("nil state hash")
 	}
@@ -58,7 +58,7 @@ func (n *stateTreeNode) IsValid(b []byte) error {
 	return n.h.IsValid(nil)
 }
 
-func (n *stateTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
+func (n *StateTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
 		return n.b, nil
 	}); {
@@ -69,14 +69,14 @@ func (n *stateTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.Error
 	}
 }
 
-type operationTreeNode struct {
+type OperationTreeNode struct {
 	*fixedtree.BaseNode // NOTE Operation Hash is key
 	fact                util.Hash
 	reason              string
 	b                   []byte
 }
 
-func newOperationTreeNode(oph, facth util.Hash, reason string) (*operationTreeNode, error) {
+func NewOperationTreeNode(oph, facth util.Hash, reason string) (*OperationTreeNode, error) {
 	switch {
 	case oph == nil:
 		return nil, errors.Errorf("nil oph")
@@ -86,7 +86,7 @@ func newOperationTreeNode(oph, facth util.Hash, reason string) (*operationTreeNo
 
 	key := oph.String()
 
-	return &operationTreeNode{
+	return &OperationTreeNode{
 			BaseNode: fixedtree.NewBaseNode(key),
 			fact:     facth,
 			reason:   reason,
@@ -99,15 +99,15 @@ func newOperationTreeNode(oph, facth util.Hash, reason string) (*operationTreeNo
 		nil
 }
 
-func (n *operationTreeNode) Fact() util.Hash {
+func (n *OperationTreeNode) Fact() util.Hash {
 	return n.fact
 }
 
-func (n *operationTreeNode) Reason() string {
+func (n *OperationTreeNode) Reason() string {
 	return n.reason
 }
 
-func (n *operationTreeNode) SetReason(s string) {
+func (n *OperationTreeNode) SetReason(s string) {
 	if n.reason == s {
 		return
 	}
@@ -121,7 +121,7 @@ func (n *operationTreeNode) SetReason(s string) {
 	)
 }
 
-func (n *operationTreeNode) IsValid(b []byte) error {
+func (n *OperationTreeNode) IsValid(b []byte) error {
 	if n.fact == nil {
 		return util.ErrInvalid.Errorf("nil fact")
 	}
@@ -133,7 +133,7 @@ func (n *operationTreeNode) IsValid(b []byte) error {
 	return n.fact.IsValid(nil)
 }
 
-func (n *operationTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
+func (n *OperationTreeNode) SetHash(left, right fixedtree.Node) (string, dutil.ErrorFunc, error) {
 	switch h, err := fixedtree.MakeBaseNodeHash(n, left, right, func() ([]byte, error) {
 		return n.b, nil
 	}); {

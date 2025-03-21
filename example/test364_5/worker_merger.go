@@ -23,7 +23,7 @@ func newFuncWorkerMerger(
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	getSVMs mergerGetSVMsFunc,
 	workersSize, maxOpsSize, smvsPoolSize uint64,
 	opsWorkers []string, opsShare, statesShare uint64,

@@ -16,13 +16,13 @@ type testStateTreeNode struct {
 	dutil.BaseSuite
 }
 
-func (t *testStateTreeNode) nodeWithoutHash() *stateTreeNode {
-	n, _ := newStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
+func (t *testStateTreeNode) nodeWithoutHash() *StateTreeNode {
+	n, _ := NewStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
 
 	return n
 }
 
-func (t *testStateTreeNode) node() *stateTreeNode {
+func (t *testStateTreeNode) node() *StateTreeNode {
 	n := t.nodeWithoutHash()
 	_, f, err := n.SetHash(nil, nil)
 	t.NoError(err)
@@ -47,7 +47,7 @@ func (t *testStateTreeNode) TestIsValid() {
 	})
 
 	t.Run("empty state key", func() {
-		n, err := newStateTreeNode("", valuehash.RandomSHA256())
+		n, err := NewStateTreeNode("", valuehash.RandomSHA256())
 		t.NoError(err)
 
 		err = n.IsValid(nil)
@@ -56,7 +56,7 @@ func (t *testStateTreeNode) TestIsValid() {
 	})
 
 	t.Run("nil state key", func() {
-		_, err := newStateTreeNode(util.UUID().String(), nil)
+		_, err := NewStateTreeNode(util.UUID().String(), nil)
 		t.ErrorContains(err, "nil state hash")
 	})
 }
@@ -64,7 +64,7 @@ func (t *testStateTreeNode) TestIsValid() {
 func (t *testStateTreeNode) TestHash() {
 	t.Run("ok", func() {
 		key, sh := util.UUID().String(), valuehash.RandomSHA256()
-		n, err := newStateTreeNode(key, sh)
+		n, err := NewStateTreeNode(key, sh)
 		t.NoError(err)
 
 		h, f, err := n.SetHash(nil, nil)
@@ -84,7 +84,7 @@ func (t *testStateTreeNode) TestHash() {
 
 	t.Run("empty state key", func() {
 		sh := valuehash.RandomSHA256()
-		n, err := newStateTreeNode("", sh)
+		n, err := NewStateTreeNode("", sh)
 		t.NoError(err)
 
 		_, _, err = n.SetHash(nil, nil)
@@ -100,13 +100,13 @@ type testOperationTreeNode struct {
 	dutil.BaseSuite
 }
 
-func (t *testOperationTreeNode) nodeWithoutHash() *operationTreeNode {
-	n, _ := newOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
+func (t *testOperationTreeNode) nodeWithoutHash() *OperationTreeNode {
+	n, _ := NewOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
 
 	return n
 }
 
-func (t *testOperationTreeNode) node() *operationTreeNode {
+func (t *testOperationTreeNode) node() *OperationTreeNode {
 	n := t.nodeWithoutHash()
 	_, f, err := n.SetHash(nil, nil)
 	t.NoError(err)
@@ -131,12 +131,12 @@ func (t *testOperationTreeNode) TestOperationNodeIsValid() {
 	})
 
 	t.Run("nil oph", func() {
-		_, err := newOperationTreeNode(nil, valuehash.RandomSHA256(), util.UUID().String())
+		_, err := NewOperationTreeNode(nil, valuehash.RandomSHA256(), util.UUID().String())
 		t.ErrorContains(err, "nil oph")
 	})
 
 	t.Run("nil fact", func() {
-		_, err := newOperationTreeNode(valuehash.RandomSHA256(), nil, util.UUID().String())
+		_, err := NewOperationTreeNode(valuehash.RandomSHA256(), nil, util.UUID().String())
 		t.ErrorContains(err, "nil fact")
 	})
 }
@@ -144,7 +144,7 @@ func (t *testOperationTreeNode) TestOperationNodeIsValid() {
 func (t *testOperationTreeNode) TestOperationNodeHash() {
 	t.Run("ok", func() {
 		oph, fact, reason := valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String()
-		n, err := newOperationTreeNode(oph, fact, reason)
+		n, err := NewOperationTreeNode(oph, fact, reason)
 		t.NoError(err)
 
 		h, f, err := n.SetHash(nil, nil)
@@ -167,7 +167,7 @@ func (t *testOperationTreeNode) TestOperationNodeHash() {
 func (t *testOperationTreeNode) TestSetReason() {
 	t.Run("hash", func() {
 		oph, fact, reason := valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String()
-		n, err := newOperationTreeNode(oph, fact, reason)
+		n, err := NewOperationTreeNode(oph, fact, reason)
 		t.NoError(err)
 
 		ah, _, err := n.SetHash(nil, nil)
@@ -190,7 +190,7 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		n, err := newStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
+		n, err := NewStateTreeNode(util.UUID().String(), valuehash.RandomSHA256())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(f())
@@ -203,14 +203,14 @@ func TestStateTreeNodeEncode(tt *testing.T) {
 		return n, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var u *stateTreeNode
+		var u *StateTreeNode
 		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}
 	t.Compare = func(a interface{}, b interface{}) {
-		an := a.(*stateTreeNode)
-		bn := b.(*stateTreeNode)
+		an := a.(*StateTreeNode)
+		bn := b.(*StateTreeNode)
 
 		t.NoError(an.IsValid(nil))
 		t.NoError(bn.IsValid(nil))
@@ -228,7 +228,7 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 	t := new(mencoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		n, err := newOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
+		n, err := NewOperationTreeNode(valuehash.RandomSHA256(), valuehash.RandomSHA256(), util.UUID().String())
 		t.NoError(err)
 		_, f, err := n.SetHash(nil, nil)
 		t.NoError(f())
@@ -241,14 +241,14 @@ func TestOperationTreeNodeEncode(tt *testing.T) {
 		return n, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var u *operationTreeNode
+		var u *OperationTreeNode
 		t.NoError(util.UnmarshalJSON(b, &u))
 
 		return u
 	}
 	t.Compare = func(a interface{}, b interface{}) {
-		an := a.(*operationTreeNode)
-		bn := b.(*operationTreeNode)
+		an := a.(*OperationTreeNode)
+		bn := b.(*OperationTreeNode)
 
 		t.NoError(an.IsValid(nil))
 		t.NoError(bn.IsValid(nil))

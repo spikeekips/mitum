@@ -36,7 +36,7 @@ func (t *baseTestManager) checkOpsTree(ophs [][2]util.Hash, expectedReasons map[
 		}
 
 		op := ophs[index]
-		b, ok := n.(*operationTreeNode)
+		b, ok := n.(*OperationTreeNode)
 		if !ok {
 			return errors.Errorf("expected *OperationTreeNode, but %T", n)
 		}
@@ -81,7 +81,7 @@ func (t *baseTestManager) checkStatesTree(expectedStates [][2]interface{}, tr *f
 
 	for index, n := range tr.Traverse() {
 		a := expectedStates[index]
-		b, ok := n.(*stateTreeNode)
+		b, ok := n.(*StateTreeNode)
 		if !ok {
 			return errors.Errorf("expected *StateTreeNode, but %T", n)
 		}
@@ -104,7 +104,7 @@ func (t *baseTestManager) baseGenerateNodesHashFunc() fixedtree.GenerateNodesHas
 func (t *baseTestManager) processOps(
 	ctx context.Context,
 	facts []OperationFact,
-	getState getStateFunc,
+	getState GetStateFunc,
 ) (opsTree, statesTree *fixedtree.Tree, _ []base.State, _ map[string]int64, _ error) {
 	local := "local"
 	height := base.Height(33)
@@ -217,7 +217,7 @@ func (t *baseTestManager) processOps(
 	statesNodes := make([]fixedtree.Node, len(states))
 
 	for i, st := range slices.All(states) {
-		n, err := newStateTreeNode(st.Key(), st.Hash())
+		n, err := NewStateTreeNode(st.Key(), st.Hash())
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -229,7 +229,7 @@ func (t *baseTestManager) processOps(
 		return nil, nil, nil, nil, err
 	}
 
-	statesTree = newStatesTree(statesNodes)
+	statesTree = NewStatesTree(statesNodes)
 
 	values := map[string]int64{}
 

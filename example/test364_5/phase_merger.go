@@ -37,7 +37,7 @@ func (x xMergeFlag) String() string {
 }
 
 type (
-	getStateFunc = func(stateKey string) (base.State, bool, error)
+	GetStateFunc = func(stateKey string) (base.State, bool, error)
 	xMergeOpFunc = func(uint64, base.StateValue) (
 		commit func() error,
 		next uint64,
@@ -396,7 +396,7 @@ func newFuncExtractSMVKeys(maxSize, size int) (
 
 func newFuncGetSVMs(
 	m dutil.LockedMap[string, SVM],
-	getState getStateFunc,
+	getState GetStateFunc,
 	extractSMVKeys extractSMVKeysFunc,
 ) (
 	mergerGetSVMsFunc,
@@ -705,7 +705,7 @@ func unmergeOpValues(
 
 func newFuncGetOrCreateMerger(
 	m dutil.LockedMap[string, SVM],
-	getState getStateFunc,
+	getState GetStateFunc,
 ) func(SMV) (SVM, error) {
 	return func(value SMV) (merger SVM, _ error) {
 		return merger, m.GetOrCreate(

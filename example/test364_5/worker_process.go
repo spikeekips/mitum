@@ -32,14 +32,14 @@ type (
 	workerProcessInitialInsertFunc = func(
 		getStateOwnersFunc,
 		newWorkerProcessDistributeSMVsFunc,
-		getOperationFactFunc,
+		GetOperationFactFunc,
 		dutil.InErrorFunc[OpindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
 	workerProcessInitialInsertFunc2 = func(
 		getStateOwnersFunc,
 		newWorkerProcessDistributeSMVsFunc,
-		getOperationFactFunc,
+		GetOperationFactFunc,
 		dutil.InErrorFunc[OpindexOpHashesFunc],
 		dutil.In2ErrorFunc[[]string /* owners */, map[uint64]string /* reasons */],
 	) error
@@ -70,7 +70,7 @@ func newFuncWorkerProcess(
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getStatef getStateFunc,
+	getStatef GetStateFunc,
 	createStatef CreateStateFunc,
 	maxExtractStateKeyCacheSize int,
 	workers, opsWorkers []string,
@@ -100,7 +100,7 @@ func newFuncWorkerProcess(
 	extractSMVKeys, extractStateKeyClose := newFuncExtractSMVKeys(
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
-	var getState getStateFunc
+	var getState GetStateFunc
 	var createState createStateFunc2
 	var closeState func()
 
@@ -155,7 +155,7 @@ func newFuncWorkerProcess(
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
@@ -264,7 +264,7 @@ func newFuncWorkerProcessSVM(
 	ctx context.Context,
 	local string,
 	newJobWorker dutil.NewJobWorkerFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	createState createStateFunc2,
 	workers []string,
 	opsWorkers []string,
@@ -429,7 +429,7 @@ func newFuncWorkerProcessInitialInsert(
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
@@ -666,7 +666,7 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 	return reasons
 }
 
-func newGetCreateStateFunc(size uint64, get getStateFunc, create CreateStateFunc) (getStateFunc, createStateFunc2, func(), error) {
+func newGetCreateStateFunc(size uint64, get GetStateFunc, create CreateStateFunc) (GetStateFunc, createStateFunc2, func(), error) {
 	var pool dutil.LockedMap[string, base.State]
 
 	switch i, err := dutil.NewLockedMap[string, base.State](nil, size, size); {

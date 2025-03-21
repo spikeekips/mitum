@@ -10,7 +10,7 @@ import (
 type (
 	OpindexOpHashesFunc    = func(opindex uint64, oph, facth util.Hash) error
 	ctxOpindexOpHashesFunc = func(_ context.Context, opindex uint64, oph, facth util.Hash) error
-	getOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (_ OperationFact, found bool, reason string, _ error)
+	GetOperationFactFunc   = func(_ context.Context, opindex uint64, oph, facth util.Hash) (_ OperationFact, found bool, reason string, _ error)
 	extractSMVsFunc        = func(context.Context, uint64, util.Hash, util.Hash) (
 		subv SMV,
 		addvs []SMV,
@@ -18,7 +18,7 @@ type (
 		_ error,
 	)
 	smvExtractorInsertFunc = dutil.In3ErrorFunc[
-		getOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
+		GetOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc]
 	smvExtractorExtractedFunc = func(
 		opindex uint64,
 		facth util.Hash,
@@ -62,7 +62,7 @@ func newFuncSMVExtractor(
 	}
 
 	return func(
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			f dutil.InErrorFunc[OpindexOpHashesFunc],
 			extracted smvExtractorExtractedFunc,
 		) error {
@@ -95,7 +95,7 @@ func newFuncSMVExtractor(
 }
 
 func newFuncExtractSMV(
-	getOperationFact getOperationFactFunc,
+	getOperationFact GetOperationFactFunc,
 ) extractSMVsFunc {
 	return func(ctx context.Context, opindex uint64, oph, facth util.Hash) (
 		SMV,
@@ -130,7 +130,7 @@ func newFuncExtractSMV(
 }
 
 func newFuncExtractorSMVs(
-	getOperationFact getOperationFactFunc,
+	getOperationFact GetOperationFactFunc,
 	extracted smvExtractorExtractedFunc,
 	setReason func(opindex uint64, reason string),
 ) ctxOpindexOpHashesFunc {

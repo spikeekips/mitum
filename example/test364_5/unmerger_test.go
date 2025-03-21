@@ -21,7 +21,7 @@ func (t *testUnmerger) newFuncs() (
 	mergers dutil.LockedMap[string, SVM],
 	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	getMergers mergerGetSVMsFunc,
 ) {
 	t.T().Helper()

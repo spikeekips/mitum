@@ -152,7 +152,7 @@ func newFuncCheckFailedWorkers(
 
 func newFuncSVMs(
 	poolSize uint64,
-	getState getStateFunc,
+	getState GetStateFunc,
 	extractSMVKeys extractSMVKeysFunc,
 ) (
 	mergerGetSVMsFunc,

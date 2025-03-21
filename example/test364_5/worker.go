@@ -21,7 +21,7 @@ type (
 	WorkerInitialInsertFunc = func(
 		getStateOwnersFunc,
 		NewWorkerDistributeSMVsFunc,
-		getOperationFactFunc,
+		GetOperationFactFunc,
 		iter.Seq2[uint64 /* opindex */, [2]util.Hash /* {op, fact} */],
 		WorkerReportStatesOwnersFunc,
 	) error
@@ -66,7 +66,7 @@ func NewWorkerOptions(local string) *WorkerOptions {
 func NewFuncWorker(
 	ctx context.Context,
 	options *WorkerOptions,
-	getState getStateFunc,
+	getState GetStateFunc,
 	createState CreateStateFunc,
 	reportCancelWork dutil.InErrorFunc[error],
 	workers, opsWorkers []string,
@@ -159,7 +159,7 @@ func NewFuncWorker(
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute NewWorkerDistributeSMVsFunc,
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			ophs iter.Seq2[uint64, [2]util.Hash],
 			reportStatesOwners WorkerReportStatesOwnersFunc,
 		) error {

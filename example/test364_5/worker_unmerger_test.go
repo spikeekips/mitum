@@ -30,7 +30,7 @@ func (t *testWorkerUnmerger) newFuncs() (
 	mergers dutil.LockedMap[string, SVM],
 	states dutil.LockedMap[string, base.State],
 	_ opindexGetSMVsFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	getSVMs mergerGetSVMsFunc,
 	traverseSVMs iter.Seq2[string, SVM],
 ) {

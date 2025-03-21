@@ -22,14 +22,14 @@ type testSMVExtractor struct {
 }
 
 func (t *testSMVExtractor) newf(ctx context.Context, facts []OperationFact) (
-	dutil.In3ErrorFunc[getOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc],
+	dutil.In3ErrorFunc[GetOperationFactFunc, dutil.InErrorFunc[OpindexOpHashesFunc], smvExtractorExtractedFunc],
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
 	insert, wait, err := newFuncSMVExtractor(ctx, t.newJobWorker(), 1<<9)
 
 	return func(
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			f dutil.InErrorFunc[OpindexOpHashesFunc],
 			extracted smvExtractorExtractedFunc,
 		) error {
@@ -428,7 +428,7 @@ func TestSMVExtractor(t *testing.T) {
 	suite.Run(t, new(testSMVExtractor))
 }
 
-func newFuncGetOperationFact(facts []OperationFact) getOperationFactFunc {
+func newFuncGetOperationFact(facts []OperationFact) GetOperationFactFunc {
 	return func(_ context.Context, opindex uint64, _, _ util.Hash) (OperationFact, bool, string, error) {
 		if opindex >= uint64(len(facts)) {
 			return nil, false, "", nil

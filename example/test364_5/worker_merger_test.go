@@ -26,7 +26,7 @@ type testWorkerMerger struct {
 func (t *testWorkerMerger) newFuncs() (
 	mergers dutil.LockedMap[string, SVM],
 	states dutil.LockedMap[string, base.State],
-	getState getStateFunc,
+	getState GetStateFunc,
 	getSVMs mergerGetSVMsFunc,
 	traverseSVMs iter.Seq2[string, SVM],
 ) {

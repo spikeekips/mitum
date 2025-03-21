@@ -32,6 +32,8 @@ import (
 var (
 	defaultSubStreamItems    uint64 = 1 << 9
 	defaultMaxSubStreamsSize uint16 = 1 << 8
+	startHeight                     = base.Height(33)
+	nextHeight                      = base.Height(34)
 )
 
 type requestWorkerFunc = func(context.Context,
@@ -45,13 +47,14 @@ type managerCommand struct {
 	StatesShare uint64   `arg:"" help:"states share"`
 	Workers     []string `arg:"" default:""`
 
-	managerOptions *dop5.ManagerOptions
-	privs          []base.Privatekey
-	pubs           []base.Publickey
-	createFacts    []dop5.OperationFact
-	createOphs     [][2]util.Hash
-	transferFacts  []dop5.OperationFact
-	transferOphs   [][2]util.Hash
+	managerOptions    *dop5.ManagerOptions
+	privs             []base.Privatekey
+	pubs              []base.Publickey
+	createFacts       []dop5.OperationFact
+	createOphs        [][2]util.Hash
+	transferFacts     []dop5.OperationFact
+	transferOphs      [][2]util.Hash
+	expectedManifests [2]base.Manifest
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -139,6 +142,14 @@ func (cmd *managerCommand) prepare() error {
 		return err
 	}
 
+	switch m, err := cmd.prepareManifests(); {
+	case err != nil:
+		return err
+	default:
+		cmd.log.Debug().Interface("manifests", m).Msg("manifests loaded")
+		cmd.expectedManifests = m
+	}
+
 	return nil
 }
 
@@ -146,16 +157,13 @@ func (cmd *managerCommand) preparePKs() error {
 	size := cmd.Ops + 1
 
 	created, pubs, err := prepareItems(
+		cmd.enc,
 		"pubs.b",
 		size,
-		func(w io.Writer, i uint64) (base.Publickey, error) {
+		func(i uint64) (base.Publickey, []byte, error) {
 			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
 
-			if err := frame.WriteFixed(w, k.SerializeCompressed()); err != nil {
-				return nil, err
-			}
-
-			return base.NewMPublickey(k), nil
+			return base.NewMPublickey(k), k.SerializeCompressed(), nil
 		},
 		func(b []byte, _ uint64) (base.Publickey, error) {
 			k, err := btcec.ParsePubKey(b)
@@ -181,28 +189,21 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 	ophs := make([][2]util.Hash, cmd.Ops)
 
 	created, facts, err := prepareItems(
+		cmd.enc,
 		"create-ops.b",
 		cmd.Ops,
-		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
+		func(i uint64) (dop5.OperationFact, []byte, error) {
 			fact := dop5.NewAccountOpFact(
 				[]byte("c"),
 				1,
 				nil,
 				cmd.pubs[i],
 			)
+			ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 
-			switch b, err := cmd.enc.Marshal(fact); {
-			case err != nil:
-				return nil, err
-			default:
-				if err := frame.WriteFixed(w, b); err != nil {
-					return nil, err
-				}
+			b, err := cmd.enc.Marshal(fact)
 
-				ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
-
-				return fact, nil
-			}
+			return fact, b, err
 		},
 		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
 			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
@@ -227,9 +228,10 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 	ophs := make([][2]util.Hash, cmd.Ops)
 
 	created, facts, err := prepareItems(
+		cmd.enc,
 		"transfer-ops.b",
 		cmd.Ops,
-		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
+		func(i uint64) (dop5.OperationFact, []byte, error) {
 			fact := dop5.NewAccountOpFact(
 				[]byte("d"),
 				1,
@@ -237,18 +239,11 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 				cmd.pubs[i+1],
 			)
 
-			switch b, err := cmd.enc.Marshal(fact); {
-			case err != nil:
-				return nil, err
-			default:
-				if err := frame.WriteFixed(w, b); err != nil {
-					return nil, err
-				}
+			ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
 
-				ophs[i] = [2]util.Hash{fact.Hash(), fact.Hash()}
+			b, err := cmd.enc.Marshal(fact)
 
-				return fact, nil
-			}
+			return fact, b, err
 		},
 		func(b []byte, i uint64) (fact dop5.OperationFact, _ error) {
 			if err := encoder.Unmarshal(cmd.enc, b, &fact); err != nil {
@@ -272,15 +267,30 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 func (cmd *managerCommand) process() error {
 	var prevHash util.Hash
 
-	switch h, err := cmd.process1st(); {
+	switch m, err := cmd.process1st(); {
 	case err != nil:
 		return err
+	case !m.Hash().Equal(cmd.expectedManifests[0].Hash()):
+		cmd.log.Error().
+			Interface("expected", cmd.expectedManifests[0]).
+			Interface("result", m).
+			Msg("manifest hash mismatch, 33")
+
+		return errors.Errorf("manifest hash mismatch, 33")
 	default:
-		prevHash = h
+		prevHash = m.Hash()
 	}
 
-	if err := cmd.process2nd(prevHash); err != nil {
+	switch m, err := cmd.process2nd(prevHash); {
+	case err != nil:
 		return err
+	case !m.Hash().Equal(cmd.expectedManifests[1].Hash()):
+		cmd.log.Error().
+			Interface("expected", cmd.expectedManifests[1]).
+			Interface("result", m).
+			Msg("manifest hash mismatch, 34")
+
+		return errors.Errorf("manifest hash mismatch, 34")
 	}
 
 	cmd.log.Debug().Msg("processed")
@@ -288,10 +298,10 @@ func (cmd *managerCommand) process() error {
 	return cmd.stopWorkers()
 }
 
-func (cmd *managerCommand) process1st() (util.Hash, error) {
+func (cmd *managerCommand) process1st() (base.Manifest, error) {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 1st")()
 
-	switch h, w, err := cmd.processHeight(cmd.ctx, 33, nil, cmd.createOphs); {
+	switch m, w, err := cmd.processHeight(cmd.ctx, startHeight, nil, cmd.createOphs); {
 	case err != nil:
 		return nil, err
 	default:
@@ -299,18 +309,18 @@ func (cmd *managerCommand) process1st() (util.Hash, error) {
 			return nil, err
 		}
 
-		return h, nil
+		return m, nil
 	}
 }
 
-func (cmd *managerCommand) process2nd(prevHash util.Hash) error {
+func (cmd *managerCommand) process2nd(prevHash util.Hash) (base.Manifest, error) {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 2nd")()
 
-	switch _, w, err := cmd.processHeight(cmd.ctx, 34, prevHash, cmd.transferOphs); {
+	switch m, w, err := cmd.processHeight(cmd.ctx, nextHeight, prevHash, cmd.transferOphs); {
 	case err != nil:
-		return err
+		return nil, err
 	default:
-		return w()
+		return m, w()
 	}
 }
 
@@ -331,18 +341,26 @@ func (cmd *managerCommand) processHeight(
 	height base.Height,
 	prevManiest util.Hash,
 	ophs [][2]util.Hash,
-) (util.Hash, dutil.ErrorFunc, error) {
+) (base.Manifest, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s", height)
 
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().Str("work_id", workID).Interface("height", height), "process height")()
-
-	return cmd.startManager(
+	m, w, err := cmd.startManager(
 		dutil.SetContextValueLogger(ctx, cmd.log),
 		height,
 		prevManiest,
 		workID,
 		ophs,
 	)
+
+	dutil.ElapsedLogEvent(
+		cmd.log.Debug().
+			Str("work_id", workID).
+			Interface("height", height).
+			Interface("manifest", m),
+		"process height",
+	)()
+
+	return m, w, err
 }
 
 func (cmd *managerCommand) startManager(
@@ -351,7 +369,7 @@ func (cmd *managerCommand) startManager(
 	prevManiest util.Hash,
 	workID string,
 	ophs [][2]util.Hash,
-) (util.Hash, dutil.ErrorFunc, error) {
+) (base.Manifest, dutil.ErrorFunc, error) {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug().
 		Str("work_id", workID).
 		Interface("height", height).
@@ -426,23 +444,7 @@ func (cmd *managerCommand) startManager(
 			return err
 		},
 		func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-			var opsr, statesr util.Hash
-			if opsTree != nil {
-				opsr = opsTree.Root()
-			}
-			if statesTree != nil {
-				statesr = statesTree.Root()
-			}
-
-			manifest = isaac.NewManifest(
-				height,
-				prevManiest,
-				valuehash.RandomSHA256(),
-				opsr,
-				statesr,
-				valuehash.RandomSHA256(),
-				time.Now(),
-			)
+			manifest = newManifest(height, prevManiest, opsTree, statesTree)
 
 			manifestElapsedLog()
 
@@ -467,7 +469,7 @@ func (cmd *managerCommand) startManager(
 
 	requestWaitWorkerClosed := cmd.requestWorkWorker(workID, "_manager_wait_worker_closed")
 
-	return manifest.Hash(),
+	return manifest,
 		func() error {
 			// NOTE check all worker closes work.
 			return stderrors.Join(
@@ -605,10 +607,110 @@ func (cmd *managerCommand) stopWorkers() error {
 	})
 }
 
+func (cmd *managerCommand) prepareManifests() (manifests [2]base.Manifest, _ error) {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "prepare manifests")()
+
+	filename := fmt.Sprintf("manifests-%d.b", cmd.Ops)
+
+	switch m, err := cmd.loadManifests(filename); {
+	case err != nil:
+		return manifests, err
+	case m[0] == nil && m[1] == nil:
+	default:
+		return m, nil
+	}
+
+	return cmd.makeManifests(filename)
+}
+
+func (cmd *managerCommand) makeManifests(filename string) (manifests [2]base.Manifest, _ error) {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "make manifests")()
+
+	ctx := dutil.SetContextValueLogger(cmd.ctx, cmd.log)
+
+	manifest33, states33, err := managerRunOneWorker(ctx, startHeight, nil, nil, cmd.createFacts)
+	if err != nil {
+		return manifests, err
+	}
+
+	manifest34, _, err := managerRunOneWorker(ctx, nextHeight, manifest33.Hash(), states33, cmd.transferFacts)
+	if err != nil {
+		return manifests, err
+	}
+
+	switch f, err := os.Create(filename); {
+	case err != nil:
+		return manifests, err
+	default:
+		defer f.Close()
+
+		b33, err := cmd.enc.Marshal(manifest33)
+		if err != nil {
+			return manifests, err
+		}
+
+		b34, err := cmd.enc.Marshal(manifest34)
+		if err != nil {
+			return manifests, err
+		}
+
+		if err := frame.WriteFixed(f, b33); err != nil {
+			return manifests, err
+		}
+		if err := frame.WriteFixed(f, b34); err != nil {
+			return manifests, err
+		}
+
+		return [2]base.Manifest{manifest33, manifest34}, nil
+	}
+}
+
+func (cmd *managerCommand) loadManifests(filename string) (manifests [2]base.Manifest, _ error) {
+	switch f, err := os.Open(filename); {
+	case err != nil && !os.IsNotExist(err):
+		return manifests, err
+	case os.IsNotExist(err):
+		return manifests, nil
+	default:
+		defer f.Close()
+
+		var err error
+		manifests[0], err = cmd.loadManifest(f)
+		if err != nil {
+			return manifests, err
+		}
+		if manifests[0] == nil {
+			return manifests, errors.Errorf("nil manifest, 33")
+		}
+
+		manifests[1], err = cmd.loadManifest(f)
+		if err != nil {
+			return manifests, err
+		}
+		if manifests[1] == nil {
+			return manifests, errors.Errorf("nil manifest, 34")
+		}
+
+		return manifests, nil
+	}
+}
+
+func (cmd *managerCommand) loadManifest(r io.Reader) (manifest base.Manifest, _ error) {
+	switch b, n, err := frame.ReadFixed(r); {
+	case err != nil && !errors.Is(err, io.EOF):
+		return nil, err
+	case n < 1 && errors.Is(err, io.EOF):
+		return nil, nil
+	default:
+		return manifest, encoder.Unmarshal(cmd.enc, b, &manifest)
+	}
+}
+
 func prepareItems[T any](
+	enc encoder.Encoder,
 	filename string,
 	size uint64,
-	create func(io.Writer, uint64) (T, error),
+	create func(uint64) (T, []byte, error),
 	load func([]byte, uint64) (T, error),
 ) (uint64, []T, error) {
 	items := make([]T, size)
@@ -675,14 +777,26 @@ func prepareItems[T any](
 	for i := range rem {
 		if err := newJob(func(context.Context) error {
 			index := size - rem + i
-			switch v, err := create(w, index); {
+
+			var b []byte
+			switch v, j, err := create(index); {
 			case err != nil:
 				return err
 			default:
 				items[index] = v
-
-				return nil
+				b = j
 			}
+
+			ib, err := encodeUint64(index)
+			if err != nil {
+				return err
+			}
+
+			if err := frame.WriteFixeds(w, ib, b); err != nil {
+				return err
+			}
+
+			return nil
 		}); err != nil {
 			return 0, nil, jobWait(err)
 		}
@@ -722,24 +836,37 @@ func loadFromFile[T any](
 
 	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), nsize)
 
-	for i := uint64(0); i < nsize; i++ {
-		switch b, n, err := frame.ReadFixed(r); {
-		case err != nil && !errors.Is(err, io.EOF),
-			n < 1 && errors.Is(err, io.EOF):
-			return nil, jobWait(err)
-		default:
-			if err := newJob(func(context.Context) error {
-				switch v, err := load(b, i); {
-				case err != nil:
-					return err
-				default:
-					items[i] = v
+	for range nsize {
+		var index uint64
+		var b []byte
 
-					return nil
-				}
-			}); err != nil {
-				return nil, jobWait(err)
+		switch i, _, err := frame.ReadFixed(r); {
+		case err != nil:
+			return nil, err
+		default:
+			if err := decodeUint64(i, &index); err != nil {
+				return nil, err
 			}
+		}
+
+		switch i, _, err := frame.ReadFixed(r); {
+		case err != nil:
+			return nil, err
+		default:
+			b = i
+		}
+
+		if err := newJob(func(context.Context) error {
+			switch v, err := load(b, index); {
+			case err != nil:
+				return err
+			default:
+				items[index] = v
+
+				return nil
+			}
+		}); err != nil {
+			return nil, jobWait(err)
 		}
 	}
 
@@ -750,4 +877,29 @@ func loadFromFile[T any](
 	}
 
 	return items, nil
+}
+
+func newManifest(
+	height base.Height,
+	prevManiest util.Hash,
+	opsTree, statesTree *fixedtree.Tree,
+) base.Manifest {
+	var opsr, statesr util.Hash
+	if opsTree != nil {
+		opsr = opsTree.Root()
+	}
+
+	if statesTree != nil {
+		statesr = statesTree.Root()
+	}
+
+	return isaac.NewManifest(
+		height,
+		prevManiest,
+		valuehash.NewBytes([]byte("proposal")),
+		opsr,
+		statesr,
+		valuehash.NewBytes([]byte("suffrage")),
+		time.Unix(1, 1),
+	)
 }

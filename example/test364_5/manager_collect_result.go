@@ -167,9 +167,9 @@ func newFuncGenerateOperationFixedtree(
 	_ generateFixedTreeFunc,
 	_ error,
 ) {
-	var pool dutil.LockedMap[uint64, *operationTreeNode]
+	var pool dutil.LockedMap[uint64, *OperationTreeNode]
 
-	switch i, err := dutil.NewLockedMap[uint64, *operationTreeNode](nil, uint64(len(ophs)), uint64(len(ophs))); {
+	switch i, err := dutil.NewLockedMap[uint64, *OperationTreeNode](nil, uint64(len(ophs)), uint64(len(ophs))); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -179,12 +179,12 @@ func newFuncGenerateOperationFixedtree(
 	return func() error {
 			for i, hs := range slices.All(ophs) {
 				if err := newJob(func(context.Context) error {
-					_, _ = pool.Set(uint64(i), func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
+					_, _ = pool.Set(uint64(i), func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
 						if found {
 							return nil, dutil.ErrLockedSetIgnore
 						}
 
-						return newOperationTreeNode(hs[0], hs[1], "")
+						return NewOperationTreeNode(hs[0], hs[1], "")
 					})
 
 					return nil
@@ -200,12 +200,12 @@ func newFuncGenerateOperationFixedtree(
 				return nil
 			}
 
-			_, _ = pool.Set(opindex, func(n *operationTreeNode, found bool) (*operationTreeNode, error) {
+			_, _ = pool.Set(opindex, func(n *OperationTreeNode, found bool) (*OperationTreeNode, error) {
 				switch {
 				case !found:
 					hs := ophs[opindex]
 
-					return newOperationTreeNode(hs[0], hs[1], reason)
+					return NewOperationTreeNode(hs[0], hs[1], reason)
 				default:
 					n.SetReason(reason)
 				}
@@ -234,7 +234,7 @@ func newFuncGenerateOperationFixedtree(
 				return nil, err
 			}
 
-			return newOperationsTree(nodes), nil
+			return NewOperationsTree(nodes), nil
 		},
 		nil
 }
@@ -371,7 +371,7 @@ func newFuncManagerWorkersResult(
 
 					switch err := dutil.ContextCauseError(wctx, dutil.NewIfErrErrorInFunc(cancel), func(context.Context) error {
 						return newJob(func(context.Context) error {
-							switch n, err := newStateTreeNode(stateKey, stateHash); {
+							switch n, err := NewStateTreeNode(stateKey, stateHash); {
 							case err != nil:
 								return err
 							default:
@@ -478,7 +478,7 @@ func newFuncManagerWorkersResult(
 					return err
 				}
 
-				tr = newStatesTree(nodes)
+				tr = NewStatesTree(nodes)
 
 				return nil
 			})

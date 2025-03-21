@@ -55,7 +55,7 @@ func (t *testManagerWithWorkers) newWorkers(
 	workers []string,
 	opsShare, statesShare uint64,
 	ophs [][2]util.Hash,
-	getState getStateFunc,
+	getState GetStateFunc,
 	reportWorkerCancelWork dutil.In2ErrorFunc[string, error],
 ) (
 	workersInitialInserts map[string]WorkerInitialInsertFunc,
@@ -111,7 +111,7 @@ func (t *testManagerWithWorkers) newWorker(
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
-	getState getStateFunc,
+	getState GetStateFunc,
 	reportCancelWork dutil.InErrorFunc[error],
 ) (
 	WorkerInitialInsertFunc,
@@ -153,7 +153,7 @@ func (t *testManagerWithWorkers) newManager(
 	workers []string,
 	opsShare, statesShare uint64,
 	facts []OperationFact,
-	getState getStateFunc,
+	getState GetStateFunc,
 	getStateOwners getStateOwnersFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
 	expectedStatesValues map[string]int64,
@@ -446,7 +446,7 @@ func (t *testManagerWithWorkers) processCase(
 	workersSize, opsShare, statesShare uint64,
 	facts []OperationFact,
 	getStateOwners getStateOwnersFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	expectedWorkersOwners map[string]map[string][][]string,
 	expectedStatesValues map[string]int64,
 ) (
@@ -518,7 +518,7 @@ func (t *testManagerWithWorkers) processCase(
 func (t *testManagerWithWorkers) runCase(
 	workersSize, opsShare, statesShare uint64,
 	getStateOwners getStateOwnersFunc,
-	getState getStateFunc,
+	getState GetStateFunc,
 	facts []OperationFact,
 	expectedOpsTree, expectedStatesTree *fixedtree.Tree,
 	expectedStates []base.State,

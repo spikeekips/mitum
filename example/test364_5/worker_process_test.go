@@ -26,7 +26,7 @@ type testWorkerProcess struct {
 func (t *testWorkerProcess) newf(
 	ctx context.Context,
 	local string,
-	getState getStateFunc,
+	getState GetStateFunc,
 	createState CreateStateFunc,
 	workers, opsWorkers []string,
 	opsShare, statesShare uint64,
@@ -76,7 +76,7 @@ func (t *testWorkerProcess) newf(
 	return func(
 			getStateOwners getStateOwnersFunc,
 			distribute newWorkerProcessDistributeSMVsFunc,
-			getOperationFact getOperationFactFunc,
+			getOperationFact GetOperationFactFunc,
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
