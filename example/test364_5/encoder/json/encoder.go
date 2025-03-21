@@ -244,6 +244,10 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 				return nil, errors.Errorf("decoded; expected %T, but %T", sample, i)
 			}
 
+			if h, ok := i.(hint.Hinter); ok && !h.Hint().IsEmpty() {
+				return k, nil
+			}
+
 			return sethint(k)
 		}
 	}
