@@ -21,6 +21,7 @@ import (
 	"github.com/spikeekips/mitum/example/test364_5/frame"
 	"github.com/spikeekips/mitum/example/test364_5/quicstream"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -94,6 +95,7 @@ func (cmd *baseCommand) addHinters() error {
 		addDecode(cmd.enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON),
 		addDecode(cmd.enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON),
 		addDecode(cmd.enc, dop5.BaseStateHint, &dop5.BaseState{}, dop5.BaseStateDecodeJSON),
+		addDecode(cmd.enc, isaac.ManifestHint, isaac.Manifest{}, dop5.DecodeJSONManifest),
 	)
 }
 
