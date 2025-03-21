@@ -1,6 +1,7 @@
 package frame
 
 import (
+	"bytes"
 	stderrors "errors"
 	"io"
 	"iter"
@@ -59,6 +60,21 @@ func WriteFixed(w io.Writer, b []byte) error {
 
 		return errors.WithStack(err)
 	}
+}
+
+func WriteFixeds(w io.Writer, bs ...[]byte) error {
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
+
+	for b := range slices.Values(bs) {
+		if err := WriteFixed(buf, b); err != nil {
+			return err
+		}
+	}
+
+	_, err := w.Write(buf.Bytes())
+
+	return err
 }
 
 func ReadFixedSlice(r io.Reader) (uint32, iter.Seq2[[]byte, error], error) {

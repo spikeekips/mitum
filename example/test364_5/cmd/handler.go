@@ -435,11 +435,7 @@ func requestHandlerWorkerResult(
 					return err
 				}
 
-				if err := frame.WriteFixed(sub, []byte(st.Key())); err != nil {
-					return err
-				}
-
-				if err := frame.WriteFixed(sub, st.Hash().Bytes()); err != nil {
+				if err := frame.WriteFixeds(sub, []byte(st.Key()), st.Hash().Bytes()); err != nil {
 					return err
 				}
 
