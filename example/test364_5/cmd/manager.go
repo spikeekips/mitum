@@ -143,11 +143,11 @@ func (cmd *managerCommand) prepare() error {
 }
 
 func (cmd *managerCommand) preparePKs() error {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "pks created")()
+	size := cmd.Ops + 1
 
-	pubs, err := prepareItems(
+	created, pubs, err := prepareItems(
 		"pubs.b",
-		cmd.Ops,
+		size,
 		func(w io.Writer, i uint64) (base.Publickey, error) {
 			_, k := btcec.PrivKeyFromBytes([]byte(strconv.FormatInt(int64(i), 10)))
 
@@ -170,17 +170,17 @@ func (cmd *managerCommand) preparePKs() error {
 		return err
 	}
 
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", size).Uint64("created", created), "pks created")()
+
 	cmd.pubs = pubs
 
 	return nil
 }
 
 func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "create ops created")()
-
 	ophs := make([][2]util.Hash, cmd.Ops)
 
-	facts, err := prepareItems(
+	created, facts, err := prepareItems(
 		"create-ops.b",
 		cmd.Ops,
 		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
@@ -218,15 +218,15 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 		return nil, nil, err
 	}
 
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "create ops created")()
+
 	return facts, ophs, nil
 }
 
 func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops), "transfer ops created")()
-
 	ophs := make([][2]util.Hash, cmd.Ops)
 
-	facts, err := prepareItems(
+	created, facts, err := prepareItems(
 		"transfer-ops.b",
 		cmd.Ops,
 		func(w io.Writer, i uint64) (dop5.OperationFact, error) {
@@ -234,7 +234,7 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 				[]byte("d"),
 				1,
 				cmd.pubs[i],
-				cmd.pubs[uint64(i+1)%cmd.Ops],
+				cmd.pubs[i+1],
 			)
 
 			switch b, err := cmd.enc.Marshal(fact); {
@@ -263,6 +263,8 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 	if err != nil {
 		return nil, nil, err
 	}
+
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "transfer ops created")()
 
 	return facts, ophs, nil
 }
@@ -608,7 +610,7 @@ func prepareItems[T any](
 	size uint64,
 	create func(io.Writer, uint64) (T, error),
 	load func([]byte, uint64) (T, error),
-) ([]T, error) {
+) (uint64, []T, error) {
 	items := make([]T, size)
 	rem := size
 
@@ -616,7 +618,7 @@ func prepareItems[T any](
 
 	switch f, err := os.Open(filename); {
 	case err != nil && !os.IsNotExist(err):
-		return nil, err
+		return 0, nil, err
 	case os.IsNotExist(err):
 	default:
 		defer f.Close()
@@ -626,7 +628,7 @@ func prepareItems[T any](
 
 		switch {
 		case err != nil:
-			return nil, err
+			return 0, nil, err
 		case len(p) > 0:
 			copy(items, p)
 
@@ -635,31 +637,31 @@ func prepareItems[T any](
 	}
 
 	if rem < 1 {
-		return items, nil
+		return 0, items, nil
 	}
 
 	var w *os.File
 
 	switch f, err := os.Create(filename + ".tmp"); {
 	case err != nil:
-		return nil, err
+		return 0, nil, err
 	default:
 		if err := writeUint64(f, size); err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 
 		if prev != nil {
 			if _, err := prev.Seek(0, 0); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 
 			var nsize uint64
 			if _, err := readUint64(prev, &nsize); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 
 			if _, err := io.Copy(f, prev); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 
 			_ = prev.Close()
@@ -682,23 +684,23 @@ func prepareItems[T any](
 				return nil
 			}
 		}); err != nil {
-			return nil, jobWait(err)
+			return 0, nil, jobWait(err)
 		}
 	}
 
 	jobDone()
 
 	if err := jobWait(nil); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	_ = w.Close()
 
 	if err := os.Rename(filename+".tmp", filename); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return items, nil
+	return rem, items, nil
 }
 
 func loadFromFile[T any](
