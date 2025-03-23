@@ -30,10 +30,13 @@ import (
 )
 
 var (
-	defaultSubStreamItems    uint64 = 1 << 9
-	defaultMaxSubStreamsSize uint16 = 1 << 8
-	startHeight                     = base.Height(33)
-	nextHeight                      = base.Height(34)
+	defaultSubStreamItems     uint64 = 1 << 9
+	defaultMaxSubStreamsSize  uint16 = 1 << 8
+	startHeight                      = base.Height(33)
+	nextHeight                       = base.Height(34)
+	manifestsCacheFilenameFmt        = "manifests-%d.b"
+	statesCacheFilenameFmt           = "states-%d-%d.b"
+	opsTreeCacheFilenameFmt          = "ops_trees-%d-%d.b"
 )
 
 type requestWorkerFunc = func(context.Context,
@@ -55,6 +58,8 @@ type managerCommand struct {
 	transferFacts     []dop5.OperationFact
 	transferOphs      [][2]util.Hash
 	expectedManifests [2]base.Manifest
+	expectedStates    [2][]base.State
+	expectedOpsTrees  [2]*fixedtree.Tree
 }
 
 func (cmd *managerCommand) Run(log *zerolog.Logger) error {
@@ -142,12 +147,8 @@ func (cmd *managerCommand) prepare() error {
 		return err
 	}
 
-	switch m, err := cmd.prepareManifests(); {
-	case err != nil:
+	if err := cmd.preparePreProcessed(); err != nil {
 		return err
-	default:
-		cmd.log.Debug().Interface("manifests", m).Msg("manifests loaded")
-		cmd.expectedManifests = m
 	}
 
 	return nil
@@ -270,27 +271,12 @@ func (cmd *managerCommand) process() error {
 	switch m, err := cmd.process1st(); {
 	case err != nil:
 		return err
-	case !m.Hash().Equal(cmd.expectedManifests[0].Hash()):
-		cmd.log.Error().
-			Interface("expected", cmd.expectedManifests[0]).
-			Interface("result", m).
-			Msg("manifest hash mismatch, 33")
-
-		return errors.Errorf("manifest hash mismatch, 33")
 	default:
 		prevHash = m.Hash()
 	}
 
-	switch m, err := cmd.process2nd(prevHash); {
-	case err != nil:
+	if _, err := cmd.process2nd(prevHash); err != nil {
 		return err
-	case !m.Hash().Equal(cmd.expectedManifests[1].Hash()):
-		cmd.log.Error().
-			Interface("expected", cmd.expectedManifests[1]).
-			Interface("result", m).
-			Msg("manifest hash mismatch, 34")
-
-		return errors.Errorf("manifest hash mismatch, 34")
 	}
 
 	cmd.log.Debug().Msg("processed")
@@ -436,6 +422,7 @@ func (cmd *managerCommand) startManager(
 	requestCloseWork := cmd.requestWorkWorker(workID, "manager_close_work")
 
 	var manifest base.Manifest
+	var opsTree *fixedtree.Tree
 
 	if err := wait(
 		func(ctx context.Context, worker string) error {
@@ -443,10 +430,12 @@ func (cmd *managerCommand) startManager(
 
 			return err
 		},
-		func(opsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
-			manifest = newManifest(height, prevManiest, opsTree, statesTree)
+		func(wopsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
+			manifest = newManifest(height, prevManiest, wopsTree, statesTree)
 
 			manifestElapsedLog()
+
+			opsTree = wopsTree
 
 			return manifest, nil
 		},
@@ -472,7 +461,7 @@ func (cmd *managerCommand) startManager(
 	return manifest,
 		func() error {
 			// NOTE check all worker closes work.
-			return stderrors.Join(
+			_ = stderrors.Join(
 				cmd.requestWorkers(ctx, func(ctx context.Context, worker string) error {
 					_, _ = requestWaitWorkerClosed(ctx, worker, nil, nil, requestHandlerWaitWorkerClosed())
 
@@ -480,6 +469,8 @@ func (cmd *managerCommand) startManager(
 				}),
 				closeManager(),
 			)
+
+			return cmd.checkProcessed(manifest, opsTree)
 		},
 		nil
 }
@@ -607,103 +598,188 @@ func (cmd *managerCommand) stopWorkers() error {
 	})
 }
 
-func (cmd *managerCommand) prepareManifests() (manifests [2]base.Manifest, _ error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "prepare manifests")()
+func (cmd *managerCommand) preparePreProcessed() error {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "load pre processed")()
 
-	filename := fmt.Sprintf("manifests-%d.b", cmd.Ops)
-
-	switch m, err := cmd.loadManifests(filename); {
+	switch ok, err := cmd.loadPreProcessed(); {
 	case err != nil:
-		return manifests, err
-	case m[0] == nil && m[1] == nil:
-	default:
-		return m, nil
+		return err
+	case ok:
+		return nil
 	}
 
-	return cmd.makeManifests(filename)
+	switch ms, states, opsTrees, err := cmd.preProcess(); {
+	case err != nil:
+		return err
+	default:
+		cmd.expectedManifests = ms
+		cmd.expectedStates = states
+		cmd.expectedOpsTrees = opsTrees
+
+		if err := saveManifests(cmd.enc, fmt.Sprintf(manifestsCacheFilenameFmt, cmd.Ops), ms); err != nil {
+			return err
+		}
+
+		for i, height := range slices.All([]base.Height{startHeight, nextHeight}) {
+			if err := saveStatesToFile(
+				cmd.ctx,
+				cmd.enc,
+				fmt.Sprintf(statesCacheFilenameFmt, cmd.Ops, height),
+				states[i],
+			); err != nil {
+				return err
+			}
+
+			if err := saveOpsTreeToFile(
+				cmd.ctx,
+				cmd.enc,
+				fmt.Sprintf(opsTreeCacheFilenameFmt, cmd.Ops, height),
+				opsTrees[i],
+			); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 }
 
-func (cmd *managerCommand) makeManifests(filename string) (manifests [2]base.Manifest, _ error) {
+func (cmd *managerCommand) loadPreProcessed() (bool, error) {
+	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "prepare manifests")()
+
+	mfilename := fmt.Sprintf(manifestsCacheFilenameFmt, cmd.Ops)
+
+	switch m, err := loadManifests(cmd.enc, mfilename); {
+	case err != nil:
+		return false, err
+	case m[0] == nil || m[1] == nil:
+		return false, nil
+	default:
+		cmd.expectedManifests = m
+	}
+
+	for i, height := range slices.All([]base.Height{startHeight, nextHeight}) {
+		switch states, err := loadStatesFromFile(cmd.ctx, cmd.enc, fmt.Sprintf(statesCacheFilenameFmt, cmd.Ops, height)); {
+		case err != nil:
+			return false, err
+		case len(states) < 1:
+			return false, nil
+		default:
+			cmd.expectedStates[i] = states
+		}
+
+		switch tr, err := loadOpsTreeFromFile(cmd.ctx, cmd.enc, fmt.Sprintf(opsTreeCacheFilenameFmt, cmd.Ops, height)); {
+		case err != nil:
+			return false, err
+		case tr == nil || tr.Len() < 1:
+			return false, nil
+		default:
+			cmd.expectedOpsTrees[i] = tr
+		}
+	}
+
+	return true, nil
+}
+
+func (cmd *managerCommand) preProcess() (manifests [2]base.Manifest, states [2][]base.State, opsTrees [2]*fixedtree.Tree, _ error) {
 	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "make manifests")()
 
 	ctx := dutil.SetContextValueLogger(cmd.ctx, cmd.log)
 
-	manifest33, states33, err := managerRunOneWorker(ctx, startHeight, nil, nil, cmd.createFacts)
+	manifest33, states33, opsTree33, err := managerRunOneWorker(ctx, cmd.enc, startHeight, nil, nil, cmd.createFacts)
 	if err != nil {
-		return manifests, err
+		return manifests, states, opsTrees, err
 	}
 
-	manifest34, _, err := managerRunOneWorker(ctx, nextHeight, manifest33.Hash(), states33, cmd.transferFacts)
+	manifest34, states34, opsTree34, err := managerRunOneWorker(ctx, cmd.enc, nextHeight, manifest33.Hash(), states33, cmd.transferFacts)
 	if err != nil {
-		return manifests, err
+		return manifests, states, opsTrees, err
 	}
 
-	switch f, err := os.Create(filename); {
-	case err != nil:
-		return manifests, err
-	default:
-		defer f.Close()
-
-		b33, err := cmd.enc.Marshal(manifest33)
-		if err != nil {
-			return manifests, err
-		}
-
-		b34, err := cmd.enc.Marshal(manifest34)
-		if err != nil {
-			return manifests, err
-		}
-
-		if err := frame.WriteFixed(f, b33); err != nil {
-			return manifests, err
-		}
-		if err := frame.WriteFixed(f, b34); err != nil {
-			return manifests, err
-		}
-
-		return [2]base.Manifest{manifest33, manifest34}, nil
-	}
+	return [2]base.Manifest{manifest33, manifest34},
+		[2][]base.State{
+			slices.Collect(maps.Values(states33)),
+			slices.Collect(maps.Values(states34)),
+		},
+		[2]*fixedtree.Tree{opsTree33, opsTree34},
+		nil
 }
 
-func (cmd *managerCommand) loadManifests(filename string) (manifests [2]base.Manifest, _ error) {
-	switch f, err := os.Open(filename); {
-	case err != nil && !os.IsNotExist(err):
-		return manifests, err
-	case os.IsNotExist(err):
-		return manifests, nil
+func (cmd *managerCommand) checkProcessed(
+	m base.Manifest,
+	opsTree *fixedtree.Tree,
+) error {
+	var expectedManifest base.Manifest
+	var expectedStates []base.State
+	var expectedOpsTree *fixedtree.Tree
+
+	switch m.Height() {
+	case startHeight:
+		expectedManifest = cmd.expectedManifests[0]
+		expectedStates = cmd.expectedStates[0]
+		expectedOpsTree = cmd.expectedOpsTrees[0]
 	default:
-		defer f.Close()
-
-		var err error
-		manifests[0], err = cmd.loadManifest(f)
-		if err != nil {
-			return manifests, err
-		}
-		if manifests[0] == nil {
-			return manifests, errors.Errorf("nil manifest, 33")
-		}
-
-		manifests[1], err = cmd.loadManifest(f)
-		if err != nil {
-			return manifests, err
-		}
-		if manifests[1] == nil {
-			return manifests, errors.Errorf("nil manifest, 34")
-		}
-
-		return manifests, nil
+		expectedManifest = cmd.expectedManifests[1]
+		expectedStates = cmd.expectedStates[1]
+		expectedOpsTree = cmd.expectedOpsTrees[1]
 	}
-}
 
-func (cmd *managerCommand) loadManifest(r io.Reader) (manifest base.Manifest, _ error) {
-	switch b, n, err := frame.ReadFixed(r); {
-	case err != nil && !errors.Is(err, io.EOF):
-		return nil, err
-	case n < 1 && errors.Is(err, io.EOF):
-		return nil, nil
-	default:
-		return manifest, encoder.Unmarshal(cmd.enc, b, &manifest)
+	if !m.Hash().Equal(expectedManifest.Hash()) {
+		cmd.log.Error().
+			Interface("expected", cmd.expectedManifests[0]).
+			Interface("result", m).
+			Msg("manifest hash mismatch, 33")
+
+		return errors.Errorf("manifest hash mismatch, 33")
 	}
+
+	workerSaved := map[string]base.State{}
+	for st, err := range redisGetStates(cmd.ctx, cmd.enc, cmd.rdb) {
+		if err != nil {
+			return err
+		}
+
+		workerSaved[st.Key()] = st
+	}
+
+	for a := range slices.Values(expectedStates) {
+		b, found := workerSaved[a.Key()]
+		if !found {
+			return errors.Errorf("state not found, %q", a.Key())
+		}
+
+		if !base.IsEqualState(a, b) {
+			cmd.log.Error().
+				Str("key", a.Key()).
+				Interface("expected", a).
+				Interface("result", b).
+				Msg("state not equal")
+
+			return errors.Errorf("state not equal, %q", a.Key())
+		}
+	}
+
+	{
+		if a, b := expectedOpsTree.Len(), opsTree.Len(); a != b {
+			return errors.Errorf("a.Len(), %d != b.Len(), %d", a, b)
+		}
+
+		for index, a := range expectedOpsTree.Traverse() {
+			b := opsTree.Node(index)
+
+			if !a.Equal(b) {
+				cmd.log.Error().
+					Uint64("index", index).
+					Interface("expected", a).
+					Interface("result", b).
+					Msg("ops tree node")
+
+				return errors.Errorf("node not equal")
+			}
+		}
+	}
+
+	return nil
 }
 
 func prepareItems[T any](
@@ -837,23 +913,9 @@ func loadFromFile[T any](
 	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), nsize)
 
 	for range nsize {
-		var index uint64
-		var b []byte
-
-		switch i, _, err := frame.ReadFixed(r); {
-		case err != nil:
+		index, b, err := readFixedWithIndex(r)
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
-		default:
-			if err := decodeUint64(i, &index); err != nil {
-				return nil, err
-			}
-		}
-
-		switch i, _, err := frame.ReadFixed(r); {
-		case err != nil:
-			return nil, err
-		default:
-			b = i
 		}
 
 		if err := newJob(func(context.Context) error {

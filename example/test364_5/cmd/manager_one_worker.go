@@ -2,19 +2,25 @@ package main
 
 import (
 	"context"
+	"io"
 	"iter"
+	"os"
 	"slices"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
+	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	"github.com/spikeekips/mitum/example/test364_5/fixedtree"
+	"github.com/spikeekips/mitum/example/test364_5/frame"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
 func managerRunOneWorker(
 	ctx context.Context,
+	enc encoder.Encoder,
 	height base.Height,
 	prevManiest util.Hash,
 	prevStates map[string]base.State,
@@ -22,6 +28,7 @@ func managerRunOneWorker(
 ) (
 	base.Manifest,
 	map[string]base.State,
+	*fixedtree.Tree,
 	error,
 ) {
 	local := "worker"
@@ -67,7 +74,7 @@ func managerRunOneWorker(
 		maxOpsSize,
 	); {
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, nil, err
 	default:
 		initialInsert, wait, workerClose = ii, w, c
 	}
@@ -79,14 +86,14 @@ func managerRunOneWorker(
 		ophs,
 		nil,
 	); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	go func() {
 		_ = workerClose(nil)
 	}()
 
-	createdStates := map[string]base.State{}
+	mstates := map[string]base.State{}
 
 	generateNodesHash := fixedtree.NewFuncAsyncGenerateNodesHashByFollowingParent(1 << 9)
 
@@ -107,7 +114,7 @@ func managerRunOneWorker(
 				opsTree = tr
 			}
 
-			return f(func(base.State) error {
+			return f(func(st base.State) error {
 				return nil
 			})
 		},
@@ -119,18 +126,23 @@ func managerRunOneWorker(
 				statesTree = tr
 			}
 
+			slices.SortFunc(sts, func(a, b base.State) int {
+				return strings.Compare(a.Key(), b.Key())
+			})
+
 			for st := range slices.Values(sts) {
-				createdStates[st.Key()] = st
+				mstates[st.Key()] = st
 			}
 
 			return nil
 		},
 	); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	return newManifest(height, prevManiest, opsTree, statesTree),
-		createdStates,
+		mstates,
+		opsTree,
 		nil
 }
 
@@ -186,4 +198,320 @@ func generateOpsTree(
 	tr := dop5.NewOperationsTree(nodes)
 
 	return tr, nil
+}
+
+func saveStatesToFile(
+	ctx context.Context,
+	enc encoder.Encoder,
+	filename string,
+	sts []base.State, // NOTE sorted by key
+) error {
+	size := uint64(len(sts))
+
+	if size < 1 {
+		return nil
+	}
+
+	var w io.Writer
+
+	switch f, err := os.Create(filename); {
+	case err != nil:
+		return err
+	default:
+		defer f.Close()
+
+		w = f
+	}
+
+	if err := writeUint64(w, size); err != nil {
+		return err
+	}
+
+	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	if err != nil {
+		return err
+	}
+
+	for i, st := range slices.All(sts) {
+		if err := newJob(func(context.Context) error {
+			ib, err := encodeUint64(uint64(i))
+			if err != nil {
+				return err
+			}
+
+			b, err := enc.Marshal(st)
+			if err != nil {
+				return err
+			}
+
+			return frame.WriteFixeds(w, ib, b)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func loadStatesFromFile(
+	ctx context.Context,
+	enc encoder.Encoder,
+	filename string,
+) ([]base.State, error) {
+	var r io.Reader
+
+	switch f, err := os.Open(filename); {
+	case err != nil && !os.IsNotExist(err):
+		return nil, err
+	case os.IsNotExist(err):
+		return nil, nil
+	default:
+		defer f.Close()
+
+		r = f
+	}
+
+	var size uint64
+
+	if _, err := readUint64(r, &size); err != nil {
+		return nil, err
+	}
+
+	sts := make([]base.State, size)
+
+	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	if err != nil {
+		return nil, err
+	}
+
+	for range size {
+		index, b, err := readFixedWithIndex(r)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, jobWait(err)
+		}
+
+		if err := newJob(func(context.Context) error {
+			if err := encoder.Unmarshal(enc, b, &sts[index]); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			return nil, jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return nil, err
+	}
+
+	slices.SortFunc(sts, func(a, b base.State) int {
+		return strings.Compare(a.Key(), b.Key())
+	})
+
+	return sts, nil
+}
+
+func readFixedWithIndex(r io.Reader) (uint64, []byte, error) {
+	var index uint64
+
+	switch i, _, err := frame.ReadFixed(r); {
+	case err != nil:
+		return 0, nil, err
+	default:
+		if err := decodeUint64(i, &index); err != nil {
+			return 0, nil, err
+		}
+	}
+
+	b, _, err := frame.ReadFixed(r)
+	return index, b, err
+}
+
+func saveManifests(
+	enc encoder.Encoder,
+	filename string,
+	ms [2]base.Manifest,
+) error {
+	switch f, err := os.Create(filename); {
+	case err != nil:
+		return err
+	default:
+		defer f.Close()
+
+		for m := range slices.Values(ms[:]) {
+			b, err := enc.Marshal(m)
+			if err != nil {
+				return err
+			}
+
+			if err := frame.WriteFixed(f, b); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
+func loadManifest(enc encoder.Encoder, r io.Reader) (manifest base.Manifest, _ error) {
+	switch b, n, err := frame.ReadFixed(r); {
+	case err != nil && !errors.Is(err, io.EOF):
+		return nil, err
+	case n < 1 && errors.Is(err, io.EOF):
+		return nil, nil
+	default:
+		return manifest, encoder.Unmarshal(enc, b, &manifest)
+	}
+}
+
+func loadManifests(enc encoder.Encoder, filename string) (manifests [2]base.Manifest, _ error) {
+	switch f, err := os.Open(filename); {
+	case err != nil && !os.IsNotExist(err):
+		return manifests, err
+	case os.IsNotExist(err):
+		return manifests, nil
+	default:
+		defer f.Close()
+
+		var err error
+		manifests[0], err = loadManifest(enc, f)
+		if err != nil {
+			return manifests, err
+		}
+		if manifests[0] == nil {
+			return manifests, errors.Errorf("nil manifest, 33")
+		}
+
+		manifests[1], err = loadManifest(enc, f)
+		if err != nil {
+			return manifests, err
+		}
+		if manifests[1] == nil {
+			return manifests, errors.Errorf("nil manifest, 34")
+		}
+
+		return manifests, nil
+	}
+}
+
+func saveOpsTreeToFile(
+	ctx context.Context,
+	enc encoder.Encoder,
+	filename string,
+	tr *fixedtree.Tree,
+) error {
+	size := uint64(tr.Len())
+
+	if size < 1 {
+		return nil
+	}
+
+	var w io.Writer
+
+	switch f, err := os.Create(filename); {
+	case err != nil:
+		return err
+	default:
+		defer f.Close()
+
+		w = f
+	}
+
+	if err := writeUint64(w, size); err != nil {
+		return err
+	}
+
+	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	if err != nil {
+		return err
+	}
+
+	for i, n := range tr.Traverse() {
+		if err := newJob(func(context.Context) error {
+			ib, err := encodeUint64(uint64(i))
+			if err != nil {
+				return err
+			}
+
+			b, err := enc.Marshal(n)
+			if err != nil {
+				return err
+			}
+
+			return frame.WriteFixeds(w, ib, b)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func loadOpsTreeFromFile(
+	ctx context.Context,
+	enc encoder.Encoder,
+	filename string,
+) (*fixedtree.Tree, error) {
+	var r io.Reader
+
+	switch f, err := os.Open(filename); {
+	case err != nil && !os.IsNotExist(err):
+		return nil, err
+	case os.IsNotExist(err):
+		return nil, nil
+	default:
+		defer f.Close()
+
+		r = f
+	}
+
+	var size uint64
+
+	if _, err := readUint64(r, &size); err != nil {
+		return nil, err
+	}
+
+	nodes := make([]fixedtree.Node, size)
+
+	newJob, jobDone, jobWait, err := dutil.NewFuncJobWorker(ctx, size)
+	if err != nil {
+		return nil, err
+	}
+
+	for range size {
+		index, b, err := readFixedWithIndex(r)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, jobWait(err)
+		}
+
+		if err := newJob(func(context.Context) error {
+			n := new(dop5.OperationTreeNode)
+
+			if err := n.UnmarshalJSON(b); err != nil {
+				return err
+			}
+
+			nodes[index] = n
+
+			return nil
+		}); err != nil {
+			return nil, jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	if err := jobWait(nil); err != nil {
+		return nil, err
+	}
+
+	return fixedtree.NewTree(dop5.OperationsTreeHint, nodes), // NOTE fake hint
+		nil
 }

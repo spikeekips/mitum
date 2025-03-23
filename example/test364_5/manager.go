@@ -137,6 +137,7 @@ func NewFuncManager(
 			}
 
 			defer dutil.ElapsedLogEvent(log.Info(), "send ops")()
+
 			return dutil.NewIfErrErrorInFunc(cancelWork)(sendOps(f))
 		},
 		workerOwners,
