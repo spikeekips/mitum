@@ -61,7 +61,7 @@ func redisSaveStates(
 		semSize, bulkSize,
 		states,
 		func(ctx context.Context, pipe redis.Pipeliner, st base.State, b []byte) {
-			_ = pipe.SetNX(ctx, "st-"+st.Key(), b, 0)
+			_ = pipe.Set(ctx, "st-"+st.Key(), b, 0)
 		},
 	)
 }
