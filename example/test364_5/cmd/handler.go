@@ -477,6 +477,8 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 		switch r, s, d, err := f(worker); {
 		case err != nil:
 			return ctx, err
+		case setReasons == nil:
+			return ctx, nil
 		default:
 			setReasons, setState, setDone = r, s, d
 		}
