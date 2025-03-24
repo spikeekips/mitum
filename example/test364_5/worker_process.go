@@ -187,18 +187,7 @@ func newFuncWorkerProcess(
 				return nil, nil, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)
 			}
 
-			switch wi, wd, err := workerInsertSVs(worker); {
-			case err != nil:
-				return nil, nil, err
-			case wi == nil:
-				return nil, nil, nil
-			default:
-				return func(opindex uint64, facth util.Hash, values []SMV) error {
-						return wi(opindex, facth, values)
-					},
-					wd,
-					nil
-			}
+			return workerInsertSVs(worker)
 		},
 		unmerge,
 		func(
