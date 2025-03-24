@@ -92,14 +92,14 @@ func (cmd *managerCommand) prepare() error {
 	switch {
 	case cmd.OpsShare < 1:
 		return errors.Errorf("zero <ops share>")
-	case cmd.OpsShare < uint64(len(cmd.Workers)):
+	case cmd.OpsShare > uint64(len(cmd.Workers)):
 		cmd.OpsShare = uint64(len(cmd.Workers))
 	}
 
 	switch {
 	case cmd.StatesShare < 1:
 		return errors.Errorf("zero <states share>")
-	case cmd.StatesShare < uint64(len(cmd.Workers)):
+	case cmd.StatesShare > uint64(len(cmd.Workers)):
 		cmd.StatesShare = uint64(len(cmd.Workers))
 	}
 
