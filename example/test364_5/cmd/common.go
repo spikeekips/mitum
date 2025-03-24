@@ -302,6 +302,21 @@ func (cmd *baseCommand) workerAddr(worker string) (*net.UDPAddr, error) {
 	return addr, nil
 }
 
+func (cmd *baseCommand) parseWorkersAddr(workers []string) error {
+	for s := range slices.Values(workers) {
+		switch addr, err := net.ResolveUDPAddr("udp", s); {
+		case err != nil:
+			return err
+		case addr.Port < 1:
+			return errors.Errorf("invalid worker addr, %q", s)
+		default:
+			cmd.workerAddrs.SetValue(s, addr)
+		}
+	}
+
+	return nil
+}
+
 func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
 	ca := testcerts.NewCA()
 

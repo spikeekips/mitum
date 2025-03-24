@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net"
 	"os"
 	"slices"
 	"strconv"
@@ -103,15 +102,8 @@ func (cmd *managerCommand) prepare() error {
 		cmd.StatesShare = uint64(len(cmd.Workers))
 	}
 
-	for s := range slices.Values(cmd.Workers) {
-		switch addr, err := net.ResolveUDPAddr("udp", s); {
-		case err != nil:
-			return err
-		case addr.Port < 1:
-			return errors.Errorf("invalid worker addr, %q", s)
-		default:
-			cmd.workerAddrs.SetValue(s, addr)
-		}
+	if err := cmd.parseWorkersAddr(cmd.Workers); err != nil {
+		return err
 	}
 
 	cmd.log.Debug().
