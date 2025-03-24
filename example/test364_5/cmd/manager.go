@@ -44,9 +44,9 @@ type requestWorkerFunc = func(context.Context,
 
 type managerCommand struct {
 	baseCommand `cmd:""`
-	Ops         uint64   `arg:"" help:"number of operations"`
 	OpsShare    uint64   `arg:"" help:"ops share"`
 	StatesShare uint64   `arg:"" help:"states share"`
+	Ops         uint64   `arg:"" help:"number of operations"`
 	Workers     []string `arg:"" default:""`
 
 	managerOptions    *dop5.ManagerOptions
