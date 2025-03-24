@@ -339,6 +339,7 @@ func (t *testHandlerWorkerResult) doHandlers(
 	ctx context.Context,
 	reasons map[uint64]string,
 	states []base.State,
+	f dop5.ManagerInsertWorkerResultFunc,
 ) {
 	worker := util.UUID().String()
 
@@ -362,35 +363,39 @@ func (t *testHandlerWorkerResult) doHandlers(
 	var rreasons map[uint64]string
 	rstates := util.NewSingleLockedMap[string, util.Hash]()
 
-	handler := acceptHandlerWorkerResult(func(rworker string) (
-		dutil.InErrorFunc[map[uint64]string],
-		dutil.In2ErrorFunc[string, util.Hash],
-		dutil.InErrorFunc[error],
-		error,
-	) {
-		t.PrintIfTruePanic(worker != rworker, "worker")
+	if f == nil {
+		f = func(rworker string) (
+			dutil.InErrorFunc[map[uint64]string],
+			dutil.In2ErrorFunc[string, util.Hash],
+			dutil.InErrorFunc[error],
+			error,
+		) {
+			t.PrintIfTruePanic(worker != rworker, "worker")
 
-		return func(m map[uint64]string) error {
-				t.Print("reasons: %v", m)
+			return func(m map[uint64]string) error {
+					t.Print("reasons: %v", m)
 
-				rreasons = maps.Clone(m)
+					rreasons = maps.Clone(m)
 
-				return nil
-			},
-			func(stateKey string, h util.Hash) error {
-				t.Print("state key=%q state hash=%q", stateKey, h)
+					return nil
+				},
+				func(stateKey string, h util.Hash) error {
+					t.Print("state key=%q state hash=%q", stateKey, h)
 
-				t.PrintIfTruePanic(!rstates.SetValue(stateKey, h), "set state")
+					t.PrintIfTruePanic(!rstates.SetValue(stateKey, h), "set state")
 
-				return nil
-			},
-			func(err error) error {
-				t.Print("err: %v", err)
+					return nil
+				},
+				func(err error) error {
+					t.Print("err: %v", err)
 
-				return err
-			},
-			nil
-	})
+					return err
+				},
+				nil
+		}
+	}
+
+	handler := acceptHandlerWorkerResult(f)
 
 	_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(context.Background())
 	defer closef()
@@ -414,13 +419,15 @@ func (t *testHandlerWorkerResult) doHandlers(
 	_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
 	t.PrintIfErrPanic(err, "handler")
 
-	t.PrintIfTruePanic(!maps.Equal(reasons, rreasons), "reasons: %v != %v", reasons, rreasons)
+	if rreasons != nil {
+		t.PrintIfTruePanic(!maps.Equal(reasons, rreasons), "reasons: %v != %v", reasons, rreasons)
 
-	t.Equal(len(states), rstates.Len())
-	for st := range slices.Values(states) {
-		h, found := rstates.Value(st.Key())
-		t.True(found)
-		t.True(st.Hash().Equal(h))
+		t.Equal(len(states), rstates.Len())
+		for st := range slices.Values(states) {
+			h, found := rstates.Value(st.Key())
+			t.True(found)
+			t.True(st.Hash().Equal(h))
+		}
 	}
 
 	select {
@@ -442,7 +449,30 @@ func (t *testHandlerWorkerResult) TestOK() {
 			states[i] = t.newState()
 		}
 
-		t.doHandlers(context.Background(), reasons, states)
+		t.doHandlers(context.Background(), reasons, states, nil)
+	})
+
+	t.Run("nil f", func() {
+		reasons := map[uint64]string{
+			1: util.UUID().String(),
+			2: util.UUID().String(),
+			3: util.UUID().String(),
+		}
+		states := make([]base.State, 33)
+		for i := range states {
+			states[i] = t.newState()
+		}
+
+		t.doHandlers(context.Background(), reasons, states,
+			func(rworker string) (
+				dutil.InErrorFunc[map[uint64]string],
+				dutil.In2ErrorFunc[string, util.Hash],
+				dutil.InErrorFunc[error],
+				error,
+			) {
+				return nil, nil, nil, nil
+			},
+		)
 	})
 
 	t.Run("empty reasons", func() {
@@ -451,7 +481,7 @@ func (t *testHandlerWorkerResult) TestOK() {
 			states[i] = t.newState()
 		}
 
-		t.doHandlers(context.Background(), nil, states)
+		t.doHandlers(context.Background(), nil, states, nil)
 	})
 
 	t.Run("empty states", func() {
@@ -461,11 +491,11 @@ func (t *testHandlerWorkerResult) TestOK() {
 			3: util.UUID().String(),
 		}
 
-		t.doHandlers(context.Background(), reasons, nil)
+		t.doHandlers(context.Background(), reasons, nil, nil)
 	})
 
 	t.Run("empty", func() {
-		t.doHandlers(context.Background(), nil, nil)
+		t.doHandlers(context.Background(), nil, nil, nil)
 	})
 }
 
@@ -605,7 +635,7 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 
 	subs, affected := t.randomOwners(nsubs), t.randomOwners(naffected)
 
-	addOp, doneOp, err := dutil.NewLockAppendSlice[[3]interface{}](1<<9, 1<<9)
+	addOp, doneOp, err := dutil.NewLockAppendSlice[[3]any](1<<9, 1<<9)
 	t.NoError(err)
 
 	distribute := func(rworker string) (
@@ -783,6 +813,86 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 			333, 1<<9, 0,
 		)
 	})
+}
+
+func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
+	ops := make([][2]interface{}, 3333)
+	for i := range ops {
+		ops[i] = [2]interface{}{
+			valuehash.RandomSHA256(),
+			t.randomMergeValues(3),
+		}
+	}
+
+	worker := util.UUID().String()
+
+	subs, affected := t.randomOwners(3), t.randomOwners(3)
+
+	distribute := func(rworker string) (
+		dop5.WorkerProcessInsertSMVsFunc,
+		dutil.In2ErrorFunc[[]string, []string],
+		error,
+	) {
+		return nil, nil, nil
+	}
+
+	handler := acceptHandlerWorkerDistributeSMVs(t.enc, distribute)
+
+	_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(context.Background())
+	defer closef()
+
+	rctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, rConn)
+	hctx := context.WithValue(context.Background(), quicstream.QuicConnectionContextKey, hConn)
+
+	handlerdone := make(chan error)
+
+	go func() {
+		_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
+		handlerdone <- err
+	}()
+
+	sendOp, sendOwners, requestHandler := requestHandlerWorkerDistributeSMVs(
+		context.Background(),
+		t.enc,
+		worker,
+		3333, 1<<9, 1<<9,
+	)
+
+	requestDone, requestWait := dutil.NewContextDone(context.Background())
+
+	go func() {
+		openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(context.Background(), time.Minute)
+		defer openConnSubStreamsClose()
+		openSubStreams := quicstream.NewFuncOpenSubStreams(openConnSubStreams)
+
+		_, err := requestHandler.StreamHandler(openSubStreams)(rctx, rstream)
+		_ = requestDone(err)
+	}()
+
+	var wg sync.WaitGroup
+
+	for i, v := range slices.All(ops) {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := sendOp(uint64(i), v[0].(util.Hash), v[1].([]dop5.SMV))
+			t.PrintIfErrPanic(err, "send op")
+		}()
+	}
+
+	wg.Wait()
+
+	t.NoError(sendOwners(subs, affected))
+	t.NoError(requestWait())
+
+	select {
+	case <-time.After(time.Second * 9):
+		t.Fail("wait handler done")
+	case err := <-handlerdone:
+		t.NoError(err)
+	}
 }
 
 func TestHandlerWorkerDistributeSMVs(t *testing.T) {

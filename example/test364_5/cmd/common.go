@@ -455,6 +455,26 @@ func mustAddDecode[T any](enc *jsonenc.Encoder, ht hint.Hint, sample T, decode a
 	}
 }
 
+func writeOk(w io.Writer, ok bool) error {
+	switch {
+	case ok:
+		return frame.WriteFixed(w, []byte{0x01})
+	default:
+		return frame.WriteFixed(w, nil)
+	}
+}
+
+func readOk(r io.Reader) (bool, int, error) {
+	switch b, n, err := frame.ReadFixed(r); {
+	case err != nil && !errors.Is(err, io.EOF):
+		return false, n, err
+	case n < 1 && errors.Is(err, io.EOF):
+		return false, n, frame.ErrInsufficientRead
+	default:
+		return len(b) > 0, n, nil
+	}
+}
+
 func writeError(w io.Writer, err error) error {
 	var s []byte
 	if err != nil {

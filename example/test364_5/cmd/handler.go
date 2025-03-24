@@ -349,6 +349,10 @@ func requestHandlerWorkerResult(
 			return ctx, err
 		}
 
+		if ok, _, err := readOk(stream); err != nil || !ok {
+			return ctx, err
+		}
+
 		if err := writeUint64(stream, statesSize); err != nil {
 			return ctx, err
 		}
@@ -456,6 +460,23 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 			return ctx, err
 		}
 
+		var setReasons dutil.InErrorFunc[map[uint64]string]
+		var setState dutil.In2ErrorFunc[string, util.Hash]
+		var setDone dutil.InErrorFunc[error]
+
+		switch r, s, d, err := f(worker); {
+		case err != nil:
+			return ctx, err
+		case r == nil:
+			return ctx, writeOk(stream, false)
+		default:
+			if err := writeOk(stream, true); err != nil {
+				return ctx, err
+			}
+
+			setReasons, setState, setDone = r, s, d
+		}
+
 		var statesSize uint64
 		if _, err := readUint64(stream, &statesSize); err != nil {
 			return ctx, err
@@ -468,19 +489,6 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 			return ctx, err
 		default:
 			subStreams = s
-		}
-
-		var setReasons dutil.InErrorFunc[map[uint64]string]
-		var setState dutil.In2ErrorFunc[string, util.Hash]
-		var setDone dutil.InErrorFunc[error]
-
-		switch r, s, d, err := f(worker); {
-		case err != nil:
-			return ctx, err
-		case r == nil:
-			return ctx, nil
-		default:
-			setReasons, setState, setDone = r, s, d
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
@@ -718,6 +726,19 @@ func requestHandlerWorkerDistributeSMVs(
 ) {
 	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
 
+	var notOK atomic.Value
+
+	cancelf := func(err error) error {
+		notOK.Store(true)
+
+		addValuesDone()
+
+		for range seq {
+		}
+
+		return err
+	}
+
 	seqHandler := func(
 		ctx context.Context,
 		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
@@ -774,10 +795,56 @@ func requestHandlerWorkerDistributeSMVs(
 
 	var subs, affected []string
 
+	handler := func(
+		ctx context.Context,
+		stream quic.Stream,
+		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		if err := frame.WriteFixed(stream, []byte(local)); err != nil {
+			return ctx, err
+		}
+
+		if ok, _, err := readOk(stream); err != nil || !ok {
+			return ctx, cancelf(err)
+		}
+
+		if err := writeUint64(stream, maxItems); err != nil {
+			return ctx, err
+		}
+
+		if _, err := seqHandler(ctx, openSubStreams); err != nil {
+			return ctx, err
+		}
+
+		if err := writeFixedFrameStringSlice(stream, subs); err != nil {
+			return ctx, err
+		}
+
+		return ctx, writeFixedFrameStringSlice(stream, affected)
+	}
+
 	return func(opindex uint64, facth util.Hash, values []dop5.SMV) error {
-			return addValues([3]interface{}{opindex, facth, values})
+			if v := notOK.Load(); v != nil && v.(bool) {
+				return nil
+			}
+
+			switch err := addValues([3]interface{}{opindex, facth, values}); {
+			case err == nil,
+				!errors.Is(err, dutil.ErrContextUnlimitedChansInsertDone):
+				return err
+			default:
+				if v := notOK.Load(); v != nil && v.(bool) {
+					return nil
+				}
+
+				return err
+			}
 		},
 		func(rsubs, raffected []string) error {
+			if v := notOK.Load(); v != nil && v.(bool) {
+				return nil
+			}
+
 			subs, affected = rsubs, raffected
 
 			addValuesDone()
@@ -789,23 +856,12 @@ func requestHandlerWorkerDistributeSMVs(
 			stream quic.Stream,
 			openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 		) (context.Context, error) {
-			if err := frame.WriteFixed(stream, []byte(local)); err != nil {
-				return ctx, err
+			ctx, err := handler(ctx, stream, openSubStreams)
+			if err != nil {
+				return ctx, cancelf(err)
 			}
 
-			if err := writeUint64(stream, maxItems); err != nil {
-				return ctx, err
-			}
-
-			if _, err := seqHandler(ctx, openSubStreams); err != nil {
-				return ctx, err
-			}
-
-			if err := writeFixedFrameStringSlice(stream, subs); err != nil {
-				return ctx, err
-			}
-
-			return ctx, writeFixedFrameStringSlice(stream, affected)
+			return ctx, nil
 		}
 }
 
@@ -823,19 +879,25 @@ func acceptHandlerWorkerDistributeSMVs(
 			return ctx, err
 		}
 
-		var maxItems uint64
-		if _, err := readUint64(stream, &maxItems); err != nil {
-			return ctx, err
-		}
-
 		var insertValues dop5.WorkerProcessInsertSMVsFunc
 		var insertOwners dutil.In2ErrorFunc[[]string, []string]
 
 		switch v, o, err := w(worker); {
 		case err != nil:
 			return ctx, err
+		case v == nil:
+			return ctx, writeOk(stream, false)
 		default:
+			if err := writeOk(stream, true); err != nil {
+				return ctx, err
+			}
+
 			insertValues, insertOwners = v, o
+		}
+
+		var maxItems uint64
+		if _, err := readUint64(stream, &maxItems); err != nil {
+			return ctx, err
 		}
 
 		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
