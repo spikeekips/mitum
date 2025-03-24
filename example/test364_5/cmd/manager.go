@@ -330,6 +330,13 @@ func (cmd *managerCommand) processHeight(
 ) (base.Manifest, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s", height)
 
+	defer dutil.ElapsedLogEvent(
+		cmd.log.Debug().
+			Str("work_id", workID).
+			Interface("height", height),
+		"process height",
+	)()
+
 	m, w, err := cmd.startManager(
 		dutil.SetContextValueLogger(ctx, cmd.log),
 		height,
@@ -337,14 +344,6 @@ func (cmd *managerCommand) processHeight(
 		workID,
 		ophs,
 	)
-
-	dutil.ElapsedLogEvent(
-		cmd.log.Debug().
-			Str("work_id", workID).
-			Interface("height", height).
-			Interface("manifest", m),
-		"process height",
-	)()
 
 	return m, w, err
 }
