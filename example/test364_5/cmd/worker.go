@@ -94,8 +94,7 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 		}
 
 		go func() {
-			err := wait()
-			if err != nil {
+			if err := wait(); err != nil {
 				panic(err)
 			}
 		}()
@@ -118,6 +117,12 @@ func (cmd *workerCommand) startWorker(
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) (dutil.ErrorFunc, error) {
+	if cmd.workerAddrs.Len() < 1 {
+		if err := cmd.parseWorkersAddr(workers); err != nil {
+			return nil, err
+		}
+	}
+
 	workCanceled := cmd.newFuncReportCancelWork(workID)
 
 	var initialInsert dop5.WorkerInitialInsertFunc
@@ -267,7 +272,7 @@ func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItems ui
 		error,
 	) {
 		insert, owners, handler := requestHandlerWorkerDistributeSMVs(ctx, cmd.enc,
-			worker, maxItems, defaultSubStreamItems, defaultMaxSubStreamsSize)
+			cmd.local, maxItems, defaultSubStreamItems, defaultMaxSubStreamsSize)
 
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 
