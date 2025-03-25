@@ -903,11 +903,18 @@ func loadFromFile[T any](
 
 	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(context.Background(), nsize)
 
-	for range nsize {
+	var count uint64
+	for count < nsize {
 		index, b, err := readFixedWithIndex(r)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
 		}
+
+		if index >= nsize {
+			continue
+		}
+
+		count++
 
 		if err := newJob(func(context.Context) error {
 			switch v, err := load(b, index); {
