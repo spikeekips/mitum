@@ -171,7 +171,7 @@ func (cmd *managerCommand) preparePKs() error {
 		return err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", size).Uint64("created", created), "pks created")()
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", size).Uint64("created", created), "pks prepared")()
 
 	cmd.pubs = pubs
 
@@ -212,7 +212,7 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 		return nil, nil, err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "create ops created")()
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "create ops prepared")()
 
 	return facts, ophs, nil
 }
@@ -252,7 +252,7 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 		return nil, nil, err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "transfer ops created")()
+	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "transfer ops prepared")()
 
 	return facts, ophs, nil
 }
