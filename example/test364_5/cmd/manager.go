@@ -525,7 +525,11 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 
-		l := dutil.ElapsedLogEvent(cmd.log.Debug)
+		l := dutil.ElapsedLogMsg(func() *zerolog.Event {
+			return cmd.log.Debug().
+				Str("worker", worker).
+				Uint64("max_items", maxItems)
+		}, "cmd/send ops")
 
 		go func() {
 			_, err := cmd.requestWork(workID, "manager_send_ops")(ctx, addr, nil, nil, handler.StreamHandler(cmd.openSubStreams))
@@ -533,10 +537,7 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 		}()
 
 		return sendOp, func(err error) error {
-			defer l().
-				Str("worker", worker).
-				Uint64("max_items", maxItems).
-				Msg("cmd/send ops")
+			defer l()
 
 			if serr := sendDone(err); serr != nil {
 				return serr
