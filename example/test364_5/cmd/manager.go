@@ -602,9 +602,9 @@ func (cmd *managerCommand) stopWorkers() error {
 	requestStopWorker := cmd.requestWorker("_manager_stop_worker")
 
 	return cmd.requestWorkers(cmd.ctx, func(ctx context.Context, worker string) error {
-		_, err := requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
+		_, _ = requestStopWorker(ctx, worker, nil, nil, requestHandlerStopWorker())
 
-		return err
+		return nil
 	})
 }
 
