@@ -768,9 +768,60 @@ func newFuncDelayedWorkerDistributeSMVs(
 	) {
 		wctx, wctxCancel, _, wait := dutil.NewContextWait(ctx)
 
-		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChansInsertDone)
-
 		insert, insertDone, seq := newChans(wctx)
+
+		runseq := func() error {
+			var sendOp WorkerProcessInsertSMVsFunc
+			var sendOwners dutil.In2ErrorFunc[[]string, []string]
+
+			oncenew := sync.OnceValue(func() error {
+				switch p, o, err := newf(wctx, worker); {
+				case err != nil:
+					return err
+				default:
+					sendOp, sendOwners = p, o
+
+					return nil
+				}
+			})
+
+			next, stop := iter.Pull(seq)
+			defer stop()
+
+		end:
+			for {
+				i, ok := next()
+				if !ok {
+					break end
+				}
+
+				switch err := oncenew(); {
+				case err != nil:
+					return err
+				case sendOp == nil:
+					break end
+				}
+
+				switch t := i.(type) {
+				case [3]interface{}:
+					if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]SMV)); err != nil {
+						return err
+					}
+				case [2][]string:
+					if err := sendOwners(t[0], t[1]); err != nil {
+						return err
+					}
+				}
+			}
+
+			return nil
+		}
+
+		go func() {
+			wctxCancel(runseq())
+		}()
+
+		ifErrWctxCancel := dutil.NewIfErrErrorInFunc(wctxCancel, dutil.ErrContextUnlimitedChansInsertDone)
 
 		return func(opindex uint64, facth util.Hash, values []SMV) error {
 				return ifErrWctxCancel(insert([3]interface{}{opindex, facth, values}))
@@ -780,51 +831,7 @@ func newFuncDelayedWorkerDistributeSMVs(
 
 				return ifErrWctxCancel(insert([2][]string{subws, affected}))
 			},
-			func() error {
-				defer func() {
-					_ = wctxCancel(nil)
-				}()
-
-				var sendOp WorkerProcessInsertSMVsFunc
-				var sendOwners dutil.In2ErrorFunc[[]string, []string]
-
-				var once sync.Once
-
-			end:
-				for i := range seq {
-					var gerr error
-
-					once.Do(func() {
-						switch p, o, err := newf(wctx, worker); {
-						case err != nil:
-							gerr = err
-						default:
-							sendOp, sendOwners = p, o
-						}
-					})
-					switch {
-					case gerr != nil:
-						return gerr
-					case sendOp == nil:
-						continue end
-					}
-
-					switch t := i.(type) {
-					case [3]interface{}:
-						if err := sendOp(t[0].(uint64), t[1].(util.Hash), t[2].([]SMV)); err != nil {
-							return err
-						}
-					case [2][]string:
-						if err := sendOwners(t[0], t[1]); err != nil {
-							return err
-						}
-					}
-				}
-
-				_ = wctxCancel(nil)
-
-				return wait()
-			},
+			wait,
 			nil
 	}
 }
