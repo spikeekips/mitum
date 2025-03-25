@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -74,33 +75,42 @@ func ErrorWithStack(err error) error {
 	return errors.WithStack(err)
 }
 
-func ElapsedLogger(l zerolog.Logger, format string, a ...any) InErrorFunc[error] {
+func ElapsedLogEvent(f func() *zerolog.Event) func() *zerolog.Event {
 	started := time.Now()
 
-	msg := fmt.Sprintf(format, a...)
-	l.Debug().CallerSkipFrame(1).Msg("> " + msg)
-
-	return func(err error) error {
-		ll := l.With().Dur("elapsed", time.Since(started)).Logger()
-
-		e := ll.Debug().CallerSkipFrame(1)
-
-		if err != nil {
-			e = ll.Error().Err(err)
-		}
-
-		e.Msg(fmt.Sprintf("< %s", msg))
-
-		return err
+	return func() *zerolog.Event {
+		return f().
+			Stringer("elapsed", time.Since(started))
 	}
 }
 
-func ElapsedLogEvent(e *zerolog.Event, msg string) func() {
-	started := time.Now()
+func ElapsedLogMsg(f func() *zerolog.Event, format string, a ...any) func() {
+	l := ElapsedLogEvent(f)
+	msg := fmt.Sprintf(format, a...)
 
 	return func() {
-		e.Func(func(e *zerolog.Event) {
-			e.CallerSkipFrame(3).Stringer("elapsed", time.Since(started)).Msg(msg)
-		})
+		l().CallerSkipFrame(1).Msg(msg)
+	}
+}
+
+func ElapsedLogError(f func() *zerolog.Event) InFunc[error, *zerolog.Event] {
+	l := ElapsedLogEvent(f)
+
+	return func(err error) *zerolog.Event {
+		return l().Err(err)
+	}
+}
+
+func AtomicElapsedLogEvent(e *zerolog.Event, v *atomic.Value) *zerolog.Event {
+	switch i := v.Load(); {
+	case i == nil:
+		return e
+	default:
+		t, ok := i.(time.Time)
+		if !ok {
+			return e
+		}
+
+		return e.Stringer("elapsed", time.Since(t))
 	}
 }

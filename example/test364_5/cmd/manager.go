@@ -71,7 +71,7 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 		return err
 	}
 
-	cmd.log.Debug().Msg("prepared")
+	cmd.log.Debug().Msg("cmd/prepared")
 
 	if err := cmd.waitWorkers(); err != nil {
 		return err
@@ -108,7 +108,7 @@ func (cmd *managerCommand) prepare() error {
 
 	cmd.log.Debug().
 		Interface("addrs", slices.Collect(maps.Keys(cmd.workerAddrs.Map()))).
-		Msg("workers")
+		Msg("cmd/workers")
 
 	cmd.managerOptions = dop5.NewManagerOptions()
 
@@ -149,6 +149,8 @@ func (cmd *managerCommand) prepare() error {
 func (cmd *managerCommand) preparePKs() error {
 	size := cmd.Ops + 1
 
+	l := dutil.ElapsedLogEvent(cmd.log.Debug)
+
 	created, pubs, err := prepareItems(
 		cmd.enc,
 		"pubs.b",
@@ -171,7 +173,7 @@ func (cmd *managerCommand) preparePKs() error {
 		return err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", size).Uint64("created", created), "pks prepared")()
+	l().Uint64("n", size).Uint64("created", created).Msg("cmd/pks prepared")
 
 	cmd.pubs = pubs
 
@@ -179,6 +181,8 @@ func (cmd *managerCommand) preparePKs() error {
 }
 
 func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
+	l := dutil.ElapsedLogEvent(cmd.log.Debug)
+
 	ophs := make([][2]util.Hash, cmd.Ops)
 
 	created, facts, err := prepareItems(
@@ -212,12 +216,17 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 		return nil, nil, err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "create ops prepared")()
+	l().
+		Uint64("n", cmd.Ops).
+		Uint64("created", created).
+		Msg("cmd/create ops prepared")
 
 	return facts, ophs, nil
 }
 
 func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util.Hash, error) {
+	l := dutil.ElapsedLogEvent(cmd.log.Debug)
+
 	ophs := make([][2]util.Hash, cmd.Ops)
 
 	created, facts, err := prepareItems(
@@ -252,7 +261,10 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 		return nil, nil, err
 	}
 
-	dutil.ElapsedLogEvent(cmd.log.Debug().Uint64("n", cmd.Ops).Uint64("created", created), "transfer ops prepared")()
+	l().
+		Uint64("n", cmd.Ops).
+		Uint64("created", created).
+		Msg("cmd/transfer ops prepared")
 
 	return facts, ophs, nil
 }
@@ -271,14 +283,12 @@ func (cmd *managerCommand) process() error {
 		return err
 	}
 
-	cmd.log.Debug().Msg("processed")
+	cmd.log.Debug().Msg("cmd/all processed done")
 
 	return cmd.stopWorkers()
 }
 
 func (cmd *managerCommand) process1st() (base.Manifest, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 1st")()
-
 	switch m, w, err := cmd.processHeight(cmd.ctx, startHeight, nil, cmd.createOphs); {
 	case err != nil:
 		return nil, err
@@ -292,8 +302,6 @@ func (cmd *managerCommand) process1st() (base.Manifest, error) {
 }
 
 func (cmd *managerCommand) process2nd(prevHash util.Hash) (base.Manifest, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "process 2nd")()
-
 	switch m, w, err := cmd.processHeight(cmd.ctx, nextHeight, prevHash, cmd.transferOphs); {
 	case err != nil:
 		return nil, err
@@ -303,7 +311,9 @@ func (cmd *managerCommand) process2nd(prevHash util.Hash) (base.Manifest, error)
 }
 
 func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().Int("n", len(facts)), "save facts")()
+	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+		return cmd.log.Debug().Int("n", len(facts))
+	}, "cmd/save facts")()
 
 	return redisSaveOperationFacts(
 		cmd.ctx,
@@ -322,12 +332,11 @@ func (cmd *managerCommand) processHeight(
 ) (base.Manifest, dutil.ErrorFunc, error) {
 	workID := fmt.Sprintf("%s", height)
 
-	defer dutil.ElapsedLogEvent(
-		cmd.log.Debug().
+	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+		return cmd.log.Debug().
 			Str("work_id", workID).
-			Interface("height", height),
-		"process height",
-	)()
+			Interface("height", height)
+	}, "cmd/processed height")()
 
 	m, w, err := cmd.startManager(
 		dutil.SetContextValueLogger(ctx, cmd.log),
@@ -347,11 +356,16 @@ func (cmd *managerCommand) startManager(
 	workID string,
 	ophs [][2]util.Hash,
 ) (base.Manifest, dutil.ErrorFunc, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug().
+	l := cmd.log.With().
 		Str("work_id", workID).
 		Interface("height", height).
-		Stringer("prev_hash", prevManiest).
-		Int("ophs", len(ophs)), "start manager")()
+		Logger()
+
+	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+		return l.Debug().
+			Stringer("prev_hash", prevManiest).
+			Int("ophs", len(ophs))
+	}, "cmd/manager finished")()
 
 	var start dutil.In2ErrorFunc[dop5.ManagerStartWorkerFunc, dop5.NewManagerWorkerSendOpFunc]
 	var workerOwners dutil.In2ErrorFunc[string, []string]
@@ -396,9 +410,7 @@ func (cmd *managerCommand) startManager(
 		return nil
 	}
 
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "manager start")()
-
-	manifestElapsedLog := dutil.ElapsedLogEvent(cmd.log.Info().Interface("height", height), "manifest")
+	manifestElapsedLog := dutil.ElapsedLogEvent(l.Info)
 
 	if err := start(
 		cmd.newFuncStartWorkers(workID, height),
@@ -424,7 +436,7 @@ func (cmd *managerCommand) startManager(
 		func(wopsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
 			manifest = newManifest(height, prevManiest, wopsTree, statesTree)
 
-			manifestElapsedLog()
+			manifestElapsedLog().Msg("cmd/manifest")
 
 			opsTree = wopsTree
 
@@ -513,12 +525,19 @@ func (cmd *managerCommand) newFuncSendOp(workID string) dop5.NewManagerWorkerSen
 
 		requestDone, requestWait := dutil.NewContextDone(ctx)
 
+		l := dutil.ElapsedLogEvent(cmd.log.Debug)
+
 		go func() {
 			_, err := cmd.requestWork(workID, "manager_send_ops")(ctx, addr, nil, nil, handler.StreamHandler(cmd.openSubStreams))
 			_ = requestDone(err)
 		}()
 
 		return sendOp, func(err error) error {
+			defer l().
+				Str("worker", worker).
+				Uint64("max_items", maxItems).
+				Msg("cmd/send ops")
+
 			if serr := sendDone(err); serr != nil {
 				return serr
 			}
@@ -538,7 +557,7 @@ func (cmd *managerCommand) requestWorkers(
 		if err := newJob(func(ctx context.Context) error {
 			return job(ctx, worker)
 		}); err != nil {
-			return err
+			return jobWait(err)
 		}
 	}
 
@@ -548,7 +567,7 @@ func (cmd *managerCommand) requestWorkers(
 }
 
 func (cmd *managerCommand) waitWorkers() error {
-	cmd.log.Debug().Msg("waits workers")
+	cmd.log.Debug().Msg("cmd/waits workers")
 
 	done, wait := dutil.NewContextDone(cmd.ctx)
 
@@ -565,12 +584,12 @@ func (cmd *managerCommand) waitWorkers() error {
 
 			return struct{}{}, nil
 		}); created {
-			cmd.log.Debug().Str("worker", worker).Msg("worker ping")
+			cmd.log.Debug().Str("worker", worker).Msg("cmd/worker ping")
 		}
 
 		if pinged.Len() == len(cmd.Workers) {
 			done(nil)
-			cmd.log.Debug().Msg("all worker ping")
+			cmd.log.Debug().Msg("cmd/all worker ping")
 		}
 
 		return nil
@@ -590,7 +609,7 @@ func (cmd *managerCommand) stopWorkers() error {
 }
 
 func (cmd *managerCommand) preparePreProcessed() error {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "load pre processed")()
+	defer dutil.ElapsedLogMsg(cmd.log.Debug, "cmd/load pre-processed")()
 
 	switch ok, err := cmd.loadPreProcessed(); {
 	case err != nil:
@@ -636,7 +655,7 @@ func (cmd *managerCommand) preparePreProcessed() error {
 }
 
 func (cmd *managerCommand) loadPreProcessed() (bool, error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "prepare manifests")()
+	defer dutil.ElapsedLogMsg(cmd.log.Debug, "cmd/prepare manifests")()
 
 	mfilename := fmt.Sprintf(manifestsCacheFilenameFmt, cmd.Ops)
 
@@ -673,7 +692,7 @@ func (cmd *managerCommand) loadPreProcessed() (bool, error) {
 }
 
 func (cmd *managerCommand) preProcess() (manifests [2]base.Manifest, states [2][]base.State, opsTrees [2]*fixedtree.Tree, _ error) {
-	defer dutil.ElapsedLogEvent(cmd.log.Debug(), "make manifests")()
+	defer dutil.ElapsedLogMsg(cmd.log.Debug, "cmd/make manifests")()
 
 	ctx := dutil.SetContextValueLogger(cmd.ctx, cmd.log)
 
@@ -719,7 +738,7 @@ func (cmd *managerCommand) checkProcessed(
 		cmd.log.Error().
 			Interface("expected", cmd.expectedManifests[0]).
 			Interface("result", m).
-			Msg("manifest hash mismatch, 33")
+			Msg("cmd/manifest hash mismatch, 33")
 
 		return errors.Errorf("manifest hash mismatch, 33")
 	}
@@ -744,7 +763,7 @@ func (cmd *managerCommand) checkProcessed(
 				Str("key", a.Key()).
 				Interface("expected", a).
 				Interface("result", b).
-				Msg("state not equal")
+				Msg("cmd/state not equal")
 
 			return errors.Errorf("state not equal, %q", a.Key())
 		}
@@ -763,7 +782,7 @@ func (cmd *managerCommand) checkProcessed(
 					Uint64("index", index).
 					Interface("expected", a).
 					Interface("result", b).
-					Msg("ops tree node")
+					Msg("cmd/ops tree node")
 
 				return errors.Errorf("node not equal")
 			}

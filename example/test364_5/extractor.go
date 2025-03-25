@@ -2,6 +2,8 @@ package dop5
 
 import (
 	"context"
+	"sync/atomic"
+	"time"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
@@ -41,6 +43,8 @@ func newFuncSMVExtractor(
 	dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]],
 	error,
 ) {
+	log := dutil.LoadContextValueLogger(ctx)
+
 	var newJob dutil.JobWorkerNewJobFunc
 	var jobDone func()
 	var jobWait dutil.InErrorFunc[error]
@@ -61,6 +65,8 @@ func newFuncSMVExtractor(
 		reasons = i
 	}
 
+	started := new(atomic.Value)
+
 	return func(
 			getOperationFact GetOperationFactFunc,
 			f dutil.InErrorFunc[OpindexOpHashesFunc],
@@ -73,6 +79,8 @@ func newFuncSMVExtractor(
 			})
 
 			return dutil.NewIfErrErrorInFunc(jobWait)(f(func(opindex uint64, oph, facth util.Hash) error {
+				_ = started.CompareAndSwap(nil, time.Now())
+
 				return newJob(func(ctx context.Context) error {
 					return extractf(ctx, opindex, oph, facth)
 				})
@@ -84,6 +92,8 @@ func newFuncSMVExtractor(
 			if err := jobWait(nil); err != nil {
 				return err
 			}
+
+			dutil.AtomicElapsedLogEvent(log.Debug(), started).Msg("extracted done")
 
 			if f != nil {
 				return f(reasons.Map())

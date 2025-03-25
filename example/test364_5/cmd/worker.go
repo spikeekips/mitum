@@ -5,7 +5,6 @@ import (
 	"iter"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -21,10 +20,10 @@ type workerCommand struct {
 	baseCommand
 	Manager string `arg:""`
 
-	local            string
-	workerOptions    *dop5.WorkerOptions
-	manager          *net.UDPAddr
-	processStartedAt *atomic.Value
+	local           string
+	workerOptions   *dop5.WorkerOptions
+	manager         *net.UDPAddr
+	workerProcessAt time.Time
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
@@ -39,7 +38,7 @@ func (cmd *workerCommand) Run(log *zerolog.Logger) error {
 		return err
 	}
 
-	cmd.log.Debug().Msg("prepared")
+	cmd.log.Debug().Msg("cmd/prepared")
 
 	var wait dutil.ErrorFunc
 
@@ -64,7 +63,6 @@ func (cmd *workerCommand) prepare() error {
 	}
 
 	cmd.workerOptions = dop5.NewWorkerOptions(cmd.local)
-	cmd.processStartedAt = new(atomic.Value)
 
 	return nil
 }
@@ -117,11 +115,26 @@ func (cmd *workerCommand) startWorker(
 	opsShare, statesShare uint64,
 	maxOpsSize uint64,
 ) (dutil.ErrorFunc, error) {
+	l := cmd.log.With().
+		Str("work_id", workID).
+		Interface("height", height).
+		Logger()
+
+	l.Debug().
+		Strs("workers", workers).
+		Strs("ops_workers", opsWorkers).
+		Uint64("ops_share", opsShare).
+		Uint64("states_share", statesShare).
+		Uint64("max_ops_size", maxOpsSize).
+		Msg("cmd/worker started")
+
 	if cmd.workerAddrs.Len() < 1 {
 		if err := cmd.parseWorkersAddr(workers); err != nil {
 			return nil, err
 		}
 	}
+
+	defer dutil.ElapsedLogMsg(l.Debug, "cmd/worker ready")()
 
 	workCanceled := cmd.newFuncReportCancelWork(workID)
 
@@ -155,13 +168,8 @@ func (cmd *workerCommand) startWorker(
 
 	mustAddWorkHandler := cmd.newFuncMustAddHandler(addHandler)
 
-	var maxItems uint64
-
 	mustAddWorkHandler("manager_send_ops", cmd.newHandlerInitialInsert(
 		workID, workers, statesShare,
-		func(i uint64) {
-			atomic.AddUint64(&maxItems, i)
-		},
 		initialInsert,
 	).StreamHandler(cmd.newAcceptSubStream))
 
@@ -193,7 +201,7 @@ func (cmd *workerCommand) startWorker(
 			return workClosedDone(wait(
 				cmd.newFuncBroadcastUnmerged(workID),
 				cmd.newFuncReportResult(workID),
-				cmd.newFuncSaveStates(1<<9),
+				cmd.newFuncSaveStates(),
 			))
 		},
 		nil
@@ -241,14 +249,13 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 	workID string,
 	workers []string,
 	statesShare uint64,
-	maxItemsf func(uint64),
 	initialInsert dop5.WorkerInitialInsertFunc,
 ) quicstream.AcceptSubStreamHandler {
 	return acceptHandlerSendOps(
 		func(maxItems uint64, seq iter.Seq2[uint64, [2]util.Hash]) error {
-			cmd.processStartedAt.Store(time.Now())
+			cmd.workerProcessAt = time.Now()
 
-			maxItemsf(maxItems)
+			cmd.log.Debug().Uint64("max_items", maxItems).Msg("cmd/initial insert started")
 
 			maxItemsPerWorker := maxItems / uint64(len(workers))
 
@@ -263,7 +270,7 @@ func (cmd *workerCommand) newHandlerInitialInsert(
 	)
 }
 
-func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItems uint64) dop5.NewWorkerDistributeSMVsFunc {
+func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItemsPerWorker uint64) dop5.NewWorkerDistributeSMVsFunc {
 	request := cmd.requestWorkWorker(workID, "worker_distribute_smvs")
 
 	return func(ctx context.Context, worker string) (
@@ -272,9 +279,15 @@ func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItems ui
 		error,
 	) {
 		insert, owners, handler := requestHandlerWorkerDistributeSMVs(ctx, cmd.enc,
-			cmd.local, maxItems, defaultSubStreamItems, defaultMaxSubStreamsSize)
+			cmd.local, maxItemsPerWorker, defaultSubStreamItems, defaultMaxSubStreamsSize)
 
 		requestDone, requestWait := dutil.NewContextDone(ctx)
+
+		l := dutil.ElapsedLogMsg(func() *zerolog.Event {
+			return cmd.log.Debug().
+				Uint64("max_items_per_worker", maxItemsPerWorker).
+				Str("worker", worker)
+		}, "cmd/distribute smvs done")
 
 		go func() {
 			_, err := request(ctx, worker, nil, nil,
@@ -283,6 +296,8 @@ func (cmd *workerCommand) newFuncWorkerDistributeSMVs(workID string, maxItems ui
 		}()
 
 		return insert, func(subs, affected []string) error {
+			defer l()
+
 			if err := owners(subs, affected); err != nil {
 				return err
 			}
@@ -342,8 +357,9 @@ func (cmd *workerCommand) newFuncReportResult(workID string) dop5.WorkerReportRe
 		statesSize uint64,
 		seq dutil.InErrorFunc[dutil.InErrorFunc[base.State]],
 	) error {
-		cmd.log.Info().Stringer("elapsed", time.Since(cmd.processStartedAt.Load().(time.Time))).Msg("processed")
-		defer dutil.ElapsedLogEvent(cmd.log.Info(), "report result")()
+		cmd.log.Info().
+			Stringer("elapsed", time.Since(cmd.workerProcessAt)).
+			Msg("cmd/process done")
 
 		handler := requestHandlerWorkerResult(
 			cmd.local,
@@ -380,7 +396,7 @@ func (cmd *workerCommand) pingManager() error {
 				defaultQuicConfig(),
 				handler,
 			)
-			cmd.log.Debug().Err(err).Msg("ping manager")
+			cmd.log.Debug().Err(err).Msg("cmd/ping manager")
 
 			if err == nil {
 				close(connected)
@@ -395,8 +411,13 @@ func (cmd *workerCommand) pingManager() error {
 	return <-connected
 }
 
-func (cmd *workerCommand) newFuncSaveStates(size uint64) dop5.WorkerSaveStatesFunc {
+func (cmd *workerCommand) newFuncSaveStates() dop5.WorkerSaveStatesFunc {
 	return func(sts []base.State) error {
+		defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+			return cmd.log.Debug().
+				Int("size", len(sts))
+		}, "cmd/save states")()
+
 		return redisSaveStates(
 			cmd.ctx,
 			cmd.enc,

@@ -15,7 +15,6 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
@@ -159,7 +158,7 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 		).
 		Msg("quicstream prepared")
 
-	cmd.logStreamHandler = newFuncLogStreamHandler(log.Debug)
+	cmd.logStreamHandler = newFuncLogStreamHandler(cmd.log, zerolog.InfoLevel)
 
 	addHandler, removeHandler, handler, handlerClosef := quicstream.NewFuncPrefixStreamHandler()
 	cmd.mustAddHandler = func(prefix string, h quicstream.StreamHandler) {
@@ -517,12 +516,25 @@ func defaultQuicConfig() *quic.Config {
 	return config
 }
 
-func newFuncLogStreamHandler(f func() *zerolog.Event) func(quicstream.StreamHandler, ...string) quicstream.StreamHandler {
+func newFuncLogStreamHandler(
+	logger *zerolog.Logger,
+	level zerolog.Level,
+) func(quicstream.StreamHandler, ...string) quicstream.StreamHandler {
 	return func(h quicstream.StreamHandler, prefix ...string) quicstream.StreamHandler {
-		return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
-			defer dutil.ElapsedLogEvent(f().Strs("prefix", prefix), "handler")()
+		l := logger.With().Strs("prefix", prefix).Logger()
 
-			return h(ctx, stream)
+		fp := func() *zerolog.Event {
+			return l.WithLevel(level)
+		}
+
+		return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			l := dutil.ElapsedLogError(fp)
+
+			ctx, err := h(ctx, stream)
+
+			l(err).Msg("handler")
+
+			return ctx, err
 		}
 	}
 }

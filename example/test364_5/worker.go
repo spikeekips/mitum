@@ -181,12 +181,16 @@ func NewFuncWorker(
 					dutil.In2ErrorFunc[[]string, []string],
 					error,
 				) {
+					l := dutil.ElapsedLogError(log.Debug)
+
 					switch p, o, w, err := delayedDistribute(ctx, worker); {
 					case err != nil, p == nil:
 						return nil, nil, err
 					default:
 						if err := bgNewJob(func(context.Context) error {
-							_ = w() // NOTE ignore error
+							err := w() // NOTE ignore error
+
+							l(err).Str("worker", worker).Msg("worker distribute done")
 
 							return nil
 						}); err != nil {

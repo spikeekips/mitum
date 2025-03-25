@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -151,6 +152,7 @@ func newFuncWorkerProcess(
 	}
 
 	unusedOps := new(atomic.Value)
+	insertedAt := new(atomic.Value)
 
 	return func(
 			getStateOwners getStateOwnersFunc,
@@ -159,11 +161,15 @@ func newFuncWorkerProcess(
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
+			_ = insertedAt.CompareAndSwap(nil, time.Now())
+
 			return initialInsert(
 				getStateOwners,
 				distribute,
 				getOperationFact,
-				insertOp,
+				func(f OpindexOpHashesFunc) error {
+					return insertOp(f)
+				},
 				func(owners []string, reasons map[uint64]string) error {
 					unusedOps.Store(reasons)
 
@@ -200,7 +206,7 @@ func newFuncWorkerProcess(
 				closeState()
 			}()
 
-			if err := wait(
+			err := wait(
 				func(unmerged []uint64, subws, affected []string) error {
 					log.Debug().
 						Dict("owners", zerolog.Dict().
@@ -236,15 +242,13 @@ func newFuncWorkerProcess(
 						)
 					})
 				},
-			); err != nil {
-				log.Error().Err(err).Msg("wait done")
+			)
 
-				return err
-			}
+			dutil.AtomicElapsedLogEvent(log.Debug(), insertedAt).
+				Err(err).
+				Msg("process wait done")
 
-			log.Debug().Msg("wait done")
-
-			return nil
+			return err
 		},
 		nil
 }
@@ -269,6 +273,8 @@ func newFuncWorkerProcessSVM(
 	],
 	error,
 ) {
+	log := dutil.LoadContextValueLogger(ctx)
+
 	var mergeStateOp mergeStateOpFunc
 	var unmergeStateOp unmergeStateOpFunc
 	var traverseStateOps traverseStateOpsFunc
@@ -334,6 +340,8 @@ func newFuncWorkerProcessSVM(
 			dutil.In2ErrorFunc[[]string, []string],
 			error,
 		) {
+			l := dutil.ElapsedLogEvent(log.Debug)
+
 			var insert insertSMVsFunc
 			var done dutil.InErrorFunc[error]
 
@@ -354,6 +362,8 @@ func newFuncWorkerProcessSVM(
 					return insert(opindex, values)
 				},
 				func(subws, affected []string) error {
+					defer l().Msg("worker insert svs")
+
 					return done(workerStatesOwnersSet(worker, subws, affected))
 				},
 				nil
@@ -403,6 +413,8 @@ func newFuncWorkerProcessInitialInsert(
 	workerProcessInitialInsertFunc2,
 	error,
 ) {
+	log := dutil.LoadContextValueLogger(ctx)
+
 	var insertOps smvExtractorInsertFunc
 	var extractorWait dutil.InErrorFunc[dutil.InErrorFunc[map[uint64]string]]
 
@@ -422,6 +434,8 @@ func newFuncWorkerProcessInitialInsert(
 			insertOp dutil.InErrorFunc[OpindexOpHashesFunc],
 			reportDone dutil.In2ErrorFunc[[]string, map[uint64]string],
 		) error {
+			l := dutil.ElapsedLogEvent(log.Debug)
+
 			var extractStateOwnersSMVs extractStateOwnersSMVsFunc
 			var doneExtractStatesOwnersSMVs dutil.InErrorFunc[workerStatesOwnersSetFunc]
 			var localOwners dutil.OutFunc[[]string]
@@ -482,6 +496,8 @@ func newFuncWorkerProcessInitialInsert(
 			}
 
 			return extractorWait(func(reasons map[uint64]string) error {
+				defer l().Msg("initial insert done")
+
 				if err := reportDone(localOwners(), reasons); err != nil {
 					return err
 				}

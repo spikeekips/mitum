@@ -31,6 +31,9 @@ func managerRunOneWorker(
 	*fixedtree.Tree,
 	error,
 ) {
+	log := dutil.LoadContextValueLogger(ctx)
+	log.Debug().Msg("start one worker")
+
 	local := "worker"
 	workers := []string{local}
 
