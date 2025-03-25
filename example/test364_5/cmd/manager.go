@@ -378,7 +378,7 @@ func (cmd *managerCommand) startManager(
 
 	cmd.mustAddHandler(workID, handler)
 
-	mustAddHandler := newFuncMustAddHandler(addHandler)
+	mustAddHandler := cmd.newFuncMustAddHandler(addHandler)
 
 	mustAddHandler("manager_worker_owners", acceptHandlerWorkerOwners(func(worker string, owners []string) error {
 		return workerOwners(worker, owners)

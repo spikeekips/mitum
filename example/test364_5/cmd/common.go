@@ -15,6 +15,7 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
@@ -50,6 +51,7 @@ type baseCommand struct {
 	enc                *jsonenc.Encoder
 	workerAddrs        dutil.LockedMap[string, *net.UDPAddr]
 	newAcceptSubStream quicstream.NewAcceptSubStreamsFunc
+	logStreamHandler   func(quicstream.StreamHandler, ...string) quicstream.StreamHandler
 }
 
 func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
@@ -157,9 +159,11 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 		).
 		Msg("quicstream prepared")
 
+	cmd.logStreamHandler = newFuncLogStreamHandler(log.Debug)
+
 	addHandler, removeHandler, handler, handlerClosef := quicstream.NewFuncPrefixStreamHandler()
 	cmd.mustAddHandler = func(prefix string, h quicstream.StreamHandler) {
-		if !addHandler([]byte(prefix), h) {
+		if !addHandler([]byte(prefix), cmd.logStreamHandler(h, prefix)) {
 			panic(fmt.Sprintf("failed to add handler, %q", prefix))
 		}
 	}
@@ -229,8 +233,8 @@ func (cmd *baseCommand) prepareDialFunc() error {
 		l := cmd.log.With().Strs("prefix", p).Logger()
 
 		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			ctx, err := r(ctx, addr, tlsConfig, quicConfig, h)
-			l.Trace().Err(err).Msg("request")
+			ctx, err := r(ctx, addr, tlsConfig, quicConfig, cmd.logStreamHandler(h, p...))
+			l.Trace().Err(err).Msg("request handler")
 
 			return ctx, err
 		}
@@ -315,6 +319,16 @@ func (cmd *baseCommand) parseWorkersAddr(workers []string) error {
 	}
 
 	return nil
+}
+
+func (cmd *baseCommand) newFuncMustAddHandler(
+	addHandler func([]byte, quicstream.StreamHandler) bool,
+) func(string, quicstream.StreamHandler) {
+	return func(prefix string, h quicstream.StreamHandler) {
+		if !addHandler([]byte(prefix), cmd.logStreamHandler(h, prefix)) {
+			panic(fmt.Sprintf("failed to add handler, %q", prefix))
+		}
+	}
 }
 
 func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
@@ -501,4 +515,14 @@ func defaultQuicConfig() *quic.Config {
 	config.KeepAlivePeriod = time.Second
 
 	return config
+}
+
+func newFuncLogStreamHandler(f func() *zerolog.Event) func(quicstream.StreamHandler, ...string) quicstream.StreamHandler {
+	return func(h quicstream.StreamHandler, prefix ...string) quicstream.StreamHandler {
+		return func(ctx context.Context, stream quic.Stream) (context.Context, error) {
+			defer dutil.ElapsedLogEvent(f().Strs("prefix", prefix), "handler")()
+
+			return h(ctx, stream)
+		}
+	}
 }

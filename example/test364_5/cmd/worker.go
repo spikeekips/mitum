@@ -153,7 +153,7 @@ func (cmd *workerCommand) startWorker(
 
 	cmd.mustAddHandler(workID, handler)
 
-	mustAddWorkHandler := newFuncMustAddHandler(addHandler)
+	mustAddWorkHandler := cmd.newFuncMustAddHandler(addHandler)
 
 	var maxItems uint64
 
