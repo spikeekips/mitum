@@ -209,10 +209,6 @@ func NewFuncManager(
 				_ = manifest
 			}
 
-			// FIXME save,
-			// - block map
-			// - trees
-
 			if closeWorkf != nil {
 				// NOTE if done workers fails, canceling workers is meaningless.
 				// some workers ok, but others not. If it happened, manager
