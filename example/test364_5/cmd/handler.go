@@ -733,8 +733,8 @@ func requestHandlerWorkerDistributeSMVs(
 
 		addValuesDone()
 
-		for range seq {
-		}
+		_, stop := iter.Pull(seq)
+		stop()
 
 		return err
 	}
