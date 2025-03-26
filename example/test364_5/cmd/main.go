@@ -50,16 +50,14 @@ func main() {
 	)
 
 	if kctx.Command() == "version" {
-		for k, v := range maps.All(loadVersion()) {
-			fmt.Fprintln(logout, fmt.Sprintf("%9s: %s", k, v))
-		}
+		printBuildInfo(logout)
 
 		return
 	}
 
 	log.Debug().
 		Func(func(e *zerolog.Event) {
-			for k, v := range maps.All(loadVersion()) {
+			for k, v := range maps.All(readBuildInfo()) {
 				e.Str(k, v)
 			}
 		}).
@@ -79,22 +77,59 @@ func main() {
 	}
 }
 
-func loadVersion() map[string]string {
+func printBuildInfo(out io.Writer) {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
-		return nil
+		fmt.Fprintln(out, "-")
+
+		return
 	}
 
-	m := map[string]string{
-		"go": bi.GoVersion,
-	}
-
+	// build version
+	m := map[string]string{}
 	for i := range slices.Values(bi.Settings) {
 		if !strings.HasPrefix(i.Key, "vcs.") {
 			continue
 		}
 
 		m[i.Key[4:]] = i.Value
+	}
+
+	fmt.Fprintln(out, "- version")
+	for k := range slices.Values([]string{"revision", "modified"}) {
+		fmt.Fprintln(out, fmt.Sprintf("%15s: %s", k, m[k]))
+	}
+
+	m = map[string]string{
+		"go": bi.GoVersion,
+	}
+
+	fmt.Fprintln(out, "- build")
+	for i := range slices.Values(bi.Settings) {
+		var k string
+
+		switch {
+		case i.Key == "-race":
+			k = "race"
+		case strings.HasPrefix(i.Key, "vcs."):
+			continue
+		default:
+			k = i.Key
+		}
+
+		fmt.Fprintln(out, fmt.Sprintf("%15s: %s", k, i.Value))
+	}
+}
+
+func readBuildInfo() map[string]string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return nil
+	}
+
+	m := map[string]string{}
+	for i := range slices.Values(bi.Settings) {
+		m[i.Key] = i.Value
 	}
 
 	return m
