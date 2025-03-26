@@ -770,7 +770,7 @@ func requestHandlerWorkerDistributeSMVs(
 
 			started := time.Now()
 			defer func() {
-				fmt.Println("r>", time.Since(started))
+				fmt.Println("r>", time.Since(started)) // FIXME remove
 			}()
 
 			for i, v := range dutil.SeqAll(seq) {
@@ -956,7 +956,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		if err := jobWait(nil); err != nil {
 			return ctx, err
 		}
-		fmt.Println("a>", time.Since(started))
+		fmt.Println("a>", time.Since(started)) // FIXME remove
 
 		var subs []string
 		if err := readFixedFrameStringSlice(stream, &subs); err != nil {
