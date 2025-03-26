@@ -182,8 +182,8 @@ func (cmd *workerCommand) startWorker(
 
 	workClosedDone, workClosedWait := dutil.NewContextDone(ctx)
 	mustAddWorkHandler("manager_close_work", acceptHandlerCloseWork(func() error {
-		if err := workClosedDone(workerClose(nil)); err != nil {
-			return err
+		if err := workerClose(nil); err != nil {
+			return workClosedDone(err)
 		}
 
 		return workClosedWait()
