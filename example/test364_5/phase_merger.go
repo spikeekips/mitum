@@ -575,7 +575,7 @@ func xMergeOpValues(
 		addNext, doneNext = a, d
 	}
 
-	switch a, d, err := dutil.NewLockAppendSlice[func() error](valuesSize, 0); {
+	switch a, d, err := dutil.NewAppendSlice[func() error](valuesSize, 0); {
 	case err != nil:
 		return false, nil, nil, err
 	default:
