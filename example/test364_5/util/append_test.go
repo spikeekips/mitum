@@ -638,3 +638,190 @@ func equalStringSlice[T comparable](a, b []T) bool {
 
 	return true
 }
+
+func newFuncRunBenchmarkAppendSlice(bb *testing.B) func(string, func(uint64, *testing.B)) {
+	return func(name string, f func(uint64, *testing.B)) {
+		for n := uint64(10); n <= 10000; n *= 10 {
+			bb.Run(fmt.Sprintf(name+"%d", n), func(b *testing.B) {
+				for b.Loop() {
+					f(n, b)
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkSliceAppend(bb *testing.B) {
+	run := newFuncRunBenchmarkAppendSlice(bb)
+
+	run("", func(n uint64, b *testing.B) {
+		s := make([]uint64, n)
+
+		for i := range n {
+			s[i] = i
+		}
+	})
+}
+
+func BenchmarkBaseAppendSliceFullInitialSize(bb *testing.B) {
+	run := newFuncRunBenchmarkAppendSlice(bb)
+
+	run("", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		b.StartTimer()
+
+		add, _, _ := newBaseAppendSlice[uint64](n, 0, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("after new: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, _, _ := newBaseAppendSlice[uint64](n, 0, TrueFilter)
+		b.StartTimer()
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("done: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, done, _ := newBaseAppendSlice[uint64](n, 0, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+
+		b.StartTimer()
+
+		_ = done()
+	})
+}
+
+func BenchmarkBaseAppendSliceGrow(bb *testing.B) {
+	run := newFuncRunBenchmarkAppendSlice(bb)
+
+	run("", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		b.StartTimer()
+
+		add, _, _ := newBaseAppendSlice[uint64](n/2, n/3, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("after new: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, _, _ := newBaseAppendSlice[uint64](n/2, n/3, TrueFilter)
+		b.StartTimer()
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("done: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, done, _ := newBaseAppendSlice[uint64](n/2, n/3, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+
+		b.StartTimer()
+
+		_ = done()
+	})
+}
+
+func newAppendSliceNoAlloc[T any](grow uint64, filter func(T) bool) (
+	add AppendSliceAddFunc[T],
+	done OutFunc[[]T],
+) {
+	s := make([]T, 0, grow)
+
+	var next uint64
+
+	return func(ts ...T) (added, _ uint64) {
+			for t := range slices.Values(ts) {
+				if !filter(t) {
+					continue
+				}
+
+				s = append(s, t)
+				added++
+				next++
+			}
+
+			return added, 0
+		},
+		func() []T {
+			if next < 1 {
+				return nil
+			}
+
+			s = s[:next]
+
+			return s
+		}
+}
+
+func BenchmarkAppendSliceNoAlloc(bb *testing.B) {
+	run := newFuncRunBenchmarkAppendSlice(bb)
+
+	run("", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		b.StartTimer()
+
+		add, _ := newAppendSliceNoAlloc[uint64](n, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("after new: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, _ := newAppendSliceNoAlloc[uint64](n, TrueFilter)
+		b.StartTimer()
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+	})
+
+	run("done: ", func(n uint64, b *testing.B) {
+		b.StopTimer()
+		add, done := newAppendSliceNoAlloc[uint64](n, TrueFilter)
+
+		for i := range n {
+			if added, _ := add(i); added < 1 {
+				panic("not added")
+			}
+		}
+		b.StartTimer()
+
+		_ = done()
+	})
+}
