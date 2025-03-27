@@ -133,7 +133,7 @@ func requestHandlerSendOps(
 	seq := func(func([3]interface{}) bool) {}
 
 	if maxItems > 0 {
-		add, addDone, seq = dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
+		add, addDone, seq = dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
 	}
 
 	done, wait := dutil.NewContextDone(ctx)
@@ -236,7 +236,7 @@ func acceptHandlerSendOps(
 			subStreams = s
 		}
 
-		add, addDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
+		add, addDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
 
 		done, wait := dutil.NewContextDone(ctx)
 
@@ -724,7 +724,7 @@ func requestHandlerWorkerDistributeSMVs(
 	dutil.In2ErrorFunc[[]string, []string],
 	quicstream.OpenSubStreamsHandler,
 ) {
-	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, 1<<9, 1<<9)
+	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
 
 	var notOK atomic.Value
 
@@ -761,7 +761,7 @@ func requestHandlerWorkerDistributeSMVs(
 			var jobDone func()
 			var jobWait dutil.InErrorFunc[error]
 
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, maxItems)); {
 			case err != nil:
 				return err
 			default:
@@ -913,7 +913,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, maxItems)); {
 		case err != nil:
 			return ctx, err
 		default:
