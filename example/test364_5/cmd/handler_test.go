@@ -758,56 +758,56 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 }
 
 func (t *testHandlerWorkerDistributeSMVs) TestOK() {
-	t.Run("ok", func() {
+	t.RunWithGoLeak("ok", func() {
 		t.doHandler(
 			3333, 3, 3,
 			3333, 1<<7, 1<<9,
 		)
 	})
 
-	t.Run("empty ops", func() {
+	t.RunWithGoLeak("empty ops", func() {
 		t.doHandler(
 			0, 3, 3,
 			2, 3, 3,
 		)
 	})
 
-	t.Run("empty subs", func() {
+	t.RunWithGoLeak("empty subs", func() {
 		t.doHandler(
 			3, 0, 3,
 			2, 3, 3,
 		)
 	})
 
-	t.Run("empty affected", func() {
+	t.RunWithGoLeak("empty affected", func() {
 		t.doHandler(
 			3, 3, 0,
 			2, 3, 3,
 		)
 	})
 
-	t.Run("empty all", func() {
+	t.RunWithGoLeak("empty all", func() {
 		t.doHandler(
 			0, 0, 0,
 			2, 3, 3,
 		)
 	})
 
-	t.Run("zero max items", func() {
+	t.RunWithGoLeak("zero max items", func() {
 		t.doHandler(
 			3333, 3, 3,
 			0, 1<<9, 1<<9,
 		)
 	})
 
-	t.Run("zero max sub streams items", func() {
+	t.RunWithGoLeak("zero max sub streams items", func() {
 		t.doHandler(
 			3333, 3, 3,
 			333, 0, 1<<9,
 		)
 	})
 
-	t.Run("zero max sub streams size", func() {
+	t.RunWithGoLeak("zero max sub streams size", func() {
 		t.doHandler(
 			3333, 3, 3,
 			333, 1<<9, 0,
@@ -816,6 +816,8 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 }
 
 func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
+	defer goleak.VerifyNone(t.T())
+
 	ops := make([][2]interface{}, 3333)
 	for i := range ops {
 		ops[i] = [2]interface{}{
@@ -896,8 +898,6 @@ func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
 }
 
 func TestHandlerWorkerDistributeSMVs(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
 	suite.Run(t, new(testHandlerWorkerDistributeSMVs))
 }
 

@@ -724,7 +724,12 @@ func requestHandlerWorkerDistributeSMVs(
 	dutil.In2ErrorFunc[[]string, []string],
 	quicstream.OpenSubStreamsHandler,
 ) {
-	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, maxItems, maxItems)
+	chansize := maxItems
+	if maxItems < 1 {
+		chansize = 1 << 9
+	}
+
+	addValues, addValuesDone, seq := dutil.NewContextUnlimitedChans[[3]interface{}](ctx, chansize, chansize)
 
 	var notOK atomic.Value
 
@@ -761,7 +766,7 @@ func requestHandlerWorkerDistributeSMVs(
 			var jobDone func()
 			var jobWait dutil.InErrorFunc[error]
 
-			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, maxItems)); {
+			switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
 			case err != nil:
 				return err
 			default:
@@ -913,7 +918,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		var jobDone func()
 		var jobWait dutil.InErrorFunc[error]
 
-		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, maxItems)); {
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, max(maxItems, 1<<9)); {
 		case err != nil:
 			return ctx, err
 		default:
