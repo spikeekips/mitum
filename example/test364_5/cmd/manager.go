@@ -151,6 +151,13 @@ func (cmd *managerCommand) preparePKs() error {
 
 	l := dutil.ElapsedLogEvent(cmd.log.Debug)
 
+	switch f, err := cmd.pprof("pks"); {
+	case err != nil:
+		return err
+	default:
+		defer f()
+	}
+
 	created, pubs, err := prepareItems(
 		cmd.enc,
 		"pubs.b",
@@ -184,6 +191,13 @@ func (cmd *managerCommand) prepareCreateOps() ([]dop5.OperationFact, [][2]util.H
 	l := dutil.ElapsedLogEvent(cmd.log.Debug)
 
 	ophs := make([][2]util.Hash, cmd.Ops)
+
+	switch f, err := cmd.pprof("create-ops"); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		defer f()
+	}
 
 	created, facts, err := prepareItems(
 		cmd.enc,
@@ -228,6 +242,13 @@ func (cmd *managerCommand) prepareTransferOps() ([]dop5.OperationFact, [][2]util
 	l := dutil.ElapsedLogEvent(cmd.log.Debug)
 
 	ophs := make([][2]util.Hash, cmd.Ops)
+
+	switch f, err := cmd.pprof("transfer-ops"); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		defer f()
+	}
 
 	created, facts, err := prepareItems(
 		cmd.enc,
@@ -314,6 +335,13 @@ func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
 		return cmd.log.Debug().Int("n", len(facts))
 	}, "cmd/save facts")()
+
+	switch f, err := cmd.pprof("save-ops"); {
+	case err != nil:
+		return err
+	default:
+		defer f()
+	}
 
 	return redisSaveOperationFacts(
 		cmd.ctx,
@@ -412,6 +440,15 @@ func (cmd *managerCommand) startManager(
 
 	manifestElapsedLog := dutil.ElapsedLogEvent(l.Info)
 
+	var pproff func()
+
+	switch f, err := cmd.pprof(fmt.Sprintf("process-height-%d", height)); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		pproff = f
+	}
+
 	if err := start(
 		cmd.newFuncStartWorkers(workID, height),
 		cmd.newFuncSendOp(workID),
@@ -435,6 +472,8 @@ func (cmd *managerCommand) startManager(
 		},
 		func(wopsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
 			manifest = newManifest(height, prevManiest, wopsTree, statesTree)
+
+			pproff()
 
 			manifestElapsedLog().Msg("cmd/manifest")
 
@@ -619,10 +658,20 @@ func (cmd *managerCommand) preparePreProcessed() error {
 		return nil
 	}
 
+	var pproff func()
+	switch f, err := cmd.pprof("pre-process"); {
+	case err != nil:
+		return err
+	default:
+		pproff = f
+	}
+
 	switch ms, states, opsTrees, err := cmd.preProcess(); {
 	case err != nil:
 		return err
 	default:
+		pproff()
+
 		cmd.expectedManifests = ms
 		cmd.expectedStates = states
 		cmd.expectedOpsTrees = opsTrees
@@ -657,6 +706,13 @@ func (cmd *managerCommand) preparePreProcessed() error {
 
 func (cmd *managerCommand) loadPreProcessed() (bool, error) {
 	defer dutil.ElapsedLogMsg(cmd.log.Debug, "cmd/prepare manifests")()
+
+	switch f, err := cmd.pprof("load-pre-process"); {
+	case err != nil:
+		return false, err
+	default:
+		defer f()
+	}
 
 	mfilename := fmt.Sprintf(manifestsCacheFilenameFmt, cmd.Ops)
 

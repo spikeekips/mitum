@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"net"
 	"sync"
@@ -195,6 +196,13 @@ func (cmd *workerCommand) startWorker(
 	}))
 
 	return func() error {
+			switch f, err := cmd.pprof(fmt.Sprintf("worker-work-%s", workID)); {
+			case err != nil:
+				return err
+			default:
+				defer f()
+			}
+
 			defer cmd.removeHandler([]byte(workID))
 			defer closeHandler()
 

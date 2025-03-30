@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"time"
 
@@ -27,9 +31,16 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+type pprofFlags struct {
+	Out string `name:"out" help:"output directory" group:"pprof"`
+	CPU bool   `name:"cpu" group:"pprof"`
+	Mem bool   `name:"mem" group:"pprof"`
+}
+
 type baseCommand struct {
-	Bind  string `default:"${bind}" help:"by default, ${bind}"`
-	Redis string `default:"127.0.0.1:6379"`
+	Bind       string `default:"${bind}" help:"by default, ${bind}"`
+	Redis      string `default:"127.0.0.1:6379"`
+	pprofFlags `embed:"" prefix:"pprof."`
 
 	ctx                context.Context
 	ctxCancel          dutil.InErrorFunc[error]
@@ -57,6 +68,19 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 	cmd.log = log
 
 	cmd.ctx, cmd.ctxCancel = dutil.ContextWithCancelCause(context.Background())
+
+	if d := cmd.pprofFlags.Out; d != "" {
+		switch fi, err := os.Stat(d); {
+		case os.IsNotExist(err):
+			if err := os.MkdirAll(d, 0o700); err != nil {
+				return err
+			}
+		case err != nil:
+			return errors.WithStack(err)
+		case !fi.IsDir():
+			return errors.Errorf("not directory")
+		}
+	}
 
 	if err := cmd.prepareQuicStream(role); err != nil {
 		return err
@@ -328,6 +352,79 @@ func (cmd *baseCommand) newFuncMustAddHandler(
 			panic(fmt.Sprintf("failed to add handler, %q", prefix))
 		}
 	}
+}
+
+func (cmd *baseCommand) pprof(name string) (func(), error) {
+	var cpu, mem func()
+
+	switch f, err := cmd.cpuPprof(name); {
+	case err != nil:
+		return nil, err
+	default:
+		cpu = f
+	}
+
+	switch f, err := cmd.memPprof(name); {
+	case err != nil:
+		return nil, err
+	default:
+		mem = f
+	}
+
+	return func() {
+			cpu()
+			mem()
+		},
+		nil
+}
+
+func (cmd *baseCommand) cpuPprof(name string) (func(), error) {
+	if !cmd.pprofFlags.CPU {
+		return func() {}, nil
+	}
+
+	return cpuPprof(filepath.Join(cmd.pprofFlags.Out, fmt.Sprintf("cpu-%s.pprof", name)))
+}
+
+func (cmd *baseCommand) memPprof(name string) (func(), error) {
+	if !cmd.pprofFlags.Mem {
+		return func() {}, nil
+	}
+
+	return memPprof(filepath.Join(cmd.pprofFlags.Out, fmt.Sprintf("mem-%s.pprof", name)))
+}
+
+func cpuPprof(out string) (func(), error) {
+	f, err := os.Create(out)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return func() {
+			pprof.StopCPUProfile()
+
+			_ = f.Close()
+		},
+		nil
+}
+
+func memPprof(out string) (func(), error) {
+	f, err := os.Create(out)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return func() {
+			defer f.Close()
+
+			runtime.GC()
+			pprof.WriteHeapProfile(f)
+		},
+		nil
 }
 
 func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
