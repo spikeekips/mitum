@@ -3,7 +3,6 @@ package dop5
 import (
 	"context"
 	"slices"
-	"sync"
 
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 )
@@ -133,7 +132,6 @@ func newFuncWorkerMerger(
 		},
 		workerPhaseMergerWorkerInsert,
 		setSMVs,
-		unmerge,
 	)
 
 	wait := newFuncWorkerMergerWait(
@@ -181,10 +179,7 @@ func newFuncWorkerMergerInsert(
 	isOpsWorker func(worker string) bool,
 	workerInsert insertWorkerSMVsFunc,
 	setSMVs opindexSetSMVsFunc,
-	unmerge WorkerUnmergedFunc,
 ) workerMergerInsertSMVsFunc {
-	var l sync.Mutex
-
 	return func(worker string) (
 		insertSMVsFunc,
 		dutil.InErrorFunc[error],
@@ -206,23 +201,15 @@ func newFuncWorkerMergerInsert(
 			insert, done = i, d
 		}
 
-		f := func(opindex uint64, values []SMV) error {
-			return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
-				l.Lock()
-				defer l.Unlock()
-
-				switch added, err := setSMVs(opindex, values); {
-				case err != nil:
+		return func(opindex uint64, values []SMV) error {
+				if _, err := setSMVs(opindex, values); err != nil {
 					return err
-				case added:
-					return insert(opindex)
 				}
 
-				return nil
-			})
-		}
-
-		return f, done, nil
+				return insert(opindex)
+			},
+			done,
+			nil
 	}
 }
 
