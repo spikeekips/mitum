@@ -472,10 +472,9 @@ func (cmd *managerCommand) startManager(
 		},
 		func(wopsTree, statesTree *fixedtree.Tree) (base.Manifest, error) {
 			manifest = newManifest(height, prevManiest, wopsTree, statesTree)
+			manifestElapsedLog().Msg("cmd/manifest")
 
 			pproff()
-
-			manifestElapsedLog().Msg("cmd/manifest")
 
 			opsTree = wopsTree
 

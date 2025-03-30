@@ -60,7 +60,7 @@ func TestDecodeSMV(tt *testing.T) {
 	t.SetT(tt)
 
 	enc := jsonenc.NewEncoder(1 << 9)
-	t.NoError(jsonenc.AddDecode(enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(enc, dop5.AccountSVHint, &dop5.AccountSV{}, dop5.AccountSVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(enc, smvsBundleHint, smvsBundle{}, smvsBundleDecodeJSON))
@@ -73,7 +73,7 @@ func TestDecodeSMV(tt *testing.T) {
 		s := make([]dop5.SMV, n)
 
 		for i := range n {
-			v, err := dop5.NewAccountSMV(base.NewDummyPublickey(util.UUID().String()), 33)
+			v, err := dop5.NewAccountSMV(base.NewMPrivatekey().Publickey(), 33)
 			t.IfErrPanic(err)
 
 			s[i] = v

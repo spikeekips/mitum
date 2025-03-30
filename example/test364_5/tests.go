@@ -9,5 +9,5 @@ import (
 )
 
 func DecodeJSONDummyPublickey(enc *jsonenc.Encoder, s string) (any, error) {
-	return base.NewDummyPublickey(s), nil
+	return base.NewDummyPublickey(s[:len(s)-3]), nil
 }

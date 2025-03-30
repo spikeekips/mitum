@@ -767,11 +767,11 @@ func TestEncodeAccountSV(tt *testing.T) {
 
 	enc := jsonenc.NewEncoder(1 << 9)
 
-	t.NoError(jsonenc.AddDecode(enc, base.DummyPublickeyHint, base.DummyPublickey{}, DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(enc, base.MPublickeyHint, &base.MPublickey{}, DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(enc, AccountSVHint, &AccountSV{}, AccountSVDecodeJSON))
 
 	t.Encode = func() (interface{}, []byte) {
-		v := NewAccountSV(base.NewDummyPublickey(util.UUID().String()), 1)
+		v := NewAccountSV(base.NewMPrivatekey().Publickey(), 1)
 
 		b, err := util.MarshalJSON(v)
 		t.NoError(err)

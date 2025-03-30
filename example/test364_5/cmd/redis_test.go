@@ -27,7 +27,7 @@ type baseTestRedis struct {
 
 func (t *baseTestRedis) SetupSuite() {
 	t.enc = jsonenc.NewEncoder(1 << 9)
-	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(t.enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey))
 	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
 
 	t.mini = miniredis.RunT(t.T())
@@ -52,8 +52,8 @@ func (t *baseTestRedis) randomFacts(n int) []dop5.OperationFact {
 		f[i] = dop5.NewAccountOpFact(
 			util.UUID().Bytes(),
 			int64(i),
-			base.NewDummyPublickey(util.UUID().String()),
-			base.NewDummyPublickey(util.UUID().String()),
+			base.NewMPrivatekey().Publickey(),
+			base.NewMPrivatekey().Publickey(),
 		)
 	}
 
@@ -158,7 +158,7 @@ func (t *testRedisState) randomStates(n int) []base.State {
 
 	for i := range n {
 		sv := dop5.NewAccountSV(
-			base.NewDummyPublickey(util.UUID().String()),
+			base.NewMPrivatekey().Publickey(),
 			33,
 		)
 

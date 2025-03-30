@@ -92,7 +92,7 @@ func (enc *Encoder) Decode(v any) (any, error) {
 func (enc *Encoder) DecodeString(s string, size int) (any, error) {
 	var decode decodeStringFunc
 
-	switch b, t, err := hint.ParseFixedTypedString(s, size); {
+	switch _, t, err := hint.ParseFixedTypedString(s, size); {
 	case err != nil:
 		return nil, err
 	default:
@@ -105,7 +105,7 @@ func (enc *Encoder) DecodeString(s string, size int) (any, error) {
 			}
 		}
 
-		return decode(enc, b)
+		return decode(enc, s)
 	}
 }
 

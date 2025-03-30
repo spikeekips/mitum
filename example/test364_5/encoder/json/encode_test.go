@@ -184,7 +184,7 @@ func (s stringStruct) MarshalText() ([]byte, error) {
 }
 
 func stringStructDecodeJSON(enc *Encoder, s string) (any, error) {
-	b, err := base64.StdEncoding.DecodeString(s)
+	b, err := base64.StdEncoding.DecodeString(s[:len(s)-3])
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (s stringD) MarshalText() ([]byte, error) {
 }
 
 func stringDDecodeJSON(enc *Encoder, s string) (any, error) {
-	b, err := base64.StdEncoding.DecodeString(s)
+	b, err := base64.StdEncoding.DecodeString(s[:len(s)-4])
 	if err != nil {
 		return nil, err
 	}
