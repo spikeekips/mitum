@@ -23,14 +23,12 @@ type (
 
 type Encoder struct {
 	set       map[string]any
-	cache     util.GCache[string, [2]any /* {decode func, error} */]
 	hintCache util.GCache[string, [2]any /* {*hint.Hint, error} }*/]
 }
 
 func NewEncoder(cacheSize int) *Encoder {
 	return &Encoder{
 		set:       map[string]any{},
-		cache:     util.NewLRUGCache[string, [2]any](cacheSize),
 		hintCache: util.NewLRUGCache[string, [2]any](cacheSize),
 	}
 }
@@ -159,27 +157,13 @@ func (enc *Encoder) getHint(s string) (hint.Hint, error) {
 
 func (enc *Encoder) getDecodeFunc(t hint.Type, v uint64) (any, error) {
 	decodeKey := enc.decodeKey(t, v)
-	if i, found := enc.cache.Get(decodeKey); found {
-		if i[1] != nil {
-			return nil, i[1].(error)
-		}
 
-		return i[0], nil
-	}
-
-	var f any
-	var err error
-
-	switch i, found := enc.set[decodeKey]; {
+	switch f, found := enc.set[decodeKey]; {
 	case !found:
-		err = errors.Errorf("decode func not found, %q", t)
+		return nil, errors.Errorf("decode func not found, %q", t)
 	default:
-		f = i
+		return f, nil
 	}
-
-	enc.cache.Set(decodeKey, [2]any{f, err}, 0)
-
-	return f, err
 }
 
 func (*Encoder) decodeKey(t hint.Type, v uint64) string {
