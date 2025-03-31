@@ -245,7 +245,9 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 	})
 
 	t.Run("join again", func() {
-		t.NoError(srv.Join([]quicstream.ConnInfo{lci}))
+		t.NoError(checkJoined(func() error {
+			return srv.Join([]quicstream.ConnInfo{lci})
+		}))
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -302,7 +304,9 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -400,8 +404,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err := lsrv.Join([]quicstream.ConnInfo{rci})
-	t.NoError(err)
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -463,8 +468,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err := lsrv.Join([]quicstream.ConnInfo{rci})
-	t.NoError(err)
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -524,7 +530,9 @@ func (t *testMemberlist) TestLocalLeave() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -627,7 +635,9 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -721,7 +731,9 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 	<-time.After(time.Second)
 	t.T().Logf("trying to join to remotes, %q, %q", rci0, rci1)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0, rci1}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci0, rci1})
+	}))
 
 	err := <-alljoinedch
 	t.NoError(err)
@@ -766,7 +778,9 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rstopf0()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci0})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -792,36 +806,18 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	t.NoError(rstartf1())
 	defer rstopf1()
 
-	var i int
-	for {
-		<-time.After(time.Second)
+	t.NoError(checkJoined(func() error {
+		return rsrv1.Join([]quicstream.ConnInfo{lci})
+	}))
 
-		err := rsrv1.Join([]quicstream.ConnInfo{lci})
-		if err == nil {
-			t.T().Log("joined")
-			break
+	t.NoError(checkJoined(func() error {
+		return rsrv1.Join([]quicstream.ConnInfo{lci})
+		if l := lsrv.MembersLen(); l != 2 {
+			return errors.Errorf("members len, %d", l)
 		}
 
-		i++
-		if i > 3 {
-			t.Fail("failed to wait join")
-		}
-	}
-
-	i = 0
-	for {
-		<-time.After(time.Second)
-		if l := lsrv.MembersLen(); l == 2 {
-			t.T().Logf("members len == %d", l)
-
-			break
-		}
-
-		i++
-		if i > 3 {
-			t.Fail("failed to wait join")
-		}
-	}
+		return nil
+	}))
 
 	n, others, found := lsrv.members.MembersLenOthers(rnode, rci0.UDPAddr())
 	t.True(found)
@@ -897,8 +893,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	defer rstopf()
 
 	<-time.After(time.Second)
-	err = lsrv.Join([]quicstream.ConnInfo{rci})
-	t.NoError(err)
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -943,7 +940,9 @@ func (t *testMemberlist) checkJoined(
 		return addrs[i].String() < addrs[j].String()
 	})
 
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join([]quicstream.ConnInfo{rci})
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -1012,7 +1011,9 @@ func (t *testMemberlist) checkJoined2(
 	})
 
 	t.T().Log("rcis:", rcis)
-	t.NoError(lsrv.Join(rcis))
+	t.NoError(checkJoined(func() error {
+		return lsrv.Join(rcis)
+	}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -1534,4 +1535,21 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 
 func TestMemberlist(t *testing.T) {
 	suite.Run(t, new(testMemberlist))
+}
+
+func checkJoined(join func() error) error {
+	var i int
+	for {
+		<-time.After(time.Second)
+
+		err := join()
+		if err == nil {
+			return nil
+		}
+
+		i++
+		if i > 3 {
+			return errors.WithMessagef(err, "failed to wait join")
+		}
+	}
 }
