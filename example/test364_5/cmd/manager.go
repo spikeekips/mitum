@@ -48,6 +48,7 @@ type managerCommand struct {
 	StatesShare uint64   `arg:"" help:"states share"`
 	Ops         uint64   `arg:"" help:"number of operations"`
 	Workers     []string `arg:"" default:""`
+	PreProcess  bool     `name:"pre-process"`
 
 	managerOptions    *dop5.ManagerOptions
 	privs             []base.Privatekey
@@ -72,6 +73,10 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 	}
 
 	cmd.log.Debug().Msg("cmd/prepared")
+
+	if cmd.PreProcess {
+		return nil
+	}
 
 	if err := cmd.waitWorkers(); err != nil {
 		return err
@@ -653,7 +658,7 @@ func (cmd *managerCommand) preparePreProcessed() error {
 	switch ok, err := cmd.loadPreProcessed(); {
 	case err != nil:
 		return err
-	case ok:
+	case ok && !cmd.PreProcess:
 		return nil
 	}
 
