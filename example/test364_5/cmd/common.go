@@ -92,7 +92,9 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 	}
 
 	cmd.rdb = redis.NewClient(&redis.Options{
-		Addr: cmd.Redis,
+		Addr:       cmd.Redis,
+		MaxRetries: -1,
+		PoolSize:   1 << 9, // NOTE enough pool size reduce the elapsed time to get values.
 	})
 
 	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
