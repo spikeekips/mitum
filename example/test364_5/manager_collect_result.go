@@ -131,6 +131,8 @@ func newFuncManagerCollectResult(
 						return err
 					}
 
+					defer dutil.ElapsedLogMsg(log.Debug, "ops tree generated")()
+
 					switch tr, err := doneOpsTree(g); {
 					case err != nil:
 						return err
@@ -141,6 +143,8 @@ func newFuncManagerCollectResult(
 					}
 				},
 				func(context.Context) error {
+					defer dutil.ElapsedLogMsg(log.Debug, "states tree generated")()
+
 					switch tr, err := workerStatesTree(g); {
 					case err != nil:
 						return err

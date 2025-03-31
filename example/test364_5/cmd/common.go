@@ -182,11 +182,11 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 		).
 		Msg("quicstream prepared")
 
-	cmd.logStreamHandler = newFuncLogStreamHandler(cmd.log, zerolog.InfoLevel)
+	cmd.logStreamHandler = newFuncLogStreamHandler(cmd.log, zerolog.DebugLevel)
 
 	addHandler, removeHandler, handler, handlerClosef := quicstream.NewFuncPrefixStreamHandler()
 	cmd.mustAddHandler = func(prefix string, h quicstream.StreamHandler) {
-		if !addHandler([]byte(prefix), cmd.logStreamHandler(h, prefix)) {
+		if !addHandler([]byte(prefix), cmd.logStreamHandler(h, "accept", prefix)) {
 			panic(fmt.Sprintf("failed to add handler, %q", prefix))
 		}
 	}
@@ -255,8 +255,12 @@ func (cmd *baseCommand) prepareDialFunc() error {
 
 		l := cmd.log.With().Strs("prefix", p).Logger()
 
+		logp := make([]string, len(p)+1)
+		logp[0] = "request"
+		copy(logp[1:], p)
+
 		return func(ctx context.Context, addr net.Addr, tlsConfig *tls.Config, quicConfig *quic.Config, h quicstream.StreamHandler) (context.Context, error) {
-			ctx, err := r(ctx, addr, tlsConfig, quicConfig, cmd.logStreamHandler(h, p...))
+			ctx, err := r(ctx, addr, tlsConfig, quicConfig, cmd.logStreamHandler(h, logp...))
 			l.Trace().Err(err).Msg("request handler")
 
 			return ctx, err
