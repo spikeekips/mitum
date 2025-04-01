@@ -18,8 +18,6 @@ var (
 	StreamIDContextKey          util.ContextKey = "stream_id"
 )
 
-// NOTE enable GSO
-
 func Serve(
 	ctx context.Context,
 	pconn net.PacketConn,
