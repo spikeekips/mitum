@@ -799,9 +799,9 @@ func (cmd *managerCommand) checkProcessed(
 		cmd.log.Error().
 			Interface("expected", cmd.expectedManifests[0]).
 			Interface("result", m).
-			Msg("cmd/manifest hash mismatch, 33")
+			Msgf("cmd/manifest hash mismatch, %d", m.Height())
 
-		return errors.Errorf("manifest hash mismatch, 33")
+		return errors.Errorf("manifest hash mismatch, %d", m.Height())
 	}
 
 	workerSaved := map[string]base.State{}
