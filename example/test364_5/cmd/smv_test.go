@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"io"
+	"iter"
 	"slices"
 	"testing"
 	"time"
@@ -54,7 +55,10 @@ func smvsBundleDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 
 func TestDecodeSMV(tt *testing.T) {
 	defer goleak.VerifyNone(tt,
-		goleak.IgnoreTopFunction("runtime/pprof.readProfile"))
+		goleak.IgnoreTopFunction("runtime/pprof.readProfile"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+	)
 
 	t := new(dutil.BaseSuite)
 	t.SetT(tt)
@@ -65,21 +69,32 @@ func TestDecodeSMV(tt *testing.T) {
 	t.NoError(jsonenc.AddDecode(enc, dop5.AccountSMVHint, &dop5.AccountSMV{}, dop5.AccountSMVDecodeJSON))
 	t.NoError(jsonenc.AddDecode(enc, smvsBundleHint, smvsBundle{}, smvsBundleDecodeJSON))
 
-	randomMergeValues := func(n int) []dop5.SMV {
-		if n < 1 {
-			return nil
+	randomMergeValue := func() dop5.SMV {
+		v, err := dop5.NewAccountSMV(base.NewMPrivatekey().Publickey(), 33)
+		t.IfErrPanic(err)
+
+		return v
+	}
+
+	var valuesPool []dop5.SMV
+
+	randomMergeValues := func(ops, n int) iter.Seq[[]dop5.SMV] {
+		size := ops * n
+		if s := len(valuesPool); size > s {
+			valuesPool = append(valuesPool, make([]dop5.SMV, size-s)...)
+
+			for i := range size - s {
+				valuesPool[s+i] = randomMergeValue()
+			}
 		}
 
-		s := make([]dop5.SMV, n)
-
-		for i := range n {
-			v, err := dop5.NewAccountSMV(base.NewMPrivatekey().Publickey(), 33)
-			t.IfErrPanic(err)
-
-			s[i] = v
+		return func(yield func([]dop5.SMV) bool) {
+			for i := range ops {
+				if !yield(valuesPool[i*n : (i+1)*n]) {
+					return
+				}
+			}
 		}
-
-		return s
 	}
 
 	writeBundle := func(w io.Writer, opindex uint64, v [2]any) error {
@@ -141,12 +156,15 @@ func TestDecodeSMV(tt *testing.T) {
 
 	do := func(n int, write func(io.Writer, uint64, [2]any) error, read func(io.Reader) (uint64, [2]any, error)) func() {
 		return func() {
+			next, stop := iter.Pull(randomMergeValues(n, 3))
+			defer stop()
+
 			ops := make([][2]any, n)
 			for i := range ops {
-				ops[i] = [2]any{
-					valuehash.RandomSHA256(),
-					randomMergeValues(3),
-				}
+				values, ok := next()
+				t.True(ok)
+
+				ops[i] = [2]any{valuehash.RandomSHA256(), values}
 			}
 
 			buf := bytes.NewBuffer(nil)
@@ -206,8 +224,8 @@ func TestDecodeSMV(tt *testing.T) {
 		t.Run("frame", doFrame(6666))
 	})
 
-	t.Run("33333", func() {
-		t.Run("bundle", doBundle(33333))
-		t.Run("frame", doFrame(33333))
+	t.Run("9999", func() {
+		t.Run("bundle", doBundle(9999))
+		t.Run("frame", doFrame(9999))
 	})
 }

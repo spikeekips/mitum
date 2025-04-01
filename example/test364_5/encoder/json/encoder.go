@@ -1,11 +1,13 @@
 package jsonenc
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -22,15 +24,20 @@ type (
 )
 
 type Encoder struct {
-	set       map[string]any
-	hintCache util.GCache[string, [2]any /* {*hint.Hint, error} }*/]
+	set            map[string]any
+	hintCacheGet   func(string) (hint.Hint, bool, error)
+	hintCacheSet   func(string, *hint.Hint, error)
+	hintCacheClose func()
 }
 
 func NewEncoder(cacheSize int) *Encoder {
-	return &Encoder{
-		set:       map[string]any{},
-		hintCache: util.NewLRUGCache[string, [2]any](cacheSize),
+	enc := &Encoder{
+		set: map[string]any{},
 	}
+
+	enc.hintCacheGet, enc.hintCacheSet, enc.hintCacheClose = newFuncHintCache(cacheSize, 1<<9)
+
+	return enc
 }
 
 func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
@@ -47,6 +54,10 @@ func AddDecode[T any](enc *Encoder, ht hint.Hint, sample T, decode any) error {
 	}
 
 	return enc.addDecode(ht, sample, hinterDecodeFunc(ht, sample, decode))
+}
+
+func (enc *Encoder) Close() {
+	enc.hintCacheClose()
 }
 
 func (enc *Encoder) addDecode(ht hint.Hint, sample any, decode any) error {
@@ -141,16 +152,18 @@ func (enc *Encoder) decodeMap(m map[string]any) (any, error) {
 }
 
 func (enc *Encoder) getHint(s string) (hint.Hint, error) {
-	if i, found := enc.hintCache.Get(s); found {
-		if i[1] != nil {
-			return hint.Hint{}, i[1].(error)
-		}
-
-		return *(i[0].(*hint.Hint)), nil
+	if i, found, err := enc.hintCacheGet(s); found {
+		return i, err
 	}
 
 	ht, err := hint.ParseHint(s)
-	enc.hintCache.Set(s, [2]any{&ht, err}, 0)
+
+	var h *hint.Hint
+	if err == nil {
+		h = &ht
+	}
+
+	enc.hintCacheSet(s, h, err)
 
 	return ht, err
 }
@@ -235,4 +248,28 @@ func hinterDecodeFunc[T any](ht hint.Hint, sample T, decode any) any {
 			return sethint(k)
 		}
 	}
+}
+
+func newFuncHintCache(cacheSize int, bufSize uint64) (
+	func(string) (hint.Hint, bool, error),
+	func(string, *hint.Hint, error),
+	func(),
+) {
+	get, _, lazySet, closef := dutil.NewLazyCache[string, [2]any /* {hint.Hint, error} */](context.Background(), cacheSize, bufSize, bufSize)
+
+	return func(s string) (hint.Hint, bool, error) {
+			if i, found := get(s); found {
+				if i[1] != nil {
+					return hint.Hint{}, false, i[1].(error)
+				}
+
+				return *(i[0].(*hint.Hint)), true, nil
+			}
+
+			return hint.Hint{}, false, nil
+		},
+		func(s string, ht *hint.Hint, err error) {
+			lazySet(s, [2]any{ht, err}, 0)
+		},
+		closef
 }

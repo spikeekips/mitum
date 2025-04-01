@@ -588,6 +588,10 @@ func (t *testHandlerWorkerDistributeSMVs) SetupSuite() {
 	t.NoError(jsonenc.AddDecode(t.enc, smvsBundleHint, smvsBundle{}, smvsBundleDecodeJSON))
 }
 
+func (t *testHandlerWorkerDistributeSMVs) TearDownSuite() {
+	t.enc.Close()
+}
+
 func (t *testHandlerWorkerDistributeSMVs) randomMergeValues(n int) []dop5.SMV {
 	if n < 1 {
 		return nil
@@ -758,56 +762,63 @@ func (t *testHandlerWorkerDistributeSMVs) doHandler(
 }
 
 func (t *testHandlerWorkerDistributeSMVs) TestOK() {
-	t.RunWithGoLeak("ok", func() {
+	run := func(name string, f func()) {
+		t.RunWithGoLeak(name, f,
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
+			goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+		)
+	}
+
+	run("ok", func() {
 		t.doHandler(
 			3333, 3, 3,
 			3333, 1<<7, 1<<9,
 		)
 	})
 
-	t.RunWithGoLeak("empty ops", func() {
+	run("empty ops", func() {
 		t.doHandler(
 			0, 3, 3,
 			2, 3, 3,
 		)
 	})
 
-	t.RunWithGoLeak("empty subs", func() {
+	run("empty subs", func() {
 		t.doHandler(
 			3, 0, 3,
 			2, 3, 3,
 		)
 	})
 
-	t.RunWithGoLeak("empty affected", func() {
+	run("empty affected", func() {
 		t.doHandler(
 			3, 3, 0,
 			2, 3, 3,
 		)
 	})
 
-	t.RunWithGoLeak("empty all", func() {
+	run("empty all", func() {
 		t.doHandler(
 			0, 0, 0,
 			2, 3, 3,
 		)
 	})
 
-	t.RunWithGoLeak("zero max items", func() {
+	run("zero max items", func() {
 		t.doHandler(
 			3333, 3, 3,
 			0, 1<<9, 1<<9,
 		)
 	})
 
-	t.RunWithGoLeak("zero max sub streams items", func() {
+	run("zero max sub streams items", func() {
 		t.doHandler(
 			3333, 3, 3,
 			333, 0, 1<<9,
 		)
 	})
 
-	t.RunWithGoLeak("zero max sub streams size", func() {
+	run("zero max sub streams size", func() {
 		t.doHandler(
 			3333, 3, 3,
 			333, 1<<9, 0,
@@ -816,7 +827,10 @@ func (t *testHandlerWorkerDistributeSMVs) TestOK() {
 }
 
 func (t *testHandlerWorkerDistributeSMVs) TestNilFuncs() {
-	defer goleak.VerifyNone(t.T())
+	defer goleak.VerifyNone(t.T(),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+	)
 
 	ops := make([][2]interface{}, 3333)
 	for i := range ops {

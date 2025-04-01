@@ -37,6 +37,7 @@ func (t *baseTestRedis) SetupSuite() {
 }
 
 func (t *baseTestRedis) TearDownSuite() {
+	t.enc.Close()
 	t.rdb.Close()
 	t.mini.Close()
 }

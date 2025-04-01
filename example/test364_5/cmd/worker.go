@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -25,6 +26,8 @@ type workerCommand struct {
 	workerOptions   *dop5.WorkerOptions
 	manager         *net.UDPAddr
 	workerProcessAt time.Time
+	getState        dop5.GetStateFunc
+	setStates       func([]base.State)
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
@@ -135,6 +138,10 @@ func (cmd *workerCommand) startWorker(
 		}
 	}
 
+	if cmd.getState == nil {
+		cmd.getState, cmd.setStates = cmd.newFuncGetState(int(maxOpsSize))
+	}
+
 	defer dutil.ElapsedLogMsg(l.Debug, "cmd/worker ready")()
 
 	workCanceled := cmd.newFuncReportCancelWork(workID)
@@ -215,16 +222,39 @@ func (cmd *workerCommand) startWorker(
 		nil
 }
 
-func (cmd *workerCommand) getState(stateKey string) (st base.State, _ bool, _ error) {
-	found, err := redisGetState(
-		cmd.ctx,
-		cmd.enc,
-		cmd.rdb,
-		stateKey,
-		&st,
-	)
+func (cmd *workerCommand) newFuncGetState(cacheSize int) (
+	dop5.GetStateFunc,
+	func([]base.State),
+) {
+	get, set, lazySet, _ := dutil.NewLazyCache[string, base.State](cmd.ctx, cacheSize, 1<<9, 1<<9)
 
-	return st, found, err
+	return func(stateKey string) (st base.State, _ bool, _ error) {
+			if i, found := get(stateKey); found {
+				if i != nil {
+					return i.(base.State), true, nil
+				}
+
+				return nil, false, nil
+			}
+
+			found, err := redisGetState(
+				cmd.ctx,
+				cmd.enc,
+				cmd.rdb,
+				stateKey,
+				&st,
+			)
+			if err == nil {
+				lazySet(stateKey, st, 0)
+			}
+
+			return st, found, err
+		},
+		func(sts []base.State) {
+			for st := range slices.Values(sts) {
+				set(st.Key(), st, 0)
+			}
+		}
 }
 
 func (cmd *workerCommand) newFuncCreateState(height base.Height) dop5.CreateStateFunc {
@@ -425,6 +455,8 @@ func (cmd *workerCommand) newFuncSaveStates() dop5.WorkerSaveStatesFunc {
 			return cmd.log.Debug().
 				Int("size", len(sts))
 		}, "cmd/save states")()
+
+		cmd.setStates(sts)
 
 		return redisSaveStates(
 			cmd.ctx,
