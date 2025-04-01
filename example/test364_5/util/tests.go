@@ -222,9 +222,9 @@ func (t *BaseSuite) Ctx() (context.Context, InErrorFunc[error]) {
 	return ctx, cancel
 }
 
-func (t *BaseSuite) RunWithGoLeak(name string, f func()) {
+func (t *BaseSuite) RunWithGoLeak(name string, f func(), options ...goleak.Option) {
 	t.Run(name, func() {
-		defer goleak.VerifyNone(t.T())
+		defer goleak.VerifyNone(t.T(), options...)
 
 		f()
 	})
