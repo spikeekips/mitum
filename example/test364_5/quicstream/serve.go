@@ -8,14 +8,15 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
-	"github.com/spikeekips/mitum/util"
 )
 
+type ContextKey = string
+
 var (
-	QuicConnectionContextKey    util.ContextKey = "quic_connection"
-	QuicConnectionUIDContextKey util.ContextKey = "quic_connection_uid"
-	RemoteAddrContextKey        util.ContextKey = "remote_addr"
-	StreamIDContextKey          util.ContextKey = "stream_id"
+	QuicConnectionContextKey    ContextKey = "quic_connection"
+	QuicConnectionUIDContextKey ContextKey = "quic_connection_uid"
+	RemoteAddrContextKey        ContextKey = "remote_addr"
+	StreamIDContextKey          ContextKey = "stream_id"
 )
 
 func Serve(
@@ -66,13 +67,18 @@ func serveListener(
 	listener *quic.EarlyListener,
 	f StreamHandler,
 ) error {
+	var connUID uint64
+
 	for {
 		switch conn, err := listener.Accept(ctx); {
 		case err != nil:
 			return errors.Wrap(err, "listener.Accept")
 		default:
+			cuid := connUID
+			connUID++
+
 			go func() {
-				cctx := context.WithValue(ctx, QuicConnectionUIDContextKey, util.ULID().String())
+				cctx := context.WithValue(ctx, QuicConnectionUIDContextKey, cuid)
 
 				if err := serveConnection(cctx, conn, f); err != nil {
 					closeConnection(conn, err)
