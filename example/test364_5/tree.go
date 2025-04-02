@@ -93,7 +93,7 @@ func NewOperationTreeNode(oph, facth util.Hash, reason string) (*OperationTreeNo
 			b: slices.Concat(
 				[]byte(key),
 				facth.Bytes(),
-				util.BoolToBytes(reason == ""), // NOTE in state
+				dutil.EncodeBool(reason == ""), // NOTE in state
 			),
 		},
 		nil
@@ -117,7 +117,7 @@ func (n *OperationTreeNode) SetReason(s string) {
 	n.b = slices.Concat(
 		[]byte(n.Key()),
 		n.fact.Bytes(),
-		util.BoolToBytes(n.reason == ""),
+		dutil.EncodeBool(n.reason == ""),
 	)
 }
 

@@ -47,3 +47,24 @@ func WriteInts(w io.Writer, u ...any) error {
 
 	return nil
 }
+
+func EncodeBool(i bool) []byte {
+	if i {
+		return []byte{0x1}
+	}
+
+	return []byte{0x0}
+}
+
+func DecodeBool(i []byte) (bool, error) {
+	switch {
+	case len(i) < 1:
+		return false, errors.Errorf("insufficient")
+	case i[0] == 0x1:
+		return true, nil
+	case i[1] == 0x0:
+		return false, nil
+	default:
+		return false, errors.Errorf("unknown byte")
+	}
+}
