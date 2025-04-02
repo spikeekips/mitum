@@ -85,6 +85,15 @@ func (enc *Encoder) Unmarshal(b []byte) (any, error) {
 	return enc.Decode(inf)
 }
 
+func (enc *Encoder) UnmarshalString(b []byte, size int) (any, error) {
+	var s string
+	if err := util.UnmarshalJSON(b, &s); err != nil {
+		return nil, err
+	}
+
+	return enc.DecodeString(s, size)
+}
+
 func (enc *Encoder) Decode(v any) (any, error) {
 	if v == nil {
 		return nil, nil

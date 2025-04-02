@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 type errorFunc = func() error
@@ -13,6 +12,7 @@ type errorFunc = func() error
 type Encoder interface {
 	Marshal(any) ([]byte, error)
 	Unmarshal([]byte) (any, error)
+	UnmarshalString([]byte, int) (any, error)
 	Decode(any) (any, error)
 	DecodeString(string, int) (any, error)
 }
@@ -65,12 +65,7 @@ func Unmarshal[T any](enc Encoder, b []byte, t *T) error {
 }
 
 func UnmarshalString[T any](enc Encoder, b []byte, t *T, size int) error {
-	var s string
-	if err := util.UnmarshalJSON(b, &s); err != nil {
-		return err
-	}
-
-	switch i, err := enc.DecodeString(s, size); {
+	switch i, err := enc.UnmarshalString(b, size); {
 	case err != nil:
 		return err
 	default:
