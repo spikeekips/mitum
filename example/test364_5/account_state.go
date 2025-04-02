@@ -38,10 +38,9 @@ func (s *AccountSV) HashBytes() []byte {
 		return nil
 	}
 
-	return slices.Concat(
-		s.Address.Bytes(),
-		util.Int64ToBytes(s.Balance),
-	)
+	b, _ := dutil.EncodeInt(s.Balance)
+
+	return slices.Concat(s.Address.Bytes(), b)
 }
 
 func (s *AccountSV) IsValid([]byte) error {

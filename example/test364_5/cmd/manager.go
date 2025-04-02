@@ -889,7 +889,7 @@ func prepareItems[T any](
 	case err != nil:
 		return 0, nil, err
 	default:
-		if err := writeUint64(f, size); err != nil {
+		if err := dutil.WriteInt(f, size); err != nil {
 			return 0, nil, err
 		}
 
@@ -899,7 +899,7 @@ func prepareItems[T any](
 			}
 
 			var nsize uint64
-			if _, err := readUint64(prev, &nsize); err != nil {
+			if err := dutil.ReadInt(prev, &nsize); err != nil {
 				return 0, nil, err
 			}
 
@@ -928,7 +928,7 @@ func prepareItems[T any](
 				b = j
 			}
 
-			ib, err := encodeUint64(index)
+			ib, err := dutil.EncodeInt(index)
 			if err != nil {
 				return err
 			}
@@ -964,7 +964,7 @@ func loadFromFile[T any](
 	load func([]byte, uint64) (T, error),
 ) ([]T, error) {
 	var size uint64
-	if _, err := readUint64(r, &size); err != nil {
+	if err := dutil.ReadInt(r, &size); err != nil {
 		return nil, err
 	}
 

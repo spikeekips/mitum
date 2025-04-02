@@ -226,7 +226,7 @@ func saveStatesToFile(
 		w = f
 	}
 
-	if err := writeUint64(w, size); err != nil {
+	if err := dutil.WriteInt(w, size); err != nil {
 		return err
 	}
 
@@ -237,7 +237,7 @@ func saveStatesToFile(
 
 	for i, st := range slices.All(sts) {
 		if err := newJob(func(context.Context) error {
-			ib, err := encodeUint64(uint64(i))
+			ib, err := dutil.EncodeInt(uint64(i))
 			if err != nil {
 				return err
 			}
@@ -278,7 +278,7 @@ func loadStatesFromFile(
 
 	var size uint64
 
-	if _, err := readUint64(r, &size); err != nil {
+	if err := dutil.ReadInt(r, &size); err != nil {
 		return nil, err
 	}
 
@@ -326,7 +326,7 @@ func readFixedWithIndex(r io.Reader) (uint64, []byte, error) {
 	case err != nil:
 		return 0, nil, err
 	default:
-		if err := decodeUint64(i, &index); err != nil {
+		if err := dutil.DecodeInt(i, &index); err != nil {
 			return 0, nil, err
 		}
 	}
@@ -425,7 +425,7 @@ func saveOpsTreeToFile(
 		w = f
 	}
 
-	if err := writeUint64(w, size); err != nil {
+	if err := dutil.WriteInt(w, size); err != nil {
 		return err
 	}
 
@@ -436,7 +436,7 @@ func saveOpsTreeToFile(
 
 	for i, n := range tr.Traverse() {
 		if err := newJob(func(context.Context) error {
-			ib, err := encodeUint64(uint64(i))
+			ib, err := dutil.EncodeInt(uint64(i))
 			if err != nil {
 				return err
 			}
@@ -477,7 +477,7 @@ func loadOpsTreeFromFile(
 
 	var size uint64
 
-	if _, err := readUint64(r, &size); err != nil {
+	if err := dutil.ReadInt(r, &size); err != nil {
 		return nil, err
 	}
 

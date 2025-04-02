@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -488,50 +487,6 @@ func newTLSConfig(serverName string) (*testcerts.KeyPair, *tls.Config, error) {
 	tlsConfig.InsecureSkipVerify = true
 
 	return kp, tlsConfig, nil
-}
-
-func encodeUint64(i uint64) ([]byte, error) {
-	return binary.Append(nil, binary.BigEndian, i)
-}
-
-func decodeUint64(b []byte, i *uint64) error {
-	_, err := binary.Decode(b, binary.BigEndian, i)
-
-	return errors.WithStack(err)
-}
-
-func readUint64(r io.Reader, i *uint64) (int, error) {
-	switch p, n, err := frame.ReadSized(r, 8); {
-	case err != nil && !errors.Is(err, io.EOF),
-		n < 1 && errors.Is(err, io.EOF):
-		return n, err
-	default:
-		return n, decodeUint64(p, i)
-	}
-}
-
-func writeUint64(w io.Writer, i uint64) error {
-	return errors.WithStack(binary.Write(w, binary.BigEndian, i))
-}
-
-func readUint64s(r io.Reader, u ...*uint64) error {
-	for i := range slices.Values(u) {
-		if _, err := readUint64(r, i); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeUint64s(w io.Writer, u ...uint64) error {
-	for i := range slices.Values(u) {
-		if err := writeUint64(w, i); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func readFixedFrameString(r io.Reader, i *string) (int, error) {

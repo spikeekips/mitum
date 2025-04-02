@@ -9,6 +9,7 @@ import (
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	"github.com/spikeekips/mitum/example/test364_5/encoder"
 	"github.com/spikeekips/mitum/example/test364_5/frame"
+	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -16,7 +17,7 @@ func writeSMVBundle(w io.Writer, enc encoder.Encoder, opindex uint64, fact util.
 	buf := bytes.NewBuffer(nil)
 	defer buf.Reset()
 
-	if err := writeUint64(buf, opindex); err != nil {
+	if err := dutil.WriteInt(buf, opindex); err != nil {
 		return err
 	}
 
@@ -46,7 +47,7 @@ func decodeSMVBundle(b []byte, enc encoder.Encoder) (uint64, util.Hash, []dop5.S
 	defer buf.Reset()
 
 	var opindex uint64
-	if _, err := readUint64(buf, &opindex); err != nil {
+	if err := dutil.ReadInt(buf, &opindex); err != nil {
 		return 0, nil, nil, err
 	}
 

@@ -116,7 +116,8 @@ func (fact *AccountOpFact) hash() util.Hash {
 	}
 
 	w(fact.Receiver.Bytes())
-	w(util.Int64ToBytes(fact.Amount))
+	b, _ := dutil.EncodeInt(fact.Amount)
+	w(b)
 
 	return sum()
 }

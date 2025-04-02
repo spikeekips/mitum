@@ -64,7 +64,7 @@ func requestHandlerStartWorker(
 			return ctx, err
 		}
 
-		if err := writeUint64s(stream, opsShare, statesShare, maxOpsSize); err != nil {
+		if err := dutil.WriteInts(stream, opsShare, statesShare, maxOpsSize); err != nil {
 			return ctx, err
 		}
 
@@ -111,7 +111,7 @@ func acceptHandlerStartWorker(f startWorkerFunc) quicstream.StreamHandler {
 
 		var opsShare, statesShare, maxOpsSize uint64
 
-		if err := readUint64s(stream, &opsShare, &statesShare, &maxOpsSize); err != nil && !errors.Is(err, io.EOF) {
+		if err := dutil.ReadInts(stream, &opsShare, &statesShare, &maxOpsSize); err != nil && !errors.Is(err, io.EOF) {
 			return ctx, err
 		}
 
@@ -143,7 +143,7 @@ func requestHandlerSendOps(
 		stream quic.Stream,
 		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
 	) (context.Context, error) {
-		switch err := writeUint64(stream, maxItems); {
+		switch err := dutil.WriteInt(stream, maxItems); {
 		case err != nil:
 			return ctx, err
 		case maxItems < 1:
@@ -174,7 +174,7 @@ func requestHandlerSendOps(
 			for i, v := range dutil.SeqAll(seq) {
 				sub := nstreams[i%len(nstreams)]
 
-				if err := writeUint64(sub, v[0].(uint64)); err != nil {
+				if err := dutil.WriteInt(sub, v[0].(uint64)); err != nil {
 					return err
 				}
 
@@ -220,7 +220,7 @@ func acceptHandlerSendOps(
 	) (context.Context, error) {
 		var maxItems uint64
 
-		switch _, err := readUint64(stream, &maxItems); {
+		switch err := dutil.ReadInt(stream, &maxItems); {
 		case err != nil:
 			return ctx, err
 		case maxItems < 1:
@@ -276,7 +276,7 @@ func readSendOpStream(r io.Reader, f dop5.OpindexOpHashesFunc) error {
 	for {
 		var opindex uint64
 
-		switch _, err := readUint64(r, &opindex); {
+		switch err := dutil.ReadInt(r, &opindex); {
 		case err != nil && !errors.Is(err, io.EOF):
 			return err
 		case errors.Is(err, io.EOF):
@@ -353,7 +353,7 @@ func requestHandlerWorkerResult(
 			return ctx, err
 		}
 
-		if err := writeUint64(stream, statesSize); err != nil {
+		if err := dutil.WriteInt(stream, statesSize); err != nil {
 			return ctx, err
 		}
 
@@ -409,7 +409,7 @@ func requestHandlerWorkerResult(
 						return err
 					}
 
-					if err := writeUint64(sub, opindex); err != nil {
+					if err := dutil.WriteInt(sub, opindex); err != nil {
 						return err
 					}
 				}
@@ -478,7 +478,7 @@ func acceptHandlerWorkerResult(f dop5.ManagerInsertWorkerResultFunc) quicstream.
 		}
 
 		var statesSize uint64
-		if _, err := readUint64(stream, &statesSize); err != nil {
+		if err := dutil.ReadInt(stream, &statesSize); err != nil {
 			return ctx, err
 		}
 
@@ -561,7 +561,7 @@ func readSubStreamWorkResult(
 			}
 
 			var opindex uint64
-			if _, err := readUint64(stream, &opindex); err != nil {
+			if err := dutil.ReadInt(stream, &opindex); err != nil {
 				return err
 			}
 
@@ -813,7 +813,7 @@ func requestHandlerWorkerDistributeSMVs(
 			return ctx, cancelf(err)
 		}
 
-		if err := writeUint64(stream, maxItems); err != nil {
+		if err := dutil.WriteInt(stream, maxItems); err != nil {
 			return ctx, err
 		}
 
@@ -901,7 +901,7 @@ func acceptHandlerWorkerDistributeSMVs(
 		}
 
 		var maxItems uint64
-		if _, err := readUint64(stream, &maxItems); err != nil {
+		if err := dutil.ReadInt(stream, &maxItems); err != nil {
 			return ctx, err
 		}
 
@@ -985,7 +985,7 @@ func requestHandlerWorkerUnmerged(local string, unmerged []uint64) quicstream.St
 
 		return ctx, frame.WriteFixedSlice(stream, uint32(len(unmerged)), func(yield func([]byte, error) bool) {
 			for opindex := range slices.Values(unmerged) {
-				b, err := encodeUint64(opindex)
+				b, err := dutil.EncodeInt(opindex)
 				if !yield(b, err) {
 					return
 				}
@@ -1015,7 +1015,7 @@ func acceptHandlerWorkerUnmerged(f func(string, []uint64) error) quicstream.Stre
 					return ctx, err
 				}
 
-				if err := decodeUint64(b, &unmerged[i]); err != nil {
+				if err := dutil.DecodeInt(b, &unmerged[i]); err != nil {
 					return ctx, err
 				}
 
