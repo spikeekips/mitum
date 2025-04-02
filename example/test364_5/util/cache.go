@@ -29,12 +29,12 @@ func NewLazyCache[K comparable, V any](
 	func(K, V, time.Duration),
 	func(),
 ) {
-	cctx, cctxCancel := context.WithCancel(ctx)
-
 	cache := util.NewLRUGCache[K, [2]any /* {V, <set time> } */](cacheSize)
 
 	add, addDone, seq := NewContextUnlimitedChans[[4]any /* {K, V, <expire>, <set time>} */](
-		cctx, bufSize, outBufSize)
+		ctx, bufSize, outBufSize)
+
+	donech := make(chan struct{})
 
 	go func() {
 	end:
@@ -52,6 +52,8 @@ func NewLazyCache[K comparable, V any](
 
 			cache.Set(i[0].(K), [2]any{v, i[3]}, i[2].(time.Duration))
 		}
+
+		close(donech)
 	}()
 
 	return func(k K) (v V, _ bool) {
@@ -75,6 +77,6 @@ func NewLazyCache[K comparable, V any](
 		func() {
 			addDone()
 
-			cctxCancel()
+			<-donech
 		}
 }
