@@ -92,7 +92,7 @@ func (t *baseTestMergeOp) extractSMVKeys() (
 	extractSMVKeysFunc,
 	func(),
 ) {
-	return newFuncExtractSMVKeys(1<<9, 1<<9)
+	return newFuncExtractSMVKeys(context.Background(), 1<<9, 1<<9)
 }
 
 type testMergeOp struct {

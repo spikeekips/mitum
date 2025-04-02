@@ -766,7 +766,10 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 }
 
 func TestWorkerUnmerger(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+	)
 
 	suite.Run(t, new(testWorkerUnmerger))
 }

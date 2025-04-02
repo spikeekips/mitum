@@ -99,6 +99,7 @@ func newFuncWorkerProcess(
 		Msg("new")
 
 	extractSMVKeys, extractStateKeyClose := newFuncExtractSMVKeys(
+		ctx,
 		maxExtractStateKeyCacheSize, int(maxOpsSize*2))
 
 	var getState GetStateFunc

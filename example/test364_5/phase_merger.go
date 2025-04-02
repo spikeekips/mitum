@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -341,7 +340,7 @@ func extractSMVKeysFromValues(values []SMV) (stateKeys []string) {
 	return stateKeys
 }
 
-func newFuncExtractSMVKeys(maxSize, size int) (
+func newFuncExtractSMVKeys(ctx context.Context, maxSize, size int) (
 	extractSMVKeysFunc,
 	func(),
 ) {
@@ -349,41 +348,26 @@ func newFuncExtractSMVKeys(maxSize, size int) (
 		size = maxSize
 	}
 
-	var cache util.GCache[uint64, []string]
-
-	switch {
-	case size < 1:
-		cache = dutil.NewEmptyGCache[uint64, []string]()
-	default:
-		cache = util.NewLFUGCache[uint64, []string](size)
-	}
-
-	var sg singleflight.Group
+	get, _, lazySet, closef := dutil.NewLazyCache[uint64, []string](ctx, size, uint64(maxSize), uint64(maxSize))
 
 	return func(opindex uint64, values []SMV) ([]string, error) {
 			if len(values) < 1 {
 				return nil, errors.Errorf("empty state values")
 			}
 
-			stateKeys, _, _ := util.SingleflightDo[[]string](
-				&sg,
-				string(util.Uint64ToBytes(opindex)),
-				func() (stateKeys []string, _ error) {
-					switch i, found := cache.Get(opindex); {
-					case found:
-						stateKeys = i
-					default:
-						stateKeys = extractSMVKeysFromValues(values)
-						if len(stateKeys) < 1 {
-							return nil, util.ErrNotFound.Errorf("empty state keys")
-						}
+			var stateKeys []string
 
-						cache.Set(opindex, stateKeys, 0)
-					}
+			switch i, found := get(opindex); {
+			case found:
+				stateKeys = i
+			default:
+				stateKeys = extractSMVKeysFromValues(values)
+				if len(stateKeys) < 1 {
+					return nil, util.ErrNotFound.Errorf("empty state keys")
+				}
 
-					return stateKeys, nil
-				},
-			)
+				lazySet(opindex, stateKeys, 0)
+			}
 
 			if len(stateKeys) < 1 {
 				return nil, errors.Errorf("empty extracted state keys")
@@ -391,7 +375,7 @@ func newFuncExtractSMVKeys(maxSize, size int) (
 
 			return stateKeys, nil
 		},
-		cache.Close
+		closef
 }
 
 func newFuncGetSVMs(
