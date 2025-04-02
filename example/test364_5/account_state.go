@@ -101,11 +101,8 @@ func (v *AccountSMV) Merger(prev base.StateValue) (SVM, error) {
 	var av *AccountSV
 
 	if prev != nil {
-		switch i, err := util.AssertInterfaceValue[*AccountSV](prev); {
-		case err != nil:
+		if err := encoder.Assign(prev, &av); err != nil {
 			return nil, err
-		default:
-			av = i
 		}
 	}
 
@@ -202,11 +199,8 @@ func (m *AccountSVM) Merge(op uint64, value base.StateValue) (
 ) {
 	var ac *AccountSV
 
-	switch i, err := m.assertValue(value); {
-	case err != nil:
+	if err := m.assertValue(value, &ac); err != nil {
 		return nil, op, "invalid state value", err
-	default:
-		ac = i
 	}
 
 	unmergeOp = op
@@ -263,11 +257,8 @@ func (m *AccountSVM) Unmerge(op uint64, value base.StateValue) (
 ) {
 	var ac *AccountSV
 
-	switch i, err := m.assertValue(value); {
-	case err != nil:
+	if err := m.assertValue(value, &ac); err != nil {
 		return nil, op, err
-	default:
-		ac = i
 	}
 
 	mergeOp = op
@@ -305,16 +296,18 @@ func (m *AccountSVM) Unmerge(op uint64, value base.StateValue) (
 	}, mergeOp, nil
 }
 
-func (m *AccountSVM) assertValue(value base.StateValue) (ac *AccountSV, _ error) {
-	switch i, err := util.AssertInterfaceValue[*AccountSV](value); {
-	case err != nil:
-		return ac, err
-	case i.Balance == 0:
-		return ac, errors.Errorf("zero balance")
-	case m.address != nil && !m.address.Equal(i.Address):
-		return ac, errors.Errorf("address not matched")
+func (m *AccountSVM) assertValue(value base.StateValue, t **AccountSV) error {
+	if err := encoder.Assign(value, t); err != nil {
+		return err
+	}
+
+	switch ac := *t; {
+	case ac.Balance == 0:
+		return errors.Errorf("zero balance")
+	case m.address != nil && !m.address.Equal(ac.Address):
+		return errors.Errorf("address not matched")
 	default:
-		return i, nil
+		return nil
 	}
 }
 
