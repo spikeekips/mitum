@@ -1,8 +1,6 @@
 package dop5
 
 import (
-	"unique"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
@@ -10,13 +8,12 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type LazyMPublickey unique.Handle[string]
+type LazyMPublickey string
 
-func (k LazyMPublickey) value() string  { return unique.Handle[string](k).Value() }
-func (k LazyMPublickey) String() string { return k.value() }
-func (k LazyMPublickey) Bytes() []byte  { return []byte(k.value()) }
+func (k LazyMPublickey) String() string { return string(k) }
+func (k LazyMPublickey) Bytes() []byte  { return []byte(k) }
 func (k LazyMPublickey) IsValid([]byte) error {
-	if k.value() == "" {
+	if k == "" {
 		return util.ErrInvalid.Errorf("empty")
 	}
 
@@ -24,11 +21,11 @@ func (k LazyMPublickey) IsValid([]byte) error {
 }
 
 func (k LazyMPublickey) Equal(b base.PKKey) bool {
-	return k.value() == b.String()
+	return string(k) == b.String()
 }
 
 func (k LazyMPublickey) Verify(b []byte, sig base.Signature) error {
-	s := k.value()
+	s := k.String()
 
 	switch i, err := base.LoadMPublickey(s[:len(s)-base.PKKeyTypeSize]); {
 	case err != nil:
@@ -39,19 +36,19 @@ func (k LazyMPublickey) Verify(b []byte, sig base.Signature) error {
 }
 
 func (k LazyMPublickey) MarshalText() ([]byte, error) {
-	return []byte(k.value()), nil
+	return []byte(k), nil
 }
 
 func (k *LazyMPublickey) UnmarshalText(b []byte) error {
-	*k = LazyMPublickey(unique.Make(string(b)))
+	*k = LazyMPublickey(string(b))
 
 	return nil
 }
 
-var _ = any(LazyMPublickey{}).(base.Publickey)
+var _ = any(LazyMPublickey("")).(base.Publickey)
 
 func NewLazyMPublickey(s string) LazyMPublickey {
-	return LazyMPublickey(unique.Make(s))
+	return LazyMPublickey(s)
 }
 
 func DecodeJSONMPublickey(_ *jsonenc.Encoder, s string) (any, error) {
