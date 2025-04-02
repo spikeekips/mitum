@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,6 +30,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
+	"github.com/valkey-io/valkey-go"
 )
 
 type pprofFlags struct {
@@ -39,7 +41,7 @@ type pprofFlags struct {
 
 type baseCommand struct {
 	Bind       string `default:"${bind}" help:"by default, ${bind}"`
-	Redis      string `default:"127.0.0.1:6379"`
+	Redis      string `default:"redis://127.0.0.1:6379"`
 	pprofFlags `embed:"" prefix:"pprof."`
 
 	ctx                context.Context
@@ -57,7 +59,7 @@ type baseCommand struct {
 	removeHandler      func([]byte) bool
 	workerOptions      *dop5.WorkerOptions
 	openSubStreams     quicstream.NewOpenSubStreamsFunc
-	rdb                *redis.Client
+	db                 db
 	enc                *jsonenc.Encoder
 	workerAddrs        dutil.LockedMap[string, *net.UDPAddr]
 	newAcceptSubStream quicstream.NewAcceptSubStreamsFunc
@@ -91,17 +93,15 @@ func (cmd *baseCommand) prepare(role string, log *zerolog.Logger) error {
 		return err
 	}
 
-	cmd.rdb = redis.NewClient(&redis.Options{
-		Addr:       cmd.Redis,
-		MaxRetries: -1,
-		PoolSize:   1 << 9, // NOTE enough pool size reduce the elapsed time to get values.
-	})
+	if err := cmd.loadDB(); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithTimeout(cmd.ctx, time.Millisecond*333)
 	defer cancel()
 
-	if _, err := cmd.rdb.Ping(ctx).Result(); err != nil {
-		return errors.WithMessage(err, "redis")
+	if err := cmd.db.ping(ctx); err != nil {
+		return err
 	}
 
 	cmd.workerAddrs = dutil.NewSingleLockedMap[string, *net.UDPAddr]()
@@ -398,6 +398,45 @@ func (cmd *baseCommand) memPprof(name string) (func(), error) {
 	}
 
 	return memPprof(filepath.Join(cmd.pprofFlags.Out, fmt.Sprintf("mem-%s.pprof", name)))
+}
+
+func (cmd *baseCommand) loadDB() error {
+	dbtype := "redis"
+	var addr string
+
+	switch u, err := url.Parse(cmd.Redis); {
+	case err != nil:
+		return err
+	default:
+		dbtype = u.Scheme
+		addr = u.Host
+	}
+
+	switch dbtype {
+	case "redis":
+		cmd.db = &redisDB{
+			enc: cmd.enc,
+			rdb: redis.NewClient(&redis.Options{
+				Addr:       addr,
+				MaxRetries: -1,
+				PoolSize:   1 << 9, // NOTE enough pool size reduce the elapsed time to get values.
+			}),
+		}
+	case "valkey":
+		client, err := valkey.NewClient(valkey.ClientOption{
+			InitAddress:  []string{addr},
+			DisableRetry: true,
+		})
+		if err != nil {
+			return err
+		}
+
+		cmd.db = &valkeyDB{enc: cmd.enc, client: client}
+	default:
+		return errors.Errorf("unknown db type, %q", dbtype)
+	}
+
+	return nil
 }
 
 func cpuPprof(out string) (func(), error) {

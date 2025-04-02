@@ -14,21 +14,28 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func redisOperationFactKey(fact dop5.OperationFact) string {
-	return "op-" + fact.Hash().String()
+type redisDB struct {
+	enc encoder.Encoder
+	rdb *redis.Client
 }
 
-func redisSaveOperationFacts(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	semSize, bulkSize uint64,
-	ops []dop5.OperationFact,
-) error {
+func (db *redisDB) ping(ctx context.Context) error {
+	if _, err := db.rdb.Ping(ctx).Result(); err != nil {
+		return errors.WithMessage(err, "redis")
+	}
+
+	return nil
+}
+
+func (db *redisDB) flushAll(ctx context.Context) error {
+	return db.rdb.FlushAll(ctx).Err()
+}
+
+func (db *redisDB) saveOperationFacts(ctx context.Context, semSize, bulkSize uint64, ops []dop5.OperationFact) error {
 	return redisBulkSave(
 		ctx,
-		enc,
-		rdb,
+		db.enc,
+		db.rdb,
 		semSize, bulkSize,
 		ops,
 		func(ctx context.Context, pipe redis.Pipeliner, item dop5.OperationFact, b []byte) {
@@ -37,27 +44,15 @@ func redisSaveOperationFacts(
 	)
 }
 
-func redisGetOperationFact(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	h util.Hash,
-	fact *dop5.OperationFact,
-) (bool, error) {
-	return redisGet(ctx, enc, rdb, "op-"+h.String(), fact)
+func (db *redisDB) getOperationFact(ctx context.Context, oph util.Hash, fact *dop5.OperationFact) (bool, error) {
+	return redisGet(ctx, db.enc, db.rdb, "op-"+oph.String(), fact)
 }
 
-func redisSaveStates(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	semSize, bulkSize uint64,
-	states []base.State,
-) error {
+func (db *redisDB) saveStates(ctx context.Context, semSize, bulkSize uint64, states []base.State) error {
 	return redisBulkSave(
 		ctx,
-		enc,
-		rdb,
+		db.enc,
+		db.rdb,
 		semSize, bulkSize,
 		states,
 		func(ctx context.Context, pipe redis.Pipeliner, st base.State, b []byte) {
@@ -66,25 +61,15 @@ func redisSaveStates(
 	)
 }
 
-func redisGetState(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-	stateKey string,
-	st *base.State,
-) (bool, error) {
-	return redisGet(ctx, enc, rdb, "st-"+stateKey, st)
+func (db *redisDB) getState(ctx context.Context, stateKey string, st *base.State) (bool, error) {
+	return redisGet(ctx, db.enc, db.rdb, "st-"+stateKey, st)
 }
 
-func redisGetStates(
-	ctx context.Context,
-	enc encoder.Encoder,
-	rdb *redis.Client,
-) iter.Seq2[base.State, error] {
+func (db *redisDB) getStates(ctx context.Context) iter.Seq2[base.State, error] {
 	limit := 1 << 9
 
 	return func(yield func(base.State, error) bool) {
-		cmd := rdb.Scan(ctx, 0, "st-*", 1<<9)
+		cmd := db.rdb.Scan(ctx, 0, "st-*", 1<<9)
 		if _, _, err := cmd.Result(); err != nil {
 			yield(nil, err)
 
@@ -94,7 +79,7 @@ func redisGetStates(
 		it := cmd.Iterator()
 
 		for {
-			switch l, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			switch l, err := db.rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				for i := 0; i < limit; i++ {
 					if !it.Next(ctx) {
 						return nil
@@ -119,13 +104,17 @@ func redisGetStates(
 					}
 
 					var st base.State
-					if !yield(st, encoder.Unmarshal(enc, []byte(strcmd.Val()), &st)) {
+					if !yield(st, encoder.Unmarshal(db.enc, []byte(strcmd.Val()), &st)) {
 						return
 					}
 				}
 			}
 		}
 	}
+}
+
+func redisOperationFactKey(fact dop5.OperationFact) string {
+	return "op-" + fact.Hash().String()
 }
 
 func redisBulkSave[T any](

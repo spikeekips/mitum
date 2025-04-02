@@ -237,13 +237,7 @@ func (cmd *workerCommand) newFuncGetState(cacheSize int) (
 				return nil, false, nil
 			}
 
-			found, err := redisGetState(
-				cmd.ctx,
-				cmd.enc,
-				cmd.rdb,
-				stateKey,
-				&st,
-			)
+			found, err := cmd.db.getState(cmd.ctx, stateKey, &st)
 			if err == nil {
 				lazySet(stateKey, st, 0)
 			}
@@ -351,13 +345,7 @@ func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, 
 	_ string,
 	_ error,
 ) {
-	found, err := redisGetOperationFact(
-		ctx,
-		cmd.enc,
-		cmd.rdb,
-		facth,
-		&fact,
-	)
+	found, err := cmd.db.getOperationFact(ctx, facth, &fact)
 
 	return fact, found, "", err
 }
@@ -458,12 +446,6 @@ func (cmd *workerCommand) newFuncSaveStates() dop5.WorkerSaveStatesFunc {
 
 		cmd.setStates(sts)
 
-		return redisSaveStates(
-			cmd.ctx,
-			cmd.enc,
-			cmd.rdb,
-			1<<9, 1<<9,
-			sts,
-		)
+		return cmd.db.saveStates(cmd.ctx, 1<<9, 1<<9, sts)
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	dop5 "github.com/spikeekips/mitum/example/test364_5"
 	jsonenc "github.com/spikeekips/mitum/example/test364_5/encoder/json"
-	dutil "github.com/spikeekips/mitum/example/test364_5/util"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -19,46 +18,32 @@ import (
 )
 
 type baseTestRedis struct {
-	dutil.BaseSuite
-	enc  *jsonenc.Encoder
+	baseTestDB
 	mini *miniredis.Miniredis
 	rdb  *redis.Client
+	db   *redisDB
 }
 
 func (t *baseTestRedis) SetupSuite() {
-	t.enc = jsonenc.NewEncoder(1 << 9)
-	t.NoError(jsonenc.AddDecode(t.enc, base.MPublickeyHint, &base.MPublickey{}, dop5.DecodeJSONMPublickey))
-	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
+	t.baseTestDB.SetupSuite()
 
 	t.mini = miniredis.RunT(t.T())
 	t.rdb = redis.NewClient(&redis.Options{
 		Addr: t.mini.Addr(),
 	})
+
+	t.db = &redisDB{enc: t.enc, rdb: t.rdb}
 }
 
 func (t *baseTestRedis) TearDownSuite() {
-	t.enc.Close()
+	t.baseTestDB.TearDownSuite()
+
 	t.rdb.Close()
 	t.mini.Close()
 }
 
-func (t *baseTestRedis) TearDownTest() {
-	_ = t.rdb.FlushAll(context.Background())
-}
-
-func (t *baseTestRedis) randomFacts(n int) []dop5.OperationFact {
-	f := make([]dop5.OperationFact, n)
-
-	for i := range n {
-		f[i] = dop5.NewAccountOpFact(
-			util.UUID().Bytes(),
-			int64(i),
-			base.NewMPrivatekey().Publickey(),
-			base.NewMPrivatekey().Publickey(),
-		)
-	}
-
-	return f
+func (t *baseTestRedis) SetupTest() {
+	t.rdb.FlushAll(context.Background())
 }
 
 type testRedisOperationFact struct {
@@ -69,10 +54,8 @@ func (t *testRedisOperationFact) TestGet() {
 	t.Run("not found", func() {
 		var fact dop5.OperationFact
 
-		found, err := redisGetOperationFact(
+		found, err := t.db.getOperationFact(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			valuehash.RandomSHA256(),
 			&fact,
 		)
@@ -85,20 +68,16 @@ func (t *testRedisOperationFact) TestSave() {
 	t.Run("one", func() {
 		facts := t.randomFacts(1)
 
-		t.NoError(redisSaveOperationFacts(
+		t.NoError(t.db.saveOperationFacts(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			2, 2,
 			facts,
 		))
 
 		var rfact dop5.OperationFact
 
-		found, err := redisGetOperationFact(
+		found, err := t.db.getOperationFact(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			facts[0].Hash(),
 			&rfact,
 		)
@@ -111,10 +90,8 @@ func (t *testRedisOperationFact) TestSave() {
 	t.Run("multiple", func() {
 		facts := t.randomFacts(33)
 
-		t.NoError(redisSaveOperationFacts(
+		t.NoError(t.db.saveOperationFacts(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			2, 2,
 			facts,
 		))
@@ -122,10 +99,8 @@ func (t *testRedisOperationFact) TestSave() {
 		for fact := range slices.Values(facts) {
 			var rfact dop5.OperationFact
 
-			found, err := redisGetOperationFact(
+			found, err := t.db.getOperationFact(
 				context.Background(),
-				t.enc,
-				t.rdb,
 				fact.Hash(),
 				&rfact,
 			)
@@ -183,10 +158,8 @@ func (t *testRedisState) TestGet() {
 	t.Run("not found", func() {
 		var st base.State
 
-		found, err := redisGetState(
+		found, err := t.db.getState(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			util.UUID().String(),
 			&st,
 		)
@@ -199,20 +172,16 @@ func (t *testRedisState) TestSave() {
 	t.Run("one", func() {
 		sts := t.randomStates(1)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			sts,
 		))
 
 		var rst base.State
 
-		found, err := redisGetState(
+		found, err := t.db.getState(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			sts[0].Key(),
 			&rst,
 		)
@@ -225,10 +194,8 @@ func (t *testRedisState) TestSave() {
 	t.Run("multiple", func() {
 		sts := t.randomStates(33)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			sts,
 		))
@@ -236,10 +203,8 @@ func (t *testRedisState) TestSave() {
 		for i := range len(sts) {
 			var rst base.State
 
-			found, err := redisGetState(
+			found, err := t.db.getState(
 				context.Background(),
-				t.enc,
-				t.rdb,
 				sts[i].Key(),
 				&rst,
 			)
@@ -253,10 +218,8 @@ func (t *testRedisState) TestSave() {
 	t.Run("duplicated", func() {
 		sts := t.randomStates(3)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			sts,
 		))
@@ -266,10 +229,8 @@ func (t *testRedisState) TestSave() {
 		copy(nsts, sts) // duplicated
 		copy(nsts[len(sts):], asts)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			nsts,
 		))
@@ -277,10 +238,8 @@ func (t *testRedisState) TestSave() {
 		for i := range len(nsts) {
 			var rst base.State
 
-			found, err := redisGetState(
+			found, err := t.db.getState(
 				context.Background(),
-				t.enc,
-				t.rdb,
 				nsts[i].Key(),
 				&rst,
 			)
@@ -296,18 +255,14 @@ func (t *testRedisState) TestScan() {
 	t.Run("get all", func() {
 		sts := t.randomStates(1 << 10)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			sts,
 		))
 
-		seq := redisGetStates(
+		seq := t.db.getStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 		)
 
 		rsts := make([]base.State, 0, 1<<9)
@@ -334,10 +289,8 @@ func (t *testRedisState) TestScan() {
 	t.Run("reading error", func() {
 		sts := t.randomStates(1 << 10)
 
-		t.NoError(redisSaveStates(
+		t.NoError(t.db.saveStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 			1<<9, 1<<9,
 			sts,
 		))
@@ -349,10 +302,8 @@ func (t *testRedisState) TestScan() {
 			t.NoError(t.rdb.Set(context.Background(), "st-"+fact.Hash().String(), b, 0).Err())
 		}
 
-		seq := redisGetStates(
+		seq := t.db.getStates(
 			context.Background(),
-			t.enc,
-			t.rdb,
 		)
 
 		var errcount int

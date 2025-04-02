@@ -117,7 +117,7 @@ func (cmd *managerCommand) prepare() error {
 
 	cmd.managerOptions = dop5.NewManagerOptions()
 
-	if err := cmd.rdb.FlushAll(cmd.ctx).Err(); err != nil {
+	if err := cmd.db.flushAll(cmd.ctx); err != nil {
 		return err
 	}
 
@@ -348,13 +348,7 @@ func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
 		defer f()
 	}
 
-	return redisSaveOperationFacts(
-		cmd.ctx,
-		cmd.enc,
-		cmd.rdb,
-		1<<9, 1<<9,
-		facts,
-	)
+	return cmd.db.saveOperationFacts(cmd.ctx, 1<<9, 1<<9, facts)
 }
 
 func (cmd *managerCommand) processHeight(
@@ -805,7 +799,7 @@ func (cmd *managerCommand) checkProcessed(
 	}
 
 	workerSaved := map[string]base.State{}
-	for st, err := range redisGetStates(cmd.ctx, cmd.enc, cmd.rdb) {
+	for st, err := range cmd.db.getStates(cmd.ctx) {
 		if err != nil {
 			return err
 		}
