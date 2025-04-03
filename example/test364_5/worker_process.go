@@ -675,7 +675,7 @@ func mergeUnusedReasons(reasons map[uint64]string, unusedOps *atomic.Value) map[
 func newGetCreateStateFunc(size uint64, get GetStateFunc, create CreateStateFunc) (GetStateFunc, createStateFunc2, func(), error) {
 	var pool dutil.LockedMap[string, base.State]
 
-	switch i, err := dutil.NewLockedMap[string, base.State](nil, size, size); {
+	switch i, err := dutil.NewLockedMap[string, base.State](nil, size); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

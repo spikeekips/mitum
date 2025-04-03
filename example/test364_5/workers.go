@@ -161,7 +161,7 @@ func newFuncSVMs(
 ) {
 	var pool dutil.LockedMap[string, SVM]
 
-	switch i, err := dutil.NewLockedMap[string, SVM](nil, poolSize, poolSize); {
+	switch i, err := dutil.NewLockedMap[string, SVM](nil, poolSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -202,7 +202,7 @@ func newFuncSetStateOps(mapSize uint64) (
 ) {
 	var factPool dutil.LockedMap[uint64, util.Hash]
 
-	switch i, err := dutil.NewLockedMap[uint64, util.Hash](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, util.Hash](nil, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -211,7 +211,7 @@ func newFuncSetStateOps(mapSize uint64) (
 
 	var m dutil.LockedMap[string, map[uint64]int]
 
-	switch i, err := dutil.NewLockedMap[string, map[uint64]int](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[string, map[uint64]int](nil, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -220,7 +220,7 @@ func newFuncSetStateOps(mapSize uint64) (
 
 	var keyPool dutil.LockedMap[uint64, []string]
 
-	switch i, err := dutil.NewLockedMap[uint64, []string](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, []string](nil, mapSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -354,7 +354,7 @@ func newSMVsPool(poolSize uint64) (
 ) {
 	var pool dutil.LockedMap[uint64, []SMV]
 
-	switch i, err := dutil.NewLockedMap[uint64, []SMV](nil, poolSize, poolSize); {
+	switch i, err := dutil.NewLockedMap[uint64, []SMV](nil, poolSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -860,7 +860,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 
 	nworkers := uint64(len(workers))
 
-	switch i, err := dutil.NewLockedMap[string, [2]interface{}](nil, nworkers, nworkers); {
+	switch i, err := dutil.NewLockedMap[string, [2]interface{}](nil, nworkers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -869,7 +869,7 @@ func newFuncWorkerProcessWorkersDistributeSMVs(
 
 	var created dutil.LockedMap[string, struct{}]
 
-	switch i, err := dutil.NewLockedMap[string, struct{}](nil, nworkers, nworkers); {
+	switch i, err := dutil.NewLockedMap[string, struct{}](nil, nworkers); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

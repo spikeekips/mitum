@@ -126,7 +126,7 @@ func (t *baseTestWorkers) newWorkersProcessDistributeSMVsFunc() (
 	newWorkerProcessDistributeSMVsFunc,
 	iter.Seq2[string, dutil.OutFunc[[]interface{}]],
 ) {
-	pool, err := dutil.NewLockedMap[string, [2]interface{}](nil, 1<<9, 1<<9)
+	pool, err := dutil.NewLockedMap[string, [2]interface{}](nil, 1<<9)
 	t.base.IfErrPanic(err)
 
 	return func(_ context.Context, worker string) (

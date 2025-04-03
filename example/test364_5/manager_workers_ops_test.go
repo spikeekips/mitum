@@ -160,7 +160,7 @@ func (t *testManagerWorkersOps) TestSend() {
 
 		sendf := t.workerSendOpFunc()
 
-		sentOps, err := dutil.NewLockedMap[string, [][3]interface{}](nil, 1<<9, 1<<9)
+		sentOps, err := dutil.NewLockedMap[string, [][3]interface{}](nil, 1<<9)
 		t.NoError(err)
 
 		_, send, wait, err := newFuncManagerWorkersOps(
@@ -251,7 +251,7 @@ func (t *testManagerWorkersOps) TestFailed() {
 
 		ctx, _ := t.Ctx()
 
-		sentOps, err := dutil.NewLockedMap[string, [][3]interface{}](nil, 1<<9, 1<<9)
+		sentOps, err := dutil.NewLockedMap[string, [][3]interface{}](nil, 1<<9)
 		t.NoError(err)
 
 		_, send, wait, err := newFuncManagerWorkersOps(

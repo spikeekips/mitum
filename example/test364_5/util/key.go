@@ -20,7 +20,7 @@ func DistributeByCount[K comparable](total, share uint64) (
 		return nil, nil, errors.Errorf("share > total")
 	}
 
-	c := map[uint64]uint64{}
+	c := make(map[uint64]uint64, total)
 
 	var l sync.Mutex
 
@@ -51,7 +51,7 @@ func DistributeByCount[K comparable](total, share uint64) (
 
 	var cache LockedMap[K, []uint64]
 
-	switch i, err := NewLockedMap[K, []uint64](nil, total, total); {
+	switch i, err := NewLockedMap[K, []uint64](nil, total); {
 	case err != nil:
 		return nil, nil, err
 	default:

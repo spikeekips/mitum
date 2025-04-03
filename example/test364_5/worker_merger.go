@@ -39,7 +39,7 @@ func newFuncWorkerMerger(
 
 	opsWorkersSize := uint64(len(opsWorkers))
 
-	switch i, err := dutil.NewLockedMap[string, struct{}](nil, opsWorkersSize, opsWorkersSize); {
+	switch i, err := dutil.NewLockedMap[string, struct{}](nil, opsWorkersSize); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:
@@ -282,7 +282,7 @@ func filterReasons(reasons map[uint64]string, unmerged []uint64) map[uint64]stri
 
 		if _, found := reasons[opindex]; !found {
 			if reasons == nil {
-				reasons = map[uint64]string{}
+				reasons = make(map[uint64]string, len(unmerged))
 			}
 
 			reasons[opindex] = ""

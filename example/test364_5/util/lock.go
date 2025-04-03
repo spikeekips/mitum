@@ -369,15 +369,13 @@ type ShardedLockedMap[K comparable, V any] struct {
 
 func NewShardedLockedMap[K comparable, V any](
 	newMapf func() (LockedMap[K, V], error),
-	size, grow uint64,
+	size uint64,
 ) (*ShardedLockedMap[K, V], error) {
 	switch {
 	case size < 1:
 		return nil, errors.Errorf("new ShardedLockedMap; empty size")
 	case size == 1:
 		return nil, errors.Errorf("new ShardedLockedMap; 1 size; use LockedMap")
-	case grow < size:
-		return nil, errors.Errorf("new ShardedLockedMap; grow < size")
 	}
 
 	if newMapf == nil {
@@ -389,7 +387,7 @@ func NewShardedLockedMap[K comparable, V any](
 	seed := NewHashSeed()
 
 	return &ShardedLockedMap[K, V]{
-		sharded: make([]LockedMap[K, V], size, grow),
+		sharded: make([]LockedMap[K, V], size),
 		hashf: func(k K) uint64 {
 			return defaultLockedMapHashFunc(seed, k, size)
 		},
@@ -803,7 +801,7 @@ func (l *ShardedLockedMap[K, V]) CloseFunc(f func()) {
 
 func NewLockedMap[K comparable, V any](
 	newMapf func() (LockedMap[K, V], error),
-	size, grow uint64,
+	size uint64,
 ) (LockedMap[K, V], error) {
 	if newMapf == nil {
 		newMapf = func() (LockedMap[K, V], error) {
@@ -815,7 +813,7 @@ func NewLockedMap[K comparable, V any](
 	case size == 1:
 		return newMapf()
 	default:
-		return NewShardedLockedMap[K, V](newMapf, size, grow)
+		return NewShardedLockedMap[K, V](newMapf, size)
 	}
 }
 

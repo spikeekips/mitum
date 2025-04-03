@@ -49,13 +49,13 @@ func (t *baseTestMergeOp) getFuncs() (
 	getMerger func(SMV) (SVM, error),
 	getValues func(uint64) ([]SMV, error),
 ) {
-	vp, err := dutil.NewShardedLockedMap[uint64, []SMV](nil, 1<<9, 1<<9)
+	vp, err := dutil.NewShardedLockedMap[uint64, []SMV](nil, 1<<9)
 	t.IfErrPanic(err)
 
-	mergers, err := dutil.NewShardedLockedMap[string, SVM](nil, 1<<9, 1<<9)
+	mergers, err := dutil.NewShardedLockedMap[string, SVM](nil, 1<<9)
 	t.IfErrPanic(err)
 
-	states, err := dutil.NewShardedLockedMap[string, base.State](nil, 1<<9, 1<<9)
+	states, err := dutil.NewShardedLockedMap[string, base.State](nil, 1<<9)
 	t.IfErrPanic(err)
 
 	return vp, mergers, states, func(value SMV) (SVM, error) {

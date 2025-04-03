@@ -199,14 +199,14 @@ func newFuncWorkerCollectStateOwnersSet(workersSize uint64) (
 	var msubws dutil.LockedMap[string /* sub worker */, map[string]struct{} /* affected */]
 	var maffected dutil.LockedMap[string /* affected */, map[string]struct{} /* sub workers */]
 
-	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize, workersSize); {
+	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
 		msubws = i
 	}
 
-	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize, workersSize); {
+	switch i, err := dutil.NewLockedMap[string, map[string]struct{}](nil, workersSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

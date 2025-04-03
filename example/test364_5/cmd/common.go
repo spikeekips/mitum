@@ -216,7 +216,7 @@ func (cmd *baseCommand) prepareQuicStream(role string) error {
 }
 
 func (cmd *baseCommand) prepareDialFunc() error {
-	pool, err := dutil.NewLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
+	pool, err := dutil.NewLockedMap[string, quic.Connection](nil, 1<<9)
 	if err != nil {
 		return err
 	}

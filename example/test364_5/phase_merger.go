@@ -419,7 +419,7 @@ func newFuncCollectXmergedOps(
 ) {
 	var baseMergedOps dutil.LockedMap[uint64, xMergeFlag]
 
-	switch i, err := dutil.NewLockedMap[uint64, xMergeFlag](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, xMergeFlag](nil, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -428,7 +428,7 @@ func newFuncCollectXmergedOps(
 
 	var ops dutil.LockedMap[uint64 /* opindex */, int /* count */]
 
-	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -493,7 +493,7 @@ func newFuncAddOpUnmergeReasons(mapSize uint64) (
 ) {
 	var m dutil.LockedMap[uint64, string]
 
-	switch i, err := dutil.NewLockedMap[uint64, string](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, string](nil, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

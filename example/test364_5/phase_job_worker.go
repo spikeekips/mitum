@@ -154,7 +154,7 @@ func newFuncJobID(mapSize uint64) (
 ) {
 	var m dutil.LockedMap[uint64, int]
 
-	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize, mapSize); {
+	switch i, err := dutil.NewLockedMap[uint64, int](nil, mapSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

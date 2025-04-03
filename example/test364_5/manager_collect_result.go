@@ -173,7 +173,7 @@ func newFuncGenerateOperationFixedtree(
 ) {
 	var pool dutil.LockedMap[uint64, *OperationTreeNode]
 
-	switch i, err := dutil.NewLockedMap[uint64, *OperationTreeNode](nil, uint64(len(ophs)), uint64(len(ophs))); {
+	switch i, err := dutil.NewLockedMap[uint64, *OperationTreeNode](nil, uint64(len(ophs))); {
 	case err != nil:
 		return nil, nil, nil, err
 	default:

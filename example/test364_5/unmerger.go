@@ -102,7 +102,7 @@ func newFuncOpindexFilter(
 ) {
 	var m dutil.LockedMap[uint64, struct{}]
 
-	switch i, err := dutil.NewLockedMap[uint64, struct{}](nil, maxOpsSize, maxOpsSize); {
+	switch i, err := dutil.NewLockedMap[uint64, struct{}](nil, maxOpsSize); {
 	case err != nil:
 		return nil, nil, err
 	default:

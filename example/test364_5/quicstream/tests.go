@@ -204,7 +204,7 @@ func (t *BaseTest) OpenStreams(
 }
 
 func (t *BaseTest) NewDialPool() dutil.LockedMap[string, quic.Connection] {
-	p, err := dutil.NewShardedLockedMap[string, quic.Connection](nil, 1<<9, 1<<9)
+	p, err := dutil.NewShardedLockedMap[string, quic.Connection](nil, 1<<9)
 
 	t.PrintIfErrPanic(err, "new pool")
 
