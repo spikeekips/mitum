@@ -264,7 +264,7 @@ func newFuncHintCache(cacheSize int, bufSize uint64) (
 	func(string, *hint.Hint, error),
 	func(),
 ) {
-	get, _, lazySet, closef := dutil.NewLazyCache[string, [2]any /* {hint.Hint, error} */](context.Background(), cacheSize, bufSize, bufSize)
+	get, _, lazySet, closef := dutil.NewLazyCache[string, [2]any /* {*hint.Hint, error} */](context.Background(), cacheSize, bufSize, bufSize)
 
 	return func(s string) (hint.Hint, bool, error) {
 			if i, found := get(s); found {
