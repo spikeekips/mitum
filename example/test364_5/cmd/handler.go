@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"iter"
 	"maps"
@@ -773,11 +772,6 @@ func requestHandlerWorkerDistributeSMVs(
 				newJob, jobDone, jobWait = n, d, w
 			}
 
-			started := time.Now()
-			defer func() {
-				fmt.Println("r>", time.Since(started)) // FIXME remove
-			}()
-
 			for i, v := range dutil.SeqAll(seq) {
 				if err := newJob(func(context.Context) error {
 					return writeSMVBundle(
@@ -925,7 +919,6 @@ func acceptHandlerWorkerDistributeSMVs(
 			newJob, jobDone, jobWait = n, d, w
 		}
 
-		started := time.Now()
 		if err := subStreams(func(streams []quic.Stream) error {
 			defer jobDone()
 
@@ -961,7 +954,6 @@ func acceptHandlerWorkerDistributeSMVs(
 		if err := jobWait(nil); err != nil {
 			return ctx, err
 		}
-		fmt.Println("a>", time.Since(started)) // FIXME remove
 
 		var subs []string
 		if err := readFixedFrameStringSlice(stream, &subs); err != nil {
