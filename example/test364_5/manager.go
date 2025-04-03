@@ -35,8 +35,8 @@ type (
 )
 
 type ManagerOptions struct {
-	JobWorkerMaxSemSize   uint64
 	GenerateNodesHashFunc fixedtree.GenerateNodesHashFunc
+	JobWorkerMaxSemSize   uint64
 	WorkersSizeMultiplier uint64
 }
 

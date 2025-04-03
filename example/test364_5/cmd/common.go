@@ -38,7 +38,7 @@ type pprofFlags struct {
 	Mem bool   `name:"mem" group:"pprof"`
 }
 
-type baseCommand struct {
+type baseCommand struct { //betteralign:ignore
 	Bind       string `default:"${bind}" help:"by default, ${bind}"`
 	Redis      string `default:"redis://127.0.0.1:6379"`
 	pprofFlags `embed:"" prefix:"pprof."`

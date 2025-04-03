@@ -17,8 +17,8 @@ func (n *StateTreeNode) MarshalJSON() ([]byte, error) {
 	}
 
 	return util.MarshalJSON(struct {
-		fixedtree.BaseNodeJSONMarshaler
 		stateTreeNodeJSONMarshaler
+		fixedtree.BaseNodeJSONMarshaler
 	}{
 		BaseNodeJSONMarshaler: n.BaseNode.JSONMarshaler(),
 		stateTreeNodeJSONMarshaler: stateTreeNodeJSONMarshaler{

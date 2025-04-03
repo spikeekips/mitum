@@ -21,12 +21,12 @@ type OperationFact interface {
 }
 
 type AccountOpFact struct {
-	hint.BaseHinter
 	h        util.Hash
-	token    base.Token
 	Issuer   base.Publickey
 	Receiver base.Publickey
-	Amount   int64
+	token    base.Token
+	hint.BaseHinter
+	Amount int64
 }
 
 var _ = interface{}(new(AccountOpFact)).(OperationFact)
@@ -123,12 +123,12 @@ func (fact *AccountOpFact) hash() util.Hash {
 }
 
 type accountOpFactJSONMarshaler struct {
-	hint.BaseHinter
 	Hash     util.Hash      `json:"hash"`
-	Token    base.Token     `json:"token"`
 	Issuer   base.Publickey `json:"issuer"`
 	Receiver base.Publickey `json:"receiver"`
-	Amount   int64          `json:"amount"`
+	Token    base.Token     `json:"token"`
+	hint.BaseHinter
+	Amount int64 `json:"amount"`
 }
 
 func (fact *AccountOpFact) MarshalJSON() ([]byte, error) {

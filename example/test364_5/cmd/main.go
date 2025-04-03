@@ -15,11 +15,11 @@ import (
 	"github.com/spikeekips/mitum/launch"
 )
 
-var CLI struct { //nolint:govet //...
-	launch.BaseFlags
+var CLI struct { //betteralign:ignore
 	Manager managerCommand `cmd:"" help:"manager"`
 	Worker  workerCommand  `cmd:"" help:"worker"`
 	Version struct{}       `cmd:"" help:"version"`
+	launch.BaseFlags
 }
 
 var flagDefaults = kong.Vars{

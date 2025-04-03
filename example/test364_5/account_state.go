@@ -141,10 +141,10 @@ func AccountSMVDecodeJSON(enc *jsonenc.Encoder, m map[string]any) (any, error) {
 type AccountSVM struct {
 	address base.Publickey
 	prev    *AccountSV
-	prepops []uint64
-	key     string
-	sum     int64
 	lastop  *uint64
+	key     string
+	prepops []uint64
+	sum     int64
 }
 
 func newAccountSVM(key string, prev *AccountSV) *AccountSVM {

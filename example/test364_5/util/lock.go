@@ -914,10 +914,10 @@ func (l *MultiKeysLockedMap[K, V]) Close() {
 
 type LimitedLockedMap[K comparable, V any] struct {
 	LockedMap[K, V]
-	allowedKeys []K
 	allowKeyf   func(K) bool
-	isclosed    bool
+	allowedKeys []K
 	l           sync.RWMutex
+	isclosed    bool
 }
 
 func NewLimitedLockedMap[K comparable, V any](m LockedMap[K, V], allowedKeys []K) *LimitedLockedMap[K, V] {

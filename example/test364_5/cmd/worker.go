@@ -18,7 +18,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type workerCommand struct {
+type workerCommand struct { //betteralign:ignore
 	baseCommand
 	Manager string `arg:""`
 

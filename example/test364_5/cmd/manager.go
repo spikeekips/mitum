@@ -42,7 +42,7 @@ type requestWorkerFunc = func(context.Context,
 	string, /* worker */
 	*tls.Config, *quic.Config, quicstream.StreamHandler) (context.Context, error)
 
-type managerCommand struct {
+type managerCommand struct { //betteralign:ignore
 	baseCommand `cmd:""`
 	OpsShare    uint64   `arg:"" help:"ops share"`
 	StatesShare uint64   `arg:"" help:"states share"`

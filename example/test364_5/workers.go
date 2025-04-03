@@ -512,16 +512,16 @@ func newFuncDistributeWorkerMaxItems(workers, items, share uint64) dutil.InFunc[
 
 type failedWorkerPool struct {
 	pool             map[string]error
-	opsShare         uint64
-	statesShare      uint64
 	ws               []string
 	opsws            []string
 	sos              []string
+	opsShare         uint64
+	statesShare      uint64
 	failedOpsWorkers uint64
 	failedSos        uint64
+	l                sync.RWMutex
 	isSosReady       bool
 	failed           bool
-	l                sync.RWMutex
 }
 
 func newFailedWorkerPool(workers, opsWorkers []string, opsShare, statesShare uint64) *failedWorkerPool {
