@@ -1,10 +1,8 @@
 package util
 
 import (
-	"fmt"
 	"iter"
 	"maps"
-	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -19,7 +17,15 @@ var (
 	ErrSetOnlyLockedMapNotAllowed = util.NewIDError("set only locked map")
 )
 
-type LockedMap[K comparable /* key */, V any /* value */] interface { //nolint:interfacebloat //...
+type mapIndexType interface {
+	~string |
+		~float32 | ~float64 |
+		~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+		~uintptr
+}
+
+type LockedMap[K mapIndexType /* key */, V any /* value */] interface { //nolint:interfacebloat //...
 	Len() int
 	Empty()
 	Close()
@@ -359,7 +365,7 @@ func (l *SingleLockedMap[K, V]) CloseFunc(f func()) {
 	l.closef()
 }
 
-type ShardedLockedMap[K comparable, V any] struct {
+type ShardedLockedMap[K mapIndexType, V any] struct {
 	hashf   func(K) uint64
 	newMapf func() (LockedMap[K, V], error)
 	sharded []LockedMap[K, V]
@@ -367,7 +373,7 @@ type ShardedLockedMap[K comparable, V any] struct {
 	l       sync.RWMutex
 }
 
-func NewShardedLockedMap[K comparable, V any](
+func NewShardedLockedMap[K mapIndexType, V any](
 	newMapf func() (LockedMap[K, V], error),
 	size uint64,
 ) (*ShardedLockedMap[K, V], error) {
@@ -384,13 +390,9 @@ func NewShardedLockedMap[K comparable, V any](
 		}
 	}
 
-	seed := NewHashSeed()
-
 	return &ShardedLockedMap[K, V]{
 		sharded: make([]LockedMap[K, V], size),
-		hashf: func(k K) uint64 {
-			return defaultLockedMapHashFunc(seed, k, size)
-		},
+		hashf:   newFuncDefaultLockedMapHash[K](size),
 		newMapf: newMapf,
 	}, nil
 }
@@ -799,7 +801,7 @@ func (l *ShardedLockedMap[K, V]) CloseFunc(f func()) {
 	l.closef()
 }
 
-func NewLockedMap[K comparable, V any](
+func NewLockedMap[K mapIndexType, V any](
 	newMapf func() (LockedMap[K, V], error),
 	size uint64,
 ) (LockedMap[K, V], error) {
@@ -817,13 +819,13 @@ func NewLockedMap[K comparable, V any](
 	}
 }
 
-type MultiKeysLockedMap[K comparable, V any] struct {
+type MultiKeysLockedMap[K mapIndexType, V any] struct {
 	m       LockedMap[K, V]
 	lockchs map[K]<-chan struct{}
 	l       sync.Mutex
 }
 
-func NewMultiKeysLockedMap[K comparable, V any](m LockedMap[K, V]) *MultiKeysLockedMap[K, V] {
+func NewMultiKeysLockedMap[K mapIndexType, V any](m LockedMap[K, V]) *MultiKeysLockedMap[K, V] {
 	return &MultiKeysLockedMap[K, V]{
 		m:       m,
 		lockchs: map[K](<-chan struct{}){},
@@ -910,7 +912,7 @@ func (l *MultiKeysLockedMap[K, V]) Close() {
 	l.lockchs = nil
 }
 
-type LimitedLockedMap[K comparable, V any] struct {
+type LimitedLockedMap[K mapIndexType, V any] struct {
 	LockedMap[K, V]
 	allowKeyf   func(K) bool
 	allowedKeys []K
@@ -918,7 +920,7 @@ type LimitedLockedMap[K comparable, V any] struct {
 	isclosed    bool
 }
 
-func NewLimitedLockedMap[K comparable, V any](m LockedMap[K, V], allowedKeys []K) *LimitedLockedMap[K, V] {
+func NewLimitedLockedMap[K mapIndexType, V any](m LockedMap[K, V], allowedKeys []K) *LimitedLockedMap[K, V] {
 	var km map[K]struct{}
 	for k := range slices.Values(allowedKeys) {
 		if km == nil {
@@ -1100,14 +1102,14 @@ func (l *LimitedLockedMap[K, V]) allowKey(k K) (bool, error) {
 	return l.allowKeyf(k), nil
 }
 
-type SetOnlyLockedMap[K comparable, V any] struct {
+type SetOnlyLockedMap[K mapIndexType, V any] struct {
 	LockedMap[K, V]
 	keys []K
 	grow uint64
 	l    sync.RWMutex
 }
 
-func NewSetOnlyLockedMap[K comparable, V any](l LockedMap[K, V], grow uint64) *SetOnlyLockedMap[K, V] {
+func NewSetOnlyLockedMap[K mapIndexType, V any](l LockedMap[K, V], grow uint64) *SetOnlyLockedMap[K, V] {
 	return &SetOnlyLockedMap[K, V]{
 		LockedMap: l,
 		keys:      make([]K, 0, grow),
@@ -1329,64 +1331,55 @@ func (l *SetOnlyLockedMap[K, V]) setKey(k K) {
 	l.keys = append(l.keys, k)
 }
 
-func defaultLockedMapIndex[K comparable](k K, stringIndexer func(s string) uint64) uint64 {
-	var i uint64
+var murmur3Seed = NewHashSeed()
 
-	switch t := interface{}(k).(type) {
-	case fmt.Stringer:
-		i = stringIndexer(t.String())
+func newFuncDefaultLockedMapHash[K mapIndexType](size uint64) InFunc[K, uint64] {
+	var intf func(i K) uint64
+
+	var k K
+
+	switch any(k).(type) {
 	case string:
-		i = stringIndexer(t)
-	case float32:
-		i = uint64(math.Abs(float64(t)))
-	case float64:
-		i = uint64(math.Abs(t))
-	case int:
-		i = uint64(math.Abs(float64(t)))
-	case int8:
-		i = uint64(math.Abs(float64(t)))
-	case int16:
-		i = uint64(math.Abs(float64(t)))
-	case int32:
-		i = uint64(math.Abs(float64(t)))
-	case int64:
-		i = uint64(math.Abs(float64(t)))
-	case uint:
-		i = uint64(t)
-	case uint8:
-		i = uint64(t)
-	case uint16:
-		i = uint64(t)
-	case uint32:
-		i = uint64(t)
-	case uint64:
-		i = t
-	case uintptr:
-		i = uint64(t)
-	}
-
-	return i
-}
-
-func defaultLockedMapHashFunc[K comparable](seed uint64, k K, size uint64) uint64 {
-	return defaultLockedMapIndex(k, func(s string) uint64 {
-		return Murmur3(seed, s)
-	}) % size
-}
-
-func compactLockedMapKeys[K comparable](ks []K) []K {
-	var m map[K]struct{}
-	defer clear(m)
-
-	for k := range slices.Values(ks) {
-		if _, found := m[k]; !found {
-			if m == nil {
-				m = map[K]struct{}{}
-			}
-
-			m[k] = struct{}{}
+		intf = func(i K) uint64 {
+			return Murmur3(murmur3Seed, any(i).(string))
 		}
+	case float32:
+		intf = func(i K) uint64 { return uint64(any(i).(float64)) }
+	case float64:
+		intf = func(i K) uint64 { return uint64(any(i).(float64)) }
+	case int:
+		intf = func(i K) uint64 { return uint64(any(i).(int)) }
+	case int8:
+		intf = func(i K) uint64 { return uint64(any(i).(int8)) }
+	case int16:
+		intf = func(i K) uint64 { return uint64(any(i).(int16)) }
+	case int32:
+		intf = func(i K) uint64 { return uint64(any(i).(int32)) }
+	case int64:
+		intf = func(i K) uint64 { return uint64(any(i).(int64)) }
+	case uint:
+		intf = func(i K) uint64 { return uint64(any(i).(uint)) }
+	case uint8:
+		intf = func(i K) uint64 { return uint64(any(i).(uint8)) }
+	case uint16:
+		intf = func(i K) uint64 { return uint64(any(i).(uint16)) }
+	case uint32:
+		intf = func(i K) uint64 { return uint64(any(i).(uint32)) }
+	case uint64:
+		intf = func(i K) uint64 { return any(i).(uint64) }
+	case uintptr:
+		intf = func(i K) uint64 { return uint64(any(i).(uintptr)) }
 	}
 
-	return slices.Collect(maps.Keys(m))
+	return func(i K) uint64 {
+		return intf(i) % size
+	}
+}
+
+func compactLockedMapKeys[K mapIndexType](ks []K) []K {
+	n := make([]K, len(ks))
+	copy(n, ks)
+	slices.Sort(n)
+
+	return slices.Compact(n)
 }

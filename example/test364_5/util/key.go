@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func DistributeByCount[K comparable](total, share uint64) (
+func DistributeByCount[K mapIndexType](total, share uint64) (
 	_ func(K) []uint64,
 	closef func(),
 	_ error,
