@@ -1,6 +1,7 @@
 package util
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -19,19 +20,20 @@ func (EmptyGCache[K, V]) Close()                   {}
 func (EmptyGCache[K, V]) Purge()                   {}
 func (EmptyGCache[K, V]) Traverse(func(K, V) bool) {}
 
-func NewLazyCache[K comparable, V any](
+func NewLazyCache[K comparable, V any, O cmp.Ordered](
 	ctx context.Context,
 	cacheSize int,
 	bufSize, outBufSize uint64,
+	order func(V) O,
 ) (
 	func(K) (V, bool),
 	func(K, V, time.Duration),
 	func(K, V, time.Duration),
 	func(),
 ) {
-	cache := util.NewLRUGCache[K, [2]any /* {V, <set time> } */](cacheSize)
+	cache := util.NewLRUGCache[K, [2]any /* {V, <O: set time> } */](cacheSize)
 
-	add, addDone, seq := NewContextUnlimitedChans[[4]any /* {K, V, <expire>, <set time>} */](
+	add, addDone, seq := NewContextUnlimitedChans[[4]any /* {K, V, <expire>, <O:set time>} */](
 		ctx, bufSize, outBufSize)
 
 	donech := make(chan struct{})
@@ -39,9 +41,9 @@ func NewLazyCache[K comparable, V any](
 	go func() {
 	end:
 		for i := range seq {
-			switch v, found := cache.Get(i[0].(K)); {
+			switch v, found := cache.Get(i[0].(K)); { // FIXME lock
 			case !found:
-			case i[3].(int64) < v[1].(int64):
+			case i[3].(O) < v[1].(O):
 				continue end
 			}
 
@@ -69,14 +71,29 @@ func NewLazyCache[K comparable, V any](
 			}
 		},
 		func(k K, v V, d time.Duration) {
-			cache.Set(k, [2]any{v, time.Now().UnixNano()}, d)
+			cache.Set(k, [2]any{v, order(v)}, d)
 		},
 		func(k K, v V, d time.Duration) {
-			add([4]any{k, v, d, time.Now().UnixNano()})
+			add([4]any{k, v, d, order(v)})
 		},
 		func() {
 			addDone()
 
 			<-donech
 		}
+}
+
+func NewLastFirstLazyCache[K comparable, V any](
+	ctx context.Context,
+	cacheSize int,
+	bufSize, outBufSize uint64,
+) (
+	func(K) (V, bool),
+	func(K, V, time.Duration),
+	func(K, V, time.Duration),
+	func(),
+) {
+	return NewLazyCache[K, V, int64](ctx, cacheSize, bufSize, outBufSize, func(V) int64 {
+		return time.Now().UnixNano()
+	})
 }

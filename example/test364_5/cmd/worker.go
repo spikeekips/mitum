@@ -18,18 +18,23 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type setStatesFunc func([]base.State)
+type (
+	stateCacheGetFunc = func(stateKey string) (_ base.State, found bool)
+	stateCacheSetFunc = func(base.State)
+	newStateCacheFunc = func(workers []string, statesShare uint64, _ base.Height) (
+		get stateCacheGetFunc, set stateCacheSetFunc, lazySet stateCacheSetFunc)
+)
 
 type workerCommand struct { //betteralign:ignore
 	baseCommand
-	Manager string `arg:""`
+	Manager    string `arg:""`
+	CapOpsSize uint64 `default:"200000"`
 
 	local           string
 	workerOptions   *dop5.WorkerOptions
 	manager         *net.UDPAddr
 	workerProcessAt time.Time
-	getState        dop5.GetStateFunc
-	setStates       setStatesFunc
+	getStateCache   newStateCacheFunc
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
@@ -69,6 +74,12 @@ func (cmd *workerCommand) prepare() error {
 	}
 
 	cmd.workerOptions = dop5.NewWorkerOptions(cmd.local)
+
+	cmd.getStateCache, _ = newFuncWorkersAwareStateCache(
+		cmd.ctx,
+		int(cmd.CapOpsSize),
+		1<<9, 1<<9, // NOTE will be enough :)
+	)
 
 	return nil
 }
@@ -140,9 +151,7 @@ func (cmd *workerCommand) startWorker(
 		}
 	}
 
-	if cmd.getState == nil {
-		cmd.getState, cmd.setStates = cmd.newFuncGetState(int(maxOpsSize))
-	}
+	getState, setStates := cmd.newFuncGetState(workers, statesShare, height)
 
 	defer dutil.ElapsedLogMsg(l.Debug, "cmd/worker ready")()
 
@@ -157,7 +166,7 @@ func (cmd *workerCommand) startWorker(
 	switch ii, wi, wu, w, c, err := dop5.NewFuncWorker(
 		ctx,
 		cmd.workerOptions,
-		cmd.getState,
+		getState,
 		cmd.newFuncCreateState(height),
 		workCanceled,
 		workers, opsWorkers,
@@ -218,17 +227,17 @@ func (cmd *workerCommand) startWorker(
 			return workClosedDone(wait(
 				cmd.newFuncBroadcastUnmerged(workID),
 				cmd.newFuncReportResult(workID),
-				cmd.newFuncSaveStates(),
+				cmd.newFuncSaveStates(setStates),
 			))
 		},
 		nil
 }
 
-func (cmd *workerCommand) newFuncGetState(cacheSize int) (
+func (cmd *workerCommand) newFuncGetState(workers []string, statesShare uint64, height base.Height) (
 	dop5.GetStateFunc,
 	func([]base.State),
 ) {
-	get, set, lazySet, _ := dutil.NewLazyCache[string, base.State](cmd.ctx, cacheSize, 1<<9, 1<<9)
+	get, set, lazySet := cmd.getStateCache(workers, statesShare, height)
 
 	return func(stateKey string) (st base.State, _ bool, _ error) {
 			if i, found := get(stateKey); found {
@@ -240,15 +249,15 @@ func (cmd *workerCommand) newFuncGetState(cacheSize int) (
 			}
 
 			found, err := cmd.db.getState(cmd.ctx, stateKey, &st)
-			if err == nil {
-				lazySet(stateKey, st, 0)
+			if err == nil && found {
+				lazySet(st)
 			}
 
 			return st, found, err
 		},
 		func(sts []base.State) {
 			for st := range slices.Values(sts) {
-				set(st.Key(), st, 0)
+				set(st)
 			}
 		}
 }
@@ -439,15 +448,85 @@ func (cmd *workerCommand) pingManager() error {
 	return <-connected
 }
 
-func (cmd *workerCommand) newFuncSaveStates() dop5.WorkerSaveStatesFunc {
+func (cmd *workerCommand) newFuncSaveStates(setStates func([]base.State)) dop5.WorkerSaveStatesFunc {
 	return func(sts []base.State) error {
 		defer dutil.ElapsedLogMsg(func() *zerolog.Event {
 			return cmd.log.Debug().
 				Int("size", len(sts))
 		}, "cmd/save states")()
 
-		cmd.setStates(sts)
+		setStates(sts)
 
 		return cmd.db.saveStates(cmd.ctx, 1<<9, 1<<9, sts)
 	}
+}
+
+func newFuncWorkersAwareStateCache(ctx context.Context, cacheSize int, bufSize, outBufSize uint64) (
+	newStateCacheFunc,
+	func(),
+) {
+	get, set, lazySet, closef := dutil.NewLazyCache[string, base.State, int64](
+		ctx, cacheSize, bufSize, outBufSize, func(st base.State) int64 {
+			return int64(st.Height())
+		})
+
+	var last int64
+	var lastWorkers [2]any /* {workers []string, statesShare uint64} */
+	var cur [3]any
+	var isOld func(h base.Height) bool
+
+	getCur := func() (stateCacheGetFunc, stateCacheSetFunc, stateCacheSetFunc) {
+		return cur[0].(func(string) (base.State, bool)),
+			cur[1].(func(base.State)),
+			cur[2].(func(base.State))
+	}
+
+	return func(workers []string, statesShare uint64, height base.Height) (stateCacheGetFunc, stateCacheSetFunc, stateCacheSetFunc) {
+			switch {
+			case lastWorkers[0] == nil:
+			case lastWorkers[1].(uint64) != statesShare:
+			case !slices.Equal(lastWorkers[0].([]string), workers):
+			default:
+				return getCur()
+			}
+
+			lastWorkers = [2]any{workers, statesShare}
+			prev := last
+
+			switch iheight := int64(height); {
+			case last > 0 && iheight <= last:
+				panic(errors.Errorf("lower height, %d < %d", iheight, last))
+			default:
+				last = iheight
+			}
+
+			switch {
+			case height == 0 || prev == 0:
+				isOld = func(base.Height) bool { return false }
+			default:
+				isOld = func(h base.Height) bool {
+					return int64(h) < prev
+				}
+			}
+
+			hget := func(stateKey string) (base.State, bool) {
+				st, found := get(stateKey)
+				if found && isOld(st.Height()) {
+					return nil, false
+				}
+
+				return st, found
+			}
+			hset := func(st base.State) {
+				set(st.Key(), st, 0)
+			}
+			hlazySet := func(st base.State) {
+				lazySet(st.Key(), st, 0)
+			}
+
+			cur = [3]any{hget, hset, hlazySet}
+
+			return hget, hset, hlazySet
+		},
+		closef
 }

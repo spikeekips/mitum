@@ -348,7 +348,7 @@ func newFuncExtractSMVKeys(ctx context.Context, maxSize, size int) (
 		size = maxSize
 	}
 
-	get, _, lazySet, closef := dutil.NewLazyCache[uint64, []string](ctx, size, uint64(maxSize), uint64(maxSize))
+	get, _, lazySet, closef := dutil.NewLastFirstLazyCache[uint64, []string](ctx, size, uint64(maxSize), uint64(maxSize))
 
 	return func(opindex uint64, values []SMV) ([]string, error) {
 			if len(values) < 1 {
