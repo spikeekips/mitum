@@ -18,6 +18,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type setStatesFunc func([]base.State)
+
 type workerCommand struct { //betteralign:ignore
 	baseCommand
 	Manager string `arg:""`
@@ -27,7 +29,7 @@ type workerCommand struct { //betteralign:ignore
 	manager         *net.UDPAddr
 	workerProcessAt time.Time
 	getState        dop5.GetStateFunc
-	setStates       func([]base.State)
+	setStates       setStatesFunc
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
