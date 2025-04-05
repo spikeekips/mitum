@@ -33,7 +33,7 @@ import (
 )
 
 type pprofFlags struct {
-	Out string `name:"out" help:"output directory" group:"pprof"`
+	Out string `name:"out" help:"output directory" placeholder:"directory" group:"pprof"`
 	CPU bool   `name:"cpu" group:"pprof"`
 	Mem bool   `name:"mem" group:"pprof"`
 }

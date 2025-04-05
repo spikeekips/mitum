@@ -48,7 +48,7 @@ type managerCommand struct { //betteralign:ignore
 	StatesShare uint64   `arg:"" help:"states share"`
 	Ops         uint64   `arg:"" help:"number of operations"`
 	Workers     []string `arg:"" default:""`
-	PreProcess  bool     `name:"pre-process"`
+	PreProcess  bool
 
 	managerOptions    *dop5.ManagerOptions
 	privs             []base.Privatekey
