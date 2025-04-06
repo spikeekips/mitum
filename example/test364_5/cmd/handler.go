@@ -165,7 +165,7 @@ func requestHandlerSendOps(
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			defer stream.Close()
+			defer func() { _ = stream.Close() }()
 
 			nstreams := make([]quic.Stream, len(streams)+1)
 			copy(nstreams, streams)
@@ -376,7 +376,7 @@ func requestHandlerWorkerResult(
 		}
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			defer stream.Close()
+			defer func() { _ = stream.Close() }()
 
 			nstreams := make([]quic.Stream, len(streams)+1)
 			copy(nstreams, streams)
@@ -636,9 +636,9 @@ func requestHandlerWorkerInsertDone() quicstream.StreamHandler {
 	}
 }
 
-func acceptHandlerWorkerInsertDone() quicstream.StreamHandler {
+func acceptHandlerWorkerInsertDone(f dutil.ErrorFunc) quicstream.StreamHandler {
 	return func(ctx context.Context, _ quic.Stream) (context.Context, error) {
-		return ctx, nil
+		return ctx, f()
 	}
 }
 
@@ -1139,7 +1139,7 @@ func requestHandlerPreloadOps(
 		defer stop()
 
 		return ctx, subStreams(func(streams []quic.Stream) error {
-			defer stream.Close()
+			defer func() { _ = stream.Close() }()
 
 			nstreams := make([]quic.Stream, len(streams)+1)
 			copy(nstreams, streams)

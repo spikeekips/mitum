@@ -89,7 +89,7 @@ func newFuncWorkerPhaseMerger(
 				},
 				func(err error) error {
 					return dutil.ContextCauseError(ctx, nil, func(context.Context) error {
-						if worker == managerName {
+						if worker == ManagerName {
 							l.Debug().Msg("manager done")
 
 							return dutil.NewIfErrErrorInFunc(ctxCancel)(workerInsertDone(err))

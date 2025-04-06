@@ -830,7 +830,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		go func() {
 			t.IfErrPanic(initial(nil, nil, nil, t.defaultFuncInsertOp(nil), nil))
 
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.IfErrPanic(err)
 			t.IfErrPanic(insertDone(nil, nil))
 		}()
@@ -876,7 +876,7 @@ func (t *testWorkerProcess) TestWorkerManager() {
 		)
 
 		go func() {
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.IfErrPanic(err)
 			t.IfErrPanic(insertDone(nil, nil))
 

@@ -1388,7 +1388,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 
 			_ = insertDone(nil)
 
-			_, insertDone, err = insertf(managerName)
+			_, insertDone, err = insertf(ManagerName)
 			t.NoError(err)
 
 			_ = insertDone(nil)
@@ -1434,7 +1434,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		t.NoError(err)
 
 		{
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.NoError(err)
 
 			_ = insertDone(nil)
@@ -1485,7 +1485,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 		t.NoError(err)
 		t.NoError(insertDone(nil))
 
-		_, insertDone, err = insertf(managerName)
+		_, insertDone, err = insertf(ManagerName)
 		t.NoError(err)
 		t.NoError(insertDone(nil))
 
@@ -1569,7 +1569,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				t.Print("insert worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))
@@ -1677,7 +1677,7 @@ func (t *testWorkerMerger) TestWorkerManager() {
 				t.Print("unmerge worker: worker=%q ops=%v err=%v", worker, ops, err)
 			}
 
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))

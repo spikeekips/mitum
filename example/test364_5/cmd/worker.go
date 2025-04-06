@@ -218,6 +218,15 @@ func (cmd *workerCommand) startWorker(
 		workerInsertSMVs,
 	).StreamHandler(cmd.newAcceptSubStream))
 
+	mustAddWorkHandler("manager_worker_insert_done", acceptHandlerWorkerInsertDone(func() error {
+		switch _, owners, err := workerInsertSMVs(dop5.ManagerName); {
+		case err != nil:
+			return err
+		default:
+			return owners(nil, nil)
+		}
+	}))
+
 	mustAddWorkHandler("worker_unmerged", acceptHandlerWorkerUnmerged(workerUnmerged))
 
 	workClosedDone, workClosedWait := dutil.NewContextDone(ctx)

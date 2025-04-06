@@ -188,7 +188,7 @@ func newFuncWorkerProcess(
 			error,
 		) {
 			switch {
-			case worker == managerName:
+			case worker == ManagerName:
 			case slices.Index(opsWorkers, worker) >= 0:
 			default:
 				return nil, nil, util.ErrInvalid.Errorf("unknown ops worker, %q", worker)

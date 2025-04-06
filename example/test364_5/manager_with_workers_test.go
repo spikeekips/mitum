@@ -396,7 +396,7 @@ func (t *testManagerWithWorkers) newManager(
 			func(_ context.Context, worker string) error {
 				var err1 error
 
-				_, o, err0 := workersInserts[worker](managerName)
+				_, o, err0 := workersInserts[worker](ManagerName)
 
 				if err != nil {
 					err1 = o(nil, nil)

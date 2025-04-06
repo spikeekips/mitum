@@ -580,7 +580,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 		t.NoError(err)
 
 		go func() {
-			_, insertDone, err := insertf(managerName)
+			_, insertDone, err := insertf(ManagerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))
@@ -653,7 +653,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			t.IfErrPanic(insertDone(nil))
 
-			_, insertDone, err = insertf(managerName)
+			_, insertDone, err = insertf(ManagerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))
@@ -730,7 +730,7 @@ func (t *testWorkerPhaseMerger) TestManagerWorker() {
 
 			t.IfErrPanic(insertDone(nil))
 
-			_, insertDone, err = insertf(managerName)
+			_, insertDone, err = insertf(ManagerName)
 			t.IfErrPanic(err)
 
 			t.IfErrPanic(insertDone(nil))

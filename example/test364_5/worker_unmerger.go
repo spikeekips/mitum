@@ -73,7 +73,7 @@ func newFuncWorkerUnmerger(
 			return dutil.ContextCauseError(wctx, nil, func(context.Context) error {
 				l := log.With().Str("worker", worker).Uints64("unmerged", unmerged).Logger()
 
-				if worker == managerName {
+				if worker == ManagerName {
 					l.Debug().Msg("manager done")
 
 					return workerPhaseDone(nil)

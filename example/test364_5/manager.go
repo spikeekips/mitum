@@ -12,7 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var managerName = "manager"
+var ManagerName = "manager"
 
 type (
 	ManagerStartWorkerFunc = func(

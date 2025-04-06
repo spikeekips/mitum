@@ -186,7 +186,7 @@ func newFuncWorkerMergerInsert(
 		error,
 	) {
 		switch {
-		case worker == managerName:
+		case worker == ManagerName:
 		case !isOpsWorker(worker):
 			return nil, nil, nil
 		}

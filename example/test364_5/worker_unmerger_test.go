@@ -724,8 +724,8 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 			err := localReady([]string{local}, []uint64{0, 1, 2, 3, 4})
 			t.Print("local phase done: worker=%q err=%v", local, err)
 
-			err = workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
-			t.Print("worker phase done: worker=%q err=%v", managerName, err)
+			err = workerUnmerge(ManagerName, []uint64{0, 1, 2, 3, 4})
+			t.Print("worker phase done: worker=%q err=%v", ManagerName, err)
 		}()
 
 		unmerged, err := wait()
@@ -753,8 +753,8 @@ func (t *testWorkerUnmerger) TestWorkerManager() {
 		t.NoError(err)
 
 		go func() {
-			err := workerUnmerge(managerName, []uint64{0, 1, 2, 3, 4})
-			t.Print("worker phase done: worker=%q err=%v", managerName, err)
+			err := workerUnmerge(ManagerName, []uint64{0, 1, 2, 3, 4})
+			t.Print("worker phase done: worker=%q err=%v", ManagerName, err)
 		}()
 
 		unmerged, err := wait()
