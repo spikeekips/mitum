@@ -35,6 +35,7 @@ type workerCommand struct { //betteralign:ignore
 	manager         *net.UDPAddr
 	workerProcessAt time.Time
 	getStateCache   newStateCacheFunc
+	factPool        dutil.LockedMap[string, dop5.OperationFact]
 }
 
 func (cmd *workerCommand) Run(log *zerolog.Logger) error {
@@ -116,6 +117,26 @@ func (cmd *workerCommand) ready() (dutil.ErrorFunc, error) {
 
 		return nil
 	}))
+
+	createFactPool := sync.OnceValue(func() (err error) {
+		cmd.factPool, err = dutil.NewLockedMap[string, dop5.OperationFact](nil, cmd.CapOpsSize)
+
+		return err
+	})
+
+	cmd.mustAddHandler("_worker_preload_ops", acceptHandlerPreloadOps(
+		cmd.enc,
+		func(fact dop5.OperationFact) error {
+			if err := createFactPool(); err != nil {
+				return err
+			}
+
+			fmt.Println(">", fact.Hash())
+			_ = cmd.factPool.SetValue(fact.Hash().String(), fact)
+
+			return nil
+		},
+	).StreamHandler(cmd.newAcceptSubStream))
 
 	if err := cmd.pingManager(); err != nil {
 		return nil, err
@@ -356,6 +377,12 @@ func (cmd *workerCommand) getOperationFact(ctx context.Context, opindex uint64, 
 	_ string,
 	_ error,
 ) {
+	if cmd.factPool != nil {
+		i, found := cmd.factPool.Value(facth.String())
+
+		return i, found, "", nil
+	}
+
 	found, err := cmd.db.getOperationFact(ctx, facth, &fact)
 
 	return fact, found, "", err

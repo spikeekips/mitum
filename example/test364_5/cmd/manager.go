@@ -43,12 +43,13 @@ type requestWorkerFunc = func(context.Context,
 	*tls.Config, *quic.Config, quicstream.StreamHandler) (context.Context, error)
 
 type managerCommand struct { //betteralign:ignore
-	baseCommand `cmd:""`
+	baseCommand
 	OpsShare    uint64   `arg:"" help:"ops share"`
 	StatesShare uint64   `arg:"" help:"states share"`
 	Ops         uint64   `arg:"" help:"number of operations"`
 	Workers     []string `arg:"" default:""`
-	PreProcess  bool
+	PreProcess  bool     `help:"pre process in one worker without workers"`
+	PreloadOps  bool     `help:"preload ops to workers"`
 
 	managerOptions    *dop5.ManagerOptions
 	privs             []base.Privatekey
@@ -80,6 +81,12 @@ func (cmd *managerCommand) Run(log *zerolog.Logger) error {
 
 	if err := cmd.waitWorkers(); err != nil {
 		return err
+	}
+
+	if cmd.PreloadOps {
+		if err := cmd.preloadOps(); err != nil {
+			return err
+		}
 	}
 
 	return cmd.process()
@@ -337,6 +344,10 @@ func (cmd *managerCommand) process2nd(prevHash util.Hash) (base.Manifest, error)
 }
 
 func (cmd *managerCommand) saveOps(facts []dop5.OperationFact) error {
+	if cmd.PreloadOps {
+		return nil
+	}
+
 	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
 		return cmd.log.Debug().Int("n", len(facts))
 	}, "cmd/save facts")()
@@ -845,6 +856,83 @@ func (cmd *managerCommand) checkProcessed(
 	}
 
 	return nil
+}
+
+func (cmd *managerCommand) preloadHeightOps(name string, facts []dop5.OperationFact) error {
+	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+		return cmd.log.Debug().
+			Str("name", name).
+			Int("ops", len(facts))
+	}, "cmd/preload height ops")()
+
+	var workerMaxItems dutil.InFunc[uint64, uint64]
+	var distribute dutil.In2ErrorFunc[uint64, dutil.InErrorFunc[uint64]]
+
+	switch w, i, err := dop5.NewDistributeSerialNShare(uint64(len(cmd.Workers)), uint64(len(facts)), cmd.StatesShare); {
+	case err != nil:
+		return err
+	default:
+		workerMaxItems, distribute = w, i
+	}
+
+	newJob, jobDone, jobWait, _ := dutil.NewFuncJobWorker(cmd.ctx, uint64(len(cmd.Workers)))
+
+	for worker := range slices.Values(cmd.Workers) {
+		if err := newJob(func(ctx context.Context) error {
+			return cmd.workerPreloadOps(ctx, workerMaxItems, distribute, worker, facts)
+		}); err != nil {
+			return jobWait(err)
+		}
+	}
+
+	jobDone()
+
+	return jobWait(nil)
+}
+
+func (cmd *managerCommand) workerPreloadOps(
+	ctx context.Context,
+	workerMaxItems dutil.InFunc[uint64, uint64],
+	distribute dutil.In2ErrorFunc[uint64, dutil.InErrorFunc[uint64]],
+	worker string,
+	facts []dop5.OperationFact,
+) error {
+	workerIndex := uint64(slices.Index(cmd.Workers, worker))
+	maxItems := workerMaxItems(workerIndex)
+
+	defer dutil.ElapsedLogMsg(func() *zerolog.Event {
+		return cmd.log.Debug().
+			Str("worker", worker).
+			Uint64("max_items", maxItems)
+	}, "cmd/worker preload ops")()
+
+	handler := requestHandlerPreloadOps(
+		cmd.enc,
+		maxItems,
+		1<<9,
+		1<<9,
+		func(yield func(fact dop5.OperationFact) bool) {
+			distribute(workerIndex, func(opindex uint64) error {
+				if !yield(facts[opindex]) {
+					return nil
+				}
+
+				return nil
+			})
+		},
+	).StreamHandler(cmd.openSubStreams)
+
+	_, err := cmd.requestWorker("_worker_preload_ops")(ctx, worker, nil, nil, handler)
+
+	return err
+}
+
+func (cmd *managerCommand) preloadOps() error {
+	if err := cmd.preloadHeightOps("create facts", cmd.createFacts); err != nil {
+		return err
+	}
+
+	return cmd.preloadHeightOps("transfer facts", cmd.transferFacts)
 }
 
 func prepareItems[T any](

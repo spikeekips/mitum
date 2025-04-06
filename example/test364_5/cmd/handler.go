@@ -26,6 +26,7 @@ var handlerPrefixesString = map[string]struct{}{
 	"manager_start_worker": {},
 	"_manager_stop_worker": {},
 	"_worker_ping_manager": {},
+	"_worker_preload_ops":  {},
 }
 
 var workHandlerPrefixesString = map[string]struct{}{
@@ -1089,4 +1090,167 @@ func jobsSubStreams(ctx context.Context, streams []quic.Stream, f dutil.In2Error
 	jobDone()
 
 	return jobWait(nil)
+}
+
+func requestHandlerPreloadOps(
+	enc encoder.Encoder,
+	maxItems, maxSubStreamItems uint64,
+	maxSubStreamsSize uint16,
+	seq iter.Seq[dop5.OperationFact],
+) quicstream.OpenSubStreamsHandler {
+	return func(
+		ctx context.Context,
+		stream quic.Stream,
+		openSubStreams quicstream.OpenSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		switch err := dutil.WriteInt(stream, maxItems); {
+		case err != nil:
+			return ctx, err
+		case maxItems < 1:
+			return ctx, nil
+		}
+
+		nsub := subStreamSize(maxItems, maxSubStreamItems, maxSubStreamsSize)
+		nsub--
+
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch f, err := openSubStreams(ctx, nsub); {
+		case err != nil:
+			return ctx, err
+		case nsub < 1:
+			subStreams = func(f dutil.InErrorFunc[[]quic.Stream]) error { return f(nil) }
+		default:
+			subStreams = f
+		}
+
+		var newJob dutil.JobWorkerNewJobFunc
+		var jobDone func()
+		var jobWait dutil.InErrorFunc[error]
+
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, min(maxItems, 1<<9)); {
+		case err != nil:
+			return ctx, err
+		default:
+			newJob, jobDone, jobWait = n, d, w
+		}
+
+		next, stop := iter.Pull(seq)
+		defer stop()
+
+		return ctx, subStreams(func(streams []quic.Stream) error {
+			defer stream.Close()
+
+			nstreams := make([]quic.Stream, len(streams)+1)
+			copy(nstreams, streams)
+			nstreams[len(streams)] = stream
+
+			var i int
+			for {
+				fact, ok := next()
+				if !ok {
+					break
+				}
+
+				sub := nstreams[i%len(nstreams)]
+
+				if err := newJob(func(context.Context) error {
+					return writePreLoadOp(sub, enc, fact)
+				}); err != nil {
+					return jobWait(err)
+				}
+
+				i++
+			}
+
+			jobDone()
+
+			return jobWait(nil)
+		})
+	}
+}
+
+func writePreLoadOp(w io.Writer, enc encoder.Encoder, fact dop5.OperationFact) error {
+	switch b, err := enc.Marshal(fact); {
+	case err != nil:
+		return err
+	default:
+		return frame.WriteFixed(w, b)
+	}
+}
+
+func acceptHandlerPreloadOps(
+	enc encoder.Encoder,
+	w dutil.InErrorFunc[dop5.OperationFact],
+) quicstream.AcceptSubStreamHandler {
+	return func(
+		ctx context.Context,
+		stream quic.Stream,
+		accept quicstream.AcceptSubStreamsHandlerOpenSubStreamsFunc,
+	) (context.Context, error) {
+		var maxItems uint64
+
+		switch err := dutil.ReadInt(stream, &maxItems); {
+		case err != nil:
+			return ctx, err
+		case maxItems < 1:
+			return ctx, nil
+		}
+
+		var subStreams dutil.InErrorFunc[dutil.InErrorFunc[[]quic.Stream]]
+
+		switch s, err := accept(ctx); {
+		case err != nil:
+			return ctx, err
+		default:
+			subStreams = s
+		}
+
+		var newJob dutil.JobWorkerNewJobFunc
+		var jobDone func()
+		var jobWait dutil.InErrorFunc[error]
+
+		switch n, d, w, err := dutil.NewFuncJobWorker(ctx, min(maxItems, 1<<9)); {
+		case err != nil:
+			return ctx, err
+		default:
+			newJob, jobDone, jobWait = n, d, w
+		}
+
+		if err := subStreams(func(streams []quic.Stream) error {
+			nstreams := make([]quic.Stream, len(streams)+1)
+			copy(nstreams, streams)
+			nstreams[len(streams)] = stream
+
+			return jobsSubStreams(ctx, nstreams, func(_ context.Context, sub quic.Stream) error {
+				for {
+					switch b, n, err := frame.ReadFixed(sub); {
+					case err != nil && !errors.Is(err, io.EOF):
+						return err
+					case n < 1 && errors.Is(err, io.EOF):
+						return nil
+					default:
+						if err := newJob(func(context.Context) error {
+							var fact dop5.OperationFact
+							if err := encoder.Unmarshal(enc, b, &fact); err != nil {
+								return err
+							}
+
+							return w(fact)
+						}); err != nil {
+							return err
+						}
+					}
+				}
+
+				return nil
+			})
+		}); err != nil {
+			return ctx, jobWait(err)
+		}
+
+		jobDone()
+
+		return ctx, jobWait(nil)
+	}
 }

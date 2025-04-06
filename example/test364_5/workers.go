@@ -410,7 +410,7 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 	var workerMaxItems dutil.InFunc[uint64, uint64]
 	var distribute dutil.In2ErrorFunc[uint64, dutil.InErrorFunc[uint64]]
 
-	switch w, i, err := newDistributeSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
+	switch w, i, err := NewDistributeSerialNShare(uint64(len(workers)), uint64(len(ophs)), share); {
 	case err != nil:
 		return nil, nil, err
 	default:
@@ -443,7 +443,7 @@ func opsNShareWorkers(workers []string, share uint64, ophs [][2]util.Hash) (
 		nil
 }
 
-func newDistributeSerialNShare(workers, items, share uint64) (
+func NewDistributeSerialNShare(workers, items, share uint64) (
 	dutil.InFunc[uint64, uint64],
 	dutil.In2ErrorFunc[uint64 /* worker */, dutil.InErrorFunc[uint64]],
 	error,

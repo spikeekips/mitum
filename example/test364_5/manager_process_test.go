@@ -340,7 +340,7 @@ func (t *testManagerProcess) TestOpsTree() {
 			opsWorkers := opsWorkersFromSeq(w)
 			t.T().Log("ops workers:", opsWorkers)
 
-			_, f, err := newDistributeSerialNShare(uint64(len(opsWorkers)), uint64(len(workers)), opsShare)
+			_, f, err := NewDistributeSerialNShare(uint64(len(opsWorkers)), uint64(len(workers)), opsShare)
 			t.NoError(err)
 
 			for i, worker := range slices.All(opsWorkers) {

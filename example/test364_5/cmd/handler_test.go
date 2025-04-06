@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -970,4 +971,120 @@ func doHandler(ctx context.Context, stream quic.Stream, h quicstream.StreamHandl
 	_ = quicstream.CloseStreamWithError(stream, err)
 
 	return ctx, err
+}
+
+type testHandlerPreloadOps struct {
+	quicstream.BaseTest
+	enc *jsonenc.Encoder
+}
+
+func (t *testHandlerPreloadOps) SetupSuite() {
+	t.BaseTest.SetupSuite()
+
+	t.enc = jsonenc.NewEncoder(1 << 9)
+	t.NoError(jsonenc.AddDecode(t.enc, base.DummyPublickeyHint, base.DummyPublickey{}, dop5.DecodeJSONDummyPublickey))
+	t.NoError(jsonenc.AddDecode(t.enc, dop5.AccountOpFactHint, &dop5.AccountOpFact{}, dop5.AccountOpFactDecodeJSON))
+}
+
+func (t *testHandlerPreloadOps) TeardownSuite() {
+	t.enc.Close()
+}
+
+func (t *testHandlerPreloadOps) randomFacts(n int) []dop5.OperationFact {
+	f := make([]dop5.OperationFact, n)
+
+	for i := range n {
+		f[i] = dop5.NewAccountOpFact(
+			util.UUID().Bytes(),
+			int64(i),
+			base.NewDummyPublickey(util.UUID().String()),
+			base.NewDummyPublickey(util.UUID().String()),
+		)
+	}
+
+	return f
+}
+
+func (t *testHandlerPreloadOps) run(name string, n int) {
+	t.RunWithGoLeak(
+		name,
+		func() {
+			ctx, cancel := t.Ctx()
+			defer cancel(nil)
+
+			ops := t.randomFacts(n)
+
+			_, _, rConn, hConn, rstream, hstream, closef := t.OpenStreams(ctx)
+			defer closef()
+
+			rctx := context.WithValue(ctx, quicstream.QuicConnectionContextKey, rConn)
+			hctx := context.WithValue(ctx, quicstream.QuicConnectionContextKey, hConn)
+
+			add, done, err := dutil.NewLockAppendSlice[dop5.OperationFact](1<<9, 1<<9)
+			t.NoError(err)
+
+			handler := acceptHandlerPreloadOps(t.enc, func(fact dop5.OperationFact) error {
+				add(fact)
+
+				return nil
+			})
+
+			handlerdone := make(chan error)
+
+			go func() {
+				_, err := handler.StreamHandler(quicstream.NewFuncAcceptSubStreams(1<<9))(hctx, hstream)
+				handlerdone <- err
+			}()
+
+			requestHandler := requestHandlerPreloadOps(
+				t.enc,
+				uint64(len(ops)),
+				1<<9,
+				1<<9,
+				func(yield func(fact dop5.OperationFact) bool) {
+					for fact := range slices.Values(ops) {
+						if !yield(fact) {
+							return
+						}
+					}
+				},
+			)
+
+			openConnSubStreams, openConnSubStreamsClose, _ := quicstream.NewConnsAcceptSubStreams(context.Background(), time.Minute)
+			defer openConnSubStreamsClose()
+			openSubStreams := quicstream.NewFuncOpenSubStreams(openConnSubStreams)
+
+			_, err = requestHandler.StreamHandler(openSubStreams)(rctx, rstream)
+			t.NoError(err)
+
+			select {
+			case <-time.After(time.Second):
+				t.Fail("wait accept handler done")
+			case err := <-handlerdone:
+				t.NoError(err)
+			}
+
+			rops := done()
+			t.Equal(len(ops), len(rops))
+
+			slices.SortFunc(ops, func(a, b dop5.OperationFact) int { return strings.Compare(a.Hash().String(), b.Hash().String()) })
+			slices.SortFunc(rops, func(a, b dop5.OperationFact) int { return strings.Compare(a.Hash().String(), b.Hash().String()) })
+
+			for i, fact := range slices.All(ops) {
+				base.EqualFact(t.Assert(), fact, rops[i])
+			}
+		},
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func2"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/example/test364_5/util.NewContextUnlimitedChans[...].func4"),
+	)
+}
+
+func (t *testHandlerPreloadOps) TestOK() {
+	t.run("empty", 0)
+	t.run("1", 1)
+	t.run("33", 33)
+}
+
+func TestHandlerPreloadOps(t *testing.T) {
+	suite.Run(t, new(testHandlerPreloadOps))
 }
