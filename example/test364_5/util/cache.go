@@ -3,6 +3,7 @@ package util
 import (
 	"cmp"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/spikeekips/mitum/util"
@@ -38,21 +39,29 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 
 	donech := make(chan struct{})
 
-	go func() {
-	end:
-		for i := range seq {
-			switch v, found := cache.Get(i[0].(K)); { // FIXME lock
-			case !found:
-			case i[3].(O) < v[1].(O):
-				continue end
-			}
+	var lock sync.RWMutex
 
+	seqGetSet := func(k K, v V, o O, d time.Duration) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		switch i, found := cache.Get(k); {
+		case !found:
+		case o < i[1].(O):
+			return
+		}
+
+		cache.Set(k, [2]any{v, o}, d)
+	}
+
+	go func() {
+		for i := range seq {
 			var v V
 			if i[1] != nil {
 				v = i[1].(V)
 			}
 
-			cache.Set(i[0].(K), [2]any{v, i[3]}, i[2].(time.Duration))
+			seqGetSet(i[0].(K), v, i[3].(O), i[2].(time.Duration))
 		}
 
 		close(donech)
@@ -71,6 +80,9 @@ func NewLazyCache[K comparable, V any, O cmp.Ordered](
 			}
 		},
 		func(k K, v V, d time.Duration) {
+			lock.Lock()
+			defer lock.Unlock()
+
 			cache.Set(k, [2]any{v, order(v)}, d)
 		},
 		func(k K, v V, d time.Duration) {
